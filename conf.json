@@ -1,0 +1,11 @@
+{
+    "m2m:conf": {
+        "csebase": "mobius",
+        "csebaseport": "7579",
+        "dbhost": "localhost",
+        "dbpass": "dksdlfduq2",
+        "mqttbroker": "yt.iotmobius.com",
+        "mqttproxyport": "9726",
+        "tsagentport": "9874"
+    }
+}
