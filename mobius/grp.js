@@ -23,7 +23,7 @@ var responder = require('./responder');
 var db = require('./db_action');
 
 
-function check_mtv(request, response, mt, mid, callback) {
+function check_mtv(mt, mid, callback) {
     var sql = util.format("select ri from lookup where where ty = \'%s\' and ri in ("+JSON.stringify(mid).replace('[','').replace(']','')+")", mt);
     db.getResult(sql, '', function (err, results_mid) {
         if(!err) {
