@@ -236,7 +236,7 @@ function create_action_cni(request, response, ty, pi, mni, cs, callback) {
             }
             else {
                 cni = (parseInt(cni, 10) + 1).toString();
-                cbs = (parseInt(cbs, 10) + parseInt(cs, 10)).toString()
+                cbs = (parseInt(cbs, 10) + parseInt(cs, 10)).toString();
                 results_cni[0].cni = cni;
                 results_cni[0].cbs = cbs;
                 if (ty == '4') {
