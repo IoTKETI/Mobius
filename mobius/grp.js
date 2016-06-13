@@ -177,6 +177,7 @@ exports.build_grp = function(request, response, resource_Obj, body_Obj, callback
                 else {
                     if (resource_Obj[rootnm].csy == '1') { // ABANDON_MEMBER
                         resource_Obj[rootnm].mid = results_mid;
+                        resource_Obj[rootnm].cnm = body_Obj[rootnm].mid.length.toString();
                         resource_Obj[rootnm].mtv = 'true';
                     }
                     else if (resource_Obj[rootnm].csy == '2') { // ABANDON_GROUP
