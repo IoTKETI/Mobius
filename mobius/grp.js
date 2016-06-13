@@ -359,10 +359,6 @@ exports.update_grp = function(request, response, resource_Obj, body_Obj, callbac
         resource_Obj[rootnm].mnm = body_Obj[rootnm].mnm;
     }
 
-    if(body_Obj[rootnm].mid) {
-        resource_Obj[rootnm].mid = body_Obj[rootnm].mid;
-    }
-
     if(body_Obj[rootnm].macp) {
         resource_Obj[rootnm].macp = body_Obj[rootnm].macp;
     }
@@ -381,6 +377,62 @@ exports.update_grp = function(request, response, resource_Obj, body_Obj, callbac
         }
     }
 
-    callback('1', resource_Obj);
+    if(body_Obj[rootnm].mid) {
+        resource_Obj[rootnm].mid = body_Obj[rootnm].mid;
+
+        if(resource_Obj[rootnm].mt != '24') {
+            check_mtv(resource_Obj[rootnm].mt, resource_Obj[rootnm].mid, function(rsc, results_mid) {
+                if(rsc == '0') { // mt inconsistency
+                    if(results_mid.length == '0') {
+                        body_Obj = {};
+                        body_Obj['rsp'] = {};
+                        body_Obj['rsp'].cap = 'can not create group because mid is empty after validation check of mt requested';
+                        responder.response_result(request, response, 400, body_Obj, 4000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
+                        callback('0', body_Obj);
+                        return '0';
+                    }
+                    else {
+                        if (resource_Obj[rootnm].csy == '1') { // ABANDON_MEMBER
+                            resource_Obj[rootnm].mid = results_mid;
+                            resource_Obj[rootnm].cnm = body_Obj[rootnm].mid.length.toString();
+                            resource_Obj[rootnm].mtv = 'true';
+                        }
+                        else if (resource_Obj[rootnm].csy == '2') { // ABANDON_GROUP
+                            body_Obj = {};
+                            body_Obj['rsp'] = {};
+                            body_Obj['rsp'].cap = 'can not create group because csy is ABANDON_GROUP when MEMBER_TYPE_INCONSISTENT';
+                            responder.response_result(request, response, 400, body_Obj, 6011, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
+                            callback('0', body_Obj);
+                            return '0';
+                        }
+                        else { // SET_MIXED
+                            resource_Obj[rootnm].mt = '24';
+                            resource_Obj[rootnm].mtv = 'false';
+                        }
+                    }
+                }
+                else if(rsc == '1') {
+                    resource_Obj[rootnm].mtv = 'true';
+                }
+                else { // db error
+                    body_Obj = {};
+                    body_Obj['rsp'] = {};
+                    body_Obj['rsp'].cap = results_mid.code;
+                    responder.response_result(request, response, 500, body_Obj, 5000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
+                    callback('0', body_Obj);
+                    return '0';
+                }
+
+                callback('1', resource_Obj);
+            });
+        }
+        else {
+            resource_Obj[rootnm].mtv = 'false';
+            callback('1', resource_Obj);
+        }
+    }
+    else {
+        callback('1', resource_Obj);
+    }
 };
 
