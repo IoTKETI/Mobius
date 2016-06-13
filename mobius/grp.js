@@ -293,19 +293,37 @@ exports.update_grp = function(request, response, resource_Obj, body_Obj, callbac
         return '0';
     }
 
-    if(body_Obj[rootnm].cni) {
+    if(body_Obj[rootnm].mt) {
         body_Obj = {};
         body_Obj['rsp'] = {};
-        body_Obj['rsp'].cap = 'cni as NP Tag should not be included';
+        body_Obj['rsp'].cap = 'mt as NP Tag should not be included';
         responder.response_result(request, response, 400, body_Obj, 4000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
         callback('0', resource_Obj);
         return '0';
     }
 
-    if(body_Obj[rootnm].cbs) {
+    if(body_Obj[rootnm].cnm) {
         body_Obj = {};
         body_Obj['rsp'] = {};
-        body_Obj['rsp'].cap = 'cbs as NP Tag should not be included';
+        body_Obj['rsp'].cap = 'cnm as NP Tag should not be included';
+        responder.response_result(request, response, 400, body_Obj, 4000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
+        callback('0', resource_Obj);
+        return '0';
+    }
+
+    if(body_Obj[rootnm].mtv) {
+        body_Obj = {};
+        body_Obj['rsp'] = {};
+        body_Obj['rsp'].cap = 'mtv as NP Tag should not be included';
+        responder.response_result(request, response, 400, body_Obj, 4000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
+        callback('0', resource_Obj);
+        return '0';
+    }
+
+    if(body_Obj[rootnm].csy) {
+        body_Obj = {};
+        body_Obj['rsp'] = {};
+        body_Obj['rsp'].cap = 'csy as NP Tag should not be included';
         responder.response_result(request, response, 400, body_Obj, 4000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
         callback('0', resource_Obj);
         return '0';
@@ -336,27 +354,16 @@ exports.update_grp = function(request, response, resource_Obj, body_Obj, callbac
         resource_Obj[rootnm].aa = body_Obj[rootnm].aa;
     }
 
-    if(body_Obj[rootnm].mni) {
-        resource_Obj[rootnm].mni = body_Obj[rootnm].mni;
-        if(parseInt(resource_Obj[rootnm].mni) >= 9007199254740991) {
-            resource_Obj[rootnm].mni = '9007199254740991';
-        }
+    if(body_Obj[rootnm].mnm) {
+        resource_Obj[rootnm].mnm = body_Obj[rootnm].mnm;
     }
 
-    if(body_Obj[rootnm].mbs) {
-        resource_Obj[rootnm].mbs = body_Obj[rootnm].mbs;
+    if(body_Obj[rootnm].mid) {
+        resource_Obj[rootnm].mid = body_Obj[rootnm].mid;
     }
 
-    if(body_Obj[rootnm].mia) {
-        resource_Obj[rootnm].mia = body_Obj[rootnm].mia;
-    }
-
-    if(body_Obj[rootnm].li) {
-        resource_Obj[rootnm].li = body_Obj[rootnm].li;
-    }
-
-    if(body_Obj[rootnm].or) {
-        resource_Obj[rootnm].or = body_Obj[rootnm].or;
+    if(body_Obj[rootnm].macp) {
+        resource_Obj[rootnm].macp = body_Obj[rootnm].macp;
     }
 
     var cur_d = new Date();
