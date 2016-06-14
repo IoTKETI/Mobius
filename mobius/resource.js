@@ -1193,6 +1193,11 @@ function update_resource(request, response, ty, body_Obj, resource_Obj, callback
                 callback(rsc, resource_Obj);
             });
             break;
+        case '9':
+            grp.update_grp(request, response, resource_Obj, body_Obj, function(rsc, resource_Obj) {
+                callback(rsc, resource_Obj);
+            });
+            break;
         case '10':
             lcp.update_lcp(request, response, resource_Obj, body_Obj, function(rsc, resource_Obj) {
                 callback(rsc, resource_Obj);
