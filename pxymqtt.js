@@ -101,7 +101,7 @@ custom.on('mqtt_watchdog', function() {
                             console.log('[pxymqtt.js retrieve_CSEBase parsing error]');
                         }
                         else {
-                            jsonObj = JSON.parse(jsonString);
+                            jsonObj = JSON.parse(result);
                             usemqttcseid = (jsonObj['m2m:cb'] == null) ? jsonObj['m2m:CSEBase']['CSE-ID'] : jsonObj['m2m:cb']['csi'];
                         }
                     });
@@ -110,6 +110,7 @@ custom.on('mqtt_watchdog', function() {
                     var jsonObj = JSON.parse(res_body);
                     usemqttcseid = (jsonObj['m2m:cb'] == null) ? jsonObj['m2m:CSEBase']['CSE-ID'] : jsonObj['m2m:cb']['csi'];
                 }
+                mqtt_state = 'connecting';
 
                 if(pxymqtt_client == null) {
                     pxymqtt_client = mqtt.connect('mqtt://' + usemqttbroker);
@@ -129,6 +130,21 @@ custom.on('mqtt_watchdog', function() {
                 console.log('Target CSE(' + usemqttcbhost + ') is not ready');
             }
         });
+    }
+    else if(mqtt_state == 'connecting') {
+        if(pxymqtt_client == null) {
+            pxymqtt_client = mqtt.connect('mqtt://' + usemqttbroker);
+            pxymqtt_client.on('connect', function () {
+                req_connect(pxymqtt_client);
+                reg_req_connect(pxymqtt_client);
+                resp_connect(pxymqtt_client);
+                mqtt_state = 'ready';
+
+                require('./mobius/ts_agent');
+            });
+
+            pxymqtt_client.on('message', mqtt_message_handler);
+        }
     }
 });
 
@@ -309,7 +325,7 @@ mqtt_app.post('/notification', xmlParser, function(request, response, next) {
         if(nec == 'keti') { // for mqtt implementation of keti
             noti_topic = util.format('/req/%s/%s/%s', usemqttcseid.replace('/', ':'), aeid, request.headers.bodytype);
 
-            var noti_message = {};
+            noti_message = {};
             noti_message['m2m:rqp'] = {};
             noti_message['m2m:rqp'].op = 5; // notification
             noti_message['m2m:rqp'].rqi = rqi;
@@ -324,8 +340,7 @@ mqtt_app.post('/notification', xmlParser, function(request, response, next) {
                 delete pc.sgn.sur;
             }
 
-            var attr = '';
-            for(attr in pc.sgn.nev.rep) {
+            for(var attr in pc.sgn.nev.rep) {
                 if(pc.sgn.nev.rep[attr].cs) {
                     delete pc.sgn.nev.rep[attr].cs;
                 }
@@ -390,7 +405,7 @@ mqtt_app.post('/notification', xmlParser, function(request, response, next) {
                     "xmlns:xsi": "http://www.w3.org/2001/XMLSchema-instance"
                 };
 
-                var xmlString = js2xmlparser("m2m:rqp", noti_message['m2m:rqp']);
+                xmlString = js2xmlparser("m2m:rqp", noti_message['m2m:rqp']);
 
                 pxymqtt_client.publish(noti_topic, xmlString);
                 console.log('<---- ' + noti_topic);
