@@ -774,6 +774,12 @@ exports.response_result = function(request, response, status, body_Obj, rsc, ri,
                     else if (attr == 'notificationURI' || attr == 'nu') {
                         xml.ele(attr, body_Obj[index][attr].toString().replace(/,/g, ' '));
                     }
+                    else if (attr == 'memberIDs' || attr == 'mid') {
+                        xml.ele(attr, body_Obj[index][attr].toString().replace(/,/g, ' '));
+                    }
+                    else if (attr == 'membersAccessControlPolicyIDs' || attr == 'macp') {
+                        xml.ele(attr, body_Obj[index][attr].toString().replace(/,/g, ' '));
+                    }
                     else {
                         xml.ele(attr, body_Obj[index][attr]);
                     }
@@ -896,6 +902,10 @@ exports.search_result = function(request, response, status, body_Obj, rsc, ri, c
                 body_Obj[prop].srt = JSON.parse(body_Obj[prop].srt);
             }
 
+            if (body_Obj[prop].mid) {
+                body_Obj[prop].mid = JSON.parse(body_Obj[prop].mid);
+            }
+
             if (body_Obj[prop].pv) {
                 body_Obj[prop].pv = JSON.parse(body_Obj[prop].pv);
                 body_Obj[prop]['pv']['acr'].splice(body_Obj[prop]['pv']['acr'].length-1, 1);
@@ -1000,6 +1010,12 @@ exports.search_result = function(request, response, status, body_Obj, rsc, ri, c
                             xml_1.ele(attr, res_Obj[index][prop][attr].toString().replace(/,/g, ' '));
                         }
                         else if (attr == 'notificationURI' || attr == 'nu') {
+                            xml_1.ele(attr, res_Obj[index][prop][attr].toString().replace(/,/g, ' '));
+                        }
+                        else if (attr == 'memberIDs' || attr == 'mid') {
+                            xml_1.ele(attr, res_Obj[index][prop][attr].toString().replace(/,/g, ' '));
+                        }
+                        else if (attr == 'membersAccessControlPolicyIDs' || attr == 'macp') {
                             xml_1.ele(attr, res_Obj[index][prop][attr].toString().replace(/,/g, ' '));
                         }
                         else {

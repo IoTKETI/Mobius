@@ -118,7 +118,7 @@ exports.build_csr = function(request, response, resource_Obj, body_Obj, callback
     resource_Obj[rootnm].at = (body_Obj[rootnm].at) ? body_Obj[rootnm].at : [];
     resource_Obj[rootnm].aa = (body_Obj[rootnm].aa) ? body_Obj[rootnm].aa : [];
 
-    resource_Obj[rootnm].cst = (body_Obj[rootnm].cst) ? body_Obj[rootnm].cst : '';
+    resource_Obj[rootnm].cst = (body_Obj[rootnm].cst) ? body_Obj[rootnm].cst : '1';
     resource_Obj[rootnm].poa = (body_Obj[rootnm].poa) ? body_Obj[rootnm].poa : [];
     resource_Obj[rootnm].mei = (body_Obj[rootnm].mei) ? body_Obj[rootnm].mei : '';
     resource_Obj[rootnm].tri = (body_Obj[rootnm].tri) ? body_Obj[rootnm].tri : '';

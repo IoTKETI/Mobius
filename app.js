@@ -61,6 +61,7 @@ var cb = require('./mobius/cb');
 var responder = require('./mobius/responder');
 var resource = require('./mobius/resource');
 var security = require('./mobius/security');
+var fopt = require('./mobius/fopt');
 
 var db = require('./mobius/db_action');
 
@@ -193,7 +194,6 @@ else {
     });
 }
 
-
 function check_nametype(nmtype, body_Obj) {
     if(nmtype == 'long') {
         var rsrcLongName = Object.keys(body_Obj)[0].split(':')[1];
@@ -277,6 +277,9 @@ function check_http(request, response, callback) {
     else {
         request.headers.usebodytype = defaultbodytype;
     }
+
+    var url_arr = url.parse(request.url).pathname.toLowerCase().split('/');
+    var last_url = url_arr[url_arr.length-1];
 
     if(request.method == 'POST' || request.method == 'PUT') {
         if(request.body == "") {
@@ -654,12 +657,10 @@ function check_http(request, response, callback) {
         }
     }
     else if(request.method == 'GET' || request.method == 'DELETE') {
-        var url_arr = url.parse(request.url).pathname.toLowerCase().split('/');
-        var recent = url_arr[url_arr.length-1];
-        if(recent == 'latest' || recent == 'la') {
+        if(last_url == 'latest' || last_url == 'la') {
             callback('latest', body_Obj);
         }
-        else if(recent == 'oldest' || recent == 'ol') {
+        else if(last_url == 'oldest' || last_url == 'ol') {
             callback('oldest', body_Obj);
         }
         else {
@@ -680,26 +681,38 @@ function check_resource(request, response, option, callback) {
     var ri = url.parse(request.url).pathname.toLowerCase();
 
     var url_arr = ri.split('/');
-    var recent = url_arr[url_arr.length-1];
+    var last_url = url_arr[url_arr.length-1];
+    var op = 'direct';
 
     var queryJson = {};
     queryJson.type = 'select';
     queryJson.table = 'lookup';
-    if(option == 'latest') {
+    if(last_url == 'latest' || last_url == 'la') {
         ri = ri.replace('/latest', '');
         ri = ri.replace('/la', '');
         var sql = util.format("select * from lookup where pi = \'%s\' and (ty = '4' or ty = '26') order by ct desc limit 1", ri);
         queryJson.condition = 'latest';
+        op = 'latest';
+        
     }
-    else if(option == 'oldest') {
+    else if(last_url == 'oldest' || last_url == 'ol') {
         ri = ri.replace('/oldest', '');
         ri = ri.replace('/ol', '');
         sql = util.format("select * from lookup where pi = \'%s\' and (ty = '4' or ty = '26') order by ct asc limit 1", ri);
         queryJson.condition = 'oldest';
+        op = 'oldest';
+    }
+    else if(last_url == 'fanoutpoint' || last_url == 'fopt') {
+        ri = ri.replace('/fanoutpoint', '');
+        ri = ri.replace('/fopt', '');
+        sql = util.format("select * from lookup where ri = \'%s\' and ty = '9'", ri);
+        queryJson.condition = 'fanoutpoint';
+        op = 'fanoutpoint';
     }
     else {
         sql = util.format("select * from lookup where ri = \'%s\'", ri);
         queryJson.condition = 'direct';
+        op = 'direct';
     }
     
     db.getResult(sql, queryJson, function(err, results) {
@@ -709,6 +722,41 @@ function check_resource(request, response, option, callback) {
                 results[0].lbl = JSON.parse(results[0].lbl);
                 results[0].aa = JSON.parse(results[0].aa);
                 results[0].at = JSON.parse(results[0].at);
+                callback('1', results[0], op);
+            }
+            else {
+                result_Obj['rsp'] = {};
+                result_Obj['rsp'].cap = 'resource does not exist';
+                responder.response_result(request, response, 404, result_Obj, 4004, url.parse(request.url).pathname.toLowerCase(), result_Obj['rsp'].cap);
+                callback('0');
+                return '0';
+            }
+        }
+        else {
+            result_Obj['rsp'] = {};
+            result_Obj['rsp'].cap = results.code;
+            responder.response_result(request, response, 500, result_Obj, 5000, url.parse(request.url).pathname.toLowerCase(), result_Obj['rsp'].cap);
+            callback('0');
+            return '0';
+        }
+    });
+}
+
+
+function check_grp(request, response, ri, callback) {
+    var result_Obj = {};
+
+    var queryJson = {};
+    queryJson.type = 'select';
+    queryJson.table = 'group';
+
+    var sql = util.format("select * from grp where ri = \'%s\'", ri);
+    queryJson.condition = 'direct';
+
+    db.getResult(sql, queryJson, function(err, results) {
+        if(!err) {
+            if (results.length == 1) {
+                results[0].macp = JSON.parse(results[0].macp);
                 callback('1', results[0]);
             }
             else {
@@ -739,67 +787,89 @@ function lookup_create(request, response) {
         if(ty == '0') {
             return ty;
         }
-        check_resource(request, response, 'direct', function (rsc, parent_comm) {
+        check_resource(request, response, 'direct', function (rsc, parent_comm, op) {
             if(rsc == '0') {
                 return rsc;
             }
             
             var rootnm = request.headers.rootnm;
 
-            if ((ty == 1) && (parent_comm.ty == 5 || parent_comm.ty == 16 || parent_comm.ty == 2)) { // accessControlPolicy
-            }
-            else if ((ty == 9) && (parent_comm.ty == 5 || parent_comm.ty == 16 || parent_comm.ty == 2)) { // group
-            }
-            else if ((ty == 16) && (parent_comm.ty == 5)) { // remoteCSE
-            }
-            else if ((ty == 10) && (parent_comm.ty == 5)) { // locationPolicy
-            }
-            else if ((ty == 2) && (parent_comm.ty == 5)) { // ae
-            }
-            else if ((ty == 3) && (parent_comm.ty == 5 || parent_comm.ty == 16 || parent_comm.ty == 2 || parent_comm.ty == 3)) { // container
-            }
-            else if ((ty == 23) && (parent_comm.ty == 5 || parent_comm.ty == 16 || parent_comm.ty == 2 || 
-                parent_comm.ty == 3 || parent_comm.ty == 28 || parent_comm.ty == 25)) { // sub
-            }
-            else if ((ty == 4) && (parent_comm.ty == 3)) { // contentInstance
-                body_Obj[rootnm].mni = parent_comm.mni;
-            }
-            else if ((ty == 28) && (parent_comm.ty == 2 || parent_comm.ty == 3 || parent_comm.ty == 4 || parent_comm.ty == 25)) { // semanticDescriptor
-            }
-            else if ((ty == 25) && (parent_comm.ty == 5 || parent_comm.ty == 16 || parent_comm.ty == 2)) { // timeSeries
-            }
-            else if ((ty == 26) && (parent_comm.ty == 25)) { // timeSeriesInstance
-                body_Obj[rootnm].mni = parent_comm.mni;
-            }
-            else if ((ty == 27) && (parent_comm.ty == 2 || parent_comm.ty == 16)) { // multimediaSession
-            }
-            else {
-                body_Obj = {};
-                body_Obj['rsp'] = {};
-                body_Obj['rsp'].cap = 'request ty creating can not create at parent resource';
-                responder.response_result(request, response, 400, body_Obj, 4000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
-                return '0';
-            }
+            if(op == 'fanoutpoint') {
+                // check access right for fanoutpoint
+                check_grp(request, response, parent_comm.ri, function (rsc, result_grp, op) {
+                    if(rsc == '0') {
+                        return rsc;
+                    }
 
-            // for security with acp
-            if(!body_Obj[rootnm].acpi) {
-                body_Obj[rootnm].acpi = [];
-            }
+                    security.check(request, parent_comm.ty, result_grp.macp, '1', function (rsc) {
+                        if (rsc == '0') {
+                            body_Obj = {};
+                            body_Obj['rsp'] = {};
+                            body_Obj['rsp'].cap = 'ACCESS_DENIED';
+                            responder.response_result(request, response, 403, body_Obj, 4103, url.parse(request.url).pathname.toLowerCase(), 'ACCESS_DENIED');
+                            return '0';
+                        }
 
-            for(var index in parent_comm.acpi) {
-                body_Obj[rootnm].acpi.push(parent_comm.acpi[index]);
+                        fopt.check(request, response, result_grp, ty, body_Obj);
+                    });
+                });
             }
-
-            security.check(request, parent_comm.ty, parent_comm.acpi, '1', function (rsc) {
-                if (rsc == '0') {
+            else { //if(op == 'direct') {
+                if ((ty == 1) && (parent_comm.ty == 5 || parent_comm.ty == 16 || parent_comm.ty == 2)) { // accessControlPolicy
+                }
+                else if ((ty == 9) && (parent_comm.ty == 5 || parent_comm.ty == 16 || parent_comm.ty == 2)) { // group
+                }
+                else if ((ty == 16) && (parent_comm.ty == 5)) { // remoteCSE
+                }
+                else if ((ty == 10) && (parent_comm.ty == 5)) { // locationPolicy
+                }
+                else if ((ty == 2) && (parent_comm.ty == 5)) { // ae
+                }
+                else if ((ty == 3) && (parent_comm.ty == 5 || parent_comm.ty == 16 || parent_comm.ty == 2 || parent_comm.ty == 3)) { // container
+                }
+                else if ((ty == 23) && (parent_comm.ty == 5 || parent_comm.ty == 16 || parent_comm.ty == 2 ||
+                    parent_comm.ty == 3 || parent_comm.ty == 28 || parent_comm.ty == 25)) { // sub
+                }
+                else if ((ty == 4) && (parent_comm.ty == 3)) { // contentInstance
+                    body_Obj[rootnm].mni = parent_comm.mni;
+                }
+                else if ((ty == 28) && (parent_comm.ty == 2 || parent_comm.ty == 3 || parent_comm.ty == 4 || parent_comm.ty == 25)) { // semanticDescriptor
+                }
+                else if ((ty == 25) && (parent_comm.ty == 5 || parent_comm.ty == 16 || parent_comm.ty == 2)) { // timeSeries
+                }
+                else if ((ty == 26) && (parent_comm.ty == 25)) { // timeSeriesInstance
+                    body_Obj[rootnm].mni = parent_comm.mni;
+                }
+                else if ((ty == 27) && (parent_comm.ty == 2 || parent_comm.ty == 16)) { // multimediaSession
+                }
+                else {
                     body_Obj = {};
                     body_Obj['rsp'] = {};
-                    body_Obj['rsp'].cap = 'ACCESS_DENIED';
-                    responder.response_result(request, response, 403, body_Obj, 4103, url.parse(request.url).pathname.toLowerCase(), 'ACCESS_DENIED');
+                    body_Obj['rsp'].cap = 'request ty creating can not create at parent resource';
+                    responder.response_result(request, response, 400, body_Obj, 4000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
                     return '0';
                 }
-                resource.create(request, response, ty, body_Obj);
-            });
+
+                // for security with acp
+                if (!body_Obj[rootnm].acpi) {
+                    body_Obj[rootnm].acpi = [];
+                }
+
+                for (var index in parent_comm.acpi) {
+                    body_Obj[rootnm].acpi.push(parent_comm.acpi[index]);
+                }
+
+                security.check(request, parent_comm.ty, parent_comm.acpi, '1', function (rsc) {
+                    if (rsc == '0') {
+                        body_Obj = {};
+                        body_Obj['rsp'] = {};
+                        body_Obj['rsp'].cap = 'ACCESS_DENIED';
+                        responder.response_result(request, response, 403, body_Obj, 4103, url.parse(request.url).pathname.toLowerCase(), 'ACCESS_DENIED');
+                        return '0';
+                    }
+                    resource.create(request, response, ty, body_Obj);
+                });
+            }
         });
     });
 }

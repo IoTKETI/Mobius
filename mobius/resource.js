@@ -264,8 +264,6 @@ function create_action_cni(request, response, ty, pi, mni, cs, callback) {
     });
 }
 
-
-
 function create_action(request, response, ty, resource_Obj, callback) {
     var rootnm = request.headers.rootnm;
     var queryJson = {};
@@ -341,6 +339,22 @@ function create_action(request, response, ty, resource_Obj, callback) {
             resourceJson.cs = resource_Obj[rootnm].cs;
             resourceJson.or = resource_Obj[rootnm].or;
             resourceJson.con = resource_Obj[rootnm].con;
+            break;
+        case '9':
+            sql2 = util.format('insert into grp (ri, cr, mt, cnm, mnm, mid, macp, mtv, csy, gn) ' +
+                'VALUE (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
+                resource_Obj[rootnm].ri, resource_Obj[rootnm].cr, resource_Obj[rootnm].mt, resource_Obj[rootnm].cnm, resource_Obj[rootnm].mnm,
+                JSON.stringify(resource_Obj[rootnm].mid), JSON.stringify(resource_Obj[rootnm].macp), resource_Obj[rootnm].mtv, resource_Obj[rootnm].csy, resource_Obj[rootnm].gn);
+            resourceJson.ri = resource_Obj[rootnm].ri;
+            resourceJson.cr = resource_Obj[rootnm].cr;
+            resourceJson.mt = resource_Obj[rootnm].mt;
+            resourceJson.cnm = resource_Obj[rootnm].cnm;
+            resourceJson.mnm = resource_Obj[rootnm].mnm;
+            resourceJson.mid = resource_Obj[rootnm].mid;
+            resourceJson.macp = resource_Obj[rootnm].macp;
+            resourceJson.mtv = resource_Obj[rootnm].mtv;
+            resourceJson.csy = resource_Obj[rootnm].csy;
+            resourceJson.gn = resource_Obj[rootnm].gn;
             break;
         case '10':
             sql2 = util.format('insert into lcp (ri, los, lou, lot, lor, loi, lon, lost) ' +
@@ -480,6 +494,10 @@ function create_action(request, response, ty, resource_Obj, callback) {
                         });
                         callback('1', resource_Obj);
                     }
+                    else if(ty == 16) {
+                        console.timeEnd('resource_create');
+                        callback('1', resource_Obj);
+                    }
                     else {
                         console.timeEnd('resource_create');
                         callback('1', resource_Obj);
@@ -558,68 +576,92 @@ function build_resource(request, response, ty, body_Obj, callback) {
         resource_Obj[rootnm].cs = '0';
     }
 
-    switch (ty) {
-        case '1':
-            acp.build_acp(request, response, resource_Obj, body_Obj, function(rsc, resource_Obj) {
-                callback(rsc, resource_Obj);
-            });
-            break;
-        case '2':
-            ae.build_ae(request, response, resource_Obj, body_Obj, function(rsc, resource_Obj) {
-                callback(rsc, resource_Obj);
-            });
-            break;
-        case '3':
-            cnt.build_cnt(request, response, resource_Obj, body_Obj, function(rsc, resource_Obj) {
-                callback(rsc, resource_Obj);
-            });
-            break;
-        case '4':
-            cin.build_cin(request, response, resource_Obj, body_Obj, function(rsc, resource_Obj) {
-                callback(rsc, resource_Obj);
-            });
-            break;
-        case '9':
-            grp.build_grp(request, response, resource_Obj, body_Obj, function(rsc, resource_Obj) {
-                callback(rsc, resource_Obj);
-            });
-            break;
-        case '10':
-            lcp.build_lcp(request, response, resource_Obj, body_Obj, function(rsc, resource_Obj) {
-                callback(rsc, resource_Obj);
-            });
-            break;
-        case '16': 
-            csr.build_csr(request, response, resource_Obj, body_Obj, function(rsc, resource_Obj) {
-                callback(rsc, resource_Obj);
-            }); 
-            break;
-        case '23':
-            sub.build_sub(request, response, resource_Obj, body_Obj, function(rsc, resource_Obj) {
-                callback(rsc, resource_Obj);
-            });
-            break;
-        case '28':
-            sd.build_sd(request, response, resource_Obj, body_Obj, function(rsc, resource_Obj) {
-                callback(rsc, resource_Obj);
-            });
-            break;
-        case '25': 
-            ts.build_ts(request, response, resource_Obj, body_Obj, function(rsc, resource_Obj) {
-                callback(rsc, resource_Obj);
-            }); 
-            break;
-        case '26': 
-            tsi.build_tsi(request, response, resource_Obj, body_Obj, function(rsc, resource_Obj) {
-                callback(rsc, resource_Obj);
-            }); 
-            break;
-        case '27':
-            mms.build_mms(request, response, resource_Obj, body_Obj, function(rsc, resource_Obj) {
-                callback(rsc, resource_Obj);
-            });
-            break;
-    }
+    var queryJson = {};
+    var sql = util.format("select * from lookup where ri = \'%s\'", resource_Obj[rootnm].ri);
+    db.getResult(sql, queryJson, function(err, result_Obj) {
+        if(!err) {
+            if (result_Obj.length == 1) {
+                body_Obj = {};
+                body_Obj['rsp'] = {};
+                body_Obj['rsp'].cap = "resource is already exist";
+                responder.response_result(request, response, 409, body_Obj, 4105, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
+                callback('0');
+                return '0';
+            }
+            else {
+                switch (ty) {
+                    case '1':
+                        acp.build_acp(request, response, resource_Obj, body_Obj, function(rsc, resource_Obj) {
+                            callback(rsc, resource_Obj);
+                        });
+                        break;
+                    case '2':
+                        ae.build_ae(request, response, resource_Obj, body_Obj, function(rsc, resource_Obj) {
+                            callback(rsc, resource_Obj);
+                        });
+                        break;
+                    case '3':
+                        cnt.build_cnt(request, response, resource_Obj, body_Obj, function(rsc, resource_Obj) {
+                            callback(rsc, resource_Obj);
+                        });
+                        break;
+                    case '4':
+                        cin.build_cin(request, response, resource_Obj, body_Obj, function(rsc, resource_Obj) {
+                            callback(rsc, resource_Obj);
+                        });
+                        break;
+                    case '9':
+                        grp.build_grp(request, response, resource_Obj, body_Obj, function(rsc, resource_Obj) {
+                            callback(rsc, resource_Obj);
+                        });
+                        break;
+                    case '10':
+                        lcp.build_lcp(request, response, resource_Obj, body_Obj, function(rsc, resource_Obj) {
+                            callback(rsc, resource_Obj);
+                        });
+                        break;
+                    case '16':
+                        csr.build_csr(request, response, resource_Obj, body_Obj, function(rsc, resource_Obj) {
+                            callback(rsc, resource_Obj);
+                        });
+                        break;
+                    case '23':
+                        sub.build_sub(request, response, resource_Obj, body_Obj, function(rsc, resource_Obj) {
+                            callback(rsc, resource_Obj);
+                        });
+                        break;
+                    case '28':
+                        sd.build_sd(request, response, resource_Obj, body_Obj, function(rsc, resource_Obj) {
+                            callback(rsc, resource_Obj);
+                        });
+                        break;
+                    case '25':
+                        ts.build_ts(request, response, resource_Obj, body_Obj, function(rsc, resource_Obj) {
+                            callback(rsc, resource_Obj);
+                        });
+                        break;
+                    case '26':
+                        tsi.build_tsi(request, response, resource_Obj, body_Obj, function(rsc, resource_Obj) {
+                            callback(rsc, resource_Obj);
+                        });
+                        break;
+                    case '27':
+                        mms.build_mms(request, response, resource_Obj, body_Obj, function(rsc, resource_Obj) {
+                            callback(rsc, resource_Obj);
+                        });
+                        break;
+                }
+            }
+        }
+        else {
+            body_Obj = {};
+            body_Obj['rsp'] = {};
+            body_Obj['rsp'].cap = result_Obj.code;
+            responder.response_result(request, response, 500, body_Obj, 5000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
+            callback('0');
+            return '0';
+        }
+    });
 }
 
 exports.create = function(request, response, ty, body_Obj) {
@@ -1063,6 +1105,15 @@ function update_action( request, response, ty, resource_Obj, callback) {
             resourceJson.mia = resource_Obj[rootnm].mia;
             resourceJson.li = resource_Obj[rootnm].li;
             resourceJson.or = resource_Obj[rootnm].or;
+            break;
+        case '9':
+            sql2 = util.format('update grp set mnm = \'%s\', mid = \'%s\', macp = \'%s\', gn = \'%s\' where ri = \'%s\'',
+                resource_Obj[rootnm].mnm, resource_Obj[rootnm].mid, resource_Obj[rootnm].macp, resource_Obj[rootnm].gn, resource_Obj[rootnm].ri);
+            resourceJson.ri = resource_Obj[rootnm].ri;
+            resourceJson.mnm = resource_Obj[rootnm].mnm;
+            resourceJson.mid = resource_Obj[rootnm].mid;
+            resourceJson.macp = resource_Obj[rootnm].macp;
+            resourceJson.gn = resource_Obj[rootnm].gn;
             break;
         case '10':
             sql2 = util.format('update lcp set lou = \'%s\', lon = \'%s\' where ri = \'%s\'',

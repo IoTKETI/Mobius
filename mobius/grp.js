@@ -17,13 +17,163 @@
 var url = require('url');
 var xml2js = require('xml2js');
 var xmlbuilder = require('xmlbuilder');
+var http = require('http');
 var util = require('util');
 var responder = require('./responder');
 
 var db = require('./db_action');
 
 
-function check_mtv(mt, mid, callback) {
+function check_mt(body_type, mt, res_body, callback) {
+    if (body_type == 'xml') {
+        var parser = new xml2js.Parser({explicitArray: false});
+        parser.parseString(res_body, function (err, result) {
+            if (!err) {
+                for (var prop in result) {
+                    if (result[prop].ty == mt) {
+                        callback('1');
+                        return '1';
+                    }
+                    else {
+                        callback('0');
+                        return '0';
+                    }
+                }
+            }
+            else {
+                callback('0');
+                return '0';
+            }
+        });
+    }
+    else { // json
+        var result = JSON.parse(res_body);
+        for (var prop in result) {
+            if (result[prop].ty == mt) {
+                callback('1');
+                return '1';
+            }
+            else {
+                callback('0');
+                return '0';
+            }
+        }
+    }
+}
+
+function check_member(request, response, mt, req_count, mid, cse_poa, valid_mid, callback) {
+    if(req_count == mid.length) {
+        callback(valid_mid);
+    }
+    else {
+        var ri = mid[req_count];
+        var target_cb = ri.split('/')[1];
+        var hostname = 'localhost';
+        var port = '7579';
+        if(target_cb != usecsebase) {
+            if(cse_poa[target_cb]) {
+                hostname = url.parse(cse_poa[target_cb]).hostname;
+                port = url.parse(cse_poa[target_cb]).port;
+            }
+            else {
+                check_member(request, response, mt, ++req_count, mid, cse_poa, valid_mid, function (valid_mid) {
+                    callback(valid_mid);
+                });
+            }
+        }
+
+        var options = {
+            hostname: hostname,
+            port: port,
+            path: ri,
+            method: 'get',
+            headers: {
+                'locale': 'ko',
+                'X-M2M-RI': '12345',
+                'Accept': 'application/'+request.headers.usebodytype,
+                'X-M2M-Origin': '/'+usecsebase
+            }
+        };
+
+        var responseBody = '';
+        var req = http.request(options, function (res) {
+            res.setEncoding('utf8');
+            res.on('data', function (chunk) {
+                responseBody += chunk;
+            });
+
+            res.on('end', function () {
+                if(res.statusCode == 200) {
+                    check_mt(request.headers.usebodytype, mt, responseBody, function (rsc) {
+                        if(rsc == '1') {
+                            valid_mid.push(ri);
+                        }
+
+                        check_member(request, response, mt, ++req_count, mid, cse_poa, valid_mid, function (valid_mid) {
+                            callback(valid_mid);
+                        });
+                    });
+                }
+                else {
+                    check_member(request, response, mt, ++req_count, mid, cse_poa, valid_mid, function (valid_mid) {
+                        callback(valid_mid);
+                    });
+                }
+            });
+        });
+
+        req.on('error', function (e) {
+            if (e.message != 'read ECONNRESET') {
+                console.log('problem with request: ' + e.message);
+            }
+
+            check_member(request, response, mt, ++req_count, mid, cse_poa, valid_mid, function (valid_mid) {
+                callback(valid_mid);
+            });
+        });
+
+        req.write('');
+        req.end();
+    }
+}
+
+
+
+
+global.update_route = function(callback) {
+    var cse_poa = {};
+    var sql = util.format("select * from csr where ri like \'/%s/%%\'", usecsebase);
+    db.getResult(sql, '', function (err, results_csr) {
+        if(!err) {
+            for(var i = 0; i < results_csr.length; i++) {
+                var poa_arr = JSON.parse(results_csr[i].poa);
+                for(var j = 0; j < poa_arr.length; j++) {
+                    if(url.parse(poa_arr[j]).protocol == 'http:') {
+                        cse_poa[results_csr[i].ri.split('/')[2]] = poa_arr[j];
+                    }
+                }
+            }
+        }
+        callback(cse_poa);
+    });
+};
+
+
+
+function check_mtv(request, response, mt, mid, callback) {
+    update_route(function (cse_poa) {
+        var req_count = 0;
+        var valid_mid = [];
+        check_member(request, response, mt, req_count, mid, cse_poa, valid_mid, function (results_mid) {
+            if (results_mid.length == mid.length) {
+                callback('1', results_mid);
+            }
+            else {
+                callback('0', results_mid);
+            }
+        });
+    });
+/*
     var sql = util.format("select ri from lookup where where ty = \'%s\' and ri in ("+JSON.stringify(mid).replace('[','').replace(']','')+")", mt);
     db.getResult(sql, '', function (err, results_mid) {
         if(!err) {
@@ -37,7 +187,7 @@ function check_mtv(mt, mid, callback) {
         else {
             callback('2', results_mid);
         }
-    });
+    });*/
 }
 
 exports.build_grp = function(request, response, resource_Obj, body_Obj, callback) {
@@ -164,7 +314,7 @@ exports.build_grp = function(request, response, resource_Obj, body_Obj, callback
     }
 
     if(resource_Obj[rootnm].mt != '24') {
-        check_mtv(resource_Obj[rootnm].mt, resource_Obj[rootnm].mid, function(rsc, results_mid) {
+        check_mtv(request, response, resource_Obj[rootnm].mt, resource_Obj[rootnm].mid, function(rsc, results_mid) {
             if(rsc == '0') { // mt inconsistency
                 if(results_mid.length == '0') {
                     body_Obj = {};
