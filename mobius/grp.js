@@ -69,7 +69,7 @@ function check_member(request, response, mt, req_count, mid, cse_poa, valid_mid,
         var ri = mid[req_count];
         var target_cb = ri.split('/')[1];
         var hostname = 'localhost';
-        var port = '7579';
+        var port = usecsebaseport;
         if(target_cb != usecsebase) {
             if(cse_poa[target_cb]) {
                 hostname = url.parse(cse_poa[target_cb]).hostname;
@@ -136,28 +136,6 @@ function check_member(request, response, mt, req_count, mid, cse_poa, valid_mid,
         req.end();
     }
 }
-
-
-
-
-global.update_route = function(callback) {
-    var cse_poa = {};
-    var sql = util.format("select * from csr where ri like \'/%s/%%\'", usecsebase);
-    db.getResult(sql, '', function (err, results_csr) {
-        if(!err) {
-            for(var i = 0; i < results_csr.length; i++) {
-                var poa_arr = JSON.parse(results_csr[i].poa);
-                for(var j = 0; j < poa_arr.length; j++) {
-                    if(url.parse(poa_arr[j]).protocol == 'http:') {
-                        cse_poa[results_csr[i].ri.split('/')[2]] = poa_arr[j];
-                    }
-                }
-            }
-        }
-        callback(cse_poa);
-    });
-};
-
 
 
 function check_mtv(request, response, mt, mid, callback) {

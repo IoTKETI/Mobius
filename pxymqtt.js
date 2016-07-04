@@ -83,7 +83,7 @@ fs.readFile(conf_filename, 'utf-8', function (err, data) {
 
             setInterval(function () {
                 custom.emit('mqtt_watchdog');
-            }, 1000);
+            }, 3000);
         });
     }
 });
@@ -640,7 +640,7 @@ function http_retrieve_CSEBase(callback) {
 
     req.on('error', function (e) {
         if(e.message != 'read ECONNRESET') {
-            console.log('problem with request: ' + e.message);
+            console.log('[pxymqtt - http_retrieve_CSEBase] problem with request: ' + e.message);
         }
     });
 
@@ -759,7 +759,7 @@ function mqtt_binding(mqtt_client, resp_cseid, op, to, fr, rqi, ty, pc, bodytype
     });
 
     req.on('error', function (e) {
-        console.log('problem with request: ' + e.message);
+        console.log('[pxymqtt-mqtt_binding] problem with request: ' + e.message);
     });
 
     // write data to request body

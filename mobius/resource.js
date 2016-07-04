@@ -851,11 +851,13 @@ function search_action(request, response, seq, resource_Obj, ri_list, strObj, pr
             });
         }
         else {
-            spec_Obj = {};
+            /*spec_Obj = {};
             spec_Obj['rsp'] = {};
             spec_Obj['rsp'].cap = spec_Obj.code;
             responder.response_result(request, response, 500, spec_Obj, 5000, url.parse(request.url).pathname.toLowerCase(), spec_Obj.code);
             callback('0', resource_Obj);
+            return '0';*/
+            callback('1', strObj);
             return '0';
         }
     });
@@ -894,6 +896,9 @@ function retrieve_action(request, response, ty, comm_Obj, callback) {
                 }
                 if (spec_Obj[0].pvs) {
                     spec_Obj[0].pvs = JSON.parse(spec_Obj[0].pvs);
+                }
+                if (spec_Obj[0].mid) {
+                    spec_Obj[0].mid = JSON.parse(spec_Obj[0].mid);
                 }
                 resource_Obj[rootnm] = merge(comm_Obj, spec_Obj[0]);
                 callback('1', resource_Obj);

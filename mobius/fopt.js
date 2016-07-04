@@ -17,351 +17,145 @@
 var util = require('util');
 var url = require('url');
 var http = require('http');
-var js2xmlparser = require('js2xmlparser');
+var xml2js = require('xml2js');
 var xmlbuilder = require('xmlbuilder');
-var db = require('./db_action');
 
 var responder = require('./responder');
+var resource = require('./resource');
 
-var ss_fail_count = {};
-
-
-
-function request_mid(nu, ri, xmlString, bodytype, xm2mri) {
-    var options = {
-        hostname: url.parse(nu).hostname,
-        port: url.parse(nu).port,
-        path: url.parse(nu).path,
-        method: 'POST',
-        headers: {
-            'locale': 'ko',
-            'X-M2M-RI': xm2mri,
-            'Accept': 'application/'+bodytype,
-            'X-M2M-Origin': usecseid,
-            'Content-Type': 'application/vnd.onem2m-ntfy+'+bodytype,
-            'ri': ri
-        }
-    };
-
-    var bodyStr = '';
-    var req = http.request(options, function (res) {
-        res.setEncoding('utf8');
-        res.on('data', function (chunk) {
-            bodyStr += chunk;
-        });
-
-        res.on('end', function (chunk) {
-            if(res.statusCode == 200 || res.statusCode == 201) {
-                console.log('----> response for notification ' + res.headers['x-m2m-rsc'] + ' - ' + ri);
-                ss_fail_count[res.req._headers.ri] = 0;
-            }
-        });
-    });
-
-    req.on('error', function (e) {
-        if(e.message != 'read ECONNRESET') {
-            console.log('problem with request: ' + e.message);
-        }
-    });
-
-    console.log('<---- request mid of group');
-
-    req.write(xmlString);
-    req.end();
-}
-
-
-exports.check = function(request, response, grp, ty, body_Obj) {
-
-    
-    
-    for (var i = 0; i < grp.mid.length; i++) {
-        var to = grp.mid[i]
-
-
-        if (results_ss[i].ri == body_Obj.ri) {
-            continue;
-        }
-        var cur_d = new Date();
-        var msec = (parseInt(cur_d.getMilliseconds(), 10) < 10) ? ('00' + cur_d.getMilliseconds()) : ((parseInt(cur_d.getMilliseconds(), 10) < 100) ? ('0' + cur_d.getMilliseconds()) : cur_d.getMilliseconds());
-        var xm2mri = 'rqi-' + cur_d.toISOString().replace(/-/, '').replace(/-/, '').replace(/T/, '').replace(/:/, '').replace(/:/, '').replace(/\..+/, '') + msec + randomValueBase64(4);
-        if (ss_fail_count[results_ss[i].ri] == null) {
-            ss_fail_count[results_ss[i].ri] = 0;
-        }
-        ss_fail_count[results_ss[i].ri]++;
-        if (ss_fail_count[results_ss[i].ri] >= 16) {
-            delete ss_fail_count[results_ss[i].ri];
-            delete_SS(results_ss[i].ri, xm2mri);
-        }
-    }
-
-
-
-    var rootnm = request.headers.rootnm;
-
-    if((request.method == "PUT" && check_value == 1)) {
-        var pi = body_Obj.ri;
-    }
-    else if ((request.method == "POST" && check_value == 3) || (request.method == "DELETE" && check_value == 4)) {
-        pi = body_Obj.pi;
-    }
-
-    var sql = util.format('select * from sub where pi = \'%s\'', pi);
-    db.getResult(sql, '', function (err, results_ss) {
-        if (!err) {
-            for (var i = 0; i < results_ss.length; i++) {
-                if(results_ss[i].ri == body_Obj.ri) {
-                    continue;
-                }
-                var cur_d = new Date();
-                var msec = (parseInt(cur_d.getMilliseconds(), 10)<10) ? ('00'+cur_d.getMilliseconds()) : ((parseInt(cur_d.getMilliseconds(), 10)<100) ? ('0'+cur_d.getMilliseconds()) : cur_d.getMilliseconds());
-                var xm2mri = 'rqi-' + cur_d.toISOString().replace(/-/, '').replace(/-/, '').replace(/T/, '').replace(/:/, '').replace(/:/, '').replace(/\..+/, '') + msec + randomValueBase64(4);
-                if (ss_fail_count[results_ss[i].ri] == null) {
-                    ss_fail_count[results_ss[i].ri] = 0;
-                }
-                ss_fail_count[results_ss[i].ri]++;
-                if (ss_fail_count[results_ss[i].ri] >= 16) {
-                    delete ss_fail_count[results_ss[i].ri];
-                    delete_SS(results_ss[i].ri, xm2mri);
-                }
-                else {
-                    var enc_Obj = JSON.parse(results_ss[i].enc);
-                    var net_arr = enc_Obj.net;
-
-                    for (var j = 0; j < net_arr.length; j++) {
-                        if (net_arr[j] == check_value) { // 1 : Update_of_Subscribed_Resource, 3 : Create_of_Direct_Child_Resource, 4 : Delete_of_Direct_Child_Resource
-                            var nu_arr = JSON.parse(results_ss[i].nu);
-                            for (var k = 0; k < nu_arr.length; k++) {
-                                var nu = nu_arr[k];
-                                var sub_nu = url.parse(nu);
-                                var nct = results_ss[i].nct;
-
-                                var node = {};
-                                if (nct == 2) {
-                                    if(request.headers.nmtype == 'long') {
-                                        node[responder.attrLname['sgn']] = {};
-                                        node[responder.attrLname['sgn']][responder.attrLname['net']] = check_value.toString();
-                                        node[responder.attrLname['sgn']][responder.attrLname['sur']] = results_ss[i].ri;
-                                        node[responder.attrLname['sgn']][responder.attrLname['nec']] = results_ss[i].nec;
-                                        node[responder.attrLname['sgn']][responder.attrLname['nev']] = {};
-                                        node[responder.attrLname['sgn']][responder.attrLname['nev']][responder.attrLname['rep']] = {};
-
-                                        var temp_Obj = {};
-                                        temp_Obj[rootnm] = {};
-                                        for(var index in body_Obj) {
-                                            if(index == "$") {
-                                                delete body_Obj[index];
-                                                continue;
-                                            }
-                                            temp_Obj[rootnm][responder.attrLname[index]] = body_Obj[index];
-                                            delete body_Obj[index];
-                                        }
-                                        body_Obj[responder.rsrcLname[rootnm]] = temp_Obj[rootnm];
-                                        delete temp_Obj[rootnm];
-                                        rootnm = responder.rsrcLname[rootnm];
-
-                                        node[responder.attrLname['sgn']][responder.attrLname['nev']][responder.attrLname['rep']][rootnm] = body_Obj[rootnm];
-                                    }
-                                    else {
-                                        node.sgn = {};
-                                        node.sgn.net = check_value.toString();
-                                        node.sgn.sur = results_ss[i].ri;
-                                        node.sgn.nec = results_ss[i].nec;
-                                        node.sgn.nev = {};
-                                        node.sgn.nev.rep = {};
-                                        node.sgn.nev.rep[rootnm] = body_Obj;
-                                    }
-
-                                    cur_d = new Date();
-                                    msec = (parseInt(cur_d.getMilliseconds(), 10)<10) ? ('00'+cur_d.getMilliseconds()) : ((parseInt(cur_d.getMilliseconds(), 10)<100) ? ('0'+cur_d.getMilliseconds()) : cur_d.getMilliseconds());
-                                    xm2mri = 'rqi-' + cur_d.toISOString().replace(/-/, '').replace(/-/, '').replace(/T/, '').replace(/:/, '').replace(/:/, '').replace(/\..+/, '') + msec + randomValueBase64(4);
-
-                                    var sub_bodytype = request.headers.usebodytype;
-                                    if(sub_nu.query != null) {
-                                        if (sub_nu.query.split('=')[0] == 'ct') {
-                                            if (sub_nu.query.split('=')[1] == 'xml') {
-                                                sub_bodytype = 'xml';
-                                            }
-                                            else {
-                                                sub_bodytype = 'json';
-                                            }
-                                        }
-                                    }
-
-                                    if (sub_bodytype == 'xml') {
-                                        if (sub_nu.protocol == 'http:') {
-                                            node[Object.keys(node)[0]]['@'] = {
-                                                "xmlns:m2m": "http://www.onem2m.org/xml/protocols",
-                                                "xmlns:xsi": "http://www.w3.org/2001/XMLSchema-instance"
-                                            };
-
-                                            var xmlString = js2xmlparser('m2m:'+Object.keys(node)[0], node[Object.keys(node)[0]]);
-                                            request_SS(nu, results_ss[i].ri, xmlString, sub_bodytype, xm2mri);
-                                        }
-                                        else { // mqtt:
-                                            //node['m2m:'+Object.keys(node)[0]] = node[Object.keys(node)[0]];
-                                            //delete node[Object.keys(node)[0]];
-                                            request_SS_mqtt(sub_nu.hostname, nu, results_ss[i].ri, JSON.stringify(node), sub_bodytype, xm2mri);
-                                        }
-                                    }
-                                    else { // defaultbodytype == 'json')
-                                        if (sub_nu.protocol == 'http:') {
-                                            request_SS(nu, results_ss[i].ri, JSON.stringify(node), sub_bodytype, xm2mri);
-                                        }
-                                        else { // mqtt:
-                                            //jsonString = {};
-                                            //jsonString[(request.headers.nmtype == 'long') ? 'singleNotification' : 'sgn'] = node[(request.headers.nmtype == 'long') ? 'm2m:singleNotification' : 'm2m:sgn'];
-                                            request_SS_mqtt(sub_nu.hostname, nu, results_ss[i].ri, JSON.stringify(node), sub_bodytype, xm2mri);
-                                        }
-                                    }
-                                }
-                                else {
-                                    console.log('nct except 2 (All Attribute) do not support');
-                                }
-                            }
-                            break;
+function check_body(res, body_type, res_body, callback) {
+    if (body_type == 'xml') {
+        var parser = new xml2js.Parser({explicitArray: false});
+        parser.parseString(res_body, function (err, result) {
+            if (!err) {
+                for (var prop in result) {
+                    if(result[prop]['$'] != null) {
+                        if(result[prop]['$'].rn != null) {
+                            result[prop].rn = result[prop]['$'].rn;
                         }
-                        //else {
-                        //    console.log('enc-net except 3 do not support');
-                        //}
+                        delete result[prop]['$'];
+                    }
+                    result[prop].to = res.req.path;
+                    result[prop].rsc = res.headers['x-m2m-rsc'];
+                    if(!result[prop].ri) {
+                        result[prop].ri = res.req.path;
                     }
                 }
+                callback('1', result);
+                return '1';
+            }
+            else {
+                callback('0');
+                return '0';
+            }
+        });
+    }
+    else { // json
+        var result = JSON.parse(res_body);
+        for (var prop in result) {
+            result[prop].to = res.req.path;
+            result[prop].rsc = res.headers['x-m2m-rsc'];
+            if(!result[prop].ri) {
+                result[prop].ri = res.req.path;
             }
         }
-        else {
-            console.log('query error: ' + results_ss.code);
+        callback('1', result);
+        return '1';
+    }
+}
+
+function fopt_member(request, response, req_count, mid, body_Obj, cse_poa, agr, callback) {
+    var rootnm = request.headers.rootnm;
+
+    if(req_count == mid.length) {
+        callback(agr);
+    }
+    else {
+        var ri = mid[req_count];
+        var target_cb = ri.split('/')[1];
+        var hostname = 'localhost';
+        var port = usecsebaseport;
+        if(target_cb != usecsebase) {
+            if(cse_poa[target_cb]) {
+                hostname = url.parse(cse_poa[target_cb]).hostname;
+                port = url.parse(cse_poa[target_cb]).port;
+            }
+            else {
+                fopt_member(request, response, ++req_count, mid, body_Obj, cse_poa, agr, function (agr) {
+                    callback(agr);
+                });
+            }
         }
+
+        var options = {
+            hostname: hostname,
+            port: port,
+            path: ri,
+            method: request.method,
+            headers: {
+                'locale': 'ko',
+                'X-M2M-RI': '12345',
+                'Accept': 'application/'+request.headers.usebodytype,
+                'X-M2M-Origin': '/'+usecsebase
+            }
+        };
+
+        var responseBody = '';
+        var req = http.request(options, function (res) {
+            res.setEncoding('utf8');
+            res.on('data', function (chunk) {
+                responseBody += chunk;
+            });
+
+            res.on('end', function () {
+                check_body(res, request.headers.usebodytype, responseBody, function (rsc, result) {
+                    if (rsc == '1') {
+                        for (var prop in result) {
+                            agr[result[prop].ri] = result[prop];
+                        }
+                    }
+
+                    fopt_member(request, response, ++req_count, mid, body_Obj, cse_poa, agr, function (agr) {
+                        callback(agr);
+                    });
+                });
+            });
+        });
+
+        req.on('error', function (e) {
+            if (e.message != 'read ECONNRESET') {
+                console.log('problem with request: ' + e.message);
+            }
+
+            fopt_member(request, response, ++req_count, mid, body_Obj, cse_poa, agr, function (agr) {
+                callback(agr);
+            });
+        });
+
+        req.write(request.body);
+        req.end();
+    }
+}
+
+
+exports.check = function(request, response, grp, body_Obj) {
+    request.headers.rootnm = 'agr';
+
+    update_route(function (cse_poa) {
+        var req_count = 0;
+        var agr = {};
+        fopt_member(request, response, req_count, grp.mid, body_Obj, cse_poa, agr, function (retrieve_Obj) {
+            if (Object.keys(retrieve_Obj).length != 0) {
+                responder.search_result(request, response, 200, retrieve_Obj, 2000, url.parse(request.url).pathname.toLowerCase(), '');
+                return '0';
+            }
+            else {
+                retrieve_Obj = {};
+                retrieve_Obj['rsp'] = {};
+                retrieve_Obj['rsp'].cap = 'response is not from fanOutPoint';
+                responder.response_result(request, response, 404, retrieve_Obj, 4004, url.parse(request.url).pathname.toLowerCase(), retrieve_Obj['rsp'].cap);
+            }
+        });
     });
 };
-
-
-function request_SS(nu, ri, xmlString, bodytype, xm2mri) {
-    var options = {
-        hostname: url.parse(nu).hostname,
-        port: url.parse(nu).port,
-        path: url.parse(nu).path,
-        method: 'POST',
-        headers: {
-            'locale': 'ko',
-            'X-M2M-RI': xm2mri,
-            'Accept': 'application/'+bodytype,
-            'X-M2M-Origin': usecseid,
-            'Content-Type': 'application/vnd.onem2m-ntfy+'+bodytype,
-            'ri': ri
-        }
-    };
-
-    var bodyStr = '';
-    var req = http.request(options, function (res) {
-        res.setEncoding('utf8');
-        res.on('data', function (chunk) {
-            bodyStr += chunk;
-        });
-
-        res.on('end', function (chunk) {
-            if(res.statusCode == 200 || res.statusCode == 201) {
-                console.log('----> response for notification ' + res.headers['x-m2m-rsc'] + ' - ' + ri);
-                ss_fail_count[res.req._headers.ri] = 0;
-            }
-        });
-    });
-
-    req.on('error', function (e) {
-        if(e.message != 'read ECONNRESET') {
-            NOPRINT == 'true' ? NOPRINT = 'true' : console.log('problem with request: ' + e.message);
-        }
-    });
-
-    console.log('<---- request for notification');
-    // write data to request body
-    //NOPRINT == 'true' ? NOPRINT = 'true' : console.log(xmlString);
-    req.write(xmlString);
-    req.end();
-}
-
-function delete_SS(ri, xm2mri) {
-    var options = {
-        hostname: 'localhost',
-        port: usecsebaseport,
-        path: ri,
-        method: 'delete',
-        headers: {
-            'locale': 'ko',
-            'X-M2M-RI': xm2mri,
-            'Accept': 'application/'+defaultbodytype,
-            'X-M2M-Origin': usecseid
-        }
-    };
-
-    var bodyStr = '';
-    var req = http.request(options, function(res) {
-        NOPRINT == 'true' ? NOPRINT = 'true' : console.log('STATUS: ' + res.statusCode);
-        res.setEncoding('utf8');
-        res.on('data', function (chunk) {
-            bodyStr += chunk;
-        });
-
-        res.on('end', function () {
-            if(res.statusCode == 200 || res.statusCode == 201) {
-                console.log('delete sgn of ' + ri + ' for no response');
-            }
-        });
-
-    });
-
-    req.on('error', function (e) {
-        if(e.message != 'read ECONNRESET') {
-            NOPRINT == 'true' ? NOPRINT = 'true' : console.log('problem with request: ' + e.message);
-        }
-    });
-
-    // write data to request body
-    req.write('');
-    req.end();
-}
-
-function request_SS_mqtt(serverip, nu, ri, xmlString, bodytype, xm2mri) {
-    var options = {
-        hostname: 'localhost',
-        port: usemqttproxyport,
-        path: '/notification',
-        method: 'POST',
-        headers: {
-            'locale': 'ko',
-            'X-M2M-RI': xm2mri,
-            'Accept': 'application/'+bodytype,
-            'X-M2M-Origin': usecseid,
-            'Content-Type': 'application/vnd.onem2m-ntfy+'+bodytype,
-            'nu': nu,
-            'bodytype': bodytype,
-            'ri': ri
-        }
-    };
-
-    var bodyStr = '';
-    var req = http.request(options, function (res) {
-        res.setEncoding('utf8');
-
-        res.on('data', function (chunk) {
-            bodyStr += chunk;
-        });
-
-        res.on('end', function () {
-            if(res.statusCode == 200 || res.statusCode == 201) {
-                console.log('----> response for notification ' + res.headers['x-m2m-rsc']);
-                ss_fail_count[res.req._headers.ri] = 0;
-            }
-        });
-    });
-
-    req.on('error', function (e) {
-        if(e.message != 'read ECONNRESET') {
-            NOPRINT == 'true' ? NOPRINT = 'true' : console.log('problem with request: ' + e.message);
-        }
-    });
-
-    req.write(xmlString);
-    req.end();
-}
-
 

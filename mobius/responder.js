@@ -638,7 +638,8 @@ const typeRsrc = {
     "25": "ts",
     "26": "tsi",
     "27": "mms",
-    "28": "sd"
+    "28": "sd",
+    "99": "rsp"
 };
 
 exports.typeRsrc = typeRsrc;
@@ -938,7 +939,12 @@ exports.search_result = function(request, response, status, body_Obj, rsc, ri, c
         else {
             res_Obj = {};
             for (prop in body_Obj) {
-                ty = body_Obj[prop].ty;
+                if(body_Obj[prop].ty == null) {
+                    ty = '99';
+                }
+                else {
+                    ty = body_Obj[prop].ty;
+                }
                 if(res_Obj['m2m:'+typeRsrc[ty]] == null) {
                     res_Obj['m2m:'+typeRsrc[ty]] = [];
                 }

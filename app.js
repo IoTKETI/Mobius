@@ -194,6 +194,27 @@ else {
     });
 }
 
+
+
+global.update_route = function(callback) {
+    var cse_poa = {};
+    var sql = util.format("select * from csr where ri like \'/%s/%%\'", usecsebase);
+    db.getResult(sql, '', function (err, results_csr) {
+        if(!err) {
+            for(var i = 0; i < results_csr.length; i++) {
+                var poa_arr = JSON.parse(results_csr[i].poa);
+                for(var j = 0; j < poa_arr.length; j++) {
+                    if(url.parse(poa_arr[j]).protocol == 'http:') {
+                        cse_poa[results_csr[i].ri.split('/')[2]] = poa_arr[j];
+                    }
+                }
+            }
+        }
+        callback(cse_poa);
+    });
+};
+
+
 function check_nametype(nmtype, body_Obj) {
     if(nmtype == 'long') {
         var rsrcLongName = Object.keys(body_Obj)[0].split(':')[1];
@@ -757,6 +778,7 @@ function check_grp(request, response, ri, callback) {
         if(!err) {
             if (results.length == 1) {
                 results[0].macp = JSON.parse(results[0].macp);
+                results[0].mid = JSON.parse(results[0].mid);
                 callback('1', results[0]);
             }
             else {
@@ -796,7 +818,7 @@ function lookup_create(request, response) {
 
             if(op == 'fanoutpoint') {
                 // check access right for fanoutpoint
-                check_grp(request, response, parent_comm.ri, function (rsc, result_grp, op) {
+                check_grp(request, response, parent_comm.ri, function (rsc, result_grp) {
                     if(rsc == '0') {
                         return rsc;
                     }
@@ -879,21 +901,43 @@ function lookup_retrieve(request, response) {
         if (option == '0') {
             return option;
         }
-        check_resource(request, response, option, function (rsc, results_comm) {
+        check_resource(request, response, option, function (rsc, results_comm, op) {
             if (rsc == '0') {
                 return rsc;
             }
 
-            security.check(request, results_comm.ty, results_comm.acpi, '2', function (rsc) {
-                if(rsc == '0') {
-                    body_Obj = {};
-                    body_Obj['rsp'] = {};
-                    body_Obj['rsp'].cap = 'ACCESS_DENIED';
-                    responder.response_result(request, response, 403, body_Obj, 4103, url.parse(request.url).pathname.toLowerCase(), 'ACCESS_DENIED');
-                    return '0';
-                }
-                resource.retrieve(request, response, results_comm);
-            });
+            if(op == 'fanoutpoint') {
+                // check access right for fanoutpoint
+                check_grp(request, response, results_comm.ri, function (rsc, result_grp) {
+                    if(rsc == '0') {
+                        return rsc;
+                    }
+
+                    security.check(request, results_comm.ty, result_grp.macp, '1', function (rsc) {
+                        if (rsc == '0') {
+                            body_Obj = {};
+                            body_Obj['rsp'] = {};
+                            body_Obj['rsp'].cap = 'ACCESS_DENIED';
+                            responder.response_result(request, response, 403, body_Obj, 4103, url.parse(request.url).pathname.toLowerCase(), 'ACCESS_DENIED');
+                            return '0';
+                        }
+
+                        fopt.check(request, response, result_grp, body_Obj);
+                    });
+                });
+            }
+            else { //if(op == 'direct') {
+                security.check(request, results_comm.ty, results_comm.acpi, '2', function (rsc) {
+                    if (rsc == '0') {
+                        body_Obj = {};
+                        body_Obj['rsp'] = {};
+                        body_Obj['rsp'].cap = 'ACCESS_DENIED';
+                        responder.response_result(request, response, 403, body_Obj, 4103, url.parse(request.url).pathname.toLowerCase(), 'ACCESS_DENIED');
+                        return '0';
+                    }
+                    resource.retrieve(request, response, results_comm);
+                });
+            }
         });
     });
 }
@@ -903,22 +947,45 @@ function lookup_update(request, response) {
         if (option == '0') {
             return option;
         }
-        check_resource(request, response, 'direct', function (rsc, results_comm) {
+        check_resource(request, response, 'direct', function (rsc, results_comm, op) {
             if (rsc == '0') {
                 return rsc;
             }
-            var rootnm = request.headers.rootnm;
 
-            security.check(request, results_comm.ty, results_comm.acpi, '4', function (rsc) {
-                if (rsc == '0') {
-                    body_Obj = {};
-                    body_Obj['rsp'] = {};
-                    body_Obj['rsp'].cap = 'ACCESS_DENIED';
-                    responder.response_result(request, response, 403, body_Obj, 4103, url.parse(request.url).pathname.toLowerCase(), 'ACCESS_DENIED');
-                    return '0';
-                }
-                resource.update(request, response, results_comm, body_Obj);
-            });
+            if(op == 'fanoutpoint') {
+                // check access right for fanoutpoint
+                check_grp(request, response, parent_comm.ri, function (rsc, result_grp) {
+                    if(rsc == '0') {
+                        return rsc;
+                    }
+
+                    security.check(request, parent_comm.ty, result_grp.macp, '1', function (rsc) {
+                        if (rsc == '0') {
+                            body_Obj = {};
+                            body_Obj['rsp'] = {};
+                            body_Obj['rsp'].cap = 'ACCESS_DENIED';
+                            responder.response_result(request, response, 403, body_Obj, 4103, url.parse(request.url).pathname.toLowerCase(), 'ACCESS_DENIED');
+                            return '0';
+                        }
+
+                        fopt.check(request, response, result_grp, ty, body_Obj);
+                    });
+                });
+            }
+            else { //if(op == 'direct') {
+                var rootnm = request.headers.rootnm;
+
+                security.check(request, results_comm.ty, results_comm.acpi, '4', function (rsc) {
+                    if (rsc == '0') {
+                        body_Obj = {};
+                        body_Obj['rsp'] = {};
+                        body_Obj['rsp'].cap = 'ACCESS_DENIED';
+                        responder.response_result(request, response, 403, body_Obj, 4103, url.parse(request.url).pathname.toLowerCase(), 'ACCESS_DENIED');
+                        return '0';
+                    }
+                    resource.update(request, response, results_comm, body_Obj);
+                });
+            }
         });
     });
 }
@@ -928,21 +995,43 @@ function lookup_delete(request, response) {
         if (option == '0') {
             return option;
         }
-        check_resource(request, response, option, function (rsc, results_comm) {
+        check_resource(request, response, option, function (rsc, results_comm, op) {
             if (rsc == '0') {
                 return rsc;
             }
 
-            security.check(request, results_comm.ty, results_comm.acpi, '8', function (rsc) {
-                if (rsc == '0') {
-                    body_Obj = {};
-                    body_Obj['rsp'] = {};
-                    body_Obj['rsp'].cap = 'ACCESS_DENIED';
-                    responder.response_result(request, response, 403, body_Obj, 4103, url.parse(request.url).pathname.toLowerCase(), 'ACCESS_DENIED');
-                    return '0';
-                }
-                resource.delete(request, response, results_comm);
-            });
+            if(op == 'fanoutpoint') {
+                // check access right for fanoutpoint
+                check_grp(request, response, parent_comm.ri, function (rsc, result_grp) {
+                    if(rsc == '0') {
+                        return rsc;
+                    }
+
+                    security.check(request, parent_comm.ty, result_grp.macp, '1', function (rsc) {
+                        if (rsc == '0') {
+                            body_Obj = {};
+                            body_Obj['rsp'] = {};
+                            body_Obj['rsp'].cap = 'ACCESS_DENIED';
+                            responder.response_result(request, response, 403, body_Obj, 4103, url.parse(request.url).pathname.toLowerCase(), 'ACCESS_DENIED');
+                            return '0';
+                        }
+
+                        fopt.check(request, response, result_grp, ty, body_Obj);
+                    });
+                });
+            }
+            else { //if(op == 'direct') {
+                security.check(request, results_comm.ty, results_comm.acpi, '8', function (rsc) {
+                    if (rsc == '0') {
+                        body_Obj = {};
+                        body_Obj['rsp'] = {};
+                        body_Obj['rsp'].cap = 'ACCESS_DENIED';
+                        responder.response_result(request, response, 403, body_Obj, 4103, url.parse(request.url).pathname.toLowerCase(), 'ACCESS_DENIED');
+                        return '0';
+                    }
+                    resource.delete(request, response, results_comm);
+                });
+            }
         });
     });
 }
@@ -1207,6 +1296,9 @@ function forward_http(forwardcbhost, forwardcbport, request, response) {
 
     req.on('error', function(e) {
         console.log('[forward_http] problem with request: ' + e.message);
+
+        response.statusCode = '404';
+        response.send(url.parse(request.url).pathname.toLowerCase() + ' : ' + e.message);
     });
 
     // write data to request body
