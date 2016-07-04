@@ -9,8 +9,10 @@ function ReInterval (callback, interval, args) {
   this._interval = setInterval(callback, interval, this._args);
 
   this.reschedule = function (interval) {
+    // if no interval entered, use the interval passed in on creation
+    if (!interval)
+      interval = self._interval;
 
-    var now = Date.now();
     if (self._interval)
       clearInterval(self._interval);
     self._interval = setInterval(self._callback, interval, self._args);
@@ -20,9 +22,16 @@ function ReInterval (callback, interval, args) {
     if (self._interval) {
       clearInterval(self._interval);
       self._interval = undefined;
-      self._callback = undefined;
-      self._args = undefined;
     }
+  };
+  
+  this.destroy = function () {
+    if (self._interval) {
+      clearInterval(self._interval);
+    }
+    self._callback = undefined;
+    self._interval = undefined;
+    self._args = undefined;
   };
 }
 
