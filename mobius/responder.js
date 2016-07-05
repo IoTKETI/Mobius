@@ -971,61 +971,123 @@ exports.search_result = function(request, response, status, body_Obj, rsc, ri, c
 
             for(var index in res_Obj) {
                 for(var prop in res_Obj[index]) {
-                    var xml_1 = xml.ele(index);
-                    for(var attr in res_Obj[index][prop]) {
-                         // if(attr == 'resourceName' || attr == 'rn') {
-                         //     xml_1.att(attr, res_Obj[index][prop][attr]);
-                         // }
-                         // else {
-                         //     xml_1.ele(attr, res_Obj[index][prop][attr]);
-                         // }
-
-                        if (attr == 'resourceName' || attr == 'rn') {
-                            xml_1.att(attr, res_Obj[index][prop][attr]);
-                        }
-                        else if (attr == 'eventNotificationCriteria' || attr == 'enc') {
-                            var xml2 = xml_1.ele(attr, '');
-                            for (var sub_attr in res_Obj[index][prop][attr]) {
-                                xml2.ele(sub_attr, res_Obj[index][prop][attr][sub_attr].toString().replace(/,/g, ' '));
-                            }
-                        }
-                        else if (attr == 'privileges' || attr == 'pv' || attr == 'selfPrivileges' || attr == 'pvs') {
-                            var xml2 = xml_1.ele(attr, '');
-                            for (var sub_attr in res_Obj[index][prop][attr]) {
-                                for (var sub_attr2 in res_Obj[index][prop][attr][sub_attr]) {
-                                    var xml3 = xml2.ele(sub_attr, '');
-                                    for (var sub_attr3 in res_Obj[index][prop][attr][sub_attr][sub_attr2]) {
-                                        // for (var sub_attr4 in body_Obj[index][prop][attr][sub_attr][sub_attr2][sub_attr3]) {
-                                        //     xml3.ele(sub_attr3, body_Obj[index][prop][attr][sub_attr][sub_attr2][sub_attr3][sub_attr4]);
-                                        // }
-                                        xml3.ele(sub_attr3, res_Obj[index][prop][attr][sub_attr][sub_attr2][sub_attr3].toString().replace(/,/g, ' '));
+                    if(res_Obj[index][prop].pc) { // aggregated response for fanout
+                        var xml_0 = xml.ele(index);
+                        for (var agr_attr in res_Obj[index][prop]) {
+                            if(agr_attr == 'pc') {
+                                var xml_01 = xml_0.ele(agr_attr);
+                                for (var pc_attr in res_Obj[index][prop][agr_attr]) {
+                                    xml_1 = xml_01.ele(pc_attr);
+                                    for (var attr in res_Obj[index][prop][agr_attr][pc_attr]) {
+                                         if (attr == 'resourceName' || attr == 'rn') {
+                                            xml_1.att(attr, res_Obj[index][prop][agr_attr][pc_attr][attr]);
+                                        }
+                                        else if (attr == 'eventNotificationCriteria' || attr == 'enc') {
+                                            var xml2 = xml_1.ele(attr, '');
+                                            for (var sub_attr in res_Obj[index][prop][agr_attr][pc_attr][attr]) {
+                                                xml2.ele(sub_attr, res_Obj[index][prop][pc_attr][attr][sub_attr].toString().replace(/,/g, ' '));
+                                            }
+                                        }
+                                        else if (attr == 'privileges' || attr == 'pv' || attr == 'selfPrivileges' || attr == 'pvs') {
+                                            var xml2 = xml_1.ele(attr, '');
+                                            for (var sub_attr in res_Obj[index][prop][agr_attr][pc_attr][attr]) {
+                                                for (var sub_attr2 in res_Obj[index][prop][agr_attr][pc_attr][attr][sub_attr]) {
+                                                    var xml3 = xml2.ele(sub_attr, '');
+                                                    for (var sub_attr3 in res_Obj[index][prop][agr_attr][pc_attr][attr][sub_attr][sub_attr2]) {
+                                                        xml3.ele(sub_attr3, res_Obj[index][prop][agr_attr][pc_attr][attr][sub_attr][sub_attr2][sub_attr3].toString().replace(/,/g, ' '));
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        else if (attr == 'accessControlPolicyIDs' || attr == 'acpi') {
+                                            xml_1.ele(attr, res_Obj[index][prop][agr_attr][pc_attr][attr].toString().replace(/,/g, ' '));
+                                        }
+                                        else if (attr == 'labels' || attr == 'lbl') {
+                                            xml_1.ele(attr, res_Obj[index][prop][agr_attr][pc_attr][attr].toString().replace(/,/g, ' '));
+                                        }
+                                        else if (attr == 'supportedResourceType' || attr == 'srt') {
+                                            xml_1.ele(attr, res_Obj[index][prop][agr_attr][pc_attr][attr].toString().replace(/,/g, ' '));
+                                        }
+                                        else if (attr == 'pointOfAccess' || attr == 'poa') {
+                                            xml_1.ele(attr, res_Obj[index][prop][agr_attr][pc_attr][attr].toString().replace(/,/g, ' '));
+                                        }
+                                        else if (attr == 'notificationURI' || attr == 'nu') {
+                                            xml_1.ele(attr, res_Obj[index][prop][agr_attr][pc_attr][attr].toString().replace(/,/g, ' '));
+                                        }
+                                        else if (attr == 'memberIDs' || attr == 'mid') {
+                                            xml_1.ele(attr, res_Obj[index][prop][agr_attr][pc_attr][attr].toString().replace(/,/g, ' '));
+                                        }
+                                        else if (attr == 'membersAccessControlPolicyIDs' || attr == 'macp') {
+                                            xml_1.ele(attr, res_Obj[index][prop][agr_attr][pc_attr][attr].toString().replace(/,/g, ' '));
+                                        }
+                                        else {
+                                            xml_1.ele(attr, res_Obj[index][prop][agr_attr][pc_attr][attr]);
+                                        }
                                     }
                                 }
                             }
+                            else {
+                                xml_1 = xml_0.ele(agr_attr, res_Obj[index][prop][agr_attr]);
+                            }
                         }
-                        else if (attr == 'accessControlPolicyIDs' || attr == 'acpi') {
-                            xml_1.ele(attr, res_Obj[index][prop][attr].toString().replace(/,/g, ' '));
-                        }
-                        else if (attr == 'labels' || attr == 'lbl') {
-                            xml_1.ele(attr, res_Obj[index][prop][attr].toString().replace(/,/g, ' '));
-                        }
-                        else if (attr == 'supportedResourceType' || attr == 'srt') {
-                            xml_1.ele(attr, res_Obj[index][prop][attr].toString().replace(/,/g, ' '));
-                        }
-                        else if (attr == 'pointOfAccess' || attr == 'poa') {
-                            xml_1.ele(attr, res_Obj[index][prop][attr].toString().replace(/,/g, ' '));
-                        }
-                        else if (attr == 'notificationURI' || attr == 'nu') {
-                            xml_1.ele(attr, res_Obj[index][prop][attr].toString().replace(/,/g, ' '));
-                        }
-                        else if (attr == 'memberIDs' || attr == 'mid') {
-                            xml_1.ele(attr, res_Obj[index][prop][attr].toString().replace(/,/g, ' '));
-                        }
-                        else if (attr == 'membersAccessControlPolicyIDs' || attr == 'macp') {
-                            xml_1.ele(attr, res_Obj[index][prop][attr].toString().replace(/,/g, ' '));
-                        }
-                        else {
-                            xml_1.ele(attr, res_Obj[index][prop][attr]);
+                    }
+                    else {
+                        var xml_1 = xml.ele(index);
+                        for (var attr in res_Obj[index][prop]) {
+                            // if(attr == 'resourceName' || attr == 'rn') {
+                            //     xml_1.att(attr, res_Obj[index][prop][attr]);
+                            // }
+                            // else {
+                            //     xml_1.ele(attr, res_Obj[index][prop][attr]);
+                            // }
+
+                            if (attr == 'resourceName' || attr == 'rn') {
+                                xml_1.att(attr, res_Obj[index][prop][attr]);
+                            }
+                            else if (attr == 'eventNotificationCriteria' || attr == 'enc') {
+                                var xml2 = xml_1.ele(attr, '');
+                                for (var sub_attr in res_Obj[index][prop][attr]) {
+                                    xml2.ele(sub_attr, res_Obj[index][prop][attr][sub_attr].toString().replace(/,/g, ' '));
+                                }
+                            }
+                            else if (attr == 'privileges' || attr == 'pv' || attr == 'selfPrivileges' || attr == 'pvs') {
+                                var xml2 = xml_1.ele(attr, '');
+                                for (var sub_attr in res_Obj[index][prop][attr]) {
+                                    for (var sub_attr2 in res_Obj[index][prop][attr][sub_attr]) {
+                                        var xml3 = xml2.ele(sub_attr, '');
+                                        for (var sub_attr3 in res_Obj[index][prop][attr][sub_attr][sub_attr2]) {
+                                            // for (var sub_attr4 in body_Obj[index][prop][attr][sub_attr][sub_attr2][sub_attr3]) {
+                                            //     xml3.ele(sub_attr3, body_Obj[index][prop][attr][sub_attr][sub_attr2][sub_attr3][sub_attr4]);
+                                            // }
+                                            xml3.ele(sub_attr3, res_Obj[index][prop][attr][sub_attr][sub_attr2][sub_attr3].toString().replace(/,/g, ' '));
+                                        }
+                                    }
+                                }
+                            }
+                            else if (attr == 'accessControlPolicyIDs' || attr == 'acpi') {
+                                xml_1.ele(attr, res_Obj[index][prop][attr].toString().replace(/,/g, ' '));
+                            }
+                            else if (attr == 'labels' || attr == 'lbl') {
+                                xml_1.ele(attr, res_Obj[index][prop][attr].toString().replace(/,/g, ' '));
+                            }
+                            else if (attr == 'supportedResourceType' || attr == 'srt') {
+                                xml_1.ele(attr, res_Obj[index][prop][attr].toString().replace(/,/g, ' '));
+                            }
+                            else if (attr == 'pointOfAccess' || attr == 'poa') {
+                                xml_1.ele(attr, res_Obj[index][prop][attr].toString().replace(/,/g, ' '));
+                            }
+                            else if (attr == 'notificationURI' || attr == 'nu') {
+                                xml_1.ele(attr, res_Obj[index][prop][attr].toString().replace(/,/g, ' '));
+                            }
+                            else if (attr == 'memberIDs' || attr == 'mid') {
+                                xml_1.ele(attr, res_Obj[index][prop][attr].toString().replace(/,/g, ' '));
+                            }
+                            else if (attr == 'membersAccessControlPolicyIDs' || attr == 'macp') {
+                                xml_1.ele(attr, res_Obj[index][prop][attr].toString().replace(/,/g, ' '));
+                            }
+                            else {
+                                xml_1.ele(attr, res_Obj[index][prop][attr]);
+                            }
                         }
                     }
                 }

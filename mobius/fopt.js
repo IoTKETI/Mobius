@@ -24,6 +24,8 @@ var responder = require('./responder');
 var resource = require('./resource');
 
 function check_body(res, body_type, res_body, callback) {
+    var retrieve_Obj = {};
+
     if (body_type == 'xml') {
         var parser = new xml2js.Parser({explicitArray: false});
         parser.parseString(res_body, function (err, result) {
@@ -35,13 +37,11 @@ function check_body(res, body_type, res_body, callback) {
                         }
                         delete result[prop]['$'];
                     }
-                    result[prop].to = res.req.path;
-                    result[prop].rsc = res.headers['x-m2m-rsc'];
-                    if(!result[prop].ri) {
-                        result[prop].ri = res.req.path;
-                    }
+                    retrieve_Obj.fr = res.req.path;
+                    retrieve_Obj.rsc = res.headers['x-m2m-rsc'];
+                    retrieve_Obj.pc = result;
                 }
-                callback('1', result);
+                callback('1', retrieve_Obj);
                 return '1';
             }
             else {
@@ -53,13 +53,11 @@ function check_body(res, body_type, res_body, callback) {
     else { // json
         var result = JSON.parse(res_body);
         for (var prop in result) {
-            result[prop].to = res.req.path;
-            result[prop].rsc = res.headers['x-m2m-rsc'];
-            if(!result[prop].ri) {
-                result[prop].ri = res.req.path;
-            }
+            retrieve_Obj.fr = res.req.path;
+            retrieve_Obj.rsc = res.headers['x-m2m-rsc'];
+            retrieve_Obj.pc = result;
         }
-        callback('1', result);
+        callback('1', retrieve_Obj);
         return '1';
     }
 }
@@ -108,10 +106,10 @@ function fopt_member(request, response, req_count, mid, body_Obj, cse_poa, agr, 
             });
 
             res.on('end', function () {
-                check_body(res, request.headers.usebodytype, responseBody, function (rsc, result) {
+                check_body(res, request.headers.usebodytype, responseBody, function (rsc, retrieve_Obj) {
                     if (rsc == '1') {
-                        for (var prop in result) {
-                            agr[result[prop].ri] = result[prop];
+                        for (var prop in retrieve_Obj.pc) {
+                            agr[retrieve_Obj.fr] = retrieve_Obj;
                         }
                     }
 
