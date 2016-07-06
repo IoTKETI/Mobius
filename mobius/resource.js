@@ -971,7 +971,7 @@ exports.retrieve = function(request, response, comm_Obj) {
                 request.headers.rootnm = 'uril';
             }
             else {
-                request.headers.rootnm = 'agr';
+                request.headers.rootnm = 'rsp';
             }
             presearch_action(request, response, ty, ri_list, comm_Obj, function (rsc, ri_list, search_Obj) {
                 if (rsc == '0') {

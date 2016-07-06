@@ -63,8 +63,6 @@ function check_body(res, body_type, res_body, callback) {
 }
 
 function fopt_member(request, response, req_count, mid, body_Obj, cse_poa, agr, callback) {
-    var rootnm = request.headers.rootnm;
-
     if(req_count == mid.length) {
         callback(agr);
     }
