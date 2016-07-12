@@ -14,6 +14,8 @@
  * @author Il Yeup Ahn [iyahn@keti.re.kr]
  */
 
+process.env.NODE_ENV = 'production';
+
 var fs = require('fs');
 var http = require('http');
 var mysql = require('mysql');
@@ -69,7 +71,6 @@ var cluster = require('cluster');
 var os = require('os');
 
 var cpuCount = os.cpus().length;
-
 
 // ������ �����մϴ�.
 var app = express();
@@ -1311,3 +1312,8 @@ function forward_http(forwardcbhost, forwardcbport, request, response) {
     req.end();
 }
 
+if( process.env.NODE_ENV == 'production' ) {
+    console.log("Production Mode");
+} else if( process.env.NODE_ENV == 'development' ) {
+    console.log("Development Mode");
+}
