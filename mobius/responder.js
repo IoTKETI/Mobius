@@ -650,7 +650,9 @@ exports.attrSname = attrSname;
 
 
 exports.response_result = function(request, response, status, body_Obj, rsc, ri, cap) {
-    response.setHeader('X-M2M-RI', request.headers['x-m2m-ri']);
+    if(request.headers['x-m2m-ri'] != null) {
+        response.setHeader('X-M2M-RI', request.headers['x-m2m-ri']);
+    }
 
     if(request.headers.locale != null) {
         response.setHeader('locale', request.headers.locale);
@@ -820,7 +822,9 @@ exports.search_result = function(request, response, status, body_Obj, rsc, ri, c
         response.setHeader('locale', request.headers.locale);
     }
 
-    response.setHeader('X-M2M-RI', request.headers['x-m2m-ri']);
+    if(request.headers['x-m2m-ri'] != null) {
+        response.setHeader('X-M2M-RI', request.headers['x-m2m-ri']);
+    }
 
     if(Object.keys(body_Obj)[0] == 'rsp') {
         rootnm = 'rsp';
