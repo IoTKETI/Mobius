@@ -1050,7 +1050,7 @@ app.post(xmlParser, function(request, response, next) {
     });
     request.on('end', function() {
         request.body = fullBody;
-        request.url = request.url.replace(/\/$/, "");
+        //request.url = request.url.replace(/\/$/, "");
         var url_arr = url.parse(request.url).pathname.toLowerCase().split('/');
         var absolute_url = request.url.replace(/\/~\/[^\/]+\/?/, '/');
 
@@ -1088,7 +1088,7 @@ app.get(xmlParser, function(request, response) {
     });
     request.on('end', function() {
         request.body = fullBody;
-        request.url = request.url.replace(/\/$/, "");
+        //request.url = request.url.replace(/\/$/, "");
         var url_arr = url.parse(request.url).pathname.toLowerCase().split('/');
         var absolute_url = request.url.replace(/\/~\/[^\/]+\/?/, '/');
 
@@ -1133,7 +1133,7 @@ app.put(xmlParser, function(request, response, next) {
     });
     request.on('end', function() {
         request.body = fullBody;
-        request.url = request.url.replace(/\/$/, "");
+        //request.url = request.url.replace(/\/$/, "");
         var url_arr = url.parse(request.url).pathname.toLowerCase().split('/');
         var absolute_url = request.url.replace(/\/~\/[^\/]+\/?/, '/');
 
@@ -1176,7 +1176,7 @@ app.delete(xmlParser, function(request, response, next) {
     });
     request.on('end', function() {
         request.body = fullBody;
-        request.url = request.url.replace(/\/$/, "");
+        //request.url = request.url.replace(/\/$/, "");
         var url_arr = url.parse(request.url).pathname.toLowerCase().split('/');
         var absolute_url = request.url.replace(/\/~\/[^\/]+\/?/, '/');
 
