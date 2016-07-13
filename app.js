@@ -993,11 +993,7 @@ function lookup_update(request, response) {
 function lookup_delete(request, response) {
     check_http(request, response, function(option, body_Obj) {
         if (option == '0') {
-            body_Obj = {};
-            body_Obj['rsp'] = {};
-            body_Obj['rsp'].cap = 'ACCESS_DENIED';
-            responder.response_result(request, response, 403, body_Obj, 4103, url.parse(request.url).pathname.toLowerCase(), 'ACCESS_DENIED');
-            return '0';
+            return option;
         }
         check_resource(request, response, option, function (rsc, results_comm, op) {
             if (rsc == '0') {
