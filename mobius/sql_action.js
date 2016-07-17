@@ -16,8 +16,11 @@ var util = require('util');
 var db = require('./db_action');
 
 exports.select_csr_like = function(cb, callback) {
-    var sql = util.format("select * from csr where ri like \'/%s/%%\'", usecsebase);
+    var sql = util.format("select * from csr where ri like \'/%s/%%\'", cb);
     db.getResult(sql, '', function (err, results_csr) {
+        if (!Array.isArray(results_csr.poa)) {
+            results_csr.poa = [];
+        }
         callback(err, results_csr);
     });
 };

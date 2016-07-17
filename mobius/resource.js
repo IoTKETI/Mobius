@@ -1309,7 +1309,7 @@ exports.update = function(request, response, comm_Obj, body_Obj) {
                 if(rsc == '1') {
                     _this.remove_no_value(request, update_Obj);
 
-                    sgn.check(request, update_Obj, 1);
+                    sgn.check(request, update_Obj[rootnm], 1);
 
                     responder.response_result(request, response, 200, update_Obj, 2004, update_Obj[rootnm].ri, '');
                     return '0';
@@ -1331,7 +1331,7 @@ function delete_action(request, response, ty, resource_Obj, comm_Obj, callback) 
             if(comm_Obj.ty == '25') {
                 delete_TS(resource_Obj[rootnm].ri, function (rsc, res_Obj) {
                 });
-                console.timeEnd('resource_create');
+                console.timeEnd('resource_delete');
                 callback('1', resource_Obj);
             }
             else {
@@ -1375,7 +1375,7 @@ exports.delete = function(request, response, comm_Obj) {
             if(rsc == '1') {
                 _this.remove_no_value(request, delete_Obj);
 
-                sgn.check(request, delete_Obj, 4);
+                sgn.check(request, delete_Obj[rootnm], 4);
 
                 responder.response_result(request, response, 200, delete_Obj, 2002, delete_Obj[rootnm].ri, '');
                 return '0';

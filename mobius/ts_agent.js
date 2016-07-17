@@ -65,8 +65,8 @@ fs.readFile(conf_filename, 'utf-8', function (err, data) {
 
                     // Searching TS with missingDetect. if it is TRUE, restart mddt
                     init_TS(function (rsc, responseBody) {
-                        console.log(rsc);
-                        console.log(responseBody);
+                        //console.log(rsc);
+                        //console.log(responseBody);
                     });
                 });
             }
@@ -257,8 +257,8 @@ app.post('/:resourcename0', xmlParser, function(request, response, next) {
                 var jsonObj = JSON.parse(jsonString);
                 if(jsonObj.ts.ri == 'all') {
                     search_TS(request, response, function (request, response, rsc, responseBody) {
-                        console.log(rsc);
-                        console.log(responseBody);
+                        //console.log(rsc);
+                        //console.log(responseBody);
 
                         var parser = new xml2js.Parser({explicitArray: false});
                         parser.parseString(responseBody.toString(), function (err, result) {

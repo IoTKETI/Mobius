@@ -317,9 +317,17 @@ mqtt_app.post('/notification', xmlParser, function(request, response, next) {
 
         noti_message['m2m:rqp'].pc = pc;
 
-        if(pc.sgn.nec != null) {
-            var nec = pc.sgn.nec;
-            delete pc.sgn.nec;
+        if(pc['sgn'] != null) {
+            if (!pc.sgn.nec) {
+                var nec = pc.sgn.nec;
+                delete pc.sgn.nec;
+            }
+        }
+        else {
+            if (!pc.singleNotification.notificationEventCat) {
+                nec = pc.singleNotification.notificationEventCat;
+                delete pc.singleNotification.notificationEventCat;
+            }
         }
 
         if(nec == 'keti') { // for mqtt implementation of keti
