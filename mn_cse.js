@@ -40,7 +40,7 @@ global.usecsebaseport = '127.0.0.1';
 global.usecbname = 'mobius2';
 global.usecbhost = '127.0.0.1';
 global.usecbhostport = '8080';
-global.usecbid = '0.2.481.1.1.1.1';
+//global.usecbid = '0.2.481.1.1.1.1';
 
 global.usedbname = 'mysql';
 //global.usedbname = 'mongodb';
@@ -77,7 +77,7 @@ fs.readFile(conf_filename, 'utf-8', function (err, data) {
                 usecbhost = in_cse['cbhost'];
                 usecbhostport = in_cse['cbhostport'];
                 usecbname = in_cse['cbname'];
-                usecbid = in_cse['cbid'];
+//                usecbid = in_cse['cbid'];
 
                 mn.build_mn('/'+usecbname, function (rsp) {
                     console.log(rsp);

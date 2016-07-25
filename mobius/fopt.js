@@ -67,7 +67,7 @@ function fopt_member(request, response, req_count, mid, body_Obj, cse_poa, agr, 
         callback(agr);
     }
     else {
-        var ri = mid[req_count];
+        var ri = mid[req_count++];
         var target_cb = ri.split('/')[1];
         var hostname = 'localhost';
         var port = usecsebaseport;
@@ -77,9 +77,10 @@ function fopt_member(request, response, req_count, mid, body_Obj, cse_poa, agr, 
                 port = url.parse(cse_poa[target_cb]).port;
             }
             else {
-                fopt_member(request, response, ++req_count, mid, body_Obj, cse_poa, agr, function (agr) {
+                fopt_member(request, response, req_count, mid, body_Obj, cse_poa, agr, function (agr) {
                     callback(agr);
                 });
+                return;
             }
         }
 
@@ -111,7 +112,7 @@ function fopt_member(request, response, req_count, mid, body_Obj, cse_poa, agr, 
                         }
                     }
 
-                    fopt_member(request, response, ++req_count, mid, body_Obj, cse_poa, agr, function (agr) {
+                    fopt_member(request, response, req_count, mid, body_Obj, cse_poa, agr, function (agr) {
                         callback(agr);
                     });
                 });
@@ -123,7 +124,7 @@ function fopt_member(request, response, req_count, mid, body_Obj, cse_poa, agr, 
                 console.log('problem with request: ' + e.message);
             }
 
-            fopt_member(request, response, ++req_count, mid, body_Obj, cse_poa, agr, function (agr) {
+            fopt_member(request, response, req_count, mid, body_Obj, cse_poa, agr, function (agr) {
                 callback(agr);
             });
         });

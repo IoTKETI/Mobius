@@ -251,7 +251,7 @@ function delete_SS(ri, xm2mri) {
 function request_SS_mqtt(serverip, nu, ri, xmlString, bodytype, xm2mri) {
     var options = {
         hostname: 'localhost',
-        port: usemqttproxyport,
+        port: '9726',
         path: '/notification',
         method: 'POST',
         headers: {

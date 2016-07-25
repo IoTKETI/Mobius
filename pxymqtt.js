@@ -38,7 +38,7 @@ var usemqttcbhost = '';
 var usemqttcbname = '';
 var usemqttcbport = '';
 var usemqttbroker = '';
-var usemqttport = '';
+//var usemqttport = '';
 var usemqttbodytype = '';
 var usemqttnmtype = '';
 
@@ -68,7 +68,6 @@ fs.readFile(conf_filename, 'utf-8', function (err, data) {
         usemqttcbport = conf['csebaseport'];
         usemqttcbname = conf['csebase'];
         usemqttbroker = conf['mqttbroker'];
-        usemqttport = conf['mqttproxyport'];
 
         mqtt_app.use(bodyParser.urlencoded({extended: true}));
         mqtt_app.use(bodyParser.json({limit: '1mb', type: 'application/*+json'}));
@@ -76,8 +75,8 @@ fs.readFile(conf_filename, 'utf-8', function (err, data) {
 
         http.globalAgent.maxSockets = 1000000;
 
-        http.createServer(mqtt_app).listen({port: usemqttport, agent: false}, function () {
-            console.log('pxymqtt server (' + ip.address() + ') running at ' + usemqttport + ' port');
+        http.createServer(mqtt_app).listen({port: '9726', agent: false}, function () {
+            console.log('pxymqtt server (' + ip.address() + ') running at 9726 port');
 
             mqtt_state = 'connect';
 

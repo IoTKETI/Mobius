@@ -4,8 +4,6 @@
         "csebaseport": "7579",
         "dbhost": "localhost",
         "dbpass": "dksdlfduq2",
-        "mqttbroker": "localhost",
-        "mqttproxyport": "9726",
-        "tsagentport": "9874"
+        "mqttbroker": "203.253.128.151"
     }
 }

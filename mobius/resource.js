@@ -39,7 +39,8 @@ var util = require('util');
 var db = require('./db_action');
 var merge = require('merge');
 
-const max_lim = 1000;
+
+var db_sql = require('./sql_action');
 
 var _this = this;
 
@@ -61,7 +62,7 @@ exports.remove_no_value = function(request, resource_Obj) {
 function check_TS(ri, callback) {
     var options = {
         hostname: 'localhost',
-        port: usetsagentport,
+        port: '7586',
         path: '/missingDataDetect',
         method: 'post',
         headers: {
@@ -148,7 +149,7 @@ function delete_oldest(ri, callback) {
 function delete_TS(ri, callback) {
     var options = {
         hostname: 'localhost',
-        port: usetsagentport,
+        port: '7586',
         path: '/missingDataDetect',
         method: 'delete',
         headers: {
@@ -685,126 +686,44 @@ exports.create = function(request, response, ty, body_Obj) {
     });
 };
 
-
-function build_discovery_sql(request, response, ri) {
-    var list_ri = '';
-    var query_where = '';
-    var query_count = 0;
-    if(request.query.lbl != null) {
-        query_where = ' where ';
-        if(request.query.lbl.toString().split(',')[1] == null) {
-            query_where += util.format(' lbl like \'%%%s%%\'', request.query.lbl);
-            //query_where += util.format(' lbl like \'%s\'', request.query.lbl);
-        }
-        else {
-            for(var i = 0; i < request.query.lbl.length; i++) {
-                query_where += util.format(' lbl like \'%%%s%%\'', request.query.lbl[i]);
-                //query_where += util.format(' lbl like \'%s\'', request.query.lbl[i]);
-
-                if(i < request.query.lbl.length-1) {
-                    query_where += ' or ';
-                }
-            }
-        }
-        query_count++;
-    }
-
-    if(request.query.rty != null) {
-        request.query.ty = request.query.rty;
-    }
-
-    if(request.query.ty != null) {
-        if(query_count == 0) {
-            query_where = ' where ';
-        }
-        else if(query_count > 0) {
-            query_where += ' and ';
-        }
-        if(request.query.ty.toString().split(',')[1] == null) {
-            query_where += util.format('ty = \'%s\'', request.query.ty);
-        }
-        else {
-            for(i = 0; i < request.query.ty.length; i++) {
-                query_where += util.format('ty = \'%s\'', request.query.ty[i]);
-                if(i < request.query.ty.length-1) {
-                    query_where += ' or ';
-                }
-            }
-        }
-        query_count++;
-    }
-
-    if(request.query.cra != null) {
-        if(query_count == 0) {
-            query_where = ' where ';
-        }
-        else if(query_count > 0) {
-            query_where += ' and ';
-        }
-        query_where += util.format('\'%s\' <= ct', request.query.cra);
-        query_count++;
-    }
-
-    if(request.query.crb != null) {
-        if(query_count == 0) {
-            query_where = ' where ';
-        }
-        else if(query_count > 0) {
-            query_where += ' and ';
-        }
-        query_where += util.format(' ct <= \'%s\'', request.query.crb);
-        query_count++;
-    }
-
-    if(query_count == 0) {
-        query_where = ' where ';
-        //query_where += util.format('ri = \'%s\'', ri);
-        query_where += util.format('(ri = \'%s\' or ri like \'%s/%%\')', ri, ri);
-    }
-    else if(query_count > 0) {
-        query_where += ' and ';
-        query_where += util.format('(ri = \'%s\' or ri like \'%s/%%\')', ri, ri);
-    }
-
-    if(request.query.lim != null) {
-        if(request.query.lim > max_lim) {
-            request.query.lim = max_lim;
-        }
-        query_where += util.format(' order by ri desc limit %s', request.query.lim);
-    }
-    else {
-        query_where += util.format(' order by ri desc limit 1000');
-    }
-
-    return query_where;
-}
-
 function presearch_action(request, response, ty, ri_list, comm_Obj, callback) {
     var rootnm = request.headers.rootnm;
-
-    var where_sql = build_discovery_sql(request, response, comm_Obj.ri);
-    
-    var sql = util.format("select * from lookup " + where_sql);
-
-    //console.time('resource_presearch');
-    db.getResult(sql, '', function (err, search_Obj) {
+    var pi_list = [];
+    db_sql.search_parents(comm_Obj.ri, function (err, search_Obj) {
         if(!err) {
-            if(search_Obj.length >= 1) {
-                for(var i = 0; i < search_Obj.length; i++) {
-                    ri_list[i] = search_Obj[i].ri;
-                    search_Obj[search_Obj[i].ri] = search_Obj[i];
-                    delete search_Obj[i];
+            for(var i = 0; i < search_Obj.length; i++) {
+                pi_list.push(search_Obj[i].ri);
+            }
+
+            var found_Obj = {};
+            db_sql.search_lookup(request.query.ty, request.query.lbl, request.query.cra, request.query.crb, request.query.lim, pi_list, function (err, search_Obj) {
+                if(!err) {
+                    if(search_Obj.length >= 1) {
+                        for(var i = 0; i < search_Obj.length; i++) {
+                            ri_list.push(search_Obj[i].ri);
+                            found_Obj[search_Obj[i].ri] = search_Obj[i];
+                            delete search_Obj[i];
+                        }
+                        callback('1', ri_list, found_Obj);
+                    }
+                    else {
+                        search_Obj = {};
+                        search_Obj['rsp'] = {};
+                        search_Obj['rsp'].cap = 'resource do not exist';
+                        responder.response_result(request, response, 404, search_Obj, 4004, url.parse(request.url).pathname.toLowerCase(), 'resource do not exist');
+                        callback('0', search_Obj);
+                        return '0';
+                    }
                 }
-                callback('1', ri_list, search_Obj);
-            }
-            else {
-                search_Obj = {};
-                search_Obj['rsp'] = {};
-                search_Obj['rsp'].cap = 'resource do not exist';
-                responder.response_result(request, response, 404, search_Obj, 4004, url.parse(request.url).pathname.toLowerCase(), 'resource do not exist');
-                callback('0', search_Obj);
-                return '0';
-            }
+                else {
+                    search_Obj = {};
+                    search_Obj['rsp'] = {};
+                    search_Obj['rsp'].cap = search_Obj.code;
+                    responder.response_result(request, response, 500, search_Obj, 5000, url.parse(request.url).pathname.toLowerCase(), search_Obj.code);
+                    callback('0', search_Obj);
+                    return '0';
+                }
+            });
         }
         else {
             search_Obj = {};
@@ -829,11 +748,11 @@ function search_action(request, response, seq, resource_Obj, ri_list, strObj, pr
 
     var sql = util.format("select * from " + responder.typeRsrc[ty_list[seq]] + " where ri in ("+JSON.stringify(ri_list).replace('[','').replace(']','')+")");
 
-    console.time('resource_search');
+    console.time('search_resource');
     db.getResult(sql, '', function (err, search_Obj) {
         if(!err) {
             if(search_Obj.length >= 1) {
-                console.timeEnd('resource_search');
+                console.timeEnd('search_resource');
 
                 if(strObj.length > 1) {
                     strObj += ',';

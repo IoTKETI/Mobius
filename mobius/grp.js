@@ -275,7 +275,7 @@ exports.build_grp = function(request, response, resource_Obj, body_Obj, callback
 
     resource_Obj[rootnm].cr = (body_Obj[rootnm].cr) ? body_Obj[rootnm].cr : '';
     resource_Obj[rootnm].macp = (body_Obj[rootnm].macp) ? body_Obj[rootnm].macp : [];
-    resource_Obj[rootnm].mt = (body_Obj[rootnm].mt) ? body_Obj[rootnm].mt : '24';
+    resource_Obj[rootnm].mt = (body_Obj[rootnm].mt) ? body_Obj[rootnm].mt : '0';
     resource_Obj[rootnm].csy = (body_Obj[rootnm].csy) ? body_Obj[rootnm].csy : '1'; // default : ABANDON_MEMBER
     resource_Obj[rootnm].cnm = body_Obj[rootnm].mid.length.toString();
     resource_Obj[rootnm].gn = (body_Obj[rootnm].gn) ? body_Obj[rootnm].gn : '';
@@ -291,7 +291,7 @@ exports.build_grp = function(request, response, resource_Obj, body_Obj, callback
         }
     }
 
-    if(resource_Obj[rootnm].mt != '24') {
+    if(resource_Obj[rootnm].mt != '0') {
         check_mtv(request, response, resource_Obj[rootnm].mt, resource_Obj[rootnm].mid, function(rsc, results_mid) {
             if(rsc == '0') { // mt inconsistency
                 if(results_mid.length == '0') {
@@ -317,7 +317,7 @@ exports.build_grp = function(request, response, resource_Obj, body_Obj, callback
                         return '0';
                     }
                     else { // SET_MIXED
-                        resource_Obj[rootnm].mt = '24';
+                        resource_Obj[rootnm].mt = '0';
                         resource_Obj[rootnm].mtv = 'false';
                     }
                 }
@@ -508,7 +508,7 @@ exports.update_grp = function(request, response, resource_Obj, body_Obj, callbac
     if(body_Obj[rootnm].mid) {
         resource_Obj[rootnm].mid = body_Obj[rootnm].mid;
 
-        if(resource_Obj[rootnm].mt != '24') {
+        if(resource_Obj[rootnm].mt != '0') {
             check_mtv(resource_Obj[rootnm].mt, resource_Obj[rootnm].mid, function(rsc, results_mid) {
                 if(rsc == '0') { // mt inconsistency
                     if(results_mid.length == '0') {
@@ -534,7 +534,7 @@ exports.update_grp = function(request, response, resource_Obj, body_Obj, callbac
                             return '0';
                         }
                         else { // SET_MIXED
-                            resource_Obj[rootnm].mt = '24';
+                            resource_Obj[rootnm].mt = '0';
                             resource_Obj[rootnm].mtv = 'false';
                         }
                     }

@@ -15,6 +15,7 @@
  */
 
 process.env.NODE_ENV = 'production';
+//process.env.NODE_ENV = 'development';
 
 var fs = require('fs');
 var http = require('http');
@@ -51,7 +52,7 @@ global.usedbname = 'mysql';
 global.usedbhost = '';
 global.usedbpass = '';
 global.usemqttbroker = 'localhost';
-global.usemqttproxyport = '9726';
+//global.usemqttproxyport = '9726';
 
 global.NOPRINT = 'true';
 global.ONCE = 'true';
@@ -135,7 +136,7 @@ if(cluster.isMaster) {
             usedbhost = conf['dbhost'];
             usedbpass = conf['dbpass'];
             usemqttbroker = conf['mqttbroker'];
-            usemqttproxyport = conf['mqttproxyport'];
+            //usemqttproxyport = conf['mqttproxyport'];
 
             db.connect(usedbhost, 3306, 'root', usedbpass, function (rsc) {
                 if(rsc == '1') {
@@ -173,7 +174,7 @@ else {
             usedbhost = conf['dbhost'];
             usedbpass = conf['dbpass'];
             usemqttbroker = conf['mqttbroker'];
-            usemqttproxyport = conf['mqttproxyport'];
+            //usemqttproxyport = conf['mqttproxyport'];
 
             app.use(bodyParser.urlencoded({ extended: true }));
             app.use(bodyParser.json({limit: '1mb', type: 'application/*+json' }));
@@ -711,7 +712,9 @@ function check_resource(request, response, option, callback) {
     if(last_url == 'latest' || last_url == 'la') {
         ri = ri.replace('/latest', '');
         ri = ri.replace('/la', '');
-        var sql = util.format("select * from lookup where pi = \'%s\' and (ty = '4' or ty = '26') order by ct desc limit 1", ri);
+        var sql = util.format('select a.* from (select ri from lookup where (pi = \'%s\') order by ri desc limit 10000) b left join lookup as a on b.ri = a.ri where a.ty = \'4\' or a.ty = \'26\' limit 1', ri);
+
+        //var sql = util.format("select * from lookup where pi = \'%s\' and (ty = '4' or ty = '26') order by ct desc limit 1", ri);
         queryJson.condition = 'latest';
         op = 'latest';
         
@@ -719,7 +722,8 @@ function check_resource(request, response, option, callback) {
     else if(last_url == 'oldest' || last_url == 'ol') {
         ri = ri.replace('/oldest', '');
         ri = ri.replace('/ol', '');
-        sql = util.format("select * from lookup where pi = \'%s\' and (ty = '4' or ty = '26') order by ct asc limit 1", ri);
+        //sql = util.format("select * from lookup where pi = \'%s\' and (ty = '4' or ty = '26') order by ct asc limit 1", ri);
+        sql = util.format('select a.* from (select ri from lookup where (pi = \'%s\') order by ri asc limit 10000) b left join lookup as a on b.ri = a.ri where a.ty = \'4\' or a.ty = \'26\' limit 1', ri);
         queryJson.condition = 'oldest';
         op = 'oldest';
     }

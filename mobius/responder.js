@@ -635,10 +635,10 @@ const typeRsrc = {
     "16": "csr",
 //    "17": "req",
     "23": "sub",
+    "24": "sd",
     "25": "ts",
     "26": "tsi",
     "27": "mms",
-    "28": "sd",
     "99": "rsp"
 };
 
@@ -822,7 +822,7 @@ exports.search_result = function(request, response, status, body_Obj, rsc, ri, c
         response.setHeader('locale', request.headers.locale);
     }
 
-    if(request.headers['x-m2m-ri'] != null) {
+    if(request.headers['x-m2m-ri']) {
         response.setHeader('X-M2M-RI', request.headers['x-m2m-ri']);
     }
 

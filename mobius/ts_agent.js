@@ -29,7 +29,7 @@ var js2xmlparser = require("js2xmlparser");
 //var usedbhost = '';
 //var usedbpass = '';
 
-var usetsagentport = '7587';
+//var usetsagentport = '7586';
 
 var db = require('./db_action');
 
@@ -50,7 +50,7 @@ fs.readFile(conf_filename, 'utf-8', function (err, data) {
         //usedbhost = conf['dbhost'];
         //usedbpass = conf['dbpass'];
 
-        usetsagentport = conf['tsagentport'];
+        //usetsagentport = conf['tsagentport'];
 
         app.use(bodyParser.urlencoded({ extended: true }));
         app.use(bodyParser.json({limit: '1mb', type: 'application/*+json' }));
@@ -60,8 +60,8 @@ fs.readFile(conf_filename, 'utf-8', function (err, data) {
 
         db.connect(usedbhost, 3306, 'root', usedbpass, function (rsc) {
             if (rsc == '1') {
-                http.createServer(app).listen({port: usetsagentport, agent: false}, function () {
-                    console.log('ts_missing agent server (' + ip.address() + ') running at ' + usetsagentport + ' port');
+                http.createServer(app).listen({port: '7586', agent: false}, function () {
+                    console.log('ts_missing agent server (' + ip.address() + ') running at 7586 port');
 
                     // Searching TS with missingDetect. if it is TRUE, restart mddt
                     init_TS(function (rsc, responseBody) {
@@ -78,7 +78,7 @@ function init_TS(callback) {
     var ri = '/missingDataDetect';
     var options = {
         hostname: 'localhost',
-        port: usetsagentport,
+        port: '7586',
         path: ri,
         method: 'post',
         headers: {
