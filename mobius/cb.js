@@ -58,9 +58,9 @@ function parse_create_action(callback) {
     resource_Obj[rootnm].srt.push('10');
     resource_Obj[rootnm].srt.push('16');
     resource_Obj[rootnm].srt.push('23');
+    resource_Obj[rootnm].srt.push('24');
     resource_Obj[rootnm].srt.push('25');
     resource_Obj[rootnm].srt.push('26');
-    resource_Obj[rootnm].srt.push('28');
 
     resource_Obj[rootnm].poa = [];
     resource_Obj[rootnm].poa.push('http://' + ip.address() + ':' + usecsebaseport);

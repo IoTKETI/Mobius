@@ -411,7 +411,7 @@ function create_action(request, response, ty, resource_Obj, callback) {
             resourceJson.cr = resource_Obj[rootnm].cr;
             resourceJson.su = resource_Obj[rootnm].su;
             break;
-        case '28':
+        case '24':
             sql2 = util.format('insert into sd (ri, cr, dspt, sd.or) ' +
                 'VALUE (\'%s\', \'%s\', \'%s\', \'%s\')',
                 resource_Obj[rootnm].ri, resource_Obj[rootnm].cr, resource_Obj[rootnm].dspt, resource_Obj[rootnm].or);
@@ -631,7 +631,7 @@ function build_resource(request, response, ty, body_Obj, callback) {
                             callback(rsc, resource_Obj);
                         });
                         break;
-                    case '28':
+                    case '24':
                         sd.build_sd(request, response, resource_Obj, body_Obj, function(rsc, resource_Obj) {
                             callback(rsc, resource_Obj);
                         });
@@ -736,7 +736,7 @@ function presearch_action(request, response, ty, ri_list, comm_Obj, callback) {
     });
 }
 
-const ty_list = ['1', '2', '3', '4', '5', '9', '10', /*'13', '14',*/ '16', /*'17',*/ '23', '25', '26', '27', '28'];
+const ty_list = ['1', '2', '3', '4', '5', '9', '10', /*'13', '14',*/ '16', /*'17',*/ '23', '25', '26', '27', '24'];
 
 function search_action(request, response, seq, resource_Obj, ri_list, strObj, presearch_Obj, callback) {
     if(ty_list.length <= seq) {
@@ -1075,7 +1075,7 @@ function update_action( request, response, ty, resource_Obj, callback) {
             resourceJson.nct = resource_Obj[rootnm].nct;
             resourceJson.nec = resource_Obj[rootnm].nec;
             break;
-        case '28':
+        case '24':
             sql2 = util.format('update sd set dspt = \'%s\', sd.or = \'%s\' where ri = \'%s\'',
                 resource_Obj[rootnm].dspt, resource_Obj[rootnm].or, resource_Obj[rootnm].ri);
             resourceJson.ri = resource_Obj[rootnm].ri;
@@ -1188,7 +1188,7 @@ function update_resource(request, response, ty, body_Obj, resource_Obj, callback
                 callback(rsc, resource_Obj);
             });
             break;
-        case '28':
+        case '24':
             sd.update_sd(request, response, resource_Obj, body_Obj, function(rsc, resource_Obj) {
                 callback(rsc, resource_Obj);
             }); break;

@@ -854,12 +854,12 @@ function lookup_create(request, response) {
                 else if ((ty == 3) && (parent_comm.ty == 5 || parent_comm.ty == 16 || parent_comm.ty == 2 || parent_comm.ty == 3)) { // container
                 }
                 else if ((ty == 23) && (parent_comm.ty == 5 || parent_comm.ty == 16 || parent_comm.ty == 2 ||
-                    parent_comm.ty == 3 || parent_comm.ty == 28 || parent_comm.ty == 25)) { // sub
+                    parent_comm.ty == 3 || parent_comm.ty == 24 || parent_comm.ty == 25)) { // sub
                 }
                 else if ((ty == 4) && (parent_comm.ty == 3)) { // contentInstance
                     body_Obj[rootnm].mni = parent_comm.mni;
                 }
-                else if ((ty == 28) && (parent_comm.ty == 2 || parent_comm.ty == 3 || parent_comm.ty == 4 || parent_comm.ty == 25)) { // semanticDescriptor
+                else if ((ty == 24) && (parent_comm.ty == 2 || parent_comm.ty == 3 || parent_comm.ty == 4 || parent_comm.ty == 25)) { // semanticDescriptor
                 }
                 else if ((ty == 25) && (parent_comm.ty == 5 || parent_comm.ty == 16 || parent_comm.ty == 2)) { // timeSeries
                 }
