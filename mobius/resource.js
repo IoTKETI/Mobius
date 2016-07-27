@@ -695,8 +695,9 @@ function presearch_action(request, response, ty, ri_list, comm_Obj, callback) {
                 pi_list.push(search_Obj[i].ri);
             }
 
+            var finding_Obj = [];
             var found_Obj = {};
-            db_sql.search_lookup(request.query.ty, request.query.lbl, request.query.cra, request.query.crb, request.query.lim, pi_list, function (err, search_Obj) {
+            db_sql.search_lookup(request.query.ty, request.query.lbl, request.query.cra, request.query.crb, request.query.lim, pi_list, 0, finding_Obj, 0, function (err, search_Obj) {
                 if(!err) {
                     if(search_Obj.length >= 1) {
                         for(var i = 0; i < search_Obj.length; i++) {
@@ -1241,7 +1242,46 @@ exports.update = function(request, response, comm_Obj, body_Obj) {
 
 function delete_action(request, response, ty, resource_Obj, comm_Obj, callback) {
     var rootnm = request.headers.rootnm;
+    var pi_list = [];
+    db_sql.search_parents(comm_Obj.ri, function (err, search_Obj) {
+        if(!err) {
+            for(var i = 0; i < search_Obj.length; i++) {
+                pi_list.push(search_Obj[i].ri);
+            }
 
+            var finding_Obj = [];
+            var found_Obj = {};
+            db_sql.delete_lookup(comm_Obj.ri, pi_list, 0, finding_Obj, 0, function (err, search_Obj) {
+                if(!err) {
+                    if(comm_Obj.ty == '25') {
+                        delete_TS(resource_Obj[rootnm].ri, function (rsc, res_Obj) {
+                        });
+                        callback('1', resource_Obj);
+                    }
+                    else {
+                        callback('1', resource_Obj);
+                    }
+                }
+                else {
+                    search_Obj = {};
+                    search_Obj['rsp'] = {};
+                    search_Obj['rsp'].cap = search_Obj.code;
+                    responder.response_result(request, response, 500, search_Obj, 5000, url.parse(request.url).pathname.toLowerCase(), search_Obj.code);
+                    callback('0', search_Obj);
+                    return '0';
+                }
+            });
+        }
+        else {
+            search_Obj = {};
+            search_Obj['rsp'] = {};
+            search_Obj['rsp'].cap = search_Obj.code;
+            responder.response_result(request, response, 500, search_Obj, 5000, url.parse(request.url).pathname.toLowerCase(), search_Obj.code);
+            callback('0', search_Obj);
+            return '0';
+        }
+    });
+    /*
     var sql = util.format("delete from lookup where ri = \'%s\' or ri like \'%s/%%\'", comm_Obj.ri, comm_Obj.ri);
 
     console.time('resource_delete');
@@ -1266,7 +1306,7 @@ function delete_action(request, response, ty, resource_Obj, comm_Obj, callback) 
             callback('0', resource_Obj);
             return '0';
         }
-    });
+    });*/
 }
 
 function delete_resource(request, response, ty, comm_Obj, callback) {

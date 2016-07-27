@@ -15,6 +15,8 @@
 var util = require('util');
 var db = require('./db_action');
 
+var _this = this;
+
 const max_lim = 1000;
 
 exports.select_csr_like = function(cb, callback) {
@@ -60,7 +62,9 @@ function build_discovery_sql(ty, lbl, cra, crb, lim, pi_list, callback) {
         query_count++;
     }
 
+    var ty_str = '';
     if(ty != null) {
+        ty_str = ' and ';
         if(query_count == 0) {
             query_where = ' where ';
         }
@@ -69,12 +73,15 @@ function build_discovery_sql(ty, lbl, cra, crb, lim, pi_list, callback) {
         }
         if(ty.toString().split(',')[1] == null) {
             query_where += util.format('a.ty = \'%s\'', ty);
+            ty_str += util.format('ty = \'%s\'', ty);
         }
         else {
             for(i = 0; i < ty.length; i++) {
                 query_where += util.format('a.ty = \'%s\'', ty[i]);
+                ty_str += util.format('ty = \'%s\'', ty[i]);
                 if(i < ty.length-1) {
                     query_where += ' or ';
+                    ty_str += ' or ';
                 }
             }
         }
@@ -115,16 +122,144 @@ function build_discovery_sql(ty, lbl, cra, crb, lim, pi_list, callback) {
         query_where += util.format(' limit 1000');
     }
 
-    query_where = util.format("select a.* from (select ri from lookup where pi in ("+JSON.stringify(pi_list).replace('[','').replace(']','')+") order by ct desc limit 1000) b left join lookup as a on b.ri = a.ri") + query_where;
+    query_where = util.format("select a.* from (select ri from lookup where pi in ("+JSON.stringify(pi_list).replace('[','').replace(']','')+") %s order by ct desc limit 1000) b left join lookup as a on b.ri = a.ri", ty_str) + query_where;
 
     return query_where;
 }
 
-exports.search_lookup = function (ty, lbl, cra, crb, lim, pi_list, callback) {
-    console.time('search_lookup');
-    var sql = build_discovery_sql(ty, lbl, cra, crb, lim, pi_list);
+exports.search_lookup = function (ty, lbl, cra, crb, lim, pi_list, pi_index, found_Obj, found_Cnt, callback) {
+    var cur_pi = [];
+
+    if(lim != null) {
+        if(lim > max_lim) {
+            lim = max_lim;
+        }
+    }
+    else {
+        lim = 1000;
+    }
+
+    if(pi_index == 0) {
+        console.time('search_lookup');
+    }
+
+    cur_pi.push(pi_list[pi_index++]);
+
+    var sql = build_discovery_sql(ty, lbl, cra, crb, lim, cur_pi);
     db.getResult(sql, '', function (err, search_Obj) {
-        console.timeEnd('search_lookup');
-        callback(err, search_Obj);
+        if(!err) {
+            for(var i = 0; i < search_Obj.length; i++) {
+                found_Obj[found_Cnt++] = search_Obj[i];
+                if(found_Cnt >= lim) {
+                    console.timeEnd('search_lookup');
+                    callback(err, found_Obj);
+                    return;
+                }
+            }
+
+            if(pi_index >= pi_list.length) {
+                console.timeEnd('search_lookup');
+                callback(err, found_Obj);
+            }
+            else {
+                _this.search_lookup(ty, lbl, cra, crb, lim, pi_list, pi_index, found_Obj, found_Cnt, function (err, found_Obj) {
+                    callback(err, found_Obj);
+                });
+            }
+        }
+    });
+};
+
+exports.select_latest_lookup = function(ri, cur_d, loop_cnt, callback) {
+//    var cur_ct = cur_d.toISOString().replace(/-/, '').replace(/-/, '').replace(/:/, '').replace(/:/, '').replace(/\..+/, '');
+    cur_d.setDate(cur_d.getDate()-(loop_cnt*2+1));
+    var bef_ct = cur_d.toISOString().replace(/-/, '').replace(/-/, '').replace(/:/, '').replace(/:/, '').replace(/\..+/, '');
+
+    if(loop_cnt++ == 0) {
+        console.time('select_latest');
+    }
+
+    //var sql = util.format('select a.* from (select ri from lookup where (pi = \'%s\') and ct between \'%s\' and \'%s\' order by ct desc limit 1000) b left join lookup as a on b.ri = a.ri where a.ty = \'4\' or a.ty = \'26\' limit 1', ri, bef_ct, cur_ct);
+    var sql = util.format('select a.* from (select ri from lookup where (pi = \'%s\') and ct > \'%s\' order by ct desc limit 1000) b left join lookup as a on b.ri = a.ri where a.ty = \'4\' or a.ty = \'26\' limit 1', ri, bef_ct);
+    db.getResult(sql, '', function (err, latest_Obj) {
+        if(!err) {
+            if(latest_Obj.length == 1) {
+                console.timeEnd('select_latest');
+                callback(err, latest_Obj);
+            }
+            else {
+                if(loop_cnt > 8) {
+                    callback(err, latest_Obj);
+                }
+                else {
+                    _this.select_latest_lookup(ri, cur_d, loop_cnt, function(err, latest_Obj) {
+                        callback(err, latest_Obj);
+                    });
+                }
+            }
+        }
+        else {
+            console.timeEnd('select_latest');
+            callback(err, latest_Obj);
+        }
+    });
+};
+
+exports.select_oldest_lookup = function(ri, callback) {
+    console.time('select_oldest');
+    var sql = util.format('select a.* from (select ri from lookup where (pi = \'%s\') limit 1000) b left join lookup as a on b.ri = a.ri where a.ty = \'4\' or a.ty = \'26\' limit 1', ri);
+    db.getResult(sql, '', function (err, oldest_Obj) {
+        console.timeEnd('select_oldest');
+        callback(err, oldest_Obj);
+    });
+};
+
+exports.select_direct_lookup = function(ri, callback) {
+    //console.time('select_direct');
+    var sql = util.format("select * from lookup where ri = \'%s\'", ri);
+    db.getResult(sql, '', function (err, direct_Obj) {
+        //console.timeEnd('select_direct');
+        callback(err, direct_Obj);
+    });
+};
+
+exports.select_group_lookup = function(ri, callback) {
+    //console.time('select_group');
+    var sql = util.format("select * from lookup where ri = \'%s\' and ty = '9'", ri);
+    db.getResult(sql, '', function (err, group_Obj) {
+        //console.timeEnd('select_group');
+        callback(err, group_Obj);
+    });
+};
+
+exports.delete_lookup = function (ri, pi_list, pi_index, found_Obj, found_Cnt, callback) {
+    var cur_pi = [];
+    cur_pi.push(pi_list[pi_index]);
+
+    if(pi_index == 0) {
+        console.time('delete_lookup');
+    }
+
+    var sql = util.format("delete a.* from (select ri from lookup where pi in ("+JSON.stringify(cur_pi).replace('[','').replace(']','') + ")) b left join lookup as a on b.ri = a.ri");
+    db.getResult(sql, '', function (err, search_Obj) {
+        if(!err) {
+            found_Cnt += search_Obj.affectedRows;
+            if(++pi_index >= pi_list.length) {
+                sql = util.format("delete from lookup where ri = \'%s\'", pi_list[0]);
+                db.getResult(sql, '', function (err, search_Obj) {
+                    if(!err) {
+                        console.timeEnd('delete_lookup');
+                        found_Cnt += search_Obj.affectedRows;
+                        console.log('deleted ' + found_Cnt + ' resource(s).');
+                    }
+                    callback(err, found_Obj);
+                });
+            }
+            else {
+                _this.delete_lookup(ri, pi_list, pi_index, found_Obj, found_Cnt, function (err, found_Obj) {
+                    callback(err, found_Obj);
+                });
+            }
+        }
     });
 };

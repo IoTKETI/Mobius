@@ -706,65 +706,125 @@ function check_resource(request, response, option, callback) {
     var last_url = url_arr[url_arr.length-1];
     var op = 'direct';
 
-    var queryJson = {};
-    queryJson.type = 'select';
-    queryJson.table = 'lookup';
     if(last_url == 'latest' || last_url == 'la') {
         ri = ri.replace('/latest', '');
         ri = ri.replace('/la', '');
-        var sql = util.format('select a.* from (select ri from lookup where (pi = \'%s\') order by ri desc limit 10000) b left join lookup as a on b.ri = a.ri where a.ty = \'4\' or a.ty = \'26\' limit 1', ri);
-
-        //var sql = util.format("select * from lookup where pi = \'%s\' and (ty = '4' or ty = '26') order by ct desc limit 1", ri);
-        queryJson.condition = 'latest';
         op = 'latest';
-        
+        var cur_d = new Date();
+        db_sql.select_latest_lookup(ri, cur_d, 0, function (err, result_Obj) {
+            if(!err) {
+                if (result_Obj.length == 1) {
+                    result_Obj[0].acpi = JSON.parse(result_Obj[0].acpi);
+                    result_Obj[0].lbl = JSON.parse(result_Obj[0].lbl);
+                    result_Obj[0].aa = JSON.parse(result_Obj[0].aa);
+                    result_Obj[0].at = JSON.parse(result_Obj[0].at);
+                    callback('1', result_Obj[0], op);
+                }
+                else {
+                    result_Obj['rsp'] = {};
+                    result_Obj['rsp'].cap = 'resource does not exist';
+                    responder.response_result(request, response, 404, result_Obj, 4004, url.parse(request.url).pathname.toLowerCase(), result_Obj['rsp'].cap);
+                    callback('0');
+                    return '0';
+                }
+            }
+            else {
+                result_Obj['rsp'] = {};
+                result_Obj['rsp'].cap = results.code;
+                responder.response_result(request, response, 500, result_Obj, 5000, url.parse(request.url).pathname.toLowerCase(), result_Obj['rsp'].cap);
+                callback('0');
+                return '0';
+            }
+        });
     }
     else if(last_url == 'oldest' || last_url == 'ol') {
         ri = ri.replace('/oldest', '');
         ri = ri.replace('/ol', '');
-        //sql = util.format("select * from lookup where pi = \'%s\' and (ty = '4' or ty = '26') order by ct asc limit 1", ri);
-        sql = util.format('select a.* from (select ri from lookup where (pi = \'%s\') order by ri asc limit 10000) b left join lookup as a on b.ri = a.ri where a.ty = \'4\' or a.ty = \'26\' limit 1', ri);
-        queryJson.condition = 'oldest';
         op = 'oldest';
+        db_sql.select_oldest_lookup(ri, function (err, result_Obj) {
+            if(!err) {
+                if (result_Obj.length == 1) {
+                    result_Obj[0].acpi = JSON.parse(result_Obj[0].acpi);
+                    result_Obj[0].lbl = JSON.parse(result_Obj[0].lbl);
+                    result_Obj[0].aa = JSON.parse(result_Obj[0].aa);
+                    result_Obj[0].at = JSON.parse(result_Obj[0].at);
+                    callback('1', result_Obj[0], op);
+                }
+                else {
+                    result_Obj['rsp'] = {};
+                    result_Obj['rsp'].cap = 'resource does not exist';
+                    responder.response_result(request, response, 404, result_Obj, 4004, url.parse(request.url).pathname.toLowerCase(), result_Obj['rsp'].cap);
+                    callback('0');
+                    return '0';
+                }
+            }
+            else {
+                result_Obj['rsp'] = {};
+                result_Obj['rsp'].cap = results.code;
+                responder.response_result(request, response, 500, result_Obj, 5000, url.parse(request.url).pathname.toLowerCase(), result_Obj['rsp'].cap);
+                callback('0');
+                return '0';
+            }
+        });
     }
     else if(last_url == 'fanoutpoint' || last_url == 'fopt') {
         ri = ri.replace('/fanoutpoint', '');
         ri = ri.replace('/fopt', '');
-        sql = util.format("select * from lookup where ri = \'%s\' and ty = '9'", ri);
-        queryJson.condition = 'fanoutpoint';
         op = 'fanoutpoint';
-    }
-    else {
-        sql = util.format("select * from lookup where ri = \'%s\'", ri);
-        queryJson.condition = 'direct';
-        op = 'direct';
-    }
-    
-    db.getResult(sql, queryJson, function(err, results) {
-        if(!err) {
-            if (results.length == 1) {
-                results[0].acpi = JSON.parse(results[0].acpi);
-                results[0].lbl = JSON.parse(results[0].lbl);
-                results[0].aa = JSON.parse(results[0].aa);
-                results[0].at = JSON.parse(results[0].at);
-                callback('1', results[0], op);
+        db_sql.select_group_lookup(ri, function (err, result_Obj) {
+            if(!err) {
+                if (result_Obj.length == 1) {
+                    result_Obj[0].acpi = JSON.parse(result_Obj[0].acpi);
+                    result_Obj[0].lbl = JSON.parse(result_Obj[0].lbl);
+                    result_Obj[0].aa = JSON.parse(result_Obj[0].aa);
+                    result_Obj[0].at = JSON.parse(result_Obj[0].at);
+                    callback('1', result_Obj[0], op);
+                }
+                else {
+                    result_Obj['rsp'] = {};
+                    result_Obj['rsp'].cap = 'resource does not exist';
+                    responder.response_result(request, response, 404, result_Obj, 4004, url.parse(request.url).pathname.toLowerCase(), result_Obj['rsp'].cap);
+                    callback('0');
+                    return '0';
+                }
             }
             else {
                 result_Obj['rsp'] = {};
-                result_Obj['rsp'].cap = 'resource does not exist';
-                responder.response_result(request, response, 404, result_Obj, 4004, url.parse(request.url).pathname.toLowerCase(), result_Obj['rsp'].cap);
+                result_Obj['rsp'].cap = results.code;
+                responder.response_result(request, response, 500, result_Obj, 5000, url.parse(request.url).pathname.toLowerCase(), result_Obj['rsp'].cap);
                 callback('0');
                 return '0';
             }
-        }
-        else {
-            result_Obj['rsp'] = {};
-            result_Obj['rsp'].cap = results.code;
-            responder.response_result(request, response, 500, result_Obj, 5000, url.parse(request.url).pathname.toLowerCase(), result_Obj['rsp'].cap);
-            callback('0');
-            return '0';
-        }
-    });
+        });
+    }
+    else {
+        op = 'direct';
+        db_sql.select_direct_lookup(ri, function (err, result_Obj) {
+            if(!err) {
+                if (result_Obj.length == 1) {
+                    result_Obj[0].acpi = JSON.parse(result_Obj[0].acpi);
+                    result_Obj[0].lbl = JSON.parse(result_Obj[0].lbl);
+                    result_Obj[0].aa = JSON.parse(result_Obj[0].aa);
+                    result_Obj[0].at = JSON.parse(result_Obj[0].at);
+                    callback('1', result_Obj[0], op);
+                }
+                else {
+                    result_Obj['rsp'] = {};
+                    result_Obj['rsp'].cap = 'resource does not exist';
+                    responder.response_result(request, response, 404, result_Obj, 4004, url.parse(request.url).pathname.toLowerCase(), result_Obj['rsp'].cap);
+                    callback('0');
+                    return '0';
+                }
+            }
+            else {
+                result_Obj['rsp'] = {};
+                result_Obj['rsp'].cap = result_Obj.code;
+                responder.response_result(request, response, 500, result_Obj, 5000, url.parse(request.url).pathname.toLowerCase(), result_Obj['rsp'].cap);
+                callback('0');
+                return '0';
+            }
+        });
+    }
 }
 
 
