@@ -12,48 +12,27 @@
  * Created by ryeubi on 2015-10-19.
  */
 
-var mongodb = require('mongodb');
-var MongoClient = mongodb.MongoClient;
-
 var mysql = require('mysql');
 
 var mysql_pool = null;
-var mongodb_pool = null;
 
-_this = this;
-
-var mongodb_url = 'mongodb://localhost:27017/mobiusdb';
+var _this = this;
 
 exports.connect = function (host, port, user, password, callback) {
-    if(usedbname == 'mysql') {
-        mysql_pool = mysql.createPool({
-            host: host,
-            port: port,
-            user: user,
-            password: password,
-            database: 'mobiusdb',
-            connectionLimit: 100,
-            waitForConnections: true,
-            debug: false,
-            acquireTimeout: 50000,
-            queueLimit: 0
-        });
-        callback('1');
-    }
-    else {
-        MongoClient.connect(mongodb_url, function (err, db) {
-            if (err) {
-                console.log('Unable to connect to the mongoDB server. Error:', err);
-                callback('0');
-            } else {
-                //HURRAY!! We are connected. :)
-                console.log('Connection established to', mongodb_url);
+    mysql_pool = mysql.createPool({
+        host: host,
+        port: port,
+        user: user,
+        password: password,
+        database: 'mobiusdb',
+        connectionLimit: 100,
+        waitForConnections: true,
+        debug: false,
+        acquireTimeout: 50000,
+        queueLimit: 0
+    });
 
-                mongodb_pool = db;
-                callback('1');
-            }
-        });
-    }
+    callback('1');
 };
 
 
@@ -79,68 +58,19 @@ function executeQuery(pool, query, callback) {
 
 
 exports.getResult = function(query, db_Obj, callback) {
-    if(usedbname == '') {
-        usedbname = 'mysql';
+    if(mysql_pool == null) {
+        console.error("mysql is not connected");
+        return '0';
     }
 
-    if(usedbname == 'mysql') {
-        if(mysql_pool == null) {
-            console.error("mysql is not connected");
-            return '0';
+    executeQuery(mysql_pool, query, function (err, rows) {
+        if (!err) {
+            callback(null,rows);
         }
-
-        executeQuery(mysql_pool, query, function (err, rows) {
-            if (!err) {
-                callback(null,rows);
-            }
-            else {
-                callback(true,err);
-            }
-        });
-    }
-    else { // mongodb
-        if(mongodb_pool == null) {
-            console.error("mongodb is not connected");
-            return '0';
-        }
-
-        executeQuery_mongo(mongodb_pool, db_Obj, function (err, rows) {
-            if (!err) {
-                callback(null, rows);
-            }
-            else {
-                callback(true, err);
-            }
-        });
-    }
-};
-
-function executeQuery_mongo(pool, db_Obj, callback) {
-    MongoClient.connect(mongodb_url, function (err, db) {
-        if (err) {
-            console.log('Unable to connect to the mongoDB server. Error:', err);
-            callback('0');
-        } else {
-            //HURRAY!! We are connected. :)
-            console.log('Connection established to', mongodb_url);
-
-            if (db_Obj.type == 'insert') {
-                var collection = db.collection(db_Obj.table);
-
-                //db_Obj.values._id = db_Obj.values.ri;
-                collection.insert(db_Obj.values, function (err, result) {
-                    if (err) {
-                        console.log(err);
-                        db.close();
-                        return callback(err, null);
-                    } else {
-                        console.log('Inserted %d documents into the "users" collection. The documents inserted with "_id" are:', result.length, result);
-                        db.close();
-                        return callback(null, result);
-                    }
-                });
-            }
+        else {
+            callback(true,err);
         }
     });
-}
+};
+
 

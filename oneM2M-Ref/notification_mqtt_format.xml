@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<m2m:rqp xmlns:m2m="http://www.onem2m.org/xml/protocols" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+    <op>5</op>
+    <to>0.2.481.1.001.0001.346346</to>
+    <fr>0.2.481.1.001.0001.000155</fr>
+    <rqi>12345</rqi>
+    <pc>
+        <sgn> <!--singleNotification-->
+            <nev> <!--notificationEvent-->
+                <rep> <!--representation-->
+                    <cin>
+                        <con>ON</con>
+                    </cin>
+                </rep>
+            </nev>
+            <sur> <!--subscriptionReference-->
+                /mobius-yt/ryeubi/homepot01/sub_1
+            </sur>
+        </sgn>
+    </pc>
+</m2m:rqp>

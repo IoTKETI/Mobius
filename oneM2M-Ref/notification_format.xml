@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<m2m:sgn xmlns:m2m="http://www.onem2m.org/xml/protocols" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"> <!--singleNotification-->
+    <nev> <!--notificationEvent-->
+        <rep> <!--representation-->
+            <cin>
+                <con>ON</con>
+            </cin>
+        </rep>
+    </nev>
+    <sur> <!--subscriptionReference-->
+        /mobius-yt/ryeubi/homepot01/sub_1
+    </sur>
+</m2m:sgn>
+
+

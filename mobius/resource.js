@@ -689,7 +689,7 @@ exports.create = function(request, response, ty, body_Obj) {
 function presearch_action(request, response, ty, ri_list, comm_Obj, callback) {
     var rootnm = request.headers.rootnm;
     var pi_list = [];
-    db_sql.search_parents(comm_Obj.ri, function (err, search_Obj) {
+    db_sql.search_parents_lookup(comm_Obj.ri, function (err, search_Obj) {
         if(!err) {
             for(var i = 0; i < search_Obj.length; i++) {
                 pi_list.push(search_Obj[i].ri);
@@ -697,7 +697,8 @@ function presearch_action(request, response, ty, ri_list, comm_Obj, callback) {
 
             var finding_Obj = [];
             var found_Obj = {};
-            db_sql.search_lookup(request.query.ty, request.query.lbl, request.query.cra, request.query.crb, request.query.lim, pi_list, 0, finding_Obj, 0, function (err, search_Obj) {
+            var cur_d = new Date();
+            db_sql.search_lookup(request.query.ty, request.query.lbl, request.query.cra, request.query.crb, request.query.lim, pi_list, 0, finding_Obj, 0, cur_d, 0, function (err, search_Obj) {
                 if(!err) {
                     if(search_Obj.length >= 1) {
                         for(var i = 0; i < search_Obj.length; i++) {
@@ -1243,7 +1244,7 @@ exports.update = function(request, response, comm_Obj, body_Obj) {
 function delete_action(request, response, ty, resource_Obj, comm_Obj, callback) {
     var rootnm = request.headers.rootnm;
     var pi_list = [];
-    db_sql.search_parents(comm_Obj.ri, function (err, search_Obj) {
+    db_sql.search_parents_lookup(comm_Obj.ri, function (err, search_Obj) {
         if(!err) {
             for(var i = 0; i < search_Obj.length; i++) {
                 pi_list.push(search_Obj[i].ri);

@@ -14,8 +14,8 @@
  * @author Il Yeup Ahn [iyahn@keti.re.kr]
  */
 
-process.env.NODE_ENV = 'production';
-//process.env.NODE_ENV = 'development';
+//process.env.NODE_ENV = 'production';
+process.env.NODE_ENV = 'development';
 
 var fs = require('fs');
 var http = require('http');
@@ -33,31 +33,8 @@ var FileStreamRotator = require('file-stream-rotator');
 var merge = require('merge');
 var https = require('https');
 
-global.defaultnmtype = 'short';
-global.defaultbodytype = 'json';
-
-global.usecbtype = 'in';
-global.usecbname = 'mobius2';
-global.usecbhost = '127.0.0.1';
-global.usecbhostport = '8080';
-global.usecbcseid = '0.2.481.1.1.1.1';
-
-global.usecsebase = 'mobius';
-global.usecseid = '0.2.481.1.1.1.1';
-global.usecsebaseport = '7579';
-
-global.usedbname = 'mysql';
-//global.usedbname = 'mongodb';
-
-global.usedbhost = '';
-global.usedbpass = '';
-global.usemqttbroker = 'localhost';
-//global.usemqttproxyport = '9726';
-
 global.NOPRINT = 'true';
 global.ONCE = 'true';
-
-global.conf_filename = 'conf.json';
 
 var cb = require('./mobius/cb');
 var responder = require('./mobius/responder');
@@ -119,78 +96,36 @@ if(cluster.isMaster) {
         cluster.fork();
     });
 
-    // This is an async file read
-    fs.readFile(conf_filename, 'utf-8', function (err, data) {
-        if (err) {
-            NOPRINT == 'true' ? NOPRINT = 'true' : console.log("FATAL An error occurred trying to read in the file: " + err);
-            NOPRINT == 'true' ? NOPRINT = 'true' : console.log("error : set to default for configuration")
-        }
-        else {
-            var conf = JSON.parse(data)['m2m:conf'];
+    db.connect(usedbhost, 3306, 'root', usedbpass, function (rsc) {
+        if(rsc == '1') {
+            cb.create(function(rsp) {
+                console.log(JSON.stringify(rsp));
 
-            usecbtype = 'in';
-            defaultnmtype = 'short';
-
-            usecsebase = conf['csebase'];
-            usecsebaseport = conf['csebaseport'];
-            usedbhost = conf['dbhost'];
-            usedbpass = conf['dbpass'];
-            usemqttbroker = conf['mqttbroker'];
-            //usemqttproxyport = conf['mqttproxyport'];
-
-            db.connect(usedbhost, 3306, 'root', usedbpass, function (rsc) {
-                if(rsc == '1') {
-                    cb.create(function(rsp) {
-                        console.log(JSON.stringify(rsp));
-
-                        console.log('CPU Count:', cpuCount);
-                        for(var i = 0; i < cpuCount; i++) {
-                            worker[i] = cluster.fork();
-                        }
-
-                        require('./pxymqtt');
-                        //require('./mobius/ts_agent');
-                    });
+                console.log('CPU Count:', cpuCount);
+                for(var i = 0; i < cpuCount; i++) {
+                    worker[i] = cluster.fork();
                 }
+
+                require('./pxymqtt');
+                //require('./mobius/ts_agent');
             });
         }
     });
 }
 else {
-    // This is an async file read
-    fs.readFile(conf_filename, 'utf-8', function (err, data) {
-        if (err) {
-            NOPRINT == 'true' ? NOPRINT = 'true' : console.log("FATAL An error occurred trying to read in the file: " + err);
-            NOPRINT == 'true' ? NOPRINT = 'true' : console.log("error : set to default for configuration")
-        }
-        else {
-            var conf = JSON.parse(data)['m2m:conf'];
+    app.use(bodyParser.urlencoded({ extended: true }));
+    app.use(bodyParser.json({limit: '1mb', type: 'application/*+json' }));
+    app.use(bodyParser.text({limit: '1mb', type: 'application/*+xml' }));
 
-            usecbtype = 'in';
-            defaultnmtype = 'short';
+    http.globalAgent.maxSockets = 1000000;
 
-            usecsebase = conf['csebase'];
-            usecsebaseport = conf['csebaseport'];
-            usedbhost = conf['dbhost'];
-            usedbpass = conf['dbpass'];
-            usemqttbroker = conf['mqttbroker'];
-            //usemqttproxyport = conf['mqttproxyport'];
-
-            app.use(bodyParser.urlencoded({ extended: true }));
-            app.use(bodyParser.json({limit: '1mb', type: 'application/*+json' }));
-            app.use(bodyParser.text({limit: '1mb', type: 'application/*+xml' }));
-
-            http.globalAgent.maxSockets = 1000000;
-
-            db.connect(usedbhost, 3306, 'root', usedbpass, function (rsc) {
-                if(rsc == '1') {
-                    http.createServer(app).listen({port: usecsebaseport, agent: false}, function () {
-                        console.log('server (' + ip.address() + ') running at ' + usecsebaseport + ' port');
-                        cb.create(function(rsp) {
-                            console.log(JSON.stringify(rsp));
-                        });
-                    });
-                }
+    db.connect(usedbhost, 3306, 'root', usedbpass, function (rsc) {
+        if(rsc == '1') {
+            http.createServer(app).listen({port: usecsebaseport, agent: false}, function () {
+                console.log('server (' + ip.address() + ') running at ' + usecsebaseport + ' port');
+                cb.create(function(rsp) {
+                    console.log(JSON.stringify(rsp));
+                });
             });
         }
     });
@@ -710,15 +645,48 @@ function check_resource(request, response, option, callback) {
         ri = ri.replace('/latest', '');
         ri = ri.replace('/la', '');
         op = 'latest';
-        var cur_d = new Date();
-        db_sql.select_latest_lookup(ri, cur_d, 0, function (err, result_Obj) {
+        db_sql.select_direct_lookup(ri, function (err, result_Obj) {
             if(!err) {
                 if (result_Obj.length == 1) {
-                    result_Obj[0].acpi = JSON.parse(result_Obj[0].acpi);
-                    result_Obj[0].lbl = JSON.parse(result_Obj[0].lbl);
-                    result_Obj[0].aa = JSON.parse(result_Obj[0].aa);
-                    result_Obj[0].at = JSON.parse(result_Obj[0].at);
-                    callback('1', result_Obj[0], op);
+                    if(result_Obj[0].ty == '3') {
+                        var cur_ty = '4';
+                    }
+                    else if(result_Obj[0].ty == '25') {
+                        cur_ty = '26';
+                    }
+                    else {
+                        result_Obj['rsp'] = {};
+                        result_Obj['rsp'].cap = 'this resource can not have latest resource';
+                        responder.response_result(request, response, 404, result_Obj, 4004, url.parse(request.url).pathname.toLowerCase(), result_Obj['rsp'].cap);
+                        callback('0');
+                        return '0';
+                    }
+                    var cur_d = new Date();
+                    db_sql.select_latest_lookup(ri, cur_d, 0, cur_ty, function (err, result_Obj) {
+                        if (!err) {
+                            if (result_Obj.length == 1) {
+                                result_Obj[0].acpi = JSON.parse(result_Obj[0].acpi);
+                                result_Obj[0].lbl = JSON.parse(result_Obj[0].lbl);
+                                result_Obj[0].aa = JSON.parse(result_Obj[0].aa);
+                                result_Obj[0].at = JSON.parse(result_Obj[0].at);
+                                callback('1', result_Obj[0], op);
+                            }
+                            else {
+                                result_Obj['rsp'] = {};
+                                result_Obj['rsp'].cap = 'resource does not exist';
+                                responder.response_result(request, response, 404, result_Obj, 4004, url.parse(request.url).pathname.toLowerCase(), result_Obj['rsp'].cap);
+                                callback('0');
+                                return '0';
+                            }
+                        }
+                        else {
+                            result_Obj['rsp'] = {};
+                            result_Obj['rsp'].cap = results.code;
+                            responder.response_result(request, response, 500, result_Obj, 5000, url.parse(request.url).pathname.toLowerCase(), result_Obj['rsp'].cap);
+                            callback('0');
+                            return '0';
+                        }
+                    });
                 }
                 else {
                     result_Obj['rsp'] = {};
@@ -730,7 +698,7 @@ function check_resource(request, response, option, callback) {
             }
             else {
                 result_Obj['rsp'] = {};
-                result_Obj['rsp'].cap = results.code;
+                result_Obj['rsp'].cap = result_Obj.code;
                 responder.response_result(request, response, 500, result_Obj, 5000, url.parse(request.url).pathname.toLowerCase(), result_Obj['rsp'].cap);
                 callback('0');
                 return '0';
@@ -771,7 +739,7 @@ function check_resource(request, response, option, callback) {
         ri = ri.replace('/fanoutpoint', '');
         ri = ri.replace('/fopt', '');
         op = 'fanoutpoint';
-        db_sql.select_group_lookup(ri, function (err, result_Obj) {
+        db_sql.select_grp_lookup(ri, function (err, result_Obj) {
             if(!err) {
                 if (result_Obj.length == 1) {
                     result_Obj[0].acpi = JSON.parse(result_Obj[0].acpi);
@@ -829,23 +797,15 @@ function check_resource(request, response, option, callback) {
 
 
 function check_grp(request, response, ri, callback) {
-    var result_Obj = {};
-
-    var queryJson = {};
-    queryJson.type = 'select';
-    queryJson.table = 'group';
-
-    var sql = util.format("select * from grp where ri = \'%s\'", ri);
-    queryJson.condition = 'direct';
-
-    db.getResult(sql, queryJson, function(err, results) {
+    db_sql.select_grp(ri, function(err, result_Obj) {
         if(!err) {
-            if (results.length == 1) {
-                results[0].macp = JSON.parse(results[0].macp);
-                results[0].mid = JSON.parse(results[0].mid);
-                callback('1', results[0]);
+            if (result_Obj.length == 1) {
+                result_Obj[0].macp = JSON.parse(result_Obj[0].macp);
+                result_Obj[0].mid = JSON.parse(result_Obj[0].mid);
+                callback('1', result_Obj[0]);
             }
             else {
+                result_Obj = {};
                 result_Obj['rsp'] = {};
                 result_Obj['rsp'].cap = 'resource does not exist';
                 responder.response_result(request, response, 404, result_Obj, 4004, url.parse(request.url).pathname.toLowerCase(), result_Obj['rsp'].cap);
@@ -854,8 +814,9 @@ function check_grp(request, response, ri, callback) {
             }
         }
         else {
+            result_Obj = {};
             result_Obj['rsp'] = {};
-            result_Obj['rsp'].cap = results.code;
+            result_Obj['rsp'].cap = result_Obj.code;
             responder.response_result(request, response, 500, result_Obj, 5000, url.parse(request.url).pathname.toLowerCase(), result_Obj['rsp'].cap);
             callback('0');
             return '0';
@@ -877,7 +838,7 @@ function lookup_create(request, response) {
             if(rsc == '0') {
                 return rsc;
             }
-            
+
             var rootnm = request.headers.rootnm;
 
             if(op == 'fanoutpoint') {
@@ -1277,13 +1238,12 @@ app.delete(xmlParser, function(request, response, next) {
 
 function check_csr(absolute_url, callback) {
     var ri = util.format('/%s/%s', usecsebase.toLowerCase(), url.parse(absolute_url).pathname.toLowerCase().split('/')[1]);
-    var sql = util.format("select * from csr where ri = \'%s\'", ri);
-    db.getResult(sql, '', function (err, results) {
+    db_sql.select_csr(ri, function (err, result_csr) {
         if(!err) {
-            if (results.length == 1) {
+            if (result_csr.length == 1) {
                 var body_Obj = {};
-                body_Obj.forwardcbname = results[0].cb.replace('/', '');
-                var poa_arr = JSON.parse(results[0].poa);
+                body_Obj.forwardcbname = result_csr[0].cb.replace('/', '');
+                var poa_arr = JSON.parse(result_csr[0].poa);
                 for (var i = 0; i < poa_arr.length; i++) {
                     if (url.parse(poa_arr[i]).protocol == 'http:') {
                         body_Obj.forwardcbhost = url.parse(poa_arr[i]).hostname;
@@ -1308,14 +1268,14 @@ function check_csr(absolute_url, callback) {
                 }
             }
             else {
-                body_Obj = {};
-                body_Obj['rsp'] = {};
-                body_Obj['rsp'].cap = 'csebase is not found';
-                callback('3', body_Obj);
+                result_csr = {};
+                result_csr['rsp'] = {};
+                result_csr['rsp'].cap = 'csebase is not found';
+                callback('3', result_csr);
             }
         }
         else {
-            console.log('[check_csr] query error: ' + results.code);
+            console.log('[check_csr] query error: ' + result_csr.code);
         }
     });
 }
