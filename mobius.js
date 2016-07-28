@@ -12,49 +12,35 @@
  * Created by Il Yeup, Ahn in KETI on 2016-07-28.
  */
 
-var fs = require('fs');
-
 global.defaultnmtype = 'short';
 global.defaultbodytype = 'json';
 
-global.usecbtype = 'in';
-global.usecbname = 'mobius2';
-global.usecbhost = '127.0.0.1';
-global.usecbhostport = '8080';
-global.usecbcseid = '0.2.481.1.1.1.1';
+// this environment variable have default value.
+// this value is updated by configuration file.
 
+// parent CSE information
+global.parent_cbname = '';
+global.parent_cbcseid = '';
+global.parent_cbhost = '';
+global.parent_cbhostport = '';
+
+global.parent_mqttbroker = '';
+
+
+// my CSE information
+global.usecsetype = 'in'; // select 'in or 'mn' or asn'
 global.usecsebase = 'mobius';
-global.usecseid = '0.2.481.1.1.1.1';
+global.usecseid = '/mobius';
 global.usecsebaseport = '7579';
 
-global.usedbname = 'mysql';
-//global.usedbname = 'mongodb';
+global.usedbhost = 'localhost';
+global.usedbpass = 'dksdlfduq2';
 
-global.usedbhost = '';
-global.usedbpass = '';
-global.usemqttbroker = 'localhost';
-//global.usemqttproxyport = '9726';
+global.usepxymqttport = '7580';
+global.usetsagentport = '7581';
 
-global.conf_filename = 'conf.json';
+global.usemqttbroker = '203.253.128.151'; // mobius to mqttbroker
+global.usemqttcbhost = 'localhost'; // pxymqtt to mobius
 
-// This is an async file read
-fs.readFile(conf_filename, 'utf-8', function (err, data) {
-    if (err) {
-        NOPRINT == 'true' ? NOPRINT = 'true' : console.log("FATAL An error occurred trying to read in the file: " + err);
-        NOPRINT == 'true' ? NOPRINT = 'true' : console.log("error : set to default for configuration")
-    }
-    else {
-        var conf = JSON.parse(data)['m2m:conf'];
-
-        usecbtype = 'in';
-        defaultnmtype = 'short';
-
-        usecsebase = conf['csebase'];
-        usecsebaseport = conf['csebaseport'];
-        usedbhost = conf['dbhost'];
-        usedbpass = conf['dbpass'];
-        usemqttbroker = conf['mqttbroker'];
-
-        require('./app');
-    }
-});
+// CSE core
+require('./app');

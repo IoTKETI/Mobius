@@ -56,8 +56,8 @@ _this = this;
 //         // make comment because already know for information of IN-CSE
 //         //for (var i = 0; i < poa_arr.length; i++) {
 //         //    if (url.parse(poa_arr[i]).protocol == 'http:') {
-//         //        usecbhost = url.parse(poa_arr[i]).hostname;
-//         //        usecbhostport = url.parse(poa_arr[i]).port;
+//         //        parent_cbhost = url.parse(poa_arr[i]).hostname;
+//         //        parent_cbhostport = url.parse(poa_arr[i]).port;
 //         //    }
 //         //    else if (url.parse(poa_arr[i]).protocol == 'mqtt:') {
 //         //        usecsemqtt = url.parse(poa_arr[i]).hostname;
@@ -212,6 +212,8 @@ function retrieve_CSEBase(cbname, cbhost, cbhostport, callback) {
                 }
                 else { // json
                     jsonObj = JSON.parse(fullBody);
+                    jsonObj.csr = jsonObj['m2m:cb'];
+                    delete jsonObj['m2m:cb'];
                 }
 
                 for(var idx in jsonObj.csr) {
@@ -394,33 +396,38 @@ exports.build_mn = function(ri, callback) {
                             if (rspObj.csr.srt) {
                                 rspObj.csr.srt = JSON.parse(rspObj.csr.srt);
                             }
-
-                            create_remoteCSE(usecbname, usecbhost, usecbhostport, rspObj, function (rsc) {
-                                if (rsc == 200 || rsc == 201 || rsc == 403 || rsc == 409) {
-                                    retrieve_CSEBase(usecbname, usecbhost, usecbhostport, function (rsc, jsonObj) {
-                                        if (rsc == 200 || rsc == 201 || rsc == 403 || rsc == 409) {
-                                            create_remoteCSE(usecsebase, 'localhost', usecsebaseport, jsonObj, function (rsc) {
-                                                if (rsc == 200 || rsc == 201 || rsc == 403 || rsc == 409) {
-                                                    rspObj = {};
-                                                    rspObj.rsc = '2000';
-                                                    rspObj.ri = ri;
-                                                    rspObj.sts = "mn-cse setting success";
-                                                    callback(rspObj);
-                                                }
-                                                else {
-                                                    rspObj.rsc = '5000';
-                                                    rspObj.ri = ri;
-                                                    rspObj.sts = "mn-cse setting fail";
-                                                    callback(rspObj);
-                                                }
-                                            });
-                                        }
-                                    });
-                                }
-                                else {
-                                    console.log('MN : response status code error for create remoteCSE : ' + res.statusCode);
-                                }
-                            });
+                            
+                            if(parent_cbprotocol == 'http') {
+                                create_remoteCSE(parent_cbname, parent_cbhost, parent_cbhostport, rspObj, function (rsc) {
+                                    if (rsc == 200 || rsc == 201 || rsc == 403 || rsc == 409) {
+                                        retrieve_CSEBase(parent_cbname, parent_cbhost, parent_cbhostport, function (rsc, jsonObj) {
+                                            if (rsc == 200 || rsc == 201 || rsc == 403 || rsc == 409) {
+                                                create_remoteCSE(usecsebase, 'localhost', usecsebaseport, jsonObj, function (rsc) {
+                                                    if (rsc == 200 || rsc == 201 || rsc == 403 || rsc == 409) {
+                                                        rspObj = {};
+                                                        rspObj.rsc = '2000';
+                                                        rspObj.ri = ri;
+                                                        rspObj.sts = "mn-cse setting success";
+                                                        callback(rspObj);
+                                                    }
+                                                    else {
+                                                        rspObj.rsc = '5000';
+                                                        rspObj.ri = ri;
+                                                        rspObj.sts = "mn-cse setting fail";
+                                                        callback(rspObj);
+                                                    }
+                                                });
+                                            }
+                                        });
+                                    }
+                                    else {
+                                        console.log('MN : response status code error for create remoteCSE : ' + rsc);
+                                    }
+                                });
+                            }
+                            else { // parent_cbprotocol == 'mqtt'
+                                console.log('regist remoteCSE through mqtt do not support')
+                            }
                         }
                     }
                     else {

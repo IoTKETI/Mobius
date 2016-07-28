@@ -45,7 +45,7 @@ exports.search_parents_lookup = function(ri, callback) {
     });
 };
 
-function build_discovery_sql(ty, lbl, cra, crb, lim, pi_list, bef_ct, callback) {
+function build_discovery_sql(ty, lbl, cra, crb, lim, pi_list, bef_ct, cur_ct, callback) {
     var list_ri = '';
     var query_where = '';
     var query_count = 0;
@@ -128,7 +128,7 @@ function build_discovery_sql(ty, lbl, cra, crb, lim, pi_list, bef_ct, callback) 
         query_where += util.format(' limit 1000');
     }
 
-    query_where = util.format("select a.* from (select ri from lookup where pi in ("+JSON.stringify(pi_list).replace('[','').replace(']','')+") %s and ct > \'%s\' order by ct desc limit 1000) b left join lookup as a on b.ri = a.ri", ty_str, bef_ct) + query_where;
+    query_where = util.format("select a.* from (select ri from lookup where pi in ("+JSON.stringify(pi_list).replace('[','').replace(']','')+") %s and (ct >= \'%s\' and ct < \'%s\') order by ct desc limit 1000) b left join lookup as a on b.ri = a.ri", ty_str, bef_ct, cur_ct) + query_where;
 
     return query_where;
 }
@@ -141,6 +141,7 @@ exports.search_lookup = function (ty, lbl, cra, crb, lim, pi_list, pi_index, fou
         console.time('search_lookup');
     }
 
+    var cur_ct = cur_d.toISOString().replace(/-/, '').replace(/-/, '').replace(/:/, '').replace(/:/, '').replace(/\..+/, '');
     cur_d.setDate(cur_d.getDate()-(loop_cnt*3));
     var bef_ct = cur_d.toISOString().replace(/-/, '').replace(/-/, '').replace(/:/, '').replace(/:/, '').replace(/\..+/, '');
 
@@ -160,7 +161,7 @@ exports.search_lookup = function (ty, lbl, cra, crb, lim, pi_list, pi_index, fou
         }
     }
 
-    var sql = build_discovery_sql(ty, lbl, cra, crb, lim, cur_pi, bef_ct);
+    var sql = build_discovery_sql(ty, lbl, cra, crb, lim, cur_pi, bef_ct, cur_ct);
     db.getResult(sql, '', function (err, search_Obj) {
         if(!err) {
             for(var i = 0; i < search_Obj.length; i++) {

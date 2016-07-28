@@ -14,8 +14,8 @@
  * @author Il Yeup Ahn [iyahn@keti.re.kr]
  */
 
-//process.env.NODE_ENV = 'production';
-process.env.NODE_ENV = 'development';
+process.env.NODE_ENV = 'production';
+//process.env.NODE_ENV = 'development';
 
 var fs = require('fs');
 var http = require('http');
@@ -86,7 +86,7 @@ var accessLogStream = FileStreamRotator.getStream({
 
 // setup the logger
 app.use( morgan('combined', {stream: accessLogStream}));
-//app.use(morgan('short', {stream: accessLogStream}));
+//ts_app.use(morgan('short', {stream: accessLogStream}));
 
 var worker = [];
 
@@ -108,6 +108,12 @@ if(cluster.isMaster) {
 
                 require('./pxymqtt');
                 //require('./mobius/ts_agent');
+
+                if(usecsetype == 'mn' || usecsetype == 'asn') {
+                    global.refreshIntervalId = setInterval(function () {
+                        custom.emit('register_remoteCSE');
+                    }, 2000);
+                }
             });
         }
     });
@@ -867,6 +873,13 @@ function lookup_create(request, response) {
                 else if ((ty == 9) && (parent_comm.ty == 5 || parent_comm.ty == 16 || parent_comm.ty == 2)) { // group
                 }
                 else if ((ty == 16) && (parent_comm.ty == 5)) { // remoteCSE
+                    if(usecsetype == 'asn') {
+                        body_Obj = {};
+                        body_Obj['rsp'] = {};
+                        body_Obj['rsp'].cap = 'ASC CSE can not have child CSE (remoteCSE)';
+                        responder.response_result(request, response, 400, body_Obj, 4000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
+                        return '0';
+                    }
                 }
                 else if ((ty == 10) && (parent_comm.ty == 5)) { // locationPolicy
                 }
@@ -892,7 +905,7 @@ function lookup_create(request, response) {
                 else {
                     body_Obj = {};
                     body_Obj['rsp'] = {};
-                    body_Obj['rsp'].cap = 'request ty creating can not create at parent resource';
+                    body_Obj['rsp'].cap = 'request ty creating can not create under parent resource';
                     responder.response_result(request, response, 400, body_Obj, 4000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
                     return '0';
                 }

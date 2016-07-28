@@ -37,9 +37,9 @@ global.defaultbodytype = 'xml';
 global.usecsebase = 'mobius2';
 global.usecsebaseport = '127.0.0.1';
 
-global.usecbname = 'mobius2';
-global.usecbhost = '127.0.0.1';
-global.usecbhostport = '8080';
+global.parent_cbname = 'mobius2';
+global.parent_cbhost = '127.0.0.1';
+global.parent_cbhostport = '8080';
 //global.usecbid = '0.2.481.1.1.1.1';
 
 global.usedbname = 'mysql';
@@ -74,12 +74,12 @@ fs.readFile(conf_filename, 'utf-8', function (err, data) {
             if(rsc == '1') {
                 var in_cse = conf['in-cse'];
 
-                usecbhost = in_cse['cbhost'];
-                usecbhostport = in_cse['cbhostport'];
-                usecbname = in_cse['cbname'];
+                parent_cbhost = in_cse['cbhost'];
+                parent_cbhostport = in_cse['cbhostport'];
+                parent_cbname = in_cse['cbname'];
 //                usecbid = in_cse['cbid'];
 
-                mn.build_mn('/'+usecbname, function (rsp) {
+                mn.build_mn('/'+parent_cbname, function (rsp) {
                     console.log(rsp);
                     process.exit();
                 });

@@ -62,7 +62,7 @@ exports.remove_no_value = function(request, resource_Obj) {
 function check_TS(ri, callback) {
     var options = {
         hostname: 'localhost',
-        port: '7586',
+        port: usetsagentport,
         path: '/missingDataDetect',
         method: 'post',
         headers: {
@@ -149,7 +149,7 @@ function delete_oldest(ri, callback) {
 function delete_TS(ri, callback) {
     var options = {
         hostname: 'localhost',
-        port: '7586',
+        port: usetsagentport,
         path: '/missingDataDetect',
         method: 'delete',
         headers: {

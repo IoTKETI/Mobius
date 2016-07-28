@@ -34,42 +34,25 @@ var js2xmlparser = require("js2xmlparser");
 var db = require('./db_action');
 
 // ������ �����մϴ�.
-var app = express();
+var ts_app = express();
 
 // This is an async file read
-fs.readFile(conf_filename, 'utf-8', function (err, data) {
-    if (err) {
-        NOPRINT == 'true' ? NOPRINT = 'true' : console.log("FATAL An error occurred trying to read in the file: " + err);
-        NOPRINT == 'true' ? NOPRINT = 'true' : console.log("error : set to default for configuration")
-    }
-    else {
-        var conf = JSON.parse(data)['m2m:conf'];
+ts_app.use(bodyParser.urlencoded({ extended: true }));
+ts_app.use(bodyParser.json({limit: '1mb', type: 'application/*+json' }));
+ts_app.use(bodyParser.text({limit: '1mb', type: 'application/*+xml' }));
 
-        //usecsebase = conf['csebase'];
-        //usecsebaseport = conf['csebaseport'];
-        //usedbhost = conf['dbhost'];
-        //usedbpass = conf['dbpass'];
+http.globalAgent.maxSockets = 1000000;
 
-        //usetsagentport = conf['tsagentport'];
+db.connect(usedbhost, 3306, 'root', usedbpass, function (rsc) {
+    if (rsc == '1') {
+        http.createServer(ts_app).listen({port: usetsagentport, agent: false}, function () {
+            console.log('ts_missing agent server (' + ip.address() + ') running at ' + usetsagentport + ' port');
 
-        app.use(bodyParser.urlencoded({ extended: true }));
-        app.use(bodyParser.json({limit: '1mb', type: 'application/*+json' }));
-        app.use(bodyParser.text({limit: '1mb', type: 'application/*+xml' }));
-
-        http.globalAgent.maxSockets = 1000000;
-
-        db.connect(usedbhost, 3306, 'root', usedbpass, function (rsc) {
-            if (rsc == '1') {
-                http.createServer(app).listen({port: '7586', agent: false}, function () {
-                    console.log('ts_missing agent server (' + ip.address() + ') running at 7586 port');
-
-                    // Searching TS with missingDetect. if it is TRUE, restart mddt
-                    init_TS(function (rsc, responseBody) {
-                        //console.log(rsc);
-                        //console.log(responseBody);
-                    });
-                });
-            }
+            // Searching TS with missingDetect. if it is TRUE, restart mddt
+            init_TS(function (rsc, responseBody) {
+                //console.log(rsc);
+                //console.log(responseBody);
+            });
         });
     }
 });
@@ -78,7 +61,7 @@ function init_TS(callback) {
     var ri = '/missingDataDetect';
     var options = {
         hostname: 'localhost',
-        port: '7586',
+        port: usetsagentport,
         path: ri,
         method: 'post',
         headers: {
@@ -245,7 +228,7 @@ var missing_detect_check = function(pin, mdd, mddt, cni, ri, callback) {
 
 
 //
-app.post('/:resourcename0', xmlParser, function(request, response, next) {
+ts_app.post('/:resourcename0', xmlParser, function(request, response, next) {
     if(request.params.resourcename0.toLowerCase() == 'missingdatadetect') {
         var parser = new xml2js.Parser({explicitArray: false});
         parser.parseString(request.body.toString(), function (err, result) {
@@ -328,7 +311,7 @@ app.post('/:resourcename0', xmlParser, function(request, response, next) {
 });
 
 
-app.delete('/:resourcename0', xmlParser, function(request, response, next) {
+ts_app.delete('/:resourcename0', xmlParser, function(request, response, next) {
     if(request.params.resourcename0.toLowerCase() == 'missingdatadetect') {
         var parser = new xml2js.Parser({explicitArray: false});
         parser.parseString(request.body.toString(), function (err, result) {
