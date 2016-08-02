@@ -24,14 +24,7 @@ var xml2js = require('xml2js');
 var ip = require('ip');
 var js2xmlparser = require("js2xmlparser");
 
-//var usecsebase = 'mobius';
-//var usecsebaseport = '7579';
-//var usedbhost = '';
-//var usedbpass = '';
-
-//var usetsagentport = '7586';
-
-var db = require('./db_action');
+var db_sql = require('./sql_action');
 
 // ������ �����մϴ�.
 var ts_app = express();
@@ -43,18 +36,14 @@ ts_app.use(bodyParser.text({limit: '1mb', type: 'application/*+xml' }));
 
 http.globalAgent.maxSockets = 1000000;
 
-db.connect(usedbhost, 3306, 'root', usedbpass, function (rsc) {
-    if (rsc == '1') {
-        http.createServer(ts_app).listen({port: usetsagentport, agent: false}, function () {
-            console.log('ts_missing agent server (' + ip.address() + ') running at ' + usetsagentport + ' port');
+http.createServer(ts_app).listen({port: usetsagentport, agent: false}, function () {
+    console.log('ts_missing agent server (' + ip.address() + ') running at ' + usetsagentport + ' port');
 
-            // Searching TS with missingDetect. if it is TRUE, restart mddt
-            init_TS(function (rsc, responseBody) {
-                //console.log(rsc);
-                //console.log(responseBody);
-            });
-        });
-    }
+    // Searching TS with missingDetect. if it is TRUE, restart mddt
+    init_TS(function (rsc, responseBody) {
+        //console.log(rsc);
+        //console.log(responseBody);
+    });
 });
 
 function init_TS(callback) {
@@ -157,8 +146,7 @@ var missing_detect_check = function(pin, mdd, mddt, cni, ri, callback) {
         if(ts_timer[ri] == null) {
             ts_timer[ri] = new process.EventEmitter();
             ts_timer[ri].on(ri, function () {
-                var sql = util.format("select cni, mdcn, mdmn, mdl, ri from ts where ri = \'%s\'", ri);
-                db.getResult(sql, '', function (err, results) {
+                db_sql.select_ts(ri, function (err, results) {
                     if (results.length == 1) {
                         console.log(results[0].ri);
                         var new_cni = results[0]['cni'];
@@ -169,8 +157,7 @@ var missing_detect_check = function(pin, mdd, mddt, cni, ri, callback) {
                                 var mdl = timestamp + ' ' + results[0].mdl;
                                 var mdcn = (parseInt(results[0].mdcn, 10) + 1).toString();
                                 console.log(mdcn, mdl);
-                                sql = util.format("update ts set mdcn = \'%s\', mdl = \'%s\' where ri = \'%s\'", mdcn, mdl, ri);
-                                db.getResult(sql, '', function (err, results) {
+                                db_sql.update_ts_mdcn_mdl(mdcn, mdl, ri, function (err, results) {
                                     if (!err) {
                                     }
                                     else {
@@ -263,23 +250,21 @@ ts_app.post('/:resourcename0', xmlParser, function(request, response, next) {
 
                                 var ts = {};
                                 if (ts_ri.length >= 1) {
-                                    for (var t = 0; t < ts_ri.length; t++) {
-                                        var sql = util.format("select * from ts where ri = \'%s\'", ts_ri[t]);
-                                        db.getResult(sql, '', function (err, results_ts) {
-                                            if (!err) {
-                                                if (results_ts.length == 1) {
-                                                    missing_detect_check(results_ts[0].pin, results_ts[0].mdd, results_ts[0].mddt, results_ts[0].cni, results_ts[0].ri, function (rsc) {
-                                                        console.log(rsc);
-                                                    });
-                                                }
+                                    db_sql.select_ts_block(ts_ri, function (err, results_ts) {
+                                        if (!err) {
+                                            if (results_ts.length >= 1) {
+                                                missing_detect_check(results_ts[0].pin, results_ts[0].mdd, results_ts[0].mddt, results_ts[0].cni, results_ts[0].ri, function (rsc) {
+                                                    console.log(rsc);
+                                                });
                                             }
-                                        });
-                                    }
-                                    response.setHeader('X-M2M-RSC', '2000');
+                                        }
 
-                                    ts.status = '2000';
-                                    ts.ri = jsonObj['m2m:URIList']['_'];
-                                    response.status(200).end(JSON.stringify(ts));
+                                        response.setHeader('X-M2M-RSC', '2000');
+
+                                        ts.status = '2000';
+                                        ts.ri = jsonObj['m2m:URIList']['_'];
+                                        response.status(200).end(JSON.stringify(ts));
+                                    });
                                 }
                                 else {
                                     response.setHeader('X-M2M-RSC', '4004');
@@ -292,8 +277,7 @@ ts_app.post('/:resourcename0', xmlParser, function(request, response, next) {
                     });
                 }
                 else {
-                    var sql = util.format("select * from ts where ri = \'%s\'", jsonObj.ts.ri);
-                    db.getResult(sql, '', function (err, results_ts) {
+                    db_sql.select_ts(jsonObj.ts.ri, function (err, results_ts) {
                         if (!err) {
                             if (results_ts.length == 1) {
                                 missing_detect_check(results_ts[0].pin, results_ts[0].mdd, results_ts[0].mddt, results_ts[0].cni, results_ts[0].ri, function (rsc) {

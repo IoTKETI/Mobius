@@ -12,35 +12,23 @@
  * Created by Il Yeup, Ahn in KETI on 2016-07-28.
  */
 
-global.defaultnmtype = 'short';
-global.defaultbodytype = 'json';
-
-// this environment variable have default value.
-// this value is updated by configuration file.
-
-// parent CSE information
-global.parent_cbname = '';
-global.parent_cbcseid = '';
-global.parent_cbhost = '';
-global.parent_cbhostport = '';
-
-global.parent_mqttbroker = '';
-
+global.defaultnmtype        = 'short';
+global.defaultbodytype      = 'json';
 
 // my CSE information
-global.usecsetype = 'in'; // select 'in or 'mn' or asn'
-global.usecsebase = 'mobius';
-global.usecseid = '/mobius';
-global.usecsebaseport = '7579';
+global.usecsetype           = 'in'; // select 'in' or 'mn' or asn'
+global.usecsebase           = 'mobius';
+global.usecseid             = '/mobius';
+global.usecsebaseport       = '7579';
 
-global.usedbhost = 'localhost';
-global.usedbpass = 'dksdlfduq2';
+global.usedbhost            = 'localhost';
+global.usedbpass            = 'dksdlfduq2';
 
-global.usepxymqttport = '7580';
-global.usetsagentport = '7581';
+global.usepxymqttport       = '7580';
+global.usetsagentport       = '7581';
 
 global.usemqttbroker = '203.253.128.151'; // mobius to mqttbroker
-global.usemqttcbhost = 'localhost'; // pxymqtt to mobius
+
 
 // CSE core
 require('./app');

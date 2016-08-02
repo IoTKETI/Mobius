@@ -1,9 +1,0 @@
-{
-    "m2m:conf": {
-        "csebase": "mobius",
-        "csebaseport": "7579",
-        "dbhost": "localhost",
-        "dbpass": "dksdlfduq2",
-        "mqttbroker": "203.253.128.151"
-    }
-}

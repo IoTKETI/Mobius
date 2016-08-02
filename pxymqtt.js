@@ -45,6 +45,9 @@ var custom = new process.EventEmitter();
 var mqtt_app = express();
 
 
+var usemqttcbhost = 'localhost'; // pxymqtt to mobius
+
+
 mqtt_app.use(bodyParser.urlencoded({extended: true}));
 mqtt_app.use(bodyParser.json({limit: '1mb', type: 'application/*+json'}));
 mqtt_app.use(bodyParser.text({limit: '1mb', type: 'application/*+xml'}));

@@ -257,8 +257,30 @@ exports.select_grp_lookup = function(ri, callback) {
 
 exports.select_grp = function(ri, callback) {
     var sql = util.format("select * from grp where ri = \'%s\'", ri);
-    db.getResult(sql, '', function (err, group_Obj) {
-        callback(err, group_Obj);
+    db.getResult(sql, '', function (err, grp_Obj) {
+        callback(err, grp_Obj);
+    });
+};
+
+exports.select_ts = function (ri, callback) {
+    var sql = util.format("select * from ts where ri = \'%s\'", ri);
+    db.getResult(sql, '', function (err, ts_Obj) {
+        callback(err, ts_Obj);
+    });
+};
+
+exports.select_ts_block = function (ri_list, callback) {
+    var sql = util.format("select * from ts where ri in ("+JSON.stringify(ri_list).replace('[','').replace(']','') + ")");
+    db.getResult(sql, '', function (err, ts_Obj) {
+        callback(err, ts_Obj);
+    });
+
+};
+
+exports.update_ts_mdcn_mdl = function (mdcn, mdl, ri, callback) {
+    var sql = util.format("update ts set mdcn = \'%s\', mdl = \'%s\' where ri = \'%s\'", mdcn, mdl, ri);
+    db.getResult(sql, '', function (err, results) {
+        callback(err, results);
     });
 };
 

@@ -188,15 +188,16 @@ function delete_TS(ri, callback) {
 
 function create_action_cni(request, response, ty, pi, mni, cs, callback) {
     if(ty == '4') {
-        var sql = util.format("select cni, cbs from cnt where ri = \'%s\'", pi);
+        var sql = util.format("select cni, cbs, st from cnt where ri = \'%s\'", pi);
     }
     else {
-        sql = util.format("select cni, cbs from ts where ri = \'%s\'", pi);
+        sql = util.format("select cni, cbs, st from ts where ri = \'%s\'", pi);
     }
     db.getResult(sql, '', function (err, results_cni) {
         if (results_cni.length == 1) {
             var cni = results_cni[0]['cni'];
             var cbs = results_cni[0]['cbs'];
+            var st = results_cni[0]['st'];
             if (parseInt(cni, 10) >= parseInt(mni, 10)) {
                 sql = util.format("select ri, cs from lookup where pi = \'%s\' and ty = \'%s\' order by ri asc limit 1", pi, ty);
                 db.getResult(sql, '', function (err, results) {
@@ -206,15 +207,17 @@ function create_action_cni(request, response, ty, pi, mni, cs, callback) {
                         sql = util.format("delete from lookup where ri = \'%s\'", results[0].ri);
                         db.getResult(sql, '', function (err, results) {
                             if (!err) {
+                                st = (parseInt(st, 10) + 1).toString();
                                 cni = (parseInt(cni, 10) + 1).toString();
                                 cbs = (parseInt(cbs, 10) + parseInt(cs, 10)).toString();
+                                results_cni[0].st = st;
                                 results_cni[0].cni = cni;
                                 results_cni[0].cbs = cbs;
                                 if (ty == '4') {
-                                    sql = util.format("update cnt set cni = \'%s\', cbs = \'%s\' where ri = \'%s\'", cni, cbs, pi);
+                                    sql = util.format("update cnt set cni = \'%s\', cbs = \'%s\', st  = \'%s\' where ri = \'%s\'", cni, cbs, st, pi);
                                 }
                                 else {
-                                    sql = util.format("update ts set cni = \'%s\', cbs = \'%s\' where ri = \'%s\'", cni, cbs, pi);
+                                    sql = util.format("update ts set cni = \'%s\', cbs = \'%s\', st  = \'%s\'  where ri = \'%s\'", cni, cbs, st, pi);
                                 }
                                 db.getResult(sql, results_cni[0], function (err, results) {
                                     if (!err) {
@@ -236,15 +239,17 @@ function create_action_cni(request, response, ty, pi, mni, cs, callback) {
                 });
             }
             else {
+                st = (parseInt(st, 10) + 1).toString();
                 cni = (parseInt(cni, 10) + 1).toString();
                 cbs = (parseInt(cbs, 10) + parseInt(cs, 10)).toString();
+                results_cni[0].st = st;
                 results_cni[0].cni = cni;
                 results_cni[0].cbs = cbs;
                 if (ty == '4') {
-                    sql = util.format("update cnt set cni = \'%s\', cbs = \'%s\' where ri = \'%s\'", cni, cbs, pi);
+                    sql = util.format("update cnt set cni = \'%s\', cbs = \'%s\', st  = \'%s\'  where ri = \'%s\'", cni, cbs, st, pi);
                 }
                 else {
-                    sql = util.format("update ts set cni = \'%s\', cbs = \'%s\' where ri = \'%s\'", cni, cbs, pi);
+                    sql = util.format("update ts set cni = \'%s\', cbs = \'%s\', st  = \'%s\'  where ri = \'%s\'", cni, cbs, st, pi);
                 }
                 db.getResult(sql, results_cni[0], function (err, results) {
                     if (!err) {

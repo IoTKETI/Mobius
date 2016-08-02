@@ -18,6 +18,7 @@ var mysql_pool = null;
 
 var _this = this;
 
+
 exports.connect = function (host, port, user, password, callback) {
     mysql_pool = mysql.createPool({
         host: host,
