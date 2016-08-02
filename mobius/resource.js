@@ -888,6 +888,9 @@ exports.retrieve = function(request, response, comm_Obj) {
         });
     }
     else {
+        if(request.query.rcn == 2) { // hierarchical address
+
+        }
         search_resource(request, response, ty, comm_Obj, function (rsc, resource_Obj) {
             if (rsc == '0') {
                 return rsc;
