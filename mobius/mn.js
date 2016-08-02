@@ -276,9 +276,9 @@ function create_remoteCSE(cbname, cbhost, cbhostport, body_Obj, callback) {
             }
             delete body_Obj[rootnm][index];
         }
-        body_Obj['m2m:' + rsrcLname[rootnm]] = body_Obj[rootnm];
+        body_Obj['m2m:' + rceLname[rootnm]] = body_Obj[rootnm];
         delete body_Obj[rootnm];
-        rootnm = rsrcLname[rootnm];
+        rootnm = rceLname[rootnm];
     }
     else {
         body_Obj['m2m:' + rootnm] = body_Obj[rootnm];

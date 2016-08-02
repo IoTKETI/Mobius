@@ -285,8 +285,29 @@ const attrLname = {
     "agn" :"aggregatedNotification",
     "atrl":"attributeList",
     "agr" :"aggregatedResponse",
-    "rce" :"resource",
-    "uril":"URIList"
+    "uril":"URIList",
+    "any":"anyArg",
+    "ftyp":"fileType",
+    "unm":"username",
+    "pwd":"password",
+    "fsi":"filesize",
+    "tgf":"targetFile",
+    "dss":"delaySeconds",
+    "surl":"successURL",
+    "stt":"startTime",
+    "cpt":"completeTime",
+    "uuid":"UUID",
+    "eer":"executionEnvRef",
+    "vr*":"version",
+    "rst":"reset",
+    "uld":"upload",
+    "dld":"download",
+    "swin":"softwareInstall",
+    "swup":"softwareUpdate",
+    "swun":"softwareUninstall",
+    "tcop":"tracingOption",
+    "tcin":"tracingInfo",
+    "rtv":"responseTypeValue"
 };
 
 const attrSname = {
@@ -549,11 +570,31 @@ const attrSname = {
     "scheduleEntry":"sce",
     "aggregatedNotification":"agn",
     "attributeList":"atrl",
-    "resource":"rce",
-    "URIList":"uril"
+    "URIList":"uril",
+    "anyArg":"any",
+    "fileType":"ftyp",
+    "username":"unm",
+    "password":"pwd",
+    "filesize":"fsi",
+    "targetFile":"tgf",
+    "delaySeconds":"dss",
+    "successURL":"surl",
+    "startTime":"stt",
+    "completeTime":"cpt",
+    "UUID":"uuid",
+    "executionEnvRef":"eer",
+    "reset":"rst",
+    "upload":"uld",
+    "download":"dld",
+    "softwareInstall":"swin",
+    "softwareUpdate":"swup",
+    "softwareUninstall":"swun",
+    "tracingOption":"tcop",
+    "tracingInfo":"tcin",
+    "responseTypeValue":"rtv"
 };
 
-const rsrcLname = {
+const rceLname = {
     "cb" : "CSEBase",
     "ae" : "AE",
     "csr": "remoteCSE",
@@ -625,11 +666,13 @@ const rsrcLname = {
     "cmnr":"cmdhNetworkAccessRules",
     "cmwr":"cmdhNwAccessRule",
     "cmbf":"cmdhBuffer",
-    "mms": "multimediaSession"
+    "mms": "multimediaSession",
+    "rce":"resource",
+    "uri":"URI"
 };
 
 
-const rsrcSname = {
+const rceSname = {
     "CSEBase"           : "cb",
     "AE"                : "ae",
     "remoteCSE"         : "csr",
@@ -701,7 +744,9 @@ const rsrcSname = {
     "cmdhNetworkAccessRules":"cmnr",
     "cmdhNwAccessRule":"cmwr",
     "cmdhBuffer":"cmbf",
-    "multimediaSession": "mms"
+    "multimediaSession": "mms",
+    "resource":"rce",
+    "URI":"uri"
 };
 
 
@@ -726,8 +771,8 @@ const typeRsrc = {
 };
 
 exports.typeRsrc = typeRsrc;
-exports.rsrcSname = rsrcSname;
-exports.rsrcLname = rsrcLname;
+exports.rsrcSname = rceSname;
+exports.rsrcLname = rceLname;
 exports.attrLname = attrLname;
 exports.attrSname = attrSname;
 
@@ -797,9 +842,9 @@ exports.response_result = function(request, response, status, body_Obj, rsc, ri,
                 }
                 delete body_Obj[rootnm][index];
             }
-            body_Obj['m2m:' + rsrcLname[rootnm]] = body_Obj[rootnm];
+            body_Obj['m2m:' + rceLname[rootnm]] = body_Obj[rootnm];
             delete body_Obj[rootnm];
-            rootnm = rsrcLname[rootnm];
+            rootnm = rceLname[rootnm];
         }
         else {
             body_Obj['m2m:' + rootnm] = body_Obj[rootnm];
@@ -824,50 +869,55 @@ exports.response_result = function(request, response, status, body_Obj, rsc, ri,
             ).att('xmlns:m2m', 'http://www.onem2m.org/xml/protocols').att('xmlns:xsi', 'http://www.w3.org/2001/XMLSchema-instance');
 
             for (index in body_Obj) {
-                for (var attr in body_Obj[index]) {
-                    if (attr == 'resourceName' || attr == 'rn') {
-                        xml.att(attr, body_Obj[index][attr]);
-                    }
-                    else if (attr == 'eventNotificationCriteria' || attr == 'enc') {
-                        var xml2 = xml.ele(attr, '');
-                        for (var sub_attr in body_Obj[index][attr]) {
-                            xml2.ele(sub_attr, body_Obj[index][attr][sub_attr].toString().replace(/,/g, ' '));
+                if(index == 'm2m:uri' || index == 'm2m:URI') {
+                    xml.ele(index, body_Obj[index]);
+                }
+                else {
+                    for (var attr in body_Obj[index]) {
+                        if (attr == 'resourceName' || attr == 'rn') {
+                            xml.att(attr, body_Obj[index][attr]);
                         }
-                    }
-                    else if (attr == 'privileges' || attr == 'pv' || attr == 'selfPrivileges' || attr == 'pvs') {
-                        var xml2 = xml.ele(attr, '');
-                        for (var sub_attr in body_Obj[index][attr]) {
-                            for (var sub_attr2 in body_Obj[index][attr][sub_attr]) {
-                                var xml3 = xml2.ele(sub_attr, '');
-                                for (var sub_attr3 in body_Obj[index][attr][sub_attr][sub_attr2]) {
-                                    xml3.ele(sub_attr3, body_Obj[index][attr][sub_attr][sub_attr2][sub_attr3].toString().replace(/,/g, ' '));
+                        else if (attr == 'eventNotificationCriteria' || attr == 'enc') {
+                            var xml2 = xml.ele(attr, '');
+                            for (var sub_attr in body_Obj[index][attr]) {
+                                xml2.ele(sub_attr, body_Obj[index][attr][sub_attr].toString().replace(/,/g, ' '));
+                            }
+                        }
+                        else if (attr == 'privileges' || attr == 'pv' || attr == 'selfPrivileges' || attr == 'pvs') {
+                            var xml2 = xml.ele(attr, '');
+                            for (var sub_attr in body_Obj[index][attr]) {
+                                for (var sub_attr2 in body_Obj[index][attr][sub_attr]) {
+                                    var xml3 = xml2.ele(sub_attr, '');
+                                    for (var sub_attr3 in body_Obj[index][attr][sub_attr][sub_attr2]) {
+                                        xml3.ele(sub_attr3, body_Obj[index][attr][sub_attr][sub_attr2][sub_attr3].toString().replace(/,/g, ' '));
+                                    }
                                 }
                             }
                         }
-                    }
-                    else if (attr == 'accessControlPolicyIDs' || attr == 'acpi') {
-                        xml.ele(attr, body_Obj[index][attr].toString().replace(/,/g, ' '));
-                    }
-                    else if (attr == 'labels' || attr == 'lbl') {
-                        xml.ele(attr, body_Obj[index][attr].toString().replace(/,/g, ' '));
-                    }
-                    else if (attr == 'supportedResourceType' || attr == 'srt') {
-                        xml.ele(attr, body_Obj[index][attr].toString().replace(/,/g, ' '));
-                    }
-                    else if (attr == 'pointOfAccess' || attr == 'poa') {
-                        xml.ele(attr, body_Obj[index][attr].toString().replace(/,/g, ' '));
-                    }
-                    else if (attr == 'notificationURI' || attr == 'nu') {
-                        xml.ele(attr, body_Obj[index][attr].toString().replace(/,/g, ' '));
-                    }
-                    else if (attr == 'memberIDs' || attr == 'mid') {
-                        xml.ele(attr, body_Obj[index][attr].toString().replace(/,/g, ' '));
-                    }
-                    else if (attr == 'membersAccessControlPolicyIDs' || attr == 'macp') {
-                        xml.ele(attr, body_Obj[index][attr].toString().replace(/,/g, ' '));
-                    }
-                    else {
-                        xml.ele(attr, body_Obj[index][attr]);
+                        else if (attr == 'accessControlPolicyIDs' || attr == 'acpi') {
+                            xml.ele(attr, body_Obj[index][attr].toString().replace(/,/g, ' '));
+                        }
+                        else if (attr == 'labels' || attr == 'lbl') {
+                            xml.ele(attr, body_Obj[index][attr].toString().replace(/,/g, ' '));
+                        }
+                        else if (attr == 'supportedResourceType' || attr == 'srt') {
+                            xml.ele(attr, body_Obj[index][attr].toString().replace(/,/g, ' '));
+                        }
+                        else if (attr == 'pointOfAccess' || attr == 'poa') {
+                            xml.ele(attr, body_Obj[index][attr].toString().replace(/,/g, ' '));
+                        }
+                        else if (attr == 'notificationURI' || attr == 'nu') {
+                            xml.ele(attr, body_Obj[index][attr].toString().replace(/,/g, ' '));
+                        }
+                        else if (attr == 'memberIDs' || attr == 'mid') {
+                            xml.ele(attr, body_Obj[index][attr].toString().replace(/,/g, ' '));
+                        }
+                        else if (attr == 'membersAccessControlPolicyIDs' || attr == 'macp') {
+                            xml.ele(attr, body_Obj[index][attr].toString().replace(/,/g, ' '));
+                        }
+                        else {
+                            xml.ele(attr, body_Obj[index][attr]);
+                        }
                     }
                 }
             }
@@ -897,6 +947,181 @@ exports.response_result = function(request, response, status, body_Obj, rsc, ri,
         rspObj.sts = cap;
         console.log(JSON.stringify(rspObj));
     }
+};
+
+
+exports.response_rcn3_result = function(request, response, status, body_Obj, rsc, ri, cap) {
+    if(request.headers['x-m2m-ri'] != null) {
+        response.setHeader('X-M2M-RI', request.headers['x-m2m-ri']);
+    }
+
+    if(request.headers.locale != null) {
+        response.setHeader('locale', request.headers.locale);
+    }
+
+    var rootnm = request.headers.rootnm;
+
+    body_Obj[rootnm] = {};
+    body_Obj[rootnm] = body_Obj['rce'][rootnm];
+
+    if (Object.keys(body_Obj)[0] == 'cb' || Object.keys(body_Obj)[0] == 'csr' || Object.keys(body_Obj)[0] == 'ae' || Object.keys(body_Obj)[0] == 'acp') {
+        delete body_Obj[rootnm].st;
+    }
+
+    if(body_Obj[rootnm].pv) {
+        body_Obj[rootnm]['pv']['acr'].splice(body_Obj[rootnm]['pv']['acr'].length-1, 1);
+    }
+
+    if(body_Obj[rootnm].pvs) {
+        body_Obj[rootnm]['pvs']['acr'].splice(body_Obj[rootnm]['pvs']['acr'].length-1, 1);
+    }
+
+    if (request.headers.nmtype == 'long') {
+        for (var index in body_Obj[rootnm]) {
+            if (index == "$") {
+                delete body_Obj['m2m:' + rsrcShortName][index];
+                continue;
+            }
+            else if (index == 'enc') {
+                body_Obj[rootnm][attrLname[index]] = {};
+                body_Obj[rootnm][attrLname[index]][attrLname['net']] = body_Obj[rootnm][index]['net'];
+            }
+            else if (index == 'pv' || index == 'pvs') {
+                body_Obj[rootnm][attrLname[index]] = {};
+                for (var sub_attr in body_Obj[rootnm][index]) {
+                    body_Obj[rootnm][attrLname[index]][attrLname[sub_attr]] = [];
+                    for (var sub_attr2 in body_Obj[rootnm][index][sub_attr]) {
+                        body_Obj[rootnm][attrLname[index]][attrLname[sub_attr]][sub_attr2] = {};
+                        for (var sub_attr3 in body_Obj[rootnm][index][sub_attr][sub_attr2]) {
+                            body_Obj[rootnm][attrLname[index]][attrLname[sub_attr]][sub_attr2][attrLname[sub_attr3]] = body_Obj[rootnm][index][sub_attr][sub_attr2][sub_attr3];
+                        }
+                    }
+                }
+            }
+            else {
+                body_Obj[rootnm][attrLname[index]] = body_Obj[rootnm][index];
+            }
+            delete body_Obj[rootnm][index];
+        }
+        body_Obj['rce']['m2m:' + rceLname[rootnm]] = body_Obj[rootnm];
+        body_Obj['rce']['m2m:' + rceLname['uri']] = body_Obj.rce.uri;
+        body_Obj['m2m:' + rceLname['rce']] = body_Obj.rce;
+        delete body_Obj[rootnm];
+        delete body_Obj['rce'][rootnm];
+        delete body_Obj.rce.uri;
+        delete body_Obj.rce;
+        rootnm = rceLname[rootnm];
+        var rce_nm = rceLname['rce'];
+    }
+    else {
+        body_Obj['rce']['m2m:' + rootnm] = body_Obj[rootnm];
+        body_Obj['rce']['m2m:uri'] = body_Obj.rce.uri;
+        body_Obj['m2m:rce'] = body_Obj.rce;
+        delete body_Obj[rootnm];
+        delete body_Obj['rce'][rootnm];
+        delete body_Obj.rce.uri;
+        delete body_Obj.rce;
+        rce_nm = 'rce';
+    }
+
+    var bodyString = JSON.stringify(body_Obj);
+    if (request.headers.accept == null) {
+        response.setHeader('Accept', 'application/'+request.headers.usebodytype);
+        //response.setHeader('Accept', 'application/vnd.onem2m-res'+request.headers.usebodytype);
+    }
+
+    if (request.headers.usebodytype == 'json') {
+        //response.setHeader('Accept', 'application/vnd.onem2m-res+json');
+        response.setHeader('Accept', 'application/json');
+    }
+    else {
+        //response.setHeader('Accept', 'application/vnd.onem2m-res+xml');
+        response.setHeader('Accept', 'application/xml');
+        var xml_root = xmlbuilder.create('m2m:' + rce_nm, {version: '1.0', encoding: 'UTF-8', standalone: true},
+            {pubID: null, sysID: null}, {allowSurrogateChars: false, skipNullAttributes: false, headless: false, ignoreDecorators: false, stringify: {}}
+        ).att('xmlns:m2m', 'http://www.onem2m.org/xml/protocols').att('xmlns:xsi', 'http://www.w3.org/2001/XMLSchema-instance');
+
+        for (var rce in body_Obj) {
+            for (index in body_Obj[rce]) {
+                if(index == 'm2m:uri') {
+                    var xml = xml_root.ele(index, body_Obj[rce][index]);
+                }
+                else {
+                    xml = xml_root.ele(index, '');
+                    for (var attr in body_Obj[rce][index]) {
+                        if (attr == 'resourceName' || attr == 'rn') {
+                            xml.att(attr, body_Obj[rce][index][attr]);
+                        }
+                        else if (attr == 'eventNotificationCriteria' || attr == 'enc') {
+                            var xml2 = xml.ele(attr, '');
+                            for (var sub_attr in body_Obj[rce][index][attr]) {
+                                xml2.ele(sub_attr, body_Obj[rce][index][attr][sub_attr].toString().replace(/,/g, ' '));
+                            }
+                        }
+                        else if (attr == 'privileges' || attr == 'pv' || attr == 'selfPrivileges' || attr == 'pvs') {
+                            var xml2 = xml.ele(attr, '');
+                            for (var sub_attr in body_Obj[rce][index][attr]) {
+                                for (var sub_attr2 in body_Obj[rce][index][attr][sub_attr]) {
+                                    var xml3 = xml2.ele(sub_attr, '');
+                                    for (var sub_attr3 in body_Obj[rce][index][attr][sub_attr][sub_attr2]) {
+                                        xml3.ele(sub_attr3, body_Obj[rce][index][attr][sub_attr][sub_attr2][sub_attr3].toString().replace(/,/g, ' '));
+                                    }
+                                }
+                            }
+                        }
+                        else if (attr == 'accessControlPolicyIDs' || attr == 'acpi') {
+                            xml.ele(attr, body_Obj[rce][index][attr].toString().replace(/,/g, ' '));
+                        }
+                        else if (attr == 'labels' || attr == 'lbl') {
+                            xml.ele(attr, body_Obj[rce][index][attr].toString().replace(/,/g, ' '));
+                        }
+                        else if (attr == 'supportedResourceType' || attr == 'srt') {
+                            xml.ele(attr, body_Obj[rce][index][attr].toString().replace(/,/g, ' '));
+                        }
+                        else if (attr == 'pointOfAccess' || attr == 'poa') {
+                            xml.ele(attr, body_Obj[rce][index][attr].toString().replace(/,/g, ' '));
+                        }
+                        else if (attr == 'notificationURI' || attr == 'nu') {
+                            xml.ele(attr, body_Obj[rce][index][attr].toString().replace(/,/g, ' '));
+                        }
+                        else if (attr == 'memberIDs' || attr == 'mid') {
+                            xml.ele(attr, body_Obj[rce][index][attr].toString().replace(/,/g, ' '));
+                        }
+                        else if (attr == 'membersAccessControlPolicyIDs' || attr == 'macp') {
+                            xml.ele(attr, body_Obj[rce][index][attr].toString().replace(/,/g, ' '));
+                        }
+                        else {
+                            xml.ele(attr, body_Obj[rce][index][attr]);
+                        }
+                    }
+                }
+            }
+        }
+        bodyString = xml.end({pretty: false, indent: '  ', newline: '\n'}).toString();
+    }
+
+    response.setHeader('X-M2M-RSC', rsc);
+    if(request.headers['content-type'] == null) {
+        if (request.headers.usebodytype == 'json') {
+            //response.setHeader('Content-Type', 'application/vnd.onem2m-res+json');
+            response.setHeader('Content-Type', 'application/json');
+        }
+        else {
+            //response.setHeader('Content-Type', 'application/vnd.onem2m-res+xml');
+            response.setHeader('Content-Type', 'application/xml');
+        }
+    }
+    else {
+        response.setHeader('Content-Type', request.headers['content-type']);
+    }
+
+    response.status(status).end(bodyString);
+
+    rspObj = {};
+    rspObj.rsc = rsc;
+    rspObj.ri = request.method + "-" + ri + "-" + JSON.stringify(request.query);
+    rspObj.sts = cap;
+    console.log(JSON.stringify(rspObj));
 };
 
 
@@ -1010,16 +1235,16 @@ exports.search_result = function(request, response, status, body_Obj, rsc, ri, c
             rootnm = attrLname[rootnm];
             for (var prop in body_Obj) {
                 var ty = body_Obj[prop].ty;
-                if(res_Obj['m2m:'+rsrcLname[typeRsrc[ty]]] == null) {
-                    res_Obj['m2m:'+rsrcLname[typeRsrc[ty]]] = [];
+                if(res_Obj['m2m:'+rceLname[typeRsrc[ty]]] == null) {
+                    res_Obj['m2m:'+rceLname[typeRsrc[ty]]] = [];
                 }
                 var tmp_Obj = {};
-                tmp_Obj['m2m:'+rsrcLname[typeRsrc[ty]]] = {};
+                tmp_Obj['m2m:'+rceLname[typeRsrc[ty]]] = {};
                 for(var index in body_Obj[prop]) {
-                    tmp_Obj['m2m:'+rsrcLname[typeRsrc[ty]]][attrLname[index]] = body_Obj[prop][index]
+                    tmp_Obj['m2m:'+rceLname[typeRsrc[ty]]][attrLname[index]] = body_Obj[prop][index]
                 }
                 delete body_Obj[prop];
-                res_Obj['m2m:'+rsrcLname[typeRsrc[ty]]].push(tmp_Obj['m2m:'+rsrcLname[typeRsrc[ty]]]);
+                res_Obj['m2m:'+rceLname[typeRsrc[ty]]].push(tmp_Obj['m2m:'+rceLname[typeRsrc[ty]]]);
             }
             body_Obj['m2m:'+rootnm] = res_Obj;
         }

@@ -188,10 +188,10 @@ function delete_TS(ri, callback) {
 
 function create_action_cni(request, response, ty, pi, mni, cs, callback) {
     if(ty == '4') {
-        var sql = util.format("select cni, cbs, st from cnt where ri = \'%s\'", pi);
+        var sql = util.format("select cni, cbs, st from cnt, lookup where cnt.ri = \'%s\' and lookup.ri = \'%s\'", pi, pi);
     }
     else {
-        sql = util.format("select cni, cbs, st from ts where ri = \'%s\'", pi);
+        sql = util.format("select cni, cbs, st from ts, lookup where cnt.ri = \'%s\' and lookup.ri = \'%s\'", pi, pi);
     }
     db.getResult(sql, '', function (err, results_cni) {
         if (results_cni.length == 1) {
@@ -214,10 +214,10 @@ function create_action_cni(request, response, ty, pi, mni, cs, callback) {
                                 results_cni[0].cni = cni;
                                 results_cni[0].cbs = cbs;
                                 if (ty == '4') {
-                                    sql = util.format("update cnt set cni = \'%s\', cbs = \'%s\', st  = \'%s\' where ri = \'%s\'", cni, cbs, st, pi);
+                                    sql = util.format("update cnt, lookup set cnt.cni = \'%s\', cnt.cbs = \'%s\', lookup.st = \'%s\'  where cnt.ri = \'%s\' and lookup.ri = \'%s\'", cni, cbs, st, pi, pi);
                                 }
                                 else {
-                                    sql = util.format("update ts set cni = \'%s\', cbs = \'%s\', st  = \'%s\'  where ri = \'%s\'", cni, cbs, st, pi);
+                                    sql = util.format("update ts, lookup set ts.cni = \'%s\', ts.cbs = \'%s\', lookup.st = \'%s\'  where ts.ri = \'%s\' and lookup.ri = \'%s\'", cni, cbs, st, pi, pi);
                                 }
                                 db.getResult(sql, results_cni[0], function (err, results) {
                                     if (!err) {
@@ -246,10 +246,10 @@ function create_action_cni(request, response, ty, pi, mni, cs, callback) {
                 results_cni[0].cni = cni;
                 results_cni[0].cbs = cbs;
                 if (ty == '4') {
-                    sql = util.format("update cnt set cni = \'%s\', cbs = \'%s\', st  = \'%s\'  where ri = \'%s\'", cni, cbs, st, pi);
+                    sql = util.format("update cnt, lookup set cnt.cni = \'%s\', cnt.cbs = \'%s\', lookup.st = \'%s\'  where cnt.ri = \'%s\' and lookup.ri = \'%s\'", cni, cbs, st, pi, pi);
                 }
                 else {
-                    sql = util.format("update ts set cni = \'%s\', cbs = \'%s\', st  = \'%s\'  where ri = \'%s\'", cni, cbs, st, pi);
+                    sql = util.format("update ts, lookup set ts.cni = \'%s\', ts.cbs = \'%s\', lookup.st = \'%s\'  where ts.ri = \'%s\' and lookup.ri = \'%s\'", cni, cbs, st, pi, pi);
                 }
                 db.getResult(sql, results_cni[0], function (err, results) {
                     if (!err) {
@@ -889,55 +889,85 @@ exports.retrieve = function(request, response, comm_Obj) {
     }
     else {
         if(request.query.rcn == 2) { // hierarchical address
-
+            request.headers.rootnm = 'uri';
+            var resource_Obj = {};
+            resource_Obj.uri = {};
+            //resource_Obj.uril = ri_list.toString().replace(/,/g, ' ');
+            resource_Obj.uri = comm_Obj.ri;
+            responder.response_result(request, response, 200, resource_Obj, 2000, comm_Obj.ri, '');
+            return 0;
         }
-        search_resource(request, response, ty, comm_Obj, function (rsc, resource_Obj) {
-            if (rsc == '0') {
-                return rsc;
-            }
-            var ri_list = [];
-            if(request.query.fu == 1) {
-                request.headers.rootnm = 'uril';
-            }
-            else {
-                request.headers.rootnm = 'rsp';
-            }
-            presearch_action(request, response, ty, ri_list, comm_Obj, function (rsc, ri_list, search_Obj) {
+        else if(request.query.rcn == 3) { // hierarchical address and attributes
+            _this.set_rootnm(request, ty);
+            rootnm = request.headers.rootnm;
+            get_resource(request, response, ty, comm_Obj, function (rsc, resource_Obj) {
                 if (rsc == '0') {
                     return rsc;
                 }
-                if(request.query.fu == 1) {
-                    resource_Obj = {};
-                    resource_Obj.uril = {};
-                    //resource_Obj.uril = ri_list.toString().replace(/,/g, ' ');
-                    resource_Obj.uril = ri_list;
-                    responder.search_result(request, response, 200, resource_Obj, 2000, comm_Obj.ri, '');
+                retrieve_action(request, response, ty, comm_Obj, function (rsc, retrieve_Obj) {
+                    if (rsc == '1') {
+                        _this.remove_no_value(request, retrieve_Obj);
+
+                        request.headers.rootnm = rootnm;
+                        retrieve_Obj.rce = {};
+                        retrieve_Obj.rce.uri = retrieve_Obj[rootnm].ri;
+                        retrieve_Obj.rce[rootnm] = retrieve_Obj[rootnm];
+                        delete retrieve_Obj[rootnm];
+                        responder.response_rcn3_result(request, response, 200, retrieve_Obj, 2000, retrieve_Obj.rce[rootnm].ri, '');
+                        return '0';
+                    }
+                });
+            });
+        }
+        else {
+            search_resource(request, response, ty, comm_Obj, function (rsc, resource_Obj) {
+                if (rsc == '0') {
+                    return rsc;
                 }
-                else if(request.query.rcn == 5) {
-                    resource_Obj = {};
-                    resource_Obj['rsp'] = {};
-                    resource_Obj['rsp'].cap = 'response with hierarchical resource structure mentioned in onem2m spec is not supported instead all the requested resources will be returned !';
-                    responder.response_result(request, response, 501, resource_Obj, 5001, url.parse(request.url).pathname.toLowerCase(), resource_Obj['rsp'].cap);
+                var ri_list = [];
+                if (request.query.fu == 1) {
+                    request.headers.rootnm = 'uril';
                 }
                 else {
-                    search_action(request, response, 0, resource_Obj, ri_list, '{', search_Obj, function (rsc, strObj) {
-                        if (rsc == '1') {
-                            strObj += '}';
-                            resource_Obj = JSON.parse(strObj);
-                            for(var index in resource_Obj) {
-                                resource_Obj[index] = merge(resource_Obj[index], search_Obj[index]);
-                                for(var index2 in resource_Obj[index]) {
-                                    if(resource_Obj[index][index2] == null || resource_Obj[index][index2] == '' || resource_Obj[index][index2] == 'undefined') {
-                                        delete resource_Obj[index][index2];
+                    request.headers.rootnm = 'rsp';
+                }
+                presearch_action(request, response, ty, ri_list, comm_Obj, function (rsc, ri_list, search_Obj) {
+                    if (rsc == '0') {
+                        return rsc;
+                    }
+                    if (request.query.fu == 1) {
+                        resource_Obj = {};
+                        resource_Obj.uril = {};
+                        //resource_Obj.uril = ri_list.toString().replace(/,/g, ' ');
+                        resource_Obj.uril = ri_list;
+                        responder.search_result(request, response, 200, resource_Obj, 2000, comm_Obj.ri, '');
+                    }
+                    else if (request.query.rcn == 5) {
+                        resource_Obj = {};
+                        resource_Obj['rsp'] = {};
+                        resource_Obj['rsp'].cap = 'response with hierarchical resource structure mentioned in onem2m spec is not supported instead all the requested resources will be returned !';
+                        responder.response_result(request, response, 501, resource_Obj, 5001, url.parse(request.url).pathname.toLowerCase(), resource_Obj['rsp'].cap);
+                    }
+                    else {
+                        search_action(request, response, 0, resource_Obj, ri_list, '{', search_Obj, function (rsc, strObj) {
+                            if (rsc == '1') {
+                                strObj += '}';
+                                resource_Obj = JSON.parse(strObj);
+                                for (var index in resource_Obj) {
+                                    resource_Obj[index] = merge(resource_Obj[index], search_Obj[index]);
+                                    for (var index2 in resource_Obj[index]) {
+                                        if (resource_Obj[index][index2] == null || resource_Obj[index][index2] == '' || resource_Obj[index][index2] == 'undefined') {
+                                            delete resource_Obj[index][index2];
+                                        }
                                     }
                                 }
+                                responder.search_result(request, response, 200, resource_Obj, 2000, comm_Obj.ri, '');
                             }
-                            responder.search_result(request, response, 200, resource_Obj, 2000, comm_Obj.ri, '');
-                        }
-                    });
-                }
+                        });
+                    }
+                });
             });
-        });
+        }
     }
 };
 
