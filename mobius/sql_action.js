@@ -170,9 +170,9 @@ exports.search_lookup = function (ty, lbl, cra, crb, lim, pi_list, pi_index, fou
         console.time('search_lookup');
     }
 
-    var cur_ct = moment(cur_d).format('YYYYMMDDThhmmss');
-    var bef_d = moment(cur_d).subtract(Math.pow(3,loop_cnt), 'days').format('YYYY-MM-DD hh:mm:ss');
-    var bef_ct = moment(bef_d).format('YYYYMMDDThhmmss');
+    var cur_ct = moment(cur_d).format('YYYYMMDDTHHmmss');
+    var bef_d = moment(cur_d).subtract(Math.pow(3,loop_cnt), 'days').format('YYYY-MM-DD HH:mm:ss');
+    var bef_ct = moment(bef_d).format('YYYYMMDDTHHmmss');
 
     if(lim != null) {
         if(lim > max_lim) {
@@ -228,8 +228,8 @@ exports.select_latest_lookup = function(ri, cur_d, loop_cnt, ty, callback) {
         console.time('select_latest');
     }
 
-    var bef_d = moment(cur_d).subtract(Math.pow(2,loop_cnt), 'days').format('YYYY-MM-DD hh:mm:ss');
-    var bef_ct = moment(bef_d).format('YYYYMMDDThhmmss');
+    var bef_d = moment(cur_d).subtract(Math.pow(2,loop_cnt), 'days').format('YYYY-MM-DD HH:mm:ss');
+    var bef_ct = moment(bef_d).format('YYYYMMDDTHHmmss');
 
     var sql = util.format('select a.* from (select ri from lookup where (pi = \'%s\') and ct > \'%s\' order by ct desc limit 1000) b left join lookup as a on b.ri = a.ri where a.ty = \'%s\' limit 1', ri, bef_ct, ty);
     db.getResult(sql, '', function (err, latest_Obj) {

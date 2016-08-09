@@ -253,7 +253,7 @@ function delete_sub(ri, xm2mri) {
 function request_noti_mqtt(nu, ri, xmlString, bodytype, xm2mri) {
     var options = {
         hostname: 'localhost',
-        port: '9726',
+        port: usepxymqttport,
         path: '/notification',
         method: 'POST',
         headers: {

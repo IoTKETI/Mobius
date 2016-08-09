@@ -684,7 +684,7 @@ function presearch_action(request, response, ty, ri_list, comm_Obj, callback) {
 
             var finding_Obj = [];
             var found_Obj = {};
-            var cur_d = moment().format('YYYY-MM-DD hh:mm:ss');
+            var cur_d = moment().utc().format('YYYY-MM-DD HH:mm:ss');
             db_sql.search_lookup(request.query.ty, request.query.lbl, request.query.cra, request.query.crb, request.query.lim, pi_list, 0, finding_Obj, 0, cur_d, 0, function (err, search_Obj) {
                 if(!err) {
                     if(search_Obj.length >= 1) {

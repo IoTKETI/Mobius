@@ -268,144 +268,152 @@ var onem2mParser = bodyParser.text(
 );
 
 mqtt_app.post('/notification', onem2mParser, function(request, response, next) {
-    var aeid = url.parse(request.headers.nu).pathname.replace('/', '');
+    var fullBody = '';
+    request.on('data', function(chunk) {
+        fullBody += chunk.toString();
+    });
+    request.on('end', function() {
+        request.body = fullBody;
 
-    if(aeid == '') {
-        console.log('aeid of notification url is none');
-        return;
-    }
+        var aeid = url.parse(request.headers.nu).pathname.replace('/', '');
 
-    if(mqtt_state == 'ready') {
-        var noti_topic = util.format('/oneM2M/req/%s/%s/%s', usecseid.replace('/', ':'), aeid, request.headers.bodytype);
-
-        var rqi = request.headers['x-m2m-ri'];
-        resp_mqtt_rqi_arr.push(rqi);
-        http_response_q[rqi] = response;
-
-        var pc = JSON.parse(request.body);
-
-        var noti_message = {};
-        noti_message['m2m:rqp'] = {};
-        noti_message['m2m:rqp'].op = 5; // notification
-        noti_message['m2m:rqp'].net = (pc['sgn'] != null) ? pc.sgn.net : pc.singleNotification.notificationEventType;
-        noti_message['m2m:rqp'].to = (pc['sgn'] != null) ? pc.sgn.sur : pc.singleNotification.subscriptionReference;
-        noti_message['m2m:rqp'].fr = usecseid;
-        noti_message['m2m:rqp'].rqi = rqi;
-
-        noti_message['m2m:rqp'].pc = pc;
-
-        if(pc['sgn'] != null) {
-            if (!pc.sgn.nec) {
-                var nec = pc.sgn.nec;
-                delete pc.sgn.nec;
-            }
-        }
-        else {
-            if (!pc.singleNotification.notificationEventCat) {
-                nec = pc.singleNotification.notificationEventCat;
-                delete pc.singleNotification.notificationEventCat;
-            }
+        if (aeid == '') {
+            console.log('aeid of notification url is none');
+            return;
         }
 
-        if(nec == 'keti') { // for mqtt implementation of keti
-            noti_topic = util.format('/req/%s/%s/%s', usecseid.replace('/', ':'), aeid, request.headers.bodytype);
+        if (mqtt_state == 'ready') {
+            var noti_topic = util.format('/oneM2M/req/%s/%s/%s', usecseid.replace('/', ':'), aeid, request.headers.bodytype);
 
-            noti_message = {};
+            var rqi = request.headers['x-m2m-ri'];
+            resp_mqtt_rqi_arr.push(rqi);
+            http_response_q[rqi] = response;
+
+            var pc = JSON.parse(request.body);
+
+            var noti_message = {};
             noti_message['m2m:rqp'] = {};
             noti_message['m2m:rqp'].op = 5; // notification
+            noti_message['m2m:rqp'].net = (pc['sgn'] != null) ? pc.sgn.net : pc.singleNotification.notificationEventType;
+            noti_message['m2m:rqp'].to = (pc['sgn'] != null) ? pc.sgn.sur : pc.singleNotification.subscriptionReference;
+            noti_message['m2m:rqp'].fr = usecseid;
             noti_message['m2m:rqp'].rqi = rqi;
 
             noti_message['m2m:rqp'].pc = pc;
 
-            if(pc.sgn.net){
-                delete pc.sgn.net;
+            if (pc['sgn'] != null) {
+                if (!pc.sgn.nec) {
+                    var nec = pc.sgn.nec;
+                    delete pc.sgn.nec;
+                }
             }
-
-            if(pc.sgn.sur) {
-                delete pc.sgn.sur;
-            }
-
-            for(var attr in pc.sgn.nev.rep) {
-                if(pc.sgn.nev.rep.hasOwnProperty(attr)) {
-                    if (pc.sgn.nev.rep[attr].cs) {
-                        delete pc.sgn.nev.rep[attr].cs;
-                    }
-
-                    if (pc.sgn.nev.rep[attr].ct) {
-                        delete pc.sgn.nev.rep[attr].ct;
-                    }
-
-                    if (pc.sgn.nev.rep[attr].lt) {
-                        delete pc.sgn.nev.rep[attr].lt;
-                    }
-
-                    if (pc.sgn.nev.rep[attr].pi) {
-                        delete pc.sgn.nev.rep[attr].pi;
-                    }
-
-                    if (pc.sgn.nev.rep[attr].rn) {
-                        delete pc.sgn.nev.rep[attr].rn;
-                    }
-
-                    if (pc.sgn.nev.rep[attr].st) {
-                        delete pc.sgn.nev.rep[attr].st;
-                    }
-
-                    if (pc.sgn.nev.rep[attr].ty) {
-                        delete pc.sgn.nev.rep[attr].ty;
-                    }
-
-                    if (pc.sgn.nev.rep[attr].ri) {
-                        delete pc.sgn.nev.rep[attr].ri;
-                    }
+            else {
+                if (!pc.singleNotification.notificationEventCat) {
+                    nec = pc.singleNotification.notificationEventCat;
+                    delete pc.singleNotification.notificationEventCat;
                 }
             }
 
-            noti_message['m2m:rqp'] = pc.sgn.nev.rep;
-            if (request.headers.bodytype == 'xml') {
-                noti_message['m2m:rqp']['@'] = {
-                    "xmlns:m2m": "http://www.onem2m.org/xml/protocols",
-                    "xmlns:xsi": "http://www.w3.org/2001/XMLSchema-instance"
-                };
+            if (nec == 'keti') { // for mqtt implementation of keti
+                noti_topic = util.format('/req/%s/%s/%s', usecseid.replace('/', ':'), aeid, request.headers.bodytype);
 
-                var xmlString = js2xmlparser("m2m:rqp", noti_message['m2m:rqp']);
+                noti_message = {};
+                noti_message['m2m:rqp'] = {};
+                noti_message['m2m:rqp'].op = 5; // notification
+                noti_message['m2m:rqp'].rqi = rqi;
 
-                pxymqtt_client.publish(noti_topic, xmlString);
-                console.log('<---- ' + noti_topic);
+                noti_message['m2m:rqp'].pc = pc;
+
+                if (pc.sgn.net) {
+                    delete pc.sgn.net;
+                }
+
+                if (pc.sgn.sur) {
+                    delete pc.sgn.sur;
+                }
+
+                for (var attr in pc.sgn.nev.rep) {
+                    if (pc.sgn.nev.rep.hasOwnProperty(attr)) {
+                        if (pc.sgn.nev.rep[attr].cs) {
+                            delete pc.sgn.nev.rep[attr].cs;
+                        }
+
+                        if (pc.sgn.nev.rep[attr].ct) {
+                            delete pc.sgn.nev.rep[attr].ct;
+                        }
+
+                        if (pc.sgn.nev.rep[attr].lt) {
+                            delete pc.sgn.nev.rep[attr].lt;
+                        }
+
+                        if (pc.sgn.nev.rep[attr].pi) {
+                            delete pc.sgn.nev.rep[attr].pi;
+                        }
+
+                        if (pc.sgn.nev.rep[attr].rn) {
+                            delete pc.sgn.nev.rep[attr].rn;
+                        }
+
+                        if (pc.sgn.nev.rep[attr].st) {
+                            delete pc.sgn.nev.rep[attr].st;
+                        }
+
+                        if (pc.sgn.nev.rep[attr].ty) {
+                            delete pc.sgn.nev.rep[attr].ty;
+                        }
+
+                        if (pc.sgn.nev.rep[attr].ri) {
+                            delete pc.sgn.nev.rep[attr].ri;
+                        }
+                    }
+                }
+
+                noti_message['m2m:rqp'] = pc.sgn.nev.rep;
+                if (request.headers.bodytype == 'xml') {
+                    noti_message['m2m:rqp']['@'] = {
+                        "xmlns:m2m": "http://www.onem2m.org/xml/protocols",
+                        "xmlns:xsi": "http://www.w3.org/2001/XMLSchema-instance"
+                    };
+
+                    var xmlString = js2xmlparser("m2m:rqp", noti_message['m2m:rqp']);
+
+                    pxymqtt_client.publish(noti_topic, xmlString);
+                    console.log('<---- ' + noti_topic);
+                }
+                else { // 'json'
+                    //pxymqtt_client.publish(noti_topic, JSON.stringify(noti_message));
+                    noti_topic = noti_topic.replace('json', 'j');
+                    pxymqtt_client.publish(noti_topic, pc.sgn.nev.rep[attr].con);
+                    console.log('<---- ' + noti_topic);
+                }
+
+                console.log('----> 2001');
+                response.setHeader('X-M2M-RSC', '2001');
+                response.setHeader('X-M2M-RI', rqi);
+                response.status(201).end('{\"m2m:rsp\":\"success to receive notification\"}');
             }
-            else { // 'json'
-                //pxymqtt_client.publish(noti_topic, JSON.stringify(noti_message));
-                noti_topic = noti_topic.replace('json', 'j');
-                pxymqtt_client.publish(noti_topic, pc.sgn.nev.rep[attr].con);
-                console.log('<---- ' + noti_topic);
-            }
+            else {
+                if (request.headers.bodytype == 'xml') {
+                    noti_message['m2m:rqp']['@'] = {
+                        "xmlns:m2m": "http://www.onem2m.org/xml/protocols",
+                        "xmlns:xsi": "http://www.w3.org/2001/XMLSchema-instance"
+                    };
 
-            console.log('----> 2001');
-            response.setHeader('X-M2M-RSC', '2001');
-            response.setHeader('X-M2M-RI', rqi);
-            response.status(201).end('{\"m2m:rsp\":\"success to receive notification\"}');
+                    xmlString = js2xmlparser("m2m:rqp", noti_message['m2m:rqp']);
+
+                    pxymqtt_client.publish(noti_topic, xmlString);
+                    console.log('<---- ' + noti_topic);
+                }
+                else { // 'json'
+                    pxymqtt_client.publish(noti_topic, JSON.stringify(noti_message));
+                    console.log('<---- ' + noti_topic);
+                }
+            }
         }
         else {
-            if (request.headers.bodytype == 'xml') {
-                noti_message['m2m:rqp']['@'] = {
-                    "xmlns:m2m": "http://www.onem2m.org/xml/protocols",
-                    "xmlns:xsi": "http://www.w3.org/2001/XMLSchema-instance"
-                };
-
-                xmlString = js2xmlparser("m2m:rqp", noti_message['m2m:rqp']);
-
-                pxymqtt_client.publish(noti_topic, xmlString);
-                console.log('<---- ' + noti_topic);
-            }
-            else { // 'json'
-                pxymqtt_client.publish(noti_topic, JSON.stringify(noti_message));
-                console.log('<---- ' + noti_topic);
-            }
+            console.log('pxymqtt is not ready');
         }
-    }
-    else {
-        console.log('pxymqtt is not ready');
-    }
+    });
 });
 
 
