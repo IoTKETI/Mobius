@@ -18,12 +18,12 @@ var url = require('url');
 var xml2js = require('xml2js');
 var xmlbuilder = require('xmlbuilder');
 var util = require('util');
-var js2xmlparser = require("js2xmlparser");
 var http = require('http');
 
+var responder = require('./responder');
+
+
 const MISSINGDATAMAXNR = '1000';
-
-
 
 exports.build_ts = function(request, response, resource_Obj, body_Obj, callback) {
     var rootnm = request.headers.rootnm;

@@ -26,135 +26,6 @@ var merge = require('merge');
 
 _this = this;
 
-//
-// function self_create_remoteCSE(cb_jsonObj) {
-//     var node = {};
-//     if(defaultbodytype == 'xml') {
-//         if (defaultnmtype == 'long') {
-//             node[0] = xmlbuilder.create('m2m:remoteCSE', {version: '1.0', encoding: 'UTF-8', standalone: true},
-//                 {pubID: null, sysID: null}, {allowSurrogateChars: false, skipNullAttributes: false, headless: false, ignoreDecorators: false, stringify: {}}
-//             ).att('xmlns:m2m', 'http://www.onem2m.org/xml/protocols').att('xmlns:xsi', 'http://www.w3.org/2001/XMLSchema-instance').att('resourceName', cb_jsonObj["m2m:CSEBase"]['resourceName']);
-//             node[0].ele('cseType', cb_jsonObj['m2m:CSEBase']['cseType']);
-//             node[0].ele('CSE-ID', cb_jsonObj['m2m:CSEBase']['CSE-ID']);
-//             node[0].ele('pointOfAccess', cb_jsonObj['m2m:CSEBase']['pointOfAccess']);
-//             node[0].ele('requestReachability', 'true');
-//             node[0].ele('CSEBase', cb_jsonObj['m2m:CSEBase']['resourceName']);
-//             var poa_arr = cb_jsonObj['m2m:CSEBase']['pointOfAccess'].split(' ');
-//         }
-//         else { // defaultnmtype == 'short'
-//             node[0] = xmlbuilder.create('m2m:csr', {version: '1.0', encoding: 'UTF-8', standalone: true},
-//                 {pubID: null, sysID: null}, {allowSurrogateChars: false, skipNullAttributes: false, headless: false, ignoreDecorators: false, stringify: {}}
-//             ).att('xmlns:m2m', 'http://www.onem2m.org/xml/protocols').att('xmlns:xsi', 'http://www.w3.org/2001/XMLSchema-instance').att('rn', cb_jsonObj["m2m:cb"]['rn']);
-//             node[0].ele('cst', cb_jsonObj['m2m:cb']['cst']);
-//             node[0].ele('csi', cb_jsonObj['m2m:cb']['csi']);
-//             node[0].ele('poa', cb_jsonObj['m2m:cb']['poa']);
-//             node[0].ele('rr', 'true');
-//             node[0].ele('cb', cb_jsonObj['m2m:cb']['rn']);
-//             poa_arr = cb_jsonObj['m2m:cb']['poa'].split(' ');
-//         }
-//
-//         // make comment because already know for information of IN-CSE
-//         //for (var i = 0; i < poa_arr.length; i++) {
-//         //    if (url.parse(poa_arr[i]).protocol == 'http:') {
-//         //        parent_cbhost = url.parse(poa_arr[i]).hostname;
-//         //        parent_cbhostport = url.parse(poa_arr[i]).port;
-//         //    }
-//         //    else if (url.parse(poa_arr[i]).protocol == 'mqtt:') {
-//         //        usecsemqtt = url.parse(poa_arr[i]).hostname;
-//         //
-//         //        pxymqtt.connect(usecsemqtt);
-//         //    }
-//         //}
-//
-//         var bodyString = node[0].end({pretty: true, indent: '  ', newline: '\n'}).toString();
-//
-//         var options = {
-//             hostname: 'localhost',
-//             port: usecsebaseport,
-//             path: '/' + usecsebase,
-//             method: 'post',
-//             headers: {
-//                 'X-M2M-RI': '12345',
-//                 'Accept': 'application/'+defaultbodytype,
-//                 'X-M2M-Origin': 'Origin',
-//                 'Content-Type': 'application/vnd.onem2m-res+'+defaultbodytype+'; ty=16'
-//             }
-//         };
-//
-//         var req = http.request(options, function (res) {
-//             if(res.statusCode == 200) {
-//                 NOPRINT == 'true' ? NOPRINT = 'true' : console.log('success to MN-CSE. csetype is MN-CSE');
-//             }
-//         });
-//
-//         req.on('error', function (e) {
-//             NOPRINT == 'true' ? NOPRINT = 'true' : console.log('problem with request: ' + e.message);
-//         });
-//
-//         // write data to request body
-//         req.write(bodyString);
-//         req.end();
-//     }
-//     else { // defaultbodytype == 'json'
-//         if (defaultnmtype == 'long') {
-//             node['m2m:remoteCSE'] = {};
-//             node['m2m:remoteCSE'] = cb_jsonObj['m2m:CSEBase'];
-//             node['m2m:remoteCSE']['requestReachability'] = 'true';
-//             node['m2m:remoteCSE']['CSEBase'] = cb_jsonObj['m2m:CSEBase']['resourceName'];
-//             delete node['m2m:remoteCSE'].resourceID;
-//             delete node['m2m:remoteCSE'].lastModifiedTime;
-//             delete node['m2m:remoteCSE'].creationTime;
-//             delete node['m2m:remoteCSE'].resourceType;
-//         }
-//         else { // defaultnmtype == 'short'
-//             node['m2m:csr'] = {};
-//             node['m2m:csr'] = cb_jsonObj['m2m:cb'];
-//             node['m2m:csr']['rr'] = 'true';
-//             node['m2m:csr']['cb'] = cb_jsonObj['m2m:cb']['rn'];
-//             delete node['m2m:csr'].ri;
-//             delete node['m2m:csr'].lt;
-//             delete node['m2m:csr'].ct;
-//             delete node['m2m:csr'].ty;
-//         }
-//
-//         bodyString = JSON.stringify(node);
-//
-//         options = {
-//             hostname: 'localhost',
-//             port: usecsebaseport,
-//             path: '/' + usecsebase,
-//             method: 'post',
-//             headers: {
-//                 'X-M2M-RI': '12345',
-//                 'Accept': 'application/json',
-//                 'X-M2M-Origin': 'Origin',
-//                 'Content-Type': 'application/vnd.onem2m-res+json; ty=16'
-//             }
-//         };
-//
-//         req = http.request(options, function (res) {
-//             var fullBody = '';
-//             res.on('data', function(chunk) {
-//                 fullBody += chunk.toString();
-//             });
-//
-//             res.on('end', function () {
-//                 if (res.statusCode == 200 || res.statusCode == 201 || res.statusCode == 403 || res.statusCode == 409) {
-//                     console.log('success to MN-CSE. csetype is MN-CSE');
-//                 }
-//             });
-//         });
-//
-//         req.on('error', function (e) {
-//             NOPRINT == 'true' ? NOPRINT = 'true' : console.log('problem with request: ' + e.message);
-//         });
-//
-//         // write data to request body
-//         req.write(bodyString);
-//         req.end();
-//     }
-// }
-
 function retrieve_CSEBase(cbname, cbhost, cbhostport, callback) {
     var ri = '/' + cbname;
     var options = {
@@ -217,8 +88,10 @@ function retrieve_CSEBase(cbname, cbhost, cbhostport, callback) {
                 }
 
                 for(var idx in jsonObj.csr) {
-                    if(jsonObj.csr[idx] == null || jsonObj.csr[idx] == '' || jsonObj.csr[idx] == 'undefined' || jsonObj.csr[idx] == '[]') {
-                        delete jsonObj.csr[idx];
+                    if(jsonObj.csr.hasOwnProperty(idx)) {
+                        if (jsonObj.csr[idx] == null || jsonObj.csr[idx] == '' || jsonObj.csr[idx] == 'undefined' || jsonObj.csr[idx] == '[]') {
+                            delete jsonObj.csr[idx];
+                        }
                     }
                 }
 
@@ -238,7 +111,7 @@ function retrieve_CSEBase(cbname, cbhost, cbhostport, callback) {
     });
 
     req.on('error', function (e) {
-        console.log('problem with request: ' + e.message);
+        console.log('[mn] problem with request: ' + e.message);
         callback('0', {});
     });
 
@@ -251,30 +124,38 @@ function create_remoteCSE(cbname, cbhost, cbhostport, body_Obj, callback) {
     var rootnm = 'csr';
     if (defaultnmtype == 'long') {
         for (var index in body_Obj[rootnm]) {
-            if (index == "$") {
-                delete body_Obj['m2m:' + rsrcShortName][index];
-                continue;
-            }
-            else if (index == 'enc') {
-                body_Obj[rootnm][attrLname[index]] = {};
-                body_Obj[rootnm][attrLname[index]][attrLname['net']] = body_Obj[rootnm][index]['net'];
-            }
-            else if (index == 'pv' || index == 'pvs') {
-                body_Obj[rootnm][attrLname[index]] = {};
-                for (var sub_attr in body_Obj[rootnm][index]) {
-                    body_Obj[rootnm][attrLname[index]][attrLname[sub_attr]] = [];
-                    for (var sub_attr2 in body_Obj[rootnm][index][sub_attr]) {
-                        body_Obj[rootnm][attrLname[index]][attrLname[sub_attr]][sub_attr2] = {};
-                        for (var sub_attr3 in body_Obj[rootnm][index][sub_attr][sub_attr2]) {
-                            body_Obj[rootnm][attrLname[index]][attrLname[sub_attr]][sub_attr2][attrLname[sub_attr3]] = body_Obj[rootnm][index][sub_attr][sub_attr2][sub_attr3];
+            if(body_Obj[rootnm].hasOwnProperty(index)) {
+                if (index == "$") {
+                    delete body_Obj['m2m:' + rsrcShortName][index];
+                    continue;
+                }
+                else if (index == 'enc') {
+                    body_Obj[rootnm][attrLname[index]] = {};
+                    body_Obj[rootnm][attrLname[index]][attrLname['net']] = body_Obj[rootnm][index]['net'];
+                }
+                else if (index == 'pv' || index == 'pvs') {
+                    body_Obj[rootnm][attrLname[index]] = {};
+                    for (var sub_attr in body_Obj[rootnm][index]) {
+                        if(body_Obj[rootnm][index].hasOwnProperty(sub_attr)) {
+                            body_Obj[rootnm][attrLname[index]][attrLname[sub_attr]] = [];
+                            for (var sub_attr2 in body_Obj[rootnm][index][sub_attr]) {
+                                if(body_Obj[rootnm][index][sub_attr].hasOwnProperty(sub_attr2)) {
+                                    body_Obj[rootnm][attrLname[index]][attrLname[sub_attr]][sub_attr2] = {};
+                                    for (var sub_attr3 in body_Obj[rootnm][index][sub_attr][sub_attr2]) {
+                                        if(body_Obj[rootnm][index][sub_attr][sub_attr2].hasOwnProperty(sub_attr3)) {
+                                            body_Obj[rootnm][attrLname[index]][attrLname[sub_attr]][sub_attr2][attrLname[sub_attr3]] = body_Obj[rootnm][index][sub_attr][sub_attr2][sub_attr3];
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }
+                else {
+                    body_Obj[rootnm][attrLname[index]] = body_Obj[rootnm][index];
+                }
+                delete body_Obj[rootnm][index];
             }
-            else {
-                body_Obj[rootnm][attrLname[index]] = body_Obj[rootnm][index];
-            }
-            delete body_Obj[rootnm][index];
         }
         body_Obj['m2m:' + rceLname[rootnm]] = body_Obj[rootnm];
         delete body_Obj[rootnm];
@@ -293,24 +174,28 @@ function create_remoteCSE(cbname, cbhost, cbhostport, body_Obj, callback) {
         ).att('xmlns:m2m', 'http://www.onem2m.org/xml/protocols').att('xmlns:xsi', 'http://www.w3.org/2001/XMLSchema-instance');
 
         for (index in body_Obj) {
-            for (var attr in body_Obj[index]) {
-                if (attr == 'resourceName' || attr == 'rn') {
-                    xml.att(attr, body_Obj[index][attr]);
-                }
-                else if (attr == 'accessControlPolicyIDs' || attr == 'acpi') {
-                    xml.ele(attr, body_Obj[index][attr].toString().replace(/,/g, ' '));
-                }
-                else if (attr == 'labels' || attr == 'lbl') {
-                    xml.ele(attr, body_Obj[index][attr].toString().replace(/,/g, ' '));
-                }
-                else if (attr == 'supportedResourceType' || attr == 'srt') {
-                    xml.ele(attr, body_Obj[index][attr].toString().replace(/,/g, ' '));
-                }
-                else if (attr == 'pointOfAccess' || attr == 'poa') {
-                    xml.ele(attr, body_Obj[index][attr].toString().replace(/,/g, ' '));
-                }
-                else {
-                    xml.ele(attr, body_Obj[index][attr]);
+            if(body_Obj.hasOwnProperty(index)) {
+                for (var attr in body_Obj[index]) {
+                    if(body_Obj[index].hasOwnProperty(attr)) {
+                        if (attr == 'resourceName' || attr == 'rn') {
+                            xml.att(attr, body_Obj[index][attr]);
+                        }
+                        else if (attr == 'accessControlPolicyIDs' || attr == 'acpi') {
+                            xml.ele(attr, body_Obj[index][attr].toString().replace(/,/g, ' '));
+                        }
+                        else if (attr == 'labels' || attr == 'lbl') {
+                            xml.ele(attr, body_Obj[index][attr].toString().replace(/,/g, ' '));
+                        }
+                        else if (attr == 'supportedResourceType' || attr == 'srt') {
+                            xml.ele(attr, body_Obj[index][attr].toString().replace(/,/g, ' '));
+                        }
+                        else if (attr == 'pointOfAccess' || attr == 'poa') {
+                            xml.ele(attr, body_Obj[index][attr].toString().replace(/,/g, ' '));
+                        }
+                        else {
+                            xml.ele(attr, body_Obj[index][attr]);
+                        }
+                    }
                 }
             }
         }
@@ -343,7 +228,7 @@ function create_remoteCSE(cbname, cbhost, cbhostport, body_Obj, callback) {
     });
 
     req.on('error', function (e) {
-        NOPRINT == 'true' ? NOPRINT = 'true' : console.log('problem with request: ' + e.message);
+        console.log('[mn] problem with request: ' + e.message);
     });
 
     // write data to request body
@@ -366,8 +251,10 @@ exports.build_mn = function(ri, callback) {
                             rspObj.csr = merge(results_comm[0], results_cb[0]);
 
                             for(var idx in rspObj.csr) {
-                                if(rspObj.csr[idx] == null || rspObj.csr[idx] == '' || rspObj.csr[idx] == 'undefined' || rspObj.csr[idx] == '[]') {
-                                    delete rspObj.csr[idx];
+                                if(rspObj.csr.hasOwnProperty(idx)) {
+                                    if (rspObj.csr[idx] == null || rspObj.csr[idx] == '' || rspObj.csr[idx] == 'undefined' || rspObj.csr[idx] == '[]') {
+                                        delete rspObj.csr[idx];
+                                    }
                                 }
                             }
 

@@ -26,10 +26,9 @@ var util = require('util');
 var xml2js = require('xml2js');
 var url = require('url');
 var xmlbuilder = require('xmlbuilder');
-var js2xmlparser = require("js2xmlparser");
 var ip = require('ip');
 const crypto = require('crypto');
-var FileStreamRotator = require('file-stream-rotator');
+var fileStreamRotator = require('file-stream-rotator');
 var merge = require('merge');
 var https = require('https');
 
@@ -77,7 +76,7 @@ var logDirectory = __dirname + '/log';
 fs.existsSync(logDirectory) || fs.mkdirSync(logDirectory);
 
 // create a rotating write stream
-var accessLogStream = FileStreamRotator.getStream({
+var accessLogStream = fileStreamRotator.getStream({
     date_format: 'YYYYMMDD',
     filename: logDirectory + '/access-%DATE%.log',
     frequency: 'daily',
@@ -119,16 +118,16 @@ if(cluster.isMaster) {
     });
 }
 else {
-    app.use(bodyParser.urlencoded({ extended: true }));
-    app.use(bodyParser.json({limit: '1mb', type: 'application/*+json' }));
-    app.use(bodyParser.text({limit: '1mb', type: 'application/*+xml' }));
+ //   app.use(bodyParser.urlencoded({ extended: true }));
+ //   app.use(bodyParser.json({limit: '1mb', type: 'application/*+json' }));
+ //   app.use(bodyParser.text({limit: '1mb', type: 'application/*+xml' }));
 
     http.globalAgent.maxSockets = 1000000;
 
     db.connect(usedbhost, 3306, 'root', usedbpass, function (rsc) {
         if(rsc == '1') {
             http.createServer(app).listen({port: usecsebaseport, agent: false}, function () {
-                console.log('server (' + ip.address() + ') running at ' + usecsebaseport + ' port');
+                console.log('mobius server (' + ip.address() + ') running at ' + usecsebaseport + ' port');
                 cb.create(function(rsp) {
                     console.log(JSON.stringify(rsp));
                 });
@@ -164,23 +163,25 @@ function check_nametype(nmtype, body_Obj) {
             var rsrcShortName = responder.rsrcSname[rsrcLongName];
             body_Obj[rsrcShortName] = {};
             for(var index in body_Obj['m2m:'+rsrcLongName]) {
-                if(index == "$") {
-                    if(body_Obj['m2m:'+rsrcLongName][index]['resourceName'] != null) {
-                        body_Obj[rsrcShortName].rn = body_Obj['m2m:' + rsrcLongName][index]['resourceName'];
+                if(body_Obj['m2m:'+rsrcLongName].hasOwnProperty(index)) {
+                    if (index == "$") {
+                        if (body_Obj['m2m:' + rsrcLongName][index]['resourceName'] != null) {
+                            body_Obj[rsrcShortName].rn = body_Obj['m2m:' + rsrcLongName][index]['resourceName'];
+                        }
+                        delete body_Obj['m2m:' + rsrcLongName][index];
+                        continue;
                     }
-                    delete body_Obj['m2m:'+rsrcLongName][index];
-                    continue;
-                }
-                var attrShortName = responder.attrSname[index];
+                    var attrShortName = responder.attrSname[index];
 
-                if(index == 'eventNotificationCriteria') {
-                    body_Obj[rsrcShortName][attrShortName] = {};
-                    body_Obj[rsrcShortName][attrShortName][responder.attrSname['notificationEventType']] = body_Obj['m2m:'+rsrcLongName][index]['notificationEventType'];
+                    if (index == 'eventNotificationCriteria') {
+                        body_Obj[rsrcShortName][attrShortName] = {};
+                        body_Obj[rsrcShortName][attrShortName][responder.attrSname['notificationEventType']] = body_Obj['m2m:' + rsrcLongName][index]['notificationEventType'];
+                    }
+                    else {
+                        body_Obj[rsrcShortName][attrShortName] = body_Obj['m2m:' + rsrcLongName][index];
+                    }
+                    delete body_Obj['m2m:' + rsrcLongName][index];
                 }
-                else {
-                    body_Obj[rsrcShortName][attrShortName] = body_Obj['m2m:' + rsrcLongName][index];
-                }
-                delete body_Obj['m2m:'+rsrcLongName][index];
             }
             delete body_Obj['m2m:'+rsrcLongName];
         }
@@ -217,6 +218,7 @@ function check_http(request, response, callback) {
     }
 
     if( (request.headers['x-m2m-ri'] == null) ) {
+        body_Obj = {};
         body_Obj['rsp'] = {};
         body_Obj['rsp'].cap = 'X-M2M-RI is none';
         responder.response_result(request, response, 400, body_Obj, 4000, url.parse(request.url).pathname.toLowerCase(), 'X-M2M-RI is none');
@@ -318,9 +320,11 @@ function check_http(request, response, callback) {
                     }
                     else {
                         for (var ty_idx in responder.typeRsrc) {
-                            if (responder.typeRsrc[ty_idx] == Object.keys(body_Obj)[0]) {
-                                ty = ty_idx;
-                                break;
+                            if (responder.typeRsrc.hasOwnProperty(ty_idx)) {
+                                if (responder.typeRsrc[ty_idx] == Object.keys(body_Obj)[0]) {
+                                    ty = ty_idx;
+                                    break;
+                                }
                             }
                         }
                     }
@@ -328,78 +332,84 @@ function check_http(request, response, callback) {
                     request.headers.rootnm = Object.keys(body_Obj)[0];
 
                     for (var prop in body_Obj) {
-                        if (body_Obj[prop].at) {
-                            body_Obj[prop].at = body_Obj[prop].at.split(' ');
-                        }
-
-                        if (body_Obj[prop].aa) {
-                            body_Obj[prop].aa = body_Obj[prop].aa.split(' ');
-                        }
-
-                        if (body_Obj[prop].poa) {
-                            body_Obj[prop].poa = body_Obj[prop].poa.split(' ');
-                        }
-
-                        if (body_Obj[prop].lbl) {
-                            body_Obj[prop].lbl = body_Obj[prop].lbl.split(' ');
-                        }
-
-                        if (body_Obj[prop].acpi) {
-                            body_Obj[prop].acpi = body_Obj[prop].acpi.split(' ');
-                        }
-
-                        if (body_Obj[prop].srt) {
-                            body_Obj[prop].srt = body_Obj[prop].srt.split(' ');
-                        }
-
-                        if (body_Obj[prop].nu) {
-                            body_Obj[prop].nu = body_Obj[prop].nu.split(' ');
-                        }
-
-                        if (body_Obj[prop].enc) {
-                            if(body_Obj[prop].enc.net) {
-                                body_Obj[prop].enc.net = body_Obj[prop].enc.net.split(' ');
+                        if (body_Obj.hasOwnProperty(prop)) {
+                            if (body_Obj[prop].at) {
+                                body_Obj[prop].at = body_Obj[prop].at.split(' ');
                             }
-                        }
+                            
+                            if (body_Obj[prop].aa) {
+                                body_Obj[prop].aa = body_Obj[prop].aa.split(' ');
+                            }
 
-                        if (body_Obj[prop].pv) {
-                            if(body_Obj[prop].pv.acr) {
-                                if (!Array.isArray(body_Obj[prop].pv.acr)) {
-                                    var temp = body_Obj[prop].pv.acr;
-                                    body_Obj[prop].pv.acr = [];
-                                    body_Obj[prop].pv.acr[0] = temp;
+                            if (body_Obj[prop].poa) {
+                                body_Obj[prop].poa = body_Obj[prop].poa.split(' ');
+                            }
+
+                            if (body_Obj[prop].lbl) {
+                                body_Obj[prop].lbl = body_Obj[prop].lbl.split(' ');
+                            }
+
+                            if (body_Obj[prop].acpi) {
+                                body_Obj[prop].acpi = body_Obj[prop].acpi.split(' ');
+                            }
+
+                            if (body_Obj[prop].srt) {
+                                body_Obj[prop].srt = body_Obj[prop].srt.split(' ');
+                            }
+
+                            if (body_Obj[prop].nu) {
+                                body_Obj[prop].nu = body_Obj[prop].nu.split(' ');
+                            }
+
+                            if (body_Obj[prop].enc) {
+                                if(body_Obj[prop].enc.net) {
+                                    body_Obj[prop].enc.net = body_Obj[prop].enc.net.split(' ');
                                 }
+                            }
 
-                                for (var acr_idx in body_Obj[prop].pv.acr) {
-                                    if (body_Obj[prop].pv.acr[acr_idx].acor) {
-                                        body_Obj[prop].pv.acr[acr_idx].acor = body_Obj[prop].pv.acr[acr_idx].acor.split(' ');
+                            if (body_Obj[prop].pv) {
+                                if(body_Obj[prop].pv.acr) {
+                                    if (!Array.isArray(body_Obj[prop].pv.acr)) {
+                                        var temp = body_Obj[prop].pv.acr;
+                                        body_Obj[prop].pv.acr = [];
+                                        body_Obj[prop].pv.acr[0] = temp;
+                                    }
+
+                                    for (var acr_idx in body_Obj[prop].pv.acr) {
+                                        if (body_Obj[prop].pv.acr.hasOwnProperty(acr_idx)) {
+                                            if (body_Obj[prop].pv.acr[acr_idx].acor) {
+                                                body_Obj[prop].pv.acr[acr_idx].acor = body_Obj[prop].pv.acr[acr_idx].acor.split(' ');
+                                            }
+                                        }
                                     }
                                 }
                             }
-                        }
 
-                        if (body_Obj[prop].pvs) {
-                            if(body_Obj[prop].pvs.acr) {
-                                if (!Array.isArray(body_Obj[prop].pvs.acr)) {
-                                    var temp = body_Obj[prop].pvs.acr;
-                                    body_Obj[prop].pvs.acr = [];
-                                    body_Obj[prop].pvs.acr[0] = temp;
-                                }
+                            if (body_Obj[prop].pvs) {
+                                if(body_Obj[prop].pvs.acr) {
+                                    if (!Array.isArray(body_Obj[prop].pvs.acr)) {
+                                        temp = body_Obj[prop].pvs.acr;
+                                        body_Obj[prop].pvs.acr = [];
+                                        body_Obj[prop].pvs.acr[0] = temp;
+                                    }
 
-                                for (var acr_idx in body_Obj[prop].pvs.acr) {
-                                    if (body_Obj[prop].pvs.acr[acr_idx].acor) {
-                                        body_Obj[prop].pvs.acr[acr_idx].acor = body_Obj[prop].pvs.acr[acr_idx].acor.split(' ');
+                                    for (acr_idx in body_Obj[prop].pvs.acr) {
+                                        if (body_Obj[prop].pvs.acr.hasOwnProperty(acr_idx)) {
+                                            if (body_Obj[prop].pvs.acr[acr_idx].acor) {
+                                                body_Obj[prop].pvs.acr[acr_idx].acor = body_Obj[prop].pvs.acr[acr_idx].acor.split(' ');
+                                            }
+                                        }
                                     }
                                 }
                             }
-                        }
 
-                        if (body_Obj[prop].mid) {
-                            body_Obj[prop].mid = body_Obj[prop].mid.split(' ');
-                        }
+                            if (body_Obj[prop].mid) {
+                                body_Obj[prop].mid = body_Obj[prop].mid.split(' ');
+                            }
 
-                        if (body_Obj[prop].macp) {
-                            body_Obj[prop].macp = body_Obj[prop].macp.split(' ');
+                            if (body_Obj[prop].macp) {
+                                body_Obj[prop].macp = body_Obj[prop].macp.split(' ');
+                            }
                         }
                     }
 
@@ -436,9 +446,11 @@ function check_http(request, response, callback) {
                 }
                 else {
                     for (var ty_idx in responder.typeRsrc) {
-                        if (responder.typeRsrc[ty_idx] == Object.keys(body_Obj)[0]) {
-                            ty = ty_idx;
-                            break;
+                        if (responder.typeRsrc.hasOwnProperty(ty_idx)) {
+                            if (responder.typeRsrc[ty_idx] == Object.keys(body_Obj)[0]) {
+                                ty = ty_idx;
+                                break;
+                            }
                         }
                     }
                 }
@@ -446,163 +458,165 @@ function check_http(request, response, callback) {
                 request.headers.rootnm = Object.keys(body_Obj)[0];
 
                 for (var prop in body_Obj) {
-                    if (body_Obj[prop].aa) {
-                        if (!Array.isArray(body_Obj[prop].aa)) {
-                            body_Obj = {};
-                            body_Obj['rsp'] = {};
-                            body_Obj['rsp'].cap = 'aa should be json array format';
-                            responder.response_result(request, response, 400, body_Obj, 4000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
-                            callback('0', body_Obj);
-                            return '0';
-                        }
-                    }
-
-                    if (body_Obj[prop].at) {
-                        if (!Array.isArray(body_Obj[prop].at)) {
-                            body_Obj = {};
-                            body_Obj['rsp'] = {};
-                            body_Obj['rsp'].cap = 'at should be json array format';
-                            responder.response_result(request, response, 400, body_Obj, 4000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
-                            callback('0', body_Obj);
-                            return '0';
-                        }
-                    }
-
-                    if (body_Obj[prop].poa) {
-                        if (!Array.isArray(body_Obj[prop].poa)) {
-                            body_Obj = {};
-                            body_Obj['rsp'] = {};
-                            body_Obj['rsp'].cap = 'poa should be json array format';
-                            responder.response_result(request, response, 400, body_Obj, 4000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
-                            callback('0', body_Obj);
-                            return '0';
-                        }
-                    }
-
-                    if (body_Obj[prop].lbl) {
-                        if (!Array.isArray(body_Obj[prop].lbl)) {
-                            body_Obj = {};
-                            body_Obj['rsp'] = {};
-                            body_Obj['rsp'].cap = 'lbl should be json array format';
-                            responder.response_result(request, response, 400, body_Obj, 4000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
-                            callback('0', body_Obj);
-                            return '0';
-                        }
-                    }
-
-                    if (body_Obj[prop].acpi) {
-                        if (!Array.isArray(body_Obj[prop].acpi)) {
-                            body_Obj = {};
-                            body_Obj['rsp'] = {};
-                            body_Obj['rsp'].cap = 'acpi should be json array format';
-                            responder.response_result(request, response, 400, body_Obj, 4000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
-                            callback('0', body_Obj);
-                            return '0';
-                        }
-                    }
-
-                    if (body_Obj[prop].srt) {
-                        if (!Array.isArray(body_Obj[prop].srt)) {
-                            body_Obj = {};
-                            body_Obj['rsp'] = {};
-                            body_Obj['rsp'].cap = 'srt should be json array format';
-                            responder.response_result(request, response, 400, body_Obj, 4000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
-                            callback('0', body_Obj);
-                            return '0';
-                        }
-                    }
-
-                    if (body_Obj[prop].nu) {
-                        if (!Array.isArray(body_Obj[prop].nu)) {
-                            body_Obj = {};
-                            body_Obj['rsp'] = {};
-                            body_Obj['rsp'].cap = 'nu should be json array format';
-                            responder.response_result(request, response, 400, body_Obj, 4000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
-                            callback('0', body_Obj);
-                            return '0';
-                        }
-                    }
-
-                    if (body_Obj[prop].enc) {
-                        if (body_Obj[prop].enc.net) {
-                            if (!Array.isArray(body_Obj[prop].enc.net)) {
+                    if (body_Obj.hasOwnProperty(prop)) {
+                        if (body_Obj[prop].aa) {
+                            if (!Array.isArray(body_Obj[prop].aa)) {
                                 body_Obj = {};
                                 body_Obj['rsp'] = {};
-                                body_Obj['rsp'].cap = 'enc.net should be json array format';
+                                body_Obj['rsp'].cap = 'aa should be json array format';
                                 responder.response_result(request, response, 400, body_Obj, 4000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
                                 callback('0', body_Obj);
                                 return '0';
                             }
                         }
-                    }
 
-                    if (body_Obj[prop].pv) {
-                        if (body_Obj[prop].pv.acr) {
-                            if (!Array.isArray(body_Obj[prop].pv.acr)) {
+                        if (body_Obj[prop].at) {
+                            if (!Array.isArray(body_Obj[prop].at)) {
                                 body_Obj = {};
                                 body_Obj['rsp'] = {};
-                                body_Obj['rsp'].cap = 'pv.acr should be json array format';
+                                body_Obj['rsp'].cap = 'at should be json array format';
                                 responder.response_result(request, response, 400, body_Obj, 4000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
                                 callback('0', body_Obj);
                                 return '0';
                             }
+                        }
 
-                            if (body_Obj[prop].pv.acr.acor) {
-                                if (!Array.isArray(body_Obj[prop].pv.acr.acor)) {
+                        if (body_Obj[prop].poa) {
+                            if (!Array.isArray(body_Obj[prop].poa)) {
+                                body_Obj = {};
+                                body_Obj['rsp'] = {};
+                                body_Obj['rsp'].cap = 'poa should be json array format';
+                                responder.response_result(request, response, 400, body_Obj, 4000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
+                                callback('0', body_Obj);
+                                return '0';
+                            }
+                        }
+
+                        if (body_Obj[prop].lbl) {
+                            if (!Array.isArray(body_Obj[prop].lbl)) {
+                                body_Obj = {};
+                                body_Obj['rsp'] = {};
+                                body_Obj['rsp'].cap = 'lbl should be json array format';
+                                responder.response_result(request, response, 400, body_Obj, 4000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
+                                callback('0', body_Obj);
+                                return '0';
+                            }
+                        }
+
+                        if (body_Obj[prop].acpi) {
+                            if (!Array.isArray(body_Obj[prop].acpi)) {
+                                body_Obj = {};
+                                body_Obj['rsp'] = {};
+                                body_Obj['rsp'].cap = 'acpi should be json array format';
+                                responder.response_result(request, response, 400, body_Obj, 4000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
+                                callback('0', body_Obj);
+                                return '0';
+                            }
+                        }
+
+                        if (body_Obj[prop].srt) {
+                            if (!Array.isArray(body_Obj[prop].srt)) {
+                                body_Obj = {};
+                                body_Obj['rsp'] = {};
+                                body_Obj['rsp'].cap = 'srt should be json array format';
+                                responder.response_result(request, response, 400, body_Obj, 4000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
+                                callback('0', body_Obj);
+                                return '0';
+                            }
+                        }
+
+                        if (body_Obj[prop].nu) {
+                            if (!Array.isArray(body_Obj[prop].nu)) {
+                                body_Obj = {};
+                                body_Obj['rsp'] = {};
+                                body_Obj['rsp'].cap = 'nu should be json array format';
+                                responder.response_result(request, response, 400, body_Obj, 4000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
+                                callback('0', body_Obj);
+                                return '0';
+                            }
+                        }
+
+                        if (body_Obj[prop].enc) {
+                            if (body_Obj[prop].enc.net) {
+                                if (!Array.isArray(body_Obj[prop].enc.net)) {
                                     body_Obj = {};
                                     body_Obj['rsp'] = {};
-                                    body_Obj['rsp'].cap = 'pv.acr.acor should be json array format';
+                                    body_Obj['rsp'].cap = 'enc.net should be json array format';
                                     responder.response_result(request, response, 400, body_Obj, 4000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
                                     callback('0', body_Obj);
                                     return '0';
                                 }
                             }
                         }
-                    }
 
-                    if (body_Obj[prop].pvs) {
-                        if (body_Obj[prop].pvs.acr) {
-                            if (!Array.isArray(body_Obj[prop].pvs.acr)) {
-                                body_Obj = {};
-                                body_Obj['rsp'] = {};
-                                body_Obj['rsp'].cap = 'pvs.acr should be json array format';
-                                responder.response_result(request, response, 400, body_Obj, 4000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
-                                callback('0', body_Obj);
-                                return '0';
-                            }
-
-                            if (body_Obj[prop].pvs.acr.acor) {
-                                if (!Array.isArray(body_Obj[prop].pvs.acr.acor)) {
+                        if (body_Obj[prop].pv) {
+                            if (body_Obj[prop].pv.acr) {
+                                if (!Array.isArray(body_Obj[prop].pv.acr)) {
                                     body_Obj = {};
                                     body_Obj['rsp'] = {};
-                                    body_Obj['rsp'].cap = 'pvs.acr.acor should be json array format';
+                                    body_Obj['rsp'].cap = 'pv.acr should be json array format';
                                     responder.response_result(request, response, 400, body_Obj, 4000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
                                     callback('0', body_Obj);
                                     return '0';
                                 }
+
+                                if (body_Obj[prop].pv.acr.acor) {
+                                    if (!Array.isArray(body_Obj[prop].pv.acr.acor)) {
+                                        body_Obj = {};
+                                        body_Obj['rsp'] = {};
+                                        body_Obj['rsp'].cap = 'pv.acr.acor should be json array format';
+                                        responder.response_result(request, response, 400, body_Obj, 4000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
+                                        callback('0', body_Obj);
+                                        return '0';
+                                    }
+                                }
                             }
                         }
-                    }
 
-                    if (body_Obj[prop].mid) {
-                        if (!Array.isArray(body_Obj[prop].mid)) {
-                            body_Obj = {};
-                            body_Obj['rsp'] = {};
-                            body_Obj['rsp'].cap = 'mid should be json array format';
-                            responder.response_result(request, response, 400, body_Obj, 4000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
-                            callback('0', body_Obj);
-                            return '0';
+                        if (body_Obj[prop].pvs) {
+                            if (body_Obj[prop].pvs.acr) {
+                                if (!Array.isArray(body_Obj[prop].pvs.acr)) {
+                                    body_Obj = {};
+                                    body_Obj['rsp'] = {};
+                                    body_Obj['rsp'].cap = 'pvs.acr should be json array format';
+                                    responder.response_result(request, response, 400, body_Obj, 4000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
+                                    callback('0', body_Obj);
+                                    return '0';
+                                }
+
+                                if (body_Obj[prop].pvs.acr.acor) {
+                                    if (!Array.isArray(body_Obj[prop].pvs.acr.acor)) {
+                                        body_Obj = {};
+                                        body_Obj['rsp'] = {};
+                                        body_Obj['rsp'].cap = 'pvs.acr.acor should be json array format';
+                                        responder.response_result(request, response, 400, body_Obj, 4000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
+                                        callback('0', body_Obj);
+                                        return '0';
+                                    }
+                                }
+                            }
                         }
-                    }
 
-                    if (body_Obj[prop].macp) {
-                        if (!Array.isArray(body_Obj[prop].macp)) {
-                            body_Obj = {};
-                            body_Obj['rsp'] = {};
-                            body_Obj['rsp'].cap = 'macp should be json array format';
-                            responder.response_result(request, response, 400, body_Obj, 4000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
-                            callback('0', body_Obj);
-                            return '0';
+                        if (body_Obj[prop].mid) {
+                            if (!Array.isArray(body_Obj[prop].mid)) {
+                                body_Obj = {};
+                                body_Obj['rsp'] = {};
+                                body_Obj['rsp'].cap = 'mid should be json array format';
+                                responder.response_result(request, response, 400, body_Obj, 4000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
+                                callback('0', body_Obj);
+                                return '0';
+                            }
+                        }
+
+                        if (body_Obj[prop].macp) {
+                            if (!Array.isArray(body_Obj[prop].macp)) {
+                                body_Obj = {};
+                                body_Obj['rsp'] = {};
+                                body_Obj['rsp'].cap = 'macp should be json array format';
+                                responder.response_result(request, response, 400, body_Obj, 4000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
+                                callback('0', body_Obj);
+                                return '0';
+                            }
                         }
                     }
                 }
@@ -631,6 +645,7 @@ function check_http(request, response, callback) {
         }
     }
     else {
+        body_Obj = {};
         body_Obj['rsp'] = {};
         body_Obj['rsp'].cap = 'request method is not supported';
         responder.response_result(request, response, 400, body_Obj, 4000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
@@ -639,8 +654,7 @@ function check_http(request, response, callback) {
     }
 }
 
-function check_resource(request, response, option, callback) {
-    var result_Obj = {};
+function check_resource(request, response, callback) {
     var ri = url.parse(request.url).pathname.toLowerCase();
 
     var url_arr = ri.split('/');
@@ -661,6 +675,7 @@ function check_resource(request, response, option, callback) {
                         cur_ty = '26';
                     }
                     else {
+                        result_Obj = {};
                         result_Obj['rsp'] = {};
                         result_Obj['rsp'].cap = 'this resource can not have latest resource';
                         responder.response_result(request, response, 404, result_Obj, 4004, url.parse(request.url).pathname.toLowerCase(), result_Obj['rsp'].cap);
@@ -678,6 +693,7 @@ function check_resource(request, response, option, callback) {
                                 callback('1', result_Obj[0], op);
                             }
                             else {
+                                result_Obj = {};
                                 result_Obj['rsp'] = {};
                                 result_Obj['rsp'].cap = 'resource does not exist';
                                 responder.response_result(request, response, 404, result_Obj, 4004, url.parse(request.url).pathname.toLowerCase(), result_Obj['rsp'].cap);
@@ -686,8 +702,10 @@ function check_resource(request, response, option, callback) {
                             }
                         }
                         else {
+                            var code = result_Obj.code;
+                            result_Obj = {};
                             result_Obj['rsp'] = {};
-                            result_Obj['rsp'].cap = results.code;
+                            result_Obj['rsp'].cap = code;
                             responder.response_result(request, response, 500, result_Obj, 5000, url.parse(request.url).pathname.toLowerCase(), result_Obj['rsp'].cap);
                             callback('0');
                             return '0';
@@ -695,6 +713,7 @@ function check_resource(request, response, option, callback) {
                     });
                 }
                 else {
+                    result_Obj = {};
                     result_Obj['rsp'] = {};
                     result_Obj['rsp'].cap = 'resource does not exist';
                     responder.response_result(request, response, 404, result_Obj, 4004, url.parse(request.url).pathname.toLowerCase(), result_Obj['rsp'].cap);
@@ -703,8 +722,10 @@ function check_resource(request, response, option, callback) {
                 }
             }
             else {
+                var code = result_Obj.code;
+                result_Obj = {};
                 result_Obj['rsp'] = {};
-                result_Obj['rsp'].cap = result_Obj.code;
+                result_Obj['rsp'].cap = code;
                 responder.response_result(request, response, 500, result_Obj, 5000, url.parse(request.url).pathname.toLowerCase(), result_Obj['rsp'].cap);
                 callback('0');
                 return '0';
@@ -725,6 +746,7 @@ function check_resource(request, response, option, callback) {
                     callback('1', result_Obj[0], op);
                 }
                 else {
+                    result_Obj = {};
                     result_Obj['rsp'] = {};
                     result_Obj['rsp'].cap = 'resource does not exist';
                     responder.response_result(request, response, 404, result_Obj, 4004, url.parse(request.url).pathname.toLowerCase(), result_Obj['rsp'].cap);
@@ -733,8 +755,10 @@ function check_resource(request, response, option, callback) {
                 }
             }
             else {
+                var code = result_Obj.code;
+                result_Obj = {};
                 result_Obj['rsp'] = {};
-                result_Obj['rsp'].cap = results.code;
+                result_Obj['rsp'].cap = code;
                 responder.response_result(request, response, 500, result_Obj, 5000, url.parse(request.url).pathname.toLowerCase(), result_Obj['rsp'].cap);
                 callback('0');
                 return '0';
@@ -755,6 +779,7 @@ function check_resource(request, response, option, callback) {
                     callback('1', result_Obj[0], op);
                 }
                 else {
+                    result_Obj = {};
                     result_Obj['rsp'] = {};
                     result_Obj['rsp'].cap = 'resource does not exist';
                     responder.response_result(request, response, 404, result_Obj, 4004, url.parse(request.url).pathname.toLowerCase(), result_Obj['rsp'].cap);
@@ -763,8 +788,10 @@ function check_resource(request, response, option, callback) {
                 }
             }
             else {
+                var code = result_Obj.code;
+                result_Obj = {};
                 result_Obj['rsp'] = {};
-                result_Obj['rsp'].cap = results.code;
+                result_Obj['rsp'].cap = code;
                 responder.response_result(request, response, 500, result_Obj, 5000, url.parse(request.url).pathname.toLowerCase(), result_Obj['rsp'].cap);
                 callback('0');
                 return '0';
@@ -783,6 +810,7 @@ function check_resource(request, response, option, callback) {
                     callback('1', result_Obj[0], op);
                 }
                 else {
+                    result_Obj = {};
                     result_Obj['rsp'] = {};
                     result_Obj['rsp'].cap = 'resource does not exist';
                     responder.response_result(request, response, 404, result_Obj, 4004, url.parse(request.url).pathname.toLowerCase(), result_Obj['rsp'].cap);
@@ -791,6 +819,7 @@ function check_resource(request, response, option, callback) {
                 }
             }
             else {
+                result_Obj = {};
                 result_Obj['rsp'] = {};
                 result_Obj['rsp'].cap = result_Obj.code;
                 responder.response_result(request, response, 500, result_Obj, 5000, url.parse(request.url).pathname.toLowerCase(), result_Obj['rsp'].cap);
@@ -840,7 +869,7 @@ function lookup_create(request, response) {
         if(ty == '0') {
             return ty;
         }
-        check_resource(request, response, 'direct', function (rsc, parent_comm, op) {
+        check_resource(request, response, function (rsc, parent_comm, op) {
             if(rsc == '0') {
                 return rsc;
             }
@@ -916,7 +945,9 @@ function lookup_create(request, response) {
                 }
 
                 for (var index in parent_comm.acpi) {
-                    body_Obj[rootnm].acpi.push(parent_comm.acpi[index]);
+                    if(parent_comm.acpi.hasOwnProperty(index)) {
+                        body_Obj[rootnm].acpi.push(parent_comm.acpi[index]);
+                    }
                 }
 
                 security.check(request, parent_comm.ty, parent_comm.acpi, '1', function (rsc) {
@@ -939,7 +970,7 @@ function lookup_retrieve(request, response) {
         if (option == '0') {
             return option;
         }
-        check_resource(request, response, option, function (rsc, results_comm, op) {
+        check_resource(request, response, function (rsc, results_comm, op) {
             if (rsc == '0') {
                 return rsc;
             }
@@ -985,19 +1016,19 @@ function lookup_update(request, response) {
         if (option == '0') {
             return option;
         }
-        check_resource(request, response, 'direct', function (rsc, results_comm, op) {
+        check_resource(request, response, function (rsc, results_comm, op) {
             if (rsc == '0') {
                 return rsc;
             }
 
             if(op == 'fanoutpoint') {
                 // check access right for fanoutpoint
-                check_grp(request, response, parent_comm.ri, function (rsc, result_grp) {
+                check_grp(request, response, results_comm.ri, function (rsc, result_grp) {
                     if(rsc == '0') {
                         return rsc;
                     }
 
-                    security.check(request, parent_comm.ty, result_grp.macp, '1', function (rsc) {
+                    security.check(request, results_comm.ty, result_grp.macp, '1', function (rsc) {
                         if (rsc == '0') {
                             body_Obj = {};
                             body_Obj['rsp'] = {};
@@ -1011,7 +1042,7 @@ function lookup_update(request, response) {
                 });
             }
             else { //if(op == 'direct') {
-                var rootnm = request.headers.rootnm;
+                //var rootnm = request.headers.rootnm;
 
                 security.check(request, results_comm.ty, results_comm.acpi, '4', function (rsc) {
                     if (rsc == '0') {
@@ -1033,19 +1064,19 @@ function lookup_delete(request, response) {
         if (option == '0') {
             return option;
         }
-        check_resource(request, response, option, function (rsc, results_comm, op) {
+        check_resource(request, response, function (rsc, results_comm, op) {
             if (rsc == '0') {
                 return rsc;
             }
 
             if(op == 'fanoutpoint') {
                 // check access right for fanoutpoint
-                check_grp(request, response, parent_comm.ri, function (rsc, result_grp) {
+                check_grp(request, response, results_comm.ri, function (rsc, result_grp) {
                     if(rsc == '0') {
                         return rsc;
                     }
 
-                    security.check(request, parent_comm.ty, result_grp.macp, '1', function (rsc) {
+                    security.check(request, results_comm.ty, result_grp.macp, '1', function (rsc) {
                         if (rsc == '0') {
                             body_Obj = {};
                             body_Obj['rsp'] = {};
@@ -1075,69 +1106,43 @@ function lookup_delete(request, response) {
 }
 
 
-var xmlParser = bodyParser.text({ limit: '1mb', type: 'application/onem2m-resource+xml;application/xml;application/json;application/vnd.onem2m-res+xml;application/vnd.onem2m-res+json' });
-//var xmlParser = bodyParser.text({ limit: '1mb', type: '*/*' });
-
+var onem2mParser = bodyParser.text(
+    {
+        limit: '1mb',
+        type: 'application/onem2m-resource+xml;application/xml;application/json;application/vnd.onem2m-res+xml;application/vnd.onem2m-res+json'
+    }
+);
+//var onem2mParser = bodyParser.text({ limit: '1mb', type: '*/*' });
 
 // remoteCSE, ae, cnt
-app.post(xmlParser, function(request, response, next) {
+app.post(onem2mParser, function(request, response) {
     var fullBody = '';
     request.on('data', function(chunk) {
         fullBody += chunk.toString();
     });
     request.on('end', function() {
         request.body = fullBody;
+        if(request.query.fu == null) {
+            request.query.fu = 2;
+        }
+        if(request.query.rcn == null) {
+            request.query.rcn = 1;
+        }
         //request.url = request.url.replace(/\/$/, "");
-        var url_arr = url.parse(request.url).pathname.toLowerCase().split('/');
+        //var url_arr = url.parse(request.url).pathname.toLowerCase().split('/');
         var absolute_url = request.url.replace(/\/~\/[^\/]+\/?/, '/');
 
         if(url.parse(absolute_url).pathname.toLowerCase().split('/')[1] == usecsebase) {
             request.url = absolute_url;
-            lookup_create(request, response);
-        }
-        else {
-            check_csr(absolute_url, function (rsc, body_Obj) {
-                if(rsc == '0') {
-                    responder.response_result(request, response, 500, body_Obj, 5000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
-                }
-                else if(rsc == '1') {
-                    forward_http(body_Obj.forwardcbhost, body_Obj.forwardcbport, request, response);
-                }
-                else if(rsc == '2') {
-                    body_Obj = {};
-                    body_Obj['rsp'] = {};
-                    body_Obj['rsp'].cap = 'forwarding with mqtt is not supported';
-                    responder.response_result(request, response, 500, body_Obj, 5000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
-                }
-                else {
-                    responder.response_result(request, response, 500, body_Obj, 5000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
-                }
-            });
-        }
-    });
-});
-
-
-app.get(xmlParser, function(request, response) {
-    var fullBody = '';
-    request.on('data', function(chunk) {
-        fullBody += chunk.toString();
-    });
-    request.on('end', function() {
-        request.body = fullBody;
-        //request.url = request.url.replace(/\/$/, "");
-        var url_arr = url.parse(request.url).pathname.toLowerCase().split('/');
-        var absolute_url = request.url.replace(/\/~\/[^\/]+\/?/, '/');
-
-        if(url.parse(absolute_url).pathname.toLowerCase().split('/')[1] == usecsebase) {
-            request.url = absolute_url;
-            if (request.query.rcn == 0) {
-                response.setHeader('X-M2M-RSC', '4000');
-                response.status(400).end('<h1>Bad Request : rcn query is not be zero when request</h1>');
-                response.status(400).end((request.headers.usebodytype == 'json') ? '{\"rsp\":\"Bad Request : rcn query is not be zero when request\"}' : '<rsp>Bad Request : rcn query is not be zero when request</rsp>');
+            if((request.query.fu == 2) &&
+                (request.query.rcn == 0 || request.query.rcn == 1 || request.query.rcn == 2 || request.query.rcn == 3)) {
+                lookup_create(request, response);
             }
             else {
-                lookup_retrieve(request, response);
+                var body_Obj = {};
+                body_Obj['rsp'] = {};
+                body_Obj['rsp'].cap = 'rcn or fu query is not supported at POST request';
+                responder.response_result(request, response, 400, body_Obj, 4000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
             }
         }
         else {
@@ -1163,26 +1168,35 @@ app.get(xmlParser, function(request, response) {
 });
 
 
-app.put(xmlParser, function(request, response, next) {
+app.get(onem2mParser, function(request, response) {
     var fullBody = '';
     request.on('data', function(chunk) {
         fullBody += chunk.toString();
     });
     request.on('end', function() {
         request.body = fullBody;
+        if(request.query.fu == null) {
+            request.query.fu = 2;
+        }
+        if(request.query.rcn == null) {
+            request.query.rcn = 1;
+        }
         //request.url = request.url.replace(/\/$/, "");
-        var url_arr = url.parse(request.url).pathname.toLowerCase().split('/');
+        //var url_arr = url.parse(request.url).pathname.toLowerCase().split('/');
         var absolute_url = request.url.replace(/\/~\/[^\/]+\/?/, '/');
 
-        if(url.parse(absolute_url).pathname.toLowerCase() == ('/'+usecsebase)) {
-            var body_Obj = {};
-            body_Obj['rsp'] = {};
-            body_Obj['rsp'].cap = 'OPERATION_NOT_ALLOWED';
-            responder.response_result(request, response, 405, body_Obj, 4005, url.parse(request.url).pathname.toLowerCase(), 'OPERATION_NOT_ALLOWED');
-        }
-        else if(url.parse(absolute_url).pathname.toLowerCase().split('/')[1] == usecsebase) {
+        if(url.parse(absolute_url).pathname.toLowerCase().split('/')[1] == usecsebase) {
             request.url = absolute_url;
-            lookup_update(request, response);
+            if((request.query.fu == 1 || request.query.fu == 2) &&
+                (request.query.rcn == 1 || request.query.rcn == 4 || request.query.rcn == 5 || request.query.rcn == 6 || request.query.rcn == 7)) {
+                lookup_retrieve(request, response);
+            }
+            else {
+                var body_Obj = {};
+                body_Obj['rsp'] = {};
+                body_Obj['rsp'].cap = 'rcn or fu query is not supported at GET request';
+                responder.response_result(request, response, 400, body_Obj, 4000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
+            }
         }
         else {
             check_csr(absolute_url, function (rsc, body_Obj) {
@@ -1206,15 +1220,22 @@ app.put(xmlParser, function(request, response, next) {
     });
 });
 
-app.delete(xmlParser, function(request, response, next) {
+
+app.put(onem2mParser, function(request, response) {
     var fullBody = '';
     request.on('data', function(chunk) {
         fullBody += chunk.toString();
     });
     request.on('end', function() {
         request.body = fullBody;
+        if(request.query.fu == null) {
+            request.query.fu = 2;
+        }
+        if(request.query.rcn == null) {
+            request.query.rcn = 1;
+        }
         //request.url = request.url.replace(/\/$/, "");
-        var url_arr = url.parse(request.url).pathname.toLowerCase().split('/');
+        //var url_arr = url.parse(request.url).pathname.toLowerCase().split('/');
         var absolute_url = request.url.replace(/\/~\/[^\/]+\/?/, '/');
 
         if(url.parse(absolute_url).pathname.toLowerCase() == ('/'+usecsebase)) {
@@ -1225,7 +1246,74 @@ app.delete(xmlParser, function(request, response, next) {
         }
         else if(url.parse(absolute_url).pathname.toLowerCase().split('/')[1] == usecsebase) {
             request.url = absolute_url;
-            lookup_delete(request, response);
+            if((request.query.fu == 2) &&
+                (request.query.rcn == 0 || request.query.rcn == 1)) {
+                lookup_update(request, response);
+            }
+            else {
+                body_Obj = {};
+                body_Obj['rsp'] = {};
+                body_Obj['rsp'].cap = 'rcn query is not supported at PUT request';
+                responder.response_result(request, response, 400, body_Obj, 4000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
+            }
+        }
+        else {
+            check_csr(absolute_url, function (rsc, body_Obj) {
+                if(rsc == '0') {
+                    responder.response_result(request, response, 500, body_Obj, 5000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
+                }
+                else if(rsc == '1') {
+                    forward_http(body_Obj.forwardcbhost, body_Obj.forwardcbport, request, response);
+                }
+                else if(rsc == '2') {
+                    body_Obj = {};
+                    body_Obj['rsp'] = {};
+                    body_Obj['rsp'].cap = 'forwarding with mqtt is not supported';
+                    responder.response_result(request, response, 500, body_Obj, 5000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
+                }
+                else {
+                    responder.response_result(request, response, 500, body_Obj, 5000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
+                }
+            });
+        }
+    });
+});
+
+app.delete(onem2mParser, function(request, response) {
+    var fullBody = '';
+    request.on('data', function(chunk) {
+        fullBody += chunk.toString();
+    });
+    request.on('end', function() {
+        request.body = fullBody;
+        if(request.query.fu == null) {
+            request.query.fu = 2;
+        }
+        if(request.query.rcn == null) {
+            request.query.rcn = 1;
+        }
+        //request.url = request.url.replace(/\/$/, "");
+        //var url_arr = url.parse(request.url).pathname.toLowerCase().split('/');
+        var absolute_url = request.url.replace(/\/~\/[^\/]+\/?/, '/');
+
+        if(url.parse(absolute_url).pathname.toLowerCase() == ('/'+usecsebase)) {
+            var body_Obj = {};
+            body_Obj['rsp'] = {};
+            body_Obj['rsp'].cap = 'OPERATION_NOT_ALLOWED';
+            responder.response_result(request, response, 405, body_Obj, 4005, url.parse(request.url).pathname.toLowerCase(), 'OPERATION_NOT_ALLOWED');
+        }
+        else if(url.parse(absolute_url).pathname.toLowerCase().split('/')[1] == usecsebase) {
+            request.url = absolute_url;
+            if((request.query.fu == 2) &&
+                (request.query.rcn == 0 || request.query.rcn == 1)) {
+                lookup_delete(request, response);
+            }
+            else {
+                body_Obj = {};
+                body_Obj['rsp'] = {};
+                body_Obj['rsp'].cap = 'rcn query is not supported at DELETE request';
+                responder.response_result(request, response, 400, body_Obj, 4000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
+            }
         }
         else {
             check_csr(absolute_url, function (rsc, body_Obj) {

@@ -28,19 +28,23 @@ exports.check = function(request, ty, acpiList, access_value, callback) {
                     var pvsObj = JSON.parse(results_acp[i].pvs);
                     var from = request.headers['x-m2m-origin'];
                     for(var index in pvsObj.acr) {
-                        try {
-                            var re = new RegExp(from + '\\b');
-                            for (var acor_idx in pvsObj.acr[index].acor) {
-                                if (pvsObj.acr[index].acor[acor_idx].match(re) || pvsObj.acr[index].acor[acor_idx].toLowerCase() == 'all') {
-                                    if ((pvsObj.acr[index].acop & access_value) == access_value) {
-                                        callback('1');
-                                        return '1';
+                        if(pvsObj.acr.hasOwnProperty(index)) {
+                            try {
+                                var re = new RegExp(from + '\\b');
+                                for (var acor_idx in pvsObj.acr[index].acor) {
+                                    if (pvsObj.acr[index].acor.hasOwnProperty(acor_idx)) {
+                                        if (pvsObj.acr[index].acor[acor_idx].match(re) || pvsObj.acr[index].acor[acor_idx].toLowerCase() == 'all') {
+                                            if ((pvsObj.acr[index].acop & access_value) == access_value) {
+                                                callback('1');
+                                                return '1';
+                                            }
+                                        }
                                     }
                                 }
                             }
-                        }
-                        catch (e) {
+                            catch (e) {
 
+                            }
                         }
                     }
                 }
@@ -69,19 +73,23 @@ exports.check = function(request, ty, acpiList, access_value, callback) {
                     var pvObj = JSON.parse(results_acp[i].pv);
                     var from = request.headers['x-m2m-origin'];
                     for(var index in pvObj.acr) {
-                        try {
-                            var re = new RegExp(from + '\\b');
-                            for (var acor_idx in pvObj.acr[index].acor) {
-                                if (pvObj.acr[index].acor[acor_idx].match(re) || pvObj.acr[index].acor[acor_idx] == 'all') {
-                                    if ((pvObj.acr[index].acop & access_value) == access_value) {
-                                        callback('1');
-                                        return '1';
+                        if(pvObj.acr.hasOwnProperty(index)) {
+                            try {
+                                var re = new RegExp(from + '\\b');
+                                for (var acor_idx in pvObj.acr[index].acor) {
+                                    if(pvObj.acr[index].acor.hasOwnProperty(acor_idx)) {
+                                        if (pvObj.acr[index].acor[acor_idx].match(re) || pvObj.acr[index].acor[acor_idx] == 'all') {
+                                            if ((pvObj.acr[index].acop & access_value) == access_value) {
+                                                callback('1');
+                                                return '1';
+                                            }
+                                        }
                                     }
                                 }
                             }
-                        }
-                        catch (e) {
+                            catch (e) {
 
+                            }
                         }
                     }
                 }

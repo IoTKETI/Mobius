@@ -20,7 +20,7 @@ var xmlbuilder = require('xmlbuilder');
 var util = require('util');
 var responder = require('./responder');
 
-var _this = this;
+//var _this = this;
 
 
 

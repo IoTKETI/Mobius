@@ -48,10 +48,6 @@ var mqtt_app = express();
 var usemqttcbhost = 'localhost'; // pxymqtt to mobius
 
 
-mqtt_app.use(bodyParser.urlencoded({extended: true}));
-mqtt_app.use(bodyParser.json({limit: '1mb', type: 'application/*+json'}));
-mqtt_app.use(bodyParser.text({limit: '1mb', type: 'application/*+xml'}));
-
 http.globalAgent.maxSockets = 1000000;
 
 http.createServer(mqtt_app).listen({port: usepxymqttport, agent: false}, function () {
@@ -264,9 +260,14 @@ function mqtt_message_handler(topic, message) {
 }
 
 // for notification
-var xmlParser = bodyParser.text({ limit: '1mb', type: '*/*' });
+var onem2mParser = bodyParser.text(
+    {
+        limit: '1mb',
+        type: 'application/onem2m-resource+xml;application/xml;application/json;application/vnd.onem2m-res+xml;application/vnd.onem2m-res+json'
+    }
+);
 
-mqtt_app.post('/notification', xmlParser, function(request, response, next) {
+mqtt_app.post('/notification', onem2mParser, function(request, response, next) {
     var aeid = url.parse(request.headers.nu).pathname.replace('/', '');
 
     if(aeid == '') {
@@ -325,36 +326,38 @@ mqtt_app.post('/notification', xmlParser, function(request, response, next) {
             }
 
             for(var attr in pc.sgn.nev.rep) {
-                if(pc.sgn.nev.rep[attr].cs) {
-                    delete pc.sgn.nev.rep[attr].cs;
-                }
+                if(pc.sgn.nev.rep.hasOwnProperty(attr)) {
+                    if (pc.sgn.nev.rep[attr].cs) {
+                        delete pc.sgn.nev.rep[attr].cs;
+                    }
 
-                if(pc.sgn.nev.rep[attr].ct) {
-                    delete pc.sgn.nev.rep[attr].ct;
-                }
+                    if (pc.sgn.nev.rep[attr].ct) {
+                        delete pc.sgn.nev.rep[attr].ct;
+                    }
 
-                if(pc.sgn.nev.rep[attr].lt) {
-                    delete pc.sgn.nev.rep[attr].lt;
-                }
+                    if (pc.sgn.nev.rep[attr].lt) {
+                        delete pc.sgn.nev.rep[attr].lt;
+                    }
 
-                if(pc.sgn.nev.rep[attr].pi) {
-                    delete pc.sgn.nev.rep[attr].pi;
-                }
+                    if (pc.sgn.nev.rep[attr].pi) {
+                        delete pc.sgn.nev.rep[attr].pi;
+                    }
 
-                if(pc.sgn.nev.rep[attr].rn) {
-                    delete pc.sgn.nev.rep[attr].rn;
-                }
+                    if (pc.sgn.nev.rep[attr].rn) {
+                        delete pc.sgn.nev.rep[attr].rn;
+                    }
 
-                if(pc.sgn.nev.rep[attr].st) {
-                    delete pc.sgn.nev.rep[attr].st;
-                }
+                    if (pc.sgn.nev.rep[attr].st) {
+                        delete pc.sgn.nev.rep[attr].st;
+                    }
 
-                if(pc.sgn.nev.rep[attr].ty) {
-                    delete pc.sgn.nev.rep[attr].ty;
-                }
+                    if (pc.sgn.nev.rep[attr].ty) {
+                        delete pc.sgn.nev.rep[attr].ty;
+                    }
 
-                if(pc.sgn.nev.rep[attr].ri) {
-                    delete pc.sgn.nev.rep[attr].ri;
+                    if (pc.sgn.nev.rep[attr].ri) {
+                        delete pc.sgn.nev.rep[attr].ri;
+                    }
                 }
             }
 
@@ -418,36 +421,38 @@ function response_mqtt(mqtt_client, rsp_topic, rsc, to, fr, rqi, inpc, bodytype)
 
     if(rqi == 'keti') {
         for(var attr in inpc) {
-            if(inpc[attr].ty) {
-                delete inpc[attr].ty;
-            }
+            if(inpc.hasOwnProperty(attr)) {
+                if (inpc[attr].ty) {
+                    delete inpc[attr].ty;
+                }
 
-            if(inpc[attr].ct) {
-                delete inpc[attr].ct;
-            }
+                if (inpc[attr].ct) {
+                    delete inpc[attr].ct;
+                }
 
-            if(inpc[attr].lt) {
-                delete inpc[attr].lt;
-            }
+                if (inpc[attr].lt) {
+                    delete inpc[attr].lt;
+                }
 
-            if(inpc[attr].st) {
-                delete inpc[attr].st;
-            }
+                if (inpc[attr].st) {
+                    delete inpc[attr].st;
+                }
 
-            if(inpc[attr].con) {
-                delete inpc[attr].con;
-            }
+                if (inpc[attr].con) {
+                    delete inpc[attr].con;
+                }
 
-            if(inpc[attr].cs) {
-                delete inpc[attr].cs;
-            }
+                if (inpc[attr].cs) {
+                    delete inpc[attr].cs;
+                }
 
-            if(inpc[attr].rn) {
-                delete inpc[attr].rn;
-            }
+                if (inpc[attr].rn) {
+                    delete inpc[attr].rn;
+                }
 
-            if(inpc[attr].pi) {
-                delete inpc[attr].pi;
+                if (inpc[attr].pi) {
+                    delete inpc[attr].pi;
+                }
             }
         }
     }

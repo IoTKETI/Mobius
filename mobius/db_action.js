@@ -16,7 +16,7 @@ var mysql = require('mysql');
 
 var mysql_pool = null;
 
-var _this = this;
+//var _this = this;
 
 
 exports.connect = function (host, port, user, password, callback) {

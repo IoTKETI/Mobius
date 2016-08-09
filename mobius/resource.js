@@ -18,10 +18,11 @@ var url = require('url');
 var xml2js = require('xml2js');
 var xmlbuilder = require('xmlbuilder');
 var js2xmlparser = require("js2xmlparser");
+var http = require('http');
+var moment = require('moment');
+
 var sgn = require('./sgn');
 var responder = require('./responder');
-var http = require('http');
-
 var csr = require('./csr');
 var cnt = require('./cnt');
 var cin = require('./cin');
@@ -51,9 +52,11 @@ exports.set_rootnm = function(request, ty) {
 exports.remove_no_value = function(request, resource_Obj) {
     var rootnm = request.headers.rootnm;
 
-    for(index in resource_Obj[rootnm]) {
-        if(resource_Obj[rootnm][index] == null || resource_Obj[rootnm][index] == '' || resource_Obj[rootnm][index] == 'undefined' || resource_Obj[rootnm][index] == '[]') {
-            delete resource_Obj[rootnm][index];
+    for(var index in resource_Obj[rootnm]) {
+        if(resource_Obj[rootnm].hasOwnProperty(index)) {
+            if (resource_Obj[rootnm][index] == null || resource_Obj[rootnm][index] == '' || resource_Obj[rootnm][index] == 'undefined' || resource_Obj[rootnm][index] == '[]') {
+                delete resource_Obj[rootnm][index];
+            }
         }
     }
 };
@@ -75,10 +78,9 @@ function check_TS(ri, callback) {
         }
     };
 
-    var reqBodyString = '';
     var jsonObj = {};
     jsonObj.ri = ri;
-    reqBodyString = js2xmlparser('ts', JSON.stringify(jsonObj));
+    var reqBodyString = js2xmlparser('ts', JSON.stringify(jsonObj));
 
     var responseBody = '';
     var req = http.request(options, function (res) {
@@ -94,7 +96,7 @@ function check_TS(ri, callback) {
 
     req.on('error', function (e) {
         if(e.message != 'read ECONNRESET') {
-            console.log('problem with request: ' + e.message);
+            console.log('[check_TS] problem with request: ' + e.message);
         }
     });
 
@@ -102,49 +104,6 @@ function check_TS(ri, callback) {
     req.write(reqBodyString);
     req.end();
 }
-
-
-
-function delete_oldest(ri, callback) {
-    var options = {
-        hostname: usecsebase,
-        port: usecsebaseport,
-        path: ri + '/oldest',
-        method: 'delete',
-        headers: {
-            'locale': 'ko',
-            'X-M2M-RI': '12345',
-            'Accept': 'application/json',
-            'X-M2M-Origin': ri,
-            'nmtype': 'short'
-        }
-    };
-
-    var reqBodyString = '';
-
-    var responseBody = '';
-    var req = http.request(options, function (res) {
-        res.setEncoding('utf8');
-        res.on('data', function (chunk) {
-            responseBody += chunk;
-        });
-
-        res.on('end', function() {
-            callback(res.headers['x-m2m-rsc'], responseBody);
-        });
-    });
-
-    req.on('error', function (e) {
-        if(e.message != 'read ECONNRESET') {
-            console.log('problem with request: ' + e.message);
-        }
-    });
-
-    // write data to request body
-    req.write(reqBodyString);
-    req.end();
-}
-
 
 function delete_TS(ri, callback) {
     var options = {
@@ -177,7 +136,7 @@ function delete_TS(ri, callback) {
 
     req.on('error', function (e) {
         if(e.message != 'read ECONNRESET') {
-            console.log('problem with request: ' + e.message);
+            console.log('[delete_TS] problem with request: ' + e.message);
         }
     });
 
@@ -511,11 +470,13 @@ function create_action(request, response, ty, resource_Obj, callback) {
                 }
                 else {
                     if(results.code == 'ER_DUP_ENTRY') {
+                        body_Obj = {};
                         body_Obj['rsp'] = {};
                         body_Obj['rsp'].cap = results.code;
                         responder.response_result(request, response, 409, body_Obj, 4105, url.parse(request.url).pathname.toLowerCase(), results.code);
                     }
                     else {
+                        body_Obj = {};
                         body_Obj['rsp'] = {};
                         body_Obj['rsp'].cap = results.code;
                         responder.response_result(request, response, 500, body_Obj, 5000, url.parse(request.url).pathname.toLowerCase(), results.code);
@@ -531,11 +492,13 @@ function create_action(request, response, ty, resource_Obj, callback) {
                     check_TS(resource_Obj[rootnm].ri, function (rsc, res_Obj) {
                     });
                 }
+                body_Obj = {};
                 body_Obj['rsp'] = {};
                 body_Obj['rsp'].cap = results.code;
                 responder.response_result(request, response, 409, body_Obj, 4105, url.parse(request.url).pathname.toLowerCase(), results.code);
             }
             else {
+                body_Obj = {};
                 body_Obj['rsp'] = {};
                 body_Obj['rsp'].cap = results.code;
                 responder.response_result(request, response, 500, body_Obj, 5000, url.parse(request.url).pathname.toLowerCase(), results.code);
@@ -684,15 +647,34 @@ exports.create = function(request, response, ty, body_Obj) {
 
                 response.setHeader('Content-Location', create_Obj[rootnm].ri);
 
-                responder.response_result(request, response, 201, create_Obj, 2001, create_Obj[rootnm].ri, '');
-                return '0';
+                if(request.query.rcn == 2) { // hierarchical address
+                    request.headers.rootnm = 'uri';
+                    var resource_Obj = {};
+                    resource_Obj.uri = {};
+                    resource_Obj.uri = create_Obj[rootnm].ri;
+                    responder.response_result(request, response, 200, resource_Obj, 2000, create_Obj[rootnm].ri, '');
+                    return 0;
+                }
+                else if(request.query.rcn == 3) { // hierarchical address and attributes
+                    request.headers.rootnm = rootnm;
+                    create_Obj.rce = {};
+                    create_Obj.rce.uri = create_Obj[rootnm].ri;
+                    create_Obj.rce[rootnm] = create_Obj[rootnm];
+                    delete create_Obj[rootnm];
+                    responder.response_rcn3_result(request, response, 200, create_Obj, 2000, create_Obj.rce[rootnm].ri, '');
+                    return '0';
+                }
+                else {
+                    responder.response_result(request, response, 201, create_Obj, 2001, create_Obj[rootnm].ri, '');
+                    return '0';
+                }
             }
         });
     });
 };
 
 function presearch_action(request, response, ty, ri_list, comm_Obj, callback) {
-    var rootnm = request.headers.rootnm;
+    //var rootnm = request.headers.rootnm;
     var pi_list = [];
     db_sql.search_parents_lookup(comm_Obj.ri, function (err, search_Obj) {
         if(!err) {
@@ -702,7 +684,7 @@ function presearch_action(request, response, ty, ri_list, comm_Obj, callback) {
 
             var finding_Obj = [];
             var found_Obj = {};
-            var cur_d = new Date();
+            var cur_d = moment().format('YYYY-MM-DD hh:mm:ss');
             db_sql.search_lookup(request.query.ty, request.query.lbl, request.query.cra, request.query.crb, request.query.lim, pi_list, 0, finding_Obj, 0, cur_d, 0, function (err, search_Obj) {
                 if(!err) {
                     if(search_Obj.length >= 1) {
@@ -869,7 +851,7 @@ function search_resource(request, response, ty, comm_Obj, callback) {
 exports.retrieve = function(request, response, comm_Obj) {
     var ty = comm_Obj.ty;
 
-    if(Object.keys(request.query).length == 0) {
+    if(request.query.fu == 2 && request.query.rcn == 1) {
         _this.set_rootnm(request, ty);
 
         var rootnm = request.headers.rootnm;
@@ -888,86 +870,53 @@ exports.retrieve = function(request, response, comm_Obj) {
         });
     }
     else {
-        if(request.query.rcn == 2) { // hierarchical address
-            request.headers.rootnm = 'uri';
-            var resource_Obj = {};
-            resource_Obj.uri = {};
-            //resource_Obj.uril = ri_list.toString().replace(/,/g, ' ');
-            resource_Obj.uri = comm_Obj.ri;
-            responder.response_result(request, response, 200, resource_Obj, 2000, comm_Obj.ri, '');
-            return 0;
-        }
-        else if(request.query.rcn == 3) { // hierarchical address and attributes
-            _this.set_rootnm(request, ty);
-            rootnm = request.headers.rootnm;
-            get_resource(request, response, ty, comm_Obj, function (rsc, resource_Obj) {
+        search_resource(request, response, ty, comm_Obj, function (rsc, resource_Obj) {
+            if (rsc == '0') {
+                return rsc;
+            }
+            var ri_list = [];
+            presearch_action(request, response, ty, ri_list, comm_Obj, function (rsc, ri_list, search_Obj) {
                 if (rsc == '0') {
                     return rsc;
                 }
-                retrieve_action(request, response, ty, comm_Obj, function (rsc, retrieve_Obj) {
-                    if (rsc == '1') {
-                        _this.remove_no_value(request, retrieve_Obj);
-
-                        request.headers.rootnm = rootnm;
-                        retrieve_Obj.rce = {};
-                        retrieve_Obj.rce.uri = retrieve_Obj[rootnm].ri;
-                        retrieve_Obj.rce[rootnm] = retrieve_Obj[rootnm];
-                        delete retrieve_Obj[rootnm];
-                        responder.response_rcn3_result(request, response, 200, retrieve_Obj, 2000, retrieve_Obj.rce[rootnm].ri, '');
-                        return '0';
-                    }
-                });
-            });
-        }
-        else {
-            search_resource(request, response, ty, comm_Obj, function (rsc, resource_Obj) {
-                if (rsc == '0') {
-                    return rsc;
-                }
-                var ri_list = [];
                 if (request.query.fu == 1) {
                     request.headers.rootnm = 'uril';
+                    resource_Obj = {};
+                    resource_Obj.uril = {};
+                    resource_Obj.uril = ri_list;
+                    responder.search_result(request, response, 200, resource_Obj, 2000, comm_Obj.ri, '');
                 }
-                else {
+                else if (request.query.rcn == 4 || request.query.rcn == 5 ||request.query.rcn == 6) {
                     request.headers.rootnm = 'rsp';
-                }
-                presearch_action(request, response, ty, ri_list, comm_Obj, function (rsc, ri_list, search_Obj) {
-                    if (rsc == '0') {
-                        return rsc;
-                    }
-                    if (request.query.fu == 1) {
-                        resource_Obj = {};
-                        resource_Obj.uril = {};
-                        //resource_Obj.uril = ri_list.toString().replace(/,/g, ' ');
-                        resource_Obj.uril = ri_list;
-                        responder.search_result(request, response, 200, resource_Obj, 2000, comm_Obj.ri, '');
-                    }
-                    else if (request.query.rcn == 5) {
-                        resource_Obj = {};
-                        resource_Obj['rsp'] = {};
-                        resource_Obj['rsp'].cap = 'response with hierarchical resource structure mentioned in onem2m spec is not supported instead all the requested resources will be returned !';
-                        responder.response_result(request, response, 501, resource_Obj, 5001, url.parse(request.url).pathname.toLowerCase(), resource_Obj['rsp'].cap);
-                    }
-                    else {
-                        search_action(request, response, 0, resource_Obj, ri_list, '{', search_Obj, function (rsc, strObj) {
-                            if (rsc == '1') {
-                                strObj += '}';
-                                resource_Obj = JSON.parse(strObj);
-                                for (var index in resource_Obj) {
+                    search_action(request, response, 0, resource_Obj, ri_list, '{', search_Obj, function (rsc, strObj) {
+                        if (rsc == '1') {
+                            strObj += '}';
+                            resource_Obj = JSON.parse(strObj);
+                            for (var index in resource_Obj) {
+                                if(resource_Obj.hasOwnProperty(index)) {
                                     resource_Obj[index] = merge(resource_Obj[index], search_Obj[index]);
                                     for (var index2 in resource_Obj[index]) {
-                                        if (resource_Obj[index][index2] == null || resource_Obj[index][index2] == '' || resource_Obj[index][index2] == 'undefined') {
-                                            delete resource_Obj[index][index2];
+                                        if(resource_Obj[index].hasOwnProperty(index2)) {
+                                            if (resource_Obj[index][index2] == null || resource_Obj[index][index2] == '' || resource_Obj[index][index2] == 'undefined') {
+                                                delete resource_Obj[index][index2];
+                                            }
                                         }
                                     }
                                 }
-                                responder.search_result(request, response, 200, resource_Obj, 2000, comm_Obj.ri, '');
                             }
-                        });
-                    }
-                });
+                            responder.search_result(request, response, 200, resource_Obj, 2000, comm_Obj.ri, '');
+                        }
+                    });
+                }
+                else {
+                    request.headers.rootnm = 'rsp';
+                    resource_Obj = {};
+                    resource_Obj['rsp'] = {};
+                    resource_Obj['rsp'].cap = 'response with hierarchical resource structure mentioned in onem2m spec is not supported instead all the requested resources will be returned !';
+                    responder.response_result(request, response, 501, resource_Obj, 5001, url.parse(request.url).pathname.toLowerCase(), resource_Obj['rsp'].cap);
+                }
             });
-        }
+        });
     }
 };
 
@@ -1072,7 +1021,7 @@ function update_action( request, response, ty, resource_Obj, callback) {
             break;
         case '9':
             sql2 = util.format('update grp set mnm = \'%s\', mid = \'%s\', macp = \'%s\', gn = \'%s\' where ri = \'%s\'',
-                resource_Obj[rootnm].mnm, resource_Obj[rootnm].mid, resource_Obj[rootnm].macp, resource_Obj[rootnm].gn, resource_Obj[rootnm].ri);
+                resource_Obj[rootnm].mnm, JSON.stringify(resource_Obj[rootnm].mid), JSON.stringify(resource_Obj[rootnm].macp), resource_Obj[rootnm].gn, resource_Obj[rootnm].ri);
             resourceJson.ri = resource_Obj[rootnm].ri;
             resourceJson.mnm = resource_Obj[rootnm].mnm;
             resourceJson.mid = resource_Obj[rootnm].mid;
@@ -1172,6 +1121,7 @@ function update_action( request, response, ty, resource_Obj, callback) {
                     }
                 }
                 else {
+                    body_Obj = {};
                     body_Obj['rsp'] = {};
                     body_Obj['rsp'].cap = results.code;
                     responder.response_result(request, response, 500, body_Obj, 5000, url.parse(request.url).pathname.toLowerCase(), results.code);
@@ -1181,6 +1131,7 @@ function update_action( request, response, ty, resource_Obj, callback) {
             });
         }
         else {
+            body_Obj = {};
             body_Obj['rsp'] = {};
             body_Obj['rsp'].cap = results.code;
             responder.response_result(request, response, 500, body_Obj, 5000, url.parse(request.url).pathname.toLowerCase(), results.code);
@@ -1191,7 +1142,7 @@ function update_action( request, response, ty, resource_Obj, callback) {
 }
 
 function update_resource(request, response, ty, body_Obj, resource_Obj, callback) {
-    var rootnm = request.headers.rootnm;
+//    var rootnm = request.headers.rootnm;
     switch (ty) {
         case '1':
             acp.update_acp(request, response, resource_Obj, body_Obj, function(rsc, resource_Obj) {
@@ -1289,7 +1240,7 @@ function delete_action(request, response, ty, resource_Obj, comm_Obj, callback) 
             }
 
             var finding_Obj = [];
-            var found_Obj = {};
+            //var found_Obj = {};
             db_sql.delete_lookup(comm_Obj.ri, pi_list, 0, finding_Obj, 0, function (err, search_Obj) {
                 if(!err) {
                     if(comm_Obj.ty == '25') {

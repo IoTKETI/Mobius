@@ -19,11 +19,9 @@ var xmlbuilder = require('xmlbuilder');
 var util = require('util');
 var ip = require('ip');
 var http = require('http');
-var js2xmlparser = require("js2xmlparser");
 var merge = require('merge');
 
-var db = require('./db_action');
-
+var db_sql = require('./sql_action');
 
 function parse_create_action(callback) {
     var rootnm = 'cb';
@@ -72,94 +70,32 @@ function parse_create_action(callback) {
     resource_Obj[rootnm].mni = '';
     resource_Obj[rootnm].cs = '';
 
-    // for mongodb
-    var queryJson = {};
-    var lookupJson = {};
-    var resourceJson = {};
-    queryJson.type = 'select';
-    lookupJson.ri = resource_Obj[rootnm].ri;
-    queryJson.table = 'lookup';
-    queryJson.values = lookupJson;
-
-    var sql = util.format('SELECT ri FROM lookup where ri=\'%s\'', resource_Obj[rootnm].ri);
-    db.getResult(sql, queryJson, function (err, results_comm) {
+    db_sql.select_ri_lookup(resource_Obj[rootnm].ri, function (err, results_ri) {
         if(!err) {
-            if(results_comm.length == 1) {
-                lookupJson.ri = resource_Obj[rootnm].ri;
-                queryJson.table = 'cb';
-                queryJson.values = lookupJson;
-                sql = util.format('SELECT csi FROM cb where ri=\'%s\'', resource_Obj[rootnm].ri);
-                db.getResult(sql, queryJson, function (err, results_cb) {
+            if(results_ri.length == 1) {
+                db_sql.update_cb_poa_csi(JSON.stringify(resource_Obj[rootnm].poa), resource_Obj[rootnm].csi, resource_Obj[rootnm].ri, function (err, results) {
                     if (!err) {
-                        if (results_cb.length == 1) {
-                            usecseid = results_cb[0].csi;
-
-                            lookupJson.ri = resource_Obj[rootnm].ri;
-                            queryJson.table = 'cb';
-                            queryJson.values = lookupJson;
-
-                            sql = util.format('update cb set poa = \'%s\', csi = \'%s\' where ri=\'%s\'', JSON.stringify(resource_Obj[rootnm].poa), resource_Obj[rootnm].csi, resource_Obj[rootnm].ri);
-                            db.getResult(sql, queryJson, function (err, results) {
-                                if (!err) {
-                                    rspObj.rsc = '2004';
-                                    rspObj.ri = resource_Obj[rootnm].ri;
-                                    rspObj.sts = '';
-                                    callback(rspObj);
-                                }
-                            });
-                        }
+                        usecseid = resource_Obj[rootnm].csi;
+                        rspObj.rsc = '2004';
+                        rspObj.ri = resource_Obj[rootnm].ri;
+                        rspObj.sts = '';
+                        callback(rspObj);
                     }
                     else {
                         rspObj.rsc = '5000';
                         rspObj.ri = resource_Obj[rootnm].ri;
-                        rspObj.sts = results_comm.code;
+                        rspObj.sts = results.code;
                         callback(rspObj);
                     }
                 });
             }
             else {
-                queryJson.type = 'insert';
-                lookupJson.ty = resource_Obj[rootnm].ty;
-                lookupJson.ri = resource_Obj[rootnm].ri;
-                lookupJson.rn = resource_Obj[rootnm].rn;
-                lookupJson.pi = resource_Obj[rootnm].pi;
-                lookupJson.ct = resource_Obj[rootnm].ct;
-                lookupJson.lt = resource_Obj[rootnm].lt;
-                lookupJson.et = resource_Obj[rootnm].et;
-                lookupJson.acpi = resource_Obj[rootnm].acpi;
-                lookupJson.lbl = resource_Obj[rootnm].lbl;
-                lookupJson.at = resource_Obj[rootnm].at;
-                lookupJson.aa = resource_Obj[rootnm].aa;
-                lookupJson.st = resource_Obj[rootnm].st;
-                lookupJson.mni = resource_Obj[rootnm].mni;
-                lookupJson.cs = resource_Obj[rootnm].cs;
-                queryJson.table = 'lookup';
-                queryJson.values = lookupJson;
-
-                sql = util.format('INSERT INTO lookup (' +
-                    'ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st, mni, cs) ' +
-                    'VALUE (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
-                    resource_Obj[rootnm].ty, resource_Obj[rootnm].ri, resource_Obj[rootnm].rn, resource_Obj[rootnm].pi, resource_Obj[rootnm].ct,
+                db_sql.insert_lookup(resource_Obj[rootnm].ty, resource_Obj[rootnm].ri, resource_Obj[rootnm].rn, resource_Obj[rootnm].pi, resource_Obj[rootnm].ct,
                     resource_Obj[rootnm].lt, resource_Obj[rootnm].et, JSON.stringify(resource_Obj[rootnm].acpi), JSON.stringify(resource_Obj[rootnm].lbl), JSON.stringify(resource_Obj[rootnm].at),
-                    JSON.stringify(resource_Obj[rootnm].aa), resource_Obj[rootnm].st, resource_Obj[rootnm].mni, resource_Obj[rootnm].cs);
-                db.getResult(sql, queryJson, function (err, results) {
+                    JSON.stringify(resource_Obj[rootnm].aa), resource_Obj[rootnm].st, resource_Obj[rootnm].mni, resource_Obj[rootnm].cs, function (err, results) {
                     if(!err) {
-                        resourceJson.ri = resource_Obj[rootnm].ri;
-                        resourceJson.cst = resource_Obj[rootnm].cst;
-                        resourceJson.csi = resource_Obj[rootnm].csi;
-                        resourceJson.srt = resource_Obj[rootnm].srt;
-                        resourceJson.poa = resource_Obj[rootnm].poa;
-                        resourceJson.nl = resource_Obj[rootnm].nl;
-                        resourceJson.ncp = resource_Obj[rootnm].ncp;
-                        queryJson.table = 'cb';
-                        queryJson.values = resourceJson;
-
-                        sql = util.format('INSERT INTO cb (' +
-                            'ri, cst, csi, srt, poa, nl, ncp) ' +
-                            'VALUE (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
-                            resource_Obj[rootnm].ri, resource_Obj[rootnm].cst, resource_Obj[rootnm].csi, JSON.stringify(resource_Obj[rootnm].srt), JSON.stringify(resource_Obj[rootnm].poa),
-                            resource_Obj[rootnm].nl, resource_Obj[rootnm].ncp);
-                        db.getResult(sql, queryJson, function (err, results) {
+                        db_sql.insert_cb(resource_Obj[rootnm].ri, resource_Obj[rootnm].cst, resource_Obj[rootnm].csi, JSON.stringify(resource_Obj[rootnm].srt), JSON.stringify(resource_Obj[rootnm].poa),
+                            resource_Obj[rootnm].nl, resource_Obj[rootnm].ncp, function (err, results) {
                             if(!err) {
                                 rspObj.rsc = '2001';
                                 rspObj.ri = resource_Obj[rootnm].ri;
@@ -185,7 +121,7 @@ function parse_create_action(callback) {
         else {
             rspObj.rsc = '5000';
             rspObj.ri = resource_Obj[rootnm].ri;
-            rspObj.sts = results_comm.code;
+            rspObj.sts = results_ri.code;
             callback(rspObj);
         }
     });

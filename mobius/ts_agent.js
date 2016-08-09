@@ -29,20 +29,14 @@ var db_sql = require('./sql_action');
 // ������ �����մϴ�.
 var ts_app = express();
 
-// This is an async file read
-ts_app.use(bodyParser.urlencoded({ extended: true }));
-ts_app.use(bodyParser.json({limit: '1mb', type: 'application/*+json' }));
-ts_app.use(bodyParser.text({limit: '1mb', type: 'application/*+xml' }));
-
 http.globalAgent.maxSockets = 1000000;
 
 http.createServer(ts_app).listen({port: usetsagentport, agent: false}, function () {
     console.log('ts_missing agent server (' + ip.address() + ') running at ' + usetsagentport + ' port');
 
     // Searching TS with missingDetect. if it is TRUE, restart mddt
-    init_TS(function (rsc, responseBody) {
-        //console.log(rsc);
-        //console.log(responseBody);
+    init_TS(function (rsc) {
+        console.log('init_TS - ' + rsc);
     });
 });
 
@@ -58,15 +52,14 @@ function init_TS(callback) {
             'X-M2M-RI': '12345',
             'Accept': 'application/xml',
             'X-M2M-Origin': 'Origin',
-            'nmtype': 'long',
             'Content-Type': 'application/vnd.onem2m-res+xml'
         }
     };
 
-    var reqBodyString = '';
+    //var reqBodyString = '';
     var jsonObj = {};
     jsonObj.ri = 'all';
-    reqBodyString = js2xmlparser('ts', JSON.stringify(jsonObj));
+    var reqBodyString = js2xmlparser('ts', JSON.stringify(jsonObj));
 
     var responseBody = '';
     var req = http.request(options, function (res) {
@@ -82,7 +75,7 @@ function init_TS(callback) {
 
     req.on('error', function (e) {
         if(e.message != 'read ECONNRESET') {
-            console.log('problem with request: ' + e.message);
+            console.log('[init_TS] problem with request: ' + e.message);
         }
     });
 
@@ -122,7 +115,7 @@ function search_TS(request, response, callback) {
 
     req.on('error', function (e) {
         if(e.message != 'read ECONNRESET') {
-            console.log('problem with request: ' + e.message);
+            console.log('[search_TS] problem with request: ' + e.message);
         }
     });
 
@@ -132,9 +125,12 @@ function search_TS(request, response, callback) {
 }
 
 
-//var xmlParser = bodyParser.text({ limit: '1mb', type: 'application/onem2m-resource+xml;application/xml;application/json;application/vnd.onem2m-res+xml;application/vnd.onem2m-res+json' });
-var xmlParser = bodyParser.text({ limit: '1mb', type: '*/*' });
-
+var onem2mParser = bodyParser.text(
+    {
+        limit: '1mb',
+        type: 'application/onem2m-resource+xml;application/xml;application/json;application/vnd.onem2m-res+xml;application/vnd.onem2m-res+json'
+    }
+);
 
 var ts_timer = {};
 var ts_timer_id = {};
@@ -215,8 +211,13 @@ var missing_detect_check = function(pin, mdd, mddt, cni, ri, callback) {
 
 
 //
-ts_app.post('/:resourcename0', xmlParser, function(request, response, next) {
-    if(request.params.resourcename0.toLowerCase() == 'missingdatadetect') {
+ts_app.post('/missingDataDetect', onem2mParser, function(request, response) {
+    var fullBody = '';
+    request.on('data', function(chunk) {
+        fullBody += chunk.toString();
+    });
+    request.on('end', function() {
+        request.body = fullBody;
         var parser = new xml2js.Parser({explicitArray: false});
         parser.parseString(request.body.toString(), function (err, result) {
             if (err) {
@@ -225,7 +226,7 @@ ts_app.post('/:resourcename0', xmlParser, function(request, response, next) {
             else {
                 var jsonString = JSON.stringify(result);
                 var jsonObj = JSON.parse(jsonString);
-                if(jsonObj.ts.ri == 'all') {
+                if (jsonObj.ts.ri == 'all') {
                     search_TS(request, response, function (request, response, rsc, responseBody) {
                         //console.log(rsc);
                         //console.log(responseBody);
@@ -238,10 +239,10 @@ ts_app.post('/:resourcename0', xmlParser, function(request, response, next) {
                             else {
                                 var jsonString = JSON.stringify(result);
                                 var jsonObj = JSON.parse(jsonString);
-                                if(jsonObj['m2m:responsePrimitive']) {
+                                if (jsonObj['m2m:responsePrimitive']) {
                                     var ts_ri = [];
                                 }
-                                else if(jsonObj['m2m:URIList']['_'] == null) {
+                                else if (jsonObj['m2m:URIList']['_'] == null) {
                                     ts_ri = [];
                                 }
                                 else {
@@ -250,7 +251,7 @@ ts_app.post('/:resourcename0', xmlParser, function(request, response, next) {
 
                                 var ts = {};
                                 if (ts_ri.length >= 1) {
-                                    db_sql.select_ts_block(ts_ri, function (err, results_ts) {
+                                    db_sql.select_ts_in(ts_ri, function (err, results_ts) {
                                         if (!err) {
                                             if (results_ts.length >= 1) {
                                                 missing_detect_check(results_ts[0].pin, results_ts[0].mdd, results_ts[0].mddt, results_ts[0].cni, results_ts[0].ri, function (rsc) {
@@ -291,16 +292,21 @@ ts_app.post('/:resourcename0', xmlParser, function(request, response, next) {
                 }
             }
         });
-    }
+    });
 });
 
 
-ts_app.delete('/:resourcename0', xmlParser, function(request, response, next) {
-    if(request.params.resourcename0.toLowerCase() == 'missingdatadetect') {
+ts_app.delete('/missingDataDetect', onem2mParser, function(request, response) {
+    var fullBody = '';
+    request.on('data', function(chunk) {
+        fullBody += chunk.toString();
+    });
+    request.on('end', function() {
+        request.body = fullBody;
         var parser = new xml2js.Parser({explicitArray: false});
         parser.parseString(request.body.toString(), function (err, result) {
             if (err) {
-                NOPRINT == 'true' ? NOPRINT = 'true' : console.log('[retrieve_CSEBase parsing error]');
+                console.log('[retrieve_CSEBase parsing error]');
             }
             else {
                 var jsonString = JSON.stringify(result);
@@ -324,5 +330,5 @@ ts_app.delete('/:resourcename0', xmlParser, function(request, response, next) {
                 response.status(200).end(JSON.stringify(rsc));
             }
         });
-    }
+    });
 });

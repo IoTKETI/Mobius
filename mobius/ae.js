@@ -20,7 +20,6 @@ var xmlbuilder = require('xmlbuilder');
 var responder = require('./responder');
 
 var util = require('util');
-var db = require('./db_action');
 var merge = require('merge');
 
 var _this = this;

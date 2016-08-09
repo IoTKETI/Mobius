@@ -19,6 +19,8 @@ var xml2js = require('xml2js');
 var xmlbuilder = require('xmlbuilder');
 var util = require('util');
 
+var responder = require('./responder');
+
 
 exports.build_tsi = function(request, response, resource_Obj, body_Obj, callback) {
     var rootnm = request.headers.rootnm;

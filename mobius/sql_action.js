@@ -13,6 +13,8 @@
  */
 
 var util = require('util');
+var moment = require('moment');
+
 var db = require('./db_action');
 
 var _this = this;
@@ -45,8 +47,35 @@ exports.search_parents_lookup = function(ri, callback) {
     });
 };
 
-function build_discovery_sql(ty, lbl, cra, crb, lim, pi_list, bef_ct, cur_ct, callback) {
-    var list_ri = '';
+exports.insert_lookup = function(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st, mni, cs, callback) {
+    console.time('insert_lookup');
+    var sql = util.format('INSERT INTO lookup (' +
+        'ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st, mni, cs) ' +
+        'VALUE (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
+        ty, ri, rn, pi, ct,
+        lt, et, acpi, lbl, at,
+        aa, st, mni, cs);
+    db.getResult(sql, '', function (err, results) {
+        console.timeEnd('insert_lookup');
+        callback(err, results);
+    });
+};
+
+exports.insert_cb = function(ri, cst, csi, srt, poa, nl, ncp, callback) {
+    console.time('insert_cb');
+    var sql = util.format('INSERT INTO cb (' +
+        'ri, cst, csi, srt, poa, nl, ncp) ' +
+        'VALUE (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
+        ri, cst, csi, srt, poa,
+        nl, ncp);
+    db.getResult(sql, '', function (err, results) {
+        console.timeEnd('insert_cb');
+        callback(err, results);
+    });
+};
+
+function build_discovery_sql(ty, lbl, cra, crb, lim, pi_list, bef_ct, cur_ct) {
+//    var list_ri = '';
     var query_where = '';
     var query_count = 0;
     if(lbl != null) {
@@ -113,7 +142,7 @@ function build_discovery_sql(ty, lbl, cra, crb, lim, pi_list, bef_ct, cur_ct, ca
             query_where += ' and ';
         }
         query_where += util.format(' a.ct <= \'%s\'', crb);
-        query_count++;
+//        query_count++;
     }
 
     if(lim != null) {
@@ -128,7 +157,7 @@ function build_discovery_sql(ty, lbl, cra, crb, lim, pi_list, bef_ct, cur_ct, ca
         query_where += util.format(' limit 1000');
     }
 
-    query_where = util.format("select a.* from (select ri from lookup where pi in ("+JSON.stringify(pi_list).replace('[','').replace(']','')+") %s and (ct >= \'%s\' and ct < \'%s\') order by ct desc limit 1000) b left join lookup as a on b.ri = a.ri", ty_str, bef_ct, cur_ct) + query_where;
+    query_where = util.format("select a.* from (select ri from lookup where pi in ("+JSON.stringify(pi_list).replace('[','').replace(']','')+") %s and (ct > \'%s\' and ct <= \'%s\') order by ct desc limit 1000) b left join lookup as a on b.ri = a.ri", ty_str, bef_ct, cur_ct) + query_where;
 
     return query_where;
 }
@@ -141,9 +170,9 @@ exports.search_lookup = function (ty, lbl, cra, crb, lim, pi_list, pi_index, fou
         console.time('search_lookup');
     }
 
-    var cur_ct = cur_d.toISOString().replace(/-/, '').replace(/-/, '').replace(/:/, '').replace(/:/, '').replace(/\..+/, '');
-    cur_d.setDate(cur_d.getDate()-(loop_cnt*3));
-    var bef_ct = cur_d.toISOString().replace(/-/, '').replace(/-/, '').replace(/:/, '').replace(/:/, '').replace(/\..+/, '');
+    var cur_ct = moment(cur_d).format('YYYYMMDDThhmmss');
+    var bef_d = moment(cur_d).subtract(Math.pow(3,loop_cnt), 'days').format('YYYY-MM-DD hh:mm:ss');
+    var bef_ct = moment(bef_d).format('YYYYMMDDThhmmss');
 
     if(lim != null) {
         if(lim > max_lim) {
@@ -154,12 +183,7 @@ exports.search_lookup = function (ty, lbl, cra, crb, lim, pi_list, pi_index, fou
         lim = 1000;
     }
 
-    for(var j = 0; j < 1; j++) {
-        cur_pi.push(pi_list[pi_index++]);
-        if(pi_index >= pi_list.length) {
-            break;
-        }
-    }
+    cur_pi.push(pi_list[pi_index]);
 
     var sql = build_discovery_sql(ty, lbl, cra, crb, lim, cur_pi, bef_ct, cur_ct);
     db.getResult(sql, '', function (err, search_Obj) {
@@ -173,14 +197,15 @@ exports.search_lookup = function (ty, lbl, cra, crb, lim, pi_list, pi_index, fou
                 }
             }
 
-            if(pi_index >= pi_list.length) {
-                if(loop_cnt > 4) {
+            if(++pi_index >= pi_list.length) {
+                if(++loop_cnt > 5) {
                     console.timeEnd('search_lookup');
                     callback(err, found_Obj);
                 }
                 else {
                     pi_index = 0;
-                    loop_cnt++;
+                    //cur_d.setDate(bef_d.getDate());
+                    cur_d = bef_d;
                     _this.search_lookup(ty, lbl, cra, crb, lim, pi_list, pi_index, found_Obj, found_Cnt, cur_d, loop_cnt, function (err, found_Obj) {
                         callback(err, found_Obj);
                     });
@@ -192,16 +217,19 @@ exports.search_lookup = function (ty, lbl, cra, crb, lim, pi_list, pi_index, fou
                 });
             }
         }
+        else {
+            callback(err, search_Obj);
+        }
     });
 };
 
 exports.select_latest_lookup = function(ri, cur_d, loop_cnt, ty, callback) {
-    cur_d.setDate(cur_d.getDate()-(loop_cnt*2+1));
-    var bef_ct = cur_d.toISOString().replace(/-/, '').replace(/-/, '').replace(/:/, '').replace(/:/, '').replace(/\..+/, '');
-
     if(loop_cnt++ == 0) {
         console.time('select_latest');
     }
+
+    var bef_d = moment(cur_d).subtract(Math.pow(2,loop_cnt), 'days').format('YYYY-MM-DD hh:mm:ss');
+    var bef_ct = moment(bef_d).format('YYYYMMDDThhmmss');
 
     var sql = util.format('select a.* from (select ri from lookup where (pi = \'%s\') and ct > \'%s\' order by ct desc limit 1000) b left join lookup as a on b.ri = a.ri where a.ty = \'%s\' limit 1', ri, bef_ct, ty);
     db.getResult(sql, '', function (err, latest_Obj) {
@@ -215,6 +243,7 @@ exports.select_latest_lookup = function(ri, cur_d, loop_cnt, ty, callback) {
                     callback(err, latest_Obj);
                 }
                 else {
+                    cur_d = bef_d;
                     _this.select_latest_lookup(ri, cur_d, loop_cnt, ty, function(err, latest_Obj) {
                         callback(err, latest_Obj);
                     });
@@ -246,6 +275,15 @@ exports.select_direct_lookup = function(ri, callback) {
     });
 };
 
+exports.select_ri_lookup = function(ri, callback) {
+    console.time('select_ri_lookup');
+    var sql = util.format("select ri from lookup where ri = \'%s\'", ri);
+    db.getResult(sql, '', function (err, ri_Obj) {
+        console.timeEnd('select_ri_lookup');
+        callback(err, ri_Obj);
+    });
+};
+
 exports.select_grp_lookup = function(ri, callback) {
     console.time('select_group');
     var sql = util.format("select * from lookup where ri = \'%s\' and ty = '9'", ri);
@@ -269,7 +307,7 @@ exports.select_ts = function (ri, callback) {
     });
 };
 
-exports.select_ts_block = function (ri_list, callback) {
+exports.select_ts_in = function (ri_list, callback) {
     var sql = util.format("select * from ts where ri in ("+JSON.stringify(ri_list).replace('[','').replace(']','') + ")");
     db.getResult(sql, '', function (err, ts_Obj) {
         callback(err, ts_Obj);
@@ -280,6 +318,15 @@ exports.select_ts_block = function (ri_list, callback) {
 exports.update_ts_mdcn_mdl = function (mdcn, mdl, ri, callback) {
     var sql = util.format("update ts set mdcn = \'%s\', mdl = \'%s\' where ri = \'%s\'", mdcn, mdl, ri);
     db.getResult(sql, '', function (err, results) {
+        callback(err, results);
+    });
+};
+
+exports.update_cb_poa_csi = function (poa, csi, ri, callback) {
+    console.time('update_cb_poa_csi');
+    var sql = util.format('update cb set poa = \'%s\', csi = \'%s\' where ri=\'%s\'', poa, csi, ri);
+    db.getResult(sql, '', function (err, results) {
+        console.timeEnd('update_cb_poa_csi');
         callback(err, results);
     });
 };

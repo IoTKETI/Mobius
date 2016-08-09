@@ -21,8 +21,6 @@ var http = require('http');
 var util = require('util');
 var responder = require('./responder');
 
-var db = require('./db_action');
-
 
 function check_mt(body_type, mt, res_body, callback) {
     if (body_type == 'xml') {
@@ -30,13 +28,15 @@ function check_mt(body_type, mt, res_body, callback) {
         parser.parseString(res_body, function (err, result) {
             if (!err) {
                 for (var prop in result) {
-                    if (result[prop].ty == mt) {
-                        callback('1');
-                        return '1';
-                    }
-                    else {
-                        callback('0');
-                        return '0';
+                    if(result.hasOwnProperty(prop)) {
+                        if (result[prop].ty == mt) {
+                            callback('1');
+                            return '1';
+                        }
+                        else {
+                            callback('0');
+                            return '0';
+                        }
                     }
                 }
             }
@@ -49,13 +49,15 @@ function check_mt(body_type, mt, res_body, callback) {
     else { // json
         var result = JSON.parse(res_body);
         for (var prop in result) {
-            if (result[prop].ty == mt) {
-                callback('1');
-                return '1';
-            }
-            else {
-                callback('0');
-                return '0';
+            if(result.hasOwnProperty(prop)) {
+                if (result[prop].ty == mt) {
+                    callback('1');
+                    return '1';
+                }
+                else {
+                    callback('0');
+                    return '0';
+                }
             }
         }
     }
@@ -79,6 +81,7 @@ function check_member(request, response, mt, req_count, mid, cse_poa, valid_mid,
                 check_member(request, response, mt, ++req_count, mid, cse_poa, valid_mid, function (valid_mid) {
                     callback(valid_mid);
                 });
+                return;
             }
         }
 
@@ -124,7 +127,7 @@ function check_member(request, response, mt, req_count, mid, cse_poa, valid_mid,
 
         req.on('error', function (e) {
             if (e.message != 'read ECONNRESET') {
-                console.log('problem with request: ' + e.message);
+                console.log('[check_member] problem with request: ' + e.message);
             }
 
             check_member(request, response, mt, ++req_count, mid, cse_poa, valid_mid, function (valid_mid) {

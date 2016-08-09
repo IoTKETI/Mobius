@@ -50,7 +50,7 @@ exports.check = function(request, noti_Obj, check_value) {
                 ss_fail_count[results_ss[i].ri]++;
                 if (ss_fail_count[results_ss[i].ri] >= 16) {
                     delete ss_fail_count[results_ss[i].ri];
-                    delete_SS(results_ss[i].ri, xm2mri);
+                    delete_sub(results_ss[i].ri, xm2mri);
                 }
                 else {
                     var enc_Obj = JSON.parse(results_ss[i].enc);
@@ -77,12 +77,14 @@ exports.check = function(request, noti_Obj, check_value) {
                                         var temp_Obj = {};
                                         temp_Obj[rootnm] = {};
                                         for(var index in noti_Obj) {
-                                            if(index == "$") {
+                                            if(noti_Obj.hasOwnProperty(index)) {
+                                                if (index == "$") {
+                                                    delete noti_Obj[index];
+                                                    continue;
+                                                }
+                                                temp_Obj[rootnm][responder.attrLname[index]] = noti_Obj[index];
                                                 delete noti_Obj[index];
-                                                continue;
                                             }
-                                            temp_Obj[rootnm][responder.attrLname[index]] = noti_Obj[index];
-                                            delete noti_Obj[index];
                                         }
                                         noti_Obj[responder.rsrcLname[rootnm]] = temp_Obj[rootnm];
                                         delete temp_Obj[rootnm];
@@ -124,22 +126,22 @@ exports.check = function(request, noti_Obj, check_value) {
                                             };
 
                                             var xmlString = js2xmlparser('m2m:'+Object.keys(node)[0], node[Object.keys(node)[0]]);
-                                            request_SS(nu, results_ss[i].ri, xmlString, sub_bodytype, xm2mri);
+                                            request_noti_http(nu, results_ss[i].ri, xmlString, sub_bodytype, xm2mri);
                                         }
                                         else { // mqtt:
                                             //node['m2m:'+Object.keys(node)[0]] = node[Object.keys(node)[0]];
                                             //delete node[Object.keys(node)[0]];
-                                            request_SS_mqtt(sub_nu.hostname, nu, results_ss[i].ri, JSON.stringify(node), sub_bodytype, xm2mri);
+                                            request_noti_mqtt(nu, results_ss[i].ri, JSON.stringify(node), sub_bodytype, xm2mri);
                                         }
                                     }
                                     else { // defaultbodytype == 'json')
                                         if (sub_nu.protocol == 'http:') {
-                                            request_SS(nu, results_ss[i].ri, JSON.stringify(node), sub_bodytype, xm2mri);
+                                            request_noti_http(nu, results_ss[i].ri, JSON.stringify(node), sub_bodytype, xm2mri);
                                         }
                                         else { // mqtt:
                                             //jsonString = {};
                                             //jsonString[(request.headers.nmtype == 'long') ? 'singleNotification' : 'sgn'] = node[(request.headers.nmtype == 'long') ? 'm2m:singleNotification' : 'm2m:sgn'];
-                                            request_SS_mqtt(sub_nu.hostname, nu, results_ss[i].ri, JSON.stringify(node), sub_bodytype, xm2mri);
+                                            request_noti_mqtt(nu, results_ss[i].ri, JSON.stringify(node), sub_bodytype, xm2mri);
                                         }
                                     }
                                 }
@@ -163,7 +165,7 @@ exports.check = function(request, noti_Obj, check_value) {
 };
 
 
-function request_SS(nu, ri, xmlString, bodytype, xm2mri) {
+function request_noti_http(nu, ri, xmlString, bodytype, xm2mri) {
     var options = {
         hostname: url.parse(nu).hostname,
         port: url.parse(nu).port,
@@ -186,7 +188,7 @@ function request_SS(nu, ri, xmlString, bodytype, xm2mri) {
             bodyStr += chunk;
         });
 
-        res.on('end', function (chunk) {
+        res.on('end', function () {
             if(res.statusCode == 200 || res.statusCode == 201) {
                 console.log('----> response for notification ' + res.headers['x-m2m-rsc'] + ' - ' + ri);
                 ss_fail_count[res.req._headers.ri] = 0;
@@ -196,7 +198,7 @@ function request_SS(nu, ri, xmlString, bodytype, xm2mri) {
 
     req.on('error', function (e) {
         if(e.message != 'read ECONNRESET') {
-            NOPRINT == 'true' ? NOPRINT = 'true' : console.log('problem with request: ' + e.message);
+            console.log('[request_noti_http] problem with request: ' + e.message);
         }
     });
 
@@ -207,7 +209,7 @@ function request_SS(nu, ri, xmlString, bodytype, xm2mri) {
     req.end();
 }
 
-function delete_SS(ri, xm2mri) {
+function delete_sub(ri, xm2mri) {
     var options = {
         hostname: 'localhost',
         port: usecsebaseport,
@@ -239,7 +241,7 @@ function delete_SS(ri, xm2mri) {
 
     req.on('error', function (e) {
         if(e.message != 'read ECONNRESET') {
-            NOPRINT == 'true' ? NOPRINT = 'true' : console.log('problem with request: ' + e.message);
+            console.log('[delete_sub] problem with request: ' + e.message);
         }
     });
 
@@ -248,7 +250,7 @@ function delete_SS(ri, xm2mri) {
     req.end();
 }
 
-function request_SS_mqtt(serverip, nu, ri, xmlString, bodytype, xm2mri) {
+function request_noti_mqtt(nu, ri, xmlString, bodytype, xm2mri) {
     var options = {
         hostname: 'localhost',
         port: '9726',
@@ -284,7 +286,7 @@ function request_SS_mqtt(serverip, nu, ri, xmlString, bodytype, xm2mri) {
 
     req.on('error', function (e) {
         if(e.message != 'read ECONNRESET') {
-            NOPRINT == 'true' ? NOPRINT = 'true' : console.log('problem with request: ' + e.message);
+            console.log('[request_noti_mqtt] problem with request: ' + e.message);
         }
     });
 

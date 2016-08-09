@@ -23,7 +23,6 @@ global.parent_cbcseid       = '/mobius';
 global.parent_cbhost        = 'localhost';
 global.parent_cbhostport    = '7579';
 global.parent_cbprotocol    = 'http'; // 'http' or 'mqtt'
-
 global.parent_mqttbroker    = '203.253.128.151';
 
 // my CSE information
@@ -37,6 +36,7 @@ global.usetsagentport       = '7573';
 
 global.usedbhost            = 'localhost';
 global.usedbpass            = 'dksdlfduq2';
+
 
 global.usemqttbroker        = parent_mqttbroker; // mobius to mqttbroker
 

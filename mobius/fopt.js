@@ -121,7 +121,7 @@ function fopt_member(request, response, req_count, mid, body_Obj, cse_poa, agr, 
 
         req.on('error', function (e) {
             if (e.message != 'read ECONNRESET') {
-                console.log('problem with request: ' + e.message);
+                console.log('[fopt_member] problem with request: ' + e.message);
             }
 
             fopt_member(request, response, req_count, mid, body_Obj, cse_poa, agr, function (agr) {
