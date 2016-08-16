@@ -94,7 +94,7 @@ function check_member(request, response, mt, req_count, mid, cse_poa, valid_mid,
                 'locale': 'ko',
                 'X-M2M-RI': '12345',
                 'Accept': 'application/'+request.headers.usebodytype,
-                'X-M2M-Origin': '/'+usecsebase
+                'X-M2M-Origin': usecseid
             }
         };
 
@@ -331,7 +331,7 @@ exports.build_grp = function(request, response, resource_Obj, body_Obj, callback
             else { // db error
                 body_Obj = {};
                 body_Obj['rsp'] = {};
-                body_Obj['rsp'].cap = results_mid.code;
+                body_Obj['rsp'].cap = results_mid.message;
                 responder.response_result(request, response, 500, body_Obj, 5000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
                 callback('0', body_Obj);
                 return '0';
@@ -548,7 +548,7 @@ exports.update_grp = function(request, response, resource_Obj, body_Obj, callbac
                 else { // db error
                     body_Obj = {};
                     body_Obj['rsp'] = {};
-                    body_Obj['rsp'].cap = results_mid.code;
+                    body_Obj['rsp'].cap = results_mid.message;
                     responder.response_result(request, response, 500, body_Obj, 5000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
                     callback('0', body_Obj);
                     return '0';

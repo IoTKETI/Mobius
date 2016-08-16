@@ -203,27 +203,11 @@ function check_nametype(nmtype, body_Obj) {
 
 
 function check_http(request, response, callback) {
+    request.headers.rootnm = 'rsp';
+
     var body_Obj = {};
     if (request.headers.nmtype == null) {
         request.headers.nmtype = defaultnmtype;
-    }
-
-    if( (request.headers['x-m2m-origin'] == null) ) {
-        body_Obj = {};
-        body_Obj['rsp'] = {};
-        body_Obj['rsp'].cap = 'X-M2M-Origin is none';
-        responder.response_result(request, response, 400, body_Obj, 4000, url.parse(request.url).pathname.toLowerCase(), 'X-M2M-Origin is none');
-        callback('0', body_Obj);
-        return '0';
-    }
-
-    if( (request.headers['x-m2m-ri'] == null) ) {
-        body_Obj = {};
-        body_Obj['rsp'] = {};
-        body_Obj['rsp'].cap = 'X-M2M-RI is none';
-        responder.response_result(request, response, 400, body_Obj, 4000, url.parse(request.url).pathname.toLowerCase(), 'X-M2M-RI is none');
-        callback('0', body_Obj);
-        return '0';
     }
 
     if (request.headers.accept) {
@@ -241,6 +225,42 @@ function check_http(request, response, callback) {
     }
     else {
         request.headers.usebodytype = defaultbodytype;
+    }
+
+    if( (request.headers['x-m2m-ri'] == null) ) {
+        body_Obj = {};
+        body_Obj['rsp'] = {};
+        body_Obj['rsp'].cap = 'X-M2M-RI is none';
+        responder.response_result(request, response, 400, body_Obj, 4000, url.parse(request.url).pathname.toLowerCase(), 'X-M2M-RI is none');
+        callback('0', body_Obj);
+        return '0';
+    }
+
+    if( (request.headers['x-m2m-origin'] == null) ) {
+        body_Obj = {};
+        body_Obj['rsp'] = {};
+        body_Obj['rsp'].cap = 'X-M2M-Origin is none';
+        responder.response_result(request, response, 400, body_Obj, 4000, url.parse(request.url).pathname.toLowerCase(), 'X-M2M-Origin is none');
+        callback('0', body_Obj);
+        return '0';
+    }
+
+    if(request.headers['x-m2m-origin'].substr(0, 1) != '/' && request.headers['x-m2m-origin'].substr(0, 1) != 'S' && request.headers['x-m2m-origin'].substr(0, 1) != 'C') {
+        body_Obj = {};
+        body_Obj['rsp'] = {};
+        body_Obj['rsp'].cap = 'AE-ID should start capital S or C or /';
+        responder.response_result(request, response, 400, body_Obj, 4000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
+        callback('0', body_Obj);
+        return '0';
+    }
+    
+    if(request.method != 'POST' && (request.headers['x-m2m-origin'] == 'S' || request.headers['x-m2m-origin'] == 'C' || request.headers['x-m2m-origin'] == '/')) {
+        body_Obj = {};
+        body_Obj['rsp'] = {};
+        body_Obj['rsp'].cap = 'AE-ID should be included in X-M2M-Origin';
+        responder.response_result(request, response, 400, body_Obj, 4000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
+        callback('0', body_Obj);
+        return '0';
     }
 
     var url_arr = url.parse(request.url).pathname.toLowerCase().split('/');
@@ -702,7 +722,7 @@ function check_resource(request, response, callback) {
                             }
                         }
                         else {
-                            var code = result_Obj.code;
+                            var code = result_Obj.message;
                             result_Obj = {};
                             result_Obj['rsp'] = {};
                             result_Obj['rsp'].cap = code;
@@ -722,7 +742,7 @@ function check_resource(request, response, callback) {
                 }
             }
             else {
-                var code = result_Obj.code;
+                var code = result_Obj.message;
                 result_Obj = {};
                 result_Obj['rsp'] = {};
                 result_Obj['rsp'].cap = code;
@@ -755,7 +775,7 @@ function check_resource(request, response, callback) {
                 }
             }
             else {
-                var code = result_Obj.code;
+                var code = result_Obj.message;
                 result_Obj = {};
                 result_Obj['rsp'] = {};
                 result_Obj['rsp'].cap = code;
@@ -788,7 +808,7 @@ function check_resource(request, response, callback) {
                 }
             }
             else {
-                var code = result_Obj.code;
+                var code = result_Obj.message;
                 result_Obj = {};
                 result_Obj['rsp'] = {};
                 result_Obj['rsp'].cap = code;
@@ -821,7 +841,7 @@ function check_resource(request, response, callback) {
             else {
                 result_Obj = {};
                 result_Obj['rsp'] = {};
-                result_Obj['rsp'].cap = result_Obj.code;
+                result_Obj['rsp'].cap = result_Obj.message;
                 responder.response_result(request, response, 500, result_Obj, 5000, url.parse(request.url).pathname.toLowerCase(), result_Obj['rsp'].cap);
                 callback('0');
                 return '0';
@@ -851,7 +871,7 @@ function check_grp(request, response, ri, callback) {
         else {
             result_Obj = {};
             result_Obj['rsp'] = {};
-            result_Obj['rsp'].cap = result_Obj.code;
+            result_Obj['rsp'].cap = result_Obj.message;
             responder.response_result(request, response, 500, result_Obj, 5000, url.parse(request.url).pathname.toLowerCase(), result_Obj['rsp'].cap);
             callback('0');
             return '0';
@@ -1376,7 +1396,7 @@ function check_csr(absolute_url, callback) {
             }
         }
         else {
-            console.log('[check_csr] query error: ' + result_csr.code);
+            console.log('[check_csr] query error: ' + result_csr.message);
         }
     });
 }

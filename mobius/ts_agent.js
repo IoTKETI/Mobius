@@ -51,7 +51,7 @@ function init_TS(callback) {
             'locale': 'ko',
             'X-M2M-RI': '12345',
             'Accept': 'application/xml',
-            'X-M2M-Origin': 'Origin',
+            'X-M2M-Origin': usecseid,
             'Content-Type': 'application/vnd.onem2m-res+xml'
         }
     };
@@ -96,7 +96,7 @@ function search_TS(request, response, callback) {
             'locale': 'ko',
             'X-M2M-RI': '12345',
             'Accept': 'application/xml',
-            'X-M2M-Origin': 'Origin',
+            'X-M2M-Origin': usecseid,
             'nmtype': 'long'
         }
     };
@@ -157,7 +157,7 @@ var missing_detect_check = function(pin, mdd, mddt, cni, ri, callback) {
                                     if (!err) {
                                     }
                                     else {
-                                        console.log('query error: ' + results.code);
+                                        console.log('query error: ' + results.message);
                                     }
                                 });
                             }
@@ -221,7 +221,7 @@ ts_app.post('/missingDataDetect', onem2mParser, function(request, response) {
         var parser = new xml2js.Parser({explicitArray: false});
         parser.parseString(request.body.toString(), function (err, result) {
             if (err) {
-                NOPRINT == 'true' ? NOPRINT = 'true' : console.log('[retrieve_CSEBase parsing error]');
+                NOPRINT == 'true' ? NOPRINT = 'true' : console.log('[retrieve_CSEBase_http parsing error]');
             }
             else {
                 var jsonString = JSON.stringify(result);
@@ -234,7 +234,7 @@ ts_app.post('/missingDataDetect', onem2mParser, function(request, response) {
                         var parser = new xml2js.Parser({explicitArray: false});
                         parser.parseString(responseBody.toString(), function (err, result) {
                             if (err) {
-                                NOPRINT == 'true' ? NOPRINT = 'true' : console.log('[retrieve_CSEBase parsing error]');
+                                NOPRINT == 'true' ? NOPRINT = 'true' : console.log('[retrieve_CSEBase_http parsing error]');
                             }
                             else {
                                 var jsonString = JSON.stringify(result);
@@ -306,7 +306,7 @@ ts_app.delete('/missingDataDetect', onem2mParser, function(request, response) {
         var parser = new xml2js.Parser({explicitArray: false});
         parser.parseString(request.body.toString(), function (err, result) {
             if (err) {
-                console.log('[retrieve_CSEBase parsing error]');
+                console.log('[retrieve_CSEBase_http parsing error]');
             }
             else {
                 var jsonString = JSON.stringify(result);

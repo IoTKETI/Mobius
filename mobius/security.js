@@ -52,7 +52,7 @@ exports.check = function(request, ty, acpiList, access_value, callback) {
                 return '0';
             }
             else {
-                console.log('query error: ' + results_acp.code);
+                console.log('query error: ' + results_acp.message);
                 callback('0');
                 return '0';
             }
@@ -97,7 +97,7 @@ exports.check = function(request, ty, acpiList, access_value, callback) {
                 return '0';
             }
             else {
-                console.log('query error: ' + results_acp.code);
+                console.log('query error: ' + results_acp.message);
                 callback('0');
                 return '0';
             }

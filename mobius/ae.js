@@ -17,10 +17,11 @@
 var url = require('url');
 var xml2js = require('xml2js');
 var xmlbuilder = require('xmlbuilder');
-var responder = require('./responder');
-
+var moment = require('moment');
 var util = require('util');
 var merge = require('merge');
+
+var responder = require('./responder');
 
 var _this = this;
 
@@ -110,6 +111,15 @@ exports.build_ae = function(request, response, resource_Obj, body_Obj, callback)
         return '0';
     }
 
+    if(!body_Obj[rootnm].rr) {
+        body_Obj = {};
+        body_Obj['rsp'] = {};
+        body_Obj['rsp'].cap = 'rr as M Tag should be included';
+        responder.response_result(request, response, 400, body_Obj, 4000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
+        callback('0', resource_Obj);
+        return '0';
+    }
+
     // body
     resource_Obj[rootnm].api = body_Obj[rootnm].api;
 
@@ -127,7 +137,16 @@ exports.build_ae = function(request, response, resource_Obj, body_Obj, callback)
     var cur_d = new Date();
     var msec = (parseInt(cur_d.getMilliseconds(), 10)<10) ? ('00'+cur_d.getMilliseconds()) : ((parseInt(cur_d.getMilliseconds(), 10)<100) ? ('0'+cur_d.getMilliseconds()) : cur_d.getMilliseconds());
     //resource_Obj[rootnm].aei = 'S' + '0.2.481.1.' + cur_d.toISOString().replace(/-/, '').replace(/-/, '').replace(/T/, '').replace(/:/, '').replace(/:/, '').replace(/\..+/, '') + msec;
-    resource_Obj[rootnm].aei = resource_Obj[rootnm].rn;
+
+    if( (request.headers['x-m2m-origin'] == 'S') ) {
+        resource_Obj[rootnm].aei = 'S' + moment().utc().format('YYYYMMDDHHmmssSSS') + randomValueBase64(4);
+    }
+    else if( (request.headers['x-m2m-origin'] == 'C') ) {
+        resource_Obj[rootnm].aei = 'C' + moment().utc().format('YYYYMMDDHHmmssSSS') + randomValueBase64(4);
+    }
+    else {
+        resource_Obj[rootnm].aei = request.headers['x-m2m-origin'];
+    }
 
     resource_Obj[rootnm].nl = '';
 

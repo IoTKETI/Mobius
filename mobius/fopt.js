@@ -93,7 +93,7 @@ function fopt_member(request, response, req_count, mid, body_Obj, cse_poa, agr, 
                 'locale': 'ko',
                 'X-M2M-RI': '12345',
                 'Accept': 'application/'+request.headers.usebodytype,
-                'X-M2M-Origin': '/'+usecsebase
+                'X-M2M-Origin': usecseid
             }
         };
 

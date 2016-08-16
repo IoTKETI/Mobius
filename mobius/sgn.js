@@ -159,7 +159,7 @@ exports.check = function(request, noti_Obj, check_value) {
             }
         }
         else {
-            console.log('query error: ' + results_ss.code);
+            console.log('query error: ' + results_ss.message);
         }
     });
 };
@@ -278,7 +278,7 @@ function request_noti_mqtt(nu, ri, xmlString, bodytype, xm2mri) {
 
         res.on('end', function () {
             if(res.statusCode == 200 || res.statusCode == 201) {
-                console.log('----> response for notification ' + res.headers['x-m2m-rsc']);
+                console.log('----> response for notification ' + res.headers['x-m2m-rsc'] + ' - ' + ri);
                 ss_fail_count[res.req._headers.ri] = 0;
             }
         });
@@ -286,7 +286,7 @@ function request_noti_mqtt(nu, ri, xmlString, bodytype, xm2mri) {
 
     req.on('error', function (e) {
         if(e.message != 'read ECONNRESET') {
-            console.log('[request_noti_mqtt] problem with request: ' + e.message);
+            console.log('[request_noti_mqtt - ' + usepxymqttport + '] problem with request: ' + e.message);
         }
     });
 

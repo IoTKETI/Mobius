@@ -70,7 +70,7 @@ custom.on('mqtt_watchdog', function() {
                     var parser = new xml2js.Parser({explicitArray: false});
                     parser.parseString(res_body.toString(), function (err, result) {
                         if (err) {
-                            console.log('[pxymqtt.js retrieve_CSEBase parsing error]');
+                            console.log('[pxymqtt.js retrieve_CSEBase_http parsing error]');
                         }
                         else {
                             jsonObj = JSON.parse(result);
@@ -163,10 +163,28 @@ function mqtt_message_handler(topic, message) {
                     if (resp_mqtt_rqi_arr[i] == jsonObj['m2m:rsp'].rqi) {
                         console.log('----> ' + jsonObj['m2m:rsp'].rsc);
 
-                        http_response_q[resp_mqtt_rqi_arr[i]].setHeader('X-M2M-RSC', '2001');
+                        http_response_q[resp_mqtt_rqi_arr[i]].setHeader('X-M2M-RSC', jsonObj['m2m:rsp'].rsc);
                         http_response_q[resp_mqtt_rqi_arr[i]].setHeader('X-M2M-RI', resp_mqtt_rqi_arr[i]);
 
-                        http_response_q[resp_mqtt_rqi_arr[i]].status(201).end('{\"m2m:rsp\":\"success to receive notification\"}');
+                        var status_code = '404';
+                        if(jsonObj['m2m:rsp'].rsc == '4105') {
+                            status_code = '409';
+                        }
+                        else if(jsonObj['m2m:rsp'].rsc == '2000') {
+                            status_code = '200';
+                        }
+                        else if(jsonObj['m2m:rsp'].rsc == '2001') {
+                            status_code = '201';
+                        }
+                        else if(jsonObj['m2m:rsp'].rsc == '4000') {
+                            status_code = '400';
+                        }
+                        else if(jsonObj['m2m:rsp'].rsc == '5000') {
+                            status_code = '500';
+                        }
+
+
+                        http_response_q[resp_mqtt_rqi_arr[i]].status(status_code).end(JSON.stringify(jsonObj['m2m:rsp'].pc));
 
                         delete http_response_q[resp_mqtt_rqi_arr[i]];
                         resp_mqtt_rqi_arr.splice(i, 1);
@@ -290,28 +308,40 @@ mqtt_app.post('/notification', onem2mParser, function(request, response, next) {
             http_response_q[rqi] = response;
 
             var pc = JSON.parse(request.body);
+            
+            try {
+                var noti_message = {};
+                noti_message['m2m:rqp'] = {};
+                noti_message['m2m:rqp'].op = 5; // notification
+                noti_message['m2m:rqp'].net = (pc['sgn'] != null) ? pc.sgn.net : pc.singleNotification.notificationEventType;
+                noti_message['m2m:rqp'].to = (pc['sgn'] != null) ? pc.sgn.sur : pc.singleNotification.subscriptionReference;
+                noti_message['m2m:rqp'].fr = usecseid;
+                noti_message['m2m:rqp'].rqi = rqi;
 
-            var noti_message = {};
-            noti_message['m2m:rqp'] = {};
-            noti_message['m2m:rqp'].op = 5; // notification
-            noti_message['m2m:rqp'].net = (pc['sgn'] != null) ? pc.sgn.net : pc.singleNotification.notificationEventType;
-            noti_message['m2m:rqp'].to = (pc['sgn'] != null) ? pc.sgn.sur : pc.singleNotification.subscriptionReference;
-            noti_message['m2m:rqp'].fr = usecseid;
-            noti_message['m2m:rqp'].rqi = rqi;
+                noti_message['m2m:rqp'].pc = pc;
 
-            noti_message['m2m:rqp'].pc = pc;
-
-            if (pc['sgn'] != null) {
-                if (!pc.sgn.nec) {
-                    var nec = pc.sgn.nec;
-                    delete pc.sgn.nec;
+                if (pc['sgn'] != null) {
+                    if (!pc.sgn.nec) {
+                        var nec = pc.sgn.nec;
+                        delete pc.sgn.nec;
+                    }
+                }
+                else {
+                    if (!pc.singleNotification.notificationEventCat) {
+                        nec = pc.singleNotification.notificationEventCat;
+                        delete pc.singleNotification.notificationEventCat;
+                    }
                 }
             }
-            else {
-                if (!pc.singleNotification.notificationEventCat) {
-                    nec = pc.singleNotification.notificationEventCat;
-                    delete pc.singleNotification.notificationEventCat;
-                }
+            catch (e) {
+                var rsp_Obj = {};
+                rsp_Obj['rsp'] = {};
+                rsp_Obj['rsp'].cap = 'notification body message type error';
+                response.setHeader('X-M2M-RSC', '4000');
+                response.setHeader('X-M2M-RI', rqi);
+
+                response.status(400).end(JSON.stringify(rsp_Obj));
+                return;
             }
 
             if (nec == 'keti') { // for mqtt implementation of keti
@@ -416,6 +446,117 @@ mqtt_app.post('/notification', onem2mParser, function(request, response, next) {
     });
 });
 
+mqtt_app.post('/register_csr', onem2mParser, function(request, response, next) {
+    var fullBody = '';
+    request.on('data', function(chunk) {
+        fullBody += chunk.toString();
+    });
+    request.on('end', function() {
+        request.body = fullBody;
+
+        var cseid = (request.headers.cseid == null) ? '' : request.headers.cseid;
+
+        if (cseid == '') {
+            console.log('cseid of register url is none');
+            return;
+        }
+
+        if (mqtt_state == 'ready') {
+            var reg_req_topic = util.format('/oneM2M/reg_req/%s/%s/%s', usecseid.replace('/', ':'), cseid.replace('/', ':'), request.headers.bodytype);
+
+            var rqi = request.headers['x-m2m-ri'];
+            resp_mqtt_rqi_arr.push(rqi);
+            http_response_q[rqi] = response;
+
+            var pc = JSON.parse(request.body);
+
+            var req_message = {};
+            req_message['m2m:rqp'] = {};
+            req_message['m2m:rqp'].op = '1'; // post
+            req_message['m2m:rqp'].to = '/'+request.headers.csebasename;
+            req_message['m2m:rqp'].fr = request.headers['x-m2m-origin'];
+            req_message['m2m:rqp'].rqi = rqi;
+            req_message['m2m:rqp'].ty = '16';
+
+            req_message['m2m:rqp'].pc = pc;
+
+            if (request.headers.bodytype == 'xml') {
+                req_message['m2m:rqp']['@'] = {
+                    "xmlns:m2m": "http://www.onem2m.org/xml/protocols",
+                    "xmlns:xsi": "http://www.w3.org/2001/XMLSchema-instance"
+                };
+
+                var xmlString = js2xmlparser("m2m:rqp", req_message['m2m:rqp']);
+
+                pxymqtt_client.publish(reg_req_topic, xmlString);
+                console.log('<---- ' + reg_req_topic);
+            }
+            else { // 'json'
+                pxymqtt_client.publish(reg_req_topic, JSON.stringify(req_message));
+                console.log('<---- ' + reg_req_topic);
+            }
+        }
+        else {
+            console.log('pxymqtt is not ready');
+        }
+    });
+});
+
+mqtt_app.get('/get_cb', onem2mParser, function(request, response, next) {
+    var fullBody = '';
+    request.on('data', function(chunk) {
+        fullBody += chunk.toString();
+    });
+    request.on('end', function() {
+        request.body = fullBody;
+
+        var cseid = (request.headers.cseid == null) ? '' : request.headers.cseid;
+
+        if (cseid == '') {
+            console.log('cseid of register url is none');
+            return;
+        }
+
+        if (mqtt_state == 'ready') {
+            var reg_req_topic = util.format('/oneM2M/reg_req/%s/%s/%s', usecseid.replace('/', ':'), cseid.replace('/', ':'), request.headers.bodytype);
+
+            var rqi = request.headers['x-m2m-ri'];
+            resp_mqtt_rqi_arr.push(rqi);
+            http_response_q[rqi] = response;
+
+            var pc = '';
+
+            var req_message = {};
+            req_message['m2m:rqp'] = {};
+            req_message['m2m:rqp'].op = '2'; // get
+            req_message['m2m:rqp'].to = '/'+request.headers.csebasename;
+            req_message['m2m:rqp'].fr = request.headers['x-m2m-origin'];
+            req_message['m2m:rqp'].rqi = rqi;
+            req_message['m2m:rqp'].ty = '16';
+
+            req_message['m2m:rqp'].pc = pc;
+
+            if (request.headers.bodytype == 'xml') {
+                req_message['m2m:rqp']['@'] = {
+                    "xmlns:m2m": "http://www.onem2m.org/xml/protocols",
+                    "xmlns:xsi": "http://www.w3.org/2001/XMLSchema-instance"
+                };
+
+                var xmlString = js2xmlparser("m2m:rqp", req_message['m2m:rqp']);
+
+                pxymqtt_client.publish(reg_req_topic, xmlString);
+                console.log('<---- ' + reg_req_topic);
+            }
+            else { // 'json'
+                pxymqtt_client.publish(reg_req_topic, JSON.stringify(req_message));
+                console.log('<---- ' + reg_req_topic);
+            }
+        }
+        else {
+            console.log('pxymqtt is not ready');
+        }
+    });
+});
 
 function response_mqtt(mqtt_client, rsp_topic, rsc, to, fr, rqi, inpc, bodytype) {
     var rsp_message = {};
@@ -618,7 +759,7 @@ function http_retrieve_CSEBase(callback) {
             'locale': 'ko',
             'X-M2M-RI': '12345',
             'Accept': 'application/' + defaultbodytype,
-            'X-M2M-Origin': 'Origin',
+            'X-M2M-Origin': usecseid,
             'nmtype': defaultnmtype
         }
     };
@@ -667,6 +808,8 @@ function mqtt_binding(mqtt_client, resp_cseid, op, to, fr, rqi, ty, pc, bodytype
 
     var reqBodyString = '';
     if( op == 'post' || op == 'put') {
+        var temp_pc = JSON.stringify(pc).replace(/m2m:/g, '');
+        pc = JSON.parse(temp_pc);
         var jsonObj = {};
         if(bodytype == 'xml') {
             switch (ty) {
@@ -793,7 +936,7 @@ function mqtt_binding(mqtt_client, resp_cseid, op, to, fr, rqi, ty, pc, bodytype
 //             }
 //         }
 //         else {
-//             console.log('query error: ' + results.code);
+//             console.log('query error: ' + results.message);
 //         }
 //     });
 // }

@@ -17,13 +17,15 @@ var mn = require('./mobius/mn');
 global.defaultnmtype        = 'short';
 global.defaultbodytype      = 'json';
 
+
 // parent CSE information
 global.parent_cbname        = 'mobius';
 global.parent_cbcseid       = '/mobius';
 global.parent_cbhost        = 'localhost';
 global.parent_cbhostport    = '7579';
-global.parent_cbprotocol    = 'http'; // 'http' or 'mqtt'
+global.parent_cbprotocol    = 'mqtt';               // select 'http' or 'mqtt' when register remoteCSE
 global.parent_mqttbroker    = '203.253.128.151';
+
 
 // my CSE information
 global.usecsetype           = 'mn'; // select 'in or 'mn' or asn'
@@ -31,12 +33,12 @@ global.usecsebase           = 'rosemary';
 global.usecseid             = '/rosemary';
 global.usecsebaseport       = '7575';
 
-global.usepxymqttport       = '7574';
-global.usetsagentport       = '7573';
-
 global.usedbhost            = 'localhost';
 global.usedbpass            = 'dksdlfduq2';
 
+
+global.usepxymqttport       = '7574';
+global.usetsagentport       = '7573';
 
 global.usemqttbroker        = parent_mqttbroker; // mobius to mqttbroker
 

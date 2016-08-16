@@ -15,19 +15,21 @@
 global.defaultnmtype        = 'short';
 global.defaultbodytype      = 'json';
 
+
 // my CSE information
 global.usecsetype           = 'in'; // select 'in' or 'mn' or asn'
-global.usecsebase           = 'mobius';
-global.usecseid             = '/mobius';
+global.usecsebase           = 'mobius-yt';
+global.usecseid             = '/mobius-yt';
 global.usecsebaseport       = '7579';
 
 global.usedbhost            = 'localhost';
 global.usedbpass            = 'dksdlfduq2';
 
+
 global.usepxymqttport       = '7580';
 global.usetsagentport       = '7581';
 
-global.usemqttbroker = '203.253.128.151'; // mobius to mqttbroker
+global.usemqttbroker        = 'localhost'; // mqttbroker for mobius
 
 
 // CSE core
