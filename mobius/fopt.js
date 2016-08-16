@@ -31,15 +31,17 @@ function check_body(res, body_type, res_body, callback) {
         parser.parseString(res_body, function (err, result) {
             if (!err) {
                 for (var prop in result) {
-                    if(result[prop]['$'] != null) {
-                        if(result[prop]['$'].rn != null) {
-                            result[prop].rn = result[prop]['$'].rn;
+                    if(result.hasOwnProperty(prop)) {
+                        if (result[prop]['$'] != null) {
+                            if (result[prop]['$'].rn != null) {
+                                result[prop].rn = result[prop]['$'].rn;
+                            }
+                            delete result[prop]['$'];
                         }
-                        delete result[prop]['$'];
+                        retrieve_Obj.fr = res.req.path;
+                        retrieve_Obj.rsc = res.headers['x-m2m-rsc'];
+                        retrieve_Obj.pc = result;
                     }
-                    retrieve_Obj.fr = res.req.path;
-                    retrieve_Obj.rsc = res.headers['x-m2m-rsc'];
-                    retrieve_Obj.pc = result;
                 }
                 callback('1', retrieve_Obj);
                 return '1';
@@ -52,11 +54,11 @@ function check_body(res, body_type, res_body, callback) {
     }
     else { // json
         var result = JSON.parse(res_body);
-        for (var prop in result) {
+        //for (var prop in result) {
             retrieve_Obj.fr = res.req.path;
             retrieve_Obj.rsc = res.headers['x-m2m-rsc'];
             retrieve_Obj.pc = result;
-        }
+        //}
         callback('1', retrieve_Obj);
         return '1';
     }
@@ -99,7 +101,7 @@ function fopt_member(request, response, req_count, mid, body_Obj, cse_poa, agr, 
 
         var responseBody = '';
         var req = http.request(options, function (res) {
-            res.setEncoding('utf8');
+            //res.setEncoding('utf8');
             res.on('data', function (chunk) {
                 responseBody += chunk;
             });
@@ -107,9 +109,9 @@ function fopt_member(request, response, req_count, mid, body_Obj, cse_poa, agr, 
             res.on('end', function () {
                 check_body(res, request.headers.usebodytype, responseBody, function (rsc, retrieve_Obj) {
                     if (rsc == '1') {
-                        for (var prop in retrieve_Obj.pc) {
+                        //for (var prop in retrieve_Obj.pc) {
                             agr[retrieve_Obj.fr] = retrieve_Obj;
-                        }
+                        //}
                     }
 
                     fopt_member(request, response, req_count, mid, body_Obj, cse_poa, agr, function (agr) {

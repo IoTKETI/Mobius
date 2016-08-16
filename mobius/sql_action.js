@@ -731,7 +731,6 @@ exports.update_st_lookup = function (st, ri, callback) {
 };
 
 exports.update_acp = function (lt, acpi, et, st, lbl, at, aa, mni, ri, pv, pvs, callback) {
-    var body_Obj = {};
     console.time('update_acp');
     var sql1 = util.format('update lookup set lt = \'%s\', acpi = \'%s\', et = \'%s\', st = \'%s\', lbl = \'%s\', at = \'%s\', aa = \'%s\', mni = \'%s\' where ri = \'%s\'',
         lt, acpi, et, st, lbl, at, aa, mni, ri);
@@ -756,7 +755,6 @@ exports.update_acp = function (lt, acpi, et, st, lbl, at, aa, mni, ri, pv, pvs, 
 };
 
 exports.update_ae = function (lt, acpi, et, st, lbl, at, aa, mni, ri, apn, poa, or, rr, callback) {
-    var body_Obj = {};
     console.time('update_ae');
     var sql1 = util.format('update lookup set lt = \'%s\', acpi = \'%s\', et = \'%s\', st = \'%s\', lbl = \'%s\', at = \'%s\', aa = \'%s\', mni = \'%s\' where ri = \'%s\'',
         lt, acpi, et, st, lbl, at, aa, mni, ri);
@@ -781,7 +779,6 @@ exports.update_ae = function (lt, acpi, et, st, lbl, at, aa, mni, ri, apn, poa, 
 };
 
 exports.update_cnt = function (lt, acpi, et, st, lbl, at, aa, mni, ri, mbs, mia, li, or, callback) {
-    var body_Obj = {};
     console.time('update_cnt');
     var sql1 = util.format('update lookup set lt = \'%s\', acpi = \'%s\', et = \'%s\', st = \'%s\', lbl = \'%s\', at = \'%s\', aa = \'%s\', mni = \'%s\' where ri = \'%s\'',
         lt, acpi, et, st, lbl, at, aa, mni, ri);
@@ -806,7 +803,6 @@ exports.update_cnt = function (lt, acpi, et, st, lbl, at, aa, mni, ri, mbs, mia,
 };
 
 exports.update_grp = function (lt, acpi, et, st, lbl, at, aa, mni, ri, mnm, mid, macp, gn, callback) {
-    var body_Obj = {};
     console.time('update_grp');
     var sql1 = util.format('update lookup set lt = \'%s\', acpi = \'%s\', et = \'%s\', st = \'%s\', lbl = \'%s\', at = \'%s\', aa = \'%s\', mni = \'%s\' where ri = \'%s\'',
         lt, acpi, et, st, lbl, at, aa, mni, ri);
@@ -831,7 +827,6 @@ exports.update_grp = function (lt, acpi, et, st, lbl, at, aa, mni, ri, mnm, mid,
 };
 
 exports.update_lcp = function (lt, acpi, et, st, lbl, at, aa, mni, ri, lou, lon, callback) {
-    var body_Obj = {};
     console.time('update_lcp');
     var sql1 = util.format('update lookup set lt = \'%s\', acpi = \'%s\', et = \'%s\', st = \'%s\', lbl = \'%s\', at = \'%s\', aa = \'%s\', mni = \'%s\' where ri = \'%s\'',
         lt, acpi, et, st, lbl, at, aa, mni, ri);
@@ -856,7 +851,6 @@ exports.update_lcp = function (lt, acpi, et, st, lbl, at, aa, mni, ri, lou, lon,
 };
 
 exports.update_csr = function (lt, acpi, et, st, lbl, at, aa, mni, ri, poa, mei, tri, rr, nl, callback) {
-    var body_Obj = {};
     console.time('update_csr');
     var sql1 = util.format('update lookup set lt = \'%s\', acpi = \'%s\', et = \'%s\', st = \'%s\', lbl = \'%s\', at = \'%s\', aa = \'%s\', mni = \'%s\' where ri = \'%s\'',
         lt, acpi, et, st, lbl, at, aa, mni, ri);
@@ -881,7 +875,6 @@ exports.update_csr = function (lt, acpi, et, st, lbl, at, aa, mni, ri, poa, mei,
 };
 
 exports.update_sub = function (lt, acpi, et, st, lbl, at, aa, mni, ri, enc, exc, nu, gpi, nfu, bn, rl, pn, nsp, ln, nct, nec, callback) {
-    var body_Obj = {};
     console.time('update_sub');
     var sql1 = util.format('update lookup set lt = \'%s\', acpi = \'%s\', et = \'%s\', st = \'%s\', lbl = \'%s\', at = \'%s\', aa = \'%s\', mni = \'%s\' where ri = \'%s\'',
         lt, acpi, et, st, lbl, at, aa, mni, ri);
@@ -906,7 +899,6 @@ exports.update_sub = function (lt, acpi, et, st, lbl, at, aa, mni, ri, enc, exc,
 };
 
 exports.update_sd = function (lt, acpi, et, st, lbl, at, aa, mni, ri, dspt, or, callback) {
-    var body_Obj = {};
     console.time('update_sd');
     var sql1 = util.format('update lookup set lt = \'%s\', acpi = \'%s\', et = \'%s\', st = \'%s\', lbl = \'%s\', at = \'%s\', aa = \'%s\', mni = \'%s\' where ri = \'%s\'',
         lt, acpi, et, st, lbl, at, aa, mni, ri);
@@ -931,7 +923,6 @@ exports.update_sd = function (lt, acpi, et, st, lbl, at, aa, mni, ri, dspt, or, 
 };
 
 exports.update_ts = function (lt, acpi, et, st, lbl, at, aa, mni, ri, mbs, mia, or, mdmn, mddt, mdl, mdcn, callback) {
-    var body_Obj = {};
     console.time('update_ts');
     var sql1 = util.format('update lookup set lt = \'%s\', acpi = \'%s\', et = \'%s\', st = \'%s\', lbl = \'%s\', at = \'%s\', aa = \'%s\', mni = \'%s\' where ri = \'%s\'',
         lt, acpi, et, st, lbl, at, aa, mni, ri);
@@ -956,7 +947,6 @@ exports.update_ts = function (lt, acpi, et, st, lbl, at, aa, mni, ri, mbs, mia, 
 };
 
 exports.update_mms = function (lt, acpi, et, st, lbl, at, aa, mni, ri, stid, asd, osd, sst, callback) {
-    var body_Obj = {};
     console.time('update_mms');
     var sql1 = util.format('update lookup set lt = \'%s\', acpi = \'%s\', et = \'%s\', st = \'%s\', lbl = \'%s\', at = \'%s\', aa = \'%s\', mni = \'%s\' where ri = \'%s\'',
         lt, acpi, et, st, lbl, at, aa, mni, ri);

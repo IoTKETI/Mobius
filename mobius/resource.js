@@ -83,7 +83,7 @@ function check_TS(ri, callback) {
 
     var responseBody = '';
     var req = http.request(options, function (res) {
-        res.setEncoding('utf8');
+        //res.setEncoding('utf8');
         res.on('data', function (chunk) {
             responseBody += chunk;
         });
@@ -122,7 +122,7 @@ function delete_TS(ri, callback) {
 
     var responseBody = '';
     var req = http.request(options, function (res) {
-        res.setEncoding('utf8');
+        //res.setEncoding('utf8');
         res.on('data', function (chunk) {
             responseBody += chunk;
         });
@@ -162,7 +162,7 @@ function create_action_cni(ri, ty, pi, mni, cs, callback) {
                         cni = (parseInt(cni, 10) - 1).toString();
                         cbs = (parseInt(cbs, 10) - parseInt(results[0].cs, 10)).toString();
                         sql = util.format("delete from lookup where ri = \'%s\'", results[0].ri);
-                        db.getResult(sql, '', function (err, results) {
+                        db.getResult(sql, '', function (err) {
                             if (!err) {
                                 st = (parseInt(st, 10) + 1).toString();
                                 cni = (parseInt(cni, 10) + 1).toString();
@@ -765,7 +765,7 @@ exports.create = function(request, response, ty, body_Obj) {
     });
 };
 
-function presearch_action(request, response, ty, ri_list, comm_Obj, callback) {
+function presearch_action(request, response, ri_list, comm_Obj, callback) {
     //var rootnm = request.headers.rootnm;
     var pi_list = [];
     db_sql.search_parents_lookup(comm_Obj.ri, function (err, search_Obj) {
@@ -825,7 +825,7 @@ function search_action(request, response, seq, resource_Obj, ri_list, strObj, pr
         return '0';
     }
 
-    var rootnm = request.headers.rootnm;
+    //var rootnm = request.headers.rootnm;
 
     var sql = util.format("select * from " + responder.typeRsrc[ty_list[seq]] + " where ri in ("+JSON.stringify(ri_list).replace('[','').replace(']','')+")");
 
@@ -916,14 +916,14 @@ function retrieve_action(request, response, ty, comm_Obj, callback) {
             spec_Obj = {};
             spec_Obj['rsp'] = {};
             spec_Obj['rsp'].cap = spec_Obj.message;
-            responder.response_result(request, response, 500, spec_Obj, 5000, url.parse(request.url).pathname.toLowerCase(), search_Obj['rsp'].cap);
+            responder.response_result(request, response, 500, spec_Obj, 5000, url.parse(request.url).pathname.toLowerCase(), spec_Obj['rsp'].cap);
             callback('0', resource_Obj);
             return '0';
         }
     });
 }
 
-function get_resource(request, response, ty, comm_Obj, callback) {
+function get_resource(request, callback) {
     var rootnm = request.headers.rootnm;
     var resource_Obj = {};
     resource_Obj[rootnm] = {};
@@ -931,7 +931,7 @@ function get_resource(request, response, ty, comm_Obj, callback) {
     callback('1', resource_Obj);
 }
 
-function search_resource(request, response, ty, comm_Obj, callback) {
+function search_resource(request, callback) {
     var rootnm = 'agr';
     request.headers.rootnm = 'agr';
     var resource_Obj = {};
@@ -948,7 +948,7 @@ exports.retrieve = function(request, response, comm_Obj) {
 
         var rootnm = request.headers.rootnm;
 
-        get_resource(request, response, ty, comm_Obj, function (rsc, resource_Obj) {
+        get_resource(request, function (rsc) {
             if (rsc == '0') {
                 return rsc;
             }
@@ -962,12 +962,12 @@ exports.retrieve = function(request, response, comm_Obj) {
         });
     }
     else {
-        search_resource(request, response, ty, comm_Obj, function (rsc, resource_Obj) {
+        search_resource(request, function (rsc, resource_Obj) {
             if (rsc == '0') {
                 return rsc;
             }
             var ri_list = [];
-            presearch_action(request, response, ty, ri_list, comm_Obj, function (rsc, ri_list, search_Obj) {
+            presearch_action(request, response, ri_list, comm_Obj, function (rsc, ri_list, search_Obj) {
                 if (rsc == '0') {
                     return rsc;
                 }
@@ -1012,7 +1012,7 @@ exports.retrieve = function(request, response, comm_Obj) {
     }
 };
 
-function update_action_mni(request, response, ty, ri, mni, callback) {
+function update_action_mni(ty, ri, mni, callback) {
     //var sql = util.format("delete from lookup where ri in (select ri from (select ri from lookup where pi = \'%s\' and ty = \'%s\' order by ri desc limit %s, 9007199254740991) x)", ri, ty, mni);
 
     if(mni == '18446744073709551615') {
@@ -1065,6 +1065,7 @@ function update_action_mni(request, response, ty, ri, mni, callback) {
 
 function update_action( request, response, ty, resource_Obj, callback) {
     var rootnm = request.headers.rootnm;
+    var body_Obj = {};
 
     if(ty == '1') {
         db_sql.update_acp(resource_Obj[rootnm].lt, JSON.stringify(resource_Obj[rootnm].acpi), resource_Obj[rootnm].et, resource_Obj[rootnm].st, JSON.stringify(resource_Obj[rootnm].lbl),
@@ -1105,7 +1106,7 @@ function update_action( request, response, ty, resource_Obj, callback) {
             JSON.stringify(resource_Obj[rootnm].at), JSON.stringify(resource_Obj[rootnm].aa), resource_Obj[rootnm].mni, resource_Obj[rootnm].ri,
             resource_Obj[rootnm].mbs, resource_Obj[rootnm].mia, resource_Obj[rootnm].li, resource_Obj[rootnm].or, function (err, results) {
                 if (!err) {
-                    update_action_mni(request, response, '4', resource_Obj[rootnm].ri, resource_Obj[rootnm].mni, function(rsc, cni, cbs) {
+                    update_action_mni('4', resource_Obj[rootnm].ri, resource_Obj[rootnm].mni, function(rsc, cni, cbs) {
                         resource_Obj[rootnm].cni = cni;
                         resource_Obj[rootnm].cbs = cbs;
                         callback('1', resource_Obj);
@@ -1344,7 +1345,7 @@ exports.update = function(request, response, comm_Obj, body_Obj) {
 };
 
 
-function delete_action(request, response, ty, resource_Obj, comm_Obj, callback) {
+function delete_action(request, response, resource_Obj, comm_Obj, callback) {
     var rootnm = request.headers.rootnm;
     var pi_list = [];
     db_sql.search_parents_lookup(comm_Obj.ri, function (err, search_Obj) {
@@ -1391,7 +1392,7 @@ function delete_action(request, response, ty, resource_Obj, comm_Obj, callback) 
     });
 }
 
-function delete_resource(request, response, ty, comm_Obj, callback) {
+function delete_resource(request, comm_Obj, callback) {
     var rootnm = request.headers.rootnm;
     var resource_Obj = {};
     resource_Obj[rootnm] = {};
@@ -1408,11 +1409,11 @@ exports.delete = function(request, response, comm_Obj) {
 
     var rootnm = request.headers.rootnm;
 
-    delete_resource(request, response, ty, comm_Obj, function(rsc, resource_Obj) {
+    delete_resource(request, comm_Obj, function(rsc, resource_Obj) {
         if(rsc == '0') {
             return rsc;
         }
-        delete_action(request, response, ty, resource_Obj, comm_Obj, function(rsc, delete_Obj) {
+        delete_action(request, response, resource_Obj, comm_Obj, function(rsc, delete_Obj) {
             if(rsc == '1') {
                 _this.remove_no_value(request, delete_Obj);
 

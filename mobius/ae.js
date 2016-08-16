@@ -23,9 +23,6 @@ var merge = require('merge');
 
 var responder = require('./responder');
 
-var _this = this;
-
-
 exports.build_ae = function(request, response, resource_Obj, body_Obj, callback) {
     var rootnm = request.headers.rootnm;
 
@@ -134,8 +131,8 @@ exports.build_ae = function(request, response, resource_Obj, body_Obj, callback)
     resource_Obj[rootnm].or = (body_Obj[rootnm].or) ? body_Obj[rootnm].or : '';
     resource_Obj[rootnm].rr = (body_Obj[rootnm].rr) ? body_Obj[rootnm].rr : '';
 
-    var cur_d = new Date();
-    var msec = (parseInt(cur_d.getMilliseconds(), 10)<10) ? ('00'+cur_d.getMilliseconds()) : ((parseInt(cur_d.getMilliseconds(), 10)<100) ? ('0'+cur_d.getMilliseconds()) : cur_d.getMilliseconds());
+    //var cur_d = new Date();
+    //var msec = (parseInt(cur_d.getMilliseconds(), 10)<10) ? ('00'+cur_d.getMilliseconds()) : ((parseInt(cur_d.getMilliseconds(), 10)<100) ? ('0'+cur_d.getMilliseconds()) : cur_d.getMilliseconds());
     //resource_Obj[rootnm].aei = 'S' + '0.2.481.1.' + cur_d.toISOString().replace(/-/, '').replace(/-/, '').replace(/T/, '').replace(/:/, '').replace(/:/, '').replace(/\..+/, '') + msec;
 
     if( (request.headers['x-m2m-origin'] == 'S') ) {
