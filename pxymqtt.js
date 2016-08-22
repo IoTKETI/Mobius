@@ -837,27 +837,92 @@ function mqtt_binding(mqtt_client, resp_cseid, op, to, fr, rqi, ty, pc, bodytype
                     break;
                 case '2':
                     jsonObj = (pc.ae == null) ? pc['ae'] : pc['ae'];
-                    jsonObj['@'] = {"xmlns:m2m": "http://www.onem2m.org/xml/protocols", "xmlns:xsi": "http://www.w3.org/2001/XMLSchema-instance"};
+                    if(pc.ae['$'].rn) {
+                        jsonObj['@'] = {
+                            "xmlns:m2m": "http://www.onem2m.org/xml/protocols",
+                            "xmlns:xsi": "http://www.w3.org/2001/XMLSchema-instance",
+                            "rn": pc.ae['$'].rn
+                        };
+                        delete pc.ae['$'];
+                    }
+                    else {
+                        jsonObj['@'] = {
+                            "xmlns:m2m": "http://www.onem2m.org/xml/protocols",
+                            "xmlns:xsi": "http://www.w3.org/2001/XMLSchema-instance"
+                        };
+                    }
                     reqBodyString = (pc.ae == null) ? js2xmlparser('m2m:AE', JSON.stringify(jsonObj)) : js2xmlparser('m2m:ae', JSON.stringify(jsonObj));
                     break;
                 case '3':
                     jsonObj = (pc.cnt == null) ? pc['container'] : pc['cnt'];
-                    jsonObj['@'] = {"xmlns:m2m": "http://www.onem2m.org/xml/protocols", "xmlns:xsi": "http://www.w3.org/2001/XMLSchema-instance"};
+                    if(pc.cnt['$'].rn) {
+                        jsonObj['@'] = {
+                            "xmlns:m2m": "http://www.onem2m.org/xml/protocols",
+                            "xmlns:xsi": "http://www.w3.org/2001/XMLSchema-instance",
+                            "rn": pc.cnt['$'].rn
+                        };
+                        delete pc.cnt['$'];
+                    }
+                    else {
+                        jsonObj['@'] = {
+                            "xmlns:m2m": "http://www.onem2m.org/xml/protocols",
+                            "xmlns:xsi": "http://www.w3.org/2001/XMLSchema-instance"
+                        };
+                    }
                     reqBodyString = (pc.cnt == null) ? js2xmlparser('m2m:container', JSON.stringify(jsonObj)) : js2xmlparser('m2m:cnt', JSON.stringify(jsonObj));
                     break;
                 case '4':
                     jsonObj = (pc.cin == null) ? pc['contentInstance'] : pc['cin'];
-                    jsonObj['@'] = {"xmlns:m2m": "http://www.onem2m.org/xml/protocols", "xmlns:xsi": "http://www.w3.org/2001/XMLSchema-instance"};
+                    if(pc.cin['$'].rn) {
+                        jsonObj['@'] = {
+                            "xmlns:m2m": "http://www.onem2m.org/xml/protocols",
+                            "xmlns:xsi": "http://www.w3.org/2001/XMLSchema-instance",
+                            "rn": pc.cin['$'].rn
+                        };
+                        delete pc.cin['$'];
+                    }
+                    else {
+                        jsonObj['@'] = {
+                            "xmlns:m2m": "http://www.onem2m.org/xml/protocols",
+                            "xmlns:xsi": "http://www.w3.org/2001/XMLSchema-instance"
+                        };
+                    }
                     reqBodyString = (pc.cin == null) ? js2xmlparser('m2m:contentInstance', JSON.stringify(jsonObj)) : js2xmlparser('m2m:cin', JSON.stringify(jsonObj));
                     break;
                 case '23':
                     jsonObj = (pc.sub == null) ? pc['sgn'] : pc['sub'];
-                    jsonObj['@'] = {"xmlns:m2m": "http://www.onem2m.org/xml/protocols", "xmlns:xsi": "http://www.w3.org/2001/XMLSchema-instance"};
+                    if(pc.sub['$'].rn) {
+                        jsonObj['@'] = {
+                            "xmlns:m2m": "http://www.onem2m.org/xml/protocols",
+                            "xmlns:xsi": "http://www.w3.org/2001/XMLSchema-instance",
+                            "rn": pc.sub['$'].rn
+                        };
+                        delete pc.sub['$'];
+                    }
+                    else {
+                        jsonObj['@'] = {
+                            "xmlns:m2m": "http://www.onem2m.org/xml/protocols",
+                            "xmlns:xsi": "http://www.w3.org/2001/XMLSchema-instance"
+                        };
+                    }
                     reqBodyString = (pc.sub == null) ? js2xmlparser('m2m:subscription', JSON.stringify(jsonObj)) : js2xmlparser('m2m:sub', JSON.stringify(jsonObj));
                     break;
                 case '24':
                     jsonObj = (pc.sd == null) ? pc['semanticDescriptor'] : pc['sd'];
-                    jsonObj['@'] = {"xmlns:m2m": "http://www.onem2m.org/xml/protocols", "xmlns:xsi": "http://www.w3.org/2001/XMLSchema-instance"};
+                    if(pc.sd['$'].rn) {
+                        jsonObj['@'] = {
+                            "xmlns:m2m": "http://www.onem2m.org/xml/protocols",
+                            "xmlns:xsi": "http://www.w3.org/2001/XMLSchema-instance",
+                            "rn": pc.sd['$'].rn
+                        };
+                        delete pc.sub['$'];
+                    }
+                    else {
+                        jsonObj['@'] = {
+                            "xmlns:m2m": "http://www.onem2m.org/xml/protocols",
+                            "xmlns:xsi": "http://www.w3.org/2001/XMLSchema-instance"
+                        };
+                    }
                     reqBodyString = (pc.sd == null) ? js2xmlparser('m2m:semanticDescriptor', JSON.stringify(jsonObj)) : js2xmlparser('m2m:sd', JSON.stringify(jsonObj));
                     break;
             }
