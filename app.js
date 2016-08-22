@@ -111,7 +111,7 @@ if(cluster.isMaster) {
                 if(usecsetype == 'mn' || usecsetype == 'asn') {
                     global.refreshIntervalId = setInterval(function () {
                         custom.emit('register_remoteCSE');
-                    }, 2000);
+                    }, 5000);
                 }
             });
         }

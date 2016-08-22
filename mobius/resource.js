@@ -63,14 +63,14 @@ exports.remove_no_value = function(request, resource_Obj) {
 
 
 function check_TS(ri, callback) {
+    var rqi = moment().utc().format('mmssSSS') + randomValueBase64(4);
     var options = {
         hostname: 'localhost',
         port: usetsagentport,
         path: '/missingDataDetect',
         method: 'post',
         headers: {
-            'locale': 'ko',
-            'X-M2M-RI': '12345',
+            'X-M2M-RI': rqi,
             'Accept': 'application/xml',
             'X-M2M-Origin': usecseid,
             'Content-Type': 'application/vnd.onem2m-res+xml'
@@ -105,14 +105,14 @@ function check_TS(ri, callback) {
 }
 
 function delete_TS(ri, callback) {
+    var rqi = moment().utc().format('mmssSSS') + randomValueBase64(4);
     var options = {
         hostname: 'localhost',
         port: usetsagentport,
         path: '/missingDataDetect',
         method: 'delete',
         headers: {
-            'locale': 'ko',
-            'X-M2M-RI': '12345',
+            'X-M2M-RI': rqi,
             'Accept': 'application/xml',
             'X-M2M-Origin': usecseid
         }

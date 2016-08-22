@@ -19,6 +19,7 @@ var url = require('url');
 var http = require('http');
 var xml2js = require('xml2js');
 var xmlbuilder = require('xmlbuilder');
+var moment = require('moment');
 
 var responder = require('./responder');
 var resource = require('./resource');
@@ -86,14 +87,14 @@ function fopt_member(request, response, req_count, mid, body_Obj, cse_poa, agr, 
             }
         }
 
+        var rqi = moment().utc().format('mmssSSS') + randomValueBase64(4);
         var options = {
             hostname: hostname,
             port: port,
             path: ri,
             method: request.method,
             headers: {
-                'locale': 'ko',
-                'X-M2M-RI': '12345',
+                'X-M2M-RI': rqi,
                 'Accept': 'application/'+request.headers.usebodytype,
                 'X-M2M-Origin': usecseid
             }

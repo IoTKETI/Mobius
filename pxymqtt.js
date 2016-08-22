@@ -24,7 +24,7 @@ var xml2js = require('xml2js');
 var url = require('url');
 var xmlbuilder = require('xmlbuilder');
 var js2xmlparser = require("js2xmlparser");
-
+var moment = require('moment');
 var ip = require("ip");
 
 var resp_mqtt_client_arr = [];
@@ -141,10 +141,27 @@ function mqtt_message_handler(topic, message) {
                             if (resp_mqtt_rqi_arr[i] == jsonObj['m2m:rsp'].rqi) {
                                 console.log('----> ' + jsonObj['m2m:rsp'].rsc);
 
-                                http_response_q[resp_mqtt_rqi_arr[i]].setHeader('X-M2M-RSC', '2001');
+                                http_response_q[resp_mqtt_rqi_arr[i]].setHeader('X-M2M-RSC', jsonObj['m2m:rsp'].rsc);
                                 http_response_q[resp_mqtt_rqi_arr[i]].setHeader('X-M2M-RI', resp_mqtt_rqi_arr[i]);
 
-                                http_response_q[resp_mqtt_rqi_arr[i]].status(201).end('<m2m:rsp>success to receive notification</m2m:rsp>');
+                                var status_code = '404';
+                                if(jsonObj['m2m:rsp'].rsc == '4105') {
+                                    status_code = '409';
+                                }
+                                else if(jsonObj['m2m:rsp'].rsc == '2000') {
+                                    status_code = '200';
+                                }
+                                else if(jsonObj['m2m:rsp'].rsc == '2001') {
+                                    status_code = '201';
+                                }
+                                else if(jsonObj['m2m:rsp'].rsc == '4000') {
+                                    status_code = '400';
+                                }
+                                else if(jsonObj['m2m:rsp'].rsc == '5000') {
+                                    status_code = '500';
+                                }
+
+                                http_response_q[resp_mqtt_rqi_arr[i]].status(status_code).end(JSON.stringify(jsonObj['m2m:rsp'].pc));
 
                                 delete http_response_q[resp_mqtt_rqi_arr[i]];
                                 resp_mqtt_rqi_arr.splice(i, 1);
@@ -182,7 +199,6 @@ function mqtt_message_handler(topic, message) {
                         else if(jsonObj['m2m:rsp'].rsc == '5000') {
                             status_code = '500';
                         }
-
 
                         http_response_q[resp_mqtt_rqi_arr[i]].status(status_code).end(JSON.stringify(jsonObj['m2m:rsp'].pc));
 
@@ -653,7 +669,7 @@ function mqtt_req_action(mqtt_client, topic_arr, bodytype, jsonObj) {
                 else { // 'json
                     var rsp_topic = '/oneM2M/resp/' + topic_arr[3] + '/' + topic_arr[4] + '/' + topic_arr[5];
 
-                    res_body = res_body.toString().replace('m2m:', '');
+                    //res_body = res_body.toString().replace('m2m:', '');
                     response_mqtt(mqtt_client, rsp_topic, res.headers['x-m2m-rsc'], to, usecseid, rqi, JSON.parse(res_body), bodytype);
                 }
             });
@@ -706,7 +722,7 @@ function mqtt_req_action2(mqtt_client, topic_arr, bodytype, jsonObj) {
                 else { // 'json
                     var rsp_topic = '/resp/' + topic_arr[2] + '/' + topic_arr[3] + '/' + topic_arr[4];
 
-                    res_body = res_body.toString().replace('m2m:', '');
+                    //res_body = res_body.toString().replace('m2m:', '');
                     response_mqtt(mqtt_client, rsp_topic, res.headers['x-m2m-rsc'], to, usecseid, rqi, JSON.parse(res_body), bodytype);
                 }
             });
@@ -749,6 +765,7 @@ function reg_req_connect(mqtt_client) {
 
 
 function http_retrieve_CSEBase(callback) {
+    var rqi = moment().utc().format('mmssSSS') + randomValueBase64(4);
     var resourceid = '/' + usecsebase;
     var options = {
         hostname: usemqttcbhost,
@@ -757,7 +774,7 @@ function http_retrieve_CSEBase(callback) {
         method: 'get',
         headers: {
             'locale': 'ko',
-            'X-M2M-RI': '12345',
+            'X-M2M-RI': rqi,
             'Accept': 'application/' + defaultbodytype,
             'X-M2M-Origin': usecseid,
             'nmtype': defaultnmtype

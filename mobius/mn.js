@@ -20,21 +20,23 @@ var xml2js = require('xml2js');
 var xmlbuilder = require('xmlbuilder');
 var fs = require('fs');
 var url = require('url');
-var db = require('./db_action');
-
+var moment = require('moment');
 var merge = require('merge');
+
+var db = require('./db_action');
 
 _this = this;
 
 function retrieve_CSEBase_http(cbname, cbhost, cbhostport, callback) {
     var ri = '/' + cbname;
+    var rqi = moment().utc().format('mmssSSS') + randomValueBase64(4);
     var options = {
         hostname: cbhost,
         port: cbhostport,
         path: ri,
         method: 'get',
         headers: {
-            'X-M2M-RI': '12345',
+            'X-M2M-RI': rqi,
             'Accept': 'application/'+defaultbodytype,
             'X-M2M-Origin': usecseid,
             'nmtype': defaultnmtype
@@ -111,7 +113,7 @@ function retrieve_CSEBase_http(cbname, cbhost, cbhostport, callback) {
     });
 
     req.on('error', function (e) {
-        console.log('[mn] problem with request: ' + e.message);
+        console.log('[retrieve_CSEBase_http - mn] problem with request: ' + e.message);
         callback('0', {});
     });
 
@@ -202,6 +204,7 @@ function create_remoteCSE_http(cbname, cbhost, cbhostport, body_Obj, callback) {
         bodyString = xml.end({pretty: false, indent: '  ', newline: '\n'}).toString();
     }
 
+    var rqi = moment().utc().format('mmssSSS') + randomValueBase64(4);
     var ri = '/' + cbname;
     var options = {
         hostname: cbhost,
@@ -209,7 +212,7 @@ function create_remoteCSE_http(cbname, cbhost, cbhostport, body_Obj, callback) {
         path: ri,
         method: 'post',
         headers: {
-            'X-M2M-RI': 'alkdflka',
+            'X-M2M-RI': rqi,
             'Accept': 'application/'+defaultbodytype,
             'X-M2M-Origin': usecseid,
             'Content-Type': 'application/'+defaultbodytype+';ty=16',
@@ -228,7 +231,8 @@ function create_remoteCSE_http(cbname, cbhost, cbhostport, body_Obj, callback) {
     });
 
     req.on('error', function (e) {
-        console.log('[mn] problem with request: ' + e.message);
+        console.log('[create_remoteCSE_http - mn] problem with request: ' + e.message);
+        callback('0', {});
     });
 
     // write data to request body
@@ -309,6 +313,11 @@ exports.build_mn = function(ri, callback) {
                                     }
                                     else {
                                         console.log('MN : response status code error for create remoteCSE : ' + rsc);
+                                        rspObj = {};
+                                        rspObj.rsc = '5000';
+                                        rspObj.ri = ri;
+                                        rspObj.sts = results_cb.message;
+                                        callback(rspObj);
                                     }
                                 });
                             }
@@ -337,12 +346,18 @@ exports.build_mn = function(ri, callback) {
                                     }
                                     else {
                                         console.log('MN : response status code error for create remoteCSE : ' + rsc);
+                                        rspObj = {};
+                                        rspObj.rsc = '5000';
+                                        rspObj.ri = ri;
+                                        rspObj.sts = results_cb.message;
+                                        callback(rspObj);
                                     }
                                 });
                             }
                         }
                     }
                     else {
+                        rspObj = {};
                         rspObj.rsc = '5000';
                         rspObj.ri = ri;
                         rspObj.sts = results_cb.message;
@@ -351,6 +366,7 @@ exports.build_mn = function(ri, callback) {
                 });
             }
             else {
+                rspObj = {};
                 rspObj.rsc = '2001';
                 rspObj.ri = ri;
                 rspObj.sts = '';
@@ -358,6 +374,7 @@ exports.build_mn = function(ri, callback) {
             }
         }
         else {
+            rspObj = {};
             rspObj.rsc = '5000';
             rspObj.ri = ri;
             rspObj.sts = results_comm.message;
@@ -449,13 +466,14 @@ function create_remoteCSE_mqtt(cseid, csebasename, body_Obj, callback) {
         bodyString = xml.end({pretty: false, indent: '  ', newline: '\n'}).toString();
     }
 
+    var rqi = moment().utc().format('mmssSSS') + randomValueBase64(4);
     var options = {
         hostname: 'localhost',
         port: usepxymqttport,
         path: '/register_csr',
         method: 'POST',
         headers: {
-            'X-M2M-RI': 'qoeikdjf',
+            'X-M2M-RI': rqi,
             'Accept': 'application/'+defaultbodytype,
             'X-M2M-Origin': usecseid,
             'Content-Type': 'application/vnd.onem2m-res+'+defaultbodytype,
@@ -465,8 +483,8 @@ function create_remoteCSE_mqtt(cseid, csebasename, body_Obj, callback) {
         }
     };
 
+    var fullBody = '';
     var req = http.request(options, function (res) {
-        var fullBody = '';
         res.on('data', function(chunk) {
             fullBody += chunk.toString();
         });
@@ -476,7 +494,8 @@ function create_remoteCSE_mqtt(cseid, csebasename, body_Obj, callback) {
     });
 
     req.on('error', function (e) {
-        console.log('[mn] problem with request: ' + e.message);
+        console.log('[create_remoteCSE_mqtt - mn] ' + csebasename + ' problem with request: ' + e.message);
+        callback('0', {});
     });
 
     // write data to request body
@@ -486,13 +505,14 @@ function create_remoteCSE_mqtt(cseid, csebasename, body_Obj, callback) {
 
 
 function retrieve_CSEBase_mqtt(cseid, csebasename, callback) {
+    var rqi = moment().utc().format('mmssSSS') + randomValueBase64(4);
     var options = {
         hostname: 'localhost',
         port: usepxymqttport,
         path: '/get_cb',
         method: 'get',
         headers: {
-            'X-M2M-RI': 'qoeikdjf',
+            'X-M2M-RI': rqi,
             'Accept': 'application/'+defaultbodytype,
             'X-M2M-Origin': usecseid,
             'Content-Type': 'application/vnd.onem2m-res+'+defaultbodytype,
@@ -502,8 +522,8 @@ function retrieve_CSEBase_mqtt(cseid, csebasename, callback) {
         }
     };
 
+    var fullBody = '';
     var req = http.request(options, function (res) {
-        var fullBody = '';
         res.on('data', function(chunk) {
             fullBody += chunk.toString();
         });
@@ -577,7 +597,8 @@ function retrieve_CSEBase_mqtt(cseid, csebasename, callback) {
     });
 
     req.on('error', function (e) {
-        console.log('[mn] problem with request: ' + e.message);
+        console.log('[retrieve_CSEBase_mqtt - mn] problem with request: ' + e.message);
+        callback('0', {});
     });
 
     // write data to request body

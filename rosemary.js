@@ -19,12 +19,12 @@ global.defaultbodytype      = 'json';
 
 
 // parent CSE information
-global.parent_cbname        = 'mobius';
-global.parent_cbcseid       = '/mobius';
+global.parent_cbname        = 'mobius-yt';
+global.parent_cbcseid       = '/mobius-yt';
 global.parent_cbhost        = 'localhost';
 global.parent_cbhostport    = '7579';
-global.parent_cbprotocol    = 'mqtt';               // select 'http' or 'mqtt' when register remoteCSE
-global.parent_mqttbroker    = '203.253.128.151';
+global.parent_cbprotocol    = 'mqtt';       // select 'http' or 'mqtt' when register remoteCSE
+global.parent_mqttbroker    = 'localhost';
 
 
 // my CSE information
@@ -42,18 +42,22 @@ global.usetsagentport       = '7573';
 
 global.usemqttbroker        = parent_mqttbroker; // mobius to mqttbroker
 
-
 // CSE core
 require('./app');
-
 
 global.custom = new process.EventEmitter();
 
 custom.on('register_remoteCSE', function() {
     mn.build_mn('/'+usecsebase, function (rsp) {
-        console.log('[[[[[[[[[[[[[[[[register_remoteCSE]]]]]]]]]]]]]]]] ' + JSON.stringify(rsp));
         if(rsp.rsc == '2000') {
+            console.log('[[[[[[[[[[[[[[[[register_remoteCSE]]]]]]]]]]]]]]]] ' + JSON.stringify(rsp));
             clearInterval(refreshIntervalId);
+        }
+        else {
+            console.log('register_remoteCSE again');
         }
     });
 });
+
+
+

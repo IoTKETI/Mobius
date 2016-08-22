@@ -23,7 +23,7 @@
     "xmlbuilder": "^2.6.5"
   },
   "description": "Mobius:Yellow Turtle",
-  "main": "app.js",
+  "main": "mobius.js",
   "devDependencies": {},
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
