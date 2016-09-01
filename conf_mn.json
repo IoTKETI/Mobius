@@ -1,0 +1,12 @@
+{
+    "parent" : {
+        "cbname": "mobius-yt",
+        "cbcseid": "/mobius-yt",
+        "cbhost": "localhost",
+        "cbhostport": "7579",
+        "cbprotocol": "mqtt",
+        "mqttbroker": "localhost"
+    },
+    "csebaseport": "7575",
+    "dbpass": "dksdlfduq2"
+}

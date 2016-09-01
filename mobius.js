@@ -12,6 +12,11 @@
  * Created by Il Yeup, Ahn in KETI on 2016-07-28.
  */
 
+var fs = require('fs');
+
+var data  = fs.readFileSync('conf.json', 'utf-8');
+var conf = JSON.parse(data);
+
 global.defaultnmtype        = 'short';
 global.defaultbodytype      = 'json';
 
@@ -20,10 +25,10 @@ global.defaultbodytype      = 'json';
 global.usecsetype           = 'in'; // select 'in' or 'mn' or asn'
 global.usecsebase           = 'mobius-yt';
 global.usecseid             = '/mobius-yt';
-global.usecsebaseport       = '7579';
+global.usecsebaseport       = conf.csebaseport;
 
 global.usedbhost            = 'localhost';
-global.usedbpass            = 'dksdlfduq2';
+global.usedbpass            = conf.dbpass;
 
 
 global.usepxymqttport       = '7580';
