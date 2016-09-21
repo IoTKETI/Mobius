@@ -439,6 +439,9 @@ mqtt_app.post('/notification', onem2mParser, function(request, response, next) {
                 response.status(201).end('{\"m2m:rsp\":\"success to receive notification\"}');
             }
             else {
+                noti_message['m2m:rqp'].pc['m2m:sgn'] = noti_message['m2m:rqp'].pc.sgn;
+                delete noti_message['m2m:rqp'].pc.sgn;
+
                 if (request.headers.bodytype == 'xml') {
                     noti_message['m2m:rqp']['@'] = {
                         "xmlns:m2m": "http://www.onem2m.org/xml/protocols",

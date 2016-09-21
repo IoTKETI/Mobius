@@ -90,7 +90,7 @@ exports.check = function(request, noti_Obj, check_value) {
                                         delete temp_Obj[rootnm];
                                         rootnm = responder.rsrcLname[rootnm];
 
-                                        node[responder.attrLname['sgn']][responder.attrLname['nev']][responder.attrLname['rep']][rootnm] = noti_Obj[rootnm];
+                                        node[responder.attrLname['sgn']][responder.attrLname['nev']][responder.attrLname['rep']]['m2m:'+rootnm] = noti_Obj[rootnm];
                                     }
                                     else {
                                         node.sgn = {};
@@ -99,7 +99,7 @@ exports.check = function(request, noti_Obj, check_value) {
                                         node.sgn.nec = results_ss[i].nec;
                                         node.sgn.nev = {};
                                         node.sgn.nev.rep = {};
-                                        node.sgn.nev.rep[rootnm] = noti_Obj;
+                                        node.sgn.nev.rep['m2m:'+rootnm] = noti_Obj;
                                     }
 
                                     cur_d = new Date();
