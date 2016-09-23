@@ -1,0 +1,19 @@
+{
+  "name": "tas",
+  "version": "0.0.2",
+  "dependencies": {
+    "fs": "0.0.2",
+    "js2xmlparser": "^1.0.0",
+    "net": "^1.0.2",
+    "serialport": "^1.7.4",
+    "xml2js": "^0.4.12"
+  },
+  "description": "tas of &Cube",
+  "main": "app.js",
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Il Yeup Ahn, KETI",
+  "license": "ISC"
+}

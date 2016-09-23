@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<m2m:conf xmlns:m2m="http://www.onem2m.org/xml/protocols" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+    <tas>
+        <comport>COM3</comport>
+        <baudrate>115200</baudrate>
+        <parenthostname>localhost</parenthostname>
+        <parentport>3105</parentport>
+    </tas>
+<!--    <upload>
+        <ctname>cnt_2</ctname>
+        <id>timer</id>
+    </upload>-->
+    <upload>
+        <ctname>homepot01</ctname>
+        <id>fe80:0000:0000:0000:0212:4b00:0235:bce5</id>
+    </upload>
+    <download>
+        <ctname>homepot01_ctrl</ctname>
+        <id>fe80:0000:0000:0000:0212:4b00:0235:bce5</id>
+    </download>
+</m2m:conf>
