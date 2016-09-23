@@ -2,7 +2,6 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="dc20aa92-d07d-4c58-99b5-9639cd3cb187" name="Default" comment="">
-      <change type="DELETED" beforePath="$PROJECT_DIR$/.gitignore" afterPath="" />
       <change type="MODIFICATION" beforePath="$PROJECT_DIR$/.idea/workspace.xml" afterPath="$PROJECT_DIR$/.idea/workspace.xml" />
     </list>
     <list id="49ea7b40-c54f-4d6f-bbe7-4b04146998ce" name="Rejected commit: Default" comment="mobius-2.0.8 update" />
@@ -590,7 +589,7 @@
       <workItem from="1473220393496" duration="684000" />
       <workItem from="1474414585436" duration="9991000" />
       <workItem from="1474522457408" duration="147000" />
-      <workItem from="1474591202374" duration="2535000" />
+      <workItem from="1474591202374" duration="2756000" />
     </task>
     <task id="LOCAL-00001" summary="- remove code commented&#10;- remove parameter at function named retrieve_result&#10;- remove parameter at function named pathaction&#10;- remove unused variable">
       <created>1449824280852</created>
@@ -862,7 +861,7 @@
     <servers />
   </component>
   <component name="TimeTrackingManager">
-    <option name="totallyTimeSpent" value="995754000" />
+    <option name="totallyTimeSpent" value="995975000" />
   </component>
   <component name="TodoView">
     <todo-panel id="selected-file">
