@@ -1,1 +1,0 @@
-- thyme 리소스 생성 및 업데이트 시 json body 포맷의 속성 태그 중 json array 타입을 정확하게 맞춤
