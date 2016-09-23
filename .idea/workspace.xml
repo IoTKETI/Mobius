@@ -1,7 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="ChangeListManager">
-    <list default="true" id="dc20aa92-d07d-4c58-99b5-9639cd3cb187" name="Default" comment="" />
+    <list default="true" id="dc20aa92-d07d-4c58-99b5-9639cd3cb187" name="Default" comment="">
+      <change type="DELETED" beforePath="$PROJECT_DIR$/.gitignore" afterPath="" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/.idea/workspace.xml" afterPath="$PROJECT_DIR$/.idea/workspace.xml" />
+    </list>
     <list id="49ea7b40-c54f-4d6f-bbe7-4b04146998ce" name="Rejected commit: Default" comment="mobius-2.0.8 update" />
     <list id="cc5a7af7-d92a-4294-97b7-0b26d8071928" name="mobius-2.0.8 update - add function as validation check of resource type of memberIDs of group resource (cherry picked from commit 44966a4)" comment="mobius-2.0.8 update&#10;- add function as validation check of resource type of memberIDs of group resource&#10;(cherry picked from commit 44966a4)" />
     <list id="5c1368b1-8b5f-45ce-8fc8-458b074f2612" name="mobius-2.0.8 update - add function as validation check of resource type of memberIDs of group resource - add group update function (cherry picked from commit a69919b)" comment="mobius-2.0.8 update&#10;- add function as validation check of resource type of memberIDs of group resource&#10;- add group update function&#10;(cherry picked from commit a69919b)" />
@@ -54,11 +57,11 @@
           </provider>
         </entry>
       </file>
-      <file leaf-file-name="app.js" pinned="false" current-in-tab="false">
+      <file leaf-file-name="app.js" pinned="false" current-in-tab="true">
         <entry file="file://$PROJECT_DIR$/app.js">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="4425">
-              <caret line="303" column="0" selection-start-line="303" selection-start-column="0" selection-end-line="303" selection-end-column="0" />
+            <state relative-caret-position="501">
+              <caret line="260" column="89" selection-start-line="260" selection-start-column="89" selection-end-line="260" selection-end-column="89" />
               <folding />
             </state>
           </provider>
@@ -104,7 +107,7 @@
           </provider>
         </entry>
       </file>
-      <file leaf-file-name="conf_mn.json" pinned="false" current-in-tab="true">
+      <file leaf-file-name="conf_mn.json" pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/conf_mn.json">
           <provider selected="true" editor-type-id="text-editor">
             <state relative-caret-position="180">
@@ -187,7 +190,6 @@
         <option value="$PROJECT_DIR$/mobius/grp.js" />
         <option value="$PROJECT_DIR$/mobius/ts_agent.js" />
         <option value="$PROJECT_DIR$/mobius/mn.js" />
-        <option value="$PROJECT_DIR$/app.js" />
         <option value="$PROJECT_DIR$/package.json" />
         <option value="$PROJECT_DIR$/conf.json" />
         <option value="$PROJECT_DIR$/mobius.js" />
@@ -196,6 +198,7 @@
         <option value="$PROJECT_DIR$/oneM2M-Ref/notification_mqtt_format.xml" />
         <option value="$PROJECT_DIR$/pxymqtt.js" />
         <option value="$PROJECT_DIR$/mobius/sgn.js" />
+        <option value="$PROJECT_DIR$/app.js" />
       </list>
     </option>
   </component>
@@ -274,34 +277,6 @@
             <PATH_ELEMENT>
               <option name="myItemId" value="mobius" />
               <option name="myItemType" value="com.intellij.ide.projectView.impl.nodes.ProjectViewProjectNode" />
-            </PATH_ELEMENT>
-            <PATH_ELEMENT>
-              <option name="myItemId" value="mobius" />
-              <option name="myItemType" value="com.intellij.ide.projectView.impl.nodes.PsiDirectoryNode" />
-            </PATH_ELEMENT>
-          </PATH>
-          <PATH>
-            <PATH_ELEMENT>
-              <option name="myItemId" value="mobius" />
-              <option name="myItemType" value="com.intellij.ide.projectView.impl.nodes.ProjectViewProjectNode" />
-            </PATH_ELEMENT>
-            <PATH_ELEMENT>
-              <option name="myItemId" value="mobius" />
-              <option name="myItemType" value="com.intellij.ide.projectView.impl.nodes.PsiDirectoryNode" />
-            </PATH_ELEMENT>
-            <PATH_ELEMENT>
-              <option name="myItemId" value="oneM2M-Ref" />
-              <option name="myItemType" value="com.intellij.ide.projectView.impl.nodes.PsiDirectoryNode" />
-            </PATH_ELEMENT>
-          </PATH>
-          <PATH>
-            <PATH_ELEMENT>
-              <option name="myItemId" value="mobius" />
-              <option name="myItemType" value="com.intellij.ide.projectView.impl.nodes.ProjectViewProjectNode" />
-            </PATH_ELEMENT>
-            <PATH_ELEMENT>
-              <option name="myItemId" value="mobius" />
-              <option name="myItemType" value="com.intellij.ide.projectView.impl.nodes.PsiDirectoryNode" />
             </PATH_ELEMENT>
             <PATH_ELEMENT>
               <option name="myItemId" value="mobius" />
@@ -615,7 +590,7 @@
       <workItem from="1473220393496" duration="684000" />
       <workItem from="1474414585436" duration="9991000" />
       <workItem from="1474522457408" duration="147000" />
-      <workItem from="1474591202374" duration="1311000" />
+      <workItem from="1474591202374" duration="2535000" />
     </task>
     <task id="LOCAL-00001" summary="- remove code commented&#10;- remove parameter at function named retrieve_result&#10;- remove parameter at function named pathaction&#10;- remove unused variable">
       <created>1449824280852</created>
@@ -887,7 +862,7 @@
     <servers />
   </component>
   <component name="TimeTrackingManager">
-    <option name="totallyTimeSpent" value="994530000" />
+    <option name="totallyTimeSpent" value="995754000" />
   </component>
   <component name="TodoView">
     <todo-panel id="selected-file">
@@ -1322,6 +1297,7 @@
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="450">
           <caret line="30" column="31" selection-start-line="30" selection-start-column="31" selection-end-line="30" selection-end-column="31" />
+          <folding />
         </state>
       </provider>
     </entry>
@@ -1337,14 +1313,6 @@
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="495">
           <caret line="41" column="0" selection-start-line="41" selection-start-column="0" selection-end-line="41" selection-end-column="0" />
-          <folding />
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/app.js">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="4425">
-          <caret line="303" column="0" selection-start-line="303" selection-start-column="0" selection-end-line="303" selection-end-column="0" />
           <folding />
         </state>
       </provider>
@@ -1393,6 +1361,14 @@
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="180">
           <caret line="12" column="0" selection-start-line="12" selection-start-column="0" selection-end-line="12" selection-end-column="0" />
+          <folding />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/app.js">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="501">
+          <caret line="260" column="89" selection-start-line="260" selection-start-column="89" selection-end-line="260" selection-end-column="89" />
           <folding />
         </state>
       </provider>

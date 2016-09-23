@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="utf-8"?> 
+<!-- 
+Copyright Notification
+
+
+The oneM2M Partners authorize you to copy this document, provided that you retain all copyright and other proprietary notices 
+contained in the original materials on any copies of the materials and that you comply strictly with these terms. 
+This copyright permission does not constitute an endorsement of the products or services, nor does it encompass the granting of 
+any patent rights. The oneM2M Partners assume no responsibility for errors or omissions in this document. 
+© 2015, oneM2M Partners Type 1 (ARIB, ATIS, CCSA, ETSI, TIA, TTA, TTC). All rights reserved.
+
+Notice of Disclaimer & Limitation of Liability 
+
+The information provided in this document is directed solely to professionals who have the appropriate degree of experience 
+to understand and interpret its contents in accordance with generally accepted engineering or other professional standards 
+and applicable regulations. No recommendation as to products or vendors is made or should be implied. 
+
+NO REPRESENTATION OR WARRANTY IS MADE THAT THE INFORMATION IS TECHNICALLY ACCURATE OR SUFFICIENT OR CONFORMS TO ANY STATUTE, 
+GOVERNMENTAL RULE OR REGULATION, AND FURTHER, NO REPRESENTATION OR WARRANTY IS MADE OF MERCHANTABILITY OR FITNESS FOR ANY 
+PARTICULAR PURPOSE OR AGAINST INFRINGEMENT OF INTELLECTUAL PROPERTY RIGHTS. 
+NO oneM2M PARTNER TYPE 1 SHALL BE LIABLE, BEYOND THE AMOUNT OF ANY SUM RECEIVED IN PAYMENT BY THAT PARTNER FOR THIS DOCUMENT, 
+WITH RESPECT TO ANY CLAIM, AND IN NO EVENT SHALL oneM2M BE LIABLE FOR LOST PROFITS OR OTHER INCIDENTAL OR CONSEQUENTIAL DAMAGES. 
+oneM2M EXPRESSLY ADVISES ANY AND ALL USE OF OR RELIANCE UPON THIS INFORMATION PROVIDED IN THIS DOCUMENT IS AT THE RISK OF THE USER.
+
+-->
+<xs:schema targetNamespace="http://www.onem2m.org/xml/protocols" xmlns:m2m="http://www.onem2m.org/xml/protocols" xmlns:xs="http://www.w3.org/2001/XMLSchema" attributeFormDefault="unqualified" elementFormDefault="unqualified">   
+
+    <xs:include schemaLocation="CDT-commonTypes-v1_6_0.xsd"/> 
+
+    <xs:element name="rqp">
+      <xs:complexType>
+        <xs:sequence>
+          <!-- parameter "Operation"  -->
+          <xs:element name="op" type="m2m:operation" minOccurs="1"/>
+          <!-- parameter "To" -->
+          <xs:element name="to" type="xs:anyURI" minOccurs="1"/>
+          <!-- parameter "From" -->
+          <xs:element name="fr" type="m2m:ID" minOccurs="0"/>
+          <!-- parameter "Request Identifier" -->
+          <xs:element name="rqi" type="m2m:requestID" minOccurs="1"/> 
+          <!-- parameter "ResourceType" -->
+          <xs:element name="ty" type="m2m:resourceType" minOccurs="0"/>
+          <!-- parameter "Content" -->
+          <xs:element name="pc" type="m2m:primitiveContent" minOccurs="0"/> 
+          <!-- parameter "Role" -->
+          <xs:element name="rol" type="xs:anyType" minOccurs="0"/>           
+          <!-- parameter "Originating Timestamp" -->
+          <xs:element name="ot" type="m2m:timestamp" minOccurs="0"/>
+          <!-- parameter "Request Expiration Timestamp" -->
+          <xs:element name="rqet" type="m2m:absRelTimestamp" minOccurs="0"/>
+          <!-- parameter "Result Expiration Timestamp" -->
+          <xs:element name="rset" type="m2m:absRelTimestamp" minOccurs="0"/>
+          <!-- parameter "Operation Execution Time" -->
+          <xs:element name="oet" type="m2m:absRelTimestamp" minOccurs="0"/>
+          <!-- parameter "Response Type" -->
+          <xs:element name="rt" type="m2m:responseTypeInfo" minOccurs="0"/>
+          <!-- parameter "Result Persistence" -->
+          <xs:element name="rp" type="m2m:absRelTimestamp" minOccurs="0"/>
+          <!-- parameter "Result Content" -->
+          <xs:element name="rcn" type="m2m:resultContent" minOccurs="0"/>
+          <!-- parameter "Event Category" -->
+          <xs:element name="ec" type="m2m:eventCat" minOccurs="0"/>
+          <!-- parameter "Delivery Aggregation" -->
+          <xs:element name="da" type="xs:boolean" minOccurs="0"/>
+          <!-- parameter "Group Request Identifier" -->
+          <xs:element name="gid" type="xs:string" minOccurs="0"/>        
+          <!-- parameter "Filter Criteria" -->
+          <xs:element name="fc" type="m2m:filterCriteria" minOccurs="0"/>
+          <!-- parameter "Discovery Result Type" -->
+          <xs:element name="drt" type="m2m:discResType" minOccurs="0"/>
+        </xs:sequence> 	       
+      </xs:complexType>
+    </xs:element>
+  
+    <xs:element name="atrl" type="m2m:attributeList"/>
+  
+</xs:schema>

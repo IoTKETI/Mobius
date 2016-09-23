@@ -1,0 +1,219 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- 
+Copyright Notification
+
+The oneM2M Partners authorize you to copy this document, provided that you retain all copyright and other proprietary notices 
+contained in the original materials on any copies of the materials and that you comply strictly with these terms. 
+This copyright permission does not constitute an endorsement of the products or services, nor does it encompass the granting of 
+any patent rights. The oneM2M Partners assume no responsibility for errors or omissions in this document. 
+© 2015, oneM2M Partners Type 1 (ARIB, ATIS, CCSA, ETSI, TIA, TTA, TTC). All rights reserved.
+
+Notice of Disclaimer & Limitation of Liability 
+
+The information provided in this document is directed solely to professionals who have the appropriate degree of experience to understand 
+and interpret its contents in accordance with generally accepted engineering or other professional standards and applicable regulations. 
+No recommendation as to products or vendors is made or should be implied. 
+
+NO REPRESENTATION OR WARRANTY IS MADE THAT THE INFORMATION IS TECHNICALLY ACCURATE OR SUFFICIENT OR CONFORMS TO ANY STATUTE, 
+GOVERNMENTAL RULE OR REGULATION, AND FURTHER, NO REPRESENTATION OR WARRANTY IS MADE OF MERCHANTABILITY OR FITNESS FOR ANY 
+PARTICULAR PURPOSE OR AGAINST INFRINGEMENT OF INTELLECTUAL PROPERTY RIGHTS. 
+NO oneM2M PARTNER TYPE 1 SHALL BE LIABLE, BEYOND THE AMOUNT OF ANY SUM RECEIVED IN PAYMENT BY THAT PARTNER FOR THIS DOCUMENT, WITH RESPECT TO 
+ANY CLAIM, AND IN NO EVENT SHALL oneM2M BE LIABLE FOR LOST PROFITS OR OTHER INCIDENTAL OR CONSEQUENTIAL DAMAGES. 
+oneM2M EXPRESSLY ADVISES ANY AND ALL USE OF OR RELIANCE UPON THIS INFORMATION PROVIDED IN THIS DOCUMENT IS AT THE RISK OF THE USER.
+
+-->
+<xs:schema xmlns="http://www.w3.org/2001/XMLSchema"
+	targetNamespace="http://www.onem2m.org/xml/protocols"
+	xmlns:m2m="http://www.onem2m.org/xml/protocols" xmlns:xs="http://www.w3.org/2001/XMLSchema"
+	elementFormDefault="unqualified">
+
+	<xs:include schemaLocation="CDT-commonTypes-v1_6_0.xsd"/>
+	<xs:include schemaLocation="CDT-subscription-v1_6_0.xsd"/>
+
+	<xs:element name="accessControlPolicy">
+		<xs:complexType>
+			<xs:complexContent>
+				<!-- Inherit Announceable Attributes from announceableSubordinateResource type -->
+				<xs:extension base="m2m:announceableSubordinateResource">
+					<xs:sequence>
+						<!-- Resource Specific Attributes -->
+						<xs:element name="privileges" type="m2m:setOfAcrs"/>
+						<xs:element name="selfPrivileges" type="m2m:setOfAcrs"/>
+
+						<!-- Child Resources -->
+						<xs:choice minOccurs="0" maxOccurs="1">
+							<xs:element name="childResource" type="m2m:childResourceRef"
+								maxOccurs="unbounded"/>
+							<xs:element ref="m2m:subscription" maxOccurs="unbounded"/>
+						</xs:choice>
+					</xs:sequence>
+				</xs:extension>
+			</xs:complexContent>
+		</xs:complexType>
+	</xs:element>
+
+	<xs:element name="accessControlPolicyAnnc">
+		<xs:complexType>
+			<xs:complexContent>
+				<!-- Inherit Announceable Attributes from announceableSubordinateResource type -->
+				<xs:extension base="m2m:announcedSubordinateResource">
+					<xs:sequence>
+						<!-- Resource Specific Attributes -->
+						<xs:element name="privileges" type="m2m:setOfAcrs"/>
+						<xs:element name="selfPrivileges" type="m2m:setOfAcrs"/>
+
+						<!-- Child Resources -->
+						<xs:choice minOccurs="0" maxOccurs="1">
+							<xs:element name="childResource" type="m2m:childResourceRef"
+								maxOccurs="unbounded"/>
+							<xs:element ref="m2m:subscription" maxOccurs="unbounded"/>
+						</xs:choice>
+					</xs:sequence>
+				</xs:extension>
+			</xs:complexContent>
+		</xs:complexType>
+	</xs:element>
+
+
+	<xs:complexType name="setOfAcrs">
+		<xs:sequence>
+			<xs:element name="accessControlRule" type="m2m:accessControlRule" minOccurs="0"
+				maxOccurs="unbounded"/>
+		</xs:sequence>
+	</xs:complexType>
+
+	<xs:complexType name="accessControlRule">
+		<xs:sequence>
+			<xs:element name="accessControlOriginators" type="m2m:listOfURIs" />
+
+			<!-- accessControlOperations defined as enumerated list 1 ... 63 -->
+			<xs:element name="accessControlOperations" type="m2m:accessControlOperations" />
+
+			<xs:element name="accessControlContexts" minOccurs="0" maxOccurs="unbounded">
+				<xs:complexType>
+					<xs:sequence>
+						<xs:element name="accessControlWindow" type="m2m:scheduleEntry" minOccurs="0" maxOccurs="unbounded" />
+						<xs:element name="accessControlIpAddresses" minOccurs="0">
+							<xs:complexType>
+								<xs:sequence>
+									<xs:element name="ipv4Addresses" minOccurs="0" maxOccurs="1">
+										<!-- space separated list of IPv4 addresses -->										
+										<xs:simpleType>
+											<xs:restriction>
+												<xs:simpleType>
+													<xs:list itemType="m2m:ipv4" />
+												</xs:simpleType>
+												<xs:minLength value="1"/>
+											</xs:restriction>
+										</xs:simpleType>
+									</xs:element>
+									<xs:element name="ipv6Addresses" minOccurs="0" maxOccurs="1">
+										<!-- space separated list of IPv6 addresses -->
+										<xs:simpleType>
+											<xs:restriction>
+												<xs:simpleType>
+													<xs:list itemType="m2m:ipv6" />
+												</xs:simpleType>
+												<xs:minLength value="1"/>
+											</xs:restriction>
+										</xs:simpleType>
+									</xs:element>
+								</xs:sequence>
+							</xs:complexType>
+						</xs:element>
+						<xs:element name="accessControlLocationRegion" type="m2m:locationRegion" minOccurs="0" />
+					</xs:sequence>
+				</xs:complexType>
+			</xs:element>
+		</xs:sequence>
+	</xs:complexType>
+
+	<xs:complexType name="locationRegion">
+		<xs:choice>
+			<xs:element name="countryCode">
+				<!-- Space separated list of 2-digit country codes -->
+				<xs:simpleType>
+					<xs:restriction>
+						<xs:simpleType>
+					      <xs:list itemType="m2m:countryCode" />
+						</xs:simpleType>
+						<xs:minLength value="1"/>
+					</xs:restriction>
+				</xs:simpleType>
+			</xs:element>
+			<xs:element name="circRegion">
+				<!-- "circularRegion" is an ordered list of following three parameters of data type float ´ 1) longitude in the range 
+					+/-180 degrees 2) latitude in the range +/-90 degrees, 3) radius in meters -->
+				<xs:simpleType>
+					<xs:restriction>
+						<xs:simpleType>
+							<xs:list itemType="xs:float" />
+						</xs:simpleType>
+						<xs:length value="3" />
+					</xs:restriction>
+				</xs:simpleType>
+			</xs:element>
+		</xs:choice>
+	</xs:complexType>
+
+	<!-- countryCode as defined in TS-0004 -->
+	<xs:simpleType name="countryCode">
+		<xs:annotation>
+			<xs:documentation>2-character country code as defined by ISO-3166</xs:documentation>
+		</xs:annotation>
+		<xs:restriction base="xs:string">
+			<xs:pattern value="[A-Z]{2}" />
+		</xs:restriction>
+	</xs:simpleType>
+
+
+	<!-- Initial IPv4 and IPv6 address representation types were found here:
+     http://lists.w3.org/Archives/Public/www-xml-schema-comments/2005OctDec/0138.html, CIDR suffix has been added  -->
+
+	<xs:simpleType name="ipv4">
+		<xs:annotation>
+			<xs:documentation> An IP version 4 address, with optional CIDR suffix in the range /0
+				... /32. </xs:documentation>
+		</xs:annotation>
+		<xs:restriction base="xs:token">
+			<xs:pattern
+				value="(25[0-5]|2[0-4][0-9]|[0-1]?[0-9]?[0-9])\.(25[0-5]|2[0-4][0-9]|[0-1]?[0-9]?[0-9])\.(25[0-5]|2[0-4][0-9]|[0-1]?[0-9]?[0-9])\.(25[0-5]|2[0-4][0-9]|[0-1]?[0-9]?[0-9])(/([0-9]|[1-2][0-9]|3[0-2]))?"/>
+			<xs:pattern value="[0-9A-Fa-f]{8}(/([0-9]|[1-2][0-9]|3[0-2]))?"/>
+		</xs:restriction>
+	</xs:simpleType>
+
+	<xs:simpleType name="ipv6">
+		<xs:annotation>
+			<xs:documentation> An IP version 6 address, based on RFC 1884, with optional CIDR suffix
+				in the range /0 ... /128. </xs:documentation>
+		</xs:annotation>
+		<xs:restriction base="xs:token">
+			<!-- Fully specified address -->
+			<xs:pattern
+				value="[0-9A-Fa-f]{1,4}(:[0-9A-Fa-f]{1,4}){7}(/([0-9]|[1-9][0-9]|1[0-1][0-9]|12[0-8]))?"/>
+			<!-- Double colon start -->
+			<xs:pattern value=":(:[0-9A-Fa-f]{1,4}){1,7}"/>
+			<!-- Double colon middle -->
+			<xs:pattern
+				value="([0-9A-Fa-f]{1,4}:){1,6}(:[0-9A-Fa-f]{1,4}){1}(/([0-9]|[1-9][0-9]|1[0-1][0-9]|12[0-8]))?"/>
+			<xs:pattern
+				value="([0-9A-Fa-f]{1,4}:){1,5}(:[0-9A-Fa-f]{1,4}){1,2}(/([0-9]|[1-9][0-9]|1[0-1][0-9]|12[0-8]))?"/>
+			<xs:pattern
+				value="([0-9A-Fa-f]{1,4}:){1,4}(:[0-9A-Fa-f]{1,4}){1,3}(/([0-9]|[1-9][0-9]|1[0-1][0-9]|12[0-8]))?"/>
+			<xs:pattern
+				value="([0-9A-Fa-f]{1,4}:){1,3}(:[0-9A-Fa-f]{1,4}){1,4}(/([0-9]|[1-9][0-9]|1[0-1][0-9]|12[0-8]))?"/>
+			<xs:pattern
+				value="([0-9A-Fa-f]{1,4}:){1,2}(:[0-9A-Fa-f]{1,4}){1,5}(/([0-9]|[1-9][0-9]|1[0-1][0-9]|12[0-8]))?"/>
+			<xs:pattern
+				value="([0-9A-Fa-f]{1,4}:){1}(:[0-9A-Fa-f]{1,4}){1,6}(/([0-9]|[1-9][0-9]|1[0-1][0-9]|12[0-8]))?"/>
+			<!-- Double colon end -->
+			<xs:pattern value="([0-9A-Fa-f]{1,4}:){1,7}:(/([0-9]|[1-9][0-9]|1[0-1][0-9]|12[0-8]))?"/>
+			<!-- Embedded IPv4 addresses without CIDR suffix. Should IPv4 CIDR suffix be added?-->
+			<xs:pattern
+				value="((:(:0{1,4}){0,3}(:(0{1,4}|[fF]{4}))?)|(0{1,4}:(:0{1,4}){0,2}(:(0{1,4}|[fF]{4}))?)|((0{1,4}:){2}(:0{1,4})?(:(0{1,4}|[fF]{4}))?)|((0{1,4}:){3}(:(0{1,4}|[fF]{4}))?)|((0{1,4}:){4}(0{1,4}|[fF]{4})?)):(25[0-5]|2[0-4][0-9]|[0-1]?[0-9]?[0-9])\.(25[0-5]|2[0-4][0-9]|[0-1]?[0-9]?[0-9])\.(25[0-5]|2[0-4][0-9]|[0-1]?[0-9]?[0-9])\.(25[0-5]|2[0-4][0-9]|[0-1]?[0-9]?[0-9])"/>
+			<!-- The unspecified address -->
+			<xs:pattern value="::(/0)?"/>
+		</xs:restriction>
+	</xs:simpleType>
+
+</xs:schema>
