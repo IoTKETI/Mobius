@@ -4,7 +4,7 @@
         "cbcseid": "/mobius-yt",
         "cbhost": "localhost",
         "cbhostport": "7579",
-        "cbprotocol": "mqtt",
+        "cbprotocol": "http",
         "mqttbroker": "localhost"
     },
     "csebaseport": "7575",
