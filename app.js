@@ -285,7 +285,7 @@ function make_json_arraytype(body_Obj) {
     }
 }
 
-function check_body(request, response, callback) {
+function check_http_body(request, response, callback) {
     var body_Obj = {};
 
     if(request.body == "") {
@@ -425,7 +425,7 @@ function check_http(request, response, callback) {
         //resource.set_rootnm(request, ty);
         //var rootnm = request.headers.rootnm;
 
-        check_body(request, response, function(rsc, body_Obj, content_type) {
+        check_http_body(request, response, function(rsc, body_Obj, content_type) {
             if(rsc == '1') {
                 if(request.method == 'POST') {
                     try {
