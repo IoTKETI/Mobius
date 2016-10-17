@@ -156,7 +156,7 @@ global.update_route = function(callback) {
 };
 
 
-function check_nametype(nmtype, body_Obj) {
+function make_short_nametype(nmtype, body_Obj) {
     if(nmtype == 'long') {
         var rsrcLongName = Object.keys(body_Obj)[0].split(':')[1];
         if (responder.rsrcSname.hasOwnProperty(rsrcLongName)) {
@@ -201,6 +201,149 @@ function check_nametype(nmtype, body_Obj) {
     }
 }
 
+function make_json_arraytype(body_Obj) {
+    for (var prop in body_Obj) {
+        if (body_Obj.hasOwnProperty(prop)) {
+            if (body_Obj[prop].at) {
+                body_Obj[prop].at = body_Obj[prop].at.split(' ');
+            }
+
+            if (body_Obj[prop].aa) {
+                body_Obj[prop].aa = body_Obj[prop].aa.split(' ');
+            }
+
+            if (body_Obj[prop].poa) {
+                body_Obj[prop].poa = body_Obj[prop].poa.split(' ');
+            }
+
+            if (body_Obj[prop].lbl) {
+                body_Obj[prop].lbl = body_Obj[prop].lbl.split(' ');
+            }
+
+            if (body_Obj[prop].acpi) {
+                body_Obj[prop].acpi = body_Obj[prop].acpi.split(' ');
+            }
+
+            if (body_Obj[prop].srt) {
+                body_Obj[prop].srt = body_Obj[prop].srt.split(' ');
+            }
+
+            if (body_Obj[prop].nu) {
+                body_Obj[prop].nu = body_Obj[prop].nu.split(' ');
+            }
+
+            if (body_Obj[prop].enc) {
+                if(body_Obj[prop].enc.net) {
+                    body_Obj[prop].enc.net = body_Obj[prop].enc.net.split(' ');
+                }
+            }
+
+            if (body_Obj[prop].pv) {
+                if(body_Obj[prop].pv.acr) {
+                    if (!Array.isArray(body_Obj[prop].pv.acr)) {
+                        var temp = body_Obj[prop].pv.acr;
+                        body_Obj[prop].pv.acr = [];
+                        body_Obj[prop].pv.acr[0] = temp;
+                    }
+
+                    for (var acr_idx in body_Obj[prop].pv.acr) {
+                        if (body_Obj[prop].pv.acr.hasOwnProperty(acr_idx)) {
+                            if (body_Obj[prop].pv.acr[acr_idx].acor) {
+                                body_Obj[prop].pv.acr[acr_idx].acor = body_Obj[prop].pv.acr[acr_idx].acor.split(' ');
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (body_Obj[prop].pvs) {
+                if(body_Obj[prop].pvs.acr) {
+                    if (!Array.isArray(body_Obj[prop].pvs.acr)) {
+                        temp = body_Obj[prop].pvs.acr;
+                        body_Obj[prop].pvs.acr = [];
+                        body_Obj[prop].pvs.acr[0] = temp;
+                    }
+
+                    for (acr_idx in body_Obj[prop].pvs.acr) {
+                        if (body_Obj[prop].pvs.acr.hasOwnProperty(acr_idx)) {
+                            if (body_Obj[prop].pvs.acr[acr_idx].acor) {
+                                body_Obj[prop].pvs.acr[acr_idx].acor = body_Obj[prop].pvs.acr[acr_idx].acor.split(' ');
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (body_Obj[prop].mid) {
+                body_Obj[prop].mid = body_Obj[prop].mid.split(' ');
+            }
+
+            if (body_Obj[prop].macp) {
+                body_Obj[prop].macp = body_Obj[prop].macp.split(' ');
+            }
+        }
+    }
+}
+
+function check_body(request, response, callback) {
+    var body_Obj = {};
+
+    if(request.body == "") {
+        body_Obj = {};
+        body_Obj['rsp'] = {};
+        body_Obj['rsp'].cap = 'body is empty';
+        responder.response_result(request, response, 400, body_Obj, 4000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
+        callback('0', body_Obj);
+        return '0';
+    }
+
+    try {
+        var content_type = request.headers['content-type'].split(';');
+    }
+    catch (e) {
+        body_Obj = {};
+        body_Obj['rsp'] = {};
+        body_Obj['rsp'].cap = 'content-type is none';
+        responder.response_result(request, response, 400, body_Obj, 4000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
+        callback('0', body_Obj);
+        return '0';
+    }
+
+    if ((content_type[0].split('/')[1] == 'xml') || (content_type[0].split('+')[1] == 'xml')) {
+        var parser = new xml2js.Parser({explicitArray: false});
+        parser.parseString(request.body, function (err, result) {
+            if (err) {
+                body_Obj = {};
+                body_Obj['rsp'] = {};
+                body_Obj['rsp'].cap = 'do not parse xml body';
+                responder.response_result(request, response, 400, body_Obj, 4000, url.parse(request.url).pathname.toLowerCase(), 'do not parse xml body');
+                callback('0', body_Obj);
+            }
+            else {
+                body_Obj = result;
+                make_short_nametype(request.headers.nmtype, body_Obj);
+                make_json_arraytype(body_Obj);
+
+                callback('1', body_Obj, content_type);
+            }
+        });
+    }
+    else {
+        try {
+            body_Obj = JSON.parse(request.body);
+            make_short_nametype(request.headers.nmtype, body_Obj);
+
+            callback('1', body_Obj, content_type);
+        }
+        catch (e) {
+            body_Obj = {};
+            body_Obj['rsp'] = {};
+            body_Obj['rsp'].cap = 'do not parse json body';
+            responder.response_result(request, response, 400, body_Obj, 4000, url.parse(request.url).pathname.toLowerCase(), 'do not parse json body');
+            callback('0', body_Obj);
+        }
+    }
+}
 
 function check_http(request, response, callback) {
     request.headers.rootnm = 'rsp';
@@ -209,6 +352,8 @@ function check_http(request, response, callback) {
     if (request.headers.nmtype == null) {
         request.headers.nmtype = defaultnmtype;
     }
+
+    request.headers.usebodytype = defaultbodytype;
 
     if (request.headers.accept) {
         try {
@@ -227,6 +372,7 @@ function check_http(request, response, callback) {
         request.headers.usebodytype = defaultbodytype;
     }
 
+    // Check X-M2M-RI Header
     if( (request.headers['x-m2m-ri'] == null) ) {
         body_Obj = {};
         body_Obj['rsp'] = {};
@@ -236,28 +382,29 @@ function check_http(request, response, callback) {
         return '0';
     }
 
+    // Check X-M2M-Origin Header
     if( (request.headers['x-m2m-origin'] == null) ) {
         body_Obj = {};
         body_Obj['rsp'] = {};
-        body_Obj['rsp'].cap = 'X-M2M-Origin is none';
+        body_Obj['rsp'].cap = 'X-M2M-Origin Header is none';
         responder.response_result(request, response, 400, body_Obj, 4000, url.parse(request.url).pathname.toLowerCase(), 'X-M2M-Origin is none');
         callback('0', body_Obj);
         return '0';
     }
 
-    if(request.headers['x-m2m-origin'].substr(0, 1) != '/' && request.headers['x-m2m-origin'].substr(0, 1) != 'S' && request.headers['x-m2m-origin'].substr(0, 1) != 'C') {
+    if (request.headers['x-m2m-origin'].substr(0, 1) != '/' && request.headers['x-m2m-origin'].substr(0, 1) != 'S' && request.headers['x-m2m-origin'].substr(0, 1) != 'C') {
         body_Obj = {};
         body_Obj['rsp'] = {};
-        body_Obj['rsp'].cap = 'AE-ID should start capital S or C or /';
+        body_Obj['rsp'].cap = 'AE-ID should start capital S or C or / in X-M2M-Origin Header';
         responder.response_result(request, response, 400, body_Obj, 4000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
         callback('0', body_Obj);
         return '0';
     }
-    
-    if(request.method != 'POST' && (request.headers['x-m2m-origin'] == 'S' || request.headers['x-m2m-origin'] == 'C' || request.headers['x-m2m-origin'] == '/')) {
+
+    if (request.method != 'POST' && (request.headers['x-m2m-origin'] == 'S' || request.headers['x-m2m-origin'] == 'C' || request.headers['x-m2m-origin'] == '/')) {
         body_Obj = {};
         body_Obj['rsp'] = {};
-        body_Obj['rsp'].cap = 'AE-ID should be included in X-M2M-Origin';
+        body_Obj['rsp'].cap = 'AE-ID should be full AE-ID in X-M2M-Origin Header';
         responder.response_result(request, response, 400, body_Obj, 4000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
         callback('0', body_Obj);
         return '0';
@@ -267,27 +414,6 @@ function check_http(request, response, callback) {
     var last_url = url_arr[url_arr.length-1];
 
     if(request.method == 'POST' || request.method == 'PUT') {
-        if(request.body == "") {
-            body_Obj = {};
-            body_Obj['rsp'] = {};
-            body_Obj['rsp'].cap = 'body is empty';
-            responder.response_result(request, response, 400, body_Obj, 4000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
-            callback('0', body_Obj);
-            return '0';
-        }
-
-        try {
-            var content_type = request.headers['content-type'].split(';');
-        }
-        catch (e) {
-            body_Obj = {};
-            body_Obj['rsp'] = {};
-            body_Obj['rsp'].cap = 'content-type is none';
-            responder.response_result(request, response, 400, body_Obj, 4000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
-            callback('0', body_Obj);
-            return '0';
-        }
-
         // if(content_type[0].split('+')[0] != 'application/vnd.onem2m-res') {
         //     body_Obj['rsp'] = {};
         //     body_Obj['rsp'].cap = 'Content-Type is not match (application/vnd.onem2m-res)';
@@ -299,149 +425,8 @@ function check_http(request, response, callback) {
         //resource.set_rootnm(request, ty);
         //var rootnm = request.headers.rootnm;
 
-        if ((content_type[0].split('/')[1] == 'xml') || (content_type[0].split('+')[1] == 'xml')) {
-            request.headers.usebodytype = 'xml';
-
-            var parser = new xml2js.Parser({explicitArray: false});
-            parser.parseString(request.body, function (err, result) {
-                if (err) {
-                    body_Obj = {};
-                    body_Obj['rsp'] = {};
-                    body_Obj['rsp'].cap = 'do not parse xml body';
-                    responder.response_result(request, response, 400, body_Obj, 4000, url.parse(request.url).pathname.toLowerCase(), 'do not parse xml body');
-                    callback('0', body_Obj);
-                    return '0';
-                }
-                else {
-                    body_Obj = result;
-                    check_nametype(request.headers.nmtype, body_Obj);
-
-                    if(request.method == 'POST') {
-                        try {
-                            var ty = content_type[1].split('=')[1];
-                        }
-                        catch (e) {
-                            body_Obj = {};
-                            body_Obj['rsp'] = {};
-                            body_Obj['rsp'].cap = 'ty is none';
-                            responder.response_result(request, response, 400, body_Obj, 4000, url.parse(request.url).pathname.toLowerCase(), 'ty is none');
-                            callback('0', body_Obj);
-                            return '0';
-                        }
-
-                        if (responder.typeRsrc[ty] != Object.keys(body_Obj)[0]) {
-                            body_Obj = {};
-                            body_Obj['rsp'] = {};
-                            body_Obj['rsp'].cap = 'ty is different with body';
-                            responder.response_result(request, response, 400, body_Obj, 4000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
-                            callback('0', body_Obj);
-                            return '0';
-                        }
-                    }
-                    else {
-                        for (var ty_idx in responder.typeRsrc) {
-                            if (responder.typeRsrc.hasOwnProperty(ty_idx)) {
-                                if (responder.typeRsrc[ty_idx] == Object.keys(body_Obj)[0]) {
-                                    ty = ty_idx;
-                                    break;
-                                }
-                            }
-                        }
-                    }
-
-                    request.headers.rootnm = Object.keys(body_Obj)[0];
-
-                    for (var prop in body_Obj) {
-                        if (body_Obj.hasOwnProperty(prop)) {
-                            if (body_Obj[prop].at) {
-                                body_Obj[prop].at = body_Obj[prop].at.split(' ');
-                            }
-                            
-                            if (body_Obj[prop].aa) {
-                                body_Obj[prop].aa = body_Obj[prop].aa.split(' ');
-                            }
-
-                            if (body_Obj[prop].poa) {
-                                body_Obj[prop].poa = body_Obj[prop].poa.split(' ');
-                            }
-
-                            if (body_Obj[prop].lbl) {
-                                body_Obj[prop].lbl = body_Obj[prop].lbl.split(' ');
-                            }
-
-                            if (body_Obj[prop].acpi) {
-                                body_Obj[prop].acpi = body_Obj[prop].acpi.split(' ');
-                            }
-
-                            if (body_Obj[prop].srt) {
-                                body_Obj[prop].srt = body_Obj[prop].srt.split(' ');
-                            }
-
-                            if (body_Obj[prop].nu) {
-                                body_Obj[prop].nu = body_Obj[prop].nu.split(' ');
-                            }
-
-                            if (body_Obj[prop].enc) {
-                                if(body_Obj[prop].enc.net) {
-                                    body_Obj[prop].enc.net = body_Obj[prop].enc.net.split(' ');
-                                }
-                            }
-
-                            if (body_Obj[prop].pv) {
-                                if(body_Obj[prop].pv.acr) {
-                                    if (!Array.isArray(body_Obj[prop].pv.acr)) {
-                                        var temp = body_Obj[prop].pv.acr;
-                                        body_Obj[prop].pv.acr = [];
-                                        body_Obj[prop].pv.acr[0] = temp;
-                                    }
-
-                                    for (var acr_idx in body_Obj[prop].pv.acr) {
-                                        if (body_Obj[prop].pv.acr.hasOwnProperty(acr_idx)) {
-                                            if (body_Obj[prop].pv.acr[acr_idx].acor) {
-                                                body_Obj[prop].pv.acr[acr_idx].acor = body_Obj[prop].pv.acr[acr_idx].acor.split(' ');
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-
-                            if (body_Obj[prop].pvs) {
-                                if(body_Obj[prop].pvs.acr) {
-                                    if (!Array.isArray(body_Obj[prop].pvs.acr)) {
-                                        temp = body_Obj[prop].pvs.acr;
-                                        body_Obj[prop].pvs.acr = [];
-                                        body_Obj[prop].pvs.acr[0] = temp;
-                                    }
-
-                                    for (acr_idx in body_Obj[prop].pvs.acr) {
-                                        if (body_Obj[prop].pvs.acr.hasOwnProperty(acr_idx)) {
-                                            if (body_Obj[prop].pvs.acr[acr_idx].acor) {
-                                                body_Obj[prop].pvs.acr[acr_idx].acor = body_Obj[prop].pvs.acr[acr_idx].acor.split(' ');
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-
-                            if (body_Obj[prop].mid) {
-                                body_Obj[prop].mid = body_Obj[prop].mid.split(' ');
-                            }
-
-                            if (body_Obj[prop].macp) {
-                                body_Obj[prop].macp = body_Obj[prop].macp.split(' ');
-                            }
-                        }
-                    }
-
-                    callback(ty, body_Obj);
-                }
-            });
-        }
-        else {
-            try {
-                body_Obj = JSON.parse(request.body.toString());
-                check_nametype(request.headers.nmtype, body_Obj);
-
+        check_body(request, response, function(rsc, body_Obj, content_type) {
+            if(rsc == '1') {
                 if(request.method == 'POST') {
                     try {
                         var ty = content_type[1].split('=')[1];
@@ -643,15 +628,7 @@ function check_http(request, response, callback) {
 
                 callback(ty, body_Obj);
             }
-            catch (e) {
-                body_Obj = {};
-                body_Obj['rsp'] = {};
-                body_Obj['rsp'].cap = 'do not parse json body';
-                responder.response_result(request, response, 400, body_Obj, 4000, url.parse(request.url).pathname.toLowerCase(), 'do not parse json body');
-                callback('0', body_Obj);
-                return '0';
-            }
-        }
+        });
     }
     else if(request.method == 'GET' || request.method == 'DELETE') {
         if(last_url == 'latest' || last_url == 'la') {
@@ -1016,6 +993,7 @@ function lookup_retrieve(request, response) {
                 });
             }
             else { //if(op == 'direct') {
+                // todo : can check if discovery access or retrieve access
                 security.check(request, results_comm.ty, results_comm.acpi, '2', function (rsc) {
                     if (rsc == '0') {
                         body_Obj = {};

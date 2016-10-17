@@ -860,6 +860,25 @@ exports.response_result = function(request, response, status, body_Obj, rsc, ri,
         }
 
         var bodyString = JSON.stringify(body_Obj);
+
+        // todo : make response message as accept header
+        // if (request.headers.accept) {
+        //     try {
+        //         if ((request.headers.accept.split('/')[1] == 'xml') || (request.headers.accept.split('+')[1] == 'xml')) {
+        //             request.headers.usebodytype = 'xml';
+        //         }
+        //         else {
+        //             request.headers.usebodytype = 'json';
+        //         }
+        //     }
+        //     catch(e) {
+        //         request.headers.usebodytype = defaultbodytype;
+        //     }
+        // }
+        // else {
+        //     request.headers.usebodytype = defaultbodytype;
+        // }
+
         if (request.headers.accept == null) {
             response.setHeader('Accept', 'application/'+request.headers.usebodytype);
             //response.setHeader('Accept', 'application/vnd.onem2m-res'+request.headers.usebodytype);
