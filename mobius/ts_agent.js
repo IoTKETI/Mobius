@@ -98,7 +98,6 @@ function search_TS(request, response, callback) {
             'X-M2M-RI': rqi,
             'Accept': 'application/xml',
             'X-M2M-Origin': usecseid,
-            'nmtype': 'long'
         }
     };
 
@@ -238,16 +237,15 @@ ts_app.post('/missingDataDetect', onem2mParser, function(request, response) {
                                 NOPRINT == 'true' ? NOPRINT = 'true' : console.log('[retrieve_CSEBase_http parsing error]');
                             }
                             else {
-                                var jsonString = JSON.stringify(result);
-                                var jsonObj = JSON.parse(jsonString);
-                                if (jsonObj['m2m:responsePrimitive']) {
+                                var jsonObj = result;
+                                if (jsonObj['m2m:rsp']) {
                                     var ts_ri = [];
                                 }
-                                else if (jsonObj['m2m:URIList']['_'] == null) {
+                                else if (jsonObj['m2m:uril']['_'] == null) {
                                     ts_ri = [];
                                 }
                                 else {
-                                    ts_ri = jsonObj['m2m:URIList']['_'].toString().split(' ');
+                                    ts_ri = jsonObj['m2m:uril']['_'].toString().split(' ');
                                 }
 
                                 var ts = {};
@@ -264,7 +262,7 @@ ts_app.post('/missingDataDetect', onem2mParser, function(request, response) {
                                         response.setHeader('X-M2M-RSC', '2000');
 
                                         ts.status = '2000';
-                                        ts.ri = jsonObj['m2m:URIList']['_'];
+                                        ts.ri = jsonObj['m2m:uril']['_'];
                                         response.status(200).end(JSON.stringify(ts));
                                     });
                                 }

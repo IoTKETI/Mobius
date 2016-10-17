@@ -87,7 +87,7 @@ function fopt_member(request, response, req_count, mid, body_Obj, cse_poa, agr, 
             }
         }
 
-        var rqi = moment().utc().format('mmssSSS') + randomValueBase64(4);
+        //var rqi = moment().utc().format('mmssSSS') + randomValueBase64(4);
         var options = {
             hostname: hostname,
             port: port,

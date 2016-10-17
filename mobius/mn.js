@@ -128,7 +128,7 @@ function create_remoteCSE_http(cbname, cbhost, cbhostport, body_Obj, callback) {
         for (var index in body_Obj[rootnm]) {
             if(body_Obj[rootnm].hasOwnProperty(index)) {
                 if (index == "$") {
-                    delete body_Obj['m2m:' + rsrcShortName][index];
+                    delete body_Obj[rootnm][index];
                     continue;
                 }
                 else if (index == 'enc') {
@@ -390,7 +390,7 @@ function create_remoteCSE_mqtt(cseid, csebasename, body_Obj, callback) {
         for (var index in body_Obj[rootnm]) {
             if(body_Obj[rootnm].hasOwnProperty(index)) {
                 if (index == "$") {
-                    delete body_Obj['m2m:' + rsrcShortName][index];
+                    delete body_Obj[rootnm][index];
                     continue;
                 }
                 else if (index == 'enc') {

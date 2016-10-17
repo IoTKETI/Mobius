@@ -310,6 +310,7 @@ function check_http_body(request, response, callback) {
     }
 
     if ((content_type[0].split('/')[1] == 'xml') || (content_type[0].split('+')[1] == 'xml')) {
+        request.headers.usebodytype = 'xml';
         var parser = new xml2js.Parser({explicitArray: false});
         parser.parseString(request.body, function (err, result) {
             if (err) {
@@ -353,23 +354,15 @@ function check_http(request, response, callback) {
         request.headers.nmtype = defaultnmtype;
     }
 
-    request.headers.usebodytype = defaultbodytype;
-
+    request.headers.usebodytype = 'json';
     if (request.headers.accept) {
         try {
             if ((request.headers.accept.split('/')[1] == 'xml') || (request.headers.accept.split('+')[1] == 'xml')) {
                 request.headers.usebodytype = 'xml';
             }
-            else {
-                request.headers.usebodytype = 'json';
-            }
         }
-        catch(e) {
-            request.headers.usebodytype = defaultbodytype;
+        catch (e) {
         }
-    }
-    else {
-        request.headers.usebodytype = defaultbodytype;
     }
 
     // Check X-M2M-RI Header
