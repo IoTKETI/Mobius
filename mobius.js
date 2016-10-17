@@ -32,7 +32,9 @@ global.usedbpass            = conf.dbpass;
 
 
 global.usepxymqttport       = '7580';
-global.usetsagentport       = '7581';
+global.usepxycoapport       = '7581';
+
+global.usetsagentport       = '7582';
 
 global.usemqttbroker        = 'localhost'; // mqttbroker for mobius
 

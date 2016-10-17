@@ -7,13 +7,14 @@ Example
 -------
 
 ```js
-var helpMe = require('help-me')
+'use strict'
 
-  , help   =helpMe({
-    // the default
-    dir: path.join(path.dirname(require.main.filename), 'doc')
-    // the default
-  , ext: '.txt'
+var helpMe = require('help-me')
+var help = helpMe({
+  // the default
+  dir: path.join(path.dirname(require.main.filename), 'doc'),
+  // the default
+  ext: '.txt'
 })
 
 help
@@ -31,7 +32,7 @@ Usage with commist
 
 ```js
 var commist = require('commist')()
-  , help    = require('./')()
+var help = require('help-me')()
 
 commist.register('help', help.toStdout)
 

@@ -22,7 +22,7 @@ var bodyParser = require('body-parser');
 var util = require('util');
 var xml2js = require('xml2js');
 var ip = require('ip');
-var js2xmlparser = require("js2xmlparser");
+var js2xmlparser = require('js2xmlparser');
 var moment = require('moment');
 
 var db_sql = require('./sql_action');
@@ -51,16 +51,16 @@ function init_TS(callback) {
         method: 'post',
         headers: {
             'X-M2M-RI': rqi,
-            'Accept': 'application/xml',
+            'Accept': 'application/json',
             'X-M2M-Origin': usecseid,
-            'Content-Type': 'application/vnd.onem2m-res+xml'
+            'Content-Type': 'application/vnd.onem2m-res+json'
         }
     };
 
     //var reqBodyString = '';
-    var jsonObj = {};
-    jsonObj.ri = 'all';
-    var reqBodyString = js2xmlparser('ts', JSON.stringify(jsonObj));
+    var jsonObj = {ts:{}};
+    jsonObj.ts.ri = 'all';
+    var reqBodyString = JSON.stringify(jsonObj);
 
     var responseBody = '';
     var req = http.request(options, function (res) {
@@ -96,8 +96,8 @@ function search_TS(request, response, callback) {
         method: 'get',
         headers: {
             'X-M2M-RI': rqi,
-            'Accept': 'application/xml',
-            'X-M2M-Origin': usecseid,
+            'Accept': 'application/json',
+            'X-M2M-Origin': usecseid
         }
     };
 
@@ -218,79 +218,63 @@ ts_app.post('/missingDataDetect', onem2mParser, function(request, response) {
     });
     request.on('end', function() {
         request.body = fullBody;
-        var parser = new xml2js.Parser({explicitArray: false});
-        parser.parseString(request.body.toString(), function (err, result) {
-            if (err) {
-                NOPRINT == 'true' ? NOPRINT = 'true' : console.log('[retrieve_CSEBase_http parsing error]');
-            }
-            else {
-                var jsonString = JSON.stringify(result);
-                var jsonObj = JSON.parse(jsonString);
-                if (jsonObj.ts.ri == 'all') {
-                    search_TS(request, response, function (request, response, rsc, responseBody) {
-                        //console.log(rsc);
-                        //console.log(responseBody);
 
-                        var parser = new xml2js.Parser({explicitArray: false});
-                        parser.parseString(responseBody.toString(), function (err, result) {
-                            if (err) {
-                                NOPRINT == 'true' ? NOPRINT = 'true' : console.log('[retrieve_CSEBase_http parsing error]');
-                            }
-                            else {
-                                var jsonObj = result;
-                                if (jsonObj['m2m:rsp']) {
-                                    var ts_ri = [];
-                                }
-                                else if (jsonObj['m2m:uril']['_'] == null) {
-                                    ts_ri = [];
-                                }
-                                else {
-                                    ts_ri = jsonObj['m2m:uril']['_'].toString().split(' ');
-                                }
+        var jsonObj = JSON.parse(request.body);
+        if (jsonObj.ts.ri == 'all') {
+            search_TS(request, response, function (request, response, rsc, responseBody) {
+                //console.log(rsc);
+                //console.log(responseBody);
 
-                                var ts = {};
-                                if (ts_ri.length >= 1) {
-                                    db_sql.select_ts_in(ts_ri, function (err, results_ts) {
-                                        if (!err) {
-                                            if (results_ts.length >= 1) {
-                                                missing_detect_check(results_ts[0].pin, results_ts[0].mdd, results_ts[0].mddt, results_ts[0].cni, results_ts[0].ri, function (rsc) {
-                                                    console.log(rsc);
-                                                });
-                                            }
-                                        }
-
-                                        response.setHeader('X-M2M-RSC', '2000');
-
-                                        ts.status = '2000';
-                                        ts.ri = jsonObj['m2m:uril']['_'];
-                                        response.status(200).end(JSON.stringify(ts));
-                                    });
-                                }
-                                else {
-                                    response.setHeader('X-M2M-RSC', '4004');
-                                    ts.status = '4004';
-                                    ts.ri = '';
-                                    response.status(404).end(JSON.stringify(ts));
-                                }
-                            }
-                        });
-                    });
+                var jsonObj = JSON.parse(responseBody);
+                if (jsonObj['m2m:rsp']) {
+                    var ts_ri = [];
+                }
+                else if (jsonObj['m2m:uril']['_'] == null) {
+                    ts_ri = [];
                 }
                 else {
-                    db_sql.select_ts(jsonObj.ts.ri, function (err, results_ts) {
+                    ts_ri = jsonObj['m2m:uril']['_'].toString().split(' ');
+                }
+
+                var ts = {};
+                if (ts_ri.length >= 1) {
+                    db_sql.select_ts_in(ts_ri, function (err, results_ts) {
                         if (!err) {
-                            if (results_ts.length == 1) {
+                            if (results_ts.length >= 1) {
                                 missing_detect_check(results_ts[0].pin, results_ts[0].mdd, results_ts[0].mddt, results_ts[0].cni, results_ts[0].ri, function (rsc) {
-                                    console.log(rsc.status + ' - ' + rsc.ri);
-                                    response.setHeader('X-M2M-RSC', '2000');
-                                    response.status(200).end(JSON.stringify(rsc));
+                                    console.log(rsc);
                                 });
                             }
                         }
+
+                        response.setHeader('X-M2M-RSC', '2000');
+
+                        ts.status = '2000';
+                        ts.ri = jsonObj['m2m:uril']['_'];
+                        response.status(200).end(JSON.stringify(ts));
                     });
                 }
-            }
-        });
+                else {
+                    response.setHeader('X-M2M-RSC', '4004');
+                    ts.status = '4004';
+                    ts.ri = '';
+                    response.status(404).end(JSON.stringify(ts));
+                }
+            });
+        }
+        else {
+            db_sql.select_ts(jsonObj.ts.ri, function (err, results_ts) {
+                if (!err) {
+                    if (results_ts.length == 1) {
+                        missing_detect_check(results_ts[0].pin, results_ts[0].mdd, results_ts[0].mddt, results_ts[0].cni, results_ts[0].ri, function (rsc) {
+                            console.log(rsc.status + ' - ' + rsc.ri);
+                            response.setHeader('X-M2M-RSC', '2000');
+                            response.status(200).end(JSON.stringify(rsc));
+                        });
+                    }
+                }
+            });
+        }
     });
 });
 
@@ -302,32 +286,23 @@ ts_app.delete('/missingDataDetect', onem2mParser, function(request, response) {
     });
     request.on('end', function() {
         request.body = fullBody;
-        var parser = new xml2js.Parser({explicitArray: false});
-        parser.parseString(request.body.toString(), function (err, result) {
-            if (err) {
-                console.log('[retrieve_CSEBase_http parsing error]');
-            }
-            else {
-                var jsonString = JSON.stringify(result);
-                var jsonObj = JSON.parse(jsonString);
-                var ri = jsonObj.ts.ri;
-                if(ts_timer[ri] != null) {
-                    ts_timer[ri].removeAllListeners(ri);
-                    delete ts_timer[ri];
-                }
+        var jsonObj = JSON.parse(request.body);
+        var ri = jsonObj.ts.ri;
+        if(ts_timer[ri] != null) {
+            ts_timer[ri].removeAllListeners(ri);
+            delete ts_timer[ri];
+        }
 
-                if(ts_timer_id[ri] != null) {
-                    clearInterval(ts_timer_id[ri]);
-                    delete ts_timer_id[ri];
-                }
+        if(ts_timer_id[ri] != null) {
+            clearInterval(ts_timer_id[ri]);
+            delete ts_timer_id[ri];
+        }
 
-                var rsc = {};
-                rsc.status = 2000;
-                rsc.ri = ri;
-                console.log(rsc.status + ' - ' + rsc.ri);
-                response.setHeader('X-M2M-RSC', '2000');
-                response.status(200).end(JSON.stringify(rsc));
-            }
-        });
+        var rsc = {};
+        rsc.status = 2000;
+        rsc.ri = ri;
+        console.log(rsc.status + ' - ' + rsc.ri);
+        response.setHeader('X-M2M-RSC', '2000');
+        response.status(200).end(JSON.stringify(rsc));
     });
 });

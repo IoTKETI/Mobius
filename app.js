@@ -105,7 +105,7 @@ if(cluster.isMaster) {
                     worker[i] = cluster.fork();
                 }
 
-                require('./pxymqtt');
+                require('./pxy_mqtt');
                 //require('./mobius/ts_agent');
 
                 if(usecsetype == 'mn' || usecsetype == 'asn') {

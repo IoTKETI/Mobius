@@ -113,7 +113,7 @@ function delete_TS(ri, callback) {
         method: 'delete',
         headers: {
             'X-M2M-RI': rqi,
-            'Accept': 'application/xml',
+            'Accept': 'application/json',
             'X-M2M-Origin': usecseid
         }
     };

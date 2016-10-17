@@ -1,6 +1,7 @@
+'use strict'
 
 var commist = require('commist')()
-  , help    = require('./')()
+var help = require('./')()
 
 commist.register('help', help.toStdout)
 
