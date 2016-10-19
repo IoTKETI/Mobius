@@ -450,6 +450,27 @@ function mqtt_response(mqtt_client, resp_topic, rsc, to, fr, rqi, inpc, bodytype
                 "xmlns:xsi": "http://www.w3.org/2001/XMLSchema-instance"
             };
 
+            for(var prop in rsp_message['m2m:rsp'].pc) {
+                if (rsp_message['m2m:rsp'].pc.hasOwnProperty(prop)) {
+                    for(var prop2 in rsp_message['m2m:rsp'].pc[prop]) {
+                        if (rsp_message['m2m:rsp'].pc[prop].hasOwnProperty(prop2)) {
+                            if(prop2 == 'rn') {
+                                rsp_message['m2m:rsp'].pc[prop]['@'] = {rn : rsp_message['m2m:rsp'].pc[prop][prop2]};
+                                delete rsp_message['m2m:rsp'].pc[prop][prop2];
+                            }
+                            for(var prop3 in rsp_message['m2m:rsp'].pc[prop][prop2]) {
+                                if (rsp_message['m2m:rsp'].pc[prop][prop2].hasOwnProperty(prop3)) {
+                                    if(prop3 == 'rn') {
+                                        rsp_message['m2m:rsp'].pc[prop][prop2]['@'] = {rn : rsp_message['m2m:rsp'].pc[prop][prop2][prop3]};
+                                        delete rsp_message['m2m:rsp'].pc[prop][prop2][prop3];
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
             var xmlString = js2xmlparser("m2m:rsp", rsp_message['m2m:rsp']);
 
             mqtt_client.publish(resp_topic, xmlString.toString());
