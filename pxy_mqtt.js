@@ -39,7 +39,9 @@ global.NOPRINT = 'true';
 var _this = this;
 
 var mqtt_state = 'init';
-var custom = new process.EventEmitter();
+//var custom = new process.EventEmitter();
+var events = require('events');
+var mqtt_custom = new events.EventEmitter();
 
 // ������ �����մϴ�.
 var mqtt_app = express();
@@ -56,13 +58,13 @@ http.createServer(mqtt_app).listen({port: usepxymqttport, agent: false}, functio
     mqtt_state = 'connect';
 
     setInterval(function () {
-        custom.emit('mqtt_watchdog');
+        mqtt_custom.emit('mqtt_watchdog');
     }, 2000);
 });
 
 var pxymqtt_client = null;
 
-custom.on('mqtt_watchdog', function() {
+mqtt_custom.on('mqtt_watchdog', function() {
     if(mqtt_state == 'connect') {
         http_retrieve_CSEBase(function(status, res_body) {
             if (status == 2000) {

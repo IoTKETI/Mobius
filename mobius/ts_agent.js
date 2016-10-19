@@ -140,7 +140,9 @@ var missing_detect_check = function(pin, mdd, mddt, cni, ri, callback) {
     rsc.status = 2000;
     if((pin != null && pin != '' && pin != '0') && (mdd != null && mdd == 'TRUE') && mddt != '0') {
         if(ts_timer[ri] == null) {
-            ts_timer[ri] = new process.EventEmitter();
+            //ts_timer[ri] = new process.EventEmitter();
+            var events = require('events');
+            ts_timer[ri] = new events.EventEmitter();
             ts_timer[ri].on(ri, function () {
                 db_sql.select_ts(ri, function (err, results) {
                     if (results.length == 1) {

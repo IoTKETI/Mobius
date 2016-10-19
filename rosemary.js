@@ -50,9 +50,11 @@ global.usemqttbroker        = parent_mqttbroker; // mobius to mqttbroker
 // CSE core
 require('./app');
 
-global.custom = new process.EventEmitter();
+//global.custom = new process.EventEmitter();
+var events = require('events');
+global.csr_custom = new events.EventEmitter();
 
-custom.on('register_remoteCSE', function() {
+csr_custom.on('register_remoteCSE', function() {
     mn.build_mn('/'+usecsebase, function (rsp) {
         if(rsp.rsc == '2000') {
             console.log('[[[[[[[[[[[[[[[[register_remoteCSE]]]]]]]]]]]]]]]] ' + JSON.stringify(rsp));

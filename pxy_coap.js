@@ -38,7 +38,10 @@ global.NOPRINT = 'true';
 var _this = this;
 
 var coap_state = 'init';
-var custom = new process.EventEmitter();
+
+//var custom = new process.EventEmitter();
+var events = require('events');
+var coap_custom = new events.EventEmitter();
 
 // ������ �����մϴ�.
 var coap_app = express();
@@ -55,13 +58,13 @@ http.createServer(coap_app).listen({port: usepxycoapport, agent: false}, functio
     coap_state = 'connect';
 
     setInterval(function () {
-        custom.emit('coap_watchdog');
+        coap_custom.emit('coap_watchdog');
     }, 2000);
 });
 
 var pxycoap_server = null;
 
-custom.on('coap_watchdog', function() {
+coap_custom.on('coap_watchdog', function() {
     if(coap_state == 'connect') {
         if(pxycoap_server == null) {
             pxycoap_server = coap.createServer();
