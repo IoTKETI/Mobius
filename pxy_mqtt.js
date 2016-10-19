@@ -112,6 +112,127 @@ function reg_req_sub(mqtt_client) {
     console.log('subscribe reg_req_topic as ' + reg_req_topic);
 }
 
+function make_json_obj(bodytype, str, callback) {
+    if(bodytype == 'xml') {
+        var message = str;
+        var parser = new xml2js.Parser({explicitArray: false});
+        parser.parseString(message.toString(), function (err, result) {
+            if (err) {
+                console.log('[mqtt make json obj] xml2js parser error]');
+                callback('0');
+            }
+            else {
+                for (var prop in result) {
+                    if (result.hasOwnProperty(prop)) {
+                        for (var attr in result[prop]) {
+                            if (result[prop].hasOwnProperty(attr)) {
+                                if (attr == '$') {
+                                    delete result[prop][attr];
+                                }
+                                else if (attr == 'pc') {
+                                    for (var attr2 in result[prop][attr]) {
+                                        if (result[prop][attr].hasOwnProperty(attr2)) {
+                                            if (result[prop][attr][attr2].at) {
+                                                result[prop][attr][attr2].at = result[prop][attr][attr2].at.split(' ');
+                                            }
+
+                                            if (result[prop][attr][attr2].aa) {
+                                                result[prop][attr][attr2].aa = result[prop][attr][attr2].aa.split(' ');
+                                            }
+
+                                            if (result[prop][attr][attr2].poa) {
+                                                result[prop][attr][attr2].poa = result[prop][attr][attr2].poa.split(' ');
+                                            }
+
+                                            if (result[prop][attr][attr2].lbl) {
+                                                result[prop][attr][attr2].lbl = result[prop][attr][attr2].lbl.split(' ');
+                                            }
+
+                                            if (result[prop][attr][attr2].acpi) {
+                                                result[prop][attr][attr2].acpi = result[prop][attr][attr2].acpi.split(' ');
+                                            }
+
+                                            if (result[prop][attr][attr2].srt) {
+                                                result[prop][attr][attr2].srt = result[prop][attr][attr2].srt.split(' ');
+                                            }
+
+                                            if (result[prop][attr][attr2].nu) {
+                                                result[prop][attr][attr2].nu = result[prop][attr][attr2].nu.split(' ');
+                                            }
+
+                                            if (result[prop][attr][attr2].enc) {
+                                                if(result[prop][attr][attr2].enc.net) {
+                                                    result[prop][attr][attr2].enc.net = result[prop][attr][attr2].enc.net.split(' ');
+                                                }
+                                            }
+
+                                            if (result[prop][attr][attr2].pv) {
+                                                if(result[prop][attr][attr2].pv.acr) {
+                                                    if (!Array.isArray(result[prop][attr][attr2].pv.acr)) {
+                                                        var temp = result[prop][attr][attr2].pv.acr;
+                                                        result[prop][attr][attr2].pv.acr = [];
+                                                        result[prop][attr][attr2].pv.acr[0] = temp;
+                                                    }
+
+                                                    for (var acr_idx in result[prop][attr][attr2].pv.acr) {
+                                                        if (result[prop][attr][attr2].pv.acr.hasOwnProperty(acr_idx)) {
+                                                            if (result[prop][attr][attr2].pv.acr[acr_idx].acor) {
+                                                                result[prop][attr][attr2].pv.acr[acr_idx].acor = result[prop][attr][attr2].pv.acr[acr_idx].acor.split(' ');
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+
+                                            if (result[prop][attr][attr2].pvs) {
+                                                if(result[prop][attr][attr2].pvs.acr) {
+                                                    if (!Array.isArray(result[prop][attr][attr2].pvs.acr)) {
+                                                        temp = result[prop][attr][attr2].pvs.acr;
+                                                        result[prop][attr][attr2].pvs.acr = [];
+                                                        result[prop][attr][attr2].pvs.acr[0] = temp;
+                                                    }
+
+                                                    for (acr_idx in result[prop][attr][attr2].pvs.acr) {
+                                                        if (result[prop][attr][attr2].pvs.acr.hasOwnProperty(acr_idx)) {
+                                                            if (result[prop][attr][attr2].pvs.acr[acr_idx].acor) {
+                                                                result[prop][attr][attr2].pvs.acr[acr_idx].acor = result[prop][attr][attr2].pvs.acr[acr_idx].acor.split(' ');
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+
+                                            if (result[prop][attr][attr2].mid) {
+                                                result[prop][attr][attr2].mid = result[prop][attr][attr2].mid.split(' ');
+                                            }
+
+                                            if (result[prop][attr][attr2].macp) {
+                                                result[prop][attr][attr2].macp = result[prop][attr][attr2].macp.split(' ');
+                                            }
+
+                                            if(result[prop][attr][attr2]['$']) {
+                                                if (result[prop][attr][attr2]['$'].rn && result[prop][attr][attr2]['$'].rn != '') {
+                                                    result[prop][attr][attr2].rn = result[prop][attr][attr2]['$'].rn;
+                                                    delete result[prop][attr][attr2]['$'];
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                callback('1', result);
+            }
+        });
+    }
+    else {
+        var result = JSON.parse(str);
+        callback('1', result);
+    }
+}
+
 function mqtt_message_handler(topic, message) {
     var topic_arr = topic.split("/");
     if(topic_arr[5] != null) {
@@ -123,129 +244,58 @@ function mqtt_message_handler(topic, message) {
     }
 
     if((topic_arr[1] == 'oneM2M' && topic_arr[2] == 'resp' && topic_arr[3].replace(':', '/') == usecseid)) {
-        if(bodytype == 'xml') {
-            var parser = new xml2js.Parser({explicitArray: false});
-            parser.parseString(message.toString(), function (err, jsonObj) {
-                if (err) {
-                    console.log('[pxymqtt-resp xml2js parser error]');
-                }
-                else {
-                    if (jsonObj['m2m:rsp'] != null) {
-                        for (var i = 0; i < resp_mqtt_rqi_arr.length; i++) {
-                            if (resp_mqtt_rqi_arr[i] == jsonObj['m2m:rsp'].rqi) {
-                                console.log('----> ' + jsonObj['m2m:rsp'].rsc);
+        make_json_obj(bodytype, message.toString(), function(rsc, jsonObj) {
+            if(rsc == '1') {
+                if (jsonObj['m2m:rsp'] != null) {
+                    for (var i = 0; i < resp_mqtt_rqi_arr.length; i++) {
+                        if (resp_mqtt_rqi_arr[i] == jsonObj['m2m:rsp'].rqi) {
+                            console.log('----> ' + jsonObj['m2m:rsp'].rsc);
 
-                                http_response_q[resp_mqtt_rqi_arr[i]].setHeader('X-M2M-RSC', jsonObj['m2m:rsp'].rsc);
-                                http_response_q[resp_mqtt_rqi_arr[i]].setHeader('X-M2M-RI', resp_mqtt_rqi_arr[i]);
+                            http_response_q[resp_mqtt_rqi_arr[i]].setHeader('X-M2M-RSC', jsonObj['m2m:rsp'].rsc);
+                            http_response_q[resp_mqtt_rqi_arr[i]].setHeader('X-M2M-RI', resp_mqtt_rqi_arr[i]);
 
-                                var status_code = '404';
-                                if(jsonObj['m2m:rsp'].rsc == '4105') {
-                                    status_code = '409';
-                                }
-                                else if(jsonObj['m2m:rsp'].rsc == '2000') {
-                                    status_code = '200';
-                                }
-                                else if(jsonObj['m2m:rsp'].rsc == '2001') {
-                                    status_code = '201';
-                                }
-                                else if(jsonObj['m2m:rsp'].rsc == '4000') {
-                                    status_code = '400';
-                                }
-                                else if(jsonObj['m2m:rsp'].rsc == '5000') {
-                                    status_code = '500';
-                                }
-
-                                http_response_q[resp_mqtt_rqi_arr[i]].status(status_code).end(JSON.stringify(jsonObj['m2m:rsp'].pc));
-
-                                delete http_response_q[resp_mqtt_rqi_arr[i]];
-                                resp_mqtt_rqi_arr.splice(i, 1);
-
-                                break;
+                            var status_code = '404';
+                            if(jsonObj['m2m:rsp'].rsc == '4105') {
+                                status_code = '409';
                             }
-                        }
-                    }
-                }
-            });
-        }
-        else { // 'json'
-            var jsonObj = JSON.parse(message.toString());
-            if (jsonObj['m2m:rsp'] != null) {
-                for (var i = 0; i < resp_mqtt_rqi_arr.length; i++) {
-                    if (resp_mqtt_rqi_arr[i] == jsonObj['m2m:rsp'].rqi) {
-                        console.log('----> ' + jsonObj['m2m:rsp'].rsc);
+                            else if(jsonObj['m2m:rsp'].rsc == '2000') {
+                                status_code = '200';
+                            }
+                            else if(jsonObj['m2m:rsp'].rsc == '2001') {
+                                status_code = '201';
+                            }
+                            else if(jsonObj['m2m:rsp'].rsc == '4000') {
+                                status_code = '400';
+                            }
+                            else if(jsonObj['m2m:rsp'].rsc == '5000') {
+                                status_code = '500';
+                            }
 
-                        http_response_q[resp_mqtt_rqi_arr[i]].setHeader('X-M2M-RSC', jsonObj['m2m:rsp'].rsc);
-                        http_response_q[resp_mqtt_rqi_arr[i]].setHeader('X-M2M-RI', resp_mqtt_rqi_arr[i]);
+                            http_response_q[resp_mqtt_rqi_arr[i]].status(status_code).end(JSON.stringify(jsonObj['m2m:rsp'].pc));
 
-                        var status_code = '404';
-                        if(jsonObj['m2m:rsp'].rsc == '4105') {
-                            status_code = '409';
-                        }
-                        else if(jsonObj['m2m:rsp'].rsc == '2000') {
-                            status_code = '200';
-                        }
-                        else if(jsonObj['m2m:rsp'].rsc == '2001') {
-                            status_code = '201';
-                        }
-                        else if(jsonObj['m2m:rsp'].rsc == '4000') {
-                            status_code = '400';
-                        }
-                        else if(jsonObj['m2m:rsp'].rsc == '5000') {
-                            status_code = '500';
-                        }
+                            delete http_response_q[resp_mqtt_rqi_arr[i]];
+                            resp_mqtt_rqi_arr.splice(i, 1);
 
-                        http_response_q[resp_mqtt_rqi_arr[i]].status(status_code).end(JSON.stringify(jsonObj['m2m:rsp'].pc));
-
-                        delete http_response_q[resp_mqtt_rqi_arr[i]];
-                        resp_mqtt_rqi_arr.splice(i, 1);
-
-                        break;
+                            break;
+                        }
                     }
                 }
             }
-        }
+        });
     }
     else if(topic_arr[1] == 'oneM2M' && topic_arr[2] == 'req' && topic_arr[4].replace(':', '/') == usecseid) {
-        if (bodytype == 'xml') {
-            parser = new xml2js.Parser({explicitArray: false});
-            parser.parseString(message.toString(), function (err, result) {
-                if (err) {
-                    console.log('[pxymqtt-rqp xml2js parser error]');
-                }
-                else {
-                    mqtt_message_action(pxymqtt_client, topic_arr, bodytype, result);
-                }
-            });
-        }
-        else { // 'json'
-            try {
-                mqtt_message_action(pxymqtt_client, topic_arr, bodytype, JSON.parse(message.toString()));
+        make_json_obj(bodytype, message.toString(), function(rsc, result) {
+            if(rsc == '1') {
+                mqtt_message_action(pxymqtt_client, topic_arr, bodytype, result);
             }
-            catch(e) {
-                console.log('mqtt message is not supported');
-            }
-        }
+        });
     }
     else if(topic_arr[1] == 'oneM2M' && topic_arr[2] == 'reg_req' && topic_arr[4].replace(':', '/') == usecseid) {
-        if (bodytype == 'xml') {
-            parser = new xml2js.Parser({explicitArray: false});
-            parser.parseString(message.toString(), function (err, result) {
-                if (err) {
-                    console.log('[pxymqtt-rqp xml2js parser error]');
-                }
-                else {
-                    mqtt_message_action(pxymqtt_client, topic_arr, bodytype, result);
-                }
-            });
-        }
-        else { // 'json'
-            try {
-                mqtt_message_action(pxymqtt_client, topic_arr, bodytype, JSON.parse(message.toString()));
+        make_json_obj(bodytype, message.toString(), function(rsc, result) {
+            if(rsc == '1') {
+                mqtt_message_action(pxymqtt_client, topic_arr, bodytype, result);
             }
-            catch(e) {
-                console.log('mqtt message is not supported');
-            }
-        }
+        });
     }
     else {
         console.log('topic is not supported');
@@ -273,22 +323,7 @@ function mqtt_message_action(mqtt_client, topic_arr, bodytype, jsonObj) {
             }
             resp_topic += (topic_arr[3] + '/' + topic_arr[4] + '/' + topic_arr[5]);
             mqtt_binding(op, to, fr, rqi, ty, pc, bodytype, function(res, res_body) {
-                //res_body = res_body.toString().replace(/m2m:/g, '');
-                if(bodytype == 'xml') {
-                    var parser = new xml2js.Parser({explicitArray: false, ignoreAttrs: true});
-                    parser.parseString(res_body.toString(), function (err, result) {
-                        if (err) {
-                            console.log('[mqtt_binding parser error]');
-                        }
-                        else {
-                            mqtt_response(mqtt_client, resp_topic, res.headers['x-m2m-rsc'], to, usecseid, rqi, result, bodytype);
-                        }
-                    });
-                }
-                else { // 'json
-                    //res_body = res_body.toString().replace('m2m:', '');
-                    mqtt_response(mqtt_client, resp_topic, res.headers['x-m2m-rsc'], to, usecseid, rqi, JSON.parse(res_body), bodytype);
-                }
+                mqtt_response(mqtt_client, resp_topic, res.headers['x-m2m-rsc'], to, usecseid, rqi, JSON.parse(res_body), bodytype);
             });
         }
         else {
@@ -301,7 +336,7 @@ function mqtt_message_action(mqtt_client, topic_arr, bodytype, jsonObj) {
 }
 
 function mqtt_binding(op, to, fr, rqi, ty, pc, bodytype, callback) {
-    var content_type = 'application/vnd.onem2m-res+' + bodytype;
+    var content_type = 'application/vnd.onem2m-res+json';
 
     switch (op) {
         case '1':
@@ -321,145 +356,7 @@ function mqtt_binding(op, to, fr, rqi, ty, pc, bodytype, callback) {
 
     var reqBodyString = '';
     if( op == 'post' || op == 'put') {
-        var temp_pc = JSON.stringify(pc).replace(/m2m:/g, '');
-        pc = JSON.parse(temp_pc);
-        var jsonObj = {};
-        if(bodytype == 'xml') {
-            switch (ty) {
-                case '16':
-                    jsonObj = (pc.csr == null) ? pc['remoteCSE'] : pc['csr'];
-                    if(pc.csr['$'].rn) {
-                        jsonObj['@'] = {
-                            "xmlns:m2m": "http://www.onem2m.org/xml/protocols",
-                            "xmlns:xsi": "http://www.w3.org/2001/XMLSchema-instance",
-                            "rn": pc.csr['$'].rn
-                        };
-                        delete pc.csr['$'];
-                    }
-                    else {
-                        jsonObj['@'] = {
-                            "xmlns:m2m": "http://www.onem2m.org/xml/protocols",
-                            "xmlns:xsi": "http://www.w3.org/2001/XMLSchema-instance"
-                        };
-                    }
-                    reqBodyString = (pc.csr == null) ? js2xmlparser('m2m:remoteCSE', JSON.stringify(jsonObj)) : js2xmlparser('m2m:csr', JSON.stringify(jsonObj));
-                    break;
-                case '2':
-                    jsonObj = (pc.ae == null) ? pc['ae'] : pc['ae'];
-                    if(pc.ae['$'].rn) {
-                        jsonObj['@'] = {
-                            "xmlns:m2m": "http://www.onem2m.org/xml/protocols",
-                            "xmlns:xsi": "http://www.w3.org/2001/XMLSchema-instance",
-                            "rn": pc.ae['$'].rn
-                        };
-                        delete pc.ae['$'];
-                    }
-                    else {
-                        jsonObj['@'] = {
-                            "xmlns:m2m": "http://www.onem2m.org/xml/protocols",
-                            "xmlns:xsi": "http://www.w3.org/2001/XMLSchema-instance"
-                        };
-                    }
-                    reqBodyString = (pc.ae == null) ? js2xmlparser('m2m:AE', JSON.stringify(jsonObj)) : js2xmlparser('m2m:ae', JSON.stringify(jsonObj));
-                    break;
-                case '3':
-                    jsonObj = (pc.cnt == null) ? pc['container'] : pc['cnt'];
-                    if(pc.cnt['$'].rn) {
-                        jsonObj['@'] = {
-                            "xmlns:m2m": "http://www.onem2m.org/xml/protocols",
-                            "xmlns:xsi": "http://www.w3.org/2001/XMLSchema-instance",
-                            "rn": pc.cnt['$'].rn
-                        };
-                        delete pc.cnt['$'];
-                    }
-                    else {
-                        jsonObj['@'] = {
-                            "xmlns:m2m": "http://www.onem2m.org/xml/protocols",
-                            "xmlns:xsi": "http://www.w3.org/2001/XMLSchema-instance"
-                        };
-                    }
-                    reqBodyString = (pc.cnt == null) ? js2xmlparser('m2m:container', JSON.stringify(jsonObj)) : js2xmlparser('m2m:cnt', JSON.stringify(jsonObj));
-                    break;
-                case '4':
-                    jsonObj = (pc.cin == null) ? pc['contentInstance'] : pc['cin'];
-                    if(pc.cin['$'].rn) {
-                        jsonObj['@'] = {
-                            "xmlns:m2m": "http://www.onem2m.org/xml/protocols",
-                            "xmlns:xsi": "http://www.w3.org/2001/XMLSchema-instance",
-                            "rn": pc.cin['$'].rn
-                        };
-                        delete pc.cin['$'];
-                    }
-                    else {
-                        jsonObj['@'] = {
-                            "xmlns:m2m": "http://www.onem2m.org/xml/protocols",
-                            "xmlns:xsi": "http://www.w3.org/2001/XMLSchema-instance"
-                        };
-                    }
-                    reqBodyString = (pc.cin == null) ? js2xmlparser('m2m:contentInstance', JSON.stringify(jsonObj)) : js2xmlparser('m2m:cin', JSON.stringify(jsonObj));
-                    break;
-                case '23':
-                    jsonObj = (pc.sub == null) ? pc['sgn'] : pc['sub'];
-                    if(pc.sub['$'].rn) {
-                        jsonObj['@'] = {
-                            "xmlns:m2m": "http://www.onem2m.org/xml/protocols",
-                            "xmlns:xsi": "http://www.w3.org/2001/XMLSchema-instance",
-                            "rn": pc.sub['$'].rn
-                        };
-                        delete pc.sub['$'];
-                    }
-                    else {
-                        jsonObj['@'] = {
-                            "xmlns:m2m": "http://www.onem2m.org/xml/protocols",
-                            "xmlns:xsi": "http://www.w3.org/2001/XMLSchema-instance"
-                        };
-                    }
-                    reqBodyString = (pc.sub == null) ? js2xmlparser('m2m:subscription', JSON.stringify(jsonObj)) : js2xmlparser('m2m:sub', JSON.stringify(jsonObj));
-                    break;
-                case '24':
-                    jsonObj = (pc.sd == null) ? pc['semanticDescriptor'] : pc['sd'];
-                    if(pc.sd['$'].rn) {
-                        jsonObj['@'] = {
-                            "xmlns:m2m": "http://www.onem2m.org/xml/protocols",
-                            "xmlns:xsi": "http://www.w3.org/2001/XMLSchema-instance",
-                            "rn": pc.sd['$'].rn
-                        };
-                        delete pc.sub['$'];
-                    }
-                    else {
-                        jsonObj['@'] = {
-                            "xmlns:m2m": "http://www.onem2m.org/xml/protocols",
-                            "xmlns:xsi": "http://www.w3.org/2001/XMLSchema-instance"
-                        };
-                    }
-                    reqBodyString = (pc.sd == null) ? js2xmlparser('m2m:semanticDescriptor', JSON.stringify(jsonObj)) : js2xmlparser('m2m:sd', JSON.stringify(jsonObj));
-                    break;
-            }
-        }
-        else {
-            switch (ty) {
-                case '16':
-                    (pc.csr == null) ? jsonObj['m2m:remoteCSE'] = pc['remoteCSE'] : jsonObj['m2m:csr'] = pc['csr'];
-                    break;
-                case '2':
-                    (pc.ae == null) ? jsonObj['m2m:AE'] = pc['ae'] : jsonObj['m2m:ae'] = pc['ae'];
-                    break;
-                case '3':
-                    (pc.cnt == null) ? jsonObj['m2m:container'] = pc['container'] : jsonObj['m2m:cnt'] = pc['cnt'];
-                    break;
-                case '4':
-                    (pc.cin == null) ? jsonObj['m2m:contentInstance'] = pc['contentInstance'] : jsonObj['m2m:cin'] = pc['cin'];
-                    break;
-                case '23':
-                    (pc.sub == null) ? jsonObj['m2m:subscription'] = pc['sgn'] : jsonObj['m2m:sub'] = pc['sub'];
-                    break;
-                case '24':
-                    (pc.sd == null) ? jsonObj['m2m:semanticDescriptor'] = pc['semanticDescriptor'] : jsonObj['m2m:sd'] = pc['sd'];
-                    break;
-            }
-
-            reqBodyString = JSON.stringify(jsonObj);
-        }
+        reqBodyString = JSON.stringify(pc);
     }
 
     var options = {
@@ -468,9 +365,8 @@ function mqtt_binding(op, to, fr, rqi, ty, pc, bodytype, callback) {
         path: to,
         method: op,
         headers: {
-            'locale': 'ko',
             'X-M2M-RI': rqi,
-            'Accept': 'application/' + bodytype,
+            'Accept': 'application/json',
             'X-M2M-Origin': fr,
             'Content-Type': content_type
         }
