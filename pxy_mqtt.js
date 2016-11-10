@@ -243,6 +243,7 @@ function mqtt_message_handler(topic, message) {
     }
     else {
         bodytype = defaultbodytype;
+        topic_arr[5] = defaultbodytype;
     }
 
     if((topic_arr[1] == 'oneM2M' && topic_arr[2] == 'resp' && topic_arr[3].replace(':', '/') == usecseid)) {

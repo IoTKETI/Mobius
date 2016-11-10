@@ -376,7 +376,7 @@ function check_http(request, response, callback) {
     }
 
     // Check X-M2M-Origin Header
-    if( (request.headers['x-m2m-origin'] == null) ) {
+    if( (request.headers['x-m2m-origin'] == null || request.headers['x-m2m-origin'] == '') ) {
         body_Obj = {};
         body_Obj['rsp'] = {};
         body_Obj['rsp'].cap = 'X-M2M-Origin Header is none';
@@ -385,14 +385,14 @@ function check_http(request, response, callback) {
         return '0';
     }
 
-    if (request.headers['x-m2m-origin'].substr(0, 1) != '/' && request.headers['x-m2m-origin'].substr(0, 1) != 'S' && request.headers['x-m2m-origin'].substr(0, 1) != 'C') {
+    /*if (request.headers['x-m2m-origin'].substr(0, 1) != '/' && request.headers['x-m2m-origin'].substr(0, 1) != 'S' && request.headers['x-m2m-origin'].substr(0, 1) != 'C') {
         body_Obj = {};
         body_Obj['rsp'] = {};
         body_Obj['rsp'].cap = 'AE-ID should start capital S or C or / in X-M2M-Origin Header';
         responder.response_result(request, response, 400, body_Obj, 4000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
         callback('0', body_Obj);
         return '0';
-    }
+    }*/ // ignore value of Origin tag
 
     if (request.method != 'POST' && (request.headers['x-m2m-origin'] == 'S' || request.headers['x-m2m-origin'] == 'C' || request.headers['x-m2m-origin'] == '/')) {
         body_Obj = {};
