@@ -17,6 +17,7 @@
 var util = require('util');
 var url = require('url');
 var http = require('http');
+var coap = require('coap');
 var js2xmlparser = require('js2xmlparser');
 var xmlbuilder = require('xmlbuilder');
 var db = require('./db_action');
@@ -125,8 +126,17 @@ exports.check = function(request, noti_Obj, check_value) {
                                                 "xmlns:xsi": "http://www.w3.org/2001/XMLSchema-instance"
                                             };
 
-                                            var xmlString = js2xmlparser('m2m:'+Object.keys(node)[0], node[Object.keys(node)[0]]);
-                                            request_noti_http(nu, results_ss[i].ri, xmlString, sub_bodytype, xm2mri);
+                                            var bodyString = js2xmlparser('m2m:'+Object.keys(node)[0], node[Object.keys(node)[0]]);
+                                            request_noti_http(nu, results_ss[i].ri, bodyString, sub_bodytype, xm2mri);
+                                        }
+                                        else if (sub_nu.protocol == 'coap:') {
+                                            node[Object.keys(node)[0]]['@'] = {
+                                                "xmlns:m2m": "http://www.onem2m.org/xml/protocols",
+                                                "xmlns:xsi": "http://www.w3.org/2001/XMLSchema-instance"
+                                            };
+
+                                            bodyString = js2xmlparser('m2m:'+Object.keys(node)[0], node[Object.keys(node)[0]]);
+                                            request_noti_coap(nu, results_ss[i].ri, bodyString, sub_bodytype, xm2mri);
                                         }
                                         else { // mqtt:
                                             //node['m2m:'+Object.keys(node)[0]] = node[Object.keys(node)[0]];
@@ -172,7 +182,6 @@ function request_noti_http(nu, ri, xmlString, bodytype, xm2mri) {
         path: url.parse(nu).path,
         method: 'POST',
         headers: {
-            'locale': 'ko',
             'X-M2M-RI': xm2mri,
             'Accept': 'application/'+bodytype,
             'X-M2M-Origin': usecseid,
@@ -208,6 +217,43 @@ function request_noti_http(nu, ri, xmlString, bodytype, xm2mri) {
     req.write(xmlString);
     req.end();
 }
+
+
+function request_noti_coap(nu, ri, bodyString, bodytype, xm2mri) {
+    var options = {
+        host: url.parse(nu).hostname,
+        port: url.parse(nu).port,
+        pathname: url.parse(nu).path,
+        method: 'post',
+        confirmable: 'true',
+        options: {
+            'Accept': 'application/'+bodytype,
+            'Content-Type': 'application/'+bodytype,
+            'Content-Length' : bodyString.length
+        }
+    };
+
+    var responseBody = '';
+    var req = coap.request(options);
+    req.setOption("256", new Buffer(usecseid));      // X-M2M-Origin
+    req.setOption("257", new Buffer(xm2mri));    // X-M2M-RI
+    req.on('response', function (res) {
+        res.on('data', function () {
+            responseBody += res.payload.toString();
+        });
+
+        res.on('end', function () {
+            callback(res.code, responseBody);
+            responseBody = '';
+        });
+    });
+
+    console.log('<---- request for notification with coap');
+
+    req.write(bodyString);
+    req.end();
+}
+
 
 function delete_sub(ri, xm2mri) {
     var options = {

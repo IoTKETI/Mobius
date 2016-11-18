@@ -561,7 +561,7 @@ exports.search_lookup = function (ty, lbl, cra, crb, lim, pi_list, pi_index, fou
     }
 
     var cur_ct = moment(cur_d).format('YYYYMMDDTHHmmss');
-    var bef_d = moment(cur_d).subtract(Math.pow(3,loop_cnt), 'days').format('YYYY-MM-DD HH:mm:ss');
+    var bef_d = moment(cur_d).subtract(Math.pow(7,loop_cnt), 'days').format('YYYY-MM-DD HH:mm:ss');
     var bef_ct = moment(bef_d).format('YYYYMMDDTHHmmss');
 
     if(lim != null) {

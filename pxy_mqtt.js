@@ -317,7 +317,7 @@ function mqtt_message_action(mqtt_client, topic_arr, bodytype, jsonObj) {
         var ty = (jsonObj['m2m:rqp'].ty == null) ? '' : jsonObj['m2m:rqp'].ty.toString();
         var pc = (jsonObj['m2m:rqp'].pc == null) ? '' : jsonObj['m2m:rqp'].pc;
 
-        if (to.split('/')[1] == usecsebase) {
+        if (to.split('/')[1].split('?')[0] == usecsebase) {
             if(topic_arr[2] == 'reg_req') {
                 var resp_topic = '/oneM2M/reg_resp/';
             }
@@ -326,11 +326,14 @@ function mqtt_message_action(mqtt_client, topic_arr, bodytype, jsonObj) {
             }
             resp_topic += (topic_arr[3] + '/' + topic_arr[4] + '/' + topic_arr[5]);
             mqtt_binding(op, to, fr, rqi, ty, pc, bodytype, function(res, res_body) {
+                if(res_body == '') {
+                    res_body = '{}';
+                }
                 mqtt_response(mqtt_client, resp_topic, res.headers['x-m2m-rsc'], to, usecseid, rqi, JSON.parse(res_body), bodytype);
             });
         }
         else {
-            mqtt_response(mqtt_client, resp_topic, 4004, fr, usecseid, rqi, '<h1>this is not MN-CSE, csebase do not exist</h1>');
+            mqtt_response(mqtt_client, resp_topic, 4004, fr, usecseid, rqi, 'this is not MN-CSE, csebase do not exist');
         }
     }
     else {
