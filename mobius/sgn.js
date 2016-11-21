@@ -146,7 +146,14 @@ exports.check = function(request, noti_Obj, check_value) {
                                     }
                                     else { // defaultbodytype == 'json')
                                         if (sub_nu.protocol == 'http:') {
+                                            node['m2m:'+Object.keys(node)[0]] = node[Object.keys(node)[0]];
+                                            delete node[Object.keys(node)[0]];
                                             request_noti_http(nu, results_ss[i].ri, JSON.stringify(node), sub_bodytype, xm2mri);
+                                        }
+                                        else if (sub_nu.protocol == 'coap:') {
+                                            node['m2m:'+Object.keys(node)[0]] = node[Object.keys(node)[0]];
+                                            delete node[Object.keys(node)[0]];
+                                            request_noti_coap(nu, results_ss[i].ri, JSON.stringify(node), sub_bodytype, xm2mri);
                                         }
                                         else { // mqtt:
                                             //jsonString = {};
@@ -199,7 +206,7 @@ function request_noti_http(nu, ri, xmlString, bodytype, xm2mri) {
 
         res.on('end', function () {
             if(res.statusCode == 200 || res.statusCode == 201) {
-                console.log('----> response for notification ' + res.headers['x-m2m-rsc'] + ' - ' + ri);
+                console.log('----> response for notification through http  ' + res.headers['x-m2m-rsc'] + ' - ' + ri);
                 ss_fail_count[res.req._headers.ri] = 0;
             }
         });
@@ -211,7 +218,7 @@ function request_noti_http(nu, ri, xmlString, bodytype, xm2mri) {
         }
     });
 
-    console.log('<---- request for notification');
+    console.log('<---- request for notification through http with ' + bodytype);
     // write data to request body
     //NOPRINT == 'true' ? NOPRINT = 'true' : console.log(xmlString);
     req.write(xmlString);
@@ -243,12 +250,14 @@ function request_noti_coap(nu, ri, bodyString, bodytype, xm2mri) {
         });
 
         res.on('end', function () {
-            callback(res.code, responseBody);
-            responseBody = '';
+            if(res.code == '2.03' || res.code == '2.01') {
+                ss_fail_count[ri] = 0;
+                console.log('----> response for notification through coap  ' + res.code + ' - ' + ri);
+            }
         });
     });
 
-    console.log('<---- request for notification with coap');
+    console.log('<---- request for notification through coap with ' + bodytype);
 
     req.write(bodyString);
     req.end();
@@ -303,7 +312,6 @@ function request_noti_mqtt(nu, ri, xmlString, bodytype, xm2mri) {
         path: '/notification',
         method: 'POST',
         headers: {
-            'locale': 'ko',
             'X-M2M-RI': xm2mri,
             'Accept': 'application/'+bodytype,
             'X-M2M-Origin': usecseid,
@@ -324,7 +332,7 @@ function request_noti_mqtt(nu, ri, xmlString, bodytype, xm2mri) {
 
         res.on('end', function () {
             if(res.statusCode == 200 || res.statusCode == 201) {
-                console.log('----> response for notification ' + res.headers['x-m2m-rsc'] + ' - ' + ri);
+                console.log('----> response for notification through mqtt ' + res.headers['x-m2m-rsc'] + ' - ' + ri);
                 ss_fail_count[res.req._headers.ri] = 0;
             }
         });
