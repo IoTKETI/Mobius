@@ -561,7 +561,7 @@ exports.search_lookup = function (ty, lbl, cra, crb, lim, pi_list, pi_index, fou
     }
 
     var cur_ct = moment(cur_d).format('YYYYMMDDTHHmmss');
-    var bef_d = moment(cur_d).subtract(Math.pow(7,loop_cnt), 'days').format('YYYY-MM-DD HH:mm:ss');
+    var bef_d = moment(cur_d).subtract(Math.pow(6, loop_cnt), 'days').format('YYYY-MM-DD HH:mm:ss');
     var bef_ct = moment(bef_d).format('YYYYMMDDTHHmmss');
 
     if(lim != null) {
@@ -588,7 +588,7 @@ exports.search_lookup = function (ty, lbl, cra, crb, lim, pi_list, pi_index, fou
             }
 
             if(++pi_index >= pi_list.length) {
-                if(++loop_cnt > 5) {
+                if(++loop_cnt > 4) {
                     console.timeEnd('search_lookup');
                     callback(err, found_Obj);
                 }
@@ -596,15 +596,19 @@ exports.search_lookup = function (ty, lbl, cra, crb, lim, pi_list, pi_index, fou
                     pi_index = 0;
                     //cur_d.setDate(bef_d.getDate());
                     cur_d = bef_d;
-                    _this.search_lookup(ty, lbl, cra, crb, lim, pi_list, pi_index, found_Obj, found_Cnt, cur_d, loop_cnt, function (err, found_Obj) {
-                        callback(err, found_Obj);
-                    });
+                    setTimeout( function() {
+                        _this.search_lookup(ty, lbl, cra, crb, lim, pi_list, pi_index, found_Obj, found_Cnt, cur_d, loop_cnt, function (err, found_Obj) {
+                            callback(err, found_Obj);
+                        });
+                    }, 0);
                 }
             }
             else {
-                _this.search_lookup(ty, lbl, cra, crb, lim, pi_list, pi_index, found_Obj, found_Cnt, cur_d, loop_cnt, function (err, found_Obj) {
-                    callback(err, found_Obj);
-                });
+                setTimeout( function() {
+                    _this.search_lookup(ty, lbl, cra, crb, lim, pi_list, pi_index, found_Obj, found_Cnt, cur_d, loop_cnt, function (err, found_Obj) {
+                        callback(err, found_Obj);
+                    });
+                }, 0);
             }
         }
         else {

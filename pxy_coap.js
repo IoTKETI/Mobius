@@ -96,10 +96,10 @@ coap_custom.on('coap_watchdog', function() {
     if(coap_state == 'connect') {
         if(pxycoap_server == null) {
             pxycoap_server = coap.createServer();
-            pxycoap_server.listen(7591, function() {
+            pxycoap_server.listen(usecsebaseport, function() {
                 var options = {
                     host: 'localhost',
-                    port: 7591,
+                    port: usecsebaseport,
                     pathname: '/mobius-yt',
                     method: 'get',
                     confirmable: 'true',

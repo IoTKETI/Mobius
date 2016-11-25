@@ -622,6 +622,9 @@ function build_resource(request, response, ty, body_Obj, callback) {
     resource_Obj[rootnm].pi = url.parse(request.url).pathname.toLowerCase();
     resource_Obj[rootnm].ri = resource_Obj[rootnm].pi + '/' + resource_Obj[rootnm].rn;
     resource_Obj[rootnm].ct = cur_d.toISOString().replace(/-/, '').replace(/-/, '').replace(/:/, '').replace(/:/, '').replace(/\..+/, '');
+    var et = new Date();
+    et.setYear(cur_d.getFullYear()+1); // adds time to existing time
+    resource_Obj[rootnm].et = et.toISOString().replace(/-/, '').replace(/-/, '').replace(/:/, '').replace(/:/, '').replace(/\..+/, '');
     resource_Obj[rootnm].lt = resource_Obj[rootnm].ct;
 
     resource_Obj[rootnm].st = '0';

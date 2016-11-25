@@ -777,6 +777,86 @@ exports.attrLname = attrLname;
 exports.attrSname = attrSname;
 
 
+function typeCheckforJson(body_Obj) {
+    for (var index1 in body_Obj) {
+        if(body_Obj.hasOwnProperty(index1)) {
+            for (var index2 in body_Obj[index1]) {
+                if(body_Obj[index1].hasOwnProperty(index2)) {
+                    if (index2 == 'cst' || index2 == 'los' || index2 == 'mt' || index2 == 'csy' || index2 == 'nct' || index2 == 'cnf' ||
+                        index2 == 'cs' || index2 == 'st' || index2 == 'ty' || index2 == 'cbs' || index2 == 'cni' || index2 == 'mni') {
+                        body_Obj[index1][index2] = parseInt(body_Obj[index1][index2]);
+                    }
+                    else if (index2 == 'enc') {
+                        for (var index3 in body_Obj[index1][index2]) {
+                            if (body_Obj[index1][index2].hasOwnProperty(index3)) {
+                                if(index3 == 'net') {
+                                    for (var index4 in body_Obj[index1][index2][index3]) {
+                                        if (body_Obj[index1][index2][index3].hasOwnProperty(index4)) {
+                                            body_Obj[index1][index2][index3][index4] = parseInt(body_Obj[index1][index2][index3][index4]);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    else if (index2 == 'srt') {
+                        for (index3 in body_Obj[index1][index2]) {
+                            if (body_Obj[index1][index2].hasOwnProperty(index3)) {
+                                body_Obj[index1][index2][index3] = parseInt(body_Obj[index1][index2][index3]);
+                            }
+                        }
+                    }
+                    else if (index2 == 'rr' || index2 == 'mtv') {
+                        body_Obj[index1][index2] = (body_Obj[index1][index2] == 'true');
+                    }
+                }
+            }
+        }
+    }
+}
+
+function typeCheckforJson2(body_Obj) {
+    for (var index1 in body_Obj) {
+        if(body_Obj.hasOwnProperty(index1)) {
+            for (var index2 in body_Obj[index1]) {
+                if (body_Obj[index1].hasOwnProperty(index2)) {
+                    for (var index3 in body_Obj[index1][index2]) {
+                        if (body_Obj[index1][index2].hasOwnProperty(index3)) {
+                            if (index3 == 'cst' || index3 == 'los' || index3 == 'mt' || index3 == 'csy' || index3 == 'nct' || index3 == 'cnf' ||
+                                index3 == 'cs' || index3 == 'st' || index3 == 'ty' || index3 == 'cbs' || index3 == 'cni' || index3 == 'mni') {
+                                body_Obj[index1][index2][index3] = parseInt(body_Obj[index1][index2][index3]);
+                            }
+                            else if (index3 == 'enc') {
+                                for (var index4 in body_Obj[index1][index2][index3]) {
+                                    if (body_Obj[index1][index2][index3].hasOwnProperty(index4)) {
+                                        if (index4 == 'net') {
+                                            for (var index5 in body_Obj[index1][index2][index3][index4]) {
+                                                if (body_Obj[index1][index2][index3][index4].hasOwnProperty(index5)) {
+                                                    body_Obj[index1][index2][index3][index4][index5] = parseInt(body_Obj[index1][index2][index3][index4][index5]);
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            else if (index3 == 'srt') {
+                                for (index4 in body_Obj[index1][index2][index3]) {
+                                    if (body_Obj[index1][index2][index3].hasOwnProperty(index4)) {
+                                        body_Obj[index1][index2][index3][index4] = parseInt(body_Obj[index1][index2][index3][index4]);
+                                    }
+                                }
+                            }
+                            else if (index3 == 'rr' || index3 == 'mtv') {
+                                body_Obj[index1][index2][index3] = (body_Obj[index1][index2][index3] == 'true');
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 exports.response_result = function(request, response, status, body_Obj, rsc, ri, cap) {
     if(request.headers['x-m2m-ri'] != null) {
         response.setHeader('X-M2M-RI', request.headers['x-m2m-ri']);
@@ -875,6 +955,8 @@ exports.response_result = function(request, response, status, body_Obj, rsc, ri,
 
         body_Obj['m2m:' + rootnm] = body_Obj[rootnm];
         delete body_Obj[rootnm];
+
+        typeCheckforJson(body_Obj);
 
         var bodyString = JSON.stringify(body_Obj);
 
@@ -1071,6 +1153,8 @@ exports.response_rcn3_result = function(request, response, status, body_Obj, rsc
     delete body_Obj.rce.uri;
     delete body_Obj.rce;
     var rce_nm = 'rce';
+
+    typeCheckforJson(body_Obj['m2m:rce']);
 
     var bodyString = JSON.stringify(body_Obj);
 
@@ -1349,6 +1433,8 @@ exports.search_result = function(request, response, status, body_Obj, rsc, ri, c
         }
 
         body_Obj['m2m:'+rootnm] = res_Obj;
+
+        typeCheckforJson2(body_Obj['m2m:'+rootnm]);
 
         bodyString = JSON.stringify(body_Obj);
 

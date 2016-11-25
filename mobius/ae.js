@@ -121,7 +121,7 @@ exports.build_ae = function(request, response, resource_Obj, body_Obj, callback)
     resource_Obj[rootnm].api = body_Obj[rootnm].api;
 
     resource_Obj[rootnm].acpi = (body_Obj[rootnm].acpi) ? body_Obj[rootnm].acpi : [];
-    resource_Obj[rootnm].et = (body_Obj[rootnm].et) ? body_Obj[rootnm].et : '';
+    resource_Obj[rootnm].et = (body_Obj[rootnm].et) ? body_Obj[rootnm].et : resource_Obj[rootnm].et;
     resource_Obj[rootnm].lbl = (body_Obj[rootnm].lbl) ? body_Obj[rootnm].lbl : [];
     resource_Obj[rootnm].at = (body_Obj[rootnm].at) ? body_Obj[rootnm].at : [];
     resource_Obj[rootnm].aa = (body_Obj[rootnm].aa) ? body_Obj[rootnm].aa : [];
@@ -129,7 +129,7 @@ exports.build_ae = function(request, response, resource_Obj, body_Obj, callback)
     resource_Obj[rootnm].apn = (body_Obj[rootnm].apn) ? body_Obj[rootnm].apn : '';
     resource_Obj[rootnm].poa = (body_Obj[rootnm].poa) ? body_Obj[rootnm].poa : [];
     resource_Obj[rootnm].or = (body_Obj[rootnm].or) ? body_Obj[rootnm].or : '';
-    resource_Obj[rootnm].rr = (body_Obj[rootnm].rr) ? body_Obj[rootnm].rr : '';
+    resource_Obj[rootnm].rr = (body_Obj[rootnm].rr) ? body_Obj[rootnm].rr : 'true';
 
     //var cur_d = new Date();
     //var msec = (parseInt(cur_d.getMilliseconds(), 10)<10) ? ('00'+cur_d.getMilliseconds()) : ((parseInt(cur_d.getMilliseconds(), 10)<100) ? ('0'+cur_d.getMilliseconds()) : cur_d.getMilliseconds());

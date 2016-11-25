@@ -44,11 +44,6 @@ var fopt = require('./mobius/fopt');
 var db = require('./mobius/db_action');
 var db_sql = require('./mobius/sql_action');
 
-var cluster = require('cluster');
-var os = require('os');
-
-var cpuCount = os.cpus().length;
-
 // ������ �����մϴ�.
 var app = express();
 
@@ -87,55 +82,82 @@ var accessLogStream = fileStreamRotator.getStream({
 app.use( morgan('combined', {stream: accessLogStream}));
 //ts_app.use(morgan('short', {stream: accessLogStream}));
 
+var cluster = require('cluster');
+var os = require('os');
+var cpuCount = os.cpus().length;
 var worker = [];
+const use_clustering = 1;
+if(use_clustering) {
+    if (cluster.isMaster) {
+        cluster.on('death', function (worker) {
+            console.log('worker' + worker.pid + ' died --> start again');
+            cluster.fork();
+        });
 
-if(cluster.isMaster) {
-    cluster.on('death', function(worker) {
-        console.log('worker' + worker.pid + ' died --> start again');
-        cluster.fork();
-    });
+        db.connect(usedbhost, 3306, 'root', usedbpass, function (rsc) {
+            if (rsc == '1') {
+                cb.create(function (rsp) {
+                    console.log(JSON.stringify(rsp));
 
-    db.connect(usedbhost, 3306, 'root', usedbpass, function (rsc) {
-        if(rsc == '1') {
-            cb.create(function(rsp) {
-                console.log(JSON.stringify(rsp));
+                    console.log('CPU Count:', cpuCount);
+                    for (var i = 0; i < cpuCount; i++) {
+                        worker[i] = cluster.fork();
+                    }
 
-                console.log('CPU Count:', cpuCount);
-                for(var i = 0; i < cpuCount; i++) {
-                    worker[i] = cluster.fork();
-                }
+                    require('./pxy_mqtt');
+                    //require('./mobius/ts_agent');
 
-                require('./pxy_mqtt');
-                //require('./mobius/ts_agent');
+                    if (usecsetype == 'mn' || usecsetype == 'asn') {
+                        global.refreshIntervalId = setInterval(function () {
+                            csr_custom.emit('register_remoteCSE');
+                        }, 5000);
+                    }
+                });
+            }
+        });
+    }
+    else {
+        //   app.use(bodyParser.urlencoded({ extended: true }));
+        //   app.use(bodyParser.json({limit: '1mb', type: 'application/*+json' }));
+        //   app.use(bodyParser.text({limit: '1mb', type: 'application/*+xml' }));
 
-                if(usecsetype == 'mn' || usecsetype == 'asn') {
-                    global.refreshIntervalId = setInterval(function () {
-                        csr_custom.emit('register_remoteCSE');
-                    }, 5000);
-                }
-            });
-        }
-    });
+        http.globalAgent.maxSockets = 1000000;
+
+        db.connect(usedbhost, 3306, 'root', usedbpass, function (rsc) {
+            if (rsc == '1') {
+                http.createServer(app).listen({port: usecsebaseport, agent: false}, function () {
+                    console.log('mobius server (' + ip.address() + ') running at ' + usecsebaseport + ' port');
+                    cb.create(function (rsp) {
+                        console.log(JSON.stringify(rsp));
+                    });
+                });
+            }
+        });
+    }
 }
 else {
- //   app.use(bodyParser.urlencoded({ extended: true }));
- //   app.use(bodyParser.json({limit: '1mb', type: 'application/*+json' }));
- //   app.use(bodyParser.text({limit: '1mb', type: 'application/*+xml' }));
-
-    http.globalAgent.maxSockets = 1000000;
-
     db.connect(usedbhost, 3306, 'root', usedbpass, function (rsc) {
-        if(rsc == '1') {
-            http.createServer(app).listen({port: usecsebaseport, agent: false}, function () {
-                console.log('mobius server (' + ip.address() + ') running at ' + usecsebaseport + ' port');
-                cb.create(function(rsp) {
-                    console.log(JSON.stringify(rsp));
+        if (rsc == '1') {
+            cb.create(function (rsp) {
+                console.log(JSON.stringify(rsp));
+
+                http.globalAgent.maxSockets = 1000000;
+
+                http.createServer(app).listen({port: usecsebaseport, agent: false}, function () {
+                    console.log('mobius server (' + ip.address() + ') running at ' + usecsebaseport + ' port');
+                    require('./pxy_mqtt');
+                    //require('./mobius/ts_agent');
+
+                    if (usecsetype == 'mn' || usecsetype == 'asn') {
+                        global.refreshIntervalId = setInterval(function () {
+                            csr_custom.emit('register_remoteCSE');
+                        }, 5000);
+                    }
                 });
             });
         }
     });
 }
-
 
 
 global.update_route = function(callback) {
