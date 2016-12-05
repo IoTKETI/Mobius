@@ -46,7 +46,8 @@ function parse_create_action(callback) {
     resource_Obj[rootnm].st = '0';
 
     //resource_Obj[rootnm].csi = '/0.2.481.1.' + randomIntInc(1, 10000000000);
-    resource_Obj[rootnm].csi = '/'+resource_Obj[rootnm].rn;
+    //resource_Obj[rootnm].csi = '/'+resource_Obj[rootnm].rn;
+    resource_Obj[rootnm].csi = usecseid;
 
     resource_Obj[rootnm].srt = [];
     resource_Obj[rootnm].srt.push('1');
@@ -61,8 +62,8 @@ function parse_create_action(callback) {
     resource_Obj[rootnm].srt.push('26');
 
     resource_Obj[rootnm].poa = [];
-    resource_Obj[rootnm].poa.push('http://' + ip.address() + ':' + usecsebaseport);
-    resource_Obj[rootnm].poa.push('mqtt://' + ip.address() + '/' + resource_Obj[rootnm].csi.replace('/', ':'));
+    resource_Obj[rootnm].poa[0] = 'http://' + ip.address() + ':' + usecsebaseport;
+    //resource_Obj[rootnm].poa[1] = 'mqtt://' + ip.address() + '/' + resource_Obj[rootnm].csi.replace('/', ':');
 
     resource_Obj[rootnm].nl = '';
     resource_Obj[rootnm].ncp = '';
@@ -78,13 +79,13 @@ function parse_create_action(callback) {
                         usecseid = resource_Obj[rootnm].csi;
                         rspObj.rsc = '2004';
                         rspObj.ri = resource_Obj[rootnm].ri;
-                        rspObj.sts = '';
+                        rspObj = '';
                         callback(rspObj);
                     }
                     else {
                         rspObj.rsc = '5000';
                         rspObj.ri = resource_Obj[rootnm].ri;
-                        rspObj.sts = results.message;
+                        rspObj = results.message;
                         callback(rspObj);
                     }
                 });
@@ -97,12 +98,12 @@ function parse_create_action(callback) {
                     if(!err) {
                         rspObj.rsc = '2001';
                         rspObj.ri = resource_Obj[rootnm].ri;
-                        rspObj.sts = '';
+                        rspObj = '';
                     }
                     else {
                         rspObj.rsc = '5000';
                         rspObj.ri = resource_Obj[rootnm].ri;
-                        rspObj.sts = results.message;
+                        rspObj = results.message;
                     }
                     callback(rspObj);
                 });
@@ -111,7 +112,7 @@ function parse_create_action(callback) {
         else {
             rspObj.rsc = '5000';
             rspObj.ri = resource_Obj[rootnm].ri;
-            rspObj.sts = results_ri.message;
+            rspObj = results_ri.message;
             callback(rspObj);
         }
     });

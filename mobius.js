@@ -37,7 +37,7 @@ global.usepxycoapport       = '7581';
 global.usetsagentport       = '7582';
 
 global.usemqttbroker        = 'localhost'; // mqttbroker for mobius
-
+global.usemqttport          = '1883';
 
 // CSE core
 require('./app');

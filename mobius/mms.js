@@ -29,18 +29,16 @@ exports.build_mms = function(request, response, resource_Obj, body_Obj, callback
         (body_Obj[rootnm]['ct'] != null) || (body_Obj[rootnm]['lt'] != null) || (body_Obj[rootnm]['st'] != null) ||
         (body_Obj[rootnm]['sid'] != null)) {
         body_Obj = {};
-        body_Obj['rsp'] = {};
-        body_Obj['rsp'].cap = 'NP Tag is in body';
-        responder.response_result(request, response, 400, body_Obj, 4000, url.parse(request.url).pathname.toLowerCase(), 'NP Tag is in body');
+        body_Obj['dbg'] = 'NP Tag is in body';
+        responder.response_result(request, response, 400, body_Obj, 4000, request.url, 'NP Tag is in body');
         callback('0', resource_Obj);
         return '0';
     }
     // check M
     else if ((body_Obj[rootnm]['soid'] == null) || (body_Obj[rootnm]['asd'] == null)) {
         body_Obj = {};
-        body_Obj['rsp'] = {};
-        body_Obj['rsp'].cap = 'M Tag (soid, asd) is none in body';
-        responder.response_result(request, response, 400, body_Obj, 4000, url.parse(request.url).pathname.toLowerCase(), 'M Tag is none in body');
+        body_Obj['dbg'] = 'M Tag (soid, asd) is none in body';
+        responder.response_result(request, response, 400, body_Obj, 4000, request.url, 'M Tag is none in body');
         callback('0', resource_Obj);
         return '0';
     }
@@ -61,9 +59,8 @@ exports.build_mms = function(request, response, resource_Obj, body_Obj, callback
     if (resource_Obj[rootnm].et != '') {
         if (resource_Obj[rootnm].et < resource_Obj[rootnm].ct) {
             body_Obj = {};
-            body_Obj['rsp'] = {};
-            body_Obj['rsp'].cap = 'expiration is before now';
-            responder.response_result(request, response, 400, body_Obj, 4000, url.parse(request.url).pathname.toLowerCase(), 'expiration is before now');
+            body_Obj['dbg'] = 'expiration is before now';
+            responder.response_result(request, response, 400, body_Obj, 4000, request.url, 'expiration is before now');
             callback('0', resource_Obj);
             return '0';
         }
@@ -82,18 +79,16 @@ exports.update_mms = function(request, response, resource_Obj, body_Obj, callbac
         (body_Obj[rootnm]['ct'] != null) || (body_Obj[rootnm]['lt'] != null) || (body_Obj[rootnm]['st'] != null) ||
         (body_Obj[rootnm]['sid'] != null) || (body_Obj[rootnm]['soid'] != null)) {
         body_Obj = {};
-        body_Obj['rsp'] = {};
-        body_Obj['rsp'].cap = 'NP Tag is in body';
-        responder.response_result(request, response, 400, body_Obj, 4000, url.parse(request.url).pathname.toLowerCase(), 'NP Tag is in body');
+        body_Obj['dbg'] = 'NP Tag is in body';
+        responder.response_result(request, response, 400, body_Obj, 4000, request.url, 'NP Tag is in body');
         callback('0', resource_Obj);
         return '0';
     }
     // check M
     else if (0) {
         body_Obj = {};
-        body_Obj['rsp'] = {};
-        body_Obj['rsp'].cap = 'M Tag is none in body';
-        responder.response_result(request, response, 400, body_Obj, 4000, url.parse(request.url).pathname.toLowerCase(), 'M Tag is none in body');
+        body_Obj['dbg'] = 'M Tag is none in body';
+        responder.response_result(request, response, 400, body_Obj, 4000, request.url, 'M Tag is none in body');
         callback('0', resource_Obj);
         return '0';
     }
@@ -116,9 +111,8 @@ exports.update_mms = function(request, response, resource_Obj, body_Obj, callbac
     if (resource_Obj[rootnm].et != '') {
         if (resource_Obj[rootnm].et < resource_Obj[rootnm].ct) {
             body_Obj = {};
-            body_Obj['rsp'] = {};
-            body_Obj['rsp'].cap = 'expiration is before now';
-            responder.response_result(request, response, 400, body_Obj, 4000, url.parse(request.url).pathname.toLowerCase(), 'expiration is before now');
+            body_Obj['dbg'] = 'expiration is before now';
+            responder.response_result(request, response, 400, body_Obj, 4000, request.url, 'expiration is before now');
             callback('0', resource_Obj);
             return '0';
         }

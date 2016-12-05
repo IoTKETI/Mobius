@@ -29,63 +29,56 @@ exports.build_lcp = function(request, response, resource_Obj, body_Obj, callback
     // check NP
     if(body_Obj[rootnm].ty) {
         body_Obj = {};
-        body_Obj['rsp'] = {};
-        body_Obj['rsp'].cap = 'ty as NP Tag should not be included';
-        responder.response_result(request, response, 400, body_Obj, 4000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
+        body_Obj['dbg'] = 'ty as NP Tag should not be included';
+        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
         callback('0', resource_Obj);
         return '0';
     }
 
     if(body_Obj[rootnm].ri) {
         body_Obj = {};
-        body_Obj['rsp'] = {};
-        body_Obj['rsp'].cap = 'ri as NP Tag should not be included';
-        responder.response_result(request, response, 400, body_Obj, 4000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
+        body_Obj['dbg'] = 'ri as NP Tag should not be included';
+        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
         callback('0', resource_Obj);
         return '0';
     }
 
     if(body_Obj[rootnm].pi) {
         body_Obj = {};
-        body_Obj['rsp'] = {};
-        body_Obj['rsp'].cap = 'pi as NP Tag should not be included';
-        responder.response_result(request, response, 400, body_Obj, 4000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
+        body_Obj['dbg'] = 'pi as NP Tag should not be included';
+        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
         callback('0', resource_Obj);
         return '0';
     }
 
     if(body_Obj[rootnm].ct) {
         body_Obj = {};
-        body_Obj['rsp'] = {};
-        body_Obj['rsp'].cap = 'ct as NP Tag should not be included';
-        responder.response_result(request, response, 400, body_Obj, 4000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
+        body_Obj['dbg'] = 'ct as NP Tag should not be included';
+        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
         callback('0', resource_Obj);
         return '0';
     }
 
     if(body_Obj[rootnm].lt) {
         body_Obj = {};
-        body_Obj['rsp'] = {};
-        body_Obj['rsp'].cap = 'lt as NP Tag should not be included';
-        responder.response_result(request, response, 400, body_Obj, 4000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
+        body_Obj['dbg'] = 'lt as NP Tag should not be included';
+        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
         callback('0', resource_Obj);
         return '0';
     }
 
     if(body_Obj[rootnm].st) {
         body_Obj = {};
-        body_Obj['rsp'] = {};
-        body_Obj['rsp'].cap = 'st as NP Tag should not be included';
-        responder.response_result(request, response, 400, body_Obj, 4000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
+        body_Obj['dbg'] = 'st as NP Tag should not be included';
+        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
         callback('0', resource_Obj);
         return '0';
     }
 
     if(body_Obj[rootnm].loi) {
         body_Obj = {};
-        body_Obj['rsp'] = {};
-        body_Obj['rsp'].cap = 'loi as NP Tag should not be included';
-        responder.response_result(request, response, 400, body_Obj, 4000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
+        body_Obj['dbg'] = 'loi as NP Tag should not be included';
+        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
         callback('0', resource_Obj);
         return '0';
     }
@@ -93,9 +86,8 @@ exports.build_lcp = function(request, response, resource_Obj, body_Obj, callback
     // check M
     if(!body_Obj[rootnm].los) {
         body_Obj = {};
-        body_Obj['rsp'] = {};
-        body_Obj['rsp'].cap = 'los as M Tag should be included';
-        responder.response_result(request, response, 400, body_Obj, 4000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
+        body_Obj['dbg'] = 'los as M Tag should be included';
+        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
         callback('0', resource_Obj);
         return '0';
     }
@@ -119,9 +111,8 @@ exports.build_lcp = function(request, response, resource_Obj, body_Obj, callback
     if (resource_Obj[rootnm].et != '') {
         if (resource_Obj[rootnm].et < resource_Obj[rootnm].ct) {
             body_Obj = {};
-            body_Obj['rsp'] = {};
-            body_Obj['rsp'].cap = 'expiration time is before now';
-            responder.response_result(request, response, 400, body_Obj, 4000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
+            body_Obj['dbg'] = 'expiration time is before now';
+            responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
             callback('0', resource_Obj);
             return '0';
         }
@@ -138,108 +129,96 @@ exports.update_lcp = function(request, response, resource_Obj, body_Obj, callbac
     // check NP
     if(body_Obj[rootnm].rn) {
         body_Obj = {};
-        body_Obj['rsp'] = {};
-        body_Obj['rsp'].cap = 'rn as NP Tag should not be included';
-        responder.response_result(request, response, 400, body_Obj, 4000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
+        body_Obj['dbg'] = 'rn as NP Tag should not be included';
+        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
         callback('0', resource_Obj);
         return '0';
     }
 
     if(body_Obj[rootnm].ty) {
         body_Obj = {};
-        body_Obj['rsp'] = {};
-        body_Obj['rsp'].cap = 'ty as NP Tag should not be included';
-        responder.response_result(request, response, 400, body_Obj, 4000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
+        body_Obj['dbg'] = 'ty as NP Tag should not be included';
+        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
         callback('0', resource_Obj);
         return '0';
     }
 
     if(body_Obj[rootnm].ri) {
         body_Obj = {};
-        body_Obj['rsp'] = {};
-        body_Obj['rsp'].cap = 'ri as NP Tag should not be included';
-        responder.response_result(request, response, 400, body_Obj, 4000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
+        body_Obj['dbg'] = 'ri as NP Tag should not be included';
+        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
         callback('0', resource_Obj);
         return '0';
     }
 
     if(body_Obj[rootnm].pi) {
         body_Obj = {};
-        body_Obj['rsp'] = {};
-        body_Obj['rsp'].cap = 'pi as NP Tag should not be included';
-        responder.response_result(request, response, 400, body_Obj, 4000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
+        body_Obj['dbg'] = 'pi as NP Tag should not be included';
+        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
         callback('0', resource_Obj);
         return '0';
     }
 
     if(body_Obj[rootnm].ct) {
         body_Obj = {};
-        body_Obj['rsp'] = {};
-        body_Obj['rsp'].cap = 'ct as NP Tag should not be included';
-        responder.response_result(request, response, 400, body_Obj, 4000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
+        body_Obj['dbg'] = 'ct as NP Tag should not be included';
+        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
         callback('0', resource_Obj);
         return '0';
     }
 
     if(body_Obj[rootnm].lt) {
         body_Obj = {};
-        body_Obj['rsp'] = {};
-        body_Obj['rsp'].cap = 'lt as NP Tag should not be included';
-        responder.response_result(request, response, 400, body_Obj, 4000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
+        body_Obj['dbg'] = 'lt as NP Tag should not be included';
+        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
         callback('0', resource_Obj);
         return '0';
     }
 
     if(body_Obj[rootnm].st) {
         body_Obj = {};
-        body_Obj['rsp'] = {};
-        body_Obj['rsp'].cap = 'st as NP Tag should not be included';
-        responder.response_result(request, response, 400, body_Obj, 4000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
+        body_Obj['dbg'] = 'st as NP Tag should not be included';
+        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
         callback('0', resource_Obj);
         return '0';
     }
 
     if(body_Obj[rootnm].loi) {
         body_Obj = {};
-        body_Obj['rsp'] = {};
-        body_Obj['rsp'].cap = 'loi as NP Tag should not be included';
-        responder.response_result(request, response, 400, body_Obj, 4000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
+        body_Obj['dbg'] = 'loi as NP Tag should not be included';
+        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
         callback('0', resource_Obj);
         return '0';
     }
 
     if(body_Obj[rootnm].los) {
         body_Obj = {};
-        body_Obj['rsp'] = {};
-        body_Obj['rsp'].cap = 'los as NP Tag should not be included';
-        responder.response_result(request, response, 400, body_Obj, 4000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
+        body_Obj['dbg'] = 'los as NP Tag should not be included';
+        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
         callback('0', resource_Obj);
         return '0';
     }
 
     if(body_Obj[rootnm].lot) {
         body_Obj = {};
-        body_Obj['rsp'] = {};
-        body_Obj['rsp'].cap = 'lot as NP Tag should not be included';
-        responder.response_result(request, response, 400, body_Obj, 4000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
+        body_Obj['dbg'] = 'lot as NP Tag should not be included';
+        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
         callback('0', resource_Obj);
         return '0';
     }
 
     if(body_Obj[rootnm].lor) {
         body_Obj = {};
-        body_Obj['rsp'] = {};
-        body_Obj['rsp'].cap = 'lor as NP Tag should not be included';
-        responder.response_result(request, response, 400, body_Obj, 4000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
+        body_Obj['dbg'] = 'lor as NP Tag should not be included';
+        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
         callback('0', resource_Obj);
         return '0';
     }
 
     if(body_Obj[rootnm].lost) {
         body_Obj = {};
-        body_Obj['rsp'] = {};
-        body_Obj['rsp'].cap = 'lost as NP Tag should not be included';
-        responder.response_result(request, response, 400, body_Obj, 4000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
+        body_Obj['dbg'] = 'lost as NP Tag should not be included';
+        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
         callback('0', resource_Obj);
         return '0';
     }
@@ -283,9 +262,8 @@ exports.update_lcp = function(request, response, resource_Obj, body_Obj, callbac
     if (resource_Obj[rootnm].et != '') {
         if (resource_Obj[rootnm].et < resource_Obj[rootnm].ct) {
             body_Obj = {};
-            body_Obj['rsp'] = {};
-            body_Obj['rsp'].cap = 'expiration time is before now';
-            responder.response_result(request, response, 400, body_Obj, 4000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
+            body_Obj['dbg'] = 'expiration time is before now';
+            responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
             callback('0', resource_Obj);
             return '0';
         }

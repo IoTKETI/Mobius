@@ -179,72 +179,64 @@ exports.build_grp = function(request, response, resource_Obj, body_Obj, callback
     // check NP
     if(body_Obj[rootnm].ty) {
         body_Obj = {};
-        body_Obj['rsp'] = {};
-        body_Obj['rsp'].cap = 'ty as NP Tag should not be included';
-        responder.response_result(request, response, 400, body_Obj, 4000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
+        body_Obj['dbg'] = 'ty as NP Tag should not be included';
+        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
         callback('0', resource_Obj);
         return '0';
     }
 
     if(body_Obj[rootnm].ri) {
         body_Obj = {};
-        body_Obj['rsp'] = {};
-        body_Obj['rsp'].cap = 'ri as NP Tag should not be included';
-        responder.response_result(request, response, 400, body_Obj, 4000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
+        body_Obj['dbg'] = 'ri as NP Tag should not be included';
+        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
         callback('0', resource_Obj);
         return '0';
     }
 
     if(body_Obj[rootnm].pi) {
         body_Obj = {};
-        body_Obj['rsp'] = {};
-        body_Obj['rsp'].cap = 'pi as NP Tag should not be included';
-        responder.response_result(request, response, 400, body_Obj, 4000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
+        body_Obj['dbg'] = 'pi as NP Tag should not be included';
+        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
         callback('0', resource_Obj);
         return '0';
     }
 
     if(body_Obj[rootnm].ct) {
         body_Obj = {};
-        body_Obj['rsp'] = {};
-        body_Obj['rsp'].cap = 'ct as NP Tag should not be included';
-        responder.response_result(request, response, 400, body_Obj, 4000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
+        body_Obj['dbg'] = 'ct as NP Tag should not be included';
+        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
         callback('0', resource_Obj);
         return '0';
     }
 
     if(body_Obj[rootnm].lt) {
         body_Obj = {};
-        body_Obj['rsp'] = {};
-        body_Obj['rsp'].cap = 'lt as NP Tag should not be included';
-        responder.response_result(request, response, 400, body_Obj, 4000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
+        body_Obj['dbg'] = 'lt as NP Tag should not be included';
+        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
         callback('0', resource_Obj);
         return '0';
     }
 
     if(body_Obj[rootnm].st) {
         body_Obj = {};
-        body_Obj['rsp'] = {};
-        body_Obj['rsp'].cap = 'st as NP Tag should not be included';
-        responder.response_result(request, response, 400, body_Obj, 4000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
+        body_Obj['dbg'] = 'st as NP Tag should not be included';
+        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
         callback('0', resource_Obj);
         return '0';
     }
 
     if(body_Obj[rootnm].cnm) {
         body_Obj = {};
-        body_Obj['rsp'] = {};
-        body_Obj['rsp'].cap = 'cni as NP Tag should not be included';
-        responder.response_result(request, response, 400, body_Obj, 4000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
+        body_Obj['dbg'] = 'cni as NP Tag should not be included';
+        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
         callback('0', resource_Obj);
         return '0';
     }
 
     if(body_Obj[rootnm].mtv) {
         body_Obj = {};
-        body_Obj['rsp'] = {};
-        body_Obj['rsp'].cap = 'cbs as NP Tag should not be included';
-        responder.response_result(request, response, 400, body_Obj, 4000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
+        body_Obj['dbg'] = 'cbs as NP Tag should not be included';
+        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
         callback('0', resource_Obj);
         return '0';
     }
@@ -252,18 +244,16 @@ exports.build_grp = function(request, response, resource_Obj, body_Obj, callback
     // check M
     if(!body_Obj[rootnm].mnm) {
         body_Obj = {};
-        body_Obj['rsp'] = {};
-        body_Obj['rsp'].cap = 'mnm as M Tag should be included';
-        responder.response_result(request, response, 400, body_Obj, 4000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
+        body_Obj['dbg'] = 'mnm as M Tag should be included';
+        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
         callback('0', resource_Obj);
         return '0';
     }
 
     if(!body_Obj[rootnm].mid) {
         body_Obj = {};
-        body_Obj['rsp'] = {};
-        body_Obj['rsp'].cap = 'mid as M Tag should be included';
-        responder.response_result(request, response, 400, body_Obj, 4000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
+        body_Obj['dbg'] = 'mid as M Tag should be included';
+        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
         callback('0', resource_Obj);
         return '0';
     }
@@ -288,9 +278,8 @@ exports.build_grp = function(request, response, resource_Obj, body_Obj, callback
     if (resource_Obj[rootnm].et != '') {
         if (resource_Obj[rootnm].et < resource_Obj[rootnm].ct) {
             body_Obj = {};
-            body_Obj['rsp'] = {};
-            body_Obj['rsp'].cap = 'expiration time is before now';
-            responder.response_result(request, response, 400, body_Obj, 4000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
+            body_Obj['dbg'] = 'expiration time is before now';
+            responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
             callback('0', resource_Obj);
             return '0';
         }
@@ -301,9 +290,8 @@ exports.build_grp = function(request, response, resource_Obj, body_Obj, callback
             if(rsc == '0') { // mt inconsistency
                 if(results_mid.length == '0') {
                     body_Obj = {};
-                    body_Obj['rsp'] = {};
-                    body_Obj['rsp'].cap = 'can not create group because mid is empty after validation check of mt requested';
-                    responder.response_result(request, response, 400, body_Obj, 4000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
+                            body_Obj['dbg'] = 'can not create group because mid is empty after validation check of mt requested';
+                    responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
                     callback('0', body_Obj);
                     return '0';
                 }
@@ -315,9 +303,8 @@ exports.build_grp = function(request, response, resource_Obj, body_Obj, callback
                     }
                     else if (resource_Obj[rootnm].csy == '2') { // ABANDON_GROUP
                         body_Obj = {};
-                        body_Obj['rsp'] = {};
-                        body_Obj['rsp'].cap = 'can not create group because csy is ABANDON_GROUP when MEMBER_TYPE_INCONSISTENT';
-                        responder.response_result(request, response, 400, body_Obj, 6011, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
+                                    body_Obj['dbg'] = 'can not create group because csy is ABANDON_GROUP when MEMBER_TYPE_INCONSISTENT';
+                        responder.response_result(request, response, 400, body_Obj, 6011, request.url, body_Obj['dbg']);
                         callback('0', body_Obj);
                         return '0';
                     }
@@ -332,9 +319,8 @@ exports.build_grp = function(request, response, resource_Obj, body_Obj, callback
             }
             else { // db error
                 body_Obj = {};
-                body_Obj['rsp'] = {};
-                body_Obj['rsp'].cap = results_mid.message;
-                responder.response_result(request, response, 500, body_Obj, 5000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
+                    body_Obj['dbg'] = results_mid.message;
+                responder.response_result(request, response, 500, body_Obj, 5000, request.url, body_Obj['dbg']);
                 callback('0', body_Obj);
                 return '0';
             }
@@ -357,108 +343,96 @@ exports.update_grp = function(request, response, resource_Obj, body_Obj, callbac
     // check NP
     if(body_Obj[rootnm].rn) {
         body_Obj = {};
-        body_Obj['rsp'] = {};
-        body_Obj['rsp'].cap = 'rn as NP Tag should not be included';
-        responder.response_result(request, response, 400, body_Obj, 4000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
+        body_Obj['dbg'] = 'rn as NP Tag should not be included';
+        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
         callback('0', resource_Obj);
         return '0';
     }
 
     if(body_Obj[rootnm].ty) {
         body_Obj = {};
-        body_Obj['rsp'] = {};
-        body_Obj['rsp'].cap = 'ty as NP Tag should not be included';
-        responder.response_result(request, response, 400, body_Obj, 4000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
+        body_Obj['dbg'] = 'ty as NP Tag should not be included';
+        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
         callback('0', resource_Obj);
         return '0';
     }
 
     if(body_Obj[rootnm].ri) {
         body_Obj = {};
-        body_Obj['rsp'] = {};
-        body_Obj['rsp'].cap = 'ri as NP Tag should not be included';
-        responder.response_result(request, response, 400, body_Obj, 4000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
+        body_Obj['dbg'] = 'ri as NP Tag should not be included';
+        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
         callback('0', resource_Obj);
         return '0';
     }
 
     if(body_Obj[rootnm].pi) {
         body_Obj = {};
-        body_Obj['rsp'] = {};
-        body_Obj['rsp'].cap = 'pi as NP Tag should not be included';
-        responder.response_result(request, response, 400, body_Obj, 4000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
+        body_Obj['dbg'] = 'pi as NP Tag should not be included';
+        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
         callback('0', resource_Obj);
         return '0';
     }
 
     if(body_Obj[rootnm].ct) {
         body_Obj = {};
-        body_Obj['rsp'] = {};
-        body_Obj['rsp'].cap = 'ct as NP Tag should not be included';
-        responder.response_result(request, response, 400, body_Obj, 4000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
+        body_Obj['dbg'] = 'ct as NP Tag should not be included';
+        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
         callback('0', resource_Obj);
         return '0';
     }
 
     if(body_Obj[rootnm].lt) {
         body_Obj = {};
-        body_Obj['rsp'] = {};
-        body_Obj['rsp'].cap = 'lt as NP Tag should not be included';
-        responder.response_result(request, response, 400, body_Obj, 4000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
+        body_Obj['dbg'] = 'lt as NP Tag should not be included';
+        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
         callback('0', resource_Obj);
         return '0';
     }
 
     if(body_Obj[rootnm].st) {
         body_Obj = {};
-        body_Obj['rsp'] = {};
-        body_Obj['rsp'].cap = 'st as NP Tag should not be included';
-        responder.response_result(request, response, 400, body_Obj, 4000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
+        body_Obj['dbg'] = 'st as NP Tag should not be included';
+        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
         callback('0', resource_Obj);
         return '0';
     }
 
     if(body_Obj[rootnm].cr) {
         body_Obj = {};
-        body_Obj['rsp'] = {};
-        body_Obj['rsp'].cap = 'cr as NP Tag should not be included';
-        responder.response_result(request, response, 400, body_Obj, 4000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
+        body_Obj['dbg'] = 'cr as NP Tag should not be included';
+        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
         callback('0', resource_Obj);
         return '0';
     }
 
     if(body_Obj[rootnm].mt) {
         body_Obj = {};
-        body_Obj['rsp'] = {};
-        body_Obj['rsp'].cap = 'mt as NP Tag should not be included';
-        responder.response_result(request, response, 400, body_Obj, 4000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
+        body_Obj['dbg'] = 'mt as NP Tag should not be included';
+        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
         callback('0', resource_Obj);
         return '0';
     }
 
     if(body_Obj[rootnm].cnm) {
         body_Obj = {};
-        body_Obj['rsp'] = {};
-        body_Obj['rsp'].cap = 'cnm as NP Tag should not be included';
-        responder.response_result(request, response, 400, body_Obj, 4000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
+        body_Obj['dbg'] = 'cnm as NP Tag should not be included';
+        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
         callback('0', resource_Obj);
         return '0';
     }
 
     if(body_Obj[rootnm].mtv) {
         body_Obj = {};
-        body_Obj['rsp'] = {};
-        body_Obj['rsp'].cap = 'mtv as NP Tag should not be included';
-        responder.response_result(request, response, 400, body_Obj, 4000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
+        body_Obj['dbg'] = 'mtv as NP Tag should not be included';
+        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
         callback('0', resource_Obj);
         return '0';
     }
 
     if(body_Obj[rootnm].csy) {
         body_Obj = {};
-        body_Obj['rsp'] = {};
-        body_Obj['rsp'].cap = 'csy as NP Tag should not be included';
-        responder.response_result(request, response, 400, body_Obj, 4000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
+        body_Obj['dbg'] = 'csy as NP Tag should not be included';
+        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
         callback('0', resource_Obj);
         return '0';
     }
@@ -502,9 +476,8 @@ exports.update_grp = function(request, response, resource_Obj, body_Obj, callbac
     if (resource_Obj[rootnm].et != '') {
         if (resource_Obj[rootnm].et < resource_Obj[rootnm].ct) {
             body_Obj = {};
-            body_Obj['rsp'] = {};
-            body_Obj['rsp'].cap = 'expiration time is before now';
-            responder.response_result(request, response, 400, body_Obj, 4000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
+            body_Obj['dbg'] = 'expiration time is before now';
+            responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
             callback('0', resource_Obj);
             return '0';
         }
@@ -518,9 +491,8 @@ exports.update_grp = function(request, response, resource_Obj, body_Obj, callbac
                 if(rsc == '0') { // mt inconsistency
                     if(results_mid.length == '0') {
                         body_Obj = {};
-                        body_Obj['rsp'] = {};
-                        body_Obj['rsp'].cap = 'can not create group because mid is empty after validation check of mt requested';
-                        responder.response_result(request, response, 400, body_Obj, 4000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
+                                    body_Obj['dbg'] = 'can not create group because mid is empty after validation check of mt requested';
+                        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
                         callback('0', body_Obj);
                         return '0';
                     }
@@ -532,9 +504,8 @@ exports.update_grp = function(request, response, resource_Obj, body_Obj, callbac
                         }
                         else if (resource_Obj[rootnm].csy == '2') { // ABANDON_GROUP
                             body_Obj = {};
-                            body_Obj['rsp'] = {};
-                            body_Obj['rsp'].cap = 'can not create group because csy is ABANDON_GROUP when MEMBER_TYPE_INCONSISTENT';
-                            responder.response_result(request, response, 400, body_Obj, 6011, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
+                                            body_Obj['dbg'] = 'can not create group because csy is ABANDON_GROUP when MEMBER_TYPE_INCONSISTENT';
+                            responder.response_result(request, response, 400, body_Obj, 6011, request.url, body_Obj['dbg']);
                             callback('0', body_Obj);
                             return '0';
                         }
@@ -549,9 +520,8 @@ exports.update_grp = function(request, response, resource_Obj, body_Obj, callbac
                 }
                 else { // db error
                     body_Obj = {};
-                    body_Obj['rsp'] = {};
-                    body_Obj['rsp'].cap = results_mid.message;
-                    responder.response_result(request, response, 500, body_Obj, 5000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
+                            body_Obj['dbg'] = results_mid.message;
+                    responder.response_result(request, response, 500, body_Obj, 5000, request.url, body_Obj['dbg']);
                     callback('0', body_Obj);
                     return '0';
                 }

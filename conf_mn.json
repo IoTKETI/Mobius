@@ -1,12 +1,12 @@
 {
     "parent" : {
-        "cbname": "mobius-yt",
-        "cbcseid": "/mobius-yt",
-        "cbhost": "localhost",
-        "cbhostport": "7579",
+        "cbname": "HPE_IoT",
+        "cbcseid": "CSE1000",
+        "cbhost": "192.168.1.127",
+        "cbhostport": "17374",
         "cbprotocol": "http",
-        "mqttbroker": "localhost"
+        "mqttbroker": "192.168.1.127"
     },
-    "csebaseport": "7575",
+    "csebaseport": "7599",
     "dbpass": "dksdlfduq2"
 }

@@ -228,7 +228,7 @@ ts_app.post('/missingDataDetect', onem2mParser, function(request, response) {
                 //console.log(responseBody);
 
                 var jsonObj = JSON.parse(responseBody);
-                if (jsonObj['m2m:rsp']) {
+                if (jsonObj['m2m:dbg']) {
                     var ts_ri = [];
                 }
                 else if (jsonObj['m2m:uril']['_'] == null) {

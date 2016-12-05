@@ -102,12 +102,16 @@ function retrieve_CSEBase_http(cbname, cbhost, cbhostport, callback) {
                 delete jsonObj.csr.ct;
                 delete jsonObj.csr.lt;
                 delete jsonObj.csr.st;
+                delete jsonObj.csr.srt;
 
                 jsonObj.csr.cst = '5';
                 jsonObj.csr.rr = 'true';
                 jsonObj.csr.cb = jsonObj.csr.rn;
 
                 callback(res.statusCode, jsonObj);
+            }
+            else {
+
             }
         });
     });
@@ -286,6 +290,7 @@ exports.build_mn = function(ri, callback) {
 
                             if (rspObj.csr.srt) {
                                 rspObj.csr.srt = JSON.parse(rspObj.csr.srt);
+                                delete rspObj.csr.srt;
                             }
                             
                             if(parent_cbprotocol == 'http') {
@@ -298,13 +303,13 @@ exports.build_mn = function(ri, callback) {
                                                         rspObj = {};
                                                         rspObj.rsc = '2000';
                                                         rspObj.ri = ri;
-                                                        rspObj.sts = "mn-cse setting success";
+                                                        rspObj.dbg = "mn-cse setting success";
                                                         callback(rspObj);
                                                     }
                                                     else {
                                                         rspObj.rsc = '5000';
                                                         rspObj.ri = ri;
-                                                        rspObj.sts = "mn-cse setting fail";
+                                                        rspObj.dbg = "mn-cse setting fail";
                                                         callback(rspObj);
                                                     }
                                                 });
@@ -316,7 +321,7 @@ exports.build_mn = function(ri, callback) {
                                         rspObj = {};
                                         rspObj.rsc = '5000';
                                         rspObj.ri = ri;
-                                        rspObj.sts = results_cb.message;
+                                        rspObj.dbg = results_cb.message;
                                         callback(rspObj);
                                     }
                                 });
@@ -331,13 +336,13 @@ exports.build_mn = function(ri, callback) {
                                                         rspObj = {};
                                                         rspObj.rsc = '2000';
                                                         rspObj.ri = ri;
-                                                        rspObj.sts = "mn-cse setting success";
+                                                        rspObj.dbg = "mn-cse setting success";
                                                         callback(rspObj);
                                                     }
                                                     else {
                                                         rspObj.rsc = '5000';
                                                         rspObj.ri = ri;
-                                                        rspObj.sts = "mn-cse setting fail";
+                                                        rspObj.dbg = "mn-cse setting fail";
                                                         callback(rspObj);
                                                     }
                                                 });
@@ -349,7 +354,7 @@ exports.build_mn = function(ri, callback) {
                                         rspObj = {};
                                         rspObj.rsc = '5000';
                                         rspObj.ri = ri;
-                                        rspObj.sts = results_cb.message;
+                                        rspObj.dbg = results_cb.message;
                                         callback(rspObj);
                                     }
                                 });
@@ -360,7 +365,7 @@ exports.build_mn = function(ri, callback) {
                         rspObj = {};
                         rspObj.rsc = '5000';
                         rspObj.ri = ri;
-                        rspObj.sts = results_cb.message;
+                        rspObj.dbg = results_cb.message;
                         callback(rspObj);
                     }
                 });
@@ -369,7 +374,7 @@ exports.build_mn = function(ri, callback) {
                 rspObj = {};
                 rspObj.rsc = '2001';
                 rspObj.ri = ri;
-                rspObj.sts = '';
+                rspObj.dbg = '';
                 callback(rspObj);
             }
         }
@@ -377,7 +382,7 @@ exports.build_mn = function(ri, callback) {
             rspObj = {};
             rspObj.rsc = '5000';
             rspObj.ri = ri;
-            rspObj.sts = results_comm.message;
+            rspObj.dbg = results_comm.message;
             callback(rspObj);
         }
     });

@@ -151,7 +151,7 @@ function coap_message_handler(request, response) {
                 headers['X-M2M-RI'] = request.options[idx].value.toString();
             }
             else if (request.options[idx].name == '267') { // 'X-M2M-TY
-                headers['X-M2M-TY'] = request.options[idx].value.toString();
+                headers['X-M2M-TY'] = Buffer.isBuffer(request.options[idx].value) ? request.options[idx].value[0].toString() : request.options[idx].value.toString();
             }
         }
     }
@@ -189,6 +189,15 @@ function coap_message_handler(request, response) {
         });
 
         res.on('end', function() {
+            console.log('<----- [pxy_coap]');
+            console.log(responseBody);
+
+            var rsc = new Buffer(2);
+            rsc.writeUInt16BE(parseInt(res.headers['x-m2m-rsc'], 'hex'), 0);
+            response.setOption("265", rsc);    // X-M2M-RSC
+            if(res.headers['content-type']) {
+                response.setOption("Content-Format", res.headers['content-type']);
+            }
             response.code = coap_rsc_code[res.headers['x-m2m-rsc']];
             response.end(responseBody);
         });
@@ -201,7 +210,8 @@ function coap_message_handler(request, response) {
     });
 
     var bodyString = request.payload.toString();
-    console.log('-----> [pxy_coap] ' + bodyString);
+    console.log('-----> [pxy_coap]');
+    console.log(bodyString);
 
     // write data to request body
     req.write(bodyString);

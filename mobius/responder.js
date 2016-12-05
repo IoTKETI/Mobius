@@ -244,6 +244,8 @@ const attrLname = {
     "szb" :"sizeBelow",
     "cty" :"contentType",
     "lim" :"limit",
+    "ofst":"offset",
+    "lvl" :"level",
     "atr" :"attribute",
     "net" :"notificationEventType",
     "om"  :"operationMonitor",
@@ -533,6 +535,8 @@ const attrSname = {
     "sizeBelow":"szb",
     "contentType":"cty",
     "limit":"lim",
+    "offset":"ofst",
+    "level":"lvl",
     "attribute":"atr",
     "operationMonitor":"om",
     "representation":"rep",
@@ -783,7 +787,8 @@ function typeCheckforJson(body_Obj) {
             for (var index2 in body_Obj[index1]) {
                 if(body_Obj[index1].hasOwnProperty(index2)) {
                     if (index2 == 'cst' || index2 == 'los' || index2 == 'mt' || index2 == 'csy' || index2 == 'nct' || index2 == 'cnf' ||
-                        index2 == 'cs' || index2 == 'st' || index2 == 'ty' || index2 == 'cbs' || index2 == 'cni' || index2 == 'mni') {
+                        index2 == 'cs' || index2 == 'st' || index2 == 'ty' || index2 == 'cbs' || index2 == 'cni' || index2 == 'mni' ||
+                        index2 == 'cnm') {
                         body_Obj[index1][index2] = parseInt(body_Obj[index1][index2]);
                     }
                     else if (index2 == 'enc') {
@@ -823,7 +828,8 @@ function typeCheckforJson2(body_Obj) {
                     for (var index3 in body_Obj[index1][index2]) {
                         if (body_Obj[index1][index2].hasOwnProperty(index3)) {
                             if (index3 == 'cst' || index3 == 'los' || index3 == 'mt' || index3 == 'csy' || index3 == 'nct' || index3 == 'cnf' ||
-                                index3 == 'cs' || index3 == 'st' || index3 == 'ty' || index3 == 'cbs' || index3 == 'cni' || index3 == 'mni') {
+                                index3 == 'cs' || index3 == 'st' || index3 == 'ty' || index3 == 'cbs' || index3 == 'cni' || index3 == 'mni' ||
+                                index2 == 'cnm') {
                                 body_Obj[index1][index2][index3] = parseInt(body_Obj[index1][index2][index3]);
                             }
                             else if (index3 == 'enc') {
@@ -874,7 +880,7 @@ exports.response_result = function(request, response, status, body_Obj, rsc, ri,
         var rspObj = {
             rsc: rsc,
             ri: ri,
-            sts: cap
+            dbg: cap
         };
         console.log(JSON.stringify(rspObj));
     }
@@ -976,6 +982,9 @@ exports.response_result = function(request, response, status, body_Obj, rsc, ri,
                     if (index == 'm2m:uri' || index == 'm2m:URI') {
                         xml.ele(index, body_Obj[index]);
                     }
+                    else if (index == 'm2m:dbg') {
+                        xml.ele(index, body_Obj[index]);
+                    }
                     else {
                         for (var attr in body_Obj[index]) {
                             if(body_Obj[index].hasOwnProperty(attr)) {
@@ -1038,13 +1047,14 @@ exports.response_result = function(request, response, status, body_Obj, rsc, ri,
             }
             bodyString = xml.end({pretty: false, indent: '  ', newline: '\n'}).toString();
         }
-        
+
+        console.log(bodyString);
         response.status(status).end(bodyString);
 
         rspObj = {};
         rspObj.rsc = rsc;
         rspObj.ri = request.method + "-" + ri + "-" + JSON.stringify(request.query);
-        rspObj.sts = cap;
+        rspObj = cap;
         console.log(JSON.stringify(rspObj));
     }
 };
@@ -1247,7 +1257,7 @@ exports.response_rcn3_result = function(request, response, status, body_Obj, rsc
     rspObj = {};
     rspObj.rsc = rsc;
     rspObj.ri = request.method + "-" + ri + "-" + JSON.stringify(request.query);
-    rspObj.sts = cap;
+    rspObj = cap;
     console.log(JSON.stringify(rspObj));
 };
 
@@ -1600,6 +1610,6 @@ exports.search_result = function(request, response, status, body_Obj, rsc, ri, c
     var rspObj = {};
     rspObj.rsc = rsc;
     rspObj.ri = request.method + "-" + request.url;
-    rspObj.sts = cap;
+    rspObj = cap;
     console.log(JSON.stringify(rspObj));
 };

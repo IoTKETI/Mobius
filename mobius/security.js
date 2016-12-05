@@ -20,7 +20,7 @@ var db = require('./db_action');
 
 exports.check = function(request, ty, acpiList, access_value, callback) {
     if(ty == '1') { // check selfPrevileges
-        acpiList = [url.parse(request.url).pathname.toLowerCase()];
+        acpiList = [url.parse(request.url).pathname];
         var sql = util.format("select * from acp where ri = \'%s\'", acpiList[0]);
         db.getResult(sql, '', function (err, results_acp) {
             if (!err) {
@@ -33,8 +33,8 @@ exports.check = function(request, ty, acpiList, access_value, callback) {
                                 var re = new RegExp(from + '\\b');
                                 for (var acor_idx in pvsObj.acr[index].acor) {
                                     if (pvsObj.acr[index].acor.hasOwnProperty(acor_idx)) {
-                                        if (pvsObj.acr[index].acor[acor_idx].match(re) || pvsObj.acr[index].acor[acor_idx].toLowerCase() == 'all') {
-                                            if ((pvsObj.acr[index].acop & access_value) == access_value) {
+                                        if (pvsObj.acr[index].acor[acor_idx].match(re) || pvsObj.acr[index].acor[acor_idx] == 'all' || pvsObj.acr[index].acor[acor_idx] == '*') {
+                                            if ((pvsObj.acr[index].acop.toString() & access_value) == access_value) {
                                                 callback('1');
                                                 return '1';
                                             }
@@ -78,8 +78,8 @@ exports.check = function(request, ty, acpiList, access_value, callback) {
                                 var re = new RegExp(from + '\\b');
                                 for (var acor_idx in pvObj.acr[index].acor) {
                                     if(pvObj.acr[index].acor.hasOwnProperty(acor_idx)) {
-                                        if (pvObj.acr[index].acor[acor_idx].match(re) || pvObj.acr[index].acor[acor_idx] == 'all') {
-                                            if ((pvObj.acr[index].acop & access_value) == access_value) {
+                                        if (pvObj.acr[index].acor[acor_idx].match(re) || pvObj.acr[index].acor[acor_idx] == 'all' || pvsObj.acr[index].acor[acor_idx] == '*') {
+                                            if ((pvObj.acr[index].acop.toString() & access_value) == access_value) {
                                                 callback('1');
                                                 return '1';
                                             }

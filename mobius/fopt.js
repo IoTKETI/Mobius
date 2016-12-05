@@ -148,14 +148,13 @@ exports.check = function(request, response, grp, body_Obj) {
         var agr = {};
         fopt_member(request, response, req_count, grp.mid, body_Obj, cse_poa, agr, function (retrieve_Obj) {
             if (Object.keys(retrieve_Obj).length != 0) {
-                responder.search_result(request, response, 200, retrieve_Obj, 2000, url.parse(request.url).pathname.toLowerCase(), '');
+                responder.search_result(request, response, 200, retrieve_Obj, 2000, request.url, '');
                 return '0';
             }
             else {
                 retrieve_Obj = {};
-                retrieve_Obj['rsp'] = {};
-                retrieve_Obj['rsp'].cap = 'response is not from fanOutPoint';
-                responder.response_result(request, response, 404, retrieve_Obj, 4004, url.parse(request.url).pathname.toLowerCase(), retrieve_Obj['rsp'].cap);
+                retrieveretrieve_Obj['dbg'] = 'response is not from fanOutPoint';
+                responder.response_result(request, response, 404, retrieve_Obj, 4004, request.url, retrieve_Obj['dbg']);
             }
         });
     });

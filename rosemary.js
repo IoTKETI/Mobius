@@ -48,6 +48,7 @@ global.usepxycoapport       = '7573';
 global.usetsagentport       = '7572';
 
 global.usemqttbroker        = parent_mqttbroker; // mobius to mqttbroker
+global.usemqttport          = '1883';
 
 // CSE core
 require('./app');

@@ -184,8 +184,7 @@ function create_action_cni(ri, ty, pi, mni, cs, callback) {
                                             }
                                             else {
                                                 var body_Obj = {};
-                                                body_Obj['rsp'] = {};
-                                                body_Obj['rsp'].cap = results.message;
+                                                                body_Obj['dbg'] = results.message;
                                                 console.log(JSON.stringify(body_Obj));
                                                 callback('0');
                                                 return '0';
@@ -194,8 +193,7 @@ function create_action_cni(ri, ty, pi, mni, cs, callback) {
                                     }
                                     else {
                                         var body_Obj = {};
-                                        body_Obj['rsp'] = {};
-                                        body_Obj['rsp'].cap = results.message;
+                                                body_Obj['dbg'] = results.message;
                                         console.log(JSON.stringify(body_Obj));
                                         callback('0');
                                         return '0';
@@ -227,8 +225,7 @@ function create_action_cni(ri, ty, pi, mni, cs, callback) {
                             }
                             else {
                                 var body_Obj = {};
-                                body_Obj['rsp'] = {};
-                                body_Obj['rsp'].cap = results.message;
+                                body_Obj['dbg'] = results.message;
                                 console.log(JSON.stringify(body_Obj));
                                 callback('0');
                                 return '0';
@@ -237,9 +234,8 @@ function create_action_cni(ri, ty, pi, mni, cs, callback) {
                     }
                     else {
                         var body_Obj = {};
-                        body_Obj['rsp'] = {};
-                        body_Obj['rsp'].cap = results.message;
-                        //responder.response_result(request, response, 500, body_Obj, 5000, url.parse(request.url).pathname.toLowerCase(), results.message);
+                                    body_Obj['dbg'] = results.message;
+                        //responder.response_result(request, response, 500, body_Obj, 5000, request.url, results.message);
                         console.log(JSON.stringify(body_Obj));
                         callback('0');
                         return '0';
@@ -265,15 +261,13 @@ function create_action(request, response, ty, resource_Obj, callback) {
                 else {
                     if (results.code == 'ER_DUP_ENTRY') {
                         body_Obj = {};
-                        body_Obj['rsp'] = {};
-                        body_Obj['rsp'].cap = results.message;
-                        responder.response_result(request, response, 409, body_Obj, 4105, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
+                                    body_Obj['dbg'] = results.message;
+                        responder.response_result(request, response, 409, body_Obj, 4105, request.url, body_Obj['dbg']);
                     }
                     else {
                         body_Obj = {};
-                        body_Obj['rsp'] = {};
-                        body_Obj['rsp'].cap = results.message;
-                        responder.response_result(request, response, 500, body_Obj, 5000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
+                                    body_Obj['dbg'] = results.message;
+                        responder.response_result(request, response, 500, body_Obj, 5000, request.url, body_Obj['dbg']);
                     }
                     callback('0', resource_Obj);
                     return '0';
@@ -292,15 +286,13 @@ function create_action(request, response, ty, resource_Obj, callback) {
                 else {
                     if (results.code == 'ER_DUP_ENTRY') {
                         body_Obj = {};
-                        body_Obj['rsp'] = {};
-                        body_Obj['rsp'].cap = results.message;
-                        responder.response_result(request, response, 409, body_Obj, 4105, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
+                                    body_Obj['dbg'] = results.message;
+                        responder.response_result(request, response, 409, body_Obj, 4105, request.url, body_Obj['dbg']);
                     }
                     else {
                         body_Obj = {};
-                        body_Obj['rsp'] = {};
-                        body_Obj['rsp'].cap = results.message;
-                        responder.response_result(request, response, 500, body_Obj, 5000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
+                                    body_Obj['dbg'] = results.message;
+                        responder.response_result(request, response, 500, body_Obj, 5000, request.url, body_Obj['dbg']);
                     }
                     callback('0', resource_Obj);
                     return '0';
@@ -319,15 +311,13 @@ function create_action(request, response, ty, resource_Obj, callback) {
                 else {
                     if (results.code == 'ER_DUP_ENTRY') {
                         body_Obj = {};
-                        body_Obj['rsp'] = {};
-                        body_Obj['rsp'].cap = results.message;
-                        responder.response_result(request, response, 409, body_Obj, 4105, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
+                                    body_Obj['dbg'] = results.message;
+                        responder.response_result(request, response, 409, body_Obj, 4105, request.url, body_Obj['dbg']);
                     }
                     else {
                         body_Obj = {};
-                        body_Obj['rsp'] = {};
-                        body_Obj['rsp'].cap = results.message;
-                        responder.response_result(request, response, 500, body_Obj, 5000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
+                        body_Obj['dbg'] = results.message;
+                        responder.response_result(request, response, 500, body_Obj, 5000, request.url, body_Obj['dbg']);
                     }
                     callback('0', resource_Obj);
                     return '0';
@@ -350,15 +340,13 @@ function create_action(request, response, ty, resource_Obj, callback) {
                 else {
                     if (results.code == 'ER_DUP_ENTRY') {
                         body_Obj = {};
-                        body_Obj['rsp'] = {};
-                        body_Obj['rsp'].cap = results.message;
-                        responder.response_result(request, response, 409, body_Obj, 4105, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
+                        body_Obj['dbg'] = results.message;
+                        responder.response_result(request, response, 409, body_Obj, 4105, request.url, body_Obj['dbg']);
                     }
                     else {
                         body_Obj = {};
-                        body_Obj['rsp'] = {};
-                        body_Obj['rsp'].cap = results.message;
-                        responder.response_result(request, response, 500, body_Obj, 5000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
+                        body_Obj['dbg'] = results.message;
+                        responder.response_result(request, response, 500, body_Obj, 5000, request.url, body_Obj['dbg']);
                     }
                     callback('0', resource_Obj);
                     return '0';
@@ -377,15 +365,13 @@ function create_action(request, response, ty, resource_Obj, callback) {
                 else {
                     if (results.code == 'ER_DUP_ENTRY') {
                         body_Obj = {};
-                        body_Obj['rsp'] = {};
-                        body_Obj['rsp'].cap = results.message;
-                        responder.response_result(request, response, 409, body_Obj, 4105, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
+                        body_Obj['dbg'] = results.message;
+                        responder.response_result(request, response, 409, body_Obj, 4105, request.url, body_Obj['dbg']);
                     }
                     else {
                         body_Obj = {};
-                        body_Obj['rsp'] = {};
-                        body_Obj['rsp'].cap = results.message;
-                        responder.response_result(request, response, 500, body_Obj, 5000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
+                        body_Obj['dbg'] = results.message;
+                        responder.response_result(request, response, 500, body_Obj, 5000, request.url, body_Obj['dbg']);
                     }
                     callback('0', resource_Obj);
                     return '0';
@@ -404,15 +390,13 @@ function create_action(request, response, ty, resource_Obj, callback) {
                 else {
                     if (results.code == 'ER_DUP_ENTRY') {
                         body_Obj = {};
-                        body_Obj['rsp'] = {};
-                        body_Obj['rsp'].cap = results.message;
-                        responder.response_result(request, response, 409, body_Obj, 4105, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
+                        body_Obj['dbg'] = results.message;
+                        responder.response_result(request, response, 409, body_Obj, 4105, request.url, body_Obj['dbg']);
                     }
                     else {
                         body_Obj = {};
-                        body_Obj['rsp'] = {};
-                        body_Obj['rsp'].cap = results.message;
-                        responder.response_result(request, response, 500, body_Obj, 5000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
+                        body_Obj['dbg'] = results.message;
+                        responder.response_result(request, response, 500, body_Obj, 5000, request.url, body_Obj['dbg']);
                     }
                     callback('0', resource_Obj);
                     return '0';
@@ -431,15 +415,13 @@ function create_action(request, response, ty, resource_Obj, callback) {
                 else {
                     if (results.code == 'ER_DUP_ENTRY') {
                         body_Obj = {};
-                        body_Obj['rsp'] = {};
-                        body_Obj['rsp'].cap = results.message;
-                        responder.response_result(request, response, 409, body_Obj, 4105, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
+                        body_Obj['dbg'] = results.message;
+                        responder.response_result(request, response, 409, body_Obj, 4105, request.url, body_Obj['dbg']);
                     }
                     else {
                         body_Obj = {};
-                        body_Obj['rsp'] = {};
-                        body_Obj['rsp'].cap = results.message;
-                        responder.response_result(request, response, 500, body_Obj, 5000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
+                        body_Obj['dbg'] = results.message;
+                        responder.response_result(request, response, 500, body_Obj, 5000, request.url, body_Obj['dbg']);
                     }
                     callback('0', resource_Obj);
                     return '0';
@@ -460,15 +442,13 @@ function create_action(request, response, ty, resource_Obj, callback) {
                 else {
                     if (results.code == 'ER_DUP_ENTRY') {
                         body_Obj = {};
-                        body_Obj['rsp'] = {};
-                        body_Obj['rsp'].cap = results.message;
-                        responder.response_result(request, response, 409, body_Obj, 4105, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
+                        body_Obj['dbg'] = results.message;
+                        responder.response_result(request, response, 409, body_Obj, 4105, request.url, body_Obj['dbg']);
                     }
                     else {
                         body_Obj = {};
-                        body_Obj['rsp'] = {};
-                        body_Obj['rsp'].cap = results.message;
-                        responder.response_result(request, response, 500, body_Obj, 5000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
+                        body_Obj['dbg'] = results.message;
+                        responder.response_result(request, response, 500, body_Obj, 5000, request.url, body_Obj['dbg']);
                     }
                     callback('0', resource_Obj);
                     return '0';
@@ -486,15 +466,13 @@ function create_action(request, response, ty, resource_Obj, callback) {
                 else {
                     if (results.code == 'ER_DUP_ENTRY') {
                         body_Obj = {};
-                        body_Obj['rsp'] = {};
-                        body_Obj['rsp'].cap = results.message;
-                        responder.response_result(request, response, 409, body_Obj, 4105, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
+                        body_Obj['dbg'] = results.message;
+                        responder.response_result(request, response, 409, body_Obj, 4105, request.url, body_Obj['dbg']);
                     }
                     else {
                         body_Obj = {};
-                        body_Obj['rsp'] = {};
-                        body_Obj['rsp'].cap = results.message;
-                        responder.response_result(request, response, 500, body_Obj, 5000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
+                        body_Obj['dbg'] = results.message;
+                        responder.response_result(request, response, 500, body_Obj, 5000, request.url, body_Obj['dbg']);
                     }
                     callback('0', resource_Obj);
                     return '0';
@@ -516,15 +494,13 @@ function create_action(request, response, ty, resource_Obj, callback) {
                 else {
                     if (results.code == 'ER_DUP_ENTRY') {
                         body_Obj = {};
-                        body_Obj['rsp'] = {};
-                        body_Obj['rsp'].cap = results.message;
-                        responder.response_result(request, response, 409, body_Obj, 4105, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
+                        body_Obj['dbg'] = results.message;
+                        responder.response_result(request, response, 409, body_Obj, 4105, request.url, body_Obj['dbg']);
                     }
                     else {
                         body_Obj = {};
-                        body_Obj['rsp'] = {};
-                        body_Obj['rsp'].cap = results.message;
-                        responder.response_result(request, response, 500, body_Obj, 5000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
+                        body_Obj['dbg'] = results.message;
+                        responder.response_result(request, response, 500, body_Obj, 5000, request.url, body_Obj['dbg']);
                     }
                     callback('0', resource_Obj);
                     return '0';
@@ -546,15 +522,13 @@ function create_action(request, response, ty, resource_Obj, callback) {
                 else {
                     if (results.code == 'ER_DUP_ENTRY') {
                         body_Obj = {};
-                        body_Obj['rsp'] = {};
-                        body_Obj['rsp'].cap = results.message;
-                        responder.response_result(request, response, 409, body_Obj, 4105, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
+                        body_Obj['dbg'] = results.message;
+                        responder.response_result(request, response, 409, body_Obj, 4105, request.url, body_Obj['dbg']);
                     }
                     else {
                         body_Obj = {};
-                        body_Obj['rsp'] = {};
-                        body_Obj['rsp'].cap = results.message;
-                        responder.response_result(request, response, 500, body_Obj, 5000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
+                        body_Obj['dbg'] = results.message;
+                        responder.response_result(request, response, 500, body_Obj, 5000, request.url, body_Obj['dbg']);
                     }
                     callback('0', resource_Obj);
                     return '0';
@@ -573,15 +547,13 @@ function create_action(request, response, ty, resource_Obj, callback) {
                 else {
                     if (results.code == 'ER_DUP_ENTRY') {
                         body_Obj = {};
-                        body_Obj['rsp'] = {};
-                        body_Obj['rsp'].cap = results.message;
-                        responder.response_result(request, response, 409, body_Obj, 4105, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
+                        body_Obj['dbg'] = results.message;
+                        responder.response_result(request, response, 409, body_Obj, 4105, request.url, body_Obj['dbg']);
                     }
                     else {
                         body_Obj = {};
-                        body_Obj['rsp'] = {};
-                        body_Obj['rsp'].cap = results.message;
-                        responder.response_result(request, response, 500, body_Obj, 5000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
+                        body_Obj['dbg'] = results.message;
+                        responder.response_result(request, response, 500, body_Obj, 5000, request.url, body_Obj['dbg']);
                     }
                     callback('0', resource_Obj);
                     return '0';
@@ -590,9 +562,8 @@ function create_action(request, response, ty, resource_Obj, callback) {
     }
     else {
         body_Obj = {};
-        body_Obj['rsp'] = {};
-        body_Obj['rsp'].cap = "ty does not supported";
-        responder.response_result(request, response, 400, body_Obj, 4000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
+        body_Obj['dbg'] = "ty does not supported";
+        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
         callback('0', resource_Obj);
         return '0';
     }
@@ -608,18 +579,17 @@ function build_resource(request, response, ty, body_Obj, callback) {
     var msec = (parseInt(cur_d.getMilliseconds(), 10)<10) ? ('00'+cur_d.getMilliseconds()) : ((parseInt(cur_d.getMilliseconds(), 10)<100) ? ('0'+cur_d.getMilliseconds()) : cur_d.getMilliseconds());
 
     resource_Obj[rootnm].rn = ty + '-' + cur_d.toISOString().replace(/-/, '').replace(/-/, '').replace(/T/, '').replace(/:/, '').replace(/:/, '').replace(/\..+/, '') + msec + randomValueBase64(4);
-    resource_Obj[rootnm].rn = resource_Obj[rootnm].rn.toLowerCase();
 
     if (request.headers['x-m2m-nm'] != null && request.headers['x-m2m-nm'] != '') {
-        resource_Obj[rootnm].rn = request.headers['x-m2m-nm'].toLowerCase();
+        resource_Obj[rootnm].rn = request.headers['x-m2m-nm'];
     }
 
     if (body_Obj[rootnm]['rn'] != null && body_Obj[rootnm]['rn'] != '') {
-        resource_Obj[rootnm].rn = body_Obj[rootnm]['rn'].toLowerCase();
+        resource_Obj[rootnm].rn = body_Obj[rootnm]['rn'];
     }
 
     resource_Obj[rootnm].ty = ty;
-    resource_Obj[rootnm].pi = url.parse(request.url).pathname.toLowerCase();
+    resource_Obj[rootnm].pi = url.parse(request.url).pathname;
     resource_Obj[rootnm].ri = resource_Obj[rootnm].pi + '/' + resource_Obj[rootnm].rn;
     resource_Obj[rootnm].ct = cur_d.toISOString().replace(/-/, '').replace(/-/, '').replace(/:/, '').replace(/:/, '').replace(/\..+/, '');
     var et = new Date();
@@ -640,15 +610,12 @@ function build_resource(request, response, ty, body_Obj, callback) {
         resource_Obj[rootnm].cs = '0';
     }
 
-    var queryJson = {};
-    var sql = util.format("select * from lookup where ri = \'%s\'", resource_Obj[rootnm].ri);
-    db.getResult(sql, queryJson, function(err, result_Obj) {
+    db_sql.select_direct_lookup(resource_Obj[rootnm].ri, function (err, result_Obj) {
         if(!err) {
             if (result_Obj.length == 1) {
                 body_Obj = {};
-                body_Obj['rsp'] = {};
-                body_Obj['rsp'].cap = "resource is already exist";
-                responder.response_result(request, response, 409, body_Obj, 4105, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
+                body_Obj['dbg'] = "resource (" + result_Obj[0].rn + ") is already exist";
+                responder.response_result(request, response, 409, body_Obj, 4105, request.url, body_Obj['dbg']);
                 callback('0');
                 return '0';
             }
@@ -719,9 +686,8 @@ function build_resource(request, response, ty, body_Obj, callback) {
         }
         else {
             body_Obj = {};
-            body_Obj['rsp'] = {};
-            body_Obj['rsp'].cap = result_Obj.message;
-            responder.response_result(request, response, 500, body_Obj, 5000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
+            body_Obj['dbg'] = result_Obj.message;
+            responder.response_result(request, response, 500, body_Obj, 5000, request.url, body_Obj['dbg']);
             callback('0');
             return '0';
         }
@@ -774,13 +740,21 @@ function presearch_action(request, response, ri_list, comm_Obj, callback) {
     db_sql.search_parents_lookup(comm_Obj.ri, function (err, search_Obj) {
         if(!err) {
             for(var i = 0; i < search_Obj.length; i++) {
-                pi_list.push(search_Obj[i].ri);
+                if(request.query.lvl != null) {
+                    var lvl = request.query.lvl;
+                    if((search_Obj[i].ri.split('/').length-1) <= (parseInt(lvl, 10))) {
+                        pi_list.push(search_Obj[i].ri);
+                    }
+                }
+                else {
+                    pi_list.push(search_Obj[i].ri);
+                }
             }
 
             var finding_Obj = [];
             var found_Obj = {};
             var cur_d = moment().utc().format('YYYY-MM-DD HH:mm:ss');
-            db_sql.search_lookup(request.query.ty, request.query.lbl, request.query.cra, request.query.crb, request.query.lim, pi_list, 0, finding_Obj, 0, cur_d, 0, function (err, search_Obj) {
+            db_sql.search_lookup(request.query.ty, request.query.lbl, request.query.cra, request.query.crb, request.query.lim, request.query.ofst, request.query.lvl, pi_list, 0, finding_Obj, 0, cur_d, 0, function (err, search_Obj) {
                 if(!err) {
                     if(search_Obj.length >= 1) {
                         for(var i = 0; i < search_Obj.length; i++) {
@@ -792,18 +766,16 @@ function presearch_action(request, response, ri_list, comm_Obj, callback) {
                     }
                     else {
                         search_Obj = {};
-                        search_Obj['rsp'] = {};
-                        search_Obj['rsp'].cap = 'resource do not exist';
-                        responder.response_result(request, response, 404, search_Obj, 4004, url.parse(request.url).pathname.toLowerCase(), 'resource do not exist');
+                        search_Obj['dbg'] = 'resource does not exist';
+                        responder.response_result(request, response, 404, search_Obj, 4004, request.url, 'resource does not exist');
                         callback('0', search_Obj);
                         return '0';
                     }
                 }
                 else {
                     search_Obj = {};
-                    search_Obj['rsp'] = {};
-                    search_Obj['rsp'].cap = search_Obj.message;
-                    responder.response_result(request, response, 500, search_Obj, 5000, url.parse(request.url).pathname.toLowerCase(), search_Obj['rsp'].cap);
+                    search_Obj['dbg'] = search_Obj.message;
+                    responder.response_result(request, response, 500, search_Obj, 5000, request.url, search_Obj['dbg']);
                     callback('0', search_Obj);
                     return '0';
                 }
@@ -811,9 +783,8 @@ function presearch_action(request, response, ri_list, comm_Obj, callback) {
         }
         else {
             search_Obj = {};
-            search_Obj['rsp'] = {};
-            search_Obj['rsp'].cap = search_Obj.message;
-            responder.response_result(request, response, 500, search_Obj, 5000, url.parse(request.url).pathname.toLowerCase(), search_Obj['rsp'].cap);
+            search_Obj['dbg'] = search_Obj.message;
+            responder.response_result(request, response, 500, search_Obj, 5000, request.url, search_Obj['dbg']);
             callback('0', search_Obj);
             return '0';
         }
@@ -855,9 +826,8 @@ function search_action(request, response, seq, resource_Obj, ri_list, strObj, pr
         }
         else {
             /*spec_Obj = {};
-            spec_Obj['rsp'] = {};
-            spec_Obj['rsp'].cap = spec_Obj.message;
-            responder.response_result(request, response, 500, spec_Obj, 5000, url.parse(request.url).pathname.toLowerCase(), spec_Obj['rsp'].cap);
+            spec_Obj['dbg'] = spec_Obj.message;
+            responder.response_result(request, response, 500, spec_Obj, 5000, request.url, spec_Obj['dbg']);
             callback('0', resource_Obj);
             return '0';*/
             callback('1', strObj);
@@ -872,13 +842,11 @@ function retrieve_action(request, response, ty, comm_Obj, callback) {
     var resource_Obj = {};
     resource_Obj[rootnm] = {};
 
-    var sql = util.format("select * from " + responder.typeRsrc[ty] + " where ri = \'%s\'", comm_Obj.ri);
-
-    console.time('resource_retrieve');
-    db.getResult(sql, '', function (err, spec_Obj) {
+    console.time('resource_retrieve ' + comm_Obj.ri);
+    db_sql.select_resource(responder.typeRsrc[ty], comm_Obj.ri, function (err, spec_Obj) {
         if(!err) {
             if (spec_Obj.length == 1) {
-                console.timeEnd('resource_retrieve');
+                console.timeEnd('resource_retrieve ' + comm_Obj.ri);
                 if(spec_Obj[0].srt) {
                     spec_Obj[0].srt = JSON.parse(spec_Obj[0].srt);
                 }
@@ -908,18 +876,16 @@ function retrieve_action(request, response, ty, comm_Obj, callback) {
             }
             else {
                 spec_Obj = {};
-                spec_Obj['rsp'] = {};
-                spec_Obj['rsp'].cap = 'resource do not exist';
-                responder.response_result(request, response, 404, spec_Obj, 4004, url.parse(request.url).pathname.toLowerCase(), spec_Obj['rsp'].cap);
+                spec_Obj['dbg'] = 'resource does not exist';
+                responder.response_result(request, response, 404, spec_Obj, 4004, request.url, spec_Obj['dbg']);
                 callback('0', resource_Obj);
                 return '0';
             }
         }
         else {
             spec_Obj = {};
-            spec_Obj['rsp'] = {};
-            spec_Obj['rsp'].cap = spec_Obj.message;
-            responder.response_result(request, response, 500, spec_Obj, 5000, url.parse(request.url).pathname.toLowerCase(), spec_Obj['rsp'].cap);
+            spec_Obj['dbg'] = spec_Obj.message;
+            responder.response_result(request, response, 500, spec_Obj, 5000, request.url, spec_Obj['dbg']);
             callback('0', resource_Obj);
             return '0';
         }
@@ -1006,9 +972,9 @@ exports.retrieve = function(request, response, comm_Obj) {
                 else {
                     request.headers.rootnm = 'rsp';
                     resource_Obj = {};
-                    resource_Obj['rsp'] = {};
-                    resource_Obj['rsp'].cap = 'response with hierarchical resource structure mentioned in onem2m spec is not supported instead all the requested resources will be returned !';
-                    responder.response_result(request, response, 501, resource_Obj, 5001, url.parse(request.url).pathname.toLowerCase(), resource_Obj['rsp'].cap);
+                    resource_Obj['dbg'] = {};
+                    resource_Obj['dbg'] = 'response with hierarchical resource structure mentioned in onem2m spec is not supported instead all the requested resources will be returned !';
+                    responder.response_result(request, response, 501, resource_Obj, 5001, request.url, resource_Obj['dbg']);
                 }
             });
         });
@@ -1022,15 +988,20 @@ function update_action_mni(ty, ri, mni, callback) {
         mni = '9007199254740991';
     }
     var offset = 9007199254740991 - parseInt(mni, 10);
-    var sql = util.format("delete from lookup where pi = \'%s\' and ty = \'%s\' order by ri asc limit %d", ri, ty, offset);
+    var sql = util.format("DELETE FROM lookup WHERE ri IN (SELECT ri FROM (SELECT ri FROM lookup WHERE pi = \'%s\' and ty = \'%s\' ORDER BY ri LIMIT %d offset %d)a)", ri, ty, offset, mni);
+    console.log(sql);
     db.getResult(sql, '', function (err, results) {
         if (!err) {
             sql = util.format("select count(ri), sum(cs) from lookup where pi = \'%s\' and ty = \'%s\'", ri, ty);
+            console.log(sql);
             db.getResult(sql, '', function (err, results) {
                 if (results.length == 1) {
                     var cniObj = {};
                     cniObj.cni = results[0]['count(ri)'];
-                    cniObj.cbs = results[0]['sum(cs)'];
+                    cniObj.cbs = (cniObj.cni == 0) ? 0 : results[0]['sum(cs)'];
+
+                    console.log('[update_action_mni] cni: ' + cniObj.cni + ', cbs: ' + cniObj.cbs);
+
                     if (ty == '4') {
                         sql = util.format("update cnt set cni = \'%s\', cbs = \'%s\' where ri = \'%s\'", cniObj.cni, cniObj.cbs, ri);
                     }
@@ -1043,9 +1014,8 @@ function update_action_mni(ty, ri, mni, callback) {
                         }
                         else {
                             var body_Obj = {};
-                            body_Obj['rsp'] = {};
-                            body_Obj['rsp'].cap = results.message;
-                            //responder.response_result(request, response, 500, body_Obj, 5000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
+                            body_Obj['dbg'] = results.message;
+                            //responder.response_result(request, response, 500, body_Obj, 5000, request.url, body_Obj['dbg']);
                             console.log(JSON.stringify(body_Obj));
                             callback('0');
                             return '0';
@@ -1056,9 +1026,8 @@ function update_action_mni(ty, ri, mni, callback) {
         }
         else {
             var body_Obj = {};
-            body_Obj['rsp'] = {};
-            body_Obj['rsp'].cap = results.message;
-            //responder.response_result(request, response, 500, body_Obj, 5000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
+            body_Obj['dbg'] = results.message;
+            //responder.response_result(request, response, 500, body_Obj, 5000, request.url, body_Obj['dbg']);
             console.log(JSON.stringify(body_Obj));
             callback('0');
             return '0';
@@ -1079,9 +1048,8 @@ function update_action( request, response, ty, resource_Obj, callback) {
                 }
                 else {
                     body_Obj = {};
-                    body_Obj['rsp'] = {};
-                    body_Obj['rsp'].cap = results.message;
-                    responder.response_result(request, response, 500, body_Obj, 5000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
+                    body_Obj['dbg'] = results.message;
+                    responder.response_result(request, response, 500, body_Obj, 5000, request.url, body_Obj['dbg']);
                     callback('0', resource_Obj);
                     return '0';
                 }
@@ -1096,9 +1064,8 @@ function update_action( request, response, ty, resource_Obj, callback) {
                 }
                 else {
                     body_Obj = {};
-                    body_Obj['rsp'] = {};
-                    body_Obj['rsp'].cap = results.message;
-                    responder.response_result(request, response, 500, body_Obj, 5000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
+                    body_Obj['dbg'] = results.message;
+                    responder.response_result(request, response, 500, body_Obj, 5000, request.url, body_Obj['dbg']);
                     callback('0', resource_Obj);
                     return '0';
                 }
@@ -1117,9 +1084,8 @@ function update_action( request, response, ty, resource_Obj, callback) {
                 }
                 else {
                     body_Obj = {};
-                    body_Obj['rsp'] = {};
-                    body_Obj['rsp'].cap = results.message;
-                    responder.response_result(request, response, 500, body_Obj, 5000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
+                    body_Obj['dbg'] = results.message;
+                    responder.response_result(request, response, 500, body_Obj, 5000, request.url, body_Obj['dbg']);
                     callback('0', resource_Obj);
                     return '0';
                 }
@@ -1134,9 +1100,8 @@ function update_action( request, response, ty, resource_Obj, callback) {
                 }
                 else {
                     body_Obj = {};
-                    body_Obj['rsp'] = {};
-                    body_Obj['rsp'].cap = results.message;
-                    responder.response_result(request, response, 500, body_Obj, 5000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
+                    body_Obj['dbg'] = results.message;
+                    responder.response_result(request, response, 500, body_Obj, 5000, request.url, body_Obj['dbg']);
                     callback('0', resource_Obj);
                     return '0';
                 }
@@ -1151,9 +1116,8 @@ function update_action( request, response, ty, resource_Obj, callback) {
                 }
                 else {
                     body_Obj = {};
-                    body_Obj['rsp'] = {};
-                    body_Obj['rsp'].cap = results.message;
-                    responder.response_result(request, response, 500, body_Obj, 5000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
+                    body_Obj['dbg'] = results.message;
+                    responder.response_result(request, response, 500, body_Obj, 5000, request.url, body_Obj['dbg']);
                     callback('0', resource_Obj);
                     return '0';
                 }
@@ -1168,9 +1132,8 @@ function update_action( request, response, ty, resource_Obj, callback) {
                 }
                 else {
                     body_Obj = {};
-                    body_Obj['rsp'] = {};
-                    body_Obj['rsp'].cap = results.message;
-                    responder.response_result(request, response, 500, body_Obj, 5000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
+                    body_Obj['dbg'] = results.message;
+                    responder.response_result(request, response, 500, body_Obj, 5000, request.url, body_Obj['dbg']);
                     callback('0', resource_Obj);
                     return '0';
                 }
@@ -1187,9 +1150,8 @@ function update_action( request, response, ty, resource_Obj, callback) {
                 }
                 else {
                     body_Obj = {};
-                    body_Obj['rsp'] = {};
-                    body_Obj['rsp'].cap = results.message;
-                    responder.response_result(request, response, 500, body_Obj, 5000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
+                    body_Obj['dbg'] = results.message;
+                    responder.response_result(request, response, 500, body_Obj, 5000, request.url, body_Obj['dbg']);
                     callback('0', resource_Obj);
                     return '0';
                 }
@@ -1204,9 +1166,8 @@ function update_action( request, response, ty, resource_Obj, callback) {
                 }
                 else {
                     body_Obj = {};
-                    body_Obj['rsp'] = {};
-                    body_Obj['rsp'].cap = results.message;
-                    responder.response_result(request, response, 500, body_Obj, 5000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
+                    body_Obj['dbg'] = results.message;
+                    responder.response_result(request, response, 500, body_Obj, 5000, request.url, body_Obj['dbg']);
                     callback('0', resource_Obj);
                     return '0';
                 }
@@ -1224,9 +1185,8 @@ function update_action( request, response, ty, resource_Obj, callback) {
                 }
                 else {
                     body_Obj = {};
-                    body_Obj['rsp'] = {};
-                    body_Obj['rsp'].cap = results.message;
-                    responder.response_result(request, response, 500, body_Obj, 5000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
+                    body_Obj['dbg'] = results.message;
+                    responder.response_result(request, response, 500, body_Obj, 5000, request.url, body_Obj['dbg']);
                     callback('0', resource_Obj);
                     return '0';
                 }
@@ -1241,9 +1201,8 @@ function update_action( request, response, ty, resource_Obj, callback) {
                 }
                 else {
                     body_Obj = {};
-                    body_Obj['rsp'] = {};
-                    body_Obj['rsp'].cap = results.message;
-                    responder.response_result(request, response, 500, body_Obj, 5000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
+                    body_Obj['dbg'] = results.message;
+                    responder.response_result(request, response, 500, body_Obj, 5000, request.url, body_Obj['dbg']);
                     callback('0', resource_Obj);
                     return '0';
                 }
@@ -1251,9 +1210,8 @@ function update_action( request, response, ty, resource_Obj, callback) {
     }
     else {
         body_Obj = {};
-        body_Obj['rsp'] = {};
-        body_Obj['rsp'].cap = "ty does not supported";
-        responder.response_result(request, response, 400, body_Obj, 4000, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
+        body_Obj['dbg'] = "ty does not supported";
+        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
         callback('0', resource_Obj);
         return '0';
     }
@@ -1313,9 +1271,8 @@ function update_resource(request, response, ty, body_Obj, resource_Obj, callback
             break;
         default:
             body_Obj = {};
-            body_Obj['rsp'] = {};
-            body_Obj['rsp'].cap = 'request is not supported in oneM2M Spec!';
-            responder.response_result(request, response, 405, body_Obj, 4005, url.parse(request.url).pathname.toLowerCase(), body_Obj['rsp'].cap);
+            body_Obj['dbg'] = 'request is not supported in oneM2M Spec!';
+            responder.response_result(request, response, 405, body_Obj, 4005, request.url, body_Obj['dbg']);
             callback('0', body_Obj);
             break;
     }
@@ -1353,10 +1310,11 @@ function delete_action(request, response, resource_Obj, comm_Obj, callback) {
     var pi_list = [];
     db_sql.search_parents_lookup(comm_Obj.ri, function (err, search_Obj) {
         if(!err) {
-            if(search_Obj.length == 0) {
-                pi_list.push(comm_Obj.ri);
-            }
+            //if(search_Obj.length == 0) {
+            //    pi_list.push(comm_Obj.ri);
+            //}
 
+            pi_list.push(comm_Obj.ri);
             for(var i = 0; i < search_Obj.length; i++) {
                 pi_list.push(search_Obj[i].ri);
             }
@@ -1376,9 +1334,8 @@ function delete_action(request, response, resource_Obj, comm_Obj, callback) {
                 }
                 else {
                     search_Obj = {};
-                    search_Obj['rsp'] = {};
-                    search_Obj['rsp'].cap = search_Obj.message;
-                    responder.response_result(request, response, 500, search_Obj, 5000, url.parse(request.url).pathname.toLowerCase(), search_Obj['rsp'].cap);
+                    search_Obj['dbg'] = search_Obj.message;
+                    responder.response_result(request, response, 500, search_Obj, 5000, request.url, search_Obj['dbg']);
                     callback('0', search_Obj);
                     return '0';
                 }
@@ -1386,9 +1343,8 @@ function delete_action(request, response, resource_Obj, comm_Obj, callback) {
         }
         else {
             search_Obj = {};
-            search_Obj['rsp'] = {};
-            search_Obj['rsp'].cap = search_Obj.message;
-            responder.response_result(request, response, 500, search_Obj, 5000, url.parse(request.url).pathname.toLowerCase(), search_Obj['rsp'].cap);
+            search_Obj['dbg'] = search_Obj.message;
+            responder.response_result(request, response, 500, search_Obj, 5000, request.url, search_Obj['dbg']);
             callback('0', search_Obj);
             return '0';
         }
