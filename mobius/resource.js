@@ -54,8 +54,18 @@ exports.remove_no_value = function(request, resource_Obj) {
 
     for(var index in resource_Obj[rootnm]) {
         if(resource_Obj[rootnm].hasOwnProperty(index)) {
-            if (resource_Obj[rootnm][index] == null || resource_Obj[rootnm][index] == '' || resource_Obj[rootnm][index] == 'undefined' || resource_Obj[rootnm][index] == '[]') {
-                delete resource_Obj[rootnm][index];
+            if(request.hash) {
+                if(request.hash.split('#')[1] == index) {
+
+                }
+                else {
+                    delete resource_Obj[rootnm][index];
+                }
+            }
+            else {
+                if (resource_Obj[rootnm][index] == null || resource_Obj[rootnm][index] == '' || resource_Obj[rootnm][index] == 'undefined' || resource_Obj[rootnm][index] == '[]') {
+                    delete resource_Obj[rootnm][index];
+                }
             }
         }
     }

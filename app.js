@@ -1154,9 +1154,9 @@ app.get(onem2mParser, function(request, response) {
         if(request.query.rcn == null) {
             request.query.rcn = 1;
         }
-        //request.url = request.url.replace(/\/$/, "");
-        //var url_arr = url.parse(request.url).pathname.split('/');
-        var absolute_url = request.url.replace(/\/~\/[^\/]+\/?/, '/');
+        request.url = request.url.replace('%23', '#'); // convert '%23' to '#' of url
+        request.hash = url.parse(request.url).hash;
+        var absolute_url = request.url.replace(/\/~\/[^\/]+\/?/, '/').split('#')[0];
 
         if(url.parse(absolute_url).pathname.split('/')[1] == usecsebase) {
             request.url = absolute_url;
