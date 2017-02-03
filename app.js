@@ -666,8 +666,8 @@ function check_resource(request, response, callback) {
                     if(result_Obj[0].ty == '3') {
                         var cur_ty = '4';
                     }
-                    else if(result_Obj[0].ty == '25') {
-                        cur_ty = '26';
+                    else if(result_Obj[0].ty == '29') {
+                        cur_ty = '30';
                     }
                     else {
                         result_Obj = {};
@@ -786,7 +786,7 @@ function check_resource(request, response, callback) {
     }
     else {
         op = 'direct';
-        console.log(request.headers['x-m2m-origin']);
+        console.log('X-M2M-Origin: ' + request.headers['x-m2m-origin']);
         db_sql.select_direct_lookup(ri, function (err, result_Obj) {
             if(!err) {
                 if (result_Obj.length == 1) {
@@ -898,16 +898,16 @@ function lookup_create(request, response) {
                 else if ((ty == 3) && (parent_comm.ty == 5 || parent_comm.ty == 16 || parent_comm.ty == 2 || parent_comm.ty == 3)) { // container
                 }
                 else if ((ty == 23) && (parent_comm.ty == 5 || parent_comm.ty == 16 || parent_comm.ty == 2 ||
-                    parent_comm.ty == 3 || parent_comm.ty == 24 || parent_comm.ty == 25)) { // sub
+                    parent_comm.ty == 3 || parent_comm.ty == 24 || parent_comm.ty == 29)) { // sub
                 }
                 else if ((ty == 4) && (parent_comm.ty == 3)) { // contentInstance
                     body_Obj[rootnm].mni = parent_comm.mni;
                 }
-                else if ((ty == 24) && (parent_comm.ty == 2 || parent_comm.ty == 3 || parent_comm.ty == 4 || parent_comm.ty == 25)) { // semanticDescriptor
+                else if ((ty == 24) && (parent_comm.ty == 2 || parent_comm.ty == 3 || parent_comm.ty == 4 || parent_comm.ty == 29)) { // semanticDescriptor
                 }
-                else if ((ty == 25) && (parent_comm.ty == 5 || parent_comm.ty == 16 || parent_comm.ty == 2)) { // timeSeries
+                else if ((ty == 29) && (parent_comm.ty == 5 || parent_comm.ty == 16 || parent_comm.ty == 2)) { // timeSeries
                 }
-                else if ((ty == 26) && (parent_comm.ty == 25)) { // timeSeriesInstance
+                else if ((ty == 30) && (parent_comm.ty == 29)) { // timeSeriesInstance
                     body_Obj[rootnm].mni = parent_comm.mni;
                 }
                 else if ((ty == 27) && (parent_comm.ty == 2 || parent_comm.ty == 16)) { // multimediaSession
@@ -1212,7 +1212,7 @@ app.put(onem2mParser, function(request, response) {
         if(url.parse(absolute_url).pathname == ('/'+usecsebase)) {
             var body_Obj = {};
             body_Obj['dbg'] = 'OPERATION_NOT_ALLOWED';
-            responder.response_result(request, response, 405, body_Obj, 4005, request.url, 'OPERATION_NOT_ALLOWED');
+            responder.response_result(request, response, 405, body_Obj, 4005, request.url, body_Obj['dbg']);
         }
         else if(url.parse(absolute_url).pathname.split('/')[1] == usecsebase) {
             request.url = absolute_url;

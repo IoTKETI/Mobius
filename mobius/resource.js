@@ -71,15 +71,16 @@ function check_TS(ri, callback) {
         method: 'post',
         headers: {
             'X-M2M-RI': rqi,
-            'Accept': 'application/xml',
+            'Accept': 'application/json',
             'X-M2M-Origin': usecseid,
-            'Content-Type': 'application/vnd.onem2m-res+xml'
+            'Content-Type': 'application/vnd.onem2m-res+json'
         }
     };
 
     var jsonObj = {};
-    jsonObj.ri = ri;
-    var reqBodyString = js2xmlparser('ts', JSON.stringify(jsonObj));
+    jsonObj.ts = {};
+    jsonObj.ts.ri = ri;
+    var reqBodyString = JSON.stringify(jsonObj);
 
     var responseBody = '';
     var req = http.request(options, function (res) {
@@ -148,7 +149,7 @@ function create_action_cni(ri, ty, pi, mni, cs, callback) {
         var sql = util.format("select cni, cbs, st from cnt, lookup where cnt.ri = \'%s\' and lookup.ri = \'%s\'", pi, pi);
     }
     else {
-        sql = util.format("select cni, cbs, st from ts, lookup where cnt.ri = \'%s\' and lookup.ri = \'%s\'", pi, pi);
+        sql = util.format("select cni, cbs, st from ts, lookup where ts.ri = \'%s\' and lookup.ri = \'%s\'", pi, pi);
     }
     db.getResult(sql, '', function (err, results_cni) {
         if (results_cni.length == 1) {
@@ -479,7 +480,7 @@ function create_action(request, response, ty, resource_Obj, callback) {
                 }
             });
     }
-    else if(ty == '25') {
+    else if(ty == '29') {
         db_sql.insert_ts(resource_Obj[rootnm].ty, resource_Obj[rootnm].ri, resource_Obj[rootnm].rn, resource_Obj[rootnm].pi, resource_Obj[rootnm].ct,
             resource_Obj[rootnm].lt, resource_Obj[rootnm].et, JSON.stringify(resource_Obj[rootnm].acpi), JSON.stringify(resource_Obj[rootnm].lbl), JSON.stringify(resource_Obj[rootnm].at),
             JSON.stringify(resource_Obj[rootnm].aa), resource_Obj[rootnm].st, resource_Obj[rootnm].mni, resource_Obj[rootnm].cs,
@@ -507,7 +508,7 @@ function create_action(request, response, ty, resource_Obj, callback) {
                 }
             });
     }
-    else if(ty == '26') {
+    else if(ty == '30') {
         db_sql.insert_tsi(resource_Obj[rootnm].ty, resource_Obj[rootnm].ri, resource_Obj[rootnm].rn, resource_Obj[rootnm].pi, resource_Obj[rootnm].ct,
             resource_Obj[rootnm].lt, resource_Obj[rootnm].et, JSON.stringify(resource_Obj[rootnm].acpi), JSON.stringify(resource_Obj[rootnm].lbl), JSON.stringify(resource_Obj[rootnm].at),
             JSON.stringify(resource_Obj[rootnm].aa), resource_Obj[rootnm].st, resource_Obj[rootnm].mni, resource_Obj[rootnm].cs,
@@ -602,7 +603,7 @@ function build_resource(request, response, ty, body_Obj, callback) {
     resource_Obj[rootnm].mni = '';
     resource_Obj[rootnm].cs = '';
 
-    if(ty == '3' || ty == '25') {
+    if(ty == '3' || ty == '29') {
         resource_Obj[rootnm].mni = '9007199254740991';
     }
 
@@ -666,12 +667,12 @@ function build_resource(request, response, ty, body_Obj, callback) {
                             callback(rsc, resource_Obj);
                         });
                         break;
-                    case '25':
+                    case '29':
                         ts.build_ts(request, response, resource_Obj, body_Obj, function(rsc, resource_Obj) {
                             callback(rsc, resource_Obj);
                         });
                         break;
-                    case '26':
+                    case '30':
                         tsi.build_tsi(request, response, resource_Obj, body_Obj, function(rsc, resource_Obj) {
                             callback(rsc, resource_Obj);
                         });
@@ -739,10 +740,11 @@ function presearch_action(request, response, ri_list, comm_Obj, callback) {
     var pi_list = [];
     db_sql.search_parents_lookup(comm_Obj.ri, function (err, search_Obj) {
         if(!err) {
+            var cur_lvl = parseInt((url.parse(request.url).pathname.split('/').length), 10) - 2;
             for(var i = 0; i < search_Obj.length; i++) {
                 if(request.query.lvl != null) {
                     var lvl = request.query.lvl;
-                    if((search_Obj[i].ri.split('/').length-1) <= (parseInt(lvl, 10))) {
+                    if((search_Obj[i].ri.split('/').length-1) <= (cur_lvl + (parseInt(lvl, 10)))) {
                         pi_list.push(search_Obj[i].ri);
                     }
                 }
@@ -791,7 +793,7 @@ function presearch_action(request, response, ri_list, comm_Obj, callback) {
     });
 }
 
-const ty_list = ['1', '2', '3', '4', '5', '9', '10', /*'13', '14',*/ '16', /*'17',*/ '23', '25', '26', '27', '24'];
+const ty_list = ['1', '2', '3', '4', '5', '9', '10', /*'13', '14',*/ '16', /*'17',*/ '23', '29', '30', '27', '24'];
 
 function search_action(request, response, seq, resource_Obj, ri_list, strObj, presearch_Obj, callback) {
     if(ty_list.length <= seq) {
@@ -1173,7 +1175,7 @@ function update_action( request, response, ty, resource_Obj, callback) {
                 }
             });
     }
-    else if(ty == '25') {
+    else if(ty == '29') {
         db_sql.update_ts(resource_Obj[rootnm].lt, JSON.stringify(resource_Obj[rootnm].acpi), resource_Obj[rootnm].et, resource_Obj[rootnm].st, JSON.stringify(resource_Obj[rootnm].lbl),
             JSON.stringify(resource_Obj[rootnm].at), JSON.stringify(resource_Obj[rootnm].aa), resource_Obj[rootnm].mni, resource_Obj[rootnm].ri,
             resource_Obj[rootnm].mbs, resource_Obj[rootnm].mia, resource_Obj[rootnm].or,
@@ -1259,7 +1261,7 @@ function update_resource(request, response, ty, body_Obj, resource_Obj, callback
             sd.update_sd(request, response, resource_Obj, body_Obj, function(rsc, resource_Obj) {
                 callback(rsc, resource_Obj);
             }); break;
-        case '25': 
+        case '29':
             ts.update_ts(request, response, resource_Obj, body_Obj, function(rsc, resource_Obj) {
                 callback(rsc, resource_Obj);
             }); 
@@ -1323,7 +1325,7 @@ function delete_action(request, response, resource_Obj, comm_Obj, callback) {
             //var found_Obj = {};
             db_sql.delete_lookup(comm_Obj.ri, pi_list, 0, finding_Obj, 0, function (err, search_Obj) {
                 if(!err) {
-                    if(comm_Obj.ty == '25') {
+                    if(comm_Obj.ty == '29') {
                         delete_TS(resource_Obj[rootnm].ri, function (rsc, res_Obj) {
                         });
                         callback('1', resource_Obj);

@@ -40,7 +40,7 @@ exports.select_csr = function(ri, callback) {
 
 exports.search_parents_lookup = function(ri, callback) {
     console.time('search_parents_lookup ' + ri);
-    var sql = util.format("select ri from lookup where (ri =\'%s\' or pi=\'%s\' or pi like \'%s/%%\') and ty != \'4\'", ri, ri, ri);
+    var sql = util.format("select ri from lookup where (ri =\'%s\' or pi=\'%s\' or pi like \'%s/%%\') and ty != \'4\' and ty != \'23\' and ty != \'30\' and ty != \'9\'", ri, ri, ri);
     db.getResult(sql, '', function (err, result_lookup_ri) {
         console.timeEnd('search_parents_lookup ' + ri);
         callback(err, result_lookup_ri);
@@ -493,14 +493,17 @@ function build_discovery_sql(ty, lbl, cra, crb, lim, ofst, pi_list, bef_ct, cur_
         if(query_count == 0) {
             query_where = ' where ';
         }
-        else if(query_count > 0) {
+        else {
             query_where += ' and ';
         }
-        if(ty.toString().split(',')[1] == null) {
+
+        if(ty.toString().split(',').length == 1) {
             query_where += util.format('a.ty = \'%s\'', ty);
             ty_str += util.format('ty = \'%s\'', ty);
         }
         else {
+            query_where += ' (';
+            ty_str += ' (';
             for(i = 0; i < ty.length; i++) {
                 query_where += util.format('a.ty = \'%s\'', ty[i]);
                 ty_str += util.format('ty = \'%s\'', ty[i]);
@@ -509,6 +512,8 @@ function build_discovery_sql(ty, lbl, cra, crb, lim, ofst, pi_list, bef_ct, cur_
                     ty_str += ' or ';
                 }
             }
+            query_where += ') ';
+            ty_str += ') ';
         }
         query_count++;
     }
@@ -517,7 +522,7 @@ function build_discovery_sql(ty, lbl, cra, crb, lim, ofst, pi_list, bef_ct, cur_
         if(query_count == 0) {
             query_where = ' where ';
         }
-        else if(query_count > 0) {
+        else {
             query_where += ' and ';
         }
         query_where += util.format('\'%s\' <= a.ct', cra);
@@ -528,7 +533,7 @@ function build_discovery_sql(ty, lbl, cra, crb, lim, ofst, pi_list, bef_ct, cur_
         if(query_count == 0) {
             query_where = ' where ';
         }
-        else if(query_count > 0) {
+        else {
             query_where += ' and ';
         }
         query_where += util.format(' a.ct <= \'%s\'', crb);
@@ -569,8 +574,11 @@ exports.search_lookup = function (ty, lbl, cra, crb, lim, ofst, lvl, pi_list, pi
     }
 
     var cur_ct = moment(cur_d).format('YYYYMMDDTHHmmss');
-    var bef_d = moment(cur_d).subtract(Math.pow(6, loop_cnt), 'days').format('YYYY-MM-DD HH:mm:ss');
+    var bef_d = moment(cur_d).subtract(Math.pow(7, loop_cnt), 'days').format('YYYY-MM-DD HH:mm:ss');
     var bef_ct = moment(bef_d).format('YYYYMMDDTHHmmss');
+
+    //console.log(cur_ct);
+    //console.log(bef_ct);
 
     if(lim != null) {
         if(lim > max_lim) {
@@ -578,7 +586,7 @@ exports.search_lookup = function (ty, lbl, cra, crb, lim, ofst, lvl, pi_list, pi
         }
     }
     else {
-        lim = 1000;
+        lim = max_lim;
     }
 
     cur_pi.push(pi_list[pi_index]);
@@ -690,7 +698,7 @@ exports.select_latest_lookup = function(ri, cur_d, loop_cnt, ty, callback) {
 
 exports.select_oldest_lookup = function(ri, callback) {
     console.time('select_oldest ' + ri);
-    var sql = util.format('select a.* from (select ri from lookup where (pi = \'%s\') limit 1000) b left join lookup as a on b.ri = a.ri where a.ty = \'4\' or a.ty = \'26\' limit 1', ri);
+    var sql = util.format('select a.* from (select ri from lookup where (pi = \'%s\') limit 1000) b left join lookup as a on b.ri = a.ri where a.ty = \'4\' or a.ty = \'30\' limit 1', ri);
     db.getResult(sql, '', function (err, oldest_Obj) {
         console.timeEnd('select_oldest ' + ri);
         callback(err, oldest_Obj);

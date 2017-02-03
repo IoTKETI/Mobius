@@ -87,7 +87,7 @@ function init_TS(callback) {
 
 
 function search_TS(request, response, callback) {
-    var ri = '/' + usecsebase + '?fu=1&ty=25';
+    var ri = '/' + usecsebase + '?fu=1&ty=29';
     var rqi = moment().utc().format('mmssSSS') + randomValueBase64(4);
     var options = {
         hostname: 'localhost',
