@@ -102,13 +102,13 @@ exports.build_ts = function(request, response, resource_Obj, body_Obj, callback)
     resource_Obj[rootnm].at = (body_Obj[rootnm].at) ? body_Obj[rootnm].at : [];
     resource_Obj[rootnm].aa = (body_Obj[rootnm].aa) ? body_Obj[rootnm].aa : [];
 
-    resource_Obj[rootnm].mni = (body_Obj[rootnm].mni) ? body_Obj[rootnm].mni : '9007199254740991';
-    if(parseInt(resource_Obj[rootnm].mni) >= 9007199254740991) {
-        resource_Obj[rootnm].mni = '9007199254740991';
+    resource_Obj[rootnm].mni = (body_Obj[rootnm].mni) ? body_Obj[rootnm].mni : '3153600000';
+    if(parseInt(resource_Obj[rootnm].mni) >= 3153600000) {
+        resource_Obj[rootnm].mni = '3153600000';
     }
 
-    resource_Obj[rootnm].mbs = (body_Obj[rootnm].mbs) ? body_Obj[rootnm].mbs : '';
-    resource_Obj[rootnm].mia = (body_Obj[rootnm].mia) ? body_Obj[rootnm].mia : '';
+    resource_Obj[rootnm].mbs = (body_Obj[rootnm].mbs) ? body_Obj[rootnm].mbs : '3153600000';
+    resource_Obj[rootnm].mia = (body_Obj[rootnm].mia) ? body_Obj[rootnm].mia : '31536000';
     resource_Obj[rootnm].or = (body_Obj[rootnm].or) ? body_Obj[rootnm].or : '';
     resource_Obj[rootnm].cr = (body_Obj[rootnm].cr) ? body_Obj[rootnm].cr : '';
 
@@ -248,8 +248,8 @@ exports.update_ts = function(request, response, resource_Obj, body_Obj, callback
 
     if(body_Obj[rootnm].mni) {
         resource_Obj[rootnm].mni = body_Obj[rootnm].mni;
-        if(parseInt(resource_Obj[rootnm].mni) >= 9007199254740991) {
-            resource_Obj[rootnm].mni = '9007199254740991';
+        if(parseInt(resource_Obj[rootnm].mni) >= 3153600000) {
+            resource_Obj[rootnm].mni = '3153600000';
         }
     }
 

@@ -1,9 +1,52 @@
 Changelog
 =========
 
+### 2.17.1 [Also available here](https://gist.github.com/ichernev/f38280b2b29c4932914a6d3a4e50bfb2)
+* Release Dec 03, 2016
+
+* [#3638](https://github.com/moment/moment/pull/3638) [misc] TS: Make typescript definitions work with 1.x
+* [#3628](https://github.com/moment/moment/pull/3628) [misc] Adds "sign CLA" link to `CONTRIBUTING.md`
+* [#3640](https://github.com/moment/moment/pull/3640) [misc] Fix locale issues
+
+### 2.17.0 [Also available here](https://gist.github.com/ichernev/ed58f76fb95205eeac653d719972b90c)
+* Release Nov 22, 2016
+
+* [#3435](https://github.com/moment/moment/pull/3435) [new locale] yo: Yoruba (Nigeria) locale
+* [#3595](https://github.com/moment/moment/pull/3595) [bugfix] Fix accidental reference to global "value" variable
+* [#3506](https://github.com/moment/moment/pull/3506) [bugfix] Fix invalid moments returning valid dates to method calls
+* [#3563](https://github.com/moment/moment/pull/3563) [locale] ca: Change future relative time
+* [#3504](https://github.com/moment/moment/pull/3504) [tests] Fixes [#3463](https://github.com/moment/moment/issues/3463), parseZone not handling Z correctly (tests only)
+* [#3591](https://github.com/moment/moment/pull/3591) [misc] typescript: update typescript to 2.0.8, add strictNullChecks=true
+* [#3597](https://github.com/moment/moment/pull/3597) [misc] Fixed capitalization in nuget spec
+
+### 2.16.0 [See full changelog](https://gist.github.com/ichernev/17bffc1005a032cb1a8ac4c1558b4994)
+* Release Nov 9, 2016
+
+## Features
+* [#3530](https://github.com/moment/moment/pull/3530) [feature] Check whether input is date before checking if format is array
+* [#3515](https://github.com/moment/moment/pull/3515) [feature] Fix [#2300](https://github.com/moment/moment/issues/2300): Default to current week.
+
+## Bugfixes
+* [#3546](https://github.com/moment/moment/pull/3546) [bugfix] Implement lazy-loading of child locales with missing prents
+* [#3523](https://github.com/moment/moment/pull/3523) [bugfix] parseZone should handle UTC
+* [#3502](https://github.com/moment/moment/pull/3502) [bugfix] Fix [#3500](https://github.com/moment/moment/issues/3500): ISO 8601 parsing should match the full string, not the beginning of the string.
+* [#3581](https://github.com/moment/moment/pull/3581) [bugfix] Fix parseZone, redo [#3504](https://github.com/moment/moment/issues/3504), fix [#3463](https://github.com/moment/moment/issues/3463)
+
+## New Locales
+* [#3416](https://github.com/moment/moment/pull/3416) [new locale] nl-be: Dutch (Belgium) locale
+* [#3393](https://github.com/moment/moment/pull/3393) [new locale] ar-dz: Arabic (Algeria) locale
+* [#3342](https://github.com/moment/moment/pull/3342) [new locale] tet: Tetun Dili (East Timor) locale
+
+And more locale, build and typescript improvements
+
+### 2.15.2
+* Release Oct 23, 2016
+* [#3525](https://github.com/moment/moment/pull/3525) Speedup month standalone/format regexes **(IMPORTANT)**
+* [#3466](https://github.com/moment/moment/pull/3466) Fix typo of Javanese
+
 ### 2.15.1
 * Release Sept 20, 2016
-* [3438] [bugfix] Fix locale autoload, revert #3344
+* [#3438](https://github.com/moment/moment/pull/3438) Fix locale autoload, revert [#3344](https://github.com/moment/moment/pull/3344)
 
 ### 2.15.0 [See full changelog](https://gist.github.com/ichernev/10e1c5bf647545c72ca30e9628a09ed3)
 - Release Sept 12, 2016

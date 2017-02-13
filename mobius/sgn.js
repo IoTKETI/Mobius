@@ -20,7 +20,7 @@ var http = require('http');
 var coap = require('coap');
 var js2xmlparser = require('js2xmlparser');
 var xmlbuilder = require('xmlbuilder');
-var db = require('./db_action');
+var db_sql = require('./sql_action');
 
 var responder = require('./responder');
 
@@ -35,8 +35,8 @@ exports.check = function(request, noti_Obj, check_value) {
     else if ((request.method == "POST" && check_value == 3) || (request.method == "DELETE" && check_value == 4)) {
         pi = noti_Obj.pi;
     }
-    var sql = util.format('select * from sub where pi = \'%s\'', pi);
-    db.getResult(sql, '', function (err, results_ss) {
+
+    db_sql.select_sub(pi, function (err, results_ss) {
         if (!err) {
             for (var i = 0; i < results_ss.length; i++) {
                 if(results_ss[i].ri == noti_Obj.ri) {

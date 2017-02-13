@@ -334,14 +334,13 @@ function mqtt_message_action(mqtt_client, topic_arr, bodytype, jsonObj) {
         var pc = (jsonObj['m2m:rqp'].pc == null) ? '' : jsonObj['m2m:rqp'].pc;
 
         try {
+            var resp_topic = '/oneM2M/resp/';
+            if (topic_arr[2] == 'reg_req') {
+                resp_topic = '/oneM2M/reg_resp/';
+            }
+            resp_topic += (topic_arr[3] + '/' + topic_arr[4] + '/' + topic_arr[5]);
+
             if (to.split('/')[1].split('?')[0] == usecsebase) {
-                if (topic_arr[2] == 'reg_req') {
-                    var resp_topic = '/oneM2M/reg_resp/';
-                }
-                else {
-                    resp_topic = '/oneM2M/resp/';
-                }
-                resp_topic += (topic_arr[3] + '/' + topic_arr[4] + '/' + topic_arr[5]);
                 mqtt_binding(op, to, fr, rqi, ty, pc, bodytype, function (res, res_body) {
                     if (res_body == '') {
                         res_body = '{}';
@@ -355,6 +354,11 @@ function mqtt_message_action(mqtt_client, topic_arr, bodytype, jsonObj) {
         }
         catch (e) {
             console.error(e);
+            resp_topic = '/oneM2M/resp/';
+            if (topic_arr[2] == 'reg_req') {
+                resp_topic = '/oneM2M/reg_resp/';
+            }
+            resp_topic += (topic_arr[3] + '/' + topic_arr[4] + '/' + topic_arr[5]);
             mqtt_response(mqtt_client, resp_topic, 5000, fr, usecseid, rqi, 'to parsing error', bodytype);
         }
     }
@@ -845,42 +849,6 @@ function http_retrieve_CSEBase(callback) {
     req.write('');
     req.end();
 }
-
-
-//
-//
-// function mqtt_forwarding(mqtt_client, resp_cseid, op, to, fr, rqi, ty, nm, pc) {
-//     NOPRINT == 'true' ? NOPRINT = 'true' : console.log('[mqtt_forwarding]');
-//
-//     var ri = util.format('/%s/%s', usecsebase, to);
-//     var sql = util.format("select * from lookup where ri = \'%s\'", ri);
-//     var queryJson = {};
-//     queryJson.type = 'select';
-//     queryJson.table = 'lookup';
-//     queryJson.condition = 'direct';
-//     db.getResult(sql, queryJson, function (err, results) {
-//         if(!err) {
-//             if (results.length == 1) {
-//                 if(results[0].resourcetype == 16) {
-//                     var forward_cseid = results[0].cseid;
-//                 }
-//                 else if(results[0].resourcetype == 2) {
-//                     forward_cseid = results[0].aeid;
-//                 }
-//                 forward_mqtt(forward_cseid, op, to, fr, rqi, ty, nm, pc);
-//             }
-//             else {
-//                 NOPRINT == 'true' ? NOPRINT = 'true' : console.log('csebase forwarding do not exist');
-//                 var resp_topic = '/oneM2M/resp/' + topic_arr[3] + '/' + topic_arr[4] + '/' + topic_arr[5];
-//                 mqtt_response(mqtt_client, resp_topic, 4004, fr, usecseid, rqi, '<h1>csebase forwarding do not exist</h1>');
-//             }
-//         }
-//         else {
-//             console.log('query error: ' + results.message);
-//         }
-//     });
-// }
-//
 
 function forward_mqtt(forward_cseid, op, to, fr, rqi, ty, nm, inpc) {
     var forward_message = {};

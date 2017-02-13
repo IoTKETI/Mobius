@@ -16,13 +16,12 @@
 
 var url = require('url');
 var util = require('util');
-var db = require('./db_action');
+var db_sql = require('./sql_action');
 
 exports.check = function(request, ty, acpiList, access_value, callback) {
     if(ty == '1') { // check selfPrevileges
         acpiList = [url.parse(request.url).pathname];
-        var sql = util.format("select * from acp where ri = \'%s\'", acpiList[0]);
-        db.getResult(sql, '', function (err, results_acp) {
+        db_sql.select_acp(acpiList[0], function (err, results_acp) {
             if (!err) {
                 for (var i = 0; i < results_acp.length; i++) {
                     var pvsObj = JSON.parse(results_acp[i].pvs);
@@ -66,8 +65,7 @@ exports.check = function(request, ty, acpiList, access_value, callback) {
             return '1';
         }
 
-        sql = util.format("select * from acp where ri in (" + JSON.stringify(acpiList).replace('[', '').replace(']', '') + ")");
-        db.getResult(sql, '', function (err, results_acp) {
+        db_sql.select_acp_in(acpiList, function (err, results_acp) {
             if (!err) {
                 for (var i = 0; i < results_acp.length; i++) {
                     var pvObj = JSON.parse(results_acp[i].pv);
@@ -78,7 +76,7 @@ exports.check = function(request, ty, acpiList, access_value, callback) {
                                 var re = new RegExp(from + '\\b');
                                 for (var acor_idx in pvObj.acr[index].acor) {
                                     if(pvObj.acr[index].acor.hasOwnProperty(acor_idx)) {
-                                        if (pvObj.acr[index].acor[acor_idx].match(re) || pvObj.acr[index].acor[acor_idx] == 'all' || pvsObj.acr[index].acor[acor_idx] == '*') {
+                                        if (pvObj.acr[index].acor[acor_idx].match(re) || pvObj.acr[index].acor[acor_idx] == 'all' || pvObj.acr[index].acor[acor_idx] == '*') {
                                             if ((pvObj.acr[index].acop.toString() & access_value) == access_value) {
                                                 callback('1');
                                                 return '1';

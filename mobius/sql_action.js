@@ -12,8 +12,8 @@
  * Created by Il Yeup, Ahn in KETI on 2016-07-13.
  */
 
-var util = require('util');
 var moment = require('moment');
+var util = require('util');
 
 var db = require('./db_action');
 
@@ -748,12 +748,68 @@ exports.select_grp = function(ri, callback) {
     });
 };
 
+exports.select_acp = function(ri, callback) {
+    var sql = util.format("select * from acp where ri = \'%s\'", ri);
+    db.getResult(sql, '', function (err, results_acp) {
+        callback(err, results_acp);
+    });
+};
+
+exports.select_acp_in = function(acpiList, callback) {
+    var sql = util.format("select * from acp where ri in (" + JSON.stringify(acpiList).replace('[', '').replace(']', '') + ")");
+    db.getResult(sql, '', function (err, results_acp) {
+        callback(err, results_acp);
+    });
+};
+
+exports.select_sub = function(pi, callback) {
+    var sql = util.format('select * from sub where pi = \'%s\'', pi);
+    db.getResult(sql, '', function (err, results_ss) {
+        callback(err, results_ss);
+    });
+};
+
+exports.select_cb = function(ri, callback) {
+    var sql = util.format("select * from cb where ri = \'%s\'", ri);
+    db.getResult(sql, '', function (err, results_cb) {
+        callback(err, results_cb);
+    });
+};
+
+exports.select_cni_parent = function (ty, pi, callback) {
+    if(ty == '4') {
+        var sql = util.format("select cni, cbs, st from cnt, lookup where cnt.ri = \'%s\' and lookup.ri = \'%s\'", pi, pi);
+    }
+    else {
+        sql = util.format("select cni, cbs, st from ts, lookup where ts.ri = \'%s\' and lookup.ri = \'%s\'", pi, pi);
+    }
+
+    db.getResult(sql, '', function (err, results_cni) {
+        callback(err, results_cni);
+    });
+};
+
+exports.select_cs_parent = function (ty, pi, callback) {
+    var sql = util.format("select ri, cs from lookup where pi = \'%s\' and ty = \'%s\' order by ri asc limit 1", pi, ty);
+    db.getResult(sql, '', function (err, results) {
+        callback(err, results);
+    });
+};
+
 exports.select_ts = function (ri, callback) {
     var sql = util.format("select * from ts where ri = \'%s\'", ri);
     db.getResult(sql, '', function (err, ts_Obj) {
         callback(err, ts_Obj);
     });
 };
+
+exports.select_in_ri_list = function (tbl, ri_list, callback) {
+    var sql = util.format("select * from " + tbl + " where ri in ("+JSON.stringify(ri_list).replace('[','').replace(']','')+")");
+    db.getResult(sql, '', function (err, search_Obj) {
+        callback(err, search_Obj);
+    });
+};
+
 
 exports.select_ts_in = function (ri_list, callback) {
     var sql = util.format("select * from ts where ri in ("+JSON.stringify(ri_list).replace('[','').replace(']','') + ")");
@@ -762,6 +818,15 @@ exports.select_ts_in = function (ri_list, callback) {
     });
 
 };
+
+exports.select_count_ri = function (ty, ri, callback) {
+    var sql = util.format("select count(ri), sum(cs) from lookup where pi = \'%s\' and ty = \'%s\'", ri, ty);
+    //console.log(sql);
+    db.getResult(sql, '', function (err, results) {
+        callback(err, results);
+    });
+};
+
 
 exports.update_ts_mdcn_mdl = function (mdcn, mdl, ri, callback) {
     var sql = util.format("update ts set mdcn = \'%s\', mdl = \'%s\' where ri = \'%s\'", mdcn, mdl, ri);
@@ -1028,12 +1093,48 @@ exports.update_mms = function (lt, acpi, et, st, lbl, at, aa, mni, ri, stid, asd
     });
 };
 
+exports.update_cni_parent = function (ty, cni, cbs, st, pi, callback) {
+    if (ty == '4') {
+        var sql = util.format("update cnt, lookup set cnt.cni = \'%s\', cnt.cbs = \'%s\', lookup.st = \'%s\'  where cnt.ri = \'%s\' and lookup.ri = \'%s\'", cni, cbs, st, pi, pi);
+    }
+    else {
+        sql = util.format("update ts, lookup set ts.cni = \'%s\', ts.cbs = \'%s\', lookup.st = \'%s\'  where ts.ri = \'%s\' and lookup.ri = \'%s\'", cni, cbs, st, pi, pi);
+    }
+
+    db.getResult(sql, '', function (err, results) {
+        callback(err, results);
+    });
+};
+
+exports.update_cni_ri = function (ty, ri, cni, cbs, callback) {
+    if (ty == '4') {
+        sql = util.format("update cnt set cni = \'%s\', cbs = \'%s\' where ri = \'%s\'", cni, cbs, ri);
+    }
+    else {
+        sql = util.format("update ts set cni = \'%s\', cbs = \'%s\' where ri = \'%s\'", cni, cbs, ri);
+    }
+
+    db.getResult(sql, '', function (err, results) {
+        callback(err, results);
+    });
+};
+
+
+
 exports.delete_ri_lookup = function (ri, callback) {
     var sql = util.format("delete from lookup where ri = \'%s\'", ri);
     db.getResult(sql, '', function (err, delete_Obj) {
         if(!err) {
             callback(err, delete_Obj);
         }
+    });
+};
+
+exports.delete_ri_lookup_in = function (ty, ri, offset, mni, callback) {
+    var sql = util.format("DELETE FROM lookup WHERE ri IN (SELECT ri FROM (SELECT ri FROM lookup WHERE pi = \'%s\' and ty = \'%s\' ORDER BY ri LIMIT %d offset %d)a)", ri, ty, offset, mni);
+    //console.log(sql);
+    db.getResult(sql, '', function (err, results) {
+        callback(err, results);
     });
 };
 

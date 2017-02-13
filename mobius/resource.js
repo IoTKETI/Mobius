@@ -115,7 +115,7 @@ function check_TS(ri, callback) {
     req.end();
 }
 
-function delete_TS(ri, callback) {
+function delete_TS(callback) {
     var rqi = moment().utc().format('mmssSSS') + randomValueBase64(4);
     var options = {
         hostname: 'localhost',
@@ -155,25 +155,17 @@ function delete_TS(ri, callback) {
 }
 
 function create_action_cni(ri, ty, pi, mni, cs, callback) {
-    if(ty == '4') {
-        var sql = util.format("select cni, cbs, st from cnt, lookup where cnt.ri = \'%s\' and lookup.ri = \'%s\'", pi, pi);
-    }
-    else {
-        sql = util.format("select cni, cbs, st from ts, lookup where ts.ri = \'%s\' and lookup.ri = \'%s\'", pi, pi);
-    }
-    db.getResult(sql, '', function (err, results_cni) {
+    db_sql.select_cni_parent(ty, pi, function (err, results_cni) {
         if (results_cni.length == 1) {
             var cni = results_cni[0]['cni'];
             var cbs = results_cni[0]['cbs'];
             var st = results_cni[0]['st'];
             if (parseInt(cni, 10) >= parseInt(mni, 10)) {
-                sql = util.format("select ri, cs from lookup where pi = \'%s\' and ty = \'%s\' order by ri asc limit 1", pi, ty);
-                db.getResult(sql, '', function (err, results) {
+                db_sql.select_cs_parent(ty, pi, function (err, results) {
                     if (results.length == 1) {
                         cni = (parseInt(cni, 10) - 1).toString();
                         cbs = (parseInt(cbs, 10) - parseInt(results[0].cs, 10)).toString();
-                        sql = util.format("delete from lookup where ri = \'%s\'", results[0].ri);
-                        db.getResult(sql, '', function (err) {
+                        db_sql.delete_ri_lookup(results[0].ri, function (err) {
                             if (!err) {
                                 st = (parseInt(st, 10) + 1).toString();
                                 cni = (parseInt(cni, 10) + 1).toString();
@@ -181,13 +173,7 @@ function create_action_cni(ri, ty, pi, mni, cs, callback) {
                                 results_cni[0].st = st;
                                 results_cni[0].cni = cni;
                                 results_cni[0].cbs = cbs;
-                                if (ty == '4') {
-                                    sql = util.format("update cnt, lookup set cnt.cni = \'%s\', cnt.cbs = \'%s\', lookup.st = \'%s\'  where cnt.ri = \'%s\' and lookup.ri = \'%s\'", cni, cbs, st, pi, pi);
-                                }
-                                else {
-                                    sql = util.format("update ts, lookup set ts.cni = \'%s\', ts.cbs = \'%s\', lookup.st = \'%s\'  where ts.ri = \'%s\' and lookup.ri = \'%s\'", cni, cbs, st, pi, pi);
-                                }
-                                db.getResult(sql, results_cni[0], function (err, results) {
+                                db_sql.update_cni_parent(ty, cni, cbs, st, pi, function (err, results) {
                                     if (!err) {
                                         db_sql.update_st_lookup(st, ri, function (err, results) {
                                             if (!err) {
@@ -195,7 +181,7 @@ function create_action_cni(ri, ty, pi, mni, cs, callback) {
                                             }
                                             else {
                                                 var body_Obj = {};
-                                                                body_Obj['dbg'] = results.message;
+                                                body_Obj['dbg'] = results.message;
                                                 console.log(JSON.stringify(body_Obj));
                                                 callback('0');
                                                 return '0';
@@ -204,7 +190,7 @@ function create_action_cni(ri, ty, pi, mni, cs, callback) {
                                     }
                                     else {
                                         var body_Obj = {};
-                                                body_Obj['dbg'] = results.message;
+                                        body_Obj['dbg'] = results.message;
                                         console.log(JSON.stringify(body_Obj));
                                         callback('0');
                                         return '0';
@@ -222,13 +208,7 @@ function create_action_cni(ri, ty, pi, mni, cs, callback) {
                 results_cni[0].st = st;
                 results_cni[0].cni = cni;
                 results_cni[0].cbs = cbs;
-                if (ty == '4') {
-                    sql = util.format("update cnt, lookup set cnt.cni = \'%s\', cnt.cbs = \'%s\', lookup.st = \'%s\'  where cnt.ri = \'%s\' and lookup.ri = \'%s\'", cni, cbs, st, pi, pi);
-                }
-                else {
-                    sql = util.format("update ts, lookup set ts.cni = \'%s\', ts.cbs = \'%s\', lookup.st = \'%s\'  where ts.ri = \'%s\' and lookup.ri = \'%s\'", cni, cbs, st, pi, pi);
-                }
-                db.getResult(sql, results_cni[0], function (err, results) {
+                db_sql.update_cni_parent(ty, cni, cbs, st, pi, function (err, results) {
                     if (!err) {
                         db_sql.update_st_lookup(st, ri, function (err, results) {
                             if (!err) {
@@ -245,7 +225,7 @@ function create_action_cni(ri, ty, pi, mni, cs, callback) {
                     }
                     else {
                         var body_Obj = {};
-                                    body_Obj['dbg'] = results.message;
+                        body_Obj['dbg'] = results.message;
                         //responder.response_result(request, response, 500, body_Obj, 5000, request.url, results.message);
                         console.log(JSON.stringify(body_Obj));
                         callback('0');
@@ -595,6 +575,14 @@ function build_resource(request, response, ty, body_Obj, callback) {
         resource_Obj[rootnm].rn = request.headers['x-m2m-nm'];
     }
 
+    if (body_Obj[rootnm]['rn'] == 'latest' || body_Obj[rootnm]['rn'] == 'oldest' || body_Obj[rootnm]['rn'] == 'ol' || body_Obj[rootnm]['rn'] == 'la') {
+        body_Obj = {};
+        body_Obj['dbg'] = "resource name (" + body_Obj[rootnm]['rn'] + ") can not use that is keyword";
+        responder.response_result(request, response, 409, body_Obj, 4105, request.url, body_Obj['dbg']);
+        callback('0');
+        return '0';
+    }
+
     if (body_Obj[rootnm]['rn'] != null && body_Obj[rootnm]['rn'] != '') {
         resource_Obj[rootnm].rn = body_Obj[rootnm]['rn'];
     }
@@ -614,7 +602,7 @@ function build_resource(request, response, ty, body_Obj, callback) {
     resource_Obj[rootnm].cs = '';
 
     if(ty == '3' || ty == '29') {
-        resource_Obj[rootnm].mni = '9007199254740991';
+        resource_Obj[rootnm].mni = '3153600000';
     }
 
     if(ty == '4') {
@@ -811,12 +799,8 @@ function search_action(request, response, seq, resource_Obj, ri_list, strObj, pr
         return '0';
     }
 
-    //var rootnm = request.headers.rootnm;
-
-    var sql = util.format("select * from " + responder.typeRsrc[ty_list[seq]] + " where ri in ("+JSON.stringify(ri_list).replace('[','').replace(']','')+")");
-
     console.time('search_resource');
-    db.getResult(sql, '', function (err, search_Obj) {
+    db_sql.select_in_ri_list(responder.typeRsrc[ty_list[seq]], ri_list, function (err, search_Obj) {
         if(!err) {
             if(search_Obj.length >= 1) {
                 console.timeEnd('search_resource');
@@ -994,19 +978,15 @@ exports.retrieve = function(request, response, comm_Obj) {
 };
 
 function update_action_mni(ty, ri, mni, callback) {
-    //var sql = util.format("delete from lookup where ri in (select ri from (select ri from lookup where pi = \'%s\' and ty = \'%s\' order by ri desc limit %s, 9007199254740991) x)", ri, ty, mni);
+    //var sql = util.format("delete from lookup where ri in (select ri from (select ri from lookup where pi = \'%s\' and ty = \'%s\' order by ri desc limit %s, 3153600000) x)", ri, ty, mni);
 
-    if(mni == '18446744073709551615') {
-        mni = '9007199254740991';
+    if(mni == '9007199254740991') {
+        mni = '3153600000';
     }
-    var offset = 9007199254740991 - parseInt(mni, 10);
-    var sql = util.format("DELETE FROM lookup WHERE ri IN (SELECT ri FROM (SELECT ri FROM lookup WHERE pi = \'%s\' and ty = \'%s\' ORDER BY ri LIMIT %d offset %d)a)", ri, ty, offset, mni);
-    console.log(sql);
-    db.getResult(sql, '', function (err, results) {
+    var offset = 3153600000 - parseInt(mni, 10);
+    db_sql.delete_ri_lookup_in(ty, ri, offset, mni, function (err, results) {
         if (!err) {
-            sql = util.format("select count(ri), sum(cs) from lookup where pi = \'%s\' and ty = \'%s\'", ri, ty);
-            console.log(sql);
-            db.getResult(sql, '', function (err, results) {
+            db_sql.select_count_ri(ty, ri, function (err, results) {
                 if (results.length == 1) {
                     var cniObj = {};
                     cniObj.cni = results[0]['count(ri)'];
@@ -1014,13 +994,7 @@ function update_action_mni(ty, ri, mni, callback) {
 
                     console.log('[update_action_mni] cni: ' + cniObj.cni + ', cbs: ' + cniObj.cbs);
 
-                    if (ty == '4') {
-                        sql = util.format("update cnt set cni = \'%s\', cbs = \'%s\' where ri = \'%s\'", cniObj.cni, cniObj.cbs, ri);
-                    }
-                    else {
-                        sql = util.format("update ts set cni = \'%s\', cbs = \'%s\' where ri = \'%s\'", cniObj.cni, cniObj.cbs, ri);
-                    }
-                    db.getResult(sql, cniObj, function (err, results) {
+                    db_sql.update_cni_ri(ty, ri, cniObj.cni, cniObj.cbs, function (err, results) {
                         if (!err) {
                             callback('1', cniObj.cni, cniObj.cbs);
                         }
@@ -1318,7 +1292,6 @@ exports.update = function(request, response, comm_Obj, body_Obj) {
 
 
 function delete_action(request, response, resource_Obj, comm_Obj, callback) {
-    var rootnm = request.headers.rootnm;
     var pi_list = [];
     db_sql.search_parents_lookup(comm_Obj.ri, function (err, search_Obj) {
         if(!err) {
@@ -1336,7 +1309,7 @@ function delete_action(request, response, resource_Obj, comm_Obj, callback) {
             db_sql.delete_lookup(comm_Obj.ri, pi_list, 0, finding_Obj, 0, function (err, search_Obj) {
                 if(!err) {
                     if(comm_Obj.ty == '29') {
-                        delete_TS(resource_Obj[rootnm].ri, function (rsc, res_Obj) {
+                        delete_TS(function (rsc, res_Obj) {
                         });
                         callback('1', resource_Obj);
                     }

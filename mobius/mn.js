@@ -24,6 +24,7 @@ var moment = require('moment');
 var merge = require('merge');
 
 var db = require('./db_action');
+var db_sql = require('./sql_action');
 
 _this = this;
 
@@ -247,12 +248,10 @@ function create_remoteCSE_http(cbname, cbhost, cbhostport, body_Obj, callback) {
 exports.build_mn = function(ri, callback) {
     // check remotecse if parent cse exist
     var rspObj = {};
-    var sql = util.format("select * from lookup where ri = \'%s\'", ri);
-    db.getResult(sql, '', function (err, results_comm) {
+    db_sql.select_direct_lookup(ri, function (err, results_comm) {
         if(!err) {
             if (results_comm.length == 1) {
-                sql = util.format("select * from cb where ri = \'%s\'", ri);
-                db.getResult(sql, '', function (err, results_cb) {
+                db_sql.select_cb(ri, function (err, results_cb) {
                     if(!err) {
                         if (results_cb.length == 1) {
                             rspObj.csr = {};
