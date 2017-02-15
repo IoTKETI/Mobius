@@ -109,7 +109,7 @@ exports.build_sd = function(request, response, resource_Obj, body_Obj, callback)
 
 
 
-exports.update_sd = function(request, response, resource_Obj, body_Obj, callback) {
+exports.modify_sd = function(request, response, resource_Obj, body_Obj, callback) {
     var rootnm = request.headers.rootnm;
 
     // check NP
@@ -180,35 +180,10 @@ exports.update_sd = function(request, response, resource_Obj, body_Obj, callback
     // check M
 
     // body
-    if(body_Obj[rootnm].acpi) {
-        resource_Obj[rootnm].acpi = body_Obj[rootnm].acpi;
-    }
 
-    if(body_Obj[rootnm].et) {
-        resource_Obj[rootnm].et = body_Obj[rootnm].et;
-    }
-
-    if(body_Obj[rootnm].lbl) {
-        resource_Obj[rootnm].lbl = body_Obj[rootnm].lbl;
-    }
+    update_body(rootnm, body_Obj, resource_Obj); // (attr == 'aa' || attr == 'poa' || attr == 'lbl' || attr == 'acpi' || attr == 'srt' || attr == 'nu' || attr == 'mid' || attr == 'macp')
 
     resource_Obj[rootnm].st = (parseInt(resource_Obj[rootnm].st, 10) + 1).toString();
-
-    if(body_Obj[rootnm].at) {
-        resource_Obj[rootnm].at = body_Obj[rootnm].at;
-    }
-
-    if(body_Obj[rootnm].aa) {
-        resource_Obj[rootnm].aa = body_Obj[rootnm].aa;
-    }
-
-    if(body_Obj[rootnm].dspt) {
-        resource_Obj[rootnm].dspt = body_Obj[rootnm].dspt;
-    }
-
-    if(body_Obj[rootnm].or) {
-        resource_Obj[rootnm].or = body_Obj[rootnm].or;
-    }
 
     var cur_d = new Date();
     resource_Obj[rootnm].lt = cur_d.toISOString().replace(/-/, '').replace(/-/, '').replace(/:/, '').replace(/:/, '').replace(/\..+/, '');

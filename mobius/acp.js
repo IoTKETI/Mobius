@@ -126,7 +126,7 @@ exports.build_acp = function(request, response, resource_Obj, body_Obj, callback
 
 
 
-exports.update_acp = function(request, response, resource_Obj, body_Obj, callback) {
+exports.modify_acp = function(request, response, resource_Obj, body_Obj, callback) {
     var rootnm = request.headers.rootnm;
 
     // check NP
@@ -196,27 +196,10 @@ exports.update_acp = function(request, response, resource_Obj, body_Obj, callbac
     // check M
 
     // body
-    if(body_Obj[rootnm].acpi) {
-        resource_Obj[rootnm].acpi = body_Obj[rootnm].acpi;
-    }
+
+    update_body(rootnm, body_Obj, resource_Obj); // (attr == 'aa' || attr == 'poa' || attr == 'lbl' || attr == 'acpi' || attr == 'srt' || attr == 'nu' || attr == 'mid' || attr == 'macp')
 
     resource_Obj[rootnm].st = (parseInt(resource_Obj[rootnm].st, 10) + 1).toString();
-
-    if(body_Obj[rootnm].et) {
-        resource_Obj[rootnm].et = body_Obj[rootnm].et;
-    }
-
-    if(body_Obj[rootnm].lbl) {
-        resource_Obj[rootnm].lbl = body_Obj[rootnm].lbl;
-    }
-
-    if(body_Obj[rootnm].at) {
-        resource_Obj[rootnm].at = body_Obj[rootnm].at;
-    }
-
-    if(body_Obj[rootnm].aa) {
-        resource_Obj[rootnm].aa = body_Obj[rootnm].aa;
-    }
 
     if(body_Obj[rootnm].pv) {
         body_Obj[rootnm].pv.acr[body_Obj[rootnm].pv.acr.length] = {acor:[usecseid], acop:'63'};

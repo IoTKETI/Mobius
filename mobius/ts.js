@@ -112,12 +112,12 @@ exports.build_ts = function(request, response, resource_Obj, body_Obj, callback)
     resource_Obj[rootnm].or = (body_Obj[rootnm].or) ? body_Obj[rootnm].or : '';
     resource_Obj[rootnm].cr = (body_Obj[rootnm].cr) ? body_Obj[rootnm].cr : '';
 
-    resource_Obj[rootnm].pin = (body_Obj[rootnm].pin) ? body_Obj[rootnm].pin : '0';
+    resource_Obj[rootnm].pei = (body_Obj[rootnm].pei) ? body_Obj[rootnm].pei : '0';
     resource_Obj[rootnm].mdd = (body_Obj[rootnm].mdd) ? body_Obj[rootnm].mdd : 'false';
-    resource_Obj[rootnm].mdmn = (body_Obj[rootnm].mdmn) ? body_Obj[rootnm].mdmn : MISSINGDATAMAXNR;
+    resource_Obj[rootnm].mdn = (body_Obj[rootnm].mdn) ? body_Obj[rootnm].mdn : MISSINGDATAMAXNR;
     resource_Obj[rootnm].mdl = (body_Obj[rootnm].mdl) ? body_Obj[rootnm].mdl : '';
-    resource_Obj[rootnm].mdcn = (body_Obj[rootnm].mdcn) ? body_Obj[rootnm].mdcn : '0';
-    resource_Obj[rootnm].mddt = (body_Obj[rootnm].mddt) ? body_Obj[rootnm].mddt : '0';
+    resource_Obj[rootnm].mdc = (body_Obj[rootnm].mdc) ? body_Obj[rootnm].mdc : '0';
+    resource_Obj[rootnm].mdt = (body_Obj[rootnm].mdt) ? body_Obj[rootnm].mdt : '0';
 
     resource_Obj[rootnm].cni = '0';
     resource_Obj[rootnm].cbs = '0';
@@ -137,7 +137,7 @@ exports.build_ts = function(request, response, resource_Obj, body_Obj, callback)
 
 
 
-exports.update_ts = function(request, response, resource_Obj, body_Obj, callback) {
+exports.modify_ts = function(request, response, resource_Obj, body_Obj, callback) {
     var rootnm = request.headers.rootnm;
 
     // check NP
@@ -224,58 +224,14 @@ exports.update_ts = function(request, response, resource_Obj, body_Obj, callback
     // check M
 
     // body
-    if(body_Obj[rootnm].acpi) {
-        resource_Obj[rootnm].acpi = body_Obj[rootnm].acpi;
-    }
 
-    if(body_Obj[rootnm].et) {
-        resource_Obj[rootnm].et = body_Obj[rootnm].et;
-    }
-
-    if(body_Obj[rootnm].lbl) {
-        resource_Obj[rootnm].lbl = body_Obj[rootnm].lbl;
-    }
+    update_body(rootnm, body_Obj, resource_Obj); // (attr == 'aa' || attr == 'poa' || attr == 'lbl' || attr == 'acpi' || attr == 'srt' || attr == 'nu' || attr == 'mid' || attr == 'macp')
 
     resource_Obj[rootnm].st = (parseInt(resource_Obj[rootnm].st, 10) + 1).toString();
 
-    if(body_Obj[rootnm].at) {
-        resource_Obj[rootnm].at = body_Obj[rootnm].at;
-    }
-
-    if(body_Obj[rootnm].aa) {
-        resource_Obj[rootnm].aa = body_Obj[rootnm].aa;
-    }
-
-    if(body_Obj[rootnm].mni) {
-        resource_Obj[rootnm].mni = body_Obj[rootnm].mni;
-        if(parseInt(resource_Obj[rootnm].mni) >= 3153600000) {
-            resource_Obj[rootnm].mni = '3153600000';
-        }
-    }
-
-    if(body_Obj[rootnm].mbs) {
-        resource_Obj[rootnm].mbs = body_Obj[rootnm].mbs;
-    }
-
-    if(body_Obj[rootnm].mia) {
-        resource_Obj[rootnm].mia = body_Obj[rootnm].mia;
-    }
-
-    if(body_Obj[rootnm].or) {
-        resource_Obj[rootnm].or = body_Obj[rootnm].or;
-    }
-
-    if(body_Obj[rootnm].mdmn) {
-        resource_Obj[rootnm].mdmn = body_Obj[rootnm].mdmn;
-    }
-
-    if(body_Obj[rootnm].mddt) {
-        resource_Obj[rootnm].mddt = body_Obj[rootnm].mddt;
-
-        if(resource_Obj[rootnm].mddt == '0') {
-            resource_Obj[rootnm].mdl = '';
-            resource_Obj[rootnm].mdcn = '0';
-        }
+    if(resource_Obj[rootnm].mdt == '0') {
+        resource_Obj[rootnm].mdl = '';
+        resource_Obj[rootnm].mdc = '0';
     }
 
     var cur_d = new Date();

@@ -71,39 +71,89 @@ exports.build_mms = function(request, response, resource_Obj, body_Obj, callback
 
 
 
-exports.update_mms = function(request, response, resource_Obj, body_Obj, callback) {
+exports.modify_mms = function(request, response, resource_Obj, body_Obj, callback) {
     var rootnm = request.headers.rootnm;
 
     // check NP
-    if ((body_Obj[rootnm]['ty'] != null) || (body_Obj[rootnm]['ri'] != null) || (body_Obj[rootnm]['pi'] != null) ||
-        (body_Obj[rootnm]['ct'] != null) || (body_Obj[rootnm]['lt'] != null) || (body_Obj[rootnm]['st'] != null) ||
-        (body_Obj[rootnm]['sid'] != null) || (body_Obj[rootnm]['soid'] != null)) {
+    if(body_Obj[rootnm].rn) {
         body_Obj = {};
-        body_Obj['dbg'] = 'NP Tag is in body';
-        responder.response_result(request, response, 400, body_Obj, 4000, request.url, 'NP Tag is in body');
+        body_Obj['dbg'] = 'rn as NP Tag should not be included';
+        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
         callback('0', resource_Obj);
         return '0';
     }
+
+    if(body_Obj[rootnm].ty) {
+        body_Obj = {};
+        body_Obj['dbg'] = 'ty as NP Tag should not be included';
+        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
+        callback('0', resource_Obj);
+        return '0';
+    }
+
+    if(body_Obj[rootnm].ri) {
+        body_Obj = {};
+        body_Obj['dbg'] = 'ri as NP Tag should not be included';
+        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
+        callback('0', resource_Obj);
+        return '0';
+    }
+
+    if(body_Obj[rootnm].pi) {
+        body_Obj = {};
+        body_Obj['dbg'] = 'pi as NP Tag should not be included';
+        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
+        callback('0', resource_Obj);
+        return '0';
+    }
+
+    if(body_Obj[rootnm].ct) {
+        body_Obj = {};
+        body_Obj['dbg'] = 'ct as NP Tag should not be included';
+        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
+        callback('0', resource_Obj);
+        return '0';
+    }
+
+    if(body_Obj[rootnm].lt) {
+        body_Obj = {};
+        body_Obj['dbg'] = 'lt as NP Tag should not be included';
+        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
+        callback('0', resource_Obj);
+        return '0';
+    }
+
+    if(body_Obj[rootnm].st) {
+        body_Obj = {};
+        body_Obj['dbg'] = 'st as NP Tag should not be included';
+        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
+        callback('0', resource_Obj);
+        return '0';
+    }
+
+    if(body_Obj[rootnm].sid) {
+        body_Obj = {};
+        body_Obj['dbg'] = 'sid as NP Tag should not be included';
+        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
+        callback('0', resource_Obj);
+        return '0';
+    }
+
+    if(body_Obj[rootnm].soid) {
+        body_Obj = {};
+        body_Obj['dbg'] = 'soid as NP Tag should not be included';
+        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
+        callback('0', resource_Obj);
+        return '0';
+    }
+
     // check M
-    else if (0) {
-        body_Obj = {};
-        body_Obj['dbg'] = 'M Tag is none in body';
-        responder.response_result(request, response, 400, body_Obj, 4000, request.url, 'M Tag is none in body');
-        callback('0', resource_Obj);
-        return '0';
-    }
-    else {
-        resource_Obj[rootnm].acpi = body_Obj[rootnm]['acpi'] == null ? resource_Obj[rootnm].acpi : body_Obj[rootnm]['acpi'].toString().replace(/,/g, ' ');
-        resource_Obj[rootnm].et = body_Obj[rootnm]['et'] == null ? resource_Obj[rootnm].et : body_Obj[rootnm]['et'];
-        resource_Obj[rootnm].lbl = body_Obj[rootnm]['lbl'] == null ? resource_Obj[rootnm].lbl : body_Obj[rootnm]['lbl'];
-        resource_Obj[rootnm].at = body_Obj[rootnm]['at'] == null ? resource_Obj[rootnm].at : body_Obj[rootnm]['at'];
-        resource_Obj[rootnm].aa = body_Obj[rootnm]['aa'] == null ? resource_Obj[rootnm].aa : body_Obj[rootnm]['aa'];
-        resource_Obj[rootnm].stid = body_Obj[rootnm]['stid'] == null ? resource_Obj[rootnm].stid : body_Obj[rootnm]['stid'].toString().replace(/,/g, ' ');
-        resource_Obj[rootnm].asd = body_Obj[rootnm]['asd'] == null ? resource_Obj[rootnm].asd : body_Obj[rootnm]['asd'];
-        resource_Obj[rootnm].osd = body_Obj[rootnm]['osd'] == null ? resource_Obj[rootnm].osd : body_Obj[rootnm]['osd'];
-        resource_Obj[rootnm].sst = body_Obj[rootnm]['sst'] == null ? resource_Obj[rootnm].sst : body_Obj[rootnm]['sst'];
-        resource_Obj[rootnm].st = (parseInt(resource_Obj[rootnm].st, 10) + 1).toString();
-    }
+
+    // check body
+
+    update_body(rootnm, body_Obj, resource_Obj); // (attr == 'aa' || attr == 'poa' || attr == 'lbl' || attr == 'acpi' || attr == 'srt' || attr == 'nu' || attr == 'mid' || attr == 'macp')
+
+    resource_Obj[rootnm].st = (parseInt(resource_Obj[rootnm].st, 10) + 1).toString();
 
     var cur_d = new Date();
     resource_Obj[rootnm].lt = cur_d.toISOString().replace(/-/, '').replace(/-/, '').replace(/:/, '').replace(/:/, '').replace(/\..+/, '');

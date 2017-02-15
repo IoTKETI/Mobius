@@ -127,7 +127,7 @@ exports.build_cnt = function(request, response, resource_Obj, body_Obj, callback
 
 
 
-exports.update_cnt = function(request, response, resource_Obj, body_Obj, callback) {
+exports.modify_cnt = function(request, response, resource_Obj, body_Obj, callback) {
     var rootnm = request.headers.rootnm;
 
     // check NP
@@ -214,49 +214,17 @@ exports.update_cnt = function(request, response, resource_Obj, body_Obj, callbac
     // check M
 
     // body
-    if(body_Obj[rootnm].acpi) {
-        resource_Obj[rootnm].acpi = body_Obj[rootnm].acpi;
-    }
 
-    if(body_Obj[rootnm].et) {
-        resource_Obj[rootnm].et = body_Obj[rootnm].et;
-    }
-
-    if(body_Obj[rootnm].lbl) {
-        resource_Obj[rootnm].lbl = body_Obj[rootnm].lbl;
-    }
+    update_body(rootnm, body_Obj, resource_Obj);
 
     resource_Obj[rootnm].st = (parseInt(resource_Obj[rootnm].st, 10) + 1).toString();
 
-    if(body_Obj[rootnm].at) {
-        resource_Obj[rootnm].at = body_Obj[rootnm].at;
-    }
-
-    if(body_Obj[rootnm].aa) {
-        resource_Obj[rootnm].aa = body_Obj[rootnm].aa;
-    }
 
     if(body_Obj[rootnm].mni) {
         resource_Obj[rootnm].mni = body_Obj[rootnm].mni;
         if(parseInt(resource_Obj[rootnm].mni) >= 3153600000) {
             resource_Obj[rootnm].mni = '3153600000';
         }
-    }
-
-    if(body_Obj[rootnm].mbs) {
-        resource_Obj[rootnm].mbs = body_Obj[rootnm].mbs;
-    }
-
-    if(body_Obj[rootnm].mia) {
-        resource_Obj[rootnm].mia = body_Obj[rootnm].mia;
-    }
-
-    if(body_Obj[rootnm].li) {
-        resource_Obj[rootnm].li = body_Obj[rootnm].li;
-    }
-
-    if(body_Obj[rootnm].or) {
-        resource_Obj[rootnm].or = body_Obj[rootnm].or;
     }
 
     var cur_d = new Date();

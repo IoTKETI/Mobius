@@ -218,12 +218,12 @@ const attrLname = {
     "rsp": "responsePrimitive",
     "dspt": "descriptor",
     "cap":"caption",
-    "pin":"periodicInterval",
+    "pei":"periodicInterval",
     "mdd":"missingDataDetect",
-    "mdmn":"missingDataMaxNr",
+    "mdn":"missingDataMaxNr",
     "mdl":"missingDataList",
-    "mdcn":"missingDataCurrentNr",
-    "mddt":"missingDataDetectTimer",
+    "mdc":"missingDataCurrentNr",
+    "mdt":"missingDataDetectTimer",
     "dgt":"dataGenerationTime",
     "sqn":"sequenceNr",
     "sid":"sessionID",
@@ -508,12 +508,12 @@ const attrSname = {
     "responsePrimitive":"rsp",
     "descriptor":"dspt",
     "caption":"cap",
-    "periodicInterval":"pin",
+    "periodicInterval":"pei",
     "missingDataDetect":"mdd",
-    "missingDataMaxNr":"mdmn",
+    "missingDataMaxNr":"mdn",
     "missingDataList":"mdl",
-    "missingDataCurrentNr":"mdcn",
-    "missingDataDetectTimer":"mddt",
+    "missingDataCurrentNr":"mdc",
+    "missingDataDetectTimer":"mdt",
     "dataGenerationTime":"dgt",
     "sequenceNr":"sqn",
     "sessionID":"sid",
@@ -812,7 +812,7 @@ function typeCheckforJson(body_Obj) {
                         }
                     }
                     else if (index2 == 'rr' || index2 == 'mtv') {
-                        body_Obj[index1][index2] = (body_Obj[index1][index2] == 'true');
+                        body_Obj[index1][index2] = ((body_Obj[index1][index2] == 'true') || ((body_Obj[index1][index2] == true)));
                     }
                 }
             }
@@ -853,7 +853,7 @@ function typeCheckforJson2(body_Obj) {
                                 }
                             }
                             else if (index3 == 'rr' || index3 == 'mtv') {
-                                body_Obj[index1][index2][index3] = (body_Obj[index1][index2][index3] == 'true');
+                                body_Obj[index1][index2][index3] = ((body_Obj[index1][index2][index3] == 'true') || ((body_Obj[index1][index2][index3] == true)));
                             }
                         }
                     }
@@ -874,7 +874,7 @@ exports.response_result = function(request, response, status, body_Obj, rsc, ri,
 
     response.setHeader('X-M2M-RSC', rsc);
 
-    if(request.query.rcn == 0) {
+    if(request.query.rcn == 0 && Object.keys(body_Obj)[0] != 'dbg') {
         response.status(status).end('');
 
         var rspObj = {

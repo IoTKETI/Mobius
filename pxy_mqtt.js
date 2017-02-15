@@ -99,18 +99,30 @@ mqtt_custom.on('mqtt_watchdog', function() {
 function resp_sub(mqtt_client) {
     var resp_topic = util.format('/oneM2M/resp/%s/#', usecseid.replace('/', ':'));
     mqtt_client.subscribe(resp_topic);
+
+    resp_topic = util.format('/oneM2M/resp/%s/#', usecseid.replace('/', ''));
+    mqtt_client.subscribe(resp_topic);
+
     console.log('subscribe resp_topic as ' + resp_topic);
 }
 
 function req_sub(mqtt_client) {
     var req_topic = util.format('/oneM2M/req/+/%s/#', usecseid.replace('/', ':'));
     mqtt_client.subscribe(req_topic);
+
+    req_topic = util.format('/oneM2M/req/+/%s/#', usecseid.replace('/', ''));
+    mqtt_client.subscribe(req_topic);
+
     console.log('subscribe req_topic as ' + req_topic);
 }
 
 function reg_req_sub(mqtt_client) {
     var reg_req_topic = util.format('/oneM2M/reg_req/+/%s/#', usecseid.replace('/', ':'));
     mqtt_client.subscribe(reg_req_topic);
+
+    reg_req_topic = util.format('/oneM2M/reg_req/+/%s/#', usecseid.replace('/', ''));
+    mqtt_client.subscribe(reg_req_topic);
+
     console.log('subscribe reg_req_topic as ' + reg_req_topic);
 }
 
@@ -248,7 +260,7 @@ function mqtt_message_handler(topic, message) {
         topic_arr[5] = defaultbodytype;
     }
 
-    if((topic_arr[1] == 'oneM2M' && topic_arr[2] == 'resp' && topic_arr[3].replace(':', '/') == usecseid)) {
+    if((topic_arr[1] == 'oneM2M' && topic_arr[2] == 'resp' && ((topic_arr[3].replace(':', '/') == usecseid) || (topic_arr[3] == usecseid.replace('/', ''))))) {
         make_json_obj(bodytype, message.toString(), function(rsc, jsonObj) {
             if(rsc == '1') {
                 if (jsonObj['m2m:rsp'] != null) {
@@ -288,14 +300,14 @@ function mqtt_message_handler(topic, message) {
             }
         });
     }
-    else if(topic_arr[1] == 'oneM2M' && topic_arr[2] == 'req' && topic_arr[4].replace(':', '/') == usecseid) {
+    else if(topic_arr[1] == 'oneM2M' && topic_arr[2] == 'req' && ((topic_arr[4].replace(':', '/') == usecseid) || (topic_arr[4] == usecseid.replace('/', '')))) {
         make_json_obj(bodytype, message.toString(), function(rsc, result) {
             if(rsc == '1') {
                 mqtt_message_action(pxymqtt_client, topic_arr, bodytype, result);
             }
         });
     }
-    else if(topic_arr[1] == 'oneM2M' && topic_arr[2] == 'reg_req' && topic_arr[4].replace(':', '/') == usecseid) {
+    else if(topic_arr[1] == 'oneM2M' && topic_arr[2] == 'reg_req' && ((topic_arr[4].replace(':', '/') == usecseid) || (topic_arr[4] == usecseid.replace('/', '')))) {
         make_json_obj(bodytype, message.toString(), function(rsc, result) {
             if(rsc == '1') {
                 mqtt_message_action(pxymqtt_client, topic_arr, bodytype, result);
@@ -303,7 +315,7 @@ function mqtt_message_handler(topic, message) {
         });
     }
     else {
-        console.log('topic is not supported');
+        console.log('topic(' + topic + ') is not supported');
     }
 }
 
@@ -314,7 +326,7 @@ function mqtt_message_action(mqtt_client, topic_arr, bodytype, jsonObj) {
         var to_arr = to.split('/');
         to = '';
         if(to_arr[0] == '') { // SP Relative
-            for(var i = 2; i < to_arr.length; i++) {
+            for(var i = 1; i < to_arr.length; i++) {
                 to += '/';
                 to += to_arr[i];
             }
@@ -541,7 +553,7 @@ mqtt_app.post('/notification', onem2mParser, function(request, response, next) {
             }
 
             if (mqtt_state == 'ready') {
-                var noti_topic = util.format('/oneM2M/req/%s/%s/%s', usecseid.replace('/', ':'), aeid, request.headers.bodytype);
+                var noti_topic = util.format('/oneM2M/req/%s/%s/%s', usecseid.replace('/', ''), aeid, request.headers.bodytype);
 
                 var rqi = request.headers['x-m2m-ri'];
                 resp_mqtt_rqi_arr.push(rqi);
@@ -585,7 +597,7 @@ mqtt_app.post('/notification', onem2mParser, function(request, response, next) {
                 }
 
                 if (nec == 'keti') { // for mqtt implementation of keti
-                    noti_topic = util.format('/req/%s/%s/%s', usecseid.replace('/', ':'), aeid, request.headers.bodytype);
+                    noti_topic = util.format('/req/%s/%s/%s', usecseid.replace('/', ''), aeid, request.headers.bodytype);
 
                     noti_message = {};
                     noti_message['m2m:rqp'] = {};

@@ -226,82 +226,42 @@ function make_short_nametype(nmtype, body_Obj) {
 function make_json_arraytype(body_Obj) {
     for (var prop in body_Obj) {
         if (body_Obj.hasOwnProperty(prop)) {
-            if (body_Obj[prop].at) {
-                body_Obj[prop].at = body_Obj[prop].at.split(' ');
-            }
+            for (var attr in body_Obj[prop]) {
+                if (body_Obj[prop].hasOwnProperty(attr)) {
+                    if (attr == 'aa' || attr == 'poa' || attr == 'lbl' || attr == 'acpi' || attr == 'srt' || attr == 'nu' || attr == 'mid' || attr == 'macp') {
+                        if(body_Obj[prop][attr]) {
+                            body_Obj[prop][attr] = body_Obj[prop][attr].split(' ');
+                        }
 
-            if (body_Obj[prop].aa) {
-                body_Obj[prop].aa = body_Obj[prop].aa.split(' ');
-            }
-
-            if (body_Obj[prop].poa) {
-                body_Obj[prop].poa = body_Obj[prop].poa.split(' ');
-            }
-
-            if (body_Obj[prop].lbl) {
-                body_Obj[prop].lbl = body_Obj[prop].lbl.split(' ');
-            }
-
-            if (body_Obj[prop].acpi) {
-                body_Obj[prop].acpi = body_Obj[prop].acpi.split(' ');
-            }
-
-            if (body_Obj[prop].srt) {
-                body_Obj[prop].srt = body_Obj[prop].srt.split(' ');
-            }
-
-            if (body_Obj[prop].nu) {
-                body_Obj[prop].nu = body_Obj[prop].nu.split(' ');
-            }
-
-            if (body_Obj[prop].enc) {
-                if(body_Obj[prop].enc.net) {
-                    body_Obj[prop].enc.net = body_Obj[prop].enc.net.split(' ');
-                }
-            }
-
-            if (body_Obj[prop].pv) {
-                if(body_Obj[prop].pv.acr) {
-                    if (!Array.isArray(body_Obj[prop].pv.acr)) {
-                        var temp = body_Obj[prop].pv.acr;
-                        body_Obj[prop].pv.acr = [];
-                        body_Obj[prop].pv.acr[0] = temp;
+                        if(body_Obj[prop][attr] == '') {
+                            body_Obj[prop][attr] = [];
+                        }
                     }
 
-                    for (var acr_idx in body_Obj[prop].pv.acr) {
-                        if (body_Obj[prop].pv.acr.hasOwnProperty(acr_idx)) {
-                            if (body_Obj[prop].pv.acr[acr_idx].acor) {
-                                body_Obj[prop].pv.acr[acr_idx].acor = body_Obj[prop].pv.acr[acr_idx].acor.split(' ');
+                    if (attr == 'pv' || attr == 'pvs') {
+                        if (body_Obj[prop][attr]) {
+                            if (body_Obj[prop][attr].acr) {
+                                if (!Array.isArray(body_Obj[prop][attr].acr)) {
+                                    var temp = body_Obj[prop][attr].acr;
+                                    body_Obj[prop][attr].acr = [];
+                                    body_Obj[prop][attr].acr[0] = temp;
+                                }
+
+                                for (var acr_idx in body_Obj[prop][attr].acr) {
+                                    if (body_Obj[prop][attr].acr.hasOwnProperty(acr_idx)) {
+                                        if (body_Obj[prop][attr].acr[acr_idx].acor) {
+                                            body_Obj[prop][attr].acr[acr_idx].acor = body_Obj[prop][attr].acr[acr_idx].acor.split(' ');
+                                        }
+                                    }
+                                }
+                            }
+
+                            if (body_Obj[prop][attr].acr == '') {
+                                body_Obj[prop][attr].acr = [];
                             }
                         }
                     }
                 }
-            }
-
-            if (body_Obj[prop].pvs) {
-                if(body_Obj[prop].pvs.acr) {
-                    if (!Array.isArray(body_Obj[prop].pvs.acr)) {
-                        temp = body_Obj[prop].pvs.acr;
-                        body_Obj[prop].pvs.acr = [];
-                        body_Obj[prop].pvs.acr[0] = temp;
-                    }
-
-                    for (acr_idx in body_Obj[prop].pvs.acr) {
-                        if (body_Obj[prop].pvs.acr.hasOwnProperty(acr_idx)) {
-                            if (body_Obj[prop].pvs.acr[acr_idx].acor) {
-                                body_Obj[prop].pvs.acr[acr_idx].acor = body_Obj[prop].pvs.acr[acr_idx].acor.split(' ');
-                            }
-                        }
-                    }
-                }
-            }
-
-            if (body_Obj[prop].mid) {
-                body_Obj[prop].mid = body_Obj[prop].mid.split(' ');
-            }
-
-            if (body_Obj[prop].macp) {
-                body_Obj[prop].macp = body_Obj[prop].macp.split(' ');
             }
         }
     }
@@ -1166,8 +1126,8 @@ app.get(onem2mParser, function(request, response) {
             }
             else {
                 var body_Obj = {};
-                    body_Obj['dbg'] = 'rcn or fu query is not supported at GET request';
-                responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
+                body_Obj['dbg'] = 'OPERATION_NOT_ALLOWED (rcn or fu query is not supported at GET request)';
+                responder.response_result(request, response, 405, body_Obj, 4005, request.url, body_Obj['dbg']);
             }
         }
         else {

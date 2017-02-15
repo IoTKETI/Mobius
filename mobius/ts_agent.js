@@ -35,7 +35,7 @@ http.globalAgent.maxSockets = 1000000;
 http.createServer(ts_app).listen({port: usetsagentport, agent: false}, function () {
     console.log('ts_missing agent server (' + ip.address() + ') running at ' + usetsagentport + ' port');
 
-    // Searching TS with missingDetect. if it is TRUE, restart mddt
+    // Searching TS with missingDetect. if it is TRUE, restart mdt
     init_TS(function (rsc) {
         console.log('init_TS - ' + rsc);
     });
@@ -135,10 +135,10 @@ var onem2mParser = bodyParser.text(
 var ts_timer = {};
 var ts_timer_id = {};
 
-var missing_detect_check = function(pin, mdd, mddt, cni, ri, callback) {
+var missing_detect_check = function(pei, mdd, mdt, cni, ri, callback) {
     var rsc = {};
     rsc.status = 2000;
-    if((pin != null && pin != '' && pin != '0') && (mdd != null && mdd == 'TRUE') && mddt != '0') {
+    if((pei != null && pei != '' && pei != '0') && (mdd != null && mdd == 'TRUE') && mdt != '0') {
         if(ts_timer[ri] == null) {
             //ts_timer[ri] = new process.EventEmitter();
             var events = require('events');
@@ -149,13 +149,13 @@ var missing_detect_check = function(pin, mdd, mddt, cni, ri, callback) {
                         console.log(results[0].ri);
                         var new_cni = results[0]['cni'];
                         if (parseInt(new_cni, 10) == parseInt(cni, 10)) {
-                            if (parseInt(results[0].mdcn, 10) <= parseInt(results[0].mdmn, 10)) {
+                            if (parseInt(results[0].mdc, 10) <= parseInt(results[0].mdn, 10)) {
                                 var cur_d = new Date();
                                 var timestamp = cur_d.toISOString().replace(/-/, '').replace(/-/, '').replace(/:/, '').replace(/:/, '').replace(/\..+/, '');
                                 var mdl = timestamp + ' ' + results[0].mdl;
-                                var mdcn = (parseInt(results[0].mdcn, 10) + 1).toString();
-                                console.log(mdcn, mdl);
-                                db_sql.update_ts_mdcn_mdl(mdcn, mdl, ri, function (err, results) {
+                                var mdc = (parseInt(results[0].mdc, 10) + 1).toString();
+                                console.log(mdc, mdl);
+                                db_sql.update_ts_mdcn_mdl(mdc, mdl, ri, function (err, results) {
                                     if (!err) {
                                     }
                                     else {
@@ -179,7 +179,7 @@ var missing_detect_check = function(pin, mdd, mddt, cni, ri, callback) {
         if(ts_timer_id[ri] == null) {
             ts_timer_id[ri] = setInterval(function () {
                 ts_timer[ri].emit(ri);
-            }, (parseInt(mddt) * 1000));
+            }, (parseInt(mdt) * 1000));
             rsc.status = 2000;
             rsc.ri = ri;
             callback(rsc);
@@ -188,7 +188,7 @@ var missing_detect_check = function(pin, mdd, mddt, cni, ri, callback) {
             clearInterval(ts_timer_id[ri]);
             ts_timer_id[ri] = setInterval(function () {
                 ts_timer[ri].emit(ri);
-            }, (parseInt(mddt)*1000));
+            }, (parseInt(mdt)*1000));
             rsc.status = 2000;
             rsc.ri = ri;
             callback(rsc);
@@ -243,7 +243,7 @@ ts_app.post('/missingDataDetect', onem2mParser, function(request, response) {
                     db_sql.select_ts_in(ts_ri, function (err, results_ts) {
                         if (!err) {
                             if (results_ts.length >= 1) {
-                                missing_detect_check(results_ts[0].pin, results_ts[0].mdd, results_ts[0].mddt, results_ts[0].cni, results_ts[0].ri, function (rsc) {
+                                missing_detect_check(results_ts[0].pei, results_ts[0].mdd, results_ts[0].mdt, results_ts[0].cni, results_ts[0].ri, function (rsc) {
                                     console.log(rsc);
                                 });
                             }
@@ -268,7 +268,7 @@ ts_app.post('/missingDataDetect', onem2mParser, function(request, response) {
             db_sql.select_ts(jsonObj.ts.ri, function (err, results_ts) {
                 if (!err) {
                     if (results_ts.length == 1) {
-                        missing_detect_check(results_ts[0].pin, results_ts[0].mdd, results_ts[0].mddt, results_ts[0].cni, results_ts[0].ri, function (rsc) {
+                        missing_detect_check(results_ts[0].pei, results_ts[0].mdd, results_ts[0].mdt, results_ts[0].cni, results_ts[0].ri, function (rsc) {
                             console.log(rsc.status + ' - ' + rsc.ri);
                             response.setHeader('X-M2M-RSC', '2000');
                             response.status(200).end(JSON.stringify(rsc));

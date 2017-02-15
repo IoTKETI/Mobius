@@ -475,8 +475,8 @@ function create_action(request, response, ty, resource_Obj, callback) {
             resource_Obj[rootnm].lt, resource_Obj[rootnm].et, JSON.stringify(resource_Obj[rootnm].acpi), JSON.stringify(resource_Obj[rootnm].lbl), JSON.stringify(resource_Obj[rootnm].at),
             JSON.stringify(resource_Obj[rootnm].aa), resource_Obj[rootnm].st, resource_Obj[rootnm].mni, resource_Obj[rootnm].cs,
             resource_Obj[rootnm].cr, resource_Obj[rootnm].mbs, resource_Obj[rootnm].mia,
-            resource_Obj[rootnm].cni, resource_Obj[rootnm].cbs, resource_Obj[rootnm].or, resource_Obj[rootnm].pin, resource_Obj[rootnm].mdd,
-            resource_Obj[rootnm].mdmn, resource_Obj[rootnm].mdl, resource_Obj[rootnm].mdcn, resource_Obj[rootnm].mddt, function (err, results) {
+            resource_Obj[rootnm].cni, resource_Obj[rootnm].cbs, resource_Obj[rootnm].or, resource_Obj[rootnm].pei, resource_Obj[rootnm].mdd,
+            resource_Obj[rootnm].mdn, resource_Obj[rootnm].mdl, resource_Obj[rootnm].mdc, resource_Obj[rootnm].mdt, function (err, results) {
                 if (!err) {
                     check_TS(resource_Obj[rootnm].ri, function (rsc, res_Obj) {
                     });
@@ -977,46 +977,84 @@ exports.retrieve = function(request, response, comm_Obj) {
     }
 };
 
+
+
+global.update_body = function(rootnm, body_Obj, resource_Obj) {
+    for (var attr in body_Obj[rootnm]) {
+        if (body_Obj[rootnm].hasOwnProperty(attr)) {
+            if(body_Obj[rootnm][attr]) {
+                resource_Obj[rootnm][attr] = body_Obj[rootnm][attr];
+            }
+
+            if (attr == 'aa' || attr == 'poa' || attr == 'lbl' || attr == 'acpi' || attr == 'srt' || attr == 'nu' || attr == 'mid' || attr == 'macp') {
+                if(body_Obj[rootnm][attr] == '') {
+                    resource_Obj[rootnm][attr] = [];
+                }
+            }
+            else {
+                if(body_Obj[rootnm][attr] == '') {
+                    resource_Obj[rootnm][attr] = '';
+                }
+            }
+        }
+    }
+};
+
+
+
 function update_action_mni(ty, ri, mni, callback) {
     //var sql = util.format("delete from lookup where ri in (select ri from (select ri from lookup where pi = \'%s\' and ty = \'%s\' order by ri desc limit %s, 3153600000) x)", ri, ty, mni);
 
     if(mni == '9007199254740991') {
         mni = '3153600000';
     }
-    var offset = 3153600000 - parseInt(mni, 10);
-    db_sql.delete_ri_lookup_in(ty, ri, offset, mni, function (err, results) {
-        if (!err) {
-            db_sql.select_count_ri(ty, ri, function (err, results) {
-                if (results.length == 1) {
-                    var cniObj = {};
-                    cniObj.cni = results[0]['count(ri)'];
-                    cniObj.cbs = (cniObj.cni == 0) ? 0 : results[0]['sum(cs)'];
+    db_sql.select_count_ri(ty, ri, function (err, results) {
+        if (results.length == 1) {
+            var cniObj = {};
+            cniObj.cni = results[0]['count(ri)'];
+            cniObj.cbs = (cniObj.cni == 0) ? 0 : results[0]['sum(cs)'];
 
-                    console.log('[update_action_mni] cni: ' + cniObj.cni + ', cbs: ' + cniObj.cbs);
+            var offset = parseInt(cniObj.cni, 10) - parseInt(mni, 10);
 
-                    db_sql.update_cni_ri(ty, ri, cniObj.cni, cniObj.cbs, function (err, results) {
-                        if (!err) {
-                            callback('1', cniObj.cni, cniObj.cbs);
-                        }
-                        else {
-                            var body_Obj = {};
-                            body_Obj['dbg'] = results.message;
-                            //responder.response_result(request, response, 500, body_Obj, 5000, request.url, body_Obj['dbg']);
-                            console.log(JSON.stringify(body_Obj));
-                            callback('0');
-                            return '0';
-                        }
-                    });
-                }
-            });
-        }
-        else {
-            var body_Obj = {};
-            body_Obj['dbg'] = results.message;
-            //responder.response_result(request, response, 500, body_Obj, 5000, request.url, body_Obj['dbg']);
-            console.log(JSON.stringify(body_Obj));
-            callback('0');
-            return '0';
+            if (offset > 0) {
+                db_sql.delete_ri_lookup_in(ty, ri, offset, function (err, results) {
+                    if (!err) {
+                        db_sql.select_count_ri(ty, ri, function (err, results) {
+                            if (results.length == 1) {
+                                cniObj.cni = results[0]['count(ri)'];
+                                cniObj.cbs = (cniObj.cni == 0) ? 0 : results[0]['sum(cs)'];
+
+                                console.log('[update_action_mni] cni: ' + cniObj.cni + ', cbs: ' + cniObj.cbs);
+
+                                db_sql.update_cni_ri(ty, ri, cniObj.cni, cniObj.cbs, function (err, results) {
+                                    if (!err) {
+                                        callback('1', cniObj.cni, cniObj.cbs);
+                                    }
+                                    else {
+                                        var body_Obj = {};
+                                        body_Obj['dbg'] = results.message;
+                                        //responder.response_result(request, response, 500, body_Obj, 5000, request.url, body_Obj['dbg']);
+                                        console.log(JSON.stringify(body_Obj));
+                                        callback('0');
+                                        return '0';
+                                    }
+                                });
+                            }
+                        });
+                    }
+                    else {
+                        var body_Obj = {};
+                        body_Obj['dbg'] = results.message;
+                        //responder.response_result(request, response, 500, body_Obj, 5000, request.url, body_Obj['dbg']);
+                        console.log(JSON.stringify(body_Obj));
+                        callback('0');
+                        return '0';
+                    }
+                });
+            }
+            else {
+                callback('1', cniObj.cni, cniObj.cbs);
+            }
         }
     });
 }
@@ -1163,7 +1201,7 @@ function update_action( request, response, ty, resource_Obj, callback) {
         db_sql.update_ts(resource_Obj[rootnm].lt, JSON.stringify(resource_Obj[rootnm].acpi), resource_Obj[rootnm].et, resource_Obj[rootnm].st, JSON.stringify(resource_Obj[rootnm].lbl),
             JSON.stringify(resource_Obj[rootnm].at), JSON.stringify(resource_Obj[rootnm].aa), resource_Obj[rootnm].mni, resource_Obj[rootnm].ri,
             resource_Obj[rootnm].mbs, resource_Obj[rootnm].mia, resource_Obj[rootnm].or,
-            resource_Obj[rootnm].mdmn, resource_Obj[rootnm].mddt, resource_Obj[rootnm].mdl, resource_Obj[rootnm].mdcn, function (err, results) {
+            resource_Obj[rootnm].mdn, resource_Obj[rootnm].mdt, resource_Obj[rootnm].mdl, resource_Obj[rootnm].mdc, function (err, results) {
                 if (!err) {
                     check_TS(resource_Obj[rootnm].ri, function (rsc, res_Obj) {
                     });
@@ -1207,51 +1245,51 @@ function update_resource(request, response, ty, body_Obj, resource_Obj, callback
 //    var rootnm = request.headers.rootnm;
     switch (ty) {
         case '1':
-            acp.update_acp(request, response, resource_Obj, body_Obj, function(rsc, resource_Obj) {
+            acp.modify_acp(request, response, resource_Obj, body_Obj, function(rsc, resource_Obj) {
                 callback(rsc, resource_Obj);
             });
             break;
         case '2':
-            ae.update_ae(request, response, resource_Obj, body_Obj, function(rsc, resource_Obj) {
+            ae.modify_ae(request, response, resource_Obj, body_Obj, function(rsc, resource_Obj) {
                 callback(rsc, resource_Obj);
             });
             break;
         case '3':
-            cnt.update_cnt(request, response, resource_Obj, body_Obj, function(rsc, resource_Obj) {
+            cnt.modify_cnt(request, response, resource_Obj, body_Obj, function(rsc, resource_Obj) {
                 callback(rsc, resource_Obj);
             });
             break;
         case '9':
-            grp.update_grp(request, response, resource_Obj, body_Obj, function(rsc, resource_Obj) {
+            grp.modify_grp(request, response, resource_Obj, body_Obj, function(rsc, resource_Obj) {
                 callback(rsc, resource_Obj);
             });
             break;
         case '10':
-            lcp.update_lcp(request, response, resource_Obj, body_Obj, function(rsc, resource_Obj) {
+            lcp.modify_lcp(request, response, resource_Obj, body_Obj, function(rsc, resource_Obj) {
                 callback(rsc, resource_Obj);
             });
             break;
         case '16':
-            csr.update_csr(request, response, resource_Obj, body_Obj, function(rsc, resource_Obj) {
+            csr.modify_csr(request, response, resource_Obj, body_Obj, function(rsc, resource_Obj) {
                 callback(rsc, resource_Obj);
             });
             break;
         case '23':
-            sub.update_sub(request, response, resource_Obj, body_Obj, function(rsc, resource_Obj) {
+            sub.modify_sub(request, response, resource_Obj, body_Obj, function(rsc, resource_Obj) {
                 callback(rsc, resource_Obj);
             });
             break;
         case '24':
-            sd.update_sd(request, response, resource_Obj, body_Obj, function(rsc, resource_Obj) {
+            sd.modify_sd(request, response, resource_Obj, body_Obj, function(rsc, resource_Obj) {
                 callback(rsc, resource_Obj);
             }); break;
         case '29':
-            ts.update_ts(request, response, resource_Obj, body_Obj, function(rsc, resource_Obj) {
+            ts.modify_ts(request, response, resource_Obj, body_Obj, function(rsc, resource_Obj) {
                 callback(rsc, resource_Obj);
             }); 
             break;
         case '27':
-            mms.update_mms(request, response, resource_Obj, body_Obj, function(rsc, resource_Obj) {
+            mms.modify_mms(request, response, resource_Obj, body_Obj, function(rsc, resource_Obj) {
                 callback(rsc, resource_Obj);
             });
             break;

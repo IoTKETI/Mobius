@@ -121,7 +121,7 @@ exports.build_sub = function(request, response, resource_Obj, body_Obj, callback
 };
 
 
-exports.update_sub = function(request, response, resource_Obj, body_Obj, callback) {
+exports.modify_sub = function(request, response, resource_Obj, body_Obj, callback) {
     var rootnm = request.headers.rootnm;
 
     // check NP
@@ -208,80 +208,10 @@ exports.update_sub = function(request, response, resource_Obj, body_Obj, callbac
     // check M
 
     // body
-    if(body_Obj[rootnm].acpi) {
-        resource_Obj[rootnm].acpi = body_Obj[rootnm].acpi;
-    }
 
-    if(body_Obj[rootnm].et) {
-        resource_Obj[rootnm].et = body_Obj[rootnm].et;
-    }
-
-    if(body_Obj[rootnm].lbl) {
-        resource_Obj[rootnm].lbl = body_Obj[rootnm].lbl;
-    }
+    update_body(rootnm, body_Obj, resource_Obj); // (attr == 'aa' || attr == 'poa' || attr == 'lbl' || attr == 'acpi' || attr == 'srt' || attr == 'nu' || attr == 'mid' || attr == 'macp')
 
     resource_Obj[rootnm].st = (parseInt(resource_Obj[rootnm].st, 10) + 1).toString();
-
-    if(body_Obj[rootnm].at) {
-        resource_Obj[rootnm].at = body_Obj[rootnm].at;
-    }
-
-    if(body_Obj[rootnm].aa) {
-        resource_Obj[rootnm].aa = body_Obj[rootnm].aa;
-    }
-
-    if(body_Obj[rootnm].enc) {
-        resource_Obj[rootnm].enc = body_Obj[rootnm].enc;
-    }
-
-    if(body_Obj[rootnm].exc) {
-        resource_Obj[rootnm].exc = body_Obj[rootnm].exc;
-    }
-
-    if(body_Obj[rootnm].nu) {
-        resource_Obj[rootnm].nu = body_Obj[rootnm].nu;
-    }
-
-    if(body_Obj[rootnm].gpi) {
-        resource_Obj[rootnm].gpi = body_Obj[rootnm].gpi;
-    }
-
-    if(body_Obj[rootnm].nfu) {
-        resource_Obj[rootnm].nfu = body_Obj[rootnm].nfu;
-    }
-
-    if(body_Obj[rootnm].bn) {
-        resource_Obj[rootnm].bn = body_Obj[rootnm].bn;
-    }
-
-    if(body_Obj[rootnm].rl) {
-        resource_Obj[rootnm].rl = body_Obj[rootnm].rl;
-    }
-
-    if(body_Obj[rootnm].pn) {
-        resource_Obj[rootnm].pn = body_Obj[rootnm].pn;
-    }
-
-    if(body_Obj[rootnm].nsp) {
-        resource_Obj[rootnm].nsp = body_Obj[rootnm].nsp;
-    }
-
-    if(body_Obj[rootnm].nsp) {
-        resource_Obj[rootnm].nsp = body_Obj[rootnm].nsp;
-    }
-
-    if(body_Obj[rootnm].ln) {
-        resource_Obj[rootnm].ln = body_Obj[rootnm].ln;
-    }
-
-    if(body_Obj[rootnm].nct) {
-        resource_Obj[rootnm].nct = body_Obj[rootnm].nct;
-    }
-
-    if(body_Obj[rootnm].nec) {
-        resource_Obj[rootnm].nec = body_Obj[rootnm].nec;
-    }
-
 
     var cur_d = new Date();
     resource_Obj[rootnm].lt = cur_d.toISOString().replace(/-/, '').replace(/-/, '').replace(/:/, '').replace(/:/, '').replace(/\..+/, '');

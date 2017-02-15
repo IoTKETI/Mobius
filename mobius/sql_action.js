@@ -370,7 +370,7 @@ exports.insert_sd = function(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st, 
     });
 };
 
-exports.insert_ts = function(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st, mni, cs, cr, mbs, mia, cni, cbs, or, pin, mdd, mdmn, mdl, mdcn, mddt, callback) {
+exports.insert_ts = function(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st, mni, cs, cr, mbs, mia, cni, cbs, or, pei, mdd, mdn, mdl, mdc, mdt, callback) {
     console.time('insert_ts ' + ri);
     var sql = util.format('insert into lookup (' +
         'ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st, mni, cs) ' +
@@ -378,12 +378,12 @@ exports.insert_ts = function(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st, 
         ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st, mni, cs);
     db.getResult(sql, '', function (err, results) {
         if(!err) {
-            sql = util.format('insert into ts (ri, cr, mni, mbs, mia, cni, cbs, ts.or, pin, mdd, mdmn, mdl, mdcn, mddt) ' +
+            sql = util.format('insert into ts (ri, cr, mni, mbs, mia, cni, cbs, ts.or, pei, mdd, mdn, mdl, mdc, mdt) ' +
                 'value (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', ' +
                 '\'%s\', \'%s\', \'%s\', \'%s\')',
                 ri, cr, mni, mbs, mia,
-                cni, cbs, or, pin, mdd,
-                mdmn, mdl, mdcn, mddt);
+                cni, cbs, or, pei, mdd,
+                mdn, mdl, mdc, mdt);
             db.getResult(sql, '', function (err, results) {
                 if(!err) {
                     console.timeEnd('insert_ts ' + ri);
@@ -706,10 +706,11 @@ exports.select_oldest_lookup = function(ri, callback) {
 };
 
 exports.select_direct_lookup = function(ri, callback) {
-    console.time('select_direct ' + ri);
+    var tid = require('shortid').generate();
+    console.time('select_direct ' + ri + ' (' + tid + ')');
     var sql = util.format("select * from lookup where ri = \'%s\'", ri);
     db.getResult(sql, '', function (err, direct_Obj) {
-        console.timeEnd('select_direct ' + ri);
+        console.timeEnd('select_direct ' + ri + ' (' + tid + ')');
         callback(err, direct_Obj);
     });
 };
@@ -828,8 +829,8 @@ exports.select_count_ri = function (ty, ri, callback) {
 };
 
 
-exports.update_ts_mdcn_mdl = function (mdcn, mdl, ri, callback) {
-    var sql = util.format("update ts set mdcn = \'%s\', mdl = \'%s\' where ri = \'%s\'", mdcn, mdl, ri);
+exports.update_ts_mdcn_mdl = function (mdc, mdl, ri, callback) {
+    var sql = util.format("update ts set mdc = \'%s\', mdl = \'%s\' where ri = \'%s\'", mdc, mdl, ri);
     db.getResult(sql, '', function (err, results) {
         callback(err, results);
     });
@@ -1045,14 +1046,14 @@ exports.update_sd = function (lt, acpi, et, st, lbl, at, aa, mni, ri, dspt, or, 
     });
 };
 
-exports.update_ts = function (lt, acpi, et, st, lbl, at, aa, mni, ri, mbs, mia, or, mdmn, mddt, mdl, mdcn, callback) {
+exports.update_ts = function (lt, acpi, et, st, lbl, at, aa, mni, ri, mbs, mia, or, mdn, mdt, mdl, mdc, callback) {
     console.time('update_ts ' + ri);
     var sql1 = util.format('update lookup set lt = \'%s\', acpi = \'%s\', et = \'%s\', st = \'%s\', lbl = \'%s\', at = \'%s\', aa = \'%s\', mni = \'%s\' where ri = \'%s\'',
         lt, acpi, et, st, lbl, at, aa, mni, ri);
     db.getResult(sql1, '', function (err, results) {
         if (!err) {
-            var sql2 = util.format('update ts set mni = \'%s\', mbs = \'%s\', mia = \'%s\', ts.or = \'%s\', mdmn = \'%s\', mddt = \'%s\', mdl = \'%s\', mdcn = \'%s\'  where ri = \'%s\'',
-                mni, mbs, mia, or, mdmn, mddt, mdl, mdcn, ri);
+            var sql2 = util.format('update ts set mni = \'%s\', mbs = \'%s\', mia = \'%s\', ts.or = \'%s\', mdn = \'%s\', mdt = \'%s\', mdl = \'%s\', mdc = \'%s\'  where ri = \'%s\'',
+                mni, mbs, mia, or, mdn, mdt, mdl, mdc, ri);
             db.getResult(sql2, '', function (err, results) {
                 if (!err) {
                     console.timeEnd('update_ts ' + ri);
@@ -1130,8 +1131,8 @@ exports.delete_ri_lookup = function (ri, callback) {
     });
 };
 
-exports.delete_ri_lookup_in = function (ty, ri, offset, mni, callback) {
-    var sql = util.format("DELETE FROM lookup WHERE ri IN (SELECT ri FROM (SELECT ri FROM lookup WHERE pi = \'%s\' and ty = \'%s\' ORDER BY ri LIMIT %d offset %d)a)", ri, ty, offset, mni);
+exports.delete_ri_lookup_in = function (ty, ri, offset, callback) {
+    var sql = util.format("DELETE FROM lookup WHERE pi = \'%s\' and ty = \'%s\' LIMIT %d", ri, ty, offset);
     //console.log(sql);
     db.getResult(sql, '', function (err, results) {
         callback(err, results);
