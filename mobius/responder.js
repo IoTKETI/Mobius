@@ -814,6 +814,14 @@ function typeCheckforJson(body_Obj) {
                     else if (index2 == 'rr' || index2 == 'mtv') {
                         body_Obj[index1][index2] = ((body_Obj[index1][index2] == 'true') || ((body_Obj[index1][index2] == true)));
                     }
+                    else if (index2 == 'sri') {
+                        body_Obj[index1].ri = body_Obj[index1][index2];
+                        delete body_Obj[index1][index2];
+                    }
+                    else if (index2 == 'spi') {
+                        body_Obj[index1].pi = body_Obj[index1][index2];
+                        delete body_Obj[index1][index2];
+                    }
                 }
             }
         }
@@ -854,6 +862,14 @@ function typeCheckforJson2(body_Obj) {
                             }
                             else if (index3 == 'rr' || index3 == 'mtv') {
                                 body_Obj[index1][index2][index3] = ((body_Obj[index1][index2][index3] == 'true') || ((body_Obj[index1][index2][index3] == true)));
+                            }
+                            else if (index3 == 'sri') {
+                                body_Obj[index1][index2].ri = body_Obj[index1][index2][index3];
+                                delete body_Obj[index1][index2][index3];
+                            }
+                            else if (index3 == 'spi') {
+                                body_Obj[index1][index2].pi = body_Obj[index1][index2][index3];
+                                delete body_Obj[index1][index2][index3];
                             }
                         }
                     }
