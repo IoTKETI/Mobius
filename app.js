@@ -1065,7 +1065,7 @@ app.post(onem2mParser, function(request, response) {
         //request.url = request.url.replace(/\/$/, "");
         //var url_arr = url.parse(request.url).pathname.split('/');
         var absolute_url = request.url.replace(/\/~\/[^\/]+\/?/, '/');
-//        absolute_url = request.url.replace(/\/\.?/, '/');
+        absolute_url = absolute_url.replace(/\/_/, '/'+usecsebase);
 
         db_sql.get_ri_shortid(absolute_url.replace('/', ''), function (err, results) {
             absolute_url = (results.length == 0) ? absolute_url : results[0].ri;
@@ -1121,6 +1121,7 @@ app.get(onem2mParser, function(request, response) {
         request.url = request.url.replace('%23', '#'); // convert '%23' to '#' of url
         request.hash = url.parse(request.url).hash;
         var absolute_url = request.url.replace(/\/~\/[^\/]+\/?/, '/').split('#')[0];
+        absolute_url = absolute_url.replace(/\/_/, '/'+usecsebase);
 
         db_sql.get_ri_shortid(absolute_url.replace('/', ''), function (err, results) {
             absolute_url = (results.length == 0) ? absolute_url : results[0].ri;
@@ -1176,6 +1177,7 @@ app.put(onem2mParser, function(request, response) {
         //request.url = request.url.replace(/\/$/, "");
         //var url_arr = url.parse(request.url).pathname.split('/');
         var absolute_url = request.url.replace(/\/~\/[^\/]+\/?/, '/');
+        absolute_url = absolute_url.replace(/\/_/, '/'+usecsebase);
 
         db_sql.get_ri_shortid(absolute_url.replace('/', ''), function (err, results) {
             absolute_url = (results.length == 0) ? absolute_url : results[0].ri;
@@ -1235,6 +1237,7 @@ app.delete(onem2mParser, function(request, response) {
         //request.url = request.url.replace(/\/$/, "");
         //var url_arr = url.parse(request.url).pathname.split('/');
         var absolute_url = request.url.replace(/\/~\/[^\/]+\/?/, '/');
+        absolute_url = absolute_url.replace(/\/_/, '/'+usecsebase);
 
         db_sql.get_ri_shortid(absolute_url.replace('/', ''), function (err, results) {
             absolute_url = (results.length == 0) ? absolute_url : results[0].ri;
