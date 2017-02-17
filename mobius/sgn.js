@@ -215,6 +215,8 @@ function request_noti_http(nu, ri, xmlString, bodytype, xm2mri) {
     req.on('error', function (e) {
         if(e.message != 'read ECONNRESET') {
             console.log('[request_noti_http] problem with request: ' + e.message);
+
+            req.cancel();
         }
     });
 

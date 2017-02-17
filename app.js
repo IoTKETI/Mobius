@@ -1064,11 +1064,11 @@ app.post(onem2mParser, function(request, response) {
         }
         //request.url = request.url.replace(/\/$/, "");
         //var url_arr = url.parse(request.url).pathname.split('/');
-        var absolute_url = request.url.replace(/\/~\/[^\/]+\/?/, '/');
+        var absolute_url = request.url.replace(/\/~\/[^\/]+\/?/, '/').split('#')[0];
         absolute_url = absolute_url.replace(/\/_/, '/'+usecsebase);
-
-        db_sql.get_ri_shortid(absolute_url.replace('/', ''), function (err, results) {
-            absolute_url = (results.length == 0) ? absolute_url : results[0].ri;
+        var absolute_url_arr = absolute_url.split('/');
+        db_sql.get_ri_shortid(absolute_url_arr[1], function (err, results) {
+            absolute_url = (results.length == 0) ? absolute_url : absolute_url.replace('/'+absolute_url_arr[1], results[0].ri);
 
             if(url.parse(absolute_url).pathname.split('/')[1] == usecsebase) {
                 request.url = absolute_url;
@@ -1122,9 +1122,9 @@ app.get(onem2mParser, function(request, response) {
         request.hash = url.parse(request.url).hash;
         var absolute_url = request.url.replace(/\/~\/[^\/]+\/?/, '/').split('#')[0];
         absolute_url = absolute_url.replace(/\/_/, '/'+usecsebase);
-
-        db_sql.get_ri_shortid(absolute_url.replace('/', ''), function (err, results) {
-            absolute_url = (results.length == 0) ? absolute_url : results[0].ri;
+        var absolute_url_arr = absolute_url.split('/');
+        db_sql.get_ri_shortid(absolute_url_arr[1], function (err, results) {
+            absolute_url = (results.length == 0) ? absolute_url : absolute_url.replace('/'+absolute_url_arr[1], results[0].ri);
 
             if(url.parse(absolute_url).pathname.split('/')[1] == usecsebase) {
                 request.url = absolute_url;
@@ -1176,11 +1176,11 @@ app.put(onem2mParser, function(request, response) {
         }
         //request.url = request.url.replace(/\/$/, "");
         //var url_arr = url.parse(request.url).pathname.split('/');
-        var absolute_url = request.url.replace(/\/~\/[^\/]+\/?/, '/');
+        var absolute_url = request.url.replace(/\/~\/[^\/]+\/?/, '/').split('#')[0];
         absolute_url = absolute_url.replace(/\/_/, '/'+usecsebase);
-
-        db_sql.get_ri_shortid(absolute_url.replace('/', ''), function (err, results) {
-            absolute_url = (results.length == 0) ? absolute_url : results[0].ri;
+        var absolute_url_arr = absolute_url.split('/');
+        db_sql.get_ri_shortid(absolute_url_arr[1], function (err, results) {
+            absolute_url = (results.length == 0) ? absolute_url : absolute_url.replace('/'+absolute_url_arr[1], results[0].ri);
 
             if (url.parse(absolute_url).pathname == ('/' + usecsebase)) {
                 var body_Obj = {};
@@ -1236,11 +1236,11 @@ app.delete(onem2mParser, function(request, response) {
         }
         //request.url = request.url.replace(/\/$/, "");
         //var url_arr = url.parse(request.url).pathname.split('/');
-        var absolute_url = request.url.replace(/\/~\/[^\/]+\/?/, '/');
+        var absolute_url = request.url.replace(/\/~\/[^\/]+\/?/, '/').split('#')[0];
         absolute_url = absolute_url.replace(/\/_/, '/'+usecsebase);
-
-        db_sql.get_ri_shortid(absolute_url.replace('/', ''), function (err, results) {
-            absolute_url = (results.length == 0) ? absolute_url : results[0].ri;
+        var absolute_url_arr = absolute_url.split('/');
+        db_sql.get_ri_shortid(absolute_url_arr[1], function (err, results) {
+            absolute_url = (results.length == 0) ? absolute_url : absolute_url.replace('/'+absolute_url_arr[1], results[0].ri);
 
             if (url.parse(absolute_url).pathname == ('/' + usecsebase)) {
                 var body_Obj = {};
