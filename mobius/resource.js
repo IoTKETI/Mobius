@@ -744,21 +744,26 @@ function presearch_action(request, response, ri_list, comm_Obj, callback) {
     var pi_list = [];
     db_sql.search_parents_lookup(comm_Obj.ri, function (err, search_Obj) {
         if(!err) {
+            var finding_Obj = [];
+            var found_Obj = {};
+
             var cur_lvl = parseInt((url.parse(request.url).pathname.split('/').length), 10) - 2;
             for(var i = 0; i < search_Obj.length; i++) {
                 if(request.query.lvl != null) {
                     var lvl = request.query.lvl;
                     if((search_Obj[i].ri.split('/').length-1) <= (cur_lvl + (parseInt(lvl, 10)))) {
                         pi_list.push(search_Obj[i].ri);
+                        ri_list.push(search_Obj[i].ri);
+                        found_Obj[search_Obj[i].ri] = search_Obj[i];
                     }
                 }
                 else {
                     pi_list.push(search_Obj[i].ri);
+                    ri_list.push(search_Obj[i].ri);
+                    found_Obj[search_Obj[i].ri] = search_Obj[i];
                 }
             }
 
-            var finding_Obj = [];
-            var found_Obj = {};
             var cur_d = moment().utc().format('YYYY-MM-DD HH:mm:ss');
             db_sql.search_lookup(request.query.ty, request.query.lbl, request.query.cra, request.query.crb, request.query.lim, request.query.ofst, request.query.lvl, pi_list, 0, finding_Obj, 0, cur_d, 0, function (err, search_Obj) {
                 if(!err) {
@@ -771,11 +776,13 @@ function presearch_action(request, response, ri_list, comm_Obj, callback) {
                         callback('1', ri_list, found_Obj);
                     }
                     else {
-                        search_Obj = {};
-                        search_Obj['dbg'] = 'resource does not exist';
-                        responder.response_result(request, response, 404, search_Obj, 4004, request.url, 'resource does not exist');
-                        callback('0', search_Obj);
-                        return '0';
+                        // search_Obj = {};
+                        // search_Obj['dbg'] = 'resource does not exist';
+                        // responder.response_result(request, response, 404, search_Obj, 4004, request.url, 'resource does not exist');
+                        // callback('0', search_Obj);
+                        // return '0';
+
+                        callback('1', ri_list, found_Obj);
                     }
                 }
                 else {
@@ -951,15 +958,16 @@ exports.retrieve = function(request, response, comm_Obj) {
                 }
                 else if (request.query.rcn == 4 || request.query.rcn == 5 ||request.query.rcn == 6) {
                     request.headers.rootnm = 'rsp';
+
                     search_action(request, response, 0, resource_Obj, ri_list, '{', search_Obj, function (rsc, strObj) {
                         if (rsc == '1') {
                             strObj += '}';
                             resource_Obj = JSON.parse(strObj);
                             for (var index in resource_Obj) {
-                                if(resource_Obj.hasOwnProperty(index)) {
+                                if (resource_Obj.hasOwnProperty(index)) {
                                     resource_Obj[index] = merge(resource_Obj[index], search_Obj[index]);
                                     for (var index2 in resource_Obj[index]) {
-                                        if(resource_Obj[index].hasOwnProperty(index2)) {
+                                        if (resource_Obj[index].hasOwnProperty(index2)) {
                                             if (resource_Obj[index][index2] == null || resource_Obj[index][index2] == '' || resource_Obj[index][index2] == 'undefined') {
                                                 delete resource_Obj[index][index2];
                                             }
@@ -967,7 +975,26 @@ exports.retrieve = function(request, response, comm_Obj) {
                                     }
                                 }
                             }
-                            responder.search_result(request, response, 200, resource_Obj, 2000, comm_Obj.ri, '');
+                            retrieve_action(request, response, ty, comm_Obj, function (rsc, retrieve_Obj) {
+                                if (rsc == '1') {
+                                    _this.remove_no_value(request, retrieve_Obj);
+                                    resource_Obj[retrieve_Obj[Object.keys(retrieve_Obj)[0]].ri] = retrieve_Obj[Object.keys(retrieve_Obj)[0]];
+                                    responder.search_result(request, response, 200, resource_Obj, 2000, comm_Obj.ri, '');
+                                }
+                                else {
+                                    resource_Obj = {};
+                                    resource_Obj['dbg'] = {};
+                                    resource_Obj['dbg'] = 'resource does not exist';
+                                    responder.response_result(request, response, 404, resource_Obj, 4004, request.url, resource_Obj['dbg']);
+                                }
+                            });
+                        }
+                        else {
+                            request.headers.rootnm = 'rsp';
+                            resource_Obj = {};
+                            resource_Obj['dbg'] = {};
+                            resource_Obj['dbg'] = 'response with hierarchical resource structure mentioned in onem2m spec is not supported instead all the requested resources will be returned !';
+                            responder.response_result(request, response, 501, resource_Obj, 5001, request.url, resource_Obj['dbg']);
                         }
                     });
                 }

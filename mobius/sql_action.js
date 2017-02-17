@@ -596,6 +596,7 @@ exports.search_lookup = function (ty, lbl, cra, crb, lim, ofst, lvl, pi_list, pi
     //console.log(sql);
     db.getResult(sql, '', function (err, search_Obj) {
         if(!err) {
+            make_json_arraytype(search_Obj);
             for(var i = 0; i < search_Obj.length; i++) {
                 found_Obj[found_Cnt++] = search_Obj[i];
                 if(found_Cnt >= lim) {

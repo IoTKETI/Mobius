@@ -788,8 +788,14 @@ function typeCheckforJson(body_Obj) {
                 if(body_Obj[index1].hasOwnProperty(index2)) {
                     if (index2 == 'cst' || index2 == 'los' || index2 == 'mt' || index2 == 'csy' || index2 == 'nct' || index2 == 'cnf' ||
                         index2 == 'cs' || index2 == 'st' || index2 == 'ty' || index2 == 'cbs' || index2 == 'cni' || index2 == 'mni' ||
-                        index2 == 'cnm') {
-                        body_Obj[index1][index2] = parseInt(body_Obj[index1][index2]);
+                        index2 == 'cnm' || index2 == 'mia' || index2 == 'mbs') {
+
+                        if(index1 == 'm2m:cin' && index2 == 'mni') {
+                            delete body_Obj[index1][index2];
+                        }
+                        else {
+                            body_Obj[index1][index2] = parseInt(body_Obj[index1][index2]);
+                        }
                     }
                     else if (index2 == 'enc') {
                         for (var index3 in body_Obj[index1][index2]) {
@@ -837,8 +843,13 @@ function typeCheckforJson2(body_Obj) {
                         if (body_Obj[index1][index2].hasOwnProperty(index3)) {
                             if (index3 == 'cst' || index3 == 'los' || index3 == 'mt' || index3 == 'csy' || index3 == 'nct' || index3 == 'cnf' ||
                                 index3 == 'cs' || index3 == 'st' || index3 == 'ty' || index3 == 'cbs' || index3 == 'cni' || index3 == 'mni' ||
-                                index2 == 'cnm') {
-                                body_Obj[index1][index2][index3] = parseInt(body_Obj[index1][index2][index3]);
+                                index3 == 'cnm' || index3 == 'mia' || index3 == 'mbs') {
+                                if(index1 == 'm2m:cin' && index3 == 'mni') {
+                                    delete body_Obj[index1][index2][index3];
+                                }
+                                else {
+                                    body_Obj[index1][index2][index3] = parseInt(body_Obj[index1][index2][index3]);
+                                }
                             }
                             else if (index3 == 'enc') {
                                 for (var index4 in body_Obj[index1][index2][index3]) {
@@ -1355,7 +1366,7 @@ exports.search_result = function(request, response, status, body_Obj, rsc, ri, c
                     delete body_Obj[prop].st;
                 }
 
-                if (body_Obj[prop].poa) {
+                /*if (body_Obj[prop].poa) {
                     body_Obj[prop].poa = JSON.parse(body_Obj[prop].poa);
                 }
 
@@ -1391,7 +1402,7 @@ exports.search_result = function(request, response, status, body_Obj, rsc, ri, c
                 if (body_Obj[prop].pvs) {
                     body_Obj[prop].pvs = JSON.parse(body_Obj[prop].pvs);
                     body_Obj[prop]['pvs']['acr'].splice(body_Obj[prop]['pvs']['acr'].length - 1, 1);
-                }
+                }*/
             }
         }
 

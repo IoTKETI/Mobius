@@ -223,17 +223,21 @@ function make_short_nametype(nmtype, body_Obj) {
     }
 }
 
-function make_json_arraytype(body_Obj) {
+global.make_json_arraytype = function(body_Obj) {
     for (var prop in body_Obj) {
         if (body_Obj.hasOwnProperty(prop)) {
             for (var attr in body_Obj[prop]) {
                 if (body_Obj[prop].hasOwnProperty(attr)) {
-                    if (attr == 'aa' || attr == 'poa' || attr == 'lbl' || attr == 'acpi' || attr == 'srt' || attr == 'nu' || attr == 'mid' || attr == 'macp') {
+                    if (attr == 'aa' || attr == 'at' || attr == 'poa' || attr == 'lbl' || attr == 'acpi' || attr == 'srt' || attr == 'nu' || attr == 'mid' || attr == 'macp') {
                         if(body_Obj[prop][attr]) {
                             body_Obj[prop][attr] = body_Obj[prop][attr].split(' ');
                         }
 
                         if(body_Obj[prop][attr] == '') {
+                            body_Obj[prop][attr] = [];
+                        }
+
+                        if(body_Obj[prop][attr] == '[]') {
                             body_Obj[prop][attr] = [];
                         }
                     }
@@ -257,6 +261,10 @@ function make_json_arraytype(body_Obj) {
                             }
 
                             if (body_Obj[prop][attr].acr == '') {
+                                body_Obj[prop][attr].acr = [];
+                            }
+
+                            if (body_Obj[prop][attr].acr == '[]') {
                                 body_Obj[prop][attr].acr = [];
                             }
                         }
