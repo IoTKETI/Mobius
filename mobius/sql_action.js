@@ -48,21 +48,21 @@ exports.search_parents_lookup = function(ri, callback) {
 };
 
 exports.get_sri_shortid = function (ri, callback) {
-    var sql = util.format('select sri from shortid where ri = \'%s\'', ri);
+    var sql = util.format('select sri from sri where ri = \'%s\'', ri);
     db.getResult(sql, '', function (err, results) {
         callback(err, results);
     });
 };
 
 exports.get_ri_shortid = function (sri, callback) {
-    var sql = util.format('select ri from shortid where sri = \'%s\'', sri);
+    var sql = util.format('select ri from sri where sri = \'%s\'', sri);
     db.getResult(sql, '', function (err, results) {
         callback(err, results);
     });
 };
 
 function set_sri(ri, sri, callback) {
-    var sql = util.format('insert into shortid (ri, sri) value (\'%s\', \'%s\')', ri, sri);
+    var sql = util.format('insert into sri (ri, sri) value (\'%s\', \'%s\')', ri, sri);
     db.getResult(sql, '', function (err, results) {
         callback(err, results);
     });
