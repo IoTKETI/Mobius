@@ -1019,6 +1019,7 @@ exports.retrieve = function(request, response, comm_Obj) {
                                 if (rsc == '1') {
                                     _this.remove_no_value(request, retrieve_Obj);
                                     resource_Obj[retrieve_Obj[Object.keys(retrieve_Obj)[0]].ri] = retrieve_Obj[Object.keys(retrieve_Obj)[0]];
+                                    request.headers.targetnm = responder.typeRsrc[retrieve_Obj[Object.keys(retrieve_Obj)[0]].ty];
                                     responder.search_result(request, response, 200, resource_Obj, 2000, comm_Obj.ri, '');
                                 }
                                 else {
