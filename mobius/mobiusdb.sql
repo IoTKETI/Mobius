@@ -27,7 +27,8 @@ CREATE TABLE `acp` (
   `pv` longtext,
   `pvs` longtext,
   PRIMARY KEY (`ri`),
-  UNIQUE KEY `ri_UNIQUE` (`ri`)
+  UNIQUE KEY `ri_UNIQUE` (`ri`),
+  CONSTRAINT `acp_ri` FOREIGN KEY (`ri`) REFERENCES `lookup` (`ri`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
@@ -49,7 +50,8 @@ CREATE TABLE `ae` (
   `nl` varchar(45) DEFAULT NULL,
   PRIMARY KEY (`ri`),
   UNIQUE KEY `path_UNIQUE` (`ri`),
-  UNIQUE KEY `aei_UNIQUE` (`aei`)
+  UNIQUE KEY `aei_UNIQUE` (`aei`),
+  CONSTRAINT `ae_ri` FOREIGN KEY (`ri`) REFERENCES `lookup` (`ri`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
@@ -69,7 +71,8 @@ CREATE TABLE `cb` (
   `nl` varchar(45) DEFAULT NULL,
   `ncp` varchar(45) DEFAULT NULL,
   PRIMARY KEY (`ri`),
-  UNIQUE KEY `path_UNIQUE` (`ri`)
+  UNIQUE KEY `path_UNIQUE` (`ri`),
+  CONSTRAINT `cb_ri` FOREIGN KEY (`ri`) REFERENCES `lookup` (`ri`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
@@ -89,7 +92,8 @@ CREATE TABLE `cin` (
   `con` longtext,
   PRIMARY KEY (`ri`),
   UNIQUE KEY `ri_UNIQUE` (`ri`),
-  KEY `cin_ri_idx` (`ri`)
+  KEY `cin_ri_idx` (`ri`),
+  CONSTRAINT `cin_ri` FOREIGN KEY (`ri`) REFERENCES `lookup` (`ri`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
@@ -111,7 +115,8 @@ CREATE TABLE `cnt` (
   `li` varchar(45) DEFAULT NULL,
   `or` varchar(45) DEFAULT NULL,
   PRIMARY KEY (`ri`),
-  UNIQUE KEY `resourceid_UNIQUE` (`ri`)
+  UNIQUE KEY `resourceid_UNIQUE` (`ri`),
+  CONSTRAINT `cnt_ri` FOREIGN KEY (`ri`) REFERENCES `lookup` (`ri`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
@@ -134,7 +139,8 @@ CREATE TABLE `csr` (
   `nl` varchar(45) DEFAULT NULL,
   PRIMARY KEY (`ri`),
   UNIQUE KEY `ri_UNIQUE` (`ri`),
-  KEY `csr_ri_idx` (`ri`)
+  KEY `csr_ri_idx` (`ri`),
+  CONSTRAINT `csr_ri` FOREIGN KEY (`ri`) REFERENCES `lookup` (`ri`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
@@ -157,7 +163,8 @@ CREATE TABLE `grp` (
   `csy` varchar(45) DEFAULT NULL,
   `gn` varchar(45) DEFAULT NULL,
   PRIMARY KEY (`ri`),
-  UNIQUE KEY `ri_UNIQUE` (`ri`)
+  UNIQUE KEY `ri_UNIQUE` (`ri`),
+  CONSTRAINT `grp_ri` FOREIGN KEY (`ri`) REFERENCES `lookup` (`ri`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
@@ -178,7 +185,8 @@ CREATE TABLE `lcp` (
   `lon` varchar(45) DEFAULT NULL,
   `lost` varchar(45) DEFAULT NULL,
   PRIMARY KEY (`ri`),
-  UNIQUE KEY `ri_UNIQUE` (`ri`)
+  UNIQUE KEY `ri_UNIQUE` (`ri`),
+  CONSTRAINT `lcp_ri` FOREIGN KEY (`ri`) REFERENCES `lookup` (`ri`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
@@ -231,7 +239,8 @@ CREATE TABLE `mms` (
   `osd` varchar(45) DEFAULT NULL,
   `sst` varchar(45) DEFAULT NULL,
   PRIMARY KEY (`ri`),
-  UNIQUE KEY `ri_UNIQUE` (`ri`)
+  UNIQUE KEY `ri_UNIQUE` (`ri`),
+  CONSTRAINT `mms_ri` FOREIGN KEY (`ri`) REFERENCES `lookup` (`ri`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
@@ -253,7 +262,8 @@ CREATE TABLE `req` (
   `rs` varchar(45) DEFAULT NULL,
   `ors` varchar(45) DEFAULT NULL,
   PRIMARY KEY (`ri`),
-  UNIQUE KEY `ri_UNIQUE` (`ri`)
+  UNIQUE KEY `ri_UNIQUE` (`ri`),
+  CONSTRAINT `req_ri` FOREIGN KEY (`ri`) REFERENCES `lookup` (`ri`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
@@ -270,7 +280,8 @@ CREATE TABLE `sd` (
   `dspt` longtext,
   `or` mediumtext,
   PRIMARY KEY (`ri`),
-  UNIQUE KEY `ri_UNIQUE` (`ri`)
+  UNIQUE KEY `ri_UNIQUE` (`ri`),
+  CONSTRAINT `sd_ri` FOREIGN KEY (`ri`) REFERENCES `lookup` (`ri`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
@@ -286,7 +297,8 @@ CREATE TABLE `sri` (
   `sri` varchar(45) NOT NULL,
   PRIMARY KEY (`ri`),
   UNIQUE KEY `sri_UNIQUE` (`sri`),
-  UNIQUE KEY `ri_UNIQUE` (`ri`)
+  UNIQUE KEY `ri_UNIQUE` (`ri`),
+  CONSTRAINT `sri_ri` FOREIGN KEY (`ri`) REFERENCES `lookup` (`ri`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
@@ -316,7 +328,8 @@ CREATE TABLE `sub` (
   `cr` varchar(45) DEFAULT NULL,
   `su` varchar(45) DEFAULT NULL,
   PRIMARY KEY (`ri`),
-  UNIQUE KEY `resourceid_UNIQUE` (`ri`)
+  UNIQUE KEY `resourceid_UNIQUE` (`ri`),
+  CONSTRAINT `sub_ri` FOREIGN KEY (`ri`) REFERENCES `lookup` (`ri`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
@@ -343,7 +356,8 @@ CREATE TABLE `ts` (
   `mdc` varchar(45) DEFAULT NULL,
   `mdt` varchar(45) DEFAULT NULL,
   PRIMARY KEY (`ri`),
-  UNIQUE KEY `ri_UNIQUE` (`ri`)
+  UNIQUE KEY `ri_UNIQUE` (`ri`),
+  CONSTRAINT `ts_ri` FOREIGN KEY (`ri`) REFERENCES `lookup` (`ri`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
@@ -360,7 +374,8 @@ CREATE TABLE `tsi` (
   `con` varchar(45) DEFAULT NULL,
   `sqn` varchar(45) DEFAULT NULL,
   PRIMARY KEY (`ri`),
-  UNIQUE KEY `ri_UNIQUE` (`ri`)
+  UNIQUE KEY `ri_UNIQUE` (`ri`),
+  CONSTRAINT `tsi_ri` FOREIGN KEY (`ri`) REFERENCES `lookup` (`ri`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
@@ -373,4 +388,4 @@ CREATE TABLE `tsi` (
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2017-02-20 14:10:42
+-- Dump completed on 2017-02-20 15:10:00
