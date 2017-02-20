@@ -18,43 +18,66 @@ var url = require('url');
 var util = require('util');
 var db_sql = require('./sql_action');
 
+function get_ri_list_sri(sri_list, ri_list, count, callback) {
+    if(sri_list.length <= count) {
+        callback(sri_list);
+    }
+    else {
+        db_sql.get_ri_sri(sri_list[count], function (err, results) {
+            ri_list[count] = ((results.length == 0) ? sri_list[count] : results[0].ri);
+
+            if (sri_list.length <= ++count) {
+                callback(ri_list);
+            }
+            else {
+                get_ri_list_sri(sri_list, ri_list, count, function (ri_list) {
+                    callback(ri_list);
+                });
+            }
+        });
+    }
+}
+
 exports.check = function(request, ty, acpiList, access_value, callback) {
     if(ty == '1') { // check selfPrevileges
-        acpiList = [url.parse(request.url).pathname];
-        db_sql.select_acp(acpiList[0], function (err, results_acp) {
-            if (!err) {
-                for (var i = 0; i < results_acp.length; i++) {
-                    var pvsObj = JSON.parse(results_acp[i].pvs);
-                    var from = request.headers['x-m2m-origin'];
-                    for(var index in pvsObj.acr) {
-                        if(pvsObj.acr.hasOwnProperty(index)) {
-                            try {
-                                var re = new RegExp(from + '\\b');
-                                for (var acor_idx in pvsObj.acr[index].acor) {
-                                    if (pvsObj.acr[index].acor.hasOwnProperty(acor_idx)) {
-                                        if (pvsObj.acr[index].acor[acor_idx].match(re) || pvsObj.acr[index].acor[acor_idx] == 'all' || pvsObj.acr[index].acor[acor_idx] == '*') {
-                                            if ((pvsObj.acr[index].acop.toString() & access_value) == access_value) {
-                                                callback('1');
-                                                return '1';
+        acpiList = [url.parse(request.url).pathname.split('?')[0]];
+        db_sql.get_ri_sri(acpiList[0], function (err, results) {
+            acpiList[0] = ((results.length == 0) ? acpiList[0] : results[0].ri);
+            db_sql.select_acp(acpiList[0], function (err, results_acp) {
+                if (!err) {
+                    for (var i = 0; i < results_acp.length; i++) {
+                        var pvsObj = JSON.parse(results_acp[i].pvs);
+                        var from = request.headers['x-m2m-origin'];
+                        for (var index in pvsObj.acr) {
+                            if (pvsObj.acr.hasOwnProperty(index)) {
+                                try {
+                                    var re = new RegExp(from + '\\b');
+                                    for (var acor_idx in pvsObj.acr[index].acor) {
+                                        if (pvsObj.acr[index].acor.hasOwnProperty(acor_idx)) {
+                                            if (pvsObj.acr[index].acor[acor_idx].match(re) || pvsObj.acr[index].acor[acor_idx] == 'all' || pvsObj.acr[index].acor[acor_idx] == '*') {
+                                                if ((pvsObj.acr[index].acop.toString() & access_value) == access_value) {
+                                                    callback('1');
+                                                    return '1';
+                                                }
                                             }
                                         }
                                     }
                                 }
-                            }
-                            catch (e) {
+                                catch (e) {
 
+                                }
                             }
                         }
                     }
+                    callback('0');
+                    return '0';
                 }
-                callback('0');
-                return '0';
-            }
-            else {
-                console.log('query error: ' + results_acp.message);
-                callback('0');
-                return '0';
-            }
+                else {
+                    console.log('query error: ' + results_acp.message);
+                    callback('0');
+                    return '0';
+                }
+            });
         });
     }
     else {
@@ -65,40 +88,43 @@ exports.check = function(request, ty, acpiList, access_value, callback) {
             return '1';
         }
 
-        db_sql.select_acp_in(acpiList, function (err, results_acp) {
-            if (!err) {
-                for (var i = 0; i < results_acp.length; i++) {
-                    var pvObj = JSON.parse(results_acp[i].pv);
-                    var from = request.headers['x-m2m-origin'];
-                    for(var index in pvObj.acr) {
-                        if(pvObj.acr.hasOwnProperty(index)) {
-                            try {
-                                var re = new RegExp(from + '\\b');
-                                for (var acor_idx in pvObj.acr[index].acor) {
-                                    if(pvObj.acr[index].acor.hasOwnProperty(acor_idx)) {
-                                        if (pvObj.acr[index].acor[acor_idx].match(re) || pvObj.acr[index].acor[acor_idx] == 'all' || pvObj.acr[index].acor[acor_idx] == '*') {
-                                            if ((pvObj.acr[index].acop.toString() & access_value) == access_value) {
-                                                callback('1');
-                                                return '1';
+        var ri_list = [];
+        get_ri_list_sri(acpiList, ri_list, 0, function (ri_list) {
+            db_sql.select_acp_in(ri_list, function (err, results_acp) {
+                if (!err) {
+                    for (var i = 0; i < results_acp.length; i++) {
+                        var pvObj = JSON.parse(results_acp[i].pv);
+                        var from = request.headers['x-m2m-origin'];
+                        for(var index in pvObj.acr) {
+                            if(pvObj.acr.hasOwnProperty(index)) {
+                                try {
+                                    var re = new RegExp(from + '\\b');
+                                    for (var acor_idx in pvObj.acr[index].acor) {
+                                        if(pvObj.acr[index].acor.hasOwnProperty(acor_idx)) {
+                                            if (pvObj.acr[index].acor[acor_idx].match(re) || pvObj.acr[index].acor[acor_idx] == 'all' || pvObj.acr[index].acor[acor_idx] == '*') {
+                                                if ((pvObj.acr[index].acop.toString() & access_value) == access_value) {
+                                                    callback('1');
+                                                    return '1';
+                                                }
                                             }
                                         }
                                     }
                                 }
-                            }
-                            catch (e) {
+                                catch (e) {
 
+                                }
                             }
                         }
                     }
+                    callback('0');
+                    return '0';
                 }
-                callback('0');
-                return '0';
-            }
-            else {
-                console.log('query error: ' + results_acp.message);
-                callback('0');
-                return '0';
-            }
+                else {
+                    console.log('query error: ' + results_acp.message);
+                    callback('0');
+                    return '0';
+                }
+            });
         });
     }
 };

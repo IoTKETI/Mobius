@@ -1146,7 +1146,7 @@ app.post(onem2mParser, function(request, response) {
         var absolute_url = request.url.replace(/\/~\/[^\/]+\/?/, '/').split('#')[0];
         absolute_url = absolute_url.replace(/\/_/, '/'+usecsebase);
         var absolute_url_arr = absolute_url.split('/');
-        db_sql.get_ri_shortid(absolute_url_arr[1].split('?')[0], function (err, results) {
+        db_sql.get_ri_sri(absolute_url_arr[1].split('?')[0], function (err, results) {
             absolute_url = (results.length == 0) ? absolute_url : absolute_url.replace('/'+absolute_url_arr[1], results[0].ri);
 
             if(url.parse(absolute_url).pathname.split('/')[1] == usecsebase) {
@@ -1205,7 +1205,7 @@ app.get(onem2mParser, function(request, response) {
         var absolute_url = request.url.replace(/\/~\/[^\/]+\/?/, '/').split('#')[0];
         absolute_url = absolute_url.replace(/\/_/, '/'+usecsebase);
         var absolute_url_arr = absolute_url.split('/');
-        db_sql.get_ri_shortid(absolute_url_arr[1].split('?')[0], function (err, results) {
+        db_sql.get_ri_sri(absolute_url_arr[1].split('?')[0], function (err, results) {
             absolute_url = (results.length == 0) ? absolute_url : absolute_url.replace('/'+absolute_url_arr[1], results[0].ri);
 
             if(url.parse(absolute_url).pathname.split('/')[1] == usecsebase) {
@@ -1264,7 +1264,7 @@ app.put(onem2mParser, function(request, response) {
         var absolute_url = request.url.replace(/\/~\/[^\/]+\/?/, '/').split('#')[0];
         absolute_url = absolute_url.replace(/\/_/, '/'+usecsebase);
         var absolute_url_arr = absolute_url.split('/');
-        db_sql.get_ri_shortid(absolute_url_arr[1].split('?')[0], function (err, results) {
+        db_sql.get_ri_sri(absolute_url_arr[1].split('?')[0], function (err, results) {
             absolute_url = (results.length == 0) ? absolute_url : absolute_url.replace('/'+absolute_url_arr[1], results[0].ri);
 
             if (url.parse(absolute_url).pathname == ('/' + usecsebase)) {
@@ -1327,7 +1327,7 @@ app.delete(onem2mParser, function(request, response) {
         var absolute_url = request.url.replace(/\/~\/[^\/]+\/?/, '/').split('#')[0];
         absolute_url = absolute_url.replace(/\/_/, '/'+usecsebase);
         var absolute_url_arr = absolute_url.split('/');
-        db_sql.get_ri_shortid(absolute_url_arr[1].split('?')[0], function (err, results) {
+        db_sql.get_ri_sri(absolute_url_arr[1].split('?')[0], function (err, results) {
             absolute_url = (results.length == 0) ? absolute_url : absolute_url.replace('/'+absolute_url_arr[1], results[0].ri);
 
             if (url.parse(absolute_url).pathname == ('/' + usecsebase)) {

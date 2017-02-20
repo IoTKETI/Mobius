@@ -47,21 +47,21 @@ exports.search_parents_lookup = function(ri, callback) {
     });
 };
 
-exports.get_sri_shortid = function (ri, callback) {
+exports.get_sri_sri = function (ri, callback) {
     var sql = util.format('select sri from sri where ri = \'%s\'', ri);
     db.getResult(sql, '', function (err, results) {
         callback(err, results);
     });
 };
 
-exports.get_ri_shortid = function (sri, callback) {
+exports.get_ri_sri = function (sri, callback) {
     var sql = util.format('select ri from sri where sri = \'%s\'', sri);
     db.getResult(sql, '', function (err, results) {
         callback(err, results);
     });
 };
 
-function set_sri(ri, sri, callback) {
+function set_sri_sri(ri, sri, callback) {
     var sql = util.format('insert into sri (ri, sri) value (\'%s\', \'%s\')', ri, sri);
     db.getResult(sql, '', function (err, results) {
         callback(err, results);
@@ -76,7 +76,7 @@ exports.insert_lookup = function(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, 
         ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st, mni, cs, sri, spi);
     db.getResult(sql, '', function (err, results) {
         if(!err) {
-            set_sri(ri, sri, function (err, results) {
+            set_sri_sri(ri, sri, function (err, results) {
                 console.timeEnd('insert_lookup ' + ri);
                 callback(err, results);
             });

@@ -93,7 +93,7 @@ function parse_create_action(callback) {
                 });
             }
             else {
-                db_sql.get_sri_shortid(resource_Obj[rootnm].pi, function (err, results) {
+                db_sql.get_sri_sri(resource_Obj[rootnm].pi, function (err, results) {
                     if (!err) {
                         resource_Obj[rootnm].spi = (results.length == 0) ? '' : results[0].sri;
                         resource_Obj[rootnm].sri = require('shortid').generate();
