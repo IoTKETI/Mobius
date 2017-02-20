@@ -54,8 +54,10 @@ function parse_create_action(callback) {
     resource_Obj[rootnm].srt.push('2');
     resource_Obj[rootnm].srt.push('3');
     resource_Obj[rootnm].srt.push('4');
+    resource_Obj[rootnm].srt.push('9');
     resource_Obj[rootnm].srt.push('10');
     resource_Obj[rootnm].srt.push('16');
+    resource_Obj[rootnm].srt.push('17');
     resource_Obj[rootnm].srt.push('23');
     resource_Obj[rootnm].srt.push('24');
     resource_Obj[rootnm].srt.push('29');

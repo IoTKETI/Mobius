@@ -40,7 +40,7 @@ exports.select_csr = function(ri, callback) {
 
 exports.search_parents_lookup = function(ri, callback) {
     console.time('search_parents_lookup ' + ri);
-    var sql = util.format("select ri from lookup where (ri =\'%s\' or pi=\'%s\' or pi like \'%s/%%\') and ty != \'4\' and ty != \'23\' and ty != \'30\' and ty != \'9\'", ri, ri, ri);
+    var sql = util.format("select ri from lookup where (ri =\'%s\' or pi=\'%s\' or pi like \'%s/%%\') and ty != \'4\' and ty != \'23\' and ty != \'30\' and ty != \'9\' and ty != \'17\'", ri, ri, ri);
     db.getResult(sql, '', function (err, result_lookup_ri) {
         console.timeEnd('search_parents_lookup ' + ri);
         callback(err, result_lookup_ri);
@@ -300,6 +300,32 @@ exports.insert_csr = function(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st,
     });
 };
 
+exports.insert_req = function(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st, mni, cs, sri, spi, op, tg, org, rid, mi, pc, rs, ors, callback) {
+    console.time('insert_req ' + ri);
+    _this.insert_lookup(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st, mni, cs, sri, spi, function (err, results) {
+        if(!err) {
+            var sql = util.format('insert into req (ri, op, tg, org, rid, mi, pc, rs, ors) ' +
+                'value (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
+                ri, op, tg, org, rid, mi, pc, rs, ors);
+            db.getResult(sql, '', function (err, results) {
+                if(!err) {
+                    console.timeEnd('insert_req ' + ri);
+                    callback(err, results);
+                }
+                else {
+                    sql = util.format("delete from lookup where ri = \'%s\'", ri);
+                    db.getResult(sql, '', function () {
+                        callback(err, results);
+                    });
+                }
+            });
+        }
+        else {
+            callback(err, results);
+        }
+    });
+};
+
 exports.insert_sub = function(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st, mni, cs, sri, spi, enc, exc, nu, gpi, nfu, bn, rl, psn, pn, nsp, ln, nct, nec, cr, su, callback) {
     console.time('insert_sub ' + ri);
     _this.insert_lookup(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st, mni, cs, sri, spi, function (err, results) {
@@ -533,7 +559,7 @@ function build_discovery_sql(ty, lbl, cra, crb, lim, ofst, pi_list, bef_ct, cur_
         }
     }
 
-    query_where = util.format("select a.* from (select ri from lookup where pi in ("+JSON.stringify(pi_list).replace('[','').replace(']','')+") %s and (ct > \'%s\' and ct <= \'%s\') order by ct desc limit 1000) b left join lookup as a on b.ri = a.ri", ty_str, bef_ct, cur_ct) + query_where;
+    query_where = util.format("select a.* from (select ri from lookup where (ri in ("+JSON.stringify(pi_list).replace('[','').replace(']','')+") or pi in ("+JSON.stringify(pi_list).replace('[','').replace(']','')+")) %s and (ct > \'%s\' and ct <= \'%s\') order by ct desc limit 1000) b left join lookup as a on b.ri = a.ri", ty_str, bef_ct, cur_ct) + query_where;
 
     return query_where;
 }
@@ -596,7 +622,7 @@ exports.search_lookup = function (ty, lbl, cra, crb, lim, ofst, lvl, pi_list, pi
     //console.log(sql);
     db.getResult(sql, '', function (err, search_Obj) {
         if(!err) {
-            make_json_arraytype(search_Obj);
+            //make_json_arraytype(search_Obj);
             for(var i = 0; i < search_Obj.length; i++) {
                 found_Obj[found_Cnt++] = search_Obj[i];
                 if(found_Cnt >= lim) {
@@ -965,6 +991,21 @@ exports.update_csr = function (lt, acpi, et, st, lbl, at, aa, mni, ri, poa, mei,
                     callback(err, results);
                 }
             });
+        }
+        else {
+            callback(err, results);
+        }
+    });
+};
+
+exports.update_req = function (ri, pc, rs, callback) {
+    console.time('update_req ' + ri);
+    //var sql2 = util.format('update req set pc = \'%s\', rs = \'%s\' where ri = \'%s\'', (new Buffer(pc)).toString('base64'), rs, ri);
+    var sql2 = util.format('update req set pc = \'%s\', rs = \'%s\' where ri = \'%s\'', pc, rs, ri);
+    db.getResult(sql2, '', function (err, results) {
+        if (!err) {
+            console.timeEnd('update_req ' + ri);
+            callback(err, results);
         }
         else {
             callback(err, results);

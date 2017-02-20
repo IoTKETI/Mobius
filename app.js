@@ -273,7 +273,7 @@ global.make_json_arraytype = function(body_Obj) {
             }
         }
     }
-}
+};
 
 function check_http_body(request, response, callback) {
     var body_Obj = {};
@@ -323,6 +323,13 @@ function check_http_body(request, response, callback) {
             body_Obj = JSON.parse(request.body);
             make_short_nametype(request.headers.nmtype, body_Obj);
 
+            if(Object.keys(body_Obj)[0] == 'undefined') {
+                body_Obj = {};
+                body_Obj['dbg'] = 'root tag of body is not matched';
+                responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
+                callback('0', body_Obj);
+                return 0;
+            }
             callback('1', body_Obj, content_type);
         }
         catch (e) {
@@ -415,6 +422,14 @@ function check_http(request, response, callback) {
                         return '0';
                     }
 
+                    if(ty == '17') {
+                        body_Obj = {};
+                        body_Obj['dbg'] = 'OPERATION_NOT_ALLOWED (req is not supported when post request)';
+                        responder.response_result(request, response, 405, body_Obj, 4005, request.url, body_Obj['dbg']);
+                        callback('0');
+                        return '0';
+                    }
+
                     if (responder.typeRsrc[ty] != Object.keys(body_Obj)[0]) {
                         body_Obj = {};
                         body_Obj['dbg'] = 'ty [' + ty + '] is different with body (' + Object.keys(body_Obj)[0] + ')';
@@ -426,16 +441,25 @@ function check_http(request, response, callback) {
                 else {
                     for (var ty_idx in responder.typeRsrc) {
                         if (responder.typeRsrc.hasOwnProperty(ty_idx)) {
-                            if ((ty_idx != 4) && (responder.typeRsrc[ty_idx] == Object.keys(body_Obj)[0])) {
-                                ty = ty_idx;
-                                break;
-                            }
-                            else if ((ty_idx == 4) && (responder.typeRsrc[ty_idx] == Object.keys(body_Obj)[0])) {
+                            if ((ty_idx == 4) && (responder.typeRsrc[ty_idx] == Object.keys(body_Obj)[0])) {
                                 body_Obj = {};
                                 body_Obj['dbg'] = 'Update cin is not supported';
                                 responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
                                 callback('0', body_Obj);
                                 return '0';
+                            }
+                            else if ((ty_idx != 4) && (responder.typeRsrc[ty_idx] == Object.keys(body_Obj)[0])) {
+                                if ((ty_idx == 17) && (responder.typeRsrc[ty_idx] == Object.keys(body_Obj)[0])) {
+                                    body_Obj = {};
+                                    body_Obj['dbg'] = 'OPERATION_NOT_ALLOWED (req is not supported when put request)';
+                                    responder.response_result(request, response, 405, body_Obj, 4005, request.url, body_Obj['dbg']);
+                                    callback('0');
+                                    return 0;
+                                }
+                                else {
+                                    ty = ty_idx;
+                                    break;
+                                }
                             }
                         }
                     }
@@ -624,17 +648,17 @@ function check_resource(request, response, callback) {
     var last_url = url_arr[url_arr.length-1];
     var op = 'direct';
 
-    if(last_url == 'latest' || last_url == 'la') {
+    if (last_url == 'latest' || last_url == 'la') {
         ri = ri.replace('/latest', '');
         ri = ri.replace('/la', '');
         op = 'latest';
         db_sql.select_direct_lookup(ri, function (err, result_Obj) {
-            if(!err) {
+            if (!err) {
                 if (result_Obj.length == 1) {
-                    if(result_Obj[0].ty == '3') {
+                    if (result_Obj[0].ty == '3') {
                         var cur_ty = '4';
                     }
-                    else if(result_Obj[0].ty == '29') {
+                    else if (result_Obj[0].ty == '29') {
                         cur_ty = '30';
                     }
                     else {
@@ -690,12 +714,12 @@ function check_resource(request, response, callback) {
             }
         });
     }
-    else if(last_url == 'oldest' || last_url == 'ol') {
+    else if (last_url == 'oldest' || last_url == 'ol') {
         ri = ri.replace('/oldest', '');
         ri = ri.replace('/ol', '');
         op = 'oldest';
         db_sql.select_oldest_lookup(ri, function (err, result_Obj) {
-            if(!err) {
+            if (!err) {
                 if (result_Obj.length == 1) {
                     result_Obj[0].acpi = JSON.parse(result_Obj[0].acpi);
                     result_Obj[0].lbl = JSON.parse(result_Obj[0].lbl);
@@ -721,12 +745,12 @@ function check_resource(request, response, callback) {
             }
         });
     }
-    else if(last_url == 'fanoutpoint' || last_url == 'fopt') {
+    else if (last_url == 'fanoutpoint' || last_url == 'fopt') {
         ri = ri.replace('/fanoutpoint', '');
         ri = ri.replace('/fopt', '');
         op = 'fanoutpoint';
         db_sql.select_grp_lookup(ri, function (err, result_Obj) {
-            if(!err) {
+            if (!err) {
                 if (result_Obj.length == 1) {
                     result_Obj[0].acpi = JSON.parse(result_Obj[0].acpi);
                     result_Obj[0].lbl = JSON.parse(result_Obj[0].lbl);
@@ -756,7 +780,7 @@ function check_resource(request, response, callback) {
         op = 'direct';
         console.log('X-M2M-Origin: ' + request.headers['x-m2m-origin']);
         db_sql.select_direct_lookup(ri, function (err, result_Obj) {
-            if(!err) {
+            if (!err) {
                 if (result_Obj.length == 1) {
                     result_Obj[0].acpi = JSON.parse(result_Obj[0].acpi);
                     result_Obj[0].lbl = JSON.parse(result_Obj[0].lbl);
@@ -783,6 +807,48 @@ function check_resource(request, response, callback) {
     }
 }
 
+function create_req(request, response, callback) {
+
+}
+
+function check_rt_query(request, response, callback) {
+    var ri = url.parse(request.url).pathname;
+
+    var url_arr = ri.split('/');
+    var last_url = url_arr[url_arr.length-1];
+    var op = 'direct';
+
+    if(request.query.rt == 3) { // default, blocking
+        check_resource(request, response, function (rsc, parent_comm, op) {
+            callback(rsc, parent_comm, op);
+        });
+    }
+    else if (request.query.rt == 1) { // nodblocking
+        // first create request resource under CSEBase
+        var temp_rootnm = request.headers.rootnm;
+        var temp_rt = request.query.rt;
+        var ty = '17';
+        var body_Obj = {req: {}};
+        request.headers.rootnm = Object.keys(body_Obj)[0];
+        request.query.rt = 3;
+        resource.create(request, response, ty, body_Obj, function (rsc) {
+            if(rsc == '1') {
+                request.headers.rootnm = temp_rootnm;
+                request.query.rt = 1;
+                check_resource(request, response, function (rsc, parent_comm, op) {
+                    callback(rsc, parent_comm, op);
+                });
+            }
+        });
+    }
+    else {
+        body_Obj = {};
+        body_Obj['dbg'] = 'OPERATION_NOT_ALLOWED (rt query is not supported)';
+        responder.response_result(request, response, 405, body_Obj, 4005, request.url, body_Obj['dbg']);
+        callback('0');
+        return '0';
+    }
+}
 
 function check_grp(request, response, ri, callback) {
     db_sql.select_grp(ri, function(err, result_Obj) {
@@ -820,7 +886,7 @@ function lookup_create(request, response) {
         if(ty == '0') {
             return ty;
         }
-        check_resource(request, response, function (rsc, parent_comm, op) {
+        check_rt_query(request, response, function (rsc, parent_comm, op) {
             if(rsc == '0') {
                 return rsc;
             }
@@ -905,7 +971,9 @@ function lookup_create(request, response) {
                         responder.response_result(request, response, 403, body_Obj, 4103, request.url, 'ACCESS_DENIED');
                         return '0';
                     }
-                    resource.create(request, response, ty, body_Obj);
+                    resource.create(request, response, ty, body_Obj, function (rsc) {
+
+                    });
                 });
             }
         });
@@ -917,7 +985,7 @@ function lookup_retrieve(request, response) {
         if (option == '0') {
             return option;
         }
-        check_resource(request, response, function (rsc, results_comm, op) {
+        check_rt_query(request, response, function (rsc, results_comm, op) {
             if (rsc == '0') {
                 return rsc;
             }
@@ -962,7 +1030,7 @@ function lookup_update(request, response) {
         if (option == '0') {
             return option;
         }
-        check_resource(request, response, function (rsc, results_comm, op) {
+        check_rt_query(request, response, function (rsc, results_comm, op) {
             if (rsc == '0') {
                 return rsc;
             }
@@ -1008,7 +1076,7 @@ function lookup_delete(request, response) {
         if (option == '0') {
             return option;
         }
-        check_resource(request, response, function (rsc, results_comm, op) {
+        check_rt_query(request, response, function (rsc, results_comm, op) {
             if (rsc == '0') {
                 return rsc;
             }
@@ -1070,12 +1138,15 @@ app.post(onem2mParser, function(request, response) {
         if(request.query.rcn == null) {
             request.query.rcn = 1;
         }
+        if(request.query.rt == null) {
+            request.query.rt = 3;
+        }
         //request.url = request.url.replace(/\/$/, "");
         //var url_arr = url.parse(request.url).pathname.split('/');
         var absolute_url = request.url.replace(/\/~\/[^\/]+\/?/, '/').split('#')[0];
         absolute_url = absolute_url.replace(/\/_/, '/'+usecsebase);
         var absolute_url_arr = absolute_url.split('/');
-        db_sql.get_ri_shortid(absolute_url_arr[1], function (err, results) {
+        db_sql.get_ri_shortid(absolute_url_arr[1].split('?')[0], function (err, results) {
             absolute_url = (results.length == 0) ? absolute_url : absolute_url.replace('/'+absolute_url_arr[1], results[0].ri);
 
             if(url.parse(absolute_url).pathname.split('/')[1] == usecsebase) {
@@ -1126,12 +1197,15 @@ app.get(onem2mParser, function(request, response) {
         if(request.query.rcn == null) {
             request.query.rcn = 1;
         }
+        if(request.query.rt == null) {
+            request.query.rt = 3;
+        }
         request.url = request.url.replace('%23', '#'); // convert '%23' to '#' of url
         request.hash = url.parse(request.url).hash;
         var absolute_url = request.url.replace(/\/~\/[^\/]+\/?/, '/').split('#')[0];
         absolute_url = absolute_url.replace(/\/_/, '/'+usecsebase);
         var absolute_url_arr = absolute_url.split('/');
-        db_sql.get_ri_shortid(absolute_url_arr[1], function (err, results) {
+        db_sql.get_ri_shortid(absolute_url_arr[1].split('?')[0], function (err, results) {
             absolute_url = (results.length == 0) ? absolute_url : absolute_url.replace('/'+absolute_url_arr[1], results[0].ri);
 
             if(url.parse(absolute_url).pathname.split('/')[1] == usecsebase) {
@@ -1182,12 +1256,15 @@ app.put(onem2mParser, function(request, response) {
         if(request.query.rcn == null) {
             request.query.rcn = 1;
         }
+        if(request.query.rt == null) {
+            request.query.rt = 3;
+        }
         //request.url = request.url.replace(/\/$/, "");
         //var url_arr = url.parse(request.url).pathname.split('/');
         var absolute_url = request.url.replace(/\/~\/[^\/]+\/?/, '/').split('#')[0];
         absolute_url = absolute_url.replace(/\/_/, '/'+usecsebase);
         var absolute_url_arr = absolute_url.split('/');
-        db_sql.get_ri_shortid(absolute_url_arr[1], function (err, results) {
+        db_sql.get_ri_shortid(absolute_url_arr[1].split('?')[0], function (err, results) {
             absolute_url = (results.length == 0) ? absolute_url : absolute_url.replace('/'+absolute_url_arr[1], results[0].ri);
 
             if (url.parse(absolute_url).pathname == ('/' + usecsebase)) {
@@ -1242,12 +1319,15 @@ app.delete(onem2mParser, function(request, response) {
         if(request.query.rcn == null) {
             request.query.rcn = 1;
         }
+        if(request.query.rt == null) {
+            request.query.rt = 3;
+        }
         //request.url = request.url.replace(/\/$/, "");
         //var url_arr = url.parse(request.url).pathname.split('/');
         var absolute_url = request.url.replace(/\/~\/[^\/]+\/?/, '/').split('#')[0];
         absolute_url = absolute_url.replace(/\/_/, '/'+usecsebase);
         var absolute_url_arr = absolute_url.split('/');
-        db_sql.get_ri_shortid(absolute_url_arr[1], function (err, results) {
+        db_sql.get_ri_shortid(absolute_url_arr[1].split('?')[0], function (err, results) {
             absolute_url = (results.length == 0) ? absolute_url : absolute_url.replace('/'+absolute_url_arr[1], results[0].ri);
 
             if (url.parse(absolute_url).pathname == ('/' + usecsebase)) {
