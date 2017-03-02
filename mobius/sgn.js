@@ -344,6 +344,11 @@ function request_noti_mqtt(nu, ri, xmlString, bodytype, xm2mri) {
         if(e.message != 'read ECONNRESET') {
             console.log('[request_noti_mqtt - ' + usepxymqttport + '] problem with request: ' + e.message);
         }
+        req.destroy(e);
+    });
+
+    req.on('close', function() {
+        console.log('close');
     });
 
     req.write(xmlString);

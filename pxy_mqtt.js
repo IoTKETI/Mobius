@@ -249,7 +249,7 @@ function make_json_obj(bodytype, str, callback) {
 
 function mqtt_message_handler(topic, message) {
     console.log(topic);
-    console.log(message.toString());
+    //console.log(message.toString());
     var topic_arr = topic.split("/");
     if(topic_arr[5] != null) {
         //var bodytype = (topic_arr[5] == 'xml') ? topic_arr[5] : ((topic_arr[5] == 'json') ? topic_arr[5] : 'json');
@@ -435,8 +435,8 @@ function mqtt_binding(op, to, fr, rqi, ty, pc, bodytype, callback) {
 
     // write data to request body
 
-    console.log(options);
-    console.log(reqBodyString);
+    //console.log(options);
+    //console.log(reqBodyString);
 
     req.write(reqBodyString);
     req.end();

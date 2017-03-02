@@ -49,7 +49,7 @@ var app = express();
 
 global.M2M_SP_ID = '//mobius.keti.re.kr';
 
-global.randomValueBase64 = function(len) {
+global.randomValueBase64 = function (len) {
     return crypto.randomBytes(Math.ceil(len * 3 / 4))
         .toString('base64')   // convert to base64 format
         .slice(0, len)        // return required number of characters
@@ -57,11 +57,11 @@ global.randomValueBase64 = function(len) {
         .replace(/\//g, '0'); // replace '/' with '0'
 };
 
-global.randomIntInc = function(low, high) {
+global.randomIntInc = function (low, high) {
     return Math.floor(Math.random() * (high - low + 1) + low);
 };
 
-global.randomValue = function(qty) {
+global.randomValue = function (qty) {
     return crypto.randomBytes(qty).toString(2);
 };
 
@@ -79,7 +79,7 @@ var accessLogStream = fileStreamRotator.getStream({
 });
 
 // setup the logger
-app.use( morgan('combined', {stream: accessLogStream}));
+app.use(morgan('combined', {stream: accessLogStream}));
 //ts_app.use(morgan('short', {stream: accessLogStream}));
 
 var cluster = require('cluster');
@@ -87,7 +87,7 @@ var os = require('os');
 var cpuCount = os.cpus().length;
 var worker = [];
 const use_clustering = 1;
-if(use_clustering) {
+if (use_clustering) {
     if (cluster.isMaster) {
         cluster.on('death', function (worker) {
             console.log('worker' + worker.pid + ' died --> start again');
@@ -160,14 +160,14 @@ else {
 }
 
 
-global.update_route = function(callback) {
+global.update_route = function (callback) {
     var cse_poa = {};
     db_sql.select_csr_like(usecsebase, function (err, results_csr) {
-        if(!err) {
-            for(var i = 0; i < results_csr.length; i++) {
+        if (!err) {
+            for (var i = 0; i < results_csr.length; i++) {
                 var poa_arr = JSON.parse(results_csr[i].poa);
-                for(var j = 0; j < poa_arr.length; j++) {
-                    if(url.parse(poa_arr[j]).protocol == 'http:') {
+                for (var j = 0; j < poa_arr.length; j++) {
+                    if (url.parse(poa_arr[j]).protocol == 'http:') {
                         cse_poa[results_csr[i].ri.split('/')[2]] = poa_arr[j];
                     }
                 }
@@ -179,13 +179,13 @@ global.update_route = function(callback) {
 
 
 function make_short_nametype(nmtype, body_Obj) {
-    if(nmtype == 'long') {
+    if (nmtype == 'long') {
         var rsrcLongName = Object.keys(body_Obj)[0].split(':')[1];
         if (responder.rsrcSname.hasOwnProperty(rsrcLongName)) {
             var rsrcShortName = responder.rsrcSname[rsrcLongName];
             body_Obj[rsrcShortName] = {};
-            for(var index in body_Obj['m2m:'+rsrcLongName]) {
-                if(body_Obj['m2m:'+rsrcLongName].hasOwnProperty(index)) {
+            for (var index in body_Obj['m2m:' + rsrcLongName]) {
+                if (body_Obj['m2m:' + rsrcLongName].hasOwnProperty(index)) {
                     if (index == "$") {
                         if (body_Obj['m2m:' + rsrcLongName][index]['resourceName'] != null) {
                             body_Obj[rsrcShortName].rn = body_Obj['m2m:' + rsrcLongName][index]['resourceName'];
@@ -205,15 +205,15 @@ function make_short_nametype(nmtype, body_Obj) {
                     delete body_Obj['m2m:' + rsrcLongName][index];
                 }
             }
-            delete body_Obj['m2m:'+rsrcLongName];
+            delete body_Obj['m2m:' + rsrcLongName];
         }
         else {
             return '0';
         }
     }
     else {
-        if(body_Obj[Object.keys(body_Obj)[0]]['$'] != null) {
-            if(body_Obj[Object.keys(body_Obj)[0]]['$'].rn != null) {
+        if (body_Obj[Object.keys(body_Obj)[0]]['$'] != null) {
+            if (body_Obj[Object.keys(body_Obj)[0]]['$'].rn != null) {
                 body_Obj[Object.keys(body_Obj)[0]].rn = body_Obj[Object.keys(body_Obj)[0]]['$'].rn;
             }
             delete body_Obj[Object.keys(body_Obj)[0]]['$'];
@@ -223,22 +223,30 @@ function make_short_nametype(nmtype, body_Obj) {
     }
 }
 
-global.make_json_arraytype = function(body_Obj) {
+global.make_json_arraytype = function (body_Obj) {
     for (var prop in body_Obj) {
         if (body_Obj.hasOwnProperty(prop)) {
             for (var attr in body_Obj[prop]) {
                 if (body_Obj[prop].hasOwnProperty(attr)) {
                     if (attr == 'aa' || attr == 'at' || attr == 'poa' || attr == 'lbl' || attr == 'acpi' || attr == 'srt' || attr == 'nu' || attr == 'mid' || attr == 'macp') {
-                        if(body_Obj[prop][attr]) {
+                        if (body_Obj[prop][attr]) {
                             body_Obj[prop][attr] = body_Obj[prop][attr].split(' ');
                         }
 
-                        if(body_Obj[prop][attr] == '') {
+                        if (body_Obj[prop][attr] == '') {
                             body_Obj[prop][attr] = [];
                         }
 
-                        if(body_Obj[prop][attr] == '[]') {
+                        if (body_Obj[prop][attr] == '[]') {
                             body_Obj[prop][attr] = [];
+                        }
+                    }
+
+                    if (attr == 'enc') {
+                        if (body_Obj[prop][attr]) {
+                            if (body_Obj[prop][attr].net) {
+                                body_Obj[prop][attr].net = body_Obj[prop][attr].net.split(' ');
+                            }
                         }
                     }
 
@@ -278,7 +286,7 @@ global.make_json_arraytype = function(body_Obj) {
 function check_http_body(request, response, callback) {
     var body_Obj = {};
 
-    if(request.body == "") {
+    if (request.body == "") {
         body_Obj = {};
         body_Obj['dbg'] = 'body is empty';
         responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
@@ -286,7 +294,7 @@ function check_http_body(request, response, callback) {
         return '0';
     }
 
-    console.log(request.body);
+    //console.log(request.body);
 
     try {
         var content_type = request.headers['content-type'].split(';');
@@ -323,7 +331,7 @@ function check_http_body(request, response, callback) {
             body_Obj = JSON.parse(request.body);
             make_short_nametype(request.headers.nmtype, body_Obj);
 
-            if(Object.keys(body_Obj)[0] == 'undefined') {
+            if (Object.keys(body_Obj)[0] == 'undefined') {
                 body_Obj = {};
                 body_Obj['dbg'] = 'root tag of body is not matched';
                 responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
@@ -361,7 +369,7 @@ function check_http(request, response, callback) {
     }
 
     // Check X-M2M-RI Header
-    if( (request.headers['x-m2m-ri'] == null) ) {
+    if ((request.headers['x-m2m-ri'] == null)) {
         body_Obj = {};
         body_Obj['dbg'] = 'X-M2M-RI is none';
         responder.response_result(request, response, 400, body_Obj, 4000, request.url, 'X-M2M-RI is none');
@@ -370,7 +378,7 @@ function check_http(request, response, callback) {
     }
 
     // Check X-M2M-Origin Header
-    if( (request.headers['x-m2m-origin'] == null || request.headers['x-m2m-origin'] == '') ) {
+    if ((request.headers['x-m2m-origin'] == null || request.headers['x-m2m-origin'] == '')) {
         body_Obj = {};
         body_Obj['dbg'] = 'X-M2M-Origin Header is none';
         responder.response_result(request, response, 400, body_Obj, 4000, request.url, 'X-M2M-Origin is none');
@@ -379,25 +387,25 @@ function check_http(request, response, callback) {
     }
 
     /*if (request.headers['x-m2m-origin'].substr(0, 1) != '/' && request.headers['x-m2m-origin'].substr(0, 1) != 'S' && request.headers['x-m2m-origin'].substr(0, 1) != 'C') {
-        body_Obj = {};
-        body_Obj['dbg'] = 'AE-ID should start capital S or C or / in X-M2M-Origin Header';
-        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-        callback('0', body_Obj);
-        return '0';
-    }*/ // ignore value of Origin tag
+     body_Obj = {};
+     body_Obj['dbg'] = 'AE-ID should start capital S or C or / in X-M2M-Origin Header';
+     responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
+     callback('0', body_Obj);
+     return '0';
+     }*/ // ignore value of Origin tag
 
     /*if (request.method != 'POST' && (request.headers['x-m2m-origin'] == 'S' || request.headers['x-m2m-origin'] == 'C' || request.headers['x-m2m-origin'] == '/')) {
-        body_Obj = {};
-        body_Obj['dbg'] = 'When GET, PUT, DELETE request, AE-ID should be full AE-ID in X-M2M-Origin Header';
-        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-        callback('0', body_Obj);
-        return '0';
-    }*/
+     body_Obj = {};
+     body_Obj['dbg'] = 'When GET, PUT, DELETE request, AE-ID should be full AE-ID in X-M2M-Origin Header';
+     responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
+     callback('0', body_Obj);
+     return '0';
+     }*/
 
     var url_arr = url.parse(request.url).pathname.split('/');
-    var last_url = url_arr[url_arr.length-1];
+    var last_url = url_arr[url_arr.length - 1];
 
-    if(request.method == 'POST' || request.method == 'PUT') {
+    if (request.method == 'POST' || request.method == 'PUT') {
         // if(content_type[0].split('+')[0] != 'application/vnd.onem2m-res') {
         //     body_Obj['dbg'] = 'Content-Type is not match (application/vnd.onem2m-res)';
         //     responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
@@ -408,9 +416,9 @@ function check_http(request, response, callback) {
         //resource.set_rootnm(request, ty);
         //var rootnm = request.headers.rootnm;
 
-        check_http_body(request, response, function(rsc, body_Obj, content_type) {
-            if(rsc == '1') {
-                if(request.method == 'POST') {
+        check_http_body(request, response, function (rsc, body_Obj, content_type) {
+            if (rsc == '1') {
+                if (request.method == 'POST') {
                     try {
                         var ty = content_type[1].split('=')[1];
                     }
@@ -422,7 +430,7 @@ function check_http(request, response, callback) {
                         return '0';
                     }
 
-                    if(ty == '17') {
+                    if (ty == '17') {
                         body_Obj = {};
                         body_Obj['dbg'] = 'OPERATION_NOT_ALLOWED (req is not supported when post request)';
                         responder.response_result(request, response, 405, body_Obj, 4005, request.url, body_Obj['dbg']);
@@ -621,11 +629,11 @@ function check_http(request, response, callback) {
             }
         });
     }
-    else if(request.method == 'GET' || request.method == 'DELETE') {
-        if(last_url == 'latest' || last_url == 'la') {
+    else if (request.method == 'GET' || request.method == 'DELETE') {
+        if (last_url == 'latest' || last_url == 'la') {
             callback('latest', body_Obj);
         }
-        else if(last_url == 'oldest' || last_url == 'ol') {
+        else if (last_url == 'oldest' || last_url == 'ol') {
             callback('oldest', body_Obj);
         }
         else {
@@ -645,7 +653,7 @@ function check_resource(request, response, callback) {
     var ri = url.parse(request.url).pathname;
 
     var url_arr = ri.split('/');
-    var last_url = url_arr[url_arr.length-1];
+    var last_url = url_arr[url_arr.length - 1];
     var op = 'direct';
 
     if (last_url == 'latest' || last_url == 'la') {
@@ -807,18 +815,14 @@ function check_resource(request, response, callback) {
     }
 }
 
-function create_req(request, response, callback) {
-
-}
-
 function check_rt_query(request, response, callback) {
-    var ri = url.parse(request.url).pathname;
+    //var ri = url.parse(request.url).pathname;
 
-    var url_arr = ri.split('/');
-    var last_url = url_arr[url_arr.length-1];
-    var op = 'direct';
+    //var url_arr = ri.split('/');
+    //var last_url = url_arr[url_arr.length-1];
+    //var op = 'direct';
 
-    if(request.query.rt == 3) { // default, blocking
+    if (request.query.rt == 3) { // default, blocking
         check_resource(request, response, function (rsc, parent_comm, op) {
             callback(rsc, parent_comm, op);
         });
@@ -826,13 +830,13 @@ function check_rt_query(request, response, callback) {
     else if (request.query.rt == 1) { // nodblocking
         // first create request resource under CSEBase
         var temp_rootnm = request.headers.rootnm;
-        var temp_rt = request.query.rt;
+        //var temp_rt = request.query.rt;
         var ty = '17';
         var body_Obj = {req: {}};
         request.headers.rootnm = Object.keys(body_Obj)[0];
         request.query.rt = 3;
         resource.create(request, response, ty, body_Obj, function (rsc) {
-            if(rsc == '1') {
+            if (rsc == '1') {
                 request.headers.rootnm = temp_rootnm;
                 request.query.rt = 1;
                 check_resource(request, response, function (rsc, parent_comm, op) {
@@ -851,8 +855,8 @@ function check_rt_query(request, response, callback) {
 }
 
 function check_grp(request, response, ri, callback) {
-    db_sql.select_grp(ri, function(err, result_Obj) {
-        if(!err) {
+    db_sql.select_grp(ri, function (err, result_Obj) {
+        if (!err) {
             if (result_Obj.length == 1) {
                 result_Obj[0].macp = JSON.parse(result_Obj[0].macp);
                 result_Obj[0].mid = JSON.parse(result_Obj[0].mid);
@@ -882,21 +886,21 @@ function check_grp(request, response, ri, callback) {
  * @param response
  */
 function lookup_create(request, response) {
-    check_http(request, response, function(ty, body_Obj) {
-        if(ty == '0') {
+    check_http(request, response, function (ty, body_Obj) {
+        if (ty == '0') {
             return ty;
         }
         check_rt_query(request, response, function (rsc, parent_comm, op) {
-            if(rsc == '0') {
+            if (rsc == '0') {
                 return rsc;
             }
 
             var rootnm = request.headers.rootnm;
 
-            if(op == 'fanoutpoint') {
+            if (op == 'fanoutpoint') {
                 // check access right for fanoutpoint
                 check_grp(request, response, parent_comm.ri, function (rsc, result_grp) {
-                    if(rsc == '0') {
+                    if (rsc == '0') {
                         return rsc;
                     }
 
@@ -918,9 +922,9 @@ function lookup_create(request, response) {
                 else if ((ty == 9) && (parent_comm.ty == 5 || parent_comm.ty == 16 || parent_comm.ty == 2)) { // group
                 }
                 else if ((ty == 16) && (parent_comm.ty == 5)) { // remoteCSE
-                    if(usecsetype == 'asn') {
+                    if (usecsetype == 'asn') {
                         body_Obj = {};
-                                    body_Obj['dbg'] = 'ASC CSE can not have child CSE (remoteCSE)';
+                        body_Obj['dbg'] = 'ASC CSE can not have child CSE (remoteCSE)';
                         responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
                         return '0';
                     }
@@ -959,7 +963,7 @@ function lookup_create(request, response) {
                 }
 
                 for (var index in parent_comm.acpi) {
-                    if(parent_comm.acpi.hasOwnProperty(index)) {
+                    if (parent_comm.acpi.hasOwnProperty(index)) {
                         body_Obj[rootnm].acpi.push(parent_comm.acpi[index]);
                     }
                 }
@@ -981,7 +985,7 @@ function lookup_create(request, response) {
 }
 
 function lookup_retrieve(request, response) {
-    check_http(request, response, function(option, body_Obj) {
+    check_http(request, response, function (option, body_Obj) {
         if (option == '0') {
             return option;
         }
@@ -990,10 +994,10 @@ function lookup_retrieve(request, response) {
                 return rsc;
             }
 
-            if(op == 'fanoutpoint') {
+            if (op == 'fanoutpoint') {
                 // check access right for fanoutpoint
                 check_grp(request, response, results_comm.ri, function (rsc, result_grp) {
-                    if(rsc == '0') {
+                    if (rsc == '0') {
                         return rsc;
                     }
 
@@ -1026,7 +1030,7 @@ function lookup_retrieve(request, response) {
 }
 
 function lookup_update(request, response) {
-    check_http(request, response, function(option, body_Obj) {
+    check_http(request, response, function (option, body_Obj) {
         if (option == '0') {
             return option;
         }
@@ -1035,10 +1039,10 @@ function lookup_update(request, response) {
                 return rsc;
             }
 
-            if(op == 'fanoutpoint') {
+            if (op == 'fanoutpoint') {
                 // check access right for fanoutpoint
                 check_grp(request, response, results_comm.ri, function (rsc, result_grp) {
-                    if(rsc == '0') {
+                    if (rsc == '0') {
                         return rsc;
                     }
 
@@ -1072,7 +1076,7 @@ function lookup_update(request, response) {
 }
 
 function lookup_delete(request, response) {
-    check_http(request, response, function(option, body_Obj) {
+    check_http(request, response, function (option, body_Obj) {
         if (option == '0') {
             return option;
         }
@@ -1081,10 +1085,10 @@ function lookup_delete(request, response) {
                 return rsc;
             }
 
-            if(op == 'fanoutpoint') {
+            if (op == 'fanoutpoint') {
                 // check access right for fanoutpoint
                 check_grp(request, response, results_comm.ri, function (rsc, result_grp) {
-                    if(rsc == '0') {
+                    if (rsc == '0') {
                         return rsc;
                     }
 
@@ -1125,33 +1129,33 @@ var onem2mParser = bodyParser.text(
 //var onem2mParser = bodyParser.text({ limit: '1mb', type: '*/*' });
 
 // remoteCSE, ae, cnt
-app.post(onem2mParser, function(request, response) {
+app.post(onem2mParser, function (request, response) {
     var fullBody = '';
-    request.on('data', function(chunk) {
+    request.on('data', function (chunk) {
         fullBody += chunk.toString();
     });
-    request.on('end', function() {
+    request.on('end', function () {
         request.body = fullBody;
-        if(request.query.fu == null) {
+        if (request.query.fu == null) {
             request.query.fu = 2;
         }
-        if(request.query.rcn == null) {
+        if (request.query.rcn == null) {
             request.query.rcn = 1;
         }
-        if(request.query.rt == null) {
+        if (request.query.rt == null) {
             request.query.rt = 3;
         }
         //request.url = request.url.replace(/\/$/, "");
         //var url_arr = url.parse(request.url).pathname.split('/');
         var absolute_url = request.url.replace(/\/~\/[^\/]+\/?/, '/').split('#')[0];
-        absolute_url = absolute_url.replace(/\/_/, '/'+usecsebase);
+        absolute_url = absolute_url.replace(/\/_/, '/' + usecsebase);
         var absolute_url_arr = absolute_url.split('/');
         db_sql.get_ri_sri(absolute_url_arr[1].split('?')[0], function (err, results) {
-            absolute_url = (results.length == 0) ? absolute_url : absolute_url.replace('/'+absolute_url_arr[1], results[0].ri);
+            absolute_url = (results.length == 0) ? absolute_url : absolute_url.replace('/' + absolute_url_arr[1], results[0].ri);
 
-            if(url.parse(absolute_url).pathname.split('/')[1] == usecsebase) {
+            if (url.parse(absolute_url).pathname.split('/')[1] == usecsebase) {
                 request.url = absolute_url;
-                if((request.query.fu == 2) &&
+                if ((request.query.fu == 2) &&
                     (request.query.rcn == 0 || request.query.rcn == 1 || request.query.rcn == 2 || request.query.rcn == 3)) {
                     lookup_create(request, response);
                 }
@@ -1163,13 +1167,13 @@ app.post(onem2mParser, function(request, response) {
             }
             else {
                 check_csr(absolute_url, function (rsc, body_Obj) {
-                    if(rsc == '0') {
+                    if (rsc == '0') {
                         responder.response_result(request, response, 500, body_Obj, 5000, request.url, body_Obj['dbg']);
                     }
-                    else if(rsc == '1') {
+                    else if (rsc == '1') {
                         forward_http(body_Obj.forwardcbhost, body_Obj.forwardcbport, request, response);
                     }
-                    else if(rsc == '2') {
+                    else if (rsc == '2') {
                         body_Obj = {};
                         body_Obj['dbg'] = 'forwarding with mqtt is not supported';
                         responder.response_result(request, response, 500, body_Obj, 5000, request.url, body_Obj['dbg']);
@@ -1184,33 +1188,33 @@ app.post(onem2mParser, function(request, response) {
 });
 
 
-app.get(onem2mParser, function(request, response) {
+app.get(onem2mParser, function (request, response) {
     var fullBody = '';
-    request.on('data', function(chunk) {
+    request.on('data', function (chunk) {
         fullBody += chunk.toString();
     });
-    request.on('end', function() {
+    request.on('end', function () {
         request.body = fullBody;
-        if(request.query.fu == null) {
+        if (request.query.fu == null) {
             request.query.fu = 2;
         }
-        if(request.query.rcn == null) {
+        if (request.query.rcn == null) {
             request.query.rcn = 1;
         }
-        if(request.query.rt == null) {
+        if (request.query.rt == null) {
             request.query.rt = 3;
         }
         request.url = request.url.replace('%23', '#'); // convert '%23' to '#' of url
         request.hash = url.parse(request.url).hash;
         var absolute_url = request.url.replace(/\/~\/[^\/]+\/?/, '/').split('#')[0];
-        absolute_url = absolute_url.replace(/\/_/, '/'+usecsebase);
+        absolute_url = absolute_url.replace(/\/_/, '/' + usecsebase);
         var absolute_url_arr = absolute_url.split('/');
         db_sql.get_ri_sri(absolute_url_arr[1].split('?')[0], function (err, results) {
-            absolute_url = (results.length == 0) ? absolute_url : absolute_url.replace('/'+absolute_url_arr[1], results[0].ri);
+            absolute_url = (results.length == 0) ? absolute_url : absolute_url.replace('/' + absolute_url_arr[1], results[0].ri);
 
-            if(url.parse(absolute_url).pathname.split('/')[1] == usecsebase) {
+            if (url.parse(absolute_url).pathname.split('/')[1] == usecsebase) {
                 request.url = absolute_url;
-                if((request.query.fu == 1 || request.query.fu == 2) &&
+                if ((request.query.fu == 1 || request.query.fu == 2) &&
                     (request.query.rcn == 1 || request.query.rcn == 4 || request.query.rcn == 5 || request.query.rcn == 6 || request.query.rcn == 7)) {
                     lookup_retrieve(request, response);
                 }
@@ -1222,13 +1226,13 @@ app.get(onem2mParser, function(request, response) {
             }
             else {
                 check_csr(absolute_url, function (rsc, body_Obj) {
-                    if(rsc == '0') {
+                    if (rsc == '0') {
                         responder.response_result(request, response, 500, body_Obj, 5000, request.url, body_Obj['dbg']);
                     }
-                    else if(rsc == '1') {
+                    else if (rsc == '1') {
                         forward_http(body_Obj.forwardcbhost, body_Obj.forwardcbport, request, response);
                     }
-                    else if(rsc == '2') {
+                    else if (rsc == '2') {
                         body_Obj = {};
                         body_Obj['dbg'] = 'forwarding with mqtt is not supported';
                         responder.response_result(request, response, 500, body_Obj, 5000, request.url, body_Obj['dbg']);
@@ -1243,29 +1247,29 @@ app.get(onem2mParser, function(request, response) {
 });
 
 
-app.put(onem2mParser, function(request, response) {
+app.put(onem2mParser, function (request, response) {
     var fullBody = '';
-    request.on('data', function(chunk) {
+    request.on('data', function (chunk) {
         fullBody += chunk.toString();
     });
-    request.on('end', function() {
+    request.on('end', function () {
         request.body = fullBody;
-        if(request.query.fu == null) {
+        if (request.query.fu == null) {
             request.query.fu = 2;
         }
-        if(request.query.rcn == null) {
+        if (request.query.rcn == null) {
             request.query.rcn = 1;
         }
-        if(request.query.rt == null) {
+        if (request.query.rt == null) {
             request.query.rt = 3;
         }
         //request.url = request.url.replace(/\/$/, "");
         //var url_arr = url.parse(request.url).pathname.split('/');
         var absolute_url = request.url.replace(/\/~\/[^\/]+\/?/, '/').split('#')[0];
-        absolute_url = absolute_url.replace(/\/_/, '/'+usecsebase);
+        absolute_url = absolute_url.replace(/\/_/, '/' + usecsebase);
         var absolute_url_arr = absolute_url.split('/');
         db_sql.get_ri_sri(absolute_url_arr[1].split('?')[0], function (err, results) {
-            absolute_url = (results.length == 0) ? absolute_url : absolute_url.replace('/'+absolute_url_arr[1], results[0].ri);
+            absolute_url = (results.length == 0) ? absolute_url : absolute_url.replace('/' + absolute_url_arr[1], results[0].ri);
 
             if (url.parse(absolute_url).pathname == ('/' + usecsebase)) {
                 var body_Obj = {};
@@ -1306,29 +1310,29 @@ app.put(onem2mParser, function(request, response) {
     });
 });
 
-app.delete(onem2mParser, function(request, response) {
+app.delete(onem2mParser, function (request, response) {
     var fullBody = '';
-    request.on('data', function(chunk) {
+    request.on('data', function (chunk) {
         fullBody += chunk.toString();
     });
-    request.on('end', function() {
+    request.on('end', function () {
         request.body = fullBody;
-        if(request.query.fu == null) {
+        if (request.query.fu == null) {
             request.query.fu = 2;
         }
-        if(request.query.rcn == null) {
+        if (request.query.rcn == null) {
             request.query.rcn = 1;
         }
-        if(request.query.rt == null) {
+        if (request.query.rt == null) {
             request.query.rt = 3;
         }
         //request.url = request.url.replace(/\/$/, "");
         //var url_arr = url.parse(request.url).pathname.split('/');
         var absolute_url = request.url.replace(/\/~\/[^\/]+\/?/, '/').split('#')[0];
-        absolute_url = absolute_url.replace(/\/_/, '/'+usecsebase);
+        absolute_url = absolute_url.replace(/\/_/, '/' + usecsebase);
         var absolute_url_arr = absolute_url.split('/');
         db_sql.get_ri_sri(absolute_url_arr[1].split('?')[0], function (err, results) {
-            absolute_url = (results.length == 0) ? absolute_url : absolute_url.replace('/'+absolute_url_arr[1], results[0].ri);
+            absolute_url = (results.length == 0) ? absolute_url : absolute_url.replace('/' + absolute_url_arr[1], results[0].ri);
 
             if (url.parse(absolute_url).pathname == ('/' + usecsebase)) {
                 var body_Obj = {};
@@ -1373,7 +1377,7 @@ function check_csr(absolute_url, callback) {
     var ri = util.format('/%s/%s', usecsebase, url.parse(absolute_url).pathname.split('/')[1]);
     console.log('[check_csr] : ' + ri);
     db_sql.select_csr(ri, function (err, result_csr) {
-        if(!err) {
+        if (!err) {
             if (result_csr.length == 1) {
                 var body_Obj = {};
                 body_Obj.forwardcbname = result_csr[0].cb.replace('/', '');
@@ -1394,7 +1398,7 @@ function check_csr(absolute_url, callback) {
                     }
                     else {
                         body_Obj = {};
-                                    body_Obj['dbg'] = 'poa of csr is not supported';
+                        body_Obj['dbg'] = 'poa of csr is not supported';
                         callback('0', body_Obj);
                         break;
                     }
@@ -1424,24 +1428,24 @@ function forward_http(forwardcbhost, forwardcbport, request, response) {
 
     var req = http.request(options, function (res) {
         var fullBody = '';
-        res.on('data', function(chunk) {
+        res.on('data', function (chunk) {
             fullBody += chunk.toString();
         });
 
-        res.on('end', function() {
+        res.on('end', function () {
             console.log('[Forward response : ' + res.statusCode + ']');
 
             //response.headers = res.headers;
-            if(res.headers['content-type']){
+            if (res.headers['content-type']) {
                 response.setHeader('Content-Type', res.headers['content-type']);
             }
-            if(res.headers['x-m2m-ri']){
+            if (res.headers['x-m2m-ri']) {
                 response.setHeader('X-M2M-RI', res.headers['x-m2m-ri']);
             }
-            if(res.headers['x-m2m-rsc']){
+            if (res.headers['x-m2m-rsc']) {
                 response.setHeader('X-M2M-RSC', res.headers['x-m2m-rsc']);
             }
-            if(res.headers['content-location']){
+            if (res.headers['content-location']) {
                 response.setHeader('Content-Location', res.headers['content-location']);
             }
 
@@ -1450,7 +1454,7 @@ function forward_http(forwardcbhost, forwardcbport, request, response) {
         });
     });
 
-    req.on('error', function(e) {
+    req.on('error', function (e) {
         console.log('[forward_http] problem with request: ' + e.message);
 
         response.statusCode = '404';
@@ -1460,7 +1464,7 @@ function forward_http(forwardcbhost, forwardcbport, request, response) {
     console.log(JSON.stringify(request.body));
 
     // write data to request body
-    if((request.method.toLowerCase() == 'get') || (request.method.toLowerCase() == 'delete')) {
+    if ((request.method.toLowerCase() == 'get') || (request.method.toLowerCase() == 'delete')) {
         req.write('');
     }
     else {
@@ -1469,8 +1473,8 @@ function forward_http(forwardcbhost, forwardcbport, request, response) {
     req.end();
 }
 
-if( process.env.NODE_ENV == 'production' ) {
+if (process.env.NODE_ENV == 'production') {
     console.log("Production Mode");
-} else if( process.env.NODE_ENV == 'development' ) {
+} else if (process.env.NODE_ENV == 'development') {
     console.log("Development Mode");
 }

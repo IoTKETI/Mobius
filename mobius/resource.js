@@ -784,7 +784,7 @@ function presearch_action(request, response, ri_list, comm_Obj, callback) {
     var pi_list = [];
     db_sql.search_parents_lookup(comm_Obj.ri, function (err, search_Obj) {
         if(!err) {
-            var finding_Obj = [];
+            var finding_Obj = {};
             var found_Obj = {};
 
             var cur_lvl = parseInt((url.parse(request.url).pathname.split('/').length), 10) - 2;
@@ -805,14 +805,17 @@ function presearch_action(request, response, ri_list, comm_Obj, callback) {
             }
 
             var cur_d = moment().utc().format('YYYY-MM-DD HH:mm:ss');
-            db_sql.search_lookup(request.query.ty, request.query.lbl, request.query.cra, request.query.crb, request.query.lim, request.query.ofst, request.query.lvl, pi_list, 0, finding_Obj, 0, cur_d, 0, function (err, search_Obj) {
+            db_sql.search_lookup(comm_Obj.ri, request.query.ty, request.query.lbl, request.query.cra, request.query.crb, request.query.lim, request.query.ofst, request.query.lvl, pi_list, 0, finding_Obj, 0, cur_d, 0, function (err, search_Obj) {
                 if(!err) {
-                    if(search_Obj.length >= 1) {
-                        for(var i = 0; i < search_Obj.length; i++) {
-                            ri_list.push(search_Obj[i].ri);
-                            found_Obj[search_Obj[i].ri] = search_Obj[i];
-                            delete search_Obj[i];
+                    if(Object.keys(search_Obj).length >= 1) {
+                        for (var index in search_Obj) {
+                            if (search_Obj.hasOwnProperty(index)) {
+                                ri_list.push(search_Obj[index].ri);
+                                found_Obj[search_Obj[index].ri] = search_Obj[index];
+                                delete search_Obj[index];
+                            }
                         }
+
                         callback('1', ri_list, found_Obj);
                     }
                     else {
@@ -984,11 +987,13 @@ exports.retrieve = function(request, response, comm_Obj) {
             if (rsc == '0') {
                 return rsc;
             }
+            //var ri_list = [comm_Obj.ri];
             var ri_list = [];
             presearch_action(request, response, ri_list, comm_Obj, function (rsc, ri_list, search_Obj) {
                 if (rsc == '0') {
                     return rsc;
                 }
+
                 if (request.query.fu == 1) {
                     request.headers.rootnm = 'uril';
                     resource_Obj = {};
@@ -1015,6 +1020,11 @@ exports.retrieve = function(request, response, comm_Obj) {
                                     }
                                 }
                             }
+
+                            _this.remove_no_value(request, resource_Obj);
+                            responder.search_result(request, response, 200, resource_Obj, 2000, comm_Obj.ri, '');
+
+                            /*
                             retrieve_action(request, response, ty, comm_Obj, function (rsc, retrieve_Obj) {
                                 if (rsc == '1') {
                                     _this.remove_no_value(request, retrieve_Obj);
@@ -1029,6 +1039,7 @@ exports.retrieve = function(request, response, comm_Obj) {
                                     responder.response_result(request, response, 404, resource_Obj, 4004, request.url, resource_Obj['dbg']);
                                 }
                             });
+                            */
                         }
                         else {
                             request.headers.rootnm = 'rsp';

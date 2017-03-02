@@ -1155,7 +1155,7 @@ exports.response_result = function(request, response, status, body_Obj, rsc, ri,
             bodyString = convertXml(rootnm, body_Obj);
         }
 
-        console.log(bodyString);
+        //console.log(bodyString);
 
         if (request.query.rt == 3) {
             response.status(status).end(bodyString);

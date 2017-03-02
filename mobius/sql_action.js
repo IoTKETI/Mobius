@@ -74,7 +74,7 @@ exports.insert_lookup = function(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, 
         'ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st, mni, cs, sri, spi) ' +
         'value (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
         ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st, mni, cs, sri, spi);
-    db.getResult(sql, '', function (err, results) {
+    db.getResult(sql, '', function (err) {
         if(!err) {
             set_sri_sri(ri, sri, function (err, results) {
                 console.timeEnd('insert_lookup ' + ri);
@@ -463,7 +463,7 @@ exports.insert_mms = function(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st,
     });
 };
 
-function build_discovery_sql(ty, lbl, cra, crb, lim, ofst, pi_list, bef_ct, cur_ct) {
+function build_discovery_sql(ri, ty, lbl, cra, crb, lim, ofst, pi_list, bef_ct, cur_ct) {
 //    var list_ri = '';
     var query_where = '';
     var query_count = 0;
@@ -559,17 +559,20 @@ function build_discovery_sql(ty, lbl, cra, crb, lim, ofst, pi_list, bef_ct, cur_
         }
     }
 
-    query_where = util.format("select a.* from (select ri from lookup where (ri in ("+JSON.stringify(pi_list).replace('[','').replace(']','')+") or pi in ("+JSON.stringify(pi_list).replace('[','').replace(']','')+")) %s and (ct > \'%s\' and ct <= \'%s\') order by ct desc limit 1000) b left join lookup as a on b.ri = a.ri", ty_str, bef_ct, cur_ct) + query_where;
+    query_where = util.format("select a.* from (select ri from lookup where ((ri = \'" + ri + "\') or pi in ("+JSON.stringify(pi_list).replace('[','').replace(']','')+")) %s and (ct > \'%s\' and ct <= \'%s\') order by ct desc limit 1000) b left join lookup as a on b.ri = a.ri", ty_str, bef_ct, cur_ct) + query_where;
+    //query_where = util.format("select a.* from (select ri from lookup where (pi in ("+JSON.stringify(pi_list).replace('[','').replace(']','')+")) %s and (ct > \'%s\' and ct <= \'%s\') order by ct desc limit 1000) b left join lookup as a on b.ri = a.ri", ty_str, bef_ct, cur_ct) + query_where;
 
     return query_where;
 }
 
-exports.search_lookup = function (ty, lbl, cra, crb, lim, ofst, lvl, pi_list, pi_index, found_Obj, found_Cnt, cur_d, loop_cnt, callback) {
+var tid = '';
+exports.search_lookup = function (ri, ty, lbl, cra, crb, lim, ofst, lvl, pi_list, pi_index, found_Obj, found_Cnt, cur_d, loop_cnt, callback) {
     var cur_pi = [];
 
     if(loop_cnt == 0) {
         loop_cnt++;
-        console.time('search_lookup');
+        tid = require('shortid').generate();
+        console.time('search_lookup (' + tid + ')');
     }
 
     var cur_ct = moment(cur_d).format('YYYYMMDDTHHmmss');
@@ -618,15 +621,16 @@ exports.search_lookup = function (ty, lbl, cra, crb, lim, ofst, lvl, pi_list, pi
         }
     }*/
 
-    var sql = build_discovery_sql(ty, lbl, cra, crb, lim, ofst, cur_pi, bef_ct, cur_ct);
+    var sql = build_discovery_sql(ri, ty, lbl, cra, crb, lim, ofst, cur_pi, bef_ct, cur_ct);
     //console.log(sql);
     db.getResult(sql, '', function (err, search_Obj) {
         if(!err) {
             //make_json_arraytype(search_Obj);
             for(var i = 0; i < search_Obj.length; i++) {
-                found_Obj[found_Cnt++] = search_Obj[i];
-                if(found_Cnt >= lim) {
-                    console.timeEnd('search_lookup');
+                found_Obj[search_Obj[i].ri] = search_Obj[i];
+                //found_Cnt++;
+                if(Object.keys(found_Obj).length >= lim) {
+                    console.timeEnd('search_lookup (' + tid + ')');
                     callback(err, found_Obj);
                     return;
                 }
@@ -634,7 +638,7 @@ exports.search_lookup = function (ty, lbl, cra, crb, lim, ofst, lvl, pi_list, pi
 
             if(++pi_index >= pi_list.length) {
                 if(++loop_cnt >= 4) {
-                    console.timeEnd('search_lookup');
+                    console.timeEnd('search_lookup (' + tid + ')');
                     callback(err, found_Obj);
                 }
                 else {
@@ -642,7 +646,7 @@ exports.search_lookup = function (ty, lbl, cra, crb, lim, ofst, lvl, pi_list, pi
                     //cur_d.setDate(bef_d.getDate());
                     cur_d = bef_d;
                     setTimeout( function() {
-                        _this.search_lookup(ty, lbl, cra, crb, lim, ofst, lvl, pi_list, pi_index, found_Obj, found_Cnt, cur_d, loop_cnt, function (err, found_Obj) {
+                        _this.search_lookup(ri, ty, lbl, cra, crb, lim, ofst, lvl, pi_list, pi_index, found_Obj, found_Cnt, cur_d, loop_cnt, function (err, found_Obj) {
                             callback(err, found_Obj);
                         });
                     }, 0);
@@ -650,7 +654,7 @@ exports.search_lookup = function (ty, lbl, cra, crb, lim, ofst, lvl, pi_list, pi
             }
             else {
                 setTimeout( function() {
-                    _this.search_lookup(ty, lbl, cra, crb, lim, ofst, lvl, pi_list, pi_index, found_Obj, found_Cnt, cur_d, loop_cnt, function (err, found_Obj) {
+                    _this.search_lookup(ri, ty, lbl, cra, crb, lim, ofst, lvl, pi_list, pi_index, found_Obj, found_Cnt, cur_d, loop_cnt, function (err, found_Obj) {
                         callback(err, found_Obj);
                     });
                 }, 0);
@@ -1124,7 +1128,7 @@ exports.update_cni_parent = function (ty, cni, cbs, st, pi, callback) {
 
 exports.update_cni_ri = function (ty, ri, cni, cbs, callback) {
     if (ty == '4') {
-        sql = util.format("update cnt set cni = \'%s\', cbs = \'%s\' where ri = \'%s\'", cni, cbs, ri);
+        var sql = util.format("update cnt set cni = \'%s\', cbs = \'%s\' where ri = \'%s\'", cni, cbs, ri);
     }
     else {
         sql = util.format("update ts set cni = \'%s\', cbs = \'%s\' where ri = \'%s\'", cni, cbs, ri);
