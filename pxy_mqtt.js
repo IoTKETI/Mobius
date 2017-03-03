@@ -715,7 +715,7 @@ mqtt_app.post('/notification', onem2mParser, function(request, response, next) {
             rsp_Obj['rsp'] = {};
             rsp_Obj['rsp'].dbg = 'notificationUrl does not support : ' + request.headers.nu;
             response.setHeader('X-M2M-RSC', '4000');
-            response.setHeader('X-M2M-RI', rqi);
+            //response.setHeader('X-M2M-RI', rqi);
 
             response.status(400).end(JSON.stringify(rsp_Obj));
         }

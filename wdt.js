@@ -31,7 +31,7 @@ setInterval(function () {
 wdt.on('mobius_watchdog', function() {
     for (var id in wdt_value_q) {
         if(wdt_value_q.hasOwnProperty(id)) {
-            console.log(++wdt_tick_q[id]);
+            ++wdt_tick_q[id];
             if((wdt_tick_q[id] % wdt_value_q[id]) == 0) {
                 wdt_tick_q[id] = 0;
                 if(wdt_callback_q[id]) {
