@@ -45,6 +45,10 @@ var db_sql = require('./sql_action');
 
 var _this = this;
 
+exports.t_isr = function (id, param1, param2, param3) {
+    console.log(id, param1, param2, param3);
+};
+
 exports.set_rootnm = function(request, ty) {
     request.headers.rootnm = responder.typeRsrc[ty];
 };

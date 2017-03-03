@@ -52,20 +52,28 @@ var usemqttcbhost = 'localhost'; // pxymqtt to mobius
 
 http.globalAgent.maxSockets = 1000000;
 
-http.createServer(mqtt_app).listen({port: usepxymqttport, agent: false}, function () {
-    console.log('pxymqtt server (' + ip.address() + ') running at ' + usepxymqttport + ' port');
+//require('./mobius/ts_agent');
 
-    mqtt_state = 'connect';
 
-    setInterval(function () {
-        mqtt_custom.emit('mqtt_watchdog');
-    }, 2000);
-});
+
+
 
 var pxymqtt_client = null;
 
-mqtt_custom.on('mqtt_watchdog', function() {
-    if(mqtt_state == 'connect') {
+//mqtt_custom.on('mqtt_watchdog', function() {
+exports.mqtt_watchdog = function() {
+    if(mqtt_state == 'init') {
+        http.createServer(mqtt_app).listen({port: usepxymqttport, agent: false}, function () {
+            console.log('pxymqtt server (' + ip.address() + ') running at ' + usepxymqttport + ' port');
+
+            mqtt_state = 'connect';
+
+//    setInterval(function () {
+//        mqtt_custom.emit('mqtt_watchdog');
+//    }, 2000);
+        });
+    }
+    else if(mqtt_state == 'connect') {
         http_retrieve_CSEBase(function(status, res_body) {
             if (status == 2000) {
                 var jsonObj = JSON.parse(res_body);
@@ -88,13 +96,16 @@ mqtt_custom.on('mqtt_watchdog', function() {
                 mqtt_state = 'ready';
 
                 require('./mobius/ts_agent');
-                require('./pxy_coap');
             });
 
             pxymqtt_client.on('message', mqtt_message_handler);
         }
     }
-});
+};
+
+var mqtt_tid = require('shortid').generate();
+wdt.set_wdt(mqtt_tid, 3, _this.mqtt_watchdog);
+
 
 function resp_sub(mqtt_client) {
     var resp_topic = util.format('/oneM2M/resp/%s/#', usecseid.replace('/', ':'));

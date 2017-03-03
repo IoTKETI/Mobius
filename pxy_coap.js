@@ -84,16 +84,20 @@ var coap_rsc_code = {
     '6029': '4.00'
 };
 
-coap_state = 'connect';
+coap_state = 'init';
 
-setInterval(function () {
-    coap_custom.emit('coap_watchdog');
-}, 2000);
+//setInterval(function () {
+//    coap_custom.emit('coap_watchdog');
+//}, 2000);
 
 var pxycoap_server = null;
 
-coap_custom.on('coap_watchdog', function() {
-    if(coap_state == 'connect') {
+//coap_custom.on('coap_watchdog', function() {
+exports.coap_watchdog = function () {
+    if(coap_state == 'init') {
+        coap_state = 'connect';
+    }
+    else if(coap_state == 'connect') {
         if(pxycoap_server == null) {
             pxycoap_server = coap.createServer();
             pxycoap_server.listen(usecsebaseport, function() {
@@ -134,7 +138,11 @@ coap_custom.on('coap_watchdog', function() {
             pxycoap_server.on('request', coap_message_handler);
         }
     }
-});
+};
+
+
+var coap_tid = require('shortid').generate();
+wdt.set_wdt(coap_tid, 3, _this.coap_watchdog);
 
 function coap_message_handler(request, response) {
 

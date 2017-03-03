@@ -39,5 +39,7 @@ global.usetsagentport       = '7582';
 global.usemqttbroker        = 'localhost'; // mqttbroker for mobius
 global.usemqttport          = '1883';
 
+global.wdt = require('./wdt');
+
 // CSE core
 require('./app');

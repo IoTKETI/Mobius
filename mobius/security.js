@@ -39,6 +39,11 @@ function get_ri_list_sri(sri_list, ri_list, count, callback) {
 }
 
 exports.check = function(request, ty, acpiList, access_value, callback) {
+    if(request.headers['x-m2m-origin'] == usecseid) {
+        callback('1');
+        return '1';
+    }
+
     if(ty == '1') { // check selfPrevileges
         acpiList = [url.parse(request.url).pathname.split('?')[0]];
         db_sql.get_ri_sri(acpiList[0], function (err, results) {

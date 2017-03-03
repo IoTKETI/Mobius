@@ -105,7 +105,6 @@ if (use_clustering) {
                     }
 
                     require('./pxy_mqtt');
-                    //require('./mobius/ts_agent');
 
                     if (usecsetype == 'mn' || usecsetype == 'asn') {
                         global.refreshIntervalId = setInterval(function () {
