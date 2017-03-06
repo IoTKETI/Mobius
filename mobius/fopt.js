@@ -144,18 +144,21 @@ exports.check = function(request, response, grp, body_Obj) {
     request.headers.rootnm = 'agr';
 
     update_route(function (cse_poa) {
-        var req_count = 0;
-        var agr = {};
-        fopt_member(request, response, req_count, grp.mid, body_Obj, cse_poa, agr, function (retrieve_Obj) {
-            if (Object.keys(retrieve_Obj).length != 0) {
-                responder.search_result(request, response, 200, retrieve_Obj, 2000, request.url, '');
-                return '0';
-            }
-            else {
-                retrieve_Obj = {};
-                retrieveretrieve_Obj['dbg'] = 'response is not from fanOutPoint';
-                responder.response_result(request, response, 404, retrieve_Obj, 4004, request.url, retrieve_Obj['dbg']);
-            }
+        var ri_list = [];
+        get_ri_list_sri(grp.mid, ri_list, 0, function (ri_list) {
+            var req_count = 0;
+            var agr = {};
+            fopt_member(request, response, req_count, ri_list, body_Obj, cse_poa, agr, function (retrieve_Obj) {
+                if (Object.keys(retrieve_Obj).length != 0) {
+                    responder.search_result(request, response, 200, retrieve_Obj, 2000, request.url, '');
+                    return '0';
+                }
+                else {
+                    retrieve_Obj = {};
+                    retrieveretrieve_Obj['dbg'] = 'response is not from fanOutPoint';
+                    responder.response_result(request, response, 404, retrieve_Obj, 4004, request.url, retrieve_Obj['dbg']);
+                }
+            });
         });
     });
 };

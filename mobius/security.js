@@ -18,26 +18,6 @@ var url = require('url');
 var util = require('util');
 var db_sql = require('./sql_action');
 
-function get_ri_list_sri(sri_list, ri_list, count, callback) {
-    if(sri_list.length <= count) {
-        callback(sri_list);
-    }
-    else {
-        db_sql.get_ri_sri(sri_list[count], function (err, results) {
-            ri_list[count] = ((results.length == 0) ? sri_list[count] : results[0].ri);
-
-            if (sri_list.length <= ++count) {
-                callback(ri_list);
-            }
-            else {
-                get_ri_list_sri(sri_list, ri_list, count, function (ri_list) {
-                    callback(ri_list);
-                });
-            }
-        });
-    }
-}
-
 exports.check = function(request, ty, acpiList, access_value, callback) {
     if(request.headers['x-m2m-origin'] == usecseid) {
         callback('1');

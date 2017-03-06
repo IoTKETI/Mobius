@@ -751,7 +751,7 @@ exports.create = function(request, response, ty, body_Obj, callback) {
                 }
 
                 if(Object.keys(create_Obj)[0] == 'req') {
-                    request.headers.tg = create_Obj[rootnm].tg;
+                    request.headers.tg = create_Obj[rootnm].ri;
                 }
 
                 if(request.query.rcn == 2) { // hierarchical address
@@ -898,11 +898,12 @@ function retrieve_action(request, response, ty, comm_Obj, callback) {
     var resource_Obj = {};
     resource_Obj[rootnm] = {};
 
-    console.time('resource_retrieve ' + comm_Obj.ri);
+    var tid = require('shortid').generate();
+    console.time('resource_retrieve ' + comm_Obj.ri + ' (' + tid + ')');
     db_sql.select_resource(responder.typeRsrc[ty], comm_Obj.ri, function (err, spec_Obj) {
         if(!err) {
             if (spec_Obj.length == 1) {
-                console.timeEnd('resource_retrieve ' + comm_Obj.ri);
+                console.timeEnd('resource_retrieve ' + comm_Obj.ri + ' (' + tid + ')');
                 if(spec_Obj[0].srt) {
                     spec_Obj[0].srt = JSON.parse(spec_Obj[0].srt);
                 }
