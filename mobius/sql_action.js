@@ -734,10 +734,11 @@ exports.select_direct_lookup = function(ri, callback) {
 };
 
 exports.select_resource = function(ty, ri, callback) {
-    console.time('select_resource '+ ty + ' ' + ri);
+    var tid = require('shortid').generate();
+    console.time('select_resource '+ ty + ' ' + ri + ' (' + tid + ')');
     var sql = util.format("select * from " + ty + " where ri = \'%s\'", ri);
     db.getResult(sql, '', function (err, rsc_Obj) {
-        console.timeEnd('select_resource ' + ty + ' ' + ri);
+        console.timeEnd('select_resource ' + ty + ' ' + ri + ' (' + tid + ')');
         callback(err, rsc_Obj);
     });
 };

@@ -173,6 +173,25 @@ function check_mtv(request, response, mt, mid, callback) {
     });*/
 }
 
+function remove_duplicated_mid(mid) {
+    var temp_mid = {};
+    for(var id in mid) {
+        if (mid.hasOwnProperty(id)) {
+            temp_mid[mid[id]] = mid[id];
+        }
+    }
+
+    var idx = 0;
+    mid = [];
+    for(id in temp_mid) {
+        if (temp_mid.hasOwnProperty(id)) {
+            mid.push(temp_mid[id]);
+        }
+    }
+
+    return mid;
+}
+
 exports.build_grp = function(request, response, resource_Obj, body_Obj, callback) {
     var rootnm = request.headers.rootnm;
 
@@ -260,7 +279,7 @@ exports.build_grp = function(request, response, resource_Obj, body_Obj, callback
 
     // body
     resource_Obj[rootnm].mnm = body_Obj[rootnm].mnm;
-    resource_Obj[rootnm].mid = body_Obj[rootnm].mid;
+    resource_Obj[rootnm].mid = remove_duplicated_mid(body_Obj[rootnm].mid);
 
     resource_Obj[rootnm].acpi = (body_Obj[rootnm].acpi) ? body_Obj[rootnm].acpi : [];
     resource_Obj[rootnm].et = (body_Obj[rootnm].et) ? body_Obj[rootnm].et : resource_Obj[rootnm].et;
@@ -272,8 +291,16 @@ exports.build_grp = function(request, response, resource_Obj, body_Obj, callback
     resource_Obj[rootnm].macp = (body_Obj[rootnm].macp) ? body_Obj[rootnm].macp : [];
     resource_Obj[rootnm].mt = (body_Obj[rootnm].mt) ? body_Obj[rootnm].mt : '0';
     resource_Obj[rootnm].csy = (body_Obj[rootnm].csy) ? body_Obj[rootnm].csy : '1'; // default : ABANDON_MEMBER
-    resource_Obj[rootnm].cnm = body_Obj[rootnm].mid.length.toString();
+    resource_Obj[rootnm].cnm = resource_Obj[rootnm].mid.length.toString();
     resource_Obj[rootnm].gn = (body_Obj[rootnm].gn) ? body_Obj[rootnm].gn : '';
+
+    if(parseInt(resource_Obj[rootnm].mnm, 10) < parseInt(resource_Obj[rootnm].cnm)) {
+        body_Obj = {};
+        body_Obj['dbg'] = 'MAX_NUMBER_OF_MEMBER_EXCEEDED';
+        responder.response_result(request, response, 400, body_Obj, 6010, request.url, body_Obj['dbg']);
+        callback('0', resource_Obj);
+        return '0';
+    }
 
     if (resource_Obj[rootnm].et != '') {
         if (resource_Obj[rootnm].et < resource_Obj[rootnm].ct) {

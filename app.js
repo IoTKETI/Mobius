@@ -105,6 +105,7 @@ if (use_clustering) {
                     }
 
                     require('./pxy_mqtt');
+                    require('./pxy_coap');
 
                     if (usecsetype == 'mn' || usecsetype == 'asn') {
                         global.refreshIntervalId = setInterval(function () {
@@ -951,8 +952,8 @@ function lookup_create(request, response) {
                 }
                 else {
                     body_Obj = {};
-                    body_Obj['dbg'] = 'request ty creating can not create under parent resource';
-                    responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
+                    body_Obj['dbg'] = 'TARGET_NOT_SUBSCRIBABLE: request ty creating can not create under parent resource';
+                    responder.response_result(request, response, 403, body_Obj, 5203, request.url, body_Obj['dbg']);
                     return '0';
                 }
 
