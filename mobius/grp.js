@@ -102,7 +102,7 @@ function check_member(request, response, mt, req_count, mid, cse_poa, valid_mid,
 
         var responseBody = '';
         var req = http.request(options, function (res) {
-            res.setEncoding('utf8');
+            //res.setEncoding('utf8');
             res.on('data', function (chunk) {
                 responseBody += chunk;
             });
@@ -181,7 +181,6 @@ function remove_duplicated_mid(mid) {
         }
     }
 
-    var idx = 0;
     mid = [];
     for(id in temp_mid) {
         if (temp_mid.hasOwnProperty(id)) {
@@ -287,7 +286,7 @@ exports.build_grp = function(request, response, resource_Obj, body_Obj, callback
     resource_Obj[rootnm].at = (body_Obj[rootnm].at) ? body_Obj[rootnm].at : [];
     resource_Obj[rootnm].aa = (body_Obj[rootnm].aa) ? body_Obj[rootnm].aa : [];
 
-    resource_Obj[rootnm].cr = (body_Obj[rootnm].cr) ? body_Obj[rootnm].cr : '';
+    resource_Obj[rootnm].cr = (body_Obj[rootnm].cr) ? body_Obj[rootnm].cr : request.headers['x-m2m-origin'];
     resource_Obj[rootnm].macp = (body_Obj[rootnm].macp) ? body_Obj[rootnm].macp : [];
     resource_Obj[rootnm].mt = (body_Obj[rootnm].mt) ? body_Obj[rootnm].mt : '0';
     resource_Obj[rootnm].csy = (body_Obj[rootnm].csy) ? body_Obj[rootnm].csy : '1'; // default : ABANDON_MEMBER

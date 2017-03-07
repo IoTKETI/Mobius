@@ -105,7 +105,7 @@ exports.build_sub = function(request, response, resource_Obj, body_Obj, callback
     resource_Obj[rootnm].nct = (body_Obj[rootnm].nct) ? body_Obj[rootnm].nct : '2';
     resource_Obj[rootnm].nec = (body_Obj[rootnm].nec) ? body_Obj[rootnm].nec : '';
     resource_Obj[rootnm].su = (body_Obj[rootnm].su) ? body_Obj[rootnm].su : '';
-    resource_Obj[rootnm].cr = (body_Obj[rootnm].cr) ? body_Obj[rootnm].cr : '';
+    resource_Obj[rootnm].cr = (body_Obj[rootnm].cr) ? body_Obj[rootnm].cr : request.headers['x-m2m-origin'];
 
     if (resource_Obj[rootnm].et != '') {
         if (resource_Obj[rootnm].et < resource_Obj[rootnm].ct) {

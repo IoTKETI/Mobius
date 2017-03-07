@@ -636,7 +636,7 @@ exports.search_lookup = function (ri, ty, lbl, cra, crb, lim, ofst, lvl, pi_list
     }*/
 
     var sql = build_discovery_sql(ri, ty, lbl, cra, crb, lim, ofst, cur_pi, bef_ct);
-    console.log(loop_cnt + ' - ' + bef_ct + ' - ' + cur_pi);
+    //console.log(loop_cnt + ' - ' + bef_ct + ' - ' + cur_pi);
     db.getResult(sql, '', function (err, search_Obj) {
         if(!err) {
             //make_json_arraytype(search_Obj);
@@ -1129,11 +1129,12 @@ exports.update_mms = function (lt, acpi, et, st, lbl, at, aa, mni, ri, stid, asd
 };
 
 exports.update_cni_parent = function (ty, cni, cbs, st, pi, callback) {
+    var lt = moment().utc().format('YYYYMMDDTHHmmss');
     if (ty == '4') {
-        var sql = util.format("update cnt, lookup set cnt.cni = \'%s\', cnt.cbs = \'%s\', lookup.st = \'%s\'  where cnt.ri = \'%s\' and lookup.ri = \'%s\'", cni, cbs, st, pi, pi);
+        var sql = util.format("update cnt, lookup set cnt.cni = \'%s\', cnt.cbs = \'%s\', lookup.st = \'%s\', lookup.lt = \'%s\' where cnt.ri = \'%s\' and lookup.ri = \'%s\'", cni, cbs, st, lt, pi, pi);
     }
     else {
-        sql = util.format("update ts, lookup set ts.cni = \'%s\', ts.cbs = \'%s\', lookup.st = \'%s\'  where ts.ri = \'%s\' and lookup.ri = \'%s\'", cni, cbs, st, pi, pi);
+        sql = util.format("update ts, lookup set ts.cni = \'%s\', ts.cbs = \'%s\', lookup.st = \'%s\', lookup.lt = \'%s\' where ts.ri = \'%s\' and lookup.ri = \'%s\'", cni, cbs, st, lt, pi, pi);
     }
 
     db.getResult(sql, '', function (err, results) {

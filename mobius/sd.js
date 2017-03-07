@@ -92,7 +92,7 @@ exports.build_sd = function(request, response, resource_Obj, body_Obj, callback)
     resource_Obj[rootnm].aa = (body_Obj[rootnm].aa) ? body_Obj[rootnm].aa : [];
 
     resource_Obj[rootnm].or = (body_Obj[rootnm].or) ? body_Obj[rootnm].or : '';
-    resource_Obj[rootnm].cr = (body_Obj[rootnm].cr) ? body_Obj[rootnm].cr : '';
+    resource_Obj[rootnm].cr = (body_Obj[rootnm].cr) ? body_Obj[rootnm].cr : request.headers['x-m2m-origin'];
 
     if (resource_Obj[rootnm].et != '') {
         if (resource_Obj[rootnm].et < resource_Obj[rootnm].ct) {

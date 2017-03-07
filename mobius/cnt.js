@@ -107,7 +107,7 @@ exports.build_cnt = function(request, response, resource_Obj, body_Obj, callback
     resource_Obj[rootnm].mia = (body_Obj[rootnm].mia) ? body_Obj[rootnm].mia : '31536000';
     resource_Obj[rootnm].li = (body_Obj[rootnm].li) ? body_Obj[rootnm].li : '';
     resource_Obj[rootnm].or = (body_Obj[rootnm].or) ? body_Obj[rootnm].or : '';
-    resource_Obj[rootnm].cr = (body_Obj[rootnm].cr) ? body_Obj[rootnm].cr : '';
+    resource_Obj[rootnm].cr = (body_Obj[rootnm].cr) ? body_Obj[rootnm].cr : request.headers['x-m2m-origin'];
 
     resource_Obj[rootnm].cni = '0';
     resource_Obj[rootnm].cbs = '0';

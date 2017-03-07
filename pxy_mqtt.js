@@ -23,12 +23,11 @@ var util = require('util');
 var xml2js = require('xml2js');
 var url = require('url');
 var xmlbuilder = require('xmlbuilder');
-var js2xmlparser = require("js2xmlparser");
 var moment = require('moment');
 var ip = require("ip");
 
-var resp_mqtt_client_arr = [];
-var req_mqtt_client_arr = [];
+//var resp_mqtt_client_arr = [];
+//var req_mqtt_client_arr = [];
 var resp_mqtt_rqi_arr = [];
 
 var http_response_q = {};
@@ -41,7 +40,7 @@ var _this = this;
 var mqtt_state = 'init';
 //var custom = new process.EventEmitter();
 var events = require('events');
-var mqtt_custom = new events.EventEmitter();
+//var mqtt_custom = new events.EventEmitter();
 
 // ������ �����մϴ�.
 var mqtt_app = express();

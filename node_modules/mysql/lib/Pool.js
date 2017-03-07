@@ -60,6 +60,7 @@ Pool.prototype.getConnection = function (cb) {
       }
 
       pool.emit('connection', connection);
+      pool.emit('acquire', connection);
       cb(null, connection);
     });
     return;
@@ -105,6 +106,7 @@ Pool.prototype.acquireConnection = function acquireConnection(connection, cb) {
       pool.emit('connection', connection);
     }
 
+    pool.emit('acquire', connection);
     cb(null, connection);
   }
 
@@ -119,7 +121,6 @@ Pool.prototype.acquireConnection = function acquireConnection(connection, cb) {
 };
 
 Pool.prototype.releaseConnection = function releaseConnection(connection) {
-  var pool = this;
 
   if (this._acquiringConnections.indexOf(connection) !== -1) {
     // connection is being acquired
@@ -138,6 +139,7 @@ Pool.prototype.releaseConnection = function releaseConnection(connection) {
     } else {
       // add connection to end of free queue
       this._freeConnections.push(connection);
+      this.emit('release', connection);
     }
   }
 
@@ -159,7 +161,7 @@ Pool.prototype.releaseConnection = function releaseConnection(connection) {
 Pool.prototype.end = function (cb) {
   this._closed = true;
 
-  if (typeof cb != "function") {
+  if (typeof cb !== 'function') {
     cb = function (err) {
       if (err) throw err;
     };
@@ -194,7 +196,7 @@ Pool.prototype.query = function (sql, values, cb) {
 
   if (this.config.connectionConfig.trace) {
     // Long stack trace support
-    query._callSite = new Error;
+    query._callSite = new Error();
   }
 
   this.getConnection(function (err, conn) {

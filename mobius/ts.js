@@ -110,7 +110,7 @@ exports.build_ts = function(request, response, resource_Obj, body_Obj, callback)
     resource_Obj[rootnm].mbs = (body_Obj[rootnm].mbs) ? body_Obj[rootnm].mbs : '3153600000';
     resource_Obj[rootnm].mia = (body_Obj[rootnm].mia) ? body_Obj[rootnm].mia : '31536000';
     resource_Obj[rootnm].or = (body_Obj[rootnm].or) ? body_Obj[rootnm].or : '';
-    resource_Obj[rootnm].cr = (body_Obj[rootnm].cr) ? body_Obj[rootnm].cr : '';
+    resource_Obj[rootnm].cr = (body_Obj[rootnm].cr) ? body_Obj[rootnm].cr : request.headers['x-m2m-origin'];
 
     resource_Obj[rootnm].pei = (body_Obj[rootnm].pei) ? body_Obj[rootnm].pei : '0';
     resource_Obj[rootnm].mdd = (body_Obj[rootnm].mdd) ? body_Obj[rootnm].mdd : 'false';

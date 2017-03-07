@@ -26,7 +26,7 @@ Auth.token = function(password, scramble) {
   }
 
   // password must be in binary format, not utf8
-  var stage1 = sha1((new Buffer(password, "utf8")).toString("binary"));
+  var stage1 = sha1((new Buffer(password, 'utf8')).toString('binary'));
   var stage2 = sha1(stage1);
   var stage3 = sha1(scramble.toString('binary') + stage2);
   return xor(stage3, stage1);
@@ -40,13 +40,13 @@ Auth.hashPassword = function(password) {
       nr2 = [0x1234, 0x5671],
       result = new Buffer(8);
 
-  if (typeof password == 'string'){
+  if (typeof password === 'string'){
     password = new Buffer(password);
   }
 
   for (var i = 0; i < password.length; i++) {
     var c = password[i];
-    if (c == 32 || c == 9) {
+    if (c === 32 || c === 9) {
       // skip space in password
       continue;
     }
@@ -71,10 +71,10 @@ Auth.hashPassword = function(password) {
 
 Auth.randomInit = function(seed1, seed2) {
   return {
-    max_value: 0x3FFFFFFF,
-    max_value_dbl: 0x3FFFFFFF,
-    seed1: seed1 % 0x3FFFFFFF,
-    seed2: seed2 % 0x3FFFFFFF
+    max_value     : 0x3FFFFFFF,
+    max_value_dbl : 0x3FFFFFFF,
+    seed1         : seed1 % 0x3FFFFFFF,
+    seed2         : seed2 % 0x3FFFFFFF
   };
 };
 
@@ -103,19 +103,6 @@ Auth.scramble323 = function(message, password) {
   }
 
   return to;
-};
-
-Auth.fmt32 = function(x){
-  var a = x[0].toString(16),
-      b = x[1].toString(16);
-
-  if (a.length == 1) a = '000'+a;
-  if (a.length == 2) a = '00'+a;
-  if (a.length == 3) a = '0'+a;
-  if (b.length == 1) b = '000'+b;
-  if (b.length == 2) b = '00'+b;
-  if (b.length == 3) b = '0'+b;
-  return '' + a + '/' + b;
 };
 
 Auth.xor32 = function(a,b){
@@ -159,7 +146,7 @@ Auth.int31Write = function(buffer, number, offset) {
 
 Auth.int32Read = function(buffer, offset){
   return (buffer[offset] << 24)
-       + (buffer[offset+1] << 16)
-       + (buffer[offset+2] << 8)
-       + (buffer[offset+3]);
+       + (buffer[offset + 1] << 16)
+       + (buffer[offset + 2] << 8)
+       + (buffer[offset + 3]);
 };

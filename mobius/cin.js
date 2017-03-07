@@ -105,7 +105,7 @@ exports.build_cin = function(request, response, resource_Obj, body_Obj, callback
 
     resource_Obj[rootnm].cnf = (body_Obj[rootnm].cnf) ? body_Obj[rootnm].cnf : '';
     resource_Obj[rootnm].or = (body_Obj[rootnm].or) ? body_Obj[rootnm].or : '';
-    resource_Obj[rootnm].cr = (body_Obj[rootnm].cr) ? body_Obj[rootnm].cr : '';
+    resource_Obj[rootnm].cr = (body_Obj[rootnm].cr) ? body_Obj[rootnm].cr : request.headers['x-m2m-origin'];
     resource_Obj[rootnm].mni = (body_Obj[rootnm].mni) ? body_Obj[rootnm].mni : '';
 
     resource_Obj[rootnm].mni = body_Obj[rootnm].mni;

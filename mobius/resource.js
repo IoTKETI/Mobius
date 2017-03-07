@@ -746,35 +746,44 @@ exports.create = function(request, response, ty, body_Obj, callback) {
 
                 sgn.check(request, create_Obj[rootnm], 3);
 
+                var status_code = 201;
+                var rsc_code = 2001;
+
                 if(request.query.rt == 3) {
                     response.setHeader('Content-Location', create_Obj[rootnm].ri);
                 }
 
                 if(Object.keys(create_Obj)[0] == 'req') {
                     request.headers.tg = create_Obj[rootnm].ri;
+                    status_code = 202;
+                    rsc_code = 1000;
                 }
 
                 if(request.query.rcn == 2) { // hierarchical address
+                    status_code = 200;
+                    rsc_code = 2000;
                     request.headers.rootnm = 'uri';
                     var resource_Obj = {};
                     resource_Obj.uri = {};
                     resource_Obj.uri = create_Obj[rootnm].ri;
-                    responder.response_result(request, response, 200, resource_Obj, 2000, create_Obj[rootnm].ri, '');
+                    responder.response_result(request, response, status_code, resource_Obj, rsc_code, create_Obj[rootnm].ri, '');
                     callback(rsc);
                     return 0;
                 }
                 else if(request.query.rcn == 3) { // hierarchical address and attributes
+                    status_code = 200;
+                    rsc_code = 2000;
                     request.headers.rootnm = rootnm;
                     create_Obj.rce = {};
                     create_Obj.rce.uri = create_Obj[rootnm].ri;
                     create_Obj.rce[rootnm] = create_Obj[rootnm];
                     delete create_Obj[rootnm];
-                    responder.response_rcn3_result(request, response, 200, create_Obj, 2000, create_Obj.rce[rootnm].ri, '');
+                    responder.response_rcn3_result(request, response, status_code, create_Obj, rsc_code, create_Obj.rce[rootnm].ri, '');
                     callback(rsc);
                     return '0';
                 }
                 else {
-                    responder.response_result(request, response, 201, create_Obj, 2001, create_Obj[rootnm].ri, '');
+                    responder.response_result(request, response, status_code, create_Obj, rsc_code, create_Obj[rootnm].ri, '');
                     callback(rsc);
                     return '0';
                 }

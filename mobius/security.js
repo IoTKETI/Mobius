@@ -18,8 +18,13 @@ var url = require('url');
 var util = require('util');
 var db_sql = require('./sql_action');
 
-exports.check = function(request, ty, acpiList, access_value, callback) {
+exports.check = function(request, ty, acpiList, access_value, cr, callback) {
     if(request.headers['x-m2m-origin'] == usecseid) {
+        callback('1');
+        return '1';
+    }
+
+    if(request.headers['x-m2m-origin'] == cr) {
         callback('1');
         return '1';
     }

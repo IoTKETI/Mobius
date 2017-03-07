@@ -199,7 +199,7 @@ function request_noti_http(nu, ri, xmlString, bodytype, xm2mri) {
 
     var bodyStr = '';
     var req = http.request(options, function (res) {
-        res.setEncoding('utf8');
+        //res.setEncoding('utf8');
         res.on('data', function (chunk) {
             bodyStr += chunk;
         });
@@ -282,8 +282,8 @@ function delete_sub(ri, xm2mri) {
 
     var bodyStr = '';
     var req = http.request(options, function(res) {
-        NOPRINT == 'true' ? NOPRINT = 'true' : console.log('STATUS: ' + res.statusCode);
-        res.setEncoding('utf8');
+        //NOPRINT == 'true' ? NOPRINT = 'true' : console.log('STATUS: ' + res.statusCode);
+        //res.setEncoding('utf8');
         res.on('data', function (chunk) {
             bodyStr += chunk;
         });
@@ -326,7 +326,7 @@ function request_noti_mqtt(nu, ri, xmlString, bodytype, xm2mri) {
 
     var bodyStr = '';
     var req = http.request(options, function (res) {
-        res.setEncoding('utf8');
+        //res.setEncoding('utf8');
 
         res.on('data', function (chunk) {
             bodyStr += chunk;
@@ -344,11 +344,10 @@ function request_noti_mqtt(nu, ri, xmlString, bodytype, xm2mri) {
         if(e.message != 'read ECONNRESET') {
             console.log('[request_noti_mqtt - ' + usepxymqttport + '] problem with request: ' + e.message);
         }
-        req.destroy(e);
     });
 
     req.on('close', function() {
-        console.log('close');
+        console.log('[request_noti_mqtt] close: no response for notification');
     });
 
     req.write(xmlString);

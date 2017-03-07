@@ -18,7 +18,7 @@ function Connection(options) {
   this._socket        = options.socket;
   this._protocol      = new Protocol({config: this.config, connection: this});
   this._connectCalled = false;
-  this.state          = "disconnected";
+  this.state          = 'disconnected';
   this.threadId       = null;
 }
 
@@ -92,26 +92,20 @@ Connection.prototype.connect = function connect(options, callback) {
 
     // Connect socket to connection domain
     if (Events.usingDomains) {
-      if (this._socket.domain) {
-        this._socket.domain.remove(this._socket);
-      }
-
-      if (this.domain) {
-        this.domain.add(this._socket);
-      }
+      this._socket.domain = this.domain;
     }
 
     var connection = this;
     this._protocol.on('data', function(data) {
-       connection._socket.write(data);
+      connection._socket.write(data);
     });
     this._socket.on('data', function(data) {
       connection._protocol.write(data);
     });
     this._protocol.on('end', function() {
-       connection._socket.end();
+      connection._socket.end();
     });
-    this._socket.on('end', function(err) {
+    this._socket.on('end', function() {
       connection._protocol.end();
     });
 
@@ -201,7 +195,7 @@ Connection.prototype.query = function query(sql, values, cb) {
   var query = Connection.createQuery(sql, values, cb);
   query._connection = this;
 
-  if (!(typeof sql == 'object' && 'typeCast' in sql)) {
+  if (!(typeof sql === 'object' && 'typeCast' in sql)) {
     query.typeCast = this.config.typeCast;
   }
 
@@ -256,7 +250,7 @@ Connection.prototype.end = function end(options, callback) {
 };
 
 Connection.prototype.destroy = function() {
-  this.state = "disconnected";
+  this.state = 'disconnected';
   this._implyConnect();
   this._socket.destroy();
   this._protocol.destroy();
@@ -281,7 +275,7 @@ Connection.prototype.escapeId = function escapeId(value) {
 };
 
 Connection.prototype.format = function(sql, values) {
-  if (typeof this.config.queryFormat == "function") {
+  if (typeof this.config.queryFormat === 'function') {
     return this.config.queryFormat.call(this, sql, values, this.config.timezone);
   }
   return SqlString.format(sql, values, this.config.stringifyObjects, this.config.timezone);
@@ -435,7 +429,7 @@ Connection.prototype._handleNetworkError = function(err) {
 };
 
 Connection.prototype._handleProtocolError = function(err) {
-  this.state = "protocol_error";
+  this.state = 'protocol_error';
   this.emit('error', err);
 };
 
@@ -444,17 +438,17 @@ Connection.prototype._handleProtocolDrain = function() {
 };
 
 Connection.prototype._handleProtocolConnect = function() {
-  this.state = "connected";
+  this.state = 'connected';
   this.emit('connect');
 };
 
 Connection.prototype._handleProtocolHandshake = function _handleProtocolHandshake(packet) {
-  this.state    = "authenticated";
+  this.state    = 'authenticated';
   this.threadId = packet.threadId;
 };
 
 Connection.prototype._handleProtocolEnd = function(err) {
-  this.state = "disconnected";
+  this.state = 'disconnected';
   this.emit('end', err);
 };
 
