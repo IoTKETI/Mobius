@@ -20,6 +20,13 @@ var xmlbuilder = require('xmlbuilder');
 var util = require('util');
 var responder = require('./responder');
 
+var op = {
+    post: '1',
+    get: '2',
+    put: '3',
+    delete: '4',
+    notify: '5'
+};
 
 exports.build_req = function(request, response, resource_Obj, body_Obj, callback) {
     var rootnm = request.headers.rootnm;
@@ -102,7 +109,7 @@ exports.build_req = function(request, response, resource_Obj, body_Obj, callback
     resource_Obj[rootnm].at = (body_Obj[rootnm].at) ? body_Obj[rootnm].at : [];
     resource_Obj[rootnm].aa = (body_Obj[rootnm].aa) ? body_Obj[rootnm].aa : [];
 
-    resource_Obj[rootnm].op = (body_Obj[rootnm].op) ? body_Obj[rootnm].op : request.method;
+    resource_Obj[rootnm].op = (body_Obj[rootnm].op) ? body_Obj[rootnm].op : op[request.method];
     //resource_Obj[rootnm].tg = (body_Obj[rootnm].tg) ? body_Obj[rootnm].tg : resource_Obj[rootnm].ri;
     resource_Obj[rootnm].tg = (body_Obj[rootnm].tg) ? body_Obj[rootnm].tg : url.parse(request.url).pathname;
     resource_Obj[rootnm].org = (body_Obj[rootnm].org) ? body_Obj[rootnm].org : request.headers['x-m2m-origin'];

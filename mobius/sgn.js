@@ -17,9 +17,11 @@
 var util = require('util');
 var url = require('url');
 var http = require('http');
+var https = require('https');
 var coap = require('coap');
 var js2xmlparser = require('js2xmlparser');
 var xmlbuilder = require('xmlbuilder');
+var fs = require('fs');
 var db_sql = require('./sql_action');
 
 var responder = require('./responder');
@@ -308,37 +310,73 @@ function delete_sub(ri, xm2mri) {
 }
 
 function request_noti_mqtt(nu, ri, xmlString, bodytype, xm2mri) {
-    var options = {
-        hostname: 'localhost',
-        port: usepxymqttport,
-        path: '/notification',
-        method: 'POST',
-        headers: {
-            'X-M2M-RI': xm2mri,
-            'Accept': 'application/'+bodytype,
-            'X-M2M-Origin': usecseid,
-            'Content-Type': 'application/vnd.onem2m-ntfy+'+bodytype,
-            'nu': nu,
-            'bodytype': bodytype,
-            'ri': ri
-        }
-    };
-
     var bodyStr = '';
-    var req = http.request(options, function (res) {
-        //res.setEncoding('utf8');
 
-        res.on('data', function (chunk) {
-            bodyStr += chunk;
-        });
-
-        res.on('end', function () {
-            if(res.statusCode == 200 || res.statusCode == 201) {
-                console.log('----> response for notification through mqtt ' + res.headers['x-m2m-rsc'] + ' - ' + ri);
-                ss_fail_count[res.req._headers.ri] = 0;
+    if(usesecure == 'disable') {
+        var options = {
+            hostname: 'localhost',
+            port: usepxymqttport,
+            path: '/notification',
+            method: 'POST',
+            headers: {
+                'X-M2M-RI': xm2mri,
+                'Accept': 'application/' + bodytype,
+                'X-M2M-Origin': usecseid,
+                'Content-Type': 'application/vnd.onem2m-ntfy+' + bodytype,
+                'nu': nu,
+                'bodytype': bodytype,
+                'ri': ri
             }
+        };
+
+        var req = http.request(options, function (res) {
+            //res.setEncoding('utf8');
+
+            res.on('data', function (chunk) {
+                bodyStr += chunk;
+            });
+
+            res.on('end', function () {
+                if (res.statusCode == 200 || res.statusCode == 201) {
+                    console.log('----> response for notification through mqtt ' + res.headers['x-m2m-rsc'] + ' - ' + ri);
+                    ss_fail_count[res.req._headers.ri] = 0;
+                }
+            });
         });
-    });
+    }
+    else {
+        options = {
+            hostname: 'localhost',
+            port: usepxymqttport,
+            path: '/notification',
+            method: 'POST',
+            headers: {
+                'X-M2M-RI': xm2mri,
+                'Accept': 'application/' + bodytype,
+                'X-M2M-Origin': usecseid,
+                'Content-Type': 'application/vnd.onem2m-ntfy+' + bodytype,
+                'nu': nu,
+                'bodytype': bodytype,
+                'ri': ri
+            },
+            ca: fs.readFileSync('ca-crt.pem')
+        };
+
+        req = https.request(options, function (res) {
+            //res.setEncoding('utf8');
+
+            res.on('data', function (chunk) {
+                bodyStr += chunk;
+            });
+
+            res.on('end', function () {
+                if (res.statusCode == 200 || res.statusCode == 201) {
+                    console.log('----> response for notification through mqtt ' + res.headers['x-m2m-rsc'] + ' - ' + ri);
+                    ss_fail_count[res.req._headers.ri] = 0;
+                }
+            });
+        });
+    }
 
     req.on('error', function (e) {
         if(e.message != 'read ECONNRESET') {

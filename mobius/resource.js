@@ -19,7 +19,9 @@ var xml2js = require('xml2js');
 var xmlbuilder = require('xmlbuilder');
 var js2xmlparser = require("js2xmlparser");
 var http = require('http');
+var https = require('https');
 var moment = require('moment');
+var fs = require('fs');
 
 var sgn = require('./sgn');
 var responder = require('./responder');
@@ -78,35 +80,64 @@ exports.remove_no_value = function(request, resource_Obj) {
 
 function check_TS(ri, callback) {
     var rqi = moment().utc().format('mmssSSS') + randomValueBase64(4);
-    var options = {
-        hostname: 'localhost',
-        port: usetsagentport,
-        path: '/missingDataDetect',
-        method: 'post',
-        headers: {
-            'X-M2M-RI': rqi,
-            'Accept': 'application/json',
-            'X-M2M-Origin': usecseid,
-            'Content-Type': 'application/vnd.onem2m-res+json'
-        }
-    };
-
     var jsonObj = {};
     jsonObj.ts = {};
     jsonObj.ts.ri = ri;
     var reqBodyString = JSON.stringify(jsonObj);
 
     var responseBody = '';
-    var req = http.request(options, function (res) {
-        //res.setEncoding('utf8');
-        res.on('data', function (chunk) {
-            responseBody += chunk;
-        });
 
-        res.on('end', function() {
-            callback(res.headers['x-m2m-rsc'], responseBody);
+    if(usesecure == 'disable') {
+        var options = {
+            hostname: 'localhost',
+            port: usetsagentport,
+            path: '/missingDataDetect',
+            method: 'post',
+            headers: {
+                'X-M2M-RI': rqi,
+                'Accept': 'application/json',
+                'X-M2M-Origin': usecseid,
+                'Content-Type': 'application/vnd.onem2m-res+json'
+            }
+        };
+
+        var req = http.request(options, function (res) {
+            //res.setEncoding('utf8');
+            res.on('data', function (chunk) {
+                responseBody += chunk;
+            });
+
+            res.on('end', function () {
+                callback(res.headers['x-m2m-rsc'], responseBody);
+            });
         });
-    });
+    }
+    else {
+        options = {
+            hostname: 'localhost',
+            port: usetsagentport,
+            path: '/missingDataDetect',
+            method: 'post',
+            headers: {
+                'X-M2M-RI': rqi,
+                'Accept': 'application/json',
+                'X-M2M-Origin': usecseid,
+                'Content-Type': 'application/vnd.onem2m-res+json'
+            },
+            ca: fs.readFileSync('ca-crt.pem')
+        };
+
+        req = https.request(options, function (res) {
+            //res.setEncoding('utf8');
+            res.on('data', function (chunk) {
+                responseBody += chunk;
+            });
+
+            res.on('end', function () {
+                callback(res.headers['x-m2m-rsc'], responseBody);
+            });
+        });
+    }
 
     req.on('error', function (e) {
         if(e.message != 'read ECONNRESET') {
@@ -121,31 +152,59 @@ function check_TS(ri, callback) {
 
 function delete_TS(callback) {
     var rqi = moment().utc().format('mmssSSS') + randomValueBase64(4);
-    var options = {
-        hostname: 'localhost',
-        port: usetsagentport,
-        path: '/missingDataDetect',
-        method: 'delete',
-        headers: {
-            'X-M2M-RI': rqi,
-            'Accept': 'application/json',
-            'X-M2M-Origin': usecseid
-        }
-    };
-
     var reqBodyString = '';
 
     var responseBody = '';
-    var req = http.request(options, function (res) {
-        //res.setEncoding('utf8');
-        res.on('data', function (chunk) {
-            responseBody += chunk;
-        });
 
-        res.on('end', function() {
-            callback(res.headers['x-m2m-rsc'], responseBody);
+    if(usesecure == 'disable') {
+        var options = {
+            hostname: 'localhost',
+            port: usetsagentport,
+            path: '/missingDataDetect',
+            method: 'delete',
+            headers: {
+                'X-M2M-RI': rqi,
+                'Accept': 'application/json',
+                'X-M2M-Origin': usecseid
+            }
+        };
+
+        var req = http.request(options, function (res) {
+            //res.setEncoding('utf8');
+            res.on('data', function (chunk) {
+                responseBody += chunk;
+            });
+
+            res.on('end', function () {
+                callback(res.headers['x-m2m-rsc'], responseBody);
+            });
         });
-    });
+    }
+    else {
+        options = {
+            hostname: 'localhost',
+            port: usetsagentport,
+            path: '/missingDataDetect',
+            method: 'delete',
+            headers: {
+                'X-M2M-RI': rqi,
+                'Accept': 'application/json',
+                'X-M2M-Origin': usecseid
+            },
+            ca: fs.readFileSync('ca-crt.pem')
+        };
+
+        req = https.request(options, function (res) {
+            //res.setEncoding('utf8');
+            res.on('data', function (chunk) {
+                responseBody += chunk;
+            });
+
+            res.on('end', function () {
+                callback(res.headers['x-m2m-rsc'], responseBody);
+            });
+        });
+    }
 
     req.on('error', function (e) {
         if(e.message != 'read ECONNRESET') {
@@ -627,9 +686,13 @@ function build_resource(request, response, ty, body_Obj, callback) {
     resource_Obj[rootnm].pi = url.parse(request.url).pathname;
     resource_Obj[rootnm].ri = resource_Obj[rootnm].pi + '/' + resource_Obj[rootnm].rn;
     resource_Obj[rootnm].ct = cur_d.toISOString().replace(/-/, '').replace(/-/, '').replace(/:/, '').replace(/:/, '').replace(/\..+/, '');
-    var et = new Date();
-    et.setYear(cur_d.getFullYear()+1); // adds time to existing time
-    resource_Obj[rootnm].et = et.toISOString().replace(/-/, '').replace(/-/, '').replace(/:/, '').replace(/:/, '').replace(/\..+/, '');
+    //var et = new Date();
+    //et.setYear(cur_d.getFullYear()+1); // adds time to existing time
+    //resource_Obj[rootnm].et = et.toISOString().replace(/-/, '').replace(/-/, '').replace(/:/, '').replace(/:/, '').replace(/\..+/, '');
+    resource_Obj[rootnm].et = moment().utc().add(10, 'years').format('YYYYMMDDTHHmmss');
+    if(ty == 17) {
+        resource_Obj[rootnm].et = moment().utc().add(1, 'days').format('YYYYMMDDTHHmmss');
+    }
     resource_Obj[rootnm].lt = resource_Obj[rootnm].ct;
 
     resource_Obj[rootnm].st = '0';

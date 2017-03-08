@@ -16,6 +16,7 @@
 
 var fs = require('fs');
 var http = require('http');
+var https = require('https');
 var mysql = require('mysql');
 var express = require('express');
 var bodyParser = require('body-parser');
@@ -30,49 +31,95 @@ var db_sql = require('./sql_action');
 // ������ �����մϴ�.
 var ts_app = express();
 
-http.globalAgent.maxSockets = 1000000;
+if(usesecure == 'disable') {
+    http.globalAgent.maxSockets = 1000000;
+    http.createServer(ts_app).listen({port: usetsagentport, agent: false}, function () {
+        console.log('ts_missing agent server (' + ip.address() + ') running at ' + usetsagentport + ' port');
 
-http.createServer(ts_app).listen({port: usetsagentport, agent: false}, function () {
-    console.log('ts_missing agent server (' + ip.address() + ') running at ' + usetsagentport + ' port');
-
-    // Searching TS with missingDetect. if it is TRUE, restart mdt
-    init_TS(function (rsc) {
-        console.log('init_TS - ' + rsc);
+        // Searching TS with missingDetect. if it is TRUE, restart mdt
+        init_TS(function (rsc) {
+            console.log('init_TS - ' + rsc);
+        });
     });
-});
+}
+else {
+    var options = {
+        key: fs.readFileSync('server-key.pem'),
+        cert: fs.readFileSync('server-crt.pem'),
+        ca: fs.readFileSync('ca-crt.pem')
+    };
+    https.globalAgent.maxSockets = 1000000;
+    https.createServer(options, ts_app).listen({port: usetsagentport, agent: false}, function () {
+        console.log('ts_missing agent server (' + ip.address() + ') running at ' + usetsagentport + ' port');
+
+        // Searching TS with missingDetect. if it is TRUE, restart mdt
+        init_TS(function (rsc) {
+            console.log('init_TS - ' + rsc);
+        });
+    });
+}
 
 function init_TS(callback) {
     var ri = '/missingDataDetect';
     var rqi = moment().utc().format('mmssSSS') + randomValueBase64(4);
-    var options = {
-        hostname: 'localhost',
-        port: usetsagentport,
-        path: ri,
-        method: 'post',
-        headers: {
-            'X-M2M-RI': rqi,
-            'Accept': 'application/json',
-            'X-M2M-Origin': usecseid,
-            'Content-Type': 'application/vnd.onem2m-res+json'
-        }
-    };
-
     //var reqBodyString = '';
     var jsonObj = {ts:{}};
     jsonObj.ts.ri = 'all';
     var reqBodyString = JSON.stringify(jsonObj);
 
     var responseBody = '';
-    var req = http.request(options, function (res) {
-        res.setEncoding('utf8');
-        res.on('data', function (chunk) {
-            responseBody += chunk;
-        });
 
-        res.on('end', function() {
-            callback(res.headers['x-m2m-rsc'], responseBody);
+    if(usesecure == 'disable') {
+        var options = {
+            hostname: 'localhost',
+            port: usetsagentport,
+            path: ri,
+            method: 'post',
+            headers: {
+                'X-M2M-RI': rqi,
+                'Accept': 'application/json',
+                'X-M2M-Origin': usecseid,
+                'Content-Type': 'application/vnd.onem2m-res+json'
+            }
+        };
+
+        var req = http.request(options, function (res) {
+            res.setEncoding('utf8');
+            res.on('data', function (chunk) {
+                responseBody += chunk;
+            });
+
+            res.on('end', function () {
+                callback(res.headers['x-m2m-rsc'], responseBody);
+            });
         });
-    });
+    }
+    else {
+        options = {
+            hostname: 'localhost',
+            port: usetsagentport,
+            path: ri,
+            method: 'post',
+            headers: {
+                'X-M2M-RI': rqi,
+                'Accept': 'application/json',
+                'X-M2M-Origin': usecseid,
+                'Content-Type': 'application/vnd.onem2m-res+json'
+            },
+            ca: fs.readFileSync('ca-crt.pem')
+        };
+
+        req = https.request(options, function (res) {
+            res.setEncoding('utf8');
+            res.on('data', function (chunk) {
+                responseBody += chunk;
+            });
+
+            res.on('end', function () {
+                callback(res.headers['x-m2m-rsc'], responseBody);
+            });
+        });
+    }
 
     req.on('error', function (e) {
         if(e.message != 'read ECONNRESET') {
@@ -89,29 +136,57 @@ function init_TS(callback) {
 function search_TS(request, response, callback) {
     var ri = '/' + usecsebase + '?fu=1&ty=29';
     var rqi = moment().utc().format('mmssSSS') + randomValueBase64(4);
-    var options = {
-        hostname: 'localhost',
-        port: usecsebaseport,
-        path: ri,
-        method: 'get',
-        headers: {
-            'X-M2M-RI': rqi,
-            'Accept': 'application/json',
-            'X-M2M-Origin': usecseid
-        }
-    };
-
     var responseBody = '';
-    var req = http.request(options, function (res) {
-        res.setEncoding('utf8');
-        res.on('data', function (chunk) {
-            responseBody += chunk;
-        });
 
-        res.on('end', function() {
-            callback(request, response, res.headers['x-m2m-rsc'], responseBody);
+    if(usesecure == 'disable') {
+        var options = {
+            hostname: 'localhost',
+            port: usecsebaseport,
+            path: ri,
+            method: 'get',
+            headers: {
+                'X-M2M-RI': rqi,
+                'Accept': 'application/json',
+                'X-M2M-Origin': usecseid
+            }
+        };
+
+        var req = http.request(options, function (res) {
+            res.setEncoding('utf8');
+            res.on('data', function (chunk) {
+                responseBody += chunk;
+            });
+
+            res.on('end', function () {
+                callback(request, response, res.headers['x-m2m-rsc'], responseBody);
+            });
         });
-    });
+    }
+    else {
+        options = {
+            hostname: 'localhost',
+            port: usecsebaseport,
+            path: ri,
+            method: 'get',
+            headers: {
+                'X-M2M-RI': rqi,
+                'Accept': 'application/json',
+                'X-M2M-Origin': usecseid
+            },
+            ca: fs.readFileSync('ca-crt.pem')
+        };
+
+        req = https.request(options, function (res) {
+            res.setEncoding('utf8');
+            res.on('data', function (chunk) {
+                responseBody += chunk;
+            });
+
+            res.on('end', function () {
+                callback(request, response, res.headers['x-m2m-rsc'], responseBody);
+            });
+        });
+    }
 
     req.on('error', function (e) {
         if(e.message != 'read ECONNRESET') {

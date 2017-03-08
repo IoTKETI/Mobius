@@ -25,10 +25,10 @@ var wdt_param2_q = {};
 var wdt_param3_q = {};
 
 setInterval(function () {
-    wdt.emit('mobius_watchdog');
+    wdt.emit('del_req_resource');
 }, 1000);
 
-wdt.on('mobius_watchdog', function() {
+wdt.on('del_req_resource', function() {
     for (var id in wdt_value_q) {
         if(wdt_value_q.hasOwnProperty(id)) {
             ++wdt_tick_q[id];

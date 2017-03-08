@@ -37,7 +37,7 @@ function parse_create_action(callback) {
     resource_Obj[rootnm].ri = resource_Obj[rootnm].pi + '/' + resource_Obj[rootnm].rn;
     resource_Obj[rootnm].ct = cur_d.toISOString().replace(/-/, '').replace(/-/, '').replace(/:/, '').replace(/:/, '').replace(/\..+/, '');
     resource_Obj[rootnm].lt = resource_Obj[rootnm].ct;
-    resource_Obj[rootnm].et = '';
+    resource_Obj[rootnm].et = moment().utc().add(10, 'years').format('YYYYMMDDTHHmmss');
     resource_Obj[rootnm].acpi = [];
     resource_Obj[rootnm].lbl = [];
     resource_Obj[rootnm].lbl[0] = resource_Obj[rootnm].rn;

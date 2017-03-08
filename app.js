@@ -82,6 +82,25 @@ var accessLogStream = fileStreamRotator.getStream({
 app.use(morgan('combined', {stream: accessLogStream}));
 //ts_app.use(morgan('short', {stream: accessLogStream}));
 
+
+function del_req_resource() {
+    // todo : this routine is that delete resource expired time exceed et of resource
+    /*var et = moment().utc().format('YYYYMMDDTHHmmss');
+    db_sql.delete_lookup_et(et, function (err) {
+        if(!err) {
+            console.log('---------------');
+            console.log('delete resources expired et');
+            console.log('---------------');
+        }
+    });*/
+
+    db_sql.delete_req(function (err, delete_Obj) {
+        if(!err) {
+            console.log('deleted ' + delete_Obj.affectedRows + ' request resource(s).');
+        }
+    });
+}
+
 var cluster = require('cluster');
 var os = require('os');
 var cpuCount = os.cpus().length;
@@ -104,6 +123,8 @@ if (use_clustering) {
                         worker[i] = cluster.fork();
                     }
 
+                    wdt.set_wdt(require('shortid').generate(), 43200, del_req_resource);
+
                     require('./pxy_mqtt');
                     require('./pxy_coap');
 
@@ -121,16 +142,32 @@ if (use_clustering) {
         //   app.use(bodyParser.json({limit: '1mb', type: 'application/*+json' }));
         //   app.use(bodyParser.text({limit: '1mb', type: 'application/*+xml' }));
 
-        http.globalAgent.maxSockets = 1000000;
 
         db.connect(usedbhost, 3306, 'root', usedbpass, function (rsc) {
             if (rsc == '1') {
-                http.createServer(app).listen({port: usecsebaseport, agent: false}, function () {
-                    console.log('mobius server (' + ip.address() + ') running at ' + usecsebaseport + ' port');
-                    cb.create(function (rsp) {
-                        console.log(JSON.stringify(rsp));
+                if(usesecure == 'disable') {
+                    http.globalAgent.maxSockets = 1000000;
+                    http.createServer(app).listen({port: usecsebaseport, agent: false}, function () {
+                        console.log('mobius server (' + ip.address() + ') running at ' + usecsebaseport + ' port');
+                        cb.create(function (rsp) {
+                            console.log(JSON.stringify(rsp));
+                        });
                     });
-                });
+                }
+                else {
+                    var options = {
+                        key: fs.readFileSync('server-key.pem'),
+                        cert: fs.readFileSync('server-crt.pem'),
+                        ca: fs.readFileSync('ca-crt.pem')
+                    };
+                    https.globalAgent.maxSockets = 1000000;
+                    https.createServer(options, app).listen({port: usecsebaseport, agent: false}, function () {
+                        console.log('mobius server (' + ip.address() + ') running at ' + usecsebaseport + ' port');
+                        cb.create(function (rsp) {
+                            console.log(JSON.stringify(rsp));
+                        });
+                    });
+                }
             }
         });
     }
@@ -141,19 +178,39 @@ else {
             cb.create(function (rsp) {
                 console.log(JSON.stringify(rsp));
 
-                http.globalAgent.maxSockets = 1000000;
+                if(usesecure == 'disable') {
+                    http.globalAgent.maxSockets = 1000000;
+                    http.createServer(app).listen({port: usecsebaseport, agent: false}, function () {
+                        console.log('mobius server (' + ip.address() + ') running at ' + usecsebaseport + ' port');
+                        require('./pxy_mqtt');
+                        //require('./mobius/ts_agent');
 
-                http.createServer(app).listen({port: usecsebaseport, agent: false}, function () {
-                    console.log('mobius server (' + ip.address() + ') running at ' + usecsebaseport + ' port');
-                    require('./pxy_mqtt');
-                    //require('./mobius/ts_agent');
+                        if (usecsetype == 'mn' || usecsetype == 'asn') {
+                            global.refreshIntervalId = setInterval(function () {
+                                csr_custom.emit('register_remoteCSE');
+                            }, 5000);
+                        }
+                    });
+                }
+                else {
+                    var options = {
+                        key: fs.readFileSync('server-key.pem'),
+                        cert: fs.readFileSync('server-crt.pem'),
+                        ca: fs.readFileSync('ca-crt.pem')
+                    };
+                    https.globalAgent.maxSockets = 1000000;
+                    https.createServer(options, app).listen({port: usecsebaseport, agent: false}, function () {
+                        console.log('mobius server (' + ip.address() + ') running at ' + usecsebaseport + ' port');
+                        require('./pxy_mqtt');
+                        //require('./mobius/ts_agent');
 
-                    if (usecsetype == 'mn' || usecsetype == 'asn') {
-                        global.refreshIntervalId = setInterval(function () {
-                            csr_custom.emit('register_remoteCSE');
-                        }, 5000);
-                    }
-                });
+                        if (usecsetype == 'mn' || usecsetype == 'asn') {
+                            global.refreshIntervalId = setInterval(function () {
+                                csr_custom.emit('register_remoteCSE');
+                            }, 5000);
+                        }
+                    });
+                }
             });
         }
     });
@@ -187,7 +244,7 @@ global.update_route = function (callback) {
             for (var i = 0; i < results_csr.length; i++) {
                 var poa_arr = JSON.parse(results_csr[i].poa);
                 for (var j = 0; j < poa_arr.length; j++) {
-                    if (url.parse(poa_arr[j]).protocol == 'http:') {
+                    if (url.parse(poa_arr[j]).protocol == 'http:' || url.parse(poa_arr[j]).protocol == 'https:') {
                         cse_poa[results_csr[i].ri.split('/')[2]] = poa_arr[j];
                     }
                 }

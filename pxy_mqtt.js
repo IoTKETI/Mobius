@@ -16,11 +16,13 @@
 
 var fs = require('fs');
 var http = require('http');
+var https = require('https');
 var express = require('express');
 var bodyParser = require('body-parser');
 var mqtt = require('mqtt');
 var util = require('util');
 var xml2js = require('xml2js');
+var js2xmlparser = require('js2xmlparser');
 var url = require('url');
 var xmlbuilder = require('xmlbuilder');
 var moment = require('moment');
@@ -49,7 +51,6 @@ var mqtt_app = express();
 var usemqttcbhost = 'localhost'; // pxymqtt to mobius
 
 
-http.globalAgent.maxSockets = 1000000;
 
 //require('./mobius/ts_agent');
 
@@ -62,15 +63,27 @@ var pxymqtt_client = null;
 //mqtt_custom.on('mqtt_watchdog', function() {
 exports.mqtt_watchdog = function() {
     if(mqtt_state == 'init') {
-        http.createServer(mqtt_app).listen({port: usepxymqttport, agent: false}, function () {
-            console.log('pxymqtt server (' + ip.address() + ') running at ' + usepxymqttport + ' port');
+        if(usesecure == 'disable') {
+            http.globalAgent.maxSockets = 1000000;
+            http.createServer(mqtt_app).listen({port: usepxymqttport, agent: false}, function () {
+                console.log('pxymqtt server (' + ip.address() + ') running at ' + usepxymqttport + ' port');
 
-            mqtt_state = 'connect';
+                mqtt_state = 'connect';
+            });
+        }
+        else {
+            var options = {
+                key: fs.readFileSync('server-key.pem'),
+                cert: fs.readFileSync('server-crt.pem'),
+                ca: fs.readFileSync('ca-crt.pem')
+            };
+            https.globalAgent.maxSockets = 1000000;
+            https.createServer(options, mqtt_app).listen({port: usepxymqttport, agent: false}, function () {
+                console.log('pxymqtt server (' + ip.address() + ') running at ' + usepxymqttport + ' port');
 
-//    setInterval(function () {
-//        mqtt_custom.emit('mqtt_watchdog');
-//    }, 2000);
-        });
+                mqtt_state = 'connect';
+            });
+        }
     }
     else if(mqtt_state == 'connect') {
         http_retrieve_CSEBase(function(status, res_body) {
@@ -103,7 +116,7 @@ exports.mqtt_watchdog = function() {
 };
 
 var mqtt_tid = require('shortid').generate();
-wdt.set_wdt(mqtt_tid, 3, _this.mqtt_watchdog);
+wdt.set_wdt(mqtt_tid, 2, _this.mqtt_watchdog);
 
 
 function resp_sub(mqtt_client) {
@@ -413,31 +426,61 @@ function mqtt_binding(op, to, fr, rqi, ty, pc, bodytype, callback) {
         reqBodyString = JSON.stringify(pc);
     }
 
-    var options = {
-        hostname: usemqttcbhost,
-        port: usecsebaseport,
-        path: to,
-        method: op,
-        headers: {
-            'X-M2M-RI': rqi,
-            'Accept': 'application/json',
-            'X-M2M-Origin': fr,
-            'Content-Type': content_type
-        }
-    };
-
     var bodyStr = '';
-    var req = http.request(options, function (res) {
-        res.setEncoding('utf8');
 
-        res.on('data', function (chunk) {
-            bodyStr += chunk;
-        });
+    if(usesecure == 'disable') {
+        var options = {
+            hostname: usemqttcbhost,
+            port: usecsebaseport,
+            path: to,
+            method: op,
+            headers: {
+                'X-M2M-RI': rqi,
+                'Accept': 'application/json',
+                'X-M2M-Origin': fr,
+                'Content-Type': content_type
+            }
+        };
 
-        res.on('end', function () {
-            callback(res, bodyStr);
+        var req = http.request(options, function (res) {
+            res.setEncoding('utf8');
+
+            res.on('data', function (chunk) {
+                bodyStr += chunk;
+            });
+
+            res.on('end', function () {
+                callback(res, bodyStr);
+            });
         });
-    });
+    }
+    else {
+        options = {
+            hostname: usemqttcbhost,
+            port: usecsebaseport,
+            path: to,
+            method: op,
+            headers: {
+                'X-M2M-RI': rqi,
+                'Accept': 'application/json',
+                'X-M2M-Origin': fr,
+                'Content-Type': content_type
+            },
+            ca: fs.readFileSync('ca-crt.pem')
+        };
+
+        req = https.request(options, function (res) {
+            res.setEncoding('utf8');
+
+            res.on('data', function (chunk) {
+                bodyStr += chunk;
+            });
+
+            res.on('end', function () {
+                callback(res, bodyStr);
+            });
+        });
+    }
 
     req.on('error', function (e) {
         console.log('[pxymqtt-mqtt_binding] problem with request: ' + e.message);
@@ -710,6 +753,7 @@ mqtt_app.post('/notification', onem2mParser, function(request, response, next) {
             }
         }
         catch (e) {
+            console.log(e.message);
             var rsp_Obj = {};
             rsp_Obj['rsp'] = {};
             rsp_Obj['rsp'].dbg = 'notificationUrl does not support : ' + request.headers.nu;
@@ -837,29 +881,57 @@ mqtt_app.get('/get_cb', onem2mParser, function(request, response, next) {
 function http_retrieve_CSEBase(callback) {
     var rqi = moment().utc().format('mmssSSS') + randomValueBase64(4);
     var resourceid = '/' + usecsebase;
-    var options = {
-        hostname: usemqttcbhost,
-        port: usecsebaseport,
-        path: resourceid,
-        method: 'get',
-        headers: {
-            'X-M2M-RI': rqi,
-            'Accept': 'application/json',
-            'X-M2M-Origin': usecseid
-        }
-    };
-
     var responseBody = '';
-    var req = http.request(options, function (res) {
-        res.setEncoding('utf8');
-        res.on('data', function (chunk) {
-            responseBody += chunk;
-        });
 
-        res.on('end', function() {
-            callback(res.headers['x-m2m-rsc'], responseBody);
+    if(usesecure == 'disable') {
+        var options = {
+            hostname: usemqttcbhost,
+            port: usecsebaseport,
+            path: resourceid,
+            method: 'get',
+            headers: {
+                'X-M2M-RI': rqi,
+                'Accept': 'application/json',
+                'X-M2M-Origin': usecseid
+            }
+        };
+
+        var req = http.request(options, function (res) {
+            res.setEncoding('utf8');
+            res.on('data', function (chunk) {
+                responseBody += chunk;
+            });
+
+            res.on('end', function () {
+                callback(res.headers['x-m2m-rsc'], responseBody);
+            });
         });
-    });
+    }
+    else {
+        options = {
+            hostname: usemqttcbhost,
+            port: usecsebaseport,
+            path: resourceid,
+            method: 'get',
+            headers: {
+                'X-M2M-RI': rqi,
+                'Accept': 'application/json',
+                'X-M2M-Origin': usecseid
+            },
+            ca: fs.readFileSync('ca-crt.pem')
+        };
+
+        req = https.request(options, function (res) {
+            res.setEncoding('utf8');
+            res.on('data', function (chunk) {
+                responseBody += chunk;
+            });
+
+            res.on('end', function () {
+                callback(res.headers['x-m2m-rsc'], responseBody);
+            });
+        });
+    }
 
     req.on('error', function (e) {
         if(e.message != 'read ECONNRESET') {

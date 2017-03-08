@@ -20,6 +20,7 @@
 
 var fs = require('fs');
 var http = require('http');
+var https = require('https');
 var coap = require('coap');
 var util = require('util');
 var xml2js = require('xml2js');
@@ -142,7 +143,7 @@ exports.coap_watchdog = function () {
 
 
 var coap_tid = require('shortid').generate();
-wdt.set_wdt(coap_tid, 3, _this.coap_watchdog);
+wdt.set_wdt(coap_tid, 2, _this.coap_watchdog);
 
 function coap_message_handler(request, response) {
 
@@ -181,43 +182,78 @@ function coap_message_handler(request, response) {
 
     delete headers['X-M2M-TY'];
 
-    var options = {
-        hostname: usecoapcbhost,
-        port: usecsebaseport,
-        path: request.url,
-        method: request.method,
-        headers: headers
-    };
-
     var responseBody = '';
-    var req = http.request(options, function (res) {
-        res.setEncoding('utf8');
-        res.on('data', function (chunk) {
-            responseBody += chunk;
+
+    if(usesecure == 'disable') {
+        var options = {
+            hostname: usecoapcbhost,
+            port: usecsebaseport,
+            path: request.url,
+            method: request.method,
+            headers: headers
+        };
+
+        var req = http.request(options, function (res) {
+            res.setEncoding('utf8');
+            res.on('data', function (chunk) {
+                responseBody += chunk;
+            });
+
+            res.on('end', function () {
+                console.log('<----- [pxy_coap]');
+                console.log(responseBody);
+
+                var rsc = new Buffer(2);
+                rsc.writeUInt16BE(parseInt(res.headers['x-m2m-rsc'], 'hex'), 0);
+                response.setOption("265", rsc);    // X-M2M-RSC
+                if (res.headers['content-type']) {
+                    response.setOption("Content-Format", res.headers['content-type']);
+                }
+                response.code = coap_rsc_code[res.headers['x-m2m-rsc']];
+                response.end(responseBody);
+            });
+        });
+    }
+    else if(usesecure == 'enable') {
+        options = {
+            hostname: usecoapcbhost,
+            port: usecsebaseport,
+            path: request.url,
+            method: request.method,
+            headers: headers,
+            ca: fs.readFileSync('ca-crt.pem')
+        };
+
+        req = https.request(options, function (res) {
+            res.setEncoding('utf8');
+            res.on('data', function (chunk) {
+                responseBody += chunk;
+            });
+
+            res.on('end', function () {
+                console.log('<----- [pxy_coap]');
+                console.log(responseBody);
+
+                var rsc = new Buffer(2);
+                rsc.writeUInt16BE(parseInt(res.headers['x-m2m-rsc'], 'hex'), 0);
+                response.setOption("265", rsc);    // X-M2M-RSC
+                if (res.headers['content-type']) {
+                    response.setOption("Content-Format", res.headers['content-type']);
+                }
+                response.code = coap_rsc_code[res.headers['x-m2m-rsc']];
+                response.end(responseBody);
+            });
         });
 
-        res.on('end', function() {
-            console.log('<----- [pxy_coap]');
-            console.log(responseBody);
-
-            var rsc = new Buffer(2);
-            rsc.writeUInt16BE(parseInt(res.headers['x-m2m-rsc'], 'hex'), 0);
-            response.setOption("265", rsc);    // X-M2M-RSC
-            if(res.headers['content-type']) {
-                response.setOption("Content-Format", res.headers['content-type']);
-            }
-            response.code = coap_rsc_code[res.headers['x-m2m-rsc']];
-            response.end(responseBody);
-        });
-    });
+    }
 
     req.on('error', function (e) {
-        if(e.message != 'read ECONNRESET') {
+        if (e.message != 'read ECONNRESET') {
             console.log('[pxycoap - http_retrieve_CSEBase] problem with request: ' + e.message);
         }
     });
 
-    var bodyString = request.payload.toString();
+    bodyString = request.payload.toString();
     console.log('-----> [pxy_coap]');
     console.log(bodyString);
 

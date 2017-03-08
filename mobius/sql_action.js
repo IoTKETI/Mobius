@@ -1208,3 +1208,30 @@ exports.delete_lookup = function (ri, pi_list, pi_index, found_Obj, found_Cnt, c
         }
     });
 };
+
+exports.delete_lookup_et = function (et, callback) {
+    var pi_list = [];
+    var sql = util.format("select ri from lookup where et < \'%s\'", et);
+    db.getResult(sql, '', function (err, delete_Obj) {
+        if(!err) {
+            for(var i = 0; i < delete_Obj.length; i++) {
+                pi_list.push(delete_Obj[i].ri);
+            }
+
+            var finding_Obj = [];
+            _this.delete_lookup('', pi_list, 0, finding_Obj, 0, function (err, search_Obj) {
+                callback(err, search_Obj);
+            });
+        }
+    });
+};
+
+
+exports.delete_req = function (callback) {
+    var sql = util.format("delete from lookup where ty = \'17\'");
+    db.getResult(sql, '', function (err, delete_Obj) {
+        if(!err) {
+            callback(err, delete_Obj);
+        }
+    });
+};
