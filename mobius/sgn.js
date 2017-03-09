@@ -385,7 +385,7 @@ function request_noti_mqtt(nu, ri, xmlString, bodytype, xm2mri) {
     });
 
     req.on('close', function() {
-        console.log('[request_noti_mqtt] close: no response for notification');
+        console.log('[request_noti_mqtt - ' + usepxymqttport + '] close: no response for notification');
     });
 
     req.write(xmlString);

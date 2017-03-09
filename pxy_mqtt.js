@@ -935,7 +935,7 @@ function http_retrieve_CSEBase(callback) {
 
     req.on('error', function (e) {
         if(e.message != 'read ECONNRESET') {
-            console.log('[pxymqtt - http_retrieve_CSEBase] problem with request: ' + e.message);
+            //console.log('[pxymqtt - http_retrieve_CSEBase] problem with request: ' + e.message);
         }
     });
 

@@ -600,7 +600,7 @@ exports.search_lookup = function (ri, ty, lbl, cra, crb, lim, ofst, lvl, pi_list
         lim = max_lim;
     }
 
-    for(var idx = 0; idx < 16; idx++) {
+    for(var idx = 0; idx < 8; idx++) {
         if (pi_index < pi_list.length) {
             cur_pi.push(pi_list[pi_index++]);
         }

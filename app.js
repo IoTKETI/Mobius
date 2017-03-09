@@ -1024,6 +1024,11 @@ function lookup_create(request, response) {
                 if(parent_comm.ty == 4 || parent_comm.ty == 3 || parent_comm.ty == 9 || parent_comm.ty == 24 || parent_comm.ty == 23 || parent_comm.ty == 29) {
                     db_sql.select_resource(responder.typeRsrc[parent_comm.ty], parent_comm.ri, function (err, parent_spec) {
                         if (!err) {
+                            if(parent_spec.length == 0) {
+                                parent_spec[0] = {};
+                                parent_spec[0].cr = '';
+                                console.log('no creator');
+                            }
                             security.check(request, parent_comm.ty, parent_comm.acpi, '1', parent_spec[0].cr, function (rsc) {
                                 if (rsc == '0') {
                                     body_Obj = {};
@@ -1095,6 +1100,11 @@ function lookup_retrieve(request, response) {
                 if(results_comm.ty == 4 || results_comm.ty == 3 || results_comm.ty == 9 || results_comm.ty == 24 || results_comm.ty == 23 || results_comm.ty == 29) {
                     db_sql.select_resource(responder.typeRsrc[results_comm.ty], results_comm.ri, function (err, results_spec) {
                         if (!err) {
+                            if(results_spec.length == 0) {
+                                results_spec[0] = {};
+                                results_spec[0].cr = '';
+                                console.log('no creator');
+                            }
                             security.check(request, results_comm.ty, results_comm.acpi, '2', results_spec[0].cr, function (rsc) {
                                 if (rsc == '0') {
                                     body_Obj = {};
@@ -1156,6 +1166,11 @@ function lookup_update(request, response) {
                 if(results_comm.ty == 4 || results_comm.ty == 3 || results_comm.ty == 9 || results_comm.ty == 24 || results_comm.ty == 23 || results_comm.ty == 29) {
                     db_sql.select_resource(responder.typeRsrc[results_comm.ty], results_comm.ri, function (err, results_spec) {
                         if (!err) {
+                            if(results_spec.length == 0) {
+                                results_spec[0] = {};
+                                results_spec[0].cr = '';
+                                console.log('no creator');
+                            }
                             security.check(request, results_comm.ty, results_comm.acpi, '4', results_spec[0].cr, function (rsc) {
                                 if (rsc == '0') {
                                     body_Obj = {};
@@ -1217,6 +1232,11 @@ function lookup_delete(request, response) {
                 if(results_comm.ty == 4 || results_comm.ty == 3 || results_comm.ty == 9 || results_comm.ty == 24 || results_comm.ty == 23 || results_comm.ty == 29) {
                     db_sql.select_resource(responder.typeRsrc[results_comm.ty], results_comm.ri, function (err, results_spec) {
                         if (!err) {
+                            if(results_spec.length == 0) {
+                                results_spec[0] = {};
+                                results_spec[0].cr = '';
+                                console.log('no creator');
+                            }
                             security.check(request, results_comm.ty, results_comm.acpi, '8', results_spec[0].cr, function (rsc) {
                                 if (rsc == '0') {
                                     body_Obj = {};
