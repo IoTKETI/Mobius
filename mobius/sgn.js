@@ -51,7 +51,7 @@ exports.check = function(request, noti_Obj, check_value) {
                     ss_fail_count[results_ss[i].ri] = 0;
                 }
                 ss_fail_count[results_ss[i].ri]++;
-                if (ss_fail_count[results_ss[i].ri] >= 16) {
+                if (ss_fail_count[results_ss[i].ri] >= 8) {
                     delete ss_fail_count[results_ss[i].ri];
                     delete_sub(results_ss[i].ri, xm2mri);
                 }

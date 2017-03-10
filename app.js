@@ -1021,13 +1021,18 @@ function lookup_create(request, response) {
                     }
                 }
 
-                if(parent_comm.ty == 4 || parent_comm.ty == 3 || parent_comm.ty == 9 || parent_comm.ty == 24 || parent_comm.ty == 23 || parent_comm.ty == 29) {
+                if(parent_comm.ty == 2 || parent_comm.ty == 4 || parent_comm.ty == 3 || parent_comm.ty == 9 || parent_comm.ty == 24 || parent_comm.ty == 23 || parent_comm.ty == 29) {
                     db_sql.select_resource(responder.typeRsrc[parent_comm.ty], parent_comm.ri, function (err, parent_spec) {
                         if (!err) {
                             if(parent_spec.length == 0) {
                                 parent_spec[0] = {};
                                 parent_spec[0].cr = '';
                                 console.log('no creator');
+                            }
+                            else {
+                                if(parent_comm.ty == 2) {
+                                    parent_spec[0].cr = parent_spec[0].aei;
+                                }
                             }
                             security.check(request, parent_comm.ty, parent_comm.acpi, '1', parent_spec[0].cr, function (rsc) {
                                 if (rsc == '0') {
@@ -1097,13 +1102,18 @@ function lookup_retrieve(request, response) {
                 });
             }
             else { //if(op == 'direct') {
-                if(results_comm.ty == 4 || results_comm.ty == 3 || results_comm.ty == 9 || results_comm.ty == 24 || results_comm.ty == 23 || results_comm.ty == 29) {
+                if(results_comm.ty == 2 || results_comm.ty == 4 || results_comm.ty == 3 || results_comm.ty == 9 || results_comm.ty == 24 || results_comm.ty == 23 || results_comm.ty == 29) {
                     db_sql.select_resource(responder.typeRsrc[results_comm.ty], results_comm.ri, function (err, results_spec) {
                         if (!err) {
                             if(results_spec.length == 0) {
                                 results_spec[0] = {};
                                 results_spec[0].cr = '';
                                 console.log('no creator');
+                            }
+                            else {
+                                if(results_spec.ty == 2) {
+                                    results_spec[0].cr = results_spec[0].aei;
+                                }
                             }
                             security.check(request, results_comm.ty, results_comm.acpi, '2', results_spec[0].cr, function (rsc) {
                                 if (rsc == '0') {
@@ -1163,13 +1173,18 @@ function lookup_update(request, response) {
                 });
             }
             else { //if(op == 'direct') {
-                if(results_comm.ty == 4 || results_comm.ty == 3 || results_comm.ty == 9 || results_comm.ty == 24 || results_comm.ty == 23 || results_comm.ty == 29) {
+                if(results_comm.ty == 2 || results_comm.ty == 4 || results_comm.ty == 3 || results_comm.ty == 9 || results_comm.ty == 24 || results_comm.ty == 23 || results_comm.ty == 29) {
                     db_sql.select_resource(responder.typeRsrc[results_comm.ty], results_comm.ri, function (err, results_spec) {
                         if (!err) {
                             if(results_spec.length == 0) {
                                 results_spec[0] = {};
                                 results_spec[0].cr = '';
                                 console.log('no creator');
+                            }
+                            else {
+                                if(results_spec.ty == 2) {
+                                    results_spec[0].cr = results_spec[0].aei;
+                                }
                             }
                             security.check(request, results_comm.ty, results_comm.acpi, '4', results_spec[0].cr, function (rsc) {
                                 if (rsc == '0') {
@@ -1229,13 +1244,18 @@ function lookup_delete(request, response) {
                 });
             }
             else { //if(op == 'direct') {
-                if(results_comm.ty == 4 || results_comm.ty == 3 || results_comm.ty == 9 || results_comm.ty == 24 || results_comm.ty == 23 || results_comm.ty == 29) {
+                if(results_comm.ty == 2 || results_comm.ty == 4 || results_comm.ty == 3 || results_comm.ty == 9 || results_comm.ty == 24 || results_comm.ty == 23 || results_comm.ty == 29) {
                     db_sql.select_resource(responder.typeRsrc[results_comm.ty], results_comm.ri, function (err, results_spec) {
                         if (!err) {
                             if(results_spec.length == 0) {
                                 results_spec[0] = {};
                                 results_spec[0].cr = '';
                                 console.log('no creator');
+                            }
+                            else {
+                                if(results_spec.ty == 2) {
+                                    results_spec[0].cr = results_spec[0].aei;
+                                }
                             }
                             security.check(request, results_comm.ty, results_comm.acpi, '8', results_spec[0].cr, function (rsc) {
                                 if (rsc == '0') {
