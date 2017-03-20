@@ -465,7 +465,7 @@ exports.select_csr = function(ri, callback) {
 
 exports.search_parents_lookup = function(ri, callback) {
     console.time('search_parents_lookup ' + ri);
-    var sql = util.format("select ri from lookup where (ri =\'%s\' or pi=\'%s\' or pi like \'%s/%%\') and ty != \'1\' and ty != \'4\' and ty != \'23\' and ty != \'30\' and ty != \'9\' and ty != \'17\'", ri, ri, ri);
+    var sql = util.format("select ri from lookup where (ri =\'%s\') or ((pi=\'%s\' or pi like \'%s/%%\') and ty != \'1\' and ty != \'4\' and ty != \'23\' and ty != \'30\' and ty != \'9\' and ty != \'17\')", ri, ri, ri);
     db.getResult(sql, '', function (err, result_lookup_ri) {
         console.timeEnd('search_parents_lookup ' + ri);
         callback(err, result_lookup_ri);

@@ -360,6 +360,19 @@ global.make_json_arraytype = function (body_Obj) {
     }
 };
 
+function check_body_format(request) {
+    request.headers.usebodytype = 'json';
+    if (request.headers.accept) {
+        try {
+            if ((request.headers.accept.split('/')[1] == 'xml') || (request.headers.accept.split('+')[1] == 'xml')) {
+                request.headers.usebodytype = 'xml';
+            }
+        }
+        catch (e) {
+        }
+    }
+}
+
 function check_http_body(request, response, callback) {
     var body_Obj = {};
 
@@ -424,16 +437,7 @@ function check_http(request, response, callback) {
         request.headers.nmtype = defaultnmtype;
     }
 
-    request.headers.usebodytype = 'json';
-    if (request.headers.accept) {
-        try {
-            if ((request.headers.accept.split('/')[1] == 'xml') || (request.headers.accept.split('+')[1] == 'xml')) {
-                request.headers.usebodytype = 'xml';
-            }
-        }
-        catch (e) {
-        }
-    }
+//    check_body_format();
 
     // Check X-M2M-RI Header
     if ((request.headers['x-m2m-ri'] == null)) {
@@ -1311,6 +1315,9 @@ app.post(onem2mParser, function (request, response) {
         if (request.query.rt == null) {
             request.query.rt = 3;
         }
+
+        check_body_format(request);
+
         //request.url = request.url.replace(/\/$/, "");
         //var url_arr = url.parse(request.url).pathname.split('/');
         var absolute_url = request.url.replace(/\/~\/[^\/]+\/?/, '/').split('#')[0];
@@ -1366,6 +1373,9 @@ app.get(onem2mParser, function (request, response) {
         if (request.query.rt == null) {
             request.query.rt = 3;
         }
+
+        check_body_format(request);
+
         request.url = request.url.replace('%23', '#'); // convert '%23' to '#' of url
         request.hash = url.parse(request.url).hash;
         var absolute_url = request.url.replace(/\/~\/[^\/]+\/?/, '/').split('#')[0];
@@ -1421,6 +1431,9 @@ app.put(onem2mParser, function (request, response) {
         if (request.query.rt == null) {
             request.query.rt = 3;
         }
+
+        check_body_format(request);
+
         //request.url = request.url.replace(/\/$/, "");
         //var url_arr = url.parse(request.url).pathname.split('/');
         var absolute_url = request.url.replace(/\/~\/[^\/]+\/?/, '/').split('#')[0];
@@ -1478,6 +1491,9 @@ app.delete(onem2mParser, function (request, response) {
         if (request.query.rt == null) {
             request.query.rt = 3;
         }
+
+        check_body_format(request);
+
         //request.url = request.url.replace(/\/$/, "");
         //var url_arr = url.parse(request.url).pathname.split('/');
         var absolute_url = request.url.replace(/\/~\/[^\/]+\/?/, '/').split('#')[0];
