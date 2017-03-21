@@ -25,10 +25,10 @@ var wdt_param2_q = {};
 var wdt_param3_q = {};
 
 setInterval(function () {
-    wdt.emit('del_req_resource');
+    wdt.emit('resource_manager');
 }, 1000);
 
-wdt.on('del_req_resource', function() {
+wdt.on('resource_manager', function() {
     for (var id in wdt_value_q) {
         if(wdt_value_q.hasOwnProperty(id)) {
             ++wdt_tick_q[id];

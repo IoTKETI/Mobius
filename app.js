@@ -84,21 +84,23 @@ app.use(morgan('combined', {stream: accessLogStream}));
 
 
 function del_req_resource() {
-    // todo : this routine is that delete resource expired time exceed et of resource
-    /*var et = moment().utc().format('YYYYMMDDTHHmmss');
-    db_sql.delete_lookup_et(et, function (err) {
-        if(!err) {
-            console.log('---------------');
-            console.log('delete resources expired et');
-            console.log('---------------');
-        }
-    });*/
-
     db_sql.delete_req(function (err, delete_Obj) {
         if(!err) {
             console.log('deleted ' + delete_Obj.affectedRows + ' request resource(s).');
         }
     });
+}
+
+function del_expired_resource() {
+    // todo : this routine is that delete resource expired time exceed et of resource
+    /*var et = moment().utc().format('YYYYMMDDTHHmmss');
+     db_sql.delete_lookup_et(et, function (err) {
+     if(!err) {
+     console.log('---------------');
+     console.log('delete resources expired et');
+     console.log('---------------');
+     }
+     });*/
 }
 
 var cluster = require('cluster');
@@ -124,6 +126,7 @@ if (use_clustering) {
                     }
 
                     wdt.set_wdt(require('shortid').generate(), 43200, del_req_resource);
+                    wdt.set_wdt(require('shortid').generate(), 31536000, del_expired_resource);
 
                     require('./pxy_mqtt');
                     require('./pxy_coap');

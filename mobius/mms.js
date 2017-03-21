@@ -43,11 +43,11 @@ exports.build_mms = function(request, response, resource_Obj, body_Obj, callback
         return '0';
     }
     else {
-        resource_Obj[rootnm].acpi = body_Obj[rootnm]['acpi'];
-        resource_Obj[rootnm].et = body_Obj[rootnm]['et'] == null ? '' : body_Obj[rootnm]['et'];
-        resource_Obj[rootnm].lbl = body_Obj[rootnm]['lbl'];
-        resource_Obj[rootnm].at = body_Obj[rootnm]['at'] == null ? '' : body_Obj[rootnm]['at'];
-        resource_Obj[rootnm].aa = body_Obj[rootnm]['aa'] == null ? '' : body_Obj[rootnm]['aa'];
+        resource_Obj[rootnm].acpi = (body_Obj[rootnm].acpi) ? body_Obj[rootnm].acpi : [];
+        resource_Obj[rootnm].et = (body_Obj[rootnm].et) ? body_Obj[rootnm].et : resource_Obj[rootnm].et;
+        resource_Obj[rootnm].lbl = (body_Obj[rootnm].lbl) ? body_Obj[rootnm].lbl : [];
+        resource_Obj[rootnm].at = (body_Obj[rootnm].at) ? body_Obj[rootnm].at : [];
+        resource_Obj[rootnm].aa = (body_Obj[rootnm].aa) ? body_Obj[rootnm].aa : [];
         resource_Obj[rootnm].soid = body_Obj[rootnm]['soid'];
         resource_Obj[rootnm].asd = body_Obj[rootnm]['asd'];
         resource_Obj[rootnm].stid = body_Obj[rootnm]['stid'] == null ? '' : body_Obj[rootnm]['stid'];
