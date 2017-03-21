@@ -129,49 +129,9 @@ function retrieve_CSEBase_http(cbname, cbhost, cbhostport, callback) {
 
 function create_remoteCSE_http(cbname, cbhost, cbhostport, body_Obj, callback) {
     var rootnm = 'csr';
-    if (defaultnmtype == 'long') {
-        for (var index in body_Obj[rootnm]) {
-            if(body_Obj[rootnm].hasOwnProperty(index)) {
-                if (index == "$") {
-                    delete body_Obj[rootnm][index];
-                    continue;
-                }
-                else if (index == 'enc') {
-                    body_Obj[rootnm][attrLname[index]] = {};
-                    body_Obj[rootnm][attrLname[index]][attrLname['net']] = body_Obj[rootnm][index]['net'];
-                }
-                else if (index == 'pv' || index == 'pvs') {
-                    body_Obj[rootnm][attrLname[index]] = {};
-                    for (var sub_attr in body_Obj[rootnm][index]) {
-                        if(body_Obj[rootnm][index].hasOwnProperty(sub_attr)) {
-                            body_Obj[rootnm][attrLname[index]][attrLname[sub_attr]] = [];
-                            for (var sub_attr2 in body_Obj[rootnm][index][sub_attr]) {
-                                if(body_Obj[rootnm][index][sub_attr].hasOwnProperty(sub_attr2)) {
-                                    body_Obj[rootnm][attrLname[index]][attrLname[sub_attr]][sub_attr2] = {};
-                                    for (var sub_attr3 in body_Obj[rootnm][index][sub_attr][sub_attr2]) {
-                                        if(body_Obj[rootnm][index][sub_attr][sub_attr2].hasOwnProperty(sub_attr3)) {
-                                            body_Obj[rootnm][attrLname[index]][attrLname[sub_attr]][sub_attr2][attrLname[sub_attr3]] = body_Obj[rootnm][index][sub_attr][sub_attr2][sub_attr3];
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-                else {
-                    body_Obj[rootnm][attrLname[index]] = body_Obj[rootnm][index];
-                }
-                delete body_Obj[rootnm][index];
-            }
-        }
-        body_Obj['m2m:' + rceLname[rootnm]] = body_Obj[rootnm];
-        delete body_Obj[rootnm];
-        rootnm = rceLname[rootnm];
-    }
-    else {
-        body_Obj['m2m:' + rootnm] = body_Obj[rootnm];
-        delete body_Obj[Object.keys(body_Obj)[0]];
-    }
+
+    body_Obj['m2m:' + rootnm] = body_Obj[rootnm];
+    delete body_Obj[Object.keys(body_Obj)[0]];
 
     var bodyString = JSON.stringify(body_Obj);
 
@@ -180,7 +140,7 @@ function create_remoteCSE_http(cbname, cbhost, cbhostport, body_Obj, callback) {
             {pubID: null, sysID: null}, {allowSurrogateChars: false, skipNullAttributes: false, headless: false, ignoreDecorators: false, stringify: {}}
         ).att('xmlns:m2m', 'http://www.onem2m.org/xml/protocols').att('xmlns:xsi', 'http://www.w3.org/2001/XMLSchema-instance');
 
-        for (index in body_Obj) {
+        for (var index in body_Obj) {
             if(body_Obj.hasOwnProperty(index)) {
                 for (var attr in body_Obj[index]) {
                     if(body_Obj[index].hasOwnProperty(attr)) {
@@ -390,49 +350,9 @@ exports.build_mn = function(ri, callback) {
 
 function create_remoteCSE_mqtt(cseid, csebasename, body_Obj, callback) {
     var rootnm = 'csr';
-    if (defaultnmtype == 'long') {
-        for (var index in body_Obj[rootnm]) {
-            if(body_Obj[rootnm].hasOwnProperty(index)) {
-                if (index == "$") {
-                    delete body_Obj[rootnm][index];
-                    continue;
-                }
-                else if (index == 'enc') {
-                    body_Obj[rootnm][attrLname[index]] = {};
-                    body_Obj[rootnm][attrLname[index]][attrLname['net']] = body_Obj[rootnm][index]['net'];
-                }
-                else if (index == 'pv' || index == 'pvs') {
-                    body_Obj[rootnm][attrLname[index]] = {};
-                    for (var sub_attr in body_Obj[rootnm][index]) {
-                        if(body_Obj[rootnm][index].hasOwnProperty(sub_attr)) {
-                            body_Obj[rootnm][attrLname[index]][attrLname[sub_attr]] = [];
-                            for (var sub_attr2 in body_Obj[rootnm][index][sub_attr]) {
-                                if(body_Obj[rootnm][index][sub_attr].hasOwnProperty(sub_attr2)) {
-                                    body_Obj[rootnm][attrLname[index]][attrLname[sub_attr]][sub_attr2] = {};
-                                    for (var sub_attr3 in body_Obj[rootnm][index][sub_attr][sub_attr2]) {
-                                        if(body_Obj[rootnm][index][sub_attr][sub_attr2].hasOwnProperty(sub_attr3)) {
-                                            body_Obj[rootnm][attrLname[index]][attrLname[sub_attr]][sub_attr2][attrLname[sub_attr3]] = body_Obj[rootnm][index][sub_attr][sub_attr2][sub_attr3];
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-                else {
-                    body_Obj[rootnm][attrLname[index]] = body_Obj[rootnm][index];
-                }
-                delete body_Obj[rootnm][index];
-            }
-        }
-        body_Obj['m2m:' + rceLname[rootnm]] = body_Obj[rootnm];
-        delete body_Obj[rootnm];
-        rootnm = rceLname[rootnm];
-    }
-    else {
-        body_Obj['m2m:' + rootnm] = body_Obj[rootnm];
-        delete body_Obj[Object.keys(body_Obj)[0]];
-    }
+
+    body_Obj['m2m:' + rootnm] = body_Obj[rootnm];
+    delete body_Obj[Object.keys(body_Obj)[0]];
 
     var bodyString = JSON.stringify(body_Obj);
 
@@ -441,7 +361,7 @@ function create_remoteCSE_mqtt(cseid, csebasename, body_Obj, callback) {
             {pubID: null, sysID: null}, {allowSurrogateChars: false, skipNullAttributes: false, headless: false, ignoreDecorators: false, stringify: {}}
         ).att('xmlns:m2m', 'http://www.onem2m.org/xml/protocols').att('xmlns:xsi', 'http://www.w3.org/2001/XMLSchema-instance');
 
-        for (index in body_Obj) {
+        for (var index in body_Obj) {
             if(body_Obj.hasOwnProperty(index)) {
                 for (var attr in body_Obj[index]) {
                     if(body_Obj[index].hasOwnProperty(attr)) {
