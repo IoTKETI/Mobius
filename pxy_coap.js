@@ -95,10 +95,10 @@ var pxycoap_server = null;
 
 //coap_custom.on('coap_watchdog', function() {
 exports.coap_watchdog = function () {
-    if(coap_state == 'init') {
+    if(coap_state === 'init') {
         coap_state = 'connect';
     }
-    else if(coap_state == 'connect') {
+    else if(coap_state === 'connect') {
         if(pxycoap_server == null) {
             pxycoap_server = coap.createServer();
             pxycoap_server.listen(usecsebaseport, function() {
@@ -124,11 +124,14 @@ exports.coap_watchdog = function () {
                     });
 
                     res.on('end', function () {
-                        if(res.code == '2.05') {
+                        if(res.code === '2.05') {
                             coap_state = 'ready';
                             console.log('[pxy_coap] coap ready');
                         }
                     });
+                });
+                req.on('error', function (e) {
+                    console.log(e);
                 });
 
                 req.write(bodyString);
@@ -137,6 +140,10 @@ exports.coap_watchdog = function () {
 
 
             pxycoap_server.on('request', coap_message_handler);
+
+            pxycoap_server.on('error', function (e) {
+                console.log(e);
+            });
         }
     }
 };
@@ -153,13 +160,13 @@ function coap_message_handler(request, response) {
     // check coap options
     for (var idx in request.options) {
         if (request.options.hasOwnProperty(idx)) {
-            if (request.options[idx].name == '256') { // 'X-M2M-Origin
+            if (request.options[idx].name === '256') { // 'X-M2M-Origin
                 headers['X-M2M-Origin'] = request.options[idx].value.toString();
             }
-            else if (request.options[idx].name == '257') { // 'X-M2M-RI
+            else if (request.options[idx].name === '257') { // 'X-M2M-RI
                 headers['X-M2M-RI'] = request.options[idx].value.toString();
             }
-            else if (request.options[idx].name == '267') { // 'X-M2M-TY
+            else if (request.options[idx].name === '267') { // 'X-M2M-TY
                 headers['X-M2M-TY'] = Buffer.isBuffer(request.options[idx].value) ? request.options[idx].value[0].toString() : request.options[idx].value.toString();
             }
         }
@@ -172,7 +179,7 @@ function coap_message_handler(request, response) {
 
     if(request.headers['Content-Type'])
     {
-        if(headers['X-M2M-TY'] == '') {
+        if(headers['X-M2M-TY'] === '') {
             headers['Content-Type'] = request.headers['Content-Type'];
         }
         else {
@@ -184,7 +191,7 @@ function coap_message_handler(request, response) {
 
     var responseBody = '';
 
-    if(usesecure == 'disable') {
+    if(usesecure === 'disable') {
         var options = {
             hostname: usecoapcbhost,
             port: usecsebaseport,
@@ -214,7 +221,7 @@ function coap_message_handler(request, response) {
             });
         });
     }
-    else if(usesecure == 'enable') {
+    else if(usesecure === 'enable') {
         options = {
             hostname: usecoapcbhost,
             port: usecsebaseport,
@@ -248,12 +255,12 @@ function coap_message_handler(request, response) {
     }
 
     req.on('error', function (e) {
-        if (e.message != 'read ECONNRESET') {
+        if (e.message !== 'read ECONNRESET') {
             console.log('[pxycoap - http_retrieve_CSEBase] problem with request: ' + e.message);
         }
     });
 
-    bodyString = request.payload.toString();
+    var bodyString = request.payload.toString();
     console.log('-----> [pxy_coap]');
     console.log(bodyString);
 
