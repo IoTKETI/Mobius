@@ -150,107 +150,109 @@ function reg_req_sub(mqtt_client) {
 }
 
 function make_json_obj(bodytype, str, callback) {
-    if(bodytype == 'xml') {
-        var message = str;
-        var parser = new xml2js.Parser({explicitArray: false});
-        parser.parseString(message.toString(), function (err, result) {
-            if (err) {
-                console.log('[mqtt make json obj] xml2js parser error]');
-                callback('0');
-            }
-            else {
-                for (var prop in result) {
-                    if (result.hasOwnProperty(prop)) {
-                        for (var attr in result[prop]) {
-                            if (result[prop].hasOwnProperty(attr)) {
-                                if (attr == '$') {
-                                    delete result[prop][attr];
-                                }
-                                else if (attr == 'pc') {
-                                    for (var attr2 in result[prop][attr]) {
-                                        if (result[prop][attr].hasOwnProperty(attr2)) {
-                                            if (result[prop][attr][attr2].at) {
-                                                result[prop][attr][attr2].at = result[prop][attr][attr2].at.split(' ');
-                                            }
-
-                                            if (result[prop][attr][attr2].aa) {
-                                                result[prop][attr][attr2].aa = result[prop][attr][attr2].aa.split(' ');
-                                            }
-
-                                            if (result[prop][attr][attr2].poa) {
-                                                result[prop][attr][attr2].poa = result[prop][attr][attr2].poa.split(' ');
-                                            }
-
-                                            if (result[prop][attr][attr2].lbl) {
-                                                result[prop][attr][attr2].lbl = result[prop][attr][attr2].lbl.split(' ');
-                                            }
-
-                                            if (result[prop][attr][attr2].acpi) {
-                                                result[prop][attr][attr2].acpi = result[prop][attr][attr2].acpi.split(' ');
-                                            }
-
-                                            if (result[prop][attr][attr2].srt) {
-                                                result[prop][attr][attr2].srt = result[prop][attr][attr2].srt.split(' ');
-                                            }
-
-                                            if (result[prop][attr][attr2].nu) {
-                                                result[prop][attr][attr2].nu = result[prop][attr][attr2].nu.split(' ');
-                                            }
-
-                                            if (result[prop][attr][attr2].enc) {
-                                                if(result[prop][attr][attr2].enc.net) {
-                                                    result[prop][attr][attr2].enc.net = result[prop][attr][attr2].enc.net.split(' ');
+    try {
+        if (bodytype == 'xml') {
+            var message = str;
+            var parser = new xml2js.Parser({explicitArray: false});
+            parser.parseString(message.toString(), function (err, result) {
+                if (err) {
+                    console.log('[mqtt make json obj] xml2js parser error]');
+                    callback('0');
+                }
+                else {
+                    for (var prop in result) {
+                        if (result.hasOwnProperty(prop)) {
+                            for (var attr in result[prop]) {
+                                if (result[prop].hasOwnProperty(attr)) {
+                                    if (attr == '$') {
+                                        delete result[prop][attr];
+                                    }
+                                    else if (attr == 'pc') {
+                                        for (var attr2 in result[prop][attr]) {
+                                            if (result[prop][attr].hasOwnProperty(attr2)) {
+                                                if (result[prop][attr][attr2].at) {
+                                                    result[prop][attr][attr2].at = result[prop][attr][attr2].at.split(' ');
                                                 }
-                                            }
 
-                                            if (result[prop][attr][attr2].pv) {
-                                                if(result[prop][attr][attr2].pv.acr) {
-                                                    if (!Array.isArray(result[prop][attr][attr2].pv.acr)) {
-                                                        var temp = result[prop][attr][attr2].pv.acr;
-                                                        result[prop][attr][attr2].pv.acr = [];
-                                                        result[prop][attr][attr2].pv.acr[0] = temp;
+                                                if (result[prop][attr][attr2].aa) {
+                                                    result[prop][attr][attr2].aa = result[prop][attr][attr2].aa.split(' ');
+                                                }
+
+                                                if (result[prop][attr][attr2].poa) {
+                                                    result[prop][attr][attr2].poa = result[prop][attr][attr2].poa.split(' ');
+                                                }
+
+                                                if (result[prop][attr][attr2].lbl) {
+                                                    result[prop][attr][attr2].lbl = result[prop][attr][attr2].lbl.split(' ');
+                                                }
+
+                                                if (result[prop][attr][attr2].acpi) {
+                                                    result[prop][attr][attr2].acpi = result[prop][attr][attr2].acpi.split(' ');
+                                                }
+
+                                                if (result[prop][attr][attr2].srt) {
+                                                    result[prop][attr][attr2].srt = result[prop][attr][attr2].srt.split(' ');
+                                                }
+
+                                                if (result[prop][attr][attr2].nu) {
+                                                    result[prop][attr][attr2].nu = result[prop][attr][attr2].nu.split(' ');
+                                                }
+
+                                                if (result[prop][attr][attr2].enc) {
+                                                    if (result[prop][attr][attr2].enc.net) {
+                                                        result[prop][attr][attr2].enc.net = result[prop][attr][attr2].enc.net.split(' ');
                                                     }
+                                                }
 
-                                                    for (var acr_idx in result[prop][attr][attr2].pv.acr) {
-                                                        if (result[prop][attr][attr2].pv.acr.hasOwnProperty(acr_idx)) {
-                                                            if (result[prop][attr][attr2].pv.acr[acr_idx].acor) {
-                                                                result[prop][attr][attr2].pv.acr[acr_idx].acor = result[prop][attr][attr2].pv.acr[acr_idx].acor.split(' ');
+                                                if (result[prop][attr][attr2].pv) {
+                                                    if (result[prop][attr][attr2].pv.acr) {
+                                                        if (!Array.isArray(result[prop][attr][attr2].pv.acr)) {
+                                                            var temp = result[prop][attr][attr2].pv.acr;
+                                                            result[prop][attr][attr2].pv.acr = [];
+                                                            result[prop][attr][attr2].pv.acr[0] = temp;
+                                                        }
+
+                                                        for (var acr_idx in result[prop][attr][attr2].pv.acr) {
+                                                            if (result[prop][attr][attr2].pv.acr.hasOwnProperty(acr_idx)) {
+                                                                if (result[prop][attr][attr2].pv.acr[acr_idx].acor) {
+                                                                    result[prop][attr][attr2].pv.acr[acr_idx].acor = result[prop][attr][attr2].pv.acr[acr_idx].acor.split(' ');
+                                                                }
                                                             }
                                                         }
                                                     }
                                                 }
-                                            }
 
-                                            if (result[prop][attr][attr2].pvs) {
-                                                if(result[prop][attr][attr2].pvs.acr) {
-                                                    if (!Array.isArray(result[prop][attr][attr2].pvs.acr)) {
-                                                        temp = result[prop][attr][attr2].pvs.acr;
-                                                        result[prop][attr][attr2].pvs.acr = [];
-                                                        result[prop][attr][attr2].pvs.acr[0] = temp;
-                                                    }
+                                                if (result[prop][attr][attr2].pvs) {
+                                                    if (result[prop][attr][attr2].pvs.acr) {
+                                                        if (!Array.isArray(result[prop][attr][attr2].pvs.acr)) {
+                                                            temp = result[prop][attr][attr2].pvs.acr;
+                                                            result[prop][attr][attr2].pvs.acr = [];
+                                                            result[prop][attr][attr2].pvs.acr[0] = temp;
+                                                        }
 
-                                                    for (acr_idx in result[prop][attr][attr2].pvs.acr) {
-                                                        if (result[prop][attr][attr2].pvs.acr.hasOwnProperty(acr_idx)) {
-                                                            if (result[prop][attr][attr2].pvs.acr[acr_idx].acor) {
-                                                                result[prop][attr][attr2].pvs.acr[acr_idx].acor = result[prop][attr][attr2].pvs.acr[acr_idx].acor.split(' ');
+                                                        for (acr_idx in result[prop][attr][attr2].pvs.acr) {
+                                                            if (result[prop][attr][attr2].pvs.acr.hasOwnProperty(acr_idx)) {
+                                                                if (result[prop][attr][attr2].pvs.acr[acr_idx].acor) {
+                                                                    result[prop][attr][attr2].pvs.acr[acr_idx].acor = result[prop][attr][attr2].pvs.acr[acr_idx].acor.split(' ');
+                                                                }
                                                             }
                                                         }
                                                     }
                                                 }
-                                            }
 
-                                            if (result[prop][attr][attr2].mid) {
-                                                result[prop][attr][attr2].mid = result[prop][attr][attr2].mid.split(' ');
-                                            }
+                                                if (result[prop][attr][attr2].mid) {
+                                                    result[prop][attr][attr2].mid = result[prop][attr][attr2].mid.split(' ');
+                                                }
 
-                                            if (result[prop][attr][attr2].macp) {
-                                                result[prop][attr][attr2].macp = result[prop][attr][attr2].macp.split(' ');
-                                            }
+                                                if (result[prop][attr][attr2].macp) {
+                                                    result[prop][attr][attr2].macp = result[prop][attr][attr2].macp.split(' ');
+                                                }
 
-                                            if(result[prop][attr][attr2]['$']) {
-                                                if (result[prop][attr][attr2]['$'].rn && result[prop][attr][attr2]['$'].rn != '') {
-                                                    result[prop][attr][attr2].rn = result[prop][attr][attr2]['$'].rn;
-                                                    delete result[prop][attr][attr2]['$'];
+                                                if (result[prop][attr][attr2]['$']) {
+                                                    if (result[prop][attr][attr2]['$'].rn && result[prop][attr][attr2]['$'].rn != '') {
+                                                        result[prop][attr][attr2].rn = result[prop][attr][attr2]['$'].rn;
+                                                        delete result[prop][attr][attr2]['$'];
+                                                    }
                                                 }
                                             }
                                         }
@@ -259,14 +261,18 @@ function make_json_obj(bodytype, str, callback) {
                             }
                         }
                     }
+                    callback('1', result);
                 }
-                callback('1', result);
-            }
-        });
+            });
+        }
+        else {
+            var result = JSON.parse(str);
+            callback('1', result);
+        }
     }
-    else {
-        var result = JSON.parse(str);
-        callback('1', result);
+    catch (e) {
+        console.error(e.message);
+        callback('0');
     }
 }
 
@@ -285,7 +291,7 @@ function mqtt_message_handler(topic, message) {
 
     if((topic_arr[1] == 'oneM2M' && topic_arr[2] == 'resp' && ((topic_arr[3].replace(':', '/') == usecseid) || (topic_arr[3] == usecseid.replace('/', ''))))) {
         make_json_obj(bodytype, message.toString(), function(rsc, jsonObj) {
-            if(rsc == '1') {
+            if(rsc === '1') {
                 if (jsonObj['m2m:rsp'] != null) {
                     for (var i = 0; i < resp_mqtt_rqi_arr.length; i++) {
                         if (resp_mqtt_rqi_arr[i] == jsonObj['m2m:rsp'].rqi) {
@@ -321,6 +327,14 @@ function mqtt_message_handler(topic, message) {
                     }
                 }
             }
+            else {
+                var resp_topic = '/oneM2M/resp/';
+                if (topic_arr[2] === 'reg_req') {
+                    resp_topic = '/oneM2M/reg_resp/';
+                }
+                resp_topic += (topic_arr[3] + '/' + topic_arr[4] + '/' + topic_arr[5]);
+                mqtt_response(pxymqtt_client, resp_topic, 4000, '', '', '', 'to parsing error', bodytype);
+            }
         });
     }
     else if(topic_arr[1] === 'oneM2M' && topic_arr[2] === 'req' && ((topic_arr[4].replace(':', '/') == usecseid) || (topic_arr[4] == usecseid.replace('/', '')))) {
@@ -328,12 +342,28 @@ function mqtt_message_handler(topic, message) {
             if(rsc === '1') {
                 mqtt_message_action(pxymqtt_client, topic_arr, bodytype, result);
             }
+            else {
+                var resp_topic = '/oneM2M/resp/';
+                if (topic_arr[2] === 'reg_req') {
+                    resp_topic = '/oneM2M/reg_resp/';
+                }
+                resp_topic += (topic_arr[3] + '/' + topic_arr[4] + '/' + topic_arr[5]);
+                mqtt_response(pxymqtt_client, resp_topic, 4000, '', '', '', 'to parsing error', bodytype);
+            }
         });
     }
     else if(topic_arr[1] === 'oneM2M' && topic_arr[2] === 'reg_req' && ((topic_arr[4].replace(':', '/') == usecseid) || (topic_arr[4] == usecseid.replace('/', '')))) {
         make_json_obj(bodytype, message.toString(), function(rsc, result) {
-            if(rsc == '1') {
+            if(rsc === '1') {
                 mqtt_message_action(pxymqtt_client, topic_arr, bodytype, result);
+            }
+            else {
+                var resp_topic = '/oneM2M/resp/';
+                if (topic_arr[2] === 'reg_req') {
+                    resp_topic = '/oneM2M/reg_resp/';
+                }
+                resp_topic += (topic_arr[3] + '/' + topic_arr[4] + '/' + topic_arr[5]);
+                mqtt_response(pxymqtt_client, resp_topic, 4000, '', '', '', 'to parsing error', bodytype);
             }
         });
     }
@@ -639,7 +669,7 @@ mqtt_app.post('/notification', onem2mParser, function(request, response, next) {
                     }
                 }
                 catch (e) {
-                    rsp_Obj = {};
+                    var rsp_Obj = {};
                     rsp_Obj['rsp'] = {};
                     rsp_Obj['rsp'].dbg = 'notification body message type error';
                     response.setHeader('X-M2M-RSC', '4000');
@@ -650,8 +680,6 @@ mqtt_app.post('/notification', onem2mParser, function(request, response, next) {
                 }
 
                 if (nec == 'keti') { // for mqtt implementation of keti
-                    noti_topic = util.format('/req/%s/%s/%s', usecseid.replace('/', ''), aeid, request.headers.bodytype);
-
                     noti_message = {};
                     noti_message['m2m:rqp'] = {};
                     noti_message['m2m:rqp'].op = 5; // notification
@@ -754,7 +782,7 @@ mqtt_app.post('/notification', onem2mParser, function(request, response, next) {
         }
         catch (e) {
             console.log(e.message);
-            var rsp_Obj = {};
+            rsp_Obj = {};
             rsp_Obj['rsp'] = {};
             rsp_Obj['rsp'].dbg = 'notificationUrl does not support : ' + request.headers.nu;
             response.setHeader('X-M2M-RSC', '4000');

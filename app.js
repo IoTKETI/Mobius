@@ -116,7 +116,7 @@ if (use_clustering) {
         });
 
         db.connect(usedbhost, 3306, 'root', usedbpass, function (rsc) {
-            if (rsc == '1') {
+            if (rsc === '1') {
                 cb.create(function (rsp) {
                     console.log(JSON.stringify(rsp));
 
@@ -131,7 +131,7 @@ if (use_clustering) {
                     require('./pxy_mqtt');
                     require('./pxy_coap');
 
-                    if (usecsetype == 'mn' || usecsetype == 'asn') {
+                    if (usecsetype === 'mn' || usecsetype === 'asn') {
                         global.refreshIntervalId = setInterval(function () {
                             csr_custom.emit('register_remoteCSE');
                         }, 5000);
@@ -148,7 +148,7 @@ if (use_clustering) {
 
         db.connect(usedbhost, 3306, 'root', usedbpass, function (rsc) {
             if (rsc == '1') {
-                if(usesecure == 'disable') {
+                if(usesecure === 'disable') {
                     http.globalAgent.maxSockets = 1000000;
                     http.createServer(app).listen({port: usecsebaseport, agent: false}, function () {
                         console.log('mobius server (' + ip.address() + ') running at ' + usecsebaseport + ' port');
@@ -181,14 +181,14 @@ else {
             cb.create(function (rsp) {
                 console.log(JSON.stringify(rsp));
 
-                if(usesecure == 'disable') {
+                if(usesecure === 'disable') {
                     http.globalAgent.maxSockets = 1000000;
                     http.createServer(app).listen({port: usecsebaseport, agent: false}, function () {
                         console.log('mobius server (' + ip.address() + ') running at ' + usecsebaseport + ' port');
                         require('./pxy_mqtt');
                         //require('./mobius/ts_agent');
 
-                        if (usecsetype == 'mn' || usecsetype == 'asn') {
+                        if (usecsetype === 'mn' || usecsetype === 'asn') {
                             global.refreshIntervalId = setInterval(function () {
                                 csr_custom.emit('register_remoteCSE');
                             }, 5000);
@@ -207,7 +207,7 @@ else {
                         require('./pxy_mqtt');
                         //require('./mobius/ts_agent');
 
-                        if (usecsetype == 'mn' || usecsetype == 'asn') {
+                        if (usecsetype === 'mn' || usecsetype === 'asn') {
                             global.refreshIntervalId = setInterval(function () {
                                 csr_custom.emit('register_remoteCSE');
                             }, 5000);
@@ -996,7 +996,7 @@ function lookup_create(request, response) {
                 else if ((ty == 3) && (parent_comm.ty == 5 || parent_comm.ty == 16 || parent_comm.ty == 2 || parent_comm.ty == 3)) { // container
                 }
                 else if ((ty == 23) && (parent_comm.ty == 5 || parent_comm.ty == 16 || parent_comm.ty == 2 ||
-                    parent_comm.ty == 3 || parent_comm.ty == 24 || parent_comm.ty == 29)) { // sub
+                    parent_comm.ty == 3 || parent_comm.ty == 24 || parent_comm.ty == 29 || parent_comm.ty == 27)) { // sub
                 }
                 else if ((ty == 4) && (parent_comm.ty == 3)) { // contentInstance
                     body_Obj[rootnm].mni = parent_comm.mni;
