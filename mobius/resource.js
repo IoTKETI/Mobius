@@ -931,11 +931,15 @@ function search_action(request, response, seq, resource_Obj, ri_list, strObj, pr
         return '0';
     }
 
-    console.time('search_resource');
-    db_sql.select_in_ri_list(responder.typeRsrc[ty_list[seq]], ri_list, function (err, search_Obj) {
+    var finding_Obj = [];
+
+    if(seq === 0) {
+        console.time('search_resource');
+    }
+    db_sql.select_in_ri_list(responder.typeRsrc[ty_list[seq]], ri_list, 0, finding_Obj, 0, function (err, search_Obj) {
         if(!err) {
             if(search_Obj.length >= 1) {
-                console.timeEnd('search_resource');
+                //console.timeEnd('search_resource');
 
                 if(strObj.length > 1) {
                     strObj += ',';
@@ -948,9 +952,18 @@ function search_action(request, response, seq, resource_Obj, ri_list, strObj, pr
                     }
                 }
             }
-            search_action(request, response, ++seq, resource_Obj, ri_list, strObj, presearch_Obj, function(rsc, strObj) {
-                callback(rsc, strObj);
-            });
+
+            if(++seq === ty_list.length) {
+                console.timeEnd('search_resource');
+                callback('1', strObj);
+                return '0';
+            }
+            else {
+                search_action(request, response, seq, resource_Obj, ri_list, strObj, presearch_Obj, function (rsc, strObj) {
+                    callback(rsc, strObj);
+                    return '0';
+                });
+            }
         }
         else {
             /*spec_Obj = {};
@@ -1061,13 +1074,13 @@ exports.retrieve = function(request, response, comm_Obj) {
     }
     else {
         search_resource(request, function (rsc, resource_Obj) {
-            if (rsc == '0') {
+            if (rsc === '0') {
                 return rsc;
             }
             //var ri_list = [comm_Obj.ri];
             var ri_list = [];
             presearch_action(request, response, ri_list, comm_Obj, function (rsc, ri_list, search_Obj) {
-                if (rsc == '0') {
+                if (rsc === '0') {
                     return rsc;
                 }
 
@@ -1082,7 +1095,7 @@ exports.retrieve = function(request, response, comm_Obj) {
                     request.headers.rootnm = 'rsp';
 
                     search_action(request, response, 0, resource_Obj, ri_list, '{', search_Obj, function (rsc, strObj) {
-                        if (rsc == '1') {
+                        if (rsc === '1') {
                             strObj += '}';
                             resource_Obj = JSON.parse(strObj);
                             for (var index in resource_Obj) {
@@ -1148,13 +1161,13 @@ global.update_body = function(rootnm, body_Obj, resource_Obj) {
                 resource_Obj[rootnm][attr] = body_Obj[rootnm][attr];
             }
 
-            if (attr == 'aa' || attr == 'poa' || attr == 'lbl' || attr == 'acpi' || attr == 'srt' || attr == 'nu' || attr == 'mid' || attr == 'macp') {
-                if(body_Obj[rootnm][attr] == '') {
+            if (attr === 'aa' || attr === 'poa' || attr === 'lbl' || attr === 'acpi' || attr === 'srt' || attr === 'nu' || attr === 'mid' || attr === 'macp') {
+                if(body_Obj[rootnm][attr] === '') {
                     resource_Obj[rootnm][attr] = [];
                 }
             }
             else {
-                if(body_Obj[rootnm][attr] == '') {
+                if(body_Obj[rootnm][attr] === '') {
                     resource_Obj[rootnm][attr] = '';
                 }
             }

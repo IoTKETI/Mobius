@@ -823,10 +823,45 @@ exports.select_ts = function (ri, callback) {
     });
 };
 
-exports.select_in_ri_list = function (tbl, ri_list, callback) {
-    var sql = util.format("select * from " + tbl + " where ri in ("+JSON.stringify(ri_list).replace('[','').replace(']','')+")");
+exports.select_in_ri_list = function (tbl, ri_list, ri_index, found_Obj, loop_cnt, callback) {
+    var cur_ri = [];
+
+    if(loop_cnt === 0) {
+        tid = require('shortid').generate();
+        console.time('select_in_ri_list (' + tid + ')');
+    }
+
+    for(var idx = 0; idx < 8; idx++) {
+        if (ri_index < ri_list.length) {
+            cur_ri.push(ri_list[ri_index++]);
+        }
+        else {
+            break;
+        }
+    }
+
+    var sql = util.format("select * from " + tbl + " where ri in ("+JSON.stringify(cur_ri).replace('[','').replace(']','')+")");
     db.getResult(sql, '', function (err, search_Obj) {
-        callback(err, search_Obj);
+        if(!err) {
+            for(var i = 0; i < search_Obj.length; i++) {
+                found_Obj.push(search_Obj[i]);
+            }
+
+            if(ri_index >= ri_list.length) {
+                console.timeEnd('select_in_ri_list (' + tid + ')');
+                callback(err, found_Obj);
+            }
+            else {
+                setTimeout( function() {
+                    _this.select_in_ri_list(tbl, ri_list, ri_index, found_Obj, loop_cnt, function (err, found_Obj) {
+                        callback(err, found_Obj);
+                    });
+                }, 0);
+            }
+        }
+        else {
+            callback(err, search_Obj);
+        }
     });
 };
 
