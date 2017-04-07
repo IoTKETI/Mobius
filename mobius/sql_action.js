@@ -826,7 +826,7 @@ exports.select_ts = function (ri, callback) {
 exports.select_in_ri_list = function (tbl, ri_list, ri_index, found_Obj, loop_cnt, callback) {
     var cur_ri = [];
 
-    if(loop_cnt === 0) {
+    if(loop_cnt == 0) {
         tid = require('shortid').generate();
         console.time('select_in_ri_list (' + tid + ')');
     }

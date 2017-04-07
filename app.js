@@ -116,7 +116,7 @@ if (use_clustering) {
         });
 
         db.connect(usedbhost, 3306, 'root', usedbpass, function (rsc) {
-            if (rsc === '1') {
+            if (rsc == '1') {
                 cb.create(function (rsp) {
                     console.log(JSON.stringify(rsp));
 
@@ -131,7 +131,7 @@ if (use_clustering) {
                     require('./pxy_mqtt');
                     require('./pxy_coap');
 
-                    if (usecsetype === 'mn' || usecsetype === 'asn') {
+                    if (usecsetype == 'mn' || usecsetype == 'asn') {
                         global.refreshIntervalId = setInterval(function () {
                             csr_custom.emit('register_remoteCSE');
                         }, 5000);

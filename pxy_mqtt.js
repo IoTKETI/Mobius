@@ -87,7 +87,7 @@ exports.mqtt_watchdog = function() {
     }
     else if(mqtt_state === 'connect') {
         http_retrieve_CSEBase(function(status, res_body) {
-            if (status === '2000') {
+            if (status == '2000') {
                 var jsonObj = JSON.parse(res_body);
                 usecseid = jsonObj['m2m:cb'].csi;
 
@@ -291,7 +291,7 @@ function mqtt_message_handler(topic, message) {
 
     if((topic_arr[1] == 'oneM2M' && topic_arr[2] == 'resp' && ((topic_arr[3].replace(':', '/') == usecseid) || (topic_arr[3] == usecseid.replace('/', ''))))) {
         make_json_obj(bodytype, message.toString(), function(rsc, jsonObj) {
-            if(rsc === '1') {
+            if(rsc == '1') {
                 if (jsonObj['m2m:rsp'] != null) {
                     for (var i = 0; i < resp_mqtt_rqi_arr.length; i++) {
                         if (resp_mqtt_rqi_arr[i] == jsonObj['m2m:rsp'].rqi) {
@@ -301,20 +301,23 @@ function mqtt_message_handler(topic, message) {
                             http_response_q[resp_mqtt_rqi_arr[i]].setHeader('X-M2M-RI', resp_mqtt_rqi_arr[i]);
 
                             var status_code = '404';
-                            if(jsonObj['m2m:rsp'].rsc === '4105') {
+                            if(jsonObj['m2m:rsp'].rsc == '4105') {
                                 status_code = '409';
                             }
-                            else if(jsonObj['m2m:rsp'].rsc === '2000') {
+                            else if(jsonObj['m2m:rsp'].rsc == '2000') {
                                 status_code = '200';
                             }
-                            else if(jsonObj['m2m:rsp'].rsc === '2001') {
+                            else if(jsonObj['m2m:rsp'].rsc == '2001') {
                                 status_code = '201';
                             }
-                            else if(jsonObj['m2m:rsp'].rsc === '4000') {
+                            else if(jsonObj['m2m:rsp'].rsc == '4000') {
                                 status_code = '400';
                             }
-                            else if(jsonObj['m2m:rsp'].rsc === '5000') {
+                            else if(jsonObj['m2m:rsp'].rsc == '5000') {
                                 status_code = '500';
+                            }
+                            else {
+
                             }
 
                             http_response_q[resp_mqtt_rqi_arr[i]].status(status_code).end(JSON.stringify(jsonObj['m2m:rsp'].pc));
@@ -339,7 +342,7 @@ function mqtt_message_handler(topic, message) {
     }
     else if(topic_arr[1] === 'oneM2M' && topic_arr[2] === 'req' && ((topic_arr[4].replace(':', '/') == usecseid) || (topic_arr[4] == usecseid.replace('/', '')))) {
         make_json_obj(bodytype, message.toString(), function(rsc, result) {
-            if(rsc === '1') {
+            if(rsc == '1') {
                 mqtt_message_action(pxymqtt_client, topic_arr, bodytype, result);
             }
             else {
@@ -354,7 +357,7 @@ function mqtt_message_handler(topic, message) {
     }
     else if(topic_arr[1] === 'oneM2M' && topic_arr[2] === 'reg_req' && ((topic_arr[4].replace(':', '/') == usecseid) || (topic_arr[4] == usecseid.replace('/', '')))) {
         make_json_obj(bodytype, message.toString(), function(rsc, result) {
-            if(rsc === '1') {
+            if(rsc == '1') {
                 mqtt_message_action(pxymqtt_client, topic_arr, bodytype, result);
             }
             else {
