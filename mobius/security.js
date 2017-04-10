@@ -88,7 +88,7 @@ exports.check = function(request, ty, acpiList, access_value, cr, callback) {
                         for(var index in pvObj.acr) {
                             if(pvObj.acr.hasOwnProperty(index)) {
                                 try {
-                                    var re = new RegExp(from + '\\b');
+                                    var re = new RegExp('^' + from + '$');
                                     for (var acor_idx in pvObj.acr[index].acor) {
                                         if(pvObj.acr[index].acor.hasOwnProperty(acor_idx)) {
                                             if (pvObj.acr[index].acor[acor_idx].match(re) || pvObj.acr[index].acor[acor_idx] == 'all' || pvObj.acr[index].acor[acor_idx] == '*') {
