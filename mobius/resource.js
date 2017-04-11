@@ -863,6 +863,19 @@ function presearch_action(request, response, ri_list, comm_Obj, callback) {
             var finding_Obj = {};
             var found_Obj = {};
 
+            if(request.query.ty == '2') {
+                request.query.lvl = '1';
+            }
+
+            if(request.query.lim != null) {
+                if(request.query.lim > max_lim) {
+                    request.query.lim = max_lim;
+                }
+            }
+            else {
+                request.query.lim = max_lim;
+            }
+
             var cur_lvl = parseInt((url.parse(request.url).pathname.split('/').length), 10) - 2;
             for(var i = 0; i < search_Obj.length; i++) {
                 if(request.query.lvl != null) {
@@ -881,7 +894,7 @@ function presearch_action(request, response, ri_list, comm_Obj, callback) {
             }
 
             var cur_d = moment().utc().format('YYYY-MM-DD HH:mm:ss');
-            db_sql.search_lookup(comm_Obj.ri, request.query.ty, request.query.lbl, request.query.cra, request.query.crb, request.query.lim, request.query.ofst, request.query.lvl, pi_list, 0, finding_Obj, 0, cur_d, 0, function (err, search_Obj) {
+            db_sql.search_lookup(comm_Obj.ri, request.query, request.query.lim, pi_list, 0, finding_Obj, 0, cur_d, 0, function (err, search_Obj) {
                 if(!err) {
                     if(Object.keys(search_Obj).length >= 1) {
                         for (var index in search_Obj) {
@@ -932,11 +945,18 @@ function search_action(request, response, seq, resource_Obj, ri_list, strObj, pr
     }
 
     var finding_Obj = [];
+    var tbl = ty_list[seq];
 
     if(seq == 0) {
         console.time('search_resource');
     }
-    db_sql.select_in_ri_list(responder.typeRsrc[ty_list[seq]], ri_list, 0, finding_Obj, 0, function (err, search_Obj) {
+
+    if(request.query.ty != null) {
+        tbl = request.query.ty;
+        seq = ty_list.length;
+    }
+
+    db_sql.select_in_ri_list(responder.typeRsrc[tbl], ri_list, 0, finding_Obj, 0, function (err, search_Obj) {
         if(!err) {
             if(search_Obj.length >= 1) {
                 //console.timeEnd('search_resource');
@@ -953,7 +973,7 @@ function search_action(request, response, seq, resource_Obj, ri_list, strObj, pr
                 }
             }
 
-            if(++seq == ty_list.length) {
+            if(++seq >= ty_list.length) {
                 console.timeEnd('search_resource');
                 callback('1', strObj);
                 return '0';
