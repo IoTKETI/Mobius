@@ -100,13 +100,34 @@ exports.mqtt_watchdog = function() {
     }
     else if(mqtt_state === 'connecting') {
         if(pxymqtt_client == null) {
-            pxymqtt_client = mqtt.connect('mqtt://' + usemqttbroker + ':' + usemqttport);
+            if(usesecure === 'disable') {
+                pxymqtt_client = mqtt.connect('mqtt://' + usemqttbroker + ':' + usemqttport);
+            }
+            else {
+                var connectOptions = {
+                    host: usemqttbroker,
+                    port: usemqttport,
+                    protocol: "mqtts",
+                    keepalive: 10,
+       //             clientId: serverUID,
+                    protocolId: "MQTT",
+                    protocolVersion: 4,
+                    clean: true,
+                    reconnectPeriod: 2000,
+                    connectTimeout: 2000,
+                    key: fs.readFileSync("./server-key.pem"),
+                    cert: fs.readFileSync("./server-crt.pem"),
+                    rejectUnauthorized: false
+                };
+                pxymqtt_client = mqtt.connect(connectOptions);
+            }
+
             pxymqtt_client.on('connect', function () {
                 req_sub(pxymqtt_client);
                 reg_req_sub(pxymqtt_client);
                 resp_sub(pxymqtt_client);
                 mqtt_state = 'ready';
-
+                
                 require('./mobius/ts_agent');
             });
 

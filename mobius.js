@@ -37,9 +37,14 @@ global.usepxycoapport       = '7581';
 global.usetsagentport       = '7582';
 
 global.usemqttbroker        = 'localhost'; // mqttbroker for mobius
-global.usemqttport          = '1883';
 
-global.usesecure            = 'disable';
+global.usesecure            = 'enable';
+if(usesecure === 'enable') {
+    global.usemqttport      = '8883';
+}
+else {
+    usemqttport             = '1883';
+}
 
 global.wdt = require('./wdt');
 
