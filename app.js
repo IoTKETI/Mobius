@@ -1293,8 +1293,8 @@ function lookup_delete(request, response) {
 }
 
 
-global.elapsed_hrstart = {};
-global.elapsed_tid = '0';
+// global.elapsed_hrstart = {};
+// global.elapsed_tid = '0';
 
 
 var onem2mParser = bodyParser.text(
@@ -1307,9 +1307,9 @@ var onem2mParser = bodyParser.text(
 
 // remoteCSE, ae, cnt
 app.post(onem2mParser, function (request, response) {
-    elapsed_tid = require('shortid').generate();
-    elapsed_hrstart[elapsed_tid] = process.hrtime();
-    console.time(elapsed_tid);
+    // elapsed_tid = require('shortid').generate();
+    // elapsed_hrstart[elapsed_tid] = process.hrtime();
+    // console.time(elapsed_tid);
 
     var fullBody = '';
     request.on('data', function (chunk) {
@@ -1368,9 +1368,9 @@ app.post(onem2mParser, function (request, response) {
 });
 
 app.get(onem2mParser, function (request, response) {
-    elapsed_tid = require('shortid').generate();
-    elapsed_hrstart[elapsed_tid] = process.hrtime();
-    console.time(elapsed_tid);
+    // elapsed_tid = require('shortid').generate();
+    // elapsed_hrstart[elapsed_tid] = process.hrtime();
+    // console.time(elapsed_tid);
 
     var fullBody = '';
     request.on('data', function (chunk) {
@@ -1430,9 +1430,9 @@ app.get(onem2mParser, function (request, response) {
 
 
 app.put(onem2mParser, function (request, response) {
-    elapsed_tid = require('shortid').generate();
-    elapsed_hrstart[elapsed_tid] = process.hrtime();
-    console.time(elapsed_tid);
+    // elapsed_tid = require('shortid').generate();
+    // elapsed_hrstart[elapsed_tid] = process.hrtime();
+    // console.time(elapsed_tid);
 
     var fullBody = '';
     request.on('data', function (chunk) {
@@ -1494,9 +1494,9 @@ app.put(onem2mParser, function (request, response) {
 });
 
 app.delete(onem2mParser, function (request, response) {
-    elapsed_tid = require('shortid').generate();
-    elapsed_hrstart[elapsed_tid] = process.hrtime();
-    console.time(elapsed_tid);
+    // elapsed_tid = require('shortid').generate();
+    // elapsed_hrstart[elapsed_tid] = process.hrtime();
+    // console.time(elapsed_tid);
 
     var fullBody = '';
     request.on('data', function (chunk) {
