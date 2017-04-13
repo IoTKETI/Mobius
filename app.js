@@ -1293,6 +1293,10 @@ function lookup_delete(request, response) {
 }
 
 
+global.elapsed_hrstart = {};
+global.elapsed_tid = '0';
+
+
 var onem2mParser = bodyParser.text(
     {
         limit: '1mb',
@@ -1303,6 +1307,10 @@ var onem2mParser = bodyParser.text(
 
 // remoteCSE, ae, cnt
 app.post(onem2mParser, function (request, response) {
+    elapsed_tid = require('shortid').generate();
+    elapsed_hrstart[elapsed_tid] = process.hrtime();
+    console.time(elapsed_tid);
+
     var fullBody = '';
     request.on('data', function (chunk) {
         fullBody += chunk.toString();
@@ -1359,8 +1367,11 @@ app.post(onem2mParser, function (request, response) {
     });
 });
 
-
 app.get(onem2mParser, function (request, response) {
+    elapsed_tid = require('shortid').generate();
+    elapsed_hrstart[elapsed_tid] = process.hrtime();
+    console.time(elapsed_tid);
+
     var fullBody = '';
     request.on('data', function (chunk) {
         fullBody += chunk.toString();
@@ -1419,6 +1430,10 @@ app.get(onem2mParser, function (request, response) {
 
 
 app.put(onem2mParser, function (request, response) {
+    elapsed_tid = require('shortid').generate();
+    elapsed_hrstart[elapsed_tid] = process.hrtime();
+    console.time(elapsed_tid);
+
     var fullBody = '';
     request.on('data', function (chunk) {
         fullBody += chunk.toString();
@@ -1479,6 +1494,10 @@ app.put(onem2mParser, function (request, response) {
 });
 
 app.delete(onem2mParser, function (request, response) {
+    elapsed_tid = require('shortid').generate();
+    elapsed_hrstart[elapsed_tid] = process.hrtime();
+    console.time(elapsed_tid);
+
     var fullBody = '';
     request.on('data', function (chunk) {
         fullBody += chunk.toString();

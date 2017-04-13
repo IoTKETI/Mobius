@@ -757,7 +757,8 @@ exports.select_direct_lookup = function(ri, callback) {
 exports.select_resource = function(ty, ri, callback) {
     var tid = require('shortid').generate();
     console.time('select_resource '+ ty + ' ' + ri + ' (' + tid + ')');
-    var sql = util.format("select * from " + ty + " where ri = \'%s\'", ri);
+    //var sql = util.format("select * from " + ty + " where ri = \'%s\'", ri);
+    var sql = "select * from " + ty + " where ri = \'" + ri + "\'";
     db.getResult(sql, '', function (err, rsc_Obj) {
         console.timeEnd('select_resource ' + ty + ' ' + ri + ' (' + tid + ')');
         callback(err, rsc_Obj);
@@ -766,7 +767,8 @@ exports.select_resource = function(ty, ri, callback) {
 
 exports.select_ri_lookup = function(ri, callback) {
     console.time('select_ri_lookup ' + ri);
-    var sql = util.format("select ri from lookup where ri = \'%s\'", ri);
+    //var sql = util.format("select ri from lookup where ri = \'%s\'", ri);
+    var sql = "select ri from lookup where ri = \'" + ri + "\'";
     db.getResult(sql, '', function (err, ri_Obj) {
         console.timeEnd('select_ri_lookup ' + ri);
         callback(err, ri_Obj);

@@ -1148,6 +1148,15 @@ exports.response_result = function(request, response, status, body_Obj, rsc, ri,
             rspObj.ri = request.method + "-" + ri + "-" + JSON.stringify(request.query);
             rspObj = cap;
             console.log(JSON.stringify(rspObj));
+            var hrend = process.hrtime(elapsed_hrstart[elapsed_tid]);
+            var elapsed_hr_str = util.format(require('moment')().utc().format('YYYYMMDDTHHmmss') + "(hr): %ds %dms\r\n", hrend[0], hrend[1]/1000000);
+            console.info(elapsed_hr_str);
+            console.timeEnd(elapsed_tid);
+
+            var fs = require('fs');
+            fs.appendFileSync('get_elapsed_time.log', elapsed_hr_str, 'utf-8');
+
+            delete elapsed_hrstart[elapsed_tid];
         }
         else if (request.query.rt == 1) {
             db_sql.update_req(request.headers.tg, bodyString, rsc, function () {
