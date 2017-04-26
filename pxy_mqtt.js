@@ -298,7 +298,7 @@ function make_json_obj(bodytype, str, callback) {
 }
 
 function mqtt_message_handler(topic, message) {
-    console.log(topic);
+    console.log('----> ' + topic);
     //console.log(message.toString());
     var topic_arr = topic.split("/");
     if(topic_arr[5] != null) {
@@ -652,7 +652,8 @@ mqtt_app.post('/notification', onem2mParser, function(request, response, next) {
         request.body = fullBody;
 
         try {
-            var aeid = url.parse(request.headers.nu).pathname.replace('/', '');
+            var aeid = url.parse(request.headers.nu).pathname.replace('/', '').split('?')[0];
+            console.log('[pxy_mqtt] - ' + aeid);
 
             if (aeid == '') {
                 console.log('aeid of notification url is none');
@@ -673,8 +674,8 @@ mqtt_app.post('/notification', onem2mParser, function(request, response, next) {
                     noti_message['m2m:rqp'] = {};
                     noti_message['m2m:rqp'].op = 5; // notification
                     noti_message['m2m:rqp'].net = (pc['sgn'] != null) ? pc.sgn.net : pc.singleNotification.notificationEventType;
-                    noti_message['m2m:rqp'].to = (pc['sgn'] != null) ? pc.sgn.sur : pc.singleNotification.subscriptionReference;
-                    noti_message['m2m:rqp'].fr = usecseid;
+                    //noti_message['m2m:rqp'].to = (pc['sgn'] != null) ? pc.sgn.sur : pc.singleNotification.subscriptionReference;
+                    //noti_message['m2m:rqp'].fr = usecseid;
                     noti_message['m2m:rqp'].rqi = rqi;
 
                     noti_message['m2m:rqp'].pc = pc;

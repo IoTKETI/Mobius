@@ -268,9 +268,6 @@ function create_action_cni(ri, ty, pi, mni, cs, callback) {
                 st = (parseInt(st, 10) + 1).toString();
                 cni = (parseInt(cni, 10) + 1).toString();
                 cbs = (parseInt(cbs, 10) + parseInt(cs, 10)).toString();
-                results_cni[0].st = st;
-                results_cni[0].cni = cni;
-                results_cni[0].cbs = cbs;
                 db_sql.update_cni_parent(ty, cni, cbs, st, pi, function (err, results) {
                     if (!err) {
                         db_sql.update_st_lookup(st, ri, function (err, results) {
@@ -1523,6 +1520,44 @@ exports.update = function(request, response, comm_Obj, body_Obj) {
     });
 };
 
+function delete_action_cni(ri, ty, pi, cs, callback) {
+    db_sql.select_cni_parent(ty, pi, function (err, results_cni) {
+        if (results_cni.length == 1) {
+            var cni = results_cni[0]['cni'];
+            var cbs = results_cni[0]['cbs'];
+            var st = results_cni[0]['st'];
+
+            st = (parseInt(st, 10) + 1).toString();
+            cni = (parseInt(cni, 10) - 1).toString();
+            cbs = (parseInt(cbs, 10) - parseInt(cs, 10)).toString();
+
+            db_sql.update_cni_parent(ty, cni, cbs, st, pi, function (err, results) {
+                if (!err) {
+                    db_sql.update_st_lookup(st, ri, function (err, results) {
+                        if (!err) {
+                            callback('1', st);
+                        }
+                        else {
+                            var body_Obj = {};
+                            body_Obj['dbg'] = results.message;
+                            console.log(JSON.stringify(body_Obj));
+                            callback('0');
+                            return '0';
+                        }
+                    });
+                }
+                else {
+                    var body_Obj = {};
+                    body_Obj['dbg'] = results.message;
+                    //responder.response_result(request, response, 500, body_Obj, 5000, request.url, results.message);
+                    console.log(JSON.stringify(body_Obj));
+                    callback('0');
+                    return '0';
+                }
+            });
+        }
+    });
+}
 
 function delete_action(request, response, resource_Obj, comm_Obj, callback) {
     var pi_list = [];
@@ -1543,6 +1578,12 @@ function delete_action(request, response, resource_Obj, comm_Obj, callback) {
                 if(!err) {
                     if(comm_Obj.ty == '29') {
                         delete_TS(function (rsc, res_Obj) {
+                        });
+                        callback('1', resource_Obj);
+                    }
+                    else if(comm_Obj.ty == '4') {
+                        delete_action_cni(comm_Obj.ri, comm_Obj.ty, comm_Obj.pi, comm_Obj.cs, function (rsc) {
+
                         });
                         callback('1', resource_Obj);
                     }

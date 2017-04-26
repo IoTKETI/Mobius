@@ -44,9 +44,10 @@ exports.check = function(request, noti_Obj, check_value) {
                 if(results_ss[i].ri == noti_Obj.ri) {
                     continue;
                 }
-                var cur_d = new Date();
-                var msec = (parseInt(cur_d.getMilliseconds(), 10)<10) ? ('00'+cur_d.getMilliseconds()) : ((parseInt(cur_d.getMilliseconds(), 10)<100) ? ('0'+cur_d.getMilliseconds()) : cur_d.getMilliseconds());
-                var xm2mri = 'rqi-' + cur_d.toISOString().replace(/-/, '').replace(/-/, '').replace(/T/, '').replace(/:/, '').replace(/:/, '').replace(/\..+/, '') + msec + randomValueBase64(4);
+                //var cur_d = new Date();
+                //var msec = (parseInt(cur_d.getMilliseconds(), 10)<10) ? ('00'+cur_d.getMilliseconds()) : ((parseInt(cur_d.getMilliseconds(), 10)<100) ? ('0'+cur_d.getMilliseconds()) : cur_d.getMilliseconds());
+                //var xm2mri = 'rqi-' + cur_d.toISOString().replace(/-/, '').replace(/-/, '').replace(/T/, '').replace(/:/, '').replace(/:/, '').replace(/\..+/, '') + msec + randomValueBase64(4);
+                var xm2mri = require('shortid').generate();
                 if (ss_fail_count[results_ss[i].ri] == null) {
                     ss_fail_count[results_ss[i].ri] = 0;
                 }
@@ -105,9 +106,10 @@ exports.check = function(request, noti_Obj, check_value) {
                                         node.sgn.nev.rep['m2m:'+rootnm] = noti_Obj;
                                     }
 
-                                    cur_d = new Date();
-                                    msec = (parseInt(cur_d.getMilliseconds(), 10)<10) ? ('00'+cur_d.getMilliseconds()) : ((parseInt(cur_d.getMilliseconds(), 10)<100) ? ('0'+cur_d.getMilliseconds()) : cur_d.getMilliseconds());
-                                    xm2mri = 'rqi-' + cur_d.toISOString().replace(/-/, '').replace(/-/, '').replace(/T/, '').replace(/:/, '').replace(/:/, '').replace(/\..+/, '') + msec + randomValueBase64(4);
+                                    //cur_d = new Date();
+                                    //msec = (parseInt(cur_d.getMilliseconds(), 10)<10) ? ('00'+cur_d.getMilliseconds()) : ((parseInt(cur_d.getMilliseconds(), 10)<100) ? ('0'+cur_d.getMilliseconds()) : cur_d.getMilliseconds());
+                                    //xm2mri = 'rqi-' + cur_d.toISOString().replace(/-/, '').replace(/-/, '').replace(/T/, '').replace(/:/, '').replace(/:/, '').replace(/\..+/, '') + msec + randomValueBase64(4);
+                                    xm2mri = require('shortid').generate();
 
                                     var sub_bodytype = request.headers.usebodytype;
                                     if(sub_nu.query != null) {
@@ -117,6 +119,29 @@ exports.check = function(request, noti_Obj, check_value) {
                                             }
                                             else {
                                                 sub_bodytype = 'json';
+                                            }
+                                        }
+                                        else if (sub_nu.query.split('=')[0] == 'rcn') {
+                                            if (sub_nu.query.split('=')[1] == '9') {
+                                                for(var index in node.sgn.nev.rep) {
+                                                    if (node.sgn.nev.rep.hasOwnProperty(index)) {
+                                                        if(node.sgn.nev.rep[index].cr) {
+                                                            delete node.sgn.nev.rep[index].cr;
+                                                        }
+
+                                                        if(node.sgn.nev.rep[index].st) {
+                                                            delete node.sgn.nev.rep[index].st;
+                                                        }
+
+                                                        delete node.sgn.nev.rep[index].ct;
+                                                        delete node.sgn.nev.rep[index].lt;
+                                                        delete node.sgn.nev.rep[index].et;
+                                                        delete node.sgn.nev.rep[index].ri;
+                                                        delete node.sgn.nev.rep[index].pi;
+                                                        delete node.sgn.nev.rep[index].rn;
+                                                        delete node.sgn.nev.rep[index].ty;
+                                                    }
+                                                }
                                             }
                                         }
                                     }
@@ -184,7 +209,7 @@ exports.check = function(request, noti_Obj, check_value) {
 };
 
 
-function request_noti_http(nu, ri, xmlString, bodytype, xm2mri) {
+function request_noti_http(nu, ri, bodyString, bodytype, xm2mri) {
     var options = {
         hostname: url.parse(nu).hostname,
         port: url.parse(nu).port,
@@ -225,7 +250,7 @@ function request_noti_http(nu, ri, xmlString, bodytype, xm2mri) {
     console.log('<---- request for notification through http with ' + bodytype);
     // write data to request body
     //NOPRINT == 'true' ? NOPRINT = 'true' : console.log(xmlString);
-    req.write(xmlString);
+    req.write(bodyString);
     req.end();
 }
 
@@ -309,7 +334,7 @@ function delete_sub(ri, xm2mri) {
     req.end();
 }
 
-function request_noti_mqtt(nu, ri, xmlString, bodytype, xm2mri) {
+function request_noti_mqtt(nu, ri, bodyString, bodytype, xm2mri) {
     var bodyStr = '';
 
     if(usesecure == 'disable') {
@@ -388,7 +413,7 @@ function request_noti_mqtt(nu, ri, xmlString, bodytype, xm2mri) {
         console.log('[request_noti_mqtt - ' + usepxymqttport + '] close: no response for notification');
     });
 
-    req.write(xmlString);
+    req.write(bodyString);
     console.log('[request_noti_mqtt - ' + usepxymqttport + '] ' + nu);
     req.end();
 }
