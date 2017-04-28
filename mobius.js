@@ -31,7 +31,7 @@ global.usedbhost            = 'localhost';
 global.usedbpass            = conf.dbpass;
 
 
-global.usepxymqttport       = '7580';
+global.usepxymqttport       = '7578';
 global.usepxycoapport       = '7581';
 
 global.usetsagentport       = '7582';

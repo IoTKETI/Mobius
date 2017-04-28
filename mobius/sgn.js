@@ -51,7 +51,7 @@ exports.check = function(request, noti_Obj, check_value) {
                 if (ss_fail_count[results_ss[i].ri] == null) {
                     ss_fail_count[results_ss[i].ri] = 0;
                 }
-                ss_fail_count[results_ss[i].ri]++;
+                //ss_fail_count[results_ss[i].ri]++;
                 if (ss_fail_count[results_ss[i].ri] >= 8) {
                     delete ss_fail_count[results_ss[i].ri];
                     delete_sub(results_ss[i].ri, xm2mri);
@@ -105,6 +105,8 @@ exports.check = function(request, noti_Obj, check_value) {
                                         node.sgn.nev.rep = {};
                                         node.sgn.nev.rep['m2m:'+rootnm] = noti_Obj;
                                     }
+
+                                    responder.typeCheckforJson(node.sgn.nev.rep);
 
                                     //cur_d = new Date();
                                     //msec = (parseInt(cur_d.getMilliseconds(), 10)<10) ? ('00'+cur_d.getMilliseconds()) : ((parseInt(cur_d.getMilliseconds(), 10)<100) ? ('0'+cur_d.getMilliseconds()) : cur_d.getMilliseconds());
@@ -242,9 +244,12 @@ function request_noti_http(nu, ri, bodyString, bodytype, xm2mri) {
     req.on('error', function (e) {
         if(e.message != 'read ECONNRESET') {
             console.log('[request_noti_http] problem with request: ' + e.message);
-
-            req.abort();
         }
+    });
+
+    req.on('close', function() {
+        console.log('[request_noti_http] close: no response for notification');
+        ss_fail_count[res.req._headers.ri]++;
     });
 
     console.log('<---- request for notification through http with ' + bodytype);
@@ -411,6 +416,7 @@ function request_noti_mqtt(nu, ri, bodyString, bodytype, xm2mri) {
 
     req.on('close', function() {
         console.log('[request_noti_mqtt - ' + usepxymqttport + '] close: no response for notification');
+        ss_fail_count[res.req._headers.ri]++;
     });
 
     req.write(bodyString);

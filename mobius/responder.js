@@ -1050,13 +1050,13 @@ function convertXml2(rootnm, body_Obj) {
     return xml.end({pretty: false, indent: '  ', newline: '\n'}).toString();
 }
 
-function typeCheckforJson(body_Obj) {
+exports.typeCheckforJson = function(body_Obj) {
     for (var index1 in body_Obj) {
         if(body_Obj.hasOwnProperty(index1)) {
             typeCheckAction(index1, body_Obj[index1]);
         }
     }
-}
+};
 
 function typeCheckforJson2(body_Obj) {
     for (var index1 in body_Obj) {
@@ -1128,7 +1128,7 @@ exports.response_result = function(request, response, status, body_Obj, rsc, ri,
         body_Obj['m2m:' + rootnm] = body_Obj[rootnm];
         delete body_Obj[rootnm];
 
-        typeCheckforJson(body_Obj);
+        _this.typeCheckforJson(body_Obj);
 
         var bodyString = JSON.stringify(body_Obj);
 
@@ -1215,7 +1215,7 @@ exports.response_rcn3_result = function(request, response, status, body_Obj, rsc
     delete body_Obj.rce;
     var rce_nm = 'rce';
 
-    typeCheckforJson(body_Obj['m2m:rce']);
+    _this.typeCheckforJson(body_Obj['m2m:rce']);
 
     var bodyString = JSON.stringify(body_Obj);
 

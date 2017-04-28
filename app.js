@@ -1118,10 +1118,11 @@ function lookup_retrieve(request, response) {
                                 console.log('no creator');
                             }
                             else {
-                                if(results_spec.ty == 2) {
+                                if(results_comm.ty == 2) {
                                     results_spec[0].cr = results_spec[0].aei;
                                 }
                             }
+
                             security.check(request, results_comm.ty, results_comm.acpi, '2', results_spec[0].cr, function (rsc) {
                                 if (rsc == '0') {
                                     body_Obj = {};
@@ -1189,7 +1190,7 @@ function lookup_update(request, response) {
                                 console.log('no creator');
                             }
                             else {
-                                if(results_spec.ty == 2) {
+                                if(results_comm.ty == 2) {
                                     results_spec[0].cr = results_spec[0].aei;
                                 }
                             }
@@ -1260,7 +1261,7 @@ function lookup_delete(request, response) {
                                 console.log('no creator');
                             }
                             else {
-                                if(results_spec.ty == 2) {
+                                if(results_comm.ty == 2) {
                                     results_spec[0].cr = results_spec[0].aei;
                                 }
                             }
