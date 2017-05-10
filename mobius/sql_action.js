@@ -717,11 +717,11 @@ exports.select_latest_lookup = function(ri, cur_d, loop_cnt, ty, callback) {
                 callback(err, latest_Obj);
             }
             else {
-                if(loop_cnt > 12) {
+                if(loop_cnt > 9) {
                     callback(err, latest_Obj);
                 }
                 else {
-                    cur_d = moment(cur_d).subtract(Math.pow(2,loop_cnt++), 'minutes').format('YYYY-MM-DD HH:mm:ss');
+                    cur_d = moment(cur_d).subtract(Math.pow(3, loop_cnt++), 'hours').format('YYYY-MM-DD HH:mm:ss');
                     _this.select_latest_lookup(ri, cur_d, loop_cnt, ty, function(err, latest_Obj) {
                         callback(err, latest_Obj);
                     });

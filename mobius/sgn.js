@@ -28,19 +28,143 @@ var responder = require('./responder');
 
 var ss_fail_count = {};
 
-exports.check = function(request, noti_Obj, check_value) {
+function sgn_action(rootnm, check_value, results_ss, noti_Obj, sub_bodytype) {
+    var enc_Obj = JSON.parse(results_ss.enc);
+    var net_arr = enc_Obj.net;
+
+    for (var j = 0; j < net_arr.length; j++) {
+        if (net_arr[j] == check_value) { // 1 : Update_of_Subscribed_Resource, 3 : Create_of_Direct_Child_Resource, 4 : Delete_of_Direct_Child_Resource
+            var nu_arr = JSON.parse(results_ss.nu);
+            for (var k = 0; k < nu_arr.length; k++) {
+                var nu = nu_arr[k];
+                var sub_nu = url.parse(nu);
+                var nct = results_ss.nct;
+
+                var node = {};
+                if (nct == 2) {
+                    node.sgn = {};
+                    node.sgn.net = check_value.toString();
+                    node.sgn.sur = results_ss.ri;
+                    node.sgn.nec = results_ss.nec;
+                    node.sgn.nev = {};
+                    node.sgn.nev.rep = {};
+                    node.sgn.nev.rep['m2m:'+rootnm] = noti_Obj;
+
+                    responder.typeCheckforJson(node.sgn.nev.rep);
+
+                    //cur_d = new Date();
+                    //msec = (parseInt(cur_d.getMilliseconds(), 10)<10) ? ('00'+cur_d.getMilliseconds()) : ((parseInt(cur_d.getMilliseconds(), 10)<100) ? ('0'+cur_d.getMilliseconds()) : cur_d.getMilliseconds());
+                    //xm2mri = 'rqi-' + cur_d.toISOString().replace(/-/, '').replace(/-/, '').replace(/T/, '').replace(/:/, '').replace(/:/, '').replace(/\..+/, '') + msec + randomValueBase64(4);
+                    xm2mri = require('shortid').generate();
+
+                    if(sub_nu.query != null) {
+                        if (sub_nu.query.split('=')[0] == 'ct') {
+                            if (sub_nu.query.split('=')[1] == 'xml') {
+                                sub_bodytype = 'xml';
+                            }
+                            else {
+                                sub_bodytype = 'json';
+                            }
+                        }
+                        else if (sub_nu.query.split('=')[0] == 'rcn') {
+                            if (sub_nu.query.split('=')[1] == '9') {
+                                for(var index in node.sgn.nev.rep) {
+                                    if (node.sgn.nev.rep.hasOwnProperty(index)) {
+                                        if(node.sgn.nev.rep[index].cr) {
+                                            delete node.sgn.nev.rep[index].cr;
+                                        }
+
+                                        if(node.sgn.nev.rep[index].st) {
+                                            delete node.sgn.nev.rep[index].st;
+                                        }
+
+                                        delete node.sgn.nev.rep[index].ct;
+                                        delete node.sgn.nev.rep[index].lt;
+                                        delete node.sgn.nev.rep[index].et;
+                                        delete node.sgn.nev.rep[index].ri;
+                                        delete node.sgn.nev.rep[index].pi;
+                                        delete node.sgn.nev.rep[index].rn;
+                                        delete node.sgn.nev.rep[index].ty;
+                                        delete node.sgn.nev.rep[index].fr;
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    if (sub_bodytype == 'xml') {
+                        if (sub_nu.protocol == 'http:') {
+                            node[Object.keys(node)[0]]['@'] = {
+                                "xmlns:m2m": "http://www.onem2m.org/xml/protocols",
+                                "xmlns:xsi": "http://www.w3.org/2001/XMLSchema-instance"
+                            };
+
+                            var bodyString = js2xmlparser('m2m:'+Object.keys(node)[0], node[Object.keys(node)[0]]);
+                            request_noti_http(nu, results_ss.ri, bodyString, sub_bodytype, xm2mri);
+                        }
+                        else if (sub_nu.protocol == 'coap:') {
+                            node[Object.keys(node)[0]]['@'] = {
+                                "xmlns:m2m": "http://www.onem2m.org/xml/protocols",
+                                "xmlns:xsi": "http://www.w3.org/2001/XMLSchema-instance"
+                            };
+
+                            bodyString = js2xmlparser('m2m:'+Object.keys(node)[0], node[Object.keys(node)[0]]);
+                            request_noti_coap(nu, results_ss.ri, bodyString, sub_bodytype, xm2mri);
+                        }
+                        else { // mqtt:
+                            //node['m2m:'+Object.keys(node)[0]] = node[Object.keys(node)[0]];
+                            //delete node[Object.keys(node)[0]];
+                            request_noti_mqtt(nu, results_ss.ri, JSON.stringify(node), sub_bodytype, xm2mri);
+                        }
+                    }
+                    else { // defaultbodytype == 'json')
+                        if (sub_nu.protocol == 'http:') {
+                            node['m2m:'+Object.keys(node)[0]] = node[Object.keys(node)[0]];
+                            delete node[Object.keys(node)[0]];
+                            request_noti_http(nu, results_ss.ri, JSON.stringify(node), sub_bodytype, xm2mri);
+                        }
+                        else if (sub_nu.protocol == 'coap:') {
+                            node['m2m:'+Object.keys(node)[0]] = node[Object.keys(node)[0]];
+                            delete node[Object.keys(node)[0]];
+                            request_noti_coap(nu, results_ss.ri, JSON.stringify(node), sub_bodytype, xm2mri);
+                        }
+                        else { // mqtt:
+                            //jsonString = {};
+                            //jsonString[(request.headers.nmtype == 'long') ? 'singleNotification' : 'sgn'] = node[(request.headers.nmtype == 'long') ? 'm2m:singleNotification' : 'm2m:sgn'];
+                            request_noti_mqtt(nu, results_ss.ri, JSON.stringify(node), sub_bodytype, xm2mri);
+                        }
+                    }
+                }
+                else {
+                    console.log('nct except 2 (All Attribute) do not support');
+                }
+            }
+            break;
+        }
+        //else {
+        //    console.log('enc-net except 3 do not support');
+        //}
+    }
+}
+
+exports.check = function(request, notiObj, check_value) {
     var rootnm = request.headers.rootnm;
 
+
     if((request.method == "PUT" && check_value == 1)) {
-        var pi = noti_Obj.ri;
+        var pi = notiObj.ri;
     }
     else if ((request.method == "POST" && check_value == 3) || (request.method == "DELETE" && check_value == 4)) {
-        pi = noti_Obj.pi;
+        pi = notiObj.pi;
     }
+
+    var noti_Str = JSON.stringify(notiObj);
 
     db_sql.select_sub(pi, function (err, results_ss) {
         if (!err) {
             for (var i = 0; i < results_ss.length; i++) {
+                var noti_Obj = JSON.parse(noti_Str);
+
                 if(results_ss[i].ri == noti_Obj.ri) {
                     continue;
                 }
@@ -57,150 +181,7 @@ exports.check = function(request, noti_Obj, check_value) {
                     delete_sub(results_ss[i].ri, xm2mri);
                 }
                 else {
-                    var enc_Obj = JSON.parse(results_ss[i].enc);
-                    var net_arr = enc_Obj.net;
-
-                    for (var j = 0; j < net_arr.length; j++) {
-                        if (net_arr[j] == check_value) { // 1 : Update_of_Subscribed_Resource, 3 : Create_of_Direct_Child_Resource, 4 : Delete_of_Direct_Child_Resource
-                            var nu_arr = JSON.parse(results_ss[i].nu);
-                            for (var k = 0; k < nu_arr.length; k++) {
-                                var nu = nu_arr[k];
-                                var sub_nu = url.parse(nu);
-                                var nct = results_ss[i].nct;
-
-                                var node = {};
-                                if (nct == 2) {
-                                    if(request.headers.nmtype == 'long') {
-                                        node[responder.attrLname['sgn']] = {};
-                                        node[responder.attrLname['sgn']][responder.attrLname['net']] = check_value.toString();
-                                        node[responder.attrLname['sgn']][responder.attrLname['sur']] = results_ss[i].ri;
-                                        node[responder.attrLname['sgn']][responder.attrLname['nec']] = results_ss[i].nec;
-                                        node[responder.attrLname['sgn']][responder.attrLname['nev']] = {};
-                                        node[responder.attrLname['sgn']][responder.attrLname['nev']][responder.attrLname['rep']] = {};
-
-                                        var temp_Obj = {};
-                                        temp_Obj[rootnm] = {};
-                                        for(var index in noti_Obj) {
-                                            if(noti_Obj.hasOwnProperty(index)) {
-                                                if (index == "$") {
-                                                    delete noti_Obj[index];
-                                                    continue;
-                                                }
-                                                temp_Obj[rootnm][responder.attrLname[index]] = noti_Obj[index];
-                                                delete noti_Obj[index];
-                                            }
-                                        }
-                                        noti_Obj[responder.rsrcLname[rootnm]] = temp_Obj[rootnm];
-                                        delete temp_Obj[rootnm];
-                                        rootnm = responder.rsrcLname[rootnm];
-
-                                        node[responder.attrLname['sgn']][responder.attrLname['nev']][responder.attrLname['rep']]['m2m:'+rootnm] = noti_Obj[rootnm];
-                                    }
-                                    else {
-                                        node.sgn = {};
-                                        node.sgn.net = check_value.toString();
-                                        node.sgn.sur = results_ss[i].ri;
-                                        node.sgn.nec = results_ss[i].nec;
-                                        node.sgn.nev = {};
-                                        node.sgn.nev.rep = {};
-                                        node.sgn.nev.rep['m2m:'+rootnm] = noti_Obj;
-                                    }
-
-                                    responder.typeCheckforJson(node.sgn.nev.rep);
-
-                                    //cur_d = new Date();
-                                    //msec = (parseInt(cur_d.getMilliseconds(), 10)<10) ? ('00'+cur_d.getMilliseconds()) : ((parseInt(cur_d.getMilliseconds(), 10)<100) ? ('0'+cur_d.getMilliseconds()) : cur_d.getMilliseconds());
-                                    //xm2mri = 'rqi-' + cur_d.toISOString().replace(/-/, '').replace(/-/, '').replace(/T/, '').replace(/:/, '').replace(/:/, '').replace(/\..+/, '') + msec + randomValueBase64(4);
-                                    xm2mri = require('shortid').generate();
-
-                                    var sub_bodytype = request.headers.usebodytype;
-                                    if(sub_nu.query != null) {
-                                        if (sub_nu.query.split('=')[0] == 'ct') {
-                                            if (sub_nu.query.split('=')[1] == 'xml') {
-                                                sub_bodytype = 'xml';
-                                            }
-                                            else {
-                                                sub_bodytype = 'json';
-                                            }
-                                        }
-                                        else if (sub_nu.query.split('=')[0] == 'rcn') {
-                                            if (sub_nu.query.split('=')[1] == '9') {
-                                                for(var index in node.sgn.nev.rep) {
-                                                    if (node.sgn.nev.rep.hasOwnProperty(index)) {
-                                                        if(node.sgn.nev.rep[index].cr) {
-                                                            delete node.sgn.nev.rep[index].cr;
-                                                        }
-
-                                                        if(node.sgn.nev.rep[index].st) {
-                                                            delete node.sgn.nev.rep[index].st;
-                                                        }
-
-                                                        delete node.sgn.nev.rep[index].ct;
-                                                        delete node.sgn.nev.rep[index].lt;
-                                                        delete node.sgn.nev.rep[index].et;
-                                                        delete node.sgn.nev.rep[index].ri;
-                                                        delete node.sgn.nev.rep[index].pi;
-                                                        delete node.sgn.nev.rep[index].rn;
-                                                        delete node.sgn.nev.rep[index].ty;
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-
-                                    if (sub_bodytype == 'xml') {
-                                        if (sub_nu.protocol == 'http:') {
-                                            node[Object.keys(node)[0]]['@'] = {
-                                                "xmlns:m2m": "http://www.onem2m.org/xml/protocols",
-                                                "xmlns:xsi": "http://www.w3.org/2001/XMLSchema-instance"
-                                            };
-
-                                            var bodyString = js2xmlparser('m2m:'+Object.keys(node)[0], node[Object.keys(node)[0]]);
-                                            request_noti_http(nu, results_ss[i].ri, bodyString, sub_bodytype, xm2mri);
-                                        }
-                                        else if (sub_nu.protocol == 'coap:') {
-                                            node[Object.keys(node)[0]]['@'] = {
-                                                "xmlns:m2m": "http://www.onem2m.org/xml/protocols",
-                                                "xmlns:xsi": "http://www.w3.org/2001/XMLSchema-instance"
-                                            };
-
-                                            bodyString = js2xmlparser('m2m:'+Object.keys(node)[0], node[Object.keys(node)[0]]);
-                                            request_noti_coap(nu, results_ss[i].ri, bodyString, sub_bodytype, xm2mri);
-                                        }
-                                        else { // mqtt:
-                                            //node['m2m:'+Object.keys(node)[0]] = node[Object.keys(node)[0]];
-                                            //delete node[Object.keys(node)[0]];
-                                            request_noti_mqtt(nu, results_ss[i].ri, JSON.stringify(node), sub_bodytype, xm2mri);
-                                        }
-                                    }
-                                    else { // defaultbodytype == 'json')
-                                        if (sub_nu.protocol == 'http:') {
-                                            node['m2m:'+Object.keys(node)[0]] = node[Object.keys(node)[0]];
-                                            delete node[Object.keys(node)[0]];
-                                            request_noti_http(nu, results_ss[i].ri, JSON.stringify(node), sub_bodytype, xm2mri);
-                                        }
-                                        else if (sub_nu.protocol == 'coap:') {
-                                            node['m2m:'+Object.keys(node)[0]] = node[Object.keys(node)[0]];
-                                            delete node[Object.keys(node)[0]];
-                                            request_noti_coap(nu, results_ss[i].ri, JSON.stringify(node), sub_bodytype, xm2mri);
-                                        }
-                                        else { // mqtt:
-                                            //jsonString = {};
-                                            //jsonString[(request.headers.nmtype == 'long') ? 'singleNotification' : 'sgn'] = node[(request.headers.nmtype == 'long') ? 'm2m:singleNotification' : 'm2m:sgn'];
-                                            request_noti_mqtt(nu, results_ss[i].ri, JSON.stringify(node), sub_bodytype, xm2mri);
-                                        }
-                                    }
-                                }
-                                else {
-                                    console.log('nct except 2 (All Attribute) do not support');
-                                }
-                            }
-                            break;
-                        }
-                        //else {
-                        //    console.log('enc-net except 3 do not support');
-                        //}
-                    }
+                    sgn_action(rootnm, check_value, results_ss[i], noti_Obj, request.headers.usebodytype);
                 }
             }
         }
@@ -248,8 +229,8 @@ function request_noti_http(nu, ri, bodyString, bodytype, xm2mri) {
     });
 
     req.on('close', function() {
-        console.log('[request_noti_http] close: no response for notification');
-        ss_fail_count[res.req._headers.ri]++;
+        ss_fail_count[req._headers.ri]++;
+        console.log('[request_noti_http] close: no response for notification - ' + ss_fail_count[req._headers.ri]);
     });
 
     console.log('<---- request for notification through http with ' + bodytype);
@@ -305,7 +286,6 @@ function delete_sub(ri, xm2mri) {
         path: ri,
         method: 'delete',
         headers: {
-            'locale': 'ko',
             'X-M2M-RI': xm2mri,
             'Accept': 'application/'+defaultbodytype,
             'X-M2M-Origin': usecseid
@@ -321,11 +301,10 @@ function delete_sub(ri, xm2mri) {
         });
 
         res.on('end', function () {
-            if(res.statusCode == 200 || res.statusCode == 201) {
+            if(res.statusCode == 200 || res.statusCode == 201 || res.statusCode == 202) {
                 console.log('delete sgn of ' + ri + ' for no response');
             }
         });
-
     });
 
     req.on('error', function (e) {
@@ -415,8 +394,8 @@ function request_noti_mqtt(nu, ri, bodyString, bodytype, xm2mri) {
     });
 
     req.on('close', function() {
-        console.log('[request_noti_mqtt - ' + usepxymqttport + '] close: no response for notification');
-        ss_fail_count[res.req._headers.ri]++;
+        ss_fail_count[req._headers.ri]++;
+        console.log('[request_noti_mqtt - ' + usepxymqttport + '] close: no response for notification - ' + ss_fail_count[req._headers.ri]);
     });
 
     req.write(bodyString);

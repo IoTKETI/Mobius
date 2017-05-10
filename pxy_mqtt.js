@@ -675,7 +675,7 @@ mqtt_app.post('/notification', onem2mParser, function(request, response, next) {
                     noti_message['m2m:rqp'].op = 5; // notification
                     noti_message['m2m:rqp'].net = (pc['sgn'] != null) ? pc.sgn.net : pc.singleNotification.notificationEventType;
                     //noti_message['m2m:rqp'].to = (pc['sgn'] != null) ? pc.sgn.sur : pc.singleNotification.subscriptionReference;
-                    //noti_message['m2m:rqp'].fr = usecseid;
+                    noti_message['m2m:rqp'].fr = usecseid;
                     noti_message['m2m:rqp'].rqi = rqi;
 
                     noti_message['m2m:rqp'].pc = pc;
