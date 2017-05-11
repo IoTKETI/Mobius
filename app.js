@@ -1406,7 +1406,7 @@ app.get(onem2mParser, function (request, response) {
                     lookup_retrieve(request, response);
                 }
                 else {
-                    responder.error_result(request, response, 405, 4005, 'OPERATION_NOT_ALLOWED (rcn or fu query is not supported at GET request)');
+                    responder.error_result(request, response, 400, 4000, 'BAD_REQUEST (rcn or fu query is not supported at GET request)');
                 }
             }
             else {
