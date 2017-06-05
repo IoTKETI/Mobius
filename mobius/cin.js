@@ -94,9 +94,33 @@ exports.build_cin = function(request, response, resource_Obj, body_Obj, callback
     }
 
     // body
-    resource_Obj[rootnm].con = body_Obj[rootnm].con;
+    if(body_Obj[rootnm].con['$'] != null) {
+        resource_Obj[rootnm].con = body_Obj[rootnm].con['_'];
+    }
+    else {
+        resource_Obj[rootnm].con = body_Obj[rootnm].con;
+    }
+    /*if (Array.isArray(body_Obj[rootnm].con)) {
+        return 'array';
+    }
+    else if (typeof body_Obj[rootnm].con == 'string') {
+        return 'string';
+    }
+    else if (body_Obj[rootnm].con != null && typeof body_Obj[rootnm].con == 'object') {
+        if(body_Obj[rootnm].con['$'] != null) {
+
+        }
+        else {
+            resource_Obj[rootnm].con = body_Obj[rootnm].con;
+        }
+    }
+    else {
+        return 'other';
+    }*/
+
     resource_Obj[rootnm].cs = Buffer.byteLength(resource_Obj[rootnm].con, 'utf8').toString();
 
+    make_sp_relative((body_Obj[rootnm].acpi) ? body_Obj[rootnm].acpi : []);
     resource_Obj[rootnm].acpi = (body_Obj[rootnm].acpi) ? body_Obj[rootnm].acpi : [];
     resource_Obj[rootnm].et = (body_Obj[rootnm].et) ? body_Obj[rootnm].et : resource_Obj[rootnm].et;
     resource_Obj[rootnm].lbl = (body_Obj[rootnm].lbl) ? body_Obj[rootnm].lbl : [];

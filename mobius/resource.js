@@ -77,6 +77,28 @@ exports.remove_no_value = function(request, resource_Obj) {
     }
 };
 
+global.make_cse_relative = function(resource_Obj) {
+    for(var index in resource_Obj) {
+        if(resource_Obj.hasOwnProperty(index)) {
+            resource_Obj[index] = resource_Obj[index].replace('/', '');
+        }
+    }
+};
+
+global.make_sp_relative = function(resource_Obj) {
+    for(var index in resource_Obj) {
+        if(resource_Obj.hasOwnProperty(index)) {
+            if(resource_Obj[index].split('/')[0] == '') {
+
+            }
+            else {
+                if(resource_Obj[index].split('/')[0] == usecsebase) { // structured
+                    resource_Obj[index] = '/' + resource_Obj[index];
+                }
+            }
+        }
+    }
+};
 
 function check_TS(ri, callback) {
     var rqi = moment().utc().format('mmssSSS') + randomValueBase64(4);
@@ -331,6 +353,7 @@ function create_action(request, response, ty, resource_Obj, callback) {
                     });
             }
             else if (ty == '2') {
+                resource_Obj[rootnm].sri = resource_Obj[rootnm].aei;
                 db_sql.insert_ae(resource_Obj[rootnm].ty, resource_Obj[rootnm].ri, resource_Obj[rootnm].rn, resource_Obj[rootnm].pi, resource_Obj[rootnm].ct,
                     resource_Obj[rootnm].lt, resource_Obj[rootnm].et, JSON.stringify(resource_Obj[rootnm].acpi), JSON.stringify(resource_Obj[rootnm].lbl), JSON.stringify(resource_Obj[rootnm].at),
                     JSON.stringify(resource_Obj[rootnm].aa), resource_Obj[rootnm].st, resource_Obj[rootnm].mni, resource_Obj[rootnm].cs, resource_Obj[rootnm].sri, resource_Obj[rootnm].spi,
@@ -514,7 +537,7 @@ function create_action(request, response, ty, resource_Obj, callback) {
                     resource_Obj[rootnm].lt, resource_Obj[rootnm].et, JSON.stringify(resource_Obj[rootnm].acpi), JSON.stringify(resource_Obj[rootnm].lbl), JSON.stringify(resource_Obj[rootnm].at),
                     JSON.stringify(resource_Obj[rootnm].aa), resource_Obj[rootnm].st, resource_Obj[rootnm].mni, resource_Obj[rootnm].cs, resource_Obj[rootnm].sri, resource_Obj[rootnm].spi,
                     JSON.stringify(resource_Obj[rootnm].enc), resource_Obj[rootnm].exc, JSON.stringify(resource_Obj[rootnm].nu),
-                    resource_Obj[rootnm].gpi, resource_Obj[rootnm].nfu, resource_Obj[rootnm].bn, resource_Obj[rootnm].rl, resource_Obj[rootnm].psn,
+                    resource_Obj[rootnm].gpi, resource_Obj[rootnm].nfu, JSON.stringify(resource_Obj[rootnm].bn), resource_Obj[rootnm].rl, resource_Obj[rootnm].psn,
                     resource_Obj[rootnm].pn, resource_Obj[rootnm].nsp, resource_Obj[rootnm].ln, resource_Obj[rootnm].nct, resource_Obj[rootnm].nec,
                     resource_Obj[rootnm].cr, resource_Obj[rootnm].su, function (err, results) {
                         if (!err) {
@@ -668,8 +691,9 @@ function build_resource(request, response, ty, body_Obj, callback) {
     }
 
     if (body_Obj[rootnm]['rn'] == 'latest' || body_Obj[rootnm]['rn'] == 'oldest' || body_Obj[rootnm]['rn'] == 'ol' || body_Obj[rootnm]['rn'] == 'la') {
+        var _rn = body_Obj[rootnm]['rn'];
         body_Obj = {};
-        body_Obj['dbg'] = "resource name (" + body_Obj[rootnm]['rn'] + ") can not use that is keyword";
+        body_Obj['dbg'] = "resource name (" + _rn + ") can not use that is keyword";
         responder.response_result(request, response, 409, body_Obj, 4105, request.url, body_Obj['dbg']);
         callback('0');
         return '0';
@@ -732,7 +756,7 @@ function build_resource(request, response, ty, body_Obj, callback) {
                         });
                         break;
                     case '4':
-                        cin.build_cin(request, response, resource_Obj, body_Obj, function(rsc, resource_Obj) {
+                        cin.build_cin(request, response, resource_Obj, body_Obj, function (rsc, resource_Obj) {
                             callback(rsc, resource_Obj);
                         });
                         break;
@@ -798,6 +822,7 @@ exports.create = function(request, response, ty, body_Obj, callback) {
     var rootnm = request.headers.rootnm;
     build_resource(request, response, ty, body_Obj, function(rsc, resource_Obj) {
         if(rsc == '0') {
+            callback(rsc);
             return rsc;
         }
         create_action(request, response, ty, resource_Obj, function(rsc, create_Obj) {
@@ -810,13 +835,20 @@ exports.create = function(request, response, ty, body_Obj, callback) {
                 var rsc_code = 2001;
 
                 if(request.query.rt == 3) {
-                    response.setHeader('Content-Location', create_Obj[rootnm].ri);
+                    response.setHeader('Content-Location', create_Obj[rootnm].ri.replace('/', ''));
                 }
 
                 if(Object.keys(create_Obj)[0] == 'req') {
-                    request.headers.tg = create_Obj[rootnm].ri;
+                    request.headers.tg = create_Obj[rootnm].ri.replace('/', '');
                     status_code = 202;
                     rsc_code = 1000;
+                    request.headers.rootnm = 'uri';
+                    var resource_Obj = {};
+                    resource_Obj.uri = {};
+                    resource_Obj.uri = create_Obj[rootnm].ri.replace('/', '');
+                    responder.response_result(request, response, status_code, resource_Obj, rsc_code, create_Obj[rootnm].ri, '');
+                    callback(rsc);
+                    return 0;
                 }
 
                 if(request.query.rcn == 2) { // hierarchical address
@@ -836,6 +868,7 @@ exports.create = function(request, response, ty, body_Obj, callback) {
                     request.headers.rootnm = rootnm;
                     create_Obj.rce = {};
                     create_Obj.rce.uri = create_Obj[rootnm].ri;
+                    create_Obj.rce.uri = create_Obj.rce.uri.replace('/', ''); // make cse relative uri
                     create_Obj.rce[rootnm] = create_Obj[rootnm];
                     delete create_Obj[rootnm];
                     responder.response_rcn3_result(request, response, status_code, create_Obj, rsc_code, create_Obj.rce[rootnm].ri, '');
@@ -1021,6 +1054,9 @@ function retrieve_action(request, response, ty, comm_Obj, callback) {
                 if (spec_Obj[0].enc) {
                     spec_Obj[0].enc = JSON.parse(spec_Obj[0].enc);
                 }
+                if (spec_Obj[0].bn) {
+                    spec_Obj[0].bn = JSON.parse(spec_Obj[0].bn);
+                }
                 if (spec_Obj[0].pv) {
                     spec_Obj[0].pv = JSON.parse(spec_Obj[0].pv);
                 }
@@ -1106,6 +1142,7 @@ exports.retrieve = function(request, response, comm_Obj) {
                     resource_Obj = {};
                     resource_Obj.uril = {};
                     resource_Obj.uril = ri_list;
+                    make_cse_relative(ri_list);
                     responder.search_result(request, response, 200, resource_Obj, 2000, comm_Obj.ri, '');
                 }
                 else if (request.query.rcn == 4 || request.query.rcn == 5 ||request.query.rcn == 6) {
@@ -1169,7 +1206,31 @@ exports.retrieve = function(request, response, comm_Obj) {
     }
 };
 
+global.build_body = function(rootnm, body_Obj, resource_Obj) {
+    // todo: update for optimize
+    for (var attr in body_Obj[rootnm]) {
+        if (body_Obj[rootnm].hasOwnProperty(attr)) {
+            if(body_Obj[rootnm][attr]) {
+                resource_Obj[rootnm][attr] = body_Obj[rootnm][attr];
+            }
 
+            if (attr === 'aa' || attr === 'poa' || attr === 'lbl' || attr === 'acpi' || attr === 'srt' || attr === 'nu' || attr === 'mid' || attr === 'macp') {
+                if(body_Obj[rootnm][attr] === '') {
+                    resource_Obj[rootnm][attr] = [];
+                }
+
+                if(attr === 'acpi') {
+                    make_sp_relative(resource_Obj[rootnm][attr]);
+                }
+            }
+            else {
+                if(body_Obj[rootnm][attr] === '') {
+                    resource_Obj[rootnm][attr] = '';
+                }
+            }
+        }
+    }
+};
 
 global.update_body = function(rootnm, body_Obj, resource_Obj) {
     for (var attr in body_Obj[rootnm]) {
@@ -1181,6 +1242,10 @@ global.update_body = function(rootnm, body_Obj, resource_Obj) {
             if (attr === 'aa' || attr === 'poa' || attr === 'lbl' || attr === 'acpi' || attr === 'srt' || attr === 'nu' || attr === 'mid' || attr === 'macp') {
                 if(body_Obj[rootnm][attr] === '') {
                     resource_Obj[rootnm][attr] = [];
+                }
+
+                if(attr === 'acpi') {
+                    make_sp_relative(resource_Obj[rootnm][attr]);
                 }
             }
             else {

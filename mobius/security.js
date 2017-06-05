@@ -24,10 +24,10 @@ exports.check = function(request, ty, acpiList, access_value, cr, callback) {
         return '1';
     }
 
-    if(request.headers['x-m2m-origin'] == cr) {
-        callback('1');
-        return '1';
-    }
+    // if(request.headers['x-m2m-origin'] == cr) {
+    //     callback('1');
+    //     return '1';
+    // }
 
     if(ty == '1') { // check selfPrevileges
         acpiList = [url.parse(request.url).pathname.split('?')[0]];
@@ -82,32 +82,44 @@ exports.check = function(request, ty, acpiList, access_value, cr, callback) {
         get_ri_list_sri(acpiList, ri_list, 0, function (ri_list) {
             db_sql.select_acp_in(ri_list, function (err, results_acp) {
                 if (!err) {
-                    for (var i = 0; i < results_acp.length; i++) {
-                        var pvObj = JSON.parse(results_acp[i].pv);
-                        var from = request.headers['x-m2m-origin'];
-                        for(var index in pvObj.acr) {
-                            if(pvObj.acr.hasOwnProperty(index)) {
-                                try {
-                                    var re = new RegExp('^' + from + '$');
-                                    for (var acor_idx in pvObj.acr[index].acor) {
-                                        if(pvObj.acr[index].acor.hasOwnProperty(acor_idx)) {
-                                            if (pvObj.acr[index].acor[acor_idx].match(re) || pvObj.acr[index].acor[acor_idx] == 'all' || pvObj.acr[index].acor[acor_idx] == '*') {
-                                                if ((pvObj.acr[index].acop.toString() & access_value) == access_value) {
-                                                    callback('1');
-                                                    return '1';
+                    if(results_acp.length == 0) {
+                        if(request.headers['x-m2m-origin'] == cr) {
+                            callback('1');
+                            return '1';
+                        }
+                        else {
+                            callback('0');
+                            return '0';
+                        }
+                    }
+                    else {
+                        for (var i = 0; i < results_acp.length; i++) {
+                            var pvObj = JSON.parse(results_acp[i].pv);
+                            var from = request.headers['x-m2m-origin'];
+                            for (var index in pvObj.acr) {
+                                if (pvObj.acr.hasOwnProperty(index)) {
+                                    try {
+                                        var re = new RegExp('^' + from + '$');
+                                        for (var acor_idx in pvObj.acr[index].acor) {
+                                            if (pvObj.acr[index].acor.hasOwnProperty(acor_idx)) {
+                                                if (pvObj.acr[index].acor[acor_idx].match(re) || pvObj.acr[index].acor[acor_idx] == 'all' || pvObj.acr[index].acor[acor_idx] == '*') {
+                                                    if ((pvObj.acr[index].acop.toString() & access_value) == access_value) {
+                                                        callback('1');
+                                                        return '1';
+                                                    }
                                                 }
                                             }
                                         }
                                     }
-                                }
-                                catch (e) {
+                                    catch (e) {
 
+                                    }
                                 }
                             }
                         }
+                        callback('0');
+                        return '0';
                     }
-                    callback('0');
-                    return '0';
                 }
                 else {
                     console.log('query error: ' + results_acp.message);

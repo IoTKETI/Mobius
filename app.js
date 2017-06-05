@@ -415,7 +415,7 @@ function check_http_body(request, response, callback) {
     }
     else {
         try {
-            body_Obj = JSON.parse(request.body);
+            body_Obj = JSON.parse(request.body.toString());
             make_short_nametype(request.headers.nmtype, body_Obj);
 
             if (Object.keys(body_Obj)[0] == 'undefined') {
@@ -451,9 +451,11 @@ function check_http(request, response, callback) {
 
     // Check X-M2M-Origin Header
     if ((request.headers['x-m2m-origin'] == null || request.headers['x-m2m-origin'] == '')) {
-        responder.error_result(request, response, 400, 4000, 'X-M2M-Origin Header is none');
-        callback('0', body_Obj);
-        return '0';
+        // responder.error_result(request, response, 400, 4000, 'X-M2M-Origin Header is none');
+        // callback('0', body_Obj);
+        // return '0';
+
+        request.headers['x-m2m-origin'] = 'S';
     }
 
     /*if (request.headers['x-m2m-origin'].substr(0, 1) != '/' && request.headers['x-m2m-origin'].substr(0, 1) != 'S' && request.headers['x-m2m-origin'].substr(0, 1) != 'C') {
@@ -996,10 +998,9 @@ function lookup_create(request, response) {
                 else if ((ty == 3) && (parent_comm.ty == 5 || parent_comm.ty == 16 || parent_comm.ty == 2 || parent_comm.ty == 3)) { // container
                 }
                 else if ((ty == 23) && (parent_comm.ty == 5 || parent_comm.ty == 16 || parent_comm.ty == 2 ||
-                    parent_comm.ty == 3 || parent_comm.ty == 24 || parent_comm.ty == 29 || parent_comm.ty == 27)) { // sub
+                    parent_comm.ty == 3 || parent_comm.ty == 24 || parent_comm.ty == 29 || parent_comm.ty == 9 || parent_comm.ty == 1 || parent_comm.ty == 27)) { // sub
                 }
                 else if ((ty == 4) && (parent_comm.ty == 3)) { // contentInstance
-                    body_Obj[rootnm].mni = parent_comm.mni;
                 }
                 else if ((ty == 24) && (parent_comm.ty == 2 || parent_comm.ty == 3 || parent_comm.ty == 4 || parent_comm.ty == 29)) { // semanticDescriptor
                 }
@@ -1028,19 +1029,39 @@ function lookup_create(request, response) {
                     }
                 }
 
-                if(parent_comm.ty == 2 || parent_comm.ty == 4 || parent_comm.ty == 3 || parent_comm.ty == 9 || parent_comm.ty == 24 || parent_comm.ty == 23 || parent_comm.ty == 29) {
+                if (parent_comm.ty == 2 || parent_comm.ty == 4 || parent_comm.ty == 3 || parent_comm.ty == 9 || parent_comm.ty == 24 || parent_comm.ty == 23 || parent_comm.ty == 29) {
                     db_sql.select_resource(responder.typeRsrc[parent_comm.ty], parent_comm.ri, function (err, parent_spec) {
                         if (!err) {
-                            if(parent_spec.length == 0) {
+
+                            if ((ty == 4) && (parent_comm.ty == 3)) { // contentInstance
+                                if (parseInt(parent_spec[0].mni) == 0) {
+                                    body_Obj = {};
+                                    body_Obj['dbg'] = 'can not create cin because mni value is zero';
+                                    responder.response_result(request, response, 406, body_Obj, 5207, request.url, body_Obj['dbg']);
+                                    return '0';
+                                }
+                                else if (parseInt(parent_spec[0].mbs) == 0) {
+                                    body_Obj = {};
+                                    body_Obj['dbg'] = 'can not create cin because mbs value is zero';
+                                    responder.response_result(request, response, 406, body_Obj, 5207, request.url, body_Obj['dbg']);
+                                    return '0';
+                                }
+                                else {
+                                    body_Obj[rootnm].mni = parent_spec[0].mni;
+                                }
+                            }
+
+                            if (parent_spec.length == 0) {
                                 parent_spec[0] = {};
                                 parent_spec[0].cr = '';
                                 console.log('no creator');
                             }
                             else {
-                                if(parent_comm.ty == 2) {
+                                if (parent_comm.ty == 2) {
                                     parent_spec[0].cr = parent_spec[0].aei;
                                 }
                             }
+
                             security.check(request, parent_comm.ty, parent_comm.acpi, '1', parent_spec[0].cr, function (rsc) {
                                 if (rsc == '0') {
                                     body_Obj = {};
@@ -1056,7 +1077,7 @@ function lookup_create(request, response) {
                     });
                 }
                 else {
-                    if(ty == 23) {
+                    if (ty == 23) {
                         var access_value = '3';
                     }
                     else {
@@ -1618,6 +1639,10 @@ function forward_http(forwardcbhost, forwardcbport, request, response) {
         });
 
         res.on('end', function () {
+            console.log('--------------------------------------------------------------------------');
+            console.log(res.url);
+            console.log(res.headers);
+            console.log(fullBody);
             console.log('[Forward response : ' + res.statusCode + ']');
 
             //response.headers = res.headers;
@@ -1646,7 +1671,9 @@ function forward_http(forwardcbhost, forwardcbport, request, response) {
         response.send(url.parse(request.url).pathname + ' : ' + e.message);
     });
 
-    console.log(JSON.stringify(request.body));
+    console.log(request.method + ' - ' + request.url);
+    console.log(request.headers);
+    console.log(request.body);
 
     // write data to request body
     if ((request.method.toLowerCase() == 'get') || (request.method.toLowerCase() == 'delete')) {

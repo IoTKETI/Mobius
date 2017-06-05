@@ -288,7 +288,13 @@ function make_json_obj(bodytype, str, callback) {
         }
         else {
             var result = JSON.parse(str);
-            callback('1', result);
+            if(result['m2m:rqp'] != null) {
+                callback('1', result);
+            }
+            else {
+                result['m2m:rqp'] = result;
+                callback('1', result);
+            }
         }
     }
     catch (e) {
@@ -299,7 +305,7 @@ function make_json_obj(bodytype, str, callback) {
 
 function mqtt_message_handler(topic, message) {
     console.log('----> ' + topic);
-    //console.log(message.toString());
+    console.log(message.toString());
     var topic_arr = topic.split("/");
     if(topic_arr[5] != null) {
         //var bodytype = (topic_arr[5] == 'xml') ? topic_arr[5] : ((topic_arr[5] == 'json') ? topic_arr[5] : 'json');
@@ -452,7 +458,14 @@ function mqtt_message_action(mqtt_client, topic_arr, bodytype, jsonObj) {
         }
     }
     else {
-        console.log('mqtt message tag is not fit');
+        console.log('mqtt message tag is not different : m2m:rqp');
+
+        resp_topic = '/oneM2M/resp/';
+        if (topic_arr[2] == 'reg_req') {
+            resp_topic = '/oneM2M/reg_resp/';
+        }
+        resp_topic += (topic_arr[3] + '/' + topic_arr[4] + '/' + topic_arr[5]);
+        mqtt_response(mqtt_client, resp_topic, 4000, "", usecseid, "", '\"m2m:dbg\":\"mqtt message tag is different : m2m:rqp\"', bodytype);
     }
 }
 
@@ -630,7 +643,7 @@ function mqtt_response(mqtt_client, resp_topic, rsc, to, fr, rqi, inpc, bodytype
             mqtt_client.publish(resp_topic, xmlString.toString());
         }
         else { // 'json'
-            mqtt_client.publish(resp_topic, JSON.stringify(rsp_message));
+            mqtt_client.publish(resp_topic, JSON.stringify(rsp_message['m2m:rsp']));
         }
     }
 }
@@ -796,7 +809,7 @@ mqtt_app.post('/notification', onem2mParser, function(request, response, next) {
                         console.log('<---- ' + noti_topic);
                     }
                     else { // 'json'
-                        pxymqtt_client.publish(noti_topic, JSON.stringify(noti_message));
+                        pxymqtt_client.publish(noti_topic, JSON.stringify(noti_message['m2m:rqp']));
                         console.log('<---- ' + noti_topic);
                     }
                 }
@@ -864,7 +877,7 @@ mqtt_app.post('/register_csr', onem2mParser, function(request, response, next) {
                 console.log('<---- ' + reg_req_topic);
             }
             else { // 'json'
-                pxymqtt_client.publish(reg_req_topic, JSON.stringify(req_message));
+                pxymqtt_client.publish(reg_req_topic, JSON.stringify(req_message['m2m:rqp']));
                 console.log('<---- ' + reg_req_topic);
             }
         }
@@ -920,7 +933,7 @@ mqtt_app.get('/get_cb', onem2mParser, function(request, response, next) {
                 console.log('<---- ' + reg_req_topic);
             }
             else { // 'json'
-                pxymqtt_client.publish(reg_req_topic, JSON.stringify(req_message));
+                pxymqtt_client.publish(reg_req_topic, JSON.stringify(req_message['m2m:rqp']));
                 console.log('<---- ' + reg_req_topic);
             }
         }

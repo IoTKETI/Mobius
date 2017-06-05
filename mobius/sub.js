@@ -75,7 +75,7 @@ exports.build_sub = function(request, response, resource_Obj, body_Obj, callback
     }
 
     // check M
-    if(!body_Obj[rootnm].nu) {
+    if((!body_Obj[rootnm].nu) || body_Obj[rootnm].nu == '') {
         body_Obj = {};
         body_Obj['dbg'] = 'nu as M Tag should be included';
         responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
@@ -86,6 +86,7 @@ exports.build_sub = function(request, response, resource_Obj, body_Obj, callback
     // body
     resource_Obj[rootnm].nu = body_Obj[rootnm].nu;
 
+    make_sp_relative((body_Obj[rootnm].acpi) ? body_Obj[rootnm].acpi : []);
     resource_Obj[rootnm].acpi = (body_Obj[rootnm].acpi) ? body_Obj[rootnm].acpi : [];
     resource_Obj[rootnm].et = (body_Obj[rootnm].et) ? body_Obj[rootnm].et : resource_Obj[rootnm].et;
     resource_Obj[rootnm].lbl = (body_Obj[rootnm].lbl) ? body_Obj[rootnm].lbl : [];
@@ -96,7 +97,7 @@ exports.build_sub = function(request, response, resource_Obj, body_Obj, callback
     resource_Obj[rootnm].exc = (body_Obj[rootnm].exc) ? body_Obj[rootnm].exc : '';
     resource_Obj[rootnm].gpi = (body_Obj[rootnm].gpi) ? body_Obj[rootnm].gpi : '';
     resource_Obj[rootnm].nfu = (body_Obj[rootnm].nfu) ? body_Obj[rootnm].nfu : '';
-    resource_Obj[rootnm].bn = (body_Obj[rootnm].bn) ? body_Obj[rootnm].bn : '';
+    resource_Obj[rootnm].bn = (body_Obj[rootnm].bn) ? body_Obj[rootnm].bn : {"num":0, "dur":"10"};
     resource_Obj[rootnm].rl = (body_Obj[rootnm].rl) ? body_Obj[rootnm].rl : '';
     resource_Obj[rootnm].psn = (body_Obj[rootnm].psn) ? body_Obj[rootnm].psn : '';
     resource_Obj[rootnm].pn = (body_Obj[rootnm].pn) ? body_Obj[rootnm].pn : '';

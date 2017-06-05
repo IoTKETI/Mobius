@@ -103,6 +103,7 @@ exports.build_csr = function(request, response, resource_Obj, body_Obj, callback
     resource_Obj[rootnm].csi = body_Obj[rootnm].csi;
     resource_Obj[rootnm].rr = body_Obj[rootnm].rr;
 
+    make_sp_relative((body_Obj[rootnm].acpi) ? body_Obj[rootnm].acpi : []);
     resource_Obj[rootnm].acpi = (body_Obj[rootnm].acpi) ? body_Obj[rootnm].acpi : [];
     resource_Obj[rootnm].et = (body_Obj[rootnm].et) ? body_Obj[rootnm].et : resource_Obj[rootnm].et;
     resource_Obj[rootnm].lbl = (body_Obj[rootnm].lbl) ? body_Obj[rootnm].lbl : [];

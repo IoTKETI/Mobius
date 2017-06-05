@@ -280,6 +280,7 @@ exports.build_grp = function(request, response, resource_Obj, body_Obj, callback
     resource_Obj[rootnm].mnm = body_Obj[rootnm].mnm;
     resource_Obj[rootnm].mid = remove_duplicated_mid(body_Obj[rootnm].mid);
 
+    make_sp_relative((body_Obj[rootnm].acpi) ? body_Obj[rootnm].acpi : []);
     resource_Obj[rootnm].acpi = (body_Obj[rootnm].acpi) ? body_Obj[rootnm].acpi : [];
     resource_Obj[rootnm].et = (body_Obj[rootnm].et) ? body_Obj[rootnm].et : resource_Obj[rootnm].et;
     resource_Obj[rootnm].lbl = (body_Obj[rootnm].lbl) ? body_Obj[rootnm].lbl : [];
@@ -316,7 +317,7 @@ exports.build_grp = function(request, response, resource_Obj, body_Obj, callback
             if(rsc == '0') { // mt inconsistency
                 if(results_mid.length == '0') {
                     body_Obj = {};
-                            body_Obj['dbg'] = 'can not create group because mid is empty after validation check of mt requested';
+                    body_Obj['dbg'] = 'can not create group because mid is empty after validation check of mt requested';
                     responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
                     callback('0', body_Obj);
                     return '0';
@@ -329,7 +330,7 @@ exports.build_grp = function(request, response, resource_Obj, body_Obj, callback
                     }
                     else if (resource_Obj[rootnm].csy == '2') { // ABANDON_GROUP
                         body_Obj = {};
-                                    body_Obj['dbg'] = 'can not create group because csy is ABANDON_GROUP when MEMBER_TYPE_INCONSISTENT';
+                        body_Obj['dbg'] = 'can not create group because csy is ABANDON_GROUP when MEMBER_TYPE_INCONSISTENT';
                         responder.response_result(request, response, 400, body_Obj, 6011, request.url, body_Obj['dbg']);
                         callback('0', body_Obj);
                         return '0';
