@@ -380,8 +380,14 @@ function check_http_body(request, response, callback) {
         return '0';
     }
 
-    if ((content_type[0].split('/')[1] == 'xml') || (content_type[0].split('+')[1] == 'xml')) {
+    if(request.headers['content-type'].includes('xml')) {
         request.headers.usebodytype = 'xml';
+    }
+    else {
+        request.headers.usebodytype = 'json';
+    }
+
+    if (request.headers.usebodytype === 'xml') {
         try {
             var parser = new xml2js.Parser({explicitArray: false});
             parser.parseString(request.body, function (err, result) {

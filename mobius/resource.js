@@ -83,7 +83,6 @@ exports.remove_no_value = function(request, resource_Obj) {
                     resource_Obj[rootnm][index] = resource_Obj[rootnm][index].toString();
                 }
                 else {
-                    delete resource_Obj[rootnm][index];
                 }
             }
         }

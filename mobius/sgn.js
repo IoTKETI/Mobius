@@ -145,7 +145,6 @@ function sgn_action(rootnm, check_value, results_ss, noti_Obj, sub_bodytype) {
                     console.log('nct except 2 (All Attribute) do not support');
                 }
             }
-            break;
         }
         //else {
         //    console.log('enc-net except 3 do not support');
@@ -209,7 +208,7 @@ function request_noti_http(nu, ri, bodyString, bodytype, xm2mri) {
             'X-M2M-RI': xm2mri,
             'Accept': 'application/'+bodytype,
             'X-M2M-Origin': usecseid,
-            'Content-Type': 'application/vnd.onem2m-ntfy+'+bodytype,
+            'Content-Type': 'application/'+bodytype,
             'ri': ri
         }
     };
@@ -250,6 +249,7 @@ function request_noti_http(nu, ri, bodyString, bodytype, xm2mri) {
     // write data to request body
     //NOPRINT == 'true' ? NOPRINT = 'true' : console.log(xmlString);
     req.write(bodyString);
+    console.log('[request_noti_http ' + '] ' + nu);
     req.end();
 }
 
@@ -430,7 +430,12 @@ function request_noti_ws(nu, ri, bodyString, bodytype, xm2mri) {
         var WebSocketClient = require('websocket').client;
         var ws_client = new WebSocketClient();
 
-        ws_client.connect(nu, ['onem2m.r2.0.json', 'onem2m.r2.0.xml']);
+        if(bodytype == 'xml') {
+            ws_client.connect(nu, 'onem2m.r2.0.xml');
+        }
+        else {
+            ws_client.connect(nu, 'onem2m.r2.0.json');
+        }
 
         ws_client.on('connectFailed', function (error) {
             ss_fail_count[ri]++;
@@ -447,12 +452,59 @@ function request_noti_ws(nu, ri, bodyString, bodytype, xm2mri) {
         ws_client.on('connect', function (connection) {
             console.log('WebSocket Client Connected');
 
-            if(bodytype == 'json') {
-
+            if(bodytype == 'xml') {
                 var pc = JSON.parse(bodyString);
-
                 try {
                     var noti_message = {};
+                    noti_message['m2m:rqp'] = {};
+                    noti_message['m2m:rqp'].op = 5; // notification
+                    noti_message['m2m:rqp'].net = (pc['sgn'] != null) ? pc.sgn.net : pc.singleNotification.notificationEventType;
+                    //noti_message['m2m:rqp'].to = (pc['sgn'] != null) ? pc.sgn.sur : pc.singleNotification.subscriptionReference;
+                    noti_message['m2m:rqp'].fr = usecseid;
+                    noti_message['m2m:rqp'].rqi = xm2mri;
+
+                    noti_message['m2m:rqp'].pc = pc;
+
+                    for(var prop in noti_message['m2m:rqp'].pc.sgn.nev.rep) {
+                        if (noti_message['m2m:rqp'].pc.sgn.nev.rep.hasOwnProperty(prop)) {
+                            for(var prop2 in noti_message['m2m:rqp'].pc.sgn.nev.rep[prop]) {
+                                if (noti_message['m2m:rqp'].pc.sgn.nev.rep[prop].hasOwnProperty(prop2)) {
+                                    if(prop2 == 'rn') {
+                                        noti_message['m2m:rqp'].pc.sgn.nev.rep[prop]['@'] = {rn : noti_message['m2m:rqp'].pc.sgn.nev.rep[prop][prop2]};
+                                        delete noti_message['m2m:rqp'].pc.sgn.nev.rep[prop][prop2];
+                                    }
+                                    for(var prop3 in noti_message['m2m:rqp'].pc.sgn.nev.rep[prop][prop2]) {
+                                        if (noti_message['m2m:rqp'].pc.sgn.nev.rep[prop][prop2].hasOwnProperty(prop3)) {
+                                            if(prop3 == 'rn') {
+                                                noti_message['m2m:rqp'].pc.sgn.nev.rep[prop][prop2]['@'] = {rn : noti_message['m2m:rqp'].pc.sgn.nev.rep[prop][prop2][prop3]};
+                                                delete noti_message['m2m:rqp'].pc.sgn.nev.rep[prop][prop2][prop3];
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    noti_message['m2m:rqp']['@'] = {
+                        "xmlns:m2m": "http://www.onem2m.org/xml/protocols",
+                        "xmlns:xsi": "http://www.w3.org/2001/XMLSchema-instance"
+                    };
+
+                    var xmlString = js2xmlparser("m2m:rqp", noti_message['m2m:rqp']);
+               }
+                catch (e) {
+                }
+
+                console.log('<---- ' + nu);
+                console.log(xmlString);
+
+                connection.sendUTF(xmlString);
+            }
+            else {
+                pc = JSON.parse(bodyString);
+                try {
+                    noti_message = {};
                     noti_message['m2m:rqp'] = {};
                     noti_message['m2m:rqp'].op = 5; // notification
                     noti_message['m2m:rqp'].net = (pc['sgn'] != null) ? pc.sgn.net : pc.singleNotification.notificationEventType;
@@ -484,10 +536,11 @@ function request_noti_ws(nu, ri, bodyString, bodytype, xm2mri) {
                 var bodytype = protocol_arr[protocol_arr.length-1];
 
                 if(bodytype == 'xml') {
+                    var xml2js = require('xml2js');
                     var parser = new xml2js.Parser({explicitArray: false});
                     parser.parseString(message.utf8Data.toString(), function (err, jsonObj) {
                         if (err) {
-                            console.log('[pxymqtt-resp xml2js parser error]');
+                            console.log('[pxyws-resp xml2js parser error]');
                         }
                         else {
                             if(jsonObj.rsc == 2001 || jsonObj.rsc == 2000) {
