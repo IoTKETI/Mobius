@@ -70,8 +70,9 @@ function parse_create_action(callback) {
     resource_Obj[rootnm].nl = '';
     resource_Obj[rootnm].ncp = '';
     resource_Obj[rootnm].cst = '1';
-    resource_Obj[rootnm].mni = '';
+    resource_Obj[rootnm].mni = '3153600000';
     resource_Obj[rootnm].cs = '';
+    resource_Obj[rootnm].cnf = '';
 
     db_sql.select_ri_lookup(resource_Obj[rootnm].ri, function (err, results_ri) {
         if(!err) {
@@ -99,7 +100,7 @@ function parse_create_action(callback) {
                         resource_Obj[rootnm].sri = require('shortid').generate();
                         db_sql.insert_cb(resource_Obj[rootnm].ty, resource_Obj[rootnm].ri, resource_Obj[rootnm].rn, resource_Obj[rootnm].pi, resource_Obj[rootnm].ct,
                             resource_Obj[rootnm].lt, resource_Obj[rootnm].et, JSON.stringify(resource_Obj[rootnm].acpi), JSON.stringify(resource_Obj[rootnm].lbl), JSON.stringify(resource_Obj[rootnm].at),
-                            JSON.stringify(resource_Obj[rootnm].aa), resource_Obj[rootnm].st, resource_Obj[rootnm].mni, resource_Obj[rootnm].cs, resource_Obj[rootnm].sri, resource_Obj[rootnm].spi, resource_Obj[rootnm].cst, resource_Obj[rootnm].csi, JSON.stringify(resource_Obj[rootnm].srt), JSON.stringify(resource_Obj[rootnm].poa),
+                            JSON.stringify(resource_Obj[rootnm].aa), resource_Obj[rootnm].st, resource_Obj[rootnm].mni, resource_Obj[rootnm].cs, resource_Obj[rootnm].cnf, resource_Obj[rootnm].sri, resource_Obj[rootnm].spi, resource_Obj[rootnm].cst, resource_Obj[rootnm].csi, JSON.stringify(resource_Obj[rootnm].srt), JSON.stringify(resource_Obj[rootnm].poa),
                             resource_Obj[rootnm].nl, resource_Obj[rootnm].ncp, function (err, results) {
                             if (!err) {
                                 rspObj.rsc = '2001';

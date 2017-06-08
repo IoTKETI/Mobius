@@ -288,13 +288,7 @@ function make_json_obj(bodytype, str, callback) {
         }
         else {
             var result = JSON.parse(str);
-            if(result['m2m:rqp'] != null) {
-                callback('1', result);
-            }
-            else {
-                result['m2m:rqp'] = result;
-                callback('1', result);
-            }
+            callback('1', result);
         }
     }
     catch (e) {
@@ -319,6 +313,10 @@ function mqtt_message_handler(topic, message) {
     if((topic_arr[1] == 'oneM2M' && topic_arr[2] == 'resp' && ((topic_arr[3].replace(':', '/') == usecseid) || (topic_arr[3] == usecseid.replace('/', ''))))) {
         make_json_obj(bodytype, message.toString(), function(rsc, jsonObj) {
             if(rsc == '1') {
+                if(jsonObj['m2m:rsp'] == null) {
+                    jsonObj['m2m:rsp'] = jsonObj;
+                }
+
                 if (jsonObj['m2m:rsp'] != null) {
                     for (var i = 0; i < resp_mqtt_rqi_arr.length; i++) {
                         if (resp_mqtt_rqi_arr[i] == jsonObj['m2m:rsp'].rqi) {
@@ -369,6 +367,9 @@ function mqtt_message_handler(topic, message) {
     }
     else if(topic_arr[1] === 'oneM2M' && topic_arr[2] === 'req' && ((topic_arr[4].replace(':', '/') == usecseid) || (topic_arr[4] == usecseid.replace('/', '')))) {
         make_json_obj(bodytype, message.toString(), function(rsc, result) {
+            if(result['m2m:rqp'] == null) {
+                result['m2m:rqp'] = result;
+            }
             if(rsc == '1') {
                 mqtt_message_action(pxymqtt_client, topic_arr, bodytype, result);
             }
@@ -384,6 +385,9 @@ function mqtt_message_handler(topic, message) {
     }
     else if(topic_arr[1] === 'oneM2M' && topic_arr[2] === 'reg_req' && ((topic_arr[4].replace(':', '/') == usecseid) || (topic_arr[4] == usecseid.replace('/', '')))) {
         make_json_obj(bodytype, message.toString(), function(rsc, result) {
+            if(result['m2m:rqp'] == null) {
+                result['m2m:rqp'] = result;
+            }
             if(rsc == '1') {
                 mqtt_message_action(pxymqtt_client, topic_arr, bodytype, result);
             }

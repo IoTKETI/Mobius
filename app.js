@@ -130,6 +130,7 @@ if (use_clustering) {
 
                     require('./pxy_mqtt');
                     require('./pxy_coap');
+                    require('./pxy_ws');
 
                     if (usecsetype == 'mn' || usecsetype == 'asn') {
                         global.refreshIntervalId = setInterval(function () {
@@ -259,47 +260,30 @@ global.update_route = function (callback) {
 
 
 function make_short_nametype(nmtype, body_Obj) {
-    if (nmtype == 'long') {
-        var rsrcLongName = Object.keys(body_Obj)[0].split(':')[1];
-        if (responder.rsrcSname.hasOwnProperty(rsrcLongName)) {
-            var rsrcShortName = responder.rsrcSname[rsrcLongName];
-            body_Obj[rsrcShortName] = {};
-            for (var index in body_Obj['m2m:' + rsrcLongName]) {
-                if (body_Obj['m2m:' + rsrcLongName].hasOwnProperty(index)) {
-                    if (index == "$") {
-                        if (body_Obj['m2m:' + rsrcLongName][index]['resourceName'] != null) {
-                            body_Obj[rsrcShortName].rn = body_Obj['m2m:' + rsrcLongName][index]['resourceName'];
-                        }
-                        delete body_Obj['m2m:' + rsrcLongName][index];
-                        continue;
-                    }
-                    var attrShortName = responder.attrSname[index];
-
-                    if (index == 'eventNotificationCriteria') {
-                        body_Obj[rsrcShortName][attrShortName] = {};
-                        body_Obj[rsrcShortName][attrShortName][responder.attrSname['notificationEventType']] = body_Obj['m2m:' + rsrcLongName][index]['notificationEventType'];
-                    }
-                    else {
-                        body_Obj[rsrcShortName][attrShortName] = body_Obj['m2m:' + rsrcLongName][index];
-                    }
-                    delete body_Obj['m2m:' + rsrcLongName][index];
-                }
-            }
-            delete body_Obj['m2m:' + rsrcLongName];
+    if (body_Obj[Object.keys(body_Obj)[0]]['$'] != null) {
+        if (body_Obj[Object.keys(body_Obj)[0]]['$'].rn != null) {
+            body_Obj[Object.keys(body_Obj)[0]].rn = body_Obj[Object.keys(body_Obj)[0]]['$'].rn;
         }
-        else {
-            return '0';
-        }
+        delete body_Obj[Object.keys(body_Obj)[0]]['$'];
     }
-    else {
-        if (body_Obj[Object.keys(body_Obj)[0]]['$'] != null) {
-            if (body_Obj[Object.keys(body_Obj)[0]]['$'].rn != null) {
-                body_Obj[Object.keys(body_Obj)[0]].rn = body_Obj[Object.keys(body_Obj)[0]]['$'].rn;
+
+    var rootnm = Object.keys(body_Obj)[0].split(':')[1];
+    body_Obj[rootnm] = body_Obj[Object.keys(body_Obj)[0]];
+    delete body_Obj[Object.keys(body_Obj)[0]];
+
+    for (var attr in body_Obj[rootnm]) {
+        if (body_Obj[rootnm].hasOwnProperty(attr)) {
+            if (typeof body_Obj[rootnm][attr] === 'boolean') {
+                body_Obj[rootnm][attr] = body_Obj[rootnm][attr].toString();
             }
-            delete body_Obj[Object.keys(body_Obj)[0]]['$'];
+            else if (typeof body_Obj[rootnm][attr] === 'string') {
+            }
+            else if (typeof body_Obj[rootnm][attr] === 'number') {
+                body_Obj[rootnm][attr] = body_Obj[rootnm][attr].toString();
+            }
+            else {
+            }
         }
-        body_Obj[Object.keys(body_Obj)[0].split(':')[1]] = body_Obj[Object.keys(body_Obj)[0]];
-        delete body_Obj[Object.keys(body_Obj)[0]];
     }
 }
 
@@ -398,20 +382,26 @@ function check_http_body(request, response, callback) {
 
     if ((content_type[0].split('/')[1] == 'xml') || (content_type[0].split('+')[1] == 'xml')) {
         request.headers.usebodytype = 'xml';
-        var parser = new xml2js.Parser({explicitArray: false});
-        parser.parseString(request.body, function (err, result) {
-            if (err) {
-                responder.error_result(request, response, 400, 4000, 'do not parse xml body');
-                callback('0', body_Obj);
-            }
-            else {
-                body_Obj = result;
-                make_short_nametype(request.headers.nmtype, body_Obj);
-                make_json_arraytype(body_Obj);
+        try {
+            var parser = new xml2js.Parser({explicitArray: false});
+            parser.parseString(request.body, function (err, result) {
+                if (err) {
+                    responder.error_result(request, response, 400, 4000, 'do not parse xml body');
+                    callback('0', body_Obj);
+                }
+                else {
+                    body_Obj = result;
+                    make_short_nametype(request.headers.nmtype, body_Obj);
+                    make_json_arraytype(body_Obj);
 
-                callback('1', body_Obj, content_type);
-            }
-        });
+                    callback('1', body_Obj, content_type);
+                }
+            });
+        }
+        catch(e) {
+            responder.error_result(request, response, 400, 4000, 'do not parse xml body');
+            callback('0', body_Obj);
+        }
     }
     else {
         try {
@@ -507,9 +497,28 @@ function check_http(request, response, callback) {
                     }
 
                     if (responder.typeRsrc[ty] != Object.keys(body_Obj)[0]) {
-                        responder.error_result(request, response, 400, 4000, 'ty [' + ty + '] is different with body (' + Object.keys(body_Obj)[0] + ')');
-                        callback('0', body_Obj);
-                        return '0';
+                        if(responder.typeRsrc[ty] == 'mgo') {
+                            var support_mgo = 0;
+                            for (var prop in responder.mgoType) {
+                                if(responder.mgoType.hasOwnProperty(prop)) {
+                                    if (responder.mgoType[prop] == Object.keys(body_Obj)[0]) {
+                                        support_mgo = 1;
+                                        break;
+                                    }
+                                }
+                            }
+
+                            if(support_mgo == 0) {
+                                responder.error_result(request, response, 400, 4000, 'ty [' + ty + '] is different with body (' + Object.keys(body_Obj)[0] + ')');
+                                callback('0', body_Obj);
+                                return '0';
+                            }
+                        }
+                        else {
+                            responder.error_result(request, response, 400, 4000, 'ty [' + ty + '] is different with body (' + Object.keys(body_Obj)[0] + ')');
+                            callback('0', body_Obj);
+                            return '0';
+                        }
                     }
                 }
                 else {
@@ -619,6 +628,13 @@ function check_http(request, response, callback) {
                                     return '0';
                                 }
                             }
+                            else {
+                                body_Obj = {};
+                                body_Obj['dbg'] = 'enc should have net key in json format';
+                                responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
+                                callback('0', body_Obj);
+                                return '0';
+                            }
                         }
 
                         if (body_Obj[prop].pv) {
@@ -640,6 +656,13 @@ function check_http(request, response, callback) {
                                         return '0';
                                     }
                                 }
+                            }
+                            else {
+                                body_Obj = {};
+                                body_Obj['dbg'] = 'pv should have acr key in json format';
+                                responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
+                                callback('0', body_Obj);
+                                return '0';
                             }
                         }
 
@@ -663,6 +686,13 @@ function check_http(request, response, callback) {
                                     }
                                 }
                             }
+                            else {
+                                body_Obj = {};
+                                body_Obj['dbg'] = 'pvs should have acr key in json format';
+                                responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
+                                callback('0', body_Obj);
+                                return '0';
+                            }
                         }
 
                         if (body_Obj[prop].mid) {
@@ -679,6 +709,30 @@ function check_http(request, response, callback) {
                             if (!Array.isArray(body_Obj[prop].macp)) {
                                 body_Obj = {};
                                 body_Obj['dbg'] = 'macp should be json array format';
+                                responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
+                                callback('0', body_Obj);
+                                return '0';
+                            }
+                        }
+
+                        if (body_Obj[prop].uds) {
+                            if (body_Obj[prop].uds.can && body_Obj[prop].uds.sus) {
+                            }
+                            else {
+                                body_Obj = {};
+                                body_Obj['dbg'] = 'uds should have can and sus key in json format';
+                                responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
+                                callback('0', body_Obj);
+                                return '0';
+                            }
+                        }
+
+                        if (body_Obj[prop].cas) {
+                            if (body_Obj[prop].cas.can && body_Obj[prop].cas.sus) {
+                            }
+                            else {
+                                body_Obj = {};
+                                body_Obj['dbg'] = 'cas should have can and sus key in json format';
                                 responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
                                 callback('0', body_Obj);
                                 return '0';
@@ -995,7 +1049,7 @@ function lookup_create(request, response) {
                 }
                 else if ((ty == 2) && (parent_comm.ty == 5)) { // ae
                 }
-                else if ((ty == 3) && (parent_comm.ty == 5 || parent_comm.ty == 16 || parent_comm.ty == 2 || parent_comm.ty == 3)) { // container
+                else if ((ty == 3) && (parent_comm.ty == 5 || parent_comm.ty == 2 || parent_comm.ty == 3)) { // container
                 }
                 else if ((ty == 23) && (parent_comm.ty == 5 || parent_comm.ty == 16 || parent_comm.ty == 2 ||
                     parent_comm.ty == 3 || parent_comm.ty == 24 || parent_comm.ty == 29 || parent_comm.ty == 9 || parent_comm.ty == 1 || parent_comm.ty == 27)) { // sub
@@ -1010,6 +1064,10 @@ function lookup_create(request, response) {
                     body_Obj[rootnm].mni = parent_comm.mni;
                 }
                 else if ((ty == 27) && (parent_comm.ty == 2 || parent_comm.ty == 16)) { // multimediaSession
+                }
+                else if ((ty == 14) && (parent_comm.ty == 5)) { // node
+                }
+                else if ((ty == 13) && (parent_comm.ty == 14)) { // mgmtObj
                 }
                 else {
                     body_Obj = {};

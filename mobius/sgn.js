@@ -111,6 +111,9 @@ function sgn_action(rootnm, check_value, results_ss, noti_Obj, sub_bodytype) {
                             bodyString = js2xmlparser('m2m:'+Object.keys(node)[0], node[Object.keys(node)[0]]);
                             request_noti_coap(nu, results_ss.ri, bodyString, sub_bodytype, xm2mri);
                         }
+                        else if (sub_nu.protocol == 'ws:') {
+                            request_noti_ws(nu, results_ss.ri, JSON.stringify(node), sub_bodytype, xm2mri);
+                        }
                         else { // mqtt:
                             //node['m2m:'+Object.keys(node)[0]] = node[Object.keys(node)[0]];
                             //delete node[Object.keys(node)[0]];
@@ -127,6 +130,9 @@ function sgn_action(rootnm, check_value, results_ss, noti_Obj, sub_bodytype) {
                             node['m2m:'+Object.keys(node)[0]] = node[Object.keys(node)[0]];
                             delete node[Object.keys(node)[0]];
                             request_noti_coap(nu, results_ss.ri, JSON.stringify(node), sub_bodytype, xm2mri);
+                        }
+                        else if (sub_nu.protocol == 'ws:') {
+                            request_noti_ws(nu, results_ss.ri, JSON.stringify(node), sub_bodytype, xm2mri);
                         }
                         else { // mqtt:
                             //jsonString = {};
@@ -176,13 +182,14 @@ exports.check = function(request, notiObj, check_value) {
                     ss_fail_count[results_ss[i].ri] = 0;
                 }
                 //ss_fail_count[results_ss[i].ri]++;
-                if (ss_fail_count[results_ss[i].ri] >= 8) {
-                    delete ss_fail_count[results_ss[i].ri];
-                    delete_sub(results_ss[i].ri, xm2mri);
-                }
-                else {
+                //if (ss_fail_count[results_ss[i].ri] >= 8) {
+                //    delete ss_fail_count[results_ss[i].ri];
+                //    delete_sub(results_ss[i].ri, xm2mri);
+                //    sgn_action(rootnm, check_value, results_ss[i], noti_Obj, request.headers.usebodytype);
+                //}
+                //else {
                     sgn_action(rootnm, check_value, results_ss[i], noti_Obj, request.headers.usebodytype);
-                }
+                //}
             }
         }
         else {
@@ -231,6 +238,12 @@ function request_noti_http(nu, ri, bodyString, bodytype, xm2mri) {
     req.on('close', function() {
         ss_fail_count[req._headers.ri]++;
         console.log('[request_noti_http] close: no response for notification - ' + ss_fail_count[req._headers.ri]);
+
+        var xm2mri = require('shortid').generate();
+        if (ss_fail_count[req._headers.ri] >= 8) {
+            delete ss_fail_count[req._headers.ri];
+            delete_sub(req._headers.ri, xm2mri);
+        }
     });
 
     console.log('<---- request for notification through http with ' + bodytype);
@@ -396,11 +409,116 @@ function request_noti_mqtt(nu, ri, bodyString, bodytype, xm2mri) {
     req.on('close', function() {
         ss_fail_count[req._headers.ri]++;
         console.log('[request_noti_mqtt - ' + usepxymqttport + '] close: no response for notification - ' + ss_fail_count[req._headers.ri]);
+
+        var xm2mri = require('shortid').generate();
+        if (ss_fail_count[req._headers.ri] >= 8) {
+            delete ss_fail_count[req._headers.ri];
+            delete_sub(req._headers.ri, xm2mri);
+        }
     });
 
     req.write(bodyString);
     console.log('[request_noti_mqtt - ' + usepxymqttport + '] ' + nu);
     req.end();
+}
+
+
+function request_noti_ws(nu, ri, bodyString, bodytype, xm2mri) {
+    var bodyStr = '';
+
+    if(usesecure == 'disable') {
+        var WebSocketClient = require('websocket').client;
+        var ws_client = new WebSocketClient();
+
+        ws_client.connect(nu, ['onem2m.r2.0.json', 'onem2m.r2.0.xml']);
+
+        ws_client.on('connectFailed', function (error) {
+            ss_fail_count[ri]++;
+            console.log('Connect Error: ' + error.toString() + ' - ' + ss_fail_count[ri]);
+            ws_client.removeAllListeners();
+
+            var xm2mri = require('shortid').generate();
+            if (ss_fail_count[ri] >= 8) {
+                delete ss_fail_count[ri];
+                delete_sub(ri, xm2mri);
+            }
+        });
+
+        ws_client.on('connect', function (connection) {
+            console.log('WebSocket Client Connected');
+
+            if(bodytype == 'json') {
+
+                var pc = JSON.parse(bodyString);
+
+                try {
+                    var noti_message = {};
+                    noti_message['m2m:rqp'] = {};
+                    noti_message['m2m:rqp'].op = 5; // notification
+                    noti_message['m2m:rqp'].net = (pc['sgn'] != null) ? pc.sgn.net : pc.singleNotification.notificationEventType;
+                    //noti_message['m2m:rqp'].to = (pc['sgn'] != null) ? pc.sgn.sur : pc.singleNotification.subscriptionReference;
+                    noti_message['m2m:rqp'].fr = usecseid;
+                    noti_message['m2m:rqp'].rqi = xm2mri;
+
+                    noti_message['m2m:rqp'].pc = pc;
+                }
+                catch (e) {
+                }
+
+                console.log('<---- ' + nu);
+                console.log(JSON.stringify(noti_message['m2m:rqp']));
+
+                connection.sendUTF(JSON.stringify(noti_message['m2m:rqp']));
+            }
+            connection.on('error', function (error) {
+                console.log("Connection Error: " + error.toString());
+
+            });
+            connection.on('close', function () {
+                console.log('Connection Closed');
+            });
+            connection.on('message', function (message) {
+                console.log(message.utf8Data.toString());
+
+                var protocol_arr = this.protocol.split('.');
+                var bodytype = protocol_arr[protocol_arr.length-1];
+
+                if(bodytype == 'xml') {
+                    var parser = new xml2js.Parser({explicitArray: false});
+                    parser.parseString(message.utf8Data.toString(), function (err, jsonObj) {
+                        if (err) {
+                            console.log('[pxymqtt-resp xml2js parser error]');
+                        }
+                        else {
+                            if(jsonObj.rsc == 2001 || jsonObj.rsc == 2000) {
+                                console.log('----> response for notification through mqtt ' + res.headers['x-m2m-rsc'] + ' - ' + ri);
+                                ss_fail_count[ri] = 0;
+                            }
+                            connection.close();
+                        }
+                    });
+                }
+                else { // 'json'
+                    var jsonObj = JSON.parse(message.utf8Data.toString());
+
+                    try {
+                        if (jsonObj.rsc == 2001 || jsonObj.rsc == 2000) {
+                            console.log('----> response for notification through ws ' + jsonObj.rsc + ' - ' + ri);
+                            ss_fail_count[ri] = 0;
+                            connection.close();
+                        }
+                    }
+                    catch (e) {
+                        console.log('----> response for notification through ws  - ' + ri);
+                        ss_fail_count[ri] = 0;
+                    }
+                }
+            });
+        });
+    }
+    else {
+        console.log('not support secure notification through ws');
+    }
 }
 
 

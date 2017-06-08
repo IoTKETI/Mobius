@@ -595,7 +595,8 @@ const attrSname = {
     "softwareUninstall":"swun",
     "tracingOption":"tcop",
     "tracingInfo":"tcin",
-    "responseTypeValue":"rtv"
+    "responseTypeValue":"rtv",
+    "firmwarename":"fwnnam"
 };
 
 const rceLname = {
@@ -672,7 +673,8 @@ const rceLname = {
     "cmbf":"cmdhBuffer",
     "mms": "multimediaSession",
     "rce":"resource",
-    "uri":"URI"
+    "uri":"URI",
+    "fwnnam":"firmwareName"
 };
 
 
@@ -762,8 +764,8 @@ const typeRsrc = {
     "5": "cb",
     "9": "grp",
     "10": "lcp",
-//    "13": "mgo",
-//    "14": "nod",
+    "13": "mgo",
+    "14": "nod",
     "16": "csr",
     "17": "req",
     "23": "sub",
@@ -774,7 +776,16 @@ const typeRsrc = {
     "99": "rsp"
 };
 
+const mgoType = {
+    "1001": "fwr",
+    "1006": "bat",
+    "1007": "dvi",
+    "1008": "dvc",
+    "1009": "rbo"
+};
+
 exports.typeRsrc = typeRsrc;
+exports.mgoType = mgoType;
 exports.rsrcSname = rceSname;
 exports.rsrcLname = rceLname;
 exports.attrLname = attrLname;
@@ -789,12 +800,14 @@ function typeCheckAction(index1, body_Obj) {
 
             else if (index2 == 'cst' || index2 == 'los' || index2 == 'mt' || index2 == 'csy' || index2 == 'nct' ||
                 index2 == 'cs' || index2 == 'st' || index2 == 'ty' || index2 == 'cbs' || index2 == 'cni' || index2 == 'mni' ||
-                index2 == 'cnm' || index2 == 'mia' || index2 == 'mbs') {
+                index2 == 'cnm' || index2 == 'mia' || index2 == 'mbs' || index2 == 'cnf' || index2 == 'mgd' || index2 == 'btl' || index2 == 'bts') {
 
-                if (index1 == 'm2m:cin' && index2 == 'mni') {
+                if ((index1 == 'm2m:cin' || index1 == 'm2m:nod' || index1 == 'm2m:ae' || index1 == 'm2m:sub' || index1 == 'm2m:acp' || index1 == 'm2m:csr' || index1 == 'm2m:grp'
+                    || index1 == 'm2m:fwr' || index1 == 'm2m:bat' || index1 == 'm2m:dvi' || index1 == 'm2m:dvc' || index1 == 'm2m:rbo') && index2 == 'mni') {
                     delete body_Obj[index2];
                 }
-                else if ((index1 == 'm2m:cb' || index1 == 'm2m:csr' || index1 == 'm2m:ae' || index1 == 'm2m:acp' || index1 == 'm2m:grp' || index1 == 'm2m:sub') && index2 == 'st') {
+                else if ((index1 == 'm2m:cb' || index1 == 'm2m:csr' || index1 == 'm2m:ae' || index1 == 'm2m:acp' || index1 == 'm2m:grp' || index1 == 'm2m:sub' || index1 == 'm2m:nod'
+                    || index1 == 'm2m:fwr' || index1 == 'm2m:bat' || index1 == 'm2m:dvi' || index1 == 'm2m:dvc' || index1 == 'm2m:rbo') && index2 == 'st') {
                     delete body_Obj[index2];
                 }
                 else {
@@ -836,6 +849,15 @@ function typeCheckAction(index1, body_Obj) {
                     }
                 }
             }
+            else if (index2 == 'cas' || index2 == 'uds') {
+                for (var index3 in body_Obj[index2]) {
+                    if (body_Obj[index2].hasOwnProperty(index3)) {
+                        if(index3 == 'sus') {
+                            body_Obj[index2][index3] = parseInt(body_Obj[index2][index3]);
+                        }
+                    }
+                }
+            }
             else if (index2 == 'srt') {
                 for (index3 in body_Obj[index2]) {
                     if (body_Obj[index2].hasOwnProperty(index3)) {
@@ -843,7 +865,7 @@ function typeCheckAction(index1, body_Obj) {
                     }
                 }
             }
-            else if (index2 == 'rr' || index2 == 'mtv') {
+            else if (index2 == 'rr' || index2 == 'mtv' || index2 == 'ud' || index2 == 'att' || index2 == 'cus' || index2 == 'ena' || index2 == 'dis' || index2 == 'rbo' || index2 == 'far') {
                 body_Obj[index2] = ((body_Obj[index2] == 'true') || ((body_Obj[index2] == true)));
             }
             else if (index2 == 'sri') {
@@ -879,7 +901,7 @@ function xmlAction(xml, body_Obj) {
                     }
                 }
             }
-            else if (attr == 'bn') {
+            else if (attr == 'bn' || attr == 'uds' || attr == 'cas') {
                 xml2 = xml.ele(attr, '');
                 for (sub_attr in body_Obj[attr]) {
                     if (body_Obj[attr].hasOwnProperty(sub_attr)) {
@@ -1092,8 +1114,14 @@ exports.response_result = function(request, response, status, body_Obj, rsc, ri,
     else {
         var rootnm = Object.keys(body_Obj)[0];
 
-        body_Obj['m2m:' + rootnm] = body_Obj[rootnm];
-        delete body_Obj[rootnm];
+        if(rootnm == 'mgo') {
+            body_Obj['m2m:' + mgoType[body_Obj[rootnm].mgd]] = body_Obj[rootnm];
+            delete body_Obj[rootnm];
+        }
+        else {
+            body_Obj['m2m:' + rootnm] = body_Obj[rootnm];
+            delete body_Obj[rootnm];
+        }
 
         _this.typeCheckforJson(body_Obj);
 
@@ -1341,13 +1369,27 @@ exports.search_result = function(request, response, status, body_Obj, rsc, ri, c
                 else {
                     ty = body_Obj[prop].ty;
                 }
-                if (res_Obj['m2m:' + typeRsrc[ty]] == null) {
-                    res_Obj['m2m:' + typeRsrc[ty]] = [];
+
+                if(typeRsrc[ty] == 'mgo') {
+                    if (res_Obj['m2m:' + mgoType[body_Obj[prop].mgd]] == null) {
+                        res_Obj['m2m:' + mgoType[body_Obj[prop].mgd]] = [];
+                    }
+
+                    var tmp_Obj = {};
+                    tmp_Obj['m2m:' + mgoType[body_Obj[prop].mgd]] = body_Obj[prop];
+                    res_Obj['m2m:' + mgoType[body_Obj[prop].mgd]].push(tmp_Obj['m2m:' + mgoType[body_Obj[prop].mgd]]);
+                    delete body_Obj[prop];
                 }
-                var tmp_Obj = {};
-                tmp_Obj['m2m:' + typeRsrc[ty]] = body_Obj[prop];
-                delete body_Obj[prop];
-                res_Obj['m2m:' + typeRsrc[ty]].push(tmp_Obj['m2m:' + typeRsrc[ty]]);
+                else {
+                    if (res_Obj['m2m:' + typeRsrc[ty]] == null) {
+                        res_Obj['m2m:' + typeRsrc[ty]] = [];
+                    }
+
+                    var tmp_Obj = {};
+                    tmp_Obj['m2m:' + typeRsrc[ty]] = body_Obj[prop];
+                   res_Obj['m2m:' + typeRsrc[ty]].push(tmp_Obj['m2m:' + typeRsrc[ty]]);
+                    delete body_Obj[prop];
+                }
             }
         }
 

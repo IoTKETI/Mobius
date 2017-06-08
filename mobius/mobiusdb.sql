@@ -2,7 +2,7 @@
 --
 -- Host: localhost    Database: mobiusdb
 -- ------------------------------------------------------
--- Server version	5.7.16-log
+-- Server version	5.7.13-log
 
 /*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
 /*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
@@ -212,14 +212,56 @@ CREATE TABLE `lookup` (
   `st` varchar(45) DEFAULT NULL,
   `mni` varchar(45) DEFAULT NULL,
   `cs` varchar(45) DEFAULT NULL,
+  `cnf` varchar(45) DEFAULT NULL,
   `sri` varchar(45) DEFAULT NULL,
   `spi` varchar(45) DEFAULT NULL,
   PRIMARY KEY (`pi`,`ty`,`ct`,`ri`),
   UNIQUE KEY `ri_UNIQUE` (`ri`),
   KEY `idx_lookup_resourcetype` (`ty`),
-  KEY `idx_lookup_creationtime` (`ct`),
   KEY `idx_lookup_parentid` (`pi`),
-  KEY `idx_lookup_cs` (`cs`)
+  KEY `idx_lookup_cs` (`cs`),
+  KEY `idx_lookup_ct` (`ct`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `mgo`
+--
+
+DROP TABLE IF EXISTS `mgo`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `mgo` (
+  `ri` varchar(200) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
+  `mgd` varchar(45) DEFAULT NULL,
+  `objs` varchar(45) DEFAULT NULL,
+  `obps` varchar(45) DEFAULT NULL,
+  `dc` varchar(45) DEFAULT NULL,
+  `vr` varchar(45) DEFAULT NULL,
+  `fwnnam` varchar(45) DEFAULT NULL,
+  `url` varchar(45) DEFAULT NULL,
+  `ud` varchar(45) DEFAULT NULL,
+  `uds` varchar(45) DEFAULT NULL,
+  `btl` varchar(45) DEFAULT NULL,
+  `bts` varchar(45) DEFAULT NULL,
+  `dbl` varchar(45) DEFAULT NULL,
+  `man` varchar(45) DEFAULT NULL,
+  `mod` varchar(45) DEFAULT NULL,
+  `dty` varchar(45) DEFAULT NULL,
+  `fwv` varchar(45) DEFAULT NULL,
+  `swv` varchar(45) DEFAULT NULL,
+  `hwv` varchar(45) DEFAULT NULL,
+  `can` varchar(45) DEFAULT NULL,
+  `att` varchar(45) DEFAULT NULL,
+  `cas` varchar(45) DEFAULT NULL,
+  `cus` varchar(45) DEFAULT NULL,
+  `ena` varchar(45) DEFAULT NULL,
+  `dis` varchar(45) DEFAULT NULL,
+  `rbo` varchar(45) DEFAULT NULL,
+  `far` varchar(45) DEFAULT NULL,
+  PRIMARY KEY (`ri`),
+  UNIQUE KEY `ri_UNIQUE` (`ri`),
+  CONSTRAINT `mo_ri` FOREIGN KEY (`ri`) REFERENCES `lookup` (`ri`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
@@ -241,6 +283,23 @@ CREATE TABLE `mms` (
   PRIMARY KEY (`ri`),
   UNIQUE KEY `ri_UNIQUE` (`ri`),
   CONSTRAINT `mms_ri` FOREIGN KEY (`ri`) REFERENCES `lookup` (`ri`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `nod`
+--
+
+DROP TABLE IF EXISTS `nod`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `nod` (
+  `ri` varchar(200) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
+  `ni` varchar(45) NOT NULL,
+  `hcl` varchar(45) DEFAULT NULL,
+  PRIMARY KEY (`ri`),
+  UNIQUE KEY `ri_UNIQUE` (`ri`),
+  CONSTRAINT `nod_ri` FOREIGN KEY (`ri`) REFERENCES `lookup` (`ri`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
@@ -388,4 +447,4 @@ CREATE TABLE `tsi` (
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2017-02-20 15:10:00
+-- Dump completed on 2017-06-05 21:10:44
