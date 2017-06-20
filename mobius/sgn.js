@@ -55,7 +55,7 @@ function sgn_action(rootnm, check_value, results_ss, noti_Obj, sub_bodytype) {
                     //cur_d = new Date();
                     //msec = (parseInt(cur_d.getMilliseconds(), 10)<10) ? ('00'+cur_d.getMilliseconds()) : ((parseInt(cur_d.getMilliseconds(), 10)<100) ? ('0'+cur_d.getMilliseconds()) : cur_d.getMilliseconds());
                     //xm2mri = 'rqi-' + cur_d.toISOString().replace(/-/, '').replace(/-/, '').replace(/T/, '').replace(/:/, '').replace(/:/, '').replace(/\..+/, '') + msec + randomValueBase64(4);
-                    xm2mri = require('shortid').generate();
+                    var xm2mri = require('shortid').generate();
 
                     if(sub_nu.query != null) {
                         if (sub_nu.query.split('=')[0] == 'ct') {
@@ -117,6 +117,26 @@ function sgn_action(rootnm, check_value, results_ss, noti_Obj, sub_bodytype) {
                         else { // mqtt:
                             //node['m2m:'+Object.keys(node)[0]] = node[Object.keys(node)[0]];
                             //delete node[Object.keys(node)[0]];
+                            request_noti_mqtt(nu, results_ss.ri, JSON.stringify(node), sub_bodytype, xm2mri);
+                        }
+                    }
+                    else if (sub_bodytype == 'cbor') {
+                        if (sub_nu.protocol == 'http:') {
+                            node['m2m:'+Object.keys(node)[0]] = node[Object.keys(node)[0]];
+                            delete node[Object.keys(node)[0]];
+                            bodyString = cbor.encode(node).toString('hex');
+                            request_noti_http(nu, results_ss.ri, bodyString, sub_bodytype, xm2mri);
+                        }
+                        else if (sub_nu.protocol == 'coap:') {
+                            node['m2m:'+Object.keys(node)[0]] = node[Object.keys(node)[0]];
+                            delete node[Object.keys(node)[0]];
+                            bodyString = cbor.encode(node).toString('hex');
+                            request_noti_coap(nu, results_ss.ri, bodyString, sub_bodytype, xm2mri);
+                        }
+                        else if (sub_nu.protocol == 'ws:') {
+                            request_noti_ws(nu, results_ss.ri, JSON.stringify(node), sub_bodytype, xm2mri);
+                        }
+                        else { // mqtt:
                             request_noti_mqtt(nu, results_ss.ri, JSON.stringify(node), sub_bodytype, xm2mri);
                         }
                     }
@@ -433,6 +453,9 @@ function request_noti_ws(nu, ri, bodyString, bodytype, xm2mri) {
         if(bodytype == 'xml') {
             ws_client.connect(nu, 'onem2m.r2.0.xml');
         }
+        else if(bodytype == 'cbor') {
+            ws_client.connect(nu, 'onem2m.r2.0.cbor');
+        }
         else {
             ws_client.connect(nu, 'onem2m.r2.0.json');
         }
@@ -501,6 +524,29 @@ function request_noti_ws(nu, ri, bodyString, bodytype, xm2mri) {
 
                 connection.sendUTF(xmlString);
             }
+            else if(bodytype === 'cbor') {
+                pc = JSON.parse(bodyString);
+                try {
+                    noti_message = {};
+                    noti_message['m2m:rqp'] = {};
+                    noti_message['m2m:rqp'].op = 5; // notification
+                    noti_message['m2m:rqp'].net = (pc['sgn'] != null) ? pc.sgn.net : pc.singleNotification.notificationEventType;
+                    //noti_message['m2m:rqp'].to = (pc['sgn'] != null) ? pc.sgn.sur : pc.singleNotification.subscriptionReference;
+                    noti_message['m2m:rqp'].fr = usecseid;
+                    noti_message['m2m:rqp'].rqi = xm2mri;
+
+                    noti_message['m2m:rqp'].pc = pc;
+                }
+                catch (e) {
+                }
+
+                bodyString = cbor.encode(noti_message['m2m:rqp']).toString('hex');
+
+                console.log('<---- ' + nu);
+                console.log(bodyString);
+
+                connection.sendUTF(bodyString);
+            }
             else {
                 pc = JSON.parse(bodyString);
                 try {
@@ -522,6 +568,7 @@ function request_noti_ws(nu, ri, bodyString, bodytype, xm2mri) {
 
                 connection.sendUTF(JSON.stringify(noti_message['m2m:rqp']));
             }
+
             connection.on('error', function (error) {
                 console.log("Connection Error: " + error.toString());
 
@@ -535,7 +582,7 @@ function request_noti_ws(nu, ri, bodyString, bodytype, xm2mri) {
                 var protocol_arr = this.protocol.split('.');
                 var bodytype = protocol_arr[protocol_arr.length-1];
 
-                if(bodytype == 'xml') {
+                if(bodytype === 'xml') {
                     var xml2js = require('xml2js');
                     var parser = new xml2js.Parser({explicitArray: false});
                     parser.parseString(message.utf8Data.toString(), function (err, jsonObj) {
@@ -548,6 +595,22 @@ function request_noti_ws(nu, ri, bodyString, bodytype, xm2mri) {
                                 ss_fail_count[ri] = 0;
                             }
                             connection.close();
+                        }
+                    });
+                }
+                else if(bodytype === 'cbor') {
+                    var encoded = message.utf8Data.toString();
+                    cbor.decodeFirst(encoded, function(err, jsonObj) {
+                        if (err) {
+                            console.log('[ws-resp cbor parser error]');
+                            ss_fail_count[ri] = 0;
+                        }
+                        else {
+                            if (jsonObj.rsc == 2001 || jsonObj.rsc == 2000) {
+                                console.log('----> response for notification through ws ' + jsonObj.rsc + ' - ' + ri);
+                                ss_fail_count[ri] = 0;
+                                connection.close();
+                            }
                         }
                     });
                 }

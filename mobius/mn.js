@@ -40,7 +40,6 @@ function retrieve_CSEBase_http(cbname, cbhost, cbhostport, callback) {
             'X-M2M-RI': rqi,
             'Accept': 'application/'+defaultbodytype,
             'X-M2M-Origin': usecseid,
-            'nmtype': defaultnmtype
         }
     };
 
@@ -181,7 +180,6 @@ function create_remoteCSE_http(cbname, cbhost, cbhostport, body_Obj, callback) {
             'Accept': 'application/'+defaultbodytype,
             'X-M2M-Origin': usecseid,
             'Content-Type': 'application/'+defaultbodytype+';ty=16',
-            'nmtype': defaultnmtype
         }
     };
 

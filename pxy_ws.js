@@ -27,6 +27,7 @@ var xmlbuilder = require('xmlbuilder');
 var moment = require('moment');
 var ip = require("ip");
 var events = require('events');
+var cbor = require('cbor');
 
 var WebSocketServer = require('websocket').server;
 
@@ -115,18 +116,27 @@ exports.ws_watchdog = function() {
 
                 for (var index in request.requestedProtocols) {
                     if(request.requestedProtocols.hasOwnProperty(index)) {
-                        if(request.requestedProtocols[index] === 'onem2m.r2.0.json') {
-                            var connection = request.accept('onem2m.r2.0.json', request.origin);
-                            console.log((new Date()) + ' Connection accepted. (json)');
+                        if(request.requestedProtocols[index] === 'onem2m.r2.0.xml') {
+                            var connection = request.accept('onem2m.r2.0.xml', request.origin);
+                            console.log((new Date()) + ' Connection accepted. (xml)');
                             connection.on('message', ws_message_handler);
                             connection.on('close', function (reasonCode, description) {
                                 console.log((new Date()) + ' Peer ' + connection.remoteAddress + ' disconnected.');
                             });
                             break;
                         }
-                        else if(request.requestedProtocols[index] === 'onem2m.r2.0.xml') {
-                            var connection = request.accept('onem2m.r2.0.xml', request.origin);
-                            console.log((new Date()) + ' Connection accepted. (xml)');
+                        else if(request.requestedProtocols[index] === 'onem2m.r2.0.cbor') {
+                            var connection = request.accept('onem2m.r2.0.cbor', request.origin);
+                            console.log((new Date()) + ' Connection accepted. (cbor)');
+                            connection.on('message', ws_message_handler);
+                            connection.on('close', function (reasonCode, description) {
+                                console.log((new Date()) + ' Peer ' + connection.remoteAddress + ' disconnected.');
+                            });
+                            break;
+                        }
+                        else if(request.requestedProtocols[index] === 'onem2m.r2.0.json') {
+                            var connection = request.accept('onem2m.r2.0.json', request.origin);
+                            console.log((new Date()) + ' Connection accepted. (json)');
                             connection.on('message', ws_message_handler);
                             connection.on('close', function (reasonCode, description) {
                                 console.log((new Date()) + ' Peer ' + connection.remoteAddress + ' disconnected.');
@@ -256,6 +266,27 @@ function make_json_obj(bodytype, str, callback) {
                         }
                     }
                     callback('1', result);
+                }
+            });
+        }
+        else if (bodytype === 'cbor') {
+            cbor.decodeFirst(str, function(err, result) {
+                if (err) {
+                    console.log('[mqtt make json obj] cbor parser error]');
+                }
+                else {
+                    if(result['m2m:rqp'] == null) {
+                        if(result['op'] == null) {
+                            callback('0');
+                        }
+                        else {
+                            result['m2m:rqp'] = result;
+                            callback('1', result);
+                        }
+                    }
+                    else {
+                        callback('1', result);
+                    }
                 }
             });
         }
@@ -460,7 +491,7 @@ function ws_response(connection, rsc, to, fr, rqi, inpc, bodytype) {
     rsp_message['m2m:rsp'].pc = inpc;
 
 
-    if (bodytype == 'xml') {
+    if (bodytype === 'xml') {
         rsp_message['m2m:rsp']['@'] = {
             "xmlns:m2m": "http://www.onem2m.org/xml/protocols",
             "xmlns:xsi": "http://www.w3.org/2001/XMLSchema-instance"
@@ -487,9 +518,13 @@ function ws_response(connection, rsc, to, fr, rqi, inpc, bodytype) {
             }
         }
 
-        var xmlString = js2xmlparser("m2m:rsp", rsp_message['m2m:rsp']);
+        var bodyString = js2xmlparser("m2m:rsp", rsp_message['m2m:rsp']);
 
-        connection.sendUTF(xmlString.toString());
+        connection.sendUTF(bodyString.toString());
+    }
+    else if (bodytype === 'cbor') { // 'json'
+        bodyString = cbor.encode(rsp_message['m2m:rsp']).toString('hex');
+        connection.sendUTF(bodyString);
     }
     else { // 'json'
         connection.sendUTF(JSON.stringify(rsp_message['m2m:rsp']));

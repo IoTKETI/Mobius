@@ -20,6 +20,8 @@ var xmlbuilder = require('xmlbuilder');
 var util = require('util');
 var merge = require('merge');
 var js2xmlparser = require("js2xmlparser");
+var cbor = require("cbor");
+var coap = require('coap');
 
 var db_sql = require('./sql_action');
 
@@ -1084,6 +1086,9 @@ exports.response_result = function(request, response, status, body_Obj, rsc, ri,
         if (request.headers.usebodytype == 'json') {
             response.setHeader('Content-Type', 'application/json');
         }
+        else if (request.headers.usebodytype == 'cbor') {
+            response.setHeader('Content-Type', 'application/cbor');
+        }
         else {
             response.setHeader('Content-Type', 'application/xml');
         }
@@ -1139,6 +1144,9 @@ exports.response_result = function(request, response, status, body_Obj, rsc, ri,
         if (request.query.rt == 3) {
             if (request.headers.usebodytype == 'json') {
             }
+            else if (request.headers.usebodytype == 'cbor') {
+                bodyString = cbor.encode(body_Obj).toString('hex');
+            }
             else {
                 bodyString = convertXml(rootnm, body_Obj);
             }
@@ -1160,13 +1168,32 @@ exports.response_result = function(request, response, status, body_Obj, rsc, ri,
             // fs.appendFileSync('get_elapsed_time.log', elapsed_hr_str, 'utf-8');
             // delete elapsed_hrstart[elapsed_tid];
         }
-        else if (request.query.rt == 1) {
+        else if (request.query.rt == 1 || request.query.rt == 2) {
             db_sql.update_req('/'+request.headers.tg, bodyString, rsc, function () {
                 rspObj = {};
                 rspObj.rsc = rsc;
                 rspObj.ri = request.method + "-" + ri + "-" + JSON.stringify(request.query);
                 rspObj = cap;
                 console.log(JSON.stringify(rspObj));
+
+                if(request.query.rt == 2 && request.headers['x-m2m-rtu'] != null) {
+                    var nu = request.headers['x-m2m-rtu'];
+                    var sub_nu = url.parse(nu);
+                    var xm2mri = require('shortid').generate();
+
+                    if (sub_nu.protocol == 'http:') {
+                        request_noti_http(nu, bodyString, request.headers.usebodytype, xm2mri);
+                    }
+                    else if (sub_nu.protocol == 'coap:') {
+                        request_noti_coap(nu, bodyString, request.headers.usebodytype, xm2mri);
+                    }
+                    else if (sub_nu.protocol == 'ws:') {
+                        request_noti_ws(nu, JSON.stringify(node), request.headers.usebodytype, xm2mri);
+                    }
+                    else { // mqtt:
+                        request_noti_mqtt(nu, JSON.stringify(node), request.headers.usebodytype, xm2mri);
+                    }
+                }
             });
         }
     }
@@ -1198,6 +1225,9 @@ exports.response_rcn3_result = function(request, response, status, body_Obj, rsc
         if (request.headers.usebodytype == 'json') {
             response.setHeader('Content-Type', 'application/json');
         }
+        else if (request.headers.usebodytype == 'cbor') {
+            response.setHeader('Content-Type', 'application/cbor');
+        }
         else {
             response.setHeader('Content-Type', 'application/xml');
         }
@@ -1223,6 +1253,9 @@ exports.response_rcn3_result = function(request, response, status, body_Obj, rsc
 
     if (request.query.rt == 3) {
         if (request.headers.usebodytype == 'json') {
+        }
+        else if (request.headers.usebodytype == 'cbor') {
+            bodyString = cbor.encode(body_Obj).toString('hex');
         }
         else {
             var xml_root = xmlbuilder.create('m2m:' + rce_nm, {version: '1.0', encoding: 'UTF-8', standalone: true},
@@ -1261,13 +1294,32 @@ exports.response_rcn3_result = function(request, response, status, body_Obj, rsc
         rspObj = cap;
         console.log(JSON.stringify(rspObj));
     }
-    else if (request.query.rt == 1) {
+    else if (request.query.rt == 1 || request.query.rt == 2) {
         db_sql.update_req('/'+request.headers.tg, bodyString, rsc, function () {
             rspObj = {};
             rspObj.rsc = rsc;
             rspObj.ri = request.method + "-" + ri + "-" + JSON.stringify(request.query);
             rspObj = cap;
             console.log(JSON.stringify(rspObj));
+
+            if(request.query.rt == 2 && request.headers['x-m2m-rtu'] != null) {
+                var nu = request.headers['x-m2m-rtu'];
+                var sub_nu = url.parse(nu);
+                var xm2mri = require('shortid').generate();
+
+                if (sub_nu.protocol == 'http:') {
+                    request_noti_http(nu, bodyString, request.headers.usebodytype, xm2mri);
+                }
+                else if (sub_nu.protocol == 'coap:') {
+                    request_noti_coap(nu, bodyString, request.headers.usebodytype, xm2mri);
+                }
+                else if (sub_nu.protocol == 'ws:') {
+                    request_noti_ws(nu, JSON.stringify(node), request.headers.usebodytype, xm2mri);
+                }
+                else { // mqtt:
+                    request_noti_mqtt(nu, JSON.stringify(node), request.headers.usebodytype, xm2mri);
+                }
+            }
         });
     }
 };
@@ -1298,6 +1350,9 @@ exports.search_result = function(request, response, status, body_Obj, rsc, ri, c
         if (request.headers.usebodytype == 'json') {
             response.setHeader('Content-Type', 'application/json');
         }
+        else if (request.headers.usebodytype == 'cbor') {
+            response.setHeader('Content-Type', 'application/cbor');
+        }
         else {
             response.setHeader('Content-Type', 'application/xml');
         }
@@ -1317,6 +1372,9 @@ exports.search_result = function(request, response, status, body_Obj, rsc, ri, c
             var bodyString = JSON.stringify(body_Obj);
 
             if (request.headers.usebodytype == 'json') {
+            }
+            else if (request.headers.usebodytype == 'cbor') {
+                bodyString = cbor.encode(body_Obj).toString('hex');
             }
             else {
                 body_Obj['m2m:' + rootnm] = body_Obj['m2m:' + rootnm].toString().replace(/,/g, ' ');
@@ -1402,6 +1460,9 @@ exports.search_result = function(request, response, status, body_Obj, rsc, ri, c
         if (request.query.rt == 3) {
             if (request.headers.usebodytype == 'json') {
             }
+            else if (request.headers.usebodytype == 'cbor') {
+                bodyString = cbor.encode(body_Obj['m2m:' + rootnm]).toString('hex');
+            }
             else {
                 if(rootnm == 'agr') {
                     bodyString = convertXml2(rootnm, body_Obj['m2m:' + rootnm]);
@@ -1419,13 +1480,32 @@ exports.search_result = function(request, response, status, body_Obj, rsc, ri, c
             rspObj = cap;
             console.log(JSON.stringify(rspObj));
         }
-        else if (request.query.rt == 1) {
+        else if (request.query.rt == 1 || request.query.rt == 2) {
             db_sql.update_req('/'+request.headers.tg, bodyString, rsc, function () {
                 rspObj = {};
                 rspObj.rsc = rsc;
                 rspObj.ri = request.method + "-" + ri + "-" + JSON.stringify(request.query);
                 rspObj = cap;
                 console.log(JSON.stringify(rspObj));
+
+                if(request.query.rt == 2 && request.headers['x-m2m-rtu'] != null) {
+                    var nu = request.headers['x-m2m-rtu'];
+                    var sub_nu = url.parse(nu);
+                    var xm2mri = require('shortid').generate();
+
+                    if (sub_nu.protocol == 'http:') {
+                        request_noti_http(nu, bodyString, request.headers.usebodytype, xm2mri);
+                    }
+                    else if (sub_nu.protocol == 'coap:') {
+                        request_noti_coap(nu, bodyString, request.headers.usebodytype, xm2mri);
+                    }
+                    else if (sub_nu.protocol == 'ws:') {
+                        request_noti_ws(nu, JSON.stringify(node), request.headers.usebodytype, xm2mri);
+                    }
+                    else { // mqtt:
+                        request_noti_mqtt(nu, JSON.stringify(node), request.headers.usebodytype, xm2mri);
+                    }
+                }
             });
         }
     }
@@ -1438,3 +1518,204 @@ exports.error_result = function(request, response, status, rsc, dbg_string) {
 
     _this.response_result(request, response, status, body_Obj, rsc, request.url, body_Obj['dbg']);
 };
+
+
+function request_noti_http(nu, bodyString, bodytype, xm2mri) {
+    var options = {
+        hostname: url.parse(nu).hostname,
+        port: url.parse(nu).port,
+        path: url.parse(nu).path,
+        method: 'POST',
+        headers: {
+            'X-M2M-RI': xm2mri,
+            'Accept': 'application/'+bodytype,
+            'X-M2M-Origin': usecseid,
+            'Content-Type': 'application/'+bodytype
+        }
+    };
+
+    var bodyStr = '';
+    var req = http.request(options, function (res) {
+        //res.setEncoding('utf8');
+        res.on('data', function (chunk) {
+            bodyStr += chunk;
+        });
+
+        res.on('end', function () {
+            console.log('----> [nonblocking-async-http] response for notification through http  ' + res.headers['x-m2m-rsc']);
+        });
+    });
+
+    req.on('error', function (e) {
+        if(e.message != 'read ECONNRESET') {
+            console.log('[nonblocking-async-http] problem with request: ' + e.message);
+        }
+    });
+
+    req.on('close', function() {
+        ss_fail_count[req._headers.ri]++;
+        console.log('[nonblocking-async-http] close: no response for notification');
+
+        var xm2mri = require('shortid').generate();
+        if (ss_fail_count[req._headers.ri] >= 8) {
+            delete ss_fail_count[req._headers.ri];
+            delete_sub(req._headers.ri, xm2mri);
+        }
+    });
+
+    console.log('<---- [nonblocking-async-http] notification for non-blocking request with ' + bodytype + ' to ' + nu);
+    req.write(bodyString);
+    req.end();
+}
+
+function request_noti_coap(nu, bodyString, bodytype, xm2mri) {
+    var options = {
+        host: url.parse(nu).hostname,
+        port: url.parse(nu).port,
+        pathname: url.parse(nu).path,
+        method: 'post',
+        confirmable: 'true',
+        options: {
+            'Accept': 'application/'+bodytype,
+            'Content-Type': 'application/'+bodytype,
+            'Content-Length' : bodyString.length
+        }
+    };
+
+    var responseBody = '';
+    var req = coap.request(options);
+    req.setOption("256", new Buffer(usecseid));      // X-M2M-Origin
+    req.setOption("257", new Buffer(xm2mri));    // X-M2M-RI
+    req.on('response', function (res) {
+        res.on('data', function () {
+            responseBody += res.payload.toString();
+        });
+
+        res.on('end', function () {
+            console.log('----> [nonblocking-async-coap] response for notification through coap  ' + res.code);
+        });
+    });
+
+    console.log('<---- [nonblocking-async-coap] request for notification through coap with ' + bodytype);
+
+    req.write(bodyString);
+    req.end();
+}
+
+function request_noti_ws(nu, bodyString, bodytype, xm2mri) {
+    var bodyStr = '';
+
+    var WebSocketClient = require('websocket').client;
+    var ws_client = new WebSocketClient();
+
+    if(bodytype == 'xml') {
+        ws_client.connect(nu, 'onem2m.r2.0.xml');
+    }
+    else if(bodytype == 'cbor') {
+        ws_client.connect(nu, 'onem2m.r2.0.cbor');
+    }
+    else {
+        ws_client.connect(nu, 'onem2m.r2.0.json');
+    }
+
+    ws_client.on('connectFailed', function (error) {
+        console.log('[nonblocking-async-ws] Connect Error: ' + error.toString());
+        ws_client.removeAllListeners();
+    });
+
+    ws_client.on('connect', function (connection) {
+        console.log('<---- [nonblocking-async-ws] ' + nu);
+        console.log(bodyString);
+        connection.sendUTF(bodyString);
+
+        connection.on('error', function (error) {
+            console.log("[nonblocking-async-ws] Connection Error: " + error.toString());
+        });
+
+        connection.on('close', function () {
+            console.log('[nonblocking-async-ws] Connection Closed');
+        });
+
+        connection.on('message', function (message) {
+            console.log('----> [nonblocking-async-ws] ' + message.utf8Data.toString());
+
+            var protocol_arr = this.protocol.split('.');
+
+            if(bodytype === 'xml') {
+                var xml2js = require('xml2js');
+                var parser = new xml2js.Parser({explicitArray: false});
+                parser.parseString(message.utf8Data.toString(), function (err, jsonObj) {
+                    if (err) {
+                        console.log('[nonblocking-async-ws] xml2js parser error');
+                    }
+                    else {
+                        console.log('----> [nonblocking-async-ws] response for notification through mqtt ' + res.headers['x-m2m-rsc']);
+                        connection.close();
+                    }
+                });
+            }
+            else if(bodytype === 'cbor') {
+                var encoded = message.utf8Data.toString();
+                cbor.decodeFirst(encoded, function(err, jsonObj) {
+                    if (err) {
+                        console.log('[nonblocking-async-ws] cbor parser error');
+                    }
+                    else {
+                        if (jsonObj.rsc == 2001 || jsonObj.rsc == 2000) {
+                            console.log('----> [nonblocking-async-ws] response for notification through ws ' + jsonObj.rsc);
+                            connection.close();
+                        }
+                    }
+                });
+            }
+            else { // 'json'
+                var jsonObj = JSON.parse(message.utf8Data.toString());
+
+                try {
+                    if (jsonObj.rsc == 2001 || jsonObj.rsc == 2000) {
+                        console.log('----> [nonblocking-async-ws] response for notification through ws ' + jsonObj.rsc + ' - ' + ri);
+                        connection.close();
+                    }
+                }
+                catch (e) {
+                    console.log('----> [nonblocking-async-ws] response for notification through ws  - ' + ri);
+                }
+            }
+        });
+    });
+}
+
+function request_noti_mqtt(nu, bodyString, bodytype, xm2mri) {
+    var aeid = url.parse(nu).pathname.replace('/', '').split('?')[0];
+    console.log('[nonblocking-async-mqtt] - ' + aeid);
+
+    if (aeid == '') {
+        console.log('[nonblocking-async-mqtt] aeid of notification url is none');
+        return;
+    }
+
+    var mqtt = require('mqtt');
+    var _mqtt_client = mqtt.connect('mqtt://' + url.parse(nu).hostname + ':' + ((url.parse(nu).port != null) ? url.parse(nu).port : '1883'));
+
+    _mqtt_client.on('connect', function () {
+        var resp_topic = util.format('/oneM2M/resp/%s/#', usecseid.replace('/', ''));
+        _mqtt_client.subscribe(resp_topic);
+
+        console.log('[nonblocking-async-mqtt] subscribe resp_topic as ' + resp_topic);
+
+        var noti_topic = util.format('/oneM2M/req/%s/%s/%s', usecseid.replace('/', ''), aeid, request.headers.bodytype);
+
+        _mqtt_client.publish(noti_topic, bodyString);
+        console.log('<---- [nonblocking-async-mqtt] ' + noti_topic);
+    });
+
+    _mqtt_client.on('message', function (topic, message) {
+        console.log('----> [nonblocking-async-mqtt] ' + topic);
+
+        _mqtt_client.end();
+    });
+
+    _mqtt_client.on('error', function (error) {
+        _mqtt_client.end();
+    });
+}

@@ -31,6 +31,7 @@ const crypto = require('crypto');
 var fileStreamRotator = require('file-stream-rotator');
 var merge = require('merge');
 var https = require('https');
+var cbor = require('cbor');
 
 global.NOPRINT = 'true';
 global.ONCE = 'true';
@@ -258,7 +259,6 @@ global.update_route = function (callback) {
     });
 };
 
-
 function make_short_nametype(nmtype, body_Obj) {
     if (body_Obj[Object.keys(body_Obj)[0]]['$'] != null) {
         if (body_Obj[Object.keys(body_Obj)[0]]['$'].rn != null) {
@@ -354,6 +354,9 @@ function check_body_format(request) {
             if ((request.headers.accept.split('/')[1] == 'xml') || (request.headers.accept.split('+')[1] == 'xml')) {
                 request.headers.usebodytype = 'xml';
             }
+            else if ((request.headers.accept.split('/')[1] == 'cbor') || (request.headers.accept.split('+')[1] == 'cbor')) {
+                request.headers.usebodytype = 'cbor';
+            }
         }
         catch (e) {
         }
@@ -383,6 +386,9 @@ function check_http_body(request, response, callback) {
     if(request.headers['content-type'].includes('xml')) {
         request.headers.usebodytype = 'xml';
     }
+    else if(request.headers['content-type'].includes('cbor')) {
+        request.headers.usebodytype = 'cbor';
+    }
     else {
         request.headers.usebodytype = 'json';
     }
@@ -399,6 +405,27 @@ function check_http_body(request, response, callback) {
                     body_Obj = result;
                     make_short_nametype(request.headers.nmtype, body_Obj);
                     make_json_arraytype(body_Obj);
+
+                    callback('1', body_Obj, content_type);
+                }
+            });
+        }
+        catch(e) {
+            responder.error_result(request, response, 400, 4000, 'do not parse xml body');
+            callback('0', body_Obj);
+        }
+    }
+    else if (request.headers.usebodytype === 'cbor') {
+        try {
+            var encoded = request.body;
+            cbor.decodeFirst(encoded, function(err, body_Obj) {
+                if (err) {
+                    responder.error_result(request, response, 400, 4000, 'do not parse cbor body');
+                    callback('0', body_Obj);
+                }
+                else {
+                    make_short_nametype(request.headers.nmtype, body_Obj);
+                    //make_json_arraytype(body_Obj);
 
                     callback('1', body_Obj, content_type);
                 }
@@ -949,7 +976,15 @@ function check_rt_query(request, response, callback) {
             callback(rsc, parent_comm, op);
         });
     }
-    else if (request.query.rt == 1) { // nodblocking
+    else if (request.query.rt == 1 || request.query.rt == 2) { // nodblocking
+        if(request.query.rt == 2 && request.headers['x-m2m-rtu'] == null) {
+            body_Obj = {};
+            body_Obj['dbg'] = 'X-M2M-RTU is none';
+            responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
+            callback('0');
+            return '0';
+        }
+
         // first create request resource under CSEBase
         var temp_rootnm = request.headers.rootnm;
         //var temp_rt = request.query.rt;
