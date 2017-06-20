@@ -1703,14 +1703,14 @@ function request_noti_mqtt(nu, bodyString, bodytype, xm2mri) {
 
         console.log('[nonblocking-async-mqtt] subscribe resp_topic as ' + resp_topic);
 
-        var noti_topic = util.format('/oneM2M/req/%s/%s/%s', usecseid.replace('/', ''), aeid, request.headers.bodytype);
+        var noti_topic = util.format('/oneM2M/req/%s/%s/%s', usecseid.replace('/', ''), aeid, bodytype);
 
         _mqtt_client.publish(noti_topic, bodyString);
         console.log('<---- [nonblocking-async-mqtt] ' + noti_topic);
     });
 
     _mqtt_client.on('message', function (topic, message) {
-        console.log('----> [nonblocking-async-mqtt] ' + topic);
+        console.log('----> [nonblocking-async-mqtt] ' + topic + ' - ' + message);
 
         _mqtt_client.end();
     });
