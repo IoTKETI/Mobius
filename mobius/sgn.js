@@ -124,7 +124,7 @@ function sgn_action(rootnm, check_value, results_ss, noti_Obj, sub_bodytype) {
                 var nct = results_ss.nct;
 
                 var node = {};
-                if (nct == 2) {
+                if (nct == 2 || nct == 1) {
                     node.sgn = {};
                     node.sgn.net = check_value.toString();
                     node.sgn.sur = results_ss.ri;
@@ -200,7 +200,7 @@ function sgn_action(rootnm, check_value, results_ss, noti_Obj, sub_bodytype) {
                         }
                         else { // mqtt:
                             bodyString = make_xml_noti_message(node, xm2mri);
-                            request_noti_mqtt(nu, results_ss.ri, JSON.stringify(node), sub_bodytype, xm2mri);
+                            request_noti_mqtt(nu, results_ss.ri, bodyString, sub_bodytype, xm2mri);
                         }
                     }
                     else if (sub_bodytype == 'cbor') {
@@ -304,34 +304,64 @@ exports.check = function(request, notiObj, check_value) {
 
 
 function request_noti_http(nu, ri, bodyString, bodytype, xm2mri) {
-    var options = {
-        hostname: url.parse(nu).hostname,
-        port: url.parse(nu).port,
-        path: url.parse(nu).path,
-        method: 'POST',
-        headers: {
-            'X-M2M-RI': xm2mri,
-            'Accept': 'application/'+bodytype,
-            'X-M2M-Origin': usecseid,
-            'Content-Type': 'application/'+bodytype,
-            'ri': ri
-        }
-    };
-
-    var bodyStr = '';
-    var req = http.request(options, function (res) {
-        //res.setEncoding('utf8');
-        res.on('data', function (chunk) {
-            bodyStr += chunk;
-        });
-
-        res.on('end', function () {
-            if(res.statusCode == 200 || res.statusCode == 201) {
-                console.log('----> [request_noti_http] response for notification through http  ' + res.headers['x-m2m-rsc'] + ' - ' + ri);
-                ss_fail_count[res.req._headers.ri] = 0;
+    if(url.parse(nu).protocol == 'http:') {
+        var options = {
+            hostname: url.parse(nu).hostname,
+            port: url.parse(nu).port,
+            path: url.parse(nu).path,
+            method: 'POST',
+            headers: {
+                'X-M2M-RI': xm2mri,
+                'Accept': 'application/'+bodytype,
+                'X-M2M-Origin': usecseid,
+                'Content-Type': 'application/'+bodytype,
+                'ri': ri
             }
+        };
+
+        var bodyStr = '';
+        var req = http.request(options, function (res) {
+            res.on('data', function (chunk) {
+                bodyStr += chunk;
+            });
+
+            res.on('end', function () {
+                if(res.statusCode == 200 || res.statusCode == 201) {
+                    console.log('----> [request_noti_http] response for notification through http  ' + res.headers['x-m2m-rsc'] + ' - ' + ri);
+                    ss_fail_count[res.req._headers.ri] = 0;
+                }
+            });
         });
-    });
+    }
+    else {
+        options = {
+            hostname: url.parse(nu).hostname,
+            port: url.parse(nu).port,
+            path: url.parse(nu).path,
+            method: 'POST',
+            headers: {
+                'X-M2M-RI': xm2mri,
+                'Accept': 'application/'+bodytype,
+                'X-M2M-Origin': usecseid,
+                'Content-Type': 'application/'+bodytype,
+                'ri': ri
+            },
+            ca: fs.readFileSync('ca-crt.pem')
+        };
+
+        req = https.request(options, function (res) {
+            res.on('data', function (chunk) {
+                bodyStr += chunk;
+            });
+
+            res.on('end', function () {
+                if(res.statusCode == 200 || res.statusCode == 201) {
+                    console.log('----> [request_noti_http] response for notification through http  ' + res.headers['x-m2m-rsc'] + ' - ' + ri);
+                    ss_fail_count[res.req._headers.ri] = 0;
+                }
+            });
+        });
+    }
 
     req.on('error', function (e) {
         if(e.message != 'read ECONNRESET') {
@@ -395,7 +425,7 @@ function request_noti_coap(nu, ri, bodyString, bodytype, xm2mri) {
 
 function request_noti_mqtt(nu, ri, bodyString, bodytype, xm2mri) {
     var aeid = url.parse(nu).pathname.replace('/', '').split('?')[0];
-    console.log('[nonblocking-async-mqtt] - ' + aeid);
+    console.log('[request_noti_mqtt] - ' + aeid);
 
     if (aeid === '') {
         console.log('[request_noti_mqtt] aeid of notification url is none');
@@ -404,7 +434,7 @@ function request_noti_mqtt(nu, ri, bodyString, bodytype, xm2mri) {
 
     var mqtt = require('mqtt');
 
-    if(usesecure === 'disable') {
+    if(url.parse(nu).protocol == 'mqtt:') {
         var _mqtt_client = mqtt.connect('mqtt://' + url.parse(nu).hostname + ':' + ((url.parse(nu).port != null) ? url.parse(nu).port : '1883'));
     }
     else {

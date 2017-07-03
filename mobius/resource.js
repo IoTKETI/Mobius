@@ -1114,6 +1114,17 @@ function presearch_action(request, response, ri_list, comm_Obj, callback) {
             db_sql.search_lookup(comm_Obj.ri, request.query, request.query.lim, pi_list, 0, finding_Obj, 0, cur_d, 0, function (err, search_Obj) {
                 if(!err) {
                     if(Object.keys(search_Obj).length >= 1) {
+                        if(Object.keys(search_Obj).length >= max_lim) {
+                            response.setHeader('X-M2M-CTS', 1);
+
+                            if(request.query.ofst != null) {
+                                response.setHeader('X-M2M-CTO', parseInt(request.query.ofst, 10) + Object.keys(search_Obj).length);
+                            }
+                            else {
+                                response.setHeader('X-M2M-CTO', Object.keys(search_Obj).length);
+                            }
+                        }
+
                         for (var index in search_Obj) {
                             if (search_Obj.hasOwnProperty(index)) {
                                 ri_list.push(search_Obj[index].ri);

@@ -128,12 +128,15 @@ exports.insert_ae = function(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st, 
                 else {
                     sql = util.format("delete from lookup where ri = \'%s\'", ri);
                     db.getResult(sql, '', function () {
-                        callback(err, results);
                     });
+                    callback(err, results);
                 }
             });
         }
         else {
+            sql = util.format("delete from lookup where ri = \'%s\'", ri);
+            db.getResult(sql, '', function () {
+            });
             callback(err, results);
         }
     });

@@ -33,7 +33,6 @@ global.usedbpass            = conf.dbpass;
 
 global.usepxywsport         = '7577';
 global.usepxymqttport       = '7578';
-global.usepxycoapport       = '7581';
 
 
 global.usetsagentport       = '7582';

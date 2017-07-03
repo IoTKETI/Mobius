@@ -363,21 +363,25 @@ ts_app.delete('/missingDataDetect', onem2mParser, function(request, response) {
     });
     request.on('end', function() {
         request.body = fullBody;
-        var jsonObj = JSON.parse(request.body);
-        var ri = jsonObj.ts.ri;
-        if(ts_timer[ri] != null) {
-            ts_timer[ri].removeAllListeners(ri);
-            delete ts_timer[ri];
+        if(request.body === '') {
         }
+        else {
+            var jsonObj = JSON.parse(request.body);
+            var ri = jsonObj.ts.ri;
+            if (ts_timer[ri] != null) {
+                ts_timer[ri].removeAllListeners(ri);
+                delete ts_timer[ri];
+            }
 
-        if(ts_timer_id[ri] != null) {
-            clearInterval(ts_timer_id[ri]);
-            delete ts_timer_id[ri];
+            if (ts_timer_id[ri] != null) {
+                clearInterval(ts_timer_id[ri]);
+                delete ts_timer_id[ri];
+            }
         }
 
         var rsc = {};
         rsc.status = 2000;
-        rsc.ri = ri;
+        rsc.ri = request.url;
         console.log(rsc.status + ' - ' + rsc.ri);
         response.setHeader('X-M2M-RSC', '2000');
         response.status(200).end(JSON.stringify(rsc));
