@@ -1079,9 +1079,9 @@ function lookup_create(request, response) {
                 else if ((ty == 9) && (parent_comm.ty == 5 || parent_comm.ty == 16 || parent_comm.ty == 2)) { // group
                 }
                 else if ((ty == 16) && (parent_comm.ty == 5)) { // remoteCSE
-                    if (usecsetype == 'asn') {
+                    if (usecsetype == 'asn' && request.headers.csr == null) {
                         body_Obj = {};
-                        body_Obj['dbg'] = 'ASC CSE can not have child CSE (remoteCSE)';
+                        body_Obj['dbg'] = 'ASN CSE can not have child CSE (remoteCSE)';
                         responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
                         return '0';
                     }

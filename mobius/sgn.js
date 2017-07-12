@@ -141,34 +141,40 @@ function sgn_action(rootnm, check_value, results_ss, noti_Obj, sub_bodytype) {
                     var xm2mri = require('shortid').generate();
 
                     if(sub_nu.query != null) {
-                        if (sub_nu.query.split('=')[0] == 'ct') {
-                            if (sub_nu.query.split('=')[1] == 'xml') {
-                                sub_bodytype = 'xml';
-                            }
-                            else {
-                                sub_bodytype = 'json';
-                            }
-                        }
-                        else if (sub_nu.query.split('=')[0] == 'rcn') {
-                            if (sub_nu.query.split('=')[1] == '9') {
-                                for(var index in node.sgn.nev.rep) {
-                                    if (node.sgn.nev.rep.hasOwnProperty(index)) {
-                                        if(node.sgn.nev.rep[index].cr) {
-                                            delete node.sgn.nev.rep[index].cr;
-                                        }
+                        var sub_nu_query_arr = sub_nu.query.split('&');
+                        for(var prop in sub_nu_query_arr) {
+                            if (sub_nu_query_arr.hasOwnProperty(prop)) {
+                                if (sub_nu_query_arr[prop].split('=')[0] == 'ct') {
+                                    if (sub_nu_query_arr[prop].split('=')[1] == 'xml') {
+                                        sub_bodytype = 'xml';
+                                    }
+                                    else {
+                                        sub_bodytype = 'json';
+                                    }
+                                }
 
-                                        if(node.sgn.nev.rep[index].st) {
-                                            delete node.sgn.nev.rep[index].st;
-                                        }
+                                else if (sub_nu_query_arr[prop].split('=')[0] == 'rcn') {
+                                    if (sub_nu_query_arr[prop].split('=')[1] == '9') {
+                                        for (var index in node.sgn.nev.rep) {
+                                            if (node.sgn.nev.rep.hasOwnProperty(index)) {
+                                                if (node.sgn.nev.rep[index].cr) {
+                                                    delete node.sgn.nev.rep[index].cr;
+                                                }
 
-                                        delete node.sgn.nev.rep[index].ct;
-                                        delete node.sgn.nev.rep[index].lt;
-                                        delete node.sgn.nev.rep[index].et;
-                                        delete node.sgn.nev.rep[index].ri;
-                                        delete node.sgn.nev.rep[index].pi;
-                                        delete node.sgn.nev.rep[index].rn;
-                                        delete node.sgn.nev.rep[index].ty;
-                                        delete node.sgn.nev.rep[index].fr;
+                                                if (node.sgn.nev.rep[index].st) {
+                                                    delete node.sgn.nev.rep[index].st;
+                                                }
+
+                                                delete node.sgn.nev.rep[index].ct;
+                                                delete node.sgn.nev.rep[index].lt;
+                                                delete node.sgn.nev.rep[index].et;
+                                                delete node.sgn.nev.rep[index].ri;
+                                                delete node.sgn.nev.rep[index].pi;
+                                                delete node.sgn.nev.rep[index].rn;
+                                                delete node.sgn.nev.rep[index].ty;
+                                                delete node.sgn.nev.rep[index].fr;
+                                            }
+                                        }
                                     }
                                 }
                             }

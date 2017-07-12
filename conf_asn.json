@@ -7,6 +7,6 @@
         "cbprotocol": "http",
         "mqttbroker": "localhost"
     },
-    "csebaseport": "7599",
+    "csebaseport": "7499",
     "dbpass": "dksdlfduq2"
 }

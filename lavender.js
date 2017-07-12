@@ -12,10 +12,10 @@
  * Created by Il Yeup, Ahn in KETI on 2016-07-28.
  */
 
-var mn = require('./mobius/mn');
+var mn = require('./mobius/asn');
 var fs = require('fs');
 
-var data  = fs.readFileSync('conf_mn.json', 'utf-8');
+var data  = fs.readFileSync('conf_asn.json', 'utf-8');
 var conf = JSON.parse(data);
 
 
@@ -33,20 +33,20 @@ global.parent_mqttbroker    = conf.parent.mqttbroker;
 
 
 // my CSE information
-global.usecsetype           = 'mn'; // select 'in' or 'mn' or 'asn'
-global.usecsebase           = 'rosemary';
-global.usecseid             = '/rosemary';
+global.usecsetype           = 'asn'; // select 'in' or 'mn' or 'asn'
+global.usecsebase           = 'lavender';
+global.usecseid             = '/lavender';
 global.usecsebaseport       = conf.csebaseport;
 
 global.usedbhost            = 'localhost';
 global.usedbpass            = conf.dbpass;
 
 
-global.usepxywsport         = '7573';
-global.usepxymqttport       = '7574';
+global.usepxywsport         = '7473';
+global.usepxymqttport       = '7474';
 
 
-global.usetsagentport       = '7572';
+global.usetsagentport       = '7472';
 
 global.usemqttbroker        = parent_mqttbroker; // mobius to mqttbroker
 global.usesecure            = 'disable';
@@ -66,7 +66,7 @@ var events = require('events');
 global.csr_custom = new events.EventEmitter();
 
 csr_custom.on('register_remoteCSE', function() {
-    mn.build_mn('/'+usecsebase, function (rsp) {
+    mn.build_asn('/'+usecsebase, function (rsp) {
         if(rsp.rsc == '2000') {
             console.log('[[[[[[[[[[[[[[[[register_remoteCSE]]]]]]]]]]]]]]]] ' + JSON.stringify(rsp));
             clearInterval(refreshIntervalId);
