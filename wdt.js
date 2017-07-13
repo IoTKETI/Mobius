@@ -9,7 +9,7 @@
  */
 
 /**
- * @file timer code of Mobius Yellow. manage state of mobius-yt
+ * @file timer code of Mobius Yellow. manage state of Mobius
  * @copyright KETI Korea 2017, OCEAN
  * @author Il Yeup Ahn [iyahn@keti.re.kr]
  */

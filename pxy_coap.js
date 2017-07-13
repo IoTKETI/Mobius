@@ -105,7 +105,7 @@ exports.coap_watchdog = function () {
                 var options = {
                     host: 'localhost',
                     port: usecsebaseport,
-                    pathname: '/mobius-yt',
+                    pathname: '/'+usecsebase,
                     method: 'get',
                     confirmable: 'true',
                     options: {
