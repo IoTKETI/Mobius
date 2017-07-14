@@ -47,12 +47,16 @@ function make_xml_noti_message(pc, xm2mri) {
                         if(prop2 == 'rn') {
                             noti_message['m2m:rqp'].pc.sgn.nev.rep[prop]['@'] = {rn : noti_message['m2m:rqp'].pc.sgn.nev.rep[prop][prop2]};
                             delete noti_message['m2m:rqp'].pc.sgn.nev.rep[prop][prop2];
+                            break;
                         }
-                        for(var prop3 in noti_message['m2m:rqp'].pc.sgn.nev.rep[prop][prop2]) {
-                            if (noti_message['m2m:rqp'].pc.sgn.nev.rep[prop][prop2].hasOwnProperty(prop3)) {
-                                if(prop3 == 'rn') {
-                                    noti_message['m2m:rqp'].pc.sgn.nev.rep[prop][prop2]['@'] = {rn : noti_message['m2m:rqp'].pc.sgn.nev.rep[prop][prop2][prop3]};
-                                    delete noti_message['m2m:rqp'].pc.sgn.nev.rep[prop][prop2][prop3];
+                        else {
+                            for (var prop3 in noti_message['m2m:rqp'].pc.sgn.nev.rep[prop][prop2]) {
+                                if (noti_message['m2m:rqp'].pc.sgn.nev.rep[prop][prop2].hasOwnProperty(prop3)) {
+                                    if (prop3 == 'rn') {
+                                        noti_message['m2m:rqp'].pc.sgn.nev.rep[prop][prop2]['@'] = {rn: noti_message['m2m:rqp'].pc.sgn.nev.rep[prop][prop2][prop3]};
+                                        delete noti_message['m2m:rqp'].pc.sgn.nev.rep[prop][prop2][prop3];
+                                        break;
+                                    }
                                 }
                             }
                         }

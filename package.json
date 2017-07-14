@@ -1,6 +1,6 @@
 {
   "name": "Mobius",
-  "version": "2.4.2",
+  "version": "2.0.0",
   "dependencies": {
     "body-parser": "^1.17.0",
     "cbor": "^3.0.0",
@@ -13,7 +13,7 @@
     "http": "0.0.0",
     "https": "^1.0.0",
     "ip": "^1.1.5",
-    "js2xmlparser": "^3.0.0",
+    "js2xmlparser": "^1.0.0",
     "merge": "^1.2.0",
     "moment": "^2.17.1",
     "morgan": "^1.8.1",
