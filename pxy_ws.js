@@ -518,7 +518,7 @@ function ws_response(connection, rsc, to, fr, rqi, inpc, bodytype) {
             }
         }
 
-        var bodyString = js2xmlparser("m2m:rsp", rsp_message['m2m:rsp']);
+        var bodyString = js2xmlparser.parse("m2m:rsp", rsp_message['m2m:rsp']);
 
         connection.sendUTF(bodyString.toString());
     }

@@ -615,7 +615,7 @@ function mqtt_response(mqtt_client, resp_topic, rsc, to, fr, rqi, inpc, bodytype
             }
         }
 
-        var bodyString = js2xmlparser("m2m:rsp", rsp_message['m2m:rsp']);
+        var bodyString = js2xmlparser.parse("m2m:rsp", rsp_message['m2m:rsp']);
 
         mqtt_client.publish(resp_topic, bodyString.toString());
     }
@@ -706,7 +706,7 @@ mqtt_app.post('/notification', onem2mParser, function(request, response, next) {
                         "xmlns:xsi": "http://www.w3.org/2001/XMLSchema-instance"
                     };
 
-                    var bodyString = js2xmlparser("m2m:rqp", noti_message['m2m:rqp']);
+                    var bodyString = js2xmlparser.parse("m2m:rqp", noti_message['m2m:rqp']);
 
                     pxymqtt_client.publish(noti_topic, bodyString);
                     console.log('<---- ' + noti_topic);
@@ -777,7 +777,7 @@ mqtt_app.post('/register_csr', onem2mParser, function(request, response, next) {
                     "xmlns:xsi": "http://www.w3.org/2001/XMLSchema-instance"
                 };
 
-                var xmlString = js2xmlparser("m2m:rqp", req_message['m2m:rqp']);
+                var xmlString = js2xmlparser.parse("m2m:rqp", req_message['m2m:rqp']);
 
                 pxymqtt_client.publish(reg_req_topic, xmlString);
                 console.log('<---- ' + reg_req_topic);
@@ -833,7 +833,7 @@ mqtt_app.get('/get_cb', onem2mParser, function(request, response, next) {
                     "xmlns:xsi": "http://www.w3.org/2001/XMLSchema-instance"
                 };
 
-                var xmlString = js2xmlparser("m2m:rqp", req_message['m2m:rqp']);
+                var xmlString = js2xmlparser.parse("m2m:rqp", req_message['m2m:rqp']);
 
                 pxymqtt_client.publish(reg_req_topic, xmlString);
                 console.log('<---- ' + reg_req_topic);
@@ -931,7 +931,7 @@ function forward_mqtt(forward_cseid, op, to, fr, rqi, ty, nm, inpc) {
         "xmlns:xsi": "http://www.w3.org/2001/XMLSchema-instance"
     };
 
-    var xmlString = js2xmlparser("m2m:rqp", forward_message);
+    var xmlString = js2xmlparser.parse("m2m:rqp", forward_message);
 
     var forward_topic = util.format('/oneM2M/req/%s/%s', usecseid.replace('/', ':'), forward_cseid);
 
