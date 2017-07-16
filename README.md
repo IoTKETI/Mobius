@@ -105,7 +105,7 @@ These is dependency libraries for nCube-Rosemary
 - xmlbuilder
 
 ## Document
-If you want more detail please dowload the full [installation guide document](https://github.com/IoTKETI/nCube-Rosemary/raw/master/doc/Installation%20Guide_Rosemary_v2.0.0_KR.docx).
+If you want more detail please dowload the full [installation guide document](https://github.com/IoTKETI/Mobius/raw/master/doc/Installation%20Guide_Mobius_v2.0.0_KR.docx).
 
 # Author
 Il Yeup (iyahn@keti.re.kr; ryeubi@gmail.com)
