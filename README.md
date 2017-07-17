@@ -1,8 +1,9 @@
 # Mobius
 oneM2M IoT Server Platform
 ## Introduction
-Mobius is IoT Server platform base the oneM2M standard for supporting IoT service to manage multiple devices. It provides an application platform for the control, authentication, and interconnection of several Internet of things services.
+Mobius is the open source IoT server platform based on the oneM2M (http://www.oneM2M.org) standard. As oneM2M specifies, Mobius provides common services functions (e.g. registration, data management, subscription/notification, security) as middleware to IoT applications of different service domains. Not just oneM2M devices, but also non-oneM2M devices (i.e. by oneM2M interworking specifications and OCEAN TAS) can connect to Mobius.
 ## System stucture
+In oneM2M architecture, Mobius implements the IN-CSE which is the cloud/server in the infrastructure domain. IoT applications communicate with field domain IoT gateways/devices via Mobius.
 In oneM2M system stucture, the Mobius is a kind of IN-CSE as high level server platform exist in network. It handles all of the oneM2M data requests and performs serialization and deserialization of the resource data. 
 
 <div align="center">
