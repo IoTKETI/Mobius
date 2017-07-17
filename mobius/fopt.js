@@ -155,7 +155,7 @@ exports.check = function(request, response, grp, body_Obj) {
                 }
                 else {
                     retrieve_Obj = {};
-                    retrieveretrieve_Obj['dbg'] = 'response is not from fanOutPoint';
+                    retrieve_Obj['dbg'] = 'response is not from fanOutPoint';
                     responder.response_result(request, response, 404, retrieve_Obj, 4004, request.url, retrieve_Obj['dbg']);
                 }
             });
