@@ -44,7 +44,7 @@ Node.js® is a JavaScript runtime built on Chrome's V8 JavaScript engine. Node.j
 Eclipse Mosquitto™ is an open source (EPL/EDL licensed) message broker that implements the MQTT protocol versions 3.1 and 3.1.1. MQTT provides a lightweight method of carrying out messaging using a publish/subscribe model. This makes it suitable for "Internet of Things" messaging such as with low power sensors or mobile devices such as phones, embedded computers or microcontrollers like the Arduino.
 
 - [Mobius](https://github.com/IoTKETI/Mobius/archive/master.zip)<br/>
-Mobius source codes are written in javascript. So it does not need any compilation or installation before running.
+Mobius source codes are written in javascript. So they don't need any compilation or installation before running.
 
 ## Configuration
 - Import SQL script<br/>
