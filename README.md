@@ -2,16 +2,15 @@
 oneM2M IoT Server Platform
 ## Introduction
 Mobius is the open source IoT server platform based on the oneM2M (http://www.oneM2M.org) standard. As oneM2M specifies, Mobius provides common services functions (e.g. registration, data management, subscription/notification, security) as middleware to IoT applications of different service domains. Not just oneM2M devices, but also non-oneM2M devices (i.e. by oneM2M interworking specifications and OCEAN TAS) can connect to Mobius.
-## System stucture
-In oneM2M architecture, Mobius implements the IN-CSE which is the cloud/server in the infrastructure domain. IoT applications communicate with field domain IoT gateways/devices via Mobius.
-In oneM2M system stucture, the Mobius is a kind of IN-CSE as high level server platform exist in network. It handles all of the oneM2M data requests and performs serialization and deserialization of the resource data. 
+## System Stucture
+In oneM2M architecture, Mobius implements the IN-CSE which is the cloud server in the infrastructure domain. IoT applications communicate with field domain IoT gateways/devices via Mobius.
 
 <div align="center">
 <img src="https://user-images.githubusercontent.com/29790334/28245360-a2221606-6a3f-11e7-8330-ba48787133a6.png" width="800"/>
 </div>
 
 ## Connectivity Stucture
-In IoT concept, Things are all the gadgets around your life and provide a special function for user. But they need "&Cube" that is a kind of software for helping these things communicate with cloud server just like Mobius. In another side, IoT application monitor or control these things through the Open API that Mobius provide it.
+To enable Internet of Things, things are connected to &Cube via TAS (Thing Adaptation Software), then &Cube communicate with Mobius over oneM2M standard APIs. Also IoT applications use oneM2M standard APIs to retrieve thing data control things of Mobius.
 
 <div align="center">
 <img src="https://user-images.githubusercontent.com/29790334/28245372-e7584524-6a3f-11e7-8628-16bfee65430b.png" width="800"/>
@@ -23,14 +22,14 @@ In IoT concept, Things are all the gadgets around your life and provide a specia
 <img src="https://user-images.githubusercontent.com/29790334/28245393-a1159d5e-6a40-11e7-8948-4262bf29c371.png" width="800"/>
 </div>
 
-## Support Protocol
+## Supported Protocol Bindings
 - HTTP
-- COAP
+- CoAP
 - MQTT
-- WebSocket(Unrealized)
+- WebSocket
 
 ## Installation
-The Mobius was developed with javascript of node.js and it also uses the MySQL to store data.
+The Mobius is based on Node.js framework and uses MySQL for database.
 <div align="center">
 <img src="https://user-images.githubusercontent.com/29790334/28245482-036ee490-6a43-11e7-94f3-b854f1d944f6.png" width="600"/>
 </div><br/>
@@ -45,24 +44,24 @@ Node.js® is a JavaScript runtime built on Chrome's V8 JavaScript engine. Node.j
 Eclipse Mosquitto™ is an open source (EPL/EDL licensed) message broker that implements the MQTT protocol versions 3.1 and 3.1.1. MQTT provides a lightweight method of carrying out messaging using a publish/subscribe model. This makes it suitable for "Internet of Things" messaging such as with low power sensors or mobile devices such as phones, embedded computers or microcontrollers like the Arduino.
 
 - [Mobius](https://github.com/IoTKETI/Mobius/archive/master.zip)<br/>
-Mobius is application base the node.js javascript. So we don't need to compile and install it before using.
+Mobius source codes are written in javascript. So it does not need any compilation or installation before running.
 
 ## Configuration
 - Import SQL script<br/>
-When installation of MySQL Server finish. It also needs DB Schema for storing oneM2M resource in Mobius. You can find this file in the Mobius's source directory as below.
+After installation of MySQL server, you need the DB Schema for storing oneM2M resources in Mobius. You can find this file in the following Mobius source directory.
 ```
 [Mobius home]/mobius/mobiusdb.sql
 ```
-- Run Mosquitto MQTT Broker<br/>
+- Run Mosquitto MQTT broker<br/>
 ```
 mosquitto -v
 ```
-- Open the Mobius source home directory.
-- Install dependency libraries with command like below.
+- Open the Mobius source home directory
+- Install dependent libraries as below
 ```
 npm install
 ```
-- Modify configuration file "conf.json"
+- Modify the configuration file "conf.json" per your setting
 ```
 {
   "csebaseport": "7579", //Mobius HTTP hosting  port
@@ -70,8 +69,8 @@ npm install
 }
 ```
 
-## Running
-Use node.js application execution command to run the Rosemary
+## Run
+Use node.js application execution command as below
 ```
 node mobius.js
 ```
@@ -80,8 +79,8 @@ node mobius.js
 <img src="https://user-images.githubusercontent.com/29790334/28245526-c9db7850-6a43-11e7-9bfd-f0b4fb20e396.png" width="700"/>
 </div><br/>
 
-## Dependency Libraries
-These is dependency libraries for nCube-Rosemary 
+## Library Dependencies
+This is the list of library dependencies for Mobius 
 - body-parser
 - cbor
 - coap
@@ -106,7 +105,7 @@ These is dependency libraries for nCube-Rosemary
 - xmlbuilder
 
 ## Document
-If you want more detail please dowload the full [installation guide document](https://github.com/IoTKETI/Mobius/raw/master/doc/Installation%20Guide_Mobius_v2.0.0_KR.docx).
+If you want more details please dowload the full [installation guide document](https://github.com/IoTKETI/Mobius/raw/master/doc/Installation%20Guide_Mobius_v2.0.0_KR.docx).
 
 # Author
 Il Yeup (iyahn@keti.re.kr; ryeubi@gmail.com)
