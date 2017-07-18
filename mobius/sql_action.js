@@ -622,12 +622,41 @@ exports.select_csr = function(ri, callback) {
     });
 };
 
-exports.search_parents_lookup = function(ri, callback) {
-    console.time('search_parents_lookup ' + ri);
-    var sql = util.format("select ri from lookup where (ri =\'%s\') or ((pi=\'%s\' or pi like \'%s/%%\') and ty != \'1\' and ty != \'4\' and ty != \'23\' and ty != \'30\' and ty != \'9\' and ty != \'17\')", ri, ri, ri);
+exports.search_parents_lookup = function(ri, pi_list, result_ri, callback) {
+    // //var sql = util.format("select ri from lookup where (ri =\'%s\') or ((pi=\'%s\' or pi like \'%s/%%\') and ty != \'1\' and ty != \'4\' and ty != \'23\' and ty != \'30\' and ty != \'9\' and ty != \'17\')", ri, ri, ri);
+    // var sql = util.format("select ri from lookup where (ri =\'%s\') or (pi=\'%s\' or pi like \'%s/%%\')", ri, ri, ri);
+    // db.getResult(sql, '', function (err, result_lookup_ri) {
+    //     console.timeEnd('search_parents_lookup ' + ri);
+    //     callback(err, result_lookup_ri);
+    // });
+
+    var sql = util.format("select ri, ty from lookup where pi in ("+JSON.stringify(pi_list).replace('[','').replace(']','')+") limit 1000");
     db.getResult(sql, '', function (err, result_lookup_ri) {
-        console.timeEnd('search_parents_lookup ' + ri);
-        callback(err, result_lookup_ri);
+        if(!err) {
+            if(result_lookup_ri.length === 0) {
+                callback(err, result_ri);
+            }
+            else {
+                pi_list = [];
+                for(var idx in result_lookup_ri) {
+                    if(result_lookup_ri.hasOwnProperty(idx)) {
+                        if(result_lookup_ri[idx].ty !== '23' && result_lookup_ri[idx].ty !== '4' && result_lookup_ri[idx].ty !== '30' && result_lookup_ri[idx].ty !== '17') {
+                            pi_list.push(result_lookup_ri[idx].ri);
+                            result_ri.push(result_lookup_ri[idx]);
+                        }
+                    }
+                }
+
+                if(pi_list.length === 0) {
+                    callback(err, result_ri);
+                }
+                else {
+                    _this.search_parents_lookup(ri, pi_list, result_ri, function (err, result_ri) {
+                        callback(err, result_ri);
+                    });
+                }
+            }
+        }
     });
 };
 
@@ -1562,21 +1591,21 @@ exports.delete_ri_lookup_in = function (ty, ri, offset, callback) {
 
 exports.delete_lookup = function (ri, pi_list, pi_index, found_Obj, found_Cnt, callback) {
     var cur_pi = [];
-    cur_pi.push(pi_list[pi_index]);
 
-    if(pi_index == 0) {
-        console.time('delete_lookup ' + ri);
+    for(var idx = 0; idx < 8; idx++) {
+        if (pi_index < pi_list.length) {
+            cur_pi.push(pi_list[pi_index++]);
+        }
     }
 
     var sql = util.format("delete a.* from (select ri from lookup where pi in ("+JSON.stringify(cur_pi).replace('[','').replace(']','') + ")) b left join lookup as a on b.ri = a.ri");
     db.getResult(sql, '', function (err, search_Obj) {
         if(!err) {
             found_Cnt += search_Obj.affectedRows;
-            if(++pi_index >= pi_list.length) {
-                sql = util.format("delete from lookup where ri = \'%s\'", pi_list[0]);
+            if(pi_index >= pi_list.length) {
+                sql = util.format("delete from lookup where ri = \'%s\'", ri);
                 db.getResult(sql, '', function (err, search_Obj) {
                     if(!err) {
-                        console.timeEnd('delete_lookup ' + ri);
                         found_Cnt += search_Obj.affectedRows;
                         console.log('deleted ' + found_Cnt + ' resource(s).');
                         callback(err, found_Obj);

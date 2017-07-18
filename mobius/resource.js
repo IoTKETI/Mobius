@@ -877,7 +877,7 @@ function build_resource(request, response, ty, body_Obj, callback) {
     //var et = new Date();
     //et.setYear(cur_d.getFullYear()+1); // adds time to existing time
     //resource_Obj[rootnm].et = et.toISOString().replace(/-/, '').replace(/-/, '').replace(/:/, '').replace(/:/, '').replace(/\..+/, '');
-    resource_Obj[rootnm].et = moment().utc().add(2, 'years').format('YYYYMMDDTHHmmss');
+    resource_Obj[rootnm].et = moment().utc().add(3, 'years').format('YYYYMMDDTHHmmss');
     if(ty == 17) {
         resource_Obj[rootnm].et = moment().utc().add(1, 'days').format('YYYYMMDDTHHmmss');
     }
@@ -1075,7 +1075,11 @@ exports.create = function(request, response, ty, body_Obj, callback) {
 function presearch_action(request, response, ri_list, comm_Obj, callback) {
     //var rootnm = request.headers.rootnm;
     var pi_list = [];
-    db_sql.search_parents_lookup(comm_Obj.ri, function (err, search_Obj) {
+    var result_ri = [];
+    pi_list.push(comm_Obj.ri);
+    console.time('search_parents_lookup ' + comm_Obj.ri);
+    db_sql.search_parents_lookup(comm_Obj.ri, pi_list, result_ri, function (err, search_Obj) {
+        console.timeEnd('search_parents_lookup ' + comm_Obj.ri);
         if(!err) {
             var finding_Obj = {};
             var found_Obj = {};
@@ -1965,20 +1969,25 @@ function delete_action_cni(ri, ty, pi, cs, callback) {
 
 function delete_action(request, response, resource_Obj, comm_Obj, callback) {
     var pi_list = [];
-    db_sql.search_parents_lookup(comm_Obj.ri, function (err, search_Obj) {
+    var result_ri = [];
+    pi_list.push(comm_Obj.ri);
+    console.time('search_parents_lookup ' + comm_Obj.ri);
+    db_sql.search_parents_lookup(comm_Obj.ri, pi_list, result_ri, function (err, search_Obj) {
+        console.timeEnd('search_parents_lookup ' + comm_Obj.ri);
         if(!err) {
             //if(search_Obj.length == 0) {
             //    pi_list.push(comm_Obj.ri);
             //}
 
-            pi_list.push(comm_Obj.ri);
+            //pi_list.push(comm_Obj.ri);
             for(var i = 0; i < search_Obj.length; i++) {
                 pi_list.push(search_Obj[i].ri);
             }
 
             var finding_Obj = [];
-            //var found_Obj = {};
+            console.time('delete_lookup ' + comm_Obj.ri);
             db_sql.delete_lookup(comm_Obj.ri, pi_list, 0, finding_Obj, 0, function (err, search_Obj) {
+                console.timeEnd('delete_lookup ' + comm_Obj.ri);
                 if(!err) {
                     if(comm_Obj.ty == '29') {
                         delete_TS(function (rsc, res_Obj) {
