@@ -13,7 +13,7 @@ In oneM2M architecture, Mobius implements the IN-CSE which is the cloud server i
 To enable Internet of Things, things are connected to &Cube via TAS (Thing Adaptation Software), then &Cube communicate with Mobius over oneM2M standard APIs. Also IoT applications use oneM2M standard APIs to retrieve thing data control things of Mobius.
 
 <div align="center">
-<img src="https://user-images.githubusercontent.com/29790334/28245372-e7584524-6a3f-11e7-8628-16bfee65430b.png" width="800"/>
+<img src="https://user-images.githubusercontent.com/29790334/28322868-33e97f4c-6c12-11e7-97fc-6de66c06add7.png" width="800"/>
 </div>
 
 ## Software Architecture
