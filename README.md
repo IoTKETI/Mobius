@@ -31,7 +31,7 @@ To enable Internet of Things, things are connected to &Cube via TAS (Thing Adapt
 ## Installation
 The Mobius is based on Node.js framework and uses MySQL for database.
 <div align="center">
-<img src="https://user-images.githubusercontent.com/29790334/28322458-1b91ffa6-6c11-11e7-8ac0-5d5c9d9e7805.png" width="600"/>
+<img src="https://user-images.githubusercontent.com/29790334/28322607-7be7d916-6c11-11e7-9d20-ac07961971bf.png" width="600"/>
 </div><br/>
 
 - [MySQL Server](https://www.mysql.com/downloads/)<br/>
