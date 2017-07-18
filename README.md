@@ -6,7 +6,7 @@ Mobius is the open source IoT server platform based on the oneM2M (http://www.on
 In oneM2M architecture, Mobius implements the IN-CSE which is the cloud server in the infrastructure domain. IoT applications communicate with field domain IoT gateways/devices via Mobius.
 
 <div align="center">
-<img src="https://user-images.githubusercontent.com/29790334/28245360-a2221606-6a3f-11e7-8330-ba48787133a6.png" width="800"/>
+<img src="https://user-images.githubusercontent.com/29790334/28322458-1b91ffa6-6c11-11e7-8ac0-5d5c9d9e7805.png" width="800"/>
 </div>
 
 ## Connectivity Stucture
