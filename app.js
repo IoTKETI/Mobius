@@ -32,6 +32,7 @@ var fileStreamRotator = require('file-stream-rotator');
 var merge = require('merge');
 var https = require('https');
 var cbor = require('cbor');
+var moment = require('moment');
 
 global.NOPRINT = 'true';
 global.ONCE = 'true';
@@ -1140,20 +1141,25 @@ function lookup_create(request, response) {
                         if (!err) {
 
                             if ((ty == 4) && (parent_comm.ty == 3)) { // contentInstance
-                                if (parseInt(parent_spec[0].mni) == 0) {
-                                    body_Obj = {};
-                                    body_Obj['dbg'] = 'can not create cin because mni value is zero';
-                                    responder.response_result(request, response, 406, body_Obj, 5207, request.url, body_Obj['dbg']);
-                                    return '0';
-                                }
-                                else if (parseInt(parent_spec[0].mbs) == 0) {
-                                    body_Obj = {};
-                                    body_Obj['dbg'] = 'can not create cin because mbs value is zero';
-                                    responder.response_result(request, response, 406, body_Obj, 5207, request.url, body_Obj['dbg']);
-                                    return '0';
+                                if (parent_spec[0].mni == null) {
+                                    body_Obj[rootnm].mni = '3153600000';
                                 }
                                 else {
-                                    body_Obj[rootnm].mni = parent_spec[0].mni;
+                                    if (parseInt(parent_spec[0].mni) == 0) {
+                                        body_Obj = {};
+                                        body_Obj['dbg'] = 'can not create cin because mni value is zero';
+                                        responder.response_result(request, response, 406, body_Obj, 5207, request.url, body_Obj['dbg']);
+                                        return '0';
+                                    }
+                                    else if (parseInt(parent_spec[0].mbs) == 0) {
+                                        body_Obj = {};
+                                        body_Obj['dbg'] = 'can not create cin because mbs value is zero';
+                                        responder.response_result(request, response, 406, body_Obj, 5207, request.url, body_Obj['dbg']);
+                                        return '0';
+                                    }
+                                    else {
+                                        body_Obj[rootnm].mni = parent_spec[0].mni;
+                                    }
                                 }
                             }
 
@@ -1463,7 +1469,7 @@ app.post(onem2mParser, function (request, response) {
         absolute_url = absolute_url.replace(/\/_/, '/' + usecsebase);
         var absolute_url_arr = absolute_url.split('/');
         db_sql.get_ri_sri(absolute_url_arr[1].split('?')[0], function (err, results) {
-            absolute_url = (results.length == 0) ? absolute_url : absolute_url.replace('/' + absolute_url_arr[1], results[0].ri);
+            absolute_url = (results.length == 0) ? absolute_url : ((results[0].hasOwnProperty('ri')) ? absolute_url.replace('/' + absolute_url_arr[1], results[0].ri) : absolute_url);
 
             if (url.parse(absolute_url).pathname.split('/')[1] == usecsebase) {
                 request.url = absolute_url;
@@ -1524,7 +1530,7 @@ app.get(onem2mParser, function (request, response) {
         absolute_url = absolute_url.replace(/\/_/, '/' + usecsebase);
         var absolute_url_arr = absolute_url.split('/');
         db_sql.get_ri_sri(absolute_url_arr[1].split('?')[0], function (err, results) {
-            absolute_url = (results.length == 0) ? absolute_url : absolute_url.replace('/' + absolute_url_arr[1], results[0].ri);
+            absolute_url = (results.length == 0) ? absolute_url : ((results[0].hasOwnProperty('ri')) ? absolute_url.replace('/' + absolute_url_arr[1], results[0].ri) : absolute_url);
 
             if (url.parse(absolute_url).pathname.split('/')[1] == usecsebase) {
                 request.url = absolute_url;
@@ -1586,7 +1592,7 @@ app.put(onem2mParser, function (request, response) {
         absolute_url = absolute_url.replace(/\/_/, '/' + usecsebase);
         var absolute_url_arr = absolute_url.split('/');
         db_sql.get_ri_sri(absolute_url_arr[1].split('?')[0], function (err, results) {
-            absolute_url = (results.length == 0) ? absolute_url : absolute_url.replace('/' + absolute_url_arr[1], results[0].ri);
+            absolute_url = (results.length == 0) ? absolute_url : ((results[0].hasOwnProperty('ri')) ? absolute_url.replace('/' + absolute_url_arr[1], results[0].ri) : absolute_url);
 
             if (url.parse(absolute_url).pathname == ('/' + usecsebase)) {
                 responder.error_result(request, response, 405, 4005, 'OPERATION_NOT_ALLOWED');
@@ -1650,7 +1656,7 @@ app.delete(onem2mParser, function (request, response) {
         absolute_url = absolute_url.replace(/\/_/, '/' + usecsebase);
         var absolute_url_arr = absolute_url.split('/');
         db_sql.get_ri_sri(absolute_url_arr[1].split('?')[0], function (err, results) {
-            absolute_url = (results.length == 0) ? absolute_url : absolute_url.replace('/' + absolute_url_arr[1], results[0].ri);
+            absolute_url = (results.length == 0) ? absolute_url : ((results[0].hasOwnProperty('ri')) ? absolute_url.replace('/' + absolute_url_arr[1], results[0].ri) : absolute_url);
 
             if (url.parse(absolute_url).pathname == ('/' + usecsebase)) {
                 responder.error_result(request, response, 405, 4005, 'OPERATION_NOT_ALLOWED');
