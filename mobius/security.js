@@ -18,9 +18,9 @@ var url = require('url');
 var util = require('util');
 var db_sql = require('./sql_action');
 
-exports.check = function(request, ty, acpiList, access_value, cr, callback) {
+exports.check = function(request, response, ty, acpiList, access_value, cr, callback) {
     if(request.headers['x-m2m-origin'] == usecseid) {
-        callback('1');
+        callback('1', request, response);
         return '1';
     }
 
@@ -31,7 +31,7 @@ exports.check = function(request, ty, acpiList, access_value, cr, callback) {
 
     if(ty == '1') { // check selfPrevileges
         acpiList = [url.parse(request.url).pathname.split('?')[0]];
-        db_sql.get_ri_sri(acpiList[0], function (err, results) {
+        db_sql.get_ri_sri(request, response, acpiList[0], function (err, results, request, response) {
             acpiList[0] = ((results.length == 0) ? acpiList[0] : results[0].ri);
             db_sql.select_acp(acpiList[0], function (err, results_acp) {
                 if (!err) {
@@ -46,7 +46,7 @@ exports.check = function(request, ty, acpiList, access_value, cr, callback) {
                                         if (pvsObj.acr[index].acor.hasOwnProperty(acor_idx)) {
                                             if (pvsObj.acr[index].acor[acor_idx].match(re) || pvsObj.acr[index].acor[acor_idx] == 'all' || pvsObj.acr[index].acor[acor_idx] == '*') {
                                                 if ((pvsObj.acr[index].acop.toString() & access_value) == access_value) {
-                                                    callback('1');
+                                                    callback('1', request, response);
                                                     return '1';
                                                 }
                                             }
@@ -59,12 +59,12 @@ exports.check = function(request, ty, acpiList, access_value, cr, callback) {
                             }
                         }
                     }
-                    callback('0');
+                    callback('0', request, response);
                     return '0';
                 }
                 else {
                     console.log('query error: ' + results_acp.message);
-                    callback('0');
+                    callback('0', request, response);
                     return '0';
                 }
             });
@@ -74,21 +74,21 @@ exports.check = function(request, ty, acpiList, access_value, cr, callback) {
         if (acpiList.length == 0) {
             // we decide to permit to everybody in this case which is not set accessControlPolicy
             // this policy may change to not permit later
-            callback('1');
+            callback('1', request, response);
             return '1';
         }
 
         var ri_list = [];
-        get_ri_list_sri(acpiList, ri_list, 0, function (ri_list) {
+        get_ri_list_sri(request, response, acpiList, ri_list, 0, function (ri_list, request, response) {
             db_sql.select_acp_in(ri_list, function (err, results_acp) {
                 if (!err) {
                     if(results_acp.length == 0) {
                         if(request.headers['x-m2m-origin'] == cr) {
-                            callback('1');
+                            callback('1', request, response);
                             return '1';
                         }
                         else {
-                            callback('0');
+                            callback('0', request, response);
                             return '0';
                         }
                     }
@@ -104,7 +104,7 @@ exports.check = function(request, ty, acpiList, access_value, cr, callback) {
                                             if (pvObj.acr[index].acor.hasOwnProperty(acor_idx)) {
                                                 if (pvObj.acr[index].acor[acor_idx].match(re) || pvObj.acr[index].acor[acor_idx] == 'all' || pvObj.acr[index].acor[acor_idx] == '*') {
                                                     if ((pvObj.acr[index].acop.toString() & access_value) == access_value) {
-                                                        callback('1');
+                                                        callback('1', request, response);
                                                         return '1';
                                                     }
                                                 }
@@ -117,13 +117,13 @@ exports.check = function(request, ty, acpiList, access_value, cr, callback) {
                                 }
                             }
                         }
-                        callback('0');
+                        callback('0', request, response);
                         return '0';
                     }
                 }
                 else {
                     console.log('query error: ' + results_acp.message);
-                    callback('0');
+                    callback('0', request, response);
                     return '0';
                 }
             });

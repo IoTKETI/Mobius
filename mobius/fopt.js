@@ -145,7 +145,7 @@ exports.check = function(request, response, grp, body_Obj) {
 
     update_route(function (cse_poa) {
         var ri_list = [];
-        get_ri_list_sri(grp.mid, ri_list, 0, function (ri_list) {
+        get_ri_list_sri(request, response, grp.mid, ri_list, 0, function (ri_list, request, response) {
             var req_count = 0;
             var agr = {};
             fopt_member(request, response, req_count, ri_list, body_Obj, cse_poa, agr, function (retrieve_Obj) {

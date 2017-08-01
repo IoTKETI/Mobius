@@ -28,10 +28,10 @@ exports.get_sri_sri = function (ri, callback) {
     });
 };
 
-exports.get_ri_sri = function (sri, callback) {
+exports.get_ri_sri = function (request, response, sri, callback) {
     var sql = util.format('select ri from sri where sri = \'%s\'', sri);
     db.getResult(sql, '', function (err, results) {
-        callback(err, results);
+        callback(err, results, request, response);
     });
 };
 
