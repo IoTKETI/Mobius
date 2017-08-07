@@ -833,7 +833,7 @@ function create_action(request, response, ty, resource_Obj, callback) {
             }
             else {
                 body_Obj = {};
-                body_Obj['dbg'] = "ty does not supported";
+                body_Obj['dbg'] = "ty not supported";
                 responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
                 callback('0', resource_Obj);
                 return '0';
@@ -1824,7 +1824,7 @@ function update_action( request, response, ty, resource_Obj, callback) {
     }
     else {
         body_Obj = {};
-        body_Obj['dbg'] = "ty does not supported";
+        body_Obj['dbg'] = "ty not supported";
         responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
         callback('0', resource_Obj);
         return '0';

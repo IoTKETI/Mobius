@@ -181,11 +181,9 @@ exports.insert_cin = function(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st,
     _this.insert_lookup(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st, mni, cs, cnf, sri, spi, function (err, results) {
         if(!err) {
             var con_type = getType(con);
-            var sql = util.format('insert into cin (ri, cr, cnf, cs, cin.or, con) ' +
-                'value (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
-                ri, cr, cnf, cs, or,
-                (con_type == 'string') ? con.replace(/'/g, "\\'") : JSON.stringify(con));
-            db.getResult(sql, '', function (err, results) {
+            var sql = 'insert into cin (ri, cr, cnf, cs, cin.or, con) value (?, ?, ?, ?, ?, ?)';
+            var values = [ri, cr, cnf, cs, or, (con_type == 'string') ? con : JSON.stringify(con)];
+            db.getResult1(sql, values, function (err, results) {
                 if(!err) {
                     console.timeEnd('insert_cin ' + ri);
                     callback(err, results);

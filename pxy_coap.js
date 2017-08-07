@@ -101,10 +101,10 @@ exports.coap_watchdog = function () {
     else if(coap_state === 'connect') {
         if(pxycoap_server == null) {
             pxycoap_server = coap.createServer();
-            pxycoap_server.listen(usecsebaseport, function() {
+            pxycoap_server.listen(usepxycoapport, function() {
                 var options = {
                     host: 'localhost',
-                    port: usecsebaseport,
+                    port: usepxycoapport,
                     pathname: '/'+usecsebase,
                     method: 'get',
                     confirmable: 'true',

@@ -19,13 +19,13 @@ var mysql_pool = null;
 //var _this = this;
 
 
-exports.connect = function (host, port, user, password, callback) {
+exports.connect = function (host, port, user, password, database, callback) {
     mysql_pool = mysql.createPool({
         host: host,
         port: port,
         user: user,
         password: password,
-        database: 'mobiusdb',
+        database: database,
         connectionLimit: 100,
         waitForConnections: true,
         debug: false,
@@ -74,4 +74,30 @@ exports.getResult = function(query, db_Obj, callback) {
     });
 };
 
+/* fields escape */
+exports.getResult1 = function(query, values, callback) {
+    if(mysql_pool == null) {
+        console.error("mysql is not connected");
+        return '0';
+    }
 
+    mysql_pool.getConnection(function (err, connection) {
+        if (err) {
+            return callback(err, null);
+        } else if (connection) {
+            connection.query({
+                sql: query,     // e.g. 'SELECT * FROM `table` WHERE `field1` = ?',
+                timeout: 60000, // 60s
+                values: values, // e.g. ['field1_val']
+            }, function (err, rows, fields) {
+                connection.release();
+                if (err) {
+                    return callback(true, err);
+                }
+                return callback(null, rows);
+            });
+        } else {
+            return callback(true, "No Connection");
+        }
+    });
+};
