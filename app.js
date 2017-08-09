@@ -379,7 +379,7 @@ function check_http_body(request, response, callback) {
         var content_type = request.headers['content-type'].split(';');
     }
     catch (e) {
-        responder.error_result(request, response, 400, 4000, 'content-type is none');
+        responder.error_result(request, response, 400, 4000, 'content-type is null');
         callback('0', body_Obj, content_type, request, response);
         return '0';
     }
@@ -468,14 +468,14 @@ function check_http(request, response, callback) {
 
     // Check X-M2M-RI Header
     if ((request.headers['x-m2m-ri'] == null)) {
-        responder.error_result(request, response, 400, 4000, 'X-M2M-RI is none');
+        responder.error_result(request, response, 400, 4000, 'X-M2M-RI is null');
         callback('0', body_Obj, request, response);
         return '0';
     }
 
     // Check X-M2M-Origin Header
     if ((request.headers['x-m2m-origin'] == null || request.headers['x-m2m-origin'] == '')) {
-        // responder.error_result(request, response, 400, 4000, 'X-M2M-Origin Header is none');
+        // responder.error_result(request, response, 400, 4000, 'X-M2M-Origin Header is null');
         // callback('0', body_Obj, request, response);
         // return '0';
 
@@ -519,7 +519,7 @@ function check_http(request, response, callback) {
                         var ty = content_type[1].split('=')[1];
                     }
                     catch (e) {
-                        responder.error_result(request, response, 400, 4000, 'ty is none');
+                        responder.error_result(request, response, 400, 4000, 'ty is null');
                         callback('0', body_Obj, request, response);
                         return '0';
                     }
@@ -987,7 +987,7 @@ function check_rt_query(request, response, callback) {
     else if (request.query.rt == 1 || request.query.rt == 2) { // nodblocking
         if(request.query.rt == 2 && request.headers['x-m2m-rtu'] == null) {
             body_Obj = {};
-            body_Obj['dbg'] = 'X-M2M-RTU is none';
+            body_Obj['dbg'] = 'X-M2M-RTU is null';
             responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
             callback('0', {}, '', request, response);
             return '0';
@@ -1548,7 +1548,7 @@ app.get(onem2mParser, function (request, response) {
                         lookup_retrieve(request, response);
                     }
                     else {
-                        responder.error_result(request, response, 400, 4000, 'BAD_REQUEST (rcn or fu query is not supported at GET request)');
+                        responder.error_result(request, response, 400, 4000, 'BAD_REQUEST (rcn or fu query is not supported in GET request)');
                     }
                 }
                 else {
@@ -1687,7 +1687,7 @@ app.delete(onem2mParser, function (request, response) {
                         lookup_delete(request, response);
                     }
                     else {
-                        responder.error_result(request, response, 400, 4000, 'rcn query is not supported at DELETE request');
+                        responder.error_result(request, response, 400, 4000, 'rcn query is not supported in DELETE request');
                     }
                 }
                 else {
