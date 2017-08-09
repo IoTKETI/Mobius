@@ -34,27 +34,27 @@ function make_xml_noti_message(pc, xm2mri) {
         var noti_message = {};
         noti_message['m2m:rqp'] = {};
         noti_message['m2m:rqp'].op = 5; // notification
-        noti_message['m2m:rqp'].net = pc.sgn.net;
-        //noti_message['m2m:rqp'].to = pc.sgn.sur;
+        noti_message['m2m:rqp'].net = pc['m2m:sgn'].net;
+        //noti_message['m2m:rqp'].to = pc['m2m:sgn'].sur;
         noti_message['m2m:rqp'].fr = usecseid;
         noti_message['m2m:rqp'].rqi = xm2mri;
         noti_message['m2m:rqp'].pc = pc;
 
-        for(var prop in noti_message['m2m:rqp'].pc.sgn.nev.rep) {
-            if (noti_message['m2m:rqp'].pc.sgn.nev.rep.hasOwnProperty(prop)) {
-                for(var prop2 in noti_message['m2m:rqp'].pc.sgn.nev.rep[prop]) {
-                    if (noti_message['m2m:rqp'].pc.sgn.nev.rep[prop].hasOwnProperty(prop2)) {
+        for(var prop in noti_message['m2m:rqp'].pc['m2m:sgn'].nev.rep) {
+            if (noti_message['m2m:rqp'].pc['m2m:sgn'].nev.rep.hasOwnProperty(prop)) {
+                for(var prop2 in noti_message['m2m:rqp'].pc['m2m:sgn'].nev.rep[prop]) {
+                    if (noti_message['m2m:rqp'].pc['m2m:sgn'].nev.rep[prop].hasOwnProperty(prop2)) {
                         if(prop2 == 'rn') {
-                            noti_message['m2m:rqp'].pc.sgn.nev.rep[prop]['@'] = {rn : noti_message['m2m:rqp'].pc.sgn.nev.rep[prop][prop2]};
-                            delete noti_message['m2m:rqp'].pc.sgn.nev.rep[prop][prop2];
+                            noti_message['m2m:rqp'].pc['m2m:sgn'].nev.rep[prop]['@'] = {rn : noti_message['m2m:rqp'].pc['m2m:sgn'].nev.rep[prop][prop2]};
+                            delete noti_message['m2m:rqp'].pc['m2m:sgn'].nev.rep[prop][prop2];
                             break;
                         }
                         else {
-                            for (var prop3 in noti_message['m2m:rqp'].pc.sgn.nev.rep[prop][prop2]) {
-                                if (noti_message['m2m:rqp'].pc.sgn.nev.rep[prop][prop2].hasOwnProperty(prop3)) {
+                            for (var prop3 in noti_message['m2m:rqp'].pc['m2m:sgn'].nev.rep[prop][prop2]) {
+                                if (noti_message['m2m:rqp'].pc['m2m:sgn'].nev.rep[prop][prop2].hasOwnProperty(prop3)) {
                                     if (prop3 == 'rn') {
-                                        noti_message['m2m:rqp'].pc.sgn.nev.rep[prop][prop2]['@'] = {rn: noti_message['m2m:rqp'].pc.sgn.nev.rep[prop][prop2][prop3]};
-                                        delete noti_message['m2m:rqp'].pc.sgn.nev.rep[prop][prop2][prop3];
+                                        noti_message['m2m:rqp'].pc['m2m:sgn'].nev.rep[prop][prop2]['@'] = {rn: noti_message['m2m:rqp'].pc['m2m:sgn'].nev.rep[prop][prop2][prop3]};
+                                        delete noti_message['m2m:rqp'].pc['m2m:sgn'].nev.rep[prop][prop2][prop3];
                                         break;
                                     }
                                 }
@@ -82,8 +82,8 @@ function make_cbor_noti_message(pc, xm2mri) {
         var noti_message = {};
         noti_message['m2m:rqp'] = {};
         noti_message['m2m:rqp'].op = 5; // notification
-        noti_message['m2m:rqp'].net = pc.sgn.net;
-        //noti_message['m2m:rqp'].to = pc.sgn.sur;
+        noti_message['m2m:rqp'].net = pc['m2m:sgn'].net;
+        //noti_message['m2m:rqp'].to = pc['m2m:sgn'].sur;
         noti_message['m2m:rqp'].fr = usecseid;
         noti_message['m2m:rqp'].rqi = xm2mri;
 
@@ -101,8 +101,8 @@ function make_json_noti_message(pc, xm2mri) {
         var noti_message = {};
         noti_message['m2m:rqp'] = {};
         noti_message['m2m:rqp'].op = 5; // notification
-        noti_message['m2m:rqp'].net = pc.sgn.net;
-        //noti_message['m2m:rqp'].to = pc.sgn.sur;
+        noti_message['m2m:rqp'].net = pc['m2m:sgn'].net;
+        //noti_message['m2m:rqp'].to = pc['m2m:sgn'].sur;
         noti_message['m2m:rqp'].fr = usecseid;
         noti_message['m2m:rqp'].rqi = xm2mri;
 
@@ -129,15 +129,15 @@ function sgn_action(rootnm, check_value, results_ss, noti_Obj, sub_bodytype) {
 
                 var node = {};
                 if (nct == 2 || nct == 1) {
-                    node.sgn = {};
-                    node.sgn.net = check_value.toString();
-                    node.sgn.sur = results_ss.ri;
-                    node.sgn.nec = results_ss.nec;
-                    node.sgn.nev = {};
-                    node.sgn.nev.rep = {};
-                    node.sgn.nev.rep['m2m:'+rootnm] = noti_Obj;
+                    node['m2m:sgn'] = {};
+                    node['m2m:sgn'].net = check_value.toString();
+                    node['m2m:sgn'].sur = results_ss.ri;
+                    node['m2m:sgn'].nec = results_ss.nec;
+                    node['m2m:sgn'].nev = {};
+                    node['m2m:sgn'].nev.rep = {};
+                    node['m2m:sgn'].nev.rep['m2m:'+rootnm] = noti_Obj;
 
-                    responder.typeCheckforJson(node.sgn.nev.rep);
+                    responder.typeCheckforJson(node['m2m:sgn'].nev.rep);
 
                     //cur_d = new Date();
                     //msec = (parseInt(cur_d.getMilliseconds(), 10)<10) ? ('00'+cur_d.getMilliseconds()) : ((parseInt(cur_d.getMilliseconds(), 10)<100) ? ('0'+cur_d.getMilliseconds()) : cur_d.getMilliseconds());
@@ -159,24 +159,24 @@ function sgn_action(rootnm, check_value, results_ss, noti_Obj, sub_bodytype) {
 
                                 else if (sub_nu_query_arr[prop].split('=')[0] == 'rcn') {
                                     if (sub_nu_query_arr[prop].split('=')[1] == '9') {
-                                        for (var index in node.sgn.nev.rep) {
-                                            if (node.sgn.nev.rep.hasOwnProperty(index)) {
-                                                if (node.sgn.nev.rep[index].cr) {
-                                                    delete node.sgn.nev.rep[index].cr;
+                                        for (var index in node['m2m:sgn'].nev.rep) {
+                                            if (node['m2m:sgn'].nev.rep.hasOwnProperty(index)) {
+                                                if (node['m2m:sgn'].nev.rep[index].cr) {
+                                                    delete node['m2m:sgn'].nev.rep[index].cr;
                                                 }
 
-                                                if (node.sgn.nev.rep[index].st) {
-                                                    delete node.sgn.nev.rep[index].st;
+                                                if (node['m2m:sgn'].nev.rep[index].st) {
+                                                    delete node['m2m:sgn'].nev.rep[index].st;
                                                 }
 
-                                                delete node.sgn.nev.rep[index].ct;
-                                                delete node.sgn.nev.rep[index].lt;
-                                                delete node.sgn.nev.rep[index].et;
-                                                delete node.sgn.nev.rep[index].ri;
-                                                delete node.sgn.nev.rep[index].pi;
-                                                delete node.sgn.nev.rep[index].rn;
-                                                delete node.sgn.nev.rep[index].ty;
-                                                delete node.sgn.nev.rep[index].fr;
+                                                delete node['m2m:sgn'].nev.rep[index].ct;
+                                                delete node['m2m:sgn'].nev.rep[index].lt;
+                                                delete node['m2m:sgn'].nev.rep[index].et;
+                                                delete node['m2m:sgn'].nev.rep[index].ri;
+                                                delete node['m2m:sgn'].nev.rep[index].pi;
+                                                delete node['m2m:sgn'].nev.rep[index].rn;
+                                                delete node['m2m:sgn'].nev.rep[index].ty;
+                                                delete node['m2m:sgn'].nev.rep[index].fr;
                                             }
                                         }
                                     }
