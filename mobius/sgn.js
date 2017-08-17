@@ -192,7 +192,7 @@ function sgn_action(rootnm, check_value, results_ss, noti_Obj, sub_bodytype) {
                                 "xmlns:xsi": "http://www.w3.org/2001/XMLSchema-instance"
                             };
 
-                            var bodyString = js2xmlparser.parse('m2m:'+Object.keys(node)[0], node[Object.keys(node)[0]]);
+                            var bodyString = js2xmlparser.parse(Object.keys(node)[0], node[Object.keys(node)[0]]);
                             request_noti_http(nu, results_ss.ri, bodyString, sub_bodytype, xm2mri);
                         }
                         else if (sub_nu.protocol == 'coap:') {
@@ -201,7 +201,7 @@ function sgn_action(rootnm, check_value, results_ss, noti_Obj, sub_bodytype) {
                                 "xmlns:xsi": "http://www.w3.org/2001/XMLSchema-instance"
                             };
 
-                            bodyString = js2xmlparser.parse('m2m:'+Object.keys(node)[0], node[Object.keys(node)[0]]);
+                            bodyString = js2xmlparser.parse(Object.keys(node)[0], node[Object.keys(node)[0]]);
                             request_noti_coap(nu, results_ss.ri, bodyString, sub_bodytype, xm2mri);
                         }
                         else if (sub_nu.protocol == 'ws:') {
@@ -215,14 +215,14 @@ function sgn_action(rootnm, check_value, results_ss, noti_Obj, sub_bodytype) {
                     }
                     else if (sub_bodytype == 'cbor') {
                         if (sub_nu.protocol == 'http:') {
-                            node['m2m:'+Object.keys(node)[0]] = node[Object.keys(node)[0]];
-                            delete node[Object.keys(node)[0]];
+                            //node['m2m:'+Object.keys(node)[0]] = node[Object.keys(node)[0]];
+                            //delete node[Object.keys(node)[0]];
                             bodyString = cbor.encode(node).toString('hex');
                             request_noti_http(nu, results_ss.ri, bodyString, sub_bodytype, xm2mri);
                         }
                         else if (sub_nu.protocol == 'coap:') {
-                            node['m2m:'+Object.keys(node)[0]] = node[Object.keys(node)[0]];
-                            delete node[Object.keys(node)[0]];
+                            //node['m2m:'+Object.keys(node)[0]] = node[Object.keys(node)[0]];
+                            //delete node[Object.keys(node)[0]];
                             bodyString = cbor.encode(node).toString('hex');
                             request_noti_coap(nu, results_ss.ri, bodyString, sub_bodytype, xm2mri);
                         }
@@ -237,13 +237,13 @@ function sgn_action(rootnm, check_value, results_ss, noti_Obj, sub_bodytype) {
                     }
                     else { // defaultbodytype == 'json')
                         if (sub_nu.protocol == 'http:') {
-                            node['m2m:'+Object.keys(node)[0]] = node[Object.keys(node)[0]];
-                            delete node[Object.keys(node)[0]];
+                            //node['m2m:'+Object.keys(node)[0]] = node[Object.keys(node)[0]];
+                            //delete node[Object.keys(node)[0]];
                             request_noti_http(nu, results_ss.ri, JSON.stringify(node), sub_bodytype, xm2mri);
                         }
                         else if (sub_nu.protocol == 'coap:') {
-                            node['m2m:'+Object.keys(node)[0]] = node[Object.keys(node)[0]];
-                            delete node[Object.keys(node)[0]];
+                            //node['m2m:'+Object.keys(node)[0]] = node[Object.keys(node)[0]];
+                            //delete node[Object.keys(node)[0]];
                             request_noti_coap(nu, results_ss.ri, JSON.stringify(node), sub_bodytype, xm2mri);
                         }
                         else if (sub_nu.protocol == 'ws:') {
