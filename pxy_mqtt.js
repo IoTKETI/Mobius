@@ -377,11 +377,11 @@ function mqtt_message_handler(topic, message) {
     }
     else if(topic_arr[1] === 'oneM2M' && topic_arr[2] === 'req' && ((topic_arr[4].replace(':', '/') == usecseid) || (topic_arr[4] == usecseid.replace('/', '')))) {
         make_json_obj(bodytype, message.toString(), function(rsc, result) {
-            if(result['m2m:rqp'] == null) {
-                result['m2m:rqp'] = result;
-            }
-
             if(rsc == '1') {
+                if(result && result['m2m:rqp'] == null) {
+                    result['m2m:rqp'] = result;
+                }
+
                 mqtt_message_action(pxymqtt_client, topic_arr, bodytype, result);
             }
             else {
