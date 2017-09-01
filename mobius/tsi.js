@@ -83,7 +83,7 @@ exports.build_tsi = function(request, response, resource_Obj, body_Obj, callback
     }
         
     // check M
-    if(!body_Obj[rootnm].con) {
+    if(body_Obj[rootnm].con == null) {
         body_Obj = {};
         body_Obj['dbg'] = 'con as M Tag should be included';
         responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);

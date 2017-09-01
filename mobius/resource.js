@@ -1274,6 +1274,13 @@ function retrieve_action(request, response, ty, comm_Obj, callback) {
                 if (spec_Obj[0].cas) {
                     spec_Obj[0].cas = JSON.parse(spec_Obj[0].cas);
                 }
+                if (spec_Obj[0].con) {
+                    try {
+                        spec_Obj[0].con = JSON.parse(spec_Obj[0].con);
+                    }
+                    catch (e) {
+                    }
+                }
                 resource_Obj[rootnm] = merge(comm_Obj, spec_Obj[0]);
                 callback('1', resource_Obj);
             }
