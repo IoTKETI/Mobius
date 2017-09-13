@@ -1709,7 +1709,9 @@ function request_noti_mqtt(nu, bodyString, bodytype, xm2mri) {
 
         _mqtt_client.publish(noti_topic, bodyString);
         console.log('<---- [nonblocking-async-mqtt] ' + noti_topic);
-        _mqtt_client.end(true);
+        _mqtt_client.end(true, function () {
+            _mqtt_client = null;
+        });
     });
 
     _mqtt_client.on('message', function (topic, message) {

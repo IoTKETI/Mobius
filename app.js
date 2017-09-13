@@ -1439,6 +1439,19 @@ var onem2mParser = bodyParser.text(
 );
 //var onem2mParser = bodyParser.text({ limit: '1mb', type: '*/*' });
 
+
+//////// contribution code
+// Kevin Lee, Executive Director, Unibest INC, Owner of Howchip.com
+// Process for CORS problem
+app.use(function (req, res, next) {
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Methods', 'GET, PUT, POST, DELETE, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, X-M2M-RI, X-M2M-RSC, Accept, X-M2M-Origin, Locale');
+    res.header('Access-Control-Expose-Headers', 'Origin, X-Requested-With, Content-Type, X-M2M-RI, X-M2M-RSC, Accept, X-M2M-Origin, Locale');
+    (req.method === 'OPTIONS') ? res.sendStatus(200) : next();
+});
+
+
 // remoteCSE, ae, cnt
 app.post(onem2mParser, function (request, response) {
     // elapsed_tid = require('shortid').generate();
