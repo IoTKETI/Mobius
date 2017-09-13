@@ -1709,15 +1709,15 @@ function request_noti_mqtt(nu, bodyString, bodytype, xm2mri) {
 
         _mqtt_client.publish(noti_topic, bodyString);
         console.log('<---- [nonblocking-async-mqtt] ' + noti_topic);
+        _mqtt_client.end(true);
     });
 
     _mqtt_client.on('message', function (topic, message) {
         console.log('----> [nonblocking-async-mqtt] ' + topic + ' - ' + message);
-
-        _mqtt_client.end();
+        _mqtt_client.end(true);
     });
 
     _mqtt_client.on('error', function (error) {
-        _mqtt_client.end();
+        _mqtt_client.end(true);
     });
 }

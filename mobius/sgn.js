@@ -433,6 +433,9 @@ function request_noti_coap(nu, ri, bodyString, bodytype, xm2mri) {
     req.end();
 }
 
+var mqtt = require('mqtt');
+var _mqtt_client = {};
+
 function request_noti_mqtt(nu, ri, bodyString, bodytype, xm2mri) {
     var aeid = url.parse(nu).pathname.replace('/', '').split('?')[0];
     console.log('[request_noti_mqtt] - ' + aeid);
@@ -442,60 +445,84 @@ function request_noti_mqtt(nu, ri, bodyString, bodytype, xm2mri) {
         return;
     }
 
-    var mqtt = require('mqtt');
+    if(ss_fail_count[ri] > 0) {
+        _mqtt_client[ri].end(true);
+        _mqtt_client[ri] = null;
+    }
 
-    if(url.parse(nu).protocol == 'mqtt:') {
-        var _mqtt_client = mqtt.connect('mqtt://' + url.parse(nu).hostname + ':' + ((url.parse(nu).port != null) ? url.parse(nu).port : '1883'));
+
+    if(_mqtt_client[ri] == null) {
+        if (url.parse(nu).protocol == 'mqtt:') {
+            _mqtt_client[ri] = mqtt.connect('mqtt://' + url.parse(nu).hostname + ':' + ((url.parse(nu).port != null) ? url.parse(nu).port : '1883'));
+        }
+        else {
+            var connectOptions = {
+                host: usemqttbroker,
+                port: usemqttport,
+                protocol: "mqtts",
+                keepalive: 10,
+                //             clientId: serverUID,
+                protocolId: "MQTT",
+                protocolVersion: 4,
+                clean: true,
+                reconnectPeriod: 2000,
+                connectTimeout: 2000,
+                key: fs.readFileSync("./server-key.pem"),
+                cert: fs.readFileSync("./server-crt.pem"),
+                rejectUnauthorized: false
+            };
+            _mqtt_client[ri] = mqtt.connect(connectOptions);
+        }
     }
     else {
-        var connectOptions = {
-            host: usemqttbroker,
-            port: usemqttport,
-            protocol: "mqtts",
-            keepalive: 10,
-            //             clientId: serverUID,
-            protocolId: "MQTT",
-            protocolVersion: 4,
-            clean: true,
-            reconnectPeriod: 2000,
-            connectTimeout: 2000,
-            key: fs.readFileSync("./server-key.pem"),
-            cert: fs.readFileSync("./server-crt.pem"),
-            rejectUnauthorized: false
-        };
-        _mqtt_client = mqtt.connect(connectOptions);
-    }
-
-    _mqtt_client.on('connect', function () {
         ss_fail_count[ri]++;
 
         if (ss_fail_count[ri] > 8) {
             delete ss_fail_count[ri];
             delete_sub(ri, xm2mri);
-
-            _mqtt_client.end();
         }
         else {
             var resp_topic = util.format('/oneM2M/resp/%s/#', usecseid.replace('/', ''));
-            _mqtt_client.subscribe(resp_topic);
+            _mqtt_client[ri].subscribe(resp_topic);
             console.log('[request_noti_mqtt] subscribe resp_topic as ' + resp_topic);
 
             var noti_topic = util.format('/oneM2M/req/%s/%s/%s', usecseid.replace('/', ''), aeid, bodytype);
 
-            _mqtt_client.publish(noti_topic, bodyString);
+            _mqtt_client[ri].publish(noti_topic, bodyString);
+            console.log('<---- [request_noti_mqtt] ' + noti_topic);
+        }
+    }
+
+    _mqtt_client[ri].on('connect', function () {
+        ss_fail_count[ri]++;
+
+        if (ss_fail_count[ri] > 8) {
+            delete ss_fail_count[ri];
+            delete_sub(ri, xm2mri);
+        }
+        else {
+            var resp_topic = util.format('/oneM2M/resp/%s/#', usecseid.replace('/', ''));
+            _mqtt_client[ri].subscribe(resp_topic);
+            console.log('[request_noti_mqtt] subscribe resp_topic as ' + resp_topic);
+
+            var noti_topic = util.format('/oneM2M/req/%s/%s/%s', usecseid.replace('/', ''), aeid, bodytype);
+
+            _mqtt_client[ri].publish(noti_topic, bodyString);
             console.log('<---- [request_noti_mqtt] ' + noti_topic);
         }
     });
 
-    _mqtt_client.on('message', function (topic, message) {
+    _mqtt_client[ri].on('message', function (topic, message) {
         console.log('----> [request_noti_mqtt] ' + topic + ' - ' + message);
 
         ss_fail_count[ri] = 0;
-        _mqtt_client.end();
+        _mqtt_client[ri].end(true);
+        _mqtt_client[ri] = null;
     });
 
-    _mqtt_client.on('error', function (error) {
-        _mqtt_client.end();
+    _mqtt_client[ri].on('error', function (error) {
+        _mqtt_client[ri].end(true);
+        _mqtt_client[ri] = null;
     });
 }
 
