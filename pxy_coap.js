@@ -213,6 +213,9 @@ function coap_message_handler(request, response) {
                 var rsc = new Buffer(2);
                 rsc.writeUInt16BE(parseInt(res.headers['x-m2m-rsc'], 'hex'), 0);
                 response.setOption("265", rsc);    // X-M2M-RSC
+                var rqi = new Buffer(2);
+                rqi.writeUInt16BE(parseInt(res.headers['x-m2m-ri'], 'hex'), 0);
+                response.setOption("257", rqi);    // X-M2M-RQI
                 if (res.headers['content-type']) {
                     response.setOption("Content-Format", res.headers['content-type']);
                 }
@@ -244,6 +247,9 @@ function coap_message_handler(request, response) {
                 var rsc = new Buffer(2);
                 rsc.writeUInt16BE(parseInt(res.headers['x-m2m-rsc'], 'hex'), 0);
                 response.setOption("265", rsc);    // X-M2M-RSC
+                var rqi = new Buffer(2);
+                rqi.writeUInt16BE(parseInt(res.headers['x-m2m-ri'], 'hex'), 0);
+                response.setOption("257", rqi);    // X-M2M-RQI
                 if (res.headers['content-type']) {
                     response.setOption("Content-Format", res.headers['content-type']);
                 }

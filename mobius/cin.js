@@ -118,7 +118,12 @@ exports.build_cin = function(request, response, resource_Obj, body_Obj, callback
         return 'other';
     }*/
 
-    resource_Obj[rootnm].cs = Buffer.byteLength(resource_Obj[rootnm].con, 'utf8').toString();
+    if(getType(resource_Obj[rootnm].con) == 'string') {
+        resource_Obj[rootnm].cs = Buffer.byteLength(resource_Obj[rootnm].con, 'utf8').toString();
+    }
+    else {
+        resource_Obj[rootnm].cs = Buffer.byteLength(JSON.stringify(resource_Obj[rootnm].con), 'utf8').toString();
+    }
 
     make_sp_relative((body_Obj[rootnm].acpi) ? body_Obj[rootnm].acpi : []);
     resource_Obj[rootnm].acpi = (body_Obj[rootnm].acpi) ? body_Obj[rootnm].acpi : [];
