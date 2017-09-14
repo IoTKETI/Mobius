@@ -1045,6 +1045,7 @@ exports.create = function(request, response, ty, body_Obj, callback) {
                     var resource_Obj = {};
                     resource_Obj.uri = {};
                     resource_Obj.uri = create_Obj[rootnm].ri;
+                    resource_Obj.uri = resource_Obj.uri.replace('/', ''); // make cse relative uri
                     responder.response_result(request, response, status_code, resource_Obj, rsc_code, create_Obj[rootnm].ri, '');
                     callback(rsc);
                     return 0;
