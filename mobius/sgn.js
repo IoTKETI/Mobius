@@ -436,7 +436,7 @@ function request_noti_coap(nu, ri, bodyString, bodytype, xm2mri) {
 var mqtt = require('mqtt');
 var _mqtt_client = {};
 
-function request_noti_mqtt(nu, ri, bodyString, bodytype, xm2mri) {
+function request_noti_mqtt_action(nu, ri, bodyString, bodytype, xm2mri) {
     var aeid = url.parse(nu).pathname.replace('/', '').split('?')[0];
     console.log('[request_noti_mqtt] - ' + aeid);
 
@@ -444,13 +444,6 @@ function request_noti_mqtt(nu, ri, bodyString, bodytype, xm2mri) {
         console.log('[request_noti_mqtt] aeid of notification url is none');
         return;
     }
-
-    if(ss_fail_count[ri] > 0) {
-        _mqtt_client[ri].end(true, function () {
-            _mqtt_client[ri] = null;
-        });
-    }
-
 
     if(_mqtt_client[ri] == null) {
         if (url.parse(nu).protocol == 'mqtt:') {
@@ -482,10 +475,12 @@ function request_noti_mqtt(nu, ri, bodyString, bodytype, xm2mri) {
         if (ss_fail_count[ri] > 8) {
             delete ss_fail_count[ri];
             delete_sub(ri, xm2mri);
-            delete _mqtt_client[ri];
+            _mqtt_client[ri].end(function () {
+                delete _mqtt_client[ri];
+            });
         }
         else {
-            var resp_topic = util.format('/oneM2M/resp/%s/#', usecseid.replace('/', ''));
+            var resp_topic = util.format('/oneM2M/resp/%s/%s/%s', usecseid.replace('/', ''), aeid, bodytype);
             _mqtt_client[ri].subscribe(resp_topic);
             console.log('[request_noti_mqtt] subscribe resp_topic as ' + resp_topic);
 
@@ -500,16 +495,28 @@ function request_noti_mqtt(nu, ri, bodyString, bodytype, xm2mri) {
         console.log('----> [request_noti_mqtt] ' + topic + ' - ' + message);
 
         ss_fail_count[ri] = 0;
-        _mqtt_client[ri].end(true, function () {
-            _mqtt_client[ri] = null;
+        _mqtt_client[ri].end(function () {
+            delete _mqtt_client[ri];
         });
     });
 
     _mqtt_client[ri].on('error', function (error) {
         _mqtt_client[ri].end(true, function () {
-            _mqtt_client[ri] = null;
+            delete _mqtt_client[ri];
         });
     });
+}
+
+function request_noti_mqtt(nu, ri, bodyString, bodytype, xm2mri) {
+    if(ss_fail_count[ri] > 0) {
+        _mqtt_client[ri].end(function () {
+            delete _mqtt_client[ri];
+            request_noti_mqtt_action(nu, ri, bodyString, bodytype, xm2mri);
+        });
+    }
+    else {
+        request_noti_mqtt_action(nu, ri, bodyString, bodytype, xm2mri);
+    }
 }
 
 
