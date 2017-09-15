@@ -213,7 +213,7 @@ var ts_timer_id = {};
 var missing_detect_check = function(pei, mdd, mdt, cni, ri, callback) {
     var rsc = {};
     rsc.status = 2000;
-    if((pei != null && pei != '' && pei != '0') && (mdd != null && mdd == 'TRUE') && mdt != '0') {
+    if((pei != null && pei != '' && pei != '0') && (mdd != null && (mdd == 'TRUE'||mdd == 'true')) && mdt != '0') {
         if(ts_timer[ri] == null) {
             //ts_timer[ri] = new process.EventEmitter();
             var events = require('events');
@@ -306,19 +306,19 @@ ts_app.post('/missingDataDetect', onem2mParser, function(request, response) {
                 if (jsonObj['m2m:dbg']) {
                     var ts_ri = [];
                 }
-                else if (jsonObj['m2m:uril']['_'] == null) {
+                else if (jsonObj['m2m:uril'] == null) {
                     ts_ri = [];
                 }
                 else {
-                    ts_ri = jsonObj['m2m:uril']['_'].toString().split(' ');
+                    ts_ri = jsonObj['m2m:uril'].toString().split(' ');
                 }
 
                 var ts = {};
                 if (ts_ri.length >= 1) {
                     db_sql.select_ts_in(ts_ri, function (err, results_ts) {
                         if (!err) {
-                            if (results_ts.length >= 1) {
-                                missing_detect_check(results_ts[0].pei, results_ts[0].mdd, results_ts[0].mdt, results_ts[0].cni, results_ts[0].ri, function (rsc) {
+                            for (var i = 0; i < results_ts.length; i++) {
+                                missing_detect_check(results_ts[i].pei, results_ts[i].mdd, results_ts[i].mdt, results_ts[i].cni, results_ts[i].ri, function (rsc) {
                                     console.log(rsc);
                                 });
                             }
@@ -327,7 +327,7 @@ ts_app.post('/missingDataDetect', onem2mParser, function(request, response) {
                         response.setHeader('X-M2M-RSC', '2000');
 
                         ts.status = '2000';
-                        ts.ri = jsonObj['m2m:uril']['_'];
+                        ts.ri = jsonObj['m2m:uril'];
                         response.status(200).end(JSON.stringify(ts));
                     });
                 }

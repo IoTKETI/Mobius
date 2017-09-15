@@ -1,4 +1,18 @@
 {
+    "csebase": "onem2m",
+    "cseid": "onem2m",
     "csebaseport": "7579",
-    "dbpass": "dksdlfduq2"
+    "csetype": "in",
+    "dbhost": "localhost", 
+    "dbuser": "mobius",
+    "dbpass": "mobius",
+    "dbname": "mobiusdb",
+    "pxymqttport": 7580,
+    "pxycoapport": 5683,
+    "pxywsport": 7577,
+    "tsagentport": 7582,
+    "mqttbroker": "localhost",
+    "mqttport": 1883,
+    "secure": "disable",
+    "logDir": "./log"
 }

@@ -22,30 +22,34 @@ global.defaultbodytype      = 'json';
 
 
 // my CSE information
-global.usecsetype           = 'in'; // select 'in' or 'mn' or asn'
-global.usecsebase           = 'Mobius';
-global.usecseid             = '/Mobius';
+global.usecsetype           = conf.csetype; // select 'in' or 'mn' or asn'
+global.usecsebase           = conf.csebase;
+global.usecseid             = conf.cseid;
 global.usecsebaseport       = conf.csebaseport;
 
-global.usedbhost            = 'localhost';
+global.usedbhost            = conf.dbhost;
+global.usedbuser            = conf.dbuser;
 global.usedbpass            = conf.dbpass;
+global.usedbname            = conf.dbname;
 
+global.usepxywsport         = conf.pxywsport;
+global.usepxymqttport       = conf.pxymqttport;
+global.usepxycoapport       = conf.pxycoapport;
 
-global.usepxywsport         = '7577';
-global.usepxymqttport       = '7578';
+global.usetsagentport       = conf.tsagentport;
 
-
-global.usetsagentport       = '7582';
-
-global.usemqttbroker        = 'localhost'; // mqttbroker for mobius
+global.usemqttbroker        = conf.mqttbroker; // mqttbroker for mobius
+global.usemqttport          = conf.mqttport;
 
 global.usesecure            = 'disable';
 if(usesecure === 'enable') {
     global.usemqttport      = '8883';
 }
 else {
-    usemqttport             = '1883';
+    global.usemqttport          = conf.mqttport;
 }
+
+global.logDir        		= conf.logDir;
 
 global.wdt = require('./wdt');
 
