@@ -492,16 +492,16 @@ function request_noti_mqtt_action(nu, ri, bodyString, bodytype, xm2mri) {
     });
 
     _mqtt_client[ri].on('message', function (topic, message) {
-        console.log('----> [request_noti_mqtt - ' + ss_fail_count[ri] + '] ' + topic + ' - ' + message);
-
         ss_fail_count[ri] = 0;
         _mqtt_client[ri].end(function () {
+            console.log('----> [request_noti_mqtt - ' + ss_fail_count[ri] + '] ' + topic + ' - ' + message);
             delete _mqtt_client[ri];
         });
     });
 
     _mqtt_client[ri].on('error', function (error) {
         _mqtt_client[ri].end(true, function () {
+            console.log('[no response - ' + ss_fail_count[ri] + '] ');
             delete _mqtt_client[ri];
         });
     });
