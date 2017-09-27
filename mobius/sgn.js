@@ -482,17 +482,17 @@ function request_noti_mqtt_action(nu, ri, bodyString, bodytype, xm2mri) {
         else {
             var resp_topic = util.format('/oneM2M/resp/%s/%s/%s', usecseid.replace('/', ''), aeid, bodytype);
             _mqtt_client[ri].subscribe(resp_topic);
-            console.log('[request_noti_mqtt] subscribe resp_topic as ' + resp_topic);
+            //console.log('[request_noti_mqtt] subscribe resp_topic as ' + resp_topic);
 
             var noti_topic = util.format('/oneM2M/req/%s/%s/%s', usecseid.replace('/', ''), aeid, bodytype);
 
             _mqtt_client[ri].publish(noti_topic, bodyString);
-            console.log('<---- [request_noti_mqtt] ' + noti_topic);
+            console.log('<---- [request_noti_mqtt - ' + ss_fail_count[ri] + '] ' + noti_topic);
         }
     });
 
     _mqtt_client[ri].on('message', function (topic, message) {
-        console.log('----> [request_noti_mqtt] ' + topic + ' - ' + message);
+        console.log('----> [request_noti_mqtt - ' + ss_fail_count[ri] + '] ' + topic + ' - ' + message);
 
         ss_fail_count[ri] = 0;
         _mqtt_client[ri].end(function () {
