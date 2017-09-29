@@ -489,7 +489,8 @@ exports.modify_grp = function(request, response, resource_Obj, body_Obj, callbac
         resource_Obj[rootnm].mid = body_Obj[rootnm].mid;
 
         if(resource_Obj[rootnm].mt != '0') {
-            check_mtv(resource_Obj[rootnm].mt, resource_Obj[rootnm].mid, function(rsc, results_mid) {
+			// [TIM] error, request, response parameters missing
+            check_mtv(request, response, resource_Obj[rootnm].mt, resource_Obj[rootnm].mid, function(rsc, results_mid) {
                 if(rsc == '0') { // mt inconsistency
                     if(results_mid.length == '0') {
                         body_Obj = {};

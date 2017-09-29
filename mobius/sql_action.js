@@ -181,11 +181,10 @@ exports.insert_cin = function(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st,
     _this.insert_lookup(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st, mni, cs, cnf, sri, spi, function (err, results) {
         if(!err) {
             var con_type = getType(con);
-            var sql = util.format('insert into cin (ri, cr, cnf, cs, cin.or, con) ' +
-                'value (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
-                ri, cr, cnf, cs, or,
-                (con_type == 'string') ? con.replace(/'/g, "\\'") : JSON.stringify(con));
-            db.getResult(sql, '', function (err, results) {
+            // [TIM] fields escape is necessary for "content" field if containing special chars
+            var sql = 'insert into cin (ri, cr, cnf, cs, cin.or, con) value (?, ?, ?, ?, ?, ?)';
+            var values = [ri, cr, cnf, cs, or, (con_type == 'string') ? con : JSON.stringify(con)];
+            db.getResultEsc(sql, values, function (err, results) {
                 if(!err) {
                     console.timeEnd('insert_cin ' + ri);
                     callback(err, results);
@@ -197,6 +196,8 @@ exports.insert_cin = function(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st,
                     });
                 }
             });
+			
+			
         }
         else {
             callback(err, results);
@@ -698,12 +699,14 @@ function build_discovery_sql(ri, query, cur_lim, pi_list, bef_ct) {
             ty_str += util.format('ty = \'%s\'', query.ty);
         }
         else {
+			// [TIM]: query.ty must be splitted (ty can be 2 digits eg. ty=1,2,23)
+			var ty = query.ty.toString().split(',');
             query_where += ' (';
             ty_str += ' (';
-            for(i = 0; i < query.ty.length; i++) {
-                query_where += util.format('a.ty = \'%s\'', query.ty[i]);
-                ty_str += util.format('ty = \'%s\'', query.ty[i]);
-                if(i < query.ty.length-1) {
+            for(i = 0; i < ty.length; i++) {
+                query_where += util.format('a.ty = \'%s\'', ty[i]);
+                ty_str += util.format('ty = \'%s\'', ty[i]);
+                if(i < ty.length-1) {
                     query_where += ' or ';
                     ty_str += ' or ';
                 }
@@ -845,7 +848,7 @@ function build_discovery_sql(ri, query, cur_lim, pi_list, bef_ct) {
     query_where = util.format("select a.* from (select ri from lookup where ((ri = \'" + ri + "\') or pi in ("+JSON.stringify(pi_list).replace('[','').replace(']','')+")) %s and (ct > \'%s\')) b left join lookup as a on b.ri = a.ri", ty_str, bef_ct) + query_where;
     //query_where = util.format("select a.* from (select ri from lookup where ((ri = \'" + ri + "\') or pi in ("+JSON.stringify(pi_list).replace('[','').replace(']','')+")) %s and (ct > \'%s\' and ct <= \'%s\') limit 1000) b left join lookup as a on b.ri = a.ri", ty_str, bef_ct, cur_ct) + query_where;
     //query_where = util.format("select a.* from (select ri from lookup where (pi in ("+JSON.stringify(pi_list).replace('[','').replace(']','')+")) %s and (ct > \'%s\' and ct <= \'%s\') order by ct desc limit 1000) b left join lookup as a on b.ri = a.ri", ty_str, bef_ct, cur_ct) + query_where;
-
+	
     return query_where;
 }
 

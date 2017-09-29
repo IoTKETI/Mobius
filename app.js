@@ -17,6 +17,9 @@
 process.env.NODE_ENV = 'production';
 //process.env.NODE_ENV = 'development';
 
+require('./logger.js');
+logger.level = 'debug';
+
 var fs = require('fs');
 var http = require('http');
 var express = require('express');
@@ -67,7 +70,7 @@ global.randomValue = function (qty) {
     return crypto.randomBytes(qty).toString(2);
 };
 
-var logDirectory = __dirname + '/log';
+var logDirectory = global.logDir;
 
 // ensure log directory exists
 fs.existsSync(logDirectory) || fs.mkdirSync(logDirectory);
@@ -117,7 +120,7 @@ if (use_clustering) {
             cluster.fork();
         });
 
-        db.connect(usedbhost, 3306, 'root', usedbpass, function (rsc) {
+        db.connect(usedbhost, 3306, usedbuser, usedbpass, function (rsc) {
             if (rsc == '1') {
                 cb.create(function (rsp) {
                     console.log(JSON.stringify(rsp));
@@ -149,7 +152,7 @@ if (use_clustering) {
         //   app.use(bodyParser.text({limit: '1mb', type: 'application/*+xml' }));
 
 
-        db.connect(usedbhost, 3306, 'root', usedbpass, function (rsc) {
+        db.connect(usedbhost, 3306, usedbuser, usedbpass, function (rsc) {
             if (rsc == '1') {
                 if(usesecure === 'disable') {
                     http.globalAgent.maxSockets = 1000000;
@@ -179,7 +182,7 @@ if (use_clustering) {
     }
 }
 else {
-    db.connect(usedbhost, 3306, 'root', usedbpass, function (rsc) {
+    db.connect(usedbhost, 3306, usedbuser, usedbpass, function (rsc) {
         if (rsc == '1') {
             cb.create(function (rsp) {
                 console.log(JSON.stringify(rsp));

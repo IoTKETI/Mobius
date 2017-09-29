@@ -1184,10 +1184,10 @@ function search_action(request, response, seq, resource_Obj, ri_list, strObj, pr
         console.time('search_resource');
     }
 
-    if(request.query.ty != null) {
-        tbl = request.query.ty;
+    /* if(request.query.ty != null) {
+        tbl = request.query.ty;	// [TIM]: query.ty can be an ARRAY not only single value, so error in typeRsrc[tbl]
         seq = ty_list.length;
-    }
+    } */
 
     db_sql.select_in_ri_list(responder.typeRsrc[tbl], ri_list, 0, finding_Obj, 0, function (err, search_Obj) {
         if(!err) {
@@ -1368,6 +1368,10 @@ exports.retrieve = function(request, response, comm_Obj) {
                         if (rsc == '1') {
                             strObj += '}';
                             resource_Obj = JSON.parse(strObj);
+							
+							console.log("retrieve - rcn:",ri_list, resource_Obj)
+							
+							
                             for (var index in resource_Obj) {
                                 if (resource_Obj.hasOwnProperty(index)) {
                                     resource_Obj[index] = merge(resource_Obj[index], search_Obj[index]);

@@ -6,6 +6,7 @@
     "cbor": "^3.0.0",
     "coap": "^0.21.0",
     "crypto": "0.0.3",
+    "dateformat": "^3.0.2",
     "events": "^1.1.1",
     "express": "^4.15.1",
     "file-stream-rotator": "0.1.0",
@@ -23,6 +24,8 @@
     "url": "^0.11.0",
     "util": "^0.10.3",
     "websocket": "^1.0.24",
+    "winston": "^2.3.1",
+    "winston-daily-rotate-file": "^1.7.2",
     "xml2js": "^0.4.17",
     "xmlbuilder": "^9.0.1"
   },
