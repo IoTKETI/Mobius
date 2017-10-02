@@ -13,6 +13,7 @@
     "fs": "0.0.2",
     "http": "0.0.0",
     "https": "^1.0.0",
+    "https-proxy-agent": "^2.1.0",
     "ip": "^1.1.5",
     "js2xmlparser": "^3.0.0",
     "merge": "^1.2.0",

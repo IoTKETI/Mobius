@@ -18,6 +18,7 @@ var util = require('util');
 var url = require('url');
 var http = require('http');
 var https = require('https');
+var HttpsProxyAgent = require('https-proxy-agent');
 var coap = require('coap');
 var js2xmlparser = require('js2xmlparser');
 var xmlbuilder = require('xmlbuilder');
@@ -186,7 +187,7 @@ function sgn_action(rootnm, check_value, results_ss, noti_Obj, sub_bodytype) {
                     }
 
                     if (sub_bodytype == 'xml') {
-                        if (sub_nu.protocol == 'http:') {
+                        if (sub_nu.protocol == 'http:' || sub_nu.protocol == 'https:') {
                             node[Object.keys(node)[0]]['@'] = {
                                 "xmlns:m2m": "http://www.onem2m.org/xml/protocols",
                                 "xmlns:xsi": "http://www.w3.org/2001/XMLSchema-instance"
@@ -214,7 +215,7 @@ function sgn_action(rootnm, check_value, results_ss, noti_Obj, sub_bodytype) {
                         }
                     }
                     else if (sub_bodytype == 'cbor') {
-                        if (sub_nu.protocol == 'http:') {
+                        if (sub_nu.protocol == 'http:' || sub_nu.protocol == 'https:') {
                             //node['m2m:'+Object.keys(node)[0]] = node[Object.keys(node)[0]];
                             //delete node[Object.keys(node)[0]];
                             bodyString = cbor.encode(node).toString('hex');
@@ -236,7 +237,7 @@ function sgn_action(rootnm, check_value, results_ss, noti_Obj, sub_bodytype) {
                         }
                     }
                     else { // defaultbodytype == 'json')
-                        if (sub_nu.protocol == 'http:') {
+                        if (sub_nu.protocol == 'http:' || sub_nu.protocol == 'https:') {
                             //node['m2m:'+Object.keys(node)[0]] = node[Object.keys(node)[0]];
                             //delete node[Object.keys(node)[0]];
                             request_noti_http(nu, results_ss.ri, JSON.stringify(node), sub_bodytype, xm2mri);
@@ -314,68 +315,69 @@ exports.check = function(request, notiObj, check_value) {
 
 
 function request_noti_http(nu, ri, bodyString, bodytype, xm2mri) {
-    if(url.parse(nu).protocol == 'http:') {
+// [TIM} manage localhost, http and https, assuming there is a proxy configured
+    var ssl = nu.indexOf("https:")!==-1;
+    var _http = http;
+    if (nu.indexOf("localhost")==-1 && process.env.http_proxy) {
+        console.log("   >request_SS ----> EXT: "+nu);
+        // external url
+        if (ssl) {
+			// https
+            var agent = new HttpsProxyAgent(process.env.https_proxy);
+            var options = {
+                hostname: url.parse(nu).hostname,
+                port: url.parse(nu).port,
+                path: url.parse(nu).path,
+                method: 'POST',
+                agent: agent
+            };
+            _http = https;
+        } else {
+			// http
+            var options = {
+                hostname: url.parse(process.env.http_proxy).hostname,
+                port: url.parse(process.env.http_proxy).port,
+                path: nu,
+                method: 'POST'
+            };
+            _http = http;
+        }
+    } else {
+        // local url
         var options = {
             hostname: url.parse(nu).hostname,
             port: url.parse(nu).port,
             path: url.parse(nu).path,
-            method: 'POST',
-            headers: {
-                'X-M2M-RI': xm2mri,
-                'Accept': 'application/'+bodytype,
-                'X-M2M-Origin': usecseid,
-                'Content-Type': 'application/'+bodytype,
-                'ri': ri
-            }
+            method: 'POST'
         };
-
-        var bodyStr = '';
-        var req = http.request(options, function (res) {
-            res.on('data', function (chunk) {
-                bodyStr += chunk;
-            });
-
-            res.on('end', function () {
-                if(res.statusCode == 200 || res.statusCode == 201) {
-                    console.log('----> [request_noti_http] response for notification through http  ' + res.headers['x-m2m-rsc'] + ' - ' + ri);
-                    ss_fail_count[res.req._headers.ri] = 0;
-                }
-            });
-        });
     }
-    else {
-        options = {
-            hostname: url.parse(nu).hostname,
-            port: url.parse(nu).port,
-            path: url.parse(nu).path,
-            method: 'POST',
-            headers: {
-                'X-M2M-RI': xm2mri,
-                'Accept': 'application/'+bodytype,
-                'X-M2M-Origin': usecseid,
-                'Content-Type': 'application/'+bodytype,
-                'ri': ri
-            },
-            ca: fs.readFileSync('ca-crt.pem')
-        };
+    options.headers = {
+        'X-M2M-RI': xm2mri,
+        'Accept': 'application/'+bodytype,
+        'X-M2M-Origin': usecseid,
+        'Content-Type': 'application/'+bodytype,
+        'ri': ri
+    };
+	var bodyStr = '';
+	var req = _http.request(options, function (res) {
+		res.on('data', function (chunk) {
+			bodyStr += chunk;
+		});
 
-        req = https.request(options, function (res) {
-            res.on('data', function (chunk) {
-                bodyStr += chunk;
-            });
-
-            res.on('end', function () {
-                if(res.statusCode == 200 || res.statusCode == 201) {
-                    console.log('----> [request_noti_http] response for notification through http  ' + res.headers['x-m2m-rsc'] + ' - ' + ri);
-                    ss_fail_count[res.req._headers.ri] = 0;
-                }
-            });
-        });
-    }
+		res.on('end', function () {
+			if(res.statusCode == 200 || res.statusCode == 201) {
+				console.log('----> [request_noti_http] response for notification through http  ' + res.headers['x-m2m-rsc'] + ' - ' + ri);
+				ss_fail_count[res.req._headers.ri] = 0;
+			} else {
+				console.log('----> response for notification through http:', res.statusCode, res.statusMessage);
+			}
+		});
+	});
 
     req.on('error', function (e) {
         if(e.message != 'read ECONNRESET') {
             console.log('[request_noti_http] problem with request: ' + e.message);
+			req.abort();
         }
     });
 

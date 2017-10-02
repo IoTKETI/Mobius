@@ -1653,3 +1653,78 @@ exports.delete_req = function (callback) {
         }
     });
 };
+
+// [TIM] users management
+
+exports.get_user = function (username, callback) {
+    if (username)
+        var sql = util.format("select * from users where username = \'%s\';", username);
+    else
+        sql = util.format("select id,username,context,role,data from users where role<>'superadmin';");
+    
+    db.getResult(sql, '', function (err, user_Obj) {
+        if(!err) {
+            callback(user_Obj);
+        } else {
+            callback(null);
+        }
+    });
+};
+
+exports.insert_user = function(user_Obj, callback) {
+    console.time('insert_user ' + user_Obj.username);
+    if (user_Obj.data==undefined) user_Obj.data = null;
+    var sql = util.format('insert into users (username,context,role,password,`data`) ' +
+        'value (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
+        user_Obj.username, user_Obj.context, user_Obj.role, user_Obj.hashPwd, user_Obj.data);
+    db.getResult(sql, '', function (err, results) {
+        if(!err) {
+            console.timeEnd('insert_user ' + user_Obj.username);
+            callback();
+        } else {
+            callback(err);
+        }
+    });
+};
+
+exports.update_user = function (user_Obj, callback) {
+    console.time('update_user ' + user_Obj.username);
+    if (!user_Obj.context && !user_Obj.role) {
+        // update personal data
+        var sql2 = 'update users set `data` = ? where username = ?';
+        var values = [user_Obj.data, user_Obj.username];
+    } else {
+        // update all user data (except pwd)
+        var sql2 = 'update users set context = ?, role = ?, `data` = ? where username = ?';
+        var values = [user_Obj.context, user_Obj.role, user_Obj.data, user_Obj.username];
+    }
+    db.getResult1(sql2, values, function (err, results) {
+        if (!err) {
+            console.timeEnd('update_user ' + user_Obj.username);
+            callback();
+        } else {
+            callback(err);
+        }
+    });
+};
+
+exports.update_user_pwd = function (user_Obj, callback) {
+    console.time('update_user_pwd ' + user_Obj.username);
+    var sql2 = 'update users set password = ? where username = ?';
+    var values = [user_Obj.hashPwd, user_Obj.username];
+    db.getResult1(sql2, values, function (err, results) {
+        if (!err) {
+            console.timeEnd('update_user_pwd ' + user_Obj.username);
+            callback();
+        } else {
+            callback(err);
+        }
+    });
+};
+
+exports.delete_user = function (id, callback) {
+    var sql = util.format("DELETE FROM users WHERE id = \'%s\'", id);
+    db.getResult(sql, '', function (err, results) {
+        callback(err, results);
+    });
+};
