@@ -1358,7 +1358,7 @@ exports.retrieve = function(request, response, comm_Obj) {
                     resource_Obj = {};
                     resource_Obj.uril = {};
                     resource_Obj.uril = ri_list;
-                    make_cse_relative(ri_list);
+                    //make_cse_relative(ri_list);	// [TIM] path must begin with /
                     responder.search_result(request, response, 200, resource_Obj, 2000, comm_Obj.ri, '');
                 }
                 else if (request.query.rcn == 4 || request.query.rcn == 5 ||request.query.rcn == 6) {
