@@ -1602,9 +1602,12 @@ function update_action( request, response, ty, resource_Obj, callback) {
             });
     }
     else if(ty == '9') {
+		// [TIM]
+		var macp = resource_Obj[rootnm].macp;
+		if (typeof macp == "object") macp = JSON.stringify(resource_Obj[rootnm].macp);
         db_sql.update_grp(resource_Obj[rootnm].lt, JSON.stringify(resource_Obj[rootnm].acpi), resource_Obj[rootnm].et, resource_Obj[rootnm].st, JSON.stringify(resource_Obj[rootnm].lbl),
             JSON.stringify(resource_Obj[rootnm].at), JSON.stringify(resource_Obj[rootnm].aa), resource_Obj[rootnm].mni, resource_Obj[rootnm].ri,
-            resource_Obj[rootnm].mnm, JSON.stringify(resource_Obj[rootnm].mid), JSON.stringify(resource_Obj[rootnm].macp), resource_Obj[rootnm].gn, function (err, results) {
+            resource_Obj[rootnm].mnm, JSON.stringify(resource_Obj[rootnm].mid), macp, resource_Obj[rootnm].gn, function (err, results) {
                 if (!err) {
                     callback('1', resource_Obj);
                 }

@@ -1231,17 +1231,19 @@ exports.update_grp = function (lt, acpi, et, st, lbl, at, aa, mni, ri, mnm, mid,
         lt, acpi, et, st, lbl, at, aa, mni, ri);
     db.getResult(sql1, '', function (err, results) {
         if (!err) {
-            var sql2 = util.format('update grp set mnm = \'%s\', mid = \'%s\', macp = \'%s\', gn = \'%s\' where ri = \'%s\'',
-                mnm, mid, macp, gn, ri);
-            db.getResult(sql2, '', function (err, results) {
-                if (!err) {
+			// [TIM] need escaping to avoid errors in DB
+            var sql2 = 'update grp set mnm = ?, mid = ?, macp = ?, gn = ? where ri = ?';
+            var values = [mnm, mid, macp, gn, ri];
+            db.getResultEsc(sql2, values, function (err, results) {
+                if(!err) {
                     console.timeEnd('update_grp ' + ri);
                     callback(err, results);
                 }
                 else {
                     callback(err, results);
                 }
-            });
+            }); 
+			
         }
         else {
             callback(err, results);
