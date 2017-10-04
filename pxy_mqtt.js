@@ -312,6 +312,10 @@ function mqtt_message_handler(topic, message) {
     console.log('----> ' + topic);
     console.log(message.toString());
     var topic_arr = topic.split("/");
+	// [TIM] clean from ?auth query string
+	if(topic_arr[topic_arr.length-1].indexOf("?auth")!=-1) {
+		topic_arr[topic_arr.length-1] = topic_arr[topic_arr.length-1].split("?auth")[0];
+	}
     if(topic_arr[5] != null) {
         var bodytype = (topic_arr[5] == 'xml') ? topic_arr[5] : ((topic_arr[5] == 'json') ? topic_arr[5] : ((topic_arr[5] == 'cbor') ? topic_arr[5] : 'json'));
     }
@@ -382,7 +386,7 @@ function mqtt_message_handler(topic, message) {
                     result['m2m:rqp'] = result;
                 }
 
-                mqtt_message_action(pxymqtt_client, topic_arr, bodytype, result);
+                mqtt_message_action(pxymqtt_client, topic, topic_arr, bodytype, result);
             }
             else {
                 var resp_topic = '/oneM2M/resp/';
@@ -400,7 +404,7 @@ function mqtt_message_handler(topic, message) {
                 result['m2m:rqp'] = result;
             }
             if(rsc == '1') {
-                mqtt_message_action(pxymqtt_client, topic_arr, bodytype, result);
+                mqtt_message_action(pxymqtt_client, topic, topic_arr, bodytype, result);
             }
             else {
                 var resp_topic = '/oneM2M/resp/';
@@ -417,7 +421,7 @@ function mqtt_message_handler(topic, message) {
     }
 }
 
-function mqtt_message_action(mqtt_client, topic_arr, bodytype, jsonObj) {
+function mqtt_message_action(mqtt_client, topic, topic_arr, bodytype, jsonObj) {
     if (jsonObj['m2m:rqp'] != null) {
         var op = (jsonObj['m2m:rqp'].op == null) ? '' : jsonObj['m2m:rqp'].op;
         var to = (jsonObj['m2m:rqp'].to == null) ? '' : jsonObj['m2m:rqp'].to;
@@ -451,7 +455,13 @@ function mqtt_message_action(mqtt_client, topic_arr, bodytype, jsonObj) {
             resp_topic += (topic_arr[3] + '/' + topic_arr[4] + '/' + topic_arr[5]);
 
             if (to.split('/')[1].split('?')[0] == usecsebase) {
-                mqtt_binding(op, to, fr, rqi, ty, pc, bodytype, function (res, res_body) {
+				// [TIM] auth query string in topic
+				var auth = topic.split("?");
+				if (auth.length==2) {
+					auth = auth[1].replace("auth=", "");
+					//console.log(">>>>>MQTT.auth=",auth);
+				} else auth = null;
+                mqtt_binding(op, to, fr, rqi, ty, pc, bodytype, auth, function (res, res_body) {
                     if (res_body == '') {
                         res_body = '{}';
                     }
@@ -484,7 +494,7 @@ function mqtt_message_action(mqtt_client, topic_arr, bodytype, jsonObj) {
     }
 }
 
-function mqtt_binding(op, to, fr, rqi, ty, pc, bodytype, callback) {
+function mqtt_binding(op, to, fr, rqi, ty, pc, bodytype, auth, callback) {
     var content_type = 'application/vnd.onem2m-res+json';
 
     switch (op.toString()) {
@@ -510,18 +520,24 @@ function mqtt_binding(op, to, fr, rqi, ty, pc, bodytype, callback) {
 
     var bodyStr = '';
 
+	// {TIM]
+	var headers = {
+			'X-M2M-RI': rqi,
+			'Accept': 'application/json',
+			'X-M2M-Origin': fr,
+			'Content-Type': content_type
+		};
+	if (auth) {
+		headers['Authorization'] = auth;
+		headers['user-agent'] = "proxy-mqtt";	// [TIM]
+	}
     if(usesecure == 'disable') {
         var options = {
             hostname: usemqttcbhost,
             port: usecsebaseport,
             path: to,
             method: op,
-            headers: {
-                'X-M2M-RI': rqi,
-                'Accept': 'application/json',
-                'X-M2M-Origin': fr,
-                'Content-Type': content_type
-            }
+            headers: headers
         };
 
         var req = http.request(options, function (res) {
@@ -542,12 +558,7 @@ function mqtt_binding(op, to, fr, rqi, ty, pc, bodytype, callback) {
             port: usecsebaseport,
             path: to,
             method: op,
-            headers: {
-                'X-M2M-RI': rqi,
-                'Accept': 'application/json',
-                'X-M2M-Origin': fr,
-                'Content-Type': content_type
-            },
+            headers: headers,
             ca: fs.readFileSync('ca-crt.pem')
         };
 

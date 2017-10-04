@@ -18,7 +18,7 @@ process.env.NODE_ENV = 'production';
 //process.env.NODE_ENV = 'development';
 
 require('./logger.js');
-logger.level = 'debug';
+logger.level = 'info';
 
 var fs = require('fs');
 var http = require('http');
