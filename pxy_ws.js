@@ -113,11 +113,19 @@ exports.ws_watchdog = function() {
                     console.log((new Date()) + ' Connection from origin ' + request.origin + ' rejected.');
                     return;
                 }
-
+				
+				//[TIM] retrieve auth query param from search string of request url
+				
+				if (request.resourceURL.search && request.resourceURL.search.indexOf("?auth")!=-1) {
+					var auth = request.resourceURL.search.replace("?auth=","");
+					console.log(">>>>>WS.auth=",auth);
+				} else auth = null;
+				
                 for (var index in request.requestedProtocols) {
                     if(request.requestedProtocols.hasOwnProperty(index)) {
                         if(request.requestedProtocols[index] === 'onem2m.r2.0.xml') {
                             var connection = request.accept('onem2m.r2.0.xml', request.origin);
+							connection.auth = auth;
                             console.log((new Date()) + ' Connection accepted. (xml)');
                             connection.on('message', ws_message_handler);
                             connection.on('close', function (reasonCode, description) {
@@ -127,6 +135,7 @@ exports.ws_watchdog = function() {
                         }
                         else if(request.requestedProtocols[index] === 'onem2m.r2.0.cbor') {
                             var connection = request.accept('onem2m.r2.0.cbor', request.origin);
+							connection.auth = auth;
                             console.log((new Date()) + ' Connection accepted. (cbor)');
                             connection.on('message', ws_message_handler);
                             connection.on('close', function (reasonCode, description) {
@@ -136,6 +145,7 @@ exports.ws_watchdog = function() {
                         }
                         else if(request.requestedProtocols[index] === 'onem2m.r2.0.json') {
                             var connection = request.accept('onem2m.r2.0.json', request.origin);
+							connection.auth = auth;
                             console.log((new Date()) + ' Connection accepted. (json)');
                             connection.on('message', ws_message_handler);
                             connection.on('close', function (reasonCode, description) {
@@ -363,7 +373,7 @@ function ws_message_action(connection, bodytype, jsonObj) {
 
         try {
             if (to.split('/')[1].split('?')[0] == usecsebase) {
-                ws_binding(op, to, fr, rqi, ty, pc, bodytype, function (res, res_body) {
+                ws_binding(op, to, fr, rqi, ty, pc, bodytype, connection.auth, function (res, res_body) {
                     if (res_body == '') {
                         res_body = '{}';
                     }
@@ -386,7 +396,7 @@ function ws_message_action(connection, bodytype, jsonObj) {
     }
 }
 
-function ws_binding(op, to, fr, rqi, ty, pc, bodytype, callback) {
+function ws_binding(op, to, fr, rqi, ty, pc, bodytype, auth, callback) {
     var content_type = 'application/vnd.onem2m-res+json';
 
     switch (op.toString()) {
@@ -411,6 +421,18 @@ function ws_binding(op, to, fr, rqi, ty, pc, bodytype, callback) {
     }
 
     var bodyStr = '';
+	
+	// [TIM] authorization headers
+	var headers = {
+		'X-M2M-RI': rqi,
+		'Accept': 'application/json',
+		'X-M2M-Origin': fr,
+		'Content-Type': content_type
+	};
+	if (auth) {
+		headers['Authorization'] = auth;
+		headers['user-agent'] = "proxy-ws";	// [TIM]
+	}
 
     if(usesecure == 'disable') {
         var options = {
@@ -418,12 +440,7 @@ function ws_binding(op, to, fr, rqi, ty, pc, bodytype, callback) {
             port: usecsebaseport,
             path: to,
             method: op,
-            headers: {
-                'X-M2M-RI': rqi,
-                'Accept': 'application/json',
-                'X-M2M-Origin': fr,
-                'Content-Type': content_type
-            }
+            headers: headers
         };
 
         var req = http.request(options, function (res) {
@@ -444,12 +461,7 @@ function ws_binding(op, to, fr, rqi, ty, pc, bodytype, callback) {
             port: usecsebaseport,
             path: to,
             method: op,
-            headers: {
-                'X-M2M-RI': rqi,
-                'Accept': 'application/json',
-                'X-M2M-Origin': fr,
-                'Content-Type': content_type
-            },
+            headers: headers,
             ca: fs.readFileSync('ca-crt.pem')
         };
 
