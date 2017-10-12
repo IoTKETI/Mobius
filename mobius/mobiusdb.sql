@@ -2,7 +2,7 @@
 --
 -- Host: localhost    Database: mobiusdb
 -- ------------------------------------------------------
--- Server version	5.7.18-log
+-- Server version	5.7.19-log
 
 /*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
 /*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
@@ -338,6 +338,9 @@ CREATE TABLE `smd` (
   `cr` varchar(45) DEFAULT NULL,
   `dcrp` longtext,
   `or` mediumtext,
+  `dsp` longtext,
+  `soe` varchar(200) DEFAULT NULL,
+  `rels` varchar(400) DEFAULT NULL,
   PRIMARY KEY (`ri`),
   UNIQUE KEY `ri_UNIQUE` (`ri`),
   CONSTRAINT `sd_ri` FOREIGN KEY (`ri`) REFERENCES `lookup` (`ri`) ON DELETE CASCADE ON UPDATE CASCADE
@@ -446,4 +449,4 @@ CREATE TABLE `tsi` (
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2017-09-01  9:42:36
+-- Dump completed on 2017-10-12 13:34:30

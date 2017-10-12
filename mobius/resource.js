@@ -727,10 +727,10 @@ function create_action(request, response, ty, resource_Obj, callback) {
                     });
             }
             else if (ty == '24') {
-                db_sql.insert_sd(resource_Obj[rootnm].ty, resource_Obj[rootnm].ri, resource_Obj[rootnm].rn, resource_Obj[rootnm].pi, resource_Obj[rootnm].ct,
+                db_sql.insert_smd(resource_Obj[rootnm].ty, resource_Obj[rootnm].ri, resource_Obj[rootnm].rn, resource_Obj[rootnm].pi, resource_Obj[rootnm].ct,
                     resource_Obj[rootnm].lt, resource_Obj[rootnm].et, JSON.stringify(resource_Obj[rootnm].acpi), JSON.stringify(resource_Obj[rootnm].lbl), JSON.stringify(resource_Obj[rootnm].at),
                     JSON.stringify(resource_Obj[rootnm].aa), resource_Obj[rootnm].st, resource_Obj[rootnm].mni, resource_Obj[rootnm].cs, resource_Obj[rootnm].cnf, resource_Obj[rootnm].sri, resource_Obj[rootnm].spi,
-                    resource_Obj[rootnm].cr, resource_Obj[rootnm].dcrp, resource_Obj[rootnm].or, function (err, results) {
+                    resource_Obj[rootnm].cr, resource_Obj[rootnm].dsp, resource_Obj[rootnm].dcrp, resource_Obj[rootnm].soe, JSON.stringify(resource_Obj[rootnm].rels), resource_Obj[rootnm].or, function (err, results) {
                         if (!err) {
                             callback('1', resource_Obj);
                         }
@@ -1275,6 +1275,9 @@ function retrieve_action(request, response, ty, comm_Obj, callback) {
                 if (spec_Obj[0].cas) {
                     spec_Obj[0].cas = JSON.parse(spec_Obj[0].cas);
                 }
+                if (spec_Obj[0].rels) {
+                    spec_Obj[0].rels = JSON.parse(spec_Obj[0].rels);
+                }
                 if (spec_Obj[0].con) {
                     try {
                         spec_Obj[0].con = JSON.parse(spec_Obj[0].con);
@@ -1789,7 +1792,7 @@ function update_action( request, response, ty, resource_Obj, callback) {
     else if(ty == '24') {
         db_sql.update_sd(resource_Obj[rootnm].lt, JSON.stringify(resource_Obj[rootnm].acpi), resource_Obj[rootnm].et, resource_Obj[rootnm].st, JSON.stringify(resource_Obj[rootnm].lbl),
             JSON.stringify(resource_Obj[rootnm].at), JSON.stringify(resource_Obj[rootnm].aa), resource_Obj[rootnm].mni, resource_Obj[rootnm].ri,
-            resource_Obj[rootnm].dcrp, resource_Obj[rootnm].or, function (err, results) {
+            resource_Obj[rootnm].dsp, resource_Obj[rootnm].dcrp, resource_Obj[rootnm].soe, JSON.stringify(resource_Obj[rootnm].rels), resource_Obj[rootnm].or, function (err, results) {
                 if (!err) {
                     callback('1', resource_Obj);
                 }
