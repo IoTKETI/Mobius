@@ -336,6 +336,7 @@ DROP TABLE IF EXISTS `smd`;
 CREATE TABLE `smd` (
   `ri` varchar(200) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
   `cr` varchar(45) DEFAULT NULL,
+  `dsp` longtext,
   `dcrp` longtext,
   `or` mediumtext,
   PRIMARY KEY (`ri`),

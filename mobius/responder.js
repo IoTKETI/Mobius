@@ -220,7 +220,10 @@ const attrLname = {
     "aai":  "allowedApp-IDs",
     "aae":  "allowedAEs",
     "rsp": "responsePrimitive",
-    "dcrp": "descriptor",
+    "dsp": "descriptor",
+    "dcrp": "descriptorRepresenation",
+    "soe": "semanticOpExec",
+    "rels": "relatedSemantics",
     "pei":"periodicInterval",
     "mdd":"missingDataDetect",
     "mdn":"missingDataMaxNr",
@@ -509,7 +512,10 @@ const attrSname = {
     "allowedAEs"                   :"aae",
     "singleNotification":  "sgn",
     "responsePrimitive":"rsp",
-    "descriptor":"dcrp",
+    "descriptor":"dsp",
+    "descriptorRepresenation": "dcrp",
+    "semanticOpExec": "soe",
+    "relatedSemantics": "rels",
     "periodicInterval":"pei",
     "missingDataDetect":"mdd",
     "missingDataMaxNr":"mdn",
@@ -806,7 +812,7 @@ function typeCheckAction(index1, body_Obj) {
                 index2 == 'mdn' || index2 == 'mdc' || index2 == 'mdt' || index2 == 'pei' || index2 == 'mnm') {
 
                 if ((index1 == 'm2m:cin' || index1 == 'm2m:nod' || index1 == 'm2m:ae' || index1 == 'm2m:sub' || index1 == 'm2m:acp' || index1 == 'm2m:csr' || index1 == 'm2m:grp'
-                    || index1 == 'm2m:fwr' || index1 == 'm2m:bat' || index1 == 'm2m:dvi' || index1 == 'm2m:dvc' || index1 == 'm2m:rbo') && index2 == 'mni') {
+                    || index1 == 'm2m:fwr' || index1 == 'm2m:bat' || index1 == 'm2m:dvi' || index1 == 'm2m:dvc' || index1 == 'm2m:rbo' || index1 == 'm2m:smd') && index2 == 'mni') {
                     delete body_Obj[index2];
                 }
                 else if ((index1 == 'm2m:cb' || index1 == 'm2m:csr' || index1 == 'm2m:ae' || index1 == 'm2m:acp' || index1 == 'm2m:grp' || index1 == 'm2m:sub' || index1 == 'm2m:nod'
@@ -951,6 +957,7 @@ function xmlAction(xml, body_Obj) {
             else if (attr == 'membersAccessControlPolicyIDs' || attr == 'macp') {
                 xml.ele(attr, body_Obj[attr].toString().replace(/,/g, ' '));
             }
+
             else if (attr == 'pc') {
                 xml2 = xml.ele(attr, '');
                 for (var sub_attr in body_Obj[attr]) {

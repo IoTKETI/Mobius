@@ -74,6 +74,14 @@ exports.build_sd = function(request, response, resource_Obj, body_Obj, callback)
     }
 
     // check M
+    if(!body_Obj[rootnm].dsp) {
+        body_Obj = {};
+        body_Obj['dbg'] = 'dsp as M Tag should be included';
+        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
+        callback('0', resource_Obj);
+        return '0';
+    }
+
     if(!body_Obj[rootnm].dcrp) {
         body_Obj = {};
         body_Obj['dbg'] = 'dcrp as M Tag should be included';
@@ -83,6 +91,7 @@ exports.build_sd = function(request, response, resource_Obj, body_Obj, callback)
     }
 
     // body
+    resource_Obj[rootnm].dsp = body_Obj[rootnm].dsp;
     resource_Obj[rootnm].dcrp = body_Obj[rootnm].dcrp;
 
     make_sp_relative((body_Obj[rootnm].acpi) ? body_Obj[rootnm].acpi : []);
@@ -94,6 +103,8 @@ exports.build_sd = function(request, response, resource_Obj, body_Obj, callback)
 
     resource_Obj[rootnm].or = (body_Obj[rootnm].or) ? body_Obj[rootnm].or : '';
     resource_Obj[rootnm].cr = (body_Obj[rootnm].cr) ? body_Obj[rootnm].cr : request.headers['x-m2m-origin'];
+    resource_Obj[rootnm].soe = (body_Obj[rootnm].soe) ? body_Obj[rootnm].soe : '';
+    resource_Obj[rootnm].rels = (body_Obj[rootnm].rels) ? body_Obj[rootnm].rels : [];
 
     if (resource_Obj[rootnm].et != '') {
         if (resource_Obj[rootnm].et < resource_Obj[rootnm].ct) {

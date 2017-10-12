@@ -293,7 +293,7 @@ global.make_json_arraytype = function (body_Obj) {
         if (body_Obj.hasOwnProperty(prop)) {
             for (var attr in body_Obj[prop]) {
                 if (body_Obj[prop].hasOwnProperty(attr)) {
-                    if (attr == 'aa' || attr == 'at' || attr == 'poa' || attr == 'lbl' || attr == 'acpi' || attr == 'srt' || attr == 'nu' || attr == 'mid' || attr == 'macp') {
+                    if (attr == 'aa' || attr == 'at' || attr == 'poa' || attr == 'lbl' || attr == 'acpi' || attr == 'srt' || attr == 'nu' || attr == 'mid' || attr == 'macp' || attr == 'rels') {
                         if (body_Obj[prop][attr]) {
                             body_Obj[prop][attr] = body_Obj[prop][attr].split(' ');
                         }
@@ -774,6 +774,16 @@ function check_http(request, response, callback) {
                             else {
                                 body_Obj = {};
                                 body_Obj['dbg'] = 'cas should have can and sus key in json format';
+                                responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
+                                callback('0', body_Obj, request, response);
+                                return '0';
+                            }
+                        }
+
+                        if (body_Obj[prop].rels) {
+                            if (!Array.isArray(body_Obj[prop].rels)) {
+                                body_Obj = {};
+                                body_Obj['dbg'] = 'rels should be json array format';
                                 responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
                                 callback('0', body_Obj, request, response);
                                 return '0';
