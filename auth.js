@@ -75,7 +75,7 @@ function check_head_auth(request, response, callback) {
                     logger.log("debug",'>>>>>>>user2: ',user_Obj,"url:",request.url);
                     // ok user present
                     if (user_Obj[0].role=="tenant") {
-                        if (user_Obj[0].context.indexOf(context)!=-1) {
+                        if (user_Obj[0].context.indexOf(context)!=-1 && context) {
                             // ok, context enabled fot this user
                             callback('1');
                             return '1';

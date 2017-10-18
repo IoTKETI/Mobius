@@ -120,7 +120,7 @@ if (use_clustering) {
             cluster.fork();
         });
 
-        db.connect(usedbhost, 3306, usedbuser, usedbpass, function (rsc) {
+        db.connect(usedbhost, 3306, usedbname, usedbuser, usedbpass, function (rsc) {
             if (rsc == '1') {
                 cb.create(function (rsp) {
                     console.log(JSON.stringify(rsp));
@@ -152,7 +152,7 @@ if (use_clustering) {
         //   app.use(bodyParser.text({limit: '1mb', type: 'application/*+xml' }));
 
 
-        db.connect(usedbhost, 3306, usedbuser, usedbpass, function (rsc) {
+        db.connect(usedbhost, 3306, usedbname, usedbuser, usedbpass, function (rsc) {
             if (rsc == '1') {
                 if(usesecure === 'disable') {
                     http.globalAgent.maxSockets = 1000000;
@@ -182,7 +182,7 @@ if (use_clustering) {
     }
 }
 else {
-    db.connect(usedbhost, 3306, usedbuser, usedbpass, function (rsc) {
+    db.connect(usedbhost, 3306, usedbname, usedbuser, usedbpass, function (rsc) {
         if (rsc == '1') {
             cb.create(function (rsp) {
                 console.log(JSON.stringify(rsp));

@@ -19,13 +19,13 @@ var mysql_pool = null;
 //var _this = this;
 
 
-exports.connect = function (host, port, user, password, callback) {
+exports.connect = function (host, port, database, user, password, callback) {
     mysql_pool = mysql.createPool({
         host: host,
         port: port,
         user: user,
         password: password,
-        database: 'mobiusdb',
+        database: database,
         connectionLimit: 100,
         waitForConnections: true,
         debug: false,

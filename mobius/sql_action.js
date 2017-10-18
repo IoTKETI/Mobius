@@ -1073,7 +1073,7 @@ exports.select_in_ri_list = function (tbl, ri_list, ri_index, found_Obj, loop_cn
 
     if(loop_cnt == 0) {
         tid = require('shortid').generate();
-        console.time('select_in_ri_list (' + tid + ')');
+        // [TIM] console.time('select_in_ri_list (' + tid + ')');
     }
 
     for(var idx = 0; idx < 8; idx++) {
@@ -1093,7 +1093,7 @@ exports.select_in_ri_list = function (tbl, ri_list, ri_index, found_Obj, loop_cn
             }
 
             if(ri_index >= ri_list.length) {
-                console.timeEnd('select_in_ri_list (' + tid + ')');
+                // [TIM] console.timeEnd('select_in_ri_list (' + tid + ')');
                 callback(err, found_Obj);
             }
             else {

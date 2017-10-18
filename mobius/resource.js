@@ -1373,10 +1373,7 @@ exports.retrieve = function(request, response, comm_Obj) {
                         if (rsc == '1') {
                             strObj += '}';
                             resource_Obj = JSON.parse(strObj);
-							
-							console.log("retrieve - rcn:",ri_list, resource_Obj)
-							
-							
+			//console.log("retrieve - rcn:",ri_list, resource_Obj)
                             for (var index in resource_Obj) {
                                 if (resource_Obj.hasOwnProperty(index)) {
                                     resource_Obj[index] = merge(resource_Obj[index], search_Obj[index]);
