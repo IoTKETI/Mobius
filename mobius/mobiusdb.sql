@@ -212,7 +212,6 @@ CREATE TABLE `lookup` (
   `st` varchar(45) DEFAULT NULL,
   `mni` varchar(45) DEFAULT NULL,
   `cs` varchar(45) DEFAULT NULL,
-  `cnf` varchar(45) DEFAULT NULL,
   `sri` varchar(45) DEFAULT NULL,
   `spi` varchar(45) DEFAULT NULL,
   PRIMARY KEY (`pi`,`ty`,`ct`,`ri`),
