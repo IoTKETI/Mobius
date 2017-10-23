@@ -96,13 +96,13 @@ function make_cbor_noti_message(pc, xm2mri) {
     }
 }
 
-function make_json_noti_message(pc, xm2mri) {
+function make_json_noti_message(nu, pc, xm2mri) {
     try {
         var noti_message = {};
         noti_message['m2m:rqp'] = {};
         noti_message['m2m:rqp'].op = 5; // notification
         noti_message['m2m:rqp'].net = pc['m2m:sgn'].net;
-        //noti_message['m2m:rqp'].to = pc['m2m:sgn'].sur;
+        noti_message['m2m:rqp'].to =nu;
         noti_message['m2m:rqp'].fr = usecseid;
         noti_message['m2m:rqp'].rqi = xm2mri;
 
@@ -247,11 +247,11 @@ function sgn_action(rootnm, check_value, results_ss, noti_Obj, sub_bodytype) {
                             request_noti_coap(nu, results_ss.ri, JSON.stringify(node), sub_bodytype, xm2mri);
                         }
                         else if (sub_nu.protocol == 'ws:') {
-                            bodyString = make_json_noti_message(node, xm2mri);
+                            bodyString = make_json_noti_message(nu, node, xm2mri);
                             request_noti_ws(nu, results_ss.ri, bodyString, sub_bodytype, xm2mri);
                         }
                         else { // mqtt:
-                            bodyString = make_json_noti_message(node, xm2mri);
+                            bodyString = make_json_noti_message(nu, node, xm2mri);
                             request_noti_mqtt(nu, results_ss.ri, bodyString, sub_bodytype, xm2mri);
                         }
                     }
