@@ -42,7 +42,7 @@ function set_sri_sri(ri, sri, callback) {
     });
 }
 
-exports.insert_lookup = function(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st, mni, cs, cnf, sri, spi, callback) {
+exports.insert_lookup = function(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st, mni, cs, sri, spi, callback) {
     console.time('insert_lookup ' + ri);
     var sql = util.format('insert into lookup (' +
         'ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st, mni, cs, sri, spi) ' +
@@ -58,9 +58,9 @@ exports.insert_lookup = function(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, 
     });
 };
 
-exports.insert_cb = function(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st, mni, cs, cnf, sri, spi, cst, csi, srt, poa, nl, ncp, callback) {
+exports.insert_cb = function(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st, mni, cs, sri, spi, cst, csi, srt, poa, nl, ncp, callback) {
     console.time('insert_cb ' + ri);
-    _this.insert_lookup(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st, mni, cs, cnf, sri, spi, function (err, results) {
+    _this.insert_lookup(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st, mni, cs, sri, spi, function (err, results) {
         if(!err) {
             var sql = util.format('insert into cb (' +
                 'ri, cst, csi, srt, poa, nl, ncp) ' +
@@ -86,9 +86,9 @@ exports.insert_cb = function(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st, 
     });
 };
 
-exports.insert_acp = function(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st, mni, cs, cnf, sri, spi, pv, pvs, callback) {
+exports.insert_acp = function(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st, mni, cs, sri, spi, pv, pvs, callback) {
     console.time('insert_acp ' + ri);
-    _this.insert_lookup(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st, mni, cs, cnf, sri, spi, function (err, results) {
+    _this.insert_lookup(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st, mni, cs, sri, spi, function (err, results) {
         if(!err) {
             var sql = util.format('insert into acp (ri, pv, pvs) ' +
                 'value (\'%s\', \'%s\', \'%s\')',
@@ -112,9 +112,9 @@ exports.insert_acp = function(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st,
     });
 };
 
-exports.insert_ae = function(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st, mni, cs, cnf, sri, spi, apn, api, aei, poa, or, nl, rr, callback) {
+exports.insert_ae = function(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st, mni, cs, sri, spi, apn, api, aei, poa, or, nl, rr, callback) {
     console.time('insert_ae ' + ri);
-    _this.insert_lookup(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st, mni, cs, cnf, sri, spi, function (err, results) {
+    _this.insert_lookup(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st, mni, cs, sri, spi, function (err, results) {
         if(!err) {
             var sql = util.format('insert into ae (ri, apn, api, aei, poa, ae.or, nl, rr) ' +
                 'value (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
@@ -142,9 +142,9 @@ exports.insert_ae = function(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st, 
     });
 };
 
-exports.insert_cnt = function(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st, mni, cs, cnf, sri, spi, cr, mbs, mia, cni, cbs, li, or, callback) {
+exports.insert_cnt = function(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st, mni, cs, sri, spi, cr, mbs, mia, cni, cbs, li, or, callback) {
     console.time('insert_cnt ' + ri);
-    _this.insert_lookup(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st, mni, cs, cnf, sri, spi, function (err, results) {
+    _this.insert_lookup(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st, mni, cs, sri, spi, function (err, results) {
         if(!err) {
             var sql = util.format('insert into cnt (ri, cr, mni, mbs, mia, cni, cbs, li, cnt.or) ' +
                 'value (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
@@ -178,14 +178,13 @@ global.getType = function (p) {
 
 exports.insert_cin = function(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st, mni, cs, cnf, sri, spi, cr, or, con, callback) {
     console.time('insert_cin ' + ri);
-    _this.insert_lookup(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st, mni, cs, cnf, sri, spi, function (err, results) {
+    _this.insert_lookup(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st, mni, cs, sri, spi, function (err, results) {
         if(!err) {
             var con_type = getType(con);
-            var sql = util.format('insert into cin (ri, cr, cnf, cs, cin.or, con) ' +
-                'value (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
-                ri, cr, cnf, cs, or,
-                (con_type == 'string') ? con.replace(/'/g, "\\'") : JSON.stringify(con));
-            db.getResult(sql, '', function (err, results) {
+            // [TIM] fields escape is necessary for "content" field if containing special chars
+            var sql = 'insert into cin (ri, cr, cnf, cs, cin.or, con) value (?, ?, ?, ?, ?, ?)';
+            var values = [ri, cr, cnf, cs, or, (con_type == 'string') ? con : JSON.stringify(con)];
+            db.getResultEsc(sql, values, function (err, results) {
                 if(!err) {
                     console.timeEnd('insert_cin ' + ri);
                     callback(err, results);
@@ -197,6 +196,8 @@ exports.insert_cin = function(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st,
                     });
                 }
             });
+			
+			
         }
         else {
             callback(err, results);
@@ -204,9 +205,9 @@ exports.insert_cin = function(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st,
     });
 };
 
-exports.insert_grp = function(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st, mni, cs, cnf, sri, spi, cr, mt, cnm, mnm, mid, macp, mtv, csy, gn, callback) {
+exports.insert_grp = function(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st, mni, cs, sri, spi, cr, mt, cnm, mnm, mid, macp, mtv, csy, gn, callback) {
     console.time('insert_grp ' + ri);
-    _this.insert_lookup(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st, mni, cs, cnf, sri, spi, function (err, results) {
+    _this.insert_lookup(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st, mni, cs, sri, spi, function (err, results) {
         if(!err) {
             var sql = util.format('insert into grp (ri, cr, mt, cnm, mnm, mid, macp, mtv, csy, gn) ' +
                 'value (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
@@ -231,9 +232,9 @@ exports.insert_grp = function(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st,
     });
 };
 
-exports.insert_lcp = function(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st, mni, cs, cnf, sri, spi, los, lou, lot, lor, loi, lon, lost, callback) {
+exports.insert_lcp = function(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st, mni, cs, sri, spi, los, lou, lot, lor, loi, lon, lost, callback) {
     console.time('insert_lcp ' + ri);
-    _this.insert_lookup(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st, mni, cs, cnf, sri, spi, function (err, results) {
+    _this.insert_lookup(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st, mni, cs, sri, spi, function (err, results) {
         if(!err) {
             var sql = util.format('insert into lcp (ri, los, lou, lot, lor, loi, lon, lost) ' +
                 'value (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
@@ -258,9 +259,9 @@ exports.insert_lcp = function(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st,
     });
 };
 
-exports.insert_fwr = function(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st, mni, cs, cnf, sri, spi, mgd, objs, obps, dc, vr, fwnnam, url, ud, uds, callback) {
+exports.insert_fwr = function(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st, mni, cs, sri, spi, mgd, objs, obps, dc, vr, fwnnam, url, ud, uds, callback) {
     console.time('insert_fwr ' + ri);
-    _this.insert_lookup(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st, mni, cs, cnf, sri, spi, function (err, results) {
+    _this.insert_lookup(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st, mni, cs, sri, spi, function (err, results) {
         if(!err) {
             var sql = util.format('insert into mgo (ri, mgd, objs, obps, dc, vr, fwnnam, url, ud, uds) ' +
                 'value (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
@@ -284,9 +285,9 @@ exports.insert_fwr = function(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st,
     });
 };
 
-exports.insert_bat = function(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st, mni, cs, cnf, sri, spi, mgd, objs, obps, dc, btl, bts, callback) {
+exports.insert_bat = function(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st, mni, cs, sri, spi, mgd, objs, obps, dc, btl, bts, callback) {
     console.time('insert_bat ' + ri);
-    _this.insert_lookup(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st, mni, cs, cnf, sri, spi, function (err, results) {
+    _this.insert_lookup(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st, mni, cs, sri, spi, function (err, results) {
         if(!err) {
             var sql = util.format('insert into mgo (ri, mgd, objs, obps, dc, btl, bts) ' +
                 'value (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
@@ -310,9 +311,9 @@ exports.insert_bat = function(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st,
     });
 };
 
-exports.insert_dvi = function(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st, mni, cs, cnf, sri, spi, mgd, objs, obps, dc, dbl, man, mod, dty, fwv, swv, hwv, callback) {
+exports.insert_dvi = function(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st, mni, cs, sri, spi, mgd, objs, obps, dc, dbl, man, mod, dty, fwv, swv, hwv, callback) {
     console.time('insert_dvi ' + ri);
-    _this.insert_lookup(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st, mni, cs, cnf, sri, spi, function (err, results) {
+    _this.insert_lookup(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st, mni, cs, sri, spi, function (err, results) {
         if(!err) {
             var sql = util.format('insert into mgo (ri, mgd, objs, obps, dc, dbl, man, mgo.mod, dty, fwv, swv, hwv) ' +
                 'value (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
@@ -336,9 +337,9 @@ exports.insert_dvi = function(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st,
     });
 };
 
-exports.insert_dvc = function(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st, mni, cs, cnf, sri, spi, mgd, objs, obps, dc, can, att, cas, cus, ena, dis, callback) {
+exports.insert_dvc = function(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st, mni, cs, sri, spi, mgd, objs, obps, dc, can, att, cas, cus, ena, dis, callback) {
     console.time('insert_dvc ' + ri);
-    _this.insert_lookup(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st, mni, cs, cnf, sri, spi, function (err, results) {
+    _this.insert_lookup(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st, mni, cs, sri, spi, function (err, results) {
         if(!err) {
             var sql = util.format('insert into mgo (ri, mgd, objs, obps, dc, can, att, cas, cus, ena, dis) ' +
                 'value (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
@@ -362,9 +363,9 @@ exports.insert_dvc = function(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st,
     });
 };
 
-exports.insert_rbo = function(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st, mni, cs, cnf, sri, spi, mgd, objs, obps, dc, rbo, far, callback) {
+exports.insert_rbo = function(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st, mni, cs, sri, spi, mgd, objs, obps, dc, rbo, far, callback) {
     console.time('insert_rbo ' + ri);
-    _this.insert_lookup(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st, mni, cs, cnf, sri, spi, function (err, results) {
+    _this.insert_lookup(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st, mni, cs, sri, spi, function (err, results) {
         if(!err) {
             var sql = util.format('insert into mgo (ri, mgd, objs, obps, dc, rbo, far) ' +
                 'value (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
@@ -388,9 +389,9 @@ exports.insert_rbo = function(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st,
     });
 };
 
-exports.insert_nod = function(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st, mni, cs, cnf, sri, spi, ni, hcl, callback) {
+exports.insert_nod = function(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st, mni, cs, sri, spi, ni, hcl, callback) {
     console.time('insert_nod ' + ri);
-    _this.insert_lookup(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st, mni, cs, cnf, sri, spi, function (err, results) {
+    _this.insert_lookup(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st, mni, cs, sri, spi, function (err, results) {
         if(!err) {
             var sql = util.format('insert into nod (ri, ni, hcl) ' +
                 'value (\'%s\', \'%s\', \'%s\')',
@@ -414,9 +415,9 @@ exports.insert_nod = function(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st,
     });
 };
 
-exports.insert_csr = function(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st, mni, cs, cnf, sri, spi, cst, poa, cb, csi, mei, tri, rr, nl, callback) {
+exports.insert_csr = function(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st, mni, cs, sri, spi, cst, poa, cb, csi, mei, tri, rr, nl, callback) {
     console.time('insert_csr ' + ri);
-    _this.insert_lookup(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st, mni, cs, cnf, sri, spi, function (err, results) {
+    _this.insert_lookup(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st, mni, cs, sri, spi, function (err, results) {
         if(!err) {
             var sql = util.format('insert into csr (ri, cst, poa, cb, csi, mei, tri, rr, nl) ' +
                 'value (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
@@ -441,9 +442,9 @@ exports.insert_csr = function(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st,
     });
 };
 
-exports.insert_req = function(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st, mni, cs, cnf, sri, spi, op, tg, org, rid, mi, pc, rs, ors, callback) {
+exports.insert_req = function(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st, mni, cs, sri, spi, op, tg, org, rid, mi, pc, rs, ors, callback) {
     console.time('insert_req ' + ri);
-    _this.insert_lookup(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st, mni, cs, cnf, sri, spi, function (err, results) {
+    _this.insert_lookup(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st, mni, cs, sri, spi, function (err, results) {
         if(!err) {
             var sql = util.format('insert into req (ri, op, tg, org, rid, mi, pc, rs, ors) ' +
                 'value (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
@@ -467,9 +468,9 @@ exports.insert_req = function(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st,
     });
 };
 
-exports.insert_sub = function(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st, mni, cs, cnf, sri, spi, enc, exc, nu, gpi, nfu, bn, rl, psn, pn, nsp, ln, nct, nec, cr, su, callback) {
+exports.insert_sub = function(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st, mni, cs, sri, spi, enc, exc, nu, gpi, nfu, bn, rl, psn, pn, nsp, ln, nct, nec, cr, su, callback) {
     console.time('insert_sub ' + ri);
-    _this.insert_lookup(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st, mni, cs, cnf, sri, spi, function (err, results) {
+    _this.insert_lookup(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st, mni, cs, sri, spi, function (err, results) {
         if(!err) {
             var sql = util.format('insert into sub (ri, pi, enc, exc, nu, gpi, nfu, bn, rl, psn, pn, nsp, ln, nct, nec, cr, su) ' +
                 'value (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
@@ -496,9 +497,9 @@ exports.insert_sub = function(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st,
     });
 };
 
-exports.insert_smd = function(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st, mni, cs, cnf, sri, spi, cr, dsp, dcrp, soe, rels, or, callback) {
+exports.insert_smd = function(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st, mni, cs, sri, spi, cr, dsp, dcrp, soe, rels, or, callback) {
     console.time('insert_smd ' + ri);
-    _this.insert_lookup(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st, mni, cs, cnf, sri, spi, function (err, results) {
+    _this.insert_lookup(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st, mni, cs, sri, spi, function (err, results) {
         if(!err) {
             var sql = util.format('insert into smd (ri, cr, dsp, dcrp, soe, rels, smd.or) ' +
                 'value (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
@@ -522,9 +523,9 @@ exports.insert_smd = function(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st,
     });
 };
 
-exports.insert_ts = function(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st, mni, cs, cnf, sri, spi, cr, mbs, mia, cni, cbs, or, pei, mdd, mdn, mdl, mdc, mdt, callback) {
+exports.insert_ts = function(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st, mni, cs, sri, spi, cr, mbs, mia, cni, cbs, or, pei, mdd, mdn, mdl, mdc, mdt, callback) {
     console.time('insert_ts ' + ri);
-    _this.insert_lookup(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st, mni, cs, cnf, sri, spi, function (err, results) {
+    _this.insert_lookup(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st, mni, cs, sri, spi, function (err, results) {
         if(!err) {
             var sql = util.format('insert into ts (ri, cr, mni, mbs, mia, cni, cbs, ts.or, pei, mdd, mdn, mdl, mdc, mdt) ' +
                 'value (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', ' +
@@ -551,9 +552,9 @@ exports.insert_ts = function(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st, 
     });
 };
 
-exports.insert_tsi = function(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st, mni, cs, cnf, sri, spi, dgt, con, sqn, callback) {
+exports.insert_tsi = function(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st, mni, cs, sri, spi, dgt, con, sqn, callback) {
     console.time('insert_tsi ' + ri);
-    _this.insert_lookup(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st, mni, cs, cnf, sri, spi, function (err, results) {
+    _this.insert_lookup(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st, mni, cs, sri, spi, function (err, results) {
         if(!err) {
             var sql = util.format('insert into tsi (ri, dgt, con, sqn) ' +
                 'value (\'%s\', \'%s\', \'%s\', \'%s\')',
@@ -577,9 +578,9 @@ exports.insert_tsi = function(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st,
     });
 };
 
-exports.insert_mms = function(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st, mni, cs, cnf, sri, spi, sid, soid, stid, asd, osd, sst, callback) {
+exports.insert_mms = function(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st, mni, cs, sri, spi, sid, soid, stid, asd, osd, sst, callback) {
     console.time('insert_mms ' + ri);
-    _this.insert_lookup(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st, mni, cs, cnf, sri, spi, function (err, results) {
+    _this.insert_lookup(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st, mni, cs, sri, spi, function (err, results) {
         if(!err) {
             var sql = util.format('insert into mms (ri, sid, soid, stid, asd, osd, sst) ' +
                 'value (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
@@ -698,12 +699,14 @@ function build_discovery_sql(ri, query, cur_lim, pi_list, bef_ct) {
             ty_str += util.format('ty = \'%s\'', query.ty);
         }
         else {
+			// [TIM]: query.ty must be splitted (ty can be 2 digits eg. ty=1,2,23)
+			var ty = query.ty.toString().split(',');
             query_where += ' (';
             ty_str += ' (';
-            for(i = 0; i < query.ty.length; i++) {
-                query_where += util.format('a.ty = \'%s\'', query.ty[i]);
-                ty_str += util.format('ty = \'%s\'', query.ty[i]);
-                if(i < query.ty.length-1) {
+            for(i = 0; i < ty.length; i++) {
+                query_where += util.format('a.ty = \'%s\'', ty[i]);
+                ty_str += util.format('ty = \'%s\'', ty[i]);
+                if(i < ty.length-1) {
                     query_where += ' or ';
                     ty_str += ' or ';
                 }
@@ -845,7 +848,7 @@ function build_discovery_sql(ri, query, cur_lim, pi_list, bef_ct) {
     query_where = util.format("select a.* from (select ri from lookup where ((ri = \'" + ri + "\') or pi in ("+JSON.stringify(pi_list).replace('[','').replace(']','')+")) %s and (ct > \'%s\')) b left join lookup as a on b.ri = a.ri", ty_str, bef_ct) + query_where;
     //query_where = util.format("select a.* from (select ri from lookup where ((ri = \'" + ri + "\') or pi in ("+JSON.stringify(pi_list).replace('[','').replace(']','')+")) %s and (ct > \'%s\' and ct <= \'%s\') limit 1000) b left join lookup as a on b.ri = a.ri", ty_str, bef_ct, cur_ct) + query_where;
     //query_where = util.format("select a.* from (select ri from lookup where (pi in ("+JSON.stringify(pi_list).replace('[','').replace(']','')+")) %s and (ct > \'%s\' and ct <= \'%s\') order by ct desc limit 1000) b left join lookup as a on b.ri = a.ri", ty_str, bef_ct, cur_ct) + query_where;
-
+	
     return query_where;
 }
 
@@ -1070,7 +1073,7 @@ exports.select_in_ri_list = function (tbl, ri_list, ri_index, found_Obj, loop_cn
 
     if(loop_cnt == 0) {
         tid = require('shortid').generate();
-        console.time('select_in_ri_list (' + tid + ')');
+        // [TIM] console.time('select_in_ri_list (' + tid + ')');
     }
 
     for(var idx = 0; idx < 8; idx++) {
@@ -1090,7 +1093,7 @@ exports.select_in_ri_list = function (tbl, ri_list, ri_index, found_Obj, loop_cn
             }
 
             if(ri_index >= ri_list.length) {
-                console.timeEnd('select_in_ri_list (' + tid + ')');
+                // [TIM] console.timeEnd('select_in_ri_list (' + tid + ')');
                 callback(err, found_Obj);
             }
             else {
@@ -1228,17 +1231,19 @@ exports.update_grp = function (lt, acpi, et, st, lbl, at, aa, mni, ri, mnm, mid,
         lt, acpi, et, st, lbl, at, aa, mni, ri);
     db.getResult(sql1, '', function (err, results) {
         if (!err) {
-            var sql2 = util.format('update grp set mnm = \'%s\', mid = \'%s\', macp = \'%s\', gn = \'%s\' where ri = \'%s\'',
-                mnm, mid, macp, gn, ri);
-            db.getResult(sql2, '', function (err, results) {
-                if (!err) {
+			// [TIM] need escaping to avoid errors in DB
+            var sql2 = 'update grp set mnm = ?, mid = ?, macp = ?, gn = ? where ri = ?';
+            var values = [mnm, mid, macp, gn, ri];
+            db.getResultEsc(sql2, values, function (err, results) {
+                if(!err) {
                     console.timeEnd('update_grp ' + ri);
                     callback(err, results);
                 }
                 else {
                     callback(err, results);
                 }
-            });
+            }); 
+			
         }
         else {
             callback(err, results);
@@ -1648,5 +1653,80 @@ exports.delete_req = function (callback) {
         if(!err) {
             callback(err, delete_Obj);
         }
+    });
+};
+
+// [TIM] users management
+
+exports.get_user = function (username, callback) {
+    if (username)
+        var sql = util.format("select * from users where username = \'%s\';", username);
+    else
+        sql = util.format("select id,username,context,role,data from users where role<>'superadmin';");
+    
+    db.getResult(sql, '', function (err, user_Obj) {
+        if(!err) {
+            callback(user_Obj);
+        } else {
+            callback(null);
+        }
+    });
+};
+
+exports.insert_user = function(user_Obj, callback) {
+    console.time('insert_user ' + user_Obj.username);
+    if (user_Obj.data==undefined) user_Obj.data = null;
+    var sql = util.format('insert into users (username,context,role,password,`data`) ' +
+        'value (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
+        user_Obj.username, user_Obj.context, user_Obj.role, user_Obj.hashPwd, user_Obj.data);
+    db.getResult(sql, '', function (err, results) {
+        if(!err) {
+            console.timeEnd('insert_user ' + user_Obj.username);
+            callback();
+        } else {
+            callback(err);
+        }
+    });
+};
+
+exports.update_user = function (user_Obj, callback) {
+    console.time('update_user ' + user_Obj.username);
+    if (!user_Obj.context && !user_Obj.role) {
+        // update personal data
+        var sql2 = 'update users set `data` = ? where username = ?';
+        var values = [user_Obj.data, user_Obj.username];
+    } else {
+        // update all user data (except pwd)
+        var sql2 = 'update users set context = ?, role = ?, `data` = ? where username = ?';
+        var values = [user_Obj.context, user_Obj.role, user_Obj.data, user_Obj.username];
+    }
+    db.getResult1(sql2, values, function (err, results) {
+        if (!err) {
+            console.timeEnd('update_user ' + user_Obj.username);
+            callback();
+        } else {
+            callback(err);
+        }
+    });
+};
+
+exports.update_user_pwd = function (user_Obj, callback) {
+    console.time('update_user_pwd ' + user_Obj.username);
+    var sql2 = 'update users set password = ? where username = ?';
+    var values = [user_Obj.hashPwd, user_Obj.username];
+    db.getResult1(sql2, values, function (err, results) {
+        if (!err) {
+            console.timeEnd('update_user_pwd ' + user_Obj.username);
+            callback();
+        } else {
+            callback(err);
+        }
+    });
+};
+
+exports.delete_user = function (id, callback) {
+    var sql = util.format("DELETE FROM users WHERE id = \'%s\'", id);
+    db.getResult(sql, '', function (err, results) {
+        callback(err, results);
     });
 };

@@ -101,10 +101,10 @@ exports.coap_watchdog = function () {
     else if(coap_state === 'connect') {
         if(pxycoap_server == null) {
             pxycoap_server = coap.createServer();
-            pxycoap_server.listen(usecsebaseport, function() {
+            pxycoap_server.listen(usepxycoapport, function() {
                 var options = {
                     host: 'localhost',
-                    port: usecsebaseport,
+                    port: usepxycoapport,
                     pathname: '/'+usecsebase,
                     method: 'get',
                     confirmable: 'false',
@@ -168,9 +168,14 @@ function coap_message_handler(request, response) {
             }
             else if (request.options[idx].name == '267') { // 'X-M2M-TY
                 headers['X-M2M-TY'] = Buffer.isBuffer(request.options[idx].value) ? request.options[idx].value[0].toString() : request.options[idx].value.toString();
+			} else if (request.options[idx].name == '271') { // Authorization [TIM]
+                headers['Authorization'] = Buffer.isBuffer(request.options[idx].value) ? request.options[idx].value.toString() : request.options[idx].value;
+				//console.log(">>>>>COAP.auth=",headers['Authorization'],request.options[idx]);
             }
         }
     }
+	
+	headers['user-agent'] = "proxy-coap";	// [TIM]
 
     if(request.headers['Accept'])
     {

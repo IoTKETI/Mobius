@@ -17,6 +17,9 @@
 process.env.NODE_ENV = 'production';
 //process.env.NODE_ENV = 'development';
 
+require('./logger.js');
+logger.level = 'info';
+
 var fs = require('fs');
 var http = require('http');
 var express = require('express');
@@ -67,7 +70,7 @@ global.randomValue = function (qty) {
     return crypto.randomBytes(qty).toString(2);
 };
 
-var logDirectory = __dirname + '/log';
+var logDirectory = global.logDir;
 
 // ensure log directory exists
 fs.existsSync(logDirectory) || fs.mkdirSync(logDirectory);
@@ -117,7 +120,7 @@ if (use_clustering) {
             cluster.fork();
         });
 
-        db.connect(usedbhost, 3306, 'root', usedbpass, function (rsc) {
+        db.connect(usedbhost, 3306, usedbname, usedbuser, usedbpass, function (rsc) {
             if (rsc == '1') {
                 cb.create(function (rsp) {
                     console.log(JSON.stringify(rsp));
@@ -149,7 +152,7 @@ if (use_clustering) {
         //   app.use(bodyParser.text({limit: '1mb', type: 'application/*+xml' }));
 
 
-        db.connect(usedbhost, 3306, 'root', usedbpass, function (rsc) {
+        db.connect(usedbhost, 3306, usedbname, usedbuser, usedbpass, function (rsc) {
             if (rsc == '1') {
                 if(usesecure === 'disable') {
                     http.globalAgent.maxSockets = 1000000;
@@ -179,7 +182,7 @@ if (use_clustering) {
     }
 }
 else {
-    db.connect(usedbhost, 3306, 'root', usedbpass, function (rsc) {
+    db.connect(usedbhost, 3306, usedbname, usedbuser, usedbpass, function (rsc) {
         if (rsc == '1') {
             cb.create(function (rsp) {
                 console.log(JSON.stringify(rsp));
@@ -457,6 +460,24 @@ function check_http_body(request, response, callback) {
 }
 
 function check_http(request, response, callback) {
+	// [TIM] if configured check authorization before checking other headers
+    var body_Obj = {};
+    
+    if (authorization) {
+        auth.check_head_auth(request, response, function(rsc) {
+            if (rsc == '0') {
+                callback('0', body_Obj);
+                return '0';
+            } else {
+                _check_http(request, response, callback);
+            }
+        });
+    } else {
+        _check_http(request, response, callback);
+    }
+}
+
+function _check_http(request, response, callback) {
     request.headers.rootnm = 'dbg';
 
     var body_Obj = {};
@@ -1449,6 +1470,9 @@ var onem2mParser = bodyParser.text(
 );
 //var onem2mParser = bodyParser.text({ limit: '1mb', type: '*/*' });
 
+// [TIM] import auth library and config it
+const auth = require("./auth.js");
+auth.init({onem2mParser:onem2mParser, responder:responder, crypto:crypto, db:db, db_sql:db_sql, logger:logger});
 
 //////// contribution code
 // Kevin Lee, Executive Director, Unibest INC, Owner of Howchip.com
@@ -1514,7 +1538,7 @@ app.post(onem2mParser, function (request, response) {
                             responder.error_result(request, response, 500, 5000, body_Obj['dbg']);
                         }
                         else if (rsc == '1') {
-                            forward_http(body_Obj.forwardcbhost, body_Obj.forwardcbport, request, response);
+                            forward_http(body_Obj, request, response);
                         }
                         else if (rsc == '2') {
                             responder.error_result(request, response, 500, 5000, 'forwarding with mqtt is not supported');
@@ -1580,7 +1604,7 @@ app.get(onem2mParser, function (request, response) {
                             responder.error_result(request, response, 500, 5000, body_Obj['dbg']);
                         }
                         else if (rsc == '1') {
-                            forward_http(body_Obj.forwardcbhost, body_Obj.forwardcbport, request, response);
+                            forward_http(body_Obj, request, response);
                         }
                         else if (rsc == '2') {
                             responder.error_result(request, response, 500, 5000, 'forwarding with mqtt is not supported');
@@ -1650,7 +1674,7 @@ app.put(onem2mParser, function (request, response) {
                             responder.error_result(request, response, 500, 5000, body_Obj['dbg']);
                         }
                         else if (rsc == '1') {
-                            forward_http(body_Obj.forwardcbhost, body_Obj.forwardcbport, request, response);
+                            forward_http(body_Obj, request, response);
                         }
                         else if (rsc == '2') {
                             responder.error_result(request, response, 500, 5000, 'forwarding with mqtt is not supported');
@@ -1719,7 +1743,7 @@ app.delete(onem2mParser, function (request, response) {
                             responder.error_result(request, response, 500, 5000, body_Obj['dbg']);
                         }
                         else if (rsc == '1') {
-                            forward_http(body_Obj.forwardcbhost, body_Obj.forwardcbport, request, response);
+                            forward_http(body_Obj, request, response);
                         }
                         else if (rsc == '2') {
                             responder.error_result(request, response, 500, 5000, 'forwarding with mqtt is not supported');
@@ -1744,7 +1768,9 @@ function check_csr(absolute_url, callback) {
                 body_Obj.forwardcbname = result_csr[0].cb.replace('/', '');
                 var poa_arr = JSON.parse(result_csr[0].poa);
                 for (var i = 0; i < poa_arr.length; i++) {
-                    if (url.parse(poa_arr[i]).protocol == 'http:') {
+					var prot = url.parse(poa_arr[i]).protocol;
+                    if (prot == 'http:' || prot == 'https:') {
+						body_Obj.forwardcbprot = prot;
                         body_Obj.forwardcbhost = url.parse(poa_arr[i]).hostname;
                         body_Obj.forwardcbport = url.parse(poa_arr[i]).port;
 
@@ -1752,7 +1778,7 @@ function check_csr(absolute_url, callback) {
 
                         callback('1', body_Obj);
                     }
-                    else if (url.parse(poa_arr[i]).protocol == 'mqtt:') {
+                    else if (prot == 'mqtt:') {
                         body_Obj.forwardcbmqtt = url.parse(poa_arr[i]).hostname;
 
                         callback('2', body_Obj);
@@ -1778,16 +1804,48 @@ function check_csr(absolute_url, callback) {
 }
 
 
-function forward_http(forwardcbhost, forwardcbport, request, response) {
-    var options = {
-        hostname: forwardcbhost,
-        port: forwardcbport,
-        path: request.url,
-        method: request.method,
-        headers: request.headers
-    };
+function forward_http(body_Obj, request, response) {
+	// [TIM} manage localhost, http and https, assuming there is a proxy configured
+	var path = request.url.replace(body_Obj.csr, body_Obj.forwardcbname);
+    var uri = body_Obj.forwardcbprot+"//"+body_Obj.forwardcbhost+":"+body_Obj.forwardcbport+path;
+    var ssl = body_Obj.forwardcbprot.indexOf("https:")!==-1;
+    var _http = http;
+    if (ssl) {
+		var HttpsProxyAgent = require('https-proxy-agent');
+		console.log('[forward_https] uri: ' + uri);
+        var agent = new HttpsProxyAgent(process.env.https_proxy);
+        var options = {
+            hostname: body_Obj.forwardcbhost,
+            port: body_Obj.forwardcbport,
+            path: path,
+            method: request.method,
+            headers: request.headers,
+            agent: agent
+        };
+        _http = https;
+    } else {
+	    console.log('[forward_http] uri: ' + uri);
+		if (process.env.http_proxy) {
+			var options = {
+				hostname: url.parse(process.env.http_proxy).hostname,
+				port: url.parse(process.env.http_proxy).port,
+				path: uri,
+				method: request.method,
+				headers: request.headers
+			};
+		} else {
+			var options = {
+				hostname: body_Obj.forwardcbhost,
+				port: body_Obj.forwardcbport,
+				path: request.url,
+				method: request.method,
+				headers: request.headers
+			};
+		}
+        _http = http;
+    }
 
-    var req = http.request(options, function (res) {
+    var req = _http.request(options, function (res) {
         var fullBody = '';
         res.on('data', function (chunk) {
             fullBody += chunk.toString();
