@@ -215,7 +215,8 @@ function coap_message_handler(request, response) {
                 response.setOption("265", rsc);    // X-M2M-RSC
                 //var rqi = new Buffer(2);
                 //rqi.writeUInt16BE(parseInt(res.headers['x-m2m-ri'], 'hex'), 0);
-                var rqi = res.headers['x-m2m-ri'];
+                //var rqi = res.headers['x-m2m-ri'];
+                var rqi = Buffer.from(res.headers['x-m2m-ri'], 'utf-8');
                 response.setOption("257", rqi);    // X-M2M-RQI
                 if (res.headers['content-type']) {
                     response.setOption("Content-Format", res.headers['content-type']);
