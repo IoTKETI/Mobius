@@ -805,7 +805,11 @@ function typeCheckAction(index1, body_Obj) {
             if (body_Obj[index2] == null || body_Obj[index2] == '' || body_Obj[index2] == 'undefined' || body_Obj[index2] == '[]') {
                 delete body_Obj[index2];
             }
-
+            else if (index2 == 'et') {
+                if (index1 == 'm2m:cb') {
+                    delete body_Obj[index2];
+                }
+            }
             else if (index2 == 'cst' || index2 == 'los' || index2 == 'mt' || index2 == 'csy' || index2 == 'nct' ||
                 index2 == 'cs' || index2 == 'st' || index2 == 'ty' || index2 == 'cbs' || index2 == 'cni' || index2 == 'mni' ||
                 index2 == 'cnm' || index2 == 'mia' || index2 == 'mbs' || index2 == 'cnf' || index2 == 'mgd' || index2 == 'btl' || index2 == 'bts' ||
@@ -897,1050 +901,261 @@ function typeCheckAction(index1, body_Obj) {
     }
 }
 
+function xmlInsert(xml, body_Obj, attr_name) {
+    for (var attr in body_Obj) {
+        if (body_Obj.hasOwnProperty(attr)) {
+            if (attr == attr_name) {
+                xml.ele(attr, body_Obj[attr]);
+                delete body_Obj[attr];
+                break;
+            }
+        }
+    }
+}
 
+function xmlInsertAfter(xml, body_Obj, attr_name, attr_name_after) {
+    for (var attr in body_Obj) {
+        if (body_Obj.hasOwnProperty(attr)) {
+            if (attr == attr_name) {
+                xml.ele(attr, body_Obj[attr]).insertAfter(attr_name_after);
+                delete body_Obj[attr];
+                break;
+            }
+        }
+    }
+}
+
+function xmlInsertList(xml, body_Obj, attr_name) {
+    for (var attr in body_Obj) {
+        if (body_Obj.hasOwnProperty(attr)) {
+            if (attr == attr_name) {
+                xml.ele(attr, body_Obj[attr].toString().replace(/,/g, ' '));
+                delete body_Obj[attr];
+                break;
+            }
+        }
+    }
+}
 
 function xmlAction(xml, body_Obj) {
+    xmlInsert(xml, body_Obj, 'ty');
+    xmlInsert(xml, body_Obj, 'ri');
+    xmlInsert(xml, body_Obj, 'pi');
+    xmlInsert(xml, body_Obj, 'ct');
+    xmlInsert(xml, body_Obj, 'lt');
+    xmlInsertList(xml, body_Obj, 'lbl');
+    xmlInsertList(xml, body_Obj, 'acpi');
+
     if(xml.name === 'm2m:cb') {
-        for (var attr in body_Obj) {
-            if (body_Obj.hasOwnProperty(attr)) {
-                if (attr == 'acpi') {
-                    xml.ele(attr, body_Obj[attr].toString().replace(/,/g, ' '));
-                    delete body_Obj[attr];
-                    break;
-                }
-            }
-        }
-
-        for (attr in body_Obj) {
-            if (body_Obj.hasOwnProperty(attr)) {
-                if (attr == 'cst') {
-                    xml.ele(attr, body_Obj[attr]);
-                    delete body_Obj[attr];
-                    break;
-                }
-            }
-        }
-
-        for (attr in body_Obj) {
-            if (body_Obj.hasOwnProperty(attr)) {
-                if (attr == 'csi') {
-                    xml.ele(attr, body_Obj[attr]);
-                    delete body_Obj[attr];
-                    break;
-                }
-            }
-        }
-
-        for (attr in body_Obj) {
-            if (body_Obj.hasOwnProperty(attr)) {
-                if (attr == 'srt') {
-                    xml.ele(attr, body_Obj[attr].toString().replace(/,/g, ' '));
-                    delete body_Obj[attr];
-                    break;
-                }
-            }
-        }
-
-        for (attr in body_Obj) {
-            if (body_Obj.hasOwnProperty(attr)) {
-                if (attr == 'poa') {
-                    xml.ele(attr, body_Obj[attr].toString().replace(/,/g, ' '));
-                    delete body_Obj[attr];
-                    break;
-                }
-            }
-        }
-
-        for (attr in body_Obj) {
-            if (body_Obj.hasOwnProperty(attr)) {
-                if (attr == 'nl') {
-                    xml.ele(attr, body_Obj[attr]);
-                    delete body_Obj[attr];
-                    break;
-                }
-            }
-        }
-
-        for (attr in body_Obj) {
-            if (body_Obj.hasOwnProperty(attr)) {
-                if (attr == 'dac') {
-                    xml.ele(attr, body_Obj[attr]);
-                    delete body_Obj[attr];
-                    break;
-                }
-            }
-        }
-
-        for (attr in body_Obj) {
-            if (body_Obj.hasOwnProperty(attr)) {
-                if (attr == 'esi') {
-                    xml.ele(attr, body_Obj[attr]);
-                    delete body_Obj[attr];
-                    break;
-                }
-            }
-        }
+        xmlInsert(xml, body_Obj, 'cst');
+        xmlInsert(xml, body_Obj, 'csi');
+        xmlInsertList(xml, body_Obj, 'srt');
+        xmlInsertList(xml, body_Obj, 'poa');
+        xmlInsert(xml, body_Obj, 'nl');
+        xmlInsert(xml, body_Obj, 'dac');
+        xmlInsert(xml, body_Obj, 'esi');
+        xmlInsert(xml, body_Obj, 'ch');
     }
-
-    else if(xml.name === 'm2m:csr') {
-        for (var attr in body_Obj) {
-            if (body_Obj.hasOwnProperty(attr)) {
-                if (attr == 'acpi') {
-                    xml.ele(attr, body_Obj[attr].toString().replace(/,/g, ' '));
-                    delete body_Obj[attr];
-                    break;
-                }
-            }
+    else {
+        xmlInsert(xml, body_Obj, 'et');
+        xmlInsert(xml, body_Obj, 'at');
+        xmlInsert(xml, body_Obj, 'aa');
+        if (xml.name === 'm2m:csr') {
+            xmlInsertAfter(xml, body_Obj, 'dac', 'et');
+            xmlInsert(xml, body_Obj, 'cst');
+            xmlInsertList(xml, body_Obj, 'poa');
+            xmlInsert(xml, body_Obj, 'cb');
+            xmlInsert(xml, body_Obj, 'csi');
+            xmlInsert(xml, body_Obj, 'mei');
+            xmlInsert(xml, body_Obj, 'tri');
+            xmlInsert(xml, body_Obj, 'rr');
+            xmlInsert(xml, body_Obj, 'nl');
+            xmlInsert(xml, body_Obj, 'trn');
+            xmlInsert(xml, body_Obj, 'esi');
         }
-
-        for (attr in body_Obj) {
-            if (body_Obj.hasOwnProperty(attr)) {
-                if (attr == 'cst') {
-                    xml.ele(attr, body_Obj[attr]);
-                    delete body_Obj[attr];
-                    break;
-                }
-            }
+        else if (xml.name === 'm2m:ae') {
+            xmlInsert(xml, body_Obj, 'dac', 'et');
+            xmlInsert(xml, body_Obj, 'apn');
+            xmlInsert(xml, body_Obj, 'api');
+            xmlInsert(xml, body_Obj, 'aei');
+            xmlInsertList(xml, body_Obj, 'poa');
+            xmlInsert(xml, body_Obj, 'or');
+            xmlInsert(xml, body_Obj, 'nl');
+            xmlInsert(xml, body_Obj, 'rr');
+            xmlInsert(xml, body_Obj, 'csz');
+            xmlInsert(xml, body_Obj, 'esi');
         }
-
-        for (attr in body_Obj) {
-            if (body_Obj.hasOwnProperty(attr)) {
-                if (attr == 'poa') {
-                    xml.ele(attr, body_Obj[attr].toString().replace(/,/g, ' '));
-                    delete body_Obj[attr];
-                    break;
-                }
-            }
+        else if (xml.name === 'm2m:cnt') {
+            xmlInsert(xml, body_Obj, 'dac', 'et');
+            xmlInsert(xml, body_Obj, 'st');
+            xmlInsert(xml, body_Obj, 'cr');
+            xmlInsert(xml, body_Obj, 'mni');
+            xmlInsert(xml, body_Obj, 'mbs');
+            xmlInsert(xml, body_Obj, 'mia');
+            xmlInsert(xml, body_Obj, 'cni');
+            xmlInsert(xml, body_Obj, 'cbs');
+            xmlInsert(xml, body_Obj, 'li');
+            xmlInsert(xml, body_Obj, 'or');
+            xmlInsert(xml, body_Obj, 'disr');
         }
-
-        for (attr in body_Obj) {
-            if (body_Obj.hasOwnProperty(attr)) {
-                if (attr == 'cb') {
-                    xml.ele(attr, body_Obj[attr]);
-                    delete body_Obj[attr];
-                    break;
-                }
-            }
+        else if (xml.name === 'm2m:cin') {
+            xmlInsert(xml, body_Obj, 'st');
+            xmlInsert(xml, body_Obj, 'cr');
+            xmlInsert(xml, body_Obj, 'cnf');
+            xmlInsert(xml, body_Obj, 'cs');
+            xmlInsert(xml, body_Obj, 'conr');
+            xmlInsert(xml, body_Obj, 'or');
+            xmlInsert(xml, body_Obj, 'con');
         }
-
-        for (attr in body_Obj) {
-            if (body_Obj.hasOwnProperty(attr)) {
-                if (attr == 'csi') {
-                    xml.ele(attr, body_Obj[attr]);
-                    delete body_Obj[attr];
-                    break;
-                }
-            }
+        else if (xml.name === 'm2m:smd') {
+            xmlInsert(xml, body_Obj, 'dac', 'et');
+            xmlInsert(xml, body_Obj, 'cr');
+            xmlInsert(xml, body_Obj, 'dcrp');
+            xmlInsert(xml, body_Obj, 'soe');
+            xmlInsert(xml, body_Obj, 'dsp');
+            xmlInsert(xml, body_Obj, 'or');
+            xmlInsert(xml, body_Obj, 'rels');
         }
+        else if (xml.name === 'm2m:sub') {
+            xmlInsert(xml, body_Obj, 'dac', 'et');
+            xmlInsert(xml, body_Obj, 'cr');
 
-        for (attr in body_Obj) {
-            if (body_Obj.hasOwnProperty(attr)) {
-                if (attr == 'mei') {
-                    xml.ele(attr, body_Obj[attr]);
-                    delete body_Obj[attr];
-                    break;
-                }
-            }
-        }
-
-        for (attr in body_Obj) {
-            if (body_Obj.hasOwnProperty(attr)) {
-                if (attr == 'tri') {
-                    xml.ele(attr, body_Obj[attr]);
-                    delete body_Obj[attr];
-                    break;
-                }
-            }
-        }
-
-        for (attr in body_Obj) {
-            if (body_Obj.hasOwnProperty(attr)) {
-                if (attr == 'rr') {
-                    xml.ele(attr, body_Obj[attr]);
-                    delete body_Obj[attr];
-                    break;
-                }
-            }
-        }
-
-        for (attr in body_Obj) {
-            if (body_Obj.hasOwnProperty(attr)) {
-                if (attr == 'nl') {
-                    xml.ele(attr, body_Obj[attr]);
-                    delete body_Obj[attr];
-                    break;
-                }
-            }
-        }
-
-        for (attr in body_Obj) {
-            if (body_Obj.hasOwnProperty(attr)) {
-                if (attr == 'trn') {
-                    xml.ele(attr, body_Obj[attr]);
-                    delete body_Obj[attr];
-                    break;
-                }
-            }
-        }
-
-        for (attr in body_Obj) {
-            if (body_Obj.hasOwnProperty(attr)) {
-                if (attr == 'esi') {
-                    xml.ele(attr, body_Obj[attr]);
-                    delete body_Obj[attr];
-                    break;
-                }
-            }
-        }
-    }
-
-    else if(xml.name === 'm2m:ae') {
-        for (var attr in body_Obj) {
-            if (body_Obj.hasOwnProperty(attr)) {
-                if (attr == 'acpi') {
-                    xml.ele(attr, body_Obj[attr].toString().replace(/,/g, ' '));
-                    delete body_Obj[attr];
-                    break;
-                }
-            }
-        }
-
-        for (attr in body_Obj) {
-            if (body_Obj.hasOwnProperty(attr)) {
-                if (attr == 'apn') {
-                    xml.ele(attr, body_Obj[attr]);
-                    delete body_Obj[attr];
-                    break;
-                }
-            }
-        }
-
-        for (attr in body_Obj) {
-            if (body_Obj.hasOwnProperty(attr)) {
-                if (attr == 'api') {
-                    xml.ele(attr, body_Obj[attr]);
-                    delete body_Obj[attr];
-                    break;
-                }
-            }
-        }
-
-        for (attr in body_Obj) {
-            if (body_Obj.hasOwnProperty(attr)) {
-                if (attr == 'aei') {
-                    xml.ele(attr, body_Obj[attr]);
-                    delete body_Obj[attr];
-                    break;
-                }
-            }
-        }
-
-        for (attr in body_Obj) {
-            if (body_Obj.hasOwnProperty(attr)) {
-                if (attr == 'poa') {
-                    xml.ele(attr, body_Obj[attr].toString().replace(/,/g, ' '));
-                    delete body_Obj[attr];
-                    break;
-                }
-            }
-        }
-
-        for (attr in body_Obj) {
-            if (body_Obj.hasOwnProperty(attr)) {
-                if (attr == 'or') {
-                    xml.ele(attr, body_Obj[attr]);
-                    delete body_Obj[attr];
-                    break;
-                }
-            }
-        }
-
-        for (attr in body_Obj) {
-            if (body_Obj.hasOwnProperty(attr)) {
-                if (attr == 'nl') {
-                    xml.ele(attr, body_Obj[attr]);
-                    delete body_Obj[attr];
-                    break;
-                }
-            }
-        }
-
-        for (attr in body_Obj) {
-            if (body_Obj.hasOwnProperty(attr)) {
-                if (attr == 'rr') {
-                    xml.ele(attr, body_Obj[attr]);
-                    delete body_Obj[attr];
-                    break;
-                }
-            }
-        }
-
-        for (attr in body_Obj) {
-            if (body_Obj.hasOwnProperty(attr)) {
-                if (attr == 'csz') {
-                    xml.ele(attr, body_Obj[attr]);
-                    delete body_Obj[attr];
-                    break;
-                }
-            }
-        }
-
-        for (attr in body_Obj) {
-            if (body_Obj.hasOwnProperty(attr)) {
-                if (attr == 'esi') {
-                    xml.ele(attr, body_Obj[attr]);
-                    delete body_Obj[attr];
-                    break;
-                }
-            }
-        }
-    }
-
-    else if(xml.name === 'm2m:cnt') {
-        for (var attr in body_Obj) {
-            if (body_Obj.hasOwnProperty(attr)) {
-                if (attr == 'acpi') {
-                    xml.ele(attr, body_Obj[attr].toString().replace(/,/g, ' '));
-                    delete body_Obj[attr];
-                    break;
-                }
-            }
-        }
-
-        for (attr in body_Obj) {
-            if (body_Obj.hasOwnProperty(attr)) {
-                if (attr == 'st') {
-                    xml.ele(attr, body_Obj[attr]);
-                    delete body_Obj[attr];
-                    break;
-                }
-            }
-        }
-
-        for (attr in body_Obj) {
-            if (body_Obj.hasOwnProperty(attr)) {
-                if (attr == 'cr') {
-                    xml.ele(attr, body_Obj[attr]);
-                    delete body_Obj[attr];
-                    break;
-                }
-            }
-        }
-
-        for (attr in body_Obj) {
-            if (body_Obj.hasOwnProperty(attr)) {
-                if (attr == 'mni') {
-                    xml.ele(attr, body_Obj[attr]);
-                    delete body_Obj[attr];
-                    break;
-                }
-            }
-        }
-
-        for (attr in body_Obj) {
-            if (body_Obj.hasOwnProperty(attr)) {
-                if (attr == 'mbs') {
-                    xml.ele(attr, body_Obj[attr]);
-                    delete body_Obj[attr];
-                    break;
-                }
-            }
-        }
-
-        for (attr in body_Obj) {
-            if (body_Obj.hasOwnProperty(attr)) {
-                if (attr == 'mia') {
-                    xml.ele(attr, body_Obj[attr]);
-                    delete body_Obj[attr];
-                    break;
-                }
-            }
-        }
-
-        for (attr in body_Obj) {
-            if (body_Obj.hasOwnProperty(attr)) {
-                if (attr == 'cni') {
-                    xml.ele(attr, body_Obj[attr]);
-                    delete body_Obj[attr];
-                    break;
-                }
-            }
-        }
-
-        for (attr in body_Obj) {
-            if (body_Obj.hasOwnProperty(attr)) {
-                if (attr == 'cbs') {
-                    xml.ele(attr, body_Obj[attr]);
-                    delete body_Obj[attr];
-                    break;
-                }
-            }
-        }
-
-        for (attr in body_Obj) {
-            if (body_Obj.hasOwnProperty(attr)) {
-                if (attr == 'li') {
-                    xml.ele(attr, body_Obj[attr]);
-                    delete body_Obj[attr];
-                    break;
-                }
-            }
-        }
-
-        for (attr in body_Obj) {
-            if (body_Obj.hasOwnProperty(attr)) {
-                if (attr == 'or') {
-                    xml.ele(attr, body_Obj[attr]);
-                    delete body_Obj[attr];
-                    break;
-                }
-            }
-        }
-
-        for (attr in body_Obj) {
-            if (body_Obj.hasOwnProperty(attr)) {
-                if (attr == 'disr') {
-                    xml.ele(attr, body_Obj[attr]);
-                    delete body_Obj[attr];
-                    break;
-                }
-            }
-        }
-    }
-
-    else if(xml.name === 'm2m:cin') {
-        for (attr in body_Obj) {
-            if (body_Obj.hasOwnProperty(attr)) {
-                if (attr == 'st') {
-                    xml.ele(attr, body_Obj[attr]);
-                    delete body_Obj[attr];
-                    break;
-                }
-            }
-        }
-
-        for (attr in body_Obj) {
-            if (body_Obj.hasOwnProperty(attr)) {
-                if (attr == 'cr') {
-                    xml.ele(attr, body_Obj[attr]);
-                    delete body_Obj[attr];
-                    break;
-                }
-            }
-        }
-
-        for (attr in body_Obj) {
-            if (body_Obj.hasOwnProperty(attr)) {
-                if (attr == 'cnf') {
-                    xml.ele(attr, body_Obj[attr]);
-                    delete body_Obj[attr];
-                    break;
-                }
-            }
-        }
-
-        for (attr in body_Obj) {
-            if (body_Obj.hasOwnProperty(attr)) {
-                if (attr == 'cs') {
-                    xml.ele(attr, body_Obj[attr]);
-                    delete body_Obj[attr];
-                    break;
-                }
-            }
-        }
-
-        for (attr in body_Obj) {
-            if (body_Obj.hasOwnProperty(attr)) {
-                if (attr == 'conr') {
-                    xml.ele(attr, body_Obj[attr]);
-                    delete body_Obj[attr];
-                    break;
-                }
-            }
-        }
-
-        for (attr in body_Obj) {
-            if (body_Obj.hasOwnProperty(attr)) {
-                if (attr == 'or') {
-                    xml.ele(attr, body_Obj[attr]);
-                    delete body_Obj[attr];
-                    break;
-                }
-            }
-        }
-
-        for (attr in body_Obj) {
-            if (body_Obj.hasOwnProperty(attr)) {
-                if (attr == 'con') {
-                    xml.ele(attr, body_Obj[attr]);
-                    delete body_Obj[attr];
-                    break;
-                }
-            }
-        }
-    }
-
-    else if(xml.name === 'm2m:smd') {
-        for (attr in body_Obj) {
-            if (body_Obj.hasOwnProperty(attr)) {
-                if (attr == 'cr') {
-                    xml.ele(attr, body_Obj[attr]);
-                    delete body_Obj[attr];
-                    break;
-                }
-            }
-        }
-
-        for (attr in body_Obj) {
-            if (body_Obj.hasOwnProperty(attr)) {
-                if (attr == 'dcrp') {
-                    xml.ele(attr, body_Obj[attr]);
-                    delete body_Obj[attr];
-                    break;
-                }
-            }
-        }
-
-        for (attr in body_Obj) {
-            if (body_Obj.hasOwnProperty(attr)) {
-                if (attr == 'soe') {
-                    xml.ele(attr, body_Obj[attr]);
-                    delete body_Obj[attr];
-                    break;
-                }
-            }
-        }
-
-        for (attr in body_Obj) {
-            if (body_Obj.hasOwnProperty(attr)) {
-                if (attr == 'dsp') {
-                    xml.ele(attr, body_Obj[attr]);
-                    delete body_Obj[attr];
-                    break;
-                }
-            }
-        }
-
-        for (attr in body_Obj) {
-            if (body_Obj.hasOwnProperty(attr)) {
-                if (attr == 'or') {
-                    xml.ele(attr, body_Obj[attr]);
-                    delete body_Obj[attr];
-                    break;
-                }
-            }
-        }
-
-        for (attr in body_Obj) {
-            if (body_Obj.hasOwnProperty(attr)) {
-                if (attr == 'rels') {
-                    xml.ele(attr, body_Obj[attr]);
-                    delete body_Obj[attr];
-                    break;
-                }
-            }
-        }
-    }
-
-    else if(xml.name === 'm2m:sub') {
-        for (attr in body_Obj) {
-            if (body_Obj.hasOwnProperty(attr)) {
-                if (attr == 'cr') {
-                    xml.ele(attr, body_Obj[attr]);
-                    delete body_Obj[attr];
-                    break;
-                }
-            }
-        }
-
-        for (attr in body_Obj) {
-            if (body_Obj.hasOwnProperty(attr)) {
-                if (attr == 'enc') {
-                    var xml2 = xml.ele(attr, '');
-                    for (var sub_attr in body_Obj[attr]) {
-                        if (body_Obj[attr].hasOwnProperty(sub_attr)) {
-                            xml2.ele(sub_attr, body_Obj[attr][sub_attr].toString().replace(/,/g, ' '));
+            for (attr in body_Obj) {
+                if (body_Obj.hasOwnProperty(attr)) {
+                    if (attr == 'enc') {
+                        var xml2 = xml.ele(attr, '');
+                        for (var sub_attr in body_Obj[attr]) {
+                            if (body_Obj[attr].hasOwnProperty(sub_attr)) {
+                                xml2.ele(sub_attr, body_Obj[attr][sub_attr].toString().replace(/,/g, ' '));
+                            }
                         }
+                        delete body_Obj[attr];
+                        break;
                     }
-                    delete body_Obj[attr];
-                    break;
                 }
             }
-        }
 
-        for (attr in body_Obj) {
-            if (body_Obj.hasOwnProperty(attr)) {
-                if (attr == 'exc') {
-                    xml.ele(attr, body_Obj[attr]);
-                    delete body_Obj[attr];
-                    break;
-                }
-            }
-        }
+            xmlInsert(xml, body_Obj, 'exc');
+            xmlInsertList(xml, body_Obj, 'nu');
+            xmlInsert(xml, body_Obj, 'gpi');
+            xmlInsert(xml, body_Obj, 'nfu');
 
-        for (attr in body_Obj) {
-            if (body_Obj.hasOwnProperty(attr)) {
-                if (attr == 'nu') {
-                    xml.ele(attr, body_Obj[attr].toString().replace(/,/g, ' '));
-                    delete body_Obj[attr];
-                    break;
-                }
-            }
-        }
-
-        for (attr in body_Obj) {
-            if (body_Obj.hasOwnProperty(attr)) {
-                if (attr == 'gpi') {
-                    xml.ele(attr, body_Obj[attr]);
-                    delete body_Obj[attr];
-                    break;
-                }
-            }
-        }
-
-        for (attr in body_Obj) {
-            if (body_Obj.hasOwnProperty(attr)) {
-                if (attr == 'nfu') {
-                    xml.ele(attr, body_Obj[attr]);
-                    delete body_Obj[attr];
-                    break;
-                }
-            }
-        }
-
-        for (attr in body_Obj) {
-            if (body_Obj.hasOwnProperty(attr)) {
-                if (attr == 'bn') {
-                    xml2 = xml.ele(attr, '');
-                    for (sub_attr in body_Obj[attr]) {
-                        if (body_Obj[attr].hasOwnProperty(sub_attr)) {
-                            xml2.ele(sub_attr, body_Obj[attr][sub_attr].toString());
+            for (attr in body_Obj) {
+                if (body_Obj.hasOwnProperty(attr)) {
+                    if (attr == 'bn') {
+                        xml2 = xml.ele(attr, '');
+                        for (sub_attr in body_Obj[attr]) {
+                            if (body_Obj[attr].hasOwnProperty(sub_attr)) {
+                                xml2.ele(sub_attr, body_Obj[attr][sub_attr].toString());
+                            }
                         }
+                        delete body_Obj[attr];
+                        break;
                     }
-                    delete body_Obj[attr];
-                    break;
                 }
             }
+
+            xmlInsert(xml, body_Obj, 'rl');
+            xmlInsert(xml, body_Obj, 'psn');
+            xmlInsert(xml, body_Obj, 'pn');
+            xmlInsert(xml, body_Obj, 'nsp');
+            xmlInsert(xml, body_Obj, 'ln');
+            xmlInsert(xml, body_Obj, 'nct');
+            xmlInsert(xml, body_Obj, 'nec');
+            xmlInsert(xml, body_Obj, 'su');
         }
 
-        for (attr in body_Obj) {
-            if (body_Obj.hasOwnProperty(attr)) {
-                if (attr == 'rl') {
-                    xml.ele(attr, body_Obj[attr]);
-                    delete body_Obj[attr];
-                    break;
-                }
-            }
+        else if (xml.name === 'm2m:grp') {
+            xmlInsert(xml, body_Obj, 'dac', 'et');
+            xmlInsert(xml, body_Obj, 'cr');
+            xmlInsert(xml, body_Obj, 'mt');
+            xmlInsert(xml, body_Obj, 'cnm');
+            xmlInsert(xml, body_Obj, 'mnm');
+            xmlInsertList(xml, body_Obj, 'mid');
+            xmlInsertList(xml, body_Obj, 'macp');
+            xmlInsert(xml, body_Obj, 'mtv');
+            xmlInsert(xml, body_Obj, 'csy');
+            xmlInsert(xml, body_Obj, 'gn');
+            xmlInsert(xml, body_Obj, 'csi');
         }
 
-        for (attr in body_Obj) {
-            if (body_Obj.hasOwnProperty(attr)) {
-                if (attr == 'psn') {
-                    xml.ele(attr, body_Obj[attr]);
-                    delete body_Obj[attr];
-                    break;
-                }
-            }
+        else if (xml.name === 'm2m:ts') {
+            xmlInsert(xml, body_Obj, 'dac', 'et');
+            xmlInsert(xml, body_Obj, 'st');
+            xmlInsert(xml, body_Obj, 'cr');
+            xmlInsert(xml, body_Obj, 'mni');
+            xmlInsert(xml, body_Obj, 'mbs');
+            xmlInsert(xml, body_Obj, 'mia');
+            xmlInsert(xml, body_Obj, 'cni');
+            xmlInsert(xml, body_Obj, 'cbs');
+            xmlInsert(xml, body_Obj, 'pei');
+            xmlInsert(xml, body_Obj, 'mdd');
+            xmlInsert(xml, body_Obj, 'mdn');
+            xmlInsertList(xml, body_Obj, 'mdlt');
+            xmlInsert(xml, body_Obj, 'mdc');
+            xmlInsert(xml, body_Obj, 'mdt');
+            xmlInsert(xml, body_Obj, 'or');
+        }
+        else if (xml.name === 'm2m:tsi') {
+            xmlInsert(xml, body_Obj, 'dgt');
+            xmlInsert(xml, body_Obj, 'con');
+            xmlInsert(xml, body_Obj, 'snr');
+            xmlInsert(xml, body_Obj, 'cs');
         }
 
-        for (attr in body_Obj) {
-            if (body_Obj.hasOwnProperty(attr)) {
-                if (attr == 'pn') {
-                    xml.ele(attr, body_Obj[attr]);
-                    delete body_Obj[attr];
-                    break;
-                }
-            }
-        }
-
-        for (attr in body_Obj) {
-            if (body_Obj.hasOwnProperty(attr)) {
-                if (attr == 'nsp') {
-                    xml.ele(attr, body_Obj[attr]);
-                    delete body_Obj[attr];
-                    break;
-                }
-            }
-        }
-
-        for (attr in body_Obj) {
-            if (body_Obj.hasOwnProperty(attr)) {
-                if (attr == 'ln') {
-                    xml.ele(attr, body_Obj[attr]);
-                    delete body_Obj[attr];
-                    break;
-                }
-            }
-        }
-
-        for (attr in body_Obj) {
-            if (body_Obj.hasOwnProperty(attr)) {
-                if (attr == 'nct') {
-                    xml.ele(attr, body_Obj[attr]);
-                    delete body_Obj[attr];
-                    break;
-                }
-            }
-        }
-
-        for (attr in body_Obj) {
-            if (body_Obj.hasOwnProperty(attr)) {
-                if (attr == 'nec') {
-                    xml.ele(attr, body_Obj[attr]);
-                    delete body_Obj[attr];
-                    break;
-                }
-            }
-        }
-
-        for (attr in body_Obj) {
-            if (body_Obj.hasOwnProperty(attr)) {
-                if (attr == 'su') {
-                    xml.ele(attr, body_Obj[attr]);
-                    delete body_Obj[attr];
-                    break;
-                }
-            }
-        }
-    }
-
-    else if(xml.name === 'm2m:grp') {
-        for (attr in body_Obj) {
-            if (body_Obj.hasOwnProperty(attr)) {
-                if (attr == 'cr') {
-                    xml.ele(attr, body_Obj[attr]);
-                    delete body_Obj[attr];
-                    break;
-                }
-            }
-        }
-
-        for (attr in body_Obj) {
-            if (body_Obj.hasOwnProperty(attr)) {
-                if (attr == 'mt') {
-                    xml.ele(attr, body_Obj[attr]);
-                    delete body_Obj[attr];
-                    break;
-                }
-            }
-        }
-
-        for (attr in body_Obj) {
-            if (body_Obj.hasOwnProperty(attr)) {
-                if (attr == 'cnm') {
-                    xml.ele(attr, body_Obj[attr]);
-                    delete body_Obj[attr];
-                    break;
-                }
-            }
-        }
-
-        for (attr in body_Obj) {
-            if (body_Obj.hasOwnProperty(attr)) {
-                if (attr == 'mnm') {
-                    xml.ele(attr, body_Obj[attr]);
-                    delete body_Obj[attr];
-                    break;
-                }
-            }
-        }
-
-        for (attr in body_Obj) {
-            if (body_Obj.hasOwnProperty(attr)) {
-                if (attr == 'mid') {
-                    xml.ele(attr, body_Obj[attr].toString().replace(/,/g, ' '));
-                    delete body_Obj[attr];
-                    break;
-                }
-            }
-        }
-
-        for (attr in body_Obj) {
-            if (body_Obj.hasOwnProperty(attr)) {
-                if (attr == 'macp') {
-                    xml.ele(attr, body_Obj[attr].toString().replace(/,/g, ' '));
-                    delete body_Obj[attr];
-                    break;
-                }
-            }
-        }
-
-        for (attr in body_Obj) {
-            if (body_Obj.hasOwnProperty(attr)) {
-                if (attr == 'mtv') {
-                    xml.ele(attr, body_Obj[attr]);
-                    delete body_Obj[attr];
-                    break;
-                }
-            }
-        }
-
-        for (attr in body_Obj) {
-            if (body_Obj.hasOwnProperty(attr)) {
-                if (attr == 'csy') {
-                    xml.ele(attr, body_Obj[attr]);
-                    delete body_Obj[attr];
-                    break;
-                }
-            }
-        }
-
-        for (attr in body_Obj) {
-            if (body_Obj.hasOwnProperty(attr)) {
-                if (attr == 'gn') {
-                    xml.ele(attr, body_Obj[attr]);
-                    delete body_Obj[attr];
-                    break;
-                }
-            }
-        }
-
-        for (attr in body_Obj) {
-            if (body_Obj.hasOwnProperty(attr)) {
-                if (attr == 'csi') {
-                    xml.ele(attr, body_Obj[attr]);
-                    delete body_Obj[attr];
-                    break;
-                }
-            }
-        }
-    }
-
-    else if(xml.name === 'm2m:ts') {
-        for (attr in body_Obj) {
-            if (body_Obj.hasOwnProperty(attr)) {
-                if (attr == 'st') {
-                    xml.ele(attr, body_Obj[attr]);
-                    delete body_Obj[attr];
-                    break;
-                }
-            }
-        }
-
-        for (attr in body_Obj) {
-            if (body_Obj.hasOwnProperty(attr)) {
-                if (attr == 'cr') {
-                    xml.ele(attr, body_Obj[attr]);
-                    delete body_Obj[attr];
-                    break;
-                }
-            }
-        }
-
-        for (attr in body_Obj) {
-            if (body_Obj.hasOwnProperty(attr)) {
-                if (attr == 'mni') {
-                    xml.ele(attr, body_Obj[attr]);
-                    delete body_Obj[attr];
-                    break;
-                }
-            }
-        }
-
-        for (attr in body_Obj) {
-            if (body_Obj.hasOwnProperty(attr)) {
-                if (attr == 'mbs') {
-                    xml.ele(attr, body_Obj[attr]);
-                    delete body_Obj[attr];
-                    break;
-                }
-            }
-        }
-
-        for (attr in body_Obj) {
-            if (body_Obj.hasOwnProperty(attr)) {
-                if (attr == 'mia') {
-                    xml.ele(attr, body_Obj[attr]);
-                    delete body_Obj[attr];
-                    break;
-                }
-            }
-        }
-
-        for (attr in body_Obj) {
-            if (body_Obj.hasOwnProperty(attr)) {
-                if (attr == 'cni') {
-                    xml.ele(attr, body_Obj[attr]);
-                    delete body_Obj[attr];
-                    break;
-                }
-            }
-        }
-
-        for (attr in body_Obj) {
-            if (body_Obj.hasOwnProperty(attr)) {
-                if (attr == 'cbs') {
-                    xml.ele(attr, body_Obj[attr]);
-                    delete body_Obj[attr];
-                    break;
-                }
-            }
-        }
-
-        for (attr in body_Obj) {
-            if (body_Obj.hasOwnProperty(attr)) {
-                if (attr == 'pei') {
-                    xml.ele(attr, body_Obj[attr]);
-                    delete body_Obj[attr];
-                    break;
-                }
-            }
-        }
-
-        for (attr in body_Obj) {
-            if (body_Obj.hasOwnProperty(attr)) {
-                if (attr == 'mdd') {
-                    xml.ele(attr, body_Obj[attr]);
-                    delete body_Obj[attr];
-                    break;
-                }
-            }
-        }
-
-        for (attr in body_Obj) {
-            if (body_Obj.hasOwnProperty(attr)) {
-                if (attr == 'mdn') {
-                    xml.ele(attr, body_Obj[attr]);
-                    delete body_Obj[attr];
-                    break;
-                }
-            }
-        }
-
-        for (attr in body_Obj) {
-            if (body_Obj.hasOwnProperty(attr)) {
-                if (attr == 'mdlt') {
-                    xml.ele(attr, body_Obj[attr].toString().replace(/,/g, ' '));
-                    delete body_Obj[attr];
-                    break;
-                }
-            }
-        }
-
-        for (attr in body_Obj) {
-            if (body_Obj.hasOwnProperty(attr)) {
-                if (attr == 'mdc') {
-                    xml.ele(attr, body_Obj[attr]);
-                    delete body_Obj[attr];
-                    break;
-                }
-            }
-        }
-
-        for (attr in body_Obj) {
-            if (body_Obj.hasOwnProperty(attr)) {
-                if (attr == 'mdt') {
-                    xml.ele(attr, body_Obj[attr]);
-                    delete body_Obj[attr];
-                    break;
-                }
-            }
-        }
-
-        for (attr in body_Obj) {
-            if (body_Obj.hasOwnProperty(attr)) {
-                if (attr == 'or') {
-                    xml.ele(attr, body_Obj[attr]);
-                    delete body_Obj[attr];
-                    break;
-                }
-            }
-        }
-    }
-
-    else if(xml.name === 'm2m:tsi') {
-        for (attr in body_Obj) {
-            if (body_Obj.hasOwnProperty(attr)) {
-                if (attr == 'dgt') {
-                    xml.ele(attr, body_Obj[attr]);
-                    delete body_Obj[attr];
-                    break;
-                }
-            }
-        }
-
-        for (attr in body_Obj) {
-            if (body_Obj.hasOwnProperty(attr)) {
-                if (attr == 'con') {
-                    xml.ele(attr, body_Obj[attr]);
-                    delete body_Obj[attr];
-                    break;
-                }
-            }
-        }
-
-        for (attr in body_Obj) {
-            if (body_Obj.hasOwnProperty(attr)) {
-                if (attr == 'snr') {
-                    xml.ele(attr, body_Obj[attr]);
-                    delete body_Obj[attr];
-                    break;
-                }
-            }
-        }
-
-        for (attr in body_Obj) {
-            if (body_Obj.hasOwnProperty(attr)) {
-                if (attr == 'cs') {
-                    xml.ele(attr, body_Obj[attr]);
-                    delete body_Obj[attr];
-                    break;
-                }
-            }
-        }
-    }
-
-    else if(xml.name === 'm2m:acp') {
-        for (attr in body_Obj) {
-            if (body_Obj.hasOwnProperty(attr)) {
-                if (attr == 'pv') {
-                    xml2 = xml.ele(attr, '');
-                    for (sub_attr in body_Obj[attr]) {
-                        if (body_Obj[attr].hasOwnProperty(sub_attr)) {
-                            for (sub_attr2 in body_Obj[attr][sub_attr]) {
-                                if (body_Obj[attr][sub_attr].hasOwnProperty(sub_attr2)) {
-                                    var xml3 = xml2.ele(sub_attr, '');
-                                    for (var sub_attr3 in body_Obj[attr][sub_attr][sub_attr2]) {
-                                        if (body_Obj[attr][sub_attr][sub_attr2].hasOwnProperty(sub_attr3)) {
-                                            xml3.ele(sub_attr3, body_Obj[attr][sub_attr][sub_attr2][sub_attr3].toString().replace(/,/g, ' '));
+        else if (xml.name === 'm2m:acp') {
+            for (attr in body_Obj) {
+                if (body_Obj.hasOwnProperty(attr)) {
+                    if (attr == 'pv') {
+                        xml2 = xml.ele(attr, '');
+                        for (sub_attr in body_Obj[attr]) {
+                            if (body_Obj[attr].hasOwnProperty(sub_attr)) {
+                                for (sub_attr2 in body_Obj[attr][sub_attr]) {
+                                    if (body_Obj[attr][sub_attr].hasOwnProperty(sub_attr2)) {
+                                        var xml3 = xml2.ele(sub_attr, '');
+                                        for (var sub_attr3 in body_Obj[attr][sub_attr][sub_attr2]) {
+                                            if (body_Obj[attr][sub_attr][sub_attr2].hasOwnProperty(sub_attr3)) {
+                                                xml3.ele(sub_attr3, body_Obj[attr][sub_attr][sub_attr2][sub_attr3].toString().replace(/,/g, ' '));
+                                            }
                                         }
                                     }
                                 }
                             }
                         }
+                        delete body_Obj[attr];
+                        break;
                     }
-                    delete body_Obj[attr];
-                    break;
                 }
             }
-        }
 
-        for (attr in body_Obj) {
-            if (body_Obj.hasOwnProperty(attr)) {
-                if (attr == 'pvs') {
-                    xml2 = xml.ele(attr, '');
-                    for (sub_attr in body_Obj[attr]) {
-                        if (body_Obj[attr].hasOwnProperty(sub_attr)) {
-                            for (sub_attr2 in body_Obj[attr][sub_attr]) {
-                                if (body_Obj[attr][sub_attr].hasOwnProperty(sub_attr2)) {
-                                    xml3 = xml2.ele(sub_attr, '');
-                                    for (sub_attr3 in body_Obj[attr][sub_attr][sub_attr2]) {
-                                        if (body_Obj[attr][sub_attr][sub_attr2].hasOwnProperty(sub_attr3)) {
-                                            xml3.ele(sub_attr3, body_Obj[attr][sub_attr][sub_attr2][sub_attr3].toString().replace(/,/g, ' '));
+            for (attr in body_Obj) {
+                if (body_Obj.hasOwnProperty(attr)) {
+                    if (attr == 'pvs') {
+                        xml2 = xml.ele(attr, '');
+                        for (sub_attr in body_Obj[attr]) {
+                            if (body_Obj[attr].hasOwnProperty(sub_attr)) {
+                                for (sub_attr2 in body_Obj[attr][sub_attr]) {
+                                    if (body_Obj[attr][sub_attr].hasOwnProperty(sub_attr2)) {
+                                        xml3 = xml2.ele(sub_attr, '');
+                                        for (sub_attr3 in body_Obj[attr][sub_attr][sub_attr2]) {
+                                            if (body_Obj[attr][sub_attr][sub_attr2].hasOwnProperty(sub_attr3)) {
+                                                xml3.ele(sub_attr3, body_Obj[attr][sub_attr][sub_attr2][sub_attr3].toString().replace(/,/g, ' '));
+                                            }
                                         }
                                     }
                                 }
                             }
                         }
+                        delete body_Obj[attr];
+                        break;
                     }
-                    delete body_Obj[attr];
-                    break;
                 }
             }
+            xmlInsert(xml, body_Obj, 'cr');
         }
     }
 
-    for (attr in body_Obj) {
+    for (var attr in body_Obj) {
         if (body_Obj.hasOwnProperty(attr)) {
             if (attr == 'resourceName' || attr == 'rn') {
                 xml.att(attr, body_Obj[attr]);
