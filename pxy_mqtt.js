@@ -37,7 +37,6 @@ var http_response_q = {};
 
 global.NOPRINT = 'true';
 
-var pxymqtt_client = null;
 
 var _this = this;
 
@@ -59,6 +58,8 @@ var usemqttcbhost = 'localhost'; // pxymqtt to mobius
 
 
 
+
+var pxymqtt_client = null;
 
 //mqtt_custom.on('mqtt_watchdog', function() {
 exports.mqtt_watchdog = function() {
@@ -634,62 +635,6 @@ var onem2mParser = bodyParser.text(
         type: 'application/onem2m-resource+xml;application/xml;application/json;application/vnd.onem2m-res+xml;application/vnd.onem2m-res+json'
     }
 );
-
-// for notification
-var onem2mParser = bodyParser.text(
-    {
-        limit: '1mb',
-        type: 'application/onem2m-resource+xml;application/xml;application/json;application/vnd.onem2m-res+xml;application/vnd.onem2m-res+json'
-    }
-);
-
-mqtt_app.post('/notification', onem2mParser, function(request, response, next) {
-    var fullBody = '';
-    request.on('data', function(chunk) {
-        fullBody += chunk.toString();
-    });
-    request.on('end', function() {
-        request.body = fullBody;
-
-        var aeid = url.parse(request.headers.nu).pathname.replace('/', '').split('?')[0];
-        console.log('[pxy_mqtt] - ' + aeid);
-
-        if (aeid == '') {
-            console.log('aeid of notification url is none');
-            return;
-        }
-
-        if (mqtt_state == 'ready') {
-            var resp_topic = util.format('/oneM2M/resp/%s/%s/%s', usecseid.replace('/', ''), aeid, request.headers.bodytype);
-             pxymqtt_client.subscribe(resp_topic);
-
-            var noti_topic = util.format('/oneM2M/req/%s/%s/%s', usecseid.replace('/', ''), aeid, request.headers.bodytype);
-
-            var rqi = request.headers['x-m2m-ri'];
-            resp_mqtt_rqi_arr.push(rqi);
-            http_response_q[rqi] = response;
-
-            var noti_message = {};
-            noti_message['m2m:rqp'] = JSON.parse(fullBody);
-
-            if (request.headers.bodytype == 'xml') {
-                var bodyString = js2xmlparser("m2m:rqp", noti_message['m2m:rqp']);
-
-                pxymqtt_client.publish(noti_topic, bodyString);
-                console.log('<---- ' + noti_topic);
-            }
-            else if (request.headers.bodytype == 'cbor') {
-                bodyString = cbor.encode(noti_message['m2m:rqp']).toString('hex');
-                pxymqtt_client.publish(noti_topic, bodyString);
-            }
-            else { // 'json'
-                pxymqtt_client.publish(noti_topic, JSON.stringify(noti_message['m2m:rqp']));
-                console.log('<---- ' + noti_topic);
-            }
-        }
-    });
-});
-
 
 mqtt_app.post('/register_csr', onem2mParser, function(request, response, next) {
     var fullBody = '';
