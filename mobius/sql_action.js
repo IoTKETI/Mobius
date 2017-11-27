@@ -29,8 +29,10 @@ exports.get_sri_sri = function (ri, callback) {
 };
 
 exports.get_ri_sri = function (request, response, sri, callback) {
+    console.time('get_ri_sri');
     var sql = util.format('select ri from sri where sri = \'%s\'', sri);
     db.getResult(sql, '', function (err, results) {
+        console.timeEnd('get_ri_sri');
         callback(err, results, request, response);
     });
 };
