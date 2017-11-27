@@ -961,7 +961,7 @@ function xmlAction(xml, body_Obj) {
         xmlInsert(xml, body_Obj, 'at');
         xmlInsert(xml, body_Obj, 'aa');
         if (xml.name === 'm2m:csr') {
-            xmlInsertAfter(xml, body_Obj, 'daci', 'et');
+            xmlInsertAfter(xml, body_Obj, 'dac', 'et');
             xmlInsert(xml, body_Obj, 'cst');
             xmlInsertList(xml, body_Obj, 'poa');
             xmlInsert(xml, body_Obj, 'cb');
@@ -974,7 +974,7 @@ function xmlAction(xml, body_Obj) {
             xmlInsert(xml, body_Obj, 'esi');
         }
         else if (xml.name === 'm2m:ae') {
-            xmlInsert(xml, body_Obj, 'daci', 'et');
+            xmlInsert(xml, body_Obj, 'dac', 'et');
             xmlInsert(xml, body_Obj, 'apn');
             xmlInsert(xml, body_Obj, 'api');
             xmlInsert(xml, body_Obj, 'aei');
@@ -986,7 +986,7 @@ function xmlAction(xml, body_Obj) {
             xmlInsert(xml, body_Obj, 'esi');
         }
         else if (xml.name === 'm2m:cnt') {
-            xmlInsert(xml, body_Obj, 'daci', 'et');
+            xmlInsert(xml, body_Obj, 'dac', 'et');
             xmlInsert(xml, body_Obj, 'st');
             xmlInsert(xml, body_Obj, 'cr');
             xmlInsert(xml, body_Obj, 'mni');
@@ -1008,7 +1008,7 @@ function xmlAction(xml, body_Obj) {
             xmlInsert(xml, body_Obj, 'con');
         }
         else if (xml.name === 'm2m:smd') {
-            xmlInsert(xml, body_Obj, 'daci', 'et');
+            xmlInsert(xml, body_Obj, 'dac', 'et');
             xmlInsert(xml, body_Obj, 'cr');
             xmlInsert(xml, body_Obj, 'dcrp');
             xmlInsert(xml, body_Obj, 'soe');
@@ -1017,7 +1017,7 @@ function xmlAction(xml, body_Obj) {
             xmlInsert(xml, body_Obj, 'rels');
         }
         else if (xml.name === 'm2m:sub') {
-            xmlInsert(xml, body_Obj, 'daci', 'et');
+            xmlInsert(xml, body_Obj, 'dac', 'et');
             xmlInsert(xml, body_Obj, 'cr');
 
             for (attr in body_Obj) {
@@ -1066,7 +1066,7 @@ function xmlAction(xml, body_Obj) {
         }
 
         else if (xml.name === 'm2m:grp') {
-            xmlInsert(xml, body_Obj, 'daci', 'et');
+            xmlInsert(xml, body_Obj, 'dac', 'et');
             xmlInsert(xml, body_Obj, 'cr');
             xmlInsert(xml, body_Obj, 'mt');
             xmlInsert(xml, body_Obj, 'cnm');
@@ -1080,7 +1080,7 @@ function xmlAction(xml, body_Obj) {
         }
 
         else if (xml.name === 'm2m:ts') {
-            xmlInsert(xml, body_Obj, 'daci', 'et');
+            xmlInsert(xml, body_Obj, 'dac', 'et');
             xmlInsert(xml, body_Obj, 'st');
             xmlInsert(xml, body_Obj, 'cr');
             xmlInsert(xml, body_Obj, 'mni');
