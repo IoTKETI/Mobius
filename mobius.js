@@ -20,7 +20,6 @@ var conf = JSON.parse(data);
 global.defaultnmtype        = 'short';
 global.defaultbodytype      = 'json';
 
-
 // my CSE information
 global.usecsetype           = 'in'; // select 'in' or 'mn' or asn'
 global.usecsebase           = 'Mobius';
