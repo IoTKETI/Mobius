@@ -1116,7 +1116,8 @@ function presearch_action(request, response, ri_list, comm_Obj, callback) {
             }
 
             var cur_d = moment().utc().format('YYYY-MM-DD HH:mm:ss');
-            db_sql.search_lookup(comm_Obj.ri, request.query, request.query.lim, pi_list, 0, finding_Obj, 0, cur_d, 0, function (err, search_Obj) {
+            var bef_d = moment(cur_d).subtract(Math.pow(3, 0), 'hours').format('YYYY-MM-DD HH:mm:ss');
+            db_sql.search_lookup(comm_Obj.ri, request.query, request.query.lim, pi_list, 0, finding_Obj, 0, bef_d, cur_d, 0, function (err, search_Obj) {
                 if(!err) {
                     if(Object.keys(search_Obj).length >= 1) {
                         if(Object.keys(search_Obj).length >= max_lim) {
