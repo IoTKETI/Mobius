@@ -468,18 +468,27 @@ function check_http(request, response, callback) {
 
     // Check X-M2M-RI Header
     if ((request.headers['x-m2m-ri'] == null)) {
-        responder.error_result(request, response, 400, 4000, 'X-M2M-RI is none');
+        responder.error_result(request, response, 400, 4000, 'BAD REQUEST: X-M2M-RI is none');
         callback('0', body_Obj, request, response);
         return '0';
     }
 
     // Check X-M2M-Origin Header
     if ((request.headers['x-m2m-origin'] == null || request.headers['x-m2m-origin'] == '')) {
-        // responder.error_result(request, response, 400, 4000, 'X-M2M-Origin Header is none');
-        // callback('0', body_Obj, request, response);
-        // return '0';
+        responder.error_result(request, response, 400, 4000, 'BAD REQUEST: X-M2M-Origin Header is none');
+        callback('0', body_Obj, request, response);
+        return '0';
 
-        request.headers['x-m2m-origin'] = 'S';
+        //request.headers['x-m2m-origin'] = 'S';
+    }
+
+    if(request.headers['x-m2m-origin'].charAt(0) == '/' || request.headers['x-m2m-origin'].charAt(0) == 'S' || request.headers['x-m2m-origin'].charAt(0) == 'C') {
+    }
+    else {
+        body_Obj = {};
+        responder.error_result(request, response, 405, 4005, 'OPERATION_NOT_ALLOWED: X-M2M-Origin Header value has a start character S or C');
+        callback('0', body_Obj, request, response);
+        return '0';
     }
 
     /*if (request.headers['x-m2m-origin'].substr(0, 1) != '/' && request.headers['x-m2m-origin'].substr(0, 1) != 'S' && request.headers['x-m2m-origin'].substr(0, 1) != 'C') {
@@ -490,7 +499,8 @@ function check_http(request, response, callback) {
      return '0';
      }*/ // ignore value of Origin tag
 
-    /*if (request.method != 'POST' && (request.headers['x-m2m-origin'] == 'S' || request.headers['x-m2m-origin'] == 'C' || request.headers['x-m2m-origin'] == '/')) {
+    /*if (request.method != 'POST' && (
+    request.headers['x-m2m-origin'] == 'S' || request.headers['x-m2m-origin'] == 'C' || request.headers['x-m2m-origin'] == '/')) {
      body_Obj = {};
      body_Obj['dbg'] = 'When GET, PUT, DELETE request, AE-ID should be full AE-ID in X-M2M-Origin Header';
      responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
@@ -520,6 +530,12 @@ function check_http(request, response, callback) {
                     }
                     catch (e) {
                         responder.error_result(request, response, 400, 4000, 'ty is none');
+                        callback('0', body_Obj, request, response);
+                        return '0';
+                    }
+
+                    if (ty == '5') {
+                        responder.error_result(request, response, 405, 4005, 'OPERATION_NOT_ALLOWED: CSEBase can not be created by others');
                         callback('0', body_Obj, request, response);
                         return '0';
                     }

@@ -835,6 +835,13 @@ function typeCheckAction(index1, body_Obj) {
                 if(index2 == 'acpi') {
                     make_cse_relative(body_Obj[index2]);
                 }
+                else if (index2 == 'srt') {
+                    for (index3 in body_Obj[index2]) {
+                        if (body_Obj[index2].hasOwnProperty(index3)) {
+                            body_Obj[index2][index3] = parseInt(body_Obj[index2][index3]);
+                        }
+                    }
+                }
             }
             else if (index2 == 'enc') {
                 if (Object.keys(body_Obj[index2])[0] != 'net') {
@@ -868,13 +875,6 @@ function typeCheckAction(index1, body_Obj) {
                         if(index3 == 'sus') {
                             body_Obj[index2][index3] = parseInt(body_Obj[index2][index3]);
                         }
-                    }
-                }
-            }
-            else if (index2 == 'srt') {
-                for (index3 in body_Obj[index2]) {
-                    if (body_Obj[index2].hasOwnProperty(index3)) {
-                        body_Obj[index2][index3] = parseInt(body_Obj[index2][index3]);
                     }
                 }
             }
