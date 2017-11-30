@@ -861,7 +861,7 @@ function build_resource(request, response, ty, body_Obj, callback) {
         var _rn = body_Obj[rootnm]['rn'];
         body_Obj = {};
         body_Obj['dbg'] = "resource name (" + _rn + ") can not use that is keyword";
-        responder.response_result(request, response, 409, body_Obj, 4105, request.url, body_Obj['dbg']);
+        responder.response_result(request, response, 409, body_Obj, 4005, request.url, body_Obj['dbg']);
         callback('0');
         return '0';
     }

@@ -560,7 +560,7 @@ function check_http(request, response, callback) {
                     for (var ty_idx in responder.typeRsrc) {
                         if (responder.typeRsrc.hasOwnProperty(ty_idx)) {
                             if ((ty_idx == 4) && (responder.typeRsrc[ty_idx] == Object.keys(body_Obj)[0])) {
-                                responder.error_result(request, response, 400, 4000, 'Update cin is not supported');
+                                responder.error_result(request, response, 405, 4005, 'Update cin is not supported');
                                 callback('0', body_Obj, request, response);
                                 return '0';
                             }
