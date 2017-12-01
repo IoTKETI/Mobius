@@ -1224,7 +1224,7 @@ function presearch_action(request, response, ri_list, comm_Obj, callback) {
     });
 }
 
-const ty_list = ['1', '2', '3', '4', '5', '9', '10', '13', '14', '16', '17','23', '24', '27', '29', '30'];
+global.ty_list = ['1', '2', '3', '4', '5', '9', '10', '13', '14', '16', '17','23', '24', '27', '29', '30'];
 
 function search_action(request, response, seq, resource_Obj, ri_list, strObj, presearch_Obj, callback) {
     if(ty_list.length <= seq) {

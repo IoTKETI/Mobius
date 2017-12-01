@@ -1141,9 +1141,9 @@ exports.update_ts_mdcn_mdl = function (mdc, mdl, ri, callback) {
     });
 };
 
-exports.update_cb_poa_csi = function (poa, csi, ri, callback) {
+exports.update_cb_poa_csi = function (poa, csi, srt, ri, callback) {
     console.time('update_cb_poa_csi ' + ri);
-    var sql = util.format('update cb set poa = \'%s\', csi = \'%s\' where ri=\'%s\'', poa, csi, ri);
+    var sql = util.format('update cb set poa = \'%s\', csi = \'%s\', srt = \'%s\' where ri=\'%s\'', poa, csi, srt, ri);
     db.getResult(sql, '', function (err, results) {
         console.timeEnd('update_cb_poa_csi ' + ri);
         callback(err, results);

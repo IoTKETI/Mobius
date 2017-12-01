@@ -50,19 +50,19 @@ function parse_create_action(callback) {
     //resource_Obj[rootnm].csi = '/'+resource_Obj[rootnm].rn;
     resource_Obj[rootnm].csi = usecseid;
 
-    resource_Obj[rootnm].srt = [];
-    resource_Obj[rootnm].srt.push('1');
-    resource_Obj[rootnm].srt.push('2');
-    resource_Obj[rootnm].srt.push('3');
-    resource_Obj[rootnm].srt.push('4');
-    resource_Obj[rootnm].srt.push('9');
-    resource_Obj[rootnm].srt.push('10');
-    resource_Obj[rootnm].srt.push('16');
-    resource_Obj[rootnm].srt.push('17');
-    resource_Obj[rootnm].srt.push('23');
-    resource_Obj[rootnm].srt.push('24');
-    resource_Obj[rootnm].srt.push('29');
-    resource_Obj[rootnm].srt.push('30');
+    resource_Obj[rootnm].srt = ty_list;
+    // resource_Obj[rootnm].srt.push('1');
+    // resource_Obj[rootnm].srt.push('2');
+    // resource_Obj[rootnm].srt.push('3');
+    // resource_Obj[rootnm].srt.push('4');
+    // resource_Obj[rootnm].srt.push('9');
+    // resource_Obj[rootnm].srt.push('10');
+    // resource_Obj[rootnm].srt.push('16');
+    // resource_Obj[rootnm].srt.push('17');
+    // resource_Obj[rootnm].srt.push('23');
+    // resource_Obj[rootnm].srt.push('24');
+    // resource_Obj[rootnm].srt.push('29');
+    // resource_Obj[rootnm].srt.push('30');
 
     resource_Obj[rootnm].poa = [];
     resource_Obj[rootnm].poa[0] = 'http://' + ip.address() + ':' + usecsebaseport;
@@ -78,7 +78,7 @@ function parse_create_action(callback) {
     db_sql.select_ri_lookup(resource_Obj[rootnm].ri, function (err, results_ri) {
         if(!err) {
             if(results_ri.length == 1) {
-                db_sql.update_cb_poa_csi(JSON.stringify(resource_Obj[rootnm].poa), resource_Obj[rootnm].csi, resource_Obj[rootnm].ri, function (err, results) {
+                db_sql.update_cb_poa_csi(JSON.stringify(resource_Obj[rootnm].poa), resource_Obj[rootnm].csi, JSON.stringify(resource_Obj[rootnm].srt), resource_Obj[rootnm].ri, function (err, results) {
                     if (!err) {
                         usecseid = resource_Obj[rootnm].csi;
                         rspObj.rsc = '2004';
