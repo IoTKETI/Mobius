@@ -93,8 +93,8 @@ exports.build_nod = function(request, response, resource_Obj, body_Obj, callback
 
     // - specific attributes
     resource_Obj[rootnm].ni = body_Obj[rootnm].ni;
-
     resource_Obj[rootnm].hcl = (body_Obj[rootnm].hcl) ? body_Obj[rootnm].hcl : '';
+    resource_Obj[rootnm].mgca = (body_Obj[rootnm].mgca) ? body_Obj[rootnm].mgca : '';
 
     if (resource_Obj[rootnm].et != '') {
         if (resource_Obj[rootnm].et < resource_Obj[rootnm].ct) {
@@ -182,6 +182,20 @@ exports.modify_nod = function(request, response, resource_Obj, body_Obj, callbac
     // check M
 
     // body
+    // check if tag is not defined
+    for (var attr in body_Obj[rootnm]) {
+        if (body_Obj[rootnm].hasOwnProperty(attr)) {
+            if (update_attr_list[rootnm].includes(attr)) {
+            }
+            else {
+                body_Obj = {};
+                body_Obj['dbg'] = 'NOT FOUND: ' + attr + ' attribute is not defined';
+                responder.response_result(request, response, 404, body_Obj, 4004, request.url, body_Obj['dbg']);
+                callback('0', resource_Obj);
+                return '0';
+            }
+        }
+    }
 
     update_body(rootnm, body_Obj, resource_Obj);
 

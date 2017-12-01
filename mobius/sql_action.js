@@ -390,13 +390,13 @@ exports.insert_rbo = function(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st,
     });
 };
 
-exports.insert_nod = function(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st, mni, cs, cnf, sri, spi, ni, hcl, callback) {
+exports.insert_nod = function(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st, mni, cs, cnf, sri, spi, ni, hcl, mgca, callback) {
     console.time('insert_nod ' + ri);
     _this.insert_lookup(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st, mni, cs, cnf, sri, spi, function (err, results) {
         if(!err) {
-            var sql = util.format('insert into nod (ri, ni, hcl) ' +
-                'value (\'%s\', \'%s\', \'%s\')',
-                ri, ni, hcl);
+            var sql = util.format('insert into nod (ri, ni, hcl, mgca) ' +
+                'value (\'%s\', \'%s\', \'%s\', \'%s\')',
+                ri, ni, hcl, mgca);
             db.getResult(sql, '', function (err, results) {
                 if(!err) {
                     console.timeEnd('insert_nod ' + ri);
@@ -1394,13 +1394,13 @@ exports.update_rbo = function (lt, acpi, et, st, lbl, at, aa, mni, ri, dc, rbo, 
     });
 };
 
-exports.update_nod = function (lt, acpi, et, st, lbl, at, aa, mni, ri, ni, callback) {
+exports.update_nod = function (lt, acpi, et, st, lbl, at, aa, mni, ri, ni, mgca, callback) {
     console.time('update_nod ' + ri);
     var sql1 = util.format('update lookup set lt = \'%s\', acpi = \'%s\', et = \'%s\', st = \'%s\', lbl = \'%s\', at = \'%s\', aa = \'%s\', mni = \'%s\' where ri = \'%s\'',
         lt, acpi, et, st, lbl, at, aa, mni, ri);
     db.getResult(sql1, '', function (err, results) {
         if (!err) {
-            var sql2 = util.format('update nod set ni = \'%s\' where ri = \'%s\'', ni, ri);
+            var sql2 = util.format('update nod set ni = \'%s\', mgca = \'%s\' where ri = \'%s\'', ni, mgca, ri);
             db.getResult(sql2, '', function (err, results) {
                 if (!err) {
                     console.timeEnd('update_nod ' + ri);

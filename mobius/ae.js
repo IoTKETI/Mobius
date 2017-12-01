@@ -240,6 +240,20 @@ exports.modify_ae = function(request, response, resource_Obj, body_Obj, callback
     // check M
 
     // body
+    // check if tag is not defined
+    for (var attr in body_Obj[rootnm]) {
+        if (body_Obj[rootnm].hasOwnProperty(attr)) {
+            if (update_attr_list[rootnm].includes(attr)) {
+            }
+            else {
+                body_Obj = {};
+                body_Obj['dbg'] = 'NOT FOUND: ' + attr + ' attribute is not defined';
+                responder.response_result(request, response, 404, body_Obj, 4004, request.url, body_Obj['dbg']);
+                callback('0', resource_Obj);
+                return '0';
+            }
+        }
+    }
 
     update_body(rootnm, body_Obj, resource_Obj); // (attr == 'aa' || attr == 'poa' || attr == 'lbl' || attr == 'acpi' || attr == 'srt' || attr == 'nu' || attr == 'mid' || attr == 'macp')
 

@@ -49,6 +49,24 @@ var db_sql = require('./sql_action');
 
 var _this = this;
 
+global.update_attr_list = {};
+update_attr_list.fwr = ['acpi', 'et', 'lbl', 'daci', 'dc', 'cmlk', 'vr', 'fwnnam', 'url', 'ud', 'uds'];
+update_attr_list.bat = ['acpi', 'et', 'lbl', 'daci', 'dc', 'cmlk', 'btl', 'bts'];
+update_attr_list.dvi = ['acpi', 'et', 'lbl', 'daci', 'dc', 'cmlk', 'dlb', 'man', 'mod', 'dty', 'fwv', 'swv', 'hwv'];
+update_attr_list.dvc = ['acpi', 'et', 'lbl', 'daci', 'dc', 'cmlk', 'can', 'att', 'cas', 'cus', 'ena', 'dis'];
+update_attr_list.rbo = ['acpi', 'et', 'lbl', 'daci', 'dc', 'cmlk', 'rbo', 'far'];
+update_attr_list.acp = ['et', 'lbl', 'aa', 'at', 'pv', 'pvs'];
+update_attr_list.csr = ['acpi', 'et', 'lbl', 'aa', 'at', 'daci', 'poa', 'mei', 'rr', 'nl', 'tri', 'esi'];
+update_attr_list.ae = ['acpi', 'et', 'lbl', 'aa', 'at', 'daci', 'apn', 'poa', 'or', 'nl', 'rr', 'csz', 'esi'];
+update_attr_list.cnt = ['acpi', 'et', 'lbl', 'aa', 'at', 'daci', 'mni', 'mbs', 'mia', 'li', 'or'];
+update_attr_list.sub = ['acpi', 'et', 'lbl', 'daci', 'enc', 'exc', 'nu', 'gpi', 'bn', 'rl', 'pn', 'nsp', 'ln', 'nct', 'nec'];
+update_attr_list.lcp = ['acpi', 'et', 'lbl', 'aa', 'at', 'daci', 'lou'];
+update_attr_list.grp = ['acpi', 'et', 'lbl', 'aa', 'at', 'daci', 'mnm', 'mid', 'macp', 'gn'];
+update_attr_list.nod = ['acpi', 'et', 'lbl', 'aa', 'at', 'daci', 'ni', 'mgca'];
+update_attr_list.smd = ['acpi', 'et', 'lbl', 'aa', 'at', 'dcrp', 'soe', 'dsp', 'or', 'rels'];
+update_attr_list.ts = ['acpi', 'et', 'lbl', 'aa', 'at', 'daci', 'mni', 'mbs', 'mia', 'pei', 'mdd', 'mdn', 'mdt', 'or'];
+
+
 exports.t_isr = function (id, param1, param2, param3) {
     console.log(id, param1, param2, param3);
 };
@@ -629,7 +647,7 @@ function create_action(request, response, ty, resource_Obj, callback) {
                 db_sql.insert_nod(resource_Obj[rootnm].ty, resource_Obj[rootnm].ri, resource_Obj[rootnm].rn, resource_Obj[rootnm].pi, resource_Obj[rootnm].ct,
                     resource_Obj[rootnm].lt, resource_Obj[rootnm].et, JSON.stringify(resource_Obj[rootnm].acpi), JSON.stringify(resource_Obj[rootnm].lbl), JSON.stringify(resource_Obj[rootnm].at),
                     JSON.stringify(resource_Obj[rootnm].aa), resource_Obj[rootnm].st, resource_Obj[rootnm].mni, resource_Obj[rootnm].cs, resource_Obj[rootnm].cnf, resource_Obj[rootnm].sri, resource_Obj[rootnm].spi,
-                    resource_Obj[rootnm].ni, resource_Obj[rootnm].hcl, function (err, results) {
+                    resource_Obj[rootnm].ni, resource_Obj[rootnm].hcl, resource_Obj[rootnm].mgca, function (err, results) {
                         if (!err) {
                             callback('1', resource_Obj);
                         }
@@ -1637,7 +1655,7 @@ function update_action( request, response, ty, resource_Obj, callback) {
     }
     else if (ty == '13') {
         if(responder.mgoType[resource_Obj[rootnm].mgd] == rootnm) {
-            if (resource_Obj[rootnm].mgd == 1006) {
+            if (resource_Obj[rootnm].mgd == 1001) {
                 db_sql.update_fwr(resource_Obj[rootnm].lt, JSON.stringify(resource_Obj[rootnm].acpi), resource_Obj[rootnm].et, resource_Obj[rootnm].st, JSON.stringify(resource_Obj[rootnm].lbl),
                     JSON.stringify(resource_Obj[rootnm].at), JSON.stringify(resource_Obj[rootnm].aa), resource_Obj[rootnm].mni, resource_Obj[rootnm].ri,
                     resource_Obj[rootnm].dc, resource_Obj[rootnm].vr, resource_Obj[rootnm].fwnnam, resource_Obj[rootnm].url, resource_Obj[rootnm].ud, JSON.stringify(resource_Obj[rootnm].uds), function (err, results) {
@@ -1738,7 +1756,7 @@ function update_action( request, response, ty, resource_Obj, callback) {
     else if(ty == '14') {
         db_sql.update_nod(resource_Obj[rootnm].lt, JSON.stringify(resource_Obj[rootnm].acpi), resource_Obj[rootnm].et, resource_Obj[rootnm].st, JSON.stringify(resource_Obj[rootnm].lbl),
             JSON.stringify(resource_Obj[rootnm].at), JSON.stringify(resource_Obj[rootnm].aa), resource_Obj[rootnm].mni, resource_Obj[rootnm].ri,
-            resource_Obj[rootnm].ni, function (err, results) {
+            resource_Obj[rootnm].ni, resource_Obj[rootnm].mgca, function (err, results) {
                 if (!err) {
                     callback('1', resource_Obj);
                 }

@@ -482,14 +482,14 @@ function check_http(request, response, callback) {
         //request.headers['x-m2m-origin'] = 'S';
     }
 
-    if(request.headers['x-m2m-origin'].charAt(0) == '/' || request.headers['x-m2m-origin'].charAt(0) == 'S' || request.headers['x-m2m-origin'].charAt(0) == 'C') {
-    }
-    else {
-        body_Obj = {};
-        responder.error_result(request, response, 405, 4005, 'OPERATION_NOT_ALLOWED: X-M2M-Origin Header value has a start character S or C');
-        callback('0', body_Obj, request, response);
-        return '0';
-    }
+    // if(request.headers['x-m2m-origin'].charAt(0) == '/' || request.headers['x-m2m-origin'].charAt(0) == 'S' || request.headers['x-m2m-origin'].charAt(0) == 'C') {
+    // }
+    // else {
+    //     body_Obj = {};
+    //     responder.error_result(request, response, 405, 4005, 'OPERATION_NOT_ALLOWED: X-M2M-Origin Header value has a start character S or C');
+    //     callback('0', body_Obj, request, response);
+    //     return '0';
+    // }
 
     /*if (request.headers['x-m2m-origin'].substr(0, 1) != '/' && request.headers['x-m2m-origin'].substr(0, 1) != 'S' && request.headers['x-m2m-origin'].substr(0, 1) != 'C') {
      body_Obj = {};
@@ -589,6 +589,16 @@ function check_http(request, response, callback) {
                                 else {
                                     ty = ty_idx;
                                     break;
+                                }
+                            }
+                            else if (ty_idx == 13) {
+                                for (var mgo_idx in responder.mgoType) {
+                                    if (responder.mgoType.hasOwnProperty(mgo_idx)) {
+                                        if ((responder.mgoType[mgo_idx] == Object.keys(body_Obj)[0])) {
+                                            ty = ty_idx;
+                                            break;
+                                        }
+                                    }
                                 }
                             }
                         }
