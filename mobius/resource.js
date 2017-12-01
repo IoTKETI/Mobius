@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2015, OCEAN
+ * Copyright (c) 2017, KETI
  * All rights reserved.
  * Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
  * 1. Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
@@ -10,7 +10,7 @@
 
 /**
  * @file
- * @copyright KETI Korea 2015, OCEAN
+ * @copyright KETI Korea 2017, OCEAN
  * @author Il Yeup Ahn [iyahn@keti.re.kr]
  */
 
@@ -49,22 +49,58 @@ var db_sql = require('./sql_action');
 
 var _this = this;
 
-global.update_attr_list = {};
-update_attr_list.fwr = ['acpi', 'et', 'lbl', 'daci', 'dc', 'cmlk', 'vr', 'fwnnam', 'url', 'ud', 'uds'];
-update_attr_list.bat = ['acpi', 'et', 'lbl', 'daci', 'dc', 'cmlk', 'btl', 'bts'];
-update_attr_list.dvi = ['acpi', 'et', 'lbl', 'daci', 'dc', 'cmlk', 'dlb', 'man', 'mod', 'dty', 'fwv', 'swv', 'hwv'];
-update_attr_list.dvc = ['acpi', 'et', 'lbl', 'daci', 'dc', 'cmlk', 'can', 'att', 'cas', 'cus', 'ena', 'dis'];
-update_attr_list.rbo = ['acpi', 'et', 'lbl', 'daci', 'dc', 'cmlk', 'rbo', 'far'];
-update_attr_list.acp = ['et', 'lbl', 'aa', 'at', 'pv', 'pvs'];
-update_attr_list.csr = ['acpi', 'et', 'lbl', 'aa', 'at', 'daci', 'poa', 'mei', 'rr', 'nl', 'tri', 'esi'];
-update_attr_list.ae = ['acpi', 'et', 'lbl', 'aa', 'at', 'daci', 'apn', 'poa', 'or', 'nl', 'rr', 'csz', 'esi'];
-update_attr_list.cnt = ['acpi', 'et', 'lbl', 'aa', 'at', 'daci', 'mni', 'mbs', 'mia', 'li', 'or'];
-update_attr_list.sub = ['acpi', 'et', 'lbl', 'daci', 'enc', 'exc', 'nu', 'gpi', 'bn', 'rl', 'pn', 'nsp', 'ln', 'nct', 'nec'];
-update_attr_list.lcp = ['acpi', 'et', 'lbl', 'aa', 'at', 'daci', 'lou'];
-update_attr_list.grp = ['acpi', 'et', 'lbl', 'aa', 'at', 'daci', 'mnm', 'mid', 'macp', 'gn'];
-update_attr_list.nod = ['acpi', 'et', 'lbl', 'aa', 'at', 'daci', 'ni', 'mgca'];
-update_attr_list.smd = ['acpi', 'et', 'lbl', 'aa', 'at', 'dcrp', 'soe', 'dsp', 'or', 'rels'];
-update_attr_list.ts = ['acpi', 'et', 'lbl', 'aa', 'at', 'daci', 'mni', 'mbs', 'mia', 'pei', 'mdd', 'mdn', 'mdt', 'or'];
+global.update_np_attr_list = {};
+update_np_attr_list.acp = ['rn', 'ty', 'ri', 'pi', 'ct', 'lt'];
+update_np_attr_list.csr = ['rn', 'ty', 'ri', 'pi', 'ct', 'lt', 'st', 'cst', 'cb', 'csi'];
+update_np_attr_list.ae = ['rn', 'ty', 'ri', 'pi', 'ct', 'lt', 'st', 'api', 'aei'];
+update_np_attr_list.cnt = ['rn', 'ty', 'ri', 'pi', 'ct', 'lt', 'st', 'cr', 'cni', 'cbs', 'disr'];
+update_np_attr_list.sub = ['rn', 'ty', 'ri', 'pi', 'ct', 'lt', 'st', 'cr', 'psn', 'su'];
+update_np_attr_list.lcp = ['rn', 'ty', 'ri', 'pi', 'ct', 'lt', 'st', 'los', 'lot', 'lor', 'loi', 'lon', 'lost'];
+update_np_attr_list.grp = ['rn', 'ty', 'ri', 'pi', 'ct', 'lt', 'st', 'cr', 'mt', 'cnm', 'mtv', 'csy', 'ssi'];
+update_np_attr_list.fwr = ['rn', 'ty', 'ri', 'pi', 'ct', 'lt', 'st', 'mgd', 'objs', 'obps'];
+update_np_attr_list.bat = ['rn', 'ty', 'ri', 'pi', 'ct', 'lt', 'st', 'mgd', 'objs', 'obps'];
+update_np_attr_list.dvi = ['rn', 'ty', 'ri', 'pi', 'ct', 'lt', 'st', 'mgd', 'objs', 'obps'];
+update_np_attr_list.dvc = ['rn', 'ty', 'ri', 'pi', 'ct', 'lt', 'st', 'mgd', 'objs', 'obps'];
+update_np_attr_list.rbo = ['rn', 'ty', 'ri', 'pi', 'ct', 'lt', 'st', 'mgd', 'objs', 'obps'];
+update_np_attr_list.nod = ['rn', 'ty', 'ri', 'pi', 'ct', 'lt', 'st', 'hcl'];
+update_np_attr_list.smd = ['rn', 'ty', 'ri', 'pi', 'ct', 'lt', 'st', 'cr'];
+update_np_attr_list.ts = ['rn', 'ty', 'ri', 'pi', 'ct', 'lt', 'st', 'cr', 'cni', 'cbs', 'mdl', 'mdc'];
+update_np_attr_list.mms = ['rn', 'ty', 'ri', 'pi', 'ct', 'lt', 'st', 'sid', 'soid'];
+
+global.update_m_attr_list = {};
+update_m_attr_list.acp = [];
+update_m_attr_list.csr = [];
+update_m_attr_list.ae = [];
+update_m_attr_list.cnt = [];
+update_m_attr_list.sub = [];
+update_m_attr_list.lcp = [];
+update_m_attr_list.grp = [];
+update_m_attr_list.fwr = [];
+update_m_attr_list.dvi = [];
+update_m_attr_list.dvc = [];
+update_m_attr_list.rbo = [];
+update_m_attr_list.nod = [];
+update_m_attr_list.smd = [];
+update_m_attr_list.ts = [];
+update_m_attr_list.mms = [];
+
+global.update_opt_attr_list = {};
+update_opt_attr_list.fwr = ['acpi', 'et', 'lbl', 'daci', 'dc', 'cmlk', 'vr', 'fwnnam', 'url', 'ud', 'uds'];
+update_opt_attr_list.bat = ['acpi', 'et', 'lbl', 'daci', 'dc', 'cmlk', 'btl', 'bts'];
+update_opt_attr_list.dvi = ['acpi', 'et', 'lbl', 'daci', 'dc', 'cmlk', 'dlb', 'man', 'mod', 'dty', 'fwv', 'swv', 'hwv'];
+update_opt_attr_list.dvc = ['acpi', 'et', 'lbl', 'daci', 'dc', 'cmlk', 'can', 'att', 'cas', 'cus', 'ena', 'dis'];
+update_opt_attr_list.rbo = ['acpi', 'et', 'lbl', 'daci', 'dc', 'cmlk', 'rbo', 'far'];
+update_opt_attr_list.acp = ['et', 'lbl', 'aa', 'at', 'pv', 'pvs'];
+update_opt_attr_list.csr = ['acpi', 'et', 'lbl', 'aa', 'at', 'daci', 'poa', 'mei', 'rr', 'nl', 'tri', 'esi'];
+update_opt_attr_list.ae = ['acpi', 'et', 'lbl', 'aa', 'at', 'daci', 'apn', 'poa', 'or', 'nl', 'rr', 'csz', 'esi'];
+update_opt_attr_list.cnt = ['acpi', 'et', 'lbl', 'aa', 'at', 'daci', 'mni', 'mbs', 'mia', 'li', 'or'];
+update_opt_attr_list.sub = ['acpi', 'et', 'lbl', 'daci', 'enc', 'exc', 'nu', 'gpi', 'bn', 'rl', 'pn', 'nsp', 'ln', 'nct', 'nec'];
+update_opt_attr_list.lcp = ['acpi', 'et', 'lbl', 'aa', 'at', 'daci', 'lou'];
+update_opt_attr_list.grp = ['acpi', 'et', 'lbl', 'aa', 'at', 'daci', 'mnm', 'mid', 'macp', 'gn'];
+update_opt_attr_list.nod = ['acpi', 'et', 'lbl', 'aa', 'at', 'daci', 'ni', 'mgca'];
+update_opt_attr_list.smd = ['acpi', 'et', 'lbl', 'aa', 'at', 'dcrp', 'soe', 'dsp', 'or', 'rels'];
+update_opt_attr_list.ts = ['acpi', 'et', 'lbl', 'aa', 'at', 'daci', 'mni', 'mbs', 'mia', 'pei', 'mdd', 'mdn', 'mdt', 'or'];
+update_opt_attr_list.mms = ['acpi', 'et', 'lbl', 'aa', 'at', 'stid', 'asd', 'osd', 'sst'];
 
 
 exports.t_isr = function (id, param1, param2, param3) {
@@ -413,7 +449,7 @@ function create_action(request, response, ty, resource_Obj, callback) {
                     resource_Obj[rootnm].lt, resource_Obj[rootnm].et, JSON.stringify(resource_Obj[rootnm].acpi), JSON.stringify(resource_Obj[rootnm].lbl), JSON.stringify(resource_Obj[rootnm].at),
                     JSON.stringify(resource_Obj[rootnm].aa), resource_Obj[rootnm].st, resource_Obj[rootnm].mni, resource_Obj[rootnm].cs, resource_Obj[rootnm].cnf, resource_Obj[rootnm].sri, resource_Obj[rootnm].spi,
                     resource_Obj[rootnm].cr, resource_Obj[rootnm].mbs, resource_Obj[rootnm].mia,
-                    resource_Obj[rootnm].cni, resource_Obj[rootnm].cbs, resource_Obj[rootnm].li, resource_Obj[rootnm].or, function (err, results) {
+                    resource_Obj[rootnm].cni, resource_Obj[rootnm].cbs, resource_Obj[rootnm].li, resource_Obj[rootnm].or, resource_Obj[rootnm].disr, function (err, results) {
                         if (!err) {
                             callback('1', resource_Obj);
                         }
@@ -1188,7 +1224,7 @@ function presearch_action(request, response, ri_list, comm_Obj, callback) {
     });
 }
 
-const ty_list = ['1', '2', '3', '4', '5', '9', '10', '13', '14', '16', '17','23', '29', '30', '27', '24'];
+const ty_list = ['1', '2', '3', '4', '5', '9', '10', '13', '14', '16', '17','23', '24', '27', '29', '30'];
 
 function search_action(request, response, seq, resource_Obj, ri_list, strObj, presearch_Obj, callback) {
     if(ty_list.length <= seq) {
@@ -1864,74 +1900,142 @@ function update_action( request, response, ty, resource_Obj, callback) {
 }
 
 function update_resource(request, response, ty, body_Obj, resource_Obj, callback) {
-//    var rootnm = request.headers.rootnm;
-    switch (ty) {
-        case '1':
-            acp.modify_acp(request, response, resource_Obj, body_Obj, function(rsc, resource_Obj) {
-                callback(rsc, resource_Obj);
-            });
-            break;
-        case '2':
-            ae.modify_ae(request, response, resource_Obj, body_Obj, function(rsc, resource_Obj) {
-                callback(rsc, resource_Obj);
-            });
-            break;
-        case '3':
-            cnt.modify_cnt(request, response, resource_Obj, body_Obj, function(rsc, resource_Obj) {
-                callback(rsc, resource_Obj);
-            });
-            break;
-        case '9':
-            grp.modify_grp(request, response, resource_Obj, body_Obj, function(rsc, resource_Obj) {
-                callback(rsc, resource_Obj);
-            });
-            break;
-        case '10':
-            lcp.modify_lcp(request, response, resource_Obj, body_Obj, function(rsc, resource_Obj) {
-                callback(rsc, resource_Obj);
-            });
-            break;
-        case '13':
-            mgo.modify_mgo(request, response, resource_Obj, body_Obj, function(rsc, resource_Obj) {
-                callback(rsc, resource_Obj);
-            });
-            break;
-        case '14':
-            nod.modify_nod(request, response, resource_Obj, body_Obj, function(rsc, resource_Obj) {
-                callback(rsc, resource_Obj);
-            });
-            break;
-        case '16':
-            csr.modify_csr(request, response, resource_Obj, body_Obj, function(rsc, resource_Obj) {
-                callback(rsc, resource_Obj);
-            });
-            break;
-        case '23':
-            sub.modify_sub(request, response, resource_Obj, body_Obj, function(rsc, resource_Obj) {
-                callback(rsc, resource_Obj);
-            });
-            break;
-        case '24':
-            smd.modify_sd(request, response, resource_Obj, body_Obj, function(rsc, resource_Obj) {
-                callback(rsc, resource_Obj);
-            }); break;
-        case '29':
-            ts.modify_ts(request, response, resource_Obj, body_Obj, function(rsc, resource_Obj) {
-                callback(rsc, resource_Obj);
-            }); 
-            break;
-        case '27':
-            mms.modify_mms(request, response, resource_Obj, body_Obj, function(rsc, resource_Obj) {
-                callback(rsc, resource_Obj);
-            });
-            break;
-        default:
-            body_Obj = {};
-            body_Obj['dbg'] = 'request is not supported in oneM2M Spec!';
-            responder.response_result(request, response, 405, body_Obj, 4005, request.url, body_Obj['dbg']);
-            callback('0', body_Obj);
-            break;
+    var rootnm = request.headers.rootnm;
+
+    if(ty_list.includes(ty)) {
+        // check M
+        for (var attr in update_m_attr_list[rootnm]) {
+            if (update_m_attr_list[rootnm].hasOwnProperty(attr)) {
+                if (body_Obj[rootnm].includes(attr)) {
+                }
+                else {
+                    body_Obj = {};
+                    body_Obj['dbg'] = 'BAD REQUEST: ' + attr + ' is \'Mandatory\' attribute';
+                    responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
+                    callback('0', resource_Obj);
+                    return '0';
+                }
+            }
+        }
+
+        // check NP and body
+        for (attr in body_Obj[rootnm]) {
+            if (body_Obj[rootnm].hasOwnProperty(attr)) {
+                if (update_np_attr_list[rootnm].includes(attr)) {
+                    body_Obj = {};
+                    body_Obj['dbg'] = 'BAD REQUEST: ' + attr + ' is \'Not Present\' attribute';
+                    responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
+                    callback('0', resource_Obj);
+                    return '0';
+                }
+                else {
+                    if (update_opt_attr_list[rootnm].includes(attr)) {
+                    }
+                    else {
+                        body_Obj = {};
+                        body_Obj['dbg'] = 'NOT FOUND: ' + attr + ' attribute is not defined';
+                        responder.response_result(request, response, 404, body_Obj, 4004, request.url, body_Obj['dbg']);
+                        callback('0', resource_Obj);
+                        return '0';
+                    }
+                }
+            }
+        }
+
+        update_body(rootnm, body_Obj, resource_Obj); // (attr == 'aa' || attr == 'poa' || attr == 'lbl' || attr == 'acpi' || attr == 'srt' || attr == 'nu' || attr == 'mid' || attr == 'macp')
+
+        resource_Obj[rootnm].st = (parseInt(resource_Obj[rootnm].st, 10) + 1).toString();
+
+        var cur_d = new Date();
+        resource_Obj[rootnm].lt = cur_d.toISOString().replace(/-/, '').replace(/-/, '').replace(/:/, '').replace(/:/, '').replace(/\..+/, '');
+
+        if (body_Obj[rootnm].et == '') {
+            if (body_Obj[rootnm].et < resource_Obj[rootnm].ct) {
+                body_Obj = {};
+                body_Obj['dbg'] = 'expiration time is before now';
+                responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
+                callback('0', resource_Obj);
+                return '0';
+            }
+        }
+
+        callback('1', resource_Obj);
     }
+    else {
+        body_Obj = {};
+        body_Obj['dbg'] = 'we do not support to update resource';
+        responder.response_result(request, response, 405, body_Obj, 4005, request.url, body_Obj['dbg']);
+        callback('0', body_Obj);
+    }
+
+// //    var rootnm = request.headers.rootnm;
+//     switch (ty) {
+//         case '1':
+//             acp.modify_acp(request, response, resource_Obj, body_Obj, function(rsc, resource_Obj) {
+//                 callback(rsc, resource_Obj);
+//             });
+//             break;
+//         case '2':
+//             ae.modify_ae(request, response, resource_Obj, body_Obj, function(rsc, resource_Obj) {
+//                 callback(rsc, resource_Obj);
+//             });
+//             break;
+//         case '3':
+//             cnt.modify_cnt(request, response, resource_Obj, body_Obj, function(rsc, resource_Obj) {
+//                 callback(rsc, resource_Obj);
+//             });
+//             break;
+//         case '9':
+//             grp.modify_grp(request, response, resource_Obj, body_Obj, function(rsc, resource_Obj) {
+//                 callback(rsc, resource_Obj);
+//             });
+//             break;
+//         case '10':
+//             lcp.modify_lcp(request, response, resource_Obj, body_Obj, function(rsc, resource_Obj) {
+//                 callback(rsc, resource_Obj);
+//             });
+//             break;
+//         case '13':
+//             mgo.modify_mgo(request, response, resource_Obj, body_Obj, function(rsc, resource_Obj) {
+//                 callback(rsc, resource_Obj);
+//             });
+//             break;
+//         case '14':
+//             nod.modify_nod(request, response, resource_Obj, body_Obj, function(rsc, resource_Obj) {
+//                 callback(rsc, resource_Obj);
+//             });
+//             break;
+//         case '16':
+//             csr.modify_csr(request, response, resource_Obj, body_Obj, function(rsc, resource_Obj) {
+//                 callback(rsc, resource_Obj);
+//             });
+//             break;
+//         case '23':
+//             sub.modify_sub(request, response, resource_Obj, body_Obj, function(rsc, resource_Obj) {
+//                 callback(rsc, resource_Obj);
+//             });
+//             break;
+//         case '24':
+//             smd.modify_sd(request, response, resource_Obj, body_Obj, function(rsc, resource_Obj) {
+//                 callback(rsc, resource_Obj);
+//             }); break;
+//         case '29':
+//             ts.modify_ts(request, response, resource_Obj, body_Obj, function(rsc, resource_Obj) {
+//                 callback(rsc, resource_Obj);
+//             });
+//             break;
+//         case '27':
+//             mms.modify_mms(request, response, resource_Obj, body_Obj, function(rsc, resource_Obj) {
+//                 callback(rsc, resource_Obj);
+//             });
+//             break;
+//         default:
+//             body_Obj = {};
+//             body_Obj['dbg'] = 'request is not supported in oneM2M Spec!';
+//             responder.response_result(request, response, 405, body_Obj, 4005, request.url, body_Obj['dbg']);
+//             callback('0', body_Obj);
+//             break;
+//     }
 }
 
 exports.update = function(request, response, comm_Obj, body_Obj) {

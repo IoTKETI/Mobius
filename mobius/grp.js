@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2015, OCEAN
+ * Copyright (c) 2017, KETI
  * All rights reserved.
  * Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
  * 1. Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
@@ -363,195 +363,118 @@ exports.build_grp = function(request, response, resource_Obj, body_Obj, callback
 
 
 
-exports.modify_grp = function(request, response, resource_Obj, body_Obj, callback) {
-    var rootnm = request.headers.rootnm;
-
-    // todd
-    // check NP
-    if(body_Obj[rootnm].rn) {
-        body_Obj = {};
-        body_Obj['dbg'] = 'rn as NP Tag should not be included';
-        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-        callback('0', resource_Obj);
-        return '0';
-    }
-
-    if(body_Obj[rootnm].ty) {
-        body_Obj = {};
-        body_Obj['dbg'] = 'ty as NP Tag should not be included';
-        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-        callback('0', resource_Obj);
-        return '0';
-    }
-
-    if(body_Obj[rootnm].ri) {
-        body_Obj = {};
-        body_Obj['dbg'] = 'ri as NP Tag should not be included';
-        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-        callback('0', resource_Obj);
-        return '0';
-    }
-
-    if(body_Obj[rootnm].pi) {
-        body_Obj = {};
-        body_Obj['dbg'] = 'pi as NP Tag should not be included';
-        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-        callback('0', resource_Obj);
-        return '0';
-    }
-
-    if(body_Obj[rootnm].ct) {
-        body_Obj = {};
-        body_Obj['dbg'] = 'ct as NP Tag should not be included';
-        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-        callback('0', resource_Obj);
-        return '0';
-    }
-
-    if(body_Obj[rootnm].lt) {
-        body_Obj = {};
-        body_Obj['dbg'] = 'lt as NP Tag should not be included';
-        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-        callback('0', resource_Obj);
-        return '0';
-    }
-
-    if(body_Obj[rootnm].st) {
-        body_Obj = {};
-        body_Obj['dbg'] = 'st as NP Tag should not be included';
-        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-        callback('0', resource_Obj);
-        return '0';
-    }
-
-    if(body_Obj[rootnm].cr) {
-        body_Obj = {};
-        body_Obj['dbg'] = 'cr as NP Tag should not be included';
-        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-        callback('0', resource_Obj);
-        return '0';
-    }
-
-    if(body_Obj[rootnm].mt) {
-        body_Obj = {};
-        body_Obj['dbg'] = 'mt as NP Tag should not be included';
-        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-        callback('0', resource_Obj);
-        return '0';
-    }
-
-    if(body_Obj[rootnm].cnm) {
-        body_Obj = {};
-        body_Obj['dbg'] = 'cnm as NP Tag should not be included';
-        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-        callback('0', resource_Obj);
-        return '0';
-    }
-
-    if(body_Obj[rootnm].mtv) {
-        body_Obj = {};
-        body_Obj['dbg'] = 'mtv as NP Tag should not be included';
-        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-        callback('0', resource_Obj);
-        return '0';
-    }
-
-    if(body_Obj[rootnm].csy) {
-        body_Obj = {};
-        body_Obj['dbg'] = 'csy as NP Tag should not be included';
-        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-        callback('0', resource_Obj);
-        return '0';
-    }
-
-    // check M
-
-    // body
-    // check if tag is not defined
-    for (var attr in body_Obj[rootnm]) {
-        if (body_Obj[rootnm].hasOwnProperty(attr)) {
-            if (update_attr_list[rootnm].includes(attr)) {
-            }
-            else {
-                body_Obj = {};
-                body_Obj['dbg'] = 'NOT FOUND: ' + attr + ' attribute is not defined';
-                responder.response_result(request, response, 404, body_Obj, 4004, request.url, body_Obj['dbg']);
-                callback('0', resource_Obj);
-                return '0';
-            }
-        }
-    }
-
-    update_body(rootnm, body_Obj, resource_Obj); // (attr == 'aa' || attr == 'poa' || attr == 'lbl' || attr == 'acpi' || attr == 'srt' || attr == 'nu' || attr == 'mid' || attr == 'macp')
-
-    resource_Obj[rootnm].st = (parseInt(resource_Obj[rootnm].st, 10) + 1).toString();
-
-    var cur_d = new Date();
-    resource_Obj[rootnm].lt = cur_d.toISOString().replace(/-/, '').replace(/-/, '').replace(/:/, '').replace(/:/, '').replace(/\..+/, '');
-
-    if (resource_Obj[rootnm].et != '') {
-        if (resource_Obj[rootnm].et < resource_Obj[rootnm].ct) {
-            body_Obj = {};
-            body_Obj['dbg'] = 'expiration time is before now';
-            responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-            callback('0', resource_Obj);
-            return '0';
-        }
-    }
-
-    if(body_Obj[rootnm].mid) {
-        resource_Obj[rootnm].mid = body_Obj[rootnm].mid;
-
-        if(resource_Obj[rootnm].mt != '0') {
-            check_mtv(resource_Obj[rootnm].mt, resource_Obj[rootnm].mid, function(rsc, results_mid) {
-                if(rsc == '0') { // mt inconsistency
-                    if(results_mid.length == '0') {
-                        body_Obj = {};
-                                    body_Obj['dbg'] = 'can not create group because mid is empty after validation check of mt requested';
-                        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-                        callback('0', body_Obj);
-                        return '0';
-                    }
-                    else {
-                        if (resource_Obj[rootnm].csy == '1') { // ABANDON_MEMBER
-                            resource_Obj[rootnm].mid = results_mid;
-                            resource_Obj[rootnm].cnm = body_Obj[rootnm].mid.length.toString();
-                            resource_Obj[rootnm].mtv = 'true';
-                        }
-                        else if (resource_Obj[rootnm].csy == '2') { // ABANDON_GROUP
-                            body_Obj = {};
-                                            body_Obj['dbg'] = 'can not create group because csy is ABANDON_GROUP when MEMBER_TYPE_INCONSISTENT';
-                            responder.response_result(request, response, 400, body_Obj, 6011, request.url, body_Obj['dbg']);
-                            callback('0', body_Obj);
-                            return '0';
-                        }
-                        else { // SET_MIXED
-                            resource_Obj[rootnm].mt = '0';
-                            resource_Obj[rootnm].mtv = 'false';
-                        }
-                    }
-                }
-                else if(rsc == '1') {
-                    resource_Obj[rootnm].mtv = 'true';
-                }
-                else { // db error
-                    body_Obj = {};
-                            body_Obj['dbg'] = results_mid.message;
-                    responder.response_result(request, response, 500, body_Obj, 5000, request.url, body_Obj['dbg']);
-                    callback('0', body_Obj);
-                    return '0';
-                }
-
-                callback('1', resource_Obj);
-            });
-        }
-        else {
-            resource_Obj[rootnm].mtv = 'false';
-            callback('1', resource_Obj);
-        }
-    }
-    else {
-        callback('1', resource_Obj);
-    }
-};
+// exports.modify_grp = function(request, response, resource_Obj, body_Obj, callback) {
+//     var rootnm = request.headers.rootnm;
+//
+//     // check M
+//     for (var attr in update_m_attr_list[rootnm]) {
+//         if (update_m_attr_list[rootnm].hasOwnProperty(attr)) {
+//             if (body_Obj[rootnm].includes(attr)) {
+//             }
+//             else {
+//                 body_Obj = {};
+//                 body_Obj['dbg'] = 'BAD REQUEST: ' + attr + ' is \'Mandatory\' attribute';
+//                 responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
+//                 callback('0', resource_Obj);
+//                 return '0';
+//             }
+//         }
+//     }
+//
+//     // check NP and body
+//     for (attr in body_Obj[rootnm]) {
+//         if (body_Obj[rootnm].hasOwnProperty(attr)) {
+//             if (update_np_attr_list[rootnm].includes(attr)) {
+//                 body_Obj = {};
+//                 body_Obj['dbg'] = 'BAD REQUEST: ' + attr + ' is \'Not Present\' attribute';
+//                 responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
+//                 callback('0', resource_Obj);
+//                 return '0';
+//             }
+//             else {
+//                 if (update_opt_attr_list[rootnm].includes(attr)) {
+//                 }
+//                 else {
+//                     body_Obj = {};
+//                     body_Obj['dbg'] = 'NOT FOUND: ' + attr + ' attribute is not defined';
+//                     responder.response_result(request, response, 404, body_Obj, 4004, request.url, body_Obj['dbg']);
+//                     callback('0', resource_Obj);
+//                     return '0';
+//                 }
+//             }
+//         }
+//     }
+//
+//     update_body(rootnm, body_Obj, resource_Obj); // (attr == 'aa' || attr == 'poa' || attr == 'lbl' || attr == 'acpi' || attr == 'srt' || attr == 'nu' || attr == 'mid' || attr == 'macp')
+//
+//     resource_Obj[rootnm].st = (parseInt(resource_Obj[rootnm].st, 10) + 1).toString();
+//
+//     var cur_d = new Date();
+//     resource_Obj[rootnm].lt = cur_d.toISOString().replace(/-/, '').replace(/-/, '').replace(/:/, '').replace(/:/, '').replace(/\..+/, '');
+//
+//     if (resource_Obj[rootnm].et != '') {
+//         if (resource_Obj[rootnm].et < resource_Obj[rootnm].ct) {
+//             body_Obj = {};
+//             body_Obj['dbg'] = 'expiration time is before now';
+//             responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
+//             callback('0', resource_Obj);
+//             return '0';
+//         }
+//     }
+//
+//     if(body_Obj[rootnm].mid) {
+//         resource_Obj[rootnm].mid = body_Obj[rootnm].mid;
+//
+//         if(resource_Obj[rootnm].mt != '0') {
+//             check_mtv(resource_Obj[rootnm].mt, resource_Obj[rootnm].mid, function(rsc, results_mid) {
+//                 if(rsc == '0') { // mt inconsistency
+//                     if(results_mid.length == '0') {
+//                         body_Obj = {};
+//                                     body_Obj['dbg'] = 'can not create group because mid is empty after validation check of mt requested';
+//                         responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
+//                         callback('0', body_Obj);
+//                         return '0';
+//                     }
+//                     else {
+//                         if (resource_Obj[rootnm].csy == '1') { // ABANDON_MEMBER
+//                             resource_Obj[rootnm].mid = results_mid;
+//                             resource_Obj[rootnm].cnm = body_Obj[rootnm].mid.length.toString();
+//                             resource_Obj[rootnm].mtv = 'true';
+//                         }
+//                         else if (resource_Obj[rootnm].csy == '2') { // ABANDON_GROUP
+//                             body_Obj = {};
+//                                             body_Obj['dbg'] = 'can not create group because csy is ABANDON_GROUP when MEMBER_TYPE_INCONSISTENT';
+//                             responder.response_result(request, response, 400, body_Obj, 6011, request.url, body_Obj['dbg']);
+//                             callback('0', body_Obj);
+//                             return '0';
+//                         }
+//                         else { // SET_MIXED
+//                             resource_Obj[rootnm].mt = '0';
+//                             resource_Obj[rootnm].mtv = 'false';
+//                         }
+//                     }
+//                 }
+//                 else if(rsc == '1') {
+//                     resource_Obj[rootnm].mtv = 'true';
+//                 }
+//                 else { // db error
+//                     body_Obj = {};
+//                             body_Obj['dbg'] = results_mid.message;
+//                     responder.response_result(request, response, 500, body_Obj, 5000, request.url, body_Obj['dbg']);
+//                     callback('0', body_Obj);
+//                     return '0';
+//                 }
+//
+//                 callback('1', resource_Obj);
+//             });
+//         }
+//         else {
+//             resource_Obj[rootnm].mtv = 'false';
+//             callback('1', resource_Obj);
+//         }
+//     }
+//     else {
+//         callback('1', resource_Obj);
+//     }
+// };
 

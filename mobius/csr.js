@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2015, OCEAN
+ * Copyright (c) 2017, KETI
  * All rights reserved.
  * Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
  * 1. Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
@@ -10,7 +10,7 @@
 
 /**
  * @file
- * @copyright KETI Korea 2015, OCEAN
+ * @copyright KETI Korea 2017, OCEAN
  * @author Il Yeup Ahn [iyahn@keti.re.kr]
  */
 
@@ -132,134 +132,65 @@ exports.build_csr = function(request, response, resource_Obj, body_Obj, callback
 
 
 
-exports.modify_csr = function(request, response, resource_Obj, body_Obj, callback) {
-    var rootnm = request.headers.rootnm;
-
-    // check NP
-    if(body_Obj[rootnm].rn) {
-        body_Obj = {};
-        body_Obj['dbg'] = 'rn as NP Tag should not be included';
-        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-        callback('0', resource_Obj);
-        return '0';
-    }
-
-    if(body_Obj[rootnm].ty) {
-        body_Obj = {};
-        body_Obj['dbg'] = 'ty as NP Tag should not be included';
-        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-        callback('0', resource_Obj);
-        return '0';
-    }
-
-    if(body_Obj[rootnm].ri) {
-        body_Obj = {};
-        body_Obj['dbg'] = 'ri as NP Tag should not be included';
-        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-        callback('0', resource_Obj);
-        return '0';
-    }
-
-    if(body_Obj[rootnm].pi) {
-        body_Obj = {};
-        body_Obj['dbg'] = 'pi as NP Tag should not be included';
-        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-        callback('0', resource_Obj);
-        return '0';
-    }
-
-    if(body_Obj[rootnm].ct) {
-        body_Obj = {};
-        body_Obj['dbg'] = 'ct as NP Tag should not be included';
-        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-        callback('0', resource_Obj);
-        return '0';
-    }
-
-    if(body_Obj[rootnm].lt) {
-        body_Obj = {};
-        body_Obj['dbg'] = 'lt as NP Tag should not be included';
-        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-        callback('0', resource_Obj);
-        return '0';
-    }
-
-    if(body_Obj[rootnm].st) {
-        body_Obj = {};
-        body_Obj['dbg'] = 'st as NP Tag should not be included';
-        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-        callback('0', resource_Obj);
-        return '0';
-    }
-
-    if(body_Obj[rootnm].cst) {
-        body_Obj = {};
-        body_Obj['dbg'] = 'cst as NP Tag should not be included';
-        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-        callback('0', resource_Obj);
-        return '0';
-    }
-
-    if(body_Obj[rootnm].cb) {
-        body_Obj = {};
-        body_Obj['dbg'] = 'cb as NP Tag should not be included';
-        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-        callback('0', resource_Obj);
-        return '0';
-    }
-
-    if(body_Obj[rootnm].csi) {
-        body_Obj = {};
-        body_Obj['dbg'] = 'csi as NP Tag should not be included';
-        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-        callback('0', resource_Obj);
-        return '0';
-    }
-
-
-    if ((body_Obj[rootnm]['rn'] != null) || (body_Obj[rootnm]['ty'] != null) || (body_Obj[rootnm]['ri'] != null) || (body_Obj[rootnm]['pi'] != null) ||
-        (body_Obj[rootnm]['ct'] != null) || (body_Obj[rootnm]['lt'] != null) || (body_Obj[rootnm]['cst'] != null) || (body_Obj[rootnm]['cb'] != null) || (body_Obj[rootnm]['csi'] != null)) {
-        body_Obj = {};
-        body_Obj['dbg'] = 'NP Tag is in body';
-        responder.response_result(request, response, 400, body_Obj, 4000, request.url, 'NP Tag is in body');
-        callback('0', resource_Obj);
-        return '0';
-    }
-    // check M
-
-    // body
-    // check if tag is not defined
-    for (var attr in body_Obj[rootnm]) {
-        if (body_Obj[rootnm].hasOwnProperty(attr)) {
-            if (update_attr_list[rootnm].includes(attr)) {
-            }
-            else {
-                body_Obj = {};
-                body_Obj['dbg'] = 'NOT FOUND: ' + attr + ' attribute is not defined';
-                responder.response_result(request, response, 404, body_Obj, 4004, request.url, body_Obj['dbg']);
-                callback('0', resource_Obj);
-                return '0';
-            }
-        }
-    }
-
-    update_body(rootnm, body_Obj, resource_Obj); // (attr == 'aa' || attr == 'poa' || attr == 'lbl' || attr == 'acpi' || attr == 'srt' || attr == 'nu' || attr == 'mid' || attr == 'macp')
-
-    resource_Obj[rootnm].st = (parseInt(resource_Obj[rootnm].st, 10) + 1).toString();
-
-    var cur_d = new Date();
-    resource_Obj[rootnm].lt = cur_d.toISOString().replace(/-/, '').replace(/-/, '').replace(/:/, '').replace(/:/, '').replace(/\..+/, '');
-
-    if (resource_Obj[rootnm].et != '') {
-        if (resource_Obj[rootnm].et < resource_Obj[rootnm].ct) {
-            body_Obj = {};
-            body_Obj['dbg'] = 'expiration time is before now';
-            responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-            callback('0', resource_Obj);
-            return '0';
-        }
-    }
-
-    callback('1', resource_Obj);
-};
+// exports.modify_csr = function(request, response, resource_Obj, body_Obj, callback) {
+//     var rootnm = request.headers.rootnm;
+//
+//     // check M
+//     for (var attr in update_m_attr_list[rootnm]) {
+//         if (update_m_attr_list[rootnm].hasOwnProperty(attr)) {
+//             if (body_Obj[rootnm].includes(attr)) {
+//             }
+//             else {
+//                 body_Obj = {};
+//                 body_Obj['dbg'] = 'BAD REQUEST: ' + attr + ' is \'Mandatory\' attribute';
+//                 responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
+//                 callback('0', resource_Obj);
+//                 return '0';
+//             }
+//         }
+//     }
+//
+//     // check NP and body
+//     for (attr in body_Obj[rootnm]) {
+//         if (body_Obj[rootnm].hasOwnProperty(attr)) {
+//             if (update_np_attr_list[rootnm].includes(attr)) {
+//                 body_Obj = {};
+//                 body_Obj['dbg'] = 'BAD REQUEST: ' + attr + ' is \'Not Present\' attribute';
+//                 responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
+//                 callback('0', resource_Obj);
+//                 return '0';
+//             }
+//             else {
+//                 if (update_opt_attr_list[rootnm].includes(attr)) {
+//                 }
+//                 else {
+//                     body_Obj = {};
+//                     body_Obj['dbg'] = 'NOT FOUND: ' + attr + ' attribute is not defined';
+//                     responder.response_result(request, response, 404, body_Obj, 4004, request.url, body_Obj['dbg']);
+//                     callback('0', resource_Obj);
+//                     return '0';
+//                 }
+//             }
+//         }
+//     }
+//
+//     update_body(rootnm, body_Obj, resource_Obj); // (attr == 'aa' || attr == 'poa' || attr == 'lbl' || attr == 'acpi' || attr == 'srt' || attr == 'nu' || attr == 'mid' || attr == 'macp')
+//
+//     resource_Obj[rootnm].st = (parseInt(resource_Obj[rootnm].st, 10) + 1).toString();
+//
+//     var cur_d = new Date();
+//     resource_Obj[rootnm].lt = cur_d.toISOString().replace(/-/, '').replace(/-/, '').replace(/:/, '').replace(/:/, '').replace(/\..+/, '');
+//
+//     if (resource_Obj[rootnm].et != '') {
+//         if (resource_Obj[rootnm].et < resource_Obj[rootnm].ct) {
+//             body_Obj = {};
+//             body_Obj['dbg'] = 'expiration time is before now';
+//             responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
+//             callback('0', resource_Obj);
+//             return '0';
+//         }
+//     }
+//
+//     callback('1', resource_Obj);
+// };
 

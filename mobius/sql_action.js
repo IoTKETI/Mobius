@@ -144,14 +144,14 @@ exports.insert_ae = function(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st, 
     });
 };
 
-exports.insert_cnt = function(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st, mni, cs, cnf, sri, spi, cr, mbs, mia, cni, cbs, li, or, callback) {
+exports.insert_cnt = function(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st, mni, cs, cnf, sri, spi, cr, mbs, mia, cni, cbs, li, or, disr, callback) {
     console.time('insert_cnt ' + ri);
     _this.insert_lookup(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st, mni, cs, cnf, sri, spi, function (err, results) {
         if(!err) {
-            var sql = util.format('insert into cnt (ri, cr, mni, mbs, mia, cni, cbs, li, cnt.or) ' +
-                'value (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
+            var sql = util.format('insert into cnt (ri, cr, mni, mbs, mia, cni, cbs, li, cnt.or, disr) ' +
+                'value (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
                 ri, cr, mni, mbs, mia,
-                cni, cbs, li, or);
+                cni, cbs, li, or, disr);
             db.getResult(sql, '', function (err, results) {
                 if(!err) {
                     console.timeEnd('insert_cnt ' + ri);

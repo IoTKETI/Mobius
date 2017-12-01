@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2015, OCEAN
+ * Copyright (c) 2017, KETI
  * All rights reserved.
  * Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
  * 1. Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
@@ -10,7 +10,7 @@
 
 /**
  * @file
- * @copyright KETI Korea 2015, OCEAN
+ * @copyright KETI Korea 2017, OCEAN
  * @author Il Yeup Ahn [iyahn@keti.re.kr]
  */
 
@@ -879,7 +879,7 @@ function typeCheckAction(index1, body_Obj) {
                 }
             }
             else if (index2 == 'rr' || index2 == 'mtv' || index2 == 'ud' || index2 == 'att' || index2 == 'cus' || index2 == 'ena' || index2 == 'dis' || index2 == 'rbo' ||
-                index2 == 'far' || index2 == 'mdd' ) {
+                index2 == 'far' || index2 == 'mdd' || index2 == 'disr') {
                 body_Obj[index2] = ((body_Obj[index2] == 'true') || ((body_Obj[index2] == true)));
             }
             else if (index2 == 'sri') {
