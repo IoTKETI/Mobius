@@ -116,7 +116,7 @@ exports.build_ts = function(request, response, resource_Obj, body_Obj, callback)
     resource_Obj[rootnm].pei = (body_Obj[rootnm].pei) ? body_Obj[rootnm].pei : '0';
     resource_Obj[rootnm].mdd = (body_Obj[rootnm].mdd) ? body_Obj[rootnm].mdd : 'false';
     resource_Obj[rootnm].mdn = (body_Obj[rootnm].mdn) ? body_Obj[rootnm].mdn : MISSINGDATAMAXNR;
-    resource_Obj[rootnm].mdl = (body_Obj[rootnm].mdl) ? body_Obj[rootnm].mdl : '';
+    resource_Obj[rootnm].mdlt = (body_Obj[rootnm].mdlt) ? body_Obj[rootnm].mdlt : '';
     resource_Obj[rootnm].mdc = (body_Obj[rootnm].mdc) ? body_Obj[rootnm].mdc : '0';
     resource_Obj[rootnm].mdt = (body_Obj[rootnm].mdt) ? body_Obj[rootnm].mdt : '0';
 
@@ -185,7 +185,7 @@ exports.build_ts = function(request, response, resource_Obj, body_Obj, callback)
 //     resource_Obj[rootnm].st = (parseInt(resource_Obj[rootnm].st, 10) + 1).toString();
 //
 //     if(resource_Obj[rootnm].mdt == '0') {
-//         resource_Obj[rootnm].mdl = '';
+//         resource_Obj[rootnm].mdlt = '';
 //         resource_Obj[rootnm].mdc = '0';
 //     }
 //

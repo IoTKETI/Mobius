@@ -227,10 +227,10 @@ var missing_detect_check = function(pei, mdd, mdt, cni, ri, callback) {
                             if (parseInt(results[0].mdc, 10) <= parseInt(results[0].mdn, 10)) {
                                 var cur_d = new Date();
                                 var timestamp = cur_d.toISOString().replace(/-/, '').replace(/-/, '').replace(/:/, '').replace(/:/, '').replace(/\..+/, '');
-                                var mdl = timestamp + ' ' + results[0].mdl;
+                                var mdlt = timestamp + ' ' + results[0].mdlt;
                                 var mdc = (parseInt(results[0].mdc, 10) + 1).toString();
-                                console.log(mdc, mdl);
-                                db_sql.update_ts_mdcn_mdl(mdc, mdl, ri, function (err, results) {
+                                console.log(mdc, mdlt);
+                                db_sql.update_ts_mdcn_mdl(mdc, mdlt, ri, function (err, results) {
                                     if (!err) {
                                     }
                                     else {

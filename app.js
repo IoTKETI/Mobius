@@ -475,21 +475,27 @@ function check_http(request, response, callback) {
 
     // Check X-M2M-Origin Header
     if ((request.headers['x-m2m-origin'] == null || request.headers['x-m2m-origin'] == '')) {
-        responder.error_result(request, response, 400, 4000, 'BAD REQUEST: X-M2M-Origin Header is none');
+        responder.error_result(request, response, 400, 4000, 'BAD REQUEST: X-M2M-Origin Header is Mandatory');
         callback('0', body_Obj, request, response);
         return '0';
 
         //request.headers['x-m2m-origin'] = 'S';
     }
 
-    // if(request.headers['x-m2m-origin'].charAt(0) == '/' || request.headers['x-m2m-origin'].charAt(0) == 'S' || request.headers['x-m2m-origin'].charAt(0) == 'C') {
-    // }
-    // else {
-    //     body_Obj = {};
-    //     responder.error_result(request, response, 405, 4005, 'OPERATION_NOT_ALLOWED: X-M2M-Origin Header value has a start character S or C');
-    //     callback('0', body_Obj, request, response);
-    //     return '0';
-    // }
+    if(request.headers['x-m2m-origin'].charAt(0) == '/' || request.headers['x-m2m-origin'].charAt(0) == 'S' || request.headers['x-m2m-origin'].charAt(0) == 'C') {
+        if (request.method != 'POST' && (request.headers['x-m2m-origin'] == 'S' || request.headers['x-m2m-origin'] == 'C' || request.headers['x-m2m-origin'] == '/')) {
+            body_Obj = {};
+            body_Obj['dbg'] = 'BAD REQUEST: When GET, PUT, DELETE request, AE-ID should be full AE-ID in X-M2M-Origin Header';
+            responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
+            callback('0', body_Obj, request, response);
+            return '0';
+    }
+    else {
+        body_Obj = {};
+        responder.error_result(request, response, 405, 4005, 'OPERATION_NOT_ALLOWED: X-M2M-Origin Header value has a start character S or C');
+        callback('0', body_Obj, request, response);
+        return '0';
+    }
 
     /*if (request.headers['x-m2m-origin'].substr(0, 1) != '/' && request.headers['x-m2m-origin'].substr(0, 1) != 'S' && request.headers['x-m2m-origin'].substr(0, 1) != 'C') {
      body_Obj = {};

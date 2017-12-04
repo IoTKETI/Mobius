@@ -416,7 +416,7 @@ CREATE TABLE `ts` (
   `pei` varchar(45) DEFAULT NULL,
   `mdd` varchar(45) DEFAULT NULL,
   `mdn` varchar(45) DEFAULT NULL,
-  `mdl` longtext,
+  `mdlt` longtext,
   `mdc` varchar(45) DEFAULT NULL,
   `mdt` varchar(45) DEFAULT NULL,
   PRIMARY KEY (`ri`),

@@ -227,7 +227,7 @@ const attrLname = {
     "pei":"periodicInterval",
     "mdd":"missingDataDetect",
     "mdn":"missingDataMaxNr",
-    "mdl":"missingDataList",
+    "mdlt":"missingDataList",
     "mdc":"missingDataCurrentNr",
     "mdt":"missingDataDetectTimer",
     "dgt":"dataGenerationTime",
@@ -519,7 +519,7 @@ const attrSname = {
     "periodicInterval":"pei",
     "missingDataDetect":"mdd",
     "missingDataMaxNr":"mdn",
-    "missingDataList":"mdl",
+    "missingDataList":"mdlt",
     "missingDataCurrentNr":"mdc",
     "missingDataDetectTimer":"mdt",
     "dataGenerationTime":"dgt",
@@ -810,9 +810,9 @@ function typeCheckAction(index1, body_Obj) {
                     delete body_Obj[index2];
                 }
             }
-            else if (index2 == 'cst' || index2 == 'los' || index2 == 'mt' || index2 == 'csy' || index2 == 'nct' ||
+            else if (index2 == 'acp' || index2 == 'cst' || index2 == 'los' || index2 == 'mt' || index2 == 'csy' || index2 == 'nct' ||
                 index2 == 'cs' || index2 == 'st' || index2 == 'ty' || index2 == 'cbs' || index2 == 'cni' || index2 == 'mni' ||
-                index2 == 'cnm' || index2 == 'mia' || index2 == 'mbs' || index2 == 'cnf' || index2 == 'mgd' || index2 == 'btl' || index2 == 'bts' ||
+                index2 == 'cnm' || index2 == 'mia' || index2 == 'mbs' || index2 == 'mgd' || index2 == 'btl' || index2 == 'bts' ||
                 index2 == 'mdn' || index2 == 'mdc' || index2 == 'mdt' || index2 == 'pei' || index2 == 'mnm') {
 
                 if ((index1 == 'm2m:cb' || index1 == 'm2m:cin' || index1 == 'm2m:nod' || index1 == 'm2m:ae' || index1 == 'm2m:sub' || index1 == 'm2m:acp' || index1 == 'm2m:csr' || index1 == 'm2m:grp'
@@ -821,6 +821,9 @@ function typeCheckAction(index1, body_Obj) {
                 }
                 else if ((index1 == 'm2m:cb' || index1 == 'm2m:csr' || index1 == 'm2m:ae' || index1 == 'm2m:acp' || index1 == 'm2m:grp' || index1 == 'm2m:sub' || index1 == 'm2m:nod'
                     || index1 == 'm2m:fwr' || index1 == 'm2m:bat' || index1 == 'm2m:dvi' || index1 == 'm2m:dvc' || index1 == 'm2m:rbo') && index2 == 'st') {
+                    delete body_Obj[index2];
+                }
+                else if ((index1 == 'm2m:acp') && index2 == 'acpi') {
                     delete body_Obj[index2];
                 }
                 else {
@@ -860,11 +863,16 @@ function typeCheckAction(index1, body_Obj) {
                     }
                 }
             }
-            else if (index2 == 'bn') {
-                for (var index3 in body_Obj[index2]) {
-                    if (body_Obj[index2].hasOwnProperty(index3)) {
-                        if(index3 == 'num') {
-                            body_Obj[index2][index3] = parseInt(body_Obj[index2][index3]);
+            else if (index2 == 'bn') {F
+                if(Object.keys(body_Obj[index2]).length == 0) {
+                    delete body_Obj[index2];
+                }
+                else {
+                    for (var index3 in body_Obj[index2]) {
+                        if (body_Obj[index2].hasOwnProperty(index3)) {
+                            if(index3 == 'num') {
+                                body_Obj[index2][index3] = parseInt(body_Obj[index2][index3]);
+                            }
                         }
                     }
                 }
