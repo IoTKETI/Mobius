@@ -489,6 +489,7 @@ function check_http(request, response, callback) {
             responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
             callback('0', body_Obj, request, response);
             return '0';
+        }
     }
     else {
         body_Obj = {};
@@ -504,15 +505,6 @@ function check_http(request, response, callback) {
      callback('0', body_Obj, request, response);
      return '0';
      }*/ // ignore value of Origin tag
-
-    /*if (request.method != 'POST' && (
-    request.headers['x-m2m-origin'] == 'S' || request.headers['x-m2m-origin'] == 'C' || request.headers['x-m2m-origin'] == '/')) {
-     body_Obj = {};
-     body_Obj['dbg'] = 'When GET, PUT, DELETE request, AE-ID should be full AE-ID in X-M2M-Origin Header';
-     responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-     callback('0', body_Obj, request, response);
-     return '0';
-     }*/
 
     var url_arr = url.parse(request.url).pathname.split('/');
     var last_url = url_arr[url_arr.length - 1];
