@@ -934,7 +934,7 @@ exports.select_latest_lookup = function(ri, cur_d, loop_cnt, ty, callback) {
         console.time('select_latest ' + ri);
     }
 
-    var bef_d = moment(cur_d).subtract(1,'minutes').format('YYYY-MM-DD HH:mm:ss');
+    var bef_d = moment(cur_d).subtract(1, 'minutes').format('YYYY-MM-DD HH:mm:ss');
     var bef_ct = moment(bef_d).utc().format('YYYYMMDDTHHmmss');
 
     var sql = util.format('select a.* from (select ri from lookup where (pi = \'%s\') and (ct > \'%s\')) b left join lookup as a on b.ri = a.ri where a.ty = \'%s\' order by ct desc limit 1', ri, bef_ct, ty);
