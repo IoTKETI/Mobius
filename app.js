@@ -474,12 +474,14 @@ function check_http(request, response, callback) {
     }
 
     // Check X-M2M-Origin Header
-    if ((request.headers['x-m2m-origin'] == null || request.headers['x-m2m-origin'] == '')) {
+    if ((request.headers['x-m2m-origin'] == null)) {
         responder.error_result(request, response, 400, 4000, 'BAD REQUEST: X-M2M-Origin Header is Mandatory');
         callback('0', body_Obj, request, response);
         return '0';
+    }
 
-        //request.headers['x-m2m-origin'] = 'S';
+    if (request.headers['x-m2m-origin'] == '') {
+        request.headers['x-m2m-origin'] = 'S';
     }
 
     if(request.headers['x-m2m-origin'].charAt(0) == '/' || request.headers['x-m2m-origin'].charAt(0) == 'S' || request.headers['x-m2m-origin'].charAt(0) == 'C') {
