@@ -863,7 +863,7 @@ function typeCheckAction(index1, body_Obj) {
                     }
                 }
             }
-            else if (index2 == 'bn') {F
+            else if (index2 == 'bn') {
                 if(Object.keys(body_Obj[index2]).length == 0) {
                     delete body_Obj[index2];
                 }
