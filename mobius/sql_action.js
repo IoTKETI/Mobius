@@ -669,7 +669,7 @@ function build_discovery_sql(ri, query, cur_lim, pi_list, bef_ct, cur_ct) {
     if(query.lbl != null) {
         query_where = ' where ';
         if(query.lbl.toString().split(',')[1] == null) {
-            query_where += util.format(' a.lbl like \'%%\"%s\"%%\'', query.lbl);
+            query_where += util.format(' a.lbl like \'[\"%%%s%%"]\'', query.lbl);
             //query_where += util.format(' lbl like \'%s\'', request.query.lbl);
         }
         else {
@@ -878,8 +878,8 @@ exports.search_lookup = function (ri, query, cur_lim, pi_list, pi_index, found_O
     var cur_ct = moment(cur_d).utc().format('YYYYMMDDTHHmmss');
     var bef_ct = moment(bef_d).utc().format('YYYYMMDDTHHmmss');
     var sql = build_discovery_sql(ri, query, cur_lim, cur_pi, bef_ct, cur_ct);
- //   console.log(sql);
- //   console.time('discovery');
+    console.log(sql);
+    console.time('discovery');
     db.getResult(sql, '', function (err, search_Obj) {
  //       console.timeEnd('discovery');
         if(!err) {
