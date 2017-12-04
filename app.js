@@ -1518,11 +1518,11 @@ app.post(onem2mParser, function (request, response) {
 
         check_body_format(request);
 
-        //request.url = request.url.replace(/\/$/, "");
-        //var url_arr = url.parse(request.url).pathname.split('/');
-        var absolute_url = request.url.replace(/\/~\/[^\/]+\/?/, '/').split('#')[0];
-        absolute_url = absolute_url.replace(/\/_/, '/' + usecsebase);
+        var absolute_url = request.url.replace('\/_\/', '\/\/').split('#')[0];
+        absolute_url = absolute_url.replace(usespid, '/~');
+        absolute_url = absolute_url.replace(/\/~\/[^\/]+\/?/, '/');
         var absolute_url_arr = absolute_url.split('/');
+
         db_sql.get_ri_sri(request, response, absolute_url_arr[1].split('?')[0], function (err, results, request, response) {
             if (err) {
                 responder.error_result(request, response, 500, 5000, 'database error (can not get resourceID from database)');
@@ -1586,9 +1586,12 @@ app.get(onem2mParser, function (request, response) {
 
         request.url = request.url.replace('%23', '#'); // convert '%23' to '#' of url
         request.hash = url.parse(request.url).hash;
-        var absolute_url = request.url.replace(/\/~\/[^\/]+\/?/, '/').split('#')[0];
-        absolute_url = absolute_url.replace(/\/_/, '/' + usecsebase);
+
+        var absolute_url = request.url.replace('\/_\/', '\/\/').split('#')[0];
+        absolute_url = absolute_url.replace(usespid, '/~');
+        absolute_url = absolute_url.replace(/\/~\/[^\/]+\/?/, '/');
         var absolute_url_arr = absolute_url.split('/');
+
         db_sql.get_ri_sri(request, response, absolute_url_arr[1].split('?')[0], function (err, results, request, response) {
             if (err) {
                 responder.error_result(request, response, 500, 5000, 'database error (can not get resourceID from database)');
@@ -1651,11 +1654,11 @@ app.put(onem2mParser, function (request, response) {
 
         check_body_format(request);
 
-        //request.url = request.url.replace(/\/$/, "");
-        //var url_arr = url.parse(request.url).pathname.split('/');
-        var absolute_url = request.url.replace(/\/~\/[^\/]+\/?/, '/').split('#')[0];
-        absolute_url = absolute_url.replace(/\/_/, '/' + usecsebase);
+        var absolute_url = request.url.replace('\/_\/', '\/\/').split('#')[0];
+        absolute_url = absolute_url.replace(usespid, '/~');
+        absolute_url = absolute_url.replace(/\/~\/[^\/]+\/?/, '/');
         var absolute_url_arr = absolute_url.split('/');
+
         db_sql.get_ri_sri(request, response, absolute_url_arr[1].split('?')[0], function (err, results, request, response) {
             if (err) {
                 responder.error_result(request, response, 500, 5000, 'database error (can not get resourceID from database)');
@@ -1720,11 +1723,11 @@ app.delete(onem2mParser, function (request, response) {
 
         check_body_format(request);
 
-        //request.url = request.url.replace(/\/$/, "");
-        //var url_arr = url.parse(request.url).pathname.split('/');
-        var absolute_url = request.url.replace(/\/~\/[^\/]+\/?/, '/').split('#')[0];
-        absolute_url = absolute_url.replace(/\/_/, '/' + usecsebase);
+        var absolute_url = request.url.replace('\/_\/', '\/\/').split('#')[0];
+        absolute_url = absolute_url.replace(usespid, '/~');
+        absolute_url = absolute_url.replace(/\/~\/[^\/]+\/?/, '/');
         var absolute_url_arr = absolute_url.split('/');
+
         db_sql.get_ri_sri(request, response, absolute_url_arr[1].split('?')[0], function (err, results, request, response) {
             if (err) {
                 responder.error_result(request, response, 500, 5000, 'database error (can not get resourceID from database)');
