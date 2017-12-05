@@ -845,166 +845,180 @@ function check_http(request, response, callback) {
 function check_resource(request, response, callback) {
     var ri = url.parse(request.url).pathname;
 
-    var url_arr = ri.split('/');
-    var last_url = url_arr[url_arr.length - 1];
-    var op = 'direct';
-
-    if (last_url == 'latest' || last_url == 'la') {
-        ri = ri.replace('/latest', '');
-        ri = ri.replace('/la', '');
-        op = 'latest';
-        db_sql.select_direct_lookup(ri, function (err, result_Obj) {
-            if (!err) {
-                if (result_Obj.length == 1) {
-                    if (result_Obj[0].ty == '3') {
-                        var cur_ty = '4';
+    var chk_fopt = ri.split('/fopt');
+    if(chk_fopt.length == 2) {
+        //if (chk_fopt[1] == '') {
+            //var url_arr = ri.split('/');
+            //var last_url = url_arr[url_arr.length - 1];
+            //var op = 'direct';
+            //if (last_url == 'fanoutpoint' || last_url == 'fopt') {
+                //ri = ri.replace('/fanoutpoint', '');
+                //ri = ri.replace('/fopt', '');
+                ri = chk_fopt[0];
+                op = 'fanoutpoint';
+                db_sql.select_grp_lookup(ri, function (err, result_Obj) {
+                    if (!err) {
+                        if (result_Obj.length == 1) {
+                            result_Obj[0].acpi = JSON.parse(result_Obj[0].acpi);
+                            result_Obj[0].lbl = JSON.parse(result_Obj[0].lbl);
+                            result_Obj[0].aa = JSON.parse(result_Obj[0].aa);
+                            result_Obj[0].at = JSON.parse(result_Obj[0].at);
+                            callback('1', result_Obj[0], op, request, response);
+                        }
+                        else {
+                            result_Obj = {};
+                            result_Obj['dbg'] = 'resource does not exist';
+                            responder.response_result(request, response, 404, result_Obj, 4004, request.url, result_Obj['dbg']);
+                            callback('0', {}, '', request, response);
+                            return '0';
+                        }
                     }
-                    else if (result_Obj[0].ty == '29') {
-                        cur_ty = '30';
+                    else {
+                        var code = result_Obj.message;
+                        result_Obj = {};
+                        result_Obj['dbg'] = code;
+                        responder.response_result(request, response, 500, result_Obj, 5000, request.url, result_Obj['dbg']);
+                        callback('0', {}, '', request, response);
+                        return '0';
+                    }
+                });
+            //}
+        ////}
+        ////else {
+       //     chk_fopt[0]
+     //   }
+    }
+    else {
+        var url_arr = ri.split('/');
+        var last_url = url_arr[url_arr.length - 1];
+        var op = 'direct';
+
+        if (last_url == 'latest' || last_url == 'la') {
+            ri = ri.replace('/latest', '');
+            ri = ri.replace('/la', '');
+            op = 'latest';
+            db_sql.select_direct_lookup(ri, function (err, result_Obj) {
+                if (!err) {
+                    if (result_Obj.length == 1) {
+                        if (result_Obj[0].ty == '3') {
+                            var cur_ty = '4';
+                        }
+                        else if (result_Obj[0].ty == '29') {
+                            cur_ty = '30';
+                        }
+                        else {
+                            result_Obj = {};
+                            result_Obj['dbg'] = 'this resource can not have latest resource';
+                            responder.response_result(request, response, 404, result_Obj, 4004, request.url, result_Obj['dbg']);
+                            callback('0', {}, '', request, response);
+                            return '0';
+                        }
+                        var cur_d = new Date();
+                        db_sql.select_latest_lookup(ri, cur_d, 0, cur_ty, function (err, result_Obj) {
+                            if (!err) {
+                                if (result_Obj.length == 1) {
+                                    result_Obj[0].acpi = JSON.parse(result_Obj[0].acpi);
+                                    result_Obj[0].lbl = JSON.parse(result_Obj[0].lbl);
+                                    result_Obj[0].aa = JSON.parse(result_Obj[0].aa);
+                                    result_Obj[0].at = JSON.parse(result_Obj[0].at);
+                                    callback('1', result_Obj[0], op, request, response);
+                                }
+                                else {
+                                    result_Obj = {};
+                                    result_Obj['dbg'] = 'resource does not exist';
+                                    responder.response_result(request, response, 404, result_Obj, 4004, request.url, result_Obj['dbg']);
+                                    callback('0', {}, '', request, response);
+                                    return '0';
+                                }
+                            }
+                            else {
+                                var code = result_Obj.message;
+                                result_Obj = {};
+                                result_Obj['dbg'] = code;
+                                responder.response_result(request, response, 500, result_Obj, 5000, request.url, result_Obj['dbg']);
+                                callback('0', {}, '', request, response);
+                                return '0';
+                            }
+                        });
                     }
                     else {
                         result_Obj = {};
-                        result_Obj['dbg'] = 'this resource can not have latest resource';
+                        result_Obj['dbg'] = 'resource does not exist';
                         responder.response_result(request, response, 404, result_Obj, 4004, request.url, result_Obj['dbg']);
                         callback('0', {}, '', request, response);
                         return '0';
                     }
-                    var cur_d = new Date();
-                    db_sql.select_latest_lookup(ri, cur_d, 0, cur_ty, function (err, result_Obj) {
-                        if (!err) {
-                            if (result_Obj.length == 1) {
-                                result_Obj[0].acpi = JSON.parse(result_Obj[0].acpi);
-                                result_Obj[0].lbl = JSON.parse(result_Obj[0].lbl);
-                                result_Obj[0].aa = JSON.parse(result_Obj[0].aa);
-                                result_Obj[0].at = JSON.parse(result_Obj[0].at);
-                                callback('1', result_Obj[0], op, request, response);
-                            }
-                            else {
-                                result_Obj = {};
-                                result_Obj['dbg'] = 'resource does not exist';
-                                responder.response_result(request, response, 404, result_Obj, 4004, request.url, result_Obj['dbg']);
-                                callback('0', {}, '', request, response);
-                                return '0';
-                            }
-                        }
-                        else {
-                            var code = result_Obj.message;
-                            result_Obj = {};
-                            result_Obj['dbg'] = code;
-                            responder.response_result(request, response, 500, result_Obj, 5000, request.url, result_Obj['dbg']);
-                            callback('0', {}, '', request, response);
-                            return '0';
-                        }
-                    });
                 }
                 else {
+                    var code = result_Obj.message;
                     result_Obj = {};
-                    result_Obj['dbg'] = 'resource does not exist';
-                    responder.response_result(request, response, 404, result_Obj, 4004, request.url, result_Obj['dbg']);
+                    result_Obj['dbg'] = code;
+                    responder.response_result(request, response, 500, result_Obj, 5000, request.url, result_Obj['dbg']);
                     callback('0', {}, '', request, response);
                     return '0';
                 }
-            }
-            else {
-                var code = result_Obj.message;
-                result_Obj = {};
-                result_Obj['dbg'] = code;
-                responder.response_result(request, response, 500, result_Obj, 5000, request.url, result_Obj['dbg']);
-                callback('0', {}, '', request, response);
-                return '0';
-            }
-        });
-    }
-    else if (last_url == 'oldest' || last_url == 'ol') {
-        ri = ri.replace('/oldest', '');
-        ri = ri.replace('/ol', '');
-        op = 'oldest';
-        db_sql.select_oldest_lookup(ri, function (err, result_Obj) {
-            if (!err) {
-                if (result_Obj.length == 1) {
-                    result_Obj[0].acpi = JSON.parse(result_Obj[0].acpi);
-                    result_Obj[0].lbl = JSON.parse(result_Obj[0].lbl);
-                    result_Obj[0].aa = JSON.parse(result_Obj[0].aa);
-                    result_Obj[0].at = JSON.parse(result_Obj[0].at);
-                    callback('1', result_Obj[0], op, request, response);
+            });
+        }
+        else if (last_url == 'oldest' || last_url == 'ol') {
+            ri = ri.replace('/oldest', '');
+            ri = ri.replace('/ol', '');
+            op = 'oldest';
+            db_sql.select_oldest_lookup(ri, function (err, result_Obj) {
+                if (!err) {
+                    if (result_Obj.length == 1) {
+                        result_Obj[0].acpi = JSON.parse(result_Obj[0].acpi);
+                        result_Obj[0].lbl = JSON.parse(result_Obj[0].lbl);
+                        result_Obj[0].aa = JSON.parse(result_Obj[0].aa);
+                        result_Obj[0].at = JSON.parse(result_Obj[0].at);
+                        callback('1', result_Obj[0], op, request, response);
+                    }
+                    else {
+                        result_Obj = {};
+                        result_Obj['dbg'] = 'resource does not exist';
+                        responder.response_result(request, response, 404, result_Obj, 4004, request.url, result_Obj['dbg']);
+                        callback('0', {}, '', request, response);
+                        return '0';
+                    }
                 }
                 else {
+                    var code = result_Obj.message;
                     result_Obj = {};
-                    result_Obj['dbg'] = 'resource does not exist';
-                    responder.response_result(request, response, 404, result_Obj, 4004, request.url, result_Obj['dbg']);
+                    result_Obj['dbg'] = code;
+                    responder.response_result(request, response, 500, result_Obj, 5000, request.url, result_Obj['dbg']);
                     callback('0', {}, '', request, response);
                     return '0';
                 }
-            }
-            else {
-                var code = result_Obj.message;
-                result_Obj = {};
-                result_Obj['dbg'] = code;
-                responder.response_result(request, response, 500, result_Obj, 5000, request.url, result_Obj['dbg']);
-                callback('0', {}, '', request, response);
-                return '0';
-            }
-        });
-    }
-    else if (last_url == 'fanoutpoint' || last_url == 'fopt') {
-        ri = ri.replace('/fanoutpoint', '');
-        ri = ri.replace('/fopt', '');
-        op = 'fanoutpoint';
-        db_sql.select_grp_lookup(ri, function (err, result_Obj) {
-            if (!err) {
-                if (result_Obj.length == 1) {
-                    result_Obj[0].acpi = JSON.parse(result_Obj[0].acpi);
-                    result_Obj[0].lbl = JSON.parse(result_Obj[0].lbl);
-                    result_Obj[0].aa = JSON.parse(result_Obj[0].aa);
-                    result_Obj[0].at = JSON.parse(result_Obj[0].at);
-                    callback('1', result_Obj[0], op, request, response);
+            });
+        }
+        else {
+            op = 'direct';
+            console.log('X-M2M-Origin: ' + request.headers['x-m2m-origin']);
+            db_sql.select_direct_lookup(ri, function (err, result_Obj) {
+                if (!err) {
+                    if (result_Obj.length == 1) {
+                        result_Obj[0].acpi = JSON.parse(result_Obj[0].acpi);
+                        result_Obj[0].lbl = JSON.parse(result_Obj[0].lbl);
+                        result_Obj[0].aa = JSON.parse(result_Obj[0].aa);
+                        result_Obj[0].at = JSON.parse(result_Obj[0].at);
+                        callback('1', result_Obj[0], op, request, response);
+                    }
+                    else {
+                        result_Obj = {};
+                        result_Obj['dbg'] = 'resource does not exist';
+                        responder.response_result(request, response, 404, result_Obj, 4004, request.url, result_Obj['dbg']);
+                        callback('0', {}, '', request, response);
+                        return '0';
+                    }
                 }
                 else {
                     result_Obj = {};
-                    result_Obj['dbg'] = 'resource does not exist';
-                    responder.response_result(request, response, 404, result_Obj, 4004, request.url, result_Obj['dbg']);
+                    result_Obj['dbg'] = result_Obj.message;
+                    responder.response_result(request, response, 500, result_Obj, 5000, request.url, result_Obj['dbg']);
                     callback('0', {}, '', request, response);
                     return '0';
                 }
-            }
-            else {
-                var code = result_Obj.message;
-                result_Obj = {};
-                result_Obj['dbg'] = code;
-                responder.response_result(request, response, 500, result_Obj, 5000, request.url, result_Obj['dbg']);
-                callback('0', {}, '', request, response);
-                return '0';
-            }
-        });
-    }
-    else {
-        op = 'direct';
-        console.log('X-M2M-Origin: ' + request.headers['x-m2m-origin']);
-        db_sql.select_direct_lookup(ri, function (err, result_Obj) {
-            if (!err) {
-                if (result_Obj.length == 1) {
-                    result_Obj[0].acpi = JSON.parse(result_Obj[0].acpi);
-                    result_Obj[0].lbl = JSON.parse(result_Obj[0].lbl);
-                    result_Obj[0].aa = JSON.parse(result_Obj[0].aa);
-                    result_Obj[0].at = JSON.parse(result_Obj[0].at);
-                    callback('1', result_Obj[0], op, request, response);
-                }
-                else {
-                    result_Obj = {};
-                    result_Obj['dbg'] = 'resource does not exist';
-                    responder.response_result(request, response, 404, result_Obj, 4004, request.url, result_Obj['dbg']);
-                    callback('0', {}, '', request, response);
-                    return '0';
-                }
-            }
-            else {
-                result_Obj = {};
-                result_Obj['dbg'] = result_Obj.message;
-                responder.response_result(request, response, 500, result_Obj, 5000, request.url, result_Obj['dbg']);
-                callback('0', {}, '', request, response);
-                return '0';
-            }
-        });
+            });
+        }
     }
 }
 
