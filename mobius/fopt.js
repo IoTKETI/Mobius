@@ -24,6 +24,8 @@ var moment = require('moment');
 var responder = require('./responder');
 var resource = require('./resource');
 
+var db_sql = require('./sql_action');
+
 function check_body(res, body_type, res_body, callback) {
     var retrieve_Obj = {};
 
@@ -71,71 +73,73 @@ function fopt_member(request, response, req_count, mid, body_Obj, cse_poa, agr, 
     }
     else {
         var ri = mid[req_count++];
-        var target_cb = ri.split('/')[1];
-        var hostname = 'localhost';
-        var port = usecsebaseport;
-        if(target_cb != usecsebase) {
-            if(cse_poa[target_cb]) {
-                hostname = url.parse(cse_poa[target_cb]).hostname;
-                port = url.parse(cse_poa[target_cb]).port;
-            }
-            else {
-                fopt_member(request, response, req_count, mid, body_Obj, cse_poa, agr, function (agr) {
-                    callback(agr);
-                });
-                return;
-            }
-        }
-
-        //var rqi = moment().utc().format('mmssSSS') + randomValueBase64(4);
-        var options = {
-            hostname: hostname,
-            port: port,
-            path: ri,
-            method: request.method,
-            // headers: {
-            //     'X-M2M-RI': rqi,
-            //     'Accept': 'application/'+request.headers.usebodytype,
-            //     'X-M2M-Origin': usecseid,
-            //     'Content-Type' : request.headers['content-type']
-            // }
-            headers : request.headers
-        };
-
-        var responseBody = '';
-        var req = http.request(options, function (res) {
-            //res.setEncoding('utf8');
-            res.on('data', function (chunk) {
-                responseBody += chunk;
-            });
-
-            res.on('end', function () {
-                check_body(res, request.headers.usebodytype, responseBody, function (rsc, retrieve_Obj) {
-                    if (rsc == '1') {
-                        //for (var prop in retrieve_Obj.pc) {
-                            agr[retrieve_Obj.fr] = retrieve_Obj;
-                        //}
-                    }
-
+        db_sql.get_ri_sri(request, response, ri, function (err, results, request, response) {
+            var target_cb = ri.split('/')[1];
+            var hostname = 'localhost';
+            var port = usecsebaseport;
+            if (target_cb != usecsebase) {
+                if (cse_poa[target_cb]) {
+                    hostname = url.parse(cse_poa[target_cb]).hostname;
+                    port = url.parse(cse_poa[target_cb]).port;
+                }
+                else {
                     fopt_member(request, response, req_count, mid, body_Obj, cse_poa, agr, function (agr) {
                         callback(agr);
                     });
-                });
-            });
-        });
-
-        req.on('error', function (e) {
-            if (e.message != 'read ECONNRESET') {
-                console.log('[fopt_member] problem with request: ' + e.message);
+                    return;
+                }
             }
 
-            fopt_member(request, response, req_count, mid, body_Obj, cse_poa, agr, function (agr) {
-                callback(agr);
-            });
-        });
+            //var rqi = moment().utc().format('mmssSSS') + randomValueBase64(4);
+            var options = {
+                hostname: hostname,
+                port: port,
+                path: ri,
+                method: request.method,
+                // headers: {
+                //     'X-M2M-RI': rqi,
+                //     'Accept': 'application/'+request.headers.usebodytype,
+                //     'X-M2M-Origin': usecseid,
+                //     'Content-Type' : request.headers['content-type']
+                // }
+                headers: request.headers
+            };
 
-        req.write(request.body);
-        req.end();
+            var responseBody = '';
+            var req = http.request(options, function (res) {
+                //res.setEncoding('utf8');
+                res.on('data', function (chunk) {
+                    responseBody += chunk;
+                });
+
+                res.on('end', function () {
+                    check_body(res, request.headers.usebodytype, responseBody, function (rsc, retrieve_Obj) {
+                        if (rsc == '1') {
+                            //for (var prop in retrieve_Obj.pc) {
+                            agr[retrieve_Obj.fr] = retrieve_Obj;
+                            //}
+                        }
+
+                        fopt_member(request, response, req_count, mid, body_Obj, cse_poa, agr, function (agr) {
+                            callback(agr);
+                        });
+                    });
+                });
+            });
+
+            req.on('error', function (e) {
+                if (e.message != 'read ECONNRESET') {
+                    console.log('[fopt_member] problem with request: ' + e.message);
+                }
+
+                fopt_member(request, response, req_count, mid, body_Obj, cse_poa, agr, function (agr) {
+                    callback(agr);
+                });
+            });
+
+            req.write(request.body);
+            req.end();
+        });
     }
 }
 

@@ -571,7 +571,7 @@ function check_http(request, response, callback) {
                         }
                     }
                 }
-                else {
+                else { // PUT
                     ty = '99';
                     for (var ty_idx in responder.typeRsrc) {
                         if (responder.typeRsrc.hasOwnProperty(ty_idx)) {
