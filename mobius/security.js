@@ -87,6 +87,11 @@ exports.check = function(request, response, ty, acpiList, access_value, cr, call
                 }
             }
             else {
+                if(request.headers['x-m2m-origin'] == cr) {
+                    callback('1', request, response);
+                    return '1';
+                }
+
                 if(access_value == '2' && request.url == ('/'+usecsebase)) {
                     callback('1', request, response);
                     return '1';
