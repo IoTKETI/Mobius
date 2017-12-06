@@ -50,6 +50,9 @@ else {
     usemqttport             = '1883';
 }
 
+global.usesuperuser         = 'Specialist';
+global.useobserver          = 'Survey';
+
 global.wdt = require('./wdt');
 
 // CSE core

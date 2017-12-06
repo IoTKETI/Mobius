@@ -19,7 +19,7 @@ var util = require('util');
 var db_sql = require('./sql_action');
 
 exports.check = function(request, response, ty, acpiList, access_value, cr, callback) {
-    if(request.headers['x-m2m-origin'] == usecseid) {
+    if(request.headers['x-m2m-origin'] == usesuperuser) {
         callback('1', request, response);
         return '1';
     }

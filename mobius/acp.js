@@ -99,8 +99,8 @@ exports.build_acp = function(request, response, resource_Obj, body_Obj, callback
     }
 
     // body
-    body_Obj[rootnm].pv.acr[body_Obj[rootnm].pv.acr.length] = {acor:['Superman'], acop:'63'};
-    body_Obj[rootnm].pvs.acr[body_Obj[rootnm].pvs.acr.length] = {acor:['Superman'], acop:'63'};
+    //body_Obj[rootnm].pv.acr[body_Obj[rootnm].pv.acr.length] = {acor:['Superman'], acop:'63'};
+    //body_Obj[rootnm].pvs.acr[body_Obj[rootnm].pvs.acr.length] = {acor:['Superman'], acop:'63'};
     resource_Obj[rootnm].pv = body_Obj[rootnm].pv;
     resource_Obj[rootnm].pvs = body_Obj[rootnm].pvs;
 
