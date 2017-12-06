@@ -184,7 +184,7 @@ function check_TS(ri, callback) {
             headers: {
                 'X-M2M-RI': rqi,
                 'Accept': 'application/json',
-                'X-M2M-Origin': usecseid,
+                'X-M2M-Origin': usesuperuser,
                 'Content-Type': 'application/vnd.onem2m-res+json'
             }
         };
@@ -209,7 +209,7 @@ function check_TS(ri, callback) {
             headers: {
                 'X-M2M-RI': rqi,
                 'Accept': 'application/json',
-                'X-M2M-Origin': usecseid,
+                'X-M2M-Origin': usesuperuser,
                 'Content-Type': 'application/vnd.onem2m-res+json'
             },
             ca: fs.readFileSync('ca-crt.pem')
@@ -253,7 +253,7 @@ function delete_TS(callback) {
             headers: {
                 'X-M2M-RI': rqi,
                 'Accept': 'application/json',
-                'X-M2M-Origin': usecseid
+                'X-M2M-Origin': usesuperuser
             }
         };
 
@@ -277,7 +277,7 @@ function delete_TS(callback) {
             headers: {
                 'X-M2M-RI': rqi,
                 'Accept': 'application/json',
-                'X-M2M-Origin': usecseid
+                'X-M2M-Origin': usesuperuser
             },
             ca: fs.readFileSync('ca-crt.pem')
         };

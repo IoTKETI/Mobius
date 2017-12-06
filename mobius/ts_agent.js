@@ -78,7 +78,7 @@ function init_TS(callback) {
             headers: {
                 'X-M2M-RI': rqi,
                 'Accept': 'application/json',
-                'X-M2M-Origin': usecseid,
+                'X-M2M-Origin': usesuperuser,
                 'Content-Type': 'application/vnd.onem2m-res+json'
             }
         };
@@ -103,7 +103,7 @@ function init_TS(callback) {
             headers: {
                 'X-M2M-RI': rqi,
                 'Accept': 'application/json',
-                'X-M2M-Origin': usecseid,
+                'X-M2M-Origin': usesuperuser,
                 'Content-Type': 'application/vnd.onem2m-res+json'
             },
             ca: fs.readFileSync('ca-crt.pem')
@@ -147,7 +147,7 @@ function search_TS(request, response, callback) {
             headers: {
                 'X-M2M-RI': rqi,
                 'Accept': 'application/json',
-                'X-M2M-Origin': usecseid
+                'X-M2M-Origin': usesuperuser
             }
         };
 
@@ -171,7 +171,7 @@ function search_TS(request, response, callback) {
             headers: {
                 'X-M2M-RI': rqi,
                 'Accept': 'application/json',
-                'X-M2M-Origin': usecseid
+                'X-M2M-Origin': usesuperuser
             },
             ca: fs.readFileSync('ca-crt.pem')
         };

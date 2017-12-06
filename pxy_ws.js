@@ -354,12 +354,26 @@ function ws_message_action(connection, bodytype, jsonObj) {
             }
         }
         var fr = (jsonObj['m2m:rqp'].fr == null) ? '' : jsonObj['m2m:rqp'].fr;
-        if(fr == '') {
-            fr = topic_arr[3];
-        }
         var rqi = (jsonObj['m2m:rqp'].rqi == null) ? '' : jsonObj['m2m:rqp'].rqi;
         var ty = (jsonObj['m2m:rqp'].ty == null) ? '' : jsonObj['m2m:rqp'].ty.toString();
         var pc = (jsonObj['m2m:rqp'].pc == null) ? '' : jsonObj['m2m:rqp'].pc;
+
+        if(jsonObj['m2m:rqp'].fc) {
+            var query_count = 0;
+            for(var fc_idx in jsonObj['m2m:rqp'].fc) {
+                if(jsonObj['m2m:rqp'].fc.hasOwnProperty(fc_idx)) {
+                    if(query_count == 0) {
+                        to += '?';
+                    }
+                    else {
+                        to += '&';
+                    }
+                    to += fc_idx;
+                    to += '=';
+                    to += jsonObj['m2m:rqp'].fc[fc_idx].toString();
+                }
+            }
+        }
 
         try {
             if (to.split('/')[1].split('?')[0] == usecsebase) {
@@ -545,7 +559,7 @@ function http_retrieve_CSEBase(callback) {
             headers: {
                 'X-M2M-RI': rqi,
                 'Accept': 'application/json',
-                'X-M2M-Origin': usecseid
+                'X-M2M-Origin': usesuperuser
             }
         };
 
@@ -569,7 +583,7 @@ function http_retrieve_CSEBase(callback) {
             headers: {
                 'X-M2M-RI': rqi,
                 'Accept': 'application/json',
-                'X-M2M-Origin': usecseid
+                'X-M2M-Origin': usesuperuser
             },
             ca: fs.readFileSync('ca-crt.pem')
         };

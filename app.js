@@ -49,7 +49,13 @@ var db_sql = require('./mobius/sql_action');
 // ������ �����մϴ�.
 var app = express();
 
-global.M2M_SP_ID = '//mobius.keti.re.kr';
+global.usespid              = '//keti.re.kr';
+global.usesuperuser         = 'Specialist';
+global.useobserver          = 'Sandwich';
+
+global.resultStatusCode = {
+    '4103': "ACCESS DENIED\: You have rights of creation, retrieve and discovery, if have \'Sandwich\' as X-M2M-Origin or fr"
+};
 
 global.randomValueBase64 = function (len) {
     return crypto.randomBytes(Math.ceil(len * 3 / 4))
@@ -1122,8 +1128,8 @@ function lookup_create(request, response) {
                     security.check(request, response, parent_comm.ty, result_grp.macp, '1', result_grp.cr, function (rsc, request, response) {
                         if (rsc == '0') {
                             body_Obj = {};
-                            body_Obj['dbg'] = 'ACCESS_DENIED';
-                            responder.response_result(request, response, 403, body_Obj, 4103, request.url, 'ACCESS_DENIED');
+                            body_Obj['dbg'] = resultStatusCode['4103'];
+                            responder.response_result(request, response, 403, body_Obj, 4103, request.url, resultStatusCode['4103']);
                             return '0';
                         }
 
@@ -1233,8 +1239,8 @@ function lookup_create(request, response) {
                             security.check(request, response, parent_comm.ty, parent_comm.acpi, '1', parent_spec[0].cr, function (rsc, request, response) {
                                 if (rsc == '0') {
                                     body_Obj = {};
-                                    body_Obj['dbg'] = 'ACCESS_DENIED';
-                                    responder.response_result(request, response, 403, body_Obj, 4103, request.url, 'ACCESS_DENIED');
+                                    body_Obj['dbg'] = resultStatusCode['4103'];
+                                    responder.response_result(request, response, 403, body_Obj, 4103, request.url, resultStatusCode['4103']);
                                     return '0';
                                 }
                                 resource.create(request, response, ty, body_Obj, function (rsc) {
@@ -1254,8 +1260,8 @@ function lookup_create(request, response) {
                     security.check(request, response, parent_comm.ty, parent_comm.acpi, access_value, '', function (rsc, request, response) {
                         if (rsc == '0') {
                             body_Obj = {};
-                            body_Obj['dbg'] = 'ACCESS_DENIED';
-                            responder.response_result(request, response, 403, body_Obj, 4103, request.url, 'ACCESS_DENIED');
+                            body_Obj['dbg'] = resultStatusCode['4103'];
+                            responder.response_result(request, response, 403, body_Obj, 4103, request.url, resultStatusCode['4103']);
                             return '0';
                         }
                         resource.create(request, response, ty, body_Obj, function (rsc) {
@@ -1285,16 +1291,31 @@ function lookup_retrieve(request, response) {
                         return rsc;
                     }
 
-                    security.check(request, response, results_comm.ty, result_grp.macp, '2', result_grp.cr, function (rsc, request, response) {
-                        if (rsc == '0') {
-                            body_Obj = {};
-                            body_Obj['dbg'] = 'ACCESS_DENIED';
-                            responder.response_result(request, response, 403, body_Obj, 4103, request.url, 'ACCESS_DENIED');
-                            return '0';
-                        }
+                    if (request.query.fu == 1) {
+                        security.check(request, response, results_comm.ty, result_grp.macp, '32', result_grp.cr, function (rsc, request, response) {
+                            if (rsc == '0') {
+                                body_Obj = {};
+                                body_Obj['dbg'] = resultStatusCode['4103'];
+                                responder.response_result(request, response, 403, body_Obj, 4103, request.url, resultStatusCode['4103']);
+                                return '0';
+                            }
 
-                        fopt.check(request, response, result_grp, body_Obj);
-                    });
+                            fopt.check(request, response, result_grp, body_Obj);
+                        });
+                    }
+                    else {
+                        security.check(request, response, results_comm.ty, result_grp.macp, '2', result_grp.cr, function (rsc, request, response) {
+                            if (rsc == '0') {
+                                body_Obj = {};
+                                body_Obj['dbg'] = resultStatusCode['4103'];
+                                responder.response_result(request, response, 403, body_Obj, 4103, request.url, resultStatusCode['4103']);
+                                return '0';
+                            }
+
+                            fopt.check(request, response, result_grp, body_Obj);
+                        });
+                    }
+
                 });
             }
             else { //if(op == 'direct') {
@@ -1312,28 +1333,54 @@ function lookup_retrieve(request, response) {
                                 }
                             }
 
-                            security.check(request, response, results_comm.ty, results_comm.acpi, '2', results_spec[0].cr, function (rsc, request, response) {
-                                if (rsc == '0') {
-                                    body_Obj = {};
-                                    body_Obj['dbg'] = 'ACCESS_DENIED';
-                                    responder.response_result(request, response, 403, body_Obj, 4103, request.url, 'ACCESS_DENIED');
-                                    return '0';
-                                }
-                                resource.retrieve(request, response, results_comm);
-                            });
+                            if (request.query.fu == 1) {
+                                security.check(request, response, results_comm.ty, results_comm.acpi, '32', results_spec[0].cr, function (rsc, request, response) {
+                                    if (rsc == '0') {
+                                        body_Obj = {};
+                                        body_Obj['dbg'] = resultStatusCode['4103'];
+                                        responder.response_result(request, response, 403, body_Obj, 4103, request.url, resultStatusCode['4103']);
+                                        return '0';
+                                    }
+                                    resource.retrieve(request, response, results_comm);
+                                });
+                            }
+                            else {
+                                security.check(request, response, results_comm.ty, results_comm.acpi, '2', results_spec[0].cr, function (rsc, request, response) {
+                                    if (rsc == '0') {
+                                        body_Obj = {};
+                                        body_Obj['dbg'] = resultStatusCode['4103'];
+                                        responder.response_result(request, response, 403, body_Obj, 4103, request.url, resultStatusCode['4103']);
+                                        return '0';
+                                    }
+                                    resource.retrieve(request, response, results_comm);
+                                });
+                            }
                         }
                     });
                 }
                 else {
-                    security.check(request, response, results_comm.ty, results_comm.acpi, '2', '', function (rsc, request, response) {
-                        if (rsc == '0') {
-                            body_Obj = {};
-                            body_Obj['dbg'] = 'ACCESS_DENIED';
-                            responder.response_result(request, response, 403, body_Obj, 4103, request.url, 'ACCESS_DENIED');
-                            return '0';
-                        }
-                        resource.retrieve(request, response, results_comm);
-                    });
+                    if (request.query.fu == 1) {
+                        security.check(request, response, results_comm.ty, results_comm.acpi, '32', '', function (rsc, request, response) {
+                            if (rsc == '0') {
+                                body_Obj = {};
+                                body_Obj['dbg'] = resultStatusCode['4103'];
+                                responder.response_result(request, response, 403, body_Obj, 4103, request.url, resultStatusCode['4103']);
+                                return '0';
+                            }
+                            resource.retrieve(request, response, results_comm);
+                        });
+                    }
+                    else {
+                        security.check(request, response, results_comm.ty, results_comm.acpi, '2', '', function (rsc, request, response) {
+                            if (rsc == '0') {
+                                body_Obj = {};
+                                body_Obj['dbg'] = resultStatusCode['4103'];
+                                responder.response_result(request, response, 403, body_Obj, 4103, request.url, resultStatusCode['4103']);
+                                return '0';
+                            }
+                            resource.retrieve(request, response, results_comm);
+                        });
+                    }
                 }
             }
         });
@@ -1360,8 +1407,8 @@ function lookup_update(request, response) {
                     security.check(request, response, results_comm.ty, result_grp.macp, '4', result_grp.cr, function (rsc, request, response) {
                         if (rsc == '0') {
                             body_Obj = {};
-                            body_Obj['dbg'] = 'ACCESS_DENIED';
-                            responder.response_result(request, response, 403, body_Obj, 4103, request.url, 'ACCESS_DENIED');
+                            body_Obj['dbg'] = resultStatusCode['4103'];
+                            responder.response_result(request, response, 403, body_Obj, 4103, request.url, resultStatusCode['4103']);
                             return '0';
                         }
 
@@ -1386,8 +1433,8 @@ function lookup_update(request, response) {
                             security.check(request, response, results_comm.ty, results_comm.acpi, '4', results_spec[0].cr, function (rsc, request, response) {
                                 if (rsc == '0') {
                                     body_Obj = {};
-                                    body_Obj['dbg'] = 'ACCESS_DENIED';
-                                    responder.response_result(request, response, 403, body_Obj, 4103, request.url, 'ACCESS_DENIED');
+                                    body_Obj['dbg'] = resultStatusCode['4103'];
+                                    responder.response_result(request, response, 403, body_Obj, 4103, request.url, resultStatusCode['4103']);
                                     return '0';
                                 }
                                 resource.update(request, response, results_comm, body_Obj);
@@ -1399,8 +1446,8 @@ function lookup_update(request, response) {
                     security.check(request, response, results_comm.ty, results_comm.acpi, '4', '', function (rsc, request, response) {
                         if (rsc == '0') {
                             body_Obj = {};
-                            body_Obj['dbg'] = 'ACCESS_DENIED';
-                            responder.response_result(request, response, 403, body_Obj, 4103, request.url, 'ACCESS_DENIED');
+                            body_Obj['dbg'] = resultStatusCode['4103'];
+                            responder.response_result(request, response, 403, body_Obj, 4103, request.url, resultStatusCode['4103']);
                             return '0';
                         }
                         resource.update(request, response, results_comm, body_Obj);
@@ -1431,8 +1478,8 @@ function lookup_delete(request, response) {
                     security.check(request, response, results_comm.ty, result_grp.macp, '8', result_grp.cr, function (rsc, request, response) {
                         if (rsc == '0') {
                             body_Obj = {};
-                            body_Obj['dbg'] = 'ACCESS_DENIED';
-                            responder.response_result(request, response, 403, body_Obj, 4103, request.url, 'ACCESS_DENIED');
+                            body_Obj['dbg'] = resultStatusCode['4103'];
+                            responder.response_result(request, response, 403, body_Obj, 4103, request.url, resultStatusCode['4103']);
                             return '0';
                         }
 
@@ -1457,8 +1504,8 @@ function lookup_delete(request, response) {
                             security.check(request, response, results_comm.ty, results_comm.acpi, '8', results_spec[0].cr, function (rsc, request, response) {
                                 if (rsc == '0') {
                                     body_Obj = {};
-                                    body_Obj['dbg'] = 'ACCESS_DENIED';
-                                    responder.response_result(request, response, 403, body_Obj, 4103, request.url, 'ACCESS_DENIED');
+                                    body_Obj['dbg'] = resultStatusCode['4103'];
+                                    responder.response_result(request, response, 403, body_Obj, 4103, request.url, resultStatusCode['4103']);
                                     return '0';
                                 }
                                 resource.delete(request, response, results_comm);
@@ -1470,8 +1517,8 @@ function lookup_delete(request, response) {
                     security.check(request, response, results_comm.ty, results_comm.acpi, '8', '', function (rsc, request, response) {
                         if (rsc == '0') {
                             body_Obj = {};
-                            body_Obj['dbg'] = 'ACCESS_DENIED';
-                            responder.response_result(request, response, 403, body_Obj, 4103, request.url, 'ACCESS_DENIED');
+                            body_Obj['dbg'] = resultStatusCode['4103'];
+                            responder.response_result(request, response, 403, body_Obj, 4103, request.url, resultStatusCode['4103']);
                             return '0';
                         }
                         resource.delete(request, response, results_comm);

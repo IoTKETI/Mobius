@@ -443,6 +443,23 @@ function mqtt_message_action(mqtt_client, topic_arr, bodytype, jsonObj) {
         var ty = (jsonObj['m2m:rqp'].ty == null) ? '' : jsonObj['m2m:rqp'].ty.toString();
         var pc = (jsonObj['m2m:rqp'].pc == null) ? '' : jsonObj['m2m:rqp'].pc;
 
+        if(jsonObj['m2m:rqp'].fc) {
+            var query_count = 0;
+            for(var fc_idx in jsonObj['m2m:rqp'].fc) {
+                if(jsonObj['m2m:rqp'].fc.hasOwnProperty(fc_idx)) {
+                    if(query_count == 0) {
+                        to += '?';
+                    }
+                    else {
+                        to += '&';
+                    }
+                    to += fc_idx;
+                    to += '=';
+                    to += jsonObj['m2m:rqp'].fc[fc_idx].toString();
+                }
+            }
+        }
+
         try {
             var resp_topic = '/oneM2M/resp/';
             if (topic_arr[2] == 'reg_req') {
@@ -763,7 +780,7 @@ function http_retrieve_CSEBase(callback) {
             headers: {
                 'X-M2M-RI': rqi,
                 'Accept': 'application/json',
-                'X-M2M-Origin': usecseid
+                'X-M2M-Origin': usesuperuser
             }
         };
 
@@ -787,7 +804,7 @@ function http_retrieve_CSEBase(callback) {
             headers: {
                 'X-M2M-RI': rqi,
                 'Accept': 'application/json',
-                'X-M2M-Origin': usecseid
+                'X-M2M-Origin': usesuperuser
             },
             ca: fs.readFileSync('ca-crt.pem')
         };

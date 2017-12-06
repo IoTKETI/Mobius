@@ -36,7 +36,7 @@ function make_xml_noti_message(pc, xm2mri) {
         noti_message['m2m:rqp'].op = 5; // notification
         noti_message['m2m:rqp'].net = pc['m2m:sgn'].net;
         //noti_message['m2m:rqp'].to = pc['m2m:sgn'].sur;
-        noti_message['m2m:rqp'].fr = usecseid;
+        noti_message['m2m:rqp'].fr = usesuperuser;
         noti_message['m2m:rqp'].rqi = xm2mri;
         noti_message['m2m:rqp'].pc = pc;
 
@@ -84,7 +84,7 @@ function make_cbor_noti_message(pc, xm2mri) {
         noti_message['m2m:rqp'].op = 5; // notification
         noti_message['m2m:rqp'].net = pc['m2m:sgn'].net;
         //noti_message['m2m:rqp'].to = pc['m2m:sgn'].sur;
-        noti_message['m2m:rqp'].fr = usecseid;
+        noti_message['m2m:rqp'].fr = usesuperuser;
         noti_message['m2m:rqp'].rqi = xm2mri;
 
         noti_message['m2m:rqp'].pc = pc;
@@ -109,7 +109,7 @@ function make_json_noti_message(nu, pc, xm2mri, short_flag) {
         else {
             noti_message['m2m:rqp'].net = pc['m2m:sgn'].net;
             noti_message['m2m:rqp'].to = nu;
-            noti_message['m2m:rqp'].fr = usecseid;
+            noti_message['m2m:rqp'].fr = usesuperuser;
         }
 
         noti_message['m2m:rqp'].pc = pc;

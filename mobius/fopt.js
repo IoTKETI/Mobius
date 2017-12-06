@@ -100,7 +100,7 @@ function fopt_member(request, response, req_count, mid, body_Obj, cse_poa, agr, 
                 // headers: {
                 //     'X-M2M-RI': rqi,
                 //     'Accept': 'application/'+request.headers.usebodytype,
-                //     'X-M2M-Origin': usecseid,
+                //     'X-M2M-Origin': usesuperuser,
                 //     'Content-Type' : request.headers['content-type']
                 // }
                 headers: request.headers

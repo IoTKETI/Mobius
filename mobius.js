@@ -28,7 +28,6 @@ global.usecsetype           = 'in'; // select 'in' or 'mn' or asn'
 global.usecsebase           = 'Mobius';
 global.usecseid             = '/Mobius';
 global.usecsebaseport       = conf.csebaseport;
-global.usespid              = '//keti.re.kr';
 
 global.usedbhost            = 'localhost';
 global.usedbpass            = conf.dbpass;
@@ -49,9 +48,6 @@ if(usesecure === 'enable') {
 else {
     usemqttport             = '1883';
 }
-
-global.usesuperuser         = 'Specialist';
-global.useobserver          = 'Survey';
 
 global.wdt = require('./wdt');
 
