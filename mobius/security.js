@@ -19,7 +19,7 @@ var util = require('util');
 var db_sql = require('./sql_action');
 
 exports.check = function(request, response, ty, acpiList, access_value, cr, callback) {
-    if(request.headers['x-m2m-origin'] == usesuperuser) {
+    if(request.headers['x-m2m-origin'] == usesuperuser || request.headers['x-m2m-origin'] == usesuperuser2) {
         callback('1', request, response);
         return '1';
     }
@@ -76,7 +76,7 @@ exports.check = function(request, response, ty, acpiList, access_value, cr, call
             // this policy may change to not permit later
             // 2017-12-06 we decide to not permit to everybody for security interop event for oneM2M in korea
             // and we allowed retrieve and create right to observer only
-            if(request.headers['x-m2m-origin'] == useobserver) {
+            if(request.headers['x-m2m-origin'] == useobserver || request.headers['x-m2m-origin'] == useobserver2) {
                 if (access_value == '1' || access_value == '2' || access_value == '32') {
                     callback('1', request, response);
                     return '1';
@@ -87,8 +87,19 @@ exports.check = function(request, response, ty, acpiList, access_value, cr, call
                 }
             }
             else {
-                callback('0', request, response);
-                return '0';
+                if(access_value == '2' && request.url == ('/'+usecsebase)) {
+                    callback('1', request, response);
+                    return '1';
+                }
+
+                if (access_value == '1') {
+                    callback('1', request, response);
+                    return '1';
+                }
+                else {
+                    callback('0', request, response);
+                    return '0';
+                }
             }
         }
 

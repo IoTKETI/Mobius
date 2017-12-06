@@ -49,6 +49,8 @@ else {
     usemqttport             = '1883';
 }
 
+global.useaccesscontrolpolicy = 'enable';
+
 global.wdt = require('./wdt');
 
 // CSE core

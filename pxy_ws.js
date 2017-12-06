@@ -339,16 +339,26 @@ function ws_message_action(connection, bodytype, jsonObj) {
     if (jsonObj['m2m:rqp'] != null) {
         var op = (jsonObj['m2m:rqp'].op == null) ? '' : jsonObj['m2m:rqp'].op;
         var to = (jsonObj['m2m:rqp'].to == null) ? '' : jsonObj['m2m:rqp'].to;
-        var to_arr = to.split('/');
-        to = '';
-        if(to_arr[0] == '') { // SP Relative
+        if(to.split(usespid + '/' + usecseid + '/' + usecsebase)[0] == '') { // Absolute
+            var to_arr = to.split(usespid + '/' + usecseid + '/' + usecsebase);
+            to='/'+usecsebase;
             for(var i = 1; i < to_arr.length; i++) {
                 to += '/';
                 to += to_arr[i];
             }
         }
-        else { // CSE Relative
-            for(i = 0; i < to_arr.length; i++) {
+        else if(to.split(usecseid + '/' + usecsebase)[0] == '') { // SP Relative
+            var to_arr = to.split(usespid + '/' + usecseid + '/' + usecsebase);
+            to='/'+usecsebase;
+            for(i = 1; i < to_arr.length; i++) {
+                to += '/';
+                to += to_arr[i];
+            }
+        }
+        else if(to.split(usecsebase)[0] == '') { // CSE Relative
+            var to_arr = to.split(usespid + '/' + usecseid + '/' + usecsebase);
+            to='/'+usecsebase;
+            for(i = 1; i < to_arr.length; i++) {
                 to += '/';
                 to += to_arr[i];
             }

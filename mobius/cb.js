@@ -51,8 +51,10 @@ function parse_create_action(callback) {
     resource_Obj[rootnm].srt = ty_list;
 
     resource_Obj[rootnm].poa = [];
-    resource_Obj[rootnm].poa[0] = 'http://' + ip.address() + ':' + usecsebaseport;
-    //resource_Obj[rootnm].poa[1] = 'mqtt://' + ip.address() + '/' + resource_Obj[rootnm].csi.replace('/', ':');
+    resource_Obj[rootnm].poa.push('http://' + ip.address() + ':' + usecsebaseport);
+    resource_Obj[rootnm].poa.push('mqtt://' + ip.address() + '/' + resource_Obj[rootnm].csi.replace('/', ':'));
+    resource_Obj[rootnm].poa.push('coap://' + ip.address() + '/' + resource_Obj[rootnm].csi.replace('/', ':'));
+    resource_Obj[rootnm].poa.push('ws://' + ip.address() + '/' + usepxywsport);
 
     resource_Obj[rootnm].nl = '';
     resource_Obj[rootnm].ncp = '';

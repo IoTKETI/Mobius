@@ -50,8 +50,11 @@ var db_sql = require('./mobius/sql_action');
 var app = express();
 
 global.usespid              = '//keti.re.kr';
-global.usesuperuser         = 'Specialist';
+global.usesuperuser         = 'Superman';
+global.usesuperuser2        = '/Superman';
+
 global.useobserver          = 'Sandwich';
+global.useobserver2          = '/Sandwich';
 
 global.resultStatusCode = {
     '4103': "ACCESS DENIED\: You have rights of creation, retrieve and discovery, if have \'Sandwich\' as X-M2M-Origin or fr"
@@ -500,8 +503,9 @@ function check_http(request, response, callback) {
         }
     }
     else {
+        console.log(request.headers['x-m2m-origin']);
         body_Obj = {};
-        responder.error_result(request, response, 405, 4005, 'OPERATION_NOT_ALLOWED: X-M2M-Origin Header value has a start character S or C');
+        responder.error_result(request, response, 405, 4005, 'OPERATION_NOT_ALLOWED: X-M2M-Origin Header value has a start character \'/\' , \'S\' or \'C\'');
         callback('0', body_Obj, request, response);
         return '0';
     }
@@ -1195,7 +1199,6 @@ function lookup_create(request, response) {
                 if (parent_comm.ty == 2 || parent_comm.ty == 4 || parent_comm.ty == 3 || parent_comm.ty == 9 || parent_comm.ty == 24 || parent_comm.ty == 23 || parent_comm.ty == 29) {
                     db_sql.select_resource(responder.typeRsrc[parent_comm.ty], parent_comm.ri, function (err, parent_spec) {
                         if (!err) {
-
                             if ((ty == 4) && (parent_comm.ty == 3)) { // contentInstance
                                 if (parent_spec[0].mni == null) {
                                     body_Obj[rootnm].mni = '3153600000';
@@ -1319,7 +1322,7 @@ function lookup_retrieve(request, response) {
                 });
             }
             else { //if(op == 'direct') {
-                if(results_comm.ty == 2 || results_comm.ty == 4 || results_comm.ty == 3 || results_comm.ty == 9 || results_comm.ty == 24 || results_comm.ty == 23 || results_comm.ty == 29) {
+                if(results_comm.ty == 2 || results_comm.ty == 4 || results_comm.ty == 3 || results_comm.ty == 9 || results_comm.ty == 16 || results_comm.ty == 24 || results_comm.ty == 23 || results_comm.ty == 29) {
                     db_sql.select_resource(responder.typeRsrc[results_comm.ty], results_comm.ri, function (err, results_spec) {
                         if (!err) {
                             if(results_spec.length == 0) {
@@ -1330,6 +1333,9 @@ function lookup_retrieve(request, response) {
                             else {
                                 if(results_comm.ty == 2) {
                                     results_spec[0].cr = results_spec[0].aei;
+                                }
+                                else if (results_comm.ty == 16) {
+                                    parent_spec[0].cr = results_spec[0].cb;
                                 }
                             }
 
