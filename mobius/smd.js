@@ -19,9 +19,12 @@ var xml2js = require('xml2js');
 var xmlbuilder = require('xmlbuilder');
 var util = require('util');
 var responder = require('./responder');
+var http = require('http');
+var https = require('https');
+var fs = require('fs');
 
 
-exports.build_sd = function(request, response, resource_Obj, body_Obj, callback) {
+exports.build_smd = function(request, response, resource_Obj, body_Obj, callback) {
     var rootnm = request.headers.rootnm;
 
     // check NP
@@ -120,6 +123,79 @@ exports.build_sd = function(request, response, resource_Obj, body_Obj, callback)
 };
 
 
+exports.request_post = function(uri, bodyString) {
+    var options = {
+        hostname: usesemanticbroker,
+        port: 7591,
+        path: '',
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    };
+
+    var bodyStr = '';
+
+    var req = http.request(options, function (res) {
+        res.on('data', function (chunk) {
+            bodyStr += chunk;
+        });
+
+        res.on('end', function () {
+            console.log('----> [smd.request_post()] response for smd  ' + res.statusCode);
+        });
+    });
+
+    req.on('error', function (e) {
+        console.log('[smd.request_post()] problem with request: ' + e.message);
+    });
+
+    req.on('close', function() {
+        console.log('[smd.request_post()] close()');
+    });
+
+    console.log('<---- [smd.request_post()] request for smd');
+    req.write(bodyString);
+    req.end();
+};
+
+
+exports.request_get_discovery = function(request, response, smf, callback) {
+    var options = {
+        hostname: usesemanticbroker,
+        port: 7591,
+        path: '',
+        method: 'GET',
+        headers: {
+            'smf': encodeURI(smf)
+        }
+    };
+
+    var bodyStr = '';
+
+    var req = http.request(options, function (res) {
+        res.on('data', function (chunk) {
+            bodyStr += chunk;
+        });
+
+        res.on('end', function () {
+            console.log('----> [smd.request_post()] response for smd  ' + res.statusCode);
+            callback(response, res.statusCode, bodyStr);
+        });
+    });
+
+    req.on('error', function (e) {
+        console.log('[smd.request_post()] problem with request: ' + e.message);
+    });
+
+    req.on('close', function() {
+        console.log('[smd.request_post()] close()');
+    });
+
+    console.log('<---- [smd.request_post()] request for smd');
+    req.write('');
+    req.end();
+};
 
 // exports.modify_sd = function(request, response, resource_Obj, body_Obj, callback) {
 //     var rootnm = request.headers.rootnm;

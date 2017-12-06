@@ -1019,7 +1019,7 @@ function build_resource(request, response, ty, body_Obj, callback) {
                         });
                         break;
                     case '24':
-                        smd.build_sd(request, response, resource_Obj, body_Obj, function(rsc, resource_Obj) {
+                        smd.build_smd(request, response, resource_Obj, body_Obj, function(rsc, resource_Obj) {
                             callback(rsc, resource_Obj);
                         });
                         break;
@@ -1077,6 +1077,10 @@ exports.create = function(request, response, ty, body_Obj, callback) {
 
                 if(request.query.rt == 3) {
                     response.setHeader('Content-Location', create_Obj[rootnm].ri.replace('/', ''));
+                }
+
+                if(rootnm == 'smd') {
+                    smd.request_post(request.url, JSON.stringify(create_Obj));
                 }
 
                 if(Object.keys(create_Obj)[0] == 'req') {
@@ -1399,6 +1403,27 @@ exports.retrieve = function(request, response, comm_Obj) {
                     return '0';
                 }
             });
+        });
+    }
+    else if(request.query.fu == 1 && (request.query.smf)) {
+        smd.request_get_discovery(request, response, request.query.smf, function (response, statusCode, searchStr) {
+            var ri_list = searchStr.split(',');
+            if(statusCode == 200) {
+                request.headers.rootnm = 'uril';
+                var resource_Obj = {};
+                resource_Obj.uril = {};
+                resource_Obj.uril = ri_list;
+                make_cse_relative(ri_list);
+                responder.search_result(request, response, 200, resource_Obj, 2000, comm_Obj.ri, '');
+            }
+            else {
+                resource_Obj = {};
+                resource_Obj.dbg = {};
+                resource_Obj.dbg = ri_list[0];
+                var rsc = (statusCode == 400) ? 4000 : 4004;
+                responder.response_result(request, response, statusCode, resource_Obj, rsc, comm_Obj.ri, resource_Obj.dbg);
+            }
+            return '0';
         });
     }
     else {
