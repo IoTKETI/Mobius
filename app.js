@@ -1423,7 +1423,7 @@ function lookup_update(request, response) {
                 });
             }
             else { //if(op == 'direct') {
-                if(results_comm.ty == 2 || results_comm.ty == 4 || results_comm.ty == 3 || results_comm.ty == 9 || results_comm.ty == 24 || results_comm.ty == 23 || results_comm.ty == 29) {
+                if(results_comm.ty == 2 || results_comm.ty == 4 || results_comm.ty == 3 || results_comm.ty == 9 || results_comm.ty == 16 || results_comm.ty == 24 || results_comm.ty == 23 || results_comm.ty == 29) {
                     db_sql.select_resource(responder.typeRsrc[results_comm.ty], results_comm.ri, function (err, results_spec) {
                         if (!err) {
                             if(results_spec.length == 0) {
@@ -1434,6 +1434,9 @@ function lookup_update(request, response) {
                             else {
                                 if(results_comm.ty == 2) {
                                     results_spec[0].cr = results_spec[0].aei;
+                                }
+                                else if (results_comm.ty == 16) {
+                                    parent_spec[0].cr = results_spec[0].cb;
                                 }
                             }
                             security.check(request, response, results_comm.ty, results_comm.acpi, '4', results_spec[0].cr, function (rsc, request, response) {
@@ -1494,7 +1497,7 @@ function lookup_delete(request, response) {
                 });
             }
             else { //if(op == 'direct') {
-                if(results_comm.ty == 2 || results_comm.ty == 4 || results_comm.ty == 3 || results_comm.ty == 9 || results_comm.ty == 24 || results_comm.ty == 23 || results_comm.ty == 29) {
+                if(results_comm.ty == 2 || results_comm.ty == 4 || results_comm.ty == 3 || results_comm.ty == 9 || results_comm.ty == 16 || results_comm.ty == 24 || results_comm.ty == 23 || results_comm.ty == 29) {
                     db_sql.select_resource(responder.typeRsrc[results_comm.ty], results_comm.ri, function (err, results_spec) {
                         if (!err) {
                             if(results_spec.length == 0) {
@@ -1505,6 +1508,9 @@ function lookup_delete(request, response) {
                             else {
                                 if(results_comm.ty == 2) {
                                     results_spec[0].cr = results_spec[0].aei;
+                                }
+                                else if (results_comm.ty == 16) {
+                                    parent_spec[0].cr = results_spec[0].cb;
                                 }
                             }
                             security.check(request, response, results_comm.ty, results_comm.acpi, '8', results_spec[0].cr, function (rsc, request, response) {
