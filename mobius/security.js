@@ -93,7 +93,7 @@ exports.check = function(request, response, ty, acpiList, access_value, cr, call
                         return '1';
                     }
 
-                    if (access_value == '2' && request.url == ('/' + usecsebase)) {
+                    if (access_value == '2' && request.url.split('?')[0] == ('/' + usecsebase)) {
                         callback('1', request, response);
                         return '1';
                     }

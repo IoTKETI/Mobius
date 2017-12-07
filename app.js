@@ -231,7 +231,6 @@ else {
     });
 }
 
-
 global.get_ri_list_sri = function (request, response, sri_list, ri_list, count, callback) {
     if(sri_list.length <= count) {
         callback(sri_list, request, response);
@@ -540,6 +539,15 @@ function check_http(request, response, callback) {
                     }
                     catch (e) {
                         responder.error_result(request, response, 400, 4000, 'ty is none');
+                        callback('0', body_Obj, request, response);
+                        return '0';
+                    }
+
+                    if(ty == '2' && request.headers['x-m2m-origin'].charAt(0) == '/') {
+                        console.log(request.headers['x-m2m-origin']);
+                        body_Obj = {};
+                        body_Obj['dbg'] = 'BAD REQUEST: When request to create AE, AE-ID should start \'S\' or \'C\' of AE-ID in X-M2M-Origin Header';
+                        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
                         callback('0', body_Obj, request, response);
                         return '0';
                     }
@@ -1335,7 +1343,7 @@ function lookup_retrieve(request, response) {
                                     results_spec[0].cr = results_spec[0].aei;
                                 }
                                 else if (results_comm.ty == 16) {
-                                    parent_spec[0].cr = results_spec[0].cb;
+                                    results_spec[0].cr = results_spec[0].cb;
                                 }
                             }
 
@@ -1436,7 +1444,7 @@ function lookup_update(request, response) {
                                     results_spec[0].cr = results_spec[0].aei;
                                 }
                                 else if (results_comm.ty == 16) {
-                                    parent_spec[0].cr = results_spec[0].cb;
+                                    results_spec[0].cr = results_spec[0].cb;
                                 }
                             }
                             security.check(request, response, results_comm.ty, results_comm.acpi, '4', results_spec[0].cr, function (rsc, request, response) {
@@ -1510,7 +1518,7 @@ function lookup_delete(request, response) {
                                     results_spec[0].cr = results_spec[0].aei;
                                 }
                                 else if (results_comm.ty == 16) {
-                                    parent_spec[0].cr = results_spec[0].cb;
+                                    results_spec[0].cr = results_spec[0].cb;
                                 }
                             }
                             security.check(request, response, results_comm.ty, results_comm.acpi, '8', results_spec[0].cr, function (rsc, request, response) {
