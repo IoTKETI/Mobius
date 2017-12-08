@@ -51,10 +51,8 @@ var app = express();
 
 global.usespid              = '//keti.re.kr';
 global.usesuperuser         = 'Superman';
-global.usesuperuser2        = '/Superman';
 
 global.useobserver          = 'Sandwich';
-global.useobserver2          = '/Sandwich';
 
 global.resultStatusCode = {
     '4103': "ACCESS DENIED\: You have rights of creation, retrieve and discovery, if have \'Sandwich\' as X-M2M-Origin or fr"

@@ -19,7 +19,7 @@ var util = require('util');
 var db_sql = require('./sql_action');
 
 exports.check = function(request, response, ty, acpiList, access_value, cr, callback) {
-    if(request.headers['x-m2m-origin'] == usesuperuser || request.headers['x-m2m-origin'] == usesuperuser2) {
+    if(request.headers['x-m2m-origin'] == usesuperuser || request.headers['x-m2m-origin'] == ('/'+usesuperuser)) {
         callback('1', request, response);
         return '1';
     }
@@ -77,7 +77,7 @@ exports.check = function(request, response, ty, acpiList, access_value, cr, call
             // 2017-12-06 we decide to not permit to everybody for security interop event for oneM2M in korea
             // and we allowed retrieve and create right to observer only
             if(useaccesscontrolpolicy == 'enable') {
-                if (request.headers['x-m2m-origin'] == useobserver || request.headers['x-m2m-origin'] == useobserver2) {
+                if (request.headers['x-m2m-origin'] == useobserver || request.headers['x-m2m-origin'] == ('/'+useobserver)) {
                     if (access_value == '1' || access_value == '2' || access_value == '32') {
                         callback('1', request, response);
                         return '1';

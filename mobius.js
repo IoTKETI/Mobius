@@ -40,7 +40,7 @@ global.usepxymqttport       = '7578';
 global.usetsagentport       = '7582';
 
 global.usemqttbroker        = 'localhost'; // mqttbroker for mobius
-global.usesemanticbroker    = '203.254.173.118';
+global.usesemanticbroker    = '10.10.202.114';
 global.usesecure            = 'disable';
 if(usesecure === 'enable') {
     global.usemqttport      = '8883';
