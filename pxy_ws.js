@@ -569,7 +569,7 @@ function http_retrieve_CSEBase(callback) {
             headers: {
                 'X-M2M-RI': rqi,
                 'Accept': 'application/json',
-                'X-M2M-Origin': usesuperuser
+                'X-M2M-Origin': usecseid
             }
         };
 
@@ -593,7 +593,7 @@ function http_retrieve_CSEBase(callback) {
             headers: {
                 'X-M2M-RI': rqi,
                 'Accept': 'application/json',
-                'X-M2M-Origin': usesuperuser
+                'X-M2M-Origin': usecseid
             },
             ca: fs.readFileSync('ca-crt.pem')
         };

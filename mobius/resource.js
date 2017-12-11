@@ -151,16 +151,17 @@ global.make_cse_relative = function(resource_Obj) {
     }
 };
 
-global.make_sp_relative = function(resource_Obj) {
+global.make_internal_ri = function(resource_Obj) {
     for(var index in resource_Obj) {
         if(resource_Obj.hasOwnProperty(index)) {
-            if(resource_Obj[index].split('/')[0] == '') {
-
+            if(resource_Obj[index].split(usespid + usecseid+'/')[0] == '') { // absolute relative
+                resource_Obj[index] = resource_Obj[index].replace(usespid + usecseid+'/', '/');
             }
-            else {
-                if(resource_Obj[index].split('/')[0] == usecsebase) { // structured
-                    resource_Obj[index] = '/' + resource_Obj[index];
-                }
+            else if(resource_Obj[index].split(usecseid+'/')[0] == '') { // sp relative
+                resource_Obj[index] = resource_Obj[index].replace(usecseid+'/', '/');
+            }
+            else if(resource_Obj[index].split(usecsebase)[0] == '') { // cse relative
+                resource_Obj[index] = '/' + resource_Obj[index];
             }
         }
     }
@@ -184,7 +185,7 @@ function check_TS(ri, callback) {
             headers: {
                 'X-M2M-RI': rqi,
                 'Accept': 'application/json',
-                'X-M2M-Origin': usesuperuser,
+                'X-M2M-Origin': usecseid,
                 'Content-Type': 'application/vnd.onem2m-res+json'
             }
         };
@@ -209,7 +210,7 @@ function check_TS(ri, callback) {
             headers: {
                 'X-M2M-RI': rqi,
                 'Accept': 'application/json',
-                'X-M2M-Origin': usesuperuser,
+                'X-M2M-Origin': usecseid,
                 'Content-Type': 'application/vnd.onem2m-res+json'
             },
             ca: fs.readFileSync('ca-crt.pem')
@@ -253,7 +254,7 @@ function delete_TS(callback) {
             headers: {
                 'X-M2M-RI': rqi,
                 'Accept': 'application/json',
-                'X-M2M-Origin': usesuperuser
+                'X-M2M-Origin': usecseid
             }
         };
 
@@ -277,7 +278,7 @@ function delete_TS(callback) {
             headers: {
                 'X-M2M-RI': rqi,
                 'Accept': 'application/json',
-                'X-M2M-Origin': usesuperuser
+                'X-M2M-Origin': usecseid
             },
             ca: fs.readFileSync('ca-crt.pem')
         };
@@ -949,7 +950,7 @@ function build_resource(request, response, ty, body_Obj, callback) {
 
     if(ty == '4') {
         resource_Obj[rootnm].cs = '0';
-        resource_Obj[rootnm].cnf = '0';
+        resource_Obj[rootnm].cnf = '';
     }
 
     db_sql.select_direct_lookup(resource_Obj[rootnm].ri, function (err, result_Obj) {
@@ -1521,7 +1522,7 @@ global.build_body = function(rootnm, body_Obj, resource_Obj) {
                 }
 
                 if(attr === 'acpi') {
-                    make_sp_relative(resource_Obj[rootnm][attr]);
+                    (resource_Obj[rootnm][attr]);
                 }
             }
             else {
@@ -1555,7 +1556,7 @@ global.update_body = function(rootnm, body_Obj, resource_Obj) {
                 }
 
                 if(attr === 'acpi') {
-                    make_sp_relative(resource_Obj[rootnm][attr]);
+                    (resource_Obj[rootnm][attr]);
                 }
             }
             else {

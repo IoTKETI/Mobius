@@ -97,12 +97,6 @@ function fopt_member(request, response, req_count, mid, body_Obj, cse_poa, agr, 
                 port: port,
                 path: ri + ri_prefix,
                 method: request.method,
-                // headers: {
-                //     'X-M2M-RI': rqi,
-                //     'Accept': 'application/'+request.headers.usebodytype,
-                //     'X-M2M-Origin': usesuperuser,
-                //     'Content-Type' : request.headers['content-type']
-                // }
                 headers: request.headers
             };
 

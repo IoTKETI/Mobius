@@ -835,10 +835,7 @@ function typeCheckAction(index1, body_Obj) {
                     body_Obj[index2] = JSON.parse(body_Obj[index2]);
                 }
 
-                if(index2 == 'acpi') {
-                    make_cse_relative(body_Obj[index2]);
-                }
-                else if (index2 == 'srt') {
+                if (index2 == 'srt') {
                     for (index3 in body_Obj[index2]) {
                         if (body_Obj[index2].hasOwnProperty(index3)) {
                             body_Obj[index2][index3] = parseInt(body_Obj[index2][index3]);
@@ -1416,7 +1413,7 @@ exports.response_result = function(request, response, status, body_Obj, rsc, ri,
 
         var bodyString = JSON.stringify(body_Obj);
 
-        //console.log(bodyString);
+        console.log(bodyString);
 
         if (request.query.rt == 3) {
             if (request.headers.usebodytype == 'json') {

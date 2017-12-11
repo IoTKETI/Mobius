@@ -29,11 +29,13 @@ exports.get_sri_sri = function (ri, callback) {
 };
 
 exports.get_ri_sri = function (request, response, sri, callback) {
-    console.log(request.method + ' : ' + request.url);
-    console.time('get_ri_sri');
+    var tid = require('shortid').generate();
+    console.log('\n' + request.method + ' : ' + request.url);
+    console.log('HTTP BODY: ' + request.body);
+    console.time('get_ri_sri' + ' (' + tid + ')');
     var sql = util.format('select ri from sri where sri = \'%s\'', sri);
     db.getResult(sql, '', function (err, results) {
-        console.timeEnd('get_ri_sri');
+        console.timeEnd('get_ri_sri' + ' (' + tid + ')');
         callback(err, results, request, response);
     });
 };

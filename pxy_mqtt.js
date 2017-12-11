@@ -126,7 +126,7 @@ exports.mqtt_watchdog = function() {
             pxymqtt_client.on('connect', function () {
                 req_sub(pxymqtt_client);
                 reg_req_sub(pxymqtt_client);
-                //resp_sub(pxymqtt_client);
+                resp_sub(pxymqtt_client);
                 mqtt_state = 'ready';
                 
                 require('./mobius/ts_agent');
@@ -663,6 +663,48 @@ var onem2mParser = bodyParser.text(
     }
 );
 
+mqtt_app.post('/notification', onem2mParser, function(request, response, next) {
+    var fullBody = '';
+    request.on('data', function(chunk) {
+        fullBody += chunk.toString();
+    });
+    request.on('end', function() {
+        request.body = fullBody;
+
+        try {
+            var aeid = url.parse(request.headers.nu).pathname.replace('/', '').split('?')[0];
+            console.log('[pxy_mqtt] - ' + aeid);
+
+            if (aeid == '') {
+                console.log('aeid of notification url is none');
+                return;
+            }
+
+            if (mqtt_state == 'ready') {
+                var noti_topic = util.format('/oneM2M/req/%s/%s/%s', usecseid.replace('/', ''), aeid, request.headers.bodytype);
+
+                var rqi = request.headers['x-m2m-ri'];
+                resp_mqtt_rqi_arr.push(rqi);
+                http_response_q[rqi] = response;
+
+                pxymqtt_client.publish(noti_topic, request.body);
+                console.log('<---- ' + noti_topic);
+            }
+            else {
+                console.log('pxymqtt is not ready');
+            }
+        }
+        catch (e) {
+            console.log(e.message);
+            var rsp_Obj = {};
+            rsp_Obj['rsp'] = {};
+            rsp_Obj['rsp'].dbg = 'notificationUrl does not support : ' + request.headers.nu;
+            response.setHeader('X-M2M-RSC', '4000');
+            response.status(400).end(JSON.stringify(rsp_Obj));
+        }
+    });
+});
+
 mqtt_app.post('/register_csr', onem2mParser, function(request, response, next) {
     var fullBody = '';
     request.on('data', function(chunk) {
@@ -790,7 +832,7 @@ function http_retrieve_CSEBase(callback) {
             headers: {
                 'X-M2M-RI': rqi,
                 'Accept': 'application/json',
-                'X-M2M-Origin': usesuperuser
+                'X-M2M-Origin': usecseid
             }
         };
 
@@ -814,7 +856,7 @@ function http_retrieve_CSEBase(callback) {
             headers: {
                 'X-M2M-RI': rqi,
                 'Accept': 'application/json',
-                'X-M2M-Origin': usesuperuser
+                'X-M2M-Origin': usecseid
             },
             ca: fs.readFileSync('ca-crt.pem')
         };

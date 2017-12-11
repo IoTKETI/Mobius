@@ -562,6 +562,12 @@ function check_http(request, response, callback) {
                         return '0';
                     }
 
+                    if(responder.typeRsrc[ty] == null) {
+                        responder.error_result(request, response, 405, 4005, 'OPERATION_NOT_ALLOWED: we do not support ' + Object.keys(body_Obj)[0] + '(' + ty + ') resource');
+                        callback('0', body_Obj, request, response);
+                        return '0';
+                    }
+
                     if (responder.typeRsrc[ty] != Object.keys(body_Obj)[0]) {
                         if(responder.typeRsrc[ty] == 'mgo') {
                             var support_mgo = 0;
