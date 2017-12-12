@@ -1029,10 +1029,30 @@ exports.select_acp = function(ri, callback) {
     });
 };
 
-exports.select_acp_in = function(acpiList, callback) {
-    var sql = util.format("select * from acp where ri in (" + JSON.stringify(acpiList).replace('[', '').replace(']', '') + ")");
-    db.getResult(sql, '', function (err, results_acp) {
-        callback(err, results_acp);
+exports.select_acp_in = function(targetUri, acpiList, callback) {
+    var pi_list = [];
+    var pi = '';
+    targetUri = targetUri.split('?')[0];
+    var targetUri_arr = targetUri.split('/');
+
+    for(var idx in targetUri_arr) {
+        if(targetUri_arr.hasOwnProperty(idx)) {
+            if(targetUri_arr[idx] != '') {
+                pi += '/' + targetUri_arr[idx];
+                if(pi != targetUri) {
+                    pi_list.push(pi);
+                }
+            }
+        }
+    }
+
+    var sql = util.format("select acpi from lookup where ri in (" + JSON.stringify(pi_list).replace('[', '').replace(']', '') + ") and acpi != \"[]\"");
+    db.getResult(sql, '', function (err, results_acpi) {
+        acpiList.concat(results_acpi);
+        var sql = util.format("select * from acp where ri in (" + JSON.stringify(acpiList).replace('[', '').replace(']', '') + ")");
+        db.getResult(sql, '', function (err, results_acp) {
+            callback(err, results_acp);
+        });
     });
 };
 

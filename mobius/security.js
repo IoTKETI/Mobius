@@ -95,7 +95,7 @@ exports.check = function(request, response, ty, acpiList, access_value, cr, call
             make_internal_ri(acpiList);
             var ri_list = [];
             get_ri_list_sri(request, response, acpiList, ri_list, 0, function (ri_list, request, response) {
-                db_sql.select_acp_in(ri_list, function (err, results_acp) {
+                db_sql.select_acp_in(request.url, ri_list, function (err, results_acp) {
                     if (!err) {
                         if (results_acp.length == 0) {
                             if (request.headers['x-m2m-origin'] == cr) {

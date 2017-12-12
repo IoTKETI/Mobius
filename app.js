@@ -1194,11 +1194,12 @@ function lookup_create(request, response) {
                     body_Obj[rootnm].acpi = [];
                 }
 
-                for (var index in parent_comm.acpi) {
-                    if (parent_comm.acpi.hasOwnProperty(index)) {
-                        body_Obj[rootnm].acpi.push(parent_comm.acpi[index]);
-                    }
-                }
+                // 20171212 remove inherit acp of parent to current resource
+                // for (var index in parent_comm.acpi) {
+                //     if (parent_comm.acpi.hasOwnProperty(index)) {
+                //         body_Obj[rootnm].acpi.push(parent_comm.acpi[index]);
+                //     }
+                // }
 
                 if (parent_comm.ty == 2 || parent_comm.ty == 4 || parent_comm.ty == 3 || parent_comm.ty == 9 || parent_comm.ty == 24 || parent_comm.ty == 23 || parent_comm.ty == 29) {
                     db_sql.select_resource(responder.typeRsrc[parent_comm.ty], parent_comm.ri, function (err, parent_spec) {

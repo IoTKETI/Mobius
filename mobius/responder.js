@@ -899,8 +899,6 @@ function typeCheckAction(index1, body_Obj) {
                 if (!Array.isArray(body_Obj[index2].acr)) {
                     body_Obj[index2] = JSON.parse(body_Obj[index2]);
                 }
-
-                body_Obj[index2]['acr'].splice(body_Obj[index2]['acr'].length-1, 1);
             }
         }
     }

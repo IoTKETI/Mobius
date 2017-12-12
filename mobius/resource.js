@@ -130,7 +130,12 @@ exports.remove_no_value = function(request, resource_Obj) {
                 }
                 else if (typeof resource_Obj[rootnm][index] === 'string') {
                     if (resource_Obj[rootnm][index] == '' || resource_Obj[rootnm][index] == 'undefined' || resource_Obj[rootnm][index] == '[]') {
-                        delete resource_Obj[rootnm][index];
+                        if(resource_Obj[rootnm][index] == '' && index == 'pi') {
+                            resource_Obj[rootnm][index] = 'NULL';
+                        }
+                        else {
+                            delete resource_Obj[rootnm][index];
+                        }
                     }
                 }
                 else if (typeof resource_Obj[rootnm][index] === 'number') {

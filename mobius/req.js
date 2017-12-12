@@ -103,7 +103,6 @@ exports.build_req = function(request, response, resource_Obj, body_Obj, callback
     resource_Obj[rootnm].pi = '/' + usecsebase;
     resource_Obj[rootnm].ri = '/' + usecsebase + '/' + resource_Obj[rootnm].rn;
 
-    ((body_Obj[rootnm].acpi) ? body_Obj[rootnm].acpi : []);
     resource_Obj[rootnm].acpi = (body_Obj[rootnm].acpi) ? body_Obj[rootnm].acpi : [];
     resource_Obj[rootnm].et = (body_Obj[rootnm].et) ? body_Obj[rootnm].et : resource_Obj[rootnm].et;
     resource_Obj[rootnm].lbl = (body_Obj[rootnm].lbl) ? body_Obj[rootnm].lbl : [];
