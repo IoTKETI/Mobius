@@ -75,6 +75,7 @@ function fopt_member(request, response, req_count, mid, body_Obj, cse_poa, agr, 
         var ri_prefix = request.url.split('/fopt')[1];
         var ri = mid[req_count++];
         db_sql.get_ri_sri(request, response, ri, function (err, results, request, response) {
+            ri = ((results.length == 0) ? ri : results[0].ri);
             var target_cb = ri.split('/')[1];
             var hostname = 'localhost';
             var port = usecsebaseport;
