@@ -49,7 +49,7 @@ else {
     usemqttport             = '1883';
 }
 
-global.useaccesscontrolpolicy = 'enable';
+global.useaccesscontrolpolicy = 'disable';
 
 global.wdt = require('./wdt');
 

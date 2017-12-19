@@ -1029,30 +1029,42 @@ exports.select_acp = function(ri, callback) {
     });
 };
 
-exports.select_acp_in = function(targetUri, acpiList, callback) {
-    var pi_list = [];
+ exports.select_acp_cnt = function(loop, uri_arr, callback) {
     var pi = '';
-    targetUri = targetUri.split('?')[0];
-    var targetUri_arr = targetUri.split('/');
 
-    for(var idx in targetUri_arr) {
-        if(targetUri_arr.hasOwnProperty(idx)) {
-            if(targetUri_arr[idx] != '') {
-                pi += '/' + targetUri_arr[idx];
-                if(pi != targetUri) {
-                    pi_list.push(pi);
+    for(var idx in uri_arr) {
+        if (uri_arr.hasOwnProperty(idx)) {
+            if (uri_arr[idx] != '') {
+                if (idx < uri_arr.length - (loop + 1)) {
+                    pi += '/' + uri_arr[idx];
                 }
             }
         }
     }
 
-    var sql = util.format("select acpi from lookup where ri in (" + JSON.stringify(pi_list).replace('[', '').replace(']', '') + ") and acpi != \"[]\"");
-    db.getResult(sql, '', function (err, results_acpi) {
-        acpiList.concat(results_acpi);
-        var sql = util.format("select * from acp where ri in (" + JSON.stringify(acpiList).replace('[', '').replace(']', '') + ")");
-        db.getResult(sql, '', function (err, results_acp) {
-            callback(err, results_acp);
-        });
+    var sql = util.format("select acpi, ty from lookup where ri = \"%s\"", pi);
+    db.getResult(sql, '', function (err, results) {
+        results[0].acpi = JSON.parse(results[0].acpi);
+        if(results[0].acpi.length == 0) {
+            if(results[0].ty == '3') {
+                _this.select_acp_cnt(++loop, uri_arr, function (err, results) {
+                    callback(err, results[0].acpi);
+                });
+            }
+            else {
+                callback(err, results[0].acpi);
+            }
+        }
+        else {
+            callback(err, results[0].acpi);
+        }
+    });
+};
+
+exports.select_acp_in = function(acpiList, callback) {
+    var sql = util.format("select * from acp where ri in (" + JSON.stringify(acpiList).replace('[', '').replace(']', '') + ")");
+    db.getResult(sql, '', function (err, results_acp) {
+        callback(err, results_acp);
     });
 };
 
