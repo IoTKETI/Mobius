@@ -18,7 +18,7 @@ var url = require('url');
 var util = require('util');
 var db_sql = require('./sql_action');
 
-function security_check_action(request, response, acpiList, access_value, callback) {
+function security_check_action(request, response, acpiList, cr, access_value, callback) {
     make_internal_ri(acpiList);
     var ri_list = [];
     get_ri_list_sri(request, response, acpiList, ri_list, 0, function (ri_list, request, response) {
@@ -162,7 +162,7 @@ exports.check = function(request, response, ty, acpiList, access_value, cr, call
                             });
                         }
                         else {
-                            security_check_action(request, response, results_acpi, access_value, function (rsc, request, response) {
+                            security_check_action(request, response, results_acpi, cr, access_value, function (rsc, request, response) {
                                 callback(rsc, request, response);
                                 return rsc;
                             });
@@ -183,7 +183,7 @@ exports.check = function(request, response, ty, acpiList, access_value, cr, call
             }
         }
         else {
-            security_check_action(request, response, acpiList, access_value, function (rsc, request, response) {
+            security_check_action(request, response, acpiList, cr, access_value, function (rsc, request, response) {
                 callback(rsc, request, response);
                 return rsc;
             });
