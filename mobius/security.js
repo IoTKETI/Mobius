@@ -52,7 +52,7 @@ function security_check_action(request, response, acpiList, cr, access_value, ca
                                     }
                                 }
                                 catch (e) {
-
+                                    console.log('[security_check_action]' + e);
                                 }
                             }
                         }
@@ -73,17 +73,21 @@ function security_default_check_action(request, response, cr, access_value, call
         if (request.headers['x-m2m-origin'] == cr) {
             callback('1', request, response);
         }
+        else {
+            callback('0', request, response);
+        }
     }
     else {
         if (request.headers['x-m2m-origin'] == cr) {
             callback('1', request, response);
         }
-
-        if (access_value == '1' || access_value == '2' || access_value == '32') {
-            callback('1', request, response);
-        }
         else {
-            callback('0', request, response);
+            if (access_value == '1' || access_value == '2' || access_value == '32') {
+                callback('1', request, response);
+            }
+            else {
+                callback('0', request, response);
+            }
         }
     }
 }
