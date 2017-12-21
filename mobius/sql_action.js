@@ -1044,19 +1044,30 @@ exports.select_acp = function(ri, callback) {
 
     var sql = util.format("select acpi, ty from lookup where ri = \"%s\"", pi);
     db.getResult(sql, '', function (err, results) {
-        results[0].acpi = JSON.parse(results[0].acpi);
-        if(results[0].acpi.length == 0) {
-            if(results[0].ty == '3') {
-                _this.select_acp_cnt(++loop, uri_arr, function (err, results) {
+        if(err) {
+            callback(err, results.message);
+        }
+        else {
+            results[0].acpi = JSON.parse(results[0].acpi);
+
+            if (results[0].acpi.length == 0) {
+                if (results[0].ty == '3') {
+                    _this.select_acp_cnt(++loop, uri_arr, function (err, results) {
+                        if(err) {
+                            callback(err, results.message);
+                        }
+                        else {
+                            callback(err, results[0].acpi);
+                        }
+                    });
+                }
+                else {
                     callback(err, results[0].acpi);
-                });
+                }
             }
             else {
                 callback(err, results[0].acpi);
             }
-        }
-        else {
-            callback(err, results[0].acpi);
         }
     });
 };
