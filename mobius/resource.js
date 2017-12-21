@@ -44,6 +44,7 @@ var mgo = require('./mgo');
 var util = require('util');
 var merge = require('merge');
 
+var security = require('./security');
 
 var db_sql = require('./sql_action');
 
