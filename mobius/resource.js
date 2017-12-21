@@ -1929,15 +1929,15 @@ function update_action(request, response, ty, resource_Obj, callback) {
     }
 }
 
-function check_acp_update_acpi(request, response, acpi, cr, callback) {
+function check_acp_update_acpi(request, response, bodyObj, acpi, cr, callback) {
     // when update acpi check pvs of acp
     if (acpi) {
         security.check(request, response, '1', acpi, '4', cr, function (rsc, request, response) {
-            callback(rsc, request, response);
+            callback(rsc, request, response, bodyObj);
         });
     }
     else {
-        callback('1', request, response);
+        callback('1', request, response, bodyObj);
     }
 }
 
@@ -1984,7 +1984,7 @@ function update_resource(request, response, ty, body_Obj, resource_Obj, callback
             }
         }
 
-        check_acp_update_acpi(request, response, resource_Obj[rootnm].acpi, resource_Obj[rootnm].cr, function (rsc, request, response) {
+        check_acp_update_acpi(request, response, body_Obj, resource_Obj[rootnm].acpi, resource_Obj[rootnm].cr, function (rsc, request, response, body_Obj) {
             if (rsc == '0') {
                 var body_Obj = {};
                 body_Obj['dbg'] = resultStatusCode['4103'];
