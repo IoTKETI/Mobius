@@ -1052,12 +1052,12 @@ exports.select_acp = function(ri, callback) {
 
             if (results[0].acpi.length == 0) {
                 if (results[0].ty == '3') {
-                    _this.select_acp_cnt(++loop, uri_arr, function (err, results) {
+                    _this.select_acp_cnt(++loop, uri_arr, function (err, acpiList) {
                         if(err) {
-                            callback(err, results.message);
+                            callback(err, acpiList.message);
                         }
                         else {
-                            callback(err, results[0].acpi);
+                            callback(err, acpiList);
                         }
                     });
                 }
