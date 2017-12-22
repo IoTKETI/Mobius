@@ -18,7 +18,7 @@ var url = require('url');
 var util = require('util');
 var db_sql = require('./sql_action');
 
-function security_check_action(request, response, acpiList, cr, access_value, callback) {
+function security_check_action_pv(request, response, acpiList, cr, access_value, callback) {
     make_internal_ri(acpiList);
     var ri_list = [];
     get_ri_list_sri(request, response, acpiList, ri_list, 0, function (ri_list, request, response) {
@@ -52,7 +52,57 @@ function security_check_action(request, response, acpiList, cr, access_value, ca
                                     }
                                 }
                                 catch (e) {
-                                    console.log('[security_check_action]' + e);
+                                    console.log('[security_check_action_pv]' + e);
+                                }
+                            }
+                        }
+                    }
+                    callback('0', request, response);
+                }
+            }
+            else {
+                console.log('query error: ' + results_acp.message);
+                callback('0', request, response);
+            }
+        });
+    });
+}
+
+function security_check_action_pvs(request, response, acpiList, cr, access_value, callback) {
+    make_internal_ri(acpiList);
+    var ri_list = [];
+    get_ri_list_sri(request, response, acpiList, ri_list, 0, function (ri_list, request, response) {
+        db_sql.select_acp_in(ri_list, function (err, results_acp) {
+            if (!err) {
+                if (results_acp.length == 0) {
+                    if (request.headers['x-m2m-origin'] == cr) {
+                        callback('1', request, response);
+                    }
+                    else {
+                        callback('0', request, response);
+                    }
+                }
+                else {
+                    for (var i = 0; i < results_acp.length; i++) {
+                        var pvsObj = JSON.parse(results_acp[i].pvs);
+                        var from = request.headers['x-m2m-origin'];
+                        for (var index in pvsObj.acr) {
+                            if (pvsObj.acr.hasOwnProperty(index)) {
+                                try {
+                                    var re = new RegExp('^' + from + '$');
+                                    for (var acor_idx in pvsObj.acr[index].acor) {
+                                        if (pvsObj.acr[index].acor.hasOwnProperty(acor_idx)) {
+                                            if (pvsObj.acr[index].acor[acor_idx].match(re) || pvsObj.acr[index].acor[acor_idx] == 'all' || pvsObj.acr[index].acor[acor_idx] == '*') {
+                                                if ((pvsObj.acr[index].acop.toString() & access_value) == access_value) {
+                                                    callback('1', request, response);
+                                                    return '1';
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                                catch (e) {
+                                    console.log('[security_check_action_pvs]' + e);
                                 }
                             }
                         }
@@ -105,42 +155,9 @@ exports.check = function(request, response, ty, acpiList, access_value, cr, call
 
     if(ty == '1') { // check selfPrevileges
         acpiList = [url.parse(request.url).pathname.split('?')[0]];
-        db_sql.get_ri_sri(request, response, acpiList[0], function (err, results, request, response) {
-            acpiList[0] = ((results.length == 0) ? acpiList[0] : results[0].ri);
-            db_sql.select_acp(acpiList[0], function (err, results_acp) {
-                if (!err) {
-                    for (var i = 0; i < results_acp.length; i++) {
-                        var pvsObj = JSON.parse(results_acp[i].pvs);
-                        var from = request.headers['x-m2m-origin'];
-                        for (var index in pvsObj.acr) {
-                            if (pvsObj.acr.hasOwnProperty(index)) {
-                                try {
-                                    var re = new RegExp(from + '\\b');
-                                    for (var acor_idx in pvsObj.acr[index].acor) {
-                                        if (pvsObj.acr[index].acor.hasOwnProperty(acor_idx)) {
-                                            if (pvsObj.acr[index].acor[acor_idx].match(re) || pvsObj.acr[index].acor[acor_idx] == 'all' || pvsObj.acr[index].acor[acor_idx] == '*') {
-                                                if ((pvsObj.acr[index].acop.toString() & access_value) == access_value) {
-                                                    callback('1', request, response);
-                                                    return '1';
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                                catch (e) {
-
-                                }
-                            }
-                        }
-                    }
-                    callback('0', request, response);
-                    return '0';
-                }
-                else {
-                    console.log('query error: ' + results_acp.message);
-                    callback('0', request, response);
-                }
-            });
+        security_check_action_pvs(request, response, acpiList, cr, access_value, function (rsc, request, response) {
+            callback(rsc, request, response);
+            return rsc;
         });
     }
     else {
@@ -166,7 +183,7 @@ exports.check = function(request, response, ty, acpiList, access_value, cr, call
                             });
                         }
                         else {
-                            security_check_action(request, response, results_acpi, cr, access_value, function (rsc, request, response) {
+                            security_check_action_pv(request, response, results_acpi, cr, access_value, function (rsc, request, response) {
                                 callback(rsc, request, response);
                                 return rsc;
                             });
@@ -187,7 +204,7 @@ exports.check = function(request, response, ty, acpiList, access_value, cr, call
             }
         }
         else {
-            security_check_action(request, response, acpiList, cr, access_value, function (rsc, request, response) {
+            security_check_action_pv(request, response, acpiList, cr, access_value, function (rsc, request, response) {
                 callback(rsc, request, response);
                 return rsc;
             });
