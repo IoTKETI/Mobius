@@ -163,7 +163,7 @@ global.make_internal_ri = function (resource_Obj) {
             if (resource_Obj[index].split(usespid + usecseid + '/')[0] == '') { // absolute relative
                 resource_Obj[index] = resource_Obj[index].replace(usespid + usecseid + '/', '/');
             }
-            else if (resource_Obj[index].split(usecseid + '/')[0] == '') { // sp relative
+            else if (resource_Obj[index].split(usecseid + '/' + usecsebase + '/')[0] == '') { // sp relative
                 resource_Obj[index] = resource_Obj[index].replace(usecseid + '/', '/');
             }
             else if (resource_Obj[index].split(usecsebase)[0] == '') { // cse relative
