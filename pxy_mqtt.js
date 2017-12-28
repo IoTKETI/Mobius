@@ -537,20 +537,21 @@ function mqtt_binding(op, to, fr, rqi, ty, pc, bodytype, callback) {
 
     var bodyStr = '';
 
-    if(usesecure == 'disable') {
-        var options = {
-            hostname: usemqttcbhost,
-            port: usecsebaseport,
-            path: to,
-            method: op,
-            headers: {
-                'X-M2M-RI': rqi,
-                'Accept': 'application/json',
-                'X-M2M-Origin': fr,
-                'Content-Type': content_type
-            }
-        };
+    var options = {
+        hostname: usemqttcbhost,
+        port: usecsebaseport,
+        path: to,
+        method: op,
+        headers: {
+            'X-M2M-RI': rqi,
+            'Accept': 'application/json',
+            'X-M2M-Origin': fr,
+            'Content-Type': content_type,
+            'binding': 'M'
+        }
+    };
 
+    if(usesecure == 'disable') {
         var req = http.request(options, function (res) {
             res.setEncoding('utf8');
 
@@ -564,19 +565,7 @@ function mqtt_binding(op, to, fr, rqi, ty, pc, bodytype, callback) {
         });
     }
     else {
-        options = {
-            hostname: usemqttcbhost,
-            port: usecsebaseport,
-            path: to,
-            method: op,
-            headers: {
-                'X-M2M-RI': rqi,
-                'Accept': 'application/json',
-                'X-M2M-Origin': fr,
-                'Content-Type': content_type
-            },
-            ca: fs.readFileSync('ca-crt.pem')
-        };
+        options.ca = fs.readFileSync('ca-crt.pem');
 
         req = https.request(options, function (res) {
             res.setEncoding('utf8');

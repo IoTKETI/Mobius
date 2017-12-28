@@ -189,17 +189,19 @@ function coap_message_handler(request, response) {
 
     delete headers['X-M2M-TY'];
 
+    headers['binding'] = 'C';
+
     var responseBody = '';
 
-    if(usesecure === 'disable') {
-        var options = {
-            hostname: usecoapcbhost,
-            port: usecsebaseport,
-            path: request.url,
-            method: request.method,
-            headers: headers
-        };
+    var options = {
+        hostname: usecoapcbhost,
+        port: usecsebaseport,
+        path: request.url,
+        method: request.method,
+        headers: headers
+    };
 
+    if(usesecure === 'disable') {
         var req = http.request(options, function (res) {
             res.setEncoding('utf8');
             res.on('data', function (chunk) {
@@ -227,14 +229,7 @@ function coap_message_handler(request, response) {
         });
     }
     else if(usesecure === 'enable') {
-        options = {
-            hostname: usecoapcbhost,
-            port: usecsebaseport,
-            path: request.url,
-            method: request.method,
-            headers: headers,
-            ca: fs.readFileSync('ca-crt.pem')
-        };
+        options.ca = fs.readFileSync('ca-crt.pem');
 
         req = https.request(options, function (res) {
             res.setEncoding('utf8');

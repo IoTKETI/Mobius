@@ -91,7 +91,6 @@ var accessLogStream = fileStreamRotator.getStream({
 app.use(morgan('combined', {stream: accessLogStream}));
 //ts_app.use(morgan('short', {stream: accessLogStream}));
 
-
 function del_req_resource() {
     db_sql.delete_req(function (err, delete_Obj) {
         if(!err) {
@@ -1547,6 +1546,46 @@ function lookup_delete(request, response) {
 }
 
 
+function updateHitCount(request) {
+    var hit = JSON.parse(fs.readFileSync('hit.json', 'utf-8'));
+
+    var a = moment().utc();
+    var cur_t = a.format('YYYYMMDD');
+    var h = a.hours();
+
+    if(request.headers.hasOwnProperty('binding')) {
+        if(!hit.hasOwnProperty(cur_t)) {
+            hit[cur_t] = [];
+            for(var i = 0; i < 24; i++) {
+                hit[cur_t].push({});
+            }
+        }
+
+        if(!hit[cur_t][h].hasOwnProperty(request.headers['binding'])) {
+            hit[cur_t][h][request.headers['binding']] = 0;
+        }
+
+        hit[cur_t][h][request.headers['binding']]++;
+    }
+    else {
+        if(!hit.hasOwnProperty(cur_t)) {
+            hit[cur_t] = [];
+            for(i = 0; i < 24; i++) {
+                hit[cur_t].push({});
+            }
+        }
+
+        if(!hit[cur_t][h].hasOwnProperty('H')) {
+            hit[cur_t][h]['H'] = 0;
+        }
+
+        hit[cur_t][h]['H']++;
+    }
+
+    console.log(hit);
+    fs.writeFileSync('hit.json', JSON.stringify(hit, null, 4), 'utf8');
+}
+
 // global.elapsed_hrstart = {};
 // global.elapsed_tid = '0';
 
@@ -1583,6 +1622,8 @@ app.post(onem2mParser, function (request, response) {
         fullBody += chunk.toString();
     });
     request.on('end', function () {
+        updateHitCount(request);
+
         request.body = fullBody;
         if (request.query.fu == null) {
             request.query.fu = 2;
@@ -1601,6 +1642,8 @@ app.post(onem2mParser, function (request, response) {
         absolute_url = absolute_url.replace(/\/~\/[^\/]+\/?/, '/');
         var absolute_url_arr = absolute_url.split('/');
 
+        console.log('\n' + request.method + ' : ' + request.url);
+        //console.log('HTTP BODY: ' + request.body);
         db_sql.get_ri_sri(request, response, absolute_url_arr[1].split('?')[0], function (err, results, request, response) {
             if (err) {
                 responder.error_result(request, response, 500, 5000, 'database error (can not get resourceID from database)');
@@ -1649,6 +1692,8 @@ app.get(onem2mParser, function (request, response) {
         fullBody += chunk.toString();
     });
     request.on('end', function () {
+        updateHitCount(request);
+
         request.body = fullBody;
         if (request.query.fu == null) {
             request.query.fu = 2;
@@ -1670,12 +1715,20 @@ app.get(onem2mParser, function (request, response) {
         absolute_url = absolute_url.replace(/\/~\/[^\/]+\/?/, '/');
         var absolute_url_arr = absolute_url.split('/');
 
+        console.log('\n' + request.method + ' : ' + request.url);
+        //console.log('HTTP BODY: ' + request.body);
         db_sql.get_ri_sri(request, response, absolute_url_arr[1].split('?')[0], function (err, results, request, response) {
             if (err) {
                 responder.error_result(request, response, 500, 5000, 'database error (can not get resourceID from database)');
             }
             else {
                 absolute_url = (results.length == 0) ? absolute_url : ((results[0].hasOwnProperty('ri')) ? absolute_url.replace('/' + absolute_url_arr[1], results[0].ri) : absolute_url);
+
+                if (url.parse(absolute_url).pathname == '/hit') {
+                    var hit = JSON.parse(fs.readFileSync('hit.json', 'utf-8'));
+                    response.status(200).end(JSON.stringify(hit, null, 4));
+                    return;
+                }
 
                 if (url.parse(absolute_url).pathname.split('/')[1] == usecsebase) {
                     request.url = absolute_url;
@@ -1719,6 +1772,8 @@ app.put(onem2mParser, function (request, response) {
         fullBody += chunk.toString();
     });
     request.on('end', function () {
+        updateHitCount(request);
+
         request.body = fullBody;
         if (request.query.fu == null) {
             request.query.fu = 2;
@@ -1737,6 +1792,8 @@ app.put(onem2mParser, function (request, response) {
         absolute_url = absolute_url.replace(/\/~\/[^\/]+\/?/, '/');
         var absolute_url_arr = absolute_url.split('/');
 
+        console.log('\n' + request.method + ' : ' + request.url);
+        //console.log('HTTP BODY: ' + request.body);
         db_sql.get_ri_sri(request, response, absolute_url_arr[1].split('?')[0], function (err, results, request, response) {
             if (err) {
                 responder.error_result(request, response, 500, 5000, 'database error (can not get resourceID from database)');
@@ -1788,6 +1845,8 @@ app.delete(onem2mParser, function (request, response) {
         fullBody += chunk.toString();
     });
     request.on('end', function () {
+        updateHitCount(request);
+
         request.body = fullBody;
         if (request.query.fu == null) {
             request.query.fu = 2;
@@ -1806,6 +1865,8 @@ app.delete(onem2mParser, function (request, response) {
         absolute_url = absolute_url.replace(/\/~\/[^\/]+\/?/, '/');
         var absolute_url_arr = absolute_url.split('/');
 
+        console.log('\n' + request.method + ' : ' + request.url);
+        //console.log('HTTP BODY: ' + request.body);
         db_sql.get_ri_sri(request, response, absolute_url_arr[1].split('?')[0], function (err, results, request, response) {
             if (err) {
                 responder.error_result(request, response, 500, 5000, 'database error (can not get resourceID from database)');

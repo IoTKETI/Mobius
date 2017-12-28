@@ -401,7 +401,8 @@ function create_remoteCSE_mqtt(cseid, csebasename, body_Obj, callback) {
             'Content-Type': 'application/vnd.onem2m-res+'+defaultbodytype,
             'cseid': cseid,
             'csebasename': csebasename,
-            'bodytype': defaultbodytype
+            'bodytype': defaultbodytype,
+            'binding': 'M'
         }
     };
 
