@@ -87,12 +87,17 @@ exports.mqtt_watchdog = function() {
         }
     }
     else if(mqtt_state === 'connect') {
-        http_retrieve_CSEBase(function(status, res_body) {
-            if (status == '2000') {
+        http_retrieve_CSEBase(function(rsc, res_body) {
+            if (rsc == '2000') {
                 var jsonObj = JSON.parse(res_body);
-                usecseid = jsonObj['m2m:cb'].csi;
+                if(jsonObj.hasOwnProperty('m2m:cb')) {
+                    usecseid = jsonObj['m2m:cb'].csi;
 
-                mqtt_state = 'connecting';
+                    mqtt_state = 'connecting';
+                }
+                else {
+                    console.log('CSEBase tag is none');
+                }
             }
             else {
                 console.log('Target CSE(' + usemqttcbhost + ') is not ready');
@@ -812,19 +817,19 @@ function http_retrieve_CSEBase(callback) {
     var resourceid = '/' + usecsebase;
     var responseBody = '';
 
-    if(usesecure == 'disable') {
-        var options = {
-            hostname: usemqttcbhost,
-            port: usecsebaseport,
-            path: resourceid,
-            method: 'get',
-            headers: {
-                'X-M2M-RI': rqi,
-                'Accept': 'application/json',
-                'X-M2M-Origin': usecseid
-            }
-        };
+    var options = {
+        hostname: usemqttcbhost,
+        port: usecsebaseport,
+        path: resourceid,
+        method: 'get',
+        headers: {
+            'X-M2M-RI': rqi,
+            'Accept': 'application/json',
+            'X-M2M-Origin': usecseid
+        }
+    };
 
+    if(usesecure == 'disable') {
         var req = http.request(options, function (res) {
             res.setEncoding('utf8');
             res.on('data', function (chunk) {
@@ -837,18 +842,7 @@ function http_retrieve_CSEBase(callback) {
         });
     }
     else {
-        options = {
-            hostname: usemqttcbhost,
-            port: usecsebaseport,
-            path: resourceid,
-            method: 'get',
-            headers: {
-                'X-M2M-RI': rqi,
-                'Accept': 'application/json',
-                'X-M2M-Origin': usecseid
-            },
-            ca: fs.readFileSync('ca-crt.pem')
-        };
+        options.ca = fs.readFileSync('ca-crt.pem');
 
         req = https.request(options, function (res) {
             res.setEncoding('utf8');

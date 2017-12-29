@@ -1582,7 +1582,7 @@ function updateHitCount(request) {
         hit[cur_t][h]['H']++;
     }
 
-    console.log(hit);
+    //console.log(hit);
     fs.writeFileSync('hit.json', JSON.stringify(hit, null, 4), 'utf8');
 }
 
