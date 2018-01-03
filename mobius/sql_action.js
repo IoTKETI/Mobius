@@ -1703,3 +1703,24 @@ exports.delete_req = function (callback) {
         }
     });
 };
+
+
+exports.select_sum_cbs = function(callback) {
+    var tid = require('shortid').generate();
+    console.time('select_sum_cbs ' + tid);
+    var sql = util.format('select sum(cbs) from cnt');
+    db.getResult(sql, '', function (err, result_Obj) {
+        console.timeEnd('select_sum_cbs ' + tid);
+        callback(err, result_Obj);
+    });
+};
+
+exports.select_sum_ae = function(callback) {
+    var tid = require('shortid').generate();
+    console.time('select_sum_ae ' + tid);
+    var sql = util.format('select count(ri) from ae');
+    db.getResult(sql, '', function (err, result_Obj) {
+        console.timeEnd('select_sum_ae ' + tid);
+        callback(err, result_Obj);
+    });
+};

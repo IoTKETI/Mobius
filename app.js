@@ -1730,6 +1730,26 @@ app.get(onem2mParser, function (request, response) {
                     return;
                 }
 
+                if (url.parse(absolute_url).pathname == '/total_ae') {
+                    db_sql.select_sum_ae(function (err, result) {
+                        if(!err) {
+                            var total_ae = result[0];
+                            response.status(200).end(JSON.stringify(total_ae, null, 4));
+                        }
+                    });
+                    return;
+                }
+
+                if (url.parse(absolute_url).pathname == '/total_cbs') {
+                    db_sql.select_sum_cbs(function (err, result) {
+                        if(!err) {
+                            var total_cbs = result[0];
+                            response.status(200).end(JSON.stringify(total_cbs, null, 4));
+                        }
+                    });
+                    return;
+                }
+
                 if (url.parse(absolute_url).pathname.split('/')[1] == usecsebase) {
                     request.url = absolute_url;
                     if ((request.query.fu == 1 || request.query.fu == 2) &&
