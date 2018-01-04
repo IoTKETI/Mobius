@@ -318,14 +318,14 @@ exports.build_grp = function(request, response, resource_Obj, body_Obj, callback
     if(resource_Obj[rootnm].mt != '0') {
         check_mtv(request, response, resource_Obj[rootnm].mt, resource_Obj[rootnm].mid, function(rsc, results_mid) {
             if(rsc == '0') { // mt inconsistency
-                if(results_mid.length == '0') {
-                    body_Obj = {};
-                    body_Obj['dbg'] = 'can not create group because mid is empty after validation check of mt requested';
-                    responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-                    callback('0', body_Obj);
-                    return '0';
-                }
-                else {
+                // if(results_mid.length == '0') {
+                //     body_Obj = {};
+                //     body_Obj['dbg'] = 'can not create group because mid is empty after validation check of mt requested';
+                //     responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
+                //     callback('0', body_Obj);
+                //     return '0';
+                // }
+                // else {
                     if (resource_Obj[rootnm].csy == '1') { // ABANDON_MEMBER
                         resource_Obj[rootnm].mid = results_mid;
                         resource_Obj[rootnm].cnm = body_Obj[rootnm].mid.length.toString();
@@ -342,7 +342,7 @@ exports.build_grp = function(request, response, resource_Obj, body_Obj, callback
                         resource_Obj[rootnm].mt = '0';
                         resource_Obj[rootnm].mtv = 'false';
                     }
-                }
+                // }
             }
             else if(rsc == '1') {
                 resource_Obj[rootnm].mtv = 'true';
