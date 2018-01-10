@@ -1088,7 +1088,17 @@ function check_grp(request, response, ri, callback) {
             if (result_Obj.length == 1) {
                 result_Obj[0].macp = JSON.parse(result_Obj[0].macp);
                 result_Obj[0].mid = JSON.parse(result_Obj[0].mid);
-                callback('1', result_Obj[0]);
+
+                if(result_Obj[0].mid.length == 0) {
+                    result_Obj = {};
+                    result_Obj['dbg'] = 'NO_MEMBERS: memberID in parent group is empty';
+                    responder.response_result(request, response, 403, result_Obj, 4109, request.url, result_Obj['dbg']);
+                    callback('0');
+                    return '0';
+                }
+                else {
+                    callback('1', result_Obj[0]);
+                }
             }
             else {
                 result_Obj = {};
