@@ -586,7 +586,7 @@ function mqtt_binding(op, to, fr, rqi, ty, pc, bodytype, callback) {
     }
 
     req.on('error', function (e) {
-        console.log('[pxymqtt-mqtt_binding] problem with request: ' + e.message);
+        //console.log('[pxymqtt-mqtt_binding] problem with request: ' + e.message);
     });
 
     // write data to request body
