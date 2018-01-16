@@ -1349,7 +1349,7 @@ function lookup_retrieve(request, response) {
                                     results_spec[0].cr = results_spec[0].aei;
                                 }
                                 else if (results_comm.ty == 16) {
-                                    results_spec[0].cr = results_spec[0].cb;
+                                    results_spec[0].cr = results_spec[0].csi;
                                 }
                             }
 
@@ -1450,7 +1450,7 @@ function lookup_update(request, response) {
                                     results_spec[0].cr = results_spec[0].aei;
                                 }
                                 else if (results_comm.ty == 16) {
-                                    results_spec[0].cr = results_spec[0].cb;
+                                    results_spec[0].cr = results_spec[0].csi;
                                 }
                             }
                             security.check(request, response, results_comm.ty, results_comm.acpi, '4', results_spec[0].cr, function (rsc, request, response) {
@@ -1524,7 +1524,7 @@ function lookup_delete(request, response) {
                                     results_spec[0].cr = results_spec[0].aei;
                                 }
                                 else if (results_comm.ty == 16) {
-                                    results_spec[0].cr = results_spec[0].cb;
+                                    results_spec[0].cr = results_spec[0].csi;
                                 }
                             }
                             security.check(request, response, results_comm.ty, results_comm.acpi, '8', results_spec[0].cr, function (rsc, request, response) {
