@@ -811,7 +811,7 @@ function typeCheckAction(index1, body_Obj) {
                 }
             }
             else if (index2 == 'cr') {
-                if (index1 == 'm2m:ae') {
+                if (index1 == 'm2m:ae' || index1 == 'm2m:csr') {
                     delete body_Obj[index2];
                 }
             }
