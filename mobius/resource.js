@@ -1931,7 +1931,7 @@ function update_action(request, response, ty, resource_Obj, callback) {
 
 function check_acp_update_acpi(request, response, bodyObj, acpi, cr, callback) {
     // when update acpi check pvs of acp
-    if (acpi) {
+    if (acpi.length > 0) {
         security.check(request, response, '1', acpi, '4', cr, function (rsc, request, response) {
             callback(rsc, request, response, bodyObj);
         });
