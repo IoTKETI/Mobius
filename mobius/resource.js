@@ -1344,7 +1344,8 @@ function retrieve_action(request, response, ty, comm_Obj, callback) {
                     spec_Obj[0].rels = JSON.parse(spec_Obj[0].rels);
                 }
                 if (spec_Obj[0].con) {
-                    if (getType(spec_Obj[0].con) === 'object' || getType(spec_Obj[0].con) === 'array') {
+                    var con_type = getType(spec_Obj[0].con);
+                    if (con_type === 'object' || con_type === 'array' || con_type === 'string_object') {
                         try {
                             spec_Obj[0].con = JSON.parse(spec_Obj[0].con);
                         }

@@ -118,10 +118,18 @@ exports.build_cin = function(request, response, resource_Obj, body_Obj, callback
         return 'other';
     }*/
 
-    if(getType(resource_Obj[rootnm].con) == 'string') {
+    var con_type = getType(resource_Obj[rootnm].con);
+    if(con_type == 'string') {
         resource_Obj[rootnm].cs = Buffer.byteLength(resource_Obj[rootnm].con, 'utf8').toString();
     }
     else {
+        if (con_type === 'string_object') {
+            try {
+                resource_Obj[rootnm].con = JSON.parse(resource_Obj[rootnm].con);
+            }
+            catch (e) {
+            }
+        }
         resource_Obj[rootnm].cs = Buffer.byteLength(JSON.stringify(resource_Obj[rootnm].con), 'utf8').toString();
     }
 

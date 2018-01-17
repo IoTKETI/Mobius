@@ -173,27 +173,32 @@ exports.insert_cnt = function(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st,
 };
 
 global.getType = function (p) {
+    var type = 'string';
     if (Array.isArray(p)) {
-        return 'array';
+        type = 'array';
     }
-    else if (typeof p == 'string') {
+    else if (typeof p === 'string') {
         try {
             var _p = JSON.parse(p);
-            if(typeof _p == 'object') {
-                p = _p;
-                return 'object';
+            if(typeof _p === 'object') {
+                type = 'string_object';
             }
-            return 'string';
+            else {
+                type = 'string';
+            }
         } catch (e) {
-            return 'string';
+            type = 'string';
+            return type;
         }
     }
-    else if (p != null && typeof p == 'object') {
-        return 'object';
+    else if (p != null && typeof p === 'object') {
+        type = 'object';
     }
     else {
-        return 'other';
+        type = 'other';
     }
+
+    return type;
 };
 
 exports.insert_cin = function(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st, mni, cs, cnf, sri, spi, cr, or, con, callback) {
@@ -201,6 +206,14 @@ exports.insert_cin = function(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st,
     _this.insert_lookup(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st, mni, cs, cnf, sri, spi, function (err, results) {
         if(!err) {
             var con_type = getType(con);
+            if (con_type === 'string_object') {
+                try {
+                    con = JSON.parse(con);
+                }
+                catch (e) {
+                }
+            }
+
             var sql = util.format('insert into cin (ri, cr, cnf, cs, cin.or, con) ' +
                 'value (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
                 ri, cr, cnf, cs, or,
