@@ -912,8 +912,24 @@ function typeCheckAction(index1, body_Obj) {
 function xmlInsert(xml, body_Obj, attr_name) {
     for (var attr in body_Obj) {
         if (body_Obj.hasOwnProperty(attr)) {
-            if (attr == attr_name) {
-                xml.ele(attr, body_Obj[attr]);
+            if (attr === attr_name) {
+                var con_type = getType(body_Obj[attr]);
+                if(con_type === 'object') {
+                    var xml2 = xml.ele(attr);
+                    for(var attr2 in body_Obj[attr]) {
+                        if (body_Obj[attr].hasOwnProperty(attr2)) {
+                            xmlInsert(xml2, body_Obj[attr], attr2)
+                        }
+                    }
+                }
+                else if(con_type === 'array') {
+                    xml.ele(attr, body_Obj[attr].toString().replace(/,/g, ' '));
+                    delete body_Obj[attr];
+                    break;
+                }
+                else {
+                    xml.ele(attr, body_Obj[attr]);
+                }
                 delete body_Obj[attr];
                 break;
             }

@@ -173,10 +173,27 @@ exports.insert_cnt = function(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st,
 };
 
 global.getType = function (p) {
-    if (Array.isArray(p)) return 'array';
-    else if (typeof p == 'string') return 'string';
-    else if (p != null && typeof p == 'object') return 'object';
-    else return 'other';
+    if (Array.isArray(p)) {
+        return 'array';
+    }
+    else if (typeof p == 'string') {
+        try {
+            var _p = JSON.parse(p);
+            if(typeof _p == 'object') {
+                p = _p;
+                return 'object';
+            }
+            return 'string';
+        } catch (e) {
+            return 'string';
+        }
+    }
+    else if (p != null && typeof p == 'object') {
+        return 'object';
+    }
+    else {
+        return 'other';
+    }
 };
 
 exports.insert_cin = function(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st, mni, cs, cnf, sri, spi, cr, or, con, callback) {
