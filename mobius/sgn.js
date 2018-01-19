@@ -24,6 +24,7 @@ var xmlbuilder = require('xmlbuilder');
 var fs = require('fs');
 var db_sql = require('./sql_action');
 var cbor = require("cbor");
+var merge = require('merge');
 
 var responder = require('./responder');
 
@@ -280,7 +281,6 @@ function sgn_action(rootnm, check_value, results_ss, noti_Obj, sub_bodytype) {
 exports.check = function(request, notiObj, check_value) {
     var rootnm = request.headers.rootnm;
 
-
     if((request.method == "PUT" && check_value == 1)) {
         var pi = notiObj.ri;
     }
@@ -288,14 +288,20 @@ exports.check = function(request, notiObj, check_value) {
         pi = notiObj.pi;
     }
 
+    var ri = notiObj.ri;
+
+    notiObj.ri = notiObj.sri;
+    delete notiObj.sri;
+    notiObj.pi = notiObj.spi;
+    delete notiObj.spi;
+
     var noti_Str = JSON.stringify(notiObj);
+    var noti_Obj = JSON.parse(noti_Str);
 
     db_sql.select_sub(pi, function (err, results_ss) {
         if (!err) {
             for (var i = 0; i < results_ss.length; i++) {
-                var noti_Obj = JSON.parse(noti_Str);
-
-                if(results_ss[i].ri == noti_Obj.ri) {
+                if(results_ss[i].ri == ri) {
                     continue;
                 }
                 //var cur_d = new Date();
