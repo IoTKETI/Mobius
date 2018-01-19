@@ -1071,7 +1071,7 @@ exports.create = function (request, response, ty, body_Obj, callback) {
                 resource_Obj[rootnm].spi = (results.length == 0) ? '' : results[0].sri;
                 resource_Obj[rootnm].sri = require('shortid').generate();
 
-                if (request.query.rt == 4) { // realtime, new
+                if (request.query.real == 4) { // realtime, new
                     var notiObj = {};
                     notiObj = merge(notiObj, resource_Obj);
                     _this.remove_no_value(request, notiObj);
@@ -1082,7 +1082,7 @@ exports.create = function (request, response, ty, body_Obj, callback) {
                     if (rsc == '1') {
                         _this.remove_no_value(request, create_Obj);
 
-                        if (request.query.rt != 4) { // realtime, new
+                        if (request.query.real != 4) { // realtime, new
                             sgn.check(request, create_Obj[rootnm], 3);
                         }
 
@@ -2123,7 +2123,7 @@ exports.update = function (request, response, comm_Obj, body_Obj) {
                 return rsc;
             }
 
-            if (request.query.rt == 4) { // realtime, new
+            if (request.query.real == 4) { // realtime, new
                 var notiObj = {};
                 notiObj = merge(notiObj, update_resource_Obj);
                 _this.remove_no_value(request, notiObj);
@@ -2134,7 +2134,7 @@ exports.update = function (request, response, comm_Obj, body_Obj) {
                 if (rsc == '1') {
                     _this.remove_no_value(request, update_Obj);
 
-                    if (request.query.rt != 4) { // realtime, new
+                    if (request.query.real != 4) { // realtime, new
                         sgn.check(request, update_Obj[rootnm], 1);
                     }
 
@@ -2263,7 +2263,7 @@ exports.delete = function (request, response, comm_Obj) {
             return rsc;
         }
 
-        if (request.query.rt == 4) { // realtime, new
+        if (request.query.real == 4) { // realtime, new
             var notiObj = {};
             notiObj = merge(notiObj, resource_Obj);
             _this.remove_no_value(request, notiObj);
@@ -2274,7 +2274,7 @@ exports.delete = function (request, response, comm_Obj) {
             if (rsc == '1') {
                 _this.remove_no_value(request, delete_Obj);
 
-                if (request.query.rt != 4) { // realtime, new
+                if (request.query.real != 4) { // realtime, new
                     sgn.check(request, delete_Obj[rootnm], 4);
                 }
 
