@@ -1072,8 +1072,7 @@ exports.create = function (request, response, ty, body_Obj, callback) {
                 resource_Obj[rootnm].sri = require('shortid').generate();
 
                 if (request.query.real == 4) { // realtime, new
-                    var notiObj = {};
-                    notiObj = merge(notiObj, resource_Obj);
+                    var notiObj = JSON.parse(JSON.stringify(resource_Obj));
                     _this.remove_no_value(request, notiObj);
                     sgn.check(request, notiObj[rootnm], 3);
                 }
@@ -2124,8 +2123,7 @@ exports.update = function (request, response, comm_Obj, body_Obj) {
             }
 
             if (request.query.real == 4) { // realtime, new
-                var notiObj = {};
-                notiObj = merge(notiObj, update_resource_Obj);
+                var notiObj = JSON.parse(JSON.stringify(resource_Obj));
                 _this.remove_no_value(request, notiObj);
                 sgn.check(request, notiObj[rootnm], 1);
             }
@@ -2264,8 +2262,7 @@ exports.delete = function (request, response, comm_Obj) {
         }
 
         if (request.query.real == 4) { // realtime, new
-            var notiObj = {};
-            notiObj = merge(notiObj, resource_Obj);
+            var notiObj = JSON.parse(JSON.stringify(resource_Obj));
             _this.remove_no_value(request, notiObj);
             sgn.check(request, notiObj[rootnm], 4);
         }
