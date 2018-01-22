@@ -154,7 +154,12 @@ exports.check = function(request, response, ty, acpiList, access_value, cr, call
     // }
 
     if(ty == '1') { // check selfPrevileges
-        acpiList = [url.parse(request.url).pathname.split('?')[0]];
+        if (acpiList.length > 0) {
+
+        }
+        else {
+            acpiList = [url.parse(request.url).pathname.split('?')[0]];
+        }
         security_check_action_pvs(request, response, acpiList, cr, access_value, function (rsc, request, response) {
             callback(rsc, request, response);
             return rsc;
