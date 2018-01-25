@@ -148,6 +148,7 @@ exports.check = function(request, response, grp, body_Obj) {
         get_ri_list_sri(request, response, grp.mid, ri_list, 0, function (ri_list, request, response) {
             var req_count = 0;
             var agr = {};
+            make_internal_ri(ri_list);
             fopt_member(request, response, req_count, ri_list, body_Obj, cse_poa, agr, function (retrieve_Obj) {
                 if (Object.keys(retrieve_Obj).length != 0) {
                     responder.search_result(request, response, 200, retrieve_Obj, 2000, request.url, '');

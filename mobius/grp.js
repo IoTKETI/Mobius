@@ -151,6 +151,7 @@ function check_mtv(request, response, mt, mid, callback) {
     update_route(function (cse_poa) {
         var req_count = 0;
         var valid_mid = [];
+        make_internal_ri(mid);
         check_member(request, response, mt, req_count, mid, cse_poa, valid_mid, function (results_mid) {
             if (results_mid.length == mid.length) {
                 callback('1', results_mid);
