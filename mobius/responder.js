@@ -1748,7 +1748,7 @@ exports.search_result = function(request, response, status, body_Obj, rsc, ri, c
 
         typeCheckforJson2(body_Obj['m2m:' + rootnm]);
 
-        bodyString = JSON.stringify(body_Obj['m2m:' + rootnm]);
+        bodyString = JSON.stringify(body_Obj);
 
         if (request.query.rt == 3) {
             if (request.headers.usebodytype == 'json') {
