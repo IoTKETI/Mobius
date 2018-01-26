@@ -547,10 +547,59 @@ function request_noti_ws(nu, ri, bodyString, bodytype, xm2mri) {
 }
 
 function delete_sub(ri, xm2mri) {
-    db_sql.delete_ri_lookup(ri, function (err) {
-        if (!err) {
-            console.log('delete sgn of ' + ri + ' for no response');
+    // db_sql.delete_ri_lookup(ri, function (err) {
+    //     if (!err) {
+    //         console.log('delete sgn of ' + ri + ' for no response');
+    //     }
+    // });
+
+    var bodyStr = '';
+    var options = {
+        hostname: 'localhost',
+        port: usecsebaseport,
+        path: ri,
+        method: 'DELETE',
+        headers: {
+            'X-M2M-RI': xm2mri,
+            'Accept': 'application/json',
+            'X-M2M-Origin': usesuperuser
         }
+    };
+
+    function response_del_sub(res) {
+        res.on('data', function (chunk) {
+            bodyStr += chunk;
+        });
+
+        res.on('end', function () {
+            if (res.statusCode == 200 || res.statusCode == 202) {
+                console.log('----> [delete_sub - ' + res.statusCode + ']');
+            }
+        });
+    }
+
+    if(usesecure == 'disable') {
+        var req = http.request(options, function (res) {
+            response_del_sub(res);
+        });
+    }
+    else {
+        options.ca = fs.readFileSync('ca-crt.pem');
+        req = https.request(options, function (res) {
+            response_del_sub(res);
+        });
+    }
+
+    req.on('error', function (e) {
+        console.log('[delete_sub - problem with request: ' + e.message + ']');
     });
+
+    req.on('close', function() {
+        console.log('[delete_sub - close: no response for notification');
+    });
+
+    console.log('<---- [delete_sub - ]');
+    req.write('');
+    req.end();
 }
 
