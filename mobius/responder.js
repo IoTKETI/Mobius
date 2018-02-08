@@ -832,7 +832,11 @@ function typeCheckAction(index1, body_Obj) {
                     delete body_Obj[index2];
                 }
                 else {
-                    body_Obj[index2] = parseInt(body_Obj[index2]);
+                    if('cnf' == index2){
+                        body_Obj[index2] = body_Obj[index2];
+                    }else{
+                        body_Obj[index2] = parseInt(body_Obj[index2]);
+                    }
                 }
             }
             else if (index2 == 'aa' || index2 == 'at' || index2 == 'poa' || index2 == 'lbl' || index2 == 'acpi' || index2 == 'srt' || index2 == 'nu' || index2 == 'mid' || index2 == 'macp') {
