@@ -1110,8 +1110,8 @@ exports.create = function (request, response, ty, body_Obj, callback) {
                         }
 
                         if (request.query.rcn == 2) { // hierarchical address
-                            status_code = 200;
-                            rsc_code = 2000;
+                            status_code = 201;
+                            rsc_code = 2001;
                             request.headers.rootnm = 'uri';
                             var resource_Obj = {};
                             resource_Obj.uri = {};
@@ -1122,8 +1122,8 @@ exports.create = function (request, response, ty, body_Obj, callback) {
                             return 0;
                         }
                         else if (request.query.rcn == 3) { // hierarchical address and attributes
-                            status_code = 200;
-                            rsc_code = 2000;
+                            status_code = 201;
+                            rsc_code = 2001;
                             request.headers.rootnm = rootnm;
                             create_Obj.rce = {};
                             create_Obj.rce.uri = create_Obj[rootnm].ri;

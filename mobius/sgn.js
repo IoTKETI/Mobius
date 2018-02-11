@@ -75,6 +75,7 @@ function make_xml_noti_message(pc, xm2mri) {
     }
     catch (e) {
         console.log('[make_xml_noti_message] xml parsing error');
+        return "";
     }
 }
 
@@ -203,8 +204,20 @@ function sgn_action(rootnm, check_value, results_ss, noti_Obj, sub_bodytype) {
                                 "xmlns:xsi": "http://www.w3.org/2001/XMLSchema-instance"
                             };
 
-                            var bodyString = js2xmlparser.parse(Object.keys(node)[0], node[Object.keys(node)[0]]);
-                            request_noti_http(nu, results_ss.ri, bodyString, sub_bodytype, xm2mri);
+                            try {
+                                var bodyString = js2xmlparser.parse(Object.keys(node)[0], node[Object.keys(node)[0]]);
+                            }
+                            catch (e) {
+                                bodyString = "";
+                            }
+
+                            if(bodyString == "") { // parse error
+                                ss_fail_count[req._headers.ri]++;
+                                console.log('can not send notification since error of converting json to xml');
+                            }
+                            else {
+                                request_noti_http(nu, results_ss.ri, bodyString, sub_bodytype, xm2mri);
+                            }
                         }
                         else if (sub_nu.protocol == 'coap:') {
                             node[Object.keys(node)[0]]['@'] = {
@@ -212,16 +225,40 @@ function sgn_action(rootnm, check_value, results_ss, noti_Obj, sub_bodytype) {
                                 "xmlns:xsi": "http://www.w3.org/2001/XMLSchema-instance"
                             };
 
-                            bodyString = js2xmlparser.parse(Object.keys(node)[0], node[Object.keys(node)[0]]);
-                            request_noti_coap(nu, results_ss.ri, bodyString, sub_bodytype, xm2mri);
+                            try {
+                                bodyString = js2xmlparser.parse(Object.keys(node)[0], node[Object.keys(node)[0]]);
+                            }
+                            catch (e) {
+                                bodyString = "";
+                            }
+
+                            if(bodyString == "") { // parse error
+                                ss_fail_count[req._headers.ri]++;
+                                console.log('can not send notification since error of converting json to xml');
+                            }
+                            else {
+                                request_noti_coap(nu, results_ss.ri, bodyString, sub_bodytype, xm2mri);
+                            }
                         }
                         else if (sub_nu.protocol == 'ws:') {
                             bodyString = make_xml_noti_message(node, xm2mri);
-                            request_noti_ws(nu, results_ss.ri, bodyString, sub_bodytype, xm2mri);
+                            if(bodyString == "") { // parse error
+                                ss_fail_count[req._headers.ri]++;
+                                console.log('can not send notification since error of converting json to xml');
+                            }
+                            else {
+                                request_noti_ws(nu, results_ss.ri, bodyString, sub_bodytype, xm2mri);
+                            }
                         }
                         else { // mqtt:
                             bodyString = make_xml_noti_message(node, xm2mri);
-                            request_noti_mqtt(nu, results_ss.ri, bodyString, sub_bodytype, xm2mri);
+                            if(bodyString == "") { // parse error
+                                ss_fail_count[req._headers.ri]++;
+                                console.log('can not send notification since error of converting json to xml');
+                            }
+                            else {
+                                request_noti_mqtt(nu, results_ss.ri, bodyString, sub_bodytype, xm2mri);
+                            }
                         }
                     }
                     else if (sub_bodytype == 'cbor') {
