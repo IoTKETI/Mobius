@@ -1,6 +1,6 @@
 {
   "name": "Mobius",
-  "version": "2.0.0",
+  "version": "2.1.1",
   "dependencies": {
     "body-parser": "^1.17.0",
     "cbor": "^4.0.0",
@@ -26,12 +26,12 @@
     "xml2js": "^0.4.17",
     "xmlbuilder": "^9.0.1"
   },
-  "description": "Mobius:Yellow Turtle",
+  "description": "Mobius",
   "main": "mobius.js",
   "devDependencies": {},
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "Il Yeup Ahn, KETI",
-  "license": "ISC"
+  "license": "BSD-3-Clause"
 }
