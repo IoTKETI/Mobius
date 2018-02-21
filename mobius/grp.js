@@ -178,7 +178,7 @@ function check_mtv(request, response, mt, mid, callback) {
     });*/
 }
 
-function remove_duplicated_mid(mid) {
+global.remove_duplicated_mid = function(mid) {
     var temp_mid = {};
     for(var id in mid) {
         if (mid.hasOwnProperty(id)) {
@@ -194,7 +194,7 @@ function remove_duplicated_mid(mid) {
     }
 
     return mid;
-}
+};
 
 exports.build_grp = function(request, response, resource_Obj, body_Obj, callback) {
     var rootnm = request.headers.rootnm;

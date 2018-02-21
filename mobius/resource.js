@@ -1349,6 +1349,9 @@ function retrieve_action(request, response, ty, comm_Obj, callback) {
                 if (spec_Obj[0].cas) {
                     spec_Obj[0].cas = JSON.parse(spec_Obj[0].cas);
                 }
+                if (spec_Obj[0].macp) {
+                    spec_Obj[0].macp = JSON.parse(spec_Obj[0].macp);
+                }
                 if (spec_Obj[0].rels) {
                     spec_Obj[0].rels = JSON.parse(spec_Obj[0].rels);
                 }
@@ -1572,6 +1575,9 @@ global.update_body = function (rootnm, body_Obj, resource_Obj) {
 
                 if (attr === 'acpi') {
                     (resource_Obj[rootnm][attr]);
+                }
+                else if (attr === 'mid') {
+                    resource_Obj[rootnm][attr] = remove_duplicated_mid(body_Obj[rootnm][attr]);
                 }
             }
             else {
