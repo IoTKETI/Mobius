@@ -17,39 +17,110 @@
 var url = require('url');
 var xml2js = require('xml2js');
 var xmlbuilder = require('xmlbuilder');
-var moment = require('moment');
 var util = require('util');
-var merge = require('merge');
-
 var responder = require('./responder');
+var http = require('http');
+var https = require('https');
+var fs = require('fs');
 
-exports.build_ae = function(request, response, resource_Obj, body_Obj, callback) {
+
+exports.build_tr = function(request, response, resource_Obj, body_Obj, callback) {
     var rootnm = request.headers.rootnm;
 
     // body
-    resource_Obj[rootnm].apn = (body_Obj[rootnm].apn) ? body_Obj[rootnm].apn : '';
-    resource_Obj[rootnm].poa = (body_Obj[rootnm].poa) ? body_Obj[rootnm].poa : [];
-    resource_Obj[rootnm].or = (body_Obj[rootnm].or) ? body_Obj[rootnm].or : '';
-    resource_Obj[rootnm].csz = (body_Obj[rootnm].csz) ? body_Obj[rootnm].csz : '';
+    resource_Obj[rootnm].cr = (body_Obj[rootnm].cr) ? body_Obj[rootnm].cr : request.headers['x-m2m-origin'];
 
-    if( (request.headers['x-m2m-origin'] == 'S') ) {
-        resource_Obj[rootnm].aei = 'S' + moment().utc().format('YYYYMMDDHHmmssSSS') + randomValueBase64(4);
-    }
-    else if( (request.headers['x-m2m-origin'] == 'C') ) {
-        resource_Obj[rootnm].aei = 'C' + moment().utc().format('YYYYMMDDHHmmssSSS') + randomValueBase64(4);
-    }
-    else {
-        resource_Obj[rootnm].aei = request.headers['x-m2m-origin'];
-    }
+    resource_Obj[rootnm].tid = body_Obj[rootnm].tid;
+    resource_Obj[rootnm].trqp = body_Obj[rootnm].trqp;
 
-    resource_Obj[rootnm].nl = '';
+    resource_Obj[rootnm].tctl = (body_Obj[rootnm].tctl) ? body_Obj[rootnm].tctl : '';
+    resource_Obj[rootnm].tst = (body_Obj[rootnm].tst) ? body_Obj[rootnm].tst : '';
+    resource_Obj[rootnm].tltm = (body_Obj[rootnm].tltm) ? body_Obj[rootnm].tltm : '';
+    resource_Obj[rootnm].text = (body_Obj[rootnm].text) ? body_Obj[rootnm].text : '';
+    resource_Obj[rootnm].tct = (body_Obj[rootnm].tct) ? body_Obj[rootnm].tct : '';
+    resource_Obj[rootnm].tltp = (body_Obj[rootnm].tltp) ? body_Obj[rootnm].tltp : '';
+    resource_Obj[rootnm].trqp = (body_Obj[rootnm].trqp) ? body_Obj[rootnm].trqp : '';
+    resource_Obj[rootnm].trsp = (body_Obj[rootnm].trsp) ? body_Obj[rootnm].trsp : '';
 
     callback('1', resource_Obj);
 };
 
 
+exports.request_post = function(uri, bodyString) {
+    var options = {
+        hostname: usesemanticbroker,
+        port: 7591,
+        path: '',
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    };
 
-// exports.modify_ae = function(request, response, resource_Obj, body_Obj, callback) {
+    var bodyStr = '';
+
+    var req = http.request(options, function (res) {
+        res.on('data', function (chunk) {
+            bodyStr += chunk;
+        });
+
+        res.on('end', function () {
+            console.log('----> [smd.request_post()] response for smd  ' + res.statusCode);
+        });
+    });
+
+    req.on('error', function (e) {
+        console.log('[smd.request_post()] problem with request: ' + e.message);
+    });
+
+    req.on('close', function() {
+        console.log('[smd.request_post()] close()');
+    });
+
+    console.log('<---- [smd.request_post()] request for smd');
+    req.write(bodyString);
+    req.end();
+};
+
+
+exports.request_get_discovery = function(request, response, smf, callback) {
+    var options = {
+        hostname: usesemanticbroker,
+        port: 7591,
+        path: '',
+        method: 'GET',
+        headers: {
+            'smf': encodeURI(smf)
+        }
+    };
+
+    var bodyStr = '';
+
+    var req = http.request(options, function (res) {
+        res.on('data', function (chunk) {
+            bodyStr += chunk;
+        });
+
+        res.on('end', function () {
+            console.log('----> [smd.request_post()] response for smd  ' + res.statusCode);
+            callback(response, res.statusCode, bodyStr);
+        });
+    });
+
+    req.on('error', function (e) {
+        console.log('[smd.request_post()] problem with request: ' + e.message);
+    });
+
+    req.on('close', function() {
+        console.log('[smd.request_post()] close()');
+    });
+
+    console.log('<---- [smd.request_post()] request for smd');
+    req.write('');
+    req.end();
+};
+
+// exports.modify_sd = function(request, response, resource_Obj, body_Obj, callback) {
 //     var rootnm = request.headers.rootnm;
 //
 //     // check M
@@ -98,8 +169,8 @@ exports.build_ae = function(request, response, resource_Obj, body_Obj, callback)
 //     var cur_d = new Date();
 //     resource_Obj[rootnm].lt = cur_d.toISOString().replace(/-/, '').replace(/-/, '').replace(/:/, '').replace(/:/, '').replace(/\..+/, '');
 //
-//     if(body_Obj[rootnm].et == '') {
-//         if (body_Obj[rootnm].et < resource_Obj[rootnm].ct) {
+//     if (resource_Obj[rootnm].et != '') {
+//         if (resource_Obj[rootnm].et < resource_Obj[rootnm].ct) {
 //             body_Obj = {};
 //             body_Obj['dbg'] = 'expiration time is before now';
 //             responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);

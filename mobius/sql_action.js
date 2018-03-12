@@ -637,6 +637,32 @@ exports.insert_mms = function(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st,
     });
 };
 
+exports.insert_tr = function(obj, callback) {
+    console.time('insert_tr ' + obj.ri);
+    _this.insert_lookup(obj.ty, obj.ri, obj.rn, obj.pi, obj.ct, obj.lt, obj.et, JSON.stringify(obj.acpi), JSON.stringify(obj.lbl), JSON.stringify(obj.at), JSON.stringify(obj.aa),
+        obj.st, obj.mni, obj.cs, obj.cnf, obj.sri, obj.spi, function (err, results) {
+        if(!err) {
+            var sql = util.format('insert into tr (ri, cr, tid, tctl, tst, tltm, text, tct, tltp, trqp, trsp) ' +
+                'value (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
+                obj.ri, obj.cr, obj.tid, obj.tctl, obj.tst, obj.tltm, obj.text, obj.tct, obj.tltp, JSON.stringify(obj.trqp), JSON.stringify(obj.trsp));
+            db.getResult(sql, '', function (err, results) {
+                if(!err) {
+                    console.timeEnd('insert_tr ' + obj.ri);
+                    callback(err, results);
+                }
+                else {
+                    sql = util.format("delete from lookup where ri = \'%s\'", obj.ri);
+                    db.getResult(sql, '', function () {
+                        callback(err, results);
+                    });
+                }
+            });
+        }
+        else {
+            callback(err, results);
+        }
+    });
+};
 
 exports.select_csr_like = function(cb, callback) {
     var sql = util.format("select * from csr where ri like \'/%s/%%\'", cb);

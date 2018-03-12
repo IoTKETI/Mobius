@@ -24,80 +24,7 @@ var responder = require('./responder');
 exports.build_cnt = function(request, response, resource_Obj, body_Obj, callback) {
     var rootnm = request.headers.rootnm;
 
-    // check NP
-    if(body_Obj[rootnm].ty) {
-        body_Obj = {};
-        body_Obj['dbg'] = 'ty as NP Tag should not be included';
-        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-        callback('0', resource_Obj);
-        return '0';
-    }
-
-    if(body_Obj[rootnm].ri) {
-        body_Obj = {};
-        body_Obj['dbg'] = 'ri as NP Tag should not be included';
-        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-        callback('0', resource_Obj);
-        return '0';
-    }
-
-    if(body_Obj[rootnm].pi) {
-        body_Obj = {};
-        body_Obj['dbg'] = 'pi as NP Tag should not be included';
-        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-        callback('0', resource_Obj);
-        return '0';
-    }
-
-    if(body_Obj[rootnm].ct) {
-        body_Obj = {};
-        body_Obj['dbg'] = 'ct as NP Tag should not be included';
-        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-        callback('0', resource_Obj);
-        return '0';
-    }
-
-    if(body_Obj[rootnm].lt) {
-        body_Obj = {};
-        body_Obj['dbg'] = 'lt as NP Tag should not be included';
-        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-        callback('0', resource_Obj);
-        return '0';
-    }
-
-    if(body_Obj[rootnm].st) {
-        body_Obj = {};
-        body_Obj['dbg'] = 'st as NP Tag should not be included';
-        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-        callback('0', resource_Obj);
-        return '0';
-    }
-
-    if(body_Obj[rootnm].cni) {
-        body_Obj = {};
-        body_Obj['dbg'] = 'cni as NP Tag should not be included';
-        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-        callback('0', resource_Obj);
-        return '0';
-    }
-
-    if(body_Obj[rootnm].cbs) {
-        body_Obj = {};
-        body_Obj['dbg'] = 'cbs as NP Tag should not be included';
-        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-        callback('0', resource_Obj);
-        return '0';
-    }
-
-    // check M
-
     // body
-    resource_Obj[rootnm].acpi = (body_Obj[rootnm].acpi) ? body_Obj[rootnm].acpi : [];
-    resource_Obj[rootnm].et = (body_Obj[rootnm].et) ? body_Obj[rootnm].et : resource_Obj[rootnm].et;
-    resource_Obj[rootnm].lbl = (body_Obj[rootnm].lbl) ? body_Obj[rootnm].lbl : [];
-    resource_Obj[rootnm].at = (body_Obj[rootnm].at) ? body_Obj[rootnm].at : [];
-    resource_Obj[rootnm].aa = (body_Obj[rootnm].aa) ? body_Obj[rootnm].aa : [];
-
     resource_Obj[rootnm].disr = (body_Obj[rootnm].disr) ? body_Obj[rootnm].disr : '';
     // resource_Obj[rootnm].disr = (body_Obj[rootnm].disr) ? body_Obj[rootnm].disr : 'false';
     // if(typeof(resource_Obj[rootnm].disr) === "boolean" || resource_Obj[rootnm].disr == 'true' || resource_Obj[rootnm].disr == 'false') {
@@ -149,16 +76,6 @@ exports.build_cnt = function(request, response, resource_Obj, body_Obj, callback
 
     resource_Obj[rootnm].cni = '0';
     resource_Obj[rootnm].cbs = '0';
-
-    if (resource_Obj[rootnm].et != '') {
-        if (resource_Obj[rootnm].et < resource_Obj[rootnm].ct) {
-            body_Obj = {};
-            body_Obj['dbg'] = 'expiration time is before now';
-            responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-            callback('0', resource_Obj);
-            return '0';
-        }
-    }
 
     callback('1', resource_Obj);
 };

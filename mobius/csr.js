@@ -24,107 +24,16 @@ var responder = require('./responder');
 exports.build_csr = function(request, response, resource_Obj, body_Obj, callback) {
     var rootnm = request.headers.rootnm;
 
-    // check NP
-    if(body_Obj[rootnm].ty) {
-        body_Obj = {};
-        body_Obj['dbg'] = 'ty as NP Tag should not be included';
-        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-        callback('0', resource_Obj);
-        return '0';
-    }
-
-    if(body_Obj[rootnm].ri) {
-        body_Obj = {};
-        body_Obj['dbg'] = 'ri as NP Tag should not be included';
-        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-        callback('0', resource_Obj);
-        return '0';
-    }
-
-    if(body_Obj[rootnm].pi) {
-        body_Obj = {};
-        body_Obj['dbg'] = 'pi as NP Tag should not be included';
-        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-        callback('0', resource_Obj);
-        return '0';
-    }
-
-    if(body_Obj[rootnm].ct) {
-        body_Obj = {};
-        body_Obj['dbg'] = 'ct as NP Tag should not be included';
-        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-        callback('0', resource_Obj);
-        return '0';
-    }
-
-    if(body_Obj[rootnm].lt) {
-        body_Obj = {};
-        body_Obj['dbg'] = 'lt as NP Tag should not be included';
-        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-        callback('0', resource_Obj);
-        return '0';
-    }
-
-    if(body_Obj[rootnm].st) {
-        body_Obj = {};
-        body_Obj['dbg'] = 'st as NP Tag should not be included';
-        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-        callback('0', resource_Obj);
-        return '0';
-    }
-
-    // check M
-    if(!body_Obj[rootnm].cb) {
-        body_Obj = {};
-        body_Obj['dbg'] = 'cb as M Tag should be included';
-        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-        callback('0', resource_Obj);
-        return '0';
-    }
-
-    if(!body_Obj[rootnm].csi) {
-        body_Obj = {};
-        body_Obj['dbg'] = 'csi as M Tag should be included';
-        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-        callback('0', resource_Obj);
-        return '0';
-    }
-
-    if(!body_Obj[rootnm].rr) {
-        body_Obj = {};
-        body_Obj['dbg'] = 'rr as M Tag should be included';
-        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-        callback('0', resource_Obj);
-        return '0';
-    }
-
     // body
     resource_Obj[rootnm].cb = body_Obj[rootnm].cb;
     resource_Obj[rootnm].csi = body_Obj[rootnm].csi;
     resource_Obj[rootnm].rr = body_Obj[rootnm].rr;
-
-    resource_Obj[rootnm].acpi = (body_Obj[rootnm].acpi) ? body_Obj[rootnm].acpi : [];
-    resource_Obj[rootnm].et = (body_Obj[rootnm].et) ? body_Obj[rootnm].et : resource_Obj[rootnm].et;
-    resource_Obj[rootnm].lbl = (body_Obj[rootnm].lbl) ? body_Obj[rootnm].lbl : [];
-    resource_Obj[rootnm].at = (body_Obj[rootnm].at) ? body_Obj[rootnm].at : [];
-    resource_Obj[rootnm].aa = (body_Obj[rootnm].aa) ? body_Obj[rootnm].aa : [];
 
     resource_Obj[rootnm].cst = (body_Obj[rootnm].cst) ? body_Obj[rootnm].cst : '1';
     resource_Obj[rootnm].poa = (body_Obj[rootnm].poa) ? body_Obj[rootnm].poa : [];
     resource_Obj[rootnm].mei = (body_Obj[rootnm].mei) ? body_Obj[rootnm].mei : '';
     resource_Obj[rootnm].tri = (body_Obj[rootnm].tri) ? body_Obj[rootnm].tri : '';
     resource_Obj[rootnm].nl = (body_Obj[rootnm].nl) ? body_Obj[rootnm].nl : '';
-
-
-    if (resource_Obj[rootnm].et != '') {
-        if (resource_Obj[rootnm].et < resource_Obj[rootnm].ct) {
-            body_Obj = {};
-            body_Obj['dbg'] = 'expiration time is before now';
-            responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-            callback('0', resource_Obj);
-            return '0';
-        }
-    }
 
     callback('1', resource_Obj);
 };
@@ -159,7 +68,7 @@ exports.build_csr = function(request, response, resource_Obj, body_Obj, callback
 //                 callback('0', resource_Obj);
 //                 return '0';
 //             }
-//             else {
+//             e    lse {
 //                 if (update_opt_attr_list[rootnm].includes(attr)) {
 //                 }
 //                 else {
