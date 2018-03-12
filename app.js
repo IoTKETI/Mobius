@@ -532,6 +532,12 @@ function check_http(request, response, callback) {
                         return '0';
                     }
 
+                    if(responder.typeRsrc[ty] == null) {
+                        responder.error_result(request, response, 405, 4005, 'OPERATION_NOT_ALLOWED: we do not support ' + Object.keys(body_Obj)[0] + '(' + ty + ') resource');
+                        callback('0', body_Obj, request, response);
+                        return '0';
+                    }
+
                     if(ty == '2' && request.headers['x-m2m-origin'].charAt(0) == '/') {
                         console.log(request.headers['x-m2m-origin']);
                         body_Obj = {};
@@ -549,12 +555,6 @@ function check_http(request, response, callback) {
 
                     if (ty == '17') {
                         responder.error_result(request, response, 405, 4005, 'OPERATION_NOT_ALLOWED (req is not supported when post request)');
-                        callback('0', body_Obj, request, response);
-                        return '0';
-                    }
-
-                    if(responder.typeRsrc[ty] == null) {
-                        responder.error_result(request, response, 405, 4005, 'OPERATION_NOT_ALLOWED: we do not support ' + Object.keys(body_Obj)[0] + '(' + ty + ') resource');
                         callback('0', body_Obj, request, response);
                         return '0';
                     }
@@ -628,204 +628,88 @@ function check_http(request, response, callback) {
 
                 for (prop in body_Obj) {
                     if (body_Obj.hasOwnProperty(prop)) {
-                        if (body_Obj[prop].aa) {
-                            if (!Array.isArray(body_Obj[prop].aa)) {
-                                body_Obj = {};
-                                body_Obj['dbg'] = 'aa should be json array format';
-                                responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-                                callback('0', body_Obj, request, response);
-                                return '0';
-                            }
-                        }
-
-                        if (body_Obj[prop].at) {
-                            if (!Array.isArray(body_Obj[prop].at)) {
-                                body_Obj = {};
-                                body_Obj['dbg'] = 'at should be json array format';
-                                responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-                                callback('0', body_Obj, request, response);
-                                return '0';
-                            }
-                        }
-
-                        if (body_Obj[prop].poa) {
-                            if (!Array.isArray(body_Obj[prop].poa)) {
-                                body_Obj = {};
-                                body_Obj['dbg'] = 'poa should be json array format';
-                                responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-                                callback('0', body_Obj, request, response);
-                                return '0';
-                            }
-                        }
-
-                        if (body_Obj[prop].lbl) {
-                            if (!Array.isArray(body_Obj[prop].lbl)) {
-                                body_Obj = {};
-                                body_Obj['dbg'] = 'lbl should be json array format';
-                                responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-                                callback('0', body_Obj, request, response);
-                                return '0';
-                            }
-                        }
-
-                        if (body_Obj[prop].acpi) {
-                            if (!Array.isArray(body_Obj[prop].acpi)) {
-                                body_Obj = {};
-                                body_Obj['dbg'] = 'acpi should be json array format';
-                                responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-                                callback('0', body_Obj, request, response);
-                                return '0';
-                            }
-                        }
-
-                        if (body_Obj[prop].srt) {
-                            if (!Array.isArray(body_Obj[prop].srt)) {
-                                body_Obj = {};
-                                body_Obj['dbg'] = 'srt should be json array format';
-                                responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-                                callback('0', body_Obj, request, response);
-                                return '0';
-                            }
-                        }
-
-                        if (body_Obj[prop].nu) {
-                            if (!Array.isArray(body_Obj[prop].nu)) {
-                                body_Obj = {};
-                                body_Obj['dbg'] = 'nu should be json array format';
-                                responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-                                callback('0', body_Obj, request, response);
-                                return '0';
-                            }
-                        }
-
-                        if (body_Obj[prop].enc) {
-                            if (body_Obj[prop].enc.net) {
-                                if (!Array.isArray(body_Obj[prop].enc.net)) {
-                                    body_Obj = {};
-                                    body_Obj['dbg'] = 'enc.net should be json array format';
-                                    responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-                                    callback('0', body_Obj, request, response);
-                                    return '0';
-                                }
-                            }
-                            else {
-                                body_Obj = {};
-                                body_Obj['dbg'] = 'enc should have net key in json format';
-                                responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-                                callback('0', body_Obj, request, response);
-                                return '0';
-                            }
-                        }
-
-                        if (body_Obj[prop].pv) {
-                            if (body_Obj[prop].pv.acr) {
-                                if (!Array.isArray(body_Obj[prop].pv.acr)) {
-                                    body_Obj = {};
-                                    body_Obj['dbg'] = 'pv.acr should be json array format';
-                                    responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-                                    callback('0', body_Obj, request, response);
-                                    return '0';
-                                }
-
-                                if (body_Obj[prop].pv.acr.acor) {
-                                    if (!Array.isArray(body_Obj[prop].pv.acr.acor)) {
+                        for (var attr in body_Obj[prop]) {
+                            if (body_Obj[prop].hasOwnProperty(attr)) {
+                                if(attr == 'aa' || attr == 'at' || attr == 'poa' || attr == 'lbl' || attr == 'acpi' || attr == 'srt' ||
+                                    attr == 'nu' || attr == 'mid' || attr == 'macp' || attr == 'rels') {
+                                    if (!Array.isArray(body_Obj[prop][attr])) {
                                         body_Obj = {};
-                                        body_Obj['dbg'] = 'pv.acr.acor should be json array format';
+                                        body_Obj['dbg'] = attr + ' attribute should be json array format';
                                         responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
                                         callback('0', body_Obj, request, response);
                                         return '0';
                                     }
                                 }
-                            }
-                            else {
-                                body_Obj = {};
-                                body_Obj['dbg'] = 'pv should have acr key in json format';
-                                responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-                                callback('0', body_Obj, request, response);
-                                return '0';
-                            }
-                        }
-
-                        if (body_Obj[prop].pvs) {
-                            if (body_Obj[prop].pvs.acr) {
-                                if (!Array.isArray(body_Obj[prop].pvs.acr)) {
-                                    body_Obj = {};
-                                    body_Obj['dbg'] = 'pvs.acr should be json array format';
-                                    responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-                                    callback('0', body_Obj, request, response);
-                                    return '0';
-                                }
-
-                                if (body_Obj[prop].pvs.acr.acor) {
-                                    if (!Array.isArray(body_Obj[prop].pvs.acr.acor)) {
+                                else if (attr == 'enc') {
+                                    if (body_Obj[prop][attr].net) {
+                                        if (!Array.isArray(body_Obj[prop][attr].net)) {
+                                            body_Obj = {};
+                                            body_Obj['dbg'] = attr + '.net attribute should be json array format';
+                                            responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
+                                            callback('0', body_Obj, request, response);
+                                            return '0';
+                                        }
+                                    }
+                                    else {
                                         body_Obj = {};
-                                        body_Obj['dbg'] = 'pvs.acr.acor should be json array format';
+                                        body_Obj['dbg'] = attr + 'attribute should have net key as child in json format';
                                         responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
                                         callback('0', body_Obj, request, response);
                                         return '0';
                                     }
                                 }
-                            }
-                            else {
-                                body_Obj = {};
-                                body_Obj['dbg'] = 'pvs should have acr key in json format';
-                                responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-                                callback('0', body_Obj, request, response);
-                                return '0';
-                            }
-                        }
+                                else if (attr == 'pv' || attr == 'pvs') {
+                                    if (body_Obj[prop][attr].acr) {
+                                        if (!Array.isArray(body_Obj[prop][attr].acr)) {
+                                            body_Obj = {};
+                                            body_Obj['dbg'] = attr + '.acr should be json array format';
+                                            responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
+                                            callback('0', body_Obj, request, response);
+                                            return '0';
+                                        }
 
-                        if (body_Obj[prop].mid) {
-                            if (!Array.isArray(body_Obj[prop].mid)) {
-                                body_Obj = {};
-                                body_Obj['dbg'] = 'mid should be json array format';
-                                responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-                                callback('0', body_Obj, request, response);
-                                return '0';
-                            }
-                        }
-
-                        if (body_Obj[prop].macp) {
-                            if (!Array.isArray(body_Obj[prop].macp)) {
-                                body_Obj = {};
-                                body_Obj['dbg'] = 'macp should be json array format';
-                                responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-                                callback('0', body_Obj, request, response);
-                                return '0';
-                            }
-                        }
-
-                        if (body_Obj[prop].uds) {
-                            if (body_Obj[prop].uds.can && body_Obj[prop].uds.sus) {
-                            }
-                            else {
-                                body_Obj = {};
-                                body_Obj['dbg'] = 'uds should have can and sus key in json format';
-                                responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-                                callback('0', body_Obj, request, response);
-                                return '0';
-                            }
-                        }
-
-                        if (body_Obj[prop].cas) {
-                            if (body_Obj[prop].cas.can && body_Obj[prop].cas.sus) {
-                            }
-                            else {
-                                body_Obj = {};
-                                body_Obj['dbg'] = 'cas should have can and sus key in json format';
-                                responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-                                callback('0', body_Obj, request, response);
-                                return '0';
-                            }
-                        }
-
-                        if (body_Obj[prop].rels) {
-                            if (!Array.isArray(body_Obj[prop].rels)) {
-                                body_Obj = {};
-                                body_Obj['dbg'] = 'rels should be json array format';
-                                responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-                                callback('0', body_Obj, request, response);
-                                return '0';
+                                        if (body_Obj[prop][attr].acr.acor) {
+                                            if (!Array.isArray(body_Obj[prop][attr].acr.acor)) {
+                                                body_Obj = {};
+                                                body_Obj['dbg'] = attr + '.acr.acor should be json array format';
+                                                responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
+                                                callback('0', body_Obj, request, response);
+                                                return '0';
+                                            }
+                                        }
+                                    }
+                                    else {
+                                        body_Obj = {};
+                                        body_Obj['dbg'] = attr + ' attribute should have acr key in json format';
+                                        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
+                                        callback('0', body_Obj, request, response);
+                                        return '0';
+                                    }
+                                }
+                                else if (attr == 'uds') {
+                                    if (body_Obj[prop][attr].can && body_Obj[prop][attr].sus) {
+                                    }
+                                    else {
+                                        body_Obj = {};
+                                        body_Obj['dbg'] = attr + ' attribute should have can and sus key in json format';
+                                        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
+                                        callback('0', body_Obj, request, response);
+                                        return '0';
+                                    }
+                                }
+                                else if (attr == 'cas') {
+                                    if (body_Obj[prop][attr].can && body_Obj[prop][attr].sus) {
+                                    }
+                                    else {
+                                        body_Obj = {};
+                                        body_Obj['dbg'] = attr + ' attribute should have can and sus key in json format';
+                                        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
+                                        callback('0', body_Obj, request, response);
+                                        return '0';
+                                    }
+                                }
+                                else {
+                                }
                             }
                         }
                     }
@@ -1183,13 +1067,16 @@ function lookup_create(request, response) {
                 else if ((ty == 29) && (parent_comm.ty == 5 || parent_comm.ty == 16 || parent_comm.ty == 2)) { // timeSeries
                 }
                 else if ((ty == 30) && (parent_comm.ty == 29)) { // timeSeriesInstance
-                    body_Obj[rootnm].mni = parent_comm.mni;
+                    //body_Obj[rootnm].mni = parent_comm.mni;
                 }
                 else if ((ty == 27) && (parent_comm.ty == 2 || parent_comm.ty == 16)) { // multimediaSession
                 }
                 else if ((ty == 14) && (parent_comm.ty == 5)) { // node
                 }
                 else if ((ty == 13) && (parent_comm.ty == 14)) { // mgmtObj
+                }
+                else if ((ty == 39) && (parent_comm.ty == 5 || parent_comm.ty == 16 || parent_comm.ty == 2 ||
+                        parent_comm.ty == 3 || parent_comm.ty == 24 || parent_comm.ty == 29 || parent_comm.ty == 9 || parent_comm.ty == 1 || parent_comm.ty == 27)) { // transaction
                 }
                 else {
                     body_Obj = {};
@@ -1199,9 +1086,9 @@ function lookup_create(request, response) {
                 }
 
                 // for security with acp
-                if (!body_Obj[rootnm].acpi) {
-                    body_Obj[rootnm].acpi = [];
-                }
+                //if (!body_Obj[rootnm].acpi) {
+                //    body_Obj[rootnm].acpi = [];
+                //}
 
                 // 20171212 remove inherit acp of parent to current resource
                 // for (var index in parent_comm.acpi) {
@@ -1215,7 +1102,7 @@ function lookup_create(request, response) {
                         if (!err) {
                             if ((ty == 4) && (parent_comm.ty == 3)) { // contentInstance
                                 if (parent_spec[0].mni == null) {
-                                    body_Obj[rootnm].mni = '3153600000';
+                                    //body_Obj[rootnm].mni = '3153600000';
                                 }
                                 else {
                                     if (parseInt(parent_spec[0].mni) == 0) {
@@ -1237,7 +1124,7 @@ function lookup_create(request, response) {
                                         return '0';
                                     }
                                     else {
-                                        body_Obj[rootnm].mni = parent_spec[0].mni;
+                                        //body_Obj[rootnm].mni = parent_spec[0].mni;
                                     }
                                 }
                             }
@@ -1511,7 +1398,8 @@ function lookup_delete(request, response) {
                 });
             }
             else { //if(op == 'direct') {
-                if(results_comm.ty == 2 || results_comm.ty == 4 || results_comm.ty == 3 || results_comm.ty == 9 || results_comm.ty == 16 || results_comm.ty == 24 || results_comm.ty == 23 || results_comm.ty == 29) {
+                if(results_comm.ty == 2 || results_comm.ty == 4 || results_comm.ty == 3 || results_comm.ty == 9 || results_comm.ty == 16 || results_comm.ty == 24 ||
+                    results_comm.ty == 23 || results_comm.ty == 29 || results_comm.ty == 39) {
                     db_sql.select_resource(responder.typeRsrc[results_comm.ty], results_comm.ri, function (err, results_spec) {
                         if (!err) {
                             if(results_spec.length == 0) {

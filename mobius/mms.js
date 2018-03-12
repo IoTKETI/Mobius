@@ -24,47 +24,13 @@ var responder = require('./responder');
 exports.build_mms = function(request, response, resource_Obj, body_Obj, callback) {
     var rootnm = request.headers.rootnm;
 
-    // check NP
-    if ((body_Obj[rootnm]['ty'] != null) || (body_Obj[rootnm]['ri'] != null) || (body_Obj[rootnm]['pi'] != null) ||
-        (body_Obj[rootnm]['ct'] != null) || (body_Obj[rootnm]['lt'] != null) || (body_Obj[rootnm]['st'] != null) ||
-        (body_Obj[rootnm]['sid'] != null)) {
-        body_Obj = {};
-        body_Obj['dbg'] = 'NP Tag is in body';
-        responder.response_result(request, response, 400, body_Obj, 4000, request.url, 'NP Tag is in body');
-        callback('0', resource_Obj);
-        return '0';
-    }
-    // check M
-    else if ((body_Obj[rootnm]['soid'] == null) || (body_Obj[rootnm]['asd'] == null)) {
-        body_Obj = {};
-        body_Obj['dbg'] = 'M Tag (soid, asd) is none in body';
-        responder.response_result(request, response, 400, body_Obj, 4000, request.url, 'M Tag is none in body');
-        callback('0', resource_Obj);
-        return '0';
-    }
-    else {
-        resource_Obj[rootnm].acpi = (body_Obj[rootnm].acpi) ? body_Obj[rootnm].acpi : [];
-        resource_Obj[rootnm].et = (body_Obj[rootnm].et) ? body_Obj[rootnm].et : resource_Obj[rootnm].et;
-        resource_Obj[rootnm].lbl = (body_Obj[rootnm].lbl) ? body_Obj[rootnm].lbl : [];
-        resource_Obj[rootnm].at = (body_Obj[rootnm].at) ? body_Obj[rootnm].at : [];
-        resource_Obj[rootnm].aa = (body_Obj[rootnm].aa) ? body_Obj[rootnm].aa : [];
-        resource_Obj[rootnm].soid = body_Obj[rootnm]['soid'];
-        resource_Obj[rootnm].asd = body_Obj[rootnm]['asd'];
-        resource_Obj[rootnm].stid = body_Obj[rootnm]['stid'] == null ? '' : body_Obj[rootnm]['stid'];
-        resource_Obj[rootnm].osd = body_Obj[rootnm]['osd'] == null ? '' : body_Obj[rootnm]['osd'];
-        resource_Obj[rootnm].sst = body_Obj[rootnm]['sst'] == null ? 'OFFLINE' : body_Obj[rootnm]['sst'];
-    }
-    resource_Obj[rootnm].sid = resource_Obj[rootnm].ri;
+    resource_Obj[rootnm].soid = body_Obj[rootnm]['soid'];
+    resource_Obj[rootnm].asd = body_Obj[rootnm]['asd'];
+    resource_Obj[rootnm].stid = body_Obj[rootnm]['stid'] == null ? '' : body_Obj[rootnm]['stid'];
+    resource_Obj[rootnm].osd = body_Obj[rootnm]['osd'] == null ? '' : body_Obj[rootnm]['osd'];
+    resource_Obj[rootnm].sst = body_Obj[rootnm]['sst'] == null ? 'OFFLINE' : body_Obj[rootnm]['sst'];
 
-    if (resource_Obj[rootnm].et != '') {
-        if (resource_Obj[rootnm].et < resource_Obj[rootnm].ct) {
-            body_Obj = {};
-            body_Obj['dbg'] = 'expiration is before now';
-            responder.response_result(request, response, 400, body_Obj, 4000, request.url, 'expiration is before now');
-            callback('0', resource_Obj);
-            return '0';
-        }
-    }
+    resource_Obj[rootnm].sid = resource_Obj[rootnm].ri;
 
     callback('1', resource_Obj);
 };

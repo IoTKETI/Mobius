@@ -781,6 +781,8 @@ const typeRsrc = {
     "27": "mms",
     "29": "ts",
     "30": "tsi",
+    "38": "tm",
+    "39": "tr",
     "99": "rsp"
 };
 
@@ -802,8 +804,13 @@ exports.attrSname = attrSname;
 function typeCheckAction(index1, body_Obj) {
     for (var index2 in body_Obj) {
         if(body_Obj.hasOwnProperty(index2)) {
-            if (body_Obj[index2] == null || body_Obj[index2] == '' || body_Obj[index2] == 'undefined' || body_Obj[index2] == '[]') {
+            if (body_Obj[index2] == null || body_Obj[index2] == '' || body_Obj[index2] == 'undefined' || body_Obj[index2] == '[]' || body_Obj[index2] == '\"\"') {
                 delete body_Obj[index2];
+            }
+            else if (index2 == 'trsp') {
+                if (index1 == 'm2m:cb') {
+                    delete body_Obj[index2];
+                }
             }
             else if (index2 == 'et') {
                 if (index1 == 'm2m:cb') {
@@ -820,12 +827,16 @@ function typeCheckAction(index1, body_Obj) {
                 index2 == 'cnm' || index2 == 'mia' || index2 == 'mbs' || index2 == 'mgd' || index2 == 'btl' || index2 == 'bts' ||
                 index2 == 'mdn' || index2 == 'mdc' || index2 == 'mdt' || index2 == 'pei' || index2 == 'mnm') {
 
-                if ((index1 == 'm2m:cb' || index1 == 'm2m:cin' || index1 == 'm2m:nod' || index1 == 'm2m:ae' || index1 == 'm2m:sub' || index1 == 'm2m:acp' || index1 == 'm2m:csr' || index1 == 'm2m:grp'
-                    || index1 == 'm2m:fwr' || index1 == 'm2m:bat' || index1 == 'm2m:dvi' || index1 == 'm2m:dvc' || index1 == 'm2m:rbo' || index1 == 'm2m:smd') && index2 == 'mni') {
+                if ((index1 == 'm2m:cb' || index1 == 'm2m:cin' || index1 == 'm2m:nod' || index1 == 'm2m:ae' || index1 == 'm2m:sub' || index1 == 'm2m:acp' ||
+                        index1 == 'm2m:csr' || index1 == 'm2m:grp' || index1 == 'm2m:fwr' || index1 == 'm2m:bat' || index1 == 'm2m:dvi' || index1 == 'm2m:dvc' ||
+                        index1 == 'm2m:rbo' || index1 == 'm2m:smd' || index1 == 'm2m:tr' || index1 == 'm2m:tm') &&
+                    index2 == 'mni') {
                     delete body_Obj[index2];
                 }
-                else if ((index1 == 'm2m:cb' || index1 == 'm2m:csr' || index1 == 'm2m:ae' || index1 == 'm2m:acp' || index1 == 'm2m:grp' || index1 == 'm2m:sub' || index1 == 'm2m:nod'
-                    || index1 == 'm2m:fwr' || index1 == 'm2m:bat' || index1 == 'm2m:dvi' || index1 == 'm2m:dvc' || index1 == 'm2m:rbo') && index2 == 'st') {
+                else if ((index1 == 'm2m:cb' || index1 == 'm2m:csr' || index1 == 'm2m:ae' || index1 == 'm2m:acp' || index1 == 'm2m:grp' || index1 == 'm2m:sub' ||
+                        index1 == 'm2m:nod' || index1 == 'm2m:fwr' || index1 == 'm2m:bat' || index1 == 'm2m:dvi' || index1 == 'm2m:dvc' || index1 == 'm2m:rbo' ||
+                        index1 == 'm2m:tr' || index1 == 'm2m:tm') &&
+                    index2 == 'st') {
                     delete body_Obj[index2];
                 }
                 else if ((index1 == 'm2m:acp') && index2 == 'acpi') {
@@ -1120,6 +1131,7 @@ function xmlAction(xml, body_Obj) {
             xmlInsert(xml, body_Obj, 'mdt');
             xmlInsert(xml, body_Obj, 'or');
         }
+
         else if (xml.name === 'm2m:tsi') {
             xmlInsert(xml, body_Obj, 'dgt');
             xmlInsert(xml, body_Obj, 'con');
@@ -1176,6 +1188,20 @@ function xmlAction(xml, body_Obj) {
                 }
             }
             xmlInsert(xml, body_Obj, 'cr');
+        }
+
+        else if (xml.name === 'm2m:tr') {
+            xmlInsert(xml, body_Obj, 'daci', 'et');
+            xmlInsert(xml, body_Obj, 'cr');
+            xmlInsert(xml, body_Obj, 'tid');
+            xmlInsert(xml, body_Obj, 'tctl');
+            xmlInsert(xml, body_Obj, 'tst');
+            xmlInsert(xml, body_Obj, 'tltm');
+            xmlInsert(xml, body_Obj, 'text');
+            xmlInsert(xml, body_Obj, 'tct');
+            xmlInsert(xml, body_Obj, 'tltp');
+            xmlInsert(xml, body_Obj, 'trqp');
+            xmlInsert(xml, body_Obj, 'trsp');
         }
     }
 

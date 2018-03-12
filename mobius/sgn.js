@@ -204,6 +204,20 @@ function sgn_action(rootnm, check_value, results_ss, noti_Obj, sub_bodytype) {
                                 "xmlns:xsi": "http://www.w3.org/2001/XMLSchema-instance"
                             };
 
+                            for(prop in node['m2m:sgn'].nev.rep) {
+                                if (node['m2m:sgn'].nev.rep.hasOwnProperty(prop)) {
+                                    for (var prop2 in node['m2m:sgn'].nev.rep[prop]) {
+                                        if (node['m2m:sgn'].nev.rep[prop].hasOwnProperty(prop2)) {
+                                            if (prop2 == 'rn') {
+                                                node['m2m:sgn'].nev.rep[prop]['@'] = {rn: node['m2m:sgn'].nev.rep[prop][prop2]};
+                                                delete node['m2m:sgn'].nev.rep[prop][prop2];
+                                                break;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
                             try {
                                 var bodyString = js2xmlparser.parse(Object.keys(node)[0], node[Object.keys(node)[0]]);
                             }

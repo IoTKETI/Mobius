@@ -40,6 +40,7 @@ var grp = require('./grp');
 var req = require('./req');
 var nod = require('./nod');
 var mgo = require('./mgo');
+var tr = require('./tr');
 
 var util = require('util');
 var merge = require('merge');
@@ -50,6 +51,78 @@ var db_sql = require('./sql_action');
 
 var _this = this;
 
+global.ty_list = ['1', '2', '3', '4', '5', '9', '10', '13', '14', '16', '17', '23', '24', '27', '29', '30', '38', '39'];
+
+global.create_np_attr_list = {};
+create_np_attr_list.acp = ['ty', 'ri', 'pi', 'ct', 'lt', 'st'];
+create_np_attr_list.csr = ['ty', 'ri', 'pi', 'ct', 'lt', 'st'];
+create_np_attr_list.ae = ['ty', 'ri', 'pi', 'ct', 'lt', 'st', 'aei'];
+create_np_attr_list.cnt = ['ty', 'ri', 'pi', 'ct', 'lt', 'st', 'cni', 'cbs'];
+create_np_attr_list.cin = ['ty', 'ri', 'pi', 'ct', 'lt', 'st', 'cs'];
+create_np_attr_list.sub = ['ty', 'ri', 'pi', 'ct', 'lt', 'st'];
+create_np_attr_list.lcp = ['ty', 'ri', 'pi', 'ct', 'lt', 'st', 'loi', 'lost'];
+create_np_attr_list.grp = ['ty', 'ri', 'pi', 'ct', 'lt', 'st', 'cnm', 'mtv', 'ssi'];
+create_np_attr_list.nod = ['ty', 'ri', 'pi', 'ct', 'lt', 'st'];
+create_np_attr_list.smd = ['ty', 'ri', 'pi', 'ct', 'lt', 'st', 'soe'];
+create_np_attr_list.ts = ['ty', 'ri', 'pi', 'ct', 'lt', 'st', 'cni', 'cbs', 'mdlt', 'mdc'];
+create_np_attr_list.tsi = ['ty', 'ri', 'pi', 'ct', 'lt', 'st'];
+create_np_attr_list.mms = ['ty', 'ri', 'pi', 'ct', 'lt', 'st', 'sid'];
+create_np_attr_list.req = ['rn', 'ty', 'ri', 'et', 'pi', 'ct', 'lt', 'acpi', 'lbl', 'st', 'daci', 'op', 'tg', 'org', 'rid', 'mi', 'pc', 'rs', 'ors'];
+create_np_attr_list.tr = ['ty', 'ri', 'pi', 'ct', 'lt', 'st', 'tclt', 'tst', 'trsp'];
+
+create_np_attr_list.fwr = ['ty', 'ri', 'pi', 'ct', 'lt', 'st', 'uds'];
+create_np_attr_list.bat = ['ty', 'ri', 'pi', 'ct', 'lt', 'st'];
+create_np_attr_list.dvi = ['ty', 'ri', 'pi', 'ct', 'lt', 'st'];
+create_np_attr_list.dvc = ['ty', 'ri', 'pi', 'ct', 'lt', 'st'];
+create_np_attr_list.rbo = ['ty', 'ri', 'pi', 'ct', 'lt', 'st'];
+
+global.create_m_attr_list = {};
+create_m_attr_list.acp = ['pv', 'pvs'];
+create_m_attr_list.csr = ['cb', 'csi', 'rr'];
+create_m_attr_list.ae = ['api', 'rr'];
+create_m_attr_list.cnt = [];
+create_m_attr_list.cin = ['con'];
+create_m_attr_list.sub = ['nu'];
+create_m_attr_list.lcp = ['los'];
+create_m_attr_list.grp = ['mnm', 'mid'];
+create_m_attr_list.nod = ['ni'];
+create_m_attr_list.smd = ['dcrp', 'dsp'];
+create_m_attr_list.ts = [];
+create_m_attr_list.tsi = ['dgt', 'con'];
+create_m_attr_list.mms = ['soid', 'asd'];
+create_m_attr_list.req = [];
+create_m_attr_list.tr = ['tid', 'trqp'];
+
+create_m_attr_list.fwr = ['mgd', 'vr', 'fwnnam', 'url', 'ud'];
+create_m_attr_list.bat = ['mgd', 'btl', 'bts'];
+create_m_attr_list.dvi = ['mgd', 'dlb', 'man', 'mod', 'dty', 'fwv', 'swv', 'hwv'];
+create_m_attr_list.dvc = ['mgd', 'can', 'att', 'cas', 'cus'];
+create_m_attr_list.rbo = ['mgd'];
+
+global.create_opt_attr_list = {};
+create_opt_attr_list.acp = ['rn', 'et', 'lbl', 'aa', 'at'];
+create_opt_attr_list.csr = ['rn', 'acpi', 'et', 'lbl', 'aa', 'at', 'daci', 'cst', 'poa', 'mei', 'tri', 'nl', 'esi'];
+create_opt_attr_list.ae = ['rn', 'acpi', 'et', 'lbl', 'aa', 'at', 'daci', 'apn', 'poa', 'or', 'nl', 'csz', 'esi'];
+create_opt_attr_list.cnt = ['rn', 'acpi', 'et', 'lbl', 'aa', 'at', 'daci', 'cr', 'mni', 'mbs', 'mia', 'li', 'or', 'disr'];
+create_opt_attr_list.cin = ['rn', 'et', 'lbl', 'aa', 'at', 'daci', 'cr', 'cnf', 'conr', 'or'];
+create_opt_attr_list.sub = ['rn', 'acpi', 'et', 'lbl', 'daci', 'cr', 'enc', 'exc', 'gpi', 'nfu', 'bn', 'rl', 'psn', 'pn', 'nsp', 'ln', 'nct', 'nec', 'su'];
+create_opt_attr_list.lcp = ['rn', 'acpi', 'et', 'lbl', 'aa', 'at', 'daci', 'lou', 'lot', 'lor', 'lon'];
+create_opt_attr_list.grp = ['rn', 'acpi', 'et', 'lbl', 'aa', 'at', 'daci', 'mt', 'macp', 'csy', 'gn'];
+create_opt_attr_list.nod = ['rn', 'acpi', 'et', 'lbl', 'aa', 'at', 'daci', 'hcl', 'mgca'];
+create_opt_attr_list.smd = ['rn', 'acpi', 'et', 'lbl', 'aa', 'at', 'cr', 'or', 'rels'];
+create_opt_attr_list.ts = ['rn', 'acpi', 'et', 'lbl', 'aa', 'at', 'cr', 'mni', 'mbs', 'mia', 'pei', 'mdd', 'mdn', 'mdt', 'or'];
+create_opt_attr_list.tsi = ['rn', 'et', 'lbl', 'aa', 'at', 'sqn'];
+create_opt_attr_list.mms = ['rn', 'acpi', 'et', 'lbl', 'aa', 'at', 'stid', 'osd', 'sst'];
+create_opt_attr_list.req = [];
+create_opt_attr_list.tr = ['rn', 'acpi', 'et', 'lbl', 'daci', 'cr', 'tltm', 'text', 'tct', 'tltp'];
+
+create_opt_attr_list.fwr = ['rn', 'acpi', 'et', 'lbl', 'daci', 'objs', 'obps', 'dc', 'cmlk'];
+create_opt_attr_list.bat = ['rn', 'acpi', 'et', 'lbl', 'daci', 'objs', 'obps', 'dc', 'cmlk'];
+create_opt_attr_list.dvi = ['rn', 'acpi', 'et', 'lbl', 'daci', 'objs', 'obps', 'dc', 'cmlk'];
+create_opt_attr_list.dvc = ['rn', 'acpi', 'et', 'lbl', 'daci', 'objs', 'obps', 'dc', 'cmlk', 'ena', 'dis'];
+create_opt_attr_list.rbo = ['rn', 'acpi', 'et', 'lbl', 'daci', 'objs', 'obps', 'dc', 'cmlk', 'rbo', 'far'];
+
+
 global.update_np_attr_list = {};
 update_np_attr_list.acp = ['rn', 'ty', 'ri', 'pi', 'ct', 'lt'];
 update_np_attr_list.csr = ['rn', 'ty', 'ri', 'pi', 'ct', 'lt', 'st', 'cst', 'cb', 'csi'];
@@ -58,15 +131,17 @@ update_np_attr_list.cnt = ['rn', 'ty', 'ri', 'pi', 'ct', 'lt', 'st', 'cr', 'cni'
 update_np_attr_list.sub = ['rn', 'ty', 'ri', 'pi', 'ct', 'lt', 'st', 'cr', 'psn', 'su'];
 update_np_attr_list.lcp = ['rn', 'ty', 'ri', 'pi', 'ct', 'lt', 'st', 'los', 'lot', 'lor', 'loi', 'lon', 'lost'];
 update_np_attr_list.grp = ['rn', 'ty', 'ri', 'pi', 'ct', 'lt', 'st', 'cr', 'mt', 'cnm', 'mtv', 'csy', 'ssi'];
+update_np_attr_list.nod = ['rn', 'ty', 'ri', 'pi', 'ct', 'lt', 'st', 'hcl'];
+update_np_attr_list.smd = ['rn', 'ty', 'ri', 'pi', 'ct', 'lt', 'st', 'cr'];
+update_np_attr_list.ts = ['rn', 'ty', 'ri', 'pi', 'ct', 'lt', 'st', 'cr', 'cni', 'cbs', 'mdlt', 'mdc'];
+update_np_attr_list.mms = ['rn', 'ty', 'ri', 'pi', 'ct', 'lt', 'st', 'sid', 'soid'];
+update_np_attr_list.tr = ['rn', 'ty', 'ri', 'pi', 'ct', 'lt', 'st', 'daci', 'tid', 'tst', 'tltm', 'text', 'tct', 'tltp', 'trqp', 'trsp'];
+
 update_np_attr_list.fwr = ['rn', 'ty', 'ri', 'pi', 'ct', 'lt', 'st', 'mgd', 'objs', 'obps'];
 update_np_attr_list.bat = ['rn', 'ty', 'ri', 'pi', 'ct', 'lt', 'st', 'mgd', 'objs', 'obps'];
 update_np_attr_list.dvi = ['rn', 'ty', 'ri', 'pi', 'ct', 'lt', 'st', 'mgd', 'objs', 'obps'];
 update_np_attr_list.dvc = ['rn', 'ty', 'ri', 'pi', 'ct', 'lt', 'st', 'mgd', 'objs', 'obps'];
 update_np_attr_list.rbo = ['rn', 'ty', 'ri', 'pi', 'ct', 'lt', 'st', 'mgd', 'objs', 'obps'];
-update_np_attr_list.nod = ['rn', 'ty', 'ri', 'pi', 'ct', 'lt', 'st', 'hcl'];
-update_np_attr_list.smd = ['rn', 'ty', 'ri', 'pi', 'ct', 'lt', 'st', 'cr'];
-update_np_attr_list.ts = ['rn', 'ty', 'ri', 'pi', 'ct', 'lt', 'st', 'cr', 'cni', 'cbs', 'mdlt', 'mdc'];
-update_np_attr_list.mms = ['rn', 'ty', 'ri', 'pi', 'ct', 'lt', 'st', 'sid', 'soid'];
 
 global.update_m_attr_list = {};
 update_m_attr_list.acp = [];
@@ -76,21 +151,19 @@ update_m_attr_list.cnt = [];
 update_m_attr_list.sub = [];
 update_m_attr_list.lcp = [];
 update_m_attr_list.grp = [];
-update_m_attr_list.fwr = [];
-update_m_attr_list.dvi = [];
-update_m_attr_list.dvc = [];
-update_m_attr_list.rbo = [];
 update_m_attr_list.nod = [];
 update_m_attr_list.smd = [];
 update_m_attr_list.ts = [];
 update_m_attr_list.mms = [];
+update_m_attr_list.tr = [];
+
+update_m_attr_list.fwr = [];
+update_m_attr_list.bat = [];
+update_m_attr_list.dvi = [];
+update_m_attr_list.dvc = [];
+update_m_attr_list.rbo = [];
 
 global.update_opt_attr_list = {};
-update_opt_attr_list.fwr = ['acpi', 'et', 'lbl', 'daci', 'dc', 'cmlk', 'vr', 'fwnnam', 'url', 'ud', 'uds'];
-update_opt_attr_list.bat = ['acpi', 'et', 'lbl', 'daci', 'dc', 'cmlk', 'btl', 'bts'];
-update_opt_attr_list.dvi = ['acpi', 'et', 'lbl', 'daci', 'dc', 'cmlk', 'dlb', 'man', 'mod', 'dty', 'fwv', 'swv', 'hwv'];
-update_opt_attr_list.dvc = ['acpi', 'et', 'lbl', 'daci', 'dc', 'cmlk', 'can', 'att', 'cas', 'cus', 'ena', 'dis'];
-update_opt_attr_list.rbo = ['acpi', 'et', 'lbl', 'daci', 'dc', 'cmlk', 'rbo', 'far'];
 update_opt_attr_list.acp = ['et', 'lbl', 'aa', 'at', 'pv', 'pvs'];
 update_opt_attr_list.csr = ['acpi', 'et', 'lbl', 'aa', 'at', 'daci', 'poa', 'mei', 'rr', 'nl', 'tri', 'esi'];
 update_opt_attr_list.ae = ['acpi', 'et', 'lbl', 'aa', 'at', 'daci', 'apn', 'poa', 'or', 'nl', 'rr', 'csz', 'esi'];
@@ -100,8 +173,15 @@ update_opt_attr_list.lcp = ['acpi', 'et', 'lbl', 'aa', 'at', 'daci', 'lou'];
 update_opt_attr_list.grp = ['acpi', 'et', 'lbl', 'aa', 'at', 'daci', 'mnm', 'mid', 'macp', 'gn'];
 update_opt_attr_list.nod = ['acpi', 'et', 'lbl', 'aa', 'at', 'daci', 'ni', 'mgca'];
 update_opt_attr_list.smd = ['acpi', 'et', 'lbl', 'aa', 'at', 'dcrp', 'soe', 'dsp', 'or', 'rels'];
-update_opt_attr_list.ts = ['acpi', 'et', 'lbl', 'aa', 'at', 'daci', 'mni', 'mbs', 'mia', 'pei', 'mdd', 'mdn', 'mdt', 'or'];
+update_opt_attr_list.ts = ['acpi', 'et', 'lbl', 'aa', 'at', 'mni', 'mbs', 'mia', 'pei', 'mdd', 'mdn', 'mdt', 'or'];
 update_opt_attr_list.mms = ['acpi', 'et', 'lbl', 'aa', 'at', 'stid', 'asd', 'osd', 'sst'];
+update_opt_attr_list.tr = ['acpi', 'et', 'lbl', 'cr', 'tctl'];
+
+update_opt_attr_list.fwr = ['acpi', 'et', 'lbl', 'daci', 'dc', 'cmlk', 'vr', 'fwnnam', 'url', 'ud', 'uds'];
+update_opt_attr_list.bat = ['acpi', 'et', 'lbl', 'daci', 'dc', 'cmlk', 'btl', 'bts'];
+update_opt_attr_list.dvi = ['acpi', 'et', 'lbl', 'daci', 'dc', 'cmlk', 'dlb', 'man', 'mod', 'dty', 'fwv', 'swv', 'hwv'];
+update_opt_attr_list.dvc = ['acpi', 'et', 'lbl', 'daci', 'dc', 'cmlk', 'can', 'att', 'cas', 'cus', 'ena', 'dis'];
+update_opt_attr_list.rbo = ['acpi', 'et', 'lbl', 'daci', 'dc', 'cmlk', 'rbo', 'far'];
 
 
 exports.t_isr = function (id, param1, param2, param3) {
@@ -887,6 +967,27 @@ function create_action(request, response, ty, resource_Obj, callback) {
                 }
             });
     }
+    else if (ty == '39') { // transaction resource
+        db_sql.insert_tr(resource_Obj[rootnm], function (err, results) {
+            if (!err) {
+                callback('1', resource_Obj);
+            }
+            else {
+                if (results.code == 'ER_DUP_ENTRY') {
+                    body_Obj = {};
+                    body_Obj['dbg'] = results.message;
+                    responder.response_result(request, response, 409, body_Obj, 4105, request.url, body_Obj['dbg']);
+                }
+                else {
+                    body_Obj = {};
+                    body_Obj['dbg'] = results.message;
+                    responder.response_result(request, response, 500, body_Obj, 5000, request.url, body_Obj['dbg']);
+                }
+                callback('0', resource_Obj);
+                return '0';
+            }
+        });
+    }
     else {
         body_Obj = {};
         body_Obj['dbg'] = "ty does not supported";
@@ -952,6 +1053,54 @@ function build_resource(request, response, ty, body_Obj, callback) {
         resource_Obj[rootnm].cnf = '';
     }
 
+    if (ty_list.includes(ty)) {
+        var mandatory_check_count = 0;
+
+        // check Not Present and check Option and check Mandatory
+        for (var attr in body_Obj[rootnm]) {
+            if (body_Obj[rootnm].hasOwnProperty(attr)) {
+                if (create_np_attr_list[rootnm].includes(attr)) {
+                    body_Obj = {};
+                    body_Obj['dbg'] = 'BAD REQUEST: ' + attr + ' is \'Not Present\' attribute';
+                    responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
+                    callback('0');
+                    return '0';
+                }
+                else {
+                    if (create_opt_attr_list[rootnm].includes(attr)) {
+                    }
+                    else {
+                        if (create_m_attr_list[rootnm].includes(attr)) {
+                            mandatory_check_count += 1;
+                        }
+                        else {
+                            body_Obj = {};
+                            body_Obj['dbg'] = 'NOT FOUND: ' + attr + ' attribute is not defined';
+                            responder.response_result(request, response, 404, body_Obj, 4004, request.url, body_Obj['dbg']);
+                            callback('0');
+                            return '0';
+                        }
+                    }
+                }
+            }
+        }
+
+        if(mandatory_check_count < create_m_attr_list[rootnm].length) {
+            body_Obj = {};
+            body_Obj['dbg'] = 'BAD REQUEST: ' + attr + ' is \'Mandatory\' attribute';
+            responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
+            callback('0', resource_Obj);
+            return '0';
+        }
+    }
+    else {
+        body_Obj = {};
+        body_Obj['dbg'] = 'we do not support to update resource';
+        responder.response_result(request, response, 405, body_Obj, 4005, request.url, body_Obj['dbg']);
+        callback('0');
+        return '0';
+    }
+
     db_sql.select_direct_lookup(resource_Obj[rootnm].ri, function (err, result_Obj) {
         if (!err) {
             if (result_Obj.length == 1) {
@@ -962,6 +1111,22 @@ function build_resource(request, response, ty, body_Obj, callback) {
                 return '0';
             }
             else {
+                resource_Obj[rootnm].acpi = (body_Obj[rootnm].acpi) ? body_Obj[rootnm].acpi : [];
+                resource_Obj[rootnm].et = (body_Obj[rootnm].et) ? body_Obj[rootnm].et : resource_Obj[rootnm].et;
+                resource_Obj[rootnm].lbl = (body_Obj[rootnm].lbl) ? body_Obj[rootnm].lbl : [];
+                resource_Obj[rootnm].at = (body_Obj[rootnm].at) ? body_Obj[rootnm].at : [];
+                resource_Obj[rootnm].aa = (body_Obj[rootnm].aa) ? body_Obj[rootnm].aa : [];
+
+                if (body_Obj[rootnm].et == '') {
+                    if (body_Obj[rootnm].et < resource_Obj[rootnm].ct) {
+                        body_Obj = {};
+                        body_Obj['dbg'] = 'expiration time is before now';
+                        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
+                        callback('0', resource_Obj);
+                        return '0';
+                    }
+                }
+
                 switch (ty) {
                     case '1':
                         acp.build_acp(request, response, resource_Obj, body_Obj, function (rsc, resource_Obj) {
@@ -1023,6 +1188,11 @@ function build_resource(request, response, ty, body_Obj, callback) {
                             callback(rsc, resource_Obj);
                         });
                         break;
+                    case '27':
+                        mms.build_mms(request, response, resource_Obj, body_Obj, function (rsc, resource_Obj) {
+                            callback(rsc, resource_Obj);
+                        });
+                        break;
                     case '29':
                         ts.build_ts(request, response, resource_Obj, body_Obj, function (rsc, resource_Obj) {
                             callback(rsc, resource_Obj);
@@ -1033,8 +1203,8 @@ function build_resource(request, response, ty, body_Obj, callback) {
                             callback(rsc, resource_Obj);
                         });
                         break;
-                    case '27':
-                        mms.build_mms(request, response, resource_Obj, body_Obj, function (rsc, resource_Obj) {
+                    case '39':
+                        tr.build_tr(request, response, resource_Obj, body_Obj, function (rsc, resource_Obj) {
                             callback(rsc, resource_Obj);
                         });
                         break;
@@ -1243,8 +1413,6 @@ function presearch_action(request, response, ri_list, comm_Obj, callback) {
     });
 }
 
-global.ty_list = ['1', '2', '3', '4', '5', '9', '10', '13', '14', '16', '17', '23', '24', '27', '29', '30'];
-
 function search_action(request, response, seq, resource_Obj, ri_list, strObj, presearch_Obj, callback) {
     if (ty_list.length <= seq) {
         callback('1', strObj);
@@ -1354,6 +1522,9 @@ function retrieve_action(request, response, ty, comm_Obj, callback) {
                 }
                 if (spec_Obj[0].rels) {
                     spec_Obj[0].rels = JSON.parse(spec_Obj[0].rels);
+                }
+                if (spec_Obj[0].trqp) {
+                    spec_Obj[0].trqp = JSON.parse(spec_Obj[0].trqp);
                 }
                 if (spec_Obj[0].con) {
                     var con_type = getType(spec_Obj[0].con);
@@ -1523,32 +1694,6 @@ exports.retrieve = function (request, response, comm_Obj) {
                 }
             });
         });
-    }
-};
-
-global.build_body = function (rootnm, body_Obj, resource_Obj) {
-    // todo: update for optimize
-    for (var attr in body_Obj[rootnm]) {
-        if (body_Obj[rootnm].hasOwnProperty(attr)) {
-            if (body_Obj[rootnm][attr]) {
-                resource_Obj[rootnm][attr] = body_Obj[rootnm][attr];
-            }
-
-            if (attr === 'aa' || attr === 'poa' || attr === 'lbl' || attr === 'acpi' || attr === 'srt' || attr === 'nu' || attr === 'mid' || attr === 'macp') {
-                if (body_Obj[rootnm][attr] === '') {
-                    resource_Obj[rootnm][attr] = [];
-                }
-
-                if (attr === 'acpi') {
-                    (resource_Obj[rootnm][attr]);
-                }
-            }
-            else {
-                if (body_Obj[rootnm][attr] === '') {
-                    resource_Obj[rootnm][attr] = '';
-                }
-            }
-        }
     }
 };
 
@@ -1945,6 +2090,60 @@ function update_action(request, response, ty, resource_Obj, callback) {
     }
 }
 
+function create_resource(request, response, ty, body_Obj, resource_Obj, callback) {
+    var rootnm = request.headers.rootnm;
+
+    if (ty_list.includes(ty)) {
+        // check M
+        for (var attr in create_m_attr_list[rootnm]) {
+            if (create_m_attr_list[rootnm].hasOwnProperty(attr)) {
+                if (body_Obj[rootnm].includes(attr)) {
+                }
+                else {
+                    body_Obj = {};
+                    body_Obj['dbg'] = 'BAD REQUEST: ' + attr + ' is \'Mandatory\' attribute';
+                    responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
+                    callback('0', resource_Obj);
+                    return '0';
+                }
+            }
+        }
+
+        // check NP and body
+        for (attr in body_Obj[rootnm]) {
+            if (body_Obj[rootnm].hasOwnProperty(attr)) {
+                if (create_np_attr_list[rootnm].includes(attr)) {
+                    body_Obj = {};
+                    body_Obj['dbg'] = 'BAD REQUEST: ' + attr + ' is \'Not Present\' attribute';
+                    responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
+                    callback('0', resource_Obj);
+                    return '0';
+                }
+                else {
+                    if (create_opt_attr_list[rootnm].includes(attr)) {
+                    }
+                    else {
+                        body_Obj = {};
+                        body_Obj['dbg'] = 'NOT FOUND: ' + attr + ' attribute is not defined';
+                        responder.response_result(request, response, 404, body_Obj, 4004, request.url, body_Obj['dbg']);
+                        callback('0', resource_Obj);
+                        return '0';
+                    }
+                }
+            }
+        }
+
+        callback('1', resource_Obj);
+    }
+    else {
+        body_Obj = {};
+        body_Obj['dbg'] = 'we do not support to update resource';
+        responder.response_result(request, response, 405, body_Obj, 4005, request.url, body_Obj['dbg']);
+        callback('0', body_Obj);
+        return '0';
+    }
+}
+
 function check_acp_update_acpi(request, response, bodyObj, acpi, cr, callback) {
     // when update acpi check pvs of acp
     if (acpi.length > 0) {
@@ -1961,22 +2160,24 @@ function update_resource(request, response, ty, body_Obj, resource_Obj, callback
     var rootnm = request.headers.rootnm;
 
     if (ty_list.includes(ty)) {
-        // check M
-        for (var attr in update_m_attr_list[rootnm]) {
-            if (update_m_attr_list[rootnm].hasOwnProperty(attr)) {
-                if (body_Obj[rootnm].includes(attr)) {
-                }
-                else {
-                    body_Obj = {};
-                    body_Obj['dbg'] = 'BAD REQUEST: ' + attr + ' is \'Mandatory\' attribute';
-                    responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-                    callback('0', resource_Obj);
-                    return '0';
+        var mandatory_check_count = 0;
+        // check Not Present and check Option and check Mandatory
+        for (var attr in body_Obj[rootnm]) {
+            if (body_Obj[rootnm].hasOwnProperty(attr)) {
+                if (update_m_attr_list[rootnm].includes(attr)) {
+                    mandatory_check_count += 1;
                 }
             }
         }
 
-        // check NP and body
+        if(mandatory_check_count < update_m_attr_list[rootnm].length) {
+            body_Obj = {};
+            body_Obj['dbg'] = 'BAD REQUEST: ' + attr + ' is \'Mandatory\' attribute';
+            responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
+            callback('0', resource_Obj);
+            return '0';
+        }
+
         for (attr in body_Obj[rootnm]) {
             if (body_Obj[rootnm].hasOwnProperty(attr)) {
                 if (update_np_attr_list[rootnm].includes(attr)) {
@@ -2035,6 +2236,7 @@ function update_resource(request, response, ty, body_Obj, resource_Obj, callback
         body_Obj['dbg'] = 'we do not support to update resource';
         responder.response_result(request, response, 405, body_Obj, 4005, request.url, body_Obj['dbg']);
         callback('0', body_Obj);
+        return '0';
     }
 
 // //    var rootnm = request.headers.rootnm;

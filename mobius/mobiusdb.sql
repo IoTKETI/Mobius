@@ -1,8 +1,8 @@
--- MySQL dump 10.13  Distrib 5.7.17, for Win64 (x86_64)
+-- MySQL dump 10.13  Distrib 5.7.17, for macos10.12 (x86_64)
 --
--- Host: localhost    Database: mobiusdb
+-- Host: 127.0.0.1    Database: mobiusdb
 -- ------------------------------------------------------
--- Server version	5.7.19-log
+-- Server version	5.5.5-10.2.12-MariaDB
 
 /*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
 /*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
@@ -24,13 +24,22 @@ DROP TABLE IF EXISTS `acp`;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `acp` (
   `ri` varchar(200) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
-  `pv` longtext,
-  `pvs` longtext,
+  `pv` longtext DEFAULT NULL,
+  `pvs` longtext DEFAULT NULL,
   PRIMARY KEY (`ri`),
   UNIQUE KEY `ri_UNIQUE` (`ri`),
   CONSTRAINT `acp_ri` FOREIGN KEY (`ri`) REFERENCES `lookup` (`ri`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `acp`
+--
+
+LOCK TABLES `acp` WRITE;
+/*!40000 ALTER TABLE `acp` DISABLE KEYS */;
+/*!40000 ALTER TABLE `acp` ENABLE KEYS */;
+UNLOCK TABLES;
 
 --
 -- Table structure for table `ae`
@@ -57,6 +66,16 @@ CREATE TABLE `ae` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
+-- Dumping data for table `ae`
+--
+
+LOCK TABLES `ae` WRITE;
+/*!40000 ALTER TABLE `ae` DISABLE KEYS */;
+INSERT INTO `ae` VALUES ('/Mobius/ae_test2','','0.2.481.2.0001.001.000111','S20180221054413068HDUn','[]','','true','',''),('/Mobius/edu4','','measure_co2','Sedu4','[]','','true','',''),('/Mobius/flavia','','0.2.481.2.0001.001.000111','S201803080854241479wjB','[]','','true','','');
+/*!40000 ALTER TABLE `ae` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
 -- Table structure for table `cb`
 --
 
@@ -78,6 +97,16 @@ CREATE TABLE `cb` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
+-- Dumping data for table `cb`
+--
+
+LOCK TABLES `cb` WRITE;
+/*!40000 ALTER TABLE `cb` DISABLE KEYS */;
+INSERT INTO `cb` VALUES ('/Mobius','1','/Mobius','[\"1\",\"2\",\"3\",\"4\",\"5\",\"9\",\"10\",\"13\",\"14\",\"16\",\"17\",\"23\",\"24\",\"27\",\"29\",\"30\",\"38\",\"39\"]','[\"http://10.53.90.54:7579\",\"mqtt://10.53.90.54:1883/Mobius\",\"coap://10.53.90.54:7579\",\"ws://10.53.90.54:7577\"]','','');
+/*!40000 ALTER TABLE `cb` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
 -- Table structure for table `cin`
 --
 
@@ -90,13 +119,22 @@ CREATE TABLE `cin` (
   `cnf` varchar(45) DEFAULT NULL,
   `cs` varchar(45) DEFAULT NULL,
   `or` varchar(45) DEFAULT NULL,
-  `con` longtext,
+  `con` longtext DEFAULT NULL,
   PRIMARY KEY (`ri`),
   UNIQUE KEY `ri_UNIQUE` (`ri`),
   KEY `cin_ri_idx` (`ri`),
   CONSTRAINT `cin_ri` FOREIGN KEY (`ri`) REFERENCES `lookup` (`ri`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `cin`
+--
+
+LOCK TABLES `cin` WRITE;
+/*!40000 ALTER TABLE `cin` DISABLE KEYS */;
+/*!40000 ALTER TABLE `cin` ENABLE KEYS */;
+UNLOCK TABLES;
 
 --
 -- Table structure for table `cnt`
@@ -123,6 +161,16 @@ CREATE TABLE `cnt` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
+-- Dumping data for table `cnt`
+--
+
+LOCK TABLES `cnt` WRITE;
+/*!40000 ALTER TABLE `cnt` DISABLE KEYS */;
+INSERT INTO `cnt` VALUES ('/Mobius/ae_test2/container1','C_AE_ID_STEM_1','3153600000','3153600000','31536000','0','0','','',''),('/Mobius/ae_test2/container2','C_AE_ID_STEM_1','3153600000','3153600000','31536000','0','0','','',''),('/Mobius/edu4/co2','Sedu4','3153600000','3153600000','31536000','0','0','','',''),('/Mobius/edu4/led','Sedu4','3153600000','3153600000','31536000','0','0','','',''),('/Mobius/edu4/temp','Sedu4','3153600000','3153600000','31536000','0','0','','',''),('/Mobius/edu4/tvoc','Sedu4','3153600000','3153600000','31536000','0','0','','','');
+/*!40000 ALTER TABLE `cnt` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
 -- Table structure for table `csr`
 --
 
@@ -147,6 +195,15 @@ CREATE TABLE `csr` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
+-- Dumping data for table `csr`
+--
+
+LOCK TABLES `csr` WRITE;
+/*!40000 ALTER TABLE `csr` DISABLE KEYS */;
+/*!40000 ALTER TABLE `csr` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
 -- Table structure for table `grp`
 --
 
@@ -159,8 +216,8 @@ CREATE TABLE `grp` (
   `mt` varchar(45) NOT NULL,
   `cnm` varchar(45) NOT NULL,
   `mnm` varchar(45) NOT NULL,
-  `mid` mediumtext,
-  `macp` mediumtext,
+  `mid` mediumtext DEFAULT NULL,
+  `macp` mediumtext DEFAULT NULL,
   `mtv` varchar(45) DEFAULT NULL,
   `csy` varchar(45) DEFAULT NULL,
   `gn` varchar(45) DEFAULT NULL,
@@ -169,6 +226,16 @@ CREATE TABLE `grp` (
   CONSTRAINT `grp_ri` FOREIGN KEY (`ri`) REFERENCES `lookup` (`ri`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `grp`
+--
+
+LOCK TABLES `grp` WRITE;
+/*!40000 ALTER TABLE `grp` DISABLE KEYS */;
+INSERT INTO `grp` VALUES ('/Mobius/ae_test2/grp1','S20180221054413068HDUn','0','2','10','[\"Mobius/ae_test2/container1\"]','\"[]\"','false','1','');
+/*!40000 ALTER TABLE `grp` ENABLE KEYS */;
+UNLOCK TABLES;
 
 --
 -- Table structure for table `lcp`
@@ -191,6 +258,15 @@ CREATE TABLE `lcp` (
   CONSTRAINT `lcp_ri` FOREIGN KEY (`ri`) REFERENCES `lookup` (`ri`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `lcp`
+--
+
+LOCK TABLES `lcp` WRITE;
+/*!40000 ALTER TABLE `lcp` DISABLE KEYS */;
+/*!40000 ALTER TABLE `lcp` ENABLE KEYS */;
+UNLOCK TABLES;
 
 --
 -- Table structure for table `lookup`
@@ -225,6 +301,16 @@ CREATE TABLE `lookup` (
   KEY `idx_lookup_ct` (`ct`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `lookup`
+--
+
+LOCK TABLES `lookup` WRITE;
+/*!40000 ALTER TABLE `lookup` DISABLE KEYS */;
+INSERT INTO `lookup` VALUES ('','5','20180209T083704','/Mobius','Mobius','20180209T083704','20280209T083704','[]','[\"Mobius\"]','[]','[]','0','3153600000','',NULL,'BJ_2pRcIG',''),('/Mobius','2','20180209T084052','/Mobius/edu4','edu4','20180209T084052','20210209T084052','[]','[]','[]','[]','0','3153600000','',NULL,'Sedu4','BJ_2pRcIG'),('/Mobius','2','20180221T054413','/Mobius/ae_test2','ae_test2','20180221T054413','20210221T054413','[\"{{ri}}\"]','[\"key1\",\"key2\"]','[]','[]','0','3153600000','',NULL,'S20180221054413068HDUn','BJ_2pRcIG'),('/Mobius','2','20180308T085333','/Mobius/flavia','flavia','20180308T085333','20210308T085333','[]','[\"key1\",\"key2\"]','[]','[]','0','3153600000','',NULL,'S201803080854241479wjB','BJ_2pRcIG'),('/Mobius/ae_test2','3','20180221T054906','/Mobius/ae_test2/container1','container1','20180221T054906','20210221T054906','[]','[]','[]','[]','0','3153600000','',NULL,'rk458_F9Pf','S20180221054413068HDUn'),('/Mobius/ae_test2','3','20180221T054926','/Mobius/ae_test2/container2','container2','20180221T054926','20210221T054926','[]','[]','[]','[]','0','3153600000','',NULL,'SyVAwdFcDG','S20180221054413068HDUn'),('/Mobius/ae_test2','9','20180221T055244','/Mobius/ae_test2/grp1','grp1','20180221T055944','20210221T055244','[]','[]','[]','[]','1','3153600000','',NULL,'SJD8KFcDf','S20180221054413068HDUn'),('/Mobius/edu4','3','20180209T084054','/Mobius/edu4/co2','co2','20180209T084054','20210209T084054','[]','[\"co2\"]','[]','[]','0','3153600000','',NULL,'rkmks0AcIG','Sedu4'),('/Mobius/edu4','3','20180209T084056','/Mobius/edu4/led','led','20180209T084056','20210209T084056','[]','[\"led\"]','[]','[]','0','3153600000','',NULL,'S1QbiCR98f','Sedu4'),('/Mobius/edu4','3','20180209T084058','/Mobius/edu4/temp','temp','20180209T084058','20210209T084058','[]','[\"temp\"]','[]','[]','0','3153600000','',NULL,'SJQXoRR9Lz','Sedu4'),('/Mobius/edu4','3','20180209T084100','/Mobius/edu4/tvoc','tvoc','20180209T084100','20210209T084100','[]','[\"tvoc\"]','[]','[]','0','3153600000','',NULL,'r17BjCRc8z','Sedu4'),('/Mobius/edu4/led','23','20180209T092404','/Mobius/edu4/led/sub','sub','20180209T092404','20210209T092404','[]','[]','[]','[]','0','3153600000','',NULL,'HymThOkiLG','S1QbiCR98f');
+/*!40000 ALTER TABLE `lookup` ENABLE KEYS */;
+UNLOCK TABLES;
 
 --
 -- Table structure for table `mgo`
@@ -268,6 +354,15 @@ CREATE TABLE `mgo` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
+-- Dumping data for table `mgo`
+--
+
+LOCK TABLES `mgo` WRITE;
+/*!40000 ALTER TABLE `mgo` DISABLE KEYS */;
+/*!40000 ALTER TABLE `mgo` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
 -- Table structure for table `mms`
 --
 
@@ -289,6 +384,15 @@ CREATE TABLE `mms` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
+-- Dumping data for table `mms`
+--
+
+LOCK TABLES `mms` WRITE;
+/*!40000 ALTER TABLE `mms` DISABLE KEYS */;
+/*!40000 ALTER TABLE `mms` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
 -- Table structure for table `nod`
 --
 
@@ -299,11 +403,21 @@ CREATE TABLE `nod` (
   `ri` varchar(200) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
   `ni` varchar(45) NOT NULL,
   `hcl` varchar(45) DEFAULT NULL,
+  `mgca` varchar(45) DEFAULT NULL,
   PRIMARY KEY (`ri`),
   UNIQUE KEY `ri_UNIQUE` (`ri`),
   CONSTRAINT `nod_ri` FOREIGN KEY (`ri`) REFERENCES `lookup` (`ri`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `nod`
+--
+
+LOCK TABLES `nod` WRITE;
+/*!40000 ALTER TABLE `nod` DISABLE KEYS */;
+/*!40000 ALTER TABLE `nod` ENABLE KEYS */;
+UNLOCK TABLES;
 
 --
 -- Table structure for table `req`
@@ -319,7 +433,7 @@ CREATE TABLE `req` (
   `org` varchar(45) NOT NULL,
   `rid` varchar(45) NOT NULL,
   `mi` varchar(45) DEFAULT NULL,
-  `pc` longtext,
+  `pc` longtext DEFAULT NULL,
   `rs` varchar(45) DEFAULT NULL,
   `ors` varchar(45) DEFAULT NULL,
   PRIMARY KEY (`ri`),
@@ -327,6 +441,15 @@ CREATE TABLE `req` (
   CONSTRAINT `req_ri` FOREIGN KEY (`ri`) REFERENCES `lookup` (`ri`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `req`
+--
+
+LOCK TABLES `req` WRITE;
+/*!40000 ALTER TABLE `req` DISABLE KEYS */;
+/*!40000 ALTER TABLE `req` ENABLE KEYS */;
+UNLOCK TABLES;
 
 --
 -- Table structure for table `smd`
@@ -338,9 +461,9 @@ DROP TABLE IF EXISTS `smd`;
 CREATE TABLE `smd` (
   `ri` varchar(200) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
   `cr` varchar(45) DEFAULT NULL,
-  `dcrp` longtext,
-  `or` mediumtext,
-  `dsp` longtext,
+  `dcrp` longtext DEFAULT NULL,
+  `or` mediumtext DEFAULT NULL,
+  `dsp` longtext DEFAULT NULL,
   `soe` varchar(200) DEFAULT NULL,
   `rels` varchar(400) DEFAULT NULL,
   PRIMARY KEY (`ri`),
@@ -348,6 +471,15 @@ CREATE TABLE `smd` (
   CONSTRAINT `sd_ri` FOREIGN KEY (`ri`) REFERENCES `lookup` (`ri`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `smd`
+--
+
+LOCK TABLES `smd` WRITE;
+/*!40000 ALTER TABLE `smd` DISABLE KEYS */;
+/*!40000 ALTER TABLE `smd` ENABLE KEYS */;
+UNLOCK TABLES;
 
 --
 -- Table structure for table `sri`
@@ -365,6 +497,16 @@ CREATE TABLE `sri` (
   CONSTRAINT `sri_ri` FOREIGN KEY (`ri`) REFERENCES `lookup` (`ri`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `sri`
+--
+
+LOCK TABLES `sri` WRITE;
+/*!40000 ALTER TABLE `sri` DISABLE KEYS */;
+INSERT INTO `sri` VALUES ('/Mobius','BJ_2pRcIG'),('/Mobius/ae_test2','S20180221054413068HDUn'),('/Mobius/ae_test2/container1','rk458_F9Pf'),('/Mobius/ae_test2/container2','SyVAwdFcDG'),('/Mobius/ae_test2/grp1','SJD8KFcDf'),('/Mobius/edu4','Sedu4'),('/Mobius/edu4/co2','rkmks0AcIG'),('/Mobius/edu4/led','S1QbiCR98f'),('/Mobius/edu4/led/sub','HymThOkiLG'),('/Mobius/edu4/temp','SJQXoRR9Lz'),('/Mobius/edu4/tvoc','r17BjCRc8z'),('/Mobius/flavia','S201803080854241479wjB');
+/*!40000 ALTER TABLE `sri` ENABLE KEYS */;
+UNLOCK TABLES;
 
 --
 -- Table structure for table `sub`
@@ -398,6 +540,85 @@ CREATE TABLE `sub` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
+-- Dumping data for table `sub`
+--
+
+LOCK TABLES `sub` WRITE;
+/*!40000 ALTER TABLE `sub` DISABLE KEYS */;
+INSERT INTO `sub` VALUES ('/Mobius/edu4/led/sub','/Mobius/edu4/led','{\"net\":[\"3\"]}','','[\"mqtt://localhost/Sedu4?rcn=9&ct=json\"]','','','{}','','','','','','2','','Sedu4','');
+/*!40000 ALTER TABLE `sub` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `tm`
+--
+
+DROP TABLE IF EXISTS `tm`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `tm` (
+  `ri` varchar(200) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
+  `tltm` varchar(45) DEFAULT NULL,
+  `text` varchar(45) DEFAULT NULL,
+  `tct` varchar(45) DEFAULT NULL,
+  `tept` varchar(45) DEFAULT NULL,
+  `tmd` varchar(45) DEFAULT NULL,
+  `tltp` varchar(45) DEFAULT NULL,
+  `tctl` varchar(45) DEFAULT NULL,
+  `tst` varchar(45) DEFAULT NULL,
+  `tmr` varchar(45) DEFAULT NULL,
+  `tmh` varchar(45) DEFAULT NULL,
+  `rqps` tinytext DEFAULT NULL,
+  `rsps` tinytext DEFAULT NULL,
+  PRIMARY KEY (`ri`),
+  UNIQUE KEY `ri_UNIQUE` (`ri`),
+  CONSTRAINT `tm_ri` FOREIGN KEY (`ri`) REFERENCES `lookup` (`ri`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=latin1;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `tm`
+--
+
+LOCK TABLES `tm` WRITE;
+/*!40000 ALTER TABLE `tm` DISABLE KEYS */;
+/*!40000 ALTER TABLE `tm` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `tr`
+--
+
+DROP TABLE IF EXISTS `tr`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `tr` (
+  `ri` varchar(200) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
+  `tid` varchar(45) NOT NULL,
+  `tctl` varchar(45) DEFAULT NULL,
+  `tst` varchar(45) DEFAULT NULL,
+  `tltm` varchar(45) DEFAULT NULL,
+  `text` varchar(45) DEFAULT NULL,
+  `tct` varchar(45) DEFAULT NULL,
+  `tltp` varchar(45) DEFAULT NULL,
+  `trqp` varchar(45) NOT NULL,
+  `trsp` varchar(45) DEFAULT NULL,
+  PRIMARY KEY (`ri`),
+  UNIQUE KEY `ri_UNIQUE` (`ri`),
+  CONSTRAINT `tr_ri` FOREIGN KEY (`ri`) REFERENCES `lookup` (`ri`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=latin1;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `tr`
+--
+
+LOCK TABLES `tr` WRITE;
+/*!40000 ALTER TABLE `tr` DISABLE KEYS */;
+/*!40000 ALTER TABLE `tr` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
 -- Table structure for table `ts`
 --
 
@@ -416,7 +637,7 @@ CREATE TABLE `ts` (
   `pei` varchar(45) DEFAULT NULL,
   `mdd` varchar(45) DEFAULT NULL,
   `mdn` varchar(45) DEFAULT NULL,
-  `mdlt` longtext,
+  `mdlt` longtext DEFAULT NULL,
   `mdc` varchar(45) DEFAULT NULL,
   `mdt` varchar(45) DEFAULT NULL,
   PRIMARY KEY (`ri`),
@@ -424,6 +645,15 @@ CREATE TABLE `ts` (
   CONSTRAINT `ts_ri` FOREIGN KEY (`ri`) REFERENCES `lookup` (`ri`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `ts`
+--
+
+LOCK TABLES `ts` WRITE;
+/*!40000 ALTER TABLE `ts` DISABLE KEYS */;
+/*!40000 ALTER TABLE `ts` ENABLE KEYS */;
+UNLOCK TABLES;
 
 --
 -- Table structure for table `tsi`
@@ -442,6 +672,15 @@ CREATE TABLE `tsi` (
   CONSTRAINT `tsi_ri` FOREIGN KEY (`ri`) REFERENCES `lookup` (`ri`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `tsi`
+--
+
+LOCK TABLES `tsi` WRITE;
+/*!40000 ALTER TABLE `tsi` DISABLE KEYS */;
+/*!40000 ALTER TABLE `tsi` ENABLE KEYS */;
+UNLOCK TABLES;
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
 
 /*!40101 SET SQL_MODE=@OLD_SQL_MODE */;
@@ -452,4 +691,4 @@ CREATE TABLE `tsi` (
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2017-12-06 18:10:07
+-- Dump completed on 2018-03-08 10:30:40
