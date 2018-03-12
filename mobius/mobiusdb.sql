@@ -38,6 +38,7 @@ CREATE TABLE `acp` (
 
 LOCK TABLES `acp` WRITE;
 /*!40000 ALTER TABLE `acp` DISABLE KEYS */;
+INSERT INTO `acp` VALUES ('/Mobius/acp-justin','{\"acr\":[{\"acor\":[\"justin\"],\"acop\":\"63\"}]}','{\"acr\":[{\"acor\":[\"justin\"],\"acop\":\"63\"}]}');
 /*!40000 ALTER TABLE `acp` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -102,7 +103,7 @@ CREATE TABLE `cb` (
 
 LOCK TABLES `cb` WRITE;
 /*!40000 ALTER TABLE `cb` DISABLE KEYS */;
-INSERT INTO `cb` VALUES ('/Mobius','1','/Mobius','[\"1\",\"2\",\"3\",\"4\",\"5\",\"9\",\"10\",\"13\",\"14\",\"16\",\"17\",\"23\",\"24\",\"27\",\"29\",\"30\",\"38\",\"39\"]','[\"http://10.53.90.54:7579\",\"mqtt://10.53.90.54:1883/Mobius\",\"coap://10.53.90.54:7579\",\"ws://10.53.90.54:7577\"]','','');
+INSERT INTO `cb` VALUES ('/Mobius','1','/Mobius','[\"1\",\"2\",\"3\",\"4\",\"5\",\"9\",\"10\",\"13\",\"14\",\"16\",\"17\",\"23\",\"24\",\"27\",\"29\",\"30\",\"38\",\"39\"]','[\"http://192.168.0.104:7579\",\"mqtt://192.168.0.104:1883/Mobius\",\"coap://192.168.0.104:7579\",\"ws://192.168.0.104:7577\"]','','');
 /*!40000 ALTER TABLE `cb` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -133,6 +134,7 @@ CREATE TABLE `cin` (
 
 LOCK TABLES `cin` WRITE;
 /*!40000 ALTER TABLE `cin` DISABLE KEYS */;
+INSERT INTO `cin` VALUES ('/Mobius/edu4/led/4-20180312072141789YExF','admin:admin','','1','','1'),('/Mobius/edu4/led/4-20180312072312869HFpc','admin:admin','','1','','1'),('/Mobius/edu4/led/4-20180312072612534DaRE','admin:admin','','1','','1'),('/Mobius/edu4/led/4-20180312073350575kU1T','admin:admin','','1','','1'),('/Mobius/edu4/led/4-20180312080628940zilX','admin:admin','','1','','1'),('/Mobius/edu4/led/4-20180312080841394a0pZ','admin:admin','','1','','1'),('/Mobius/edu4/led/4-201803120817474014w80','admin:admin','','1','','1');
 /*!40000 ALTER TABLE `cin` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -166,7 +168,7 @@ CREATE TABLE `cnt` (
 
 LOCK TABLES `cnt` WRITE;
 /*!40000 ALTER TABLE `cnt` DISABLE KEYS */;
-INSERT INTO `cnt` VALUES ('/Mobius/ae_test2/container1','C_AE_ID_STEM_1','3153600000','3153600000','31536000','0','0','','',''),('/Mobius/ae_test2/container2','C_AE_ID_STEM_1','3153600000','3153600000','31536000','0','0','','',''),('/Mobius/edu4/co2','Sedu4','3153600000','3153600000','31536000','0','0','','',''),('/Mobius/edu4/led','Sedu4','3153600000','3153600000','31536000','0','0','','',''),('/Mobius/edu4/temp','Sedu4','3153600000','3153600000','31536000','0','0','','',''),('/Mobius/edu4/tvoc','Sedu4','3153600000','3153600000','31536000','0','0','','','');
+INSERT INTO `cnt` VALUES ('/Mobius/ae_test2/container1','C_AE_ID_STEM_1','3153600000','3153600000','31536000','0','0','','',''),('/Mobius/ae_test2/container2','C_AE_ID_STEM_1','3153600000','3153600000','31536000','0','0','','',''),('/Mobius/edu4/co2','Sedu4','3153600000','3153600000','31536000','0','0','','',''),('/Mobius/edu4/led','Sedu4','3153600000','3153600000','31536000','7','7','','',''),('/Mobius/edu4/temp','Sedu4','3153600000','3153600000','31536000','0','0','','',''),('/Mobius/edu4/tvoc','Sedu4','3153600000','3153600000','31536000','0','0','','','');
 /*!40000 ALTER TABLE `cnt` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -308,7 +310,7 @@ CREATE TABLE `lookup` (
 
 LOCK TABLES `lookup` WRITE;
 /*!40000 ALTER TABLE `lookup` DISABLE KEYS */;
-INSERT INTO `lookup` VALUES ('','5','20180209T083704','/Mobius','Mobius','20180209T083704','20280209T083704','[]','[\"Mobius\"]','[]','[]','0','3153600000','',NULL,'BJ_2pRcIG',''),('/Mobius','2','20180209T084052','/Mobius/edu4','edu4','20180209T084052','20210209T084052','[]','[]','[]','[]','0','3153600000','',NULL,'Sedu4','BJ_2pRcIG'),('/Mobius','2','20180221T054413','/Mobius/ae_test2','ae_test2','20180221T054413','20210221T054413','[\"{{ri}}\"]','[\"key1\",\"key2\"]','[]','[]','0','3153600000','',NULL,'S20180221054413068HDUn','BJ_2pRcIG'),('/Mobius','2','20180308T085333','/Mobius/flavia','flavia','20180308T085333','20210308T085333','[]','[\"key1\",\"key2\"]','[]','[]','0','3153600000','',NULL,'S201803080854241479wjB','BJ_2pRcIG'),('/Mobius/ae_test2','3','20180221T054906','/Mobius/ae_test2/container1','container1','20180221T054906','20210221T054906','[]','[]','[]','[]','0','3153600000','',NULL,'rk458_F9Pf','S20180221054413068HDUn'),('/Mobius/ae_test2','3','20180221T054926','/Mobius/ae_test2/container2','container2','20180221T054926','20210221T054926','[]','[]','[]','[]','0','3153600000','',NULL,'SyVAwdFcDG','S20180221054413068HDUn'),('/Mobius/ae_test2','9','20180221T055244','/Mobius/ae_test2/grp1','grp1','20180221T055944','20210221T055244','[]','[]','[]','[]','1','3153600000','',NULL,'SJD8KFcDf','S20180221054413068HDUn'),('/Mobius/edu4','3','20180209T084054','/Mobius/edu4/co2','co2','20180209T084054','20210209T084054','[]','[\"co2\"]','[]','[]','0','3153600000','',NULL,'rkmks0AcIG','Sedu4'),('/Mobius/edu4','3','20180209T084056','/Mobius/edu4/led','led','20180209T084056','20210209T084056','[]','[\"led\"]','[]','[]','0','3153600000','',NULL,'S1QbiCR98f','Sedu4'),('/Mobius/edu4','3','20180209T084058','/Mobius/edu4/temp','temp','20180209T084058','20210209T084058','[]','[\"temp\"]','[]','[]','0','3153600000','',NULL,'SJQXoRR9Lz','Sedu4'),('/Mobius/edu4','3','20180209T084100','/Mobius/edu4/tvoc','tvoc','20180209T084100','20210209T084100','[]','[\"tvoc\"]','[]','[]','0','3153600000','',NULL,'r17BjCRc8z','Sedu4'),('/Mobius/edu4/led','23','20180209T092404','/Mobius/edu4/led/sub','sub','20180209T092404','20210209T092404','[]','[]','[]','[]','0','3153600000','',NULL,'HymThOkiLG','S1QbiCR98f');
+INSERT INTO `lookup` VALUES ('','5','20180209T083704','/Mobius','Mobius','20180209T083704','20280209T083704','[]','[\"Mobius\"]','[]','[]','0','3153600000','',NULL,'BJ_2pRcIG',''),('/Mobius','1','20180312T071454','/Mobius/acp-justin','acp-justin','20180312T071454','20210312T071454','[]','[]','[]','[]','0','3153600000','',NULL,'Byz8etiXKG','BJ_2pRcIG'),('/Mobius','14','20180308T093405','/Mobius/nod-justin','nod-justin','20180308T093405','20210308T093405','[]','[]','[]','[]','0','3153600000','',NULL,'B1gc3mtAdz','BJ_2pRcIG'),('/Mobius','2','20180209T084052','/Mobius/edu4','edu4','20180209T084052','20210209T084052','[]','[]','[]','[]','0','3153600000','',NULL,'Sedu4','BJ_2pRcIG'),('/Mobius','2','20180221T054413','/Mobius/ae_test2','ae_test2','20180221T054413','20210221T054413','[\"{{ri}}\"]','[\"key1\",\"key2\"]','[]','[]','0','3153600000','',NULL,'S20180221054413068HDUn','BJ_2pRcIG'),('/Mobius','2','20180308T085333','/Mobius/flavia','flavia','20180308T085333','20210308T085333','[]','[\"key1\",\"key2\"]','[]','[]','0','3153600000','',NULL,'S201803080854241479wjB','BJ_2pRcIG'),('/Mobius/ae_test2','3','20180221T054906','/Mobius/ae_test2/container1','container1','20180221T054906','20210221T054906','[]','[]','[]','[]','0','3153600000','',NULL,'rk458_F9Pf','S20180221054413068HDUn'),('/Mobius/ae_test2','3','20180221T054926','/Mobius/ae_test2/container2','container2','20180221T054926','20210221T054926','[]','[]','[]','[]','0','3153600000','',NULL,'SyVAwdFcDG','S20180221054413068HDUn'),('/Mobius/ae_test2','9','20180221T055244','/Mobius/ae_test2/grp1','grp1','20180221T055944','20210221T055244','[]','[]','[]','[]','1','3153600000','',NULL,'SJD8KFcDf','S20180221054413068HDUn'),('/Mobius/edu4','3','20180209T084054','/Mobius/edu4/co2','co2','20180209T084054','20210209T084054','[]','[\"co2\"]','[]','[]','0','3153600000','',NULL,'rkmks0AcIG','Sedu4'),('/Mobius/edu4','3','20180209T084056','/Mobius/edu4/led','led','20180312T081747','20210209T084056','[]','[\"led\"]','[]','[]','7','3153600000','',NULL,'S1QbiCR98f','Sedu4'),('/Mobius/edu4','3','20180209T084058','/Mobius/edu4/temp','temp','20180209T084058','20210209T084058','[]','[\"temp\"]','[]','[]','0','3153600000','',NULL,'SJQXoRR9Lz','Sedu4'),('/Mobius/edu4','3','20180209T084100','/Mobius/edu4/tvoc','tvoc','20180209T084100','20210209T084100','[]','[\"tvoc\"]','[]','[]','0','3153600000','',NULL,'r17BjCRc8z','Sedu4'),('/Mobius/edu4/led','23','20180312T080623','/Mobius/edu4/led/sub','sub','20180312T080623','20210312T080623','[]','[]','[]','[]','0','3153600000','',NULL,'rJQ_WHnXYM','S1QbiCR98f'),('/Mobius/edu4/led','4','20180312T072141','/Mobius/edu4/led/4-20180312072141789YExF','4-20180312072141789YExF','20180312T072141','20210312T072141','[]','[]','[]','[]','1','undefined','1',NULL,'S1mCYcjQYG','S1QbiCR98f'),('/Mobius/edu4/led','4','20180312T072312','/Mobius/edu4/led/4-20180312072312869HFpc','4-20180312072312869HFpc','20180312T072312','20210312T072312','[]','[]','[]','[]','2','undefined','1',NULL,'rkXYJjiXtz','S1QbiCR98f'),('/Mobius/edu4/led','4','20180312T072612','/Mobius/edu4/led/4-20180312072612534DaRE','4-20180312072612534DaRE','20180312T072612','20210312T072612','[]','[]','[]','[]','3','undefined','1',NULL,'BJ7T9os7Fz','S1QbiCR98f'),('/Mobius/edu4/led','4','20180312T073350','/Mobius/edu4/led/4-20180312073350575kU1T','4-20180312073350575kU1T','20180312T073350','20210312T073350','[]','[]','[]','[]','4','undefined','1',NULL,'H1mwDTomFM','S1QbiCR98f'),('/Mobius/edu4/led','4','20180312T080628','/Mobius/edu4/led/4-20180312080628940zilX','4-20180312080628940zilX','20180312T080628','20210312T080628','[]','[]','[]','[]','5','undefined','1',NULL,'rJmabH3mFf','S1QbiCR98f'),('/Mobius/edu4/led','4','20180312T080841','/Mobius/edu4/led/4-20180312080841394a0pZ','4-20180312080841394a0pZ','20180312T080841','20210312T080841','[]','[]','[]','[]','6','undefined','1',NULL,'Bk7b5BhXtG','S1QbiCR98f'),('/Mobius/edu4/led','4','20180312T081747','/Mobius/edu4/led/4-201803120817474014w80','4-201803120817474014w80','20180312T081747','20210312T081747','[]','[]','[]','[]','7','undefined','1',NULL,'r1QX2vh7FM','S1QbiCR98f'),('/Mobius/nod-justin','13','20180308T093513','/Mobius/nod-justin/fwr-mgo1','fwr-mgo1','20180308T093513','20210308T093513','[]','[\"key1\"]','[]','[]','0','3153600000','',NULL,'ByeGWVFRuM','B1gc3mtAdz');
 /*!40000 ALTER TABLE `lookup` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -359,6 +361,7 @@ CREATE TABLE `mgo` (
 
 LOCK TABLES `mgo` WRITE;
 /*!40000 ALTER TABLE `mgo` DISABLE KEYS */;
+INSERT INTO `mgo` VALUES ('/Mobius/nod-justin/fwr-mgo1','1001','','','','1.0.0','test','http://203.253.128.151:7579/firmware','true','\"\"',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL);
 /*!40000 ALTER TABLE `mgo` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -416,6 +419,7 @@ CREATE TABLE `nod` (
 
 LOCK TABLES `nod` WRITE;
 /*!40000 ALTER TABLE `nod` DISABLE KEYS */;
+INSERT INTO `nod` VALUES ('/Mobius/nod-justin','node-0.2.481.1.12345','','');
 /*!40000 ALTER TABLE `nod` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -504,7 +508,7 @@ CREATE TABLE `sri` (
 
 LOCK TABLES `sri` WRITE;
 /*!40000 ALTER TABLE `sri` DISABLE KEYS */;
-INSERT INTO `sri` VALUES ('/Mobius','BJ_2pRcIG'),('/Mobius/ae_test2','S20180221054413068HDUn'),('/Mobius/ae_test2/container1','rk458_F9Pf'),('/Mobius/ae_test2/container2','SyVAwdFcDG'),('/Mobius/ae_test2/grp1','SJD8KFcDf'),('/Mobius/edu4','Sedu4'),('/Mobius/edu4/co2','rkmks0AcIG'),('/Mobius/edu4/led','S1QbiCR98f'),('/Mobius/edu4/led/sub','HymThOkiLG'),('/Mobius/edu4/temp','SJQXoRR9Lz'),('/Mobius/edu4/tvoc','r17BjCRc8z'),('/Mobius/flavia','S201803080854241479wjB');
+INSERT INTO `sri` VALUES ('/Mobius','BJ_2pRcIG'),('/Mobius/acp-justin','Byz8etiXKG'),('/Mobius/ae_test2','S20180221054413068HDUn'),('/Mobius/ae_test2/container1','rk458_F9Pf'),('/Mobius/ae_test2/container2','SyVAwdFcDG'),('/Mobius/ae_test2/grp1','SJD8KFcDf'),('/Mobius/edu4','Sedu4'),('/Mobius/edu4/co2','rkmks0AcIG'),('/Mobius/edu4/led','S1QbiCR98f'),('/Mobius/edu4/led/4-20180312072141789YExF','S1mCYcjQYG'),('/Mobius/edu4/led/4-20180312072312869HFpc','rkXYJjiXtz'),('/Mobius/edu4/led/4-20180312072612534DaRE','BJ7T9os7Fz'),('/Mobius/edu4/led/4-20180312073350575kU1T','H1mwDTomFM'),('/Mobius/edu4/led/4-20180312080628940zilX','rJmabH3mFf'),('/Mobius/edu4/led/4-20180312080841394a0pZ','Bk7b5BhXtG'),('/Mobius/edu4/led/4-201803120817474014w80','r1QX2vh7FM'),('/Mobius/edu4/led/sub','rJQ_WHnXYM'),('/Mobius/edu4/temp','SJQXoRR9Lz'),('/Mobius/edu4/tvoc','r17BjCRc8z'),('/Mobius/flavia','S201803080854241479wjB'),('/Mobius/nod-justin','B1gc3mtAdz'),('/Mobius/nod-justin/fwr-mgo1','ByeGWVFRuM');
 /*!40000 ALTER TABLE `sri` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -545,7 +549,7 @@ CREATE TABLE `sub` (
 
 LOCK TABLES `sub` WRITE;
 /*!40000 ALTER TABLE `sub` DISABLE KEYS */;
-INSERT INTO `sub` VALUES ('/Mobius/edu4/led/sub','/Mobius/edu4/led','{\"net\":[\"3\"]}','','[\"mqtt://localhost/Sedu4?rcn=9&ct=json\"]','','','{}','','','','','','2','','Sedu4','');
+INSERT INTO `sub` VALUES ('/Mobius/edu4/led/sub','/Mobius/edu4/led','{\"net\":[3]}','','[\"http://192.168.0.104:9727/noti?ct=xml\"]','','','{}','','','','','','2','','Sedu4','');
 /*!40000 ALTER TABLE `sub` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -594,6 +598,7 @@ DROP TABLE IF EXISTS `tr`;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `tr` (
   `ri` varchar(200) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
+  `cr` varchar(45) DEFAULT NULL,
   `tid` varchar(45) NOT NULL,
   `tctl` varchar(45) DEFAULT NULL,
   `tst` varchar(45) DEFAULT NULL,
@@ -601,8 +606,8 @@ CREATE TABLE `tr` (
   `text` varchar(45) DEFAULT NULL,
   `tct` varchar(45) DEFAULT NULL,
   `tltp` varchar(45) DEFAULT NULL,
-  `trqp` varchar(45) NOT NULL,
-  `trsp` varchar(45) DEFAULT NULL,
+  `trqp` tinytext NOT NULL,
+  `trsp` tinytext DEFAULT NULL,
   PRIMARY KEY (`ri`),
   UNIQUE KEY `ri_UNIQUE` (`ri`),
   CONSTRAINT `tr_ri` FOREIGN KEY (`ri`) REFERENCES `lookup` (`ri`) ON DELETE CASCADE ON UPDATE CASCADE
@@ -691,4 +696,4 @@ UNLOCK TABLES;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2018-03-08 10:30:40
+-- Dump completed on 2018-03-13  0:57:28
