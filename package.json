@@ -1,10 +1,6 @@
 {
   "name": "Mobius",
-<<<<<<< HEAD
-  "version": "2.1.1",
-=======
   "version": "2.1.2",
->>>>>>> release/2.1.2
   "dependencies": {
     "body-parser": "^1.17.0",
     "cbor": "^4.0.0",
