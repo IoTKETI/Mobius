@@ -23,7 +23,6 @@ var http = require('http');
 var https = require('https');
 var fs = require('fs');
 
-
 exports.build_tr = function(request, response, resource_Obj, body_Obj, callback) {
     var rootnm = request.headers.rootnm;
 
@@ -33,18 +32,125 @@ exports.build_tr = function(request, response, resource_Obj, body_Obj, callback)
     resource_Obj[rootnm].tid = body_Obj[rootnm].tid;
     resource_Obj[rootnm].trqp = body_Obj[rootnm].trqp;
 
-    resource_Obj[rootnm].tctl = (body_Obj[rootnm].tctl) ? body_Obj[rootnm].tctl : '';
-    resource_Obj[rootnm].tst = (body_Obj[rootnm].tst) ? body_Obj[rootnm].tst : '';
+    resource_Obj[rootnm].tctl = (body_Obj[rootnm].tctl) ? body_Obj[rootnm].tctl : '2'; // LOCK
+    resource_Obj[rootnm].tst = (body_Obj[rootnm].tst) ? body_Obj[rootnm].tst : '2'; // LOCKED
+
     resource_Obj[rootnm].tltm = (body_Obj[rootnm].tltm) ? body_Obj[rootnm].tltm : '';
     resource_Obj[rootnm].text = (body_Obj[rootnm].text) ? body_Obj[rootnm].text : '';
     resource_Obj[rootnm].tct = (body_Obj[rootnm].tct) ? body_Obj[rootnm].tct : '';
-    resource_Obj[rootnm].tltp = (body_Obj[rootnm].tltp) ? body_Obj[rootnm].tltp : '';
+    resource_Obj[rootnm].tltp = (body_Obj[rootnm].tltp) ? body_Obj[rootnm].tltp : '1'; // BLOCK_ALL
     resource_Obj[rootnm].trqp = (body_Obj[rootnm].trqp) ? body_Obj[rootnm].trqp : '';
     resource_Obj[rootnm].trsp = (body_Obj[rootnm].trsp) ? body_Obj[rootnm].trsp : '';
 
     callback('1', resource_Obj);
 };
 
+exports.request_execute = function(frqp) {
+    //todo: 독립적으로 실행되게, 여기서 요청 보내고 응답 받으면 state 변경하고 DB 저장하고
+    var rqi = require('shortid').generate();
+    var content_type = 'application/json';
+    var bodytype = 'json';
+
+    switch (frqp.op.toString()) {
+        case '1':
+            var op = 'post';
+            content_type += ('; ty=' + frqp.ty);
+            break;
+        case '2':
+            op = 'get';
+            break;
+        case '3':
+            op = 'put';
+            break;
+        case '4':
+            op = 'delete';
+            break;
+    }
+
+    var reqBodyString = '';
+    if( op === 'post' || op === 'put') {
+        if (bodytype === 'xml') {
+            frqp.pc[Object.keys(frqp.pc)[0]]['@'] = {
+                "xmlns:m2m": "http://www.onem2m.org/xml/protocols",
+                "xmlns:xsi": "http://www.w3.org/2001/XMLSchema-instance"
+            };
+
+            for (var prop in frqp.pc) {
+                if (frqp.pc.hasOwnProperty(prop)) {
+                    for (var prop2 in frqp.pc[prop]) {
+                        if (frqp.pc[prop].hasOwnProperty(prop2)) {
+                            if (prop2 == 'rn') {
+                                frqp.pc[prop]['@'] = {rn: frqp.pc[prop][prop2]};
+                                delete frqp.pc[prop][prop2];
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+
+            try {
+                reqBodyString = js2xmlparser.parse(Object.keys(frqp.pc)[0], frqp.pc[Object.keys(frqp.pc)[0]]);
+            }
+            catch (e) {
+                reqBodyString = "";
+            }
+        }
+        else { // json
+            reqBodyString = JSON.stringify(frqp.pc);
+        }
+    }
+
+    var resBody = '';
+
+    var options = {
+        hostname: 'localhost',
+        port: usecsebaseport,
+        path: frqp.to,
+        method: op,
+        headers: {
+            'X-M2M-RI': rqi,
+            'Accept': 'application/json',
+            'X-M2M-Origin': frqp.fr,
+            'Content-Type': content_type
+        }
+    };
+
+    if (usesecure == 'disable') {
+        var req = http.request(options, function (res) {
+            res.on('data', function (chunk) {
+                resBody += chunk;
+            });
+
+            res.on('end', function () {
+                //callback(res.headers['x-m2m-rsc'], resBody);
+            });
+        });
+    }
+    else {
+        options.ca = fs.readFileSync('ca-crt.pem');
+
+        req = https.request(options, function (res) {
+            res.on('data', function (chunk) {
+                resBody += chunk;
+            });
+
+            res.on('end', function () {
+                //callback(res.headers['x-m2m-rsc'], resBody);
+            });
+        });
+    }
+
+    req.on('error', function (e) {
+        if (e.message != 'read ECONNRESET') {
+            console.log('[delete_TS] problem with request: ' + e.message);
+        }
+    });
+
+    // write data to request body
+    req.write(reqBodyString);
+    req.end();
+};
 
 exports.request_post = function(uri, bodyString) {
     var options = {

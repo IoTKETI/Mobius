@@ -35,7 +35,7 @@ function make_xml_noti_message(pc, xm2mri) {
         var noti_message = {};
         noti_message['m2m:rqp'] = {};
         noti_message['m2m:rqp'].op = 5; // notification
-        noti_message['m2m:rqp'].net = pc['m2m:sgn'].net;
+        //noti_message['m2m:rqp'].net = pc['m2m:sgn'].net;
         //noti_message['m2m:rqp'].to = pc['m2m:sgn'].sur;
         noti_message['m2m:rqp'].fr = usecseid;
         noti_message['m2m:rqp'].rqi = xm2mri;
@@ -84,7 +84,7 @@ function make_cbor_noti_message(pc, xm2mri) {
         var noti_message = {};
         noti_message['m2m:rqp'] = {};
         noti_message['m2m:rqp'].op = 5; // notification
-        noti_message['m2m:rqp'].net = pc['m2m:sgn'].net;
+        //noti_message['m2m:rqp'].net = pc['m2m:sgn'].net;
         //noti_message['m2m:rqp'].to = pc['m2m:sgn'].sur;
         noti_message['m2m:rqp'].fr = usecseid;
         noti_message['m2m:rqp'].rqi = xm2mri;
@@ -109,7 +109,7 @@ function make_json_noti_message(nu, pc, xm2mri, short_flag) {
 
         }
         else {
-            noti_message['m2m:rqp'].net = pc['m2m:sgn'].net;
+            //noti_message['m2m:rqp'].net = pc['m2m:sgn'].net;
             noti_message['m2m:rqp'].to = nu;
             noti_message['m2m:rqp'].fr = usecseid;
         }
@@ -138,10 +138,12 @@ function sgn_action(rootnm, check_value, results_ss, noti_Obj, sub_bodytype) {
                 var node = {};
                 if (nct == 2 || nct == 1) {
                     node['m2m:sgn'] = {};
-                    node['m2m:sgn'].net = check_value.toString();
                     node['m2m:sgn'].sur = results_ss.ri;
-                    node['m2m:sgn'].nec = results_ss.nec;
+                    if(results_ss.nec) {
+                        node['m2m:sgn'].nec = results_ss.nec;
+                    }
                     node['m2m:sgn'].nev = {};
+                    node['m2m:sgn'].nev.net = check_value.toString();
                     node['m2m:sgn'].nev.rep = {};
                     node['m2m:sgn'].nev.rep['m2m:'+rootnm] = noti_Obj;
 
@@ -352,6 +354,39 @@ exports.check = function(request, notiObj, check_value) {
     db_sql.select_sub(pi, function (err, results_ss) {
         if (!err) {
             for (var i = 0; i < results_ss.length; i++) {
+                for (var index in results_ss[i]) {
+                    if (results_ss[i].hasOwnProperty(index)) {
+                        if (request.hash) {
+                            if (request.hash.split('#')[1] == index) {
+
+                            }
+                            else {
+                                delete results_ss[i][index];
+                            }
+                        }
+                        else {
+                            if (typeof results_ss[i][index] === 'boolean') {
+                                results_ss[i][index] = results_ss[i][index].toString();
+                            }
+                            else if (typeof results_ss[i][index] === 'string') {
+                                if (results_ss[i][index] == '' || results_ss[i][index] == 'undefined' || results_ss[i][index] == '[]') {
+                                    if (results_ss[i][index] == '' && index == 'pi') {
+                                        results_ss[i][index] = 'NULL';
+                                    }
+                                    else {
+                                        delete results_ss[i][index];
+                                    }
+                                }
+                            }
+                            else if (typeof results_ss[i][index] === 'number') {
+                                results_ss[i][index] = results_ss[i][index].toString();
+                            }
+                            else {
+                            }
+                        }
+                    }
+                }
+
                 if(results_ss[i].ri == ri) {
                     continue;
                 }
