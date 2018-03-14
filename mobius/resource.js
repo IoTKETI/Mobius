@@ -1713,6 +1713,15 @@ global.update_body = function (rootnm, body_Obj, resource_Obj) {
                 resource_Obj[rootnm][attr] = body_Obj[rootnm][attr];
             }
 
+            if (attr === 'tclt') {
+                if (body_Obj[rootnm][attr] === '3') { // EXCUTE
+
+                }
+                else if (body_Obj[rootnm][attr] === '4') { // COMMIT
+
+                }
+            }
+
             if (attr === 'aa' || attr === 'poa' || attr === 'lbl' || attr === 'acpi' || attr === 'srt' || attr === 'nu' || attr === 'mid' || attr === 'macp') {
                 if (body_Obj[rootnm][attr] === '') {
                     resource_Obj[rootnm][attr] = [];
