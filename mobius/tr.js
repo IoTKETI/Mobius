@@ -46,7 +46,6 @@ exports.build_tr = function(request, response, resource_Obj, body_Obj, callback)
 };
 
 exports.request_execute = function(frqp) {
-    //todo: 독립적으로 실행되게, 여기서 요청 보내고 응답 받으면 state 변경하고 DB 저장하고
     var rqi = require('shortid').generate();
     var content_type = 'application/json';
     var bodytype = 'json';
@@ -54,7 +53,7 @@ exports.request_execute = function(frqp) {
     switch (frqp.op.toString()) {
         case '1':
             var op = 'post';
-            content_type += ('; ty=' + frqp.ty);
+            content_type += (frqp.ty)?('; ty=' + frqp.ty):'';
             break;
         case '2':
             op = 'get';
@@ -103,6 +102,16 @@ exports.request_execute = function(frqp) {
 
     var resBody = '';
 
+    if (frqp.to.split(usespid + usecseid + '/')[0] == '') { // absolute relative
+        frqp.to = frqp.to.replace(usespid + usecseid + '/', '/');
+    }
+    else if (frqp.to.split(usecseid + '/' + usecsebase + '/')[0] == '') { // sp relative
+        frqp.to = frqp.to.replace(usecseid + '/', '/');
+    }
+    else if (frqp.to.split(usecsebase)[0] == '') { // cse relative
+        frqp.to = '/' + frqp.to;
+    }
+
     var options = {
         hostname: 'localhost',
         port: usecsebaseport,
@@ -123,7 +132,8 @@ exports.request_execute = function(frqp) {
             });
 
             res.on('end', function () {
-                //callback(res.headers['x-m2m-rsc'], resBody);
+                console.log('EXECUTE of transaction')//callback(res.headers['x-m2m-rsc'], resBody);
+                console.log(resBody);
             });
         });
     }
