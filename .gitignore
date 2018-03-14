@@ -1,6 +1,7 @@
 # Dependency directories
+.gitignore
 node_modules/
 .idea/
 log/
-doc/*.doc*
+doc/
 hit.json
