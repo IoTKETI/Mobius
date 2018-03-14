@@ -1,6 +1,6 @@
 {
   "name": "Mobius",
-  "version": "2.1.2",
+  "version": "2.1.3",
   "dependencies": {
     "body-parser": "^1.17.0",
     "cbor": "^4.0.0",
