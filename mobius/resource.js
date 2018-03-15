@@ -1168,8 +1168,8 @@ function build_resource(request, response, ty, body_Obj, callback) {
                         }
                         else {
                             body_Obj = {};
-                            body_Obj['dbg'] = 'NOT FOUND: ' + attr + ' attribute is not defined';
-                            responder.response_result(request, response, 404, body_Obj, 4004, request.url, body_Obj['dbg']);
+                            body_Obj['dbg'] = 'BAD REQUEST: ' + attr + ' attribute is not defined';
+                            responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
                             callback('0');
                             return '0';
                         }
@@ -2240,8 +2240,8 @@ function create_resource(request, response, ty, body_Obj, resource_Obj, callback
                     }
                     else {
                         body_Obj = {};
-                        body_Obj['dbg'] = 'NOT FOUND: ' + attr + ' attribute is not defined';
-                        responder.response_result(request, response, 404, body_Obj, 4004, request.url, body_Obj['dbg']);
+                        body_Obj['dbg'] = 'BAD REQUEST: ' + attr + ' attribute is not defined';
+                        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
                         callback('0', resource_Obj);
                         return '0';
                     }
@@ -2308,8 +2308,8 @@ function update_resource(request, response, ty, body_Obj, resource_Obj, callback
                     }
                     else {
                         body_Obj = {};
-                        body_Obj['dbg'] = 'NOT FOUND: ' + attr + ' attribute is not defined';
-                        responder.response_result(request, response, 404, body_Obj, 4004, request.url, body_Obj['dbg']);
+                        body_Obj['dbg'] = 'BAD REQUEST: ' + attr + ' attribute is not defined';
+                        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
                         callback('0', resource_Obj);
                         return '0';
                     }
