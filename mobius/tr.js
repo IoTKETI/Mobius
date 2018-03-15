@@ -23,6 +23,16 @@ var http = require('http');
 var https = require('https');
 var fs = require('fs');
 
+var db_sql = require('./sql_action');
+
+var tst_v = {};
+tst_v.INITIAL = '1';
+tst_v.LOCKED = '2';
+tst_v.EXECUTED = '3';
+tst_v.COMMITTED = '4';
+tst_v.ERROR = '5';
+tst_v.ABORTED = '6';
+
 exports.build_tr = function(request, response, resource_Obj, body_Obj, callback) {
     var rootnm = request.headers.rootnm;
 
@@ -33,7 +43,7 @@ exports.build_tr = function(request, response, resource_Obj, body_Obj, callback)
     resource_Obj[rootnm].trqp = body_Obj[rootnm].trqp;
 
     resource_Obj[rootnm].tctl = (body_Obj[rootnm].tctl) ? body_Obj[rootnm].tctl : '2'; // LOCK
-    resource_Obj[rootnm].tst = (body_Obj[rootnm].tst) ? body_Obj[rootnm].tst : '2'; // LOCKED
+    resource_Obj[rootnm].tst = (body_Obj[rootnm].tst) ? body_Obj[rootnm].tst : tst_v.LOCKED;
 
     resource_Obj[rootnm].tltm = (body_Obj[rootnm].tltm) ? body_Obj[rootnm].tltm : '';
     resource_Obj[rootnm].text = (body_Obj[rootnm].text) ? body_Obj[rootnm].text : '';
@@ -45,7 +55,48 @@ exports.build_tr = function(request, response, resource_Obj, body_Obj, callback)
     callback('1', resource_Obj);
 };
 
-exports.request_execute = function(frqp) {
+function trsp_action(ri, tst_value, bodytype, res, resBody) {
+    if (bodytype === 'xml') {
+        try {
+            var parser = new xml2js.Parser({explicitArray: false});
+            parser.parseString(resBody, function (err, body_Obj) {
+                store_trsp(ri, tst_value, res, body_Obj);
+            });
+        }
+        catch (e) {
+            store_trsp(ri, tst_v.ERROR, res, e.message);
+        }
+    }
+    else if (bodytype === 'cbor') {
+    }
+    else {
+        try {
+            var body_Obj = JSON.parse(resBody.toString());
+            store_trsp(ri, tst_value, res, body_Obj);
+        }
+        catch (e) {
+            store_trsp(ri, tst_v.ERROR, res, e.message);
+        }
+    }
+}
+
+function store_trsp(ri, tst_value, res, bodyObj) {
+    var trsp_primitive = {};
+    trsp_primitive.rsc = parseInt(res.headers['x-m2m-rsc']); // convert to int
+    trsp_primitive.rqi = res.headers['x-m2m-ri'];
+    trsp_primitive.pc = bodyObj;
+
+    db_sql.update_tr_trsp(ri, tst_value, JSON.stringify(trsp_primitive), function (err) {
+        if(!err) {
+            console.log('store_trsp success');
+        }
+        else {
+            console.log('store_trsp fail')
+        }
+    });
+}
+
+exports.request_execute = function(ri, frqp) {
     var rqi = require('shortid').generate();
     var content_type = 'application/json';
     var bodytype = 'json';
@@ -132,8 +183,17 @@ exports.request_execute = function(frqp) {
             });
 
             res.on('end', function () {
-                console.log('EXECUTE of transaction')//callback(res.headers['x-m2m-rsc'], resBody);
+                console.log('EXECUTE of transaction'); //callback(res.headers['x-m2m-rsc'], resBody);
                 console.log(resBody);
+
+                if (res.statusCode == 201 || res.statusCode == 200) {
+                    var tst_value = tst_v.EXECUTED;
+                }
+                else {
+                    tst_value = tst_v.ERROR;
+                }
+
+                trsp_action(ri, tst_value, bodytype, res, resBody)
             });
         });
     }

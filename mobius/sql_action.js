@@ -1644,8 +1644,8 @@ exports.update_tr = function (obj, callback) {
     console.time('update_tr ' + obj.ri);
     _this.update_lookup(obj.lt, JSON.stringify(obj.acpi), obj.et, obj.st, JSON.stringify(obj.lbl), JSON.stringify(obj.at), JSON.stringify(obj.aa), obj.ri, function (err, results) {
         if (!err) {
-            var sql2 = util.format('update tr set cr = \'%s\', tctl = \'%s\' where ri = \'%s\'',
-                obj.cr, obj.tctl, obj.ri);
+            var sql2 = util.format('update tr set cr = \'%s\', tctl = \'%s\', trsp = \'%s\' where ri = \'%s\'',
+                obj.cr, obj.tctl, obj.trsp, obj.ri);
             db.getResult(sql2, '', function (err, results) {
                 if (!err) {
                     console.timeEnd('update_tr ' + obj.ri);
@@ -1661,6 +1661,21 @@ exports.update_tr = function (obj, callback) {
         }
     });
 };
+
+exports.update_tr_trsp = function (ri, tst, trsp, callback) {
+    console.time('update_tr_trsp ' + ri);
+    var sql2 = util.format('update tr set tst = \'%s\', trsp = \'%s\' where ri = \'%s\'', tst, trsp, ri);
+    db.getResult(sql2, '', function (err, results) {
+        if (!err) {
+            console.timeEnd('update_tr_trsp ' + ri);
+            callback(err, results);
+        }
+        else {
+            callback(err, results);
+        }
+    });
+};
+
 
 exports.update_cni_parent = function (ty, cni, cbs, st, pi, callback) {
     var lt = moment().utc().format('YYYYMMDDTHHmmss');

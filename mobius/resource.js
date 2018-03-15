@@ -1164,6 +1164,7 @@ function build_resource(request, response, ty, body_Obj, callback) {
                                     }
                                 }
                             }
+                            resource_Obj[rootnm][attr] = body_Obj[rootnm][attr];
                             mandatory_check_count += 1;
                         }
                         else {
@@ -1619,6 +1620,9 @@ function retrieve_action(request, response, ty, comm_Obj, callback) {
                 if (spec_Obj[0].trqp) {
                     spec_Obj[0].trqp = JSON.parse(spec_Obj[0].trqp);
                 }
+                if (spec_Obj[0].trsp) {
+                    spec_Obj[0].trsp = JSON.parse(spec_Obj[0].trsp);
+                }
                 if (spec_Obj[0].con) {
                     var con_type = getType(spec_Obj[0].con);
                     if (con_type === 'object' || con_type === 'array' || con_type === 'string_object') {
@@ -1790,6 +1794,13 @@ exports.retrieve = function (request, response, comm_Obj) {
     }
 };
 
+var tctl_v = {};
+tctl_v.INITIAL = '1';
+tctl_v.LOCK = '2';
+tctl_v.EXECUTE = '3';
+tctl_v.COMMIT = '4';
+tctl_v.ABORT = '5';
+
 global.update_body = function (rootnm, body_Obj, resource_Obj) {
     for (var attr in body_Obj[rootnm]) {
         if (body_Obj[rootnm].hasOwnProperty(attr)) {
@@ -1807,15 +1818,17 @@ global.update_body = function (rootnm, body_Obj, resource_Obj) {
             }
 
             if (attr === 'tctl') {
-                if (body_Obj[rootnm][attr] === '3') { // EXCUTE
-                    tr.request_execute(resource_Obj[rootnm].trqp);
+                if (body_Obj[rootnm][attr] === tctl_v.LOCK) { // LOCK
+                    resource_Obj[rootnm].trsp = '';
                 }
-                else if (body_Obj[rootnm][attr] === '4') { // COMMIT
+                else if (body_Obj[rootnm][attr] === tctl_v.EXECUTE) { // EXCUTE
+                    tr.request_execute(resource_Obj[rootnm].ri, resource_Obj[rootnm].trqp);
+                }
+                else if (body_Obj[rootnm][attr] === tctl_v.COMMIT) { // COMMIT
 
                 }
             }
-
-            if (attr === 'aa' || attr === 'poa' || attr === 'lbl' || attr === 'acpi' || attr === 'srt' || attr === 'nu' || attr === 'mid' || attr === 'macp') {
+            else if (attr === 'aa' || attr === 'poa' || attr === 'lbl' || attr === 'acpi' || attr === 'srt' || attr === 'nu' || attr === 'mid' || attr === 'macp') {
                 if (body_Obj[rootnm][attr] === '') {
                     resource_Obj[rootnm][attr] = [];
                 }
