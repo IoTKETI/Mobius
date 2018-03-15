@@ -1234,7 +1234,7 @@ exports.select_ts_in = function (ri_list, callback) {
 };
 
 exports.select_count_ri = function (ty, ri, callback) {
-    var sql = util.format("select count(ri), sum(cs) from lookup where pi = \'%s\' and ty = \'%s\'", ri, ty);
+    var sql = util.format("select count(ri), sum(cs) from cin where ri in (select ri from lookup where pi = \'%s\' and ty = \'%s\')", ri, ty);
     //console.log(sql);
     db.getResult(sql, '', function (err, results) {
         callback(err, results);

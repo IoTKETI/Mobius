@@ -2277,49 +2277,90 @@ function update_resource(request, response, ty, body_Obj, resource_Obj, callback
 
     if (ty_list.includes(ty)) {
         var mandatory_check_count = 0;
+
         // check Not Present and check Option and check Mandatory
         for (var attr in body_Obj[rootnm]) {
-            if (body_Obj[rootnm].hasOwnProperty(attr)) {
-                if (update_m_attr_list[rootnm].includes(attr)) {
-                    mandatory_check_count += 1;
-                }
-            }
-        }
-
-        if(mandatory_check_count < update_m_attr_list[rootnm].length) {
-            body_Obj = {};
-            body_Obj['dbg'] = 'BAD REQUEST: ' + attr + ' is \'Mandatory\' attribute';
-            responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-            callback('0', resource_Obj);
-            return '0';
-        }
-
-        for (attr in body_Obj[rootnm]) {
             if (body_Obj[rootnm].hasOwnProperty(attr)) {
                 if (update_np_attr_list[rootnm].includes(attr)) {
                     body_Obj = {};
                     body_Obj['dbg'] = 'BAD REQUEST: ' + attr + ' is \'Not Present\' attribute';
                     responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-                    callback('0', resource_Obj);
+                    callback('0');
                     return '0';
                 }
                 else {
                     if (update_opt_attr_list[rootnm].includes(attr)) {
                     }
                     else {
-                        body_Obj = {};
-                        body_Obj['dbg'] = 'BAD REQUEST: ' + attr + ' attribute is not defined';
-                        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-                        callback('0', resource_Obj);
-                        return '0';
+                        if (update_m_attr_list[rootnm].includes(attr)) {
+                            if(attr === 'pvs') {
+                                if(body_Obj[rootnm][attr].hasOwnProperty('acr')) {
+                                    if(body_Obj[rootnm][attr].acr.length === 0) {
+                                        body_Obj = {};
+                                        body_Obj['dbg'] = 'BAD REQUEST: ' + attr + '.acr must have values';
+                                        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
+                                        callback('0');
+                                        return '0';
+                                    }
+                                }
+                            }
+                            mandatory_check_count += 1;
+                        }
+                        else {
+                            body_Obj = {};
+                            body_Obj['dbg'] = 'BAD REQUEST: ' + attr + ' attribute is not defined';
+                            responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
+                            callback('0');
+                            return '0';
+                        }
                     }
                 }
             }
         }
 
+        // // check Not Present and check Option and check Mandatory
+        // for (var attr in body_Obj[rootnm]) {
+        //     if (body_Obj[rootnm].hasOwnProperty(attr)) {
+        //         if (update_m_attr_list[rootnm].includes(attr)) {
+        //             mandatory_check_count += 1;
+        //         }
+        //     }
+        // }
+        //
+        // if(mandatory_check_count < update_m_attr_list[rootnm].length) {
+        //     body_Obj = {};
+        //     body_Obj['dbg'] = 'BAD REQUEST: ' + attr + ' is \'Mandatory\' attribute';
+        //     responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
+        //     callback('0', resource_Obj);
+        //     return '0';
+        // }
+        //
+        // for (attr in body_Obj[rootnm]) {
+        //     if (body_Obj[rootnm].hasOwnProperty(attr)) {
+        //         if (update_np_attr_list[rootnm].includes(attr)) {
+        //             body_Obj = {};
+        //             body_Obj['dbg'] = 'BAD REQUEST: ' + attr + ' is \'Not Present\' attribute';
+        //             responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
+        //             callback('0', resource_Obj);
+        //             return '0';
+        //         }
+        //         else {
+        //             if (update_opt_attr_list[rootnm].includes(attr)) {
+        //             }
+        //             else {
+        //                 body_Obj = {};
+        //                 body_Obj['dbg'] = 'BAD REQUEST: ' + attr + ' attribute is not defined';
+        //                 responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
+        //                 callback('0', resource_Obj);
+        //                 return '0';
+        //             }
+        //         }
+        //     }
+        // }
+
         check_acp_update_acpi(request, response, body_Obj, resource_Obj[rootnm].acpi, resource_Obj[rootnm].cr, function (rsc, request, response, body_Obj) {
             if (rsc == '0') {
-                var body_Obj = {};
+                body_Obj = {};
                 body_Obj['dbg'] = resultStatusCode['4103'];
                 responder.response_result(request, response, 403, body_Obj, 4103, request.url, resultStatusCode['4103']);
                 callback('0', resource_Obj);
