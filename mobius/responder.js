@@ -807,11 +807,6 @@ function typeCheckAction(index1, body_Obj) {
             if (body_Obj[index2] == null || body_Obj[index2] == '' || body_Obj[index2] == 'undefined' || body_Obj[index2] == '[]' || body_Obj[index2] == '\"\"') {
                 delete body_Obj[index2];
             }
-            else if (index2 == 'trsp') {
-                if (index1 == 'm2m:cb') {
-                    delete body_Obj[index2];
-                }
-            }
             else if (index2 == 'et') {
                 if (index1 == 'm2m:cb') {
                     delete body_Obj[index2];
@@ -825,7 +820,7 @@ function typeCheckAction(index1, body_Obj) {
             else if (index2 == 'acp' || index2 == 'cst' || index2 == 'los' || index2 == 'mt' || index2 == 'csy' || index2 == 'nct' ||
                 index2 == 'cs' || index2 == 'st' || index2 == 'ty' || index2 == 'cbs' || index2 == 'cni' || index2 == 'mni' ||
                 index2 == 'cnm' || index2 == 'mia' || index2 == 'mbs' || index2 == 'mgd' || index2 == 'btl' || index2 == 'bts' ||
-                index2 == 'mdn' || index2 == 'mdc' || index2 == 'mdt' || index2 == 'pei' || index2 == 'mnm') {
+                index2 == 'mdn' || index2 == 'mdc' || index2 == 'mdt' || index2 == 'pei' || index2 == 'mnm' || index2 == 'exc') {
 
                 if ((index1 == 'm2m:cb' || index1 == 'm2m:cin' || index1 == 'm2m:nod' || index1 == 'm2m:ae' || index1 == 'm2m:sub' || index1 == 'm2m:acp' ||
                         index1 == 'm2m:csr' || index1 == 'm2m:grp' || index1 == 'm2m:fwr' || index1 == 'm2m:bat' || index1 == 'm2m:dvi' || index1 == 'm2m:dvc' ||
