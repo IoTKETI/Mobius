@@ -1821,12 +1821,6 @@ global.update_body = function (rootnm, body_Obj, resource_Obj) {
                 if (body_Obj[rootnm][attr] === tctl_v.LOCK) { // LOCK
                     resource_Obj[rootnm].trsp = '';
                 }
-                else if (body_Obj[rootnm][attr] === tctl_v.EXECUTE) { // EXCUTE
-                    tr.request_execute(resource_Obj[rootnm].ri, resource_Obj[rootnm].trqp);
-                }
-                else if (body_Obj[rootnm][attr] === tctl_v.COMMIT) { // COMMIT
-
-                }
             }
             else if (attr === 'aa' || attr === 'poa' || attr === 'lbl' || attr === 'acpi' || attr === 'srt' || attr === 'nu' || attr === 'mid' || attr === 'macp') {
                 if (body_Obj[rootnm][attr] === '') {
@@ -2199,6 +2193,16 @@ function update_action(request, response, ty, resource_Obj, callback) {
     else if (ty == '39') {
         db_sql.update_tr(resource_Obj[rootnm], function (err, results) {
             if (!err) {
+                if (resource_Obj[rootnm].tctl === tctl_v.EXECUTE) { // EXCUTE
+                    tr.request_execute(resource_Obj[rootnm].ri, resource_Obj[rootnm].trqp);
+                }
+                else if (resource_Obj[rootnm].tctl === tctl_v.COMMIT) { // COMMIT
+                    tr.request_commit(resource_Obj[rootnm].ri, resource_Obj[rootnm].tst);
+                }
+                else if (resource_Obj[rootnm].tctl === tctl_v.ABORT) { // COMMIT
+                    tr.request_abort(resource_Obj[rootnm].ri, resource_Obj[rootnm].tst);
+                }
+
                 callback('1', resource_Obj);
             }
             else {

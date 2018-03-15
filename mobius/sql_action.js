@@ -1676,6 +1676,20 @@ exports.update_tr_trsp = function (ri, tst, trsp, callback) {
     });
 };
 
+exports.update_tr_tst = function (ri, tst, callback) {
+    console.time('update_tr_tst ' + ri);
+    var sql2 = util.format('update tr set tst = \'%s\' where ri = \'%s\'', tst, ri);
+    db.getResult(sql2, '', function (err, results) {
+        if (!err) {
+            console.timeEnd('update_tr_tst ' + ri);
+            callback(err, results);
+        }
+        else {
+            callback(err, results);
+        }
+    });
+};
+
 
 exports.update_cni_parent = function (ty, cni, cbs, st, pi, callback) {
     var lt = moment().utc().format('YYYYMMDDTHHmmss');
