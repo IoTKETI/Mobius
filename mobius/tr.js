@@ -252,7 +252,7 @@ exports.request_abort = function(ri, tst) {
     });
 };
 
-exports.check = function(request, pi, callback) {
+exports.check = function(request, pi, body_Obj, callback) {
     var state = tst_v.COMMITTED;
 
     db_sql.select_tr(pi, function (err, results_tr) {
@@ -267,15 +267,15 @@ exports.check = function(request, pi, callback) {
             }
 
             if(state === tst_v.COMMITTED || state === tst_v.ABORTED) {
-                callback('1');
+                callback('1', body_Obj);
             }
             else {
-                callback('0');
+                callback('0', body_Obj);
             }
         }
         else {
             console.log('query error: ' + results_tr.message);
-            callback('1');
+            callback('1', body_Obj);
         }
     });
 };

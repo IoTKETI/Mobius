@@ -59,9 +59,6 @@ function parse_create_action(callback) {
     resource_Obj[rootnm].nl = '';
     resource_Obj[rootnm].ncp = '';
     resource_Obj[rootnm].cst = '1';
-    resource_Obj[rootnm].mni = '3153600000';
-    resource_Obj[rootnm].cs = '';
-    resource_Obj[rootnm].cnf = '';
 
     db_sql.select_ri_lookup(resource_Obj[rootnm].ri, function (err, results_ri) {
         if(!err) {

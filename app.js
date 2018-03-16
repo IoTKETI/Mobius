@@ -741,7 +741,7 @@ function check_http(request, response, callback) {
     }
 }
 
-function check_resource(request, response, callback) {
+function check_resource(request, response, body_Obj, callback) {
     var ri = url.parse(request.url).pathname;
 
     var chk_fopt = ri.split('/fopt');
@@ -762,13 +762,13 @@ function check_resource(request, response, callback) {
                             result_Obj[0].lbl = JSON.parse(result_Obj[0].lbl);
                             result_Obj[0].aa = JSON.parse(result_Obj[0].aa);
                             result_Obj[0].at = JSON.parse(result_Obj[0].at);
-                            callback('1', result_Obj[0], op, request, response);
+                            callback('1', result_Obj[0], op, request, response, body_Obj);
                         }
                         else {
                             result_Obj = {};
                             result_Obj['dbg'] = 'resource does not exist';
                             responder.response_result(request, response, 404, result_Obj, 4004, request.url, result_Obj['dbg']);
-                            callback('0', {}, '', request, response);
+                            callback('0', {}, '', request, response, body_Obj);
                             return '0';
                         }
                     }
@@ -777,7 +777,7 @@ function check_resource(request, response, callback) {
                         result_Obj = {};
                         result_Obj['dbg'] = code;
                         responder.response_result(request, response, 500, result_Obj, 5000, request.url, result_Obj['dbg']);
-                        callback('0', {}, '', request, response);
+                        callback('0', {}, '', request, response, body_Obj);
                         return '0';
                     }
                 });
@@ -809,7 +809,7 @@ function check_resource(request, response, callback) {
                             result_Obj = {};
                             result_Obj['dbg'] = 'this resource can not have latest resource';
                             responder.response_result(request, response, 404, result_Obj, 4004, request.url, result_Obj['dbg']);
-                            callback('0', {}, '', request, response);
+                            callback('0', {}, '', request, response, body_Obj);
                             return '0';
                         }
                         var cur_d = new Date();
@@ -820,13 +820,13 @@ function check_resource(request, response, callback) {
                                     result_Obj[0].lbl = JSON.parse(result_Obj[0].lbl);
                                     result_Obj[0].aa = JSON.parse(result_Obj[0].aa);
                                     result_Obj[0].at = JSON.parse(result_Obj[0].at);
-                                    callback('1', result_Obj[0], op, request, response);
+                                    callback('1', result_Obj[0], op, request, response, body_Obj);
                                 }
                                 else {
                                     result_Obj = {};
                                     result_Obj['dbg'] = 'resource does not exist';
                                     responder.response_result(request, response, 404, result_Obj, 4004, request.url, result_Obj['dbg']);
-                                    callback('0', {}, '', request, response);
+                                    callback('0', {}, '', request, response, body_Obj);
                                     return '0';
                                 }
                             }
@@ -835,7 +835,7 @@ function check_resource(request, response, callback) {
                                 result_Obj = {};
                                 result_Obj['dbg'] = code;
                                 responder.response_result(request, response, 500, result_Obj, 5000, request.url, result_Obj['dbg']);
-                                callback('0', {}, '', request, response);
+                                callback('0', {}, '', request, response, body_Obj);
                                 return '0';
                             }
                         });
@@ -844,7 +844,7 @@ function check_resource(request, response, callback) {
                         result_Obj = {};
                         result_Obj['dbg'] = 'resource does not exist';
                         responder.response_result(request, response, 404, result_Obj, 4004, request.url, result_Obj['dbg']);
-                        callback('0', {}, '', request, response);
+                        callback('0', {}, '', request, response, body_Obj);
                         return '0';
                     }
                 }
@@ -853,7 +853,7 @@ function check_resource(request, response, callback) {
                     result_Obj = {};
                     result_Obj['dbg'] = code;
                     responder.response_result(request, response, 500, result_Obj, 5000, request.url, result_Obj['dbg']);
-                    callback('0', {}, '', request, response);
+                    callback('0', {}, '', request, response, body_Obj);
                     return '0';
                 }
             });
@@ -869,13 +869,13 @@ function check_resource(request, response, callback) {
                         result_Obj[0].lbl = JSON.parse(result_Obj[0].lbl);
                         result_Obj[0].aa = JSON.parse(result_Obj[0].aa);
                         result_Obj[0].at = JSON.parse(result_Obj[0].at);
-                        callback('1', result_Obj[0], op, request, response);
+                        callback('1', result_Obj[0], op, request, response, body_Obj);
                     }
                     else {
                         result_Obj = {};
                         result_Obj['dbg'] = 'resource does not exist';
                         responder.response_result(request, response, 404, result_Obj, 4004, request.url, result_Obj['dbg']);
-                        callback('0', {}, '', request, response);
+                        callback('0', {}, '', request, response, body_Obj);
                         return '0';
                     }
                 }
@@ -884,7 +884,7 @@ function check_resource(request, response, callback) {
                     result_Obj = {};
                     result_Obj['dbg'] = code;
                     responder.response_result(request, response, 500, result_Obj, 5000, request.url, result_Obj['dbg']);
-                    callback('0', {}, '', request, response);
+                    callback('0', {}, '', request, response, body_Obj);
                     return '0';
                 }
             });
@@ -899,13 +899,13 @@ function check_resource(request, response, callback) {
                         result_Obj[0].lbl = JSON.parse(result_Obj[0].lbl);
                         result_Obj[0].aa = JSON.parse(result_Obj[0].aa);
                         result_Obj[0].at = JSON.parse(result_Obj[0].at);
-                        callback('1', result_Obj[0], op, request, response);
+                        callback('1', result_Obj[0], op, request, response, body_Obj);
                     }
                     else {
                         result_Obj = {};
                         result_Obj['dbg'] = 'resource does not exist';
                         responder.response_result(request, response, 404, result_Obj, 4004, request.url, result_Obj['dbg']);
-                        callback('0', {}, '', request, response);
+                        callback('0', {}, '', request, response, body_Obj);
                         return '0';
                     }
                 }
@@ -913,7 +913,7 @@ function check_resource(request, response, callback) {
                     result_Obj = {};
                     result_Obj['dbg'] = result_Obj.message;
                     responder.response_result(request, response, 500, result_Obj, 5000, request.url, result_Obj['dbg']);
-                    callback('0', {}, '', request, response);
+                    callback('0', {}, '', request, response, body_Obj);
                     return '0';
                 }
             });
@@ -921,7 +921,7 @@ function check_resource(request, response, callback) {
     }
 }
 
-function check_rt_query(request, response, callback) {
+function check_rt_query(request, response, body_Obj, callback) {
     //var ri = url.parse(request.url).pathname;
 
     //var url_arr = ri.split('/');
@@ -929,8 +929,8 @@ function check_rt_query(request, response, callback) {
     //var op = 'direct';
 
     if (request.query.rt == 3) { // default, blocking
-        check_resource(request, response, function (rsc, parent_comm, op, request, response) {
-            callback(rsc, parent_comm, op, request, response);
+        check_resource(request, response, body_Obj, function (rsc, parent_comm, op, request, response, body_Obj) {
+            callback(rsc, parent_comm, op, request, response, body_Obj);
         });
     }
     else if (request.query.rt == 1 || request.query.rt == 2) { // nodblocking
@@ -938,7 +938,7 @@ function check_rt_query(request, response, callback) {
             body_Obj = {};
             body_Obj['dbg'] = 'X-M2M-RTU is none';
             responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-            callback('0', {}, '', request, response);
+            callback('0', {}, '', request, response, body_Obj);
             return '0';
         }
 
@@ -946,15 +946,15 @@ function check_rt_query(request, response, callback) {
         var temp_rootnm = request.headers.rootnm;
         //var temp_rt = request.query.rt;
         var ty = '17';
-        var body_Obj = {req: {}};
+        body_Obj = {req: {}};
         request.headers.rootnm = Object.keys(body_Obj)[0];
         request.query.rt = 3;
         resource.create(request, response, ty, body_Obj, function (rsc) {
             if (rsc == '1') {
                 request.headers.rootnm = temp_rootnm;
                 request.query.rt = 1;
-                check_resource(request, response, function (rsc, parent_comm, op, request, response) {
-                    callback(rsc, parent_comm, op, request, response);
+                check_resource(request, response, body_Obj, function (rsc, parent_comm, op, request, response, body_Obj) {
+                    callback(rsc, parent_comm, op, request, response, body_Obj);
                 });
             }
         });
@@ -963,7 +963,7 @@ function check_rt_query(request, response, callback) {
         body_Obj = {};
         body_Obj['dbg'] = 'OPERATION_NOT_ALLOWED (rt query is not supported)';
         responder.response_result(request, response, 405, body_Obj, 4005, request.url, body_Obj['dbg']);
-        callback('0', {}, '', request, response);
+        callback('0', {}, '', request, response, body_Obj);
         return '0';
     }
 }
@@ -1014,16 +1014,16 @@ function lookup_create(request, response) {
         if (ty == '0') {
             return ty;
         }
-        check_rt_query(request, response, function (rsc, parent_comm, op, request, response) {
+        check_rt_query(request, response, body_Obj, function (rsc, parent_comm, op, request, response, body_Obj) {
             if (rsc == '0') {
                 return rsc;
             }
 
             var rootnm = request.headers.rootnm;
 
-            tr.check(request, parent_comm.ri, function (rsc) {
+            tr.check(request, parent_comm.ri, body_Obj, function (rsc, body_Obj) {
                 if (rsc === '0') {
-                    var body_Obj = {};
+                    body_Obj = {};
                     body_Obj['dbg'] = resultStatusCode['4230'];
                     responder.response_result(request, response, 423, body_Obj, 4230, request.url, resultStatusCode['4230']);
                     return '0';
@@ -1211,14 +1211,14 @@ function lookup_retrieve(request, response) {
         if (option == '0') {
             return option;
         }
-        check_rt_query(request, response, function (rsc, results_comm, op, request, response) {
+        check_rt_query(request, response, body_Obj, function (rsc, results_comm, op, request, response, body_Obj) {
             if (rsc == '0') {
                 return rsc;
             }
 
-            tr.check(request, results_comm.ri, function (rsc) {
+            tr.check(request, results_comm.ri, body_Obj, function (rsc, body_Obj) {
                 if (rsc === '0') {
-                    var body_Obj = {};
+                    body_Obj = {};
                     body_Obj['dbg'] = resultStatusCode['4230'];
                     responder.response_result(request, response, 423, body_Obj, 4230, request.url, resultStatusCode['4230']);
                     return '0';
@@ -1344,14 +1344,14 @@ function lookup_update(request, response) {
         if (option == '0') {
             return option;
         }
-        check_rt_query(request, response, function (rsc, results_comm, op, request, response) {
+        check_rt_query(request, response, body_Obj, function (rsc, results_comm, op, request, response, body_Obj) {
             if (rsc == '0') {
                 return rsc;
             }
 
-            tr.check(request, results_comm.ri, function (rsc) {
+            tr.check(request, results_comm.ri, body_Obj, function (rsc, body_Obj) {
                 if (rsc === '0') {
-                    var body_Obj = {};
+                    body_Obj = {};
                     body_Obj['dbg'] = resultStatusCode['4230'];
                     responder.response_result(request, response, 423, body_Obj, 4230, request.url, resultStatusCode['4230']);
                     return '0';
@@ -1435,12 +1435,12 @@ function lookup_delete(request, response) {
         if (option == '0') {
             return option;
         }
-        check_rt_query(request, response, function (rsc, results_comm, op, request, response) {
+        check_rt_query(request, response, body_Obj, function (rsc, results_comm, op, request, response, body_Obj) {
             if (rsc == '0') {
                 return rsc;
             }
 
-            tr.check(request, results_comm.ri, function (rsc) {
+            tr.check(request, results_comm.ri, body_Obj, function (rsc, body_Obj) {
                 if (rsc === '0') {
                     var body_Obj = {};
                     body_Obj['dbg'] = resultStatusCode['4230'];
