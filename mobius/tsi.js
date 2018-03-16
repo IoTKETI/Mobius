@@ -32,7 +32,5 @@ exports.build_tsi = function(request, response, resource_Obj, body_Obj, callback
     resource_Obj[rootnm].dgt = (body_Obj[rootnm].dgt) ? body_Obj[rootnm].dgt : '';
     resource_Obj[rootnm].sqn = (body_Obj[rootnm].sqn) ? body_Obj[rootnm].sqn : '';
 
-    resource_Obj[rootnm].mni = body_Obj[rootnm].mni;
-    
     callback('1', resource_Obj);
 };

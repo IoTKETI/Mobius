@@ -80,9 +80,6 @@ exports.build_cin = function(request, response, resource_Obj, body_Obj, callback
 
     resource_Obj[rootnm].or = (body_Obj[rootnm].or) ? body_Obj[rootnm].or : '';
     resource_Obj[rootnm].cr = (body_Obj[rootnm].cr) ? body_Obj[rootnm].cr : request.headers['x-m2m-origin'];
-    resource_Obj[rootnm].mni = (body_Obj[rootnm].mni) ? body_Obj[rootnm].mni : '';
-
-    resource_Obj[rootnm].mni = body_Obj[rootnm].mni;
 
     callback('1', resource_Obj);
 };

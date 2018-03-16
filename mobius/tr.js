@@ -25,7 +25,7 @@ var fs = require('fs');
 
 var db_sql = require('./sql_action');
 
-var tst_v = {};
+global.tst_v = {};
 tst_v.INITIAL = '1';
 tst_v.LOCKED = '2';
 tst_v.EXECUTED = '3';
@@ -55,7 +55,17 @@ exports.build_tr = function(request, response, resource_Obj, body_Obj, callback)
     callback('1', resource_Obj);
 };
 
-function trsp_action(ri, tst_value, bodytype, res, resBody) {
+function trsp_action(ri, bodytype, res, resBody) {
+    console.log('EXECUTE of transaction'); //callback(res.headers['x-m2m-rsc'], resBody);
+    console.log(resBody);
+
+    if (res.statusCode == 201 || res.statusCode == 200) {
+        var tst_value = tst_v.EXECUTED;
+    }
+    else {
+        tst_value = tst_v.ERROR;
+    }
+
     if (bodytype === 'xml') {
         try {
             var parser = new xml2js.Parser({explicitArray: false});
@@ -91,7 +101,7 @@ function store_trsp(ri, tst_value, res, bodyObj) {
             console.log('store_trsp success');
         }
         else {
-            console.log('store_trsp fail')
+            console.log('store_trsp fail');
         }
     });
 }
@@ -183,17 +193,7 @@ exports.request_execute = function(ri, frqp) {
             });
 
             res.on('end', function () {
-                console.log('EXECUTE of transaction'); //callback(res.headers['x-m2m-rsc'], resBody);
-                console.log(resBody);
-
-                if (res.statusCode == 201 || res.statusCode == 200) {
-                    var tst_value = tst_v.EXECUTED;
-                }
-                else {
-                    tst_value = tst_v.ERROR;
-                }
-
-                trsp_action(ri, tst_value, bodytype, res, resBody)
+                trsp_action(ri, bodytype, res, resBody);
             });
         });
     }
@@ -206,7 +206,7 @@ exports.request_execute = function(ri, frqp) {
             });
 
             res.on('end', function () {
-                //callback(res.headers['x-m2m-rsc'], resBody);
+                trsp_action(ri, bodytype, res, resBody);
             });
         });
     }
@@ -222,139 +222,60 @@ exports.request_execute = function(ri, frqp) {
     req.end();
 };
 
-exports.request_post = function(uri, bodyString) {
-    var options = {
-        hostname: usesemanticbroker,
-        port: 7591,
-        path: '',
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
+exports.request_commit = function(ri, tst) {
+    if(tst === tst_v.EXECUTED) {
+        tst = tst_v.COMMITTED;
+    }
+
+    db_sql.update_tr_tst(ri, tst, function (err) {
+        if(!err) {
+            console.log('store_tst [' + tst + '] success');
         }
-    };
-
-    var bodyStr = '';
-
-    var req = http.request(options, function (res) {
-        res.on('data', function (chunk) {
-            bodyStr += chunk;
-        });
-
-        res.on('end', function () {
-            console.log('----> [smd.request_post()] response for smd  ' + res.statusCode);
-        });
+        else {
+            console.log('store_tst [' + tst + '] fail');
+        }
     });
-
-    req.on('error', function (e) {
-        console.log('[smd.request_post()] problem with request: ' + e.message);
-    });
-
-    req.on('close', function() {
-        console.log('[smd.request_post()] close()');
-    });
-
-    console.log('<---- [smd.request_post()] request for smd');
-    req.write(bodyString);
-    req.end();
 };
 
+exports.request_abort = function(ri, tst) {
+    if(tst === tst_v.ERROR) {
+        tst = tst_v.ABORTED;
+    }
 
-exports.request_get_discovery = function(request, response, smf, callback) {
-    var options = {
-        hostname: usesemanticbroker,
-        port: 7591,
-        path: '',
-        method: 'GET',
-        headers: {
-            'smf': encodeURI(smf)
+    db_sql.update_tr_tst(ri, tst, function (err) {
+        if(!err) {
+            console.log('store_tst [' + tst + '] success');
         }
-    };
-
-    var bodyStr = '';
-
-    var req = http.request(options, function (res) {
-        res.on('data', function (chunk) {
-            bodyStr += chunk;
-        });
-
-        res.on('end', function () {
-            console.log('----> [smd.request_post()] response for smd  ' + res.statusCode);
-            callback(response, res.statusCode, bodyStr);
-        });
+        else {
+            console.log('store_tst [' + tst + '] fail');
+        }
     });
-
-    req.on('error', function (e) {
-        console.log('[smd.request_post()] problem with request: ' + e.message);
-    });
-
-    req.on('close', function() {
-        console.log('[smd.request_post()] close()');
-    });
-
-    console.log('<---- [smd.request_post()] request for smd');
-    req.write('');
-    req.end();
 };
 
-// exports.modify_sd = function(request, response, resource_Obj, body_Obj, callback) {
-//     var rootnm = request.headers.rootnm;
-//
-//     // check M
-//     for (var attr in update_m_attr_list[rootnm]) {
-//         if (update_m_attr_list[rootnm].hasOwnProperty(attr)) {
-//             if (body_Obj[rootnm].includes(attr)) {
-//             }
-//             else {
-//                 body_Obj = {};
-//                 body_Obj['dbg'] = 'BAD REQUEST: ' + attr + ' is \'Mandatory\' attribute';
-//                 responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-//                 callback('0', resource_Obj);
-//                 return '0';
-//             }
-//         }
-//     }
-//
-//     // check NP and body
-//     for (attr in body_Obj[rootnm]) {
-//         if (body_Obj[rootnm].hasOwnProperty(attr)) {
-//             if (update_np_attr_list[rootnm].includes(attr)) {
-//                 body_Obj = {};
-//                 body_Obj['dbg'] = 'BAD REQUEST: ' + attr + ' is \'Not Present\' attribute';
-//                 responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-//                 callback('0', resource_Obj);
-//                 return '0';
-//             }
-//             else {
-//                 if (update_opt_attr_list[rootnm].includes(attr)) {
-//                 }
-//                 else {
-//                     body_Obj = {};
-//                     body_Obj['dbg'] = 'NOT FOUND: ' + attr + ' attribute is not defined';
-//                     responder.response_result(request, response, 404, body_Obj, 4004, request.url, body_Obj['dbg']);
-//                     callback('0', resource_Obj);
-//                     return '0';
-//                 }
-//             }
-//         }
-//     }
-//
-//     update_body(rootnm, body_Obj, resource_Obj); // (attr == 'aa' || attr == 'poa' || attr == 'lbl' || attr == 'acpi' || attr == 'srt' || attr == 'nu' || attr == 'mid' || attr == 'macp')
-//
-//     resource_Obj[rootnm].st = (parseInt(resource_Obj[rootnm].st, 10) + 1).toString();
-//
-//     var cur_d = new Date();
-//     resource_Obj[rootnm].lt = cur_d.toISOString().replace(/-/, '').replace(/-/, '').replace(/:/, '').replace(/:/, '').replace(/\..+/, '');
-//
-//     if (resource_Obj[rootnm].et != '') {
-//         if (resource_Obj[rootnm].et < resource_Obj[rootnm].ct) {
-//             body_Obj = {};
-//             body_Obj['dbg'] = 'expiration time is before now';
-//             responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-//             callback('0', resource_Obj);
-//             return '0';
-//         }
-//     }
-//
-//     callback('1', resource_Obj);
-// };
+exports.check = function(request, pi, body_Obj, callback) {
+    var state = tst_v.COMMITTED;
 
+    db_sql.select_tr(pi, function (err, results_tr) {
+        if (!err) {
+            for (var i = 0; i < results_tr.length; i++) {
+                if (results_tr[i].hasOwnProperty('tst')) {
+                    if(results_tr[i].tst !== tst_v.COMMITTED && results_tr[i].tst !== tst_v.ABORTED) {
+                        state = results_tr[i].tst;
+                        break;
+                    }
+                }
+            }
+
+            if(state === tst_v.COMMITTED || state === tst_v.ABORTED) {
+                callback('1', body_Obj);
+            }
+            else {
+                callback('0', body_Obj);
+            }
+        }
+        else {
+            console.log('query error: ' + results_tr.message);
+            callback('1', body_Obj);
+        }
+    });
+};
