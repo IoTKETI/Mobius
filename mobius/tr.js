@@ -259,14 +259,14 @@ exports.check = function(request, pi, callback) {
         if (!err) {
             for (var i = 0; i < results_tr.length; i++) {
                 if (results_tr[i].hasOwnProperty('tst')) {
-                    if(results_tr[i].tst !== tst_v.COMMITTED) {
+                    if(results_tr[i].tst !== tst_v.COMMITTED && results_tr[i].tst !== tst_v.ABORTED) {
                         state = results_tr[i].tst;
                         break;
                     }
                 }
             }
 
-            if(state === tst_v.COMMITTED) {
+            if(state === tst_v.COMMITTED || state === tst_v.ABORTED) {
                 callback('1');
             }
             else {
