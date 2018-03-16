@@ -42,6 +42,7 @@ var responder = require('./mobius/responder');
 var resource = require('./mobius/resource');
 var security = require('./mobius/security');
 var fopt = require('./mobius/fopt');
+var tr = require('./mobius/tr');
 
 var db = require('./mobius/db_action');
 var db_sql = require('./mobius/sql_action');
@@ -55,6 +56,7 @@ global.usesuperuser         = 'Superman';
 global.useobserver          = 'Sandwich';
 
 global.resultStatusCode = {
+    '4230': "LOCKED: this resource was occupied by others",
     '4103': "ACCESS DENIED"
 };
 
@@ -1019,85 +1021,96 @@ function lookup_create(request, response) {
 
             var rootnm = request.headers.rootnm;
 
-            if (op == 'fanoutpoint') {
-                // check access right for fanoutpoint
-                check_grp(request, response, parent_comm.ri, function (rsc, result_grp) {
-                    if (rsc == '0') {
-                        return rsc;
-                    }
-
-                    security.check(request, response, parent_comm.ty, result_grp.macp, '1', result_grp.cr, function (rsc, request, response) {
-                        if (rsc == '0') {
-                            body_Obj = {};
-                            body_Obj['dbg'] = resultStatusCode['4103'];
-                            responder.response_result(request, response, 403, body_Obj, 4103, request.url, resultStatusCode['4103']);
-                            return '0';
-                        }
-
-                        fopt.check(request, response, result_grp, ty, body_Obj);
-                    });
-                });
-            }
-            else { //if(op == 'direct') {
-                if ((ty == 1) && (parent_comm.ty == 5 || parent_comm.ty == 16 || parent_comm.ty == 2)) { // accessControlPolicy
-                }
-                else if ((ty == 9) && (parent_comm.ty == 5 || parent_comm.ty == 16 || parent_comm.ty == 2)) { // group
-                }
-                else if ((ty == 16) && (parent_comm.ty == 5)) { // remoteCSE
-                    if (usecsetype == 'asn' && request.headers.csr == null) {
-                        body_Obj = {};
-                        body_Obj['dbg'] = 'ASN CSE can not have child CSE (remoteCSE)';
-                        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-                        return '0';
-                    }
-                }
-                else if ((ty == 10) && (parent_comm.ty == 5)) { // locationPolicy
-                }
-                else if ((ty == 2) && (parent_comm.ty == 5)) { // ae
-                }
-                else if ((ty == 3) && (parent_comm.ty == 5 || parent_comm.ty == 2 || parent_comm.ty == 3)) { // container
-                }
-                else if ((ty == 23) && (parent_comm.ty == 5 || parent_comm.ty == 16 || parent_comm.ty == 2 ||
-                    parent_comm.ty == 3 || parent_comm.ty == 24 || parent_comm.ty == 29 || parent_comm.ty == 9 || parent_comm.ty == 1 || parent_comm.ty == 27)) { // sub
-                }
-                else if ((ty == 4) && (parent_comm.ty == 3)) { // contentInstance
-                }
-                else if ((ty == 24) && (parent_comm.ty == 2 || parent_comm.ty == 3 || parent_comm.ty == 4 || parent_comm.ty == 29)) { // semanticDescriptor
-                }
-                else if ((ty == 29) && (parent_comm.ty == 5 || parent_comm.ty == 16 || parent_comm.ty == 2)) { // timeSeries
-                }
-                else if ((ty == 30) && (parent_comm.ty == 29)) { // timeSeriesInstance
-                    //body_Obj[rootnm].mni = parent_comm.mni;
-                }
-                else if ((ty == 27) && (parent_comm.ty == 2 || parent_comm.ty == 16)) { // multimediaSession
-                }
-                else if ((ty == 14) && (parent_comm.ty == 5)) { // node
-                }
-                else if ((ty == 13) && (parent_comm.ty == 14)) { // mgmtObj
-                }
-                else if ((ty == 39) && (parent_comm.ty == 5 || parent_comm.ty == 16 || parent_comm.ty == 2 ||
-                        parent_comm.ty == 3 || parent_comm.ty == 24 || parent_comm.ty == 29 || parent_comm.ty == 9 || parent_comm.ty == 1 || parent_comm.ty == 27)) { // transaction
-                }
-                else {
-                    body_Obj = {};
-                    body_Obj['dbg'] = 'TARGET_NOT_SUBSCRIBABLE: request ty creating can not create under parent resource';
-                    responder.response_result(request, response, 403, body_Obj, 5203, request.url, body_Obj['dbg']);
+            tr.check(request, parent_comm.ri, function (rsc) {
+                if (rsc === '0') {
+                    var body_Obj = {};
+                    body_Obj['dbg'] = resultStatusCode['4230'];
+                    responder.response_result(request, response, 423, body_Obj, 4230, request.url, resultStatusCode['4230']);
                     return '0';
                 }
 
-                // for security with acp
-                //if (!body_Obj[rootnm].acpi) {
-                //    body_Obj[rootnm].acpi = [];
-                //}
+                if (op == 'fanoutpoint') {
+                    // check access right for fanoutpoint
+                    check_grp(request, response, parent_comm.ri, function (rsc, result_grp) {
+                        if (rsc == '0') {
+                            return rsc;
+                        }
 
-                // 20171212 remove inherit acp of parent to current resource
-                // for (var index in parent_comm.acpi) {
-                //     if (parent_comm.acpi.hasOwnProperty(index)) {
-                //         body_Obj[rootnm].acpi.push(parent_comm.acpi[index]);
-                //     }
-                // }
+                        security.check(request, response, parent_comm.ty, result_grp.macp, '1', result_grp.cr, function (rsc, request, response) {
+                            if (rsc == '0') {
+                                body_Obj = {};
+                                body_Obj['dbg'] = resultStatusCode['4103'];
+                                responder.response_result(request, response, 403, body_Obj, 4103, request.url, resultStatusCode['4103']);
+                                return '0';
+                            }
 
-                //if (parent_comm.ty == 2 || parent_comm.ty == 4 || parent_comm.ty == 3 || parent_comm.ty == 9 || parent_comm.ty == 24 || parent_comm.ty == 23 || parent_comm.ty == 29) {
+                            fopt.check(request, response, result_grp, ty, body_Obj);
+                        });
+                    });
+                }
+                else { //if(op == 'direct') {
+                    if ((ty == 1) && (parent_comm.ty == 5 || parent_comm.ty == 16 || parent_comm.ty == 2)) { // accessControlPolicy
+                    }
+                    else if ((ty == 9) && (parent_comm.ty == 5 || parent_comm.ty == 16 || parent_comm.ty == 2)) { // group
+                    }
+                    else if ((ty == 16) && (parent_comm.ty == 5)) { // remoteCSE
+                        if (usecsetype == 'asn' && request.headers.csr == null) {
+                            body_Obj = {};
+                            body_Obj['dbg'] = 'ASN CSE can not have child CSE (remoteCSE)';
+                            responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
+                            return '0';
+                        }
+                    }
+                    else if ((ty == 10) && (parent_comm.ty == 5)) { // locationPolicy
+                    }
+                    else if ((ty == 2) && (parent_comm.ty == 5)) { // ae
+                    }
+                    else if ((ty == 3) && (parent_comm.ty == 5 || parent_comm.ty == 2 || parent_comm.ty == 3)) { // container
+                    }
+                    else if ((ty == 23) && (parent_comm.ty == 5 || parent_comm.ty == 16 || parent_comm.ty == 2 ||
+                            parent_comm.ty == 3 || parent_comm.ty == 24 || parent_comm.ty == 29 || parent_comm.ty == 9 || parent_comm.ty == 1 || parent_comm.ty == 27)) { // sub
+                    }
+                    else if ((ty == 4) && (parent_comm.ty == 3)) { // contentInstance
+                    }
+                    else if ((ty == 24) && (parent_comm.ty == 2 || parent_comm.ty == 3 || parent_comm.ty == 4 || parent_comm.ty == 29)) { // semanticDescriptor
+                    }
+                    else if ((ty == 29) && (parent_comm.ty == 5 || parent_comm.ty == 16 || parent_comm.ty == 2)) { // timeSeries
+                    }
+                    else if ((ty == 30) && (parent_comm.ty == 29)) { // timeSeriesInstance
+                        //body_Obj[rootnm].mni = parent_comm.mni;
+                    }
+                    else if ((ty == 27) && (parent_comm.ty == 2 || parent_comm.ty == 16)) { // multimediaSession
+                    }
+                    else if ((ty == 14) && (parent_comm.ty == 5)) { // node
+                    }
+                    else if ((ty == 13) && (parent_comm.ty == 14)) { // mgmtObj
+                    }
+                    else if ((ty == 38) && (parent_comm.ty == 5 || parent_comm.ty == 16 || parent_comm.ty == 2 ||
+                            parent_comm.ty == 3 || parent_comm.ty == 24 || parent_comm.ty == 29 || parent_comm.ty == 9 || parent_comm.ty == 1 || parent_comm.ty == 27)) { // transaction
+                    }
+                    else if ((ty == 39) && (parent_comm.ty == 5 || parent_comm.ty == 16 || parent_comm.ty == 2 ||
+                            parent_comm.ty == 3 || parent_comm.ty == 24 || parent_comm.ty == 29 || parent_comm.ty == 9 || parent_comm.ty == 1 || parent_comm.ty == 27)) { // transaction
+                    }
+                    else {
+                        body_Obj = {};
+                        body_Obj['dbg'] = 'TARGET_NOT_SUBSCRIBABLE: request ty creating can not create under parent resource';
+                        responder.response_result(request, response, 403, body_Obj, 5203, request.url, body_Obj['dbg']);
+                        return '0';
+                    }
+
+                    // for security with acp
+                    //if (!body_Obj[rootnm].acpi) {
+                    //    body_Obj[rootnm].acpi = [];
+                    //}
+
+                    // 20171212 remove inherit acp of parent to current resource
+                    // for (var index in parent_comm.acpi) {
+                    //     if (parent_comm.acpi.hasOwnProperty(index)) {
+                    //         body_Obj[rootnm].acpi.push(parent_comm.acpi[index]);
+                    //     }
+                    // }
+
+                    //if (parent_comm.ty == 2 || parent_comm.ty == 4 || parent_comm.ty == 3 || parent_comm.ty == 9 || parent_comm.ty == 24 || parent_comm.ty == 23 || parent_comm.ty == 29) {
                     db_sql.select_resource(responder.typeRsrc[parent_comm.ty], parent_comm.ri, function (err, parent_spec) {
                         if (!err) {
                             if ((ty == 4) && (parent_comm.ty == 3)) { // contentInstance
@@ -1159,28 +1172,36 @@ function lookup_create(request, response) {
                                 });
                             });
                         }
+                        else {
+                            body_Obj = {};
+                            body_Obj['dbg'] = 'select resource error in security';
+                            responder.response_result(request, response, 500, search_Obj, 5000, request.url, body_Obj['dbg']);
+                            callback('0', search_Obj);
+                            return '0';
+                        }
                     });
-                // }
-                // else {
-                //     if (ty == 23) {
-                //         var access_value = '3';
-                //     }
-                //     else {
-                //         access_value = '1';
-                //     }
-                //     security.check(request, response, parent_comm.ty, parent_comm.acpi, access_value, '', function (rsc, request, response) {
-                //         if (rsc == '0') {
-                //             body_Obj = {};
-                //             body_Obj['dbg'] = resultStatusCode['4103'];
-                //             responder.response_result(request, response, 403, body_Obj, 4103, request.url, resultStatusCode['4103']);
-                //             return '0';
-                //         }
-                //         resource.create(request, response, ty, body_Obj, function (rsc) {
-                //
-                //         });
-                //     });
-                // }
-            }
+                    // }
+                    // else {
+                    //     if (ty == 23) {
+                    //         var access_value = '3';
+                    //     }
+                    //     else {
+                    //         access_value = '1';
+                    //     }
+                    //     security.check(request, response, parent_comm.ty, parent_comm.acpi, access_value, '', function (rsc, request, response) {
+                    //         if (rsc == '0') {
+                    //             body_Obj = {};
+                    //             body_Obj['dbg'] = resultStatusCode['4103'];
+                    //             responder.response_result(request, response, 403, body_Obj, 4103, request.url, resultStatusCode['4103']);
+                    //             return '0';
+                    //         }
+                    //         resource.create(request, response, ty, body_Obj, function (rsc) {
+                    //
+                    //         });
+                    //     });
+                    // }
+                }
+            });
         });
     });
 }
@@ -1195,52 +1216,60 @@ function lookup_retrieve(request, response) {
                 return rsc;
             }
 
-            if (op == 'fanoutpoint') {
-                // check access right for fanoutpoint
-                check_grp(request, response, results_comm.ri, function (rsc, result_grp) {
-                    if (rsc == '0') {
-                        return rsc;
-                    }
+            tr.check(request, results_comm.ri, function (rsc) {
+                if (rsc === '0') {
+                    var body_Obj = {};
+                    body_Obj['dbg'] = resultStatusCode['4230'];
+                    responder.response_result(request, response, 423, body_Obj, 4230, request.url, resultStatusCode['4230']);
+                    return '0';
+                }
 
-                    if (request.query.fu == 1) {
-                        security.check(request, response, results_comm.ty, result_grp.macp, '32', result_grp.cr, function (rsc, request, response) {
-                            if (rsc == '0') {
-                                body_Obj = {};
-                                body_Obj['dbg'] = resultStatusCode['4103'];
-                                responder.response_result(request, response, 403, body_Obj, 4103, request.url, resultStatusCode['4103']);
-                                return '0';
-                            }
+                if (op == 'fanoutpoint') {
+                    // check access right for fanoutpoint
+                    check_grp(request, response, results_comm.ri, function (rsc, result_grp) {
+                        if (rsc == '0') {
+                            return rsc;
+                        }
 
-                            fopt.check(request, response, result_grp, body_Obj);
-                        });
-                    }
-                    else {
-                        security.check(request, response, results_comm.ty, result_grp.macp, '2', result_grp.cr, function (rsc, request, response) {
-                            if (rsc == '0') {
-                                body_Obj = {};
-                                body_Obj['dbg'] = resultStatusCode['4103'];
-                                responder.response_result(request, response, 403, body_Obj, 4103, request.url, resultStatusCode['4103']);
-                                return '0';
-                            }
+                        if (request.query.fu == 1) {
+                            security.check(request, response, results_comm.ty, result_grp.macp, '32', result_grp.cr, function (rsc, request, response) {
+                                if (rsc == '0') {
+                                    body_Obj = {};
+                                    body_Obj['dbg'] = resultStatusCode['4103'];
+                                    responder.response_result(request, response, 403, body_Obj, 4103, request.url, resultStatusCode['4103']);
+                                    return '0';
+                                }
 
-                            fopt.check(request, response, result_grp, body_Obj);
-                        });
-                    }
+                                fopt.check(request, response, result_grp, body_Obj);
+                            });
+                        }
+                        else {
+                            security.check(request, response, results_comm.ty, result_grp.macp, '2', result_grp.cr, function (rsc, request, response) {
+                                if (rsc == '0') {
+                                    body_Obj = {};
+                                    body_Obj['dbg'] = resultStatusCode['4103'];
+                                    responder.response_result(request, response, 403, body_Obj, 4103, request.url, resultStatusCode['4103']);
+                                    return '0';
+                                }
 
-                });
-            }
-            else { //if(op == 'direct') {
-                //if(results_comm.ty == 2 || results_comm.ty == 4 || results_comm.ty == 3 || results_comm.ty == 9 || results_comm.ty == 16 || results_comm.ty == 24 ||
-                //    results_comm.ty == 23 || results_comm.ty == 29 || results_comm.ty == 38 || results_comm.ty == 39) {
+                                fopt.check(request, response, result_grp, body_Obj);
+                            });
+                        }
+
+                    });
+                }
+                else { //if(op == 'direct') {
+                    //if(results_comm.ty == 2 || results_comm.ty == 4 || results_comm.ty == 3 || results_comm.ty == 9 || results_comm.ty == 16 || results_comm.ty == 24 ||
+                    //    results_comm.ty == 23 || results_comm.ty == 29 || results_comm.ty == 38 || results_comm.ty == 39) {
                     db_sql.select_resource(responder.typeRsrc[results_comm.ty], results_comm.ri, function (err, results_spec) {
                         if (!err) {
-                            if(results_spec.length == 0) {
+                            if (results_spec.length == 0) {
                                 results_spec[0] = {};
                                 results_spec[0].cr = '';
                                 console.log('no creator');
                             }
                             else {
-                                if(results_comm.ty == 2) {
+                                if (results_comm.ty == 2) {
                                     results_spec[0].cr = results_spec[0].aei;
                                 }
                                 else if (results_comm.ty == 16) {
@@ -1271,33 +1300,41 @@ function lookup_retrieve(request, response) {
                                 });
                             }
                         }
+                        else {
+                            body_Obj = {};
+                            body_Obj['dbg'] = 'select resource error in security';
+                            responder.response_result(request, response, 500, search_Obj, 5000, request.url, body_Obj['dbg']);
+                            callback('0', search_Obj);
+                            return '0';
+                        }
                     });
-                // }
-                // else {
-                //     if (request.query.fu == 1) {
-                //         security.check(request, response, results_comm.ty, results_comm.acpi, '32', '', function (rsc, request, response) {
-                //             if (rsc == '0') {
-                //                 body_Obj = {};
-                //                 body_Obj['dbg'] = resultStatusCode['4103'];
-                //                 responder.response_result(request, response, 403, body_Obj, 4103, request.url, resultStatusCode['4103']);
-                //                 return '0';
-                //             }
-                //             resource.retrieve(request, response, results_comm);
-                //         });
-                //     }
-                //     else {
-                //         security.check(request, response, results_comm.ty, results_comm.acpi, '2', '', function (rsc, request, response) {
-                //             if (rsc == '0') {
-                //                 body_Obj = {};
-                //                 body_Obj['dbg'] = resultStatusCode['4103'];
-                //                 responder.response_result(request, response, 403, body_Obj, 4103, request.url, resultStatusCode['4103']);
-                //                 return '0';
-                //             }
-                //             resource.retrieve(request, response, results_comm);
-                //         });
-                //     }
-                // }
-            }
+                    // }
+                    // else {
+                    //     if (request.query.fu == 1) {
+                    //         security.check(request, response, results_comm.ty, results_comm.acpi, '32', '', function (rsc, request, response) {
+                    //             if (rsc == '0') {
+                    //                 body_Obj = {};
+                    //                 body_Obj['dbg'] = resultStatusCode['4103'];
+                    //                 responder.response_result(request, response, 403, body_Obj, 4103, request.url, resultStatusCode['4103']);
+                    //                 return '0';
+                    //             }
+                    //             resource.retrieve(request, response, results_comm);
+                    //         });
+                    //     }
+                    //     else {
+                    //         security.check(request, response, results_comm.ty, results_comm.acpi, '2', '', function (rsc, request, response) {
+                    //             if (rsc == '0') {
+                    //                 body_Obj = {};
+                    //                 body_Obj['dbg'] = resultStatusCode['4103'];
+                    //                 responder.response_result(request, response, 403, body_Obj, 4103, request.url, resultStatusCode['4103']);
+                    //                 return '0';
+                    //             }
+                    //             resource.retrieve(request, response, results_comm);
+                    //         });
+                    //     }
+                    // }
+                }
+            });
         });
     });
 }
@@ -1312,37 +1349,45 @@ function lookup_update(request, response) {
                 return rsc;
             }
 
-            if (op == 'fanoutpoint') {
-                // check access right for fanoutpoint
-                check_grp(request, response, results_comm.ri, function (rsc, result_grp) {
-                    if (rsc == '0') {
-                        return rsc;
-                    }
+            tr.check(request, results_comm.ri, function (rsc) {
+                if (rsc === '0') {
+                    var body_Obj = {};
+                    body_Obj['dbg'] = resultStatusCode['4230'];
+                    responder.response_result(request, response, 423, body_Obj, 4230, request.url, resultStatusCode['4230']);
+                    return '0';
+                }
 
-                    security.check(request, response, results_comm.ty, result_grp.macp, '4', result_grp.cr, function (rsc, request, response) {
+                if (op == 'fanoutpoint') {
+                    // check access right for fanoutpoint
+                    check_grp(request, response, results_comm.ri, function (rsc, result_grp) {
                         if (rsc == '0') {
-                            body_Obj = {};
-                            body_Obj['dbg'] = resultStatusCode['4103'];
-                            responder.response_result(request, response, 403, body_Obj, 4103, request.url, resultStatusCode['4103']);
-                            return '0';
+                            return rsc;
                         }
 
-                        fopt.check(request, response, result_grp, results_comm.ty, body_Obj);
+                        security.check(request, response, results_comm.ty, result_grp.macp, '4', result_grp.cr, function (rsc, request, response) {
+                            if (rsc == '0') {
+                                body_Obj = {};
+                                body_Obj['dbg'] = resultStatusCode['4103'];
+                                responder.response_result(request, response, 403, body_Obj, 4103, request.url, resultStatusCode['4103']);
+                                return '0';
+                            }
+
+                            fopt.check(request, response, result_grp, results_comm.ty, body_Obj);
+                        });
                     });
-                });
-            }
-            else { //if(op == 'direct') {
-                //if(results_comm.ty == 2 || results_comm.ty == 4 || results_comm.ty == 3 || results_comm.ty == 9 || results_comm.ty == 16 || results_comm.ty == 24 ||
-                //    results_comm.ty == 23 || results_comm.ty == 29 || results_comm.ty == 38 || results_comm.ty == 39) {
+                }
+                else { //if(op == 'direct') {
+                    //if(results_comm.ty == 2 || results_comm.ty == 4 || results_comm.ty == 3 || results_comm.ty == 9 || results_comm.ty == 16 || results_comm.ty == 24 ||
+                    //    results_comm.ty == 23 || results_comm.ty == 29 || results_comm.ty == 38 || results_comm.ty == 39) {
                     db_sql.select_resource(responder.typeRsrc[results_comm.ty], results_comm.ri, function (err, results_spec) {
                         if (!err) {
-                            if(results_spec.length == 0) {
+                            if (results_spec.length == 0) {
                                 results_spec[0] = {};
                                 results_spec[0].cr = '';
                                 console.log('no creator');
                             }
                             else {
-                                if(results_comm.ty == 2) {
+                                if (results_comm.ty == 2) {
                                     results_spec[0].cr = results_spec[0].aei;
                                 }
                                 else if (results_comm.ty == 16) {
@@ -1359,20 +1404,28 @@ function lookup_update(request, response) {
                                 resource.update(request, response, results_comm, body_Obj);
                             });
                         }
+                        else {
+                            body_Obj = {};
+                            body_Obj['dbg'] = 'select resource error in security';
+                            responder.response_result(request, response, 500, search_Obj, 5000, request.url, body_Obj['dbg']);
+                            callback('0', search_Obj);
+                            return '0';
+                        }
                     });
-                // }
-                // else {
-                //     security.check(request, response, results_comm.ty, results_comm.acpi, '4', '', function (rsc, request, response) {
-                //         if (rsc == '0') {
-                //             body_Obj = {};
-                //             body_Obj['dbg'] = resultStatusCode['4103'];
-                //             responder.response_result(request, response, 403, body_Obj, 4103, request.url, resultStatusCode['4103']);
-                //             return '0';
-                //         }
-                //         resource.update(request, response, results_comm, body_Obj);
-                //     });
-                // }
-            }
+                    // }
+                    // else {
+                    //     security.check(request, response, results_comm.ty, results_comm.acpi, '4', '', function (rsc, request, response) {
+                    //         if (rsc == '0') {
+                    //             body_Obj = {};
+                    //             body_Obj['dbg'] = resultStatusCode['4103'];
+                    //             responder.response_result(request, response, 403, body_Obj, 4103, request.url, resultStatusCode['4103']);
+                    //             return '0';
+                    //         }
+                    //         resource.update(request, response, results_comm, body_Obj);
+                    //     });
+                    // }
+                }
+            });
         });
     });
 }
@@ -1387,37 +1440,45 @@ function lookup_delete(request, response) {
                 return rsc;
             }
 
-            if (op == 'fanoutpoint') {
-                // check access right for fanoutpoint
-                check_grp(request, response, results_comm.ri, function (rsc, result_grp) {
-                    if (rsc == '0') {
-                        return rsc;
-                    }
+            tr.check(request, results_comm.ri, function (rsc) {
+                if (rsc === '0') {
+                    var body_Obj = {};
+                    body_Obj['dbg'] = resultStatusCode['4230'];
+                    responder.response_result(request, response, 423, body_Obj, 4230, request.url, resultStatusCode['4230']);
+                    return '0';
+                }
 
-                    security.check(request, response, results_comm.ty, result_grp.macp, '8', result_grp.cr, function (rsc, request, response) {
+                if (op == 'fanoutpoint') {
+                    // check access right for fanoutpoint
+                    check_grp(request, response, results_comm.ri, function (rsc, result_grp) {
                         if (rsc == '0') {
-                            body_Obj = {};
-                            body_Obj['dbg'] = resultStatusCode['4103'];
-                            responder.response_result(request, response, 403, body_Obj, 4103, request.url, resultStatusCode['4103']);
-                            return '0';
+                            return rsc;
                         }
 
-                        fopt.check(request, response, result_grp, results_comm.ty, body_Obj);
+                        security.check(request, response, results_comm.ty, result_grp.macp, '8', result_grp.cr, function (rsc, request, response) {
+                            if (rsc == '0') {
+                                body_Obj = {};
+                                body_Obj['dbg'] = resultStatusCode['4103'];
+                                responder.response_result(request, response, 403, body_Obj, 4103, request.url, resultStatusCode['4103']);
+                                return '0';
+                            }
+
+                            fopt.check(request, response, result_grp, results_comm.ty, body_Obj);
+                        });
                     });
-                });
-            }
-            else { //if(op == 'direct') {
-                //if(results_comm.ty == 2 || results_comm.ty == 4 || results_comm.ty == 3 || results_comm.ty == 9 || results_comm.ty == 16 || results_comm.ty == 24 ||
-                //    results_comm.ty == 23 || results_comm.ty == 29 || results_comm.ty == 38 || results_comm.ty == 39) {
+                }
+                else { //if(op == 'direct') {
+                    //if(results_comm.ty == 2 || results_comm.ty == 4 || results_comm.ty == 3 || results_comm.ty == 9 || results_comm.ty == 16 || results_comm.ty == 24 ||
+                    //    results_comm.ty == 23 || results_comm.ty == 29 || results_comm.ty == 38 || results_comm.ty == 39) {
                     db_sql.select_resource(responder.typeRsrc[results_comm.ty], results_comm.ri, function (err, results_spec) {
                         if (!err) {
-                            if(results_spec.length == 0) {
+                            if (results_spec.length == 0) {
                                 results_spec[0] = {};
                                 results_spec[0].cr = '';
                                 console.log('no creator');
                             }
                             else {
-                                if(results_comm.ty == 2) {
+                                if (results_comm.ty == 2) {
                                     results_spec[0].cr = results_spec[0].aei;
                                 }
                                 else if (results_comm.ty == 16) {
@@ -1434,20 +1495,28 @@ function lookup_delete(request, response) {
                                 resource.delete(request, response, results_comm);
                             });
                         }
+                        else {
+                            body_Obj = {};
+                            body_Obj['dbg'] = 'select resource error in security';
+                            responder.response_result(request, response, 500, search_Obj, 5000, request.url, body_Obj['dbg']);
+                            callback('0', search_Obj);
+                            return '0';
+                        }
                     });
-                // }
-                // else {
-                //     security.check(request, response, results_comm.ty, results_comm.acpi, '8', '', function (rsc, request, response) {
-                //         if (rsc == '0') {
-                //             body_Obj = {};
-                //             body_Obj['dbg'] = resultStatusCode['4103'];
-                //             responder.response_result(request, response, 403, body_Obj, 4103, request.url, resultStatusCode['4103']);
-                //             return '0';
-                //         }
-                //         resource.delete(request, response, results_comm);
-                //     });
-                // }
-            }
+                    // }
+                    // else {
+                    //     security.check(request, response, results_comm.ty, results_comm.acpi, '8', '', function (rsc, request, response) {
+                    //         if (rsc == '0') {
+                    //             body_Obj = {};
+                    //             body_Obj['dbg'] = resultStatusCode['4103'];
+                    //             responder.response_result(request, response, 403, body_Obj, 4103, request.url, resultStatusCode['4103']);
+                    //             return '0';
+                    //         }
+                    //         resource.delete(request, response, results_comm);
+                    //     });
+                    // }
+                }
+            });
         });
     });
 }

@@ -1618,10 +1618,24 @@ function retrieve_action(request, response, ty, comm_Obj, callback) {
                     spec_Obj[0].rels = JSON.parse(spec_Obj[0].rels);
                 }
                 if (spec_Obj[0].trqp) {
-                    spec_Obj[0].trqp = JSON.parse(spec_Obj[0].trqp);
+                    var trqp_type = getType(spec_Obj[0].trqp);
+                    if (trqp_type === 'object' || trqp_type === 'array' || trqp_type === 'string_object') {
+                        try {
+                            spec_Obj[0].trqp = JSON.parse(spec_Obj[0].trqp);
+                        }
+                        catch (e) {
+                        }
+                    }
                 }
                 if (spec_Obj[0].trsp) {
-                    spec_Obj[0].trsp = JSON.parse(spec_Obj[0].trsp);
+                    var trsp_type = getType(spec_Obj[0].trsp);
+                    if (trsp_type === 'object' || trsp_type === 'array' || trsp_type === 'string_object') {
+                        try {
+                            spec_Obj[0].trsp = JSON.parse(spec_Obj[0].trsp);
+                        }
+                        catch (e) {
+                        }
+                    }
                 }
                 if (spec_Obj[0].con) {
                     var con_type = getType(spec_Obj[0].con);
@@ -1819,6 +1833,7 @@ global.update_body = function (rootnm, body_Obj, resource_Obj) {
 
             if (attr === 'tctl') {
                 if (body_Obj[rootnm][attr] === tctl_v.LOCK) { // LOCK
+                    resource_Obj[rootnm].tst = tst_v.LOCKED;
                     resource_Obj[rootnm].trsp = '';
                 }
             }

@@ -25,7 +25,7 @@ var fs = require('fs');
 
 var db_sql = require('./sql_action');
 
-var tst_v = {};
+global.tst_v = {};
 tst_v.INITIAL = '1';
 tst_v.LOCKED = '2';
 tst_v.EXECUTED = '3';
@@ -55,7 +55,17 @@ exports.build_tr = function(request, response, resource_Obj, body_Obj, callback)
     callback('1', resource_Obj);
 };
 
-function trsp_action(ri, tst_value, bodytype, res, resBody) {
+function trsp_action(ri, bodytype, res, resBody) {
+    console.log('EXECUTE of transaction'); //callback(res.headers['x-m2m-rsc'], resBody);
+    console.log(resBody);
+
+    if (res.statusCode == 201 || res.statusCode == 200) {
+        var tst_value = tst_v.EXECUTED;
+    }
+    else {
+        tst_value = tst_v.ERROR;
+    }
+
     if (bodytype === 'xml') {
         try {
             var parser = new xml2js.Parser({explicitArray: false});
@@ -183,17 +193,7 @@ exports.request_execute = function(ri, frqp) {
             });
 
             res.on('end', function () {
-                console.log('EXECUTE of transaction'); //callback(res.headers['x-m2m-rsc'], resBody);
-                console.log(resBody);
-
-                if (res.statusCode == 201 || res.statusCode == 200) {
-                    var tst_value = tst_v.EXECUTED;
-                }
-                else {
-                    tst_value = tst_v.ERROR;
-                }
-
-                trsp_action(ri, tst_value, bodytype, res, resBody)
+                trsp_action(ri, bodytype, res, resBody);
             });
         });
     }
@@ -206,7 +206,7 @@ exports.request_execute = function(ri, frqp) {
             });
 
             res.on('end', function () {
-                //callback(res.headers['x-m2m-rsc'], resBody);
+                trsp_action(ri, bodytype, res, resBody);
             });
         });
     }
@@ -248,6 +248,34 @@ exports.request_abort = function(ri, tst) {
         }
         else {
             console.log('store_tst [' + tst + '] fail');
+        }
+    });
+};
+
+exports.check = function(request, pi, callback) {
+    var state = tst_v.COMMITTED;
+
+    db_sql.select_tr(pi, function (err, results_tr) {
+        if (!err) {
+            for (var i = 0; i < results_tr.length; i++) {
+                if (results_tr[i].hasOwnProperty('tst')) {
+                    if(results_tr[i].tst !== tst_v.COMMITTED) {
+                        state = results_tr[i].tst;
+                        break;
+                    }
+                }
+            }
+
+            if(state === tst_v.COMMITTED) {
+                callback('1');
+            }
+            else {
+                callback('0');
+            }
+        }
+        else {
+            console.log('query error: ' + results_tr.message);
+            callback('1');
         }
     });
 };

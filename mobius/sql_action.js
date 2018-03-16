@@ -1140,6 +1140,26 @@ exports.select_sub = function(pi, callback) {
     });
 };
 
+exports.select_tr = function(pi, callback) {
+    var sql = util.format('select * from lookup where pi = \'%s\' and ty = \'39\'', pi);
+    db.getResult(sql, '', function (err, results_comm_tr) {
+        if(!err) {
+            if(results_comm_tr.length === 0) {
+                callback(err, results_comm_tr);
+            }
+            else {
+                var sql2 = util.format('select * from tr where ri = \'%s\'', results_comm_tr[0].ri);
+                db.getResult(sql2, '', function (err, results_tr) {
+                    callback(err, results_tr);
+                });
+            }
+        }
+        else {
+            callback(err, results_comm_tr);
+        }
+    });
+};
+
 exports.select_cb = function(ri, callback) {
     var sql = util.format("select * from cb where ri = \'%s\'", ri);
     db.getResult(sql, '', function (err, results_cb) {
@@ -1644,8 +1664,8 @@ exports.update_tr = function (obj, callback) {
     console.time('update_tr ' + obj.ri);
     _this.update_lookup(obj.lt, JSON.stringify(obj.acpi), obj.et, obj.st, JSON.stringify(obj.lbl), JSON.stringify(obj.at), JSON.stringify(obj.aa), obj.ri, function (err, results) {
         if (!err) {
-            var sql2 = util.format('update tr set cr = \'%s\', tctl = \'%s\', trsp = \'%s\' where ri = \'%s\'',
-                obj.cr, obj.tctl, obj.trsp, obj.ri);
+            var sql2 = util.format('update tr set cr = \'%s\', tctl = \'%s\', tst = \'%s\', trsp = \'%s\' where ri = \'%s\'',
+                obj.cr, obj.tctl, obj.tst, obj.trsp, obj.ri);
             db.getResult(sql2, '', function (err, results) {
                 if (!err) {
                     console.timeEnd('update_tr ' + obj.ri);
