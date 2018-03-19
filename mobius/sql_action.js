@@ -639,8 +639,7 @@ exports.insert_mms = function(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st,
 
 exports.insert_tr = function(obj, callback) {
     console.time('insert_tr ' + obj.ri);
-    _this.insert_lookup(obj.ty, obj.ri, obj.rn, obj.pi, obj.ct, obj.lt, obj.et, JSON.stringify(obj.acpi), JSON.stringify(obj.lbl), JSON.stringify(obj.at), JSON.stringify(obj.aa),
-        obj.st, obj.sri, obj.spi, function (err, results) {
+    _this.insert_lookup(obj.ty, obj.ri, obj.rn, obj.pi, obj.ct, obj.lt, obj.et, JSON.stringify(obj.acpi), JSON.stringify(obj.lbl), JSON.stringify(obj.at), JSON.stringify(obj.aa), obj.st, obj.sri, obj.spi, function (err, results) {
         if(!err) {
             var sql = util.format('insert into tr (ri, cr, tid, tctl, tst, tltm, text, tct, tltp, trqp, trsp) ' +
                 'value (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
@@ -648,6 +647,32 @@ exports.insert_tr = function(obj, callback) {
             db.getResult(sql, '', function (err, results) {
                 if(!err) {
                     console.timeEnd('insert_tr ' + obj.ri);
+                    callback(err, results);
+                }
+                else {
+                    sql = util.format("delete from lookup where ri = \'%s\'", obj.ri);
+                    db.getResult(sql, '', function () {
+                        callback(err, results);
+                    });
+                }
+            });
+        }
+        else {
+            callback(err, results);
+        }
+    });
+};
+
+exports.insert_tm = function(obj, callback) {
+    console.time('insert_tm ' + obj.ri);
+    _this.insert_lookup(obj.ty, obj.ri, obj.rn, obj.pi, obj.ct, obj.lt, obj.et, JSON.stringify(obj.acpi), JSON.stringify(obj.lbl), JSON.stringify(obj.at), JSON.stringify(obj.aa), obj.st, obj.sri, obj.spi, function (err, results) {
+        if(!err) {
+            var sql = util.format('insert into tm (ri, cr, tltm, text, tct, tept, tmd, tltp, tctl, tst, tmr, tmh, rqps, rsps) ' +
+                'value (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
+                obj.ri, obj.cr, obj.tltm, obj.text, obj.tct, obj.tept, obj.tmd, obj.tltp, obj.tctl, obj.tst, obj.tmr, obj.tmh, JSON.stringify(obj.rqps), JSON.stringify(obj.rsps));
+            db.getResult(sql, '', function (err, results) {
+                if(!err) {
+                    console.timeEnd('insert_tm ' + obj.ri);
                     callback(err, results);
                 }
                 else {
@@ -1428,10 +1453,10 @@ exports.update_fwr = function (lt, acpi, et, st, lbl, at, aa, ri, dc, vr, fwnnam
     });
 };
 
-exports.update_bat = function (lt, acpi, et, st, lbl, at, aa, mni, ri, dc, btl, bts, callback) {
+exports.update_bat = function (lt, acpi, et, st, lbl, at, aa, ri, dc, btl, bts, callback) {
     console.time('update_bat ' + ri);
-    var sql1 = util.format('update lookup set lt = \'%s\', acpi = \'%s\', et = \'%s\', st = \'%s\', lbl = \'%s\', at = \'%s\', aa = \'%s\', mni = \'%s\' where ri = \'%s\'',
-        lt, acpi, et, st, lbl, at, aa, mni, ri);
+    var sql1 = util.format('update lookup set lt = \'%s\', acpi = \'%s\', et = \'%s\', st = \'%s\', lbl = \'%s\', at = \'%s\', aa = \'%s\' where ri = \'%s\'',
+        lt, acpi, et, st, lbl, at, aa, ri);
     db.getResult(sql1, '', function (err, results) {
         if (!err) {
             var sql2 = util.format('update mgo set dc = \'%s\', btl = \'%s\', bts = \'%s\' where ri = \'%s\'', dc, btl, bts, ri);
@@ -1660,12 +1685,34 @@ exports.update_mms = function (lt, acpi, et, st, lbl, at, aa, ri, stid, asd, osd
     });
 };
 
+exports.update_tm = function (obj, callback) {
+    console.time('update_tm ' + obj.ri);
+    _this.update_lookup(obj.lt, JSON.stringify(obj.acpi), obj.et, obj.st, JSON.stringify(obj.lbl), JSON.stringify(obj.at), JSON.stringify(obj.aa), obj.ri, function (err, results) {
+        if (!err) {
+            var sql2 = util.format('update tm set tctl = \'%s\', tst = \'%s\', tmr = \'%s\', tmh = \'%s\' where ri = \'%s\'', obj.tctl, obj.tst, obj.tmr, obj.tmh, obj.ri);
+            db.getResult(sql2, '', function (err, results) {
+                if (!err) {
+                    console.timeEnd('update_tm ' + obj.ri);
+                    callback(err, results);
+                }
+                else {
+                    callback(err, results);
+                }
+            });
+        }
+        else {
+            callback(err, results);
+        }
+    });
+};
+
+
 exports.update_tr = function (obj, callback) {
     console.time('update_tr ' + obj.ri);
     _this.update_lookup(obj.lt, JSON.stringify(obj.acpi), obj.et, obj.st, JSON.stringify(obj.lbl), JSON.stringify(obj.at), JSON.stringify(obj.aa), obj.ri, function (err, results) {
         if (!err) {
             var sql2 = util.format('update tr set cr = \'%s\', tctl = \'%s\', tst = \'%s\', trsp = \'%s\' where ri = \'%s\'',
-                obj.cr, obj.tctl, obj.tst, obj.trsp, obj.ri);
+                obj.cr, obj.tctl, obj.tst, JSON.stringify(obj.trsp), obj.ri);
             db.getResult(sql2, '', function (err, results) {
                 if (!err) {
                     console.timeEnd('update_tr ' + obj.ri);

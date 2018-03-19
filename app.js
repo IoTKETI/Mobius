@@ -314,6 +314,21 @@ global.make_json_arraytype = function (body_Obj) {
                         }
                     }
 
+                    if (attr == 'rqps') {
+                        var rqps_type = getType(body_Obj[prop][attr]);
+                        if (rqps_type === 'array') {
+
+                        }
+                        else if (rqps_type === 'object') {
+                            var temp = body_Obj[prop][attr];
+                            body_Obj[prop][attr] = [];
+                            body_Obj[prop][attr].push(temp);
+                        }
+                        else {
+
+                        }
+                    }
+
                     if (attr == 'enc') {
                         if (body_Obj[prop][attr]) {
                             if (body_Obj[prop][attr].net) {
@@ -326,7 +341,7 @@ global.make_json_arraytype = function (body_Obj) {
                         if (body_Obj[prop][attr]) {
                             if (body_Obj[prop][attr].acr) {
                                 if (!Array.isArray(body_Obj[prop][attr].acr)) {
-                                    var temp = body_Obj[prop][attr].acr;
+                                    temp = body_Obj[prop][attr].acr;
                                     body_Obj[prop][attr].acr = [];
                                     body_Obj[prop][attr].acr[0] = temp;
                                 }
@@ -404,9 +419,9 @@ function check_http_body(request, response, callback) {
     if (request.headers.usebodytype === 'xml') {
         try {
             var parser = new xml2js.Parser({explicitArray: false});
-            parser.parseString(request.body, function (err, result) {
+            parser.parseString(request.body.toString(), function (err, result) {
                 if (err) {
-                    responder.error_result(request, response, 400, 4000, 'do not parse xml body');
+                    responder.error_result(request, response, 400, 4000, 'do not parse xml body' + err.message);
                     callback('0', body_Obj, content_type, request, response);
                 }
                 else {
@@ -633,7 +648,7 @@ function check_http(request, response, callback) {
                         for (var attr in body_Obj[prop]) {
                             if (body_Obj[prop].hasOwnProperty(attr)) {
                                 if(attr == 'aa' || attr == 'at' || attr == 'poa' || attr == 'lbl' || attr == 'acpi' || attr == 'srt' ||
-                                    attr == 'nu' || attr == 'mid' || attr == 'macp' || attr == 'rels') {
+                                    attr == 'nu' || attr == 'mid' || attr == 'macp' || attr == 'rels' || attr == 'rqps') {
                                     if (!Array.isArray(body_Obj[prop][attr])) {
                                         body_Obj = {};
                                         body_Obj['dbg'] = attr + ' attribute should be json array format';
