@@ -805,7 +805,10 @@ function typeCheckAction(index1, body_Obj) {
     for (var index2 in body_Obj) {
         if(body_Obj.hasOwnProperty(index2)) {
             if (body_Obj[index2] == null || body_Obj[index2] == '' || body_Obj[index2] == 'undefined' || body_Obj[index2] == '[]' || body_Obj[index2] == '\"\"') {
-                delete body_Obj[index2];
+                //delete body_Obj[index2];
+                if(index2 != 'pi') {
+                    delete body_Obj[index2];
+                }
             }
             else if (index2 == 'et') {
                 if (index1 == 'm2m:cb') {
@@ -929,9 +932,25 @@ function xmlInsert(xml, body_Obj, attr_name) {
                     }
                 }
                 else if(con_type === 'array') {
-                    xml.ele(attr, body_Obj[attr].toString().replace(/,/g, ' '));
-                    delete body_Obj[attr];
-                    break;
+                    for(var idx in body_Obj[attr]) {
+                        if (body_Obj[attr].hasOwnProperty(idx)) {
+                            var attr_type = getType(body_Obj[attr][idx]);
+                            if(attr_type === 'object') {
+                                xml2 = xml.ele(attr);
+                                for(attr2 in body_Obj[attr][idx]) {
+                                    if (body_Obj[attr][idx].hasOwnProperty(attr2)) {
+                                        xmlInsert(xml2, body_Obj[attr][idx], attr2)
+                                    }
+                                }
+                            }
+                            else {
+                                xml.ele(attr, body_Obj[attr].toString().replace(/,/g, ' '));
+                                delete body_Obj[attr];
+                                break;
+                            }
+                        }
+                    }
+
                 }
                 else {
                     xml.ele(attr, body_Obj[attr]);
@@ -1183,6 +1202,23 @@ function xmlAction(xml, body_Obj) {
                 }
             }
             xmlInsert(xml, body_Obj, 'cr');
+        }
+
+        else if (xml.name === 'm2m:tm') {
+            xmlInsert(xml, body_Obj, 'daci', 'et');
+            xmlInsert(xml, body_Obj, 'cr');
+            xmlInsert(xml, body_Obj, 'tltm');
+            xmlInsert(xml, body_Obj, 'text');
+            xmlInsert(xml, body_Obj, 'tct');
+            xmlInsert(xml, body_Obj, 'tept');
+            xmlInsert(xml, body_Obj, 'tmd');
+            xmlInsert(xml, body_Obj, 'tltp');
+            xmlInsert(xml, body_Obj, 'tctl');
+            xmlInsert(xml, body_Obj, 'tst');
+            xmlInsert(xml, body_Obj, 'tmr');
+            xmlInsert(xml, body_Obj, 'tmh');
+            xmlInsert(xml, body_Obj, 'rqps');
+            xmlInsert(xml, body_Obj, 'rsps');
         }
 
         else if (xml.name === 'm2m:tr') {

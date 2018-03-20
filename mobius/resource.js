@@ -40,6 +40,7 @@ var grp = require('./grp');
 var req = require('./req');
 var nod = require('./nod');
 var mgo = require('./mgo');
+var tm = require('./tm');
 var tr = require('./tr');
 
 var util = require('util');
@@ -68,6 +69,7 @@ create_np_attr_list.ts = ['ty', 'ri', 'pi', 'ct', 'lt', 'st', 'cni', 'cbs', 'mdl
 create_np_attr_list.tsi = ['ty', 'ri', 'pi', 'ct', 'lt', 'st'];
 create_np_attr_list.mms = ['ty', 'ri', 'pi', 'ct', 'lt', 'st', 'sid'];
 create_np_attr_list.req = ['rn', 'ty', 'ri', 'et', 'pi', 'ct', 'lt', 'acpi', 'lbl', 'st', 'daci', 'op', 'tg', 'org', 'rid', 'mi', 'pc', 'rs', 'ors'];
+create_np_attr_list.tm = ['ty', 'ri', 'pi', 'ct', 'lt', 'st', 'tctl', 'tst', 'trsp'];
 create_np_attr_list.tr = ['ty', 'ri', 'pi', 'ct', 'lt', 'st', 'tctl', 'tst', 'trsp'];
 
 create_np_attr_list.fwr = ['ty', 'ri', 'pi', 'ct', 'lt', 'st', 'uds'];
@@ -91,6 +93,7 @@ create_m_attr_list.ts = [];
 create_m_attr_list.tsi = ['dgt', 'con'];
 create_m_attr_list.mms = ['soid', 'asd'];
 create_m_attr_list.req = [];
+create_m_attr_list.tm = ['rqps'];
 create_m_attr_list.tr = ['tid', 'trqp'];
 
 create_m_attr_list.fwr = ['mgd', 'vr', 'fwnnam', 'url', 'ud'];
@@ -114,6 +117,7 @@ create_opt_attr_list.ts = ['rn', 'acpi', 'et', 'lbl', 'aa', 'at', 'cr', 'mni', '
 create_opt_attr_list.tsi = ['rn', 'et', 'lbl', 'aa', 'at', 'sqn'];
 create_opt_attr_list.mms = ['rn', 'acpi', 'et', 'lbl', 'aa', 'at', 'stid', 'osd', 'sst'];
 create_opt_attr_list.req = [];
+create_opt_attr_list.tm = ['rn', 'acpi', 'et', 'lbl', 'daci', 'cr', 'tltm', 'text', 'tct', 'tept', 'tmd', 'tltp', 'tmr', 'tmh'];
 create_opt_attr_list.tr = ['rn', 'acpi', 'et', 'lbl', 'daci', 'cr', 'tltm', 'text', 'tct', 'tltp'];
 
 create_opt_attr_list.fwr = ['rn', 'acpi', 'et', 'lbl', 'daci', 'objs', 'obps', 'dc', 'cmlk'];
@@ -135,6 +139,7 @@ update_np_attr_list.nod = ['rn', 'ty', 'ri', 'pi', 'ct', 'lt', 'st', 'hcl'];
 update_np_attr_list.smd = ['rn', 'ty', 'ri', 'pi', 'ct', 'lt', 'st', 'cr'];
 update_np_attr_list.ts = ['rn', 'ty', 'ri', 'pi', 'ct', 'lt', 'st', 'cr', 'cni', 'cbs', 'mdlt', 'mdc'];
 update_np_attr_list.mms = ['rn', 'ty', 'ri', 'pi', 'ct', 'lt', 'st', 'sid', 'soid'];
+update_np_attr_list.tm = ['rn', 'ty', 'ri', 'pi', 'ct', 'lt', 'st', 'cr', 'tltm', 'text', 'tct', 'tept', 'tmd', 'tltp', 'rqps', 'rsps'];
 update_np_attr_list.tr = ['rn', 'ty', 'ri', 'pi', 'ct', 'lt', 'st', 'daci', 'tid', 'tst', 'tltm', 'text', 'tct', 'tltp', 'trqp', 'trsp'];
 
 update_np_attr_list.fwr = ['rn', 'ty', 'ri', 'pi', 'ct', 'lt', 'st', 'mgd', 'objs', 'obps'];
@@ -155,6 +160,7 @@ update_m_attr_list.nod = [];
 update_m_attr_list.smd = [];
 update_m_attr_list.ts = [];
 update_m_attr_list.mms = [];
+update_m_attr_list.tm = [];
 update_m_attr_list.tr = [];
 
 update_m_attr_list.fwr = [];
@@ -175,6 +181,7 @@ update_opt_attr_list.nod = ['acpi', 'et', 'lbl', 'aa', 'at', 'daci', 'ni', 'mgca
 update_opt_attr_list.smd = ['acpi', 'et', 'lbl', 'aa', 'at', 'dcrp', 'soe', 'dsp', 'or', 'rels'];
 update_opt_attr_list.ts = ['acpi', 'et', 'lbl', 'aa', 'at', 'mni', 'mbs', 'mia', 'pei', 'mdd', 'mdn', 'mdt', 'or'];
 update_opt_attr_list.mms = ['acpi', 'et', 'lbl', 'aa', 'at', 'stid', 'asd', 'osd', 'sst'];
+update_opt_attr_list.tm = ['acpi', 'et', 'lbl', 'daci', 'tctl', 'tmr', 'tmh'];
 update_opt_attr_list.tr = ['acpi', 'et', 'lbl', 'cr', 'tctl'];
 
 update_opt_attr_list.fwr = ['acpi', 'et', 'lbl', 'daci', 'dc', 'cmlk', 'vr', 'fwnnam', 'url', 'ud', 'uds'];
@@ -212,7 +219,7 @@ exports.remove_no_value = function (request, resource_Obj) {
                 else if (typeof resource_Obj[rootnm][index] === 'string') {
                     if (resource_Obj[rootnm][index] == '' || resource_Obj[rootnm][index] == 'undefined' || resource_Obj[rootnm][index] == '[]') {
                         if (resource_Obj[rootnm][index] == '' && index == 'pi') {
-                            resource_Obj[rootnm][index] = 'NULL';
+                            resource_Obj[rootnm][index] = null;
                         }
                         else {
                             delete resource_Obj[rootnm][index];
@@ -1295,6 +1302,11 @@ function build_resource(request, response, ty, body_Obj, callback) {
                             callback(rsc, resource_Obj);
                         });
                         break;
+                    case '38':
+                        tm.build_tm(request, response, resource_Obj, body_Obj, function (rsc, resource_Obj) {
+                            callback(rsc, resource_Obj);
+                        });
+                        break;
                     case '39':
                         tr.build_tr(request, response, resource_Obj, body_Obj, function (rsc, resource_Obj) {
                             callback(rsc, resource_Obj);
@@ -1337,6 +1349,15 @@ exports.create = function (request, response, ty, body_Obj, callback) {
                     var notiObj = JSON.parse(JSON.stringify(resource_Obj));
                     _this.remove_no_value(request, notiObj);
                     sgn.check(request, notiObj[rootnm], 3);
+                }
+
+                if (request.query.tctl == 3) { // for EXECUTE of transaction
+                    var resultObj = JSON.parse(JSON.stringify(resource_Obj));
+                    _this.remove_no_value(request, resultObj);
+
+                    responder.response_result(request, response, 201, resultObj, 2001, resultObj[rootnm].ri, '');
+                    callback(rsc);
+                    return '0';
                 }
 
                 create_action(request, response, ty, resource_Obj, function (rsc, create_Obj) {
@@ -1615,6 +1636,12 @@ function retrieve_action(request, response, ty, comm_Obj, callback) {
                 if (spec_Obj[0].rels) {
                     spec_Obj[0].rels = JSON.parse(spec_Obj[0].rels);
                 }
+                if (spec_Obj[0].rqps) {
+                    spec_Obj[0].rqps = JSON.parse(spec_Obj[0].rqps);
+                }
+                if (spec_Obj[0].rsps) {
+                    spec_Obj[0].rsps = JSON.parse(spec_Obj[0].rsps);
+                }
                 if (spec_Obj[0].trqp) {
                     var trqp_type = getType(spec_Obj[0].trqp);
                     if (trqp_type === 'object' || trqp_type === 'array' || trqp_type === 'string_object') {
@@ -1806,13 +1833,6 @@ exports.retrieve = function (request, response, comm_Obj) {
     }
 };
 
-var tctl_v = {};
-tctl_v.INITIAL = '1';
-tctl_v.LOCK = '2';
-tctl_v.EXECUTE = '3';
-tctl_v.COMMIT = '4';
-tctl_v.ABORT = '5';
-
 global.update_body = function (rootnm, body_Obj, resource_Obj) {
     for (var attr in body_Obj[rootnm]) {
         if (body_Obj[rootnm].hasOwnProperty(attr)) {
@@ -1829,13 +1849,7 @@ global.update_body = function (rootnm, body_Obj, resource_Obj) {
                 resource_Obj[rootnm][attr] = body_Obj[rootnm][attr];
             }
 
-            if (attr === 'tctl') {
-                if (body_Obj[rootnm][attr] === tctl_v.LOCK) { // LOCK
-                    resource_Obj[rootnm].tst = tst_v.LOCKED;
-                    resource_Obj[rootnm].trsp = '';
-                }
-            }
-            else if (attr === 'aa' || attr === 'poa' || attr === 'lbl' || attr === 'acpi' || attr === 'srt' || attr === 'nu' || attr === 'mid' || attr === 'macp') {
+            if (attr === 'aa' || attr === 'poa' || attr === 'lbl' || attr === 'acpi' || attr === 'srt' || attr === 'nu' || attr === 'mid' || attr === 'macp') {
                 if (body_Obj[rootnm][attr] === '') {
                     resource_Obj[rootnm][attr] = [];
                 }
@@ -1936,7 +1950,7 @@ function update_action(request, response, ty, resource_Obj, callback) {
     }
     else if (ty == '2') {
         db_sql.update_ae(resource_Obj[rootnm].lt, JSON.stringify(resource_Obj[rootnm].acpi), resource_Obj[rootnm].et, resource_Obj[rootnm].st, JSON.stringify(resource_Obj[rootnm].lbl),
-            JSON.stringify(resource_Obj[rootnm].at), JSON.stringify(resource_Obj[rootnm].aa), resource_Obj[rootnm].mni, resource_Obj[rootnm].ri,
+            JSON.stringify(resource_Obj[rootnm].at), JSON.stringify(resource_Obj[rootnm].aa), resource_Obj[rootnm].ri,
             resource_Obj[rootnm].apn, JSON.stringify(resource_Obj[rootnm].poa), resource_Obj[rootnm].or, resource_Obj[rootnm].rr, function (err, results) {
                 if (!err) {
                     callback('1', resource_Obj);
@@ -1952,7 +1966,7 @@ function update_action(request, response, ty, resource_Obj, callback) {
     }
     else if (ty == '3') {
         db_sql.update_cnt(resource_Obj[rootnm].lt, JSON.stringify(resource_Obj[rootnm].acpi), resource_Obj[rootnm].et, resource_Obj[rootnm].st, JSON.stringify(resource_Obj[rootnm].lbl),
-            JSON.stringify(resource_Obj[rootnm].at), JSON.stringify(resource_Obj[rootnm].aa), resource_Obj[rootnm].ri,
+            JSON.stringify(resource_Obj[rootnm].at), JSON.stringify(resource_Obj[rootnm].aa), resource_Obj[rootnm].mni, resource_Obj[rootnm].ri,
             resource_Obj[rootnm].mbs, resource_Obj[rootnm].mia, resource_Obj[rootnm].li, resource_Obj[rootnm].or, function (err, results) {
                 if (!err) {
                     update_action_mni('4', resource_Obj[rootnm].ri, resource_Obj[rootnm].mni, function (rsc, cni, cbs) {
@@ -1988,7 +2002,7 @@ function update_action(request, response, ty, resource_Obj, callback) {
     }
     else if (ty == '10') {
         db_sql.update_lcp(resource_Obj[rootnm].lt, JSON.stringify(resource_Obj[rootnm].acpi), resource_Obj[rootnm].et, resource_Obj[rootnm].st, JSON.stringify(resource_Obj[rootnm].lbl),
-            JSON.stringify(resource_Obj[rootnm].at), JSON.stringify(resource_Obj[rootnm].aa), resource_Obj[rootnm].mni, resource_Obj[rootnm].ri,
+            JSON.stringify(resource_Obj[rootnm].at), JSON.stringify(resource_Obj[rootnm].aa), resource_Obj[rootnm].ri,
             resource_Obj[rootnm].lou, resource_Obj[rootnm].lon, function (err, results) {
                 if (!err) {
                     callback('1', resource_Obj);
@@ -2022,7 +2036,7 @@ function update_action(request, response, ty, resource_Obj, callback) {
             }
             else if (resource_Obj[rootnm].mgd == 1006) {
                 db_sql.update_bat(resource_Obj[rootnm].lt, JSON.stringify(resource_Obj[rootnm].acpi), resource_Obj[rootnm].et, resource_Obj[rootnm].st, JSON.stringify(resource_Obj[rootnm].lbl),
-                    JSON.stringify(resource_Obj[rootnm].at), JSON.stringify(resource_Obj[rootnm].aa), resource_Obj[rootnm].mni, resource_Obj[rootnm].ri,
+                    JSON.stringify(resource_Obj[rootnm].at), JSON.stringify(resource_Obj[rootnm].aa), resource_Obj[rootnm].ri,
                     resource_Obj[rootnm].dc, resource_Obj[rootnm].btl, resource_Obj[rootnm].bts, function (err, results) {
                         if (!err) {
                             callback('1', resource_Obj);
@@ -2055,7 +2069,7 @@ function update_action(request, response, ty, resource_Obj, callback) {
             }
             else if (resource_Obj[rootnm].mgd == 1008) {
                 db_sql.update_dvc(resource_Obj[rootnm].lt, JSON.stringify(resource_Obj[rootnm].acpi), resource_Obj[rootnm].et, resource_Obj[rootnm].st, JSON.stringify(resource_Obj[rootnm].lbl),
-                    JSON.stringify(resource_Obj[rootnm].at), JSON.stringify(resource_Obj[rootnm].aa), resource_Obj[rootnm].mni, resource_Obj[rootnm].ri,
+                    JSON.stringify(resource_Obj[rootnm].at), JSON.stringify(resource_Obj[rootnm].aa), resource_Obj[rootnm].ri,
                     resource_Obj[rootnm].dc, resource_Obj[rootnm].can, resource_Obj[rootnm].att, JSON.stringify(resource_Obj[rootnm].cas), resource_Obj[rootnm].cus,
                     resource_Obj[rootnm].ena, resource_Obj[rootnm].dis, function (err, results) {
                         if (!err) {
@@ -2104,7 +2118,7 @@ function update_action(request, response, ty, resource_Obj, callback) {
     }
     else if (ty == '14') {
         db_sql.update_nod(resource_Obj[rootnm].lt, JSON.stringify(resource_Obj[rootnm].acpi), resource_Obj[rootnm].et, resource_Obj[rootnm].st, JSON.stringify(resource_Obj[rootnm].lbl),
-            JSON.stringify(resource_Obj[rootnm].at), JSON.stringify(resource_Obj[rootnm].aa), resource_Obj[rootnm].mni, resource_Obj[rootnm].ri,
+            JSON.stringify(resource_Obj[rootnm].at), JSON.stringify(resource_Obj[rootnm].aa), resource_Obj[rootnm].ri,
             resource_Obj[rootnm].ni, resource_Obj[rootnm].mgca, function (err, results) {
                 if (!err) {
                     callback('1', resource_Obj);
@@ -2203,20 +2217,24 @@ function update_action(request, response, ty, resource_Obj, callback) {
                 }
             });
     }
-    else if (ty == '39') {
-        db_sql.update_tr(resource_Obj[rootnm], function (err, results) {
+    else if (ty == '38') {
+        db_sql.update_tm(resource_Obj[rootnm], function (err, results) {
             if (!err) {
-                if (resource_Obj[rootnm].tctl === tctl_v.EXECUTE) { // EXCUTE
-                    tr.request_execute(resource_Obj[rootnm].ri, resource_Obj[rootnm].trqp);
+                if (resource_Obj[rootnm].tctl == tctl_v.EXECUTE) { // EXCUTE
+                    tr.request_execute(resource_Obj[rootnm].ri, resource_Obj[rootnm].trqp, function(rsc) {
+                        callback(rsc, resource_Obj);
+                    });
                 }
-                else if (resource_Obj[rootnm].tctl === tctl_v.COMMIT) { // COMMIT
-                    tr.request_commit(resource_Obj[rootnm].ri, resource_Obj[rootnm].tst);
+                else if (resource_Obj[rootnm].tctl == tctl_v.COMMIT) { // COMMIT
+                    tr.request_commit(resource_Obj[rootnm].ri, resource_Obj[rootnm].trqp, function (rsc) {
+                        callback(rsc, resource_Obj);
+                    });
                 }
-                else if (resource_Obj[rootnm].tctl === tctl_v.ABORT) { // COMMIT
-                    tr.request_abort(resource_Obj[rootnm].ri, resource_Obj[rootnm].tst);
+                else if (resource_Obj[rootnm].tctl == tctl_v.ABORT) { // ABORT
+                    tr.request_abort(resource_Obj[rootnm].ri, resource_Obj[rootnm].tst, function (rsc) {
+                        callback(rsc, resource_Obj);
+                    });
                 }
-
-                callback('1', resource_Obj);
             }
             else {
                 body_Obj = {};
@@ -2226,6 +2244,78 @@ function update_action(request, response, ty, resource_Obj, callback) {
                 return '0';
             }
         });
+    }
+    else if (ty == '39') {
+        if (resource_Obj[rootnm].tctl == tctl_v.LOCK && (resource_Obj[rootnm].tst == tst_v.ABORTED || resource_Obj[rootnm].tst == tst_v.COMMITTED)) { // LOCK
+            resource_Obj[rootnm].tst = tst_v.LOCKED;
+            resource_Obj[rootnm].trsp = '';
+            db_sql.update_tr(resource_Obj[rootnm], function (err, results) {
+                if (!err) {
+                    callback('1', resource_Obj);
+                }
+                else {
+                    body_Obj = {};
+                    body_Obj['dbg'] = results.message;
+                    responder.response_result(request, response, 500, body_Obj, 5000, request.url, body_Obj['dbg']);
+                    callback('0', resource_Obj);
+                    return '0';
+                }
+            });
+        }
+        else if (resource_Obj[rootnm].tctl == tctl_v.EXECUTE && (resource_Obj[rootnm].tst == tst_v.LOCKED)) { // EXCUTE
+            tr.request_execute(resource_Obj, function(rsc, resource_Obj) {
+                db_sql.update_tr(resource_Obj[rootnm], function (err, results) {
+                    if (!err) {
+                        callback('1', resource_Obj);
+                    }
+                    else {
+                        body_Obj = {};
+                        body_Obj['dbg'] = results.message;
+                        responder.response_result(request, response, 500, body_Obj, 5000, request.url, body_Obj['dbg']);
+                        callback('0', resource_Obj);
+                        return '0';
+                    }
+                });
+            });
+        }
+        else if (resource_Obj[rootnm].tctl == tctl_v.COMMIT && (resource_Obj[rootnm].tst == tst_v.EXECUTED)) { // COMMIT
+            tr.request_commit(resource_Obj, function (rsc, resource_Obj) {
+                db_sql.update_tr(resource_Obj[rootnm], function (err, results) {
+                    if (!err) {
+                        callback('1', resource_Obj);
+                    }
+                    else {
+                        body_Obj = {};
+                        body_Obj['dbg'] = results.message;
+                        responder.response_result(request, response, 500, body_Obj, 5000, request.url, body_Obj['dbg']);
+                        callback('0', resource_Obj);
+                        return '0';
+                    }
+                });
+            });
+        }
+        else if (resource_Obj[rootnm].tctl == tctl_v.ABORT && (resource_Obj[rootnm].tst == tst_v.LOCKED || resource_Obj[rootnm].tst == tst_v.EXECUTED)) { // ABORT
+            resource_Obj[rootnm].tst = tst_v.ABORTED;
+            db_sql.update_tr(resource_Obj[rootnm], function (err, results) {
+                if (!err) {
+                    callback('1', resource_Obj);
+                }
+                else {
+                    body_Obj = {};
+                    body_Obj['dbg'] = results.message;
+                    responder.response_result(request, response, 500, body_Obj, 5000, request.url, body_Obj['dbg']);
+                    callback('0', resource_Obj);
+                    return '0';
+                }
+            });
+        }
+        else {
+            body_Obj = {};
+            body_Obj['dbg'] = 'BAD_REQUEST: state of tranaction is mismatch';
+            responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
+            callback('0', resource_Obj);
+            return '0';
+        }
     }
     else {
         body_Obj = {};

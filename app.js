@@ -314,6 +314,21 @@ global.make_json_arraytype = function (body_Obj) {
                         }
                     }
 
+                    if (attr == 'rqps') {
+                        var rqps_type = getType(body_Obj[prop][attr]);
+                        if (rqps_type === 'array') {
+
+                        }
+                        else if (rqps_type === 'object') {
+                            var temp = body_Obj[prop][attr];
+                            body_Obj[prop][attr] = [];
+                            body_Obj[prop][attr].push(temp);
+                        }
+                        else {
+
+                        }
+                    }
+
                     if (attr == 'enc') {
                         if (body_Obj[prop][attr]) {
                             if (body_Obj[prop][attr].net) {
@@ -326,7 +341,7 @@ global.make_json_arraytype = function (body_Obj) {
                         if (body_Obj[prop][attr]) {
                             if (body_Obj[prop][attr].acr) {
                                 if (!Array.isArray(body_Obj[prop][attr].acr)) {
-                                    var temp = body_Obj[prop][attr].acr;
+                                    temp = body_Obj[prop][attr].acr;
                                     body_Obj[prop][attr].acr = [];
                                     body_Obj[prop][attr].acr[0] = temp;
                                 }
@@ -404,9 +419,9 @@ function check_http_body(request, response, callback) {
     if (request.headers.usebodytype === 'xml') {
         try {
             var parser = new xml2js.Parser({explicitArray: false});
-            parser.parseString(request.body, function (err, result) {
+            parser.parseString(request.body.toString(), function (err, result) {
                 if (err) {
-                    responder.error_result(request, response, 400, 4000, 'do not parse xml body');
+                    responder.error_result(request, response, 400, 4000, 'do not parse xml body' + err.message);
                     callback('0', body_Obj, content_type, request, response);
                 }
                 else {
@@ -540,14 +555,35 @@ function check_http(request, response, callback) {
                         return '0';
                     }
 
-                    if(ty == '2' && request.headers['x-m2m-origin'].charAt(0) == '/') {
-                        console.log(request.headers['x-m2m-origin']);
-                        body_Obj = {};
-                        body_Obj['dbg'] = 'BAD REQUEST: When request to create AE, AE-ID should start \'S\' or \'C\' of AE-ID in X-M2M-Origin Header';
-                        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-                        callback('0', body_Obj, request, response);
-                        return '0';
-                    }
+//                    if(ty == '2') {
+                        if(request.headers['x-m2m-origin'].charAt(0) == '/') {
+                            if(request.headers['x-m2m-origin'].split('/').length > 2) {
+                                if((request.headers['x-m2m-origin'].split('/')[2].charAt(0) == 'S' || request.headers['x-m2m-origin'].split('/')[2].charAt(0) == 'C')) {  // origin is SP-relative-ID
+                                }
+                                else {
+                                    console.log(request.headers['x-m2m-origin']);
+                                    body_Obj = {};
+                                    body_Obj['dbg'] = 'BAD REQUEST: When request to create AE, AE-ID should start \'S\' or \'C\' of AE-ID in X-M2M-Origin Header';
+                                    responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
+                                    callback('0', body_Obj, request, response);
+                                    return '0';
+                                }
+                            }
+                            else {
+
+                            }
+                        }
+                        else if((request.headers['x-m2m-origin'].charAt(0) == 'S' || request.headers['x-m2m-origin'].charAt(0) == 'C')) {
+                        }
+                        else {
+                            console.log(request.headers['x-m2m-origin']);
+                            body_Obj = {};
+                            body_Obj['dbg'] = 'BAD REQUEST: When request to create AE, AE-ID should start \'S\' or \'C\' of AE-ID in X-M2M-Origin Header';
+                            responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
+                            callback('0', body_Obj, request, response);
+                            return '0';
+                        }
+//                    }
 
                     if (ty == '5') {
                         responder.error_result(request, response, 405, 4005, 'OPERATION_NOT_ALLOWED: CSEBase can not be created by others');
@@ -633,7 +669,7 @@ function check_http(request, response, callback) {
                         for (var attr in body_Obj[prop]) {
                             if (body_Obj[prop].hasOwnProperty(attr)) {
                                 if(attr == 'aa' || attr == 'at' || attr == 'poa' || attr == 'lbl' || attr == 'acpi' || attr == 'srt' ||
-                                    attr == 'nu' || attr == 'mid' || attr == 'macp' || attr == 'rels') {
+                                    attr == 'nu' || attr == 'mid' || attr == 'macp' || attr == 'rels' || attr == 'rqps') {
                                     if (!Array.isArray(body_Obj[prop][attr])) {
                                         body_Obj = {};
                                         body_Obj['dbg'] = attr + ' attribute should be json array format';
