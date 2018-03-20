@@ -49,7 +49,7 @@ function parse_create_action(callback) {
     resource_Obj[rootnm].csi = usecseid;
 
     //resource_Obj[rootnm].srt = ty_list;
-    resource_Obj[rootnm].srt = ['1', '2', '3', '4', '5', '9', '10', '13', '14', '16', '17', '23', '24', '27', '29', '30'];
+    resource_Obj[rootnm].srt = ['1', '2', '3', '4', '5', '9', '10', '13', '14', '16', '17', '23'];
 
     resource_Obj[rootnm].poa = [];
     resource_Obj[rootnm].poa.push('http://' + ip.address() + ':' + usecsebaseport);

@@ -132,7 +132,7 @@ function security_default_check_action(request, response, cr, access_value, call
             callback('1', request, response);
         }
         else {
-            if (access_value == '1' || access_value == '2' || access_value == '32') {
+            if (access_value & '1' || access_value & '2' || access_value & '32') {
                 callback('1', request, response);
             }
             else {

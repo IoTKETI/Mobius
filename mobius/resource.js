@@ -1585,6 +1585,83 @@ function search_action(request, response, seq, resource_Obj, ri_list, strObj, pr
     });
 }
 
+global.makeObject = function (spec_Obj) {
+    if (spec_Obj.srt) {
+        spec_Obj.srt = JSON.parse(spec_Obj.srt);
+    }
+    if (spec_Obj.nu) {
+        spec_Obj.nu = JSON.parse(spec_Obj.nu);
+    }
+    if (spec_Obj.acpi) {
+        spec_Obj.acpi = JSON.parse(spec_Obj.acpi);
+    }
+    if (spec_Obj.poa) {
+        spec_Obj.poa = JSON.parse(spec_Obj.poa);
+    }
+    if (spec_Obj.enc) {
+        spec_Obj.enc = JSON.parse(spec_Obj.enc);
+    }
+    if (spec_Obj.bn) {
+        spec_Obj.bn = JSON.parse(spec_Obj.bn);
+    }
+    if (spec_Obj.pv) {
+        spec_Obj.pv = JSON.parse(spec_Obj.pv);
+    }
+    if (spec_Obj.pvs) {
+        spec_Obj.pvs = JSON.parse(spec_Obj.pvs);
+    }
+    if (spec_Obj.mid) {
+        spec_Obj.mid = JSON.parse(spec_Obj.mid);
+    }
+    if (spec_Obj.uds) {
+        spec_Obj.uds = JSON.parse(spec_Obj.uds);
+    }
+    if (spec_Obj.cas) {
+        spec_Obj.cas = JSON.parse(spec_Obj.cas);
+    }
+    if (spec_Obj.macp) {
+        spec_Obj.macp = JSON.parse(spec_Obj.macp);
+    }
+    if (spec_Obj.rels) {
+        spec_Obj.rels = JSON.parse(spec_Obj.rels);
+    }
+    if (spec_Obj.rqps) {
+        spec_Obj.rqps = JSON.parse(spec_Obj.rqps);
+    }
+    if (spec_Obj.rsps) {
+        spec_Obj.rsps = JSON.parse(spec_Obj.rsps);
+    }
+    if (spec_Obj.trqp) {
+        var trqp_type = getType(spec_Obj.trqp);
+        if (trqp_type === 'object' || trqp_type === 'array' || trqp_type === 'string_object') {
+            try {
+                spec_Obj.trqp = JSON.parse(spec_Obj.trqp);
+            }
+            catch (e) {
+            }
+        }
+    }
+    if (spec_Obj.trsp) {
+        var trsp_type = getType(spec_Obj.trsp);
+        if (trsp_type === 'object' || trsp_type === 'array' || trsp_type === 'string_object') {
+            try {
+                spec_Obj.trsp = JSON.parse(spec_Obj.trsp);
+            }
+            catch (e) {
+            }
+        }
+    }
+    if (spec_Obj.con) {
+        var con_type = getType(spec_Obj.con);
+        if (con_type === 'object' || con_type === 'array' || con_type === 'string_object') {
+            try {
+                spec_Obj.con = JSON.parse(spec_Obj.con);
+            }
+            catch (e) {
+            }
+        }
+    }
+};
 
 function retrieve_action(request, response, ty, comm_Obj, callback) {
     var rootnm = request.headers.rootnm;
@@ -1597,81 +1674,7 @@ function retrieve_action(request, response, ty, comm_Obj, callback) {
         if (!err) {
             if (spec_Obj.length == 1) {
                 console.timeEnd('resource_retrieve ' + comm_Obj.ri + ' (' + tid + ')');
-                if (spec_Obj[0].srt) {
-                    spec_Obj[0].srt = JSON.parse(spec_Obj[0].srt);
-                }
-                if (spec_Obj[0].nu) {
-                    spec_Obj[0].nu = JSON.parse(spec_Obj[0].nu);
-                }
-                if (spec_Obj[0].acpi) {
-                    spec_Obj[0].acpi = JSON.parse(spec_Obj[0].acpi);
-                }
-                if (spec_Obj[0].poa) {
-                    spec_Obj[0].poa = JSON.parse(spec_Obj[0].poa);
-                }
-                if (spec_Obj[0].enc) {
-                    spec_Obj[0].enc = JSON.parse(spec_Obj[0].enc);
-                }
-                if (spec_Obj[0].bn) {
-                    spec_Obj[0].bn = JSON.parse(spec_Obj[0].bn);
-                }
-                if (spec_Obj[0].pv) {
-                    spec_Obj[0].pv = JSON.parse(spec_Obj[0].pv);
-                }
-                if (spec_Obj[0].pvs) {
-                    spec_Obj[0].pvs = JSON.parse(spec_Obj[0].pvs);
-                }
-                if (spec_Obj[0].mid) {
-                    spec_Obj[0].mid = JSON.parse(spec_Obj[0].mid);
-                }
-                if (spec_Obj[0].uds) {
-                    spec_Obj[0].uds = JSON.parse(spec_Obj[0].uds);
-                }
-                if (spec_Obj[0].cas) {
-                    spec_Obj[0].cas = JSON.parse(spec_Obj[0].cas);
-                }
-                if (spec_Obj[0].macp) {
-                    spec_Obj[0].macp = JSON.parse(spec_Obj[0].macp);
-                }
-                if (spec_Obj[0].rels) {
-                    spec_Obj[0].rels = JSON.parse(spec_Obj[0].rels);
-                }
-                if (spec_Obj[0].rqps) {
-                    spec_Obj[0].rqps = JSON.parse(spec_Obj[0].rqps);
-                }
-                if (spec_Obj[0].rsps) {
-                    spec_Obj[0].rsps = JSON.parse(spec_Obj[0].rsps);
-                }
-                if (spec_Obj[0].trqp) {
-                    var trqp_type = getType(spec_Obj[0].trqp);
-                    if (trqp_type === 'object' || trqp_type === 'array' || trqp_type === 'string_object') {
-                        try {
-                            spec_Obj[0].trqp = JSON.parse(spec_Obj[0].trqp);
-                        }
-                        catch (e) {
-                        }
-                    }
-                }
-                if (spec_Obj[0].trsp) {
-                    var trsp_type = getType(spec_Obj[0].trsp);
-                    if (trsp_type === 'object' || trsp_type === 'array' || trsp_type === 'string_object') {
-                        try {
-                            spec_Obj[0].trsp = JSON.parse(spec_Obj[0].trsp);
-                        }
-                        catch (e) {
-                        }
-                    }
-                }
-                if (spec_Obj[0].con) {
-                    var con_type = getType(spec_Obj[0].con);
-                    if (con_type === 'object' || con_type === 'array' || con_type === 'string_object') {
-                        try {
-                            spec_Obj[0].con = JSON.parse(spec_Obj[0].con);
-                        }
-                        catch (e) {
-                        }
-                    }
-                }
+                makeObject(spec_Obj[0]);
                 resource_Obj[rootnm] = merge(comm_Obj, spec_Obj[0]);
                 callback('1', resource_Obj);
             }
