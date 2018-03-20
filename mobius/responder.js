@@ -805,7 +805,10 @@ function typeCheckAction(index1, body_Obj) {
     for (var index2 in body_Obj) {
         if(body_Obj.hasOwnProperty(index2)) {
             if (body_Obj[index2] == null || body_Obj[index2] == '' || body_Obj[index2] == 'undefined' || body_Obj[index2] == '[]' || body_Obj[index2] == '\"\"') {
-                delete body_Obj[index2];
+                //delete body_Obj[index2];
+                if(index2 != 'pi') {
+                    delete body_Obj[index2];
+                }
             }
             else if (index2 == 'et') {
                 if (index1 == 'm2m:cb') {

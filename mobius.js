@@ -54,6 +54,9 @@ global.useaccesscontrolpolicy = 'disable';
 global.wdt = require('./wdt');
 
 
+global.allowed_app_id = [];
+allowed_app_id.push('C-allowed-id');
+
 var file = 'hit.json';
 fs.open(file, 'w', function(err, fd) {
     if (err) {

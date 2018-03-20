@@ -555,8 +555,25 @@ function check_http(request, response, callback) {
                         return '0';
                     }
 
-                    if(ty == '2' && request.headers['x-m2m-origin'].charAt(0) == '/') {
-                        if((request.headers['x-m2m-origin'].split('/')[2].charAt(0) == 'S' || request.headers['x-m2m-origin'].split('/')[2].charAt(0) == 'C')) {  // origin is SP-relative-ID
+//                    if(ty == '2') {
+                        if(request.headers['x-m2m-origin'].charAt(0) == '/') {
+                            if(request.headers['x-m2m-origin'].split('/').length > 2) {
+                                if((request.headers['x-m2m-origin'].split('/')[2].charAt(0) == 'S' || request.headers['x-m2m-origin'].split('/')[2].charAt(0) == 'C')) {  // origin is SP-relative-ID
+                                }
+                                else {
+                                    console.log(request.headers['x-m2m-origin']);
+                                    body_Obj = {};
+                                    body_Obj['dbg'] = 'BAD REQUEST: When request to create AE, AE-ID should start \'S\' or \'C\' of AE-ID in X-M2M-Origin Header';
+                                    responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
+                                    callback('0', body_Obj, request, response);
+                                    return '0';
+                                }
+                            }
+                            else {
+
+                            }
+                        }
+                        else if((request.headers['x-m2m-origin'].charAt(0) == 'S' || request.headers['x-m2m-origin'].charAt(0) == 'C')) {
                         }
                         else {
                             console.log(request.headers['x-m2m-origin']);
@@ -566,17 +583,7 @@ function check_http(request, response, callback) {
                             callback('0', body_Obj, request, response);
                             return '0';
                         }
-                    }
-                    else if(ty == '2' && (request.headers['x-m2m-origin'].charAt(0) == 'S' || request.headers['x-m2m-origin'].charAt(0) == 'C')) {
-                    }
-                    else {
-                        console.log(request.headers['x-m2m-origin']);
-                        body_Obj = {};
-                        body_Obj['dbg'] = 'BAD REQUEST: When request to create AE, AE-ID should start \'S\' or \'C\' of AE-ID in X-M2M-Origin Header';
-                        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-                        callback('0', body_Obj, request, response);
-                        return '0';
-                    }
+//                    }
 
                     if (ty == '5') {
                         responder.error_result(request, response, 405, 4005, 'OPERATION_NOT_ALLOWED: CSEBase can not be created by others');

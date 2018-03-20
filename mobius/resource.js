@@ -219,7 +219,7 @@ exports.remove_no_value = function (request, resource_Obj) {
                 else if (typeof resource_Obj[rootnm][index] === 'string') {
                     if (resource_Obj[rootnm][index] == '' || resource_Obj[rootnm][index] == 'undefined' || resource_Obj[rootnm][index] == '[]') {
                         if (resource_Obj[rootnm][index] == '' && index == 'pi') {
-                            resource_Obj[rootnm][index] = 'NULL';
+                            resource_Obj[rootnm][index] = null;
                         }
                         else {
                             delete resource_Obj[rootnm][index];
@@ -1966,7 +1966,7 @@ function update_action(request, response, ty, resource_Obj, callback) {
     }
     else if (ty == '3') {
         db_sql.update_cnt(resource_Obj[rootnm].lt, JSON.stringify(resource_Obj[rootnm].acpi), resource_Obj[rootnm].et, resource_Obj[rootnm].st, JSON.stringify(resource_Obj[rootnm].lbl),
-            JSON.stringify(resource_Obj[rootnm].at), JSON.stringify(resource_Obj[rootnm].aa), resource_Obj[rootnm].ri,
+            JSON.stringify(resource_Obj[rootnm].at), JSON.stringify(resource_Obj[rootnm].aa), resource_Obj[rootnm].mni, resource_Obj[rootnm].ri,
             resource_Obj[rootnm].mbs, resource_Obj[rootnm].mia, resource_Obj[rootnm].li, resource_Obj[rootnm].or, function (err, results) {
                 if (!err) {
                     update_action_mni('4', resource_Obj[rootnm].ri, resource_Obj[rootnm].mni, function (rsc, cni, cbs) {
