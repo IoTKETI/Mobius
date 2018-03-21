@@ -420,64 +420,19 @@ function create_action_st(ri, ty, pi, callback) {
     });
 }
 
-function create_action_cni(ri, ty, pi, cs, callback) {
-    db_sql.select_cni_parent(ty, pi, function (err, results_cni) {
-        if (results_cni.length == 1) {
-            var cni = results_cni[0]['cni'];
-            var cbs = results_cni[0]['cbs'];
-            var st = results_cni[0]['st'];
-            var mni = results_cni[0]['mni'];
-            var mbs = results_cni[0]['mbs'];
-            if (parseInt(cni, 10) >= parseInt(mni, 10) || parseInt(cbs, 10) >= parseInt(mbs, 10)) {
-                db_sql.select_cs_parent(ty, pi, function (err, results) {
-                    if (results.length == 1) {
-                        cni = (parseInt(cni, 10) - 1).toString();
-                        cbs = (parseInt(cbs, 10) - parseInt(results[0].cs, 10)).toString();
-                        db_sql.delete_ri_lookup(results[0].ri, function (err) {
-                            if (!err) {
-                                st = (parseInt(st, 10) + 1).toString();
-                                cni = (parseInt(cni, 10) + 1).toString();
-                                cbs = (parseInt(cbs, 10) + parseInt(cs, 10)).toString();
-                                results_cni[0].st = st;
-                                results_cni[0].cni = cni;
-                                results_cni[0].cbs = cbs;
-                                db_sql.update_cni_parent(ty, cni, cbs, st, pi, function (err, results) {
-                                    if (!err) {
-                                        db_sql.update_st_lookup(st, ri, function (err, results) {
-                                            if (!err) {
-                                                callback('1');
-                                            }
-                                            else {
-                                                var body_Obj = {};
-                                                body_Obj['dbg'] = results.message;
-                                                console.log(JSON.stringify(body_Obj));
-                                                callback('0');
-                                                return '0';
-                                            }
-                                        });
-                                    }
-                                    else {
-                                        var body_Obj = {};
-                                        body_Obj['dbg'] = results.message;
-                                        console.log(JSON.stringify(body_Obj));
-                                        callback('0');
-                                        return '0';
-                                    }
-                                });
-                            }
-                        });
-                    }
-                });
-            }
-            else {
-                st = (parseInt(st, 10) + 1).toString();
-                cni = (parseInt(cni, 10) + 1).toString();
-                cbs = (parseInt(cbs, 10) + parseInt(cs, 10)).toString();
-                db_sql.update_cni_parent(ty, cni, cbs, st, pi, function (err, results) {
+function create_action_cni(ty, pi, cni, cbs, mni, mbs, st, callback) {
+    if (parseInt(cni, 10) > parseInt(mni, 10) || parseInt(cbs, 10) > parseInt(mbs, 10)) {
+        db_sql.select_cs_parent(ty, pi, function (err, results_cs) { // select oldest
+            if (results_cs.length == 1) {
+                db_sql.delete_ri_lookup(results_cs[0].ri, function (err) {
                     if (!err) {
-                        db_sql.update_st_lookup(st, ri, function (err, results) {
+                        cni = (parseInt(cni, 10) - 1).toString();
+                        cbs = (parseInt(cbs, 10) - parseInt(results_cs[0].cs, 10)).toString();
+                        db_sql.update_cni_parent(ty, cni, cbs, st, pi, function (err, results) {
                             if (!err) {
-                                callback('1', st);
+                                create_action_cni(ty, pi, cni, cbs, mni, mbs, st, function (rsc) {
+                                    callback(rsc);
+                                });
                             }
                             else {
                                 var body_Obj = {};
@@ -498,8 +453,11 @@ function create_action_cni(ri, ty, pi, cs, callback) {
                     }
                 });
             }
-        }
-    });
+        });
+    }
+    else {
+        callback('1');
+    }
 }
 
 function create_action(request, response, ty, resource_Obj, callback) {
@@ -593,9 +551,30 @@ function create_action(request, response, ty, resource_Obj, callback) {
             JSON.stringify(resource_Obj[rootnm].aa), resource_Obj[rootnm].st, resource_Obj[rootnm].cnf, resource_Obj[rootnm].cs, resource_Obj[rootnm].sri, resource_Obj[rootnm].spi,
             resource_Obj[rootnm].cr, resource_Obj[rootnm].or, resource_Obj[rootnm].con, function (err, results) {
                 if (!err) {
-                    create_action_cni(resource_Obj[rootnm].ri, resource_Obj[rootnm].ty, resource_Obj[rootnm].pi, resource_Obj[rootnm].cs, function (rsc, st) {
-                        resource_Obj[rootnm].st = st;
-                        callback('1', resource_Obj);
+                    var ty = resource_Obj[rootnm].ty;
+                    var pi = resource_Obj[rootnm].pi;
+                    var mni = request.headers.mni;
+                    var mbs = request.headers.mbs;
+                    var cni = (parseInt(request.headers.cni, 10) + 1).toString();
+                    var cbs = (parseInt(request.headers.cbs, 10) + parseInt(resource_Obj[rootnm].cs, 10)).toString();
+                    var st = (parseInt(request.headers.st, 10) + 1).toString();
+                    db_sql.update_cni_parent(ty, cni, cbs, st, pi, function (err, results) {
+                        if (!err) {
+                            create_action_cni(resource_Obj[rootnm].ty, resource_Obj[rootnm].pi, cni, cbs, mni, mbs, st, function (rsc) {
+                                resource_Obj[rootnm].st = st;
+                                callback('1', resource_Obj);
+                            });
+                        }
+                        else {
+                            // rollback
+                            db_sql.delete_ri_lookup(resource_Obj[rootnm].ri, function (err) {
+                                body_Obj = {};
+                                body_Obj['dbg'] = results.message;
+                                responder.response_result(request, response, 500, body_Obj, 5000, request.url, body_Obj['dbg']);
+                                callback('0', resource_Obj);
+                                return '0';
+                            });
+                        }
                     });
                 }
                 else {
@@ -981,9 +960,30 @@ function create_action(request, response, ty, resource_Obj, callback) {
             JSON.stringify(resource_Obj[rootnm].aa), resource_Obj[rootnm].st, resource_Obj[rootnm].sri, resource_Obj[rootnm].spi,
             resource_Obj[rootnm].dgt, resource_Obj[rootnm].con, resource_Obj[rootnm].sqn, function (err, results) {
                 if (!err) {
-                    create_action_cni(resource_Obj[rootnm].ri, resource_Obj[rootnm].ty, resource_Obj[rootnm].pi, resource_Obj[rootnm].cs, function (rsc, st) {
-                        resource_Obj[rootnm].st = st;
-                        callback('1', resource_Obj);
+                    var ty = resource_Obj[rootnm].ty;
+                    var pi = resource_Obj[rootnm].pi;
+                    var mni = request.headers.mni;
+                    var mbs = request.headers.mbs;
+                    var cni = (parseInt(request.headers.cni, 10) + 1).toString();
+                    var cbs = (parseInt(request.headers.cbs, 10) + parseInt(resource_Obj[rootnm].cs, 10)).toString();
+                    var st = (parseInt(request.headers.st, 10) + 1).toString();
+                    db_sql.update_cni_parent(ty, cni, cbs, st, pi, function (err, results) {
+                        if (!err) {
+                            create_action_cni(resource_Obj[rootnm].ty, resource_Obj[rootnm].pi, cni, cbs, mni, mbs, st, function (rsc) {
+                                resource_Obj[rootnm].st = st;
+                                callback('1', resource_Obj);
+                            });
+                        }
+                        else {
+                            // rollback
+                            db_sql.delete_ri_lookup(resource_Obj[rootnm].ri, function (err) {
+                                body_Obj = {};
+                                body_Obj['dbg'] = results.message;
+                                responder.response_result(request, response, 500, body_Obj, 5000, request.url, body_Obj['dbg']);
+                                callback('0', resource_Obj);
+                                return '0';
+                            });
+                        }
                     });
                 }
                 else {

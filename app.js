@@ -690,9 +690,22 @@ function check_http(request, response, callback) {
                     if (body_Obj.hasOwnProperty(prop)) {
                         for (var attr in body_Obj[prop]) {
                             if (body_Obj[prop].hasOwnProperty(attr)) {
-                                if(attr == 'aa' || attr == 'at' || attr == 'poa' || attr == 'lbl' || attr == 'acpi' || attr == 'srt' ||
+                                if(attr == 'aa' || attr == 'at' || attr == 'poa' || attr == 'acpi' || attr == 'srt' ||
                                     attr == 'nu' || attr == 'mid' || attr == 'macp' || attr == 'rels' || attr == 'rqps') {
                                     if (!Array.isArray(body_Obj[prop][attr])) {
+                                        if(body_Objbody_Obj[prop][attr])
+                                        body_Obj = {};
+                                        body_Obj['dbg'] = attr + ' attribute should be json array format';
+                                        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
+                                        callback('0', body_Obj, request, response);
+                                        return '0';
+                                    }
+                                }
+                                else if(attr == 'lbl') {
+                                    if(body_Obj[prop][attr] == null) {
+                                        body_Obj[prop][attr] = [];
+                                    }
+                                    else if (!Array.isArray(body_Obj[prop][attr])) {
                                         body_Obj = {};
                                         body_Obj['dbg'] = attr + ' attribute should be json array format';
                                         responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
@@ -718,7 +731,28 @@ function check_http(request, response, callback) {
                                         return '0';
                                     }
                                 }
-                                else if (attr == 'pv' || attr == 'pvs') {
+                                else if (attr == 'pv') {
+                                    if(body_Obj[prop][attr].hasOwnProperty('acr')) {
+                                        if (!Array.isArray(body_Obj[prop][attr].acr)) {
+                                            body_Obj = {};
+                                            body_Obj['dbg'] = attr + '.acr should be json array format';
+                                            responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
+                                            callback('0', body_Obj, request, response);
+                                            return '0';
+                                        }
+
+                                        if (body_Obj[prop][attr].acr.acor) {
+                                            if (!Array.isArray(body_Obj[prop][attr].acr.acor)) {
+                                                body_Obj = {};
+                                                body_Obj['dbg'] = attr + '.acr.acor should be json array format';
+                                                responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
+                                                callback('0', body_Obj, request, response);
+                                                return '0';
+                                            }
+                                        }
+                                    }
+                                }
+                                else if (attr == 'pvs') {
                                     if (body_Obj[prop][attr].acr) {
                                         if (!Array.isArray(body_Obj[prop][attr].acr)) {
                                             body_Obj = {};
@@ -1171,7 +1205,7 @@ function lookup_create(request, response) {
                     //if (parent_comm.ty == 2 || parent_comm.ty == 4 || parent_comm.ty == 3 || parent_comm.ty == 9 || parent_comm.ty == 24 || parent_comm.ty == 23 || parent_comm.ty == 29) {
                     db_sql.select_resource(responder.typeRsrc[parent_comm.ty], parent_comm.ri, function (err, parent_spec) {
                         if (!err) {
-                            if ((ty == 4) && (parent_comm.ty == 3)) { // contentInstance
+                            if (((ty == 4) && (parent_comm.ty == 3)) || ((ty == 30) && (parent_comm.ty == 29))) { // contentInstance
                                 if (parent_spec[0].mni == null) {
                                     //body_Obj[rootnm].mni = '3153600000';
                                 }
@@ -1198,6 +1232,12 @@ function lookup_create(request, response) {
                                         //body_Obj[rootnm].mni = parent_spec[0].mni;
                                     }
                                 }
+
+                                request.headers.mni = parent_spec[0].mni;
+                                request.headers.mbs = parent_spec[0].mbs;
+                                request.headers.cni = parent_spec[0].cni;
+                                request.headers.cbs = parent_spec[0].cbs;
+                                request.headers.st = parent_comm.st;
                             }
 
                             if (parent_spec.length == 0) {

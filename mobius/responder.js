@@ -910,7 +910,7 @@ function typeCheckAction(index1, body_Obj) {
                 delete body_Obj[index2];
             }
             else if (index2 == 'pv' || index2 == 'pvs') {
-                if (!Array.isArray(body_Obj[index2].acr)) {
+                if(getType(body_Obj[index2]) === 'string') {
                     body_Obj[index2] = JSON.parse(body_Obj[index2]);
                 }
             }

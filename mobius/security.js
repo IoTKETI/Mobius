@@ -36,24 +36,34 @@ function security_check_action_pv(request, response, acpiList, cr, access_value,
                     for (var i = 0; i < results_acp.length; i++) {
                         var pvObj = JSON.parse(results_acp[i].pv);
                         var from = request.headers['x-m2m-origin'];
-                        for (var index in pvObj.acr) {
-                            if (pvObj.acr.hasOwnProperty(index)) {
-                                try {
-                                    var re = new RegExp('^' + from + '$');
-                                    for (var acor_idx in pvObj.acr[index].acor) {
-                                        if (pvObj.acr[index].acor.hasOwnProperty(acor_idx)) {
-                                            if (pvObj.acr[index].acor[acor_idx].match(re) || pvObj.acr[index].acor[acor_idx] == 'all' || pvObj.acr[index].acor[acor_idx] == '*') {
-                                                if ((pvObj.acr[index].acop.toString() & access_value) == access_value) {
-                                                    callback('1', request, response);
-                                                    return '1';
+                        if(pvObj.hasOwnProperty('acr')) {
+                            for (var index in pvObj.acr) {
+                                if (pvObj.acr.hasOwnProperty(index)) {
+                                    try {
+                                        var re = new RegExp('^' + from + '$');
+                                        for (var acor_idx in pvObj.acr[index].acor) {
+                                            if (pvObj.acr[index].acor.hasOwnProperty(acor_idx)) {
+                                                if (pvObj.acr[index].acor[acor_idx].match(re) || pvObj.acr[index].acor[acor_idx] == 'all' || pvObj.acr[index].acor[acor_idx] == '*') {
+                                                    if ((pvObj.acr[index].acop.toString() & access_value) == access_value) {
+                                                        callback('1', request, response);
+                                                        return '1';
+                                                    }
                                                 }
                                             }
                                         }
                                     }
+                                    catch (e) {
+                                        console.log('[security_check_action_pv]' + e);
+                                    }
                                 }
-                                catch (e) {
-                                    console.log('[security_check_action_pv]' + e);
-                                }
+                            }
+                        }
+                        else {
+                            if (request.headers['x-m2m-origin'] == cr) {
+                                callback('1', request, response);
+                            }
+                            else {
+                                callback('0', request, response);
                             }
                         }
                     }
