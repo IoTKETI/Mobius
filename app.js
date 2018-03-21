@@ -455,7 +455,7 @@ function check_http_body(request, response, callback) {
             });
         }
         catch(e) {
-            responder.error_result(request, response, 400, 4000, 'do not parse xml body');
+            responder.error_result(request, response, 400, 4000, 'do not parse cbor body');
             callback('0', body_Obj, content_type, request, response);
         }
     }
@@ -1688,32 +1688,30 @@ app.post(onem2mParser, function (request, response) {
             else {
                 absolute_url = (results.length == 0) ? absolute_url : ((results[0].hasOwnProperty('ri')) ? absolute_url.replace('/' + absolute_url_arr[1], results[0].ri) : absolute_url);
 
-                if (url.parse(absolute_url).pathname.split('/')[1] == usecsebase) {
-                    request.url = absolute_url;
-                    if ((request.query.fu == 2) &&
-                        (request.query.rcn == 0 || request.query.rcn == 1 || request.query.rcn == 2 || request.query.rcn == 3)) {
-                        lookup_create(request, response);
+                check_notification(request, absolute_url, function(status, http_code, rsc_code, caption) {
+                    if(status == 'notify') {
+                        check_ae(absolute_url, request, response);
+
                     }
-                    else {
-                        responder.error_result(request, response, 400, 4000, 'rcn or fu query is not supported at POST request');
-                    }
-                }
-                else {
-                    check_csr(absolute_url, function (rsc, body_Obj) {
-                        if (rsc == '0') {
-                            responder.error_result(request, response, 500, 5000, body_Obj['dbg']);
-                        }
-                        else if (rsc == '1') {
-                            forward_http(body_Obj.forwardcbhost, body_Obj.forwardcbport, request, response);
-                        }
-                        else if (rsc == '2') {
-                            responder.error_result(request, response, 500, 5000, 'forwarding with mqtt is not supported');
+                    else if(status == 'post') {
+                        if (url.parse(absolute_url).pathname.split('/')[1] == usecsebase) {
+                            request.url = absolute_url;
+                            if ((request.query.fu == 2) &&
+                                (request.query.rcn == 0 || request.query.rcn == 1 || request.query.rcn == 2 || request.query.rcn == 3)) {
+                                lookup_create(request, response);
+                            }
+                            else {
+                                responder.error_result(request, response, http_code, rsc_code, 'rcn or fu query is not supported at POST request');
+                            }
                         }
                         else {
-                            responder.error_result(request, response, 500, 5000, body_Obj['dbg']);
+                            check_csr(absolute_url, request, response);
                         }
-                    });
-                }
+                    }
+                    else if(status == '0') {
+                        responder.error_result(request, response, http_code, rsc_code, caption);
+                    }
+                });
             }
         });
     });
@@ -1798,20 +1796,7 @@ app.get(onem2mParser, function (request, response) {
                     }
                 }
                 else {
-                    check_csr(absolute_url, function (rsc, body_Obj) {
-                        if (rsc == '0') {
-                            responder.error_result(request, response, 500, 5000, body_Obj['dbg']);
-                        }
-                        else if (rsc == '1') {
-                            forward_http(body_Obj.forwardcbhost, body_Obj.forwardcbport, request, response);
-                        }
-                        else if (rsc == '2') {
-                            responder.error_result(request, response, 500, 5000, 'forwarding with mqtt is not supported');
-                        }
-                        else {
-                            responder.error_result(request, response, 500, 5000, body_Obj['dbg']);
-                        }
-                    });
+                    check_csr(absolute_url, request, response);
                 }
             }
         });
@@ -1872,20 +1857,7 @@ app.put(onem2mParser, function (request, response) {
                     }
                 }
                 else {
-                    check_csr(absolute_url, function (rsc, body_Obj) {
-                        if (rsc == '0') {
-                            responder.error_result(request, response, 500, 5000, body_Obj['dbg']);
-                        }
-                        else if (rsc == '1') {
-                            forward_http(body_Obj.forwardcbhost, body_Obj.forwardcbport, request, response);
-                        }
-                        else if (rsc == '2') {
-                            responder.error_result(request, response, 500, 5000, 'forwarding with mqtt is not supported');
-                        }
-                        else {
-                            responder.error_result(request, response, 500, 5000, body_Obj['dbg']);
-                        }
-                    });
+                    check_csr(absolute_url, request, response);
                 }
             }
         });
@@ -1945,61 +1917,160 @@ app.delete(onem2mParser, function (request, response) {
                     }
                 }
                 else {
-                    check_csr(absolute_url, function (rsc, body_Obj) {
-                        if (rsc == '0') {
-                            responder.error_result(request, response, 500, 5000, body_Obj['dbg']);
-                        }
-                        else if (rsc == '1') {
-                            forward_http(body_Obj.forwardcbhost, body_Obj.forwardcbport, request, response);
-                        }
-                        else if (rsc == '2') {
-                            responder.error_result(request, response, 500, 5000, 'forwarding with mqtt is not supported');
-                        }
-                        else {
-                            responder.error_result(request, response, 500, 5000, body_Obj['dbg']);
-                        }
-                    });
+                    check_csr(absolute_url, request, response);
                 }
             }
         });
     });
 });
 
-function check_csr(absolute_url, callback) {
+function check_notification(request, url, callback) {
+    if(request.headers.hasOwnProperty('content-type')) {
+        if(request.headers['content-type'].includes('ty')) { // post
+            callback('post');
+        }
+        else {
+            if(request.headers['content-type'].includes('xml')) {
+                request.headers.usebodytype = 'xml';
+                try {
+                    var parser = new xml2js.Parser({explicitArray: false});
+                    parser.parseString(request.body.toString(), function (err, body_Obj) {
+                        if (err) {
+                            callback('0', 400, 4000, 'do not parse xml body' + err.message);
+                        }
+                        else {
+                            var rootnm = Object.keys(body_Obj)[0].split(':')[1];
+                            if(rootnm == 'sgn') {
+                                callback('notify');
+                            }
+                            else {
+                                callback('0', 400, 4000, 'ty is none in content-type header');
+                            }
+                        }
+                    });
+                }
+                catch(e) {
+                    callback('0', 400, 4000, 'do not parse xml body' + e.message);
+                }
+            }
+            else if(request.headers['content-type'].includes('cbor')) {
+                request.headers.usebodytype = 'cbor';
+                try {
+                    var encoded = request.body;
+                    cbor.decodeFirst(encoded, function(err, body_Obj) {
+                        if (err) {
+                            callback('0', 400, 4000, 'do not parse cbor body');
+                        }
+                        else {
+                            var rootnm = Object.keys(body_Obj)[0].split(':')[1];
+                            if(rootnm == 'sgn') {
+                                callback('notify');
+                            }
+                            else {
+                                callback('0', 400, 4000, 'ty is none in content-type header');
+                            }
+                        }
+                    });
+                }
+                catch(e) {
+                    callback('0', 400, 4000, 'do not parse cbor body');
+                }
+            }
+            else {
+                request.headers.usebodytype = 'json';
+                try {
+                    var body_Obj = JSON.parse(request.body.toString());
+                    var rootnm = Object.keys(body_Obj)[0].split(':')[1];
+                    if(rootnm == 'sgn') {
+                        callback('notify');
+                    }
+                    else {
+                        callback('0', 400, 4000, 'ty is none in content-type header');
+                    }
+                }
+                catch (e) {
+                    callback('0', 400, 4000, 'do not parse json body');
+                }
+            }
+        }
+    }
+    else {
+        callback('0', 400, 4000, 'content-type is none');
+    }
+}
+
+function check_ae(absolute_url, request, response) {
+    var ri = absolute_url;
+    console.log('[check_ae] : ' + ri);
+    db_sql.select_ae(ri, function (err, result_ae) {
+        if (!err) {
+            if (result_ae.length == 1) {
+                var point = {};
+                var poa_arr = JSON.parse(result_ae[0].poa);
+                for (var i = 0; i < poa_arr.length; i++) {
+                    var poa = url.parse(poa_arr[i]);
+                    if (poa.protocol == 'http:') {
+                        console.log('send notification to ' + poa_arr[i]);
+
+                        notify_http(poa.hostname, poa.port, poa.path, request, response);
+                    }
+                    else if (poa.protocol == 'mqtt:') {
+                        responder.error_result(request, response, 500, 5000, 'notification with mqtt is not supported');
+                    }
+                    else {
+                        point = {};
+                        point['dbg'] = 'protocol(' + poa.protocol + ') in poa of ae is not supported';
+                        responder.error_result(request, response, 400, 4000, point['dbg']);
+                    }
+                }
+            }
+            else {
+                point = {};
+                point['dbg'] = 'ae is not found';
+                responder.error_result(request, response, 400, 4000, point['dbg']);
+            }
+        }
+        else {
+            console.log('[check_ae] query error: ' + result_ae.message);
+        }
+    });
+}
+
+function check_csr(absolute_url, request, response) {
     var ri = util.format('/%s/%s', usecsebase, url.parse(absolute_url).pathname.split('/')[1]);
     console.log('[check_csr] : ' + ri);
     db_sql.select_csr(ri, function (err, result_csr) {
         if (!err) {
             if (result_csr.length == 1) {
-                var body_Obj = {};
-                body_Obj.forwardcbname = result_csr[0].cb.replace('/', '');
+                var point = {};
+                point.forwardcbname = result_csr[0].cb.replace('/', '');
                 var poa_arr = JSON.parse(result_csr[0].poa);
                 for (var i = 0; i < poa_arr.length; i++) {
-                    if (url.parse(poa_arr[i]).protocol == 'http:') {
-                        body_Obj.forwardcbhost = url.parse(poa_arr[i]).hostname;
-                        body_Obj.forwardcbport = url.parse(poa_arr[i]).port;
+                    var poa = url.parse(poa_arr[i]);
+                    if (poa.protocol == 'http:') {
+                        point.forwardcbhost = poa.hostname;
+                        point.forwardcbport = poa.port;
 
-                        console.log('csebase forwarding to ' + body_Obj.forwardcbname);
+                        console.log('csebase forwarding to ' + point.forwardcbname);
 
-                        callback('1', body_Obj);
+                        forward_http(point.forwardcbhost, point.forwardcbport, request, response);
                     }
-                    else if (url.parse(poa_arr[i]).protocol == 'mqtt:') {
-                        body_Obj.forwardcbmqtt = url.parse(poa_arr[i]).hostname;
+                    else if (poa.protocol == 'mqtt:') {
+                        point.forwardcbmqtt = poa.hostname;
 
-                        callback('2', body_Obj);
+                        responder.error_result(request, response, 500, 5000, 'forwarding with mqtt is not supported');
                     }
                     else {
-                        body_Obj = {};
-                        body_Obj['dbg'] = 'poa of csr is not supported';
-                        callback('0', body_Obj);
-                        break;
+                        point = {};
+                        point['dbg'] = 'protocol(' + poa.protocol + ') in poa of csr is not supported';
+                        responder.error_result(request, response, 400, 4000, point['dbg']);
                     }
                 }
             }
             else {
-                result_csr = {};
-                result_csr['dbg'] = 'csebase is not found';
-                callback('3', result_csr);
+                point = {};
+                point['dbg'] = 'csebase is not found';
+                responder.error_result(request, response, 400, 4000, point['dbg']);
             }
         }
         else {
@@ -2008,6 +2079,68 @@ function check_csr(absolute_url, callback) {
     });
 }
 
+
+function notify_http(hostname, port, path, request, response) {
+    var options = {
+        hostname: hostname,
+        port: port,
+        path: path,
+        method: request.method,
+        headers: request.headers
+    };
+
+    var req = http.request(options, function (res) {
+        var fullBody = '';
+        res.on('data', function (chunk) {
+            fullBody += chunk.toString();
+        });
+
+        res.on('end', function () {
+            console.log('--------------------------------------------------------------------------');
+            //console.log(res.url);
+            //console.log(res.headers);
+            console.log(fullBody);
+            console.log('[Forward response : ' + res.statusCode + ']');
+
+            //response.headers = res.headers;
+            if (res.headers['content-type']) {
+                response.setHeader('Content-Type', res.headers['content-type']);
+            }
+            if (res.headers['x-m2m-ri']) {
+                response.setHeader('X-M2M-RI', res.headers['x-m2m-ri']);
+            }
+            if (res.headers['x-m2m-rsc']) {
+                response.setHeader('X-M2M-RSC', res.headers['x-m2m-rsc']);
+            }
+            if (res.headers['content-location']) {
+                response.setHeader('Content-Location', res.headers['content-location']);
+            }
+
+            response.statusCode = res.statusCode;
+            response.send(fullBody);
+        });
+    });
+
+    req.on('error', function (e) {
+        console.log('[forward_http] problem with request: ' + e.message);
+
+        response.statusCode = '404';
+        response.send(url.parse(request.url).pathname + ' : ' + e.message);
+    });
+
+    console.log(request.method + ' - ' + path);
+//    console.log(request.headers);
+    console.log(request.body);
+
+    // write data to request body
+    if ((request.method.toLowerCase() == 'get') || (request.method.toLowerCase() == 'delete')) {
+        req.write('');
+    }
+    else {
+        req.write(request.body);
+    }
+    req.end();
+}
 
 function forward_http(forwardcbhost, forwardcbport, request, response) {
     var options = {
