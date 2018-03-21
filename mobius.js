@@ -19,7 +19,6 @@ var fs = require('fs');
 var data  = fs.readFileSync('conf.json', 'utf-8');
 var conf = JSON.parse(data);
 
-global.defaultnmtype        = 'short';
 global.defaultbodytype      = 'json';
 
 
@@ -40,7 +39,7 @@ global.usepxymqttport       = '7578';
 global.usetsagentport       = '7582';
 
 global.usemqttbroker        = 'localhost'; // mqttbroker for mobius
-global.usesemanticbroker    = '10.10.202.114';
+
 global.usesecure            = 'disable';
 if(usesecure === 'enable') {
     global.usemqttport      = '8883';
@@ -55,10 +54,14 @@ global.wdt = require('./wdt');
 
 
 global.allowed_ae_ids = [];
-allowed_ae_ids.push('all');
+//allowed_ae_ids.push('ryeubi');
 
 global.allowed_app_ids = [];
-allowed_app_ids.push('all');
+//allowed_app_ids.push('APP01');
+
+
+
+global.usesemanticbroker    = '10.10.202.114';
 
 
 var file = 'hit.json';

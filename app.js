@@ -267,7 +267,7 @@ global.update_route = function (callback) {
     });
 };
 
-function make_short_nametype(nmtype, body_Obj) {
+function make_short_nametype(body_Obj) {
     if (body_Obj[Object.keys(body_Obj)[0]]['$'] != null) {
         if (body_Obj[Object.keys(body_Obj)[0]]['$'].rn != null) {
             body_Obj[Object.keys(body_Obj)[0]].rn = body_Obj[Object.keys(body_Obj)[0]]['$'].rn;
@@ -426,7 +426,7 @@ function check_http_body(request, response, callback) {
                 }
                 else {
                     body_Obj = result;
-                    make_short_nametype(request.headers.nmtype, body_Obj);
+                    make_short_nametype(body_Obj);
                     make_json_arraytype(body_Obj);
 
                     callback('1', body_Obj, content_type, request, response);
@@ -447,7 +447,7 @@ function check_http_body(request, response, callback) {
                     callback('0', body_Obj, content_type, request, response);
                 }
                 else {
-                    make_short_nametype(request.headers.nmtype, body_Obj);
+                    make_short_nametype(body_Obj);
                     //make_json_arraytype(body_Obj);
 
                     callback('1', body_Obj, content_type, request, response);
@@ -462,7 +462,7 @@ function check_http_body(request, response, callback) {
     else {
         try {
             body_Obj = JSON.parse(request.body.toString());
-            make_short_nametype(request.headers.nmtype, body_Obj);
+            make_short_nametype(body_Obj);
 
             if (Object.keys(body_Obj)[0] == 'undefined') {
                 responder.error_result(request, response, 400, 4000, 'root tag of body is not matched');
@@ -482,11 +482,6 @@ function check_http(request, response, callback) {
     request.headers.rootnm = 'dbg';
 
     var body_Obj = {};
-    if (request.headers.nmtype == null) {
-        request.headers.nmtype = defaultnmtype;
-    }
-
-//    check_body_format();
 
     // Check X-M2M-RI Header
     if ((request.headers['x-m2m-ri'] == null)) {
@@ -495,45 +490,44 @@ function check_http(request, response, callback) {
         return '0';
     }
 
-
     // Check X-M2M-Origin Header
-    if (request.method != 'POST' && (request.headers['x-m2m-origin'] == null)) {
-        responder.error_result(request, response, 400, 4000, 'BAD REQUEST: X-M2M-Origin Header is Mandatory');
-        callback('0', body_Obj, request, response);
-        return '0';
-    }
 
-    // if(request.headers['x-m2m-origin'].charAt(0) == '/' || request.headers['x-m2m-origin'].charAt(0) == 'S' || request.headers['x-m2m-origin'].charAt(0) == 'C') {
-    //     if (request.method != 'POST' && (request.headers['x-m2m-origin'] == 'S' || request.headers['x-m2m-origin'] == 'C' || request.headers['x-m2m-origin'] == '/')) {
-    //         body_Obj = {};
-    //         body_Obj['dbg'] = 'BAD REQUEST: When GET, PUT, DELETE request, AE-ID should be full AE-ID in X-M2M-Origin Header';
-    //         responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-    //         callback('0', body_Obj, request, response);
-    //         return '0';
-    //     }
-    // }
-    // else {
-    //     console.log(request.headers['x-m2m-origin']);
-    //     body_Obj = {};
-    //     responder.error_result(request, response, 405, 4005, 'OPERATION_NOT_ALLOWED: X-M2M-Origin Header value has a start character \'/\' , \'S\' or \'C\'');
-    //     callback('0', body_Obj, request, response);
-    //     return '0';
-    // }
+    if(request.headers['x-m2m-origin'] == null) {
+        if (request.method != 'POST') {
+            responder.error_result(request, response, 400, 4000, 'BAD REQUEST: X-M2M-Origin Header is Mandatory');
+            callback('0', body_Obj, request, response);
+            return '0';
+        }
+    }
+    else {
+        var allow = 1;
+        if(allowed_ae_ids.length > 0) {
+            allow = 0;
+            for(var idx in allowed_ae_ids) {
+                if(allowed_ae_ids.hasOwnProperty(idx)) {
+                    if(usecseid == request.headers['x-m2m-origin']) {
+                        allow = 1;
+                        break;
+                    }
+                    else if(allowed_ae_ids[idx] == request.headers['x-m2m-origin']) {
+                        allow = 1;
+                        break;
+                    }
+                }
+            }
+
+            if(allow == 0) {
+                responder.error_result(request, response, 403, 4107, 'OPERATION_NOT_ALLOWED: AE-ID is not allowed');
+                callback('0', body_Obj, request, response);
+                return '0';
+            }
+        }
+    }
 
     var url_arr = url.parse(request.url).pathname.split('/');
     var last_url = url_arr[url_arr.length - 1];
 
     if (request.method == 'POST' || request.method == 'PUT') {
-        // if(content_type[0].split('+')[0] != 'application/vnd.onem2m-res') {
-        //     body_Obj['dbg'] = 'Content-Type is not match (application/vnd.onem2m-res)';
-        //     responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-        //     callback('0', body_Obj, request, response);
-        //     return '0';
-        // }
-
-        //resource.set_rootnm(request, ty);
-        //var rootnm = request.headers.rootnm;
-
         check_http_body(request, response, function (rsc, body_Obj, content_type, request, response) {
             if (rsc == '1') {
                 if (request.method == 'POST') {
@@ -550,6 +544,27 @@ function check_http(request, response, callback) {
                                 return '0';
                             }
                         }
+
+                        if(ty == '2') {
+                            var allow = 1;
+                            if(allowed_app_ids.length > 0) {
+                                allow = 0;
+                                for(var idx in allowed_app_ids) {
+                                    if(allowed_app_ids.hasOwnProperty(idx)) {
+                                        if(allowed_app_ids[idx] == body_Obj.ae.api) {
+                                            allow = 1;
+                                            break;
+                                        }
+                                    }
+                                }
+
+                                if(allow == 0) {
+                                    responder.error_result(request, response, 403, 4107, 'OPERATION_NOT_ALLOWED: APP-ID in AE is not allowed');
+                                    callback('0', body_Obj, request, response);
+                                    return '0';
+                                }
+                            }
+                        }
                     }
                     catch (e) {
                         responder.error_result(request, response, 400, 4000, 'ty is none');
@@ -563,6 +578,7 @@ function check_http(request, response, callback) {
                         return '0';
                     }
 
+                    /* ignore from (origin)
                     if(request.headers['x-m2m-origin'].charAt(0) == '/') {
                         if(request.headers['x-m2m-origin'].split('/').length > 2) {
                             if((request.headers['x-m2m-origin'].split('/')[3].charAt(0) == 'S' || request.headers['x-m2m-origin'].split('/')[3].charAt(0) == 'C')) {  // origin is SP-relative-ID
@@ -589,6 +605,7 @@ function check_http(request, response, callback) {
                         callback('0', body_Obj, request, response);
                         return '0';
                     }
+                    */
 
                     if (ty == '5') {
                         responder.error_result(request, response, 405, 4005, 'OPERATION_NOT_ALLOWED: CSEBase can not be created by others');
