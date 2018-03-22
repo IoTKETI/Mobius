@@ -413,9 +413,9 @@ exports.check = function(request, notiObj, check_value) {
                 }
 
                 // when create sub resource, send noti for this sub
-                // if(results_ss[i].ri == ri) {
-                    //continue;
-                //}
+                if(results_ss[i].ri == ri) {
+                    continue;
+                }
 
                 //var cur_d = new Date();
                 //var msec = (parseInt(cur_d.getMilliseconds(), 10)<10) ? ('00'+cur_d.getMilliseconds()) : ((parseInt(cur_d.getMilliseconds(), 10)<100) ? ('0'+cur_d.getMilliseconds()) : cur_d.getMilliseconds());

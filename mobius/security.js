@@ -18,6 +18,8 @@ var url = require('url');
 var util = require('util');
 var db_sql = require('./sql_action');
 
+var moment = require('moment');
+
 function security_check_action_pv(request, response, acpiList, cr, access_value, callback) {
     make_internal_ri(acpiList);
     var ri_list = [];
@@ -40,20 +42,102 @@ function security_check_action_pv(request, response, acpiList, cr, access_value,
                             for (var index in pvObj.acr) {
                                 if (pvObj.acr.hasOwnProperty(index)) {
                                     try {
-                                        var re = new RegExp('^' + from + '$');
-                                        for (var acor_idx in pvObj.acr[index].acor) {
-                                            if (pvObj.acr[index].acor.hasOwnProperty(acor_idx)) {
-                                                if (pvObj.acr[index].acor[acor_idx].match(re) || pvObj.acr[index].acor[acor_idx] == 'all' || pvObj.acr[index].acor[acor_idx] == '*') {
-                                                    if ((pvObj.acr[index].acop.toString() & access_value) == access_value) {
-                                                        callback('1', request, response);
-                                                        return '1';
+                                        var acip_permit = 0;
+                                        var actw_permit = 0;
+                                        var acor_permit = 0;
+                                        if(pvObj.acr[index].hasOwnProperty('acco')) {
+                                            if (pvObj.acr[index].acco.hasOwnProperty('acip')) {
+                                                if(pvObj.acr[index].acco.acip.hasOwnProperty('ipv4')) {
+                                                    for (var ipv4_idx in pvObj.acr[index].acco.acip['ipv4']) {
+                                                        if(pvObj.acr[index].acco.acip['ipv4'].hasOwnProperty(ipv4_idx)) {
+                                                            if(pvObj.acr[index].acco.acip['ipv4'][ipv4_idx] == request.connection.remoteAddress) {
+                                                                acip_permit = 1;
+                                                                break;
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                                else {
+                                                    if (pvObj.acr[index].acco.acip.hasOwnProperty('ipv6')) {
+                                                        for (var ipv6_idx in pvObj.acr[index].acco.acip['ipv6']) {
+                                                            if(pvObj.acr[index].acco.acip['ipv6'].hasOwnProperty(ipv6_idx)) {
+                                                                if(pvObj.acr[index].acco.acip['ipv6'][ipv6_idx] == request.connection.remoteAddress) {
+                                                                    acip_permit = 1;
+                                                                    break;
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                    else {
+                                                        acip_permit = 1;
                                                     }
                                                 }
                                             }
+                                            else {
+                                                acip_permit = 1;
+                                            }
+
+                                            if(acip_permit == 1) {
+                                                if (pvObj.acr[index].acco.hasOwnProperty('actw')) {
+                                                    var actw_cur = [];
+                                                    actw_cur[5] = moment().utc().day();
+                                                    actw_cur[4] = moment().utc().month()+1;
+                                                    actw_cur[3] = moment().utc().date();
+                                                    actw_cur[2] = moment().utc().hour();
+                                                    actw_cur[1] = moment().utc().minute();
+                                                    actw_cur[0] = moment().utc().second();
+                                                    for (var actw_idx in pvObj.acr[index].acco.actw) {
+                                                        if (pvObj.acr[index].acco.actw.hasOwnProperty(actw_idx)) {
+                                                            var actw_arr = pvObj.acr[index].acco.actw[actw_idx].split(' ');
+                                                            for (var d = 0; d < 6; d++) {
+                                                                if (actw_arr[d] != '*' && actw_arr[d] == actw_cur[d].toString()) {
+                                                                    actw_permit = 1;
+                                                                    break;
+                                                                }
+                                                            }
+
+                                                            if (actw_permit == 1) {
+                                                                break;
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                                else {
+                                                    actw_permit = 1;
+                                                }
+                                            }
+                                        }
+                                        else {
+                                            acip_permit = 1;
+                                            actw_permit = 1;
+                                        }
+
+                                        if(acip_permit == 1 && actw_permit == 1) {
+                                            if (pvObj.acr[index].hasOwnProperty('acor')) {
+                                                var re = new RegExp('^' + from + '$');
+                                                for (var acor_idx in pvObj.acr[index].acor) {
+                                                    if (pvObj.acr[index].acor.hasOwnProperty(acor_idx)) {
+                                                        if (pvObj.acr[index].acor[acor_idx].match(re) || pvObj.acr[index].acor[acor_idx] == 'all' || pvObj.acr[index].acor[acor_idx] == '*') {
+                                                            if ((pvObj.acr[index].acop.toString() & access_value) == access_value) {
+                                                                acor_permit = 1;
+                                                                break;
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                            else {
+                                                acor_permit = 1;
+                                            }
+                                        }
+
+                                        if(acip_permit == 1 && actw_permit == 1 && acor_permit == 1) {
+                                            callback('1', request, response);
+                                            return '1';
                                         }
                                     }
                                     catch (e) {
-                                        console.log('[security_check_action_pv]' + e);
+                                        console.log('[security_check_action_pvs]' + e);
                                     }
                                 }
                             }
@@ -99,16 +183,98 @@ function security_check_action_pvs(request, response, acpiList, cr, access_value
                         for (var index in pvsObj.acr) {
                             if (pvsObj.acr.hasOwnProperty(index)) {
                                 try {
-                                    var re = new RegExp('^' + from + '$');
-                                    for (var acor_idx in pvsObj.acr[index].acor) {
-                                        if (pvsObj.acr[index].acor.hasOwnProperty(acor_idx)) {
-                                            if (pvsObj.acr[index].acor[acor_idx].match(re) || pvsObj.acr[index].acor[acor_idx] == 'all' || pvsObj.acr[index].acor[acor_idx] == '*') {
-                                                if ((pvsObj.acr[index].acop.toString() & access_value) == access_value) {
-                                                    callback('1', request, response);
-                                                    return '1';
+                                    var acip_permit = 0;
+                                    var actw_permit = 0;
+                                    var acor_permit = 0;
+                                    if(pvsObj.acr[index].hasOwnProperty('acco')) {
+                                        if (pvsObj.acr[index].acco.hasOwnProperty('acip')) {
+                                            if(pvsObj.acr[index].acco.acip.hasOwnProperty('ipv4')) {
+                                                for (var ipv4_idx in pvsObj.acr[index].acco.acip['ipv4']) {
+                                                    if(pvsObj.acr[index].acco.acip['ipv4'].hasOwnProperty(ipv4_idx)) {
+                                                        if(pvsObj.acr[index].acco.acip['ipv4'][ipv4_idx] == request.connection.remoteAddress) {
+                                                            acip_permit = 1;
+                                                            break;
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                            else {
+                                                if (pvsObj.acr[index].acco.acip.hasOwnProperty('ipv6')) {
+                                                    for (var ipv6_idx in pvsObj.acr[index].acco.acip['ipv6']) {
+                                                        if(pvsObj.acr[index].acco.acip['ipv6'].hasOwnProperty(ipv6_idx)) {
+                                                            if(pvsObj.acr[index].acco.acip['ipv6'][ipv6_idx] == request.connection.remoteAddress) {
+                                                                acip_permit = 1;
+                                                                break;
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                                else {
+                                                    acip_permit = 1;
                                                 }
                                             }
                                         }
+                                        else {
+                                            acip_permit = 1;
+                                        }
+
+                                        if(acip_permit == 1) {
+                                            if (pvsObj.acr[index].acco.hasOwnProperty('actw')) {
+                                                var actw_cur = [];
+                                                actw_cur[5] = moment().utc().day();
+                                                actw_cur[4] = moment().utc().month()+1;
+                                                actw_cur[3] = moment().utc().date();
+                                                actw_cur[2] = moment().utc().hour();
+                                                actw_cur[1] = moment().utc().minute();
+                                                actw_cur[0] = moment().utc().second();
+                                                for (var actw_idx in pvsObj.acr[index].acco.actw) {
+                                                    if (pvsObj.acr[index].acco.actw.hasOwnProperty(actw_idx)) {
+                                                        var actw_arr = pvsObj.acr[index].acco.actw[actw_idx].split(' ');
+                                                        for (var d = 0; d < 6; d++) {
+                                                            if (actw_arr[d] != '*' && actw_arr[d] == actw_cur[d].toString()) {
+                                                                actw_permit = 1;
+                                                                break;
+                                                            }
+                                                        }
+
+                                                        if (actw_permit == 1) {
+                                                            break;
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                            else {
+                                                actw_permit = 1;
+                                            }
+                                        }
+                                    }
+                                    else {
+                                        acip_permit = 1;
+                                        actw_permit = 1;
+                                    }
+
+                                    if(acip_permit == 1 && actw_permit == 1) {
+                                        if (pvsObj.acr[index].hasOwnProperty('acor')) {
+                                            var re = new RegExp('^' + from + '$');
+                                            for (var acor_idx in pvsObj.acr[index].acor) {
+                                                if (pvsObj.acr[index].acor.hasOwnProperty(acor_idx)) {
+                                                    if (pvsObj.acr[index].acor[acor_idx].match(re) || pvsObj.acr[index].acor[acor_idx] == 'all' || pvsObj.acr[index].acor[acor_idx] == '*') {
+                                                        if ((pvsObj.acr[index].acop.toString() & access_value) == access_value) {
+                                                            acor_permit = 1;
+                                                            break;
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        else {
+                                            acor_permit = 1;
+                                        }
+                                    }
+
+                                    if(acip_permit == 1 && actw_permit == 1 && acor_permit == 1) {
+                                        callback('1', request, response);
+                                        return '1';
                                     }
                                 }
                                 catch (e) {
