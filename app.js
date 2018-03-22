@@ -351,6 +351,30 @@ global.make_json_arraytype = function (body_Obj) {
                                         if (body_Obj[prop][attr].acr[acr_idx].acor) {
                                             body_Obj[prop][attr].acr[acr_idx].acor = body_Obj[prop][attr].acr[acr_idx].acor.split(' ');
                                         }
+
+                                        if (body_Obj[prop][attr].acr[acr_idx].hasOwnProperty('acco')) {
+                                            if(getType(body_Obj[prop][attr].acr[acr_idx].acco) == 'array') {
+                                                for (var acco_idx in body_Obj[prop][attr].acr[acr_idx].acco) {
+                                                    if (body_Obj[prop][attr].acr[acr_idx].acco.hasOwnProperty(acco_idx)) {
+                                                        if (body_Obj[prop][attr].acr[acr_idx].acco[acco_idx]) {
+                                                            if (getType(body_Obj[prop][attr].acr[acr_idx].acco[acco_idx]) == 'array') {
+
+                                                            }
+                                                            else {
+                                                                temp = body_Obj[prop][attr].acr[acr_idx].acco;
+                                                                body_Obj[prop][attr].acr[acr_idx].acco = [];
+                                                                body_Obj[prop][attr].acr[acr_idx].acco[0] = temp;
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                            else {
+                                                temp = body_Obj[prop][attr].acr[acr_idx].acco;
+                                                body_Obj[prop][attr].acr[acr_idx].acco = [];
+                                                body_Obj[prop][attr].acr[acr_idx].acco[0] = temp;
+                                            }
+                                        }
                                     }
                                 }
                             }
