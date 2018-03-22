@@ -833,7 +833,7 @@ function typeCheckAction(index1, body_Obj) {
                 }
                 else if ((index1 == 'm2m:cb' || index1 == 'm2m:csr' || index1 == 'm2m:ae' || index1 == 'm2m:acp' || index1 == 'm2m:grp' || index1 == 'm2m:sub' ||
                         index1 == 'm2m:nod' || index1 == 'm2m:fwr' || index1 == 'm2m:bat' || index1 == 'm2m:dvi' || index1 == 'm2m:dvc' || index1 == 'm2m:rbo' ||
-                        index1 == 'm2m:tr' || index1 == 'm2m:tm' || index1 == 'm2m:cin') &&
+                        index1 == 'm2m:tr' || index1 == 'm2m:tm') &&
                     index2 == 'st') {
                     delete body_Obj[index2];
                 }

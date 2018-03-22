@@ -129,7 +129,7 @@ function sgn_action(rootnm, check_value, results_ss, noti_Obj, sub_bodytype) {
     var net_arr = enc_Obj.net;
 
     for (var j = 0; j < net_arr.length; j++) {
-        if (net_arr[j] == check_value) { // 1 : Update_of_Subscribed_Resource, 3 : Create_of_Direct_Child_Resource, 4 : Delete_of_Direct_Child_Resource
+        if (net_arr[j] & check_value) { // 1 : Update_of_Subscribed_Resource, 3 : Create_of_Direct_Child_Resource, 4 : Delete_of_Direct_Child_Resource
             var nu_arr = JSON.parse(results_ss.nu);
             for (var k = 0; k < nu_arr.length; k++) {
                 var nu = nu_arr[k];
