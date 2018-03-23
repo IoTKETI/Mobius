@@ -353,23 +353,35 @@ global.make_json_arraytype = function (body_Obj) {
                                         }
 
                                         if (body_Obj[prop][attr].acr[acr_idx].hasOwnProperty('acco')) {
-                                            if(body_Obj[prop][attr].acr[acr_idx].acco.hasOwnProperty('acip')) {
-                                                if(body_Obj[prop][attr].acr[acr_idx].acco.acip.hasOwnProperty('ipv4')) {
-                                                    if(getType(body_Obj[prop][attr].acr[acr_idx].acco.acip['ipv4']) == 'string') {
-                                                        body_Obj[prop][attr].acr[acr_idx].acco.acip['ipv4'] = body_Obj[prop][attr].acr[acr_idx].acco.acip.ipv4.split(' ');
-                                                    }
-                                                }
-                                                else if(body_Obj[prop][attr].acr[acr_idx].acco.acip.hasOwnProperty('ipv6')) {
-                                                    if(getType(body_Obj[prop][attr].acr[acr_idx].acco.acip['ipv6']) == 'string') {
-                                                        body_Obj[prop][attr].acr[acr_idx].acco.acip['ipv6'] = body_Obj[prop][attr].acr[acr_idx].acco.acip.ipv6.split(' ');
-                                                    }
-                                                }
+                                            var acco = body_Obj[prop][attr].acr[acr_idx].acco;
+
+                                            if (!Array.isArray(acco)) {
+                                                var temp = acco;
+                                                acco = [];
+                                                acco[0] = temp;
                                             }
-                                            else if(body_Obj[prop][attr].acr[acr_idx].acco.hasOwnProperty('actw')) {
-                                                if(getType(body_Obj[prop][attr].acr[acr_idx].acco.actw) == 'string') {
-                                                    temp = body_Obj[prop][attr].acr[acr_idx].acco.actw;
-                                                    body_Obj[prop][attr].acr[acr_idx].acco['actw'] = [];
-                                                    body_Obj[prop][attr].acr[acr_idx].acco.actw[0] = temp;
+
+                                            for(var acco_idx in acco) {
+                                                if(acco.hasOwnProperty(acco_idx)) {
+                                                    if (acco[acco_idx].hasOwnProperty('acip')) {
+                                                        if (acco[acco_idx].acip.hasOwnProperty('ipv4')) {
+                                                            if (getType(acco[acco_idx].acip['ipv4']) == 'string') {
+                                                                acco[acco_idx].acip['ipv4'] = acco[acco_idx].acip.ipv4.split(' ');
+                                                            }
+                                                        }
+                                                        else if (acco[acco_idx].acip.hasOwnProperty('ipv6')) {
+                                                            if (getType(acco[acco_idx].acip['ipv6']) == 'string') {
+                                                                acco[acco_idx].acip['ipv6'] = acco[acco_idx].acip.ipv6.split(' ');
+                                                            }
+                                                        }
+                                                    }
+                                                    else if (acco[acco_idx].hasOwnProperty('actw')) {
+                                                        if (getType(acco[acco_idx].actw) == 'string') {
+                                                            temp = acco[acco_idx].actw;
+                                                            acco[acco_idx]['actw'] = [];
+                                                            acco[acco_idx].actw[0] = temp;
+                                                        }
+                                                    }
                                                 }
                                             }
                                         }

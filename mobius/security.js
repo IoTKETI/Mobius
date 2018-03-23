@@ -46,35 +46,44 @@ function security_check_action_pv(request, response, acpiList, cr, access_value,
                                         var actw_permit = 0;
                                         var acor_permit = 0;
                                         if(pvObj.acr[index].hasOwnProperty('acco')) {
-                                            if (pvObj.acr[index].acco.hasOwnProperty('acip')) {
-                                                if(pvObj.acr[index].acco.acip.hasOwnProperty('ipv4')) {
-                                                    for (var ipv4_idx in pvObj.acr[index].acco.acip['ipv4']) {
-                                                        if(pvObj.acr[index].acco.acip['ipv4'].hasOwnProperty(ipv4_idx)) {
-                                                            if(pvObj.acr[index].acco.acip['ipv4'][ipv4_idx] == request.connection.remoteAddress) {
-                                                                acip_permit = 1;
-                                                                break;
+                                            var acco = pvObj.acr[index].acco;
+                                            for(var acco_idx in acco) {
+                                                if(acco.hasOwnProperty(acco_idx)) {
+                                                    if (acco[acco_idx].hasOwnProperty('acip')) {
+                                                        if (acco[acco_idx].acip.hasOwnProperty('ipv4')) {
+                                                            for (var ipv4_idx in acco[acco_idx].acip['ipv4']) {
+                                                                if (acco[acco_idx].acip['ipv4'].hasOwnProperty(ipv4_idx)) {
+                                                                    if (acco[acco_idx].acip['ipv4'][ipv4_idx] == request.connection.remoteAddress) {
+                                                                        acip_permit = 1;
+                                                                        break;
+                                                                    }
+                                                                }
                                                             }
                                                         }
-                                                    }
-                                                }
-                                                else {
-                                                    if (pvObj.acr[index].acco.acip.hasOwnProperty('ipv6')) {
-                                                        for (var ipv6_idx in pvObj.acr[index].acco.acip['ipv6']) {
-                                                            if(pvObj.acr[index].acco.acip['ipv6'].hasOwnProperty(ipv6_idx)) {
-                                                                if(pvObj.acr[index].acco.acip['ipv6'][ipv6_idx] == request.connection.remoteAddress) {
-                                                                    acip_permit = 1;
-                                                                    break;
+                                                        else {
+                                                            if (acco[acco_idx].acip.hasOwnProperty('ipv6')) {
+                                                                for (var ipv6_idx in acco[acco_idx].acip['ipv6']) {
+                                                                    if (acco[acco_idx].acip['ipv6'].hasOwnProperty(ipv6_idx)) {
+                                                                        if (acco[acco_idx].acip['ipv6'][ipv6_idx] == request.connection.remoteAddress) {
+                                                                            acip_permit = 1;
+                                                                            break;
+                                                                        }
+                                                                    }
                                                                 }
+                                                            }
+                                                            else {
+                                                                acip_permit = 1;
                                                             }
                                                         }
                                                     }
                                                     else {
                                                         acip_permit = 1;
                                                     }
+
+                                                    if (acip_permit == 1) {
+                                                        break;
+                                                    }
                                                 }
-                                            }
-                                            else {
-                                                acip_permit = 1;
                                             }
 
                                             if(acip_permit == 1) {

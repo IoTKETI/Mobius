@@ -2648,19 +2648,6 @@ function delete_action_cni(ri, ty, pi, cs, callback) {
             db_sql.update_cni_parent(ty, cni, cbs, st, pi, function (err, results) {
                 if (!err) {
                     callback('1', st);
-
-                    // db_sql.update_st_lookup(st, ri, function (err, results) {
-                    //     if (!err) {
-                    //         callback('1', st);
-                    //     }
-                    //     else {
-                    //         var body_Obj = {};
-                    //         body_Obj['dbg'] = results.message;
-                    //         console.log(JSON.stringify(body_Obj));
-                    //         callback('0');
-                    //         return '0';
-                    //     }
-                    // });
                 }
                 else {
                     var body_Obj = {};

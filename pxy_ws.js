@@ -223,23 +223,35 @@ function make_json_obj(bodytype, str, callback) {
                                                                 }
 
                                                                 if (result[prop][attr][attr2].pv.acr[acr_idx].hasOwnProperty('acco')) {
-                                                                    if(result[prop][attr][attr2].pv.acr[acr_idx].acco.hasOwnProperty('acip')) {
-                                                                        if(result[prop][attr][attr2].pv.acr[acr_idx].acco.acip.hasOwnProperty('ipv4')) {
-                                                                            if(getType(result[prop][attr][attr2].pv.acr[acr_idx].acco.acip['ipv4']) == 'string') {
-                                                                                result[prop][attr][attr2].pv.acr[acr_idx].acco.acip['ipv4'] = result[prop][attr][attr2].pv.acr[acr_idx].acco.acip.ipv4.split(' ');
-                                                                            }
-                                                                        }
-                                                                        else if(result[prop][attr][attr2].pv.acr[acr_idx].acco.acip.hasOwnProperty('ipv6')) {
-                                                                            if(getType(result[prop][attr][attr2].pv.acr[acr_idx].acco.acip['ipv6']) == 'string') {
-                                                                                result[prop][attr][attr2].pv.acr[acr_idx].acco.acip.ipv6 = result[prop][attr][attr2].pv.acr[acr_idx].acco.acip.ipv6.split(' ');
-                                                                            }
-                                                                        }
+                                                                    var acco = result[prop][attr][attr2].pv.acr[acr_idx].acco;
+
+                                                                    if (!Array.isArray(acco)) {
+                                                                        temp = acco;
+                                                                        acco = [];ac
+                                                                        acco[0] = temp;
                                                                     }
-                                                                    else if(result[prop][attr][attr2].pv.acr[acr_idx].acco.hasOwnProperty('actw')) {
-                                                                        if(getType(result[prop][attr][attr2].pv.acr[acr_idx].acco.actw) == 'string') {
-                                                                            temp = result[prop][attr][attr2].pv.acr[acr_idx].acco.actw;
-                                                                            result[prop][attr][attr2].pv.acr[acr_idx].acco['actw'] = [];
-                                                                            result[prop][attr][attr2].pv.acr[acr_idx].acco.actw[0] = temp;
+
+                                                                    for(var acco_idx in acco) {
+                                                                        if(acco.hasOwnProperty(acco_idx)) {
+                                                                            if (acco[acco_idx].hasOwnProperty('acip')) {
+                                                                                if (acco[acco_idx].acip.hasOwnProperty('ipv4')) {
+                                                                                    if (getType(acco[acco_idx].acip['ipv4']) == 'string') {
+                                                                                        acco[acco_idx].acip['ipv4'] = acco[acco_idx].acip.ipv4.split(' ');
+                                                                                    }
+                                                                                }
+                                                                                else if (acco[acco_idx].acip.hasOwnProperty('ipv6')) {
+                                                                                    if (getType(acco[acco_idx].acip['ipv6']) == 'string') {
+                                                                                        acco[acco_idx].acip['ipv6'] = acco[acco_idx].acip.ipv6.split(' ');
+                                                                                    }
+                                                                                }
+                                                                            }
+                                                                            else if (acco[acco_idx].hasOwnProperty('actw')) {
+                                                                                if (getType(acco[acco_idx].actw) == 'string') {
+                                                                                    temp = acco[acco_idx].actw;
+                                                                                    acco[acco_idx]['actw'] = [];
+                                                                                    acco[acco_idx].actw[0] = temp;
+                                                                                }
+                                                                            }
                                                                         }
                                                                     }
                                                                 }
@@ -263,23 +275,35 @@ function make_json_obj(bodytype, str, callback) {
                                                                 }
 
                                                                 if (result[prop][attr][attr2].pvs.acr[acr_idx].hasOwnProperty('acco')) {
-                                                                    if(result[prop][attr][attr2].pvs.acr[acr_idx].acco.hasOwnProperty('acip')) {
-                                                                        if(result[prop][attr][attr2].pvs.acr[acr_idx].acco.acip.hasOwnProperty('ipv4')) {
-                                                                            if(getType(result[prop][attr][attr2].pvs.acr[acr_idx].acco.acip['ipv4']) == 'string') {
-                                                                                result[prop][attr][attr2].pvs.acr[acr_idx].acco.acip['ipv4'] = result[prop][attr][attr2].pvs.acr[acr_idx].acco.acip.ipv4.split(' ');
-                                                                            }
-                                                                        }
-                                                                        else if(result[prop][attr][attr2].pvs.acr[acr_idx].acco.acip.hasOwnProperty('ipv6')) {
-                                                                            if(getType(result[prop][attr][attr2].pvs.acr[acr_idx].acco.acip['ipv6']) == 'string') {
-                                                                                result[prop][attr][attr2].pvs.acr[acr_idx].acco.acip.ipv6 = result[prop][attr][attr2].pvs.acr[acr_idx].acco.acip.ipv6.split(' ');
-                                                                            }
-                                                                        }
+                                                                    acco = result[prop][attr][attr2].pvs.acr[acr_idx].acco;
+
+                                                                    if (!Array.isArray(acco)) {
+                                                                        temp = acco;
+                                                                        acco = [];
+                                                                        acco[0] = temp;
                                                                     }
-                                                                    else if(result[prop][attr][attr2].pvs.acr[acr_idx].acco.hasOwnProperty('actw')) {
-                                                                        if(getType(result[prop][attr][attr2].pvs.acr[acr_idx].acco.actw) == 'string') {
-                                                                            temp = result[prop][attr][attr2].pvs.acr[acr_idx].acco.actw;
-                                                                            result[prop][attr][attr2].pvs.acr[acr_idx].acco['actw'] = [];
-                                                                            result[prop][attr][attr2].pvs.acr[acr_idx].acco.actw[0] = temp;
+
+                                                                    for(acco_idx in acco) {
+                                                                        if(acco.hasOwnProperty(acco_idx)) {
+                                                                            if (acco[acco_idx].hasOwnProperty('acip')) {
+                                                                                if (acco[acco_idx].acip.hasOwnProperty('ipv4')) {
+                                                                                    if (getType(acco[acco_idx].acip['ipv4']) == 'string') {
+                                                                                        acco[acco_idx].acip['ipv4'] = acco[acco_idx].acip.ipv4.split(' ');
+                                                                                    }
+                                                                                }
+                                                                                else if (acco[acco_idx].acip.hasOwnProperty('ipv6')) {
+                                                                                    if (getType(acco[acco_idx].acip['ipv6']) == 'string') {
+                                                                                        acco[acco_idx].acip['ipv6'] = acco[acco_idx].acip.ipv6.split(' ');
+                                                                                    }
+                                                                                }
+                                                                            }
+                                                                            else if (acco[acco_idx].hasOwnProperty('actw')) {
+                                                                                if (getType(acco[acco_idx].actw) == 'string') {
+                                                                                    temp = acco[acco_idx].actw;
+                                                                                    acco[acco_idx]['actw'] = [];
+                                                                                    acco[acco_idx].actw[0] = temp;
+                                                                                }
+                                                                            }
                                                                         }
                                                                     }
                                                                 }
