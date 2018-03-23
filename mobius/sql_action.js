@@ -941,13 +941,13 @@ function build_discovery_sql(ri, query, cur_lim, pi_list, bef_ct, cur_ct) {
     return query_where;
 }
 
-var tid = '';
+var search_tid = '';
 exports.search_lookup = function (ri, query, cur_lim, pi_list, pi_index, found_Obj, found_Cnt, bef_d, cur_d, loop_cnt, callback) {
     var cur_pi = [];
 
     if(loop_cnt == 0) {
-        tid = require('shortid').generate();
-        console.time('search_lookup (' + tid + ')');
+        search_tid = require('shortid').generate();
+        console.time('search_lookup (' + search_tid + ')');
     }
 
 //    var cur_ct = moment(cur_d).utc().format('YYYYMMDDTHHmmss');
@@ -978,7 +978,7 @@ exports.search_lookup = function (ri, query, cur_lim, pi_list, pi_index, found_O
                 found_Obj[search_Obj[i].ri] = search_Obj[i];
                 //found_Cnt++;
                 if(Object.keys(found_Obj).length >= query.lim) {
-                    console.timeEnd('search_lookup (' + tid + ')');
+                    console.timeEnd('search_lookup (' + search_tid + ')');
 
                     callback(err, found_Obj);
                     return;
@@ -989,7 +989,7 @@ exports.search_lookup = function (ri, query, cur_lim, pi_list, pi_index, found_O
 
             if(pi_index >= pi_list.length) {
                 if(loop_cnt > 8) {
-                    console.timeEnd('search_lookup (' + tid + ')');
+                    console.timeEnd('search_lookup (' + search_tid + ')');
                     callback(err, found_Obj);
                 }
                 else {
@@ -1239,8 +1239,8 @@ exports.select_in_ri_list = function (tbl, ri_list, ri_index, found_Obj, loop_cn
     var cur_ri = [];
 
     if(loop_cnt == 0) {
-        tid = require('shortid').generate();
-        console.time('select_in_ri_list (' + tid + ')');
+        search_tid = require('shortid').generate();
+        console.time('select_in_ri_list (' + search_tid + ')');
     }
 
     for(var idx = 0; idx < 8; idx++) {
@@ -1260,7 +1260,7 @@ exports.select_in_ri_list = function (tbl, ri_list, ri_index, found_Obj, loop_cn
             }
 
             if(ri_index >= ri_list.length) {
-                console.timeEnd('select_in_ri_list (' + tid + ')');
+                console.timeEnd('select_in_ri_list (' + search_tid + ')');
                 callback(err, found_Obj);
             }
             else {

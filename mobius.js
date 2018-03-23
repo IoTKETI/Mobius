@@ -63,7 +63,7 @@ global.allowed_app_ids = [];
 
 global.usesemanticbroker    = '10.10.202.114';
 
-
+/*
 var file = 'hit.json';
 fs.open(file, 'w', function(err, fd) {
     if (err) {
@@ -88,6 +88,6 @@ fs.open(file, 'w', function(err, fd) {
         fs.writeFileSync('hit.json', JSON.stringify(hit, null, 4), 'utf8');
     }
 });
-
+*/
 // CSE core
 require('./app');

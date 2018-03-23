@@ -60,6 +60,9 @@ function verify_nu(request, response, body_Obj, callback) {
                 }
             });
         }
+        else {
+            callback('1', k, body_Obj);
+        }
     }
 }
 
