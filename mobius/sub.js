@@ -20,30 +20,85 @@ var xml2js = require('xml2js');
 var xmlbuilder = require('xmlbuilder');
 var util = require('util');
 var responder = require('./responder');
+var db_sql = require('./sql_action');
 
+function verify_nu(request, response, body_Obj, callback) {
+    var rootnm = request.headers.rootnm;
+    var nu_arr = body_Obj[rootnm].nu;
+
+    for (var k = 0; k < nu_arr.length; k++) {
+        var nu = nu_arr[k];
+        var sub_nu = url.parse(nu);
+        if(sub_nu.protocol == null) { // ID format
+            if (nu.charAt(0) != '/') {
+                var absolute_url = '/' + nu;
+            }
+            else {
+                absolute_url = nu.replace(/\/\/[^\/]+\/?/, '\/');
+                absolute_url = absolute_url.replace(/\/[^\/]+\/?/, '/');
+            }
+
+            var absolute_url_arr = absolute_url.split('/');
+
+            db_sql.get_ri_sri(k, body_Obj, absolute_url_arr[1].split('?')[0], function (err, results, k, body_Obj) {
+                if (err) {
+                    callback('0', k);
+                    return '0'
+                }
+                else {
+                    absolute_url = (results.length == 0) ? absolute_url : ((results[0].hasOwnProperty('ri')) ? absolute_url.replace('/' + absolute_url_arr[1], results[0].ri) : absolute_url);
+
+                    db_sql.select_ri_lookup(absolute_url, function (err, results_ri) {
+                        if (results_ri.length == 0) {
+                            callback('0', k, body_Obj);
+                            return '0';
+                        }
+                        else {
+                            callback('1', k, body_Obj);
+                        }
+                    });
+                }
+            });
+        }
+    }
+}
 
 exports.build_sub = function(request, response, resource_Obj, body_Obj, callback) {
     var rootnm = request.headers.rootnm;
 
     // body
-    resource_Obj[rootnm].nu = body_Obj[rootnm].nu;
 
-    resource_Obj[rootnm].enc = (body_Obj[rootnm].enc) ? body_Obj[rootnm].enc : {"net":["1"]};
-    resource_Obj[rootnm].exc = (body_Obj[rootnm].exc) ? body_Obj[rootnm].exc : '';
-    resource_Obj[rootnm].gpi = (body_Obj[rootnm].gpi) ? body_Obj[rootnm].gpi : '';
-    resource_Obj[rootnm].nfu = (body_Obj[rootnm].nfu) ? body_Obj[rootnm].nfu : '';
-    resource_Obj[rootnm].bn = (body_Obj[rootnm].bn) ? body_Obj[rootnm].bn : {};
-    resource_Obj[rootnm].rl = (body_Obj[rootnm].rl) ? body_Obj[rootnm].rl : '';
-    resource_Obj[rootnm].psn = (body_Obj[rootnm].psn) ? body_Obj[rootnm].psn : '';
-    resource_Obj[rootnm].pn = (body_Obj[rootnm].pn) ? body_Obj[rootnm].pn : '';
-    resource_Obj[rootnm].nsp = (body_Obj[rootnm].nsp) ? body_Obj[rootnm].nsp : '';
-    resource_Obj[rootnm].ln = (body_Obj[rootnm].ln) ? body_Obj[rootnm].ln : '';
-    resource_Obj[rootnm].nct = (body_Obj[rootnm].nct) ? body_Obj[rootnm].nct : '2';
-    resource_Obj[rootnm].nec = (body_Obj[rootnm].nec) ? body_Obj[rootnm].nec : '';
-    resource_Obj[rootnm].su = (body_Obj[rootnm].su) ? body_Obj[rootnm].su : '';
-    resource_Obj[rootnm].cr = (body_Obj[rootnm].cr) ? body_Obj[rootnm].cr : request.headers['x-m2m-origin'];
+    // verify nu
+    verify_nu(request, response, body_Obj, function (rsc, k, body_Obj) {
+        if(rsc == '0') {
+            var body_Obj = {};
+            body_Obj['dbg'] = 'SUBSCRIPTION_VERIFICATION_INITIATION_FAILED';
+            responder.response_result(request, response, 500, body_Obj, 5204, request.url, body_Obj['dbg']);
+            callback('0', resource_Obj);
+            return '0';
+        }
 
-    callback('1', resource_Obj);
+        if((k+1) >= body_Obj[rootnm].nu.length) {
+            resource_Obj[rootnm].nu = body_Obj[rootnm].nu;
+
+            resource_Obj[rootnm].enc = (body_Obj[rootnm].enc) ? body_Obj[rootnm].enc : {"net": ["1"]};
+            resource_Obj[rootnm].exc = (body_Obj[rootnm].exc) ? body_Obj[rootnm].exc : '';
+            resource_Obj[rootnm].gpi = (body_Obj[rootnm].gpi) ? body_Obj[rootnm].gpi : '';
+            resource_Obj[rootnm].nfu = (body_Obj[rootnm].nfu) ? body_Obj[rootnm].nfu : '';
+            resource_Obj[rootnm].bn = (body_Obj[rootnm].bn) ? body_Obj[rootnm].bn : {};
+            resource_Obj[rootnm].rl = (body_Obj[rootnm].rl) ? body_Obj[rootnm].rl : '';
+            resource_Obj[rootnm].psn = (body_Obj[rootnm].psn) ? body_Obj[rootnm].psn : '';
+            resource_Obj[rootnm].pn = (body_Obj[rootnm].pn) ? body_Obj[rootnm].pn : '';
+            resource_Obj[rootnm].nsp = (body_Obj[rootnm].nsp) ? body_Obj[rootnm].nsp : '';
+            resource_Obj[rootnm].ln = (body_Obj[rootnm].ln) ? body_Obj[rootnm].ln : '';
+            resource_Obj[rootnm].nct = (body_Obj[rootnm].nct) ? body_Obj[rootnm].nct : '2';
+            resource_Obj[rootnm].nec = (body_Obj[rootnm].nec) ? body_Obj[rootnm].nec : '';
+            resource_Obj[rootnm].su = (body_Obj[rootnm].su) ? body_Obj[rootnm].su : '';
+            resource_Obj[rootnm].cr = (body_Obj[rootnm].cr) ? body_Obj[rootnm].cr : request.headers['x-m2m-origin'];
+
+            callback('1', resource_Obj);
+        }
+    });
 };
 
 
