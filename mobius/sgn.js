@@ -141,7 +141,7 @@ function sgn_action(rootnm, check_value, results_ss, noti_Obj, sub_bodytype) {
                     node['m2m:sgn'].nec = results_ss.nec;
                 }
                 node['m2m:sgn'].nev = {};
-                node['m2m:sgn'].nev.net = check_value.toString();
+                node['m2m:sgn'].nev.net = parseInt(check_value.toString());
                 node['m2m:sgn'].nev.rep = {};
                 node['m2m:sgn'].nev.rep['m2m:' + rootnm] = noti_Obj;
 
