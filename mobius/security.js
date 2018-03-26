@@ -47,7 +47,8 @@ function security_check_action_pv(request, response, acpiList, cr, access_value,
                                         var acor_permit = 0;
                                         if(pvObj.acr[index].hasOwnProperty('acco')) {
                                             var acco = pvObj.acr[index].acco;
-                                            for(var acco_idx in acco) {
+                                            var acco_idx = 0;
+                                            for(acco_idx in acco) {
                                                 if(acco.hasOwnProperty(acco_idx)) {
                                                     if (acco[acco_idx].hasOwnProperty('acip')) {
                                                         if (acco[acco_idx].acip.hasOwnProperty('ipv4')) {
@@ -83,37 +84,40 @@ function security_check_action_pv(request, response, acpiList, cr, access_value,
                                                     if (acip_permit == 1) {
                                                         break;
                                                     }
-                                                }
-                                            }
 
-                                            if(acip_permit == 1) {
-                                                if (acco[acco_idx].hasOwnProperty('actw')) {
-                                                    var actw_cur = [];
-                                                    actw_cur[5] = moment().utc().day();
-                                                    actw_cur[4] = moment().utc().month()+1;
-                                                    actw_cur[3] = moment().utc().date();
-                                                    actw_cur[2] = moment().utc().hour();
-                                                    actw_cur[1] = moment().utc().minute();
-                                                    actw_cur[0] = moment().utc().second();
-                                                    for (var actw_idx in acco[acco_idx].actw) {
-                                                        if (acco[acco_idx].actw.hasOwnProperty(actw_idx)) {
-                                                            var actw_arr = acco[acco_idx].actw[actw_idx].split(' ');
-                                                            for (var d = 0; d < 6; d++) {
-                                                                if (actw_arr[d] != '*' && actw_arr[d] == actw_cur[d].toString()) {
-                                                                    actw_permit = 1;
+                                                    if (acco[acco_idx].hasOwnProperty('actw')) {
+                                                        var actw_cur = [];
+                                                        actw_cur[5] = moment().utc().day();
+                                                        actw_cur[4] = moment().utc().month()+1;
+                                                        actw_cur[3] = moment().utc().date();
+                                                        actw_cur[2] = moment().utc().hour();
+                                                        actw_cur[1] = moment().utc().minute();
+                                                        actw_cur[0] = moment().utc().second();
+                                                        for (var actw_idx in acco[acco_idx].actw) {
+                                                            if (acco[acco_idx].actw.hasOwnProperty(actw_idx)) {
+                                                                var actw_arr = acco[acco_idx].actw[actw_idx].split(' ');
+                                                                for (var d = 0; d < 6; d++) {
+                                                                    if (actw_arr[d] != '*' && actw_arr[d] == actw_cur[d].toString()) {
+                                                                        actw_permit = 1;
+                                                                        break;
+                                                                    }
+                                                                }
+
+                                                                if (actw_permit == 1) {
                                                                     break;
                                                                 }
                                                             }
-
-                                                            if (actw_permit == 1) {
-                                                                break;
-                                                            }
                                                         }
                                                     }
+                                                    else {
+                                                        actw_permit = 1;
+                                                    }
                                                 }
-                                                else {
-                                                    actw_permit = 1;
-                                                }
+                                            }
+
+                                            if(acco_idx == 0) {
+                                                acip_permit = 1;
+                                                actw_permit = 1;
                                             }
                                         }
                                         else {
@@ -197,7 +201,8 @@ function security_check_action_pvs(request, response, acpiList, cr, access_value
                                     var acor_permit = 0;
                                     if(pvsObj.acr[index].hasOwnProperty('acco')) {
                                         var acco = pvsObj.acr[index].acco;
-                                        for(var acco_idx in acco) {
+                                        var acco_idx = 0;
+                                        for(acco_idx in acco) {
                                             if(acco.hasOwnProperty(acco_idx)) {
                                                 if (acco[acco_idx].hasOwnProperty('acip')) {
                                                     if (acco[acco_idx].acip.hasOwnProperty('ipv4')) {
@@ -233,37 +238,40 @@ function security_check_action_pvs(request, response, acpiList, cr, access_value
                                                 if (acip_permit == 1) {
                                                     break;
                                                 }
-                                            }
-                                        }
 
-                                        if(acip_permit == 1) {
-                                            if (acco[acco_idx].hasOwnProperty('actw')) {
-                                                var actw_cur = [];
-                                                actw_cur[5] = moment().utc().day();
-                                                actw_cur[4] = moment().utc().month()+1;
-                                                actw_cur[3] = moment().utc().date();
-                                                actw_cur[2] = moment().utc().hour();
-                                                actw_cur[1] = moment().utc().minute();
-                                                actw_cur[0] = moment().utc().second();
-                                                for (var actw_idx in acco[acco_idx].actw) {
-                                                    if (acco[acco_idx].actw.hasOwnProperty(actw_idx)) {
-                                                        var actw_arr = acco[acco_idx].actw[actw_idx].split(' ');
-                                                        for (var d = 0; d < 6; d++) {
-                                                            if (actw_arr[d] != '*' && actw_arr[d] == actw_cur[d].toString()) {
-                                                                actw_permit = 1;
+                                                if (acco[acco_idx].hasOwnProperty('actw')) {
+                                                    var actw_cur = [];
+                                                    actw_cur[5] = moment().utc().day();
+                                                    actw_cur[4] = moment().utc().month()+1;
+                                                    actw_cur[3] = moment().utc().date();
+                                                    actw_cur[2] = moment().utc().hour();
+                                                    actw_cur[1] = moment().utc().minute();
+                                                    actw_cur[0] = moment().utc().second();
+                                                    for (var actw_idx in acco[acco_idx].actw) {
+                                                        if (acco[acco_idx].actw.hasOwnProperty(actw_idx)) {
+                                                            var actw_arr = acco[acco_idx].actw[actw_idx].split(' ');
+                                                            for (var d = 0; d < 6; d++) {
+                                                                if (actw_arr[d] != '*' && actw_arr[d] == actw_cur[d].toString()) {
+                                                                    actw_permit = 1;
+                                                                    break;
+                                                                }
+                                                            }
+
+                                                            if (actw_permit == 1) {
                                                                 break;
                                                             }
                                                         }
-
-                                                        if (actw_permit == 1) {
-                                                            break;
-                                                        }
                                                     }
                                                 }
+                                                else {
+                                                    actw_permit = 1;
+                                                }
                                             }
-                                            else {
-                                                actw_permit = 1;
-                                            }
+                                        }
+
+                                        if(acco_idx == 0) {
+                                            acip_permit = 1;
+                                            actw_permit = 1;
                                         }
                                     }
                                     else {
