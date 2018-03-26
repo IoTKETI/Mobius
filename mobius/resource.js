@@ -400,6 +400,8 @@ function delete_TS(callback) {
 }
 
 /* 20180322 removed <-- update stateTag for every resources
+
+*/
 function create_action_st(ri, ty, pi, callback) {
     db_sql.select_st_parent(pi, function (err, results_st) {
         if (results_st.length == 1) {
@@ -420,7 +422,6 @@ function create_action_st(ri, ty, pi, callback) {
         }
     });
 }
-*/
 
 function create_action_cni(ty, pi, cni, cbs, mni, mbs, st, callback) {
     if (parseInt(cni, 10) > parseInt(mni, 10) || parseInt(cbs, 10) > parseInt(mbs, 10)) {
@@ -1364,6 +1365,11 @@ exports.create = function (request, response, ty, body_Obj, callback) {
 
                 create_action(request, response, ty, resource_Obj, function (rsc, create_Obj) {
                     if (rsc == '1') {
+                        if(ty != 4) {
+                            create_action_st(create_Obj[rootnm].ri, create_Obj[rootnm].ty, create_Obj[rootnm].pi, function (rsc) {
+                            });
+                        }
+
                         _this.remove_no_value(request, create_Obj);
 
                         if (request.query.real != 4) { // realtime, new
@@ -2663,6 +2669,8 @@ function delete_action_cni(ri, ty, pi, cs, callback) {
 }
 
 /* 20180322 removed <-- update stateTag for every resources
+
+*/
 function delete_action_st(ri, ty, pi, callback) {
     db_sql.select_st_parent(pi, function (err, results_st) {
         if (results_st.length == 1) {
@@ -2683,7 +2691,6 @@ function delete_action_st(ri, ty, pi, callback) {
         }
     });
 }
-*/
 
 function delete_action(request, response, resource_Obj, comm_Obj, callback) {
     var pi_list = [];
@@ -2719,8 +2726,8 @@ function delete_action(request, response, resource_Obj, comm_Obj, callback) {
                         callback('1', resource_Obj);
                     }
                     else {
-                        // delete_action_st(comm_Obj.ri, comm_Obj.ty, comm_Obj.pi, function (rsc) {
-                        // });
+                        delete_action_st(comm_Obj.ri, comm_Obj.ty, comm_Obj.pi, function (rsc) {
+                        });
                         callback('1', resource_Obj);
                     }
                 }
