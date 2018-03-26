@@ -129,7 +129,10 @@ function sgn_action(rootnm, check_value, results_ss, noti_Obj, sub_bodytype) {
     var net_arr = enc_Obj.net;
 
     for (var j = 0; j < net_arr.length; j++) {
+        /* for testing, make comment statement
         if (net_arr[j] == check_value) { // 1 : Update_of_Subscribed_Resource, 3 : Create_of_Direct_Child_Resource, 4 : Delete_of_Direct_Child_Resource
+         */
+        if (net_arr[j] & check_value) { // 1 : Update_of_Subscribed_Resource, 3 : Create_of_Direct_Child_Resource, 4 : Delete_of_Direct_Child_Resource
             var nu_arr = JSON.parse(results_ss.nu);
             for (var k = 0; k < nu_arr.length; k++) {
                 var nu = nu_arr[k];
@@ -412,10 +415,12 @@ exports.check = function(request, notiObj, check_value) {
                     }
                 }
 
+                /* for testing, make comment statement
                 // when create sub resource, send noti for this sub
                 if(results_ss[i].ri == ri) {
                     continue;
                 }
+                */
 
                 //var cur_d = new Date();
                 //var msec = (parseInt(cur_d.getMilliseconds(), 10)<10) ? ('00'+cur_d.getMilliseconds()) : ((parseInt(cur_d.getMilliseconds(), 10)<100) ? ('0'+cur_d.getMilliseconds()) : cur_d.getMilliseconds());
