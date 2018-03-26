@@ -47,7 +47,7 @@ function security_check_action_pv(request, response, acpiList, cr, access_value,
                                         var acor_permit = 0;
                                         if(pvObj.acr[index].hasOwnProperty('acco')) {
                                             var acco = pvObj.acr[index].acco;
-                                            var acco_idx = 0;
+                                            var acco_idx = 99;
                                             for(acco_idx in acco) {
                                                 if(acco.hasOwnProperty(acco_idx)) {
                                                     if (acco[acco_idx].hasOwnProperty('acip')) {
@@ -81,10 +81,6 @@ function security_check_action_pv(request, response, acpiList, cr, access_value,
                                                         acip_permit = 1;
                                                     }
 
-                                                    if (acip_permit == 1) {
-                                                        break;
-                                                    }
-
                                                     if (acco[acco_idx].hasOwnProperty('actw')) {
                                                         var actw_cur = [];
                                                         actw_cur[5] = moment().utc().day();
@@ -115,7 +111,7 @@ function security_check_action_pv(request, response, acpiList, cr, access_value,
                                                 }
                                             }
 
-                                            if(acco_idx == 0) {
+                                            if(acco_idx == 99) {
                                                 acip_permit = 1;
                                                 actw_permit = 1;
                                             }
@@ -201,7 +197,7 @@ function security_check_action_pvs(request, response, acpiList, cr, access_value
                                     var acor_permit = 0;
                                     if(pvsObj.acr[index].hasOwnProperty('acco')) {
                                         var acco = pvsObj.acr[index].acco;
-                                        var acco_idx = 0;
+                                        var acco_idx = 99;
                                         for(acco_idx in acco) {
                                             if(acco.hasOwnProperty(acco_idx)) {
                                                 if (acco[acco_idx].hasOwnProperty('acip')) {
@@ -235,10 +231,6 @@ function security_check_action_pvs(request, response, acpiList, cr, access_value
                                                     acip_permit = 1;
                                                 }
 
-                                                if (acip_permit == 1) {
-                                                    break;
-                                                }
-
                                                 if (acco[acco_idx].hasOwnProperty('actw')) {
                                                     var actw_cur = [];
                                                     actw_cur[5] = moment().utc().day();
@@ -269,7 +261,7 @@ function security_check_action_pvs(request, response, acpiList, cr, access_value
                                             }
                                         }
 
-                                        if(acco_idx == 0) {
+                                        if(acco_idx == 99) {
                                             acip_permit = 1;
                                             actw_permit = 1;
                                         }
