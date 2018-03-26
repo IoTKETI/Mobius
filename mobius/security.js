@@ -366,7 +366,7 @@ exports.check = function(request, response, ty, acpiList, access_value, cr, call
             // 2017-12-06 we decide to not permit to everybody for security interop event for oneM2M in korea
             // and we allowed retrieve and create right to observer only
 
-            if(ty == '3') { // cnt
+            if(ty == '3' || ty == '23') { // cnt or sub --> check parents acpi to AE
                 var pi_list = [];
                 var pi = '';
                 var targetUri = request.url.split('?')[0];

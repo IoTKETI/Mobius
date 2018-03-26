@@ -1116,10 +1116,10 @@ exports.select_acp = function(ri, callback) {
     });
 };
 
- exports.select_acp_cnt = function(loop, uri_arr, callback) {
+exports.select_acp_cnt = function(loop, uri_arr, callback) {
     var pi = '';
 
-    for(var idx in uri_arr) {
+    for (var idx in uri_arr) {
         if (uri_arr.hasOwnProperty(idx)) {
             if (uri_arr[idx] != '') {
                 if (idx < uri_arr.length - (loop + 1)) {
@@ -1131,7 +1131,7 @@ exports.select_acp = function(ri, callback) {
 
     var sql = util.format("select acpi, ty from lookup where ri = \"%s\"", pi);
     db.getResult(sql, '', function (err, results) {
-        if(err) {
+        if (err) {
             callback(err, results.message);
         }
         else {
@@ -1140,7 +1140,7 @@ exports.select_acp = function(ri, callback) {
             if (results[0].acpi.length == 0) {
                 if (results[0].ty == '3') {
                     _this.select_acp_cnt(++loop, uri_arr, function (err, acpiList) {
-                        if(err) {
+                        if (err) {
                             callback(err, acpiList.message);
                         }
                         else {
