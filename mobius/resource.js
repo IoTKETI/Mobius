@@ -1354,6 +1354,12 @@ exports.create = function (request, response, ty, body_Obj, callback) {
                     sgn.check(request, notiObj[rootnm], 3);
                 }
 
+                if(ty == 23) { // when ty is 23, send notification for varification
+                    var notiObj = JSON.parse(JSON.stringify(resource_Obj));
+                    _this.remove_no_value(request, notiObj);
+                    sgn.check(request, notiObj[rootnm], 99);
+                }
+
                 if (request.query.tctl == 3) { // for EXECUTE of transaction
                     var resultObj = JSON.parse(JSON.stringify(resource_Obj));
                     _this.remove_no_value(request, resultObj);
@@ -1373,7 +1379,14 @@ exports.create = function (request, response, ty, body_Obj, callback) {
                         _this.remove_no_value(request, create_Obj);
 
                         if (request.query.real != 4) { // realtime, new
-                            sgn.check(request, create_Obj[rootnm], 3);
+                            // if(ty == 23) { // when ty is 23, send notification for varification
+                            //     var notiObj = JSON.parse(JSON.stringify(create_Obj));
+                            //     _this.remove_no_value(request, notiObj);
+                            //     sgn.check(request, notiObj[rootnm], 99);
+                            // }
+                            // else {
+                                sgn.check(request, create_Obj[rootnm], 3);
+                            // }
                         }
 
                         var status_code = 201;

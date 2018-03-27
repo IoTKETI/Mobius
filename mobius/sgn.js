@@ -125,26 +125,32 @@ function make_json_noti_message(nu, pc, xm2mri, short_flag) {
 
 function sgn_action(rootnm, check_value, results_ss, noti_Obj, sub_bodytype) {
     var nct = results_ss.nct;
-    var enc_Obj = JSON.parse(results_ss.enc);
+    var enc_Obj = results_ss.enc;
     var net_arr = enc_Obj.net;
 
     for (var j = 0; j < net_arr.length; j++) {
         /* for testing, make comment statement
         if (net_arr[j] == check_value) { // 1 : Update_of_Subscribed_Resource, 3 : Create_of_Direct_Child_Resource, 4 : Delete_of_Direct_Child_Resource
          */
-        if (net_arr[j] & check_value) { // 1 : Update_of_Subscribed_Resource, 3 : Create_of_Direct_Child_Resource, 4 : Delete_of_Direct_Child_Resource
-            var nu_arr = JSON.parse(results_ss.nu);
+        if (net_arr[j] == check_value || check_value == 99) { // 1 : Update_of_Subscribed_Resource, 3 : Create_of_Direct_Child_Resource, 4 : Delete_of_Direct_Child_Resource
+            var nu_arr = results_ss.nu;
             for (var k = 0; k < nu_arr.length; k++) {
                 var nu = nu_arr[k];
 
                 var node = {};
                 node['m2m:sgn'] = {};
+
+                if(noti_Obj.ty == 23) {
+                    node['m2m:sgn'].vrq = true;
+                    node['m2m:sgn'].cr = results_ss.cr;
+                }
+
                 node['m2m:sgn'].sur = results_ss.ri;
                 if (results_ss.nec) {
                     node['m2m:sgn'].nec = results_ss.nec;
                 }
                 node['m2m:sgn'].nev = {};
-                node['m2m:sgn'].nev.net = parseInt(check_value.toString());
+                node['m2m:sgn'].nev.net = parseInt(net_arr[j].toString());
                 node['m2m:sgn'].nev.rep = {};
                 node['m2m:sgn'].nev.rep['m2m:' + rootnm] = noti_Obj;
 
@@ -379,71 +385,80 @@ exports.check = function(request, notiObj, check_value) {
     var noti_Str = JSON.stringify(notiObj);
     var noti_Obj = JSON.parse(noti_Str);
 
-    db_sql.select_sub(pi, function (err, results_ss) {
-        if (!err) {
-            for (var i = 0; i < results_ss.length; i++) {
-                for (var index in results_ss[i]) {
-                    if (results_ss[i].hasOwnProperty(index)) {
-                        if (request.hash) {
-                            if (request.hash.split('#')[1] == index) {
+    if(check_value == 99) { // verification
+        sgn_action(rootnm, check_value, notiObj, noti_Obj, request.headers.usebodytype);
+    }
+    else {
+        db_sql.select_sub(pi, function (err, results_ss) {
+            if (!err) {
+                for (var i = 0; i < results_ss.length; i++) {
+                    for (var index in results_ss[i]) {
+                        if (results_ss[i].hasOwnProperty(index)) {
+                            if (request.hash) {
+                                if (request.hash.split('#')[1] == index) {
 
-                            }
-                            else {
-                                delete results_ss[i][index];
-                            }
-                        }
-                        else {
-                            if (typeof results_ss[i][index] === 'boolean') {
-                                results_ss[i][index] = results_ss[i][index].toString();
-                            }
-                            else if (typeof results_ss[i][index] === 'string') {
-                                if (results_ss[i][index] == '' || results_ss[i][index] == 'undefined' || results_ss[i][index] == '[]') {
-                                    if (results_ss[i][index] == '' && index == 'pi') {
-                                        results_ss[i][index] = 'NULL';
-                                    }
-                                    else {
-                                        delete results_ss[i][index];
-                                    }
+                                }
+                                else {
+                                    delete results_ss[i][index];
                                 }
                             }
-                            else if (typeof results_ss[i][index] === 'number') {
-                                results_ss[i][index] = results_ss[i][index].toString();
-                            }
                             else {
+                                if(index == 'enc' || index == 'nu') {
+                                    results_ss[i][index] = JSON.parse(results_ss[i][index]);
+                                }
+
+                                if (typeof results_ss[i][index] === 'boolean') {
+                                    results_ss[i][index] = results_ss[i][index].toString();
+                                }
+                                else if (typeof results_ss[i][index] === 'string') {
+                                    if (results_ss[i][index] == '' || results_ss[i][index] == 'undefined' || results_ss[i][index] == '[]') {
+                                        if (results_ss[i][index] == '' && index == 'pi') {
+                                            results_ss[i][index] = 'NULL';
+                                        }
+                                        else {
+                                            delete results_ss[i][index];
+                                        }
+                                    }
+                                }
+                                else if (typeof results_ss[i][index] === 'number') {
+                                    results_ss[i][index] = results_ss[i][index].toString();
+                                }
+                                else {
+                                }
                             }
                         }
                     }
-                }
 
-                /* for testing, make comment statement
-                // when create sub resource, send noti for this sub
-                if(results_ss[i].ri == ri) {
-                    continue;
-                }
-                */
+                    /* for testing, make comment statement
+                    // when create sub resource, send noti for this sub
+                    if(results_ss[i].ri == ri) {
+                        continue;
+                    }
+                    */
 
-                //var cur_d = new Date();
-                //var msec = (parseInt(cur_d.getMilliseconds(), 10)<10) ? ('00'+cur_d.getMilliseconds()) : ((parseInt(cur_d.getMilliseconds(), 10)<100) ? ('0'+cur_d.getMilliseconds()) : cur_d.getMilliseconds());
-                //var xm2mri = 'rqi-' + cur_d.toISOString().replace(/-/, '').replace(/-/, '').replace(/T/, '').replace(/:/, '').replace(/:/, '').replace(/\..+/, '') + msec + randomValueBase64(4);
-                var xm2mri = require('shortid').generate();
-                if (ss_fail_count[results_ss[i].ri] == null) {
-                    ss_fail_count[results_ss[i].ri] = 0;
-                }
-                //ss_fail_count[results_ss[i].ri]++;
-                //if (ss_fail_count[results_ss[i].ri] >= 8) {
-                //    delete ss_fail_count[results_ss[i].ri];
-                //    delete_sub(results_ss[i].ri, xm2mri);
-                //    sgn_action(rootnm, check_value, results_ss[i], noti_Obj, request.headers.usebodytype);
-                //}
-                //else {
+                    //var cur_d = new Date();
+                    //var msec = (parseInt(cur_d.getMilliseconds(), 10)<10) ? ('00'+cur_d.getMilliseconds()) : ((parseInt(cur_d.getMilliseconds(), 10)<100) ? ('0'+cur_d.getMilliseconds()) : cur_d.getMilliseconds());
+                    //var xm2mri = 'rqi-' + cur_d.toISOString().replace(/-/, '').replace(/-/, '').replace(/T/, '').replace(/:/, '').replace(/:/, '').replace(/\..+/, '') + msec + randomValueBase64(4);
+                    var xm2mri = require('shortid').generate();
+                    if (ss_fail_count[results_ss[i].ri] == null) {
+                        ss_fail_count[results_ss[i].ri] = 0;
+                    }
+                    //ss_fail_count[results_ss[i].ri]++;
+                    //if (ss_fail_count[results_ss[i].ri] >= 8) {
+                    //    delete ss_fail_count[results_ss[i].ri];
+                    //    delete_sub(results_ss[i].ri, xm2mri);
+                    //    sgn_action(rootnm, check_value, results_ss[i], noti_Obj, request.headers.usebodytype);
+                    //}
+                    //else {
                     sgn_action(rootnm, check_value, results_ss[i], noti_Obj, request.headers.usebodytype);
-                //}
+                    //}
+                }
             }
-        }
-        else {
-            console.log('query error: ' + results_ss.message);
-        }
-    });
+            else {
+                console.log('query error: ' + results_ss.message);
+            }
+        });
+    }
 };
 
 
