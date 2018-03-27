@@ -132,7 +132,7 @@ function sgn_action(rootnm, check_value, results_ss, noti_Obj, sub_bodytype) {
         /* for testing, make comment statement
         if (net_arr[j] == check_value) { // 1 : Update_of_Subscribed_Resource, 3 : Create_of_Direct_Child_Resource, 4 : Delete_of_Direct_Child_Resource
          */
-        if (net_arr[j] == check_value || check_value == 99) { // 1 : Update_of_Subscribed_Resource, 3 : Create_of_Direct_Child_Resource, 4 : Delete_of_Direct_Child_Resource
+        if (net_arr[j] & check_value || check_value == 256) { // 1 : Update_of_Subscribed_Resource, 3 : Create_of_Direct_Child_Resource, 4 : Delete_of_Direct_Child_Resource
             var nu_arr = results_ss.nu;
             for (var k = 0; k < nu_arr.length; k++) {
                 var nu = nu_arr[k];
@@ -385,7 +385,7 @@ exports.check = function(request, notiObj, check_value) {
     var noti_Str = JSON.stringify(notiObj);
     var noti_Obj = JSON.parse(noti_Str);
 
-    if(check_value == 99) { // verification
+    if(check_value == 256) { // verification
         sgn_action(rootnm, check_value, notiObj, noti_Obj, request.headers.usebodytype);
     }
     else {

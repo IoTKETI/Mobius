@@ -1357,7 +1357,7 @@ exports.create = function (request, response, ty, body_Obj, callback) {
                 if(ty == 23) { // when ty is 23, send notification for varification
                     var notiObj = JSON.parse(JSON.stringify(resource_Obj));
                     _this.remove_no_value(request, notiObj);
-                    sgn.check(request, notiObj[rootnm], 99);
+                    sgn.check(request, notiObj[rootnm], 256);
                 }
 
                 if (request.query.tctl == 3) { // for EXECUTE of transaction
