@@ -139,15 +139,6 @@ function sgn_action(rootnm, check_value, results_ss, noti_Obj, sub_bodytype) {
 
                 var node = {};
                 node['m2m:sgn'] = {};
-
-                if(check_value == 256) {
-                    node['m2m:sgn'].vrq = true;
-                    node['m2m:sgn'].cr = results_ss.cr;
-                }
-                else if(check_value == 128) {
-                    node['m2m:sgn'].sud = true;
-                }
-
                 node['m2m:sgn'].sur = results_ss.ri;
                 if (results_ss.nec) {
                     node['m2m:sgn'].nec = results_ss.nec;
@@ -158,6 +149,11 @@ function sgn_action(rootnm, check_value, results_ss, noti_Obj, sub_bodytype) {
                 node['m2m:sgn'].nev.rep['m2m:' + rootnm] = noti_Obj;
 
                 responder.typeCheckforJson(node['m2m:sgn'].nev.rep);
+
+                if(check_value == 256) {
+                    node['m2m:sgn'].vrq = true;
+                    node['m2m:sgn'].cr = results_ss.cr;
+                }
 
                 var xm2mri = require('shortid').generate();
                 var short_flag = 0;
@@ -176,14 +172,19 @@ function sgn_action(rootnm, check_value, results_ss, noti_Obj, sub_bodytype) {
 
                     var absolute_url_arr = absolute_url.split('/');
 
-                    db_sql.get_ri_sri('', '', absolute_url_arr[1].split('?')[0], function (err, results) {
+                    db_sql.get_ri_sri(node, absolute_url, absolute_url_arr[1].split('?')[0], function (err, results, node, absolute_url) {
                         if (err) {
                             console.log('[sgn_action] database error (can not get resourceID from database)');
                         }
                         else {
                             absolute_url = (results.length == 0) ? absolute_url : ((results[0].hasOwnProperty('ri')) ? absolute_url.replace('/' + absolute_url_arr[1], results[0].ri) : absolute_url);
 
-                            nu = 'http://localhost:7579' + absolute_url;
+                            var nu = 'http://localhost:7579' + absolute_url;
+
+                            if(check_value == 128) {
+                                node['m2m:sgn'].sud = true;
+                                delete node['m2m:sgn'].nev;
+                            }
 
                             request_noti_http(nu, results_ss.ri, JSON.stringify(node), sub_bodytype, xm2mri);
                         }
@@ -257,6 +258,10 @@ function sgn_action(rootnm, check_value, results_ss, noti_Obj, sub_bodytype) {
                                 }
 
                                 try {
+                                    if(check_value == 128) {
+                                        node['m2m:sgn'].sud = true;
+                                        delete node['m2m:sgn'].nev;
+                                    }
                                     var bodyString = js2xmlparser.parse(Object.keys(node)[0], node[Object.keys(node)[0]]);
                                 }
                                 catch (e) {
@@ -278,6 +283,10 @@ function sgn_action(rootnm, check_value, results_ss, noti_Obj, sub_bodytype) {
                                 };
 
                                 try {
+                                    if(check_value == 128) {
+                                        node['m2m:sgn'].sud = true;
+                                        delete node['m2m:sgn'].nev;
+                                    }
                                     bodyString = js2xmlparser.parse(Object.keys(node)[0], node[Object.keys(node)[0]]);
                                 }
                                 catch (e) {
@@ -293,6 +302,10 @@ function sgn_action(rootnm, check_value, results_ss, noti_Obj, sub_bodytype) {
                                 }
                             }
                             else if (sub_nu.protocol == 'ws:') {
+                                if(check_value == 128) {
+                                    node['m2m:sgn'].sud = true;
+                                    delete node['m2m:sgn'].nev;
+                                }
                                 bodyString = make_xml_noti_message(node, xm2mri);
                                 if (bodyString == "") { // parse error
                                     ss_fail_count[req._headers.ri]++;
@@ -314,6 +327,10 @@ function sgn_action(rootnm, check_value, results_ss, noti_Obj, sub_bodytype) {
                             }
                         }
                         else if (sub_bodytype == 'cbor') {
+                            if(check_value == 128) {
+                                node['m2m:sgn'].sud = true;
+                                delete node['m2m:sgn'].nev;
+                            }
                             if (sub_nu.protocol == 'http:') {
                                 //node['m2m:'+Object.keys(node)[0]] = node[Object.keys(node)[0]];
                                 //delete node[Object.keys(node)[0]];
@@ -336,6 +353,10 @@ function sgn_action(rootnm, check_value, results_ss, noti_Obj, sub_bodytype) {
                             }
                         }
                         else { // defaultbodytype == 'json')
+                            if(check_value == 128) {
+                                node['m2m:sgn'].sud = true;
+                                delete node['m2m:sgn'].nev;
+                            }
                             if (sub_nu.protocol == 'http:') {
                                 //node['m2m:'+Object.keys(node)[0]] = node[Object.keys(node)[0]];
                                 //delete node[Object.keys(node)[0]];
