@@ -388,7 +388,7 @@ exports.check = function(request, notiObj, check_value) {
     var noti_Str = JSON.stringify(notiObj);
     var noti_Obj = JSON.parse(noti_Str);
 
-    if(check_value == 256) { // verification
+    if(check_value == 256 || check_value == 128) { // verification
         sgn_action(rootnm, check_value, notiObj, noti_Obj, request.headers.usebodytype);
     }
     else {
