@@ -1716,7 +1716,7 @@ function lookup_delete(request, response) {
 
                                 makeObject(results_spec[0]);
                                 results_comm = merge(results_comm, results_spec[0]);
-                                resource.delete(request, response, results_comm, results_spec[0]);
+                                resource.delete(request, response, results_comm);
                             });
                         }
                         else {

@@ -2727,7 +2727,15 @@ function delete_action(request, response, resource_Obj, comm_Obj, callback) {
             db_sql.delete_lookup(comm_Obj.ri, pi_list, 0, finding_Obj, 0, function (err, search_Obj) {
                 console.timeEnd('delete_lookup ' + comm_Obj.ri);
                 if (!err) {
-                    if (comm_Obj.ty == '29') {
+                    if (comm_Obj.ty == '23') {
+                        if(comm_Obj.hasOwnProperty('su')) {
+                            var notiObj = JSON.parse(JSON.stringify(comm_Obj));
+                            _this.remove_no_value(request, notiObj);
+                            sgn.check(request, notiObj, 128);
+                        }
+                        callback('1', resource_Obj);
+                    }
+                    else if (comm_Obj.ty == '29') {
                         delete_TS(function (rsc, res_Obj) {
                         });
                         callback('1', resource_Obj);
