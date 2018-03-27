@@ -140,6 +140,12 @@ function sgn_action(rootnm, check_value, results_ss, noti_Obj, sub_bodytype) {
                 var node = {};
                 node['m2m:sgn'] = {};
                 node['m2m:sgn'].sur = results_ss.ri;
+
+                noti_Obj.ri = noti_Obj.sri;
+                delete noti_Obj.sri;
+                noti_Obj.pi = noti_Obj.spi;
+                delete noti_Obj.spi;
+
                 if (results_ss.nec) {
                     node['m2m:sgn'].nec = results_ss.nec;
                 }
@@ -149,11 +155,6 @@ function sgn_action(rootnm, check_value, results_ss, noti_Obj, sub_bodytype) {
                 node['m2m:sgn'].nev.rep['m2m:' + rootnm] = noti_Obj;
 
                 responder.typeCheckforJson(node['m2m:sgn'].nev.rep);
-
-                if(check_value == 256) {
-                    node['m2m:sgn'].vrq = true;
-                    node['m2m:sgn'].cr = results_ss.cr;
-                }
 
                 var xm2mri = require('shortid').generate();
                 var short_flag = 0;
@@ -183,6 +184,11 @@ function sgn_action(rootnm, check_value, results_ss, noti_Obj, sub_bodytype) {
 
                             if(check_value == 128) {
                                 node['m2m:sgn'].sud = true;
+                                delete node['m2m:sgn'].nev;
+                            }
+                            else if(check_value == 256) {
+                                node['m2m:sgn'].vrq = true;
+                                node['m2m:sgn'].cr = results_ss.cr;
                                 delete node['m2m:sgn'].nev;
                             }
 
@@ -262,6 +268,11 @@ function sgn_action(rootnm, check_value, results_ss, noti_Obj, sub_bodytype) {
                                         node['m2m:sgn'].sud = true;
                                         delete node['m2m:sgn'].nev;
                                     }
+                                    else if(check_value == 256) {
+                                        node['m2m:sgn'].vrq = true;
+                                        node['m2m:sgn'].cr = results_ss.cr;
+                                        delete node['m2m:sgn'].nev;
+                                    }
                                     var bodyString = js2xmlparser.parse(Object.keys(node)[0], node[Object.keys(node)[0]]);
                                 }
                                 catch (e) {
@@ -287,6 +298,11 @@ function sgn_action(rootnm, check_value, results_ss, noti_Obj, sub_bodytype) {
                                         node['m2m:sgn'].sud = true;
                                         delete node['m2m:sgn'].nev;
                                     }
+                                    else if(check_value == 256) {
+                                        node['m2m:sgn'].vrq = true;
+                                        node['m2m:sgn'].cr = results_ss.cr;
+                                        delete node['m2m:sgn'].nev;
+                                    }
                                     bodyString = js2xmlparser.parse(Object.keys(node)[0], node[Object.keys(node)[0]]);
                                 }
                                 catch (e) {
@@ -304,6 +320,11 @@ function sgn_action(rootnm, check_value, results_ss, noti_Obj, sub_bodytype) {
                             else if (sub_nu.protocol == 'ws:') {
                                 if(check_value == 128) {
                                     node['m2m:sgn'].sud = true;
+                                    delete node['m2m:sgn'].nev;
+                                }
+                                else if(check_value == 256) {
+                                    node['m2m:sgn'].vrq = true;
+                                    node['m2m:sgn'].cr = results_ss.cr;
                                     delete node['m2m:sgn'].nev;
                                 }
                                 bodyString = make_xml_noti_message(node, xm2mri);
@@ -331,6 +352,11 @@ function sgn_action(rootnm, check_value, results_ss, noti_Obj, sub_bodytype) {
                                 node['m2m:sgn'].sud = true;
                                 delete node['m2m:sgn'].nev;
                             }
+                            else if(check_value == 256) {
+                                node['m2m:sgn'].vrq = true;
+                                node['m2m:sgn'].cr = results_ss.cr;
+                                delete node['m2m:sgn'].nev;
+                            }
                             if (sub_nu.protocol == 'http:') {
                                 //node['m2m:'+Object.keys(node)[0]] = node[Object.keys(node)[0]];
                                 //delete node[Object.keys(node)[0]];
@@ -355,6 +381,11 @@ function sgn_action(rootnm, check_value, results_ss, noti_Obj, sub_bodytype) {
                         else { // defaultbodytype == 'json')
                             if(check_value == 128) {
                                 node['m2m:sgn'].sud = true;
+                                delete node['m2m:sgn'].nev;
+                            }
+                            else if(check_value == 256) {
+                                node['m2m:sgn'].vrq = true;
+                                node['m2m:sgn'].cr = results_ss.cr;
                                 delete node['m2m:sgn'].nev;
                             }
                             if (sub_nu.protocol == 'http:') {
@@ -400,11 +431,6 @@ exports.check = function(request, notiObj, check_value) {
     }
 
     var ri = notiObj.ri;
-
-    notiObj.ri = notiObj.sri;
-    delete notiObj.sri;
-    notiObj.pi = notiObj.spi;
-    delete notiObj.spi;
 
     var noti_Str = JSON.stringify(notiObj);
     var noti_Obj = JSON.parse(noti_Str);
