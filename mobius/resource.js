@@ -1378,7 +1378,7 @@ exports.create = function (request, response, ty, body_Obj, callback) {
 
                         _this.remove_no_value(request, create_Obj);
 
-                        if (request.query.real != 4) { // realtime, new
+                        if (request.query.real != 4 && ty != 23) { // realtime, new
                             // if(ty == 23) { // when ty is 23, send notification for varification
                             //     var notiObj = JSON.parse(JSON.stringify(create_Obj));
                             //     _this.remove_no_value(request, notiObj);
