@@ -227,7 +227,7 @@ function make_json_obj(bodytype, str, callback) {
 
                                                                     if (!Array.isArray(acco)) {
                                                                         temp = acco;
-                                                                        acco = [];ac
+                                                                        acco = [];
                                                                         acco[0] = temp;
                                                                     }
 

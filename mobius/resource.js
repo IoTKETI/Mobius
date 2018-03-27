@@ -1365,7 +1365,7 @@ exports.create = function (request, response, ty, body_Obj, callback) {
 
                 create_action(request, response, ty, resource_Obj, function (rsc, create_Obj) {
                     if (rsc == '1') {
-                        if(ty != 4) {
+                        if(ty != 4 && ty != 30) {
                             create_action_st(create_Obj[rootnm].ri, create_Obj[rootnm].ty, create_Obj[rootnm].pi, function (rsc) {
                             });
                         }
