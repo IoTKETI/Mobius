@@ -139,7 +139,13 @@ function sgn_action(rootnm, check_value, results_ss, noti_Obj, sub_bodytype) {
 
                 var node = {};
                 node['m2m:sgn'] = {};
-                node['m2m:sgn'].sur = results_ss.ri;
+
+                if(results_ss.ri.charAt(0) == '/') {
+                    node['m2m:sgn'].sur = results_ss.ri.replace('/', '');
+                }
+                else {
+                    node['m2m:sgn'].sur = results_ss.ri;
+                }
 
                 noti_Obj.ri = noti_Obj.sri;
                 delete noti_Obj.sri;
