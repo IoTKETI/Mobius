@@ -2610,6 +2610,7 @@ function update_resource(request, response, ty, body_Obj, resource_Obj, callback
 //     }
 }
 
+
 exports.update = function (request, response, comm_Obj, body_Obj) {
     var rootnm = request.headers.rootnm;
     var ty = comm_Obj.ty;
@@ -2632,16 +2633,22 @@ exports.update = function (request, response, comm_Obj, body_Obj) {
             }
 
             if (request.query.real == 4) { // realtime, new
-                var notiObj = JSON.parse(JSON.stringify(resource_Obj));
+                var notiObj = JSON.parse(JSON.stringify(update_resource_Obj));
                 _this.remove_no_value(request, notiObj);
                 sgn.check(request, notiObj[rootnm], 1);
+            }
+
+            if(ty == 23) { // when ty is 23, send notification for varification
+                var notiObj = JSON.parse(JSON.stringify(update_resource_Obj));
+                _this.remove_no_value(request, notiObj);
+                sgn.check(request, notiObj[rootnm], 256);
             }
 
             update_action(request, response, ty, update_resource_Obj, function (rsc, update_Obj) {
                 if (rsc == '1') {
                     _this.remove_no_value(request, update_Obj);
 
-                    if (request.query.real != 4) { // realtime, new
+                    if (request.query.real != 4 && ty != 23) { // realtime, new
                         sgn.check(request, update_Obj[rootnm], 1);
                     }
 

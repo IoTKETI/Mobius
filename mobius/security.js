@@ -60,7 +60,7 @@ function security_check_action_pv(request, response, acpiList, cr, access_value,
                                                                         var client_ipv4 = ip.address();
                                                                     }
                                                                     else {
-                                                                        client_ipv4 = request.connection.remoteAddress;
+                                                                        client_ipv4 = request.connection.remoteAddress.replace('::ffff:', '');
                                                                     }
                                                                     if (acco[acco_idx].acip['ipv4'][ipv4_idx] == client_ipv4) {
                                                                         acip_permit = 1;
@@ -73,26 +73,23 @@ function security_check_action_pv(request, response, acpiList, cr, access_value,
                                                                 acip_permit = 1;
                                                             }
                                                         }
-
-                                                        if (acip_permit != 1) {
-                                                            if (acco[acco_idx].acip.hasOwnProperty('ipv6')) {
-                                                                var ipv6_idx = 99;
-                                                                for (ipv6_idx in acco[acco_idx].acip['ipv6']) {
-                                                                    if (acco[acco_idx].acip['ipv6'].hasOwnProperty(ipv6_idx)) {
-                                                                        if (acco[acco_idx].acip['ipv6'][ipv6_idx] == request.connection.remoteAddress) {
-                                                                            acip_permit = 1;
-                                                                            break;
-                                                                        }
+                                                        else if (acco[acco_idx].acip.hasOwnProperty('ipv6')) {
+                                                            var ipv6_idx = 99;
+                                                            for (ipv6_idx in acco[acco_idx].acip['ipv6']) {
+                                                                if (acco[acco_idx].acip['ipv6'].hasOwnProperty(ipv6_idx)) {
+                                                                    if (acco[acco_idx].acip['ipv6'][ipv6_idx] == request.connection.remoteAddress) {
+                                                                        acip_permit = 1;
+                                                                        break;
                                                                     }
                                                                 }
-
-                                                                if (ipv6_idx == 99) {
-                                                                    acip_permit = 1;
-                                                                }
                                                             }
-                                                            else {
+
+                                                            if (ipv6_idx == 99) {
                                                                 acip_permit = 1;
                                                             }
+                                                        }
+                                                        else {
+                                                            acip_permit = 1;
                                                         }
                                                     }
                                                     else {
@@ -229,29 +226,43 @@ function security_check_action_pvs(request, response, acpiList, cr, access_value
                                             if(acco.hasOwnProperty(acco_idx)) {
                                                 if (acco[acco_idx].hasOwnProperty('acip')) {
                                                     if (acco[acco_idx].acip.hasOwnProperty('ipv4')) {
-                                                        for (var ipv4_idx in acco[acco_idx].acip['ipv4']) {
+                                                        var ipv4_idx = 99;
+                                                        for (ipv4_idx in acco[acco_idx].acip['ipv4']) {
                                                             if (acco[acco_idx].acip['ipv4'].hasOwnProperty(ipv4_idx)) {
-                                                                if (acco[acco_idx].acip['ipv4'][ipv4_idx] == request.connection.remoteAddress) {
+                                                                if(request.connection.remoteAddress == '::1') {
+                                                                    var client_ipv4 = ip.address();
+                                                                }
+                                                                else {
+                                                                    client_ipv4 = request.connection.remoteAddress.replace('::ffff:', '');
+                                                                }
+                                                                if (acco[acco_idx].acip['ipv4'][ipv4_idx] == client_ipv4) {
                                                                     acip_permit = 1;
                                                                     break;
                                                                 }
                                                             }
                                                         }
+
+                                                        if(ipv6_idx == 99) {
+                                                            acip_permit = 1;
+                                                        }
                                                     }
-                                                    else {
-                                                        if (acco[acco_idx].acip.hasOwnProperty('ipv6')) {
-                                                            for (var ipv6_idx in acco[acco_idx].acip['ipv6']) {
-                                                                if (acco[acco_idx].acip['ipv6'].hasOwnProperty(ipv6_idx)) {
-                                                                    if (acco[acco_idx].acip['ipv6'][ipv6_idx] == request.connection.remoteAddress) {
-                                                                        acip_permit = 1;
-                                                                        break;
-                                                                    }
+                                                    else if (acco[acco_idx].acip.hasOwnProperty('ipv6')) {
+                                                        var ipv6_idx = 99;
+                                                        for (ipv6_idx in acco[acco_idx].acip['ipv6']) {
+                                                            if (acco[acco_idx].acip['ipv6'].hasOwnProperty(ipv6_idx)) {
+                                                                if (acco[acco_idx].acip['ipv6'][ipv6_idx] == request.connection.remoteAddress) {
+                                                                    acip_permit = 1;
+                                                                    break;
                                                                 }
                                                             }
                                                         }
-                                                        else {
+
+                                                        if (ipv6_idx == 99) {
                                                             acip_permit = 1;
                                                         }
+                                                    }
+                                                    else {
+                                                        acip_permit = 1;
                                                     }
                                                 }
                                                 else {
@@ -266,7 +277,8 @@ function security_check_action_pvs(request, response, acpiList, cr, access_value
                                                     actw_cur[2] = moment().utc().hour();
                                                     actw_cur[1] = moment().utc().minute();
                                                     actw_cur[0] = moment().utc().second();
-                                                    for (var actw_idx in acco[acco_idx].actw) {
+                                                    var actw_idx = 99;
+                                                    for (actw_idx in acco[acco_idx].actw) {
                                                         if (acco[acco_idx].actw.hasOwnProperty(actw_idx)) {
                                                             var actw_arr = acco[acco_idx].actw[actw_idx].split(' ');
                                                             for (var d = 0; d < 6; d++) {
@@ -281,9 +293,17 @@ function security_check_action_pvs(request, response, acpiList, cr, access_value
                                                             }
                                                         }
                                                     }
+
+                                                    if(actw_idx == 99) {
+                                                        actw_permit = 1;
+                                                    }
                                                 }
                                                 else {
                                                     actw_permit = 1;
+                                                }
+
+                                                if(actw_permit == 1 && acip_permit == 1) {
+                                                    break;
                                                 }
                                             }
                                         }
