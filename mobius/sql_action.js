@@ -12,8 +12,10 @@
  * Created by Il Yeup, Ahn in KETI on 2016-07-13.
  */
 
+var responder = require('./responder');
 var moment = require('moment');
 var util = require('util');
+var merge = require('merge');
 
 var db = require('./db_action');
 
@@ -927,19 +929,38 @@ function build_discovery_sql(ri, query, cur_lim, pi_list, bef_ct, cur_ct) {
         query_count++;
     }
 
-    query_where += util.format(' order by ct desc limit %s', cur_lim);
+    query_where += ' limit ' + cur_lim;
+//    query_where += util.format(' order by ct desc limit %s', cur_lim);
 
     if(query.ofst != null) {
         query_where += util.format(' offset %s', query.ofst);
     }
 
-
-    query_where = util.format("select a.* from (select ri from lookup where ((ri = \'" + ri + "\') or (pi in ("+JSON.stringify(pi_list).replace('[','').replace(']','')+")) %s and ((\'%s\' < ct) and (ct <= \'%s\')))) b left join lookup as a on b.ri = a.ri", ty_str, bef_ct, cur_ct) + query_where;
+    query_where = "select a.* from (select ri from lookup where ((pi in ("+JSON.stringify(pi_list).replace('[','').replace(']','')+"))" + ty_str + ")) b left join lookup as a on b.ri = a.ri " + query_where;
+    //query_where = util.format("select a.* from (select ri from lookup where ((ri = \'" + ri + "\') or (pi in ("+JSON.stringify(pi_list).replace('[','').replace(']','')+")) %s and ((\'%s\' < ct) and (ct <= \'%s\')))) b left join lookup as a on b.ri = a.ri", ty_str, bef_ct, cur_ct) + query_where;
     //query_where = util.format("select a.* from (select ri from lookup where ((ri = \'" + ri + "\') or pi in ("+JSON.stringify(pi_list).replace('[','').replace(']','')+")) %s and (ct > \'%s\' and ct <= \'%s\') limit 1000) b left join lookup as a on b.ri = a.ri", ty_str, bef_ct, cur_ct) + query_where;
     //query_where = util.format("select a.* from (select ri from lookup where (pi in ("+JSON.stringify(pi_list).replace('[','').replace(']','')+")) %s and (ct > \'%s\' and ct <= \'%s\') order by ct desc limit 1000) b left join lookup as a on b.ri = a.ri", ty_str, bef_ct, cur_ct) + query_where;
 
     return query_where;
 }
+
+function select_spec_ri(found_Obj, callback) {
+    var spec_count = 0;
+    for(var ri in found_Obj) {
+        if(found_Obj.hasOwnProperty(ri)) {
+            var sql = "select * from " + responder.typeRsrc[found_Obj[ri].ty] + " where ri = \'" + ri + "\'";
+            db.getResult(sql, '', function (err, spec_Obj) {
+                makeObject(spec_Obj[0]);
+                found_Obj[spec_Obj[0].ri] = merge(found_Obj[spec_Obj[0].ri], spec_Obj[0]);
+                spec_count++;
+                if (spec_count >= Object.keys(found_Obj).length) {
+                    callback(err, found_Obj);
+                }
+            });
+        }
+    }
+}
+
 
 var search_tid = '';
 exports.search_lookup = function (ri, query, cur_lim, pi_list, pi_index, found_Obj, found_Cnt, bef_d, cur_d, loop_cnt, callback) {
@@ -957,9 +978,12 @@ exports.search_lookup = function (ri, query, cur_lim, pi_list, pi_index, found_O
     //console.log(cur_ct);
     //console.log(bef_ct);
 
-    for(var idx = 0; idx < 8; idx++) {
+    for(var idx = 0; idx < 16; idx++) {
         if (pi_index < pi_list.length) {
             cur_pi.push(pi_list[pi_index++]);
+        }
+        else {
+            break;
         }
     }
 
@@ -969,48 +993,45 @@ exports.search_lookup = function (ri, query, cur_lim, pi_list, pi_index, found_O
     var bef_ct = moment(bef_d).utc().format('YYYYMMDDTHHmmss');
     var sql = build_discovery_sql(ri, query, cur_lim, cur_pi, bef_ct, cur_ct);
     //console.log(sql);
-    //console.time('discovery');
     db.getResult(sql, '', function (err, search_Obj) {
- //       console.timeEnd('discovery');
         if(!err) {
             //make_json_arraytype(search_Obj);
             for(var i = 0; i < search_Obj.length; i++) {
                 found_Obj[search_Obj[i].ri] = search_Obj[i];
-                //found_Cnt++;
                 if(Object.keys(found_Obj).length >= query.lim) {
-                    console.timeEnd('search_lookup (' + search_tid + ')');
-
-                    callback(err, found_Obj);
-                    return;
+                    break;
                 }
             }
 
-            cur_lim = parseInt(query.lim) - Object.keys(found_Obj).length;
-
-            if(pi_index >= pi_list.length) {
-                if(loop_cnt > 8) {
+            if(search_Obj.length != 0) {
+                select_spec_ri(found_Obj, function (err, found_Obj) {
+                    cur_lim = parseInt(query.lim) - Object.keys(found_Obj).length;
+                    if (pi_index >= pi_list.length) {
+                        console.timeEnd('search_lookup (' + search_tid + ')');
+                        callback(err, found_Obj);
+                    }
+                    else {
+                        setTimeout(function () {
+                            _this.search_lookup(ri, query, cur_lim, pi_list, pi_index, found_Obj, found_Cnt, bef_d, cur_d, loop_cnt, function (err, found_Obj) {
+                                callback(err, found_Obj);
+                            });
+                        }, 0);
+                    }
+                });
+            }
+            else {
+                cur_lim = parseInt(query.lim) - Object.keys(found_Obj).length;
+                if (pi_index >= pi_list.length) {
                     console.timeEnd('search_lookup (' + search_tid + ')');
                     callback(err, found_Obj);
                 }
                 else {
-                    pi_index = 0;
-                    //cur_d.setDate(bef_d.getDate());
-                    cur_d = bef_d;
-                    bef_d = moment(cur_d).subtract(Math.pow(3, ++loop_cnt), 'hours').format('YYYY-MM-DD HH:mm:ss');
-
-                    setTimeout( function() {
+                    setTimeout(function () {
                         _this.search_lookup(ri, query, cur_lim, pi_list, pi_index, found_Obj, found_Cnt, bef_d, cur_d, loop_cnt, function (err, found_Obj) {
                             callback(err, found_Obj);
                         });
                     }, 0);
                 }
-            }
-            else {
-                setTimeout( function() {
-                    _this.search_lookup(ri, query, cur_lim, pi_list, pi_index, found_Obj, found_Cnt, bef_d, cur_d, loop_cnt, function (err, found_Obj) {
-                        callback(err, found_Obj);
-                    });
-                }, 0);
             }
         }
         else {

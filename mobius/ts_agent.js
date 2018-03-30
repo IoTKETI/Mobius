@@ -303,14 +303,17 @@ ts_app.post('/missingDataDetect', onem2mParser, function(request, response) {
                 //console.log(responseBody);
 
                 var jsonObj = JSON.parse(responseBody);
+                var ts_ri = [];
                 if (jsonObj['m2m:dbg']) {
-                    var ts_ri = [];
-                }
-                else if (jsonObj['m2m:uril']['_'] == null) {
                     ts_ri = [];
                 }
-                else {
-                    ts_ri = jsonObj['m2m:uril']['_'].toString().split(' ');
+                else if (jsonObj['m2m:uril']) {
+                    if (jsonObj['m2m:uril'].hasOwnProperty('_')) {
+                        ts_ri = jsonObj['m2m:uril']['_'].toString().split(' ');
+                    }
+                    else {
+                        ts_ri = [];
+                    }
                 }
 
                 var ts = {};

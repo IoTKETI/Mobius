@@ -549,18 +549,18 @@ function create_action(request, response, ty, resource_Obj, callback) {
             });
     }
     else if (ty == '4') {
+        //var ty = resource_Obj[rootnm].ty;
+        var pi = resource_Obj[rootnm].pi;
+        var mni = request.headers.mni;
+        var mbs = request.headers.mbs;
+        var cni = (parseInt(request.headers.cni, 10) + 1).toString();
+        var cbs = (parseInt(request.headers.cbs, 10) + parseInt(resource_Obj[rootnm].cs, 10)).toString();
+        var st = (parseInt(request.headers.st, 10) + 1).toString();
         db_sql.insert_cin(resource_Obj[rootnm].ty, resource_Obj[rootnm].ri, resource_Obj[rootnm].rn, resource_Obj[rootnm].pi, resource_Obj[rootnm].ct,
             resource_Obj[rootnm].lt, resource_Obj[rootnm].et, JSON.stringify(resource_Obj[rootnm].acpi), JSON.stringify(resource_Obj[rootnm].lbl), JSON.stringify(resource_Obj[rootnm].at),
-            JSON.stringify(resource_Obj[rootnm].aa), resource_Obj[rootnm].st, resource_Obj[rootnm].cnf, resource_Obj[rootnm].cs, resource_Obj[rootnm].sri, resource_Obj[rootnm].spi,
+            JSON.stringify(resource_Obj[rootnm].aa), st, resource_Obj[rootnm].cnf, resource_Obj[rootnm].cs, resource_Obj[rootnm].sri, resource_Obj[rootnm].spi,
             resource_Obj[rootnm].cr, resource_Obj[rootnm].or, resource_Obj[rootnm].con, function (err, results) {
                 if (!err) {
-                    var ty = resource_Obj[rootnm].ty;
-                    var pi = resource_Obj[rootnm].pi;
-                    var mni = request.headers.mni;
-                    var mbs = request.headers.mbs;
-                    var cni = (parseInt(request.headers.cni, 10) + 1).toString();
-                    var cbs = (parseInt(request.headers.cbs, 10) + parseInt(resource_Obj[rootnm].cs, 10)).toString();
-                    var st = (parseInt(request.headers.st, 10) + 1).toString();
                     db_sql.update_cni_parent(ty, cni, cbs, st, pi, function (err, results) {
                         if (!err) {
                             create_action_cni(resource_Obj[rootnm].ty, resource_Obj[rootnm].pi, cni, cbs, mni, mbs, st, function (rsc) {
@@ -1511,12 +1511,12 @@ function presearch_action(request, response, ri_list, comm_Obj, callback) {
                         for (var index in search_Obj) {
                             if (search_Obj.hasOwnProperty(index)) {
                                 ri_list.push(search_Obj[index].ri);
-                                found_Obj[search_Obj[index].ri] = search_Obj[index];
-                                delete search_Obj[index];
+                                //found_Obj[search_Obj[index].ri] = search_Obj[index];
+                                //delete search_Obj[index];
                             }
                         }
 
-                        callback('1', ri_list, found_Obj);
+                        callback('1', ri_list, search_Obj);
                     }
                     else {
                         // search_Obj = {};
@@ -1798,52 +1798,9 @@ exports.retrieve = function (request, response, comm_Obj) {
                 }
                 else if (request.query.rcn == 4 || request.query.rcn == 5 || request.query.rcn == 6) {
                     request.headers.rootnm = 'rsp';
-
-                    search_action(request, response, 0, resource_Obj, ri_list, '{', search_Obj, function (rsc, strObj) {
-                        if (rsc == '1') {
-                            strObj += '}';
-                            resource_Obj = JSON.parse(strObj);
-                            for (var index in resource_Obj) {
-                                if (resource_Obj.hasOwnProperty(index)) {
-                                    resource_Obj[index] = merge(resource_Obj[index], search_Obj[index]);
-                                    for (var index2 in resource_Obj[index]) {
-                                        if (resource_Obj[index].hasOwnProperty(index2)) {
-                                            if (resource_Obj[index][index2] == null || resource_Obj[index][index2] == '' || resource_Obj[index][index2] == 'undefined') {
-                                                delete resource_Obj[index][index2];
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-
-                            _this.remove_no_value(request, resource_Obj);
-                            responder.search_result(request, response, 200, resource_Obj, 2000, comm_Obj.ri, '');
-
-                            /*
-                            retrieve_action(request, response, ty, comm_Obj, function (rsc, retrieve_Obj) {
-                                if (rsc == '1') {
-                                    _this.remove_no_value(request, retrieve_Obj);
-                                    resource_Obj[retrieve_Obj[Object.keys(retrieve_Obj)[0]].ri] = retrieve_Obj[Object.keys(retrieve_Obj)[0]];
-                                    request.headers.targetnm = responder.typeRsrc[retrieve_Obj[Object.keys(retrieve_Obj)[0]].ty];
-                                    responder.search_result(request, response, 200, resource_Obj, 2000, comm_Obj.ri, '');
-                                }
-                                else {
-                                    resource_Obj = {};
-                                    resource_Obj['dbg'] = {};
-                                    resource_Obj['dbg'] = 'resource does not exist';
-                                    responder.response_result(request, response, 404, resource_Obj, 4004, request.url, resource_Obj['dbg']);
-                                }
-                            });
-                            */
-                        }
-                        else {
-                            request.headers.rootnm = 'rsp';
-                            resource_Obj = {};
-                            resource_Obj['dbg'] = {};
-                            resource_Obj['dbg'] = 'response with hierarchical resource structure mentioned in onem2m spec is not supported instead all the requested resources will be returned !';
-                            responder.response_result(request, response, 501, resource_Obj, 5001, request.url, resource_Obj['dbg']);
-                        }
-                    });
+                    resource_Obj = merge({}, search_Obj);
+                    _this.remove_no_value(request, resource_Obj);
+                    responder.search_result(request, response, 200, resource_Obj, 2000, comm_Obj.ri, '');
                 }
                 else {
                     request.headers.rootnm = 'rsp';

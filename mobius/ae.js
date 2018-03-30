@@ -33,10 +33,10 @@ exports.build_ae = function(request, response, resource_Obj, body_Obj, callback)
     resource_Obj[rootnm].csz = (body_Obj[rootnm].csz) ? body_Obj[rootnm].csz : '';
 
     if( (request.headers['x-m2m-origin'] == 'S') ) {
-        resource_Obj[rootnm].aei = 'S' + moment().utc().format('YYYYMMDDHHmmssSSS') + randomValueBase64(4);
+        resource_Obj[rootnm].aei = 'S' + require('shortid').generate();
     }
     else if( (request.headers['x-m2m-origin'] == 'C') ) {
-        resource_Obj[rootnm].aei = 'C' + moment().utc().format('YYYYMMDDHHmmssSSS') + randomValueBase64(4);
+        resource_Obj[rootnm].aei = 'C' + require('shortid').generate();
     }
     else {
         resource_Obj[rootnm].aei = request.headers['x-m2m-origin'];
