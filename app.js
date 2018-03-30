@@ -990,29 +990,54 @@ function check_resource(request, response, body_Obj, callback) {
             op = 'latest';
             db_sql.select_direct_lookup(ri, function (err, result_Obj) {
                 if (!err) {
+                    if (result_Obj[0].ty == '3') {
+                        var cur_ty = '4';
+                    }
+                    else if (result_Obj[0].ty == '29') {
+                        cur_ty = '30';
+                    }
+                    else {
+                        result_Obj = {};
+                        result_Obj['dbg'] = 'this resource can not have latest resource';
+                        responder.response_result(request, response, 404, result_Obj, 4004, request.url, result_Obj['dbg']);
+                        callback('0', {}, '', request, response, body_Obj);
+                        return '0';
+                    }
+
                     if (result_Obj.length == 1) {
-                        if (result_Obj[0].ty == '3') {
-                            var cur_ty = '4';
-                        }
-                        else if (result_Obj[0].ty == '29') {
-                            cur_ty = '30';
-                        }
-                        else {
-                            result_Obj = {};
-                            result_Obj['dbg'] = 'this resource can not have latest resource';
-                            responder.response_result(request, response, 404, result_Obj, 4004, request.url, result_Obj['dbg']);
-                            callback('0', {}, '', request, response, body_Obj);
-                            return '0';
-                        }
-                        var cur_d = new Date();
-                        db_sql.select_latest_lookup(ri, cur_d, 0, cur_ty, function (err, result_Obj) {
+                        db_sql.select_resource(responder.typeRsrc[result_Obj[0].ty], result_Obj[0].ri, function (err, spec_Obj) {
                             if (!err) {
-                                if (result_Obj.length == 1) {
-                                    result_Obj[0].acpi = JSON.parse(result_Obj[0].acpi);
-                                    result_Obj[0].lbl = JSON.parse(result_Obj[0].lbl);
-                                    result_Obj[0].aa = JSON.parse(result_Obj[0].aa);
-                                    result_Obj[0].at = JSON.parse(result_Obj[0].at);
-                                    callback('1', result_Obj[0], op, request, response, body_Obj);
+                                if (spec_Obj.length == 1) {
+                                    var cur_d = new Date();
+                                    var cur_cni = spec_Obj[0].cni;
+                                    var cur_lim = (request.query.hasOwnProperty('lim')) ? request.query.lim : '1';
+                                    //var cur_lim = '1';
+                                    db_sql.select_latest_lookup(ri, cur_d, 0, cur_ty, cur_cni, cur_lim, function (err, result_Obj) {
+                                        if (!err) {
+                                            if (result_Obj.length == 1) {
+                                                result_Obj[0].acpi = JSON.parse(result_Obj[0].acpi);
+                                                result_Obj[0].lbl = JSON.parse(result_Obj[0].lbl);
+                                                result_Obj[0].aa = JSON.parse(result_Obj[0].aa);
+                                                result_Obj[0].at = JSON.parse(result_Obj[0].at);
+                                                callback('1', result_Obj[0], op, request, response, body_Obj);
+                                            }
+                                            else {
+                                                result_Obj = {};
+                                                result_Obj['dbg'] = 'resource does not exist';
+                                                responder.response_result(request, response, 404, result_Obj, 4004, request.url, result_Obj['dbg']);
+                                                callback('0', {}, '', request, response, body_Obj);
+                                                return '0';
+                                            }
+                                        }
+                                        else {
+                                            var code = result_Obj.message;
+                                            result_Obj = {};
+                                            result_Obj['dbg'] = code;
+                                            responder.response_result(request, response, 500, result_Obj, 5000, request.url, result_Obj['dbg']);
+                                            callback('0', {}, '', request, response, body_Obj);
+                                            return '0';
+                                        }
+                                    });
                                 }
                                 else {
                                     result_Obj = {};
@@ -1021,14 +1046,6 @@ function check_resource(request, response, body_Obj, callback) {
                                     callback('0', {}, '', request, response, body_Obj);
                                     return '0';
                                 }
-                            }
-                            else {
-                                var code = result_Obj.message;
-                                result_Obj = {};
-                                result_Obj['dbg'] = code;
-                                responder.response_result(request, response, 500, result_Obj, 5000, request.url, result_Obj['dbg']);
-                                callback('0', {}, '', request, response, body_Obj);
-                                return '0';
                             }
                         });
                     }
