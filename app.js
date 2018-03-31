@@ -980,45 +980,45 @@ function check_resource(request, response, body_Obj, callback) {
      //   }
     }
     else {
+        console.log('X-M2M-Origin: ' + request.headers['x-m2m-origin']);
+
         var url_arr = ri.split('/');
         var last_url = url_arr[url_arr.length - 1];
         var op = 'direct';
+        var resource_Obj = {};
 
         if (last_url == 'latest' || last_url == 'la') {
             ri = ri.replace('/latest', '');
             ri = ri.replace('/la', '');
             op = 'latest';
-            db_sql.select_direct_lookup(ri, function (err, result_Obj) {
+            db_sql.select_direct_lookup(ri, function (err, parent_Comm) {
                 if (!err) {
-                    if (result_Obj[0].ty == '3') {
+                    if (parent_Comm[0].ty == '3') {
                         var cur_ty = '4';
                     }
-                    else if (result_Obj[0].ty == '29') {
+                    else if (parent_Comm[0].ty == '29') {
                         cur_ty = '30';
                     }
                     else {
-                        result_Obj = {};
-                        result_Obj['dbg'] = 'this resource can not have latest resource';
-                        responder.response_result(request, response, 404, result_Obj, 4004, request.url, result_Obj['dbg']);
+                        parent_Comm = {};
+                        parent_Comm['dbg'] = 'this resource can not have latest resource';
+                        responder.response_result(request, response, 404, parent_Comm, 4004, request.url, parent_Comm['dbg']);
                         callback('0', {}, '', request, response, body_Obj);
                         return '0';
                     }
 
-                    if (result_Obj.length == 1) {
-                        db_sql.select_resource(responder.typeRsrc[result_Obj[0].ty], result_Obj[0].ri, function (err, spec_Obj) {
+                    if (parent_Comm.length == 1) {
+                        db_sql.select_resource(responder.typeRsrc[parent_Comm[0].ty], parent_Comm[0].ri, function (err, parent_Spec) {
                             if (!err) {
-                                if (spec_Obj.length == 1) {
+                                if (parent_Spec.length == 1) {
                                     var cur_d = new Date();
-                                    var cur_cni = spec_Obj[0].cni;
-                                    var cur_lim = (request.query.hasOwnProperty('lim')) ? request.query.lim : '1';
-                                    //var cur_lim = '1';
-                                    db_sql.select_latest_lookup(ri, cur_d, 0, cur_ty, cur_cni, cur_lim, function (err, result_Obj) {
+                                    var cur_cni = parent_Spec[0].cni;
+                                    //var cur_lim = (request.query.hasOwnProperty('lim')) ? request.query.lim : '1';
+                                    var cur_lim = '1';
+                                    db_sql.select_latest_resource(ri, cur_d, 0, cur_ty, cur_cni, cur_lim, function (err, result_Obj) {
                                         if (!err) {
                                             if (result_Obj.length == 1) {
-                                                result_Obj[0].acpi = JSON.parse(result_Obj[0].acpi);
-                                                result_Obj[0].lbl = JSON.parse(result_Obj[0].lbl);
-                                                result_Obj[0].aa = JSON.parse(result_Obj[0].aa);
-                                                result_Obj[0].at = JSON.parse(result_Obj[0].at);
+                                                makeObject(result_Obj[0]);
                                                 callback('1', result_Obj[0], op, request, response, body_Obj);
                                             }
                                             else {
@@ -1040,9 +1040,9 @@ function check_resource(request, response, body_Obj, callback) {
                                     });
                                 }
                                 else {
-                                    result_Obj = {};
-                                    result_Obj['dbg'] = 'resource does not exist';
-                                    responder.response_result(request, response, 404, result_Obj, 4004, request.url, result_Obj['dbg']);
+                                    parent_Comm = {};
+                                    parent_Comm['dbg'] = 'resource does not exist';
+                                    responder.response_result(request, response, 404, parent_Comm, 4004, request.url, parent_Comm['dbg']);
                                     callback('0', {}, '', request, response, body_Obj);
                                     return '0';
                                 }
@@ -1050,18 +1050,18 @@ function check_resource(request, response, body_Obj, callback) {
                         });
                     }
                     else {
-                        result_Obj = {};
-                        result_Obj['dbg'] = 'resource does not exist';
-                        responder.response_result(request, response, 404, result_Obj, 4004, request.url, result_Obj['dbg']);
+                        parent_Comm = {};
+                        parent_Comm['dbg'] = 'resource does not exist';
+                        responder.response_result(request, response, 404, parent_Comm, 4004, request.url, parent_Comm['dbg']);
                         callback('0', {}, '', request, response, body_Obj);
                         return '0';
                     }
                 }
                 else {
-                    var code = result_Obj.message;
-                    result_Obj = {};
-                    result_Obj['dbg'] = code;
-                    responder.response_result(request, response, 500, result_Obj, 5000, request.url, result_Obj['dbg']);
+                    var code = parent_Comm.message;
+                    parent_Comm = {};
+                    parent_Comm['dbg'] = code;
+                    responder.response_result(request, response, 500, parent_Comm, 5000, request.url, parent_Comm['dbg']);
                     callback('0', {}, '', request, response, body_Obj);
                     return '0';
                 }
@@ -1071,13 +1071,10 @@ function check_resource(request, response, body_Obj, callback) {
             ri = ri.replace('/oldest', '');
             ri = ri.replace('/ol', '');
             op = 'oldest';
-            db_sql.select_oldest_lookup(ri, function (err, result_Obj) {
+            db_sql.select_oldest_resource(ri, function (err, result_Obj) {
                 if (!err) {
                     if (result_Obj.length == 1) {
-                        result_Obj[0].acpi = JSON.parse(result_Obj[0].acpi);
-                        result_Obj[0].lbl = JSON.parse(result_Obj[0].lbl);
-                        result_Obj[0].aa = JSON.parse(result_Obj[0].aa);
-                        result_Obj[0].at = JSON.parse(result_Obj[0].at);
+                        makeObject(result_Obj[0]);
                         callback('1', result_Obj[0], op, request, response, body_Obj);
                     }
                     else {
@@ -1100,28 +1097,47 @@ function check_resource(request, response, body_Obj, callback) {
         }
         else {
             op = 'direct';
-            console.log('X-M2M-Origin: ' + request.headers['x-m2m-origin']);
-            db_sql.select_direct_lookup(ri, function (err, result_Obj) {
+            db_sql.select_direct_lookup(ri, function (err, comm_Obj) {
                 if (!err) {
-                    if (result_Obj.length == 1) {
-                        result_Obj[0].acpi = JSON.parse(result_Obj[0].acpi);
-                        result_Obj[0].lbl = JSON.parse(result_Obj[0].lbl);
-                        result_Obj[0].aa = JSON.parse(result_Obj[0].aa);
-                        result_Obj[0].at = JSON.parse(result_Obj[0].at);
-                        callback('1', result_Obj[0], op, request, response, body_Obj);
+                    if (comm_Obj.length == 1) {
+                        var ty = comm_Obj[0].ty;
+                        db_sql.select_resource(responder.typeRsrc[ty], comm_Obj[0].ri, function (err, spec_Obj) {
+                            if (!err) {
+                                if (spec_Obj.length == 1) {
+                                    resource_Obj[responder.typeRsrc[ty]] = merge(comm_Obj[0], spec_Obj[0]);
+                                    makeObject(resource_Obj[responder.typeRsrc[ty]]);
+                                    callback('1', resource_Obj[responder.typeRsrc[ty]], op, request, response, body_Obj);
+                                    return '0';
+                                }
+                                else {
+                                    spec_Obj = {};
+                                    spec_Obj['dbg'] = 'resource does not exist';
+                                    responder.response_result(request, response, 404, spec_Obj, 4004, request.url, spec_Obj['dbg']);
+                                    callback('0', resource_Obj);
+                                    return '0';
+                                }
+                            }
+                            else {
+                                spec_Obj = {};
+                                spec_Obj['dbg'] = spec_Obj.message;
+                                responder.response_result(request, response, 500, spec_Obj, 5000, request.url, spec_Obj['dbg']);
+                                callback('0', resource_Obj);
+                                return '0';
+                            }
+                        });
                     }
                     else {
-                        result_Obj = {};
-                        result_Obj['dbg'] = 'resource does not exist';
-                        responder.response_result(request, response, 404, result_Obj, 4004, request.url, result_Obj['dbg']);
+                        comm_Obj = {};
+                        comm_Obj['dbg'] = 'resource does not exist';
+                        responder.response_result(request, response, 404, comm_Obj, 4004, request.url, comm_Obj['dbg']);
                         callback('0', {}, '', request, response, body_Obj);
                         return '0';
                     }
                 }
                 else {
-                    result_Obj = {};
-                    result_Obj['dbg'] = result_Obj.message;
-                    responder.response_result(request, response, 500, result_Obj, 5000, request.url, result_Obj['dbg']);
+                    comm_Obj = {};
+                    comm_Obj['dbg'] = comm_Obj.message;
+                    responder.response_result(request, response, 500, comm_Obj, 5000, request.url, comm_Obj['dbg']);
                     callback('0', {}, '', request, response, body_Obj);
                     return '0';
                 }
@@ -1138,8 +1154,8 @@ function check_rt_query(request, response, body_Obj, callback) {
     //var op = 'direct';
 
     if (request.query.rt == 3) { // default, blocking
-        check_resource(request, response, body_Obj, function (rsc, parent_comm, op, request, response, body_Obj) {
-            callback(rsc, parent_comm, op, request, response, body_Obj);
+        check_resource(request, response, body_Obj, function (rsc, check_Obj, op, request, response, body_Obj) {
+            callback(rsc, check_Obj, op, request, response, body_Obj);
         });
     }
     else if (request.query.rt == 1 || request.query.rt == 2) { // nodblocking
@@ -1426,12 +1442,12 @@ function lookup_retrieve(request, response) {
         if (option == '0') {
             return option;
         }
-        check_rt_query(request, response, body_Obj, function (rsc, results_comm, op, request, response, body_Obj) {
+        check_rt_query(request, response, body_Obj, function (rsc, result_Obj, op, request, response, body_Obj) {
             if (rsc == '0') {
                 return rsc;
             }
 
-            tr.check(request, results_comm.ri, body_Obj, function (rsc, body_Obj) {
+            tr.check(request, result_Obj.ri, body_Obj, function (rsc, body_Obj) {
                 if (rsc === '0') {
                     body_Obj = {};
                     body_Obj['dbg'] = resultStatusCode['4230'];
@@ -1441,13 +1457,13 @@ function lookup_retrieve(request, response) {
 
                 if (op == 'fanoutpoint') {
                     // check access right for fanoutpoint
-                    check_grp(request, response, results_comm.ri, function (rsc, result_grp) {
+                    check_grp(request, response, result_Obj.ri, function (rsc, result_grp) {
                         if (rsc == '0') {
                             return rsc;
                         }
 
                         if (request.query.fu == 1) {
-                            security.check(request, response, results_comm.ty, result_grp.macp, '32', result_grp.cr, function (rsc, request, response) {
+                            security.check(request, response, result_Obj.ty, result_grp.macp, '32', result_grp.cr, function (rsc, request, response) {
                                 if (rsc == '0') {
                                     body_Obj = {};
                                     body_Obj['dbg'] = resultStatusCode['4103'];
@@ -1459,7 +1475,7 @@ function lookup_retrieve(request, response) {
                             });
                         }
                         else {
-                            security.check(request, response, results_comm.ty, result_grp.macp, '2', result_grp.cr, function (rsc, request, response) {
+                            security.check(request, response, result_Obj.ty, result_grp.macp, '2', result_grp.cr, function (rsc, request, response) {
                                 if (rsc == '0') {
                                     body_Obj = {};
                                     body_Obj['dbg'] = resultStatusCode['4103'];
@@ -1476,53 +1492,53 @@ function lookup_retrieve(request, response) {
                 else { //if(op == 'direct') {
                     //if(results_comm.ty == 2 || results_comm.ty == 4 || results_comm.ty == 3 || results_comm.ty == 9 || results_comm.ty == 16 || results_comm.ty == 24 ||
                     //    results_comm.ty == 23 || results_comm.ty == 29 || results_comm.ty == 38 || results_comm.ty == 39) {
-                    db_sql.select_resource(responder.typeRsrc[results_comm.ty], results_comm.ri, function (err, results_spec) {
-                        if (!err) {
-                            if (results_spec.length == 0) {
-                                results_spec[0] = {};
-                                results_spec[0].cr = '';
-                                console.log('no creator');
-                            }
-                            else {
-                                if (results_comm.ty == 2) {
-                                    results_spec[0].cr = results_spec[0].aei;
+                    // db_sql.select_resource(responder.typeRsrc[result_Obj.ty], result_Obj.ri, function (err, results_spec) {
+                    //     if (!err) {
+                    //         if (results_spec.length == 0) {
+                    //             results_spec[0] = {};
+                    //             results_spec[0].cr = '';
+                    //             console.log('no creator');
+                    //         }
+                    //         else {
+                                if (result_Obj.ty == 2) {
+                                    result_Obj.cr = result_Obj.aei;
                                 }
-                                else if (results_comm.ty == 16) {
-                                    results_spec[0].cr = results_spec[0].csi;
+                                else if (result_Obj.ty == 16) {
+                                    result_Obj.cr = result_Obj.csi;
                                 }
-                            }
+                            // }
 
                             if (request.query.fu == 1) {
-                                security.check(request, response, results_comm.ty, results_comm.acpi, '32', results_spec[0].cr, function (rsc, request, response) {
+                                security.check(request, response, result_Obj.ty, result_Obj.acpi, '32', result_Obj.cr, function (rsc, request, response) {
                                     if (rsc == '0') {
                                         body_Obj = {};
                                         body_Obj['dbg'] = resultStatusCode['4103'];
                                         responder.response_result(request, response, 403, body_Obj, 4103, request.url, resultStatusCode['4103']);
                                         return '0';
                                     }
-                                    resource.retrieve(request, response, results_comm);
+                                    resource.retrieve(request, response, result_Obj);
                                 });
                             }
                             else {
-                                security.check(request, response, results_comm.ty, results_comm.acpi, '2', results_spec[0].cr, function (rsc, request, response) {
+                                security.check(request, response, result_Obj.ty, result_Obj.acpi, '2', result_Obj.cr, function (rsc, request, response) {
                                     if (rsc == '0') {
                                         body_Obj = {};
                                         body_Obj['dbg'] = resultStatusCode['4103'];
                                         responder.response_result(request, response, 403, body_Obj, 4103, request.url, resultStatusCode['4103']);
                                         return '0';
                                     }
-                                    resource.retrieve(request, response, results_comm);
+                                    resource.retrieve(request, response, result_Obj);
                                 });
                             }
-                        }
-                        else {
-                            body_Obj = {};
-                            body_Obj['dbg'] = 'select resource error in security';
-                            responder.response_result(request, response, 500, search_Obj, 5000, request.url, body_Obj['dbg']);
-                            callback('0', search_Obj);
-                            return '0';
-                        }
-                    });
+                        // }
+                        // else {
+                        //     body_Obj = {};
+                        //     body_Obj['dbg'] = 'select resource error in security';
+                        //     responder.response_result(request, response, 500, search_Obj, 5000, request.url, body_Obj['dbg']);
+                        //     callback('0', search_Obj);
+                        //     return '0';
+                        // }
+                    // });
                     // }
                     // else {
                     //     if (request.query.fu == 1) {

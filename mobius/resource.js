@@ -1606,77 +1606,86 @@ function search_action(request, response, seq, resource_Obj, ri_list, strObj, pr
     });
 }
 
-global.makeObject = function (spec_Obj) {
-    if (spec_Obj.srt) {
-        spec_Obj.srt = JSON.parse(spec_Obj.srt);
+global.makeObject = function (obj) {
+    if (obj.aa) {
+        obj.aa = JSON.parse(obj.aa);
     }
-    if (spec_Obj.nu) {
-        spec_Obj.nu = JSON.parse(spec_Obj.nu);
+    if (obj.at) {
+        obj.at = JSON.parse(obj.at);
     }
-    if (spec_Obj.acpi) {
-        spec_Obj.acpi = JSON.parse(spec_Obj.acpi);
+    if (obj.lbl) {
+        obj.lbl = JSON.parse(obj.lbl);
     }
-    if (spec_Obj.poa) {
-        spec_Obj.poa = JSON.parse(spec_Obj.poa);
+    if (obj.srt) {
+        obj.srt = JSON.parse(obj.srt);
     }
-    if (spec_Obj.enc) {
-        spec_Obj.enc = JSON.parse(spec_Obj.enc);
+    if (obj.nu) {
+        obj.nu = JSON.parse(obj.nu);
     }
-    if (spec_Obj.bn) {
-        spec_Obj.bn = JSON.parse(spec_Obj.bn);
+    if (obj.acpi) {
+        obj.acpi = JSON.parse(obj.acpi);
     }
-    if (spec_Obj.pv) {
-        spec_Obj.pv = JSON.parse(spec_Obj.pv);
+    if (obj.poa) {
+        obj.poa = JSON.parse(obj.poa);
     }
-    if (spec_Obj.pvs) {
-        spec_Obj.pvs = JSON.parse(spec_Obj.pvs);
+    if (obj.enc) {
+        obj.enc = JSON.parse(obj.enc);
     }
-    if (spec_Obj.mid) {
-        spec_Obj.mid = JSON.parse(spec_Obj.mid);
+    if (obj.bn) {
+        obj.bn = JSON.parse(obj.bn);
     }
-    if (spec_Obj.uds) {
-        spec_Obj.uds = JSON.parse(spec_Obj.uds);
+    if (obj.pv) {
+        obj.pv = JSON.parse(obj.pv);
     }
-    if (spec_Obj.cas) {
-        spec_Obj.cas = JSON.parse(spec_Obj.cas);
+    if (obj.pvs) {
+        obj.pvs = JSON.parse(obj.pvs);
     }
-    if (spec_Obj.macp) {
-        spec_Obj.macp = JSON.parse(spec_Obj.macp);
+    if (obj.mid) {
+        obj.mid = JSON.parse(obj.mid);
     }
-    if (spec_Obj.rels) {
-        spec_Obj.rels = JSON.parse(spec_Obj.rels);
+    if (obj.uds) {
+        obj.uds = JSON.parse(obj.uds);
     }
-    if (spec_Obj.rqps) {
-        spec_Obj.rqps = JSON.parse(spec_Obj.rqps);
+    if (obj.cas) {
+        obj.cas = JSON.parse(obj.cas);
     }
-    if (spec_Obj.rsps) {
-        spec_Obj.rsps = JSON.parse(spec_Obj.rsps);
+    if (obj.macp) {
+        obj.macp = JSON.parse(obj.macp);
     }
-    if (spec_Obj.trqp) {
-        var trqp_type = getType(spec_Obj.trqp);
+    if (obj.rels) {
+        obj.rels = JSON.parse(obj.rels);
+    }
+    if (obj.rqps) {
+        obj.rqps = JSON.parse(obj.rqps);
+    }
+    if (obj.rsps) {
+        obj.rsps = JSON.parse(obj.rsps);
+    }
+    if (obj.trqp) {
+        var trqp_type = getType(obj.trqp);
         if (trqp_type === 'object' || trqp_type === 'array' || trqp_type === 'string_object') {
             try {
-                spec_Obj.trqp = JSON.parse(spec_Obj.trqp);
+                obj.trqp = JSON.parse(obj.trqp);
             }
             catch (e) {
             }
         }
     }
-    if (spec_Obj.trsp) {
-        var trsp_type = getType(spec_Obj.trsp);
+    if (obj.trsp) {
+        var trsp_type = getType(obj.trsp);
         if (trsp_type === 'object' || trsp_type === 'array' || trsp_type === 'string_object') {
             try {
-                spec_Obj.trsp = JSON.parse(spec_Obj.trsp);
+                obj.trsp = JSON.parse(obj.trsp);
             }
             catch (e) {
             }
         }
     }
-    if (spec_Obj.con) {
-        var con_type = getType(spec_Obj.con);
+    if (obj.con) {
+        var con_type = getType(obj.con);
         if (con_type === 'object' || con_type === 'array' || con_type === 'string_object') {
             try {
-                spec_Obj.con = JSON.parse(spec_Obj.con);
+                obj.con = JSON.parse(obj.con);
             }
             catch (e) {
             }
@@ -1734,8 +1743,8 @@ function search_resource(request, callback) {
     callback('1', resource_Obj);
 }
 
-exports.retrieve = function (request, response, comm_Obj) {
-    var ty = comm_Obj.ty;
+exports.retrieve = function (request, response, resource_Obj) {
+    var ty = resource_Obj.ty;
 
     if (request.query.fu == 2 && request.query.rcn == 1) {
         _this.set_rootnm(request, ty);
@@ -1746,13 +1755,15 @@ exports.retrieve = function (request, response, comm_Obj) {
             if (rsc == '0') {
                 return rsc;
             }
-            retrieve_action(request, response, ty, comm_Obj, function (rsc, retrieve_Obj) {
-                if (rsc == '1') {
+            //retrieve_action(request, response, ty, comm_Obj, function (rsc, retrieve_Obj) {
+            //    if (rsc == '1') {
+                    var retrieve_Obj = {};
+                    retrieve_Obj[rootnm] = merge({}, resource_Obj);
                     _this.remove_no_value(request, retrieve_Obj);
                     responder.response_result(request, response, 200, retrieve_Obj, 2000, retrieve_Obj[rootnm].ri, '');
                     return '0';
-                }
-            });
+            //    }
+            //});
         });
     }
     else if (request.query.fu == 1 && (request.query.smf)) {
@@ -1764,26 +1775,26 @@ exports.retrieve = function (request, response, comm_Obj) {
                 resource_Obj.uril = {};
                 resource_Obj.uril = ri_list;
                 make_cse_relative(ri_list);
-                responder.search_result(request, response, 200, resource_Obj, 2000, comm_Obj.ri, '');
+                responder.search_result(request, response, 200, resource_Obj, 2000, resource_Obj.ri, '');
             }
             else {
                 resource_Obj = {};
                 resource_Obj.dbg = {};
                 resource_Obj.dbg = ri_list[0];
                 var rsc = (statusCode == 400) ? 4000 : 4004;
-                responder.response_result(request, response, statusCode, resource_Obj, rsc, comm_Obj.ri, resource_Obj.dbg);
+                responder.response_result(request, response, statusCode, resource_Obj, rsc, resource_Obj.ri, resource_Obj.dbg);
             }
             return '0';
         });
     }
     else {
-        search_resource(request, function (rsc, resource_Obj) {
+        search_resource(request, function (rsc, found_Obj) {
             if (rsc == '0') {
                 return rsc;
             }
             //var ri_list = [comm_Obj.ri];
             var ri_list = [];
-            presearch_action(request, response, ri_list, comm_Obj, function (rsc, ri_list, search_Obj) {
+            presearch_action(request, response, ri_list, resource_Obj, function (rsc, ri_list, search_Obj) {
                 if (rsc == '0') {
                     return rsc;
                 }
@@ -1794,13 +1805,13 @@ exports.retrieve = function (request, response, comm_Obj) {
                     resource_Obj.uril = {};
                     resource_Obj.uril = ri_list;
                     make_cse_relative(ri_list);
-                    responder.search_result(request, response, 200, resource_Obj, 2000, comm_Obj.ri, '');
+                    responder.search_result(request, response, 200, resource_Obj, 2000, resource_Obj.ri, '');
                 }
                 else if (request.query.rcn == 4 || request.query.rcn == 5 || request.query.rcn == 6) {
                     request.headers.rootnm = 'rsp';
                     resource_Obj = merge({}, search_Obj);
                     _this.remove_no_value(request, resource_Obj);
-                    responder.search_result(request, response, 200, resource_Obj, 2000, comm_Obj.ri, '');
+                    responder.search_result(request, response, 200, resource_Obj, 2000, resource_Obj.ri, '');
                 }
                 else {
                     request.headers.rootnm = 'rsp';
