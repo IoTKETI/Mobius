@@ -1048,6 +1048,9 @@ exports.select_latest_resource = function(ri, cur_d, loop_cnt, ty, cni, lim, cal
 
     //var sql = util.format('select a.* from (select ri from lookup where (pi = \'%s\') and (ct > \'%s\')) b left join lookup as a on b.ri = a.ri where a.ty = \'%s\' order by ct desc limit 1', ri, bef_ct, ty);
     var ofst = (parseInt(cni, 10) - parseInt(lim, 10)).toString();
+    if(ofst <= 0) {
+        ofst = 0;
+    }
     var sql = 'select a.* from (select ri from lookup where (pi = \'' + ri + '\')) b left join lookup as a on b.ri = a.ri where a.ty = \'' + ty + '\' limit ' + lim + ' offset ' + ofst;
     db.getResult(sql, '', function (err, latest_Comm) {
         if(!err) {
@@ -1059,6 +1062,10 @@ exports.select_latest_resource = function(ri, cur_d, loop_cnt, ty, cni, lim, cal
                     result_Obj.push(merge(latest_Comm[0], latest_Spec[0]));
                     callback(err, result_Obj);
                 });
+            }
+            else {
+                console.timeEnd('select_latest ' + ri);
+                callback(err, latest_Comm);
             }
         }
         else {
@@ -1081,6 +1088,10 @@ exports.select_oldest_resource = function(ri, callback) {
                     result_Obj.push(merge(oldest_Comm[0], oldest_Spec[0]));
                     callback(err, result_Obj);
                 });
+            }
+            else {
+                console.timeEnd('select_latest ' + ri);
+                callback(err, oldest_Comm);
             }
         }
         else {
