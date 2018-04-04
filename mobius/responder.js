@@ -30,7 +30,7 @@ var _this = this;
 
 
 
-const attrLname = {
+var attrLname = {
     "acpi": "accessControlPolicyIDs",
     "aa":   "announcedAttribute",
     "at":   "announceTo",
@@ -318,7 +318,7 @@ const attrLname = {
     "rtv":"responseTypeValue"
 };
 
-const attrSname = {
+var attrSname = {
     "accessControlPolicyIDs"       :"acpi",
     "announcedAttribute"           :"aa",
     "announceTo"                   :"at",
@@ -607,7 +607,7 @@ const attrSname = {
     "firmwarename":"fwnnam"
 };
 
-const rceLname = {
+var rceLname = {
     "cb" : "CSEBase",
     "ae" : "AE",
     "csr": "remoteCSE",
@@ -686,7 +686,7 @@ const rceLname = {
 };
 
 
-const rceSname = {
+var rceSname = {
     "CSEBase"           : "cb",
     "AE"                : "ae",
     "remoteCSE"         : "csr",
@@ -764,7 +764,7 @@ const rceSname = {
 };
 
 
-const typeRsrc = {
+var typeRsrc = {
     "1": "acp",
     "2": "ae",
     "3": "cnt",
@@ -786,7 +786,7 @@ const typeRsrc = {
     "99": "rsp"
 };
 
-const mgoType = {
+var mgoType = {
     "1001": "fwr",
     "1006": "bat",
     "1007": "dvi",
@@ -1067,7 +1067,6 @@ function xmlAction(xml, body_Obj) {
         }
         else if (xml.name === 'm2m:sub') {
             xmlInsert(xml, body_Obj, 'daci', 'et');
-            xmlInsert(xml, body_Obj, 'cr');
 
             for (attr in body_Obj) {
                 if (body_Obj.hasOwnProperty(attr)) {
@@ -1111,6 +1110,7 @@ function xmlAction(xml, body_Obj) {
             xmlInsert(xml, body_Obj, 'ln');
             xmlInsert(xml, body_Obj, 'nct');
             xmlInsert(xml, body_Obj, 'nec');
+            xmlInsert(xml, body_Obj, 'cr');
             xmlInsert(xml, body_Obj, 'su');
         }
 
@@ -1314,7 +1314,7 @@ function xmlAction(xml, body_Obj) {
     }
 }
 
-function convertXml(rootnm, body_Obj) {
+exports.convertXml = function(rootnm, body_Obj) {
     var xml = xmlbuilder.create('m2m:' + rootnm, {version: '1.0', encoding: 'UTF-8', standalone: true},
         {pubID: null, sysID: null}, {
             allowSurrogateChars: false,
@@ -1339,9 +1339,9 @@ function convertXml(rootnm, body_Obj) {
         }
     }
     return xml.end({pretty: false, indent: '  ', newline: '\n'}).toString();
-}
+};
 
-function convertXml2(rootnm, body_Obj) {
+exports.convertXml2 = function(rootnm, body_Obj) {
     var xml = xmlbuilder.create('m2m:' + rootnm, {version: '1.0', encoding: 'UTF-8', standalone: true},
         {pubID: null, sysID: null}, {
             allowSurrogateChars: false,
@@ -1389,7 +1389,67 @@ function convertXml2(rootnm, body_Obj) {
     }
 
     return xml.end({pretty: false, indent: '  ', newline: '\n'}).toString();
-}
+};
+
+exports.convertXmlSgn = function(rootnm, body_Obj) {
+    var sgn = xmlbuilder.create(rootnm, {version: '1.0', encoding: 'UTF-8', standalone: true},
+        {pubID: null, sysID: null}, {
+            allowSurrogateChars: false,
+            skipNullAttributes: false,
+            headless: false,
+            ignoreDecorators: false,
+            stringify: {}
+        }
+    ).att('xmlns:m2m', 'http://www.onem2m.org/xml/protocols').att('xmlns:xsi', 'http://www.w3.org/2001/XMLSchema-instance');
+
+    var sequence1 = ['nev', 'vrq', 'sud', 'sur', 'cr'];
+    var sequence2 = ['rep', 'net'];
+
+    for(var seq1 in sequence1) {
+        if(sequence1.hasOwnProperty(seq1)) {
+            for (var prop in body_Obj) {
+                if (body_Obj.hasOwnProperty(prop)) {
+                    if (prop === sequence1[seq1]) {
+                        if (prop === 'nev') {
+                            var xml_0 = sgn.ele(prop);
+                            for(var seq2 in sequence2) {
+                                if (sequence2.hasOwnProperty(seq2)) {
+                                    for (var agr_attr in body_Obj[prop]) {
+                                        if (body_Obj[prop].hasOwnProperty(agr_attr)) {
+                                            if (agr_attr === sequence2[seq2]) {
+                                                if (agr_attr === 'rep') {
+                                                    var xml_01 = xml_0.ele(agr_attr);
+                                                    for (var pc_attr in body_Obj[prop][agr_attr]) {
+                                                        if (body_Obj[prop][agr_attr].hasOwnProperty(pc_attr)) {
+                                                            var xml_1 = xml_01.ele(pc_attr);
+                                                            xmlAction(xml_1, body_Obj[prop][agr_attr][pc_attr]);
+                                                        }
+                                                    }
+                                                    break;
+                                                }
+                                                else if (agr_attr === 'net') {
+                                                    xml_0.ele(agr_attr, body_Obj[prop][agr_attr]);
+                                                    break;
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            break;
+                        }
+                        else {
+                            sgn.ele(prop, body_Obj[prop]);
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    return sgn.end({pretty: false, indent: '  ', newline: '\n'}).toString();
+};
 
 exports.typeCheckforJson = function(body_Obj) {
     for (var index1 in body_Obj) {
@@ -1498,7 +1558,7 @@ exports.response_result = function(request, response, status, body_Obj, rsc, ri,
                 bodyString = cbor.encode(body_Obj).toString('hex');
             }
             else {
-                bodyString = convertXml(rootnm, body_Obj);
+                bodyString = _this.convertXml(rootnm, body_Obj);
             }
 
             response.status(status).end(bodyString);
@@ -1815,10 +1875,10 @@ exports.search_result = function(request, response, status, body_Obj, rsc, ri, c
             }
             else {
                 if(rootnm == 'agr') {
-                    bodyString = convertXml2(rootnm, body_Obj['m2m:' + rootnm]);
+                    bodyString = _this.convertXml2(rootnm, body_Obj['m2m:' + rootnm]);
                 }
                 else {
-                    bodyString = convertXml2(rootnm, body_Obj);
+                    bodyString = _this.convertXml2(rootnm, body_Obj);
                 }
             }
 

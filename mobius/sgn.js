@@ -194,11 +194,60 @@ function sgn_action(rootnm, check_value, results_ss, noti_Obj, sub_bodytype) {
                             }
                             else if(check_value == 256) {
                                 node['m2m:sgn'].vrq = true;
+                                var temp = node['m2m:sgn'].sur;
+                                delete node['m2m:sgn'].sur;
+                                node['m2m:sgn'].sur = temp;
                                 node['m2m:sgn'].cr = results_ss.cr;
                                 delete node['m2m:sgn'].nev;
                             }
 
-                            request_noti_http(nu, results_ss.ri, JSON.stringify(node), sub_bodytype, xm2mri);
+                            if (sub_bodytype == 'xml') {
+                                /*node[Object.keys(node)[0]]['@'] = {
+                                    "xmlns:m2m": "http://www.onem2m.org/xml/protocols",
+                                    "xmlns:xsi": "http://www.w3.org/2001/XMLSchema-instance"
+                                };
+
+                                if(node['m2m:sgn'].hasOwnProperty('nev')) {
+                                    if(node['m2m:sgn'].nev.hasOwnProperty('rep')) {
+                                        for (prop in node['m2m:sgn'].nev.rep) {
+                                            if (node['m2m:sgn'].nev.rep.hasOwnProperty(prop)) {
+                                                for (var prop2 in node['m2m:sgn'].nev.rep[prop]) {
+                                                    if (node['m2m:sgn'].nev.rep[prop].hasOwnProperty(prop2)) {
+                                                        if (prop2 == 'rn') {
+                                                            node['m2m:sgn'].nev.rep[prop]['@'] = {rn: node['m2m:sgn'].nev.rep[prop][prop2]};
+                                                            delete node['m2m:sgn'].nev.rep[prop][prop2];
+                                                            break;
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }*/
+
+                                try {
+                                    //var bodyString = js2xmlparser.parse(Object.keys(node)[0], node[Object.keys(node)[0]]);
+                                    bodyString = responder.convertXmlSgn(Object.keys(node)[0], node[Object.keys(node)[0]]);
+                                }
+                                catch (e) {
+                                    bodyString = "";
+                                }
+
+                                if (bodyString == "") { // parse error
+                                    ss_fail_count[results_ss.ri]++;
+                                    console.log('can not send notification since error of converting json to xml');
+                                }
+                                else {
+                                    request_noti_http(nu, results_ss.ri, bodyString, sub_bodytype, xm2mri);
+                                }
+                            }
+                            else if (sub_bodytype == 'cbor') {
+                                bodyString = cbor.encode(node).toString('hex');
+                                request_noti_http(nu, results_ss.ri, bodyString, sub_bodytype, xm2mri);
+                            }
+                            else { // defaultbodytype == 'json')
+                                request_noti_http(nu, results_ss.ri, JSON.stringify(node), sub_bodytype, xm2mri);
+                            }
                         }
                     });
                 }
@@ -249,44 +298,53 @@ function sgn_action(rootnm, check_value, results_ss, noti_Obj, sub_bodytype) {
                         }
 
                         if (sub_bodytype == 'xml') {
+                            if(check_value == 128) {
+                                node['m2m:sgn'].sud = true;
+                                delete node['m2m:sgn'].nev;
+                            }
+                            else if(check_value == 256) {
+                                node['m2m:sgn'].vrq = true;
+                                var temp = node['m2m:sgn'].sur;
+                                delete node['m2m:sgn'].sur;
+                                node['m2m:sgn'].sur = temp;
+                                node['m2m:sgn'].cr = results_ss.cr;
+                                delete node['m2m:sgn'].nev;
+                            }
+
                             if (sub_nu.protocol == 'http:') {
-                                node[Object.keys(node)[0]]['@'] = {
+                                /*node[Object.keys(node)[0]]['@'] = {
                                     "xmlns:m2m": "http://www.onem2m.org/xml/protocols",
                                     "xmlns:xsi": "http://www.w3.org/2001/XMLSchema-instance"
                                 };
 
-                                for (prop in node['m2m:sgn'].nev.rep) {
-                                    if (node['m2m:sgn'].nev.rep.hasOwnProperty(prop)) {
-                                        for (var prop2 in node['m2m:sgn'].nev.rep[prop]) {
-                                            if (node['m2m:sgn'].nev.rep[prop].hasOwnProperty(prop2)) {
-                                                if (prop2 == 'rn') {
-                                                    node['m2m:sgn'].nev.rep[prop]['@'] = {rn: node['m2m:sgn'].nev.rep[prop][prop2]};
-                                                    delete node['m2m:sgn'].nev.rep[prop][prop2];
-                                                    break;
+                                if(node['m2m:sgn'].hasOwnProperty('nev')) {
+                                    if (node['m2m:sgn'].nev.hasOwnProperty('rep')) {
+                                        for (prop in node['m2m:sgn'].nev.rep) {
+                                            if (node['m2m:sgn'].nev.rep.hasOwnProperty(prop)) {
+                                                for (var prop2 in node['m2m:sgn'].nev.rep[prop]) {
+                                                    if (node['m2m:sgn'].nev.rep[prop].hasOwnProperty(prop2)) {
+                                                        if (prop2 == 'rn') {
+                                                            node['m2m:sgn'].nev.rep[prop]['@'] = {rn: node['m2m:sgn'].nev.rep[prop][prop2]};
+                                                            delete node['m2m:sgn'].nev.rep[prop][prop2];
+                                                            break;
+                                                        }
+                                                    }
                                                 }
                                             }
                                         }
                                     }
-                                }
-
+                                }*/
                                 try {
-                                    if(check_value == 128) {
-                                        node['m2m:sgn'].sud = true;
-                                        delete node['m2m:sgn'].nev;
-                                    }
-                                    else if(check_value == 256) {
-                                        node['m2m:sgn'].vrq = true;
-                                        node['m2m:sgn'].cr = results_ss.cr;
-                                        delete node['m2m:sgn'].nev;
-                                    }
-                                    var bodyString = js2xmlparser.parse(Object.keys(node)[0], node[Object.keys(node)[0]]);
+                                    //var bodyString = js2xmlparser.parse(Object.keys(node)[0], node[Object.keys(node)[0]]);
+                                    var bodyString = responder.convertXmlSgn(Object.keys(node)[0], node[Object.keys(node)[0]]);
+
                                 }
                                 catch (e) {
                                     bodyString = "";
                                 }
 
                                 if (bodyString == "") { // parse error
-                                    ss_fail_count[req._headers.ri]++;
+                                    ss_fail_count[results_ss.ri]++;
                                     console.log('can not send notification since error of converting json to xml');
                                 }
                                 else {
@@ -294,29 +352,21 @@ function sgn_action(rootnm, check_value, results_ss, noti_Obj, sub_bodytype) {
                                 }
                             }
                             else if (sub_nu.protocol == 'coap:') {
-                                node[Object.keys(node)[0]]['@'] = {
-                                    "xmlns:m2m": "http://www.onem2m.org/xml/protocols",
-                                    "xmlns:xsi": "http://www.w3.org/2001/XMLSchema-instance"
-                                };
+                                // node[Object.keys(node)[0]]['@'] = {
+                                //     "xmlns:m2m": "http://www.onem2m.org/xml/protocols",
+                                //     "xmlns:xsi": "http://www.w3.org/2001/XMLSchema-instance"
+                                // };
 
                                 try {
-                                    if(check_value == 128) {
-                                        node['m2m:sgn'].sud = true;
-                                        delete node['m2m:sgn'].nev;
-                                    }
-                                    else if(check_value == 256) {
-                                        node['m2m:sgn'].vrq = true;
-                                        node['m2m:sgn'].cr = results_ss.cr;
-                                        delete node['m2m:sgn'].nev;
-                                    }
-                                    bodyString = js2xmlparser.parse(Object.keys(node)[0], node[Object.keys(node)[0]]);
+                                    //bodyString = js2xmlparser.parse(Object.keys(node)[0], node[Object.keys(node)[0]]);
+                                    bodyString = responder.convertXmlSgn(Object.keys(node)[0], node[Object.keys(node)[0]]);
                                 }
                                 catch (e) {
                                     bodyString = "";
                                 }
 
                                 if (bodyString == "") { // parse error
-                                    ss_fail_count[req._headers.ri]++;
+                                    ss_fail_count[results_ss.ri]++;
                                     console.log('can not send notification since error of converting json to xml');
                                 }
                                 else {
@@ -335,7 +385,7 @@ function sgn_action(rootnm, check_value, results_ss, noti_Obj, sub_bodytype) {
                                 }
                                 bodyString = make_xml_noti_message(node, xm2mri);
                                 if (bodyString == "") { // parse error
-                                    ss_fail_count[req._headers.ri]++;
+                                    ss_fail_count[results_ss.ri]++;
                                     console.log('can not send notification since error of converting json to xml');
                                 }
                                 else {
@@ -345,7 +395,7 @@ function sgn_action(rootnm, check_value, results_ss, noti_Obj, sub_bodytype) {
                             else { // mqtt:
                                 bodyString = make_xml_noti_message(node, xm2mri);
                                 if (bodyString == "") { // parse error
-                                    ss_fail_count[req._headers.ri]++;
+                                    ss_fail_count[results_ss.ri]++;
                                     console.log('can not send notification since error of converting json to xml');
                                 }
                                 else {

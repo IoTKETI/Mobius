@@ -27,7 +27,7 @@ var xml2js = require('xml2js');
 var url = require('url');
 var xmlbuilder = require('xmlbuilder');
 var ip = require('ip');
-const crypto = require('crypto');
+var crypto = require('crypto');
 var fileStreamRotator = require('file-stream-rotator');
 var merge = require('merge');
 var https = require('https');
@@ -117,7 +117,7 @@ var cluster = require('cluster');
 var os = require('os');
 var cpuCount = os.cpus().length;
 var worker = [];
-const use_clustering = 1;
+var use_clustering = 1;
 if (use_clustering) {
     if (cluster.isMaster) {
         cluster.on('death', function (worker) {
@@ -577,6 +577,12 @@ function check_http(request, response, callback) {
                                 callback('0', body_Obj, request, response);
                                 return '0';
                             }
+                        }
+
+                        if(request.headers['x-m2m-origin'] == '') {
+                            responder.error_result(request, response, 400, 4000, 'BAD REQUEST: X-M2M-Origin Header is Mandatory');
+                            callback('0', body_Obj, request, response);
+                            return '0';
                         }
 
                         if(ty == '2') {
@@ -2210,7 +2216,15 @@ function check_ae(absolute_url, request, response) {
 
                         notify_http(poa.hostname, poa.port, poa.path, request, response);
                     }
+                    else if (poa.protocol == 'coap:') {
+                        console.log('send notification to ' + poa_arr[i]);
+
+                        notify_http(poa.hostname, poa.port, poa.path, request, response);
+                    }
                     else if (poa.protocol == 'mqtt:') {
+                        responder.error_result(request, response, 500, 5000, 'notification with mqtt is not supported');
+                    }
+                    else if (poa.protocol == 'ws:') {
                         responder.error_result(request, response, 500, 5000, 'notification with mqtt is not supported');
                     }
                     else {

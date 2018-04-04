@@ -1172,6 +1172,15 @@ function build_resource(request, response, ty, body_Obj, callback) {
                                     }
                                 }
                             }
+                            else if(attr === 'nu') {
+                                if(body_Obj[rootnm][attr].length === 0) {
+                                    body_Obj = {};
+                                    body_Obj['dbg'] = 'BAD REQUEST: ' + attr + ' must have values';
+                                    responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
+                                    callback('0');
+                                    return '0';
+                                }
+                            }
                             resource_Obj[rootnm][attr] = body_Obj[rootnm][attr];
                             mandatory_check_count += 1;
                         }
@@ -2402,6 +2411,15 @@ function update_resource(request, response, ty, body_Obj, resource_Obj, callback
                 }
                 else {
                     if (update_opt_attr_list[rootnm].includes(attr)) {
+                        if(attr === 'nu') {
+                            if(body_Obj[rootnm][attr].length === 0) {
+                                body_Obj = {};
+                                body_Obj['dbg'] = 'BAD REQUEST: ' + attr + ' must have values';
+                                responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
+                                callback('0');
+                                return '0';
+                            }
+                        }
                     }
                     else {
                         if (update_m_attr_list[rootnm].includes(attr)) {

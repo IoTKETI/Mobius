@@ -56,12 +56,16 @@ function security_check_action_pv(request, response, acpiList, cr, access_value,
                                                             var ipv4_idx = 99;
                                                             for (ipv4_idx in acco[acco_idx].acip['ipv4']) {
                                                                 if (acco[acco_idx].acip['ipv4'].hasOwnProperty(ipv4_idx)) {
-                                                                    if(request.connection.remoteAddress == '::1') {
+                                                                    if(request.headers.hasOwnProperty('remoteaddress')) {
+                                                                        client_ipv4 = request.headers.remoteaddress;
+                                                                    }
+                                                                    else if(request.connection.remoteAddress == '::1') {
                                                                         var client_ipv4 = ip.address();
                                                                     }
                                                                     else {
                                                                         client_ipv4 = request.connection.remoteAddress.replace('::ffff:', '');
                                                                     }
+
                                                                     if (acco[acco_idx].acip['ipv4'][ipv4_idx] == client_ipv4) {
                                                                         acip_permit = 1;
                                                                         break;
