@@ -1156,7 +1156,7 @@ function xmlAction(xml, body_Obj) {
         else if (xml.name === 'm2m:acp') {
             for (attr in body_Obj) {
                 if (body_Obj.hasOwnProperty(attr)) {
-                    if (attr == 'pv') {
+                    if (attr == 'pv' || attr == 'pvs') {
                         xml2 = xml.ele(attr, '');
                         for (sub_attr in body_Obj[attr]) {
                             if (body_Obj[attr].hasOwnProperty(sub_attr)) {
@@ -1165,7 +1165,33 @@ function xmlAction(xml, body_Obj) {
                                         var xml3 = xml2.ele(sub_attr, '');
                                         for (var sub_attr3 in body_Obj[attr][sub_attr][sub_attr2]) {
                                             if (body_Obj[attr][sub_attr][sub_attr2].hasOwnProperty(sub_attr3)) {
-                                                xml3.ele(sub_attr3, body_Obj[attr][sub_attr][sub_attr2][sub_attr3].toString().replace(/,/g, ' '));
+                                                if(sub_attr3 == 'acco') {
+                                                    for (var sub_attr4 in body_Obj[attr][sub_attr][sub_attr2][sub_attr3]) {
+                                                        if (body_Obj[attr][sub_attr][sub_attr2][sub_attr3].hasOwnProperty(sub_attr4)) {
+                                                            var xml4 = xml3.ele(sub_attr3, '');
+                                                            for (var sub_attr5 in body_Obj[attr][sub_attr][sub_attr2][sub_attr3][sub_attr4]) {
+                                                                if (body_Obj[attr][sub_attr][sub_attr2][sub_attr3][sub_attr4].hasOwnProperty(sub_attr5)) {
+                                                                    if(sub_attr5 == 'acip') {
+                                                                        var xml5 = xml4.ele(sub_attr5, '');
+                                                                        for (var sub_attr6 in body_Obj[attr][sub_attr][sub_attr2][sub_attr3][sub_attr4][sub_attr5]) {
+                                                                            if (body_Obj[attr][sub_attr][sub_attr2][sub_attr3][sub_attr4][sub_attr5].hasOwnProperty(sub_attr6)) {
+                                                                                var xml6 = xml5.ele(sub_attr6, '');
+                                                                                xml6.txt(body_Obj[attr][sub_attr][sub_attr2][sub_attr3][sub_attr4][sub_attr5][sub_attr6]);
+                                                                            }
+                                                                        }
+                                                                    }
+                                                                    if(sub_attr5 == 'actw') {
+                                                                        xml5 = xml4.ele(sub_attr5, '');
+                                                                        xml5.txt(body_Obj[attr][sub_attr][sub_attr2][sub_attr3][sub_attr4][sub_attr5]);
+                                                                    }
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                                else {
+                                                    xml3.ele(sub_attr3, body_Obj[attr][sub_attr][sub_attr2][sub_attr3].toString().replace(/,/g, ' '));
+                                                }
                                             }
                                         }
                                     }
@@ -1173,31 +1199,6 @@ function xmlAction(xml, body_Obj) {
                             }
                         }
                         delete body_Obj[attr];
-                        break;
-                    }
-                }
-            }
-
-            for (attr in body_Obj) {
-                if (body_Obj.hasOwnProperty(attr)) {
-                    if (attr == 'pvs') {
-                        xml2 = xml.ele(attr, '');
-                        for (sub_attr in body_Obj[attr]) {
-                            if (body_Obj[attr].hasOwnProperty(sub_attr)) {
-                                for (sub_attr2 in body_Obj[attr][sub_attr]) {
-                                    if (body_Obj[attr][sub_attr].hasOwnProperty(sub_attr2)) {
-                                        xml3 = xml2.ele(sub_attr, '');
-                                        for (sub_attr3 in body_Obj[attr][sub_attr][sub_attr2]) {
-                                            if (body_Obj[attr][sub_attr][sub_attr2].hasOwnProperty(sub_attr3)) {
-                                                xml3.ele(sub_attr3, body_Obj[attr][sub_attr][sub_attr2][sub_attr3].toString().replace(/,/g, ' '));
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                        delete body_Obj[attr];
-                        break;
                     }
                 }
             }

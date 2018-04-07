@@ -304,11 +304,9 @@ global.make_json_arraytype = function (body_Obj) {
                         if (body_Obj[prop][attr]) {
                             body_Obj[prop][attr] = body_Obj[prop][attr].split(' ');
                         }
-
                         if (body_Obj[prop][attr] == '') {
                             body_Obj[prop][attr] = [];
                         }
-
                         if (body_Obj[prop][attr] == '[]') {
                             body_Obj[prop][attr] = [];
                         }
@@ -353,14 +351,13 @@ global.make_json_arraytype = function (body_Obj) {
                                         }
 
                                         if (body_Obj[prop][attr].acr[acr_idx].hasOwnProperty('acco')) {
-                                            var acco = body_Obj[prop][attr].acr[acr_idx].acco;
-
-                                            if (!Array.isArray(acco)) {
-                                                var temp = acco;
-                                                acco = [];
-                                                acco[0] = temp;
+                                            if (!Array.isArray(body_Obj[prop][attr].acr[acr_idx].acco)) {
+                                                temp = body_Obj[prop][attr].acr[acr_idx].acco;
+                                                body_Obj[prop][attr].acr[acr_idx].acco = [];
+                                                body_Obj[prop][attr].acr[acr_idx].acco[0] = temp;
                                             }
 
+                                            var acco = body_Obj[prop][attr].acr[acr_idx].acco;
                                             for(var acco_idx in acco) {
                                                 if(acco.hasOwnProperty(acco_idx)) {
                                                     if (acco[acco_idx].hasOwnProperty('acip')) {
@@ -375,7 +372,7 @@ global.make_json_arraytype = function (body_Obj) {
                                                             }
                                                         }
                                                     }
-                                                    else if (acco[acco_idx].hasOwnProperty('actw')) {
+                                                    if (acco[acco_idx].hasOwnProperty('actw')) {
                                                         if (getType(acco[acco_idx].actw) == 'string') {
                                                             temp = acco[acco_idx].actw;
                                                             acco[acco_idx]['actw'] = [];
@@ -771,7 +768,7 @@ function check_http(request, response, callback) {
                                         return '0';
                                     }
                                 }
-                                else if (attr == 'pv') {
+                                else if (attr == 'pv' || attr == 'pvs') {
                                     if(body_Obj[prop][attr].hasOwnProperty('acr')) {
                                         if (!Array.isArray(body_Obj[prop][attr].acr)) {
                                             body_Obj = {};
@@ -781,109 +778,65 @@ function check_http(request, response, callback) {
                                             return '0';
                                         }
 
-                                        if (body_Obj[prop][attr].acr.acor) {
-                                            if (!Array.isArray(body_Obj[prop][attr].acr.acor)) {
-                                                body_Obj = {};
-                                                body_Obj['dbg'] = attr + '.acr.acor should be json array format';
-                                                responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-                                                callback('0', body_Obj, request, response);
-                                                return '0';
-                                            }
-                                        }
-
-                                        if (body_Obj[prop][attr].acr.acco) {
-                                            if (body_Obj[prop][attr].acr.acco.actw) {
-                                                if (!Array.isArray(body_Obj[prop][attr].acr.acco.actw)) {
-                                                    body_Obj = {};
-                                                    body_Obj['dbg'] = attr + '.acr.acco.actw should be json array format';
-                                                    responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-                                                    callback('0', body_Obj, request, response);
-                                                    return '0';
-                                                }
-                                            }
-
-                                            if (body_Obj[prop][attr].acr.acco.acip) {
-                                                if (body_Obj[prop][attr].acr.acco.acip['ipv4']) {
-                                                    if (!Array.isArray(body_Obj[prop][attr].acr.acco.acip['ipv4'])) {
+                                        var acr = body_Obj[prop][attr].acr;
+                                        for (var acr_idx in acr) {
+                                            if (acr.hasOwnProperty(acr_idx)) {
+                                                if (acr[acr_idx].acor) {
+                                                    if (!Array.isArray(acr[acr_idx].acor)) {
                                                         body_Obj = {};
-                                                        body_Obj['dbg'] = attr + '.acr.acco.acip.ipv4 should be json array format';
+                                                        body_Obj['dbg'] = attr + '.acr[' + acr_idx + '].acor should be json array format';
                                                         responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
                                                         callback('0', body_Obj, request, response);
                                                         return '0';
                                                     }
                                                 }
-                                                else if (body_Obj[prop][attr].acr.acco.acip['ipv6']) {
-                                                    if (!Array.isArray(body_Obj[prop][attr].acr.acco.acip['ipv6'])) {
+
+                                                if (acr[acr_idx].acco) {
+                                                    if (!Array.isArray(acr[acr_idx].acco)) {
                                                         body_Obj = {};
-                                                        body_Obj['dbg'] = attr + '.acr.acco.acip.ipv6 should be json array format';
+                                                        body_Obj['dbg'] = attr + '.acr[' + acr_idx + '].acco should be json array format';
                                                         responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
                                                         callback('0', body_Obj, request, response);
                                                         return '0';
                                                     }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                                else if (attr == 'pvs') {
-                                    if (body_Obj[prop][attr].acr) {
-                                        if (!Array.isArray(body_Obj[prop][attr].acr)) {
-                                            body_Obj = {};
-                                            body_Obj['dbg'] = attr + '.acr should be json array format';
-                                            responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-                                            callback('0', body_Obj, request, response);
-                                            return '0';
-                                        }
+                                                    for (var acco_idx in acr[acr_idx].acco) {
+                                                        if (acr[acr_idx].acco.hasOwnProperty(acco_idx)) {
+                                                            var acco = acr[acr_idx].acco[acco_idx];
+                                                            if (acco.acip) {
+                                                                if (acco.acip['ipv4']) {
+                                                                    if (!Array.isArray(acco.acip['ipv4'])) {
+                                                                        body_Obj = {};
+                                                                        body_Obj['dbg'] = attr + '.acr[' + acr_idx + '].acco.acip.ipv4 should be json array format';
+                                                                        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
+                                                                        callback('0', body_Obj, request, response);
+                                                                        return '0';
+                                                                    }
+                                                                }
+                                                                else if (acco.acip['ipv6']) {
+                                                                    if (!Array.isArray(acco.acip['ipv6'])) {
+                                                                        body_Obj = {};
+                                                                        body_Obj['dbg'] = attr + '.acr[' + acr_idx + '].acco.acip.ipv6 should be json array format';
+                                                                        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
+                                                                        callback('0', body_Obj, request, response);
+                                                                        return '0';
+                                                                    }
+                                                                }
+                                                            }
 
-                                        if (body_Obj[prop][attr].acr.acor) {
-                                            if (!Array.isArray(body_Obj[prop][attr].acr.acor)) {
-                                                body_Obj = {};
-                                                body_Obj['dbg'] = attr + '.acr.acor should be json array format';
-                                                responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-                                                callback('0', body_Obj, request, response);
-                                                return '0';
-                                            }
-                                        }
-
-                                        if (body_Obj[prop][attr].acr.acco) {
-                                            if (body_Obj[prop][attr].acr.acco.actw) {
-                                                if (!Array.isArray(body_Obj[prop][attr].acr.acco.actw)) {
-                                                    body_Obj = {};
-                                                    body_Obj['dbg'] = attr + '.acr.acco.actw should be json array format';
-                                                    responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-                                                    callback('0', body_Obj, request, response);
-                                                    return '0';
-                                                }
-                                            }
-
-                                            if (body_Obj[prop][attr].acr.acco.acip) {
-                                                if (body_Obj[prop][attr].acr.acco.acip['ipv4']) {
-                                                    if (!Array.isArray(body_Obj[prop][attr].acr.acco.acip['ipv4'])) {
-                                                        body_Obj = {};
-                                                        body_Obj['dbg'] = attr + '.acr.acco.acip.ipv4 should be json array format';
-                                                        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-                                                        callback('0', body_Obj, request, response);
-                                                        return '0';
-                                                    }
-                                                }
-                                                else if (body_Obj[prop][attr].acr.acco.acip['ipv6']) {
-                                                    if (!Array.isArray(body_Obj[prop][attr].acr.acco.acip['ipv6'])) {
-                                                        body_Obj = {};
-                                                        body_Obj['dbg'] = attr + '.acr.acco.acip.ipv6 should be json array format';
-                                                        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-                                                        callback('0', body_Obj, request, response);
-                                                        return '0';
+                                                            if (acco.actw) {
+                                                                if (!Array.isArray(acco.actw)) {
+                                                                    body_Obj = {};
+                                                                    body_Obj['dbg'] = attr + '.acr[' + acr_idx + '].acco[' + acco_idx + '].actw should be json array format';
+                                                                    responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
+                                                                    callback('0', body_Obj, request, response);
+                                                                    return '0';
+                                                                }
+                                                            }
+                                                        }
                                                     }
                                                 }
                                             }
                                         }
-                                    }
-                                    else {
-                                        body_Obj = {};
-                                        body_Obj['dbg'] = attr + ' attribute should have acr key in json format';
-                                        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-                                        callback('0', body_Obj, request, response);
-                                        return '0';
                                     }
                                 }
                                 else if (attr == 'uds') {
