@@ -952,21 +952,20 @@ function check_resource(request, response, body_Obj, callback) {
             op = 'latest';
             db_sql.select_direct_lookup(ri, function (err, parent_Comm) {
                 if (!err) {
-                    if (parent_Comm[0].ty == '3') {
-                        var cur_ty = '4';
-                    }
-                    else if (parent_Comm[0].ty == '29') {
-                        cur_ty = '30';
-                    }
-                    else {
-                        parent_Comm = {};
-                        parent_Comm['dbg'] = 'this resource can not have latest resource';
-                        responder.response_result(request, response, 404, parent_Comm, 4004, request.url, parent_Comm['dbg']);
-                        callback('0', {}, '', request, response, body_Obj);
-                        return '0';
-                    }
-
                     if (parent_Comm.length == 1) {
+                        if (parent_Comm[0].ty == '3') {
+                            var cur_ty = '4';
+                        }
+                        else if (parent_Comm[0].ty == '29') {
+                            cur_ty = '30';
+                        }
+                        else {
+                            parent_Comm = {};
+                            parent_Comm['dbg'] = 'this resource can not have latest resource';
+                            responder.response_result(request, response, 404, parent_Comm, 4004, request.url, parent_Comm['dbg']);
+                            callback('0', {}, '', request, response, body_Obj);
+                            return '0';
+                        }
                         db_sql.select_resource(responder.typeRsrc[parent_Comm[0].ty], parent_Comm[0].ri, function (err, parent_Spec) {
                             if (!err) {
                                 if (parent_Spec.length == 1) {

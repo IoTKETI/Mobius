@@ -1471,8 +1471,15 @@ function presearch_action(request, response, ri_list, comm_Obj, callback) {
             var finding_Obj = {};
             var found_Obj = {};
 
+            request.query.cni = '0';
             if (request.query.ty == '2') {
                 request.query.lvl = '1';
+            }
+
+            if (comm_Obj.ty == '3' && request.query.la) {
+                var ofst = parseInt(comm_Obj.cni, 10) - parseInt(request.query.la, 10);
+                request.query.ofst = (ofst < 0) ? '0' : ofst;
+                request.query.lim = request.query.la;
             }
 
             if (request.query.lim != null) {
@@ -1483,6 +1490,7 @@ function presearch_action(request, response, ri_list, comm_Obj, callback) {
             else {
                 request.query.lim = max_lim;
             }
+
 
             var cur_lvl = parseInt((url.parse(request.url).pathname.split('/').length), 10) - 2;
             for (var i = 0; i < search_Obj.length; i++) {
@@ -1502,8 +1510,9 @@ function presearch_action(request, response, ri_list, comm_Obj, callback) {
             }
 
             var cur_d = moment().add(1, 'd').utc().format('YYYY-MM-DD HH:mm:ss');
-            var bef_d = moment(cur_d).subtract(Math.pow(3, 0), 'hours').format('YYYY-MM-DD HH:mm:ss');
-            db_sql.search_lookup(comm_Obj.ri, request.query, request.query.lim, pi_list, 0, finding_Obj, 0, bef_d, cur_d, 0, function (err, search_Obj) {
+            //var bef_d = moment(cur_d).subtract(Math.pow(3, 0), 'hours').format('YYYY-MM-DD HH:mm:ss');
+
+            db_sql.search_lookup(comm_Obj.ri, request.query, request.query.lim, pi_list, 0, finding_Obj, 0, request.query.cni, cur_d, 0, function (err, search_Obj) {
                 if (!err) {
                     if (Object.keys(search_Obj).length >= 1) {
                         if (Object.keys(search_Obj).length >= max_lim) {
@@ -2218,7 +2227,7 @@ function update_action(request, response, ty, resource_Obj, callback) {
                 }
             });
     }
-    else if (ty == '38') {
+    else if (ty == '38') { // transactionMgmt
         db_sql.update_tm(resource_Obj[rootnm], function (err, results) {
             if (!err) {
                 if (resource_Obj[rootnm].tctl == tctl_v.EXECUTE) { // EXCUTE
@@ -2246,7 +2255,7 @@ function update_action(request, response, ty, resource_Obj, callback) {
             }
         });
     }
-    else if (ty == '39') {
+    else if (ty == '39') { // transaction
         if (resource_Obj[rootnm].tctl == tctl_v.LOCK && (resource_Obj[rootnm].tst == tst_v.ABORTED || resource_Obj[rootnm].tst == tst_v.COMMITTED)) { // LOCK
             resource_Obj[rootnm].tst = tst_v.LOCKED;
             resource_Obj[rootnm].trsp = '';

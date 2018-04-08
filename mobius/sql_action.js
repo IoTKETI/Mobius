@@ -669,9 +669,9 @@ exports.insert_tm = function(obj, callback) {
     console.time('insert_tm ' + obj.ri);
     _this.insert_lookup(obj.ty, obj.ri, obj.rn, obj.pi, obj.ct, obj.lt, obj.et, JSON.stringify(obj.acpi), JSON.stringify(obj.lbl), JSON.stringify(obj.at), JSON.stringify(obj.aa), obj.st, obj.sri, obj.spi, function (err, results) {
         if(!err) {
-            var sql = util.format('insert into tm (ri, cr, tltm, text, tct, tept, tmd, tltp, tctl, tst, tmr, tmh, rqps, rsps) ' +
-                'value (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
-                obj.ri, obj.cr, obj.tltm, obj.text, obj.tct, obj.tept, obj.tmd, obj.tltp, obj.tctl, obj.tst, obj.tmr, obj.tmh, JSON.stringify(obj.rqps), JSON.stringify(obj.rsps));
+            var sql = util.format('insert into tm (ri, tltm, text, tct, tept, tmd, tltp, tctl, tst, tmr, tmh, rqps, rsps) ' +
+                'value (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
+                obj.ri, obj.tltm, obj.text, obj.tct, obj.tept, obj.tmd, obj.tltp, obj.tctl, obj.tst, obj.tmr, obj.tmh, JSON.stringify(obj.rqps), JSON.stringify(obj.rsps));
             db.getResult(sql, '', function (err, results) {
                 if(!err) {
                     console.timeEnd('insert_tm ' + obj.ri);
@@ -963,7 +963,7 @@ function select_spec_ri(found_Obj, callback) {
 
 
 var search_tid = '';
-exports.search_lookup = function (ri, query, cur_lim, pi_list, pi_index, found_Obj, found_Cnt, bef_d, cur_d, loop_cnt, callback) {
+exports.search_lookup = function (ri, query, cur_lim, pi_list, pi_index, found_Obj, found_Cnt, cni, cur_d, loop_cnt, callback) {
     var cur_pi = [];
 
     if(loop_cnt == 0) {
@@ -990,8 +990,8 @@ exports.search_lookup = function (ri, query, cur_lim, pi_list, pi_index, found_O
     //console.log(loop_cnt + ' - ' + cur_lim + ' - ' + bef_ct + ' - ' + cur_pi);
 
     var cur_ct = moment(cur_d).utc().format('YYYYMMDDTHHmmss');
-    var bef_ct = moment(bef_d).utc().format('YYYYMMDDTHHmmss');
-    var sql = build_discovery_sql(ri, query, cur_lim, cur_pi, bef_ct, cur_ct);
+    //var bef_ct = moment(bef_d).utc().format('YYYYMMDDTHHmmss');
+    var sql = build_discovery_sql(ri, query, cur_lim, cur_pi, cni, cur_ct);
     //console.log(sql);
     db.getResult(sql, '', function (err, search_Obj) {
         if(!err) {
@@ -1012,7 +1012,7 @@ exports.search_lookup = function (ri, query, cur_lim, pi_list, pi_index, found_O
                     }
                     else {
                         setTimeout(function () {
-                            _this.search_lookup(ri, query, cur_lim, pi_list, pi_index, found_Obj, found_Cnt, bef_d, cur_d, loop_cnt, function (err, found_Obj) {
+                            _this.search_lookup(ri, query, cur_lim, pi_list, pi_index, found_Obj, found_Cnt, cni, cur_d, loop_cnt, function (err, found_Obj) {
                                 callback(err, found_Obj);
                             });
                         }, 0);
@@ -1027,7 +1027,7 @@ exports.search_lookup = function (ri, query, cur_lim, pi_list, pi_index, found_O
                 }
                 else {
                     setTimeout(function () {
-                        _this.search_lookup(ri, query, cur_lim, pi_list, pi_index, found_Obj, found_Cnt, bef_d, cur_d, loop_cnt, function (err, found_Obj) {
+                        _this.search_lookup(ri, query, cur_lim, pi_list, pi_index, found_Obj, found_Cnt, cni, cur_d, loop_cnt, function (err, found_Obj) {
                             callback(err, found_Obj);
                         });
                     }, 0);
