@@ -1146,7 +1146,7 @@ function build_resource(request, response, ty, body_Obj, callback) {
     if (ty_list.includes(ty)) {
         var mandatory_check_count = 0;
 
-        // check Not Present and check Option and check Mandatory
+        // check Not_Present and check Option and check Mandatory
         for (var attr in body_Obj[rootnm]) {
             if (body_Obj[rootnm].hasOwnProperty(attr)) {
                 if (create_np_attr_list[rootnm].includes(attr)) {

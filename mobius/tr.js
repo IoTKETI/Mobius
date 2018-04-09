@@ -377,6 +377,11 @@ exports.request_commit = function(obj, callback) {
 };
 
 exports.check = function(request, pi, body_Obj, callback) {
+    if(request.query.real == 4) {
+        callback('1', body_Obj);
+        return '1';
+    }
+
     var state = tst_v.COMMITTED;
 
     db_sql.select_tr(pi, function (err, results_tr) {

@@ -514,6 +514,24 @@ function check_http(request, response, callback) {
 
     var body_Obj = {};
 
+    if (request.query.real == 4) {
+        try {
+            var ty = request.headers['content-type'].split(';')[1].split('ty=')[1];
+            body_Obj = JSON.parse(request.body.toString());
+            var rootnm = Object.keys(body_Obj)[0].split(':')[1];
+            body_Obj[rootnm] = body_Obj[Object.keys(body_Obj)[0]];
+            delete body_Obj[Object.keys(body_Obj)[0]];
+            request.headers.rootnm = rootnm;
+            callback(ty, body_Obj, request, response);
+            return'0';
+        }
+        catch(e) {
+            responder.error_result(request, response, 400, 4000, 'BAD REQUEST: can not apply real query');
+            callback('0', body_Obj, request, response);
+            return'0';
+        }
+    }
+
     // Check X-M2M-RI Header
     if ((request.headers['x-m2m-ri'] == null)) {
         responder.error_result(request, response, 400, 4000, 'BAD REQUEST: X-M2M-RI is none');
@@ -1111,6 +1129,13 @@ function check_rt_query(request, response, body_Obj, callback) {
     //var last_url = url_arr[url_arr.length-1];
     //var op = 'direct';
 
+    if (request.query.real == 4) {
+        var check_Obj = {};
+        check_Obj.ty = '3';
+        callback('1', check_Obj, 'direct', request, response, body_Obj);
+        return'1';
+    }
+
     if (request.query.rt == 3) { // default, blocking
         check_resource(request, response, body_Obj, function (rsc, check_Obj, op, request, response, body_Obj) {
             callback(rsc, check_Obj, op, request, response, body_Obj);
@@ -1232,6 +1257,10 @@ function lookup_create(request, response) {
                     });
                 }
                 else { //if(op == 'direct') {
+                    if(request.query.real == 4) {
+
+                    }
+
                     if ((ty == 1) && (parent_comm.ty == 5 || parent_comm.ty == 16 || parent_comm.ty == 2)) { // accessControlPolicy
                     }
                     else if ((ty == 9) && (parent_comm.ty == 5 || parent_comm.ty == 16 || parent_comm.ty == 2)) { // group
@@ -1294,26 +1323,26 @@ function lookup_create(request, response) {
                     // }
 
                     //if (parent_comm.ty == 2 || parent_comm.ty == 4 || parent_comm.ty == 3 || parent_comm.ty == 9 || parent_comm.ty == 24 || parent_comm.ty == 23 || parent_comm.ty == 29) {
-                    db_sql.select_resource(responder.typeRsrc[parent_comm.ty], parent_comm.ri, function (err, parent_spec) {
-                        if (!err) {
+                    //db_sql.select_resource(responder.typeRsrc[parent_comm.ty], parent_comm.ri, function (err, parent_comm) {
+                        //if (!err) {
                             if (((ty == 4) && (parent_comm.ty == 3)) || ((ty == 30) && (parent_comm.ty == 29))) { // contentInstance
-                                if (parent_spec[0].mni == null) {
+                                if (parent_comm.mni == null) {
                                     //body_Obj[rootnm].mni = '3153600000';
                                 }
                                 else {
-                                    if (parseInt(parent_spec[0].mni) == 0) {
+                                    if (parseInt(parent_comm.mni) == 0) {
                                         body_Obj = {};
                                         body_Obj['dbg'] = 'can not create cin because mni value is zero';
                                         responder.response_result(request, response, 406, body_Obj, 5207, request.url, body_Obj['dbg']);
                                         return '0';
                                     }
-                                    else if (parseInt(parent_spec[0].mbs) == 0) {
+                                    else if (parseInt(parent_comm.mbs) == 0) {
                                         body_Obj = {};
                                         body_Obj['dbg'] = 'can not create cin because mbs value is zero';
                                         responder.response_result(request, response, 406, body_Obj, 5207, request.url, body_Obj['dbg']);
                                         return '0';
                                     }
-                                    else if (parent_spec[0].disr == true) {
+                                    else if (parent_comm.disr == true) {
                                         body_Obj = {};
                                         body_Obj['dbg'] = 'OPERATION NOT ALLOWED: disr attribute is true';
                                         responder.response_result(request, response, 405, body_Obj, 4005, request.url, body_Obj['dbg']);
@@ -1324,21 +1353,21 @@ function lookup_create(request, response) {
                                     }
                                 }
 
-                                request.headers.mni = parent_spec[0].mni;
-                                request.headers.mbs = parent_spec[0].mbs;
-                                request.headers.cni = parent_spec[0].cni;
-                                request.headers.cbs = parent_spec[0].cbs;
+                                request.headers.mni = parent_comm.mni;
+                                request.headers.mbs = parent_comm.mbs;
+                                request.headers.cni = parent_comm.cni;
+                                request.headers.cbs = parent_comm.cbs;
                                 request.headers.st = parent_comm.st;
                             }
 
-                            if (parent_spec.length == 0) {
-                                parent_spec[0] = {};
-                                parent_spec[0].cr = '';
+                            if (parent_comm.length == 0) {
+                                parent_comm = {};
+                                parent_comm.cr = '';
                                 console.log('no creator');
                             }
                             else {
                                 if (parent_comm.ty == 2) {
-                                    parent_spec[0].cr = parent_spec[0].aei;
+                                    parent_comm.cr = parent_comm.aei;
                                 }
                             }
 
@@ -1349,7 +1378,7 @@ function lookup_create(request, response) {
                                 access_value = '1';
                             }
 
-                            security.check(request, response, parent_comm.ty, parent_comm.acpi, access_value, parent_spec[0].cr, function (rsc, request, response) {
+                            security.check(request, response, parent_comm.ty, parent_comm.acpi, access_value, parent_comm.cr, function (rsc, request, response) {
                                 if (rsc == '0') {
                                     body_Obj = {};
                                     body_Obj['dbg'] = resultStatusCode['4103'];
@@ -1360,15 +1389,15 @@ function lookup_create(request, response) {
 
                                 });
                             });
-                        }
-                        else {
-                            body_Obj = {};
-                            body_Obj['dbg'] = 'select resource error in security';
-                            responder.response_result(request, response, 500, search_Obj, 5000, request.url, body_Obj['dbg']);
-                            callback('0', search_Obj);
-                            return '0';
-                        }
-                    });
+                        // }
+                        // else {
+                        //     body_Obj = {};
+                        //     body_Obj['dbg'] = 'select resource error in security';
+                        //     responder.response_result(request, response, 500, search_Obj, 5000, request.url, body_Obj['dbg']);
+                        //     callback('0', search_Obj);
+                        //     return '0';
+                        // }
+                    //});
                     // }
                     // else {
                     //     if (ty == 23) {

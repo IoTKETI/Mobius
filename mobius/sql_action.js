@@ -31,6 +31,12 @@ exports.get_sri_sri = function (ri, callback) {
 };
 
 exports.get_ri_sri = function (request, response, sri, callback) {
+    if(request.query.real == 4) {
+        var results = [];
+        callback(null, results, request, response);
+        return '1';
+    }
+
     var tid = require('shortid').generate();
     console.time('get_ri_sri' + ' (' + tid + ')');
     var sql = util.format('select ri from sri where sri = \'%s\'', sri);
@@ -1103,10 +1109,10 @@ exports.select_oldest_resource = function(ri, callback) {
 
 exports.select_direct_lookup = function(ri, callback) {
     var tid = require('shortid').generate();
-    console.time('select_direct ' + ri + ' (' + tid + ')');
+    console.time('select_direct_lookup ' + ri + ' (' + tid + ')');
     var sql = util.format("select * from lookup where ri = \'%s\'", ri);
     db.getResult(sql, '', function (err, direct_Obj) {
-        console.timeEnd('select_direct ' + ri + ' (' + tid + ')');
+        console.timeEnd('select_direct_lookup ' + ri + ' (' + tid + ')');
         callback(err, direct_Obj);
     });
 };
