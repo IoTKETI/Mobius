@@ -515,20 +515,26 @@ function check_http(request, response, callback) {
     var body_Obj = {};
 
     if (request.query.real == 4) {
-        try {
-            var ty = request.headers['content-type'].split(';')[1].split('ty=')[1];
-            body_Obj = JSON.parse(request.body.toString());
-            var rootnm = Object.keys(body_Obj)[0].split(':')[1];
-            body_Obj[rootnm] = body_Obj[Object.keys(body_Obj)[0]];
-            delete body_Obj[Object.keys(body_Obj)[0]];
-            request.headers.rootnm = rootnm;
-            callback(ty, body_Obj, request, response);
-            return'0';
+        if (request.method == 'POST' || request.method == 'PUT') {
+            try {
+                var ty = request.headers['content-type'].split(';')[1].split('ty=')[1];
+                body_Obj = JSON.parse(request.body.toString());
+                var rootnm = Object.keys(body_Obj)[0].split(':')[1];
+                body_Obj[rootnm] = body_Obj[Object.keys(body_Obj)[0]];
+                delete body_Obj[Object.keys(body_Obj)[0]];
+                request.headers.rootnm = rootnm;
+                callback(ty, body_Obj, request, response);
+                return '0';
+            }
+            catch (e) {
+                responder.error_result(request, response, 400, 4000, 'BAD REQUEST: can not apply real query');
+                callback('0', body_Obj, request, response);
+                return '0';
+            }
         }
-        catch(e) {
-            responder.error_result(request, response, 400, 4000, 'BAD REQUEST: can not apply real query');
-            callback('0', body_Obj, request, response);
-            return'0';
+        else {
+            callback('direct', body_Obj, request, response);
+            return '0';
         }
     }
 

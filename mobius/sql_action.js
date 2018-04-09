@@ -209,38 +209,68 @@ global.getType = function (p) {
     return type;
 };
 
-exports.insert_cin = function(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st, cnf, cs, sri, spi, cr, or, con, callback) {
+exports.insert_cin = function(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, cnf, cs, sri, spi, cr, or, con, callback) {
     console.time('insert_cin ' + ri);
-    _this.insert_lookup(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st, sri, spi, function (err, results) {
-        if(!err) {
-            var con_type = getType(con);
-            if (con_type === 'string_object') {
-                try {
-                    con = JSON.parse(con);
-                }
-                catch (e) {
-                }
-            }
-
-            var sql = util.format('insert into cin (ri, cr, cnf, cs, cin.or, con) ' +
-                'value (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
-                ri, cr, cnf, cs, or,
-                (con_type == 'string') ? con.replace(/'/g, "\\'") : JSON.stringify(con));
-            db.getResult(sql, '', function (err, results) {
-                if(!err) {
-                    console.timeEnd('insert_cin ' + ri);
-                    callback(err, results);
+    _this.select_st_parent(pi, function(err, result_st) {
+        if (!err && result_st.length == 1) {
+            var st = (parseInt(result_st[0].st, 10) + 1).toString();
+            _this.insert_lookup(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st, sri, spi, function (err, results) {
+                if (!err) {
+                    var con_type = getType(con);
+                    if (con_type === 'string_object') {
+                        try {
+                            con = JSON.parse(con);
+                        }
+                        catch (e) {
+                        }
+                    }
+                    var sql = util.format('insert into cin (ri, cr, cnf, cs, cin.or, con) ' +
+                        'value (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
+                        ri, cr, cnf, cs, or,
+                        (con_type == 'string') ? con.replace(/'/g, "\\'") : JSON.stringify(con));
+                    db.getResult(sql, '', function (err, results) {
+                        if (!err) {
+                            _this.select_resource('cnt', pi, function (err, spec_Obj) {
+                                if (!err) {
+                                    var mni = spec_Obj[0].mni;
+                                    var mbs = spec_Obj[0].mbs;
+                                    var cni = (parseInt(spec_Obj[0].cni, 10) + 1).toString();
+                                    var cbs = (parseInt(spec_Obj[0].cbs, 10) + parseInt(cs, 10)).toString();
+                                    _this.update_cni_parent(ty, cni, cbs, st, pi, function (err, results) {
+                                        if (!err) {
+                                            console.timeEnd('insert_cin ' + ri);
+                                            results.cni = cni;
+                                            results.cbs = cbs;
+                                            results.st = st;
+                                            results.mni = mni;
+                                            results.mbs = mbs;
+                                            callback(err, results);
+                                        }
+                                        else {
+                                            callback(err, results);
+                                        }
+                                    });
+                                }
+                                else {
+                                    callback(err, spec_Obj);
+                                }
+                            });
+                        }
+                        else {
+                            sql = util.format("delete from lookup where ri = \'%s\'", ri);
+                            db.getResult(sql, '', function () {
+                                callback(err, results);
+                            });
+                        }
+                    });
                 }
                 else {
-                    sql = util.format("delete from lookup where ri = \'%s\'", ri);
-                    db.getResult(sql, '', function () {
-                        callback(err, results);
-                    });
+                    callback(err, results);
                 }
             });
         }
         else {
-            callback(err, results);
+            callback(err, result_st);
         }
     });
 };
