@@ -491,6 +491,28 @@ exports.check = function(request, notiObj, check_value) {
     var noti_Str = JSON.stringify(notiObj);
     var noti_Obj = JSON.parse(noti_Str);
 
+    if (request.query.real == 4) {
+        // for test of measuring elapsed time of processing in mobius
+        var hrend = process.hrtime(elapsed_hrstart[request.headers.elapsed_tid]);
+        var elapsed_hr_str = util.format(require('moment')().utc().format('YYYYMMDDTHHmmss') + "(hr): %ds %dms\r\n", hrend[0], hrend[1]/1000000);
+        console.info(elapsed_hr_str);
+        console.timeEnd(request.headers.elapsed_tid);
+        var fs = require('fs');
+        fs.appendFileSync('get_elapsed_time.log', elapsed_hr_str, 'utf-8');
+        delete elapsed_hrstart[request.headers.elapsed_tid];
+
+        var results_ss = {};
+        results_ss.ri = '/Mobius/real';
+        results_ss.nct = '2';
+        results_ss.enc = {};
+        results_ss.enc.net = [];
+        results_ss.enc.net.push('3');
+        results_ss.nu =[];
+        results_ss.nu.push((request.query.hasOwnProperty('nu')?request.query.nu:'http://localhost'));
+        sgn_action(rootnm, check_value, results_ss, noti_Obj, request.headers.usebodytype);
+        return'1';
+    }
+
     if(check_value == 256 || check_value == 128) { // verification
         sgn_action(rootnm, check_value, notiObj, noti_Obj, request.headers.usebodytype);
     }

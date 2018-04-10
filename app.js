@@ -1812,9 +1812,7 @@ function updateHitCount(request) {
     fs.writeFileSync('hit.json', JSON.stringify(hit, null, 4), 'utf8');
 }
 
-// global.elapsed_hrstart = {};
-// global.elapsed_tid = '0';
-
+global.elapsed_hrstart = {};
 
 var onem2mParser = bodyParser.text(
     {
@@ -1839,9 +1837,9 @@ app.use(function (req, res, next) {
 
 // remoteCSE, ae, cnt
 app.post(onem2mParser, function (request, response) {
-    // elapsed_tid = require('shortid').generate();
-    // elapsed_hrstart[elapsed_tid] = process.hrtime();
-    // console.time(elapsed_tid);
+    request.headers.elapsed_tid = require('shortid').generate();
+    elapsed_hrstart[request.headers.elapsed_tid] = process.hrtime();
+    console.time(request.headers.elapsed_tid);
 
     var fullBody = '';
     request.on('data', function (chunk) {

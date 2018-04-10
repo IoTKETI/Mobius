@@ -1152,6 +1152,13 @@ function build_resource(request, response, ty, body_Obj, callback) {
                                         return '0';
                                     }
                                 }
+                                else {
+                                    body_Obj = {};
+                                    body_Obj['dbg'] = 'BAD REQUEST: ' + attr + '.acr must have values';
+                                    responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
+                                    callback('0');
+                                    return '0';
+                                }
                             }
                             else if(attr === 'nu') {
                                 if(body_Obj[rootnm][attr].length === 0) {
