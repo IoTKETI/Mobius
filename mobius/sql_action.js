@@ -31,7 +31,7 @@ exports.get_sri_sri = function (ri, callback) {
 };
 
 exports.get_ri_sri = function (request, response, sri, callback) {
-    if(request.query.hasOwnProperty('real')) {
+    if(request.query != null) {
         if (request.query.real == 4) {
             var results = [];
             callback(null, results, request, response);
