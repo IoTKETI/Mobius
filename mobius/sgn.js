@@ -493,13 +493,13 @@ exports.check = function(request, notiObj, check_value) {
 
     if (request.query.real == 4) {
         // for test of measuring elapsed time of processing in mobius
-        var hrend = process.hrtime(elapsed_hrstart[request.headers.elapsed_tid]);
-        var elapsed_hr_str = util.format(require('moment')().utc().format('YYYYMMDDTHHmmss') + "(hr): %ds %dms\r\n", hrend[0], hrend[1]/1000000);
-        console.info(elapsed_hr_str);
-        console.timeEnd(request.headers.elapsed_tid);
-        var fs = require('fs');
-        fs.appendFileSync('get_elapsed_time.log', elapsed_hr_str, 'utf-8');
-        delete elapsed_hrstart[request.headers.elapsed_tid];
+        // var hrend = process.hrtime(elapsed_hrstart[request.headers.elapsed_tid]);
+        // var elapsed_hr_str = util.format(require('moment')().utc().format('YYYYMMDDTHHmmss') + "(hr): %ds %dms\r\n", hrend[0], hrend[1]/1000000);
+        // console.info(elapsed_hr_str);
+        // console.timeEnd(request.headers.elapsed_tid);
+        // var fs = require('fs');
+        // fs.appendFileSync('get_elapsed_time.log', elapsed_hr_str, 'utf-8');
+        // delete elapsed_hrstart[request.headers.elapsed_tid];
 
         var results_ss = {};
         results_ss.ri = '/Mobius/real';

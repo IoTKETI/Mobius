@@ -1837,9 +1837,9 @@ app.use(function (req, res, next) {
 
 // remoteCSE, ae, cnt
 app.post(onem2mParser, function (request, response) {
-    request.headers.elapsed_tid = require('shortid').generate();
-    elapsed_hrstart[request.headers.elapsed_tid] = process.hrtime();
-    console.time(request.headers.elapsed_tid);
+    // request.headers.elapsed_tid = require('shortid').generate();
+    // elapsed_hrstart[request.headers.elapsed_tid] = process.hrtime();
+    // console.time(request.headers.elapsed_tid);
 
     var fullBody = '';
     request.on('data', function (chunk) {
