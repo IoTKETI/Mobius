@@ -152,7 +152,7 @@ exports.ws_watchdog = function() {
 
 var ws_tid = require('shortid').generate();
 wdt.set_wdt(ws_tid, 2, _this.ws_watchdog);
-
+/*
 function make_json_obj(bodytype, str, callback) {
     try {
         if (bodytype == 'xml') {
@@ -380,7 +380,7 @@ function make_json_obj(bodytype, str, callback) {
         callback('0');
     }
 }
-
+*/
 function ws_message_handler(message) {
     var _this = this;
     if(message.type === 'utf8') {

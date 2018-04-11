@@ -34,6 +34,9 @@ var https = require('https');
 var cbor = require('cbor');
 var moment = require('moment');
 
+var mqtt = require('mqtt');
+global.noti_mqtt = null;
+
 global.NOPRINT = 'true';
 global.ONCE = 'true';
 
@@ -43,6 +46,7 @@ var resource = require('./mobius/resource');
 var security = require('./mobius/security');
 var fopt = require('./mobius/fopt');
 var tr = require('./mobius/tr');
+var sgn = require('./mobius/sgn');
 
 var db = require('./mobius/db_action');
 var db_sql = require('./mobius/sql_action');
@@ -113,6 +117,40 @@ function del_expired_resource() {
     });
 }
 
+function noti_mqtt_begin() {
+    if(noti_mqtt == null) {
+        if(usesecure === 'disable') {
+            noti_mqtt = mqtt.connect('mqtt://' + usemqttbroker + ':' + usemqttport);
+        }
+        else {
+            var connectOptions = {
+                host: usemqttbroker,
+                port: usemqttport,
+                protocol: "mqtts",
+                keepalive: 15,
+                //             clientId: serverUID,
+                protocolId: "MQTT",
+                protocolVersion: 4,
+                clean: true,
+                reconnectPeriod: 2000,
+                connectTimeout: 2000,
+                key: fs.readFileSync("./server-key.pem"),
+                cert: fs.readFileSync("./server-crt.pem"),
+                rejectUnauthorized: false
+            };
+            noti_mqtt = mqtt.connect(connectOptions);
+        }
+
+        noti_mqtt.on('connect', function () {
+            console.log('noti_mqtt is connected');
+
+            if(noti_mqtt) {
+                noti_mqtt.on('message', sgn.response_noti_handler);
+            }
+        });
+    }
+}
+
 var cluster = require('cluster');
 var os = require('os');
 var cpuCount = os.cpus().length;
@@ -165,6 +203,7 @@ if (use_clustering) {
                         console.log('mobius server (' + ip.address() + ') running at ' + usecsebaseport + ' port');
                         cb.create(function (rsp) {
                             console.log(JSON.stringify(rsp));
+                            noti_mqtt_begin();
                         });
                     });
                 }
@@ -179,6 +218,7 @@ if (use_clustering) {
                         console.log('mobius server (' + ip.address() + ') running at ' + usecsebaseport + ' port');
                         cb.create(function (rsp) {
                             console.log(JSON.stringify(rsp));
+                            noti_mqtt_begin();
                         });
                     });
                 }
@@ -197,7 +237,7 @@ else {
                     http.createServer(app).listen({port: usecsebaseport, agent: false}, function () {
                         console.log('mobius server (' + ip.address() + ') running at ' + usecsebaseport + ' port');
                         require('./pxy_mqtt');
-                        //require('./mobius/ts_agent');
+                        noti_mqtt_begin();
 
                         if (usecsetype === 'mn' || usecsetype === 'asn') {
                             global.refreshIntervalId = setInterval(function () {
@@ -216,6 +256,7 @@ else {
                     https.createServer(options, app).listen({port: usecsebaseport, agent: false}, function () {
                         console.log('mobius server (' + ip.address() + ') running at ' + usecsebaseport + ' port');
                         require('./pxy_mqtt');
+                        noti_mqtt_begin();
                         //require('./mobius/ts_agent');
 
                         if (usecsetype === 'mn' || usecsetype === 'asn') {
@@ -294,6 +335,219 @@ function make_short_nametype(body_Obj) {
         }
     }
 }
+
+global.make_json_obj = function(bodytype, str, callback) {
+    try {
+        if (bodytype === 'xml') {
+            var message = str;
+            var parser = new xml2js.Parser({explicitArray: false});
+            parser.parseString(message.toString(), function (err, result) {
+                if (err) {
+                    console.log('[mqtt make json obj] xml2js parser error]');
+                    callback('0');
+                }
+                else {
+                    for (var prop in result) {
+                        if (result.hasOwnProperty(prop)) {
+                            for (var attr in result[prop]) {
+                                if (result[prop].hasOwnProperty(attr)) {
+                                    if (attr == '$') {
+                                        delete result[prop][attr];
+                                    }
+                                    else if (attr == 'pc') {
+                                        make_json_arraytype(result[prop][attr]);
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // for (var prop in result) {
+                    //     if (result.hasOwnProperty(prop)) {
+                    //         for (var attr in result[prop]) {
+                    //             if (result[prop].hasOwnProperty(attr)) {
+                    //                 if (attr == '$') {
+                    //                     delete result[prop][attr];
+                    //                 }
+                    //                 else if (attr == 'pc') {
+                    //                     for (var attr2 in result[prop][attr]) {
+                    //                         if (result[prop][attr].hasOwnProperty(attr2)) {
+                    //                             if (result[prop][attr][attr2].at) {
+                    //                                 result[prop][attr][attr2].at = result[prop][attr][attr2].at.split(' ');
+                    //                             }
+                    //
+                    //                             if (result[prop][attr][attr2].aa) {
+                    //                                 result[prop][attr][attr2].aa = result[prop][attr][attr2].aa.split(' ');
+                    //                             }
+                    //
+                    //                             if (result[prop][attr][attr2].poa) {
+                    //                                 result[prop][attr][attr2].poa = result[prop][attr][attr2].poa.split(' ');
+                    //                             }
+                    //
+                    //                             if (result[prop][attr][attr2].lbl) {
+                    //                                 result[prop][attr][attr2].lbl = result[prop][attr][attr2].lbl.split(' ');
+                    //                             }
+                    //
+                    //                             if (result[prop][attr][attr2].acpi) {
+                    //                                 result[prop][attr][attr2].acpi = result[prop][attr][attr2].acpi.split(' ');
+                    //                             }
+                    //
+                    //                             if (result[prop][attr][attr2].srt) {
+                    //                                 result[prop][attr][attr2].srt = result[prop][attr][attr2].srt.split(' ');
+                    //                             }
+                    //
+                    //                             if (result[prop][attr][attr2].nu) {
+                    //                                 result[prop][attr][attr2].nu = result[prop][attr][attr2].nu.split(' ');
+                    //                             }
+                    //
+                    //                             if (result[prop][attr][attr2].enc) {
+                    //                                 if (result[prop][attr][attr2].enc.net) {
+                    //                                     result[prop][attr][attr2].enc.net = result[prop][attr][attr2].enc.net.split(' ');
+                    //                                 }
+                    //                             }
+                    //
+                    //                             if (attr == 'pv' || attr == 'pvs') {
+                    //                                 if (body_Obj[prop][attr]) {
+                    //                                     if (body_Obj[prop][attr].acr) {
+                    //                                         if (!Array.isArray(body_Obj[prop][attr].acr)) {
+                    //                                             temp = body_Obj[prop][attr].acr;
+                    //                                             body_Obj[prop][attr].acr = [];
+                    //                                             body_Obj[prop][attr].acr[0] = temp;
+                    //                                         }
+                    //
+                    //                                         for (var acr_idx in body_Obj[prop][attr].acr) {
+                    //                                             if (body_Obj[prop][attr].acr.hasOwnProperty(acr_idx)) {
+                    //                                                 if (body_Obj[prop][attr].acr[acr_idx].acor) {
+                    //                                                     body_Obj[prop][attr].acr[acr_idx].acor = body_Obj[prop][attr].acr[acr_idx].acor.split(' ');
+                    //                                                 }
+                    //
+                    //                                                 if (body_Obj[prop][attr].acr[acr_idx].hasOwnProperty('acco')) {
+                    //                                                     if (!Array.isArray(body_Obj[prop][attr].acr[acr_idx].acco)) {
+                    //                                                         temp = body_Obj[prop][attr].acr[acr_idx].acco;
+                    //                                                         body_Obj[prop][attr].acr[acr_idx].acco = [];
+                    //                                                         body_Obj[prop][attr].acr[acr_idx].acco[0] = temp;
+                    //                                                     }
+                    //
+                    //                                                     var acco = body_Obj[prop][attr].acr[acr_idx].acco;
+                    //                                                     for(var acco_idx in acco) {
+                    //                                                         if(acco.hasOwnProperty(acco_idx)) {
+                    //                                                             if (acco[acco_idx].hasOwnProperty('acip')) {
+                    //                                                                 if (acco[acco_idx].acip.hasOwnProperty('ipv4')) {
+                    //                                                                     if (getType(acco[acco_idx].acip['ipv4']) == 'string') {
+                    //                                                                         acco[acco_idx].acip['ipv4'] = acco[acco_idx].acip.ipv4.split(' ');
+                    //                                                                     }
+                    //                                                                 }
+                    //                                                                 else if (acco[acco_idx].acip.hasOwnProperty('ipv6')) {
+                    //                                                                     if (getType(acco[acco_idx].acip['ipv6']) == 'string') {
+                    //                                                                         acco[acco_idx].acip['ipv6'] = acco[acco_idx].acip.ipv6.split(' ');
+                    //                                                                     }
+                    //                                                                 }
+                    //                                                             }
+                    //                                                             if (acco[acco_idx].hasOwnProperty('actw')) {
+                    //                                                                 if (getType(acco[acco_idx].actw) == 'string') {
+                    //                                                                     temp = acco[acco_idx].actw;
+                    //                                                                     acco[acco_idx]['actw'] = [];
+                    //                                                                     acco[acco_idx].actw[0] = temp;
+                    //                                                                 }
+                    //                                                             }
+                    //                                                         }
+                    //                                                     }
+                    //                                                 }
+                    //                                             }
+                    //                                         }
+                    //                                     }
+                    //
+                    //                                     if (body_Obj[prop][attr].acr == '') {
+                    //                                         body_Obj[prop][attr].acr = [];
+                    //                                     }
+                    //
+                    //                                     if (body_Obj[prop][attr].acr == '[]') {
+                    //                                         body_Obj[prop][attr].acr = [];
+                    //                                     }
+                    //                                 }
+                    //                             }
+                    //
+                    //                             if (result[prop][attr][attr2].pv) {
+                    //                                 if (result[prop][attr][attr2].pv.acr) {
+                    //                                     if (!Array.isArray(result[prop][attr][attr2].pv.acr)) {
+                    //                                         var temp = result[prop][attr][attr2].pv.acr;
+                    //                                         result[prop][attr][attr2].pv.acr = [];
+                    //                                         result[prop][attr][attr2].pv.acr[0] = temp;
+                    //                                     }
+                    //
+                    //                                     for (var acr_idx in result[prop][attr][attr2].pv.acr) {
+                    //                                         if (result[prop][attr][attr2].pv.acr.hasOwnProperty(acr_idx)) {
+                    //                                             if (result[prop][attr][attr2].pv.acr[acr_idx].acor) {
+                    //                                                 result[prop][attr][attr2].pv.acr[acr_idx].acor = result[prop][attr][attr2].pv.acr[acr_idx].acor.split(' ');
+                    //                                             }
+                    //                                         }
+                    //                                     }
+                    //                                 }
+                    //                             }
+                    //
+                    //                             if (result[prop][attr][attr2].pvs) {
+                    //                                 if (result[prop][attr][attr2].pvs.acr) {
+                    //                                     if (!Array.isArray(result[prop][attr][attr2].pvs.acr)) {
+                    //                                         temp = result[prop][attr][attr2].pvs.acr;
+                    //                                         result[prop][attr][attr2].pvs.acr = [];
+                    //                                         result[prop][attr][attr2].pvs.acr[0] = temp;
+                    //                                     }
+                    //
+                    //                                     for (acr_idx in result[prop][attr][attr2].pvs.acr) {
+                    //                                         if (result[prop][attr][attr2].pvs.acr.hasOwnProperty(acr_idx)) {
+                    //                                             if (result[prop][attr][attr2].pvs.acr[acr_idx].acor) {
+                    //                                                 result[prop][attr][attr2].pvs.acr[acr_idx].acor = result[prop][attr][attr2].pvs.acr[acr_idx].acor.split(' ');
+                    //                                             }
+                    //                                         }
+                    //                                     }
+                    //                                 }
+                    //                             }
+                    //
+                    //                             if (result[prop][attr][attr2].mid) {
+                    //                                 result[prop][attr][attr2].mid = result[prop][attr][attr2].mid.split(' ');
+                    //                             }
+                    //
+                    //                             if (result[prop][attr][attr2].macp) {
+                    //                                 result[prop][attr][attr2].macp = result[prop][attr][attr2].macp.split(' ');
+                    //                             }
+                    //
+                    //                             if (result[prop][attr][attr2]['$']) {
+                    //                                 if (result[prop][attr][attr2]['$'].rn && result[prop][attr][attr2]['$'].rn != '') {
+                    //                                     result[prop][attr][attr2].rn = result[prop][attr][attr2]['$'].rn;
+                    //                                     delete result[prop][attr][attr2]['$'];
+                    //                                 }
+                    //                             }
+                    //                         }
+                    //                     }
+                    //                 }
+                    //             }
+                    //         }
+                    //     }
+                    // }
+                    callback('1', result);
+                }
+            });
+        }
+        else if (bodytype === 'cbor') {
+            cbor.decodeFirst(str, function(err, result) {
+                if (err) {
+                    console.log('[mqtt make json obj] cbor parser error]');
+                }
+                else {
+                    callback('1', result);
+                }
+            });
+        }
+        else {
+            var result = JSON.parse(str);
+            callback('1', result);
+        }
+    }
+    catch (e) {
+        console.error(e.message);
+        callback('0');
+    }
+};
 
 global.make_json_arraytype = function (body_Obj) {
     for (var prop in body_Obj) {

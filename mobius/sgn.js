@@ -29,6 +29,7 @@ var merge = require('merge');
 var responder = require('./responder');
 
 var ss_fail_count = {};
+var ss_ri = {};
 
 function make_xml_noti_message(pc, xm2mri) {
     try {
@@ -509,6 +510,7 @@ exports.check = function(request, notiObj, check_value) {
         results_ss.enc.net.push('3');
         results_ss.nu =[];
         results_ss.nu.push((request.query.hasOwnProperty('nu')?request.query.nu:'http://localhost'));
+        ss_fail_count[results_ss.ri] = 0;
         sgn_action(rootnm, check_value, results_ss, noti_Obj, request.headers.usebodytype);
         return'1';
     }
@@ -689,66 +691,71 @@ function request_noti_coap(nu, ri, bodyString, bodytype, xm2mri) {
     req.end();
 }
 
-function request_noti_mqtt(nu, ri, bodyString, bodytype, xm2mri) {
-    var bodyStr = '';
-    var options = {
-        hostname: 'localhost',
-        port: usepxymqttport,
-        path: '/notification',
-        method: 'POST',
-        headers: {
-            'X-M2M-RI': xm2mri,
-            'Accept': 'application/' + bodytype,
-            'X-M2M-Origin': usecseid,
-            'Content-Type': 'application/' + bodytype,
-            'nu': nu,
-            'bodytype': bodytype,
-            'ri': ri
-        }
-    };
+exports.response_noti_handler = function(topic, message) {
+    noti_mqtt.unsubscribe(topic);
 
-    function response_noti_mqtt(res) {
-        res.on('data', function (chunk) {
-            bodyStr += chunk;
-        });
+    var topic_arr = topic.split('/');
+    if(topic_arr[5] != null) {
+        var bodytype = (topic_arr[5] == 'xml') ? topic_arr[5] : ((topic_arr[5] == 'json') ? topic_arr[5] : ((topic_arr[5] == 'cbor') ? topic_arr[5] : 'json'));
+    }
+    else {
+        bodytype = defaultbodytype;
+        topic_arr[5] = defaultbodytype;
+    }
 
-        res.on('end', function () {
-            if (res.statusCode == 200 || res.statusCode == 201) {
-                ss_fail_count[res.req._headers.ri] = 0;
-                console.log('----> [request_noti_mqtt - ' + ss_fail_count[res.req._headers.ri] + ']');
+    if((topic_arr[1] == 'oneM2M' && topic_arr[2] == 'resp' && ((topic_arr[3].replace(':', '/') == usecseid) || (topic_arr[3] == usecseid.replace('/', ''))))) {
+        make_json_obj(bodytype, message.toString(), function(rsc, jsonObj) {
+            if(rsc == '1') {
+                if(jsonObj['m2m:rsp'] == null) {
+                    jsonObj['m2m:rsp'] = jsonObj;
+                }
+
+                var ri = ss_ri[jsonObj['m2m:rsp'].rqi];
+                ss_fail_count[ri] = 0;
+                delete ss_ri[ri];
+
+                console.log('----> [response_noti_mqtt - ' + ss_fail_count[ri] + '] ' + jsonObj['m2m:rsp'].rsc + ' - ' + topic);
+                console.log(message.toString());
+            }
+            else {
+                console.log('[response_noti_mqtt] parsing error');
             }
         });
     }
+};
 
-    if(usesecure == 'disable') {
-        var req = http.request(options, function (res) {
-            response_noti_mqtt(res);
-        });
-    }
-    else {
-        options.ca = fs.readFileSync('ca-crt.pem');
-        req = https.request(options, function (res) {
-            response_noti_mqtt(res);
-        });
+function request_noti_mqtt(nu, ri, bodyString, bodytype, xm2mri) {
+    if(noti_mqtt == null) {
+        console.log('[request_noti_mqtt] noti_mqtt is not connected to Mobius');
+        return '0';
     }
 
-    req.on('error', function (e) {
-        console.log('[request_noti_mqtt - problem with request: ' + e.message + ']');
-        console.log('[request_noti_mqtt - no response - ' + ss_fail_count[req._headers.ri] + ']');
-        if (ss_fail_count[req._headers.ri] > 8) {
+    try {
+        var aeid = url.parse(nu).pathname.replace('/', '').split('?')[0];
+        var noti_resp_topic = '/oneM2M/resp/' + usecseid.replace('/', '') + '/' + aeid + '/' + bodytype;
+
+        ss_ri[xm2mri] = ri;
+        ss_fail_count[ri]++;
+        if (ss_fail_count[ri] > 12) {
             delete ss_fail_count[req._headers.ri];
             delete_sub(req._headers.ri, xm2mri);
+            //noti_mqtt.unsubscribe(noti_resp_topic);
         }
-    });
+        else {
+            //noti_mqtt.unsubscribe(noti_resp_topic);
+            noti_mqtt.subscribe(noti_resp_topic);
+            console.log('subscribe noti_resp_topic as ' + noti_resp_topic);
 
-    req.on('close', function() {
-        console.log('[request_noti_mqtt - close: no response for notification');
-    });
-
-    ss_fail_count[req._headers.ri]++;
-    console.log('<---- [request_noti_mqtt - ' + ss_fail_count[req._headers.ri] + '] ');
-    req.write(bodyString);
-    req.end();
+            var noti_topic = '/oneM2M/req/' + usecseid.replace('/', '') + '/' + aeid + '/' + bodytype;
+            noti_mqtt.publish(noti_topic, bodyString);
+        }
+        console.log('<---- [request_noti_mqtt - ' + ss_fail_count[ri] + '] publish - ' + noti_topic);
+        console.log(bodyString);
+    }
+    catch (e) {
+        console.log(e.message);
+        console.log('can not send notification to ' + nu);
+    }
 }
 
 
