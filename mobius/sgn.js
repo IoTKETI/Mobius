@@ -501,19 +501,20 @@ exports.check = function(request, notiObj, check_value) {
         // var fs = require('fs');
         // fs.appendFileSync('get_elapsed_time.log', elapsed_hr_str, 'utf-8');
         // delete elapsed_hrstart[request.headers.elapsed_tid];
-
-        var results_ss = {};
-        results_ss.ri = pi + '/' + (request.query.hasOwnProperty('rn')?request.query.rn:'sub');
-        results_ss.nct = '2';
-        results_ss.enc = {};
-        results_ss.enc.net = [];
-        results_ss.enc.net.push('3');
-        results_ss.nu =[];
-        results_ss.nu.push((request.query.hasOwnProperty('nu')?request.query.nu:'http://localhost'));
-        if (ss_fail_count[results_ss.ri] == null) {
-            ss_fail_count[results_ss.ri] = 0;
+        if(request.query.hasOwnProperty('nu')) {
+            var results_ss = {};
+            results_ss.ri = pi + '/' + (request.query.hasOwnProperty('rn') ? request.query.rn : 'sub');
+            results_ss.nct = '2';
+            results_ss.enc = {};
+            results_ss.enc.net = [];
+            results_ss.enc.net.push('3');
+            results_ss.nu = [];
+            results_ss.nu.push((request.query.hasOwnProperty('nu') ? request.query.nu : 'http://localhost'));
+            //if (ss_fail_count[results_ss.ri] == null) {
+                ss_fail_count[results_ss.ri] = 0;
+            //}
+            sgn_action(rootnm, check_value, results_ss, noti_Obj, request.headers.usebodytype);
         }
-        sgn_action(rootnm, check_value, results_ss, noti_Obj, request.headers.usebodytype);
         return'1';
     }
 
