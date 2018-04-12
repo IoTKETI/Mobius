@@ -1465,7 +1465,7 @@ exports.create = function (request, response, ty, body_Obj, callback) {
                     sgn.check(request, notiObj[rootnm], 3);
                 }
 
-                if(ty == 23) { // when ty is 23, send notification for varification
+                if(ty == 23) { // when ty is 23, send notification for verification
                     var notiObj = JSON.parse(JSON.stringify(resource_Obj));
                     _this.remove_no_value(request, notiObj);
                     sgn.check(request, notiObj[rootnm], 256);
@@ -2833,9 +2833,11 @@ function delete_action(request, response, resource_Obj, comm_Obj, callback) {
                 if (!err) {
                     if (comm_Obj.ty == '23') {
                         if(comm_Obj.hasOwnProperty('su')) {
-                            var notiObj = JSON.parse(JSON.stringify(comm_Obj));
-                            _this.remove_no_value(request, notiObj);
-                            sgn.check(request, notiObj, 128);
+                            if(comm_Obj.su != '') {
+                                var notiObj = JSON.parse(JSON.stringify(comm_Obj));
+                                _this.remove_no_value(request, notiObj);
+                                sgn.check(request, notiObj, 128);
+                            }
                         }
                         callback('1', resource_Obj);
                     }

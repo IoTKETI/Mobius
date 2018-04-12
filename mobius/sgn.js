@@ -384,7 +384,8 @@ function sgn_action(rootnm, check_value, results_ss, noti_Obj, sub_bodytype) {
                                     node['m2m:sgn'].cr = results_ss.cr;
                                     delete node['m2m:sgn'].nev;
                                 }
-                                bodyString = make_xml_noti_message(node, xm2mri);
+                                //bodyString = make_xml_noti_message(node, xm2mri);
+                                bodyString = responder.convertXmlSgn(Object.keys(node)[0], node[Object.keys(node)[0]]);
                                 if (bodyString == "") { // parse error
                                     ss_fail_count[results_ss.ri]++;
                                     console.log('can not send notification since error of converting json to xml');
@@ -394,7 +395,8 @@ function sgn_action(rootnm, check_value, results_ss, noti_Obj, sub_bodytype) {
                                 }
                             }
                             else { // mqtt:
-                                bodyString = make_xml_noti_message(node, xm2mri);
+                                //bodyString = make_xml_noti_message(node, xm2mri);
+                                bodyString = responder.convertXmlSgn(Object.keys(node)[0], node[Object.keys(node)[0]]);
                                 if (bodyString == "") { // parse error
                                     ss_fail_count[results_ss.ri]++;
                                     console.log('can not send notification since error of converting json to xml');
