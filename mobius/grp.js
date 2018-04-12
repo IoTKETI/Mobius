@@ -72,7 +72,14 @@ function check_member(request, response, mt, req_count, mid, cse_poa, valid_mid,
     }
     else {
         var ri = mid[req_count];
-        db_sql.get_ri_sri(request, response, ri, function (err, results, request, response) {
+        if (ri.charAt(0) != '/') {
+            var absolute_ri = '/' + ri;
+        }
+        else {
+            absolute_ri = ri.replace(/\/\/[^\/]+\/?/, '\/');
+            absolute_ri = absolute_ri.replace(/\/[^\/]+\/?/, '/');
+        }
+        db_sql.get_ri_sri(request, response, absolute_ri, function (err, results, request, response) {
             ri = ((results.length == 0) ? ri : results[0].ri);
             var target_cb = ri.split('/')[1];
             var hostname = 'localhost';
@@ -231,7 +238,7 @@ exports.build_grp = function(request, response, resource_Obj, body_Obj, callback
                 // else {
                     if (resource_Obj[rootnm].csy == '1') { // ABANDON_MEMBER
                         resource_Obj[rootnm].mid = results_mid;
-                        resource_Obj[rootnm].cnm = body_Obj[rootnm].mid.length.toString();
+                        resource_Obj[rootnm].cnm = results_mid.length.toString();
                         resource_Obj[rootnm].mtv = 'true';
                     }
                     else if (resource_Obj[rootnm].csy == '2') { // ABANDON_GROUP
