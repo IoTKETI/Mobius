@@ -177,8 +177,6 @@ function reg_req_sub(mqtt_client) {
 }
 
 function mqtt_message_handler(topic, message) {
-    console.log('----> ' + topic);
-    console.log(message.toString());
     var topic_arr = topic.split("/");
     if(topic_arr[5] != null) {
         var bodytype = (topic_arr[5] == 'xml') ? topic_arr[5] : ((topic_arr[5] == 'json') ? topic_arr[5] : ((topic_arr[5] == 'cbor') ? topic_arr[5] : 'json'));
@@ -244,6 +242,9 @@ function mqtt_message_handler(topic, message) {
         });
     }
     else if(topic_arr[1] === 'oneM2M' && topic_arr[2] === 'req' && ((topic_arr[4].replace(':', '/') == usecseid) || (topic_arr[4] == usecseid.replace('/', '')))) {
+        console.log('----> [response_mqtt] - ' + topic);
+        console.log(message.toString());
+
         make_json_obj(bodytype, message.toString(), function(rsc, result) {
             if(rsc == '1') {
                 if(result && result['m2m:rqp'] == null) {
@@ -321,7 +322,7 @@ function mqtt_message_action(mqtt_client, topic_arr, bodytype, jsonObj) {
         var ty = (jsonObj['m2m:rqp'].ty == null) ? '' : jsonObj['m2m:rqp'].ty.toString();
         var pc = (jsonObj['m2m:rqp'].pc == null) ? '' : jsonObj['m2m:rqp'].pc;
 
-        if(jsonObj['m2m:rqp'].fc) {
+        if(jsonObj['m2m:rqp'].hasOwnProperty('fc')) {
             var query_count = 0;
             for(var fc_idx in jsonObj['m2m:rqp'].fc) {
                 if(jsonObj['m2m:rqp'].fc.hasOwnProperty(fc_idx)) {

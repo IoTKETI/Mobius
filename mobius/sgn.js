@@ -503,14 +503,16 @@ exports.check = function(request, notiObj, check_value) {
         // delete elapsed_hrstart[request.headers.elapsed_tid];
 
         var results_ss = {};
-        results_ss.ri = '/Mobius/real';
+        results_ss.ri = pi + '/' + (request.query.hasOwnProperty('rn')?request.query.rn:'sub');
         results_ss.nct = '2';
         results_ss.enc = {};
         results_ss.enc.net = [];
         results_ss.enc.net.push('3');
         results_ss.nu =[];
         results_ss.nu.push((request.query.hasOwnProperty('nu')?request.query.nu:'http://localhost'));
-        ss_fail_count[results_ss.ri] = 0;
+        if (ss_fail_count[results_ss.ri] == null) {
+            ss_fail_count[results_ss.ri] = 0;
+        }
         sgn_action(rootnm, check_value, results_ss, noti_Obj, request.headers.usebodytype);
         return'1';
     }
@@ -711,11 +713,12 @@ exports.response_noti_handler = function(topic, message) {
                 }
 
                 var ri = ss_ri[jsonObj['m2m:rsp'].rqi];
-                ss_fail_count[ri] = 0;
-                delete ss_ri[ri];
 
                 console.log('----> [response_noti_mqtt - ' + ss_fail_count[ri] + '] ' + jsonObj['m2m:rsp'].rsc + ' - ' + topic);
                 console.log(message.toString());
+
+                delete ss_fail_count[ri];
+                delete ss_ri[ri];
             }
             else {
                 console.log('[response_noti_mqtt] parsing error');
@@ -737,8 +740,8 @@ function request_noti_mqtt(nu, ri, bodyString, bodytype, xm2mri) {
         ss_ri[xm2mri] = ri;
         ss_fail_count[ri]++;
         if (ss_fail_count[ri] > 12) {
-            delete ss_fail_count[req._headers.ri];
-            delete_sub(req._headers.ri, xm2mri);
+            delete ss_fail_count[ri];
+            delete_sub(ri, xm2mri);
             //noti_mqtt.unsubscribe(noti_resp_topic);
         }
         else {
