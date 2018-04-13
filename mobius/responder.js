@@ -1472,6 +1472,35 @@ function typeCheckforJson2(body_Obj) {
     }
 }
 
+function store_to_req_resource(request, bodyString, rsc, cap) {
+    db_sql.update_req('/' + request.headers.tg, bodyString, rsc, function () {
+        var rspObj = {};
+        rspObj.rsc = rsc;
+        rspObj.ri = request.method + "-" + ri + "-" + JSON.stringify(request.query);
+        rspObj = cap;
+        console.log(JSON.stringify(rspObj));
+
+        if (request.headers['x-m2m-rtu'] != null && request.headers['x-m2m-rtu'] != '') {
+            var nu = request.headers['x-m2m-rtu'];
+            var sub_nu = url.parse(nu);
+            var xm2mri = require('shortid').generate();
+
+            if (sub_nu.protocol == 'http:') {
+                request_noti_http(nu, bodyString, request.headers.usebodytype, xm2mri);
+            }
+            else if (sub_nu.protocol == 'coap:') {
+                request_noti_coap(nu, bodyString, request.headers.usebodytype, xm2mri);
+            }
+            else if (sub_nu.protocol == 'ws:') {
+                request_noti_ws(nu, bodyString, request.headers.usebodytype, xm2mri);
+            }
+            else { // mqtt:
+                request_noti_mqtt(nu, bodyString, request.headers.usebodytype, xm2mri);
+            }
+        }
+    });
+}
+
 exports.response_result = function(request, response, status, body_Obj, rsc, ri, cap) {
     if (request.query.rt == 3) {
         if (request.headers['x-m2m-ri'] != null) {
@@ -1552,7 +1581,7 @@ exports.response_result = function(request, response, status, body_Obj, rsc, ri,
 
         console.log(bodyString);
 
-        if (request.query.rt == 3) {
+        if (request.query.rt == 3 || (request.query.rt == 2 && request.headers['x-m2m-rtu'] == null && request.headers['x-m2m-rtu'] == '')) {
             if (request.headers.usebodytype == 'json') {
             }
             else if (request.headers.usebodytype == 'cbor') {
@@ -1579,33 +1608,8 @@ exports.response_result = function(request, response, status, body_Obj, rsc, ri,
             // fs.appendFileSync('get_elapsed_time.log', elapsed_hr_str, 'utf-8');
             // delete elapsed_hrstart[elapsed_tid];
         }
-        else if (request.query.rt == 1 || request.query.rt == 2) {
-            db_sql.update_req('/'+request.headers.tg, bodyString, rsc, function () {
-                rspObj = {};
-                rspObj.rsc = rsc;
-                rspObj.ri = request.method + "-" + ri + "-" + JSON.stringify(request.query);
-                rspObj = cap;
-                console.log(JSON.stringify(rspObj));
-
-                if(request.query.rt == 2 && request.headers['x-m2m-rtu'] != null) {
-                    var nu = request.headers['x-m2m-rtu'];
-                    var sub_nu = url.parse(nu);
-                    var xm2mri = require('shortid').generate();
-
-                    if (sub_nu.protocol == 'http:') {
-                        request_noti_http(nu, bodyString, request.headers.usebodytype, xm2mri);
-                    }
-                    else if (sub_nu.protocol == 'coap:') {
-                        request_noti_coap(nu, bodyString, request.headers.usebodytype, xm2mri);
-                    }
-                    else if (sub_nu.protocol == 'ws:') {
-                        request_noti_ws(nu, JSON.stringify(node), request.headers.usebodytype, xm2mri);
-                    }
-                    else { // mqtt:
-                        request_noti_mqtt(nu, JSON.stringify(node), request.headers.usebodytype, xm2mri);
-                    }
-                }
-            });
+        else if (request.query.rt == 1 || (request.query.rt == 2 && request.headers['x-m2m-rtu'] != null && request.headers['x-m2m-rtu'] != '')) {
+            store_to_req_resource(request, bodyString, rsc, cap);
         }
     }
 };
@@ -1662,7 +1666,7 @@ exports.response_rcn3_result = function(request, response, status, body_Obj, rsc
 
     var bodyString = JSON.stringify(body_Obj);
 
-    if (request.query.rt == 3) {
+    if (request.query.rt == 3 || (request.query.rt == 2 && request.headers['x-m2m-rtu'] == null && request.headers['x-m2m-rtu'] == '')) {
         if (request.headers.usebodytype == 'json') {
         }
         else if (request.headers.usebodytype == 'cbor') {
@@ -1705,33 +1709,8 @@ exports.response_rcn3_result = function(request, response, status, body_Obj, rsc
         rspObj = cap;
         console.log(JSON.stringify(rspObj));
     }
-    else if (request.query.rt == 1 || request.query.rt == 2) {
-        db_sql.update_req('/'+request.headers.tg, bodyString, rsc, function () {
-            rspObj = {};
-            rspObj.rsc = rsc;
-            rspObj.ri = request.method + "-" + ri + "-" + JSON.stringify(request.query);
-            rspObj = cap;
-            console.log(JSON.stringify(rspObj));
-
-            if(request.query.rt == 2 && request.headers['x-m2m-rtu'] != null) {
-                var nu = request.headers['x-m2m-rtu'];
-                var sub_nu = url.parse(nu);
-                var xm2mri = require('shortid').generate();
-
-                if (sub_nu.protocol == 'http:') {
-                    request_noti_http(nu, bodyString, request.headers.usebodytype, xm2mri);
-                }
-                else if (sub_nu.protocol == 'coap:') {
-                    request_noti_coap(nu, bodyString, request.headers.usebodytype, xm2mri);
-                }
-                else if (sub_nu.protocol == 'ws:') {
-                    request_noti_ws(nu, JSON.stringify(node), request.headers.usebodytype, xm2mri);
-                }
-                else { // mqtt:
-                    request_noti_mqtt(nu, JSON.stringify(node), request.headers.usebodytype, xm2mri);
-                }
-            }
-        });
+    else if (request.query.rt == 1 || (request.query.rt == 2 && request.headers['x-m2m-rtu'] != null && request.headers['x-m2m-rtu'] != '')) {
+        store_to_req_resource(request, bodyString, rsc, cap);
     }
 };
 
@@ -1868,7 +1847,7 @@ exports.search_result = function(request, response, status, body_Obj, rsc, ri, c
 
         bodyString = JSON.stringify(body_Obj);
 
-        if (request.query.rt == 3) {
+        if (request.query.rt == 3 || (request.query.rt == 2 && request.headers['x-m2m-rtu'] == null && request.headers['x-m2m-rtu'] == '')) {
             if (request.headers.usebodytype == 'json') {
             }
             else if (request.headers.usebodytype == 'cbor') {
@@ -1891,33 +1870,8 @@ exports.search_result = function(request, response, status, body_Obj, rsc, ri, c
             rspObj = cap;
             console.log(JSON.stringify(rspObj));
         }
-        else if (request.query.rt == 1 || request.query.rt == 2) {
-            db_sql.update_req('/'+request.headers.tg, bodyString, rsc, function () {
-                rspObj = {};
-                rspObj.rsc = rsc;
-                rspObj.ri = request.method + "-" + ri + "-" + JSON.stringify(request.query);
-                rspObj = cap;
-                console.log(JSON.stringify(rspObj));
-
-                if(request.query.rt == 2 && request.headers['x-m2m-rtu'] != null) {
-                    var nu = request.headers['x-m2m-rtu'];
-                    var sub_nu = url.parse(nu);
-                    var xm2mri = require('shortid').generate();
-
-                    if (sub_nu.protocol == 'http:') {
-                        request_noti_http(nu, bodyString, request.headers.usebodytype, xm2mri);
-                    }
-                    else if (sub_nu.protocol == 'coap:') {
-                        request_noti_coap(nu, bodyString, request.headers.usebodytype, xm2mri);
-                    }
-                    else if (sub_nu.protocol == 'ws:') {
-                        request_noti_ws(nu, JSON.stringify(node), request.headers.usebodytype, xm2mri);
-                    }
-                    else { // mqtt:
-                        request_noti_mqtt(nu, JSON.stringify(node), request.headers.usebodytype, xm2mri);
-                    }
-                }
-            });
+        else if (request.query.rt == 1 || (request.query.rt == 2 && request.headers['x-m2m-rtu'] != null && request.headers['x-m2m-rtu'] != '')) {
+            store_to_req_resource(request, bodyString, rsc, cap);
         }
     }
 };
@@ -1929,7 +1883,6 @@ exports.error_result = function(request, response, status, rsc, dbg_string) {
 
     _this.response_result(request, response, status, body_Obj, rsc, request.url, body_Obj['dbg']);
 };
-
 
 function request_noti_http(nu, bodyString, bodytype, xm2mri) {
     var options = {

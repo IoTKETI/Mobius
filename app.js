@@ -1402,7 +1402,7 @@ function check_rt_query(request, response, body_Obj, callback) {
         });
     }
     else if (request.query.rt == 1 || request.query.rt == 2) { // nodblocking
-        if(request.query.rt == 2 && request.headers['x-m2m-rtu'] == null) {
+        if(request.query.rt == 2 && request.headers['x-m2m-rtu'] == null && request.headers['x-m2m-rtu'] == '') {
             body_Obj = {};
             body_Obj['dbg'] = 'X-M2M-RTU is none';
             responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
