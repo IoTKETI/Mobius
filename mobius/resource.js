@@ -2735,12 +2735,11 @@ exports.update = function (request, response, comm_Obj, body_Obj) {
                 sgn.check(request, notiObj[rootnm], 1);
             }
 
-            // 20180413 ATS is changed
-            // if(ty == 23) { // when ty is 23, send notification for verification
-            //     var notiObj = JSON.parse(JSON.stringify(update_resource_Obj));
-            //     _this.remove_no_value(request, notiObj);
-            //     sgn.check(request, notiObj[rootnm], 256);
-            // }
+            if(ty == 23) { // when ty is 23, send notification for verification
+                var notiObj = JSON.parse(JSON.stringify(update_resource_Obj));
+                _this.remove_no_value(request, notiObj);
+                sgn.check(request, notiObj[rootnm], 256);
+            }
 
             update_action(request, response, ty, update_resource_Obj, function (rsc, update_Obj) {
                 if (rsc == '1') {
