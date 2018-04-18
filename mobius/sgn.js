@@ -637,9 +637,8 @@ function request_noti_http(nu, ri, bodyString, bodytype, xm2mri) {
 
             res.on('end', function () {
                 if (res.statusCode == 200 || res.statusCode == 201) {
-                    ss_fail_count[res.req._headers.ri] = 0;
-                    delete ss_fail_count[res.req._headers.ri];
                     console.log('----> [request_noti_http - ' + ss_fail_count[res.req._headers.ri] + ']');
+                    delete ss_fail_count[res.req._headers.ri];
                 }
             });
         }
@@ -659,7 +658,7 @@ function request_noti_http(nu, ri, bodyString, bodytype, xm2mri) {
 
         req.on('error', function (e) {
             console.log('[request_noti_http - problem with request: ' + e.message + ']');
-            console.log('[request_noti_http - no response - ' + ss_fail_count[req._headers.ri] + ']');
+            console.log('[request_noti_http - no response - ' + ss_fail_count[ri] + ']');
             // if (ss_fail_count[req._headers.ri] >= MAX_NUM_RETRY) {
             //     delete ss_fail_count[req._headers.ri];
             //     delete_sub(req._headers.ri, xm2mri);
@@ -670,8 +669,7 @@ function request_noti_http(nu, ri, bodyString, bodytype, xm2mri) {
             console.log('[request_noti_http - close: no response for notification');
         });
 
-        ss_fail_count[req._headers.ri]++;
-        console.log('<---- [request_noti_http - ' + ss_fail_count[req._headers.ri] + '] ');
+        console.log('<---- [request_noti_http - ' + ss_fail_count[ri] + '] ');
         req.write(bodyString);
         req.end();
     }

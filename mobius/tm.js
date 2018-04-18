@@ -123,6 +123,8 @@ exports.request_initial = function(obj, retry_count, callback) {
     var tmr = parseInt(resource_Obj.tmr, 10);
     var request_count = 0;
     var rsps = [];
+    var resBody = '';
+
     for(var idx in rqps) {
         if (rqps.hasOwnProperty(idx)) {
             var rqi = require('shortid').generate();
@@ -131,7 +133,6 @@ exports.request_initial = function(obj, retry_count, callback) {
             var op = 'post';
             var reqBodyString = JSON.stringify(rqps[idx].pc);
 
-            var resBody = '';
 
             if (rqps[idx].to.split(usespid + usecseid + '/')[0] == '') { // absolute relative
                 rqps[idx].to = rqps[idx].to.replace(usespid + usecseid + '/', '/');
@@ -164,14 +165,20 @@ exports.request_initial = function(obj, retry_count, callback) {
 
                     res.on('end', function () {
                         res.body = resBody;
+                        resBody = '';
                         request_count++;
-                        rsps.push(res);
+
+                        var rsp_primitive = {};
+                        rsp_primitive.rsc = parseInt(res.headers['x-m2m-rsc']); // convert to int
+                        rsp_primitive.rqi = res.headers['x-m2m-ri'];
+                        rsp_primitive.pc = JSON.parse(res.body.toString());
+                        rsps.push(rsp_primitive);
                         if(request_count >= rqps.length) {
                             retry_count++;
                             var check_rsps = 0;
                             for(var idx in rsps) {
                                 if(rsps.hasOwnProperty(idx)) {
-                                    if (rsps[idx].headers['x-m2m-rsc'] == 2001) {
+                                    if (rsps[idx].rsc == 2001) {
                                         check_rsps++;
                                     }
                                     else {
@@ -186,13 +193,14 @@ exports.request_initial = function(obj, retry_count, callback) {
                                     callback('0', obj);
                                 }
                                 else {
-                                    _this.request_initial(obj, retry_count, function (rsc, resource_Obj) {
-                                        callback(rsc, obj);
+                                    _this.request_initial(obj, retry_count, function (rsc, obj, rsps) {
+                                        callback(rsc, obj, rsps);
                                     });
                                 }
                             }
                             else {
-                                callback('1', obj);
+
+                                callback('1', obj, rsps);
                             }
                         }
                     });
@@ -208,14 +216,20 @@ exports.request_initial = function(obj, retry_count, callback) {
 
                     res.on('end', function () {
                         res.body = resBody;
+                        resBody = '';
                         request_count++;
-                        rsps.push(res);
+
+                        var rsp_primitive = {};
+                        rsp_primitive.rsc = parseInt(res.headers['x-m2m-rsc']); // convert to int
+                        rsp_primitive.rqi = res.headers['x-m2m-ri'];
+                        rsp_primitive.pc = JSON.parse(res.body.toString());
+                        rsps.push(rsp_primitive);
                         if(request_count >= rqps.length) {
                             retry_count++;
                             var check_rsps = 0;
                             for(var idx in rsps) {
                                 if(rsps.hasOwnProperty(idx)) {
-                                    if (rsps[idx].headers['x-m2m-rsc'] == 2001) {
+                                    if (rsps[idx].rsc == 2001) {
                                         check_rsps++;
                                     }
                                     else {
@@ -227,16 +241,17 @@ exports.request_initial = function(obj, retry_count, callback) {
 
                             if(check_rsps == 0) {
                                 if(retry_count >= tmr) {
-                                    callback('1', obj);
+                                    callback('0', obj);
                                 }
                                 else {
-                                    _this.request_initial(obj, retry_count, function (rsc, resource_Obj) {
-                                        callback(rsc, obj);
+                                    _this.request_initial(obj, retry_count, function (rsc, obj, rsps) {
+                                        callback(rsc, obj, rsps);
                                     });
                                 }
                             }
                             else {
-                                callback('1', obj);
+
+                                callback('1', obj, rsps);
                             }
                         }
                     });
@@ -251,13 +266,12 @@ exports.request_initial = function(obj, retry_count, callback) {
                 request_count++;
                 if(request_count >= rqps.length) {
                     retry_count++;
-
                     if(retry_count >= tmr) {
-                        callback('1', obj);
+                        callback('0', obj);
                     }
                     else {
-                        _this.request_initial(obj, retry_count, function (rsc, resource_Obj) {
-                            callback(rsc, obj);
+                        _this.request_initial(obj, retry_count, function (rsc, obj, rsps) {
+                            callback(rsc, obj, rsps);
                         });
                     }
                 }
@@ -270,100 +284,10 @@ exports.request_initial = function(obj, retry_count, callback) {
     }
 };
 
-exports.request_lock = function(resource_Obj, retry_count, callback) {
-    var ri = resource_Obj.ri;
-    var rqps = resource_Obj.rqps;
-    var tmr = parseInt(resource_Obj.tmr, 10);
-    var request_count = 0;
-    var rsps = [];
-    for(var idx in rqps) {
-        if (rqps.hasOwnProperty(idx)) {
-            var rqi = require('shortid').generate();
-            var content_type = 'application/json; ty=39';
-            var bodytype = 'json';
-            var op = 'post';
-            var reqBodyString = JSON.stringify(rqps[idx].pc);
-
-            var resBody = '';
-
-            if (rqps[idx].to.split(usespid + usecseid + '/')[0] == '') { // absolute relative
-                rqps[idx].to = rqps[idx].to.replace(usespid + usecseid + '/', '/');
-            }
-            else if (rqps[idx].to.split(usecseid + '/' + usecsebase + '/')[0] == '') { // sp relative
-                rqps[idx].to = rqps[idx].to.replace(usecseid + '/', '/');
-            }
-            else if (rqps[idx].to.split(usecsebase)[0] == '') { // cse relative
-                rqps[idx].to = '/' + rqps[idx].to;
-            }
-
-            var options = {
-                hostname: 'localhost',
-                port: usecsebaseport,
-                path: rqps[idx].to,
-                method: op,
-                headers: {
-                    'X-M2M-RI': rqi,
-                    'Accept': 'application/json',
-                    'X-M2M-Origin': rqps[idx].fr,
-                    'Content-Type': content_type
-                }
-            };
-
-            if (usesecure == 'disable') {
-                var req = http.request(options, function (res) {
-                    res.on('data', function (chunk) {
-                        resBody += chunk;
-                    });
-
-                    res.on('end', function () {
-                        res.body = resBody;
-                        request_count++;
-                        rsps.push(res);
-                        if(request_count >= rqps.length) {
-                            retry_count++;
-                            for(var idx in rsps) {
-                                if(rsps.hasOwnProperty(idx)) {
-                                    if(rsps[idx].headers['x-m2m-rsc'] == 2001) {
-
-                                    }
-                                }
-                            }
-                            if(retry_count >= tmr) {
-
-                            }
-                            callback(ri, rsps);
-                        }
-                    });
-                });
-            }
-            else {
-                options.ca = fs.readFileSync('ca-crt.pem');
-
-                req = https.request(options, function (res) {
-                    res.on('data', function (chunk) {
-                        resBody += chunk;
-                    });
-
-                    res.on('end', function () {
-                        request_count++;
-                        if(request_count >= rqps.length) {
-                            trsp_action(ri, bodytype, res, resBody);
-                        }
-                    });
-                });
-            }
-
-            req.on('error', function (e) {
-                if (e.message != 'read ECONNRESET') {
-                    console.log('[delete_TS] problem with request: ' + e.message);
-                }
-            });
-
-            // write data to request body
-            req.write(reqBodyString);
-            req.end();
-        }
-    }
+exports.request_lock = function(obj, retry_count, callback) {
+    _this.request_initial(obj, retry_count, function (rsc, obj, rsps) {
+        callback(rsc, obj, rsps);
+    });
 };
 
 exports.request_execute = function(ri, frqp) {

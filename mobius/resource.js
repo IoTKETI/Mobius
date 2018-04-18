@@ -1018,7 +1018,7 @@ function create_action(request, response, ty, resource_Obj, callback) {
             });
     }
     else if (ty == '38') { // transactionMgmt resource
-        tm.request_initial(resource_Obj, 0, function(rsc, resource_Obj) {
+        tm.request_initial(resource_Obj, 0, function(rsc, resource_Obj, rsps) {
             if(rsc != '1') {
                 body_Obj = {};
                 body_Obj['dbg'] = "BAD_REQUEST: transaction resource could not create";
@@ -1027,7 +1027,37 @@ function create_action(request, response, ty, resource_Obj, callback) {
                 return '0';
             }
 
-            resource_Obj[rootnm].tst = tst_v.INITIAL;
+            var check_tst = 0;
+            for(var idx in rsps) {
+                if(rsps.hasOwnProperty(idx)) {
+                    for(var root in rsps[idx].pc) {
+                        if(rsps[idx].pc.hasOwnProperty(root)) {
+                            for(var attr in rsps[idx].pc[root]) {
+                                if (rsps[idx].pc[root].hasOwnProperty(attr)) {
+                                    if(attr === 'tst') {
+                                        if(rsps[idx].pc[root][attr] == tst_v.LOCKED) {
+                                            check_tst++;
+                                        }
+                                        else {
+                                            check_tst = 0;
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            if(check_tst == 0) {
+                resource_Obj[rootnm].tst = tst_v.ERROR;
+            }
+            else {
+                resource_Obj[rootnm].tst = tst_v.LOCKED;
+            }
+            resource_Obj[rootnm].rsps = rsps;
+
             db_sql.insert_tm(resource_Obj[rootnm], function (err, results) {
                 if (!err) {
                     // create_action_st(resource_Obj[rootnm].ri, resource_Obj[rootnm].ty, resource_Obj[rootnm].pi, function (rsc) {
