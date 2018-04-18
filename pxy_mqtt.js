@@ -67,7 +67,7 @@ exports.mqtt_watchdog = function() {
         if(usesecure === 'disable') {
             http.globalAgent.maxSockets = 1000000;
             http.createServer(mqtt_app).listen({port: usepxymqttport, agent: false}, function () {
-                console.log('pxymqtt server (' + ip.address() + ') running at ' + usepxymqttport + ' port');
+                NOPRINT==='true'?NOPRINT='true':console.log('pxymqtt server (' + ip.address() + ') running at ' + usepxymqttport + ' port');
 
                 mqtt_state = 'connect';
             });
@@ -196,7 +196,7 @@ function mqtt_message_handler(topic, message) {
                 if (jsonObj['m2m:rsp'] != null) {
                     for (var i = 0; i < resp_mqtt_rqi_arr.length; i++) {
                         if (resp_mqtt_rqi_arr[i] == jsonObj['m2m:rsp'].rqi) {
-                            console.log('----> ' + jsonObj['m2m:rsp'].rsc);
+                            NOPRINT==='true'?NOPRINT='true':console.log('----> ' + jsonObj['m2m:rsp'].rsc);
 
                             http_response_q[resp_mqtt_rqi_arr[i]].setHeader('X-M2M-RSC', jsonObj['m2m:rsp'].rsc);
                             http_response_q[resp_mqtt_rqi_arr[i]].setHeader('X-M2M-RI', resp_mqtt_rqi_arr[i]);
@@ -242,8 +242,8 @@ function mqtt_message_handler(topic, message) {
         });
     }
     else if(topic_arr[1] === 'oneM2M' && topic_arr[2] === 'req' && ((topic_arr[4].replace(':', '/') == usecseid) || (topic_arr[4] == usecseid.replace('/', '')))) {
-        console.log('----> [response_mqtt] - ' + topic);
-        console.log(message.toString());
+        NOPRINT==='true'?NOPRINT='true':console.log('----> [response_mqtt] - ' + topic);
+        NOPRINT==='true'?NOPRINT='true':console.log(message.toString());
 
         make_json_obj(bodytype, message.toString(), function(rsc, result) {
             if(rsc == '1') {
@@ -282,7 +282,7 @@ function mqtt_message_handler(topic, message) {
         });
     }
     else {
-        console.log('topic(' + topic + ') is not supported');
+        NOPRINT==='true'?NOPRINT='true':console.log('topic(' + topic + ') is not supported');
     }
 }
 
@@ -369,7 +369,7 @@ function mqtt_message_action(mqtt_client, topic_arr, bodytype, jsonObj) {
         }
     }
     else {
-        console.log('mqtt message tag is not different : m2m:rqp');
+        NOPRINT==='true'?NOPRINT='true':console.log('mqtt message tag is not different : m2m:rqp');
 
         resp_topic = '/oneM2M/resp/';
         if (topic_arr[2] == 'reg_req') {
@@ -531,10 +531,10 @@ mqtt_app.post('/notification', onem2mParser, function(request, response, next) {
 
         try {
             var aeid = url.parse(request.headers.nu).pathname.replace('/', '').split('?')[0];
-            console.log('[pxy_mqtt] - ' + aeid);
+            NOPRINT==='true'?NOPRINT='true':console.log('[pxy_mqtt] - ' + aeid);
 
             if (aeid == '') {
-                console.log('aeid of notification url is none');
+                NOPRINT==='true'?NOPRINT='true':console.log('aeid of notification url is none');
                 return;
             }
 
@@ -546,14 +546,14 @@ mqtt_app.post('/notification', onem2mParser, function(request, response, next) {
                 http_response_q[rqi] = response;
 
                 pxymqtt_client.publish(noti_topic, request.body);
-                console.log('<---- ' + noti_topic);
+                NOPRINT==='true'?NOPRINT='true':console.log('<---- ' + noti_topic);
             }
             else {
-                console.log('pxymqtt is not ready');
+                NOPRINT==='true'?NOPRINT='true':console.log('pxymqtt is not ready');
             }
         }
         catch (e) {
-            console.log(e.message);
+            NOPRINT==='true'?NOPRINT='true':console.log(e.message);
             var rsp_Obj = {};
             rsp_Obj['rsp'] = {};
             rsp_Obj['rsp'].dbg = 'notificationUrl does not support : ' + request.headers.nu;
@@ -574,7 +574,7 @@ mqtt_app.post('/register_csr', onem2mParser, function(request, response, next) {
         var cseid = (request.headers.cseid == null) ? '' : request.headers.cseid;
 
         if (cseid == '') {
-            console.log('cseid of register url is none');
+            NOPRINT==='true'?NOPRINT='true':console.log('cseid of register url is none');
             return;
         }
 
@@ -606,15 +606,15 @@ mqtt_app.post('/register_csr', onem2mParser, function(request, response, next) {
                 var xmlString = js2xmlparser.parse("m2m:rqp", req_message['m2m:rqp']);
 
                 pxymqtt_client.publish(reg_req_topic, xmlString);
-                console.log('<---- ' + reg_req_topic);
+                NOPRINT==='true'?NOPRINT='true':console.log('<---- ' + reg_req_topic);
             }
             else { // 'json'
                 pxymqtt_client.publish(reg_req_topic, JSON.stringify(req_message['m2m:rqp']));
-                console.log('<---- ' + reg_req_topic);
+                NOPRINT==='true'?NOPRINT='true':console.log('<---- ' + reg_req_topic);
             }
         }
         else {
-            console.log('pxymqtt is not ready');
+            NOPRINT==='true'?NOPRINT='true':console.log('pxymqtt is not ready');
         }
     });
 });
@@ -630,7 +630,7 @@ mqtt_app.get('/get_cb', onem2mParser, function(request, response, next) {
         var cseid = (request.headers.cseid == null) ? '' : request.headers.cseid;
 
         if (cseid == '') {
-            console.log('cseid of register url is none');
+            NOPRINT==='true'?NOPRINT='true':console.log('cseid of register url is none');
             return;
         }
 
@@ -662,15 +662,15 @@ mqtt_app.get('/get_cb', onem2mParser, function(request, response, next) {
                 var xmlString = js2xmlparser.parse("m2m:rqp", req_message['m2m:rqp']);
 
                 pxymqtt_client.publish(reg_req_topic, xmlString);
-                console.log('<---- ' + reg_req_topic);
+                NOPRINT==='true'?NOPRINT='true':console.log('<---- ' + reg_req_topic);
             }
             else { // 'json'
                 pxymqtt_client.publish(reg_req_topic, JSON.stringify(req_message['m2m:rqp']));
-                console.log('<---- ' + reg_req_topic);
+                NOPRINT==='true'?NOPRINT='true':console.log('<---- ' + reg_req_topic);
             }
         }
         else {
-            console.log('pxymqtt is not ready');
+            NOPRINT==='true'?NOPRINT='true':console.log('pxymqtt is not ready');
         }
     });
 });

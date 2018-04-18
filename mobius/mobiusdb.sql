@@ -413,8 +413,8 @@ CREATE TABLE `tm` (
   `tst` varchar(45) DEFAULT NULL,
   `tmr` varchar(45) DEFAULT NULL,
   `tmh` varchar(45) DEFAULT NULL,
-  `rqps` tinytext,
-  `rsps` tinytext,
+  `rqps` mediumtext,
+  `rsps` mediumtext,
   PRIMARY KEY (`ri`),
   UNIQUE KEY `ri_UNIQUE` (`ri`),
   CONSTRAINT `tm_ri` FOREIGN KEY (`ri`) REFERENCES `lookup` (`ri`) ON DELETE CASCADE ON UPDATE CASCADE

@@ -31,6 +31,8 @@ var responder = require('./responder');
 var ss_fail_count = {};
 var ss_ri = {};
 
+var MAX_NUM_RETRY = 12;
+
 function make_xml_noti_message(pc, xm2mri) {
     try {
         var noti_message = {};
@@ -42,22 +44,26 @@ function make_xml_noti_message(pc, xm2mri) {
         noti_message['m2m:rqp'].rqi = xm2mri;
         noti_message['m2m:rqp'].pc = pc;
 
-        for(var prop in noti_message['m2m:rqp'].pc['m2m:sgn'].nev.rep) {
-            if (noti_message['m2m:rqp'].pc['m2m:sgn'].nev.rep.hasOwnProperty(prop)) {
-                for(var prop2 in noti_message['m2m:rqp'].pc['m2m:sgn'].nev.rep[prop]) {
-                    if (noti_message['m2m:rqp'].pc['m2m:sgn'].nev.rep[prop].hasOwnProperty(prop2)) {
-                        if(prop2 == 'rn') {
-                            noti_message['m2m:rqp'].pc['m2m:sgn'].nev.rep[prop]['@'] = {rn : noti_message['m2m:rqp'].pc['m2m:sgn'].nev.rep[prop][prop2]};
-                            delete noti_message['m2m:rqp'].pc['m2m:sgn'].nev.rep[prop][prop2];
-                            break;
-                        }
-                        else {
-                            for (var prop3 in noti_message['m2m:rqp'].pc['m2m:sgn'].nev.rep[prop][prop2]) {
-                                if (noti_message['m2m:rqp'].pc['m2m:sgn'].nev.rep[prop][prop2].hasOwnProperty(prop3)) {
-                                    if (prop3 == 'rn') {
-                                        noti_message['m2m:rqp'].pc['m2m:sgn'].nev.rep[prop][prop2]['@'] = {rn: noti_message['m2m:rqp'].pc['m2m:sgn'].nev.rep[prop][prop2][prop3]};
-                                        delete noti_message['m2m:rqp'].pc['m2m:sgn'].nev.rep[prop][prop2][prop3];
-                                        break;
+        if(noti_message['m2m:rqp'].pc.hasOwnProperty('m2m:sgn')) {
+            if(noti_message['m2m:rqp'].pc['m2m:sgn'].hasOwnProperty('nev')) {
+                for(var prop in noti_message['m2m:rqp'].pc['m2m:sgn'].nev.rep) {
+                    if (noti_message['m2m:rqp'].pc['m2m:sgn'].nev.rep.hasOwnProperty(prop)) {
+                        for(var prop2 in noti_message['m2m:rqp'].pc['m2m:sgn'].nev.rep[prop]) {
+                            if (noti_message['m2m:rqp'].pc['m2m:sgn'].nev.rep[prop].hasOwnProperty(prop2)) {
+                                if(prop2 == 'rn') {
+                                    noti_message['m2m:rqp'].pc['m2m:sgn'].nev.rep[prop]['@'] = {rn : noti_message['m2m:rqp'].pc['m2m:sgn'].nev.rep[prop][prop2]};
+                                    delete noti_message['m2m:rqp'].pc['m2m:sgn'].nev.rep[prop][prop2];
+                                    break;
+                                }
+                                else {
+                                    for (var prop3 in noti_message['m2m:rqp'].pc['m2m:sgn'].nev.rep[prop][prop2]) {
+                                        if (noti_message['m2m:rqp'].pc['m2m:sgn'].nev.rep[prop][prop2].hasOwnProperty(prop3)) {
+                                            if (prop3 == 'rn') {
+                                                noti_message['m2m:rqp'].pc['m2m:sgn'].nev.rep[prop][prop2]['@'] = {rn: noti_message['m2m:rqp'].pc['m2m:sgn'].nev.rep[prop][prop2][prop3]};
+                                                delete noti_message['m2m:rqp'].pc['m2m:sgn'].nev.rep[prop][prop2][prop3];
+                                                break;
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -384,8 +390,8 @@ function sgn_action(rootnm, check_value, results_ss, noti_Obj, sub_bodytype) {
                                     node['m2m:sgn'].cr = results_ss.cr;
                                     delete node['m2m:sgn'].nev;
                                 }
-                                //bodyString = make_xml_noti_message(node, xm2mri);
-                                bodyString = responder.convertXmlSgn(Object.keys(node)[0], node[Object.keys(node)[0]]);
+                                bodyString = make_xml_noti_message(node, xm2mri);
+                                //bodyString = responder.convertXmlSgn(Object.keys(node)[0], node[Object.keys(node)[0]]);
                                 if (bodyString == "") { // parse error
                                     ss_fail_count[results_ss.ri]++;
                                     console.log('can not send notification since error of converting json to xml');
@@ -395,8 +401,8 @@ function sgn_action(rootnm, check_value, results_ss, noti_Obj, sub_bodytype) {
                                 }
                             }
                             else { // mqtt:
-                                //bodyString = make_xml_noti_message(node, xm2mri);
-                                bodyString = responder.convertXmlSgn(Object.keys(node)[0], node[Object.keys(node)[0]]);
+                                bodyString = make_xml_noti_message(node, xm2mri);
+                                //bodyString = responder.convertXmlSgn(Object.keys(node)[0], node[Object.keys(node)[0]]);
                                 if (bodyString == "") { // parse error
                                     ss_fail_count[results_ss.ri]++;
                                     console.log('can not send notification since error of converting json to xml');
@@ -579,7 +585,7 @@ exports.check = function(request, notiObj, check_value) {
                         ss_fail_count[results_ss[i].ri] = 0;
                     }
                     //ss_fail_count[results_ss[i].ri]++;
-                    //if (ss_fail_count[results_ss[i].ri] >= 8) {
+                    //if (ss_fail_count[results_ss[i].ri] >= MAX_NUM_RETRY) {
                     //    delete ss_fail_count[results_ss[i].ri];
                     //    delete_sub(results_ss[i].ri, xm2mri);
                     //    sgn_action(rootnm, check_value, results_ss[i], noti_Obj, request.headers.usebodytype);
@@ -598,64 +604,77 @@ exports.check = function(request, notiObj, check_value) {
 
 
 function request_noti_http(nu, ri, bodyString, bodytype, xm2mri) {
-    var bodyStr = '';
-    var options = {
-        hostname: url.parse(nu).hostname,
-        port: url.parse(nu).port,
-        path: url.parse(nu).path,
-        method: 'POST',
-        headers: {
-            'X-M2M-RI': xm2mri,
-            'Accept': 'application/'+bodytype,
-            'X-M2M-Origin': usecseid,
-            'Content-Type': 'application/'+bodytype,
-            'ri': ri
-        }
-    };
-
-    function response_noti_http(res) {
-        res.on('data', function (chunk) {
-            bodyStr += chunk;
-        });
-
-        res.on('end', function () {
-            if (res.statusCode == 200 || res.statusCode == 201) {
-                ss_fail_count[res.req._headers.ri] = 0;
-                console.log('----> [request_noti_http - ' + ss_fail_count[res.req._headers.ri] + ']');
-            }
-        });
+    if(ss_fail_count[ri] == null) {
+        ss_fail_count[ri] = 0;
     }
 
-    if(url.parse(nu).protocol == 'http:') {
-        var req = http.request(options, function (res) {
-            response_noti_http(res);
-        });
+    ss_fail_count[ri]++;
+    if (ss_fail_count[ri] >= MAX_NUM_RETRY) {
+        delete ss_fail_count[ri];
+        delete_sub(ri, xm2mri);
+        console.log('      [request_noti_http - ' + ss_fail_count[ri] + '] remove subscription because no response');
     }
     else {
-        options.ca = fs.readFileSync('ca-crt.pem');
+        var bodyStr = '';
+        var options = {
+            hostname: url.parse(nu).hostname,
+            port: url.parse(nu).port,
+            path: url.parse(nu).path,
+            method: 'POST',
+            headers: {
+                'X-M2M-RI': xm2mri,
+                'Accept': 'application/' + bodytype,
+                'X-M2M-Origin': usecseid,
+                'Content-Type': 'application/' + bodytype,
+                'ri': ri
+            }
+        };
 
-        req = https.request(options, function (res) {
-            response_noti_http(res);
-        });
-    }
+        function response_noti_http(res) {
+            res.on('data', function (chunk) {
+                bodyStr += chunk;
+            });
 
-    req.on('error', function (e) {
-        console.log('[request_noti_http - problem with request: ' + e.message + ']');
-        console.log('[request_noti_http - no response - ' + ss_fail_count[req._headers.ri] + ']');
-        if (ss_fail_count[req._headers.ri] > 8) {
-            delete ss_fail_count[req._headers.ri];
-            delete_sub(req._headers.ri, xm2mri);
+            res.on('end', function () {
+                if (res.statusCode == 200 || res.statusCode == 201) {
+                    ss_fail_count[res.req._headers.ri] = 0;
+                    delete ss_fail_count[res.req._headers.ri];
+                    console.log('----> [request_noti_http - ' + ss_fail_count[res.req._headers.ri] + ']');
+                }
+            });
         }
-    });
 
-    req.on('close', function() {
-        console.log('[request_noti_http - close: no response for notification');
-    });
+        if (url.parse(nu).protocol == 'http:') {
+            var req = http.request(options, function (res) {
+                response_noti_http(res);
+            });
+        }
+        else {
+            options.ca = fs.readFileSync('ca-crt.pem');
 
-    ss_fail_count[req._headers.ri]++;
-    console.log('<---- [request_noti_http - ' + ss_fail_count[req._headers.ri] + '] ');
-    req.write(bodyString);
-    req.end();
+            req = https.request(options, function (res) {
+                response_noti_http(res);
+            });
+        }
+
+        req.on('error', function (e) {
+            console.log('[request_noti_http - problem with request: ' + e.message + ']');
+            console.log('[request_noti_http - no response - ' + ss_fail_count[req._headers.ri] + ']');
+            // if (ss_fail_count[req._headers.ri] >= MAX_NUM_RETRY) {
+            //     delete ss_fail_count[req._headers.ri];
+            //     delete_sub(req._headers.ri, xm2mri);
+            // }
+        });
+
+        req.on('close', function () {
+            console.log('[request_noti_http - close: no response for notification');
+        });
+
+        ss_fail_count[req._headers.ri]++;
+        console.log('<---- [request_noti_http - ' + ss_fail_count[req._headers.ri] + '] ');
+        req.write(bodyString);
+        req.end();
+    }
 }
 
 
@@ -718,7 +737,7 @@ exports.response_noti_handler = function(topic, message) {
                 var ri = ss_ri[jsonObj['m2m:rsp'].rqi];
 
                 console.log('----> [response_noti_mqtt - ' + ss_fail_count[ri] + '] ' + jsonObj['m2m:rsp'].rsc + ' - ' + topic);
-                console.log(message.toString());
+                NOPRINT==='true'?NOPRINT='true':console.log(message.toString());
 
                 delete ss_fail_count[ri];
                 delete ss_ri[ri];
@@ -741,11 +760,15 @@ function request_noti_mqtt(nu, ri, bodyString, bodytype, xm2mri) {
         var noti_resp_topic = '/oneM2M/resp/' + usecseid.replace('/', '') + '/' + aeid + '/' + bodytype;
 
         ss_ri[xm2mri] = ri;
+        if(ss_fail_count[ri] == null) {
+            ss_fail_count[ri] = 0;
+        }
         ss_fail_count[ri]++;
-        if (ss_fail_count[ri] > 12) {
+        if (ss_fail_count[ri] >= MAX_NUM_RETRY) {
             delete ss_fail_count[ri];
             delete_sub(ri, xm2mri);
-            //noti_mqtt.unsubscribe(noti_resp_topic);
+            noti_mqtt.unsubscribe(noti_resp_topic);
+            console.log('      [request_noti_mqtt - ' + ss_fail_count[ri] + '] remove subscription because no response');
         }
         else {
             //noti_mqtt.unsubscribe(noti_resp_topic);
@@ -754,9 +777,9 @@ function request_noti_mqtt(nu, ri, bodyString, bodytype, xm2mri) {
 
             var noti_topic = '/oneM2M/req/' + usecseid.replace('/', '') + '/' + aeid + '/' + bodytype;
             noti_mqtt.publish(noti_topic, bodyString);
+            console.log('<---- [request_noti_mqtt - ' + ss_fail_count[ri] + '] publish - ' + noti_topic);
+            NOPRINT==='true'?NOPRINT='true':console.log(bodyString);
         }
-        console.log('<---- [request_noti_mqtt - ' + ss_fail_count[ri] + '] publish - ' + noti_topic);
-        console.log(bodyString);
     }
     catch (e) {
         console.log(e.message);
@@ -787,7 +810,7 @@ function request_noti_ws(nu, ri, bodyString, bodytype, xm2mri) {
             console.log('Connect Error: ' + error.toString() + ' - ' + ss_fail_count[ri]);
             ws_client.removeAllListeners();
 
-            if (ss_fail_count[ri] >= 8) {
+            if (ss_fail_count[ri] >= MAX_NUM_RETRY) {
                 delete ss_fail_count[ri];
                 delete_sub(ri, xm2mri);
             }

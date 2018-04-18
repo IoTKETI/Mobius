@@ -1018,26 +1018,37 @@ function create_action(request, response, ty, resource_Obj, callback) {
             });
     }
     else if (ty == '38') { // transactionMgmt resource
-        db_sql.insert_tm(resource_Obj[rootnm], function (err, results) {
-            if (!err) {
-                // create_action_st(resource_Obj[rootnm].ri, resource_Obj[rootnm].ty, resource_Obj[rootnm].pi, function (rsc) {
-                // });
-                callback('1', resource_Obj);
-            }
-            else {
-                if (results.code == 'ER_DUP_ENTRY') {
-                    body_Obj = {};
-                    body_Obj['dbg'] = results.message;
-                    responder.response_result(request, response, 409, body_Obj, 4105, request.url, body_Obj['dbg']);
-                }
-                else {
-                    body_Obj = {};
-                    body_Obj['dbg'] = results.message;
-                    responder.response_result(request, response, 500, body_Obj, 5000, request.url, body_Obj['dbg']);
-                }
+        tm.request_initial(resource_Obj, 0, function(rsc, resource_Obj) {
+            if(rsc != '1') {
+                body_Obj = {};
+                body_Obj['dbg'] = "BAD_REQUEST: transaction resource could not create";
+                responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
                 callback('0', resource_Obj);
                 return '0';
             }
+
+            resource_Obj[rootnm].tst = tst_v.INITIAL;
+            db_sql.insert_tm(resource_Obj[rootnm], function (err, results) {
+                if (!err) {
+                    // create_action_st(resource_Obj[rootnm].ri, resource_Obj[rootnm].ty, resource_Obj[rootnm].pi, function (rsc) {
+                    // });
+                    callback('1', resource_Obj);
+                }
+                else {
+                    if (results.code == 'ER_DUP_ENTRY') {
+                        body_Obj = {};
+                        body_Obj['dbg'] = results.message;
+                        responder.response_result(request, response, 409, body_Obj, 4105, request.url, body_Obj['dbg']);
+                    }
+                    else {
+                        body_Obj = {};
+                        body_Obj['dbg'] = results.message;
+                        responder.response_result(request, response, 500, body_Obj, 5000, request.url, body_Obj['dbg']);
+                    }
+                    callback('0', resource_Obj);
+                    return '0';
+                }
+            });
         });
     }
     else if (ty == '39') { // transaction resource
@@ -2330,32 +2341,43 @@ function update_action(request, response, ty, resource_Obj, callback) {
             });
     }
     else if (ty == '38') { // transactionMgmt
-        db_sql.update_tm(resource_Obj[rootnm], function (err, results) {
-            if (!err) {
-                if (resource_Obj[rootnm].tctl == tctl_v.EXECUTE) { // EXCUTE
-                    tr.request_execute(resource_Obj[rootnm].ri, resource_Obj[rootnm].trqp, function(rsc) {
-                        callback(rsc, resource_Obj);
-                    });
-                }
-                else if (resource_Obj[rootnm].tctl == tctl_v.COMMIT) { // COMMIT
-                    tr.request_commit(resource_Obj[rootnm].ri, resource_Obj[rootnm].trqp, function (rsc) {
-                        callback(rsc, resource_Obj);
-                    });
-                }
-                else if (resource_Obj[rootnm].tctl == tctl_v.ABORT) { // ABORT
-                    tr.request_abort(resource_Obj[rootnm].ri, resource_Obj[rootnm].tst, function (rsc) {
-                        callback(rsc, resource_Obj);
-                    });
-                }
-            }
-            else {
-                body_Obj = {};
-                body_Obj['dbg'] = results.message;
-                responder.response_result(request, response, 500, body_Obj, 5000, request.url, body_Obj['dbg']);
-                callback('0', resource_Obj);
-                return '0';
-            }
-        });
+        if (resource_Obj[rootnm].tctl == tctl_v.LOCK && (resource_Obj[rootnm].tst == tst_v.INITIAL)) { // LOCK
+            tm.request_lock(resource_Obj[rootnm], 0, function(rsc, resource_Obj) {
+                db_sql.update_tm(resource_Obj[rootnm], function (err, results) {
+                    if (!err) {
+                        if (resource_Obj[rootnm].tctl == tctl_v.EXECUTE) { // EXCUTE
+                            tr.request_execute(resource_Obj[rootnm].ri, resource_Obj[rootnm].trqp, function (rsc) {
+                                callback(rsc, resource_Obj);
+                            });
+                        }
+                        else if (resource_Obj[rootnm].tctl == tctl_v.COMMIT) { // COMMIT
+                            tr.request_commit(resource_Obj[rootnm].ri, resource_Obj[rootnm].trqp, function (rsc) {
+                                callback(rsc, resource_Obj);
+                            });
+                        }
+                        else if (resource_Obj[rootnm].tctl == tctl_v.ABORT) { // ABORT
+                            tr.request_abort(resource_Obj[rootnm].ri, resource_Obj[rootnm].tst, function (rsc) {
+                                callback(rsc, resource_Obj);
+                            });
+                        }
+                    }
+                    else {
+                        body_Obj = {};
+                        body_Obj['dbg'] = results.message;
+                        responder.response_result(request, response, 500, body_Obj, 5000, request.url, body_Obj['dbg']);
+                        callback('0', resource_Obj);
+                        return '0';
+                    }
+                });
+            });
+        }
+        else {
+            body_Obj = {};
+            body_Obj['dbg'] = 'BAD_REQUEST: state of transactionMgmt is mismatch';
+            responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
+            callback('0', resource_Obj);
+            return '0';
+        }
     }
     else if (ty == '39') { // transaction
         if (resource_Obj[rootnm].tctl == tctl_v.LOCK && (resource_Obj[rootnm].tst == tst_v.ABORTED || resource_Obj[rootnm].tst == tst_v.COMMITTED)) { // LOCK
@@ -2423,7 +2445,7 @@ function update_action(request, response, ty, resource_Obj, callback) {
         }
         else {
             body_Obj = {};
-            body_Obj['dbg'] = 'BAD_REQUEST: state of tranaction is mismatch';
+            body_Obj['dbg'] = 'BAD_REQUEST: state of transaction is mismatch';
             responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
             callback('0', resource_Obj);
             return '0';

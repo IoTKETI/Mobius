@@ -25,7 +25,9 @@ var fs = require('fs');
 
 var db_sql = require('./sql_action');
 
-var tmd_v = {};
+var _this = this;
+
+global.tmd_v = {};
 tmd_v.CSE_CONTROLLED = '1';
 tmd_v.CREATOR_CONTROLLED = '2';
 
@@ -46,7 +48,7 @@ exports.build_tm = function(request, response, resource_Obj, body_Obj, callback)
     resource_Obj[rootnm].rqps = body_Obj[rootnm].rqps;
 
     resource_Obj[rootnm].tctl = (body_Obj[rootnm].tctl) ? body_Obj[rootnm].tctl : tctl_v.INITIAL; // INITIAL
-    resource_Obj[rootnm].tst = (body_Obj[rootnm].tst) ? body_Obj[rootnm].tst : '';
+    resource_Obj[rootnm].tst = (body_Obj[rootnm].tst) ? body_Obj[rootnm].tst : tst_v.INITIAL;
 
     resource_Obj[rootnm].tltm = (body_Obj[rootnm].tltm) ? body_Obj[rootnm].tltm : '';
     resource_Obj[rootnm].text = (body_Obj[rootnm].text) ? body_Obj[rootnm].text : '';
@@ -62,10 +64,10 @@ exports.build_tm = function(request, response, resource_Obj, body_Obj, callback)
     callback('1', resource_Obj);
 };
 
-function trsp_action(ri, bodytype, res, resBody) {
-    console.log('EXECUTE of transaction'); //callback(res.headers['x-m2m-rsc'], resBody);
-    console.log(resBody);
-
+function rsps_action(ri, rsps) {
+    console.log('rsps_action'); //callback(res.headers['x-m2m-rsc'], resBody);
+    console.log(rsps);
+/*
     if (res.statusCode == 201 || res.statusCode == 200) {
         var tst_value = tst_v.EXECUTED;
     }
@@ -95,6 +97,7 @@ function trsp_action(ri, bodytype, res, resBody) {
             store_trsp(ri, tst_v.ERROR, res, e.message);
         }
     }
+    */
 }
 
 function store_trsp(ri, tst_value, res, bodyObj) {
@@ -112,6 +115,256 @@ function store_trsp(ri, tst_value, res, bodyObj) {
         }
     });
 }
+
+exports.request_initial = function(obj, retry_count, callback) {
+    var resource_Obj = obj[Object.keys(obj)[0]];
+    var ri = resource_Obj.ri;
+    var rqps = resource_Obj.rqps;
+    var tmr = parseInt(resource_Obj.tmr, 10);
+    var request_count = 0;
+    var rsps = [];
+    for(var idx in rqps) {
+        if (rqps.hasOwnProperty(idx)) {
+            var rqi = require('shortid').generate();
+            var content_type = 'application/json; ty=39';
+            var bodytype = 'json';
+            var op = 'post';
+            var reqBodyString = JSON.stringify(rqps[idx].pc);
+
+            var resBody = '';
+
+            if (rqps[idx].to.split(usespid + usecseid + '/')[0] == '') { // absolute relative
+                rqps[idx].to = rqps[idx].to.replace(usespid + usecseid + '/', '/');
+            }
+            else if (rqps[idx].to.split(usecseid + '/' + usecsebase + '/')[0] == '') { // sp relative
+                rqps[idx].to = rqps[idx].to.replace(usecseid + '/', '/');
+            }
+            else if (rqps[idx].to.split(usecsebase)[0] == '') { // cse relative
+                rqps[idx].to = '/' + rqps[idx].to;
+            }
+
+            var options = {
+                hostname: 'localhost',
+                port: usecsebaseport,
+                path: rqps[idx].to,
+                method: op,
+                headers: {
+                    'X-M2M-RI': rqi,
+                    'Accept': 'application/json',
+                    'X-M2M-Origin': rqps[idx].fr,
+                    'Content-Type': content_type
+                }
+            };
+
+            if (usesecure == 'disable') {
+                var req = http.request(options, function (res) {
+                    res.on('data', function (chunk) {
+                        resBody += chunk;
+                    });
+
+                    res.on('end', function () {
+                        res.body = resBody;
+                        request_count++;
+                        rsps.push(res);
+                        if(request_count >= rqps.length) {
+                            retry_count++;
+                            var check_rsps = 0;
+                            for(var idx in rsps) {
+                                if(rsps.hasOwnProperty(idx)) {
+                                    if (rsps[idx].headers['x-m2m-rsc'] == 2001) {
+                                        check_rsps++;
+                                    }
+                                    else {
+                                        check_rsps = 0;
+                                        break;
+                                    }
+                                }
+                            }
+
+                            if(check_rsps == 0) {
+                                if(retry_count >= tmr) {
+                                    callback('0', obj);
+                                }
+                                else {
+                                    _this.request_initial(obj, retry_count, function (rsc, resource_Obj) {
+                                        callback(rsc, obj);
+                                    });
+                                }
+                            }
+                            else {
+                                callback('1', obj);
+                            }
+                        }
+                    });
+                });
+            }
+            else {
+                options.ca = fs.readFileSync('ca-crt.pem');
+
+                req = https.request(options, function (res) {
+                    res.on('data', function (chunk) {
+                        resBody += chunk;
+                    });
+
+                    res.on('end', function () {
+                        res.body = resBody;
+                        request_count++;
+                        rsps.push(res);
+                        if(request_count >= rqps.length) {
+                            retry_count++;
+                            var check_rsps = 0;
+                            for(var idx in rsps) {
+                                if(rsps.hasOwnProperty(idx)) {
+                                    if (rsps[idx].headers['x-m2m-rsc'] == 2001) {
+                                        check_rsps++;
+                                    }
+                                    else {
+                                        check_rsps = 0;
+                                        break;
+                                    }
+                                }
+                            }
+
+                            if(check_rsps == 0) {
+                                if(retry_count >= tmr) {
+                                    callback('1', obj);
+                                }
+                                else {
+                                    _this.request_initial(obj, retry_count, function (rsc, resource_Obj) {
+                                        callback(rsc, obj);
+                                    });
+                                }
+                            }
+                            else {
+                                callback('1', obj);
+                            }
+                        }
+                    });
+                });
+            }
+
+            req.on('error', function (e) {
+                if (e.message != 'read ECONNRESET') {
+                    console.log('[delete_TS] problem with request: ' + e.message);
+                }
+
+                request_count++;
+                if(request_count >= rqps.length) {
+                    retry_count++;
+
+                    if(retry_count >= tmr) {
+                        callback('1', obj);
+                    }
+                    else {
+                        _this.request_initial(obj, retry_count, function (rsc, resource_Obj) {
+                            callback(rsc, obj);
+                        });
+                    }
+                }
+            });
+
+            // write data to request body
+            req.write(reqBodyString);
+            req.end();
+        }
+    }
+};
+
+exports.request_lock = function(resource_Obj, retry_count, callback) {
+    var ri = resource_Obj.ri;
+    var rqps = resource_Obj.rqps;
+    var tmr = parseInt(resource_Obj.tmr, 10);
+    var request_count = 0;
+    var rsps = [];
+    for(var idx in rqps) {
+        if (rqps.hasOwnProperty(idx)) {
+            var rqi = require('shortid').generate();
+            var content_type = 'application/json; ty=39';
+            var bodytype = 'json';
+            var op = 'post';
+            var reqBodyString = JSON.stringify(rqps[idx].pc);
+
+            var resBody = '';
+
+            if (rqps[idx].to.split(usespid + usecseid + '/')[0] == '') { // absolute relative
+                rqps[idx].to = rqps[idx].to.replace(usespid + usecseid + '/', '/');
+            }
+            else if (rqps[idx].to.split(usecseid + '/' + usecsebase + '/')[0] == '') { // sp relative
+                rqps[idx].to = rqps[idx].to.replace(usecseid + '/', '/');
+            }
+            else if (rqps[idx].to.split(usecsebase)[0] == '') { // cse relative
+                rqps[idx].to = '/' + rqps[idx].to;
+            }
+
+            var options = {
+                hostname: 'localhost',
+                port: usecsebaseport,
+                path: rqps[idx].to,
+                method: op,
+                headers: {
+                    'X-M2M-RI': rqi,
+                    'Accept': 'application/json',
+                    'X-M2M-Origin': rqps[idx].fr,
+                    'Content-Type': content_type
+                }
+            };
+
+            if (usesecure == 'disable') {
+                var req = http.request(options, function (res) {
+                    res.on('data', function (chunk) {
+                        resBody += chunk;
+                    });
+
+                    res.on('end', function () {
+                        res.body = resBody;
+                        request_count++;
+                        rsps.push(res);
+                        if(request_count >= rqps.length) {
+                            retry_count++;
+                            for(var idx in rsps) {
+                                if(rsps.hasOwnProperty(idx)) {
+                                    if(rsps[idx].headers['x-m2m-rsc'] == 2001) {
+
+                                    }
+                                }
+                            }
+                            if(retry_count >= tmr) {
+
+                            }
+                            callback(ri, rsps);
+                        }
+                    });
+                });
+            }
+            else {
+                options.ca = fs.readFileSync('ca-crt.pem');
+
+                req = https.request(options, function (res) {
+                    res.on('data', function (chunk) {
+                        resBody += chunk;
+                    });
+
+                    res.on('end', function () {
+                        request_count++;
+                        if(request_count >= rqps.length) {
+                            trsp_action(ri, bodytype, res, resBody);
+                        }
+                    });
+                });
+            }
+
+            req.on('error', function (e) {
+                if (e.message != 'read ECONNRESET') {
+                    console.log('[delete_TS] problem with request: ' + e.message);
+                }
+            });
+
+            // write data to request body
+            req.write(reqBodyString);
+            req.end();
+        }
+    }
+};
 
 exports.request_execute = function(ri, frqp) {
     var rqi = require('shortid').generate();
