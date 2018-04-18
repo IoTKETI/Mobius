@@ -99,7 +99,9 @@ var cur_t = a.format('YYYYMMDD');
 var h = a.hours();
 
 try {
-    hit = fs.readFileSync('hit.json', JSON.stringify(hit, null, 4), 'utf8');
+    var hitStr = fs.readFileSync('hit.json', 'utf8');
+    hit = JSON.parse(hitStr);
+//    console.log(hit);
 }
 catch (e) {
     if (!hit.hasOwnProperty(cur_t)) {
@@ -109,7 +111,6 @@ catch (e) {
         }
     }
 
-    //console.log(hit);
     fs.writeFileSync('hit.json', JSON.stringify(hit, null, 4), 'utf8');
 }
 

@@ -2100,7 +2100,7 @@ app.post(onem2mParser, function (request, response) {
         fullBody += chunk.toString();
     });
     request.on('end', function () {
-        //updateHitCount(request);
+        updateHitCount(request);
 
         request.body = fullBody;
         if (request.query.fu == null) {
@@ -2168,7 +2168,7 @@ app.get(onem2mParser, function (request, response) {
         fullBody += chunk.toString();
     });
     request.on('end', function () {
-        //updateHitCount(request);
+        updateHitCount(request);
 
         request.body = fullBody;
         if (request.query.fu == null) {
@@ -2255,7 +2255,7 @@ app.put(onem2mParser, function (request, response) {
         fullBody += chunk.toString();
     });
     request.on('end', function () {
-        //updateHitCount(request);
+        updateHitCount(request);
 
         request.body = fullBody;
         if (request.query.fu == null) {
@@ -2315,7 +2315,7 @@ app.delete(onem2mParser, function (request, response) {
         fullBody += chunk.toString();
     });
     request.on('end', function () {
-        //updateHitCount(request);
+        updateHitCount(request);
 
         request.body = fullBody;
         if (request.query.fu == null) {
