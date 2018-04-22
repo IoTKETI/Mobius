@@ -1018,46 +1018,8 @@ function create_action(request, response, ty, resource_Obj, callback) {
             });
     }
     else if (ty == '38') { // transactionMgmt resource
-        tm.request_initial(resource_Obj, 0, function(rsc, resource_Obj, rsps) {
-            if(rsc != '1') {
-                body_Obj = {};
-                body_Obj['dbg'] = "BAD_REQUEST: transaction resource could not create";
-                responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-                callback('0', resource_Obj);
-                return '0';
-            }
-
-            var check_tst = 0;
-            for(var idx in rsps) {
-                if(rsps.hasOwnProperty(idx)) {
-                    for(var root in rsps[idx].pc) {
-                        if(rsps[idx].pc.hasOwnProperty(root)) {
-                            for(var attr in rsps[idx].pc[root]) {
-                                if (rsps[idx].pc[root].hasOwnProperty(attr)) {
-                                    if(attr === 'tst') {
-                                        if(rsps[idx].pc[root][attr] == tst_v.LOCKED) {
-                                            check_tst++;
-                                        }
-                                        else {
-                                            check_tst = 0;
-                                            break;
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            if(check_tst == 0) {
-                resource_Obj[rootnm].tst = tst_v.ERROR;
-            }
-            else {
-                resource_Obj[rootnm].tst = tst_v.LOCKED;
-            }
-            resource_Obj[rootnm].rsps = rsps;
-
+        if (resource_Obj[rootnm].tmd == tmd_v.CREATOR_CONTROLLED) { // INITIAL
+            resource_Obj[rootnm].tst = tst_v.INITIAL;
             db_sql.insert_tm(resource_Obj[rootnm], function (err, results) {
                 if (!err) {
                     // create_action_st(resource_Obj[rootnm].ri, resource_Obj[rootnm].ty, resource_Obj[rootnm].pi, function (rsc) {
@@ -1079,7 +1041,71 @@ function create_action(request, response, ty, resource_Obj, callback) {
                     return '0';
                 }
             });
-        });
+        }
+        else {
+            tm.request_initial(resource_Obj, 0, function(rsc, resource_Obj, rsps) {
+                if(rsc != '1') {
+                    body_Obj = {};
+                    body_Obj['dbg'] = "BAD_REQUEST: transaction resource could not create";
+                    responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
+                    callback('0', resource_Obj);
+                    return '0';
+                }
+
+                var check_tst = 0;
+                for(var idx in rsps) {
+                    if(rsps.hasOwnProperty(idx)) {
+                        for(var root in rsps[idx].pc) {
+                            if(rsps[idx].pc.hasOwnProperty(root)) {
+                                for(var attr in rsps[idx].pc[root]) {
+                                    if (rsps[idx].pc[root].hasOwnProperty(attr)) {
+                                        if(attr === 'tst') {
+                                            if(rsps[idx].pc[root][attr] == tst_v.LOCKED) {
+                                                check_tst++;
+                                            }
+                                            else {
+                                                check_tst = 0;
+                                                break;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if(check_tst == 0) {
+                    resource_Obj[rootnm].tst = tst_v.ERROR;
+                }
+                else {
+                    resource_Obj[rootnm].tst = tst_v.LOCKED;
+                }
+                resource_Obj[rootnm].rsps = rsps;
+
+                db_sql.insert_tm(resource_Obj[rootnm], function (err, results) {
+                    if (!err) {
+                        // create_action_st(resource_Obj[rootnm].ri, resource_Obj[rootnm].ty, resource_Obj[rootnm].pi, function (rsc) {
+                        // });
+                        callback('1', resource_Obj);
+                    }
+                    else {
+                        if (results.code == 'ER_DUP_ENTRY') {
+                            body_Obj = {};
+                            body_Obj['dbg'] = results.message;
+                            responder.response_result(request, response, 409, body_Obj, 4105, request.url, body_Obj['dbg']);
+                        }
+                        else {
+                            body_Obj = {};
+                            body_Obj['dbg'] = results.message;
+                            responder.response_result(request, response, 500, body_Obj, 5000, request.url, body_Obj['dbg']);
+                        }
+                        callback('0', resource_Obj);
+                        return '0';
+                    }
+                });
+            });
+        }
     }
     else if (ty == '39') { // transaction resource
         db_sql.insert_tr(resource_Obj[rootnm], function (err, results) {
@@ -2372,24 +2398,49 @@ function update_action(request, response, ty, resource_Obj, callback) {
     }
     else if (ty == '38') { // transactionMgmt
         if (resource_Obj[rootnm].tctl == tctl_v.LOCK && (resource_Obj[rootnm].tst == tst_v.INITIAL)) { // LOCK
-            tm.request_lock(resource_Obj[rootnm], 0, function(rsc, resource_Obj) {
+            tm.request_lock(resource_Obj, 0, function(rsc, resource_Obj, rsps) {
+                if(rsc != '1') {
+                    body_Obj = {};
+                    body_Obj['dbg'] = "BAD_REQUEST: transaction resource could not create";
+                    responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
+                    callback('0', resource_Obj);
+                    return '0';
+                }
+
+                var check_tst = 0;
+                for(var idx in rsps) {
+                    if(rsps.hasOwnProperty(idx)) {
+                        for(var root in rsps[idx].pc) {
+                            if(rsps[idx].pc.hasOwnProperty(root)) {
+                                for(var attr in rsps[idx].pc[root]) {
+                                    if (rsps[idx].pc[root].hasOwnProperty(attr)) {
+                                        if(attr === 'tst') {
+                                            if(rsps[idx].pc[root][attr] == tst_v.LOCKED) {
+                                                check_tst++;
+                                            }
+                                            else {
+                                                check_tst = 0;
+                                                break;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if(check_tst == 0) {
+                    resource_Obj[rootnm].tst = tst_v.ERROR;
+                }
+                else {
+                    resource_Obj[rootnm].tst = tst_v.LOCKED;
+                }
+                resource_Obj[rootnm].rsps = rsps;
+
                 db_sql.update_tm(resource_Obj[rootnm], function (err, results) {
                     if (!err) {
-                        if (resource_Obj[rootnm].tctl == tctl_v.EXECUTE) { // EXCUTE
-                            tr.request_execute(resource_Obj[rootnm].ri, resource_Obj[rootnm].trqp, function (rsc) {
-                                callback(rsc, resource_Obj);
-                            });
-                        }
-                        else if (resource_Obj[rootnm].tctl == tctl_v.COMMIT) { // COMMIT
-                            tr.request_commit(resource_Obj[rootnm].ri, resource_Obj[rootnm].trqp, function (rsc) {
-                                callback(rsc, resource_Obj);
-                            });
-                        }
-                        else if (resource_Obj[rootnm].tctl == tctl_v.ABORT) { // ABORT
-                            tr.request_abort(resource_Obj[rootnm].ri, resource_Obj[rootnm].tst, function (rsc) {
-                                callback(rsc, resource_Obj);
-                            });
-                        }
+                        callback('1', resource_Obj);
                     }
                     else {
                         body_Obj = {};
@@ -2399,6 +2450,70 @@ function update_action(request, response, ty, resource_Obj, callback) {
                         return '0';
                     }
                 });
+            });
+        }
+        else if ((resource_Obj[rootnm].tctl == tctl_v.EXECUTE) && (resource_Obj[rootnm].tst == tst_v.LOCKED)) { // EXECUTE
+            tm.request_execute(resource_Obj, 0, function (rsc, resource_Obj, rsps) {
+                var check_tst = 0;
+                if(rsc == '1') {
+                    for (var idx in rsps) {
+                        if (rsps.hasOwnProperty(idx)) {
+                            for (var root in rsps[idx].pc) {
+                                if (rsps[idx].pc.hasOwnProperty(root)) {
+                                    for (var attr in rsps[idx].pc[root]) {
+                                        if (rsps[idx].pc[root].hasOwnProperty(attr)) {
+                                            if (attr === 'tst') {
+                                                if (rsps[idx].pc[root][attr] == tst_v.EXECUTED) {
+                                                    check_tst++;
+                                                }
+                                                else {
+                                                    check_tst = 0;
+                                                    break;
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if(check_tst == 0) {
+                    resource_Obj[rootnm].tst = tst_v.ERROR;
+                }
+                else {
+                    resource_Obj[rootnm].tst = tst_v.LOCKED;
+                }
+                resource_Obj[rootnm].rsps = rsps;
+
+                db_sql.update_tm(resource_Obj[rootnm], function (err, results) {
+                    if (!err) {
+                        callback('1', resource_Obj);
+                    }
+                    else {
+                        body_Obj = {};
+                        body_Obj['dbg'] = results.message;
+                        responder.response_result(request, response, 500, body_Obj, 5000, request.url, body_Obj['dbg']);
+                        callback('0', resource_Obj);
+                        return '0';
+                    }
+                });
+            });
+        }
+        else if ((resource_Obj[rootnm].tctl == tctl_v.ABORT) && (resource_Obj[rootnm].tst == tst_v.LOCKED || resource_Obj[rootnm].tst == tst_v.EXECUTED || resource_Obj[rootnm].tst == tst_v.ERROR)) { // ABORT
+            tm.request_lock(resource_Obj, 0, function (rsc, resource_Obj, rsps) {
+
+            });
+        }
+        else if ((resource_Obj[rootnm].tctl == tctl_v.COMMIT) && resource_Obj[rootnm].tst == tst_v.EXECUTED) { // COMMIT
+            tm.request_lock(resource_Obj, 0, function (rsc, resource_Obj, rsps) {
+
+            });
+        }
+        else if ((resource_Obj[rootnm].tctl == tctl_v.INITIAL) && (resource_Obj[rootnm].tst == tst_v.ERROR || resource_Obj[rootnm].tst == tst_v.COMMITTED || resource_Obj[rootnm].tst == tst_v.ABORTED)) { // INITIAL
+            tm.request_lock(resource_Obj, 0, function (rsc, resource_Obj, rsps) {
+
             });
         }
         else {
@@ -2610,46 +2725,6 @@ function update_resource(request, response, ty, body_Obj, resource_Obj, callback
                 }
             }
         }
-
-        // // check Not Present and check Option and check Mandatory
-        // for (var attr in body_Obj[rootnm]) {
-        //     if (body_Obj[rootnm].hasOwnProperty(attr)) {
-        //         if (update_m_attr_list[rootnm].includes(attr)) {
-        //             mandatory_check_count += 1;
-        //         }
-        //     }
-        // }
-        //
-        // if(mandatory_check_count < update_m_attr_list[rootnm].length) {
-        //     body_Obj = {};
-        //     body_Obj['dbg'] = 'BAD REQUEST: ' + attr + ' is \'Mandatory\' attribute';
-        //     responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-        //     callback('0', resource_Obj);
-        //     return '0';
-        // }
-        //
-        // for (attr in body_Obj[rootnm]) {
-        //     if (body_Obj[rootnm].hasOwnProperty(attr)) {
-        //         if (update_np_attr_list[rootnm].includes(attr)) {
-        //             body_Obj = {};
-        //             body_Obj['dbg'] = 'BAD REQUEST: ' + attr + ' is \'Not Present\' attribute';
-        //             responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-        //             callback('0', resource_Obj);
-        //             return '0';
-        //         }
-        //         else {
-        //             if (update_opt_attr_list[rootnm].includes(attr)) {
-        //             }
-        //             else {
-        //                 body_Obj = {};
-        //                 body_Obj['dbg'] = 'BAD REQUEST: ' + attr + ' attribute is not defined';
-        //                 responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-        //                 callback('0', resource_Obj);
-        //                 return '0';
-        //             }
-        //         }
-        //     }
-        // }
 
         check_acp_update_acpi(request, response, body_Obj, resource_Obj[rootnm].acpi, resource_Obj[rootnm].cr, function (rsc, request, response, body_Obj) {
             if (rsc == '0') {

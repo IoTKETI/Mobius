@@ -438,8 +438,8 @@ CREATE TABLE `tr` (
   `text` varchar(45) DEFAULT NULL,
   `tct` varchar(45) DEFAULT NULL,
   `tltp` varchar(45) DEFAULT NULL,
-  `trqp` tinytext NOT NULL,
-  `trsp` tinytext,
+  `trqp` mediumtext NOT NULL,
+  `trsp` mediumtext,
   PRIMARY KEY (`ri`),
   UNIQUE KEY `ri_UNIQUE` (`ri`),
   CONSTRAINT `tr_ri` FOREIGN KEY (`ri`) REFERENCES `lookup` (`ri`) ON DELETE CASCADE ON UPDATE CASCADE

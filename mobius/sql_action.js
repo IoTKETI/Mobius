@@ -707,9 +707,9 @@ exports.insert_tm = function(obj, callback) {
     console.time('insert_tm ' + obj.ri);
     _this.insert_lookup(obj.ty, obj.ri, obj.rn, obj.pi, obj.ct, obj.lt, obj.et, JSON.stringify(obj.acpi), JSON.stringify(obj.lbl), JSON.stringify(obj.at), JSON.stringify(obj.aa), obj.st, obj.sri, obj.spi, function (err, results) {
         if(!err) {
-            var sql = util.format('insert into tm (ri, tltm, text, tct, tept, tmd, tltp, tctl, tst, tmr, tmh, rqps, rsps) ' +
-                'value (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
-                obj.ri, obj.tltm, obj.text, obj.tct, obj.tept, obj.tmd, obj.tltp, obj.tctl, obj.tst, obj.tmr, obj.tmh, JSON.stringify(obj.rqps), JSON.stringify(obj.rsps));
+            var sql = util.format('insert into tm (ri, tltm, text, tct, tept, tmd, tltp, tctl, tst, tmr, tmh, rqps, rsps, cr) ' +
+                'value (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
+                obj.ri, obj.tltm, obj.text, obj.tct, obj.tept, obj.tmd, obj.tltp, obj.tctl, obj.tst, obj.tmr, obj.tmh, JSON.stringify(obj.rqps), JSON.stringify(obj.rsps), obj.cr);
             db.getResult(sql, '', function (err, results) {
                 if(!err) {
                     console.timeEnd('insert_tm ' + obj.ri);
@@ -1774,7 +1774,7 @@ exports.update_tm = function (obj, callback) {
     console.time('update_tm ' + obj.ri);
     _this.update_lookup(obj.lt, JSON.stringify(obj.acpi), obj.et, obj.st, JSON.stringify(obj.lbl), JSON.stringify(obj.at), JSON.stringify(obj.aa), obj.ri, function (err, results) {
         if (!err) {
-            var sql2 = util.format('update tm set tctl = \'%s\', tst = \'%s\', tmr = \'%s\', tmh = \'%s\' where ri = \'%s\'', obj.tctl, obj.tst, obj.tmr, obj.tmh, obj.ri);
+            var sql2 = util.format('update tm set cr = \'%s\', tctl = \'%s\', tst = \'%s\', tmr = \'%s\', tmh = \'%s\', rsps = \'%s\' where ri = \'%s\'', obj.cr, obj.tctl, obj.tst, obj.tmr, obj.tmh, JSON.stringify(obj.rsps), obj.ri);
             db.getResult(sql2, '', function (err, results) {
                 if (!err) {
                     console.timeEnd('update_tm ' + obj.ri);
