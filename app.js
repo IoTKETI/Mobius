@@ -143,11 +143,9 @@ function noti_mqtt_begin() {
 
         noti_mqtt.on('connect', function () {
             console.log('noti_mqtt is connected');
-
-            if(noti_mqtt) {
-                noti_mqtt.on('message', sgn.response_noti_handler);
-            }
         });
+
+        noti_mqtt.on('message', sgn.response_noti_handler);
     }
 }
 
