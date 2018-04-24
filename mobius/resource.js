@@ -1043,7 +1043,7 @@ function create_action(request, response, ty, resource_Obj, callback) {
             });
         }
         else {
-            tm.request_initial(resource_Obj, 0, function(rsc, resource_Obj, rsps) {
+            tm.request_lock(resource_Obj, 0, function(rsc, resource_Obj, rsps) {
                 if(rsc != '1') {
                     body_Obj = {};
                     body_Obj['dbg'] = "BAD_REQUEST: transaction resource could not create";
@@ -2502,18 +2502,118 @@ function update_action(request, response, ty, resource_Obj, callback) {
             });
         }
         else if ((resource_Obj[rootnm].tctl == tctl_v.ABORT) && (resource_Obj[rootnm].tst == tst_v.LOCKED || resource_Obj[rootnm].tst == tst_v.EXECUTED || resource_Obj[rootnm].tst == tst_v.ERROR)) { // ABORT
-            tm.request_lock(resource_Obj, 0, function (rsc, resource_Obj, rsps) {
+            tm.request_abort(resource_Obj, 0, function (rsc, resource_Obj, rsps) {
+                var check_tst = 0;
+                if(rsc == '1') {
+                    for (var idx in rsps) {
+                        if (rsps.hasOwnProperty(idx)) {
+                            for (var root in rsps[idx].pc) {
+                                if (rsps[idx].pc.hasOwnProperty(root)) {
+                                    for (var attr in rsps[idx].pc[root]) {
+                                        if (rsps[idx].pc[root].hasOwnProperty(attr)) {
+                                            if (attr === 'tst') {
+                                                if (rsps[idx].pc[root][attr] == tst_v.ABORTED) {
+                                                    check_tst++;
+                                                }
+                                                else {
+                                                    check_tst = 0;
+                                                    break;
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
 
+                if(check_tst == 0) {
+                    resource_Obj[rootnm].tst = tst_v.ERROR;
+                }
+                else {
+                    resource_Obj[rootnm].tst = tst_v.ABORTED;
+                }
+                resource_Obj[rootnm].rsps = rsps;
+
+                db_sql.update_tm(resource_Obj[rootnm], function (err, results) {
+                    if (!err) {
+                        callback('1', resource_Obj);
+                    }
+                    else {
+                        body_Obj = {};
+                        body_Obj['dbg'] = results.message;
+                        responder.response_result(request, response, 500, body_Obj, 5000, request.url, body_Obj['dbg']);
+                        callback('0', resource_Obj);
+                        return '0';
+                    }
+                });
             });
         }
         else if ((resource_Obj[rootnm].tctl == tctl_v.COMMIT) && resource_Obj[rootnm].tst == tst_v.EXECUTED) { // COMMIT
-            tm.request_lock(resource_Obj, 0, function (rsc, resource_Obj, rsps) {
+            tm.request_commit(resource_Obj, 0, function (rsc, resource_Obj, rsps) {
+                var check_tst = 0;
+                if(rsc == '1') {
+                    for (var idx in rsps) {
+                        if (rsps.hasOwnProperty(idx)) {
+                            for (var root in rsps[idx].pc) {
+                                if (rsps[idx].pc.hasOwnProperty(root)) {
+                                    for (var attr in rsps[idx].pc[root]) {
+                                        if (rsps[idx].pc[root].hasOwnProperty(attr)) {
+                                            if (attr === 'tst') {
+                                                if (rsps[idx].pc[root][attr] == tst_v.COMMITTED) {
+                                                    check_tst++;
+                                                }
+                                                else {
+                                                    check_tst = 0;
+                                                    break;
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
 
+                if(check_tst == 0) {
+                    resource_Obj[rootnm].tst = tst_v.ERROR;
+                }
+                else {
+                    resource_Obj[rootnm].tst = tst_v.COMMITTED;
+                }
+                resource_Obj[rootnm].rsps = rsps;
+
+                db_sql.update_tm(resource_Obj[rootnm], function (err, results) {
+                    if (!err) {
+                        callback('1', resource_Obj);
+                    }
+                    else {
+                        body_Obj = {};
+                        body_Obj['dbg'] = results.message;
+                        responder.response_result(request, response, 500, body_Obj, 5000, request.url, body_Obj['dbg']);
+                        callback('0', resource_Obj);
+                        return '0';
+                    }
+                });
             });
         }
         else if ((resource_Obj[rootnm].tctl == tctl_v.INITIAL) && (resource_Obj[rootnm].tst == tst_v.ERROR || resource_Obj[rootnm].tst == tst_v.COMMITTED || resource_Obj[rootnm].tst == tst_v.ABORTED)) { // INITIAL
-            tm.request_lock(resource_Obj, 0, function (rsc, resource_Obj, rsps) {
+            resource_Obj[rootnm].tst = tst_v.INITIAL;
+            resource_Obj[rootnm].rsps = [];
 
+            db_sql.update_tm(resource_Obj[rootnm], function (err, results) {
+                if (!err) {
+                    callback('1', resource_Obj);
+                }
+                else {
+                    body_Obj = {};
+                    body_Obj['dbg'] = results.message;
+                    responder.response_result(request, response, 500, body_Obj, 5000, request.url, body_Obj['dbg']);
+                    callback('0', resource_Obj);
+                    return '0';
+                }
             });
         }
         else {

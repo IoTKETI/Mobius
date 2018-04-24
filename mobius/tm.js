@@ -116,7 +116,7 @@ function store_trsp(ri, tst_value, res, bodyObj) {
     });
 }
 
-exports.request_initial = function(obj, retry_count, callback) {
+exports.request_lock = function(obj, retry_count, callback) {
     var resource_Obj = obj[Object.keys(obj)[0]];
     var ri = resource_Obj.ri;
     var rqps = resource_Obj.rqps;
@@ -193,7 +193,7 @@ exports.request_initial = function(obj, retry_count, callback) {
                                     callback('0', obj);
                                 }
                                 else {
-                                    _this.request_initial(obj, retry_count, function (rsc, obj, rsps) {
+                                    _this.request_lock(obj, retry_count, function (rsc, obj, rsps) {
                                         callback(rsc, obj, rsps);
                                     });
                                 }
@@ -244,7 +244,7 @@ exports.request_initial = function(obj, retry_count, callback) {
                                     callback('0', obj, rsps);
                                 }
                                 else {
-                                    _this.request_initial(obj, retry_count, function (rsc, obj, rsps) {
+                                    _this.request_lock(obj, retry_count, function (rsc, obj, rsps) {
                                         callback(rsc, obj, rsps);
                                     });
                                 }
@@ -270,7 +270,7 @@ exports.request_initial = function(obj, retry_count, callback) {
                         callback('0', obj);
                     }
                     else {
-                        _this.request_initial(obj, retry_count, function (rsc, obj, rsps) {
+                        _this.request_lock(obj, retry_count, function (rsc, obj, rsps) {
                             callback(rsc, obj, rsps);
                         });
                     }
@@ -284,13 +284,8 @@ exports.request_initial = function(obj, retry_count, callback) {
     }
 };
 
-exports.request_lock = function(obj, retry_count, callback) {
-    _this.request_initial(obj, retry_count, function (rsc, obj, rsps) {
-        callback(rsc, obj, rsps);
-    });
-};
 
-exports.request_execute = function(obj, retry_count, callback) {
+function request_tctl(obj, retry_count, tctl, callback) {
     var resource_Obj = obj[Object.keys(obj)[0]];
     var ri = resource_Obj.ri;
     var rqps = resource_Obj.rqps;
@@ -307,7 +302,7 @@ exports.request_execute = function(obj, retry_count, callback) {
             var op = 'put';
             var rn = rqps[idx].pc['m2m:tr'].rn;
             rqps[idx].pc['m2m:tr'] = {};
-            rqps[idx].pc['m2m:tr'].tctl = tctl_v.EXECUTE;
+            rqps[idx].pc['m2m:tr'].tctl = tctl;
             var reqBodyString = JSON.stringify(rqps[idx].pc);
 
             if (rqps[idx].to.split(usespid + usecseid + '/')[0] == '') { // absolute relative
@@ -369,7 +364,7 @@ exports.request_execute = function(obj, retry_count, callback) {
                                     callback('0', obj, rsps);
                                 }
                                 else {
-                                    _this.request_initial(obj, retry_count, function (rsc, obj, rsps) {
+                                    request_tctl(obj, retry_count, tctl, function (rsc, obj, rsps) {
                                         callback(rsc, obj, rsps);
                                     });
                                 }
@@ -419,7 +414,7 @@ exports.request_execute = function(obj, retry_count, callback) {
                                     callback('0', obj);
                                 }
                                 else {
-                                    _this.request_initial(obj, retry_count, function (rsc, obj, rsps) {
+                                    request_tctl(obj, retry_count, tctl, function (rsc, obj, rsps) {
                                         callback(rsc, obj, rsps);
                                     });
                                 }
@@ -445,7 +440,7 @@ exports.request_execute = function(obj, retry_count, callback) {
                         callback('0', obj);
                     }
                     else {
-                        _this.request_initial(obj, retry_count, function (rsc, obj, rsps) {
+                        request_tctl(obj, retry_count, tctl, function (rsc, obj, rsps) {
                             callback(rsc, obj, rsps);
                         });
                     }
@@ -457,62 +452,23 @@ exports.request_execute = function(obj, retry_count, callback) {
             req.end();
         }
     }
-};
+}
 
-exports.request_commit = function(ri, tst) {
-    if(tst === tst_v.EXECUTED) {
-        tst = tst_v.COMMITTED;
-    }
 
-    db_sql.update_tr_tst(ri, tst, function (err) {
-        if(!err) {
-            console.log('store_tst [' + tst + '] success');
-        }
-        else {
-            console.log('store_tst [' + tst + '] fail');
-        }
+exports.request_execute = function(obj, retry_count, callback) {
+    request_tctl(obj, retry_count, tctl_v.EXECUTE, function (rsc, obj, rsps) {
+        callback(rsc, obj, rsps);
     });
 };
 
-exports.request_abort = function(ri, tst) {
-    if(tst === tst_v.ERROR) {
-        tst = tst_v.ABORTED;
-    }
-
-    db_sql.update_tr_tst(ri, tst, function (err) {
-        if(!err) {
-            console.log('store_tst [' + tst + '] success');
-        }
-        else {
-            console.log('store_tst [' + tst + '] fail');
-        }
+exports.request_commit = function(obj, retry_count, callback) {
+    request_tctl(obj, retry_count, tctl_v.COMMIT, function (rsc, obj, rsps) {
+        callback(rsc, obj, rsps);
     });
 };
 
-exports.check = function(request, pi, body_Obj, callback) {
-    var state = tst_v.COMMITTED;
-
-    db_sql.select_tr(pi, function (err, results_tr) {
-        if (!err) {
-            for (var i = 0; i < results_tr.length; i++) {
-                if (results_tr[i].hasOwnProperty('tst')) {
-                    if(results_tr[i].tst !== tst_v.COMMITTED && results_tr[i].tst !== tst_v.ABORTED) {
-                        state = results_tr[i].tst;
-                        break;
-                    }
-                }
-            }
-
-            if(state === tst_v.COMMITTED || state === tst_v.ABORTED) {
-                callback('1', body_Obj);
-            }
-            else {
-                callback('0', body_Obj);
-            }
-        }
-        else {
-            console.log('query error: ' + results_tr.message);
-            callback('1', body_Obj);
-        }
+exports.request_abort = function(obj, retry_count, callback) {
+    request_tctl(obj, retry_count, tctl_v.ABORT, function (rsc, obj, rsps) {
+        callback(rsc, obj, rsps);
     });
 };
