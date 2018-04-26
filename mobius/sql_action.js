@@ -1369,10 +1369,16 @@ exports.select_count_ri = function (ty, ri, callback) {
 };
 
 exports.select_count_cin = function (pi, callback) {
-    var sql = util.format("select count(ri), sum(cs) from cin where ri in (select ri from lookup where pi = \'%s\' and ty = \'4\')", pi);
+    var sql = util.format("select count(ri) from lookup where pi = \'%s\' and ty = \'4\'", pi);
     //console.log(sql);
     db.getResult(sql, '', function (err, results) {
-        callback(err, results);
+        var cni = results[0]['count(ri)'];
+        var sql2 = 'select sum(cs) from cin where ri like \'' + pi + '/%\'';
+        //console.log(sql);
+        db.getResult(sql2, '', function (err, results) {
+            results[0]['count(ri)'] = cni;
+            callback(err, results);
+        });
     });
 };
 
