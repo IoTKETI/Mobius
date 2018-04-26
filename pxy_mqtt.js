@@ -272,7 +272,6 @@ function mqtt_message_handler(topic, message) {
 
                     message_cache[result['m2m:rqp'].rqi] = {};
                     message_cache[result['m2m:rqp'].rqi].to = result['m2m:rqp'].to;
-                    message_cache[result['m2m:rqp'].rqi].seq =
 
                     mqtt_message_action(topic_arr, bodytype, result);
                 }
@@ -526,14 +525,14 @@ function mqtt_response(resp_topic, rsc, to, fr, rqi, inpc, bodytype) {
 
         var bodyString = js2xmlparser.parse("m2m:rsp", rsp_message['m2m:rsp']);
 
-        message_cache.rqi.rsp = bodyString.toString();
+        message_cache[rqi].rsp = bodyString.toString();
 
         pxymqtt_client.publish(resp_topic, bodyString.toString());
     }
     else if(bodytype === 'cbor') {
         bodyString = cbor.encode(rsp_message['m2m:rsp']).toString('hex');
 
-        message_cache.rqi.rsp = bodyString.toString();
+        message_cache[rqi].rsp = bodyString.toString();
 
         pxymqtt_client.publish(resp_topic, bodyString);
     }
