@@ -55,8 +55,8 @@ var usemqttcbhost = 'localhost'; // pxymqtt to mobius
 
 //require('./mobius/ts_agent');
 
-
-
+var cache_limit = 64;
+var message_cache = {};
 
 
 var pxymqtt_client = null;
@@ -251,7 +251,31 @@ function mqtt_message_handler(topic, message) {
                     result['m2m:rqp'] = result;
                 }
 
-                mqtt_message_action(topic_arr, bodytype, result);
+                if(message_cache.hasOwnProperty(result['m2m:rqp'].rqi)) {
+                    if(message_cache[result['m2m:rqp'].rqi].to == result['m2m:rqp'].to) { // duplicated message
+                        console.log("duplicated message");
+                        var resp_topic = '/oneM2M/resp/';
+                        if (topic_arr[2] === 'reg_req') {
+                            resp_topic = '/oneM2M/reg_resp/';
+                        }
+                        resp_topic += (topic_arr[3] + '/' + topic_arr[4] + '/' + topic_arr[5]);
+
+                        if(message_cache[result['m2m:rqp'].rqi].hasOwnProperty('rsp')) {
+                            pxymqtt_client.publish(resp_topic, message_cache[result['m2m:rqp'].rqi].rsp);
+                        }
+                    }
+                }
+                else {
+                    if(Object.keys(message_cache).length >= cache_limit) {
+                        delete message_cache[Object.keys(message_cache)[cache_limit-1]];
+                    }
+
+                    message_cache[result['m2m:rqp'].rqi] = {};
+                    message_cache[result['m2m:rqp'].rqi].to = result['m2m:rqp'].to;
+                    message_cache[result['m2m:rqp'].rqi].seq =
+
+                    mqtt_message_action(topic_arr, bodytype, result);
+                }
             }
             else {
                 var resp_topic = '/oneM2M/resp/';
@@ -502,13 +526,20 @@ function mqtt_response(resp_topic, rsc, to, fr, rqi, inpc, bodytype) {
 
         var bodyString = js2xmlparser.parse("m2m:rsp", rsp_message['m2m:rsp']);
 
+        message_cache.rqi.rsp = bodyString.toString();
+
         pxymqtt_client.publish(resp_topic, bodyString.toString());
     }
     else if(bodytype === 'cbor') {
         bodyString = cbor.encode(rsp_message['m2m:rsp']).toString('hex');
+
+        message_cache.rqi.rsp = bodyString.toString();
+
         pxymqtt_client.publish(resp_topic, bodyString);
     }
     else { // 'json'
+        message_cache[rqi].rsp = JSON.stringify(rsp_message['m2m:rsp']);
+
         pxymqtt_client.publish(resp_topic, JSON.stringify(rsp_message['m2m:rsp']));
     }
 }
