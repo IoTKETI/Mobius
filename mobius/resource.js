@@ -558,8 +558,8 @@ function create_action(request, response, ty, resource_Obj, callback) {
                     var cni = results.cni;
                     var cbs = results.cbs;
                     var st = results.st;
-                    var mni = results.mni;
-                    var mbs = results.mbs;
+                    var mni = request.headers.mni;
+                    var mbs =request.headers.mbs;
                     create_action_cni(resource_Obj[rootnm].ty, resource_Obj[rootnm].pi, cni, cbs, mni, mbs, st, function (rsc) {
                         resource_Obj[rootnm].st = st;
                         callback('1', resource_Obj);

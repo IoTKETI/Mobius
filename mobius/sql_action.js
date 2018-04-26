@@ -232,20 +232,17 @@ exports.insert_cin = function(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, cnf
                         (con_type == 'string') ? con.replace(/'/g, "\\'") : JSON.stringify(con));
                     db.getResult(sql, '', function (err, results) {
                         if (!err) {
-                            _this.select_resource('cnt', pi, function (err, spec_Obj) {
+                            //_this.select_resource('cnt', pi, function (err, spec_Obj) {
+                            _this.select_count_cin(pi, function (err, spec_Obj) {
                                 if (!err) {
-                                    var mni = spec_Obj[0].mni;
-                                    var mbs = spec_Obj[0].mbs;
-                                    var cni = (parseInt(spec_Obj[0].cni, 10) + 1).toString();
-                                    var cbs = (parseInt(spec_Obj[0].cbs, 10) + parseInt(cs, 10)).toString();
+                                    var cni = spec_Obj[0]['count(ri)'];
+                                    var cbs = spec_Obj[0]['sum(cs)'];
                                     _this.update_cni_parent(ty, cni, cbs, st, pi, function (err, results) {
                                         if (!err) {
                                             console.timeEnd('insert_cin ' + ri);
                                             results.cni = cni;
                                             results.cbs = cbs;
                                             results.st = st;
-                                            results.mni = mni;
-                                            results.mbs = mbs;
                                             callback(err, results);
                                         }
                                         else {
@@ -1365,6 +1362,14 @@ exports.select_ts_in = function (ri_list, callback) {
 
 exports.select_count_ri = function (ty, ri, callback) {
     var sql = util.format("select count(ri), sum(cs) from cin where ri in (select ri from lookup where pi = \'%s\' and ty = \'%s\')", ri, ty);
+    //console.log(sql);
+    db.getResult(sql, '', function (err, results) {
+        callback(err, results);
+    });
+};
+
+exports.select_count_cin = function (pi, callback) {
+    var sql = util.format("select count(ri), sum(cs) from cin where ri in (select ri from lookup where pi = \'%s\' and ty = \'4\')", pi);
     //console.log(sql);
     db.getResult(sql, '', function (err, results) {
         callback(err, results);
