@@ -233,7 +233,7 @@ exports.insert_cin = function(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, cnf
                     db.getResult(sql, '', function (err, results) {
                         if (!err) {
                             //_this.select_resource('cnt', pi, function (err, spec_Obj) {
-                            _this.select_count_cin(pi, function (err, spec_Obj) {
+                            _this.select_count_cin(pi, cs, function (err, spec_Obj) {
                                 if (!err) {
                                     var cni = spec_Obj[0]['count(ri)'];
                                     var cbs = spec_Obj[0]['sum(cs)'];
@@ -1361,25 +1361,47 @@ exports.select_ts_in = function (ri_list, callback) {
 };
 
 exports.select_count_ri = function (ty, ri, callback) {
-    var sql = util.format("select count(ri), sum(cs) from cin where ri in (select ri from lookup where pi = \'%s\' and ty = \'%s\')", ri, ty);
-    //console.log(sql);
-    db.getResult(sql, '', function (err, results) {
-        callback(err, results);
-    });
-};
-
-exports.select_count_cin = function (pi, callback) {
-    var sql = util.format("select count(ri) from lookup where pi = \'%s\' and ty = \'4\'", pi);
-    //console.log(sql);
+    var sql = util.format("select count(ri) from lookup where pi = \'%s\' and ty = \'%s\'", ri, ty);
     db.getResult(sql, '', function (err, results) {
         var cni = results[0]['count(ri)'];
-        var sql2 = 'select sum(cs) from cin where ri like \'' + pi + '/%\'';
-        //console.log(sql);
+        var sql2 = 'select sum(cs) from ' + responder.typeRsrc[ty] + ' where ri like \'' + ri + '/%\'';
         db.getResult(sql2, '', function (err, results) {
             results[0]['count(ri)'] = cni;
             callback(err, results);
         });
     });
+};
+
+var cni_cache = {};
+var cni_cache_limit = 256;
+exports.select_count_cin = function (pi, cs, callback) {
+    if(cni_cache.hasOwnProperty(pi)) {
+        var results = [];
+        results[0] = {};
+        results[0]['count(ri)'] = (parseInt(cni_cache[pi].cni, 10)+1).toString();
+        results[0]['sum(cs)'] = (parseInt(cni_cache[pi].cbs, 10) + parseInt(cs, 10)).toString();
+        cni_cache[pi].cni = results[0]['count(ri)'];
+        cni_cache[pi].cbs = results[0]['sum(cs)'];
+        callback(null, results);
+    }
+    else {
+        if(Object.keys(cni_cache).length >= cni_cache_limit) {
+            delete cni_cache[Object.keys(cni_cache)[0]];
+        }
+
+        cni_cache[pi] = {};
+        var sql = util.format("select count(ri) from lookup where pi = \'%s\' and ty = \'4\'", pi);
+        db.getResult(sql, '', function (err, results) {
+            cni_cache[pi].cni = results[0]['count(ri)'];
+
+            var sql2 = 'select sum(cs) from cin where ri like \'' + pi + '/%\'';
+            db.getResult(sql2, '', function (err, results) {
+                results[0]['count(ri)'] = cni_cache[pi].cni;
+                cni_cache[pi].cbs = results[0]['sum(cs)'];
+                callback(err, results);
+            });
+        });
+    }
 };
 
 

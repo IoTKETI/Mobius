@@ -267,7 +267,7 @@ function mqtt_message_handler(topic, message) {
                 }
                 else {
                     if(Object.keys(message_cache).length >= cache_limit) {
-                        delete message_cache[Object.keys(message_cache)[cache_limit-1]];
+                        delete message_cache[Object.keys(message_cache)[0]];
                     }
 
                     message_cache[result['m2m:rqp'].rqi] = {};
