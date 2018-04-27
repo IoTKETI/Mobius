@@ -16,6 +16,7 @@ var responder = require('./responder');
 var moment = require('moment');
 var util = require('util');
 var merge = require('merge');
+var fs = require('fs');
 
 var db = require('./db_action');
 
@@ -1375,6 +1376,8 @@ exports.select_count_ri = function (ty, ri, callback) {
 var cni_cache = {};
 var cni_cache_limit = 256;
 exports.select_count_cin = function (pi, cs, callback) {
+    var cni_cache = JSON.parse(fs.readFileSync('cni_cache.json', 'utf-8'));
+
     if(cni_cache.hasOwnProperty(pi)) {
         var results = [];
         results[0] = {};
@@ -1398,6 +1401,7 @@ exports.select_count_cin = function (pi, cs, callback) {
             db.getResult(sql2, '', function (err, results) {
                 results[0]['count(ri)'] = cni_cache[pi].cni;
                 cni_cache[pi].cbs = results[0]['sum(cs)'];
+                fs.writeFileSync('cni_cache.json', JSON.stringify(cni_cache, null, 4), 'utf8');
                 callback(err, results);
             });
         });

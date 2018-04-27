@@ -253,7 +253,7 @@ function mqtt_message_handler(topic, message) {
 
                 if(message_cache.hasOwnProperty(result['m2m:rqp'].rqi)) {
                     if(message_cache[result['m2m:rqp'].rqi].to == result['m2m:rqp'].to) { // duplicated message
-                        console.log("duplicated message");
+                        //console.log("duplicated message");
                         var resp_topic = '/oneM2M/resp/';
                         if (topic_arr[2] === 'reg_req') {
                             resp_topic = '/oneM2M/reg_resp/';

@@ -114,5 +114,14 @@ catch (e) {
     fs.writeFileSync('hit.json', JSON.stringify(hit, null, 4), 'utf8');
 }
 
+var cni_cache = {};
+try {
+    var cni_cacheStr = fs.readFileSync('cni_cache.json', 'utf8');
+    cni_cache = JSON.parse(cni_cacheStr);
+}
+catch (e) {
+    fs.writeFileSync('cni_cache.json', JSON.stringify(cni_cache, null, 4), 'utf8');
+}
+
 // CSE core
 require('./app');
