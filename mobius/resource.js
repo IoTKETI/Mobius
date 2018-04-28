@@ -2144,15 +2144,12 @@ function update_action(request, response, ty, resource_Obj, callback) {
             });
     }
     else if (ty == '3') {
-        db_sql.update_cnt(resource_Obj[rootnm].lt, JSON.stringify(resource_Obj[rootnm].acpi), resource_Obj[rootnm].et, resource_Obj[rootnm].st, JSON.stringify(resource_Obj[rootnm].lbl),
-            JSON.stringify(resource_Obj[rootnm].at), JSON.stringify(resource_Obj[rootnm].aa), resource_Obj[rootnm].mni, resource_Obj[rootnm].ri,
-            resource_Obj[rootnm].mbs, resource_Obj[rootnm].mia, resource_Obj[rootnm].li, resource_Obj[rootnm].or, function (err, results) {
+        update_action_mni('4', resource_Obj[rootnm].ri, resource_Obj[rootnm].mni, function (rsc, cni, cbs) {
+            resource_Obj[rootnm].cni = cni;
+            resource_Obj[rootnm].cbs = cbs;
+            db_sql.update_cnt(resource_Obj[rootnm], function (err, results) {
                 if (!err) {
-                    update_action_mni('4', resource_Obj[rootnm].ri, resource_Obj[rootnm].mni, function (rsc, cni, cbs) {
-                        resource_Obj[rootnm].cni = cni;
-                        resource_Obj[rootnm].cbs = cbs;
-                        callback('1', resource_Obj);
-                    });
+                    callback('1', resource_Obj);
                 }
                 else {
                     body_Obj = {};
@@ -2162,6 +2159,7 @@ function update_action(request, response, ty, resource_Obj, callback) {
                     return '0';
                 }
             });
+        });
     }
     else if (ty == '9') {
         db_sql.update_grp(resource_Obj[rootnm].lt, JSON.stringify(resource_Obj[rootnm].acpi), resource_Obj[rootnm].et, resource_Obj[rootnm].st, JSON.stringify(resource_Obj[rootnm].lbl),

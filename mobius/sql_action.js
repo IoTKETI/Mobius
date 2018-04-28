@@ -1385,6 +1385,7 @@ exports.select_count_cin = function (pi, cs, callback) {
         results[0]['sum(cs)'] = (parseInt(cni_cache[pi].cbs, 10) + parseInt(cs, 10)).toString();
         cni_cache[pi].cni = results[0]['count(ri)'];
         cni_cache[pi].cbs = results[0]['sum(cs)'];
+        fs.writeFileSync('cni_cache.json', JSON.stringify(cni_cache, null, 4), 'utf8');
         callback(null, results);
     }
     else {
@@ -1488,15 +1489,15 @@ exports.update_ae = function (lt, acpi, et, st, lbl, at, aa, ri, apn, poa, or, r
     });
 };
 
-exports.update_cnt = function (lt, acpi, et, st, lbl, at, aa, mni, ri, mbs, mia, li, or, callback) {
-    console.time('update_cnt ' + ri);
-    _this.update_lookup(lt, acpi, et, st, lbl, at, aa, ri, function (err, results) {
+exports.update_cnt = function (obj, callback) {
+    console.time('update_cnt ' + obj.ri);
+    _this.update_lookup(obj.lt, JSON.stringify(obj.acpi), obj.et, obj.st, JSON.stringify(obj.lbl), JSON.stringify(obj.at), JSON.stringify(obj.aa), obj.ri, function (err, results) {
         if (!err) {
-            var sql2 = util.format('update cnt set mni = \'%s\', mbs = \'%s\', mia = \'%s\', li = \'%s\', cnt.or = \'%s\' where ri = \'%s\'',
-                mni, mbs, mia, li, or, ri);
+            var sql2 = util.format('update cnt set mni = \'%s\', mbs = \'%s\', mia = \'%s\', li = \'%s\', cnt.or = \'%s\', cni = \'%s\', cbs = \'%s\' where ri = \'%s\'',
+                obj.mni, obj.mbs, obj.mia, obj.li, obj.or, obj.cni, obj.cbs, obj.ri);
             db.getResult(sql2, '', function (err, results) {
                 if (!err) {
-                    console.timeEnd('update_cnt ' + ri);
+                    console.timeEnd('update_cnt ' + obj.ri);
                     callback(err, results);
                 }
                 else {
