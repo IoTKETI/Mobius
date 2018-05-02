@@ -1392,6 +1392,44 @@ exports.convertXml2 = function(rootnm, body_Obj) {
     return xml.end({pretty: false, indent: '  ', newline: '\n'}).toString();
 };
 
+
+exports.convertXmlMqtt = function(rootnm, body_Obj) {
+    var xml = xmlbuilder.create('m2m:' + rootnm, {version: '1.0', encoding: 'UTF-8', standalone: true},
+        {pubID: null, sysID: null}, {
+            allowSurrogateChars: false,
+            skipNullAttributes: false,
+            headless: false,
+            ignoreDecorators: false,
+            stringify: {}
+        }
+    ).att('xmlns:m2m', 'http://www.onem2m.org/xml/protocols').att('xmlns:xsi', 'http://www.w3.org/2001/XMLSchema-instance');
+
+    xmlInsert(xml, body_Obj, 'rsc');
+    xmlInsert(xml, body_Obj, 'rqi');
+    var xml2 = xml.ele('pc');
+
+    for (var index in body_Obj) {
+        if (body_Obj.hasOwnProperty(index)) {
+            if(index == 'pc') {
+                for (var attr in body_Obj[index]) {
+                    if (body_Obj[index].hasOwnProperty(attr)) {
+                        if(attr == 'm2m:dbg') {
+                            xmlAction(xml2, body_Obj[index]);
+                            break;
+                        }
+                        else {
+                            var xml3 = xml2.ele(attr);
+                            xmlAction(xml3, body_Obj[index][attr]);
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return xml.end({pretty: false, indent: '  ', newline: '\n'}).toString();
+};
+
 exports.convertXmlSgn = function(rootnm, body_Obj) {
     var sgn = xmlbuilder.create(rootnm, {version: '1.0', encoding: 'UTF-8', standalone: true},
         {pubID: null, sysID: null}, {

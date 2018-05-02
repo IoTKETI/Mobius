@@ -29,6 +29,8 @@ var moment = require('moment');
 var ip = require("ip");
 var cbor = require('cbor');
 
+var responder = require('./mobius/responder');
+
 //var resp_mqtt_client_arr = [];
 //var req_mqtt_client_arr = [];
 var resp_mqtt_rqi_arr = [];
@@ -277,7 +279,7 @@ function mqtt_message_handler(topic, message) {
                 }
             }
             else {
-                var resp_topic = '/oneM2M/resp/';
+                resp_topic = '/oneM2M/resp/';
                 if (topic_arr[2] === 'reg_req') {
                     resp_topic = '/oneM2M/reg_resp/';
                 }
@@ -497,7 +499,9 @@ function mqtt_response(resp_topic, rsc, to, fr, rqi, inpc, bodytype) {
     rsp_message['m2m:rsp'].pc = inpc;
 
     if (bodytype == 'xml') {
-        rsp_message['m2m:rsp']['@'] = {
+        var bodyString = responder.convertXmlMqtt('rsp', rsp_message['m2m:rsp']);
+
+        /*rsp_message['m2m:rsp']['@'] = {
             "xmlns:m2m": "http://www.onem2m.org/xml/protocols",
             "xmlns:xsi": "http://www.w3.org/2001/XMLSchema-instance"
         };
@@ -524,7 +528,7 @@ function mqtt_response(resp_topic, rsc, to, fr, rqi, inpc, bodytype) {
         }
 
         var bodyString = js2xmlparser.parse("m2m:rsp", rsp_message['m2m:rsp']);
-
+*/
         message_cache[rqi].rsp = bodyString.toString();
 
         pxymqtt_client.publish(resp_topic, bodyString.toString());

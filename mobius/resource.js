@@ -1646,7 +1646,7 @@ function presearch_action(request, response, ri_list, comm_Obj, callback) {
             }
 
             if (comm_Obj.ty == '3' && request.query.la) {
-                var ofst = parseInt(comm_Obj.cni, 10) - parseInt(request.query.la, 10);
+                var ofst = parseInt(comm_Obj.cni, 10) - parseInt(request.query.la, 10) - 1;
                 request.query.ofst = (ofst < 0) ? '0' : ofst;
                 request.query.lim = request.query.la;
             }
