@@ -1556,7 +1556,7 @@ exports.create = function (request, response, ty, body_Obj, callback) {
 
                         _this.remove_no_value(request, create_Obj);
 
-                        if (request.query.real != 4 && ty != 23) { // realtime, new
+                        if (request.query.real != 4) { // realtime, new
                             // if(ty == 23) { // when ty is 23, send notification for verification
                             //     var notiObj = JSON.parse(JSON.stringify(create_Obj));
                             //     _this.remove_no_value(request, notiObj);
@@ -1646,7 +1646,7 @@ function presearch_action(request, response, ri_list, comm_Obj, callback) {
             }
 
             if (comm_Obj.ty == '3' && request.query.la) {
-                var ofst = parseInt(comm_Obj.cni, 10) - parseInt(request.query.la, 10) - 1;
+                var ofst = parseInt(comm_Obj.cni, 10) - (parseInt(request.query.la, 10) - 1);
                 request.query.ofst = (ofst < 0) ? '0' : ofst;
                 request.query.lim = request.query.la;
             }
@@ -2059,7 +2059,7 @@ function update_action_mni(ty, ri, mni, callback) {
     db_sql.select_count_ri(ty, ri, function (err, results) {
         if (results.length == 1) {
             var cniObj = {};
-            cniObj.cni = results[0]['count(ri)'];
+            cniObj.cni = results[0]['count(*)'];
             cniObj.cbs = (cniObj.cni == 0) ? 0 : results[0]['sum(cs)'];
 
             var offset = parseInt(cniObj.cni, 10) - parseInt(mni, 10);
@@ -2069,7 +2069,7 @@ function update_action_mni(ty, ri, mni, callback) {
                     if (!err) {
                         db_sql.select_count_ri(ty, ri, function (err, results) {
                             if (results.length == 1) {
-                                cniObj.cni = results[0]['count(ri)'];
+                                cniObj.cni = results[0]['count(*)'];
                                 cniObj.cbs = (cniObj.cni == 0) ? 0 : results[0]['sum(cs)'];
 
                                 console.log('[update_action_mni] cni: ' + cniObj.cni + ', cbs: ' + cniObj.cbs);
@@ -2970,7 +2970,7 @@ exports.update = function (request, response, comm_Obj, body_Obj) {
                 if (rsc == '1') {
                     _this.remove_no_value(request, update_Obj);
 
-                    if (request.query.real != 4 && ty != 23) { // realtime, new
+                    if (request.query.real != 4) { // realtime, new
                         sgn.check(request, update_Obj[rootnm], 1);
                     }
 

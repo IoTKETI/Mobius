@@ -274,6 +274,7 @@ function mqtt_message_handler(topic, message) {
 
                     message_cache[result['m2m:rqp'].rqi] = {};
                     message_cache[result['m2m:rqp'].rqi].to = result['m2m:rqp'].to;
+                    message_cache[result['m2m:rqp'].rqi].rsp = '';
 
                     mqtt_message_action(topic_arr, bodytype, result);
                 }
@@ -541,9 +542,17 @@ function mqtt_response(resp_topic, rsc, to, fr, rqi, inpc, bodytype) {
         pxymqtt_client.publish(resp_topic, bodyString);
     }
     else { // 'json'
-        message_cache[rqi].rsp = JSON.stringify(rsp_message['m2m:rsp']);
-
-        pxymqtt_client.publish(resp_topic, JSON.stringify(rsp_message['m2m:rsp']));
+        try {
+            message_cache[rqi].rsp = JSON.stringify(rsp_message['m2m:rsp']);
+            pxymqtt_client.publish(resp_topic, message_cache[rqi].rsp);
+        }
+        catch (e) {
+            console.log(e.message);
+            delete message_cache[rqi];
+            var dbg = {};
+            dbg['m2m:dbg'] = e.message;
+            pxymqtt_client.publish(resp_topic, JSON.stringify(dbg));
+        }
     }
 }
 

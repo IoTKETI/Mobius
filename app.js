@@ -1995,16 +1995,16 @@ function lookup_delete(request, response) {
                                 makeObject(results_spec[0]);
                                 results_comm = merge(results_comm, results_spec[0]);
 
-                                var cni_cache = JSON.parse(fs.readFileSync('cni_cache.json', 'utf-8'));
-                                var cache_key = Object.keys(cni_cache);
+                                var cbs_cache = JSON.parse(fs.readFileSync('cbs_cache.json', 'utf-8'));
+                                var cache_key = Object.keys(cbs_cache);
                                 for(var idx in cache_key) {
                                     if(cache_key.hasOwnProperty(idx)) {
                                         if(cache_key[idx].includes(results_comm.ri)) {
-                                            delete cni_cache[cache_key[idx]];
+                                            delete cbs_cache[cache_key[idx]];
                                         }
                                     }
                                 }
-                                fs.writeFileSync('cni_cache.json', JSON.stringify(cni_cache, null, 4), 'utf8');
+                                fs.writeFileSync('cbs_cache.json', JSON.stringify(cbs_cache, null, 4), 'utf8');
 
                                 resource.delete(request, response, results_comm);
                             });

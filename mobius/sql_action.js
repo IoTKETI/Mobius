@@ -236,7 +236,7 @@ exports.insert_cin = function(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, cnf
                             //_this.select_resource('cnt', pi, function (err, spec_Obj) {
                             _this.select_count_cin(pi, cs, function (err, spec_Obj) {
                                 if (!err) {
-                                    var cni = spec_Obj[0]['count(ri)'];
+                                    var cni = spec_Obj[0]['count(*)'];
                                     var cbs = spec_Obj[0]['sum(cs)'];
                                     _this.update_cni_parent(ty, cni, cbs, st, pi, function (err, results) {
                                         if (!err) {
@@ -1210,25 +1210,30 @@ exports.select_acp_cnt = function(loop, uri_arr, callback) {
             callback(err, results.message);
         }
         else {
-            results[0].acpi = JSON.parse(results[0].acpi);
+            if(results.length == 0) {
+                callback(err, results);
+            }
+            else {
+                results[0].acpi = JSON.parse(results[0].acpi);
 
-            if (results[0].acpi.length == 0) {
-                if (results[0].ty == '3') {
-                    _this.select_acp_cnt(++loop, uri_arr, function (err, acpiList) {
-                        if (err) {
-                            callback(err, acpiList.message);
-                        }
-                        else {
-                            callback(err, acpiList);
-                        }
-                    });
+                if (results[0].acpi.length == 0) {
+                    if (results[0].ty == '3') {
+                        _this.select_acp_cnt(++loop, uri_arr, function (err, acpiList) {
+                            if (err) {
+                                callback(err, acpiList.message);
+                            }
+                            else {
+                                callback(err, acpiList);
+                            }
+                        });
+                    }
+                    else {
+                        callback(err, results[0].acpi);
+                    }
                 }
                 else {
                     callback(err, results[0].acpi);
                 }
-            }
-            else {
-                callback(err, results[0].acpi);
             }
         }
     });
@@ -1362,51 +1367,44 @@ exports.select_ts_in = function (ri_list, callback) {
 };
 
 exports.select_count_ri = function (ty, ri, callback) {
-    var sql = util.format("select count(ri) from lookup where pi = \'%s\' and ty = \'%s\'", ri, ty);
+    var sql = util.format("select count(*) from lookup where pi = \'%s\' and ty = \'%s\'", ri, ty);
     db.getResult(sql, '', function (err, results) {
-        var cni = results[0]['count(ri)'];
+        var cni = results[0]['count(*)'];
         var sql2 = 'select sum(cs) from ' + responder.typeRsrc[ty] + ' where ri like \'' + ri + '/%\'';
         db.getResult(sql2, '', function (err, results) {
-            results[0]['count(ri)'] = cni;
+            results[0]['count(*)'] = cni;
             callback(err, results);
         });
     });
 };
 
-var cni_cache = {};
-var cni_cache_limit = 256;
+var cbs_cache_limit = 256;
 exports.select_count_cin = function (pi, cs, callback) {
-    var cni_cache = JSON.parse(fs.readFileSync('cni_cache.json', 'utf-8'));
-
-    if(cni_cache.hasOwnProperty(pi)) {
-        var results = [];
-        results[0] = {};
-        results[0]['count(ri)'] = (parseInt(cni_cache[pi].cni, 10)+1).toString();
-        results[0]['sum(cs)'] = (parseInt(cni_cache[pi].cbs, 10) + parseInt(cs, 10)).toString();
-        cni_cache[pi].cni = results[0]['count(ri)'];
-        cni_cache[pi].cbs = results[0]['sum(cs)'];
-        fs.writeFileSync('cni_cache.json', JSON.stringify(cni_cache, null, 4), 'utf8');
-        callback(null, results);
-    }
-    else {
-        if(Object.keys(cni_cache).length >= cni_cache_limit) {
-            delete cni_cache[Object.keys(cni_cache)[0]];
+    var sql = util.format("select count(*) from lookup where pi = \'%s\' and ty = \'4\'", pi);
+    db.getResult(sql, '', function (err, results) {
+        var cbs_cache = JSON.parse(fs.readFileSync('cbs_cache.json', 'utf-8'));
+        if (cbs_cache.hasOwnProperty(pi)) {
+            results[0]['sum(cs)'] = parseInt(cbs_cache[pi].cbs, 10) + parseInt(cs, 10);
+            cbs_cache[pi].cbs = results[0]['sum(cs)'];
+            fs.writeFileSync('cbs_cache.json', JSON.stringify(cbs_cache, null, 4), 'utf8');
+            callback(null, results);
         }
+        else {
+            if (Object.keys(cbs_cache).length >= cbs_cache_limit) {
+                delete cbs_cache[Object.keys(cbs_cache)[0]];
+            }
 
-        cni_cache[pi] = {};
-        var sql = util.format("select count(ri) from lookup where pi = \'%s\' and ty = \'4\'", pi);
-        db.getResult(sql, '', function (err, results) {
-            cni_cache[pi].cni = results[0]['count(ri)'];
-
+            cbs_cache[pi] = {};
+            cbs_cache[pi].cni = results[0]['count(*)'];
             var sql2 = 'select sum(cs) from cin where ri like \'' + pi + '/%\'';
             db.getResult(sql2, '', function (err, results) {
-                results[0]['count(ri)'] = cni_cache[pi].cni;
-                cni_cache[pi].cbs = results[0]['sum(cs)'];
-                fs.writeFileSync('cni_cache.json', JSON.stringify(cni_cache, null, 4), 'utf8');
+                cbs_cache[pi].cbs = results[0]['sum(cs)'];
+                results[0]['count(*)'] = cbs_cache[pi].cni;
+                fs.writeFileSync('cbs_cache.json', JSON.stringify(cbs_cache, null, 4), 'utf8');
                 callback(err, results);
             });
-        });
-    }
+        }
+    });
 };
 
 
@@ -2003,7 +2001,7 @@ exports.select_sum_cbs = function(callback) {
 exports.select_sum_ae = function(callback) {
     var tid = require('shortid').generate();
     console.time('select_sum_ae ' + tid);
-    var sql = util.format('select count(ri) from ae');
+    var sql = util.format('select count(*) from ae');
     db.getResult(sql, '', function (err, result_Obj) {
         console.timeEnd('select_sum_ae ' + tid);
         callback(err, result_Obj);
