@@ -159,22 +159,22 @@ function resp_sub() {
 }
 
 function req_sub() {
-    // var req_topic = util.format('/oneM2M/req/+/%s/#', usecseid.replace('/', ':'));
-    // pxymqtt_client.subscribe(req_topic);
-
-    var req_topic = util.format('/oneM2M/req/+/%s/#', usecseid.replace('/', ''));
+    var req_topic = util.format('/oneM2M/req/+/%s/+', usecseid.replace('/', ''));
     pxymqtt_client.subscribe(req_topic);
+    console.log('subscribe req_topic as ' + req_topic);
 
+    req_topic = util.format('/oneM2M/req/+/%s/+', usecsebase);
+    pxymqtt_client.subscribe(req_topic);
     console.log('subscribe req_topic as ' + req_topic);
 }
 
 function reg_req_sub() {
-    // var reg_req_topic = util.format('/oneM2M/reg_req/+/%s/#', usecseid.replace('/', ':'));
-    // pxymqtt_client.subscribe(reg_req_topic);
-
-    var reg_req_topic = util.format('/oneM2M/reg_req/+/%s/#', usecseid.replace('/', ''));
+    var reg_req_topic = util.format('/oneM2M/reg_req/+/%s/+', usecseid.replace('/', ''));
     pxymqtt_client.subscribe(reg_req_topic);
+    console.log('subscribe reg_req_topic as ' + reg_req_topic);
 
+    reg_req_topic = util.format('/oneM2M/reg_req/+/%s/+', usecsebase);
+    pxymqtt_client.subscribe(reg_req_topic);
     console.log('subscribe reg_req_topic as ' + reg_req_topic);
 }
 
@@ -243,7 +243,7 @@ function mqtt_message_handler(topic, message) {
             }
         });
     }
-    else if(topic_arr[1] === 'oneM2M' && topic_arr[2] === 'req' && ((topic_arr[4].replace(':', '/') == usecseid) || (topic_arr[4] == usecseid.replace('/', '')))) {
+    else if(topic_arr[1] === 'oneM2M' && topic_arr[2] === 'req' && ((topic_arr[4].replace(':', '/') == usecseid) || (topic_arr[4] == usecseid.replace('/', '')) || (topic_arr[4] == usecsebase))) {
         NOPRINT==='true'?NOPRINT='true':console.log('----> [response_mqtt] - ' + topic);
         NOPRINT==='true'?NOPRINT='true':console.log(message.toString());
 
@@ -260,9 +260,12 @@ function mqtt_message_handler(topic, message) {
                         if (topic_arr[2] === 'reg_req') {
                             resp_topic = '/oneM2M/reg_resp/';
                         }
+
+                        var resp_topic_rel1 = resp_topic + (topic_arr[3] + '/' + topic_arr[4]);
                         resp_topic += (topic_arr[3] + '/' + topic_arr[4] + '/' + topic_arr[5]);
 
                         if(message_cache[result['m2m:rqp'].rqi].hasOwnProperty('rsp')) {
+                            pxymqtt_client.publish(resp_topic_rel1, message_cache[result['m2m:rqp'].rqi].rsp);
                             pxymqtt_client.publish(resp_topic, message_cache[result['m2m:rqp'].rqi].rsp);
                         }
                     }
@@ -316,30 +319,14 @@ function mqtt_message_action(topic_arr, bodytype, jsonObj) {
     if (jsonObj['m2m:rqp'] != null) {
         var op = (jsonObj['m2m:rqp'].op == null) ? '' : jsonObj['m2m:rqp'].op;
         var to = (jsonObj['m2m:rqp'].to == null) ? '' : jsonObj['m2m:rqp'].to;
-        if(to.split(usespid + '/' + usecseid + '/' + usecsebase)[0] == '') { // Absolute
-            var to_arr = to.split(usespid + '/' + usecseid + '/' + usecsebase);
-            to='/'+usecsebase;
-            for(var i = 1; i < to_arr.length; i++) {
-                to += '/';
-                to += to_arr[i];
-            }
+
+        to = to.replace(usespid + usecseid + '/', '/');
+        to = to.replace(usecseid + '/', '/');
+
+        if(to.charAt(0) != '/') {
+            to = '/' + to;
         }
-        else if(to.split(usecseid + '/' + usecsebase)[0] == '') { // SP Relative
-            var to_arr = to.split(usespid + '/' + usecseid + '/' + usecsebase);
-            to='/'+usecsebase;
-            for(i = 1; i < to_arr.length; i++) {
-                to += '/';
-                to += to_arr[i];
-            }
-        }
-        else if(to.split(usecsebase)[0] == '') { // CSE Relative
-            var to_arr = to.split(usespid + '/' + usecseid + '/' + usecsebase);
-            to='/'+usecsebase;
-            for(i = 1; i < to_arr.length; i++) {
-                to += '/';
-                to += to_arr[i];
-            }
-        }
+
         var fr = (jsonObj['m2m:rqp'].fr == null) ? '' : jsonObj['m2m:rqp'].fr;
         if(fr == '') {
             fr = topic_arr[3];
@@ -370,19 +357,21 @@ function mqtt_message_action(topic_arr, bodytype, jsonObj) {
             if (topic_arr[2] == 'reg_req') {
                 resp_topic = '/oneM2M/reg_resp/';
             }
+            var resp_topic_rel1 = resp_topic + (topic_arr[3] + '/' + topic_arr[4]);
             resp_topic += (topic_arr[3] + '/' + topic_arr[4] + '/' + topic_arr[5]);
 
-            if (to.split('/')[1].split('?')[0] == usecsebase) {
+            //if (to.split('/')[1].split('?')[0] == usecsebase) {
                 mqtt_binding(op, to, fr, rqi, ty, pc, bodytype, function (res, res_body) {
                     if (res_body == '') {
                         res_body = '{}';
                     }
+                    mqtt_response(resp_topic_rel1, res.headers['x-m2m-rsc'], to, usecseid, rqi, JSON.parse(res_body), bodytype);
                     mqtt_response(resp_topic, res.headers['x-m2m-rsc'], to, usecseid, rqi, JSON.parse(res_body), bodytype);
                 });
-            }
-            else {
-                mqtt_response(resp_topic, 4004, fr, usecseid, rqi, 'this is not MN-CSE, csebase do not exist', bodytype);
-            }
+            //}
+            ////else {
+            //    mqtt_response(resp_topic, 4004, fr, usecseid, rqi, 'this is not MN-CSE, csebase do not exist', bodytype);
+            ////}
         }
         catch (e) {
             console.error(e);
