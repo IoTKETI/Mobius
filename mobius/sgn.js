@@ -31,7 +31,7 @@ var responder = require('./responder');
 var ss_fail_count = {};
 var ss_ri = {};
 
-var MAX_NUM_RETRY = 12;
+var MAX_NUM_RETRY = 16;
 
 function make_xml_noti_message(pc, xm2mri) {
     try {
@@ -732,13 +732,21 @@ exports.response_noti_handler = function(topic, message) {
                     jsonObj['m2m:rsp'] = jsonObj;
                 }
 
-                var ri = ss_ri[jsonObj['m2m:rsp'].rqi];
+                for(var idx in ss_ri) {
+                    if(ss_ri.hasOwnProperty(idx)) {
+                        if(idx == jsonObj['m2m:rsp'].rqi) {
+                            var ri = ss_ri[idx];
 
-                console.log('----> [response_noti_mqtt - ' + ss_fail_count[ri] + '] ' + jsonObj['m2m:rsp'].rsc + ' - ' + topic);
-                NOPRINT==='true'?NOPRINT='true':console.log(message.toString());
+                            console.log('----> [response_noti_mqtt - ' + ss_fail_count[ri] + '] ' + jsonObj['m2m:rsp'].rsc + ' - ' + topic);
+                            NOPRINT === 'true' ? NOPRINT = 'true' : console.log(message.toString());
 
-                delete ss_fail_count[ri];
-                delete ss_ri[ri];
+                            ss_fail_count[ri] = 0;
+                            delete ss_fail_count[ri];
+                            delete ss_ri[idx];
+                            break;
+                        }
+                    }
+                }
             }
             else {
                 console.log('[response_noti_mqtt] parsing error');
@@ -756,6 +764,10 @@ function request_noti_mqtt(nu, ri, bodyString, bodytype, xm2mri) {
     try {
         var aeid = url.parse(nu).pathname.replace('/', '').split('?')[0];
         var noti_resp_topic = '/oneM2M/resp/' + usecseid.replace('/', '') + '/' + aeid + '/' + bodytype;
+
+        if(Object.keys(ss_ri).length >= 8) {
+            delete ss_ri[Object.keys(ss_ri)[0]];
+        }
 
         ss_ri[xm2mri] = ri;
         if(ss_fail_count[ri] == null) {
