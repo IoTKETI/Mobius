@@ -714,8 +714,6 @@ function request_noti_coap(nu, ri, bodyString, bodytype, xm2mri) {
 }
 
 exports.response_noti_handler = function(topic, message) {
-    noti_mqtt.unsubscribe(topic);
-
     var topic_arr = topic.split('/');
     if(topic_arr[5] != null) {
         var bodytype = (topic_arr[5] == 'xml') ? topic_arr[5] : ((topic_arr[5] == 'json') ? topic_arr[5] : ((topic_arr[5] == 'cbor') ? topic_arr[5] : 'json'));
@@ -764,6 +762,7 @@ function request_noti_mqtt(nu, ri, bodyString, bodytype, xm2mri) {
     try {
         var aeid = url.parse(nu).pathname.replace('/', '').split('?')[0];
         var noti_resp_topic = '/oneM2M/resp/' + usecseid.replace('/', '') + '/' + aeid + '/' + bodytype;
+        var noti_resp_topic2 = '/oneM2M/resp/' + usecsebase + '/' + aeid + '/' + bodytype;
 
         if(Object.keys(ss_ri).length >= 8) {
             delete ss_ri[Object.keys(ss_ri)[0]];
@@ -784,6 +783,9 @@ function request_noti_mqtt(nu, ri, bodyString, bodytype, xm2mri) {
             //noti_mqtt.unsubscribe(noti_resp_topic);
             noti_mqtt.subscribe(noti_resp_topic);
             console.log('subscribe noti_resp_topic as ' + noti_resp_topic);
+
+            noti_mqtt.subscribe(noti_resp_topic2);
+            console.log('subscribe noti_resp_topic as ' + noti_resp_topic2);
 
             var noti_topic = '/oneM2M/req/' + usecseid.replace('/', '') + '/' + aeid + '/' + bodytype;
             noti_mqtt.publish(noti_topic, bodyString);
