@@ -2036,44 +2036,33 @@ function lookup_delete(request, response) {
 }
 
 
-function updateHitCount(request) {
-    var hit = JSON.parse(fs.readFileSync('hit.json', 'utf-8'));
+function updateHitCount(binding) {
+    try {
+        var hit = JSON.parse(fs.readFileSync('hit.json', 'utf-8'));
 
-    var a = moment().utc();
-    var cur_t = a.format('YYYYMMDD');
-    var h = a.hours();
+        var a = moment().utc();
+        var cur_t = a.format('YYYYMMDD');
+        var h = a.hours();
 
-    if(request.headers.hasOwnProperty('binding')) {
-        if(!hit.hasOwnProperty(cur_t)) {
+        if (!hit.hasOwnProperty(cur_t)) {
             hit[cur_t] = [];
-            for(var i = 0; i < 24; i++) {
+            for (var i = 0; i < 24; i++) {
                 hit[cur_t].push({});
             }
         }
 
-        if(!hit[cur_t][h].hasOwnProperty(request.headers['binding'])) {
-            hit[cur_t][h][request.headers['binding']] = 0;
+        if (!hit[cur_t][h].hasOwnProperty(binding)) {
+            hit[cur_t][h][binding] = 0;
         }
 
-        hit[cur_t][h][request.headers['binding']]++;
+        hit[cur_t][h][binding]++;
+
+        //console.log(hit);
+        fs.writeFileSync('hit.json', JSON.stringify(hit, null, 4), 'utf8');
     }
-    else {
-        if(!hit.hasOwnProperty(cur_t)) {
-            hit[cur_t] = [];
-            for(i = 0; i < 24; i++) {
-                hit[cur_t].push({});
-            }
-        }
-
-        if(!hit[cur_t][h].hasOwnProperty('H')) {
-            hit[cur_t][h]['H'] = 0;
-        }
-
-        hit[cur_t][h]['H']++;
+    catch (e) {
+        console.log('[updateHitCount] ' + e.message);
     }
-
-    //console.log(hit);
-    fs.writeFileSync('hit.json', JSON.stringify(hit, null, 4), 'utf8');
 }
 
 global.elapsed_hrstart = {};
@@ -2110,7 +2099,12 @@ app.post(onem2mParser, function (request, response) {
         fullBody += chunk.toString();
     });
     request.on('end', function () {
-        updateHitCount(request);
+        if (request.headers.hasOwnProperty('binding')) {
+            updateHitCount(request.headers['binding']);
+        }
+        else {
+            updateHitCount('H');
+        }
 
         request.body = fullBody;
         if (request.query.fu == null) {
@@ -2178,7 +2172,12 @@ app.get(onem2mParser, function (request, response) {
         fullBody += chunk.toString();
     });
     request.on('end', function () {
-        updateHitCount(request);
+        if (request.headers.hasOwnProperty('binding')) {
+            updateHitCount(request.headers['binding']);
+        }
+        else {
+            updateHitCount('H');
+        }
 
         request.body = fullBody;
         if (request.query.fu == null) {
@@ -2265,7 +2264,12 @@ app.put(onem2mParser, function (request, response) {
         fullBody += chunk.toString();
     });
     request.on('end', function () {
-        updateHitCount(request);
+        if (request.headers.hasOwnProperty('binding')) {
+            updateHitCount(request.headers['binding']);
+        }
+        else {
+            updateHitCount('H');
+        }
 
         request.body = fullBody;
         if (request.query.fu == null) {
@@ -2325,7 +2329,12 @@ app.delete(onem2mParser, function (request, response) {
         fullBody += chunk.toString();
     });
     request.on('end', function () {
-        updateHitCount(request);
+        if (request.headers.hasOwnProperty('binding')) {
+            updateHitCount(request.headers['binding']);
+        }
+        else {
+            updateHitCount('H');
+        }
 
         request.body = fullBody;
         if (request.query.fu == null) {

@@ -29,7 +29,6 @@ var merge = require('merge');
 var responder = require('./responder');
 
 var ss_fail_count = {};
-var ss_ri = {};
 
 var MAX_NUM_RETRY = 16;
 
@@ -730,21 +729,25 @@ exports.response_noti_handler = function(topic, message) {
                     jsonObj['m2m:rsp'] = jsonObj;
                 }
 
-                for(var idx in ss_ri) {
-                    if(ss_ri.hasOwnProperty(idx)) {
+                var ss_ri_cache = JSON.parse(fs.readFileSync('ss_ri_cache.json', 'utf-8'));
+
+                for(var idx in ss_ri_cache) {
+                    if(ss_ri_cache.hasOwnProperty(idx)) {
                         if(idx == jsonObj['m2m:rsp'].rqi) {
-                            var ri = ss_ri[idx];
+                            var ri = ss_ri_cache[idx].ri;
 
                             console.log('----> [response_noti_mqtt - ' + ss_fail_count[ri] + '] ' + jsonObj['m2m:rsp'].rsc + ' - ' + topic);
                             NOPRINT === 'true' ? NOPRINT = 'true' : console.log(message.toString());
 
                             ss_fail_count[ri] = 0;
                             delete ss_fail_count[ri];
-                            delete ss_ri[idx];
+                            delete ss_ri_cache[idx];
                             break;
                         }
                     }
                 }
+
+                fs.writeFileSync('ss_ri_cache.json', JSON.stringify(ss_ri_cache, null, 4), 'utf8');
             }
             else {
                 console.log('[response_noti_mqtt] parsing error');
@@ -764,11 +767,8 @@ function request_noti_mqtt(nu, ri, bodyString, bodytype, xm2mri) {
         var noti_resp_topic = '/oneM2M/resp/' + usecseid.replace('/', '') + '/' + aeid + '/' + bodytype;
         var noti_resp_topic2 = '/oneM2M/resp/' + usecsebase + '/' + aeid + '/' + bodytype;
 
-        if(Object.keys(ss_ri).length >= 8) {
-            delete ss_ri[Object.keys(ss_ri)[0]];
-        }
+        var ss_ri_cache = JSON.parse(fs.readFileSync('ss_ri_cache.json', 'utf-8'));
 
-        ss_ri[xm2mri] = ri;
         if(ss_fail_count[ri] == null) {
             ss_fail_count[ri] = 0;
         }
@@ -780,6 +780,12 @@ function request_noti_mqtt(nu, ri, bodyString, bodytype, xm2mri) {
             console.log('      [request_noti_mqtt - ' + ss_fail_count[ri] + '] remove subscription because no response');
         }
         else {
+            ss_ri_cache[xm2mri] = {};
+            ss_ri_cache[xm2mri].ri = ri;
+            ss_ri_cache[xm2mri].ttl = cache_ttl;
+
+            fs.writeFileSync('ss_ri_cache.json', JSON.stringify(ss_ri_cache, null, 4), 'utf8');
+
             //noti_mqtt.unsubscribe(noti_resp_topic);
             noti_mqtt.subscribe(noti_resp_topic);
             console.log('subscribe noti_resp_topic as ' + noti_resp_topic);
@@ -798,6 +804,33 @@ function request_noti_mqtt(nu, ri, bodyString, bodytype, xm2mri) {
         console.log('can not send notification to ' + nu);
     }
 }
+
+var cache_keep = 10;
+var os = require('os');
+var cache_ttl = os.cpus().length * 2;
+
+function cache_ttl_manager() {
+    try {
+        var ss_ri_cache = JSON.parse(fs.readFileSync('ss_ri_cache.json', 'utf-8'));
+        for (var idx in ss_ri_cache) {
+            if (ss_ri_cache.hasOwnProperty(idx)) {
+                ss_ri_cache[idx].ttl--;
+                //console.log('ttl of cache of ' + idx + ' : ' + ss_ri_cache[idx].ttl);
+                if (ss_ri_cache[idx].ttl <= 0) {
+                    delete ss_ri_cache[idx];
+                    //console.log('delete cache of ' + idx);
+                }
+            }
+        }
+        fs.writeFileSync('ss_ri_cache.json', JSON.stringify(ss_ri_cache, null, 4), 'utf8');
+    }
+    catch (e) {
+        console.log("[sgn - cache_ttl_manager] " + e.message);
+    }
+}
+
+var cache_tid = require('shortid').generate();
+wdt.set_wdt(cache_tid, cache_keep, cache_ttl_manager);
 
 
 function request_noti_ws(nu, ri, bodyString, bodytype, xm2mri) {

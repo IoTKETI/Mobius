@@ -57,7 +57,9 @@ var usemqttcbhost = 'localhost'; // pxymqtt to mobius
 
 //require('./mobius/ts_agent');
 
-var cache_limit = 64;
+//var cache_limit = 64;
+var cache_ttl = 3; // count
+var cache_keep = 10; // sec
 var message_cache = {};
 
 
@@ -267,18 +269,20 @@ function mqtt_message_handler(topic, message) {
                         resp_topic += (topic_arr[3] + '/' + topic_arr[4] + '/' + topic_arr[5]);
 
                         if(message_cache[cache_key].hasOwnProperty('rsp')) {
+                            message_cache[cache_key].ttl = cache_ttl;
                             pxymqtt_client.publish(resp_topic_rel1, message_cache[cache_key].rsp);
                             pxymqtt_client.publish(resp_topic, message_cache[cache_key].rsp);
                         }
                     }
                 }
                 else {
-                    if(Object.keys(message_cache).length >= cache_limit) {
-                        delete message_cache[Object.keys(message_cache)[0]];
-                    }
+                    // if(Object.keys(message_cache).length >= cache_limit) {
+                    //     delete message_cache[Object.keys(message_cache)[0]];
+                    // }
 
                     message_cache[cache_key] = {};
                     message_cache[cache_key].to = result['m2m:rqp'].to;
+                    message_cache[cache_key].ttl = cache_ttl;
                     message_cache[cache_key].rsp = '';
 
                     mqtt_message_action(topic_arr, bodytype, result);
@@ -316,6 +320,20 @@ function mqtt_message_handler(topic, message) {
         NOPRINT==='true'?NOPRINT='true':console.log('topic(' + topic + ') is not supported');
     }
 }
+
+function cache_ttl_manager() {
+    for(var idx in message_cache) {
+        if(message_cache.hasOwnProperty(idx)) {
+            message_cache[idx].ttl--;
+            if(message_cache[idx].ttl <= 0) {
+                delete message_cache[idx];
+            }
+        }
+    }
+}
+
+var cache_tid = require('shortid').generate();
+wdt.set_wdt(cache_tid, cache_keep, cache_ttl_manager);
 
 function mqtt_message_action(topic_arr, bodytype, jsonObj) {
     if (jsonObj['m2m:rqp'] != null) {

@@ -1383,22 +1383,25 @@ exports.select_count_cin = function (pi, cs, callback) {
     var sql = util.format("select count(*) from lookup where pi = \'%s\' and ty = \'4\'", pi);
     db.getResult(sql, '', function (err, results) {
         var cbs_cache = JSON.parse(fs.readFileSync('cbs_cache.json', 'utf-8'));
+
         if (cbs_cache.hasOwnProperty(pi)) {
             results[0]['sum(cs)'] = parseInt(cbs_cache[pi].cbs, 10) + parseInt(cs, 10);
             cbs_cache[pi].cbs = results[0]['sum(cs)'];
+            cbs_cache[pi].ttl = cache_ttl;
             fs.writeFileSync('cbs_cache.json', JSON.stringify(cbs_cache, null, 4), 'utf8');
             callback(null, results);
         }
         else {
-            if (Object.keys(cbs_cache).length >= cbs_cache_limit) {
-                delete cbs_cache[Object.keys(cbs_cache)[0]];
-            }
+            // if (Object.keys(cbs_cache).length >= cbs_cache_limit) {
+            //     delete cbs_cache[Object.keys(cbs_cache)[0]];
+            // }
 
             cbs_cache[pi] = {};
             cbs_cache[pi].cni = results[0]['count(*)'];
             var sql2 = 'select sum(cs) from cin where ri like \'' + pi + '/%\'';
             db.getResult(sql2, '', function (err, results) {
                 cbs_cache[pi].cbs = results[0]['sum(cs)'];
+                cbs_cache[pi].ttl = cache_ttl;
                 results[0]['count(*)'] = cbs_cache[pi].cni;
                 fs.writeFileSync('cbs_cache.json', JSON.stringify(cbs_cache, null, 4), 'utf8');
                 callback(err, results);
@@ -1406,6 +1409,33 @@ exports.select_count_cin = function (pi, cs, callback) {
         }
     });
 };
+
+var cache_keep = 10 * 60 * 1000;
+var os = require('os');
+var cache_ttl = os.cpus().length * 3;
+
+function cache_ttl_manager() {
+    try {
+        var cbs_cache = JSON.parse(fs.readFileSync('cbs_cache.json', 'utf-8'));
+        for(var idx in cbs_cache) {
+            if(cbs_cache.hasOwnProperty(idx)) {
+                cbs_cache[idx].ttl--;
+                //console.log('ttl of cache of ' + idx + ' : ' + cbs_cache[idx].ttl);
+                if(cbs_cache[idx].ttl <= 0) {
+                    delete cbs_cache[idx];
+                    //console.log('delete cache of ' + idx);
+                }
+            }
+        }
+        fs.writeFileSync('cbs_cache.json', JSON.stringify(cbs_cache, null, 4), 'utf8');
+    }
+    catch (e) {
+        console.log("[sql_action - cache_ttl_manager] " + e.message);
+    }
+}
+
+var cache_tid = require('shortid').generate();
+wdt.set_wdt(cache_tid, cache_keep, cache_ttl_manager);
 
 
 exports.update_ts_mdcn_mdl = function (mdc, mdlt, ri, callback) {
