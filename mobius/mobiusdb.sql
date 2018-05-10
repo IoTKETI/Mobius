@@ -96,7 +96,6 @@ CREATE TABLE `cin` (
   UNIQUE KEY `ri_UNIQUE` (`ri`),
   KEY `cin_ri_idx` (`ri`),
   KEY `cin_pi_idx` (`pi`),
-  KEY `cin_cs_idx` (`cs`),
   CONSTRAINT `cin_ri` FOREIGN KEY (`ri`) REFERENCES `lookup` (`ri`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
@@ -216,17 +215,14 @@ CREATE TABLE `lookup` (
   `at` varchar(45) DEFAULT NULL,
   `aa` varchar(45) DEFAULT NULL,
   `st` varchar(45) DEFAULT NULL,
-  `mni` varchar(45) DEFAULT NULL,
-  `cs` varchar(45) DEFAULT NULL,
-  `cnf` varchar(45) DEFAULT NULL,
   `sri` varchar(45) DEFAULT NULL,
   `spi` varchar(45) DEFAULT NULL,
   PRIMARY KEY (`pi`,`ri`,`ct`,`ty`),
   UNIQUE KEY `ri_UNIQUE` (`ri`),
-  KEY `idx_lookup_cs` (`cs`),
-  KEY `idx_lookup_resourcetype` (`ty`,`ct`),
-  KEY `idx_lookup_parentid` (`pi`,`ct`),
-  KEY `idx_lookup_ct` (`ct`,`ri`)
+  KEY `idx_lookup_resourcetype` (`ty`),
+  KEY `idx_lookup_parentid` (`pi`),
+  KEY `idx_lookup_ct` (`ct`),
+  KEY `idx_lookup_st` (`st`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
@@ -347,11 +343,11 @@ DROP TABLE IF EXISTS `smd`;
 CREATE TABLE `smd` (
   `ri` varchar(200) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
   `cr` varchar(45) DEFAULT NULL,
-  `dsp` longtext,
+  `dcrp` longtext,
   `or` mediumtext,
+  `dsp` longtext,
   `soe` varchar(200) DEFAULT NULL,
   `rels` varchar(400) DEFAULT NULL,
-  `dcrp` longtext,
   PRIMARY KEY (`ri`),
   UNIQUE KEY `ri_UNIQUE` (`ri`),
   CONSTRAINT `sd_ri` FOREIGN KEY (`ri`) REFERENCES `lookup` (`ri`) ON DELETE CASCADE ON UPDATE CASCADE
@@ -496,12 +492,15 @@ DROP TABLE IF EXISTS `tsi`;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `tsi` (
   `ri` varchar(200) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
+  `pi` varchar(200) DEFAULT NULL,
   `dgt` varchar(45) DEFAULT NULL,
   `con` varchar(45) DEFAULT NULL,
   `sqn` varchar(45) DEFAULT NULL,
   `cr` varchar(45) DEFAULT NULL,
+  `cs` int(11) DEFAULT NULL,
   PRIMARY KEY (`ri`),
   UNIQUE KEY `ri_UNIQUE` (`ri`),
+  KEY `tsi_pi_idx` (`pi`),
   CONSTRAINT `tsi_ri` FOREIGN KEY (`ri`) REFERENCES `lookup` (`ri`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
@@ -515,4 +514,4 @@ CREATE TABLE `tsi` (
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2018-05-10 21:07:22
+-- Dump completed on 2018-05-10 23:56:48
