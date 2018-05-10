@@ -212,35 +212,35 @@ global.getType = function (p) {
     return type;
 };
 
-exports.insert_cin = function(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, cnf, cs, sri, spi, cr, or, con, callback) {
-    console.time('insert_cin ' + ri);
-    _this.select_st_parent(pi, function(err, result_st) {
+exports.insert_cin = function(obj, callback) {
+    console.time('insert_cin ' + obj.ri);
+    _this.select_st_parent(obj.pi, function(err, result_st) {
         if (!err && result_st.length == 1) {
             var st = (parseInt(result_st[0].st, 10) + 1).toString();
-            _this.insert_lookup(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st, sri, spi, function (err, results) {
+            _this.insert_lookup(obj.ty, obj.ri, obj.rn, obj.pi, obj.ct, obj.lt, obj.et, JSON.stringify(obj.acpi), JSON.stringify(obj.lbl), JSON.stringify(obj.at), JSON.stringify(obj.aa), st, obj.sri, obj.spi, function (err, results) {
                 if (!err) {
-                    var con_type = getType(con);
+                    var con_type = getType(obj.con);
                     if (con_type === 'string_object') {
                         try {
-                            con = JSON.parse(con);
+                            obj.con = JSON.parse(obj.con);
                         }
                         catch (e) {
                         }
                     }
-                    var sql = util.format('insert into cin (ri, cr, cnf, cs, cin.or, con) ' +
-                        'value (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
-                        ri, cr, cnf, cs, or,
-                        (con_type == 'string') ? con.replace(/'/g, "\\'") : JSON.stringify(con));
+                    var sql = util.format('insert into cin (ri, pi, cr, cnf, cs, cin.or, con) ' +
+                        'value (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
+                        obj.ri, obj.pi, obj.cr, obj.cnf, obj.cs, obj.or,
+                        (con_type == 'string') ? obj.con.replace(/'/g, "\\'") : JSON.stringify(obj.con));
                     db.getResult(sql, '', function (err, results) {
                         if (!err) {
                             //_this.select_resource('cnt', pi, function (err, spec_Obj) {
-                            _this.select_count_cin(pi, cs, function (err, spec_Obj) {
+                            _this.select_count_cin(obj.pi, obj.cs, function (err, spec_Obj) {
                                 if (!err) {
                                     var cni = spec_Obj[0]['count(*)'];
                                     var cbs = spec_Obj[0]['sum(cs)'];
-                                    _this.update_cni_parent(ty, cni, cbs, st, pi, function (err, results) {
+                                    _this.update_cni_parent(obj.ty, cni, cbs, st, obj.pi, function (err, results) {
                                         if (!err) {
-                                            console.timeEnd('insert_cin ' + ri);
+                                            console.timeEnd('insert_cin ' + obj.ri);
                                             results.cni = cni;
                                             results.cbs = cbs;
                                             results.st = st;
@@ -1382,33 +1382,25 @@ var cbs_cache_limit = 256;
 var cache_ttl = 3;
 
 exports.select_count_cin = function (pi, cs, callback) {
-    var sql = util.format("select count(*) from lookup where pi = \'%s\' and ty = \'4\'", pi);
+    var sql = util.format("select count(*) from cin where pi = \'%s\'", pi);
     db.getResult(sql, '', function (err, results) {
-
-        //var cbs_cache = JSON.parse(fs.readFileSync('cbs_cache.json', 'utf-8'));
         var cbs_cache = get_all_cbs_cache();
 
         if (cbs_cache.hasOwnProperty(pi)) {
             results[0]['sum(cs)'] = parseInt(cbs_cache[pi].cbs, 10) + parseInt(cs, 10);
             cbs_cache[pi].cbs = results[0]['sum(cs)'];
             cbs_cache[pi].ttl = cache_ttl;
-            //fs.writeFileSync('cbs_cache.json', JSON.stringify(cbs_cache, null, 4), 'utf8');
             set_cbs_cache(pi, cbs_cache[pi]);
             callback(null, results);
         }
         else {
-            // if (Object.keys(cbs_cache).length >= cbs_cache_limit) {
-            //     delete cbs_cache[Object.keys(cbs_cache)[0]];
-            // }
-
             cbs_cache[pi] = {};
             cbs_cache[pi].cni = results[0]['count(*)'];
-            var sql2 = 'select sum(cs) from cin where ri like \'' + pi + '/%\'';
+            var sql2 = 'select sum(cs) from cin where pi = \'' + pi + '\'';
             db.getResult(sql2, '', function (err, results) {
                 cbs_cache[pi].cbs = results[0]['sum(cs)'];
                 cbs_cache[pi].ttl = cache_ttl;
                 results[0]['count(*)'] = cbs_cache[pi].cni;
-                //fs.writeFileSync('cbs_cache.json', JSON.stringify(cbs_cache, null, 4), 'utf8');
                 set_cbs_cache(pi, cbs_cache[pi]);
                 callback(err, results);
             });

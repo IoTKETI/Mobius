@@ -209,7 +209,8 @@ function broadcast_ss_ri_cache() {
                 }
             }
         }
-    } else {
+    }
+    else {
         process.send({
             cmd: 'ss_ri:broadcast'
         });
@@ -272,7 +273,8 @@ function broadcast_cbs_cache() {
                 }
             }
         }
-    } else {
+    }
+    else {
         process.send({
             cmd: 'cbs:broadcast'
         });

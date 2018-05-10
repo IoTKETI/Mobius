@@ -550,10 +550,7 @@ function create_action(request, response, ty, resource_Obj, callback) {
     }
     else if (ty == '4') {
         //var ty = resource_Obj[rootnm].ty;
-        db_sql.insert_cin(resource_Obj[rootnm].ty, resource_Obj[rootnm].ri, resource_Obj[rootnm].rn, resource_Obj[rootnm].pi, resource_Obj[rootnm].ct,
-            resource_Obj[rootnm].lt, resource_Obj[rootnm].et, JSON.stringify(resource_Obj[rootnm].acpi), JSON.stringify(resource_Obj[rootnm].lbl), JSON.stringify(resource_Obj[rootnm].at),
-            JSON.stringify(resource_Obj[rootnm].aa), resource_Obj[rootnm].cnf, resource_Obj[rootnm].cs, resource_Obj[rootnm].sri, resource_Obj[rootnm].spi,
-            resource_Obj[rootnm].cr, resource_Obj[rootnm].or, resource_Obj[rootnm].con, function (err, results) {
+        db_sql.insert_cin(resource_Obj[rootnm], function (err, results) {
                 if (!err) {
                     var cni = results.cni;
                     var cbs = results.cbs;

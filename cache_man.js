@@ -45,7 +45,7 @@ function ss_ri_cache_ttl_manager() {
 wdt.set_wdt(require('shortid').generate(), ss_ri_cache_keep, ss_ri_cache_ttl_manager);
 
 
-var cbs_cache_keep = 10;
+var cbs_cache_keep = 10 * 60;
 function cbs_cache_ttl_manager() {
     try {
         var cbs_cache = get_all_cbs_cache();

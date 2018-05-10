@@ -735,6 +735,8 @@ exports.response_noti_handler = function(topic, message) {
                         if(idx == jsonObj['m2m:rsp'].rqi) {
                             var ri = ss_ri_cache[idx].ri;
 
+                            noti_mqtt.unsubscribe(topic);
+
                             console.log('----> [response_noti_mqtt - ' + ss_fail_count[ri] + '] ' + jsonObj['m2m:rsp'].rsc + ' - ' + topic);
                             NOPRINT === 'true' ? NOPRINT = 'true' : console.log(message.toString());
 
