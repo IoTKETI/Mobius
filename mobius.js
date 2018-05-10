@@ -114,11 +114,11 @@ catch (e) {
     fs.writeFileSync('hit.json', JSON.stringify(hit, null, 4), 'utf8');
 }
 
-var cbs_cache = {};
-fs.writeFileSync('cbs_cache.json', JSON.stringify(cbs_cache, null, 4), 'utf8');
+//var cbs_cache = {};
+//fs.writeFileSync('cbs_cache.json', JSON.stringify(cbs_cache, null, 4), 'utf8');
 
-var ss_ri_cache = {};
-fs.writeFileSync('ss_ri_cache.json', JSON.stringify(ss_ri_cache, null, 4), 'utf8');
+//var ss_ri_cache = {};
+//fs.writeFileSync('ss_ri_cache.json', JSON.stringify(ss_ri_cache, null, 4), 'utf8');
 
 // CSE core
 require('./app');

@@ -9,7 +9,7 @@
  */
 
 /**
- * @file Main code of Mobius Yellow. Role of flow router
+ * @file Main code of Mobius. Role of flow router
  * @copyright KETI Korea 2018, KETI
  * @author Il Yeup Ahn [iyahn@keti.re.kr]
  */
@@ -153,9 +153,160 @@ var cluster = require('cluster');
 var os = require('os');
 var cpuCount = os.cpus().length;
 var worker = [];
+var ss_ri_cache = {};
+
+global.get_ss_ri_cache = function (name) {
+    return ss_ri_cache[name];
+};
+
+global.get_all_ss_ri_cache = function () {
+    return ss_ri_cache;
+};
+
+global.set_ss_ri_cache = function (name, val) {
+    ss_ri_cache[name] = val;
+
+    if ( cluster.isWorker ) {
+        process.send({
+            cmd: 'ss_ri:edit-request',
+            name: name,
+            val: val
+        });
+    }
+    else {
+        broadcast_ss_ri_cache();
+    }
+};
+
+global.del_ss_ri_cache = function (name) {
+    delete ss_ri_cache[name];
+
+    if ( cluster.isWorker ) {
+        process.send({
+            cmd: 'ss_ri:del-request',
+            name: name
+        });
+    }
+    else {
+        broadcast_ss_ri_cache();
+    }
+};
+
+function broadcast_ss_ri_cache() {
+    if ( cluster.isMaster ) {
+        for (var id in cluster.workers) {
+            if(cluster.workers.hasOwnProperty(id)) {
+                var worker = cluster.workers[id];
+
+                for(var idx in ss_ri_cache) {
+                    if(ss_ri_cache.hasOwnProperty(idx)) {
+                        worker.send({
+                            cmd: 'ss_ri:edit',
+                            name: idx,
+                            val: ss_ri_cache[idx]
+                        });
+                    }
+                }
+            }
+        }
+    } else {
+        process.send({
+            cmd: 'ss_ri:broadcast'
+        });
+    }
+}
+
+var cbs_cache = {};
+
+global.get_cbs_cache = function (name) {
+    return cbs_cache[name];
+};
+
+global.get_all_cbs_cache = function () {
+    return cbs_cache;
+};
+
+global.set_cbs_cache = function (name, val) {
+    cbs_cache[name] = val;
+
+    if ( cluster.isWorker ) {
+        process.send({
+            cmd: 'cbs:edit-request',
+            name: name,
+            val: val
+        });
+    }
+    else {
+        broadcast_cbs_cache();
+    }
+};
+
+global.del_cbs_cache = function (name) {
+    delete cbs_cache[name];
+
+    if ( cluster.isWorker ) {
+        process.send({
+            cmd: 'cbs:del-request',
+            name: name
+        });
+    }
+    else {
+        broadcast_cbs_cache();
+    }
+};
+
+function broadcast_cbs_cache() {
+    if ( cluster.isMaster ) {
+        for (var id in cluster.workers) {
+            if(cluster.workers.hasOwnProperty(id)) {
+                var worker = cluster.workers[id];
+
+                for(var idx in cbs_cache) {
+                    if(cbs_cache.hasOwnProperty(idx)) {
+                        worker.send({
+                            cmd: 'cbs:edit',
+                            name: idx,
+                            val: cbs_cache[idx]
+                        });
+                    }
+                }
+            }
+        }
+    } else {
+        process.send({
+            cmd: 'cbs:broadcast'
+        });
+    }
+}
+
 var use_clustering = 1;
 if (use_clustering) {
     if (cluster.isMaster) {
+        cluster.on('message', function(worker, message) {
+            if(message.cmd === 'ss_ri:edit-request' ) {
+                ss_ri_cache[message.name] = message.val;
+                broadcast_ss_ri_cache();
+            }
+            else if(message.cmd === 'ss_ri:del-request' ) {
+                delete ss_ri_cache[message.name];
+                broadcast_ss_ri_cache();
+            }
+            else if (message.cmd === 'ss_ri:broadcast') {
+                broadcast_ss_ri_cache();
+            }
+            else if(message.cmd === 'cbs:edit-request' ) {
+                cbs_cache[message.name] = message.val;
+                broadcast_cbs_cache();
+            }
+            else if(message.cmd === 'cbs:del-request' ) {
+                delete cbs_cache[message.name];
+                broadcast_cbs_cache();
+            }
+            else if (message.cmd === 'cbs:broadcast') {
+                broadcast_cbs_cache();
+            }
+        });
+
         cluster.on('death', function (worker) {
             console.log('worker' + worker.pid + ' died --> start again');
             cluster.fork();
@@ -177,6 +328,7 @@ if (use_clustering) {
                     require('./pxy_mqtt');
                     require('./pxy_coap');
                     require('./pxy_ws');
+                    require('./cache_man');
 
                     if (usecsetype == 'mn' || usecsetype == 'asn') {
                         global.refreshIntervalId = setInterval(function () {
@@ -192,6 +344,16 @@ if (use_clustering) {
         //   app.use(bodyParser.json({limit: '1mb', type: 'application/*+json' }));
         //   app.use(bodyParser.text({limit: '1mb', type: 'application/*+xml' }));
 
+        process.on('message', function (message) {
+            if (message.cmd === 'ss_ri:edit') {
+                ss_ri_cache[message.name] = message.val;
+                //console.log(ss_ri_cache);
+            }
+            else if (message.cmd === 'cbs:edit') {
+                cbs_cache[message.name] = message.val;
+                //console.log(cbs_cache);
+            }
+        });
 
         db.connect(usedbhost, 3306, 'root', usedbpass, function (rsc) {
             if (rsc == '1') {
@@ -1995,16 +2157,17 @@ function lookup_delete(request, response) {
                                 makeObject(results_spec[0]);
                                 results_comm = merge(results_comm, results_spec[0]);
 
-                                var cbs_cache = JSON.parse(fs.readFileSync('cbs_cache.json', 'utf-8'));
-                                var cache_key = Object.keys(cbs_cache);
-                                for(var idx in cache_key) {
-                                    if(cache_key.hasOwnProperty(idx)) {
-                                        if(cache_key[idx].includes(results_comm.ri)) {
-                                            delete cbs_cache[cache_key[idx]];
+                                //var cbs_cache = JSON.parse(fs.readFileSync('cbs_cache.json', 'utf-8'));
+                                var cbs_cache = get_all_cbs_cache();
+                                for(var idx in cbs_cache) {
+                                    if(cbs_cache.hasOwnProperty(idx)) {
+                                        if(idx.includes(results_comm.ri)) {
+                                            delete cbs_cache[idx];
+                                            del_cbs_cache(idx);
                                         }
                                     }
                                 }
-                                fs.writeFileSync('cbs_cache.json', JSON.stringify(cbs_cache, null, 4), 'utf8');
+                                //fs.writeFileSync('cbs_cache.json', JSON.stringify(cbs_cache, null, 4), 'utf8');
 
                                 resource.delete(request, response, results_comm);
                             });

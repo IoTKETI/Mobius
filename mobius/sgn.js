@@ -729,10 +729,9 @@ exports.response_noti_handler = function(topic, message) {
                     jsonObj['m2m:rsp'] = jsonObj;
                 }
 
-                var ss_ri_cache = JSON.parse(fs.readFileSync('ss_ri_cache.json', 'utf-8'));
-
-                for(var idx in ss_ri_cache) {
-                    if(ss_ri_cache.hasOwnProperty(idx)) {
+                var ss_ri_cache = get_all_ss_ri_cache();
+                for (var idx in ss_ri_cache) {
+                    if (ss_ri_cache.hasOwnProperty(idx)) {
                         if(idx == jsonObj['m2m:rsp'].rqi) {
                             var ri = ss_ri_cache[idx].ri;
 
@@ -742,12 +741,11 @@ exports.response_noti_handler = function(topic, message) {
                             ss_fail_count[ri] = 0;
                             delete ss_fail_count[ri];
                             delete ss_ri_cache[idx];
-                            break;
+
+                            del_ss_ri_cache(idx);
                         }
                     }
                 }
-
-                fs.writeFileSync('ss_ri_cache.json', JSON.stringify(ss_ri_cache, null, 4), 'utf8');
             }
             else {
                 console.log('[response_noti_mqtt] parsing error');
@@ -756,6 +754,7 @@ exports.response_noti_handler = function(topic, message) {
     }
 };
 
+var cache_ttl = 2;
 function request_noti_mqtt(nu, ri, bodyString, bodytype, xm2mri) {
     if(noti_mqtt == null) {
         console.log('[request_noti_mqtt] noti_mqtt is not connected to Mobius');
@@ -766,8 +765,6 @@ function request_noti_mqtt(nu, ri, bodyString, bodytype, xm2mri) {
         var aeid = url.parse(nu).pathname.replace('/', '').split('?')[0];
         var noti_resp_topic = '/oneM2M/resp/' + usecseid.replace('/', '') + '/' + aeid + '/' + bodytype;
         var noti_resp_topic2 = '/oneM2M/resp/' + usecsebase + '/' + aeid + '/' + bodytype;
-
-        var ss_ri_cache = JSON.parse(fs.readFileSync('ss_ri_cache.json', 'utf-8'));
 
         if(ss_fail_count[ri] == null) {
             ss_fail_count[ri] = 0;
@@ -780,11 +777,12 @@ function request_noti_mqtt(nu, ri, bodyString, bodytype, xm2mri) {
             console.log('      [request_noti_mqtt - ' + ss_fail_count[ri] + '] remove subscription because no response');
         }
         else {
+            var ss_ri_cache = get_all_ss_ri_cache();
             ss_ri_cache[xm2mri] = {};
             ss_ri_cache[xm2mri].ri = ri;
             ss_ri_cache[xm2mri].ttl = cache_ttl;
 
-            fs.writeFileSync('ss_ri_cache.json', JSON.stringify(ss_ri_cache, null, 4), 'utf8');
+            set_ss_ri_cache(xm2mri, ss_ri_cache[xm2mri]);
 
             //noti_mqtt.unsubscribe(noti_resp_topic);
             noti_mqtt.subscribe(noti_resp_topic);
@@ -804,34 +802,6 @@ function request_noti_mqtt(nu, ri, bodyString, bodytype, xm2mri) {
         console.log('can not send notification to ' + nu);
     }
 }
-
-var cache_keep = 10;
-var os = require('os');
-var cache_ttl = os.cpus().length * 2;
-
-function cache_ttl_manager() {
-    try {
-        var ss_ri_cache = JSON.parse(fs.readFileSync('ss_ri_cache.json', 'utf-8'));
-        for (var idx in ss_ri_cache) {
-            if (ss_ri_cache.hasOwnProperty(idx)) {
-                ss_ri_cache[idx].ttl--;
-                //console.log('ttl of cache of ' + idx + ' : ' + ss_ri_cache[idx].ttl);
-                if (ss_ri_cache[idx].ttl <= 0) {
-                    delete ss_ri_cache[idx];
-                    //console.log('delete cache of ' + idx);
-                }
-            }
-        }
-        fs.writeFileSync('ss_ri_cache.json', JSON.stringify(ss_ri_cache, null, 4), 'utf8');
-    }
-    catch (e) {
-        console.log("[sgn - cache_ttl_manager] " + e.message);
-    }
-}
-
-var cache_tid = require('shortid').generate();
-wdt.set_wdt(cache_tid, cache_keep, cache_ttl_manager);
-
 
 function request_noti_ws(nu, ri, bodyString, bodytype, xm2mri) {
     var bodyStr = '';
