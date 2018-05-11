@@ -198,15 +198,20 @@ function broadcast_ss_ri_cache() {
             if(cluster.workers.hasOwnProperty(id)) {
                 var worker = cluster.workers[id];
 
-                for(var idx in ss_ri_cache) {
-                    if(ss_ri_cache.hasOwnProperty(idx)) {
-                        worker.send({
-                            cmd: 'ss_ri:edit',
-                            name: idx,
-                            val: ss_ri_cache[idx]
-                        });
-                    }
-                }
+                worker.send({
+                    cmd: 'ss_ri:edit',
+                    data: ss_ri_cache
+                });
+
+                // for(var idx in ss_ri_cache) {
+                //     if(ss_ri_cache.hasOwnProperty(idx)) {
+                //         worker.send({
+                //             cmd: 'ss_ri:edit',
+                //             name: idx,
+                //             val: ss_ri_cache[idx]
+                //         });
+                //     }
+                // }
             }
         }
     }
@@ -262,15 +267,20 @@ function broadcast_cbs_cache() {
             if(cluster.workers.hasOwnProperty(id)) {
                 var worker = cluster.workers[id];
 
-                for(var idx in cbs_cache) {
-                    if(cbs_cache.hasOwnProperty(idx)) {
-                        worker.send({
-                            cmd: 'cbs:edit',
-                            name: idx,
-                            val: cbs_cache[idx]
-                        });
-                    }
-                }
+                worker.send({
+                    cmd: 'cbs:edit',
+                    data: cbs_cache
+                });
+
+                // for(var idx in cbs_cache) {
+                //     if(cbs_cache.hasOwnProperty(idx)) {
+                //         worker.send({
+                //             cmd: 'cbs:edit',
+                //             name: idx,
+                //             val: cbs_cache[idx]
+                //         });
+                //     }
+                // }
             }
         }
     }
@@ -348,11 +358,13 @@ if (use_clustering) {
 
         process.on('message', function (message) {
             if (message.cmd === 'ss_ri:edit') {
-                ss_ri_cache[message.name] = message.val;
+                //ss_ri_cache[message.name] = message.val;
+                ss_ri_cache = message.data;
                 //console.log(ss_ri_cache);
             }
             else if (message.cmd === 'cbs:edit') {
-                cbs_cache[message.name] = message.val;
+                //cbs_cache[message.name] = message.val;
+                cbs_cache = message.data;
                 //console.log(cbs_cache);
             }
         });
