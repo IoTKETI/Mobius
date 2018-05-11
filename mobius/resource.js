@@ -940,10 +940,7 @@ function create_action(request, response, ty, resource_Obj, callback) {
             });
     }
     else if (ty == '30') {
-        db_sql.insert_tsi(resource_Obj[rootnm].ty, resource_Obj[rootnm].ri, resource_Obj[rootnm].rn, resource_Obj[rootnm].pi, resource_Obj[rootnm].ct,
-            resource_Obj[rootnm].lt, resource_Obj[rootnm].et, JSON.stringify(resource_Obj[rootnm].acpi), JSON.stringify(resource_Obj[rootnm].lbl), JSON.stringify(resource_Obj[rootnm].at),
-            JSON.stringify(resource_Obj[rootnm].aa), resource_Obj[rootnm].st, resource_Obj[rootnm].sri, resource_Obj[rootnm].spi,
-            resource_Obj[rootnm].dgt, resource_Obj[rootnm].con, resource_Obj[rootnm].sqn, function (err, results) {
+        db_sql.insert_tsi(resource_Obj[rootnm], function (err, results) {
                 if (!err) {
                     var ty = resource_Obj[rootnm].ty;
                     var pi = resource_Obj[rootnm].pi;

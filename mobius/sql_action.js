@@ -622,20 +622,20 @@ exports.insert_ts = function(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st, 
     });
 };
 
-exports.insert_tsi = function(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st, sri, spi, dgt, con, sqn, callback) {
-    console.time('insert_tsi ' + ri);
-    _this.insert_lookup(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st, sri, spi, function (err, results) {
+exports.insert_tsi = function(obj, callback) {
+    console.time('insert_tsi ' + obj.ri);
+    _this.insert_lookup(obj.ty, obj.ri, obj.rn, obj.pi, obj.ct, obj.lt, obj.et, JSON.stringify(obj.acpi), JSON.stringify(obj.lbl), JSON.stringify(obj.at), JSON.stringify(obj.aa), obj.st, obj.sri, obj.spi, function (err, results) {
         if(!err) {
-            var sql = util.format('insert into tsi (ri, dgt, con, sqn) ' +
-                'value (\'%s\', \'%s\', \'%s\', \'%s\')',
-                ri, dgt, con, sqn);
+            var sql = util.format('insert into tsi (ri, pi, dgt, con, sqn, cs) ' +
+                'value (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
+                obj.ri, obj.pi, obj.dgt, obj.con, obj.sqn, obj.cs);
             db.getResult(sql, '', function (err, results) {
                 if(!err) {
-                    console.timeEnd('insert_tsi ' + ri);
+                    console.timeEnd('insert_tsi ' + obj.ri);
                     callback(err, results);
                 }
                 else {
-                    sql = util.format("delete from lookup where ri = \'%s\'", ri);
+                    sql = util.format("delete from lookup where ri = \'%s\'", obj.ri);
                     db.getResult(sql, '', function () {
                         callback(err, results);
                     });
@@ -1367,10 +1367,10 @@ exports.select_ts_in = function (ri_list, callback) {
 };
 
 exports.select_count_ri = function (ty, ri, callback) {
-    var sql = util.format("select count(*) from lookup where pi = \'%s\' and ty = \'%s\'", ri, ty);
+    var sql = 'select count(*) from ' + responder.typeRsrc[ty] + ' where pi = \'' + ri + '\'';
     db.getResult(sql, '', function (err, results) {
         var cni = results[0]['count(*)'];
-        var sql2 = 'select sum(cs) from ' + responder.typeRsrc[ty] + ' where ri like \'' + ri + '/%\'';
+        var sql2 = 'select sum(cs) from ' + responder.typeRsrc[ty] + ' where pi = \'' + ri + '\'';
         db.getResult(sql2, '', function (err, results) {
             results[0]['count(*)'] = cni;
             callback(err, results);
@@ -1382,7 +1382,7 @@ var cbs_cache_limit = 256;
 var cache_ttl = 3;
 
 exports.select_count_cin = function (pi, cs, callback) {
-    var sql = util.format("select count(*) from cin where pi = \'%s\'", pi);
+    var sql = 'select count(*) from cin where pi = \'' + pi + '\'';
     db.getResult(sql, '', function (err, results) {
         var cbs_cache = get_all_cbs_cache();
 
