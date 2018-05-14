@@ -85,17 +85,16 @@ DROP TABLE IF EXISTS `cin`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `cin` (
+  `pi` varchar(200) NOT NULL,
   `ri` varchar(200) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
-  `pi` varchar(200) DEFAULT NULL,
+  `cs` int(11) DEFAULT NULL,
   `cr` varchar(45) DEFAULT NULL,
   `cnf` varchar(45) DEFAULT NULL,
-  `cs` int(11) DEFAULT NULL,
   `or` varchar(45) DEFAULT NULL,
   `con` longtext,
-  PRIMARY KEY (`ri`),
+  PRIMARY KEY (`ri`,`pi`),
   UNIQUE KEY `ri_UNIQUE` (`ri`),
-  KEY `cin_ri_idx` (`ri`),
-  KEY `cin_pi_idx` (`pi`),
+  KEY `cin_ri_idx` (`pi`,`ri`,`cs`),
   CONSTRAINT `cin_ri` FOREIGN KEY (`ri`) REFERENCES `lookup` (`ri`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
@@ -205,24 +204,22 @@ DROP TABLE IF EXISTS `lookup`;
 CREATE TABLE `lookup` (
   `pi` varchar(200) NOT NULL,
   `ri` varchar(200) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
+  `ty` int(11) NOT NULL,
   `ct` varchar(15) NOT NULL,
-  `ty` varchar(8) NOT NULL,
+  `st` int(11) NOT NULL,
   `rn` varchar(45) NOT NULL,
   `lt` varchar(45) NOT NULL,
-  `et` varchar(45) DEFAULT NULL,
-  `acpi` varchar(200) DEFAULT NULL,
-  `lbl` varchar(200) DEFAULT NULL,
-  `at` varchar(45) DEFAULT NULL,
-  `aa` varchar(45) DEFAULT NULL,
-  `st` varchar(45) DEFAULT NULL,
-  `sri` varchar(45) DEFAULT NULL,
-  `spi` varchar(45) DEFAULT NULL,
-  PRIMARY KEY (`pi`,`ri`,`ct`,`ty`),
+  `et` varchar(45) NOT NULL,
+  `acpi` varchar(200) NOT NULL,
+  `lbl` varchar(200) NOT NULL,
+  `at` varchar(45) NOT NULL,
+  `aa` varchar(45) NOT NULL,
+  `sri` varchar(45) NOT NULL,
+  `spi` varchar(45) NOT NULL,
+  PRIMARY KEY (`pi`,`ri`,`ty`),
   UNIQUE KEY `ri_UNIQUE` (`ri`),
-  KEY `idx_lookup_resourcetype` (`ty`),
-  KEY `idx_lookup_parentid` (`pi`),
-  KEY `idx_lookup_ct` (`ct`),
-  KEY `idx_lookup_st` (`st`)
+  KEY `idx_lookup_ty` (`ty`) USING BTREE,
+  KEY `idx_lookup_pi` (`pi`,`st`,`ct`) USING BTREE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
@@ -343,11 +340,11 @@ DROP TABLE IF EXISTS `smd`;
 CREATE TABLE `smd` (
   `ri` varchar(200) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
   `cr` varchar(45) DEFAULT NULL,
-  `dcrp` longtext,
-  `or` mediumtext,
   `dsp` longtext,
+  `or` mediumtext,
   `soe` varchar(200) DEFAULT NULL,
   `rels` varchar(400) DEFAULT NULL,
+  `dcrp` longtext,
   PRIMARY KEY (`ri`),
   UNIQUE KEY `ri_UNIQUE` (`ri`),
   CONSTRAINT `sd_ri` FOREIGN KEY (`ri`) REFERENCES `lookup` (`ri`) ON DELETE CASCADE ON UPDATE CASCADE
@@ -491,16 +488,15 @@ DROP TABLE IF EXISTS `tsi`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `tsi` (
+  `pi` varchar(200) NOT NULL,
   `ri` varchar(200) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
-  `pi` varchar(200) DEFAULT NULL,
+  `cs` int(11) DEFAULT NULL,
   `dgt` varchar(45) DEFAULT NULL,
   `con` varchar(45) DEFAULT NULL,
   `sqn` varchar(45) DEFAULT NULL,
   `cr` varchar(45) DEFAULT NULL,
-  `cs` int(11) DEFAULT NULL,
-  PRIMARY KEY (`ri`),
+  PRIMARY KEY (`pi`,`ri`),
   UNIQUE KEY `ri_UNIQUE` (`ri`),
-  KEY `tsi_pi_idx` (`pi`),
   CONSTRAINT `tsi_ri` FOREIGN KEY (`ri`) REFERENCES `lookup` (`ri`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
@@ -514,4 +510,4 @@ CREATE TABLE `tsi` (
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2018-05-10 23:56:48
+-- Dump completed on 2018-05-14 13:04:27

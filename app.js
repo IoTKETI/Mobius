@@ -291,6 +291,65 @@ function broadcast_cbs_cache() {
     }
 }
 
+var hit_cache = {};
+
+global.get_hit_cache = function (name) {
+    return hit_cache[name];
+};
+
+global.get_all_hit_cache = function () {
+    return hit_cache;
+};
+
+global.set_hit_cache = function (name, val) {
+    hit_cache[name] = val;
+
+    if ( cluster.isWorker ) {
+        process.send({
+            cmd: 'hit:edit-request',
+            name: name,
+            val: val
+        });
+    }
+    else {
+        broadcast_hit_cache();
+    }
+};
+
+global.del_hit_cache = function (name) {
+    delete hit_cache[name];
+
+    if ( cluster.isWorker ) {
+        process.send({
+            cmd: 'hit:del-request',
+            name: name
+        });
+    }
+    else {
+        broadcast_hit_cache();
+    }
+};
+
+function broadcast_hit_cache() {
+    if ( cluster.isMaster ) {
+        for (var id in cluster.workers) {
+            if(cluster.workers.hasOwnProperty(id)) {
+                var worker = cluster.workers[id];
+
+                worker.send({
+                    cmd: 'hit:edit',
+                    data: hit_cache
+                });
+            }
+        }
+    }
+    else {
+        process.send({
+            cmd: 'hit:broadcast'
+        });
+    }
+}
+
 var use_clustering = 1;
 if (use_clustering) {
     if (cluster.isMaster) {
@@ -317,6 +376,18 @@ if (use_clustering) {
             }
             else if (message.cmd === 'cbs:broadcast') {
                 broadcast_cbs_cache();
+            }
+            else if(message.cmd === 'hit:edit-request' ) {
+                hit_cache[message.name] = message.val;
+                broadcast_hit_cache();
+                fs.writeFileSync('hit.json', JSON.stringify(hit_cache, null, 4), 'utf8');
+            }
+            else if(message.cmd === 'hit:del-request' ) {
+                delete hit_cache[message.name];
+                broadcast_hit_cache();
+            }
+            else if (message.cmd === 'hit:broadcast') {
+                broadcast_hit_cache();
             }
         });
 
@@ -347,6 +418,26 @@ if (use_clustering) {
                         var _cbs_cache = {};
                         fs.writeFileSync('cbs_cache.json', JSON.stringify(_cbs_cache, null, 4), 'utf8');
                         broadcast_cbs_cache();
+                    }
+
+                    try {
+                        var hitStr = fs.readFileSync('hit.json', 'utf8');
+                        var hit = JSON.parse(hitStr);
+                        broadcast_hit_cache();
+                    }
+                    catch (e) {
+                        var moment = require('moment');
+                        var a = moment().utc();
+                        var cur_t = a.format('YYYYMMDD');
+                        var _hit = {};
+                        if (!_hit.hasOwnProperty(cur_t)) {
+                            _hit[cur_t] = [];
+                            for (var h = 0; h < 24; h++) {
+                                _hit[cur_t].push({});
+                            }
+                        }
+                        fs.writeFileSync('hit.json', JSON.stringify(hit, null, 4), 'utf8');
+                        broadcast_hit_cache();
                     }
 
                     require('./pxy_mqtt');
@@ -2227,27 +2318,27 @@ function lookup_delete(request, response) {
 
 function updateHitCount(binding) {
     try {
-        var hit = JSON.parse(fs.readFileSync('hit.json', 'utf-8'));
+        var _hit = get_all_hit_cache();
 
         var a = moment().utc();
         var cur_t = a.format('YYYYMMDD');
         var h = a.hours();
 
-        if (!hit.hasOwnProperty(cur_t)) {
-            hit[cur_t] = [];
+        if (!_hit.hasOwnProperty(cur_t)) {
+            _hit[cur_t] = [];
             for (var i = 0; i < 24; i++) {
-                hit[cur_t].push({});
+                _hit[cur_t].push({});
             }
         }
 
-        if (!hit[cur_t][h].hasOwnProperty(binding)) {
-            hit[cur_t][h][binding] = 0;
+        if (!_hit[cur_t][h].hasOwnProperty(binding)) {
+            _hit[cur_t][h][binding] = 0;
         }
 
-        hit[cur_t][h][binding]++;
+        _hit[cur_t][h][binding]++;
 
         //console.log(hit);
-        fs.writeFileSync('hit.json', JSON.stringify(hit, null, 4), 'utf8');
+        set_hit_cache(cur_t, _hit[cur_t]);
     }
     catch (e) {
         console.log('[updateHitCount] ' + e.message);
@@ -2399,8 +2490,8 @@ app.get(onem2mParser, function (request, response) {
                 absolute_url = (results.length == 0) ? absolute_url : ((results[0].hasOwnProperty('ri')) ? absolute_url.replace('/' + absolute_url_arr[1], results[0].ri) : absolute_url);
 
                 if (url.parse(absolute_url).pathname == '/hit') {
-                    var hit = JSON.parse(fs.readFileSync('hit.json', 'utf-8'));
-                    response.status(200).end(JSON.stringify(hit, null, 4));
+                    var _hit = get_all_hit_cache();
+                    response.status(200).end(JSON.stringify(_hit, null, 4));
                     return;
                 }
 

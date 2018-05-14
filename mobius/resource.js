@@ -1780,87 +1780,89 @@ function search_action(request, response, seq, resource_Obj, ri_list, strObj, pr
 }
 
 global.makeObject = function (obj) {
-    if (obj.hasOwnProperty('aa')) {
-        obj.aa = JSON.parse(obj.aa);
-    }
-    if (obj.hasOwnProperty('at')) {
-        obj.at = JSON.parse(obj.at);
-    }
-    if (obj.hasOwnProperty('lbl')) {
-        obj.lbl = JSON.parse(obj.lbl);
-    }
-    if (obj.hasOwnProperty('srt')) {
-        obj.srt = JSON.parse(obj.srt);
-    }
-    if (obj.hasOwnProperty('nu')) {
-        obj.nu = JSON.parse(obj.nu);
-    }
-    if (obj.hasOwnProperty('acpi')) {
-        obj.acpi = JSON.parse(obj.acpi);
-    }
-    if (obj.hasOwnProperty('poa')) {
-        obj.poa = JSON.parse(obj.poa);
-    }
-    if (obj.hasOwnProperty('enc')) {
-        obj.enc = JSON.parse(obj.enc);
-    }
-    if (obj.hasOwnProperty('bn')) {
-        obj.bn = JSON.parse(obj.bn);
-    }
-    if (obj.hasOwnProperty('pv')) {
-        obj.pv = JSON.parse(obj.pv);
-    }
-    if (obj.hasOwnProperty('pvs')) {
-        obj.pvs = JSON.parse(obj.pvs);
-    }
-    if (obj.hasOwnProperty('mid')) {
-        obj.mid = JSON.parse(obj.mid);
-    }
-    if (obj.hasOwnProperty('uds')) {
-        obj.uds = JSON.parse(obj.uds);
-    }
-    if (obj.hasOwnProperty('cas')) {
-        obj.cas = JSON.parse(obj.cas);
-    }
-    if (obj.hasOwnProperty('macp')) {
-        obj.macp = JSON.parse(obj.macp);
-    }
-    if (obj.hasOwnProperty('rels')) {
-        obj.rels = JSON.parse(obj.rels);
-    }
-    if (obj.hasOwnProperty('rqps')) {
-        obj.rqps = JSON.parse(obj.rqps);
-    }
-    if (obj.hasOwnProperty('rsps')) {
-        obj.rsps = JSON.parse(obj.rsps);
-    }
-    if (obj.hasOwnProperty('trqp')) {
-        var trqp_type = getType(obj.trqp);
-        if (trqp_type === 'object' || trqp_type === 'array' || trqp_type === 'string_object') {
-            try {
-                obj.trqp = JSON.parse(obj.trqp);
-            }
-            catch (e) {
+    if(getType(obj) == 'object') {
+        if (obj.hasOwnProperty('aa')) {
+            obj.aa = JSON.parse(obj.aa);
+        }
+        if (obj.hasOwnProperty('at')) {
+            obj.at = JSON.parse(obj.at);
+        }
+        if (obj.hasOwnProperty('lbl')) {
+            obj.lbl = JSON.parse(obj.lbl);
+        }
+        if (obj.hasOwnProperty('srt')) {
+            obj.srt = JSON.parse(obj.srt);
+        }
+        if (obj.hasOwnProperty('nu')) {
+            obj.nu = JSON.parse(obj.nu);
+        }
+        if (obj.hasOwnProperty('acpi')) {
+            obj.acpi = JSON.parse(obj.acpi);
+        }
+        if (obj.hasOwnProperty('poa')) {
+            obj.poa = JSON.parse(obj.poa);
+        }
+        if (obj.hasOwnProperty('enc')) {
+            obj.enc = JSON.parse(obj.enc);
+        }
+        if (obj.hasOwnProperty('bn')) {
+            obj.bn = JSON.parse(obj.bn);
+        }
+        if (obj.hasOwnProperty('pv')) {
+            obj.pv = JSON.parse(obj.pv);
+        }
+        if (obj.hasOwnProperty('pvs')) {
+            obj.pvs = JSON.parse(obj.pvs);
+        }
+        if (obj.hasOwnProperty('mid')) {
+            obj.mid = JSON.parse(obj.mid);
+        }
+        if (obj.hasOwnProperty('uds')) {
+            obj.uds = JSON.parse(obj.uds);
+        }
+        if (obj.hasOwnProperty('cas')) {
+            obj.cas = JSON.parse(obj.cas);
+        }
+        if (obj.hasOwnProperty('macp')) {
+            obj.macp = JSON.parse(obj.macp);
+        }
+        if (obj.hasOwnProperty('rels')) {
+            obj.rels = JSON.parse(obj.rels);
+        }
+        if (obj.hasOwnProperty('rqps')) {
+            obj.rqps = JSON.parse(obj.rqps);
+        }
+        if (obj.hasOwnProperty('rsps')) {
+            obj.rsps = JSON.parse(obj.rsps);
+        }
+        if (obj.hasOwnProperty('trqp')) {
+            var trqp_type = getType(obj.trqp);
+            if (trqp_type === 'object' || trqp_type === 'array' || trqp_type === 'string_object') {
+                try {
+                    obj.trqp = JSON.parse(obj.trqp);
+                }
+                catch (e) {
+                }
             }
         }
-    }
-    if (obj.hasOwnProperty('trsp')) {
-        var trsp_type = getType(obj.trsp);
-        if (trsp_type === 'object' || trsp_type === 'array' || trsp_type === 'string_object') {
-            try {
-                obj.trsp = JSON.parse(obj.trsp);
-            }
-            catch (e) {
+        if (obj.hasOwnProperty('trsp')) {
+            var trsp_type = getType(obj.trsp);
+            if (trsp_type === 'object' || trsp_type === 'array' || trsp_type === 'string_object') {
+                try {
+                    obj.trsp = JSON.parse(obj.trsp);
+                }
+                catch (e) {
+                }
             }
         }
-    }
-    if (obj.hasOwnProperty('con')) {
-        var con_type = getType(obj.con);
-        if (con_type === 'object' || con_type === 'array' || con_type === 'string_object') {
-            try {
-                obj.con = JSON.parse(obj.con);
-            }
-            catch (e) {
+        if (obj.hasOwnProperty('con')) {
+            var con_type = getType(obj.con);
+            if (con_type === 'object' || con_type === 'array' || con_type === 'string_object') {
+                try {
+                    obj.con = JSON.parse(obj.con);
+                }
+                catch (e) {
+                }
             }
         }
     }
