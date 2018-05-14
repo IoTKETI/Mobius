@@ -23,14 +23,13 @@ function ss_ri_cache_ttl_manager() {
         var ss_ri_cache = get_all_ss_ri_cache();
         for (var idx in ss_ri_cache) {
             if (ss_ri_cache.hasOwnProperty(idx)) {
-
+                ss_ri_cache[idx].ttl--;
                 if (ss_ri_cache[idx].ttl <= 0) {
                     delete ss_ri_cache[idx];
                     console.log('delete cache of ' + idx);
                     del_ss_ri_cache(idx);
                 }
                 else {
-                    ss_ri_cache[idx].ttl--;
                     console.log('ttl of cache of ' + idx + ' : ' + ss_ri_cache[idx].ttl);
                     set_ss_ri_cache(idx, ss_ri_cache[idx]);
                 }
@@ -44,8 +43,8 @@ function ss_ri_cache_ttl_manager() {
 
 wdt.set_wdt(require('shortid').generate(), ss_ri_cache_keep, ss_ri_cache_ttl_manager);
 
-
-var cbs_cache_keep = 10 * 60;
+/*
+var cbs_cache_keep = 12 * 60 * 60;
 function cbs_cache_ttl_manager() {
     try {
         var cbs_cache = get_all_cbs_cache();
@@ -70,3 +69,4 @@ function cbs_cache_ttl_manager() {
 }
 
 wdt.set_wdt(require('shortid').generate(), cbs_cache_keep, cbs_cache_ttl_manager);
+*/

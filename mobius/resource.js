@@ -448,7 +448,7 @@ function create_action_cni(ty, pi, cni, cbs, mni, mbs, st, callback) {
                     }
                     else {
                         var body_Obj = {};
-                        body_Obj['dbg'] = results.message;
+                        body_Obj['dbg'] = results_cs.message;
                         //responder.response_result(request, response, 500, body_Obj, 5000, request.url, results.message);
                         console.log(JSON.stringify(body_Obj));
                         callback('0');
@@ -550,33 +550,25 @@ function create_action(request, response, ty, resource_Obj, callback) {
     }
     else if (ty == '4') {
         //var ty = resource_Obj[rootnm].ty;
-        db_sql.insert_cin(resource_Obj[rootnm], function (err, results) {
-                if (!err) {
-                    var cni = results.cni;
-                    var cbs = results.cbs;
-                    var st = results.st;
-                    var mni = request.headers.mni;
-                    var mbs =request.headers.mbs;
-                    create_action_cni(resource_Obj[rootnm].ty, resource_Obj[rootnm].pi, cni, cbs, mni, mbs, st, function (rsc) {
-                        resource_Obj[rootnm].st = st;
-                        callback('1', resource_Obj);
-                    });
+        db_sql.insert_cin(resource_Obj[rootnm], request.headers.mni, request.headers.mbs, request.headers.st, function (err, results) {
+            if (!err) {
+                callback('1', resource_Obj);
+            }
+            else {
+                if (results.code == 'ER_DUP_ENTRY') {
+                    body_Obj = {};
+                    body_Obj['dbg'] = results.message;
+                    responder.response_result(request, response, 409, body_Obj, 4105, request.url, body_Obj['dbg']);
                 }
                 else {
-                    if (results.code == 'ER_DUP_ENTRY') {
-                        body_Obj = {};
-                        body_Obj['dbg'] = results.message;
-                        responder.response_result(request, response, 409, body_Obj, 4105, request.url, body_Obj['dbg']);
-                    }
-                    else {
-                        body_Obj = {};
-                        body_Obj['dbg'] = results.message;
-                        responder.response_result(request, response, 500, body_Obj, 5000, request.url, body_Obj['dbg']);
-                    }
-                    callback('0', resource_Obj);
-                    return '0';
+                    body_Obj = {};
+                    body_Obj['dbg'] = results.message;
+                    responder.response_result(request, response, 500, body_Obj, 5000, request.url, body_Obj['dbg']);
                 }
-            });
+                callback('0', resource_Obj);
+                return '0';
+            }
+        });
     }
     else if (ty == '9') {
         db_sql.insert_grp(resource_Obj[rootnm].ty, resource_Obj[rootnm].ri, resource_Obj[rootnm].rn, resource_Obj[rootnm].pi, resource_Obj[rootnm].ct,
@@ -1639,11 +1631,11 @@ function presearch_action(request, response, ri_list, comm_Obj, callback) {
                 request.query.lvl = '1';
             }
 
-            if (comm_Obj.ty == '3' && request.query.la) {
-                var ofst = parseInt(comm_Obj.cni, 10) - (parseInt(request.query.la, 10) - 1);
-                request.query.ofst = (ofst < 0) ? '0' : ofst;
-                request.query.lim = request.query.la;
-            }
+            // if (comm_Obj.ty == '3' && request.query.la) {
+            //     //var ofst = parseInt(comm_Obj.cni, 10) - (parseInt(request.query.la, 10) - 1);
+            //     //request.query.ofst = (ofst < 0) ? '0' : ofst;
+            //     //request.query.lim = request.query.la;
+            // }
 
             if (request.query.lim != null) {
                 if (request.query.lim > max_lim) {

@@ -64,33 +64,6 @@ global.allowed_app_ids = [];
 global.usesemanticbroker    = '10.10.202.114';
 
 var file = 'hit.json';
-/*
-var file = 'hit.json';
-fs.open(file, 'w', function(err, fd) {
-    if (err) {
-        throw err;
-    }
-    else {
-        var hit = {};
-
-        var moment = require('moment');
-        var a = moment().utc();
-        var cur_t = a.format('YYYYMMDD');
-        var h = a.hours();
-
-        if(!hit.hasOwnProperty(cur_t)) {
-            hit[cur_t] = [];
-            for(var i = 0; i < 24; i++) {
-                hit[cur_t].push({});
-            }
-        }
-
-        //console.log(hit);
-        fs.writeFileSync('hit.json', JSON.stringify(hit, null, 4), 'utf8');
-    }
-});
-*/
-
 var hit = {};
 
 var moment = require('moment');
