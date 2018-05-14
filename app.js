@@ -374,6 +374,11 @@ function broadcast_hit_cache() {
 var use_clustering = 1;
 if (use_clustering) {
     if (cluster.isMaster) {
+        console.log('CPU Count:', cpuCount);
+        for (var i = 0; i < cpuCount; i++) {
+            worker[i] = cluster.fork();
+        }
+
         cluster.on('message', function(worker, message) {
             if(message.cmd === 'ss_ri:edit-request' ) {
                 ss_ri_cache[message.name] = message.val;
@@ -424,11 +429,6 @@ if (use_clustering) {
             if (rsc == '1') {
                 cb.create(function (rsp) {
                     console.log(JSON.stringify(rsp));
-
-                    console.log('CPU Count:', cpuCount);
-                    for (var i = 0; i < cpuCount; i++) {
-                        worker[i] = cluster.fork();
-                    }
 
                     wdt.set_wdt(require('shortid').generate(), 43200, del_req_resource);
                     wdt.set_wdt(require('shortid').generate(), 86400, del_expired_resource);
@@ -496,11 +496,11 @@ if (use_clustering) {
             }
             else if (message.cmd === 'hit:edit') {
                 hit_cache = message.data;
-                console.log(hit_cache);
+                //console.log(hit_cache);
             }
             else if (message.cmd === 'hit:edit_set') {
                 hit_cache[message.name] = message.val;
-                console.log(message.val);
+                //console.log(message.val);
             }
         });
 
@@ -2356,21 +2356,12 @@ function updateHitCount(binding) {
         var cur_t = a.format('YYYYMMDD');
         var h = a.hours();
 
-        if (!_hit.hasOwnProperty(cur_t)) {
-            _hit[cur_t] = [];
-            for (var i = 0; i < 24; i++) {
-                _hit[cur_t].push({});
-            }
+        if (_hit.hasOwnProperty(cur_t)) {
+            _hit[cur_t][h][binding]++;
+
+            //console.log(hit);
+            set_hit_cache(cur_t, _hit[cur_t]);
         }
-
-        if (!_hit[cur_t][h].hasOwnProperty(binding)) {
-            _hit[cur_t][h][binding] = 0;
-        }
-
-        _hit[cur_t][h][binding]++;
-
-        //console.log(hit);
-        set_hit_cache(cur_t, _hit[cur_t]);
     }
     catch (e) {
         console.log('[updateHitCount] ' + e.message);
