@@ -312,7 +312,7 @@ global.set_hit_cache = function (name, val) {
         });
     }
     else {
-        broadcast_hit_cache();
+        broadcast_set_hit_cache(name, val);
     }
 };
 
@@ -329,6 +329,27 @@ global.del_hit_cache = function (name) {
         broadcast_hit_cache();
     }
 };
+
+function broadcast_set_hit_cache(name, val) {
+    if ( cluster.isMaster ) {
+        for (var id in cluster.workers) {
+            if(cluster.workers.hasOwnProperty(id)) {
+                var worker = cluster.workers[id];
+
+                worker.send({
+                    cmd: 'hit:edit_set',
+                    name: name,
+                    val: val
+                });
+            }
+        }
+    }
+    else {
+        process.send({
+            cmd: 'hit:broadcast_set'
+        });
+    }
+}
 
 function broadcast_hit_cache() {
     if ( cluster.isMaster ) {
@@ -379,7 +400,7 @@ if (use_clustering) {
             }
             else if(message.cmd === 'hit:edit-request' ) {
                 hit_cache[message.name] = message.val;
-                broadcast_hit_cache();
+                broadcast_set_hit_cache(message.name, message.val);
                 fs.writeFileSync('hit.json', JSON.stringify(hit_cache, null, 4), 'utf8');
             }
             else if(message.cmd === 'hit:del-request' ) {
@@ -388,6 +409,9 @@ if (use_clustering) {
             }
             else if (message.cmd === 'hit:broadcast') {
                 broadcast_hit_cache();
+            }
+            else if (message.cmd === 'hit:broadcast_set') {
+                broadcast_set_hit_cache(message.name, message.val);
             }
         });
 
@@ -422,21 +446,21 @@ if (use_clustering) {
 
                     try {
                         var hitStr = fs.readFileSync('hit.json', 'utf8');
-                        var hit = JSON.parse(hitStr);
+                        hit_cache = JSON.parse(hitStr);
                         broadcast_hit_cache();
                     }
                     catch (e) {
                         var moment = require('moment');
                         var a = moment().utc();
                         var cur_t = a.format('YYYYMMDD');
-                        var _hit = {};
-                        if (!_hit.hasOwnProperty(cur_t)) {
-                            _hit[cur_t] = [];
+                        hit_cache = {};
+                        if (!hit_cache.hasOwnProperty(cur_t)) {
+                            hit_cache[cur_t] = [];
                             for (var h = 0; h < 24; h++) {
-                                _hit[cur_t].push({});
+                                hit_cache[cur_t].push({});
                             }
                         }
-                        fs.writeFileSync('hit.json', JSON.stringify(hit, null, 4), 'utf8');
+                        fs.writeFileSync('hit.json', JSON.stringify(hit_cache, null, 4), 'utf8');
                         broadcast_hit_cache();
                     }
 
@@ -469,6 +493,14 @@ if (use_clustering) {
                 //cbs_cache[message.name] = message.val;
                 cbs_cache = message.data;
                 //console.log(cbs_cache);
+            }
+            else if (message.cmd === 'hit:edit') {
+                hit_cache = message.data;
+                console.log(hit_cache);
+            }
+            else if (message.cmd === 'hit:edit_set') {
+                hit_cache[message.name] = message.val;
+                console.log(message.val);
             }
         });
 
