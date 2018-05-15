@@ -1101,7 +1101,7 @@ function select_spec_ri(found_Obj, callback) {
 
 
 var search_tid = '';
-exports.search_lookup = function (ri, query, cur_lim, pi_list, pi_index, found_Obj, found_Cnt, cni, cur_d, loop_cnt, callback) {
+exports.search_lookup = function (ri, query, cur_lim, pi_list, pi_index, found_Obj, found_Cnt, cni, cur_d, loop_cnt, response, callback) {
     var cur_pi = [];
 
     if(loop_cnt == 0) {
@@ -1133,29 +1133,36 @@ exports.search_lookup = function (ri, query, cur_lim, pi_list, pi_index, found_O
     console.log(sql);
     db.getResult(sql, '', function (err, search_Obj) {
         if(!err) {
-            //make_json_arraytype(search_Obj);
-            for(var i = 0; i < search_Obj.length; i++) {
-                found_Obj[search_Obj[i].ri] = search_Obj[i];
-                if(Object.keys(found_Obj).length >= query.lim) {
-                    break;
+            if(search_Obj.length > 0) {
+                //make_json_arraytype(search_Obj);
+                for(var i = 0; i < search_Obj.length; i++) {
+                    found_Obj[search_Obj[i].ri] = search_Obj[i];
+                    if(Object.keys(found_Obj).length >= query.lim) {
+                        break;
+                    }
                 }
-            }
 
-            if(search_Obj.length != 0) {
-                select_spec_ri(found_Obj, function (err, found_Obj) {
-                    cur_lim = parseInt(query.lim) - Object.keys(found_Obj).length;
-                    if (pi_index >= pi_list.length) {
-                        console.timeEnd('search_lookup (' + search_tid + ')');
-                        callback(err, found_Obj);
-                    }
-                    else {
-                        setTimeout(function () {
-                            _this.search_lookup(ri, query, cur_lim, pi_list, pi_index, found_Obj, found_Cnt, cni, cur_d, loop_cnt, function (err, found_Obj) {
-                                callback(err, found_Obj);
+                if(Object.keys(found_Obj).length >= query.lim) {
+                    select_spec_ri(found_Obj, function (err, found_Obj) {
+                        callback(err, found_Obj, response);
+                    });
+                }
+                else {
+                    select_spec_ri(found_Obj, function (err, found_Obj) {
+                        cur_lim = parseInt(query.lim) - Object.keys(found_Obj).length;
+                        if (pi_index >= pi_list.length) {
+                            console.timeEnd('search_lookup (' + search_tid + ')');
+                            callback(err, found_Obj, response);
+                        }
+                        else {
+                            //setTimeout(function () {
+                            _this.search_lookup(ri, query, cur_lim, pi_list, pi_index, found_Obj, found_Cnt, cni, cur_d, loop_cnt, response, function (err, found_Obj, response) {
+                                callback(err, found_Obj, response);
                             });
-                        }, 0);
-                    }
-                });
+                            //}, 0);
+                        }
+                    });
+                }
             }
             else {
                 cur_lim = parseInt(query.lim) - Object.keys(found_Obj).length;
@@ -1164,16 +1171,16 @@ exports.search_lookup = function (ri, query, cur_lim, pi_list, pi_index, found_O
                     callback(err, found_Obj);
                 }
                 else {
-                    setTimeout(function () {
-                        _this.search_lookup(ri, query, cur_lim, pi_list, pi_index, found_Obj, found_Cnt, cni, cur_d, loop_cnt, function (err, found_Obj) {
-                            callback(err, found_Obj);
+                    //setTimeout(function () {
+                        _this.search_lookup(ri, query, cur_lim, pi_list, pi_index, found_Obj, found_Cnt, cni, cur_d, loop_cnt, response, function (err, found_Obj, response) {
+                            callback(err, found_Obj, response);
                         });
-                    }, 0);
+                    //}, 0);
                 }
             }
         }
         else {
-            callback(err, search_Obj);
+            callback(err, search_Obj, response);
         }
     });
 };
