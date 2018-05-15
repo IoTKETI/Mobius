@@ -1072,31 +1072,37 @@ function build_discovery_sql(ri, query, cur_lim, pi_list, cni) {
     return query_where;
 }
 
-function select_spec_ri(found_Obj, callback) {
-    var spec_count = 0;
-    for(var ri in found_Obj) {
-        if(found_Obj.hasOwnProperty(ri)) {
-            var sql = "select * from " + responder.typeRsrc[found_Obj[ri].ty] + " where ri = \'" + ri + "\'";
-            db.getResult(sql, ri, function (err, spec_Obj, ri) {
-                spec_count++;
-                if(err) {
-   //                 delete found_Obj[ri];
-                }
-                else {
-                    if(spec_Obj.length >= 1) {
-                        makeObject(spec_Obj[0]);
-                        found_Obj[spec_Obj[0].ri] = merge(found_Obj[spec_Obj[0].ri], spec_Obj[0]);
-                        if (spec_count >= Object.keys(found_Obj).length) {
-                            callback(err, found_Obj);
-                        }
-                    }
-                    else {
- //                       delete found_Obj[ri];
-                    }
-                }
+function select_spec_ri(found_Obj, count, callback) {
+    var ri = Object.keys(found_Obj)[count];
+    var sql = "select * from " + responder.typeRsrc[found_Obj[ri].ty] + " where ri = \'" + ri + "\'";
+    db.getResult(sql, ri, function (err, spec_Obj, ri) {
+        if(err) {
+            delete found_Obj[ri];
+            select_spec_ri(found_Obj, count, function (err, found_Obj) {
+                callback(err, found_Obj);
             });
         }
-    }
+        else {
+            if(spec_Obj.length >= 1) {
+                makeObject(spec_Obj[0]);
+                found_Obj[spec_Obj[0].ri] = merge(found_Obj[spec_Obj[0].ri], spec_Obj[0]);
+                if (++count >= Object.keys(found_Obj).length) {
+                    callback(err, found_Obj);
+                }
+                else {
+                    select_spec_ri(found_Obj, count, function (err, found_Obj) {
+                        callback(err, found_Obj);
+                    });
+                }
+            }
+            else {
+                delete found_Obj[ri];
+                select_spec_ri(found_Obj, count, function (err, found_Obj) {
+                    callback(err, found_Obj);
+                });
+            }
+        }
+    });
 }
 
 
@@ -1131,12 +1137,13 @@ exports.search_lookup = function (ri, query, cur_lim, pi_list, pi_index, found_O
                 }
 
                 if(Object.keys(found_Obj).length >= query.lim) {
-                    select_spec_ri(found_Obj, function (err, found_Obj) {
+                    select_spec_ri(found_Obj, 0, function (err, found_Obj) {
+                        console.timeEnd('search_lookup (' + search_tid + ')');
                         callback(err, found_Obj, response);
                     });
                 }
                 else {
-                    select_spec_ri(found_Obj, function (err, found_Obj) {
+                    select_spec_ri(found_Obj, 0, function (err, found_Obj) {
                         if (pi_index >= pi_list.length) {
                             console.timeEnd('search_lookup (' + search_tid + ')');
                             callback(err, found_Obj, response);
