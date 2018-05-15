@@ -861,7 +861,7 @@ exports.search_parents_lookup = function(ri, pi_list, result_ri, callback) {
     });
 };
 
-function build_discovery_sql(ri, query, cur_lim, pi_list, bef_ct, cur_ct) {
+function build_discovery_sql(ri, query, cur_lim, pi_list, cni) {
 //    var list_ri = '';
     var query_where = '';
     var query_count = 0;
@@ -1109,13 +1109,6 @@ exports.search_lookup = function (ri, query, cur_lim, pi_list, pi_index, found_O
         console.time('search_lookup (' + search_tid + ')');
     }
 
-//    var cur_ct = moment(cur_d).utc().format('YYYYMMDDTHHmmss');
-//     var bef_d = moment(cur_d).format('YYYY-MM-DD HH:mm:ss');
-//     var bef_ct = moment(bef_d).utc().format('YYYYMMDDTHHmmss');
-
-    //console.log(cur_ct);
-    //console.log(bef_ct);
-
     for(var idx = 0; idx < 16; idx++) {
         if (pi_index < pi_list.length) {
             cur_pi.push(pi_list[pi_index++]);
@@ -1125,16 +1118,11 @@ exports.search_lookup = function (ri, query, cur_lim, pi_list, pi_index, found_O
         }
     }
 
-    //console.log(loop_cnt + ' - ' + cur_lim + ' - ' + bef_ct + ' - ' + cur_pi);
-
-    var cur_ct = moment(cur_d).utc().format('YYYYMMDDTHHmmss');
-    //var bef_ct = moment(bef_d).utc().format('YYYYMMDDTHHmmss');
-    var sql = build_discovery_sql(ri, query, cur_lim, cur_pi, cni, cur_ct);
-    console.log(sql);
+    var sql = build_discovery_sql(ri, query, cur_lim, cur_pi, cni);
+    console.log(loop_cnt + ' - ' + sql);
     db.getResult(sql, '', function (err, search_Obj) {
         if(!err) {
             if(search_Obj.length > 0) {
-                //make_json_arraytype(search_Obj);
                 for(var i = 0; i < search_Obj.length; i++) {
                     found_Obj[search_Obj[i].ri] = search_Obj[i];
                     if(Object.keys(found_Obj).length >= query.lim) {
@@ -1149,33 +1137,29 @@ exports.search_lookup = function (ri, query, cur_lim, pi_list, pi_index, found_O
                 }
                 else {
                     select_spec_ri(found_Obj, function (err, found_Obj) {
-                        cur_lim = parseInt(query.lim) - Object.keys(found_Obj).length;
                         if (pi_index >= pi_list.length) {
                             console.timeEnd('search_lookup (' + search_tid + ')');
                             callback(err, found_Obj, response);
                         }
                         else {
-                            //setTimeout(function () {
-                            _this.search_lookup(ri, query, cur_lim, pi_list, pi_index, found_Obj, found_Cnt, cni, cur_d, loop_cnt, response, function (err, found_Obj, response) {
+                            cur_lim = parseInt(query.lim) - Object.keys(found_Obj).length;
+                            _this.search_lookup(ri, query, cur_lim, pi_list, pi_index, found_Obj, found_Cnt, cni, cur_d, ++loop_cnt, response, function (err, found_Obj, response) {
                                 callback(err, found_Obj, response);
                             });
-                            //}, 0);
                         }
                     });
                 }
             }
             else {
-                cur_lim = parseInt(query.lim) - Object.keys(found_Obj).length;
                 if (pi_index >= pi_list.length) {
                     console.timeEnd('search_lookup (' + search_tid + ')');
-                    callback(err, found_Obj);
+                    callback(err, found_Obj, response);
                 }
                 else {
-                    //setTimeout(function () {
-                        _this.search_lookup(ri, query, cur_lim, pi_list, pi_index, found_Obj, found_Cnt, cni, cur_d, loop_cnt, response, function (err, found_Obj, response) {
-                            callback(err, found_Obj, response);
-                        });
-                    //}, 0);
+                    cur_lim = parseInt(query.lim) - Object.keys(found_Obj).length;
+                    _this.search_lookup(ri, query, cur_lim, pi_list, pi_index, found_Obj, found_Cnt, cni, cur_d, ++loop_cnt, response, function (err, found_Obj, response) {
+                        callback(err, found_Obj, response);
+                    });
                 }
             }
         }
