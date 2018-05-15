@@ -212,18 +212,36 @@ global.getType = function (p) {
     return type;
 };
 
-function get_info_cins(pi, callback) {
+function get_info_cins(pi, cni, callback) {
     var cbs_cache = get_all_cbs_cache();
     if (cbs_cache.hasOwnProperty(pi)) {
-        callback(cbs_cache[pi].cni, cbs_cache[pi].cbs, cbs_cache[pi].st);
+        if (cni === -1 || cni > cbs_cache[pi].st) {
+            cbs_cache[pi] = {};
+            var sql2 = 'select count(*), sum(cs) from cin where pi = \'' + pi + '\'';
+            db.getResult(sql2, '', function (err, results) {
+                cbs_cache[pi].cni = results[0]['count(*)'];
+                cbs_cache[pi].cbs = (results[0]['sum(cs)'] == null) ? 0 : results[0]['sum(cs)'];
+                if (parseInt(cbs_cache[pi].cni, 10) == 0) {
+                    cbs_cache[pi].st = 0;
+                }
+                else {
+                    cbs_cache[pi].st = cbs_cache[pi].cni;
+                }
+                set_cbs_cache(pi, cbs_cache[pi]);
+                callback(cbs_cache[pi].cni, cbs_cache[pi].cbs, cbs_cache[pi].st);
+            });
+        }
+        else {
+            callback(cbs_cache[pi].cni, cbs_cache[pi].cbs, cbs_cache[pi].st);
+        }
     }
     else {
         cbs_cache[pi] = {};
-        var sql2 = 'select count(*), sum(cs) from cin where pi = \'' + pi + '\'';
+        sql2 = 'select count(*), sum(cs) from cin where pi = \'' + pi + '\'';
         db.getResult(sql2, '', function (err, results) {
             cbs_cache[pi].cni = results[0]['count(*)'];
             cbs_cache[pi].cbs = (results[0]['sum(cs)'] == null) ? 0 : results[0]['sum(cs)'];
-            if(parseInt(cbs_cache[pi].cni, 10) == 0) {
+            if (parseInt(cbs_cache[pi].cni, 10) == 0) {
                 cbs_cache[pi].st = 0;
             }
             else {
@@ -274,7 +292,7 @@ function create_action_cni(ty, pi, cni, cbs, mni, mbs, callback) {
 exports.insert_cin = function(obj, mni, mbs, p_st, callback) {
     console.time('insert_cin ' + obj.ri);
 
-    get_info_cins(obj.pi, function(cni, cbs, st) {
+    get_info_cins(obj.pi, obj.cni, function(cni, cbs, st) {
         st = parseInt(st, 10) + 1;
         _this.insert_lookup(obj.ty, obj.ri, obj.rn, obj.pi, obj.ct, obj.lt, obj.et, JSON.stringify(obj.acpi), JSON.stringify(obj.lbl), JSON.stringify(obj.at), JSON.stringify(obj.aa), st, obj.sri, obj.spi, function (err, results) {
             if (!err) {
@@ -922,13 +940,7 @@ function build_discovery_sql(ri, query, cur_lim, pi_list, bef_ct, cur_ct) {
             query_count++;
         }
         else {
-            get_info_cins(ri, function(cni, cbs, st) {
-                var _cbs_cache = {};
-                _cbs_cache[ri] = {};
-                _cbs_cache[ri].cni = cni;
-                _cbs_cache[ri].cbs = cbs;
-                _cbs_cache[ri].st = st;
-                set_cbs_cache(ri, _cbs_cache[ri]);
+            get_info_cins(ri, -1, function(cni, cbs, st) {
             });
             query_where += util.format(' a.st >= \'0\'');
             query_count++;
@@ -1065,12 +1077,22 @@ function select_spec_ri(found_Obj, callback) {
     for(var ri in found_Obj) {
         if(found_Obj.hasOwnProperty(ri)) {
             var sql = "select * from " + responder.typeRsrc[found_Obj[ri].ty] + " where ri = \'" + ri + "\'";
-            db.getResult(sql, '', function (err, spec_Obj) {
-                makeObject(spec_Obj[0]);
-                found_Obj[spec_Obj[0].ri] = merge(found_Obj[spec_Obj[0].ri], spec_Obj[0]);
+            db.getResult(sql, ri, function (err, spec_Obj, ri) {
                 spec_count++;
-                if (spec_count >= Object.keys(found_Obj).length) {
-                    callback(err, found_Obj);
+                if(err) {
+   //                 delete found_Obj[ri];
+                }
+                else {
+                    if(spec_Obj.length >= 1) {
+                        makeObject(spec_Obj[0]);
+                        found_Obj[spec_Obj[0].ri] = merge(found_Obj[spec_Obj[0].ri], spec_Obj[0]);
+                        if (spec_count >= Object.keys(found_Obj).length) {
+                            callback(err, found_Obj);
+                        }
+                    }
+                    else {
+ //                       delete found_Obj[ri];
+                    }
                 }
             });
         }
@@ -1108,7 +1130,7 @@ exports.search_lookup = function (ri, query, cur_lim, pi_list, pi_index, found_O
     var cur_ct = moment(cur_d).utc().format('YYYYMMDDTHHmmss');
     //var bef_ct = moment(bef_d).utc().format('YYYYMMDDTHHmmss');
     var sql = build_discovery_sql(ri, query, cur_lim, cur_pi, cni, cur_ct);
-    //console.log(sql);
+    console.log(sql);
     db.getResult(sql, '', function (err, search_Obj) {
         if(!err) {
             //make_json_arraytype(search_Obj);
@@ -1169,7 +1191,7 @@ exports.select_latest_resource = function(ri, cur_d, loop_cnt, ty, cni, lim, cal
     }
     var sql = 'select a.* from (select ri from lookup where (pi = \'' + ri + '\')) b left join lookup as a on b.ri = a.ri where a.ty = \'' + ty + '\' limit ' + lim + ' offset ' + ofst;
     */
-    get_info_cins(ri, function(cni, cbs, st) {
+    get_info_cins(ri, cni, function(cni, cbs, st) {
         var sql = 'select * from lookup where pi = \'' + ri + '\' and st = \'' + st + '\'';
         db.getResult(sql, '', function (err, latest_Comm) {
             if(!err) {

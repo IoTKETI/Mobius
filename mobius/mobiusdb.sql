@@ -24,8 +24,8 @@ DROP TABLE IF EXISTS `acp`;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `acp` (
   `ri` varchar(200) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
-  `pv` longtext,
-  `pvs` longtext,
+  `pv` longtext NOT NULL,
+  `pvs` longtext NOT NULL,
   PRIMARY KEY (`ri`),
   UNIQUE KEY `ri_UNIQUE` (`ri`),
   CONSTRAINT `acp_ri` FOREIGN KEY (`ri`) REFERENCES `lookup` (`ri`) ON DELETE CASCADE ON UPDATE CASCADE
@@ -41,13 +41,13 @@ DROP TABLE IF EXISTS `ae`;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `ae` (
   `ri` varchar(200) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
-  `apn` varchar(45) DEFAULT NULL,
-  `api` varchar(45) DEFAULT NULL,
-  `aei` varchar(200) DEFAULT NULL,
-  `poa` varchar(200) DEFAULT NULL,
-  `or` varchar(45) DEFAULT NULL,
-  `rr` varchar(45) DEFAULT NULL,
-  `nl` varchar(45) DEFAULT NULL,
+  `apn` varchar(45) NOT NULL,
+  `api` varchar(45) NOT NULL,
+  `aei` varchar(200) NOT NULL,
+  `poa` varchar(200) NOT NULL,
+  `or` varchar(45) NOT NULL,
+  `rr` varchar(45) NOT NULL,
+  `nl` varchar(45) NOT NULL,
   `csz` varchar(45) DEFAULT NULL,
   PRIMARY KEY (`ri`),
   UNIQUE KEY `path_UNIQUE` (`ri`),
@@ -65,12 +65,12 @@ DROP TABLE IF EXISTS `cb`;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `cb` (
   `ri` varchar(200) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
-  `cst` varchar(45) DEFAULT NULL,
-  `csi` varchar(45) DEFAULT NULL,
-  `srt` varchar(100) DEFAULT NULL,
-  `poa` varchar(200) DEFAULT NULL,
-  `nl` varchar(45) DEFAULT NULL,
-  `ncp` varchar(45) DEFAULT NULL,
+  `cst` varchar(45) NOT NULL,
+  `csi` varchar(45) NOT NULL,
+  `srt` varchar(100) NOT NULL,
+  `poa` varchar(200) NOT NULL,
+  `nl` varchar(45) NOT NULL,
+  `ncp` varchar(45) NOT NULL,
   PRIMARY KEY (`ri`),
   UNIQUE KEY `path_UNIQUE` (`ri`),
   CONSTRAINT `cb_ri` FOREIGN KEY (`ri`) REFERENCES `lookup` (`ri`) ON DELETE CASCADE ON UPDATE CASCADE
@@ -87,11 +87,11 @@ DROP TABLE IF EXISTS `cin`;
 CREATE TABLE `cin` (
   `pi` varchar(200) NOT NULL,
   `ri` varchar(200) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
-  `cs` int(11) DEFAULT NULL,
-  `cr` varchar(45) DEFAULT NULL,
-  `cnf` varchar(45) DEFAULT NULL,
-  `or` varchar(45) DEFAULT NULL,
-  `con` longtext,
+  `cs` int(11) NOT NULL,
+  `cr` varchar(45) NOT NULL,
+  `cnf` varchar(45) NOT NULL,
+  `or` varchar(45) NOT NULL,
+  `con` longtext NOT NULL,
   PRIMARY KEY (`ri`,`pi`),
   UNIQUE KEY `ri_UNIQUE` (`ri`),
   KEY `cin_ri_idx` (`pi`,`ri`,`cs`),
@@ -108,14 +108,14 @@ DROP TABLE IF EXISTS `cnt`;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `cnt` (
   `ri` varchar(200) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
-  `cr` varchar(45) DEFAULT NULL,
-  `mni` varchar(45) DEFAULT NULL,
-  `mbs` varchar(45) DEFAULT NULL,
-  `mia` varchar(45) DEFAULT NULL,
-  `cni` varchar(45) DEFAULT NULL,
-  `cbs` varchar(45) DEFAULT NULL,
-  `li` varchar(45) DEFAULT NULL,
-  `or` varchar(45) DEFAULT NULL,
+  `cr` varchar(45) NOT NULL,
+  `mni` int(10) unsigned NOT NULL,
+  `mbs` int(10) unsigned NOT NULL,
+  `mia` int(10) unsigned NOT NULL,
+  `cni` int(10) unsigned NOT NULL,
+  `cbs` int(10) unsigned NOT NULL,
+  `li` varchar(45) NOT NULL,
+  `or` varchar(45) NOT NULL,
   `disr` varchar(45) DEFAULT NULL,
   PRIMARY KEY (`ri`),
   UNIQUE KEY `resourceid_UNIQUE` (`ri`),
@@ -132,14 +132,14 @@ DROP TABLE IF EXISTS `csr`;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `csr` (
   `ri` varchar(200) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
-  `cst` varchar(45) DEFAULT NULL,
-  `poa` varchar(200) DEFAULT NULL,
-  `cb` varchar(200) DEFAULT NULL,
-  `csi` varchar(200) DEFAULT NULL,
-  `mei` varchar(45) DEFAULT NULL,
-  `tri` varchar(45) DEFAULT NULL,
-  `rr` varchar(45) DEFAULT NULL,
-  `nl` varchar(45) DEFAULT NULL,
+  `cst` varchar(45) NOT NULL,
+  `poa` varchar(200) NOT NULL,
+  `cb` varchar(200) NOT NULL,
+  `csi` varchar(200) NOT NULL,
+  `mei` varchar(45) NOT NULL,
+  `tri` varchar(45) NOT NULL,
+  `rr` varchar(45) NOT NULL,
+  `nl` varchar(45) NOT NULL,
   PRIMARY KEY (`ri`),
   UNIQUE KEY `ri_UNIQUE` (`ri`),
   KEY `csr_ri_idx` (`ri`),
@@ -156,15 +156,15 @@ DROP TABLE IF EXISTS `grp`;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `grp` (
   `ri` varchar(200) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
-  `cr` varchar(45) DEFAULT NULL,
+  `cr` varchar(45) NOT NULL,
   `mt` varchar(45) NOT NULL,
   `cnm` varchar(45) NOT NULL,
   `mnm` varchar(45) NOT NULL,
-  `mid` mediumtext,
-  `macp` mediumtext,
-  `mtv` varchar(45) DEFAULT NULL,
-  `csy` varchar(45) DEFAULT NULL,
-  `gn` varchar(45) DEFAULT NULL,
+  `mid` mediumtext NOT NULL,
+  `macp` mediumtext NOT NULL,
+  `mtv` varchar(45) NOT NULL,
+  `csy` varchar(45) NOT NULL,
+  `gn` varchar(45) NOT NULL,
   PRIMARY KEY (`ri`),
   UNIQUE KEY `ri_UNIQUE` (`ri`),
   CONSTRAINT `grp_ri` FOREIGN KEY (`ri`) REFERENCES `lookup` (`ri`) ON DELETE CASCADE ON UPDATE CASCADE
@@ -180,14 +180,14 @@ DROP TABLE IF EXISTS `lcp`;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `lcp` (
   `ri` varchar(200) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
-  `los` varchar(45) DEFAULT NULL,
-  `lou` varchar(45) DEFAULT NULL,
-  `lot` varchar(45) DEFAULT NULL,
-  `lor` varchar(45) DEFAULT NULL,
-  `loi` varchar(45) DEFAULT NULL,
-  `lon` varchar(45) DEFAULT NULL,
-  `lost` varchar(45) DEFAULT NULL,
-  `cr` varchar(45) DEFAULT NULL,
+  `los` varchar(45) NOT NULL,
+  `lou` varchar(45) NOT NULL,
+  `lot` varchar(45) NOT NULL,
+  `lor` varchar(45) NOT NULL,
+  `loi` varchar(45) NOT NULL,
+  `lon` varchar(45) NOT NULL,
+  `lost` varchar(45) NOT NULL,
+  `cr` varchar(45) NOT NULL,
   PRIMARY KEY (`ri`),
   UNIQUE KEY `ri_UNIQUE` (`ri`),
   CONSTRAINT `lcp_ri` FOREIGN KEY (`ri`) REFERENCES `lookup` (`ri`) ON DELETE CASCADE ON UPDATE CASCADE
@@ -204,9 +204,9 @@ DROP TABLE IF EXISTS `lookup`;
 CREATE TABLE `lookup` (
   `pi` varchar(200) NOT NULL,
   `ri` varchar(200) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
-  `ty` int(11) NOT NULL,
+  `ty` int(11) unsigned NOT NULL,
   `ct` varchar(15) NOT NULL,
-  `st` int(11) NOT NULL,
+  `st` int(11) unsigned NOT NULL,
   `rn` varchar(45) NOT NULL,
   `lt` varchar(45) NOT NULL,
   `et` varchar(45) NOT NULL,
@@ -510,4 +510,4 @@ CREATE TABLE `tsi` (
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2018-05-14 13:04:27
+-- Dump completed on 2018-05-15  0:31:22

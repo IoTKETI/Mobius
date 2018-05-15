@@ -434,6 +434,34 @@ if (use_clustering) {
                     wdt.set_wdt(require('shortid').generate(), 86400, del_expired_resource);
 
                     try {
+                        var hitStr = fs.readFileSync('hit.json', 'utf8');
+                        hit_cache = JSON.parse(hitStr);
+
+                        var moment = require('moment');
+                        var a = moment().utc();
+                        var cur_t = a.format('YYYYMMDD');
+                        if (!hit_cache.hasOwnProperty(cur_t)) {
+                            hit_cache[cur_t] = [];
+                            for (var h = 0; h < 24; h++) {
+                                hit_cache[cur_t].push({});
+                            }
+                        }
+                        broadcast_hit_cache();
+                    }
+                    catch (e) {
+                        moment = require('moment');
+                        a = moment().utc();
+                        cur_t = a.format('YYYYMMDD');
+                        if (!hit_cache.hasOwnProperty(cur_t)) {
+                            hit_cache[cur_t] = [];
+                            for (h = 0; h < 24; h++) {
+                                hit_cache[cur_t].push({});
+                            }
+                        }
+                        broadcast_hit_cache();
+                    }
+
+                    try {
                         var cbsCacheStr = fs.readFileSync('cbs_cache.json', 'utf8');
                         cbs_cache = JSON.parse(cbsCacheStr);
                         broadcast_cbs_cache();
@@ -442,26 +470,6 @@ if (use_clustering) {
                         var _cbs_cache = {};
                         fs.writeFileSync('cbs_cache.json', JSON.stringify(_cbs_cache, null, 4), 'utf8');
                         broadcast_cbs_cache();
-                    }
-
-                    try {
-                        var hitStr = fs.readFileSync('hit.json', 'utf8');
-                        hit_cache = JSON.parse(hitStr);
-                        broadcast_hit_cache();
-                    }
-                    catch (e) {
-                        var moment = require('moment');
-                        var a = moment().utc();
-                        var cur_t = a.format('YYYYMMDD');
-                        hit_cache = {};
-                        if (!hit_cache.hasOwnProperty(cur_t)) {
-                            hit_cache[cur_t] = [];
-                            for (var h = 0; h < 24; h++) {
-                                hit_cache[cur_t].push({});
-                            }
-                        }
-                        fs.writeFileSync('hit.json', JSON.stringify(hit_cache, null, 4), 'utf8');
-                        broadcast_hit_cache();
                     }
 
                     require('./pxy_mqtt');
@@ -496,11 +504,11 @@ if (use_clustering) {
             }
             else if (message.cmd === 'hit:edit') {
                 hit_cache = message.data;
-                //console.log(hit_cache);
+                console.log(hit_cache);
             }
             else if (message.cmd === 'hit:edit_set') {
                 hit_cache[message.name] = message.val;
-                //console.log(message.val);
+                console.log(message.val);
             }
         });
 

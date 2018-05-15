@@ -68,10 +68,10 @@ exports.getResult = function(query, db_Obj, callback) {
 
     executeQuery(mysql_pool, query, function (err, rows) {
         if (!err) {
-            callback(null,rows);
+            callback(null,rows, db_Obj);
         }
         else {
-            callback(true,err);
+            callback(true,err, db_Obj);
         }
     });
 };
