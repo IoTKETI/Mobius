@@ -1197,7 +1197,7 @@ function build_resource(request, response, ty, body_Obj, callback) {
                         if (create_m_attr_list[rootnm].includes(attr)) {
                             if(attr === 'pvs') {
                                 if(body_Obj[rootnm][attr].hasOwnProperty('acr')) {
-                                    if(body_Obj[rootnm][attr].acr.length === 0) {
+                                    if(body_Obj[rootnm][attr].acr.length == 0) {
                                         body_Obj = {};
                                         body_Obj['dbg'] = 'BAD REQUEST: ' + attr + '.acr must have values';
                                         responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
@@ -1214,7 +1214,7 @@ function build_resource(request, response, ty, body_Obj, callback) {
                                 }
                             }
                             else if(attr === 'nu') {
-                                if(body_Obj[rootnm][attr].length === 0) {
+                                if(body_Obj[rootnm][attr].length == 0) {
                                     body_Obj = {};
                                     body_Obj['dbg'] = 'BAD REQUEST: ' + attr + ' must have values';
                                     responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);

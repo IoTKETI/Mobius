@@ -248,7 +248,7 @@ function coap_message_handler(request, response) {
     }
 
     req.on('error', function (e) {
-        if (e.message !== 'read ECONNRESET') {
+        if (e.message != 'read ECONNRESET') {
             console.log('[pxycoap - http_retrieve_CSEBase] problem with request: ' + e.message);
         }
     });

@@ -395,7 +395,7 @@ exports.check = function(request, pi, body_Obj, callback) {
                 if (results_tr[i].hasOwnProperty('tltp')) {
                     if(results_tr[i].tltp == tltp_v.BLOCK_ALL) {
                         if (results_tr[i].hasOwnProperty('tst')) {
-                            if (results_tr[i].tst !== tst_v.COMMITTED && results_tr[i].tst !== tst_v.ABORTED) {
+                            if (results_tr[i].tst != tst_v.COMMITTED && results_tr[i].tst != tst_v.ABORTED) {
                                 state = results_tr[i].tst;
                                 break;
                             }
@@ -408,7 +408,7 @@ exports.check = function(request, pi, body_Obj, callback) {
                         }
                         else {
                             if (results_tr[i].hasOwnProperty('tst')) {
-                                if (results_tr[i].tst !== tst_v.COMMITTED && results_tr[i].tst !== tst_v.ABORTED) {
+                                if (results_tr[i].tst != tst_v.COMMITTED && results_tr[i].tst != tst_v.ABORTED) {
                                     state = results_tr[i].tst;
                                     break;
                                 }

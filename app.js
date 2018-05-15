@@ -1807,7 +1807,7 @@ function lookup_create(request, response) {
             var rootnm = request.headers.rootnm;
 
             tr.check(request, parent_comm.ri, body_Obj, function (rsc, body_Obj) {
-                if (rsc === '0') {
+                if (rsc == '0') {
                     body_Obj = {};
                     body_Obj['dbg'] = resultStatusCode['4230'];
                     responder.response_result(request, response, 423, body_Obj, 4230, request.url, resultStatusCode['4230']);
@@ -2012,7 +2012,7 @@ function lookup_retrieve(request, response) {
             }
 
             tr.check(request, result_Obj.ri, body_Obj, function (rsc, body_Obj) {
-                if (rsc === '0') {
+                if (rsc == '0') {
                     body_Obj = {};
                     body_Obj['dbg'] = resultStatusCode['4230'];
                     responder.response_result(request, response, 423, body_Obj, 4230, request.url, resultStatusCode['4230']);
@@ -2145,7 +2145,7 @@ function lookup_update(request, response) {
             }
 
             tr.check(request, results_comm.ri, body_Obj, function (rsc, body_Obj) {
-                if (rsc === '0') {
+                if (rsc == '0') {
                     body_Obj = {};
                     body_Obj['dbg'] = resultStatusCode['4230'];
                     responder.response_result(request, response, 423, body_Obj, 4230, request.url, resultStatusCode['4230']);
@@ -2259,7 +2259,7 @@ function lookup_delete(request, response) {
             }
 
             tr.check(request, results_comm.ri, body_Obj, function (rsc, body_Obj) {
-                if (rsc === '0') {
+                if (rsc == '0') {
                     var body_Obj = {};
                     body_Obj['dbg'] = resultStatusCode['4230'];
                     responder.response_result(request, response, 423, body_Obj, 4230, request.url, resultStatusCode['4230']);
@@ -2395,7 +2395,7 @@ app.use(function (req, res, next) {
     res.header('Access-Control-Allow-Methods', 'GET, PUT, POST, DELETE, OPTIONS');
     res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, X-M2M-RI, X-M2M-RSC, Accept, X-M2M-Origin, Locale');
     res.header('Access-Control-Expose-Headers', 'Origin, X-Requested-With, Content-Type, X-M2M-RI, X-M2M-RSC, Accept, X-M2M-Origin, Locale');
-    (req.method === 'OPTIONS') ? res.sendStatus(200) : next();
+    (req.method == 'OPTIONS') ? res.sendStatus(200) : next();
 });
 
 

@@ -841,7 +841,7 @@ exports.search_parents_lookup = function(ri, pi_list, result_ri, callback) {
                 pi_list = [];
                 for(var idx in result_lookup_ri) {
                     if(result_lookup_ri.hasOwnProperty(idx)) {
-                        if(result_lookup_ri[idx].ty !== '23' && result_lookup_ri[idx].ty !== '4' && result_lookup_ri[idx].ty !== '30' && result_lookup_ri[idx].ty !== '17') {
+                        if(result_lookup_ri[idx].ty != '23' && result_lookup_ri[idx].ty != '4' && result_lookup_ri[idx].ty != '30' && result_lookup_ri[idx].ty != '17') {
                             pi_list.push(result_lookup_ri[idx].ri);
                             result_ri.push(result_lookup_ri[idx]);
                         }
