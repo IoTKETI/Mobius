@@ -508,7 +508,7 @@ if (use_clustering) {
             }
             else if (message.cmd === 'hit:edit_set') {
                 hit_cache[message.name] = message.val;
-                console.log(message.val);
+                //console.log(message.val);
             }
         });
 
