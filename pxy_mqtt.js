@@ -804,7 +804,5 @@ function forward_mqtt(forward_cseid, op, to, fr, rqi, ty, nm, inpc) {
 
     var forward_topic = util.format('/oneM2M/req/%s/%s', usecseid.replace('/', ':'), forward_cseid);
 
-    for(var i = 0; i < mqtt_client_arr.length; i++) {
-        mqtt_client_arr[i].publish(forward_topic, xmlString);
-    }
+    pxymqtt_client.publish(forward_topic, xmlString);
 }
