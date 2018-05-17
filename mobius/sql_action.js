@@ -213,10 +213,8 @@ global.getType = function (p) {
 };
 
 function get_info_cins(pi, cni, callback) {
-    var cbs_cache = get_all_cbs_cache();
     if (cbs_cache.hasOwnProperty(pi)) {
         if (cni === -1 || cni > cbs_cache[pi].st) {
-            cbs_cache[pi] = {};
             var sql2 = 'select count(*), sum(cs) from cin where pi = \'' + pi + '\'';
             db.getResult(sql2, '', function (err, results) {
                 cbs_cache[pi].cni = results[0]['count(*)'];
@@ -237,18 +235,26 @@ function get_info_cins(pi, cni, callback) {
     }
     else {
         cbs_cache[pi] = {};
+        cbs_cache[pi].cni = 0;
+        cbs_cache[pi].cbs = 0;
+        cbs_cache[pi].st = 0;
         sql2 = 'select count(*), sum(cs) from cin where pi = \'' + pi + '\'';
         db.getResult(sql2, '', function (err, results) {
-            cbs_cache[pi].cni = results[0]['count(*)'];
-            cbs_cache[pi].cbs = (results[0]['sum(cs)'] == null) ? 0 : results[0]['sum(cs)'];
-            if (parseInt(cbs_cache[pi].cni, 10) == 0) {
-                cbs_cache[pi].st = 0;
+            if(cbs_cache.hasOwnProperty(pi)) {
+                cbs_cache[pi].cni = results[0]['count(*)'];
+                cbs_cache[pi].cbs = (results[0]['sum(cs)'] == null) ? 0 : results[0]['sum(cs)'];
+                if (parseInt(cbs_cache[pi].cni, 10) == 0) {
+                    cbs_cache[pi].st = 0;
+                }
+                else {
+                    cbs_cache[pi].st = cbs_cache[pi].cni;
+                }
+                set_cbs_cache(pi, cbs_cache[pi]);
+                callback(cbs_cache[pi].cni, cbs_cache[pi].cbs, cbs_cache[pi].st);
             }
             else {
-                cbs_cache[pi].st = cbs_cache[pi].cni;
+                callback(cbs_cache[pi].cni, cbs_cache[pi].cbs, cbs_cache[pi].st);
             }
-            set_cbs_cache(pi, cbs_cache[pi]);
-            callback(cbs_cache[pi].cni, cbs_cache[pi].cbs, cbs_cache[pi].st);
         });
     }
 }
@@ -314,11 +320,15 @@ exports.insert_cin = function(obj, mni, mbs, p_st, callback) {
 
                         create_action_cni(obj.ty, obj.pi, cni, cbs, mni, mbs, function (rsc, cni, cbs) {
                             if(rsc == '1') {
-                                var cbs_cache = get_all_cbs_cache();
-                                cbs_cache[obj.pi].cni = cni;
-                                cbs_cache[obj.pi].cbs = cbs;
-                                cbs_cache[obj.pi].st = st;
-                                set_cbs_cache(obj.pi, cbs_cache[obj.pi]);
+                                if (cbs_cache.hasOwnProperty(obj.pi)) {
+                                    cbs_cache[obj.pi].cni = cni;
+                                    cbs_cache[obj.pi].cbs = cbs;
+                                    cbs_cache[obj.pi].st = st;
+                                    set_cbs_cache(obj.pi, cbs_cache[obj.pi]);
+                                }
+                                else {
+                                    console.log(cbs_cache);
+                                }
 
                                 p_st = parseInt(p_st, 10) + 1;
                                 _this.update_cni_parent(obj.ty, cni, cbs, p_st, obj.pi, function (err, results) {
@@ -933,7 +943,7 @@ function build_discovery_sql(ri, query, cur_lim, pi_list, cni) {
         else {
             query_where += ' and ';
         }
-        var cbs_cache = get_all_cbs_cache();
+
         if(cbs_cache.hasOwnProperty(ri)) {
             var st = parseInt(cbs_cache[ri].st, 10) - (parseInt(query.la, 10) - 1);
             query_where += util.format(' a.st >= \'%s\'', st);
@@ -1479,34 +1489,6 @@ exports.select_count_ri = function (ty, ri, callback) {
             results[0]['count(*)'] = cni;
             callback(err, results);
         });
-    });
-};
-
-var cbs_cache_limit = 256;
-var cache_ttl = 3;
-
-exports.select_count_cin = function (pi, cs, callback) {
-    var sql = 'select count(*) from cin where pi = \'' + pi + '\'';
-    db.getResult(sql, '', function (err, results) {
-        var cbs_cache = get_all_cbs_cache();
-
-        if (cbs_cache.hasOwnProperty(pi)) {
-            results[0]['sum(cs)'] = parseInt(cbs_cache[pi].cbs, 10) + parseInt(cs, 10);
-            cbs_cache[pi].cbs = results[0]['sum(cs)'];
-            set_cbs_cache(pi, cbs_cache[pi]);
-            callback(null, results);
-        }
-        else {
-            cbs_cache[pi] = {};
-            cbs_cache[pi].cni = results[0]['count(*)'];
-            var sql2 = 'select sum(cs) from cin where pi = \'' + pi + '\'';
-            db.getResult(sql2, '', function (err, results) {
-                cbs_cache[pi].cbs = results[0]['sum(cs)'];
-                results[0]['count(*)'] = cbs_cache[pi].cni;
-                set_cbs_cache(pi, cbs_cache[pi]);
-                callback(err, results);
-            });
-        }
     });
 };
 
