@@ -1189,18 +1189,8 @@ exports.search_lookup = function (ri, query, cur_lim, pi_list, pi_index, found_O
 exports.select_latest_resource = function(ri, cur_d, loop_cnt, ty, cni, lim, callback) {
     console.time('select_latest ' + ri);
 
-    //var bef_d = moment(cur_d).subtract(1, 'minutes').format('YYYY-MM-DD HH:mm:ss');
-    //var bef_ct = moment(bef_d).utc().format('YYYYMMDDTHHmmss');
-
-    //var sql = util.format('select a.* from (select ri from lookup where (pi = \'%s\') and (ct > \'%s\')) b left join lookup as a on b.ri = a.ri where a.ty = \'%s\' order by ct desc limit 1', ri, bef_ct, ty);
-/*    var ofst = (parseInt(cni, 10) - parseInt(lim, 10)).toString();
-    if(ofst <= 0) {
-        ofst = 0;
-    }
-    var sql = 'select a.* from (select ri from lookup where (pi = \'' + ri + '\')) b left join lookup as a on b.ri = a.ri where a.ty = \'' + ty + '\' limit ' + lim + ' offset ' + ofst;
-    */
     get_info_cins(ri, cni, function(cni, cbs, st) {
-        var sql = 'select * from lookup where pi = \'' + ri + '\' and st = \'' + st + '\'';
+        var sql = 'select * from lookup where pi = \'' + ri + '\' and ty = \'4\' and st = \'' + st + '\'';
         db.getResult(sql, '', function (err, latest_Comm) {
             if(!err) {
                 if(latest_Comm.length >= 1) {
