@@ -364,6 +364,7 @@ function broadcast_hit_cache() {
 }
 
 var use_clustering = 1;
+var worker_init_count = 0;
 if (use_clustering) {
     if (cluster.isMaster) {
         console.log('CPU Count:', cpuCount);
@@ -372,7 +373,50 @@ if (use_clustering) {
         }
 
         cluster.on('message', function(worker, message) {
-            if(message.cmd === 'ss_ri:edit-request' ) {
+            if(message.cmd === 'init:notify' ) {
+                worker_init_count++;
+                if(worker_init_count >= cpuCount) {
+                    try {
+                        var hitStr = fs.readFileSync('hit.json', 'utf8');
+                        hit_cache = JSON.parse(hitStr);
+
+                        var moment = require('moment');
+                        var a = moment().utc();
+                        var cur_t = a.format('YYYYMMDD');
+                        if (!hit_cache.hasOwnProperty(cur_t)) {
+                            hit_cache[cur_t] = [];
+                            for (var h = 0; h < 24; h++) {
+                                hit_cache[cur_t].push({});
+                            }
+                        }
+                        broadcast_hit_cache();
+                    }
+                    catch (e) {
+                        moment = require('moment');
+                        a = moment().utc();
+                        cur_t = a.format('YYYYMMDD');
+                        if (!hit_cache.hasOwnProperty(cur_t)) {
+                            hit_cache[cur_t] = [];
+                            for (h = 0; h < 24; h++) {
+                                hit_cache[cur_t].push({});
+                            }
+                        }
+                        broadcast_hit_cache();
+                    }
+
+                    try {
+                        var cbsCacheStr = fs.readFileSync('cbs_cache.json', 'utf8');
+                        cbs_cache = JSON.parse(cbsCacheStr);
+                        broadcast_cbs_cache();
+                    }
+                    catch (e) {
+                        var _cbs_cache = {};
+                        fs.writeFileSync('cbs_cache.json', JSON.stringify(_cbs_cache, null, 4), 'utf8');
+                        broadcast_cbs_cache();
+                    }
+                }
+            }
+            else if(message.cmd === 'ss_ri:edit-request' ) {
                 ss_ri_cache[message.name] = message.val;
                 broadcast_ss_ri_cache();
             }
@@ -426,45 +470,6 @@ if (use_clustering) {
                     wdt.set_wdt(require('shortid').generate(), 43200, del_req_resource);
                     wdt.set_wdt(require('shortid').generate(), 86400, del_expired_resource);
 
-                    try {
-                        var hitStr = fs.readFileSync('hit.json', 'utf8');
-                        hit_cache = JSON.parse(hitStr);
-
-                        var moment = require('moment');
-                        var a = moment().utc();
-                        var cur_t = a.format('YYYYMMDD');
-                        if (!hit_cache.hasOwnProperty(cur_t)) {
-                            hit_cache[cur_t] = [];
-                            for (var h = 0; h < 24; h++) {
-                                hit_cache[cur_t].push({});
-                            }
-                        }
-                        broadcast_hit_cache();
-                    }
-                    catch (e) {
-                        moment = require('moment');
-                        a = moment().utc();
-                        cur_t = a.format('YYYYMMDD');
-                        if (!hit_cache.hasOwnProperty(cur_t)) {
-                            hit_cache[cur_t] = [];
-                            for (h = 0; h < 24; h++) {
-                                hit_cache[cur_t].push({});
-                            }
-                        }
-                        broadcast_hit_cache();
-                    }
-
-                    try {
-                        var cbsCacheStr = fs.readFileSync('cbs_cache.json', 'utf8');
-                        cbs_cache = JSON.parse(cbsCacheStr);
-                        broadcast_cbs_cache();
-                    }
-                    catch (e) {
-                        var _cbs_cache = {};
-                        fs.writeFileSync('cbs_cache.json', JSON.stringify(_cbs_cache, null, 4), 'utf8');
-                        broadcast_cbs_cache();
-                    }
-
                     require('./pxy_mqtt');
                     require('./pxy_coap');
                     require('./pxy_ws');
@@ -483,6 +488,10 @@ if (use_clustering) {
         //   app.use(bodyParser.urlencoded({ extended: true }));
         //   app.use(bodyParser.json({limit: '1mb', type: 'application/*+json' }));
         //   app.use(bodyParser.text({limit: '1mb', type: 'application/*+xml' }));
+
+        process.send({
+            cmd: 'init:notify'
+        });
 
         process.on('message', function (message) {
             if (message.cmd === 'ss_ri:edit') {
