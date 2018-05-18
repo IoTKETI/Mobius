@@ -52,7 +52,7 @@ var db_sql = require('./sql_action');
 
 var _this = this;
 
-global.ty_list = [1, 2, 3, 4, 5, 9, 10, 13, 14, 16, 17, 23, 24, 27, 29, 30, 38, 39];
+global.ty_list = ['1', '2', '3', '4', '5', '9', '10', '13', '14', '16', '17', '23', '24', '27', '29', '30', '38', '39'];
 
 global.create_np_attr_list = {};
 create_np_attr_list.acp = ['ty', 'ri', 'pi', 'ct', 'lt', 'st'];
@@ -1177,7 +1177,7 @@ function build_resource(request, response, ty, body_Obj, callback) {
         resource_Obj[rootnm].cnf = '';
     }
 
-    if (ty_list.includes(ty)) {
+    if (ty_list.includes(ty.toString())) {
         var mandatory_check_count = 0;
 
         // check Not_Present and check Option and check Mandatory
@@ -2694,7 +2694,7 @@ function update_action(request, response, ty, resource_Obj, callback) {
 function create_resource(request, response, ty, body_Obj, resource_Obj, callback) {
     var rootnm = request.headers.rootnm;
 
-    if (ty_list.includes(ty)) {
+    if (ty_list.includes(ty.toString())) {
         // check M
         for (var attr in create_m_attr_list[rootnm]) {
             if (create_m_attr_list[rootnm].hasOwnProperty(attr)) {
@@ -2760,7 +2760,7 @@ function check_acp_update_acpi(request, response, bodyObj, acpi, cr, callback) {
 function update_resource(request, response, ty, body_Obj, resource_Obj, callback) {
     var rootnm = request.headers.rootnm;
 
-    if (ty_list.includes(ty)) {
+    if (ty_list.includes(ty.toString())) {
         var mandatory_check_count = 0;
 
         // check Not Present and check Option and check Mandatory
