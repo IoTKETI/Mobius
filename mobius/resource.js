@@ -52,7 +52,7 @@ var db_sql = require('./sql_action');
 
 var _this = this;
 
-global.ty_list = ['1', '2', '3', '4', '5', '9', '10', '13', '14', '16', '17', '23', '24', '27', '29', '30', '38', '39'];
+global.ty_list = [1, 2, 3, 4, 5, 9, 10, 13, 14, 16, 17, 23, 24, 27, 29, 30, 38, 39];
 
 global.create_np_attr_list = {};
 create_np_attr_list.acp = ['ty', 'ri', 'pi', 'ct', 'lt', 'st'];
@@ -1247,7 +1247,7 @@ function build_resource(request, response, ty, body_Obj, callback) {
     }
     else {
         body_Obj = {};
-        body_Obj['dbg'] = 'we do not support to update resource';
+        body_Obj['dbg'] = 'we do not support to create resource';
         responder.response_result(request, response, 405, body_Obj, 4005, request.url, body_Obj['dbg']);
         callback('0');
         return '0';
@@ -2738,7 +2738,7 @@ function create_resource(request, response, ty, body_Obj, resource_Obj, callback
     }
     else {
         body_Obj = {};
-        body_Obj['dbg'] = 'we do not support to update resource';
+        body_Obj['dbg'] = 'we do not support to create resource';
         responder.response_result(request, response, 405, body_Obj, 4005, request.url, body_Obj['dbg']);
         callback('0', body_Obj);
         return '0';
