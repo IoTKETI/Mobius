@@ -268,8 +268,8 @@ function create_action_cni(ty, pi, cni, cbs, mni, mbs, callback) {
                         cni = (parseInt(cni, 10) - 1).toString();
                         cbs = (parseInt(cbs, 10) - parseInt(results_cs[0].cs, 10)).toString();
 
-                        create_action_cni(ty, pi, cni, cbs, mni, mbs, function (rsc) {
-                            callback(rsc);
+                        create_action_cni(ty, pi, cni, cbs, mni, mbs, function (rsc, cni, cbs) {
+                            callback(rsc, cni, cbs);
                         });
                     }
                     else {
@@ -316,7 +316,7 @@ exports.insert_cin = function(obj, mni, mbs, p_st, callback) {
                 db.getResult(sql, '', function (err, results) {
                     if (!err) {
                         cni = parseInt(cni, 10) + 1;
-                        cbs = parseInt(cni, 10) + parseInt(obj.cs, 10);
+                        cbs = parseInt(cbs, 10) + parseInt(obj.cs, 10);
 
                         create_action_cni(obj.ty, obj.pi, cni, cbs, mni, mbs, function (rsc, cni, cbs) {
                             if(rsc == '1') {

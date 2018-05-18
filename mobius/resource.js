@@ -422,7 +422,7 @@ function create_action_st(ri, ty, pi, callback) {
         }
     });
 }
-
+/*
 function create_action_cni(ty, pi, cni, cbs, mni, mbs, st, callback) {
     if (parseInt(cni, 10) > parseInt(mni, 10) || parseInt(cbs, 10) > parseInt(mbs, 10)) {
         db_sql.select_cs_parent(ty, pi, function (err, results_cs) { // select oldest
@@ -462,7 +462,7 @@ function create_action_cni(ty, pi, cni, cbs, mni, mbs, st, callback) {
         callback('1');
     }
 }
-
+*/
 function create_action(request, response, ty, resource_Obj, callback) {
     var rootnm = request.headers.rootnm;
     var body_Obj = {};
