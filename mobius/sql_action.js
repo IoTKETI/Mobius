@@ -217,6 +217,7 @@ function get_info_cins(pi, cni, callback) {
         if (cni === -1 || cni != cbs_cache[pi].st) {
             var sql2 = 'select count(*), sum(cs) from cin where pi = \'' + pi + '\'';
             db.getResult(sql2, '', function (err, results) {
+                cbs_cache[pi] = {};
                 cbs_cache[pi].cni = results[0]['count(*)'];
                 cbs_cache[pi].cbs = (results[0]['sum(cs)'] == null) ? 0 : results[0]['sum(cs)'];
                 if (parseInt(cbs_cache[pi].cni, 10) == 0) {
@@ -234,27 +235,19 @@ function get_info_cins(pi, cni, callback) {
         }
     }
     else {
-        cbs_cache[pi] = {};
-        cbs_cache[pi].cni = 0;
-        cbs_cache[pi].cbs = 0;
-        cbs_cache[pi].st = 0;
         sql2 = 'select count(*), sum(cs) from cin where pi = \'' + pi + '\'';
         db.getResult(sql2, '', function (err, results) {
-            if(cbs_cache.hasOwnProperty(pi)) {
-                cbs_cache[pi].cni = results[0]['count(*)'];
-                cbs_cache[pi].cbs = (results[0]['sum(cs)'] == null) ? 0 : results[0]['sum(cs)'];
-                if (parseInt(cbs_cache[pi].cni, 10) == 0) {
-                    cbs_cache[pi].st = 0;
-                }
-                else {
-                    cbs_cache[pi].st = cbs_cache[pi].cni;
-                }
-                //set_cbs_cache(pi, cbs_cache[pi]);
-                callback(cbs_cache[pi].cni, cbs_cache[pi].cbs, cbs_cache[pi].st);
+            cbs_cache[pi] = {};
+            cbs_cache[pi].cni = results[0]['count(*)'];
+            cbs_cache[pi].cbs = (results[0]['sum(cs)'] == null) ? 0 : results[0]['sum(cs)'];
+            if (parseInt(cbs_cache[pi].cni, 10) == 0) {
+                cbs_cache[pi].st = 0;
             }
             else {
-                callback(cbs_cache[pi].cni, cbs_cache[pi].cbs, cbs_cache[pi].st);
+                cbs_cache[pi].st = cbs_cache[pi].cni;
             }
+            //set_cbs_cache(pi, cbs_cache[pi]);
+            callback(cbs_cache[pi].cni, cbs_cache[pi].cbs, cbs_cache[pi].st);
         });
     }
 }
