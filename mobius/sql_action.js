@@ -59,9 +59,9 @@ function set_sri_sri(ri, sri, callback) {
 exports.insert_lookup = function(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st, sri, spi, callback) {
     console.time('insert_lookup ' + ri);
     var sql = util.format('insert into lookup (' +
-        'ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st, sri, spi) ' +
+        'pi, ri, ty, ct, st, rn, lt, et, acpi, lbl, at, aa, sri, spi) ' +
         'value (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
-        ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st, sri, spi);
+        pi, ri, ty, ct, st, rn, lt, et, acpi, lbl, at, aa, sri, spi);
     db.getResult(sql, '', function (err) {
         if(!err) {
             set_sri_sri(ri, sri, function (err, results) {
@@ -214,7 +214,7 @@ global.getType = function (p) {
 
 function get_info_cins(pi, cni, callback) {
     if (cbs_cache.hasOwnProperty(pi)) {
-        if (cni === -1 || cni > cbs_cache[pi].st) {
+        if (cni === -1 || cni != cbs_cache[pi].st) {
             var sql2 = 'select count(*), sum(cs) from cin where pi = \'' + pi + '\'';
             db.getResult(sql2, '', function (err, results) {
                 cbs_cache[pi].cni = results[0]['count(*)'];
@@ -225,7 +225,7 @@ function get_info_cins(pi, cni, callback) {
                 else {
                     cbs_cache[pi].st = cbs_cache[pi].cni;
                 }
-                set_cbs_cache(pi, cbs_cache[pi]);
+                //set_cbs_cache(pi, cbs_cache[pi]);
                 callback(cbs_cache[pi].cni, cbs_cache[pi].cbs, cbs_cache[pi].st);
             });
         }
@@ -249,7 +249,7 @@ function get_info_cins(pi, cni, callback) {
                 else {
                     cbs_cache[pi].st = cbs_cache[pi].cni;
                 }
-                set_cbs_cache(pi, cbs_cache[pi]);
+                //set_cbs_cache(pi, cbs_cache[pi]);
                 callback(cbs_cache[pi].cni, cbs_cache[pi].cbs, cbs_cache[pi].st);
             }
             else {
@@ -296,9 +296,8 @@ function create_action_cni(ty, pi, cni, cbs, mni, mbs, callback) {
 }
 
 exports.insert_cin = function(obj, mni, mbs, p_st, callback) {
-    console.time('insert_cin ' + obj.ri);
-
-    get_info_cins(obj.pi, obj.cni, function(cni, cbs, st) {
+    console.time('total_insert_cin ' + obj.ri);
+    get_info_cins(obj.pi, p_st, function(cni, cbs, st) {
         st = parseInt(st, 10) + 1;
         _this.insert_lookup(obj.ty, obj.ri, obj.rn, obj.pi, obj.ct, obj.lt, obj.et, JSON.stringify(obj.acpi), JSON.stringify(obj.lbl), JSON.stringify(obj.at), JSON.stringify(obj.aa), st, obj.sri, obj.spi, function (err, results) {
             if (!err) {
@@ -310,11 +309,14 @@ exports.insert_cin = function(obj, mni, mbs, p_st, callback) {
                     catch (e) {
                     }
                 }
+
+                console.time('insert_cin ' + obj.ri);
                 var sql = util.format('insert into cin (ri, pi, cr, cnf, cs, cin.or, con) ' +
                     'value (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
                     obj.ri, obj.pi, obj.cr, obj.cnf, obj.cs, obj.or, (con_type == 'string') ? obj.con.replace(/'/g, "\\'") : JSON.stringify(obj.con));
                 db.getResult(sql, '', function (err, results) {
                     if (!err) {
+                        console.timeEnd('insert_cin ' + obj.ri);
                         cni = parseInt(cni, 10) + 1;
                         cbs = parseInt(cbs, 10) + parseInt(obj.cs, 10);
 
@@ -333,7 +335,7 @@ exports.insert_cin = function(obj, mni, mbs, p_st, callback) {
                                 p_st = parseInt(p_st, 10) + 1;
                                 _this.update_cni_parent(obj.ty, cni, cbs, p_st, obj.pi, function (err, results) {
                                     if (!err) {
-                                        console.timeEnd('insert_cin ' + obj.ri);
+                                        console.timeEnd('total_insert_cin ' + obj.ri);
                                         callback(err, results);
                                     }
                                     else {

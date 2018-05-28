@@ -430,14 +430,15 @@ if (use_clustering) {
             else if(message.cmd === 'cbs:edit-request' ) {
                 cbs_cache[message.name] = message.val;
                 broadcast_cbs_cache();
+                fs.writeFileSync('cbs_cache.json', JSON.stringify(cbs_cache, null, 4), 'utf8');
             }
             else if(message.cmd === 'cbs:del-request' ) {
                 delete cbs_cache[message.name];
                 broadcast_cbs_cache();
+                fs.writeFileSync('cbs_cache.json', JSON.stringify(cbs_cache, null, 4), 'utf8');
             }
             else if (message.cmd === 'cbs:broadcast') {
                 broadcast_cbs_cache();
-                fs.writeFileSync('cbs_cache.json', JSON.stringify(cbs_cache, null, 4), 'utf8');
             }
             else if(message.cmd === 'hit:edit-request' ) {
                 hit_cache[message.name] = message.val;

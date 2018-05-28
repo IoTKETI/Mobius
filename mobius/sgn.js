@@ -153,11 +153,6 @@ function sgn_action(rootnm, check_value, results_ss, noti_Obj, sub_bodytype) {
                     node['m2m:sgn'].sur = results_ss.ri;
                 }
 
-                noti_Obj.ri = noti_Obj.sri;
-                delete noti_Obj.sri;
-                noti_Obj.pi = noti_Obj.spi;
-                delete noti_Obj.spi;
-
                 if (results_ss.nec) {
                     node['m2m:sgn'].nec = results_ss.nec;
                 }
@@ -452,6 +447,7 @@ function sgn_action(rootnm, check_value, results_ss, noti_Obj, sub_bodytype) {
                                 node['m2m:sgn'].cr = results_ss.cr;
                                 delete node['m2m:sgn'].nev;
                             }
+
                             if (sub_nu.protocol == 'http:') {
                                 //node['m2m:'+Object.keys(node)[0]] = node[Object.keys(node)[0]];
                                 //delete node[Object.keys(node)[0]];
@@ -529,6 +525,11 @@ exports.check = function(request, notiObj, check_value) {
         sgn_action(rootnm, check_value, notiObj, noti_Obj, request.headers.usebodytype);
     }
     else {
+        noti_Obj.ri = noti_Obj.sri;
+        delete noti_Obj.sri;
+        noti_Obj.pi = noti_Obj.spi;
+        delete noti_Obj.spi;
+
         db_sql.select_sub(pi, function (err, results_ss) {
             if (!err) {
                 for (var i = 0; i < results_ss.length; i++) {
