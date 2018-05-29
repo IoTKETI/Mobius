@@ -55,6 +55,16 @@ exports.build_cin = function(request, response, resource_Obj, body_Obj, callback
     var con_type = getType(resource_Obj[rootnm].con);
     if(con_type == 'string') {
         resource_Obj[rootnm].cs = Buffer.byteLength(resource_Obj[rootnm].con, 'utf8').toString();
+
+        if(request.headers.hasOwnProperty('mbs')) {
+            if(parseInt(request.headers.mbs) < parseInt(resource_Obj[rootnm].cs)) {
+                body_Obj = {};
+                body_Obj['dbg'] = 'NOT_ACCEPTABLE: cs is exceed mbs';
+                responder.response_result(request, response, 406, body_Obj, 5207, request.url, body_Obj['dbg']);
+                callback('0', resource_Obj);
+                return '0';
+            }
+        }
     }
     else {
         if (con_type === 'string_object') {

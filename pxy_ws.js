@@ -152,7 +152,7 @@ exports.ws_watchdog = function() {
 
 var ws_tid = require('shortid').generate();
 wdt.set_wdt(ws_tid, 2, _this.ws_watchdog);
-
+/*
 function make_json_obj(bodytype, str, callback) {
     try {
         if (bodytype == 'xml') {
@@ -221,6 +221,40 @@ function make_json_obj(bodytype, str, callback) {
                                                                 if (result[prop][attr][attr2].pv.acr[acr_idx].acor) {
                                                                     result[prop][attr][attr2].pv.acr[acr_idx].acor = result[prop][attr][attr2].pv.acr[acr_idx].acor.split(' ');
                                                                 }
+
+                                                                if (result[prop][attr][attr2].pv.acr[acr_idx].hasOwnProperty('acco')) {
+                                                                    var acco = result[prop][attr][attr2].pv.acr[acr_idx].acco;
+
+                                                                    if (!Array.isArray(acco)) {
+                                                                        temp = acco;
+                                                                        acco = [];
+                                                                        acco[0] = temp;
+                                                                    }
+
+                                                                    for(var acco_idx in acco) {
+                                                                        if(acco.hasOwnProperty(acco_idx)) {
+                                                                            if (acco[acco_idx].hasOwnProperty('acip')) {
+                                                                                if (acco[acco_idx].acip.hasOwnProperty('ipv4')) {
+                                                                                    if (getType(acco[acco_idx].acip['ipv4']) == 'string') {
+                                                                                        acco[acco_idx].acip['ipv4'] = acco[acco_idx].acip.ipv4.split(' ');
+                                                                                    }
+                                                                                }
+                                                                                else if (acco[acco_idx].acip.hasOwnProperty('ipv6')) {
+                                                                                    if (getType(acco[acco_idx].acip['ipv6']) == 'string') {
+                                                                                        acco[acco_idx].acip['ipv6'] = acco[acco_idx].acip.ipv6.split(' ');
+                                                                                    }
+                                                                                }
+                                                                            }
+                                                                            else if (acco[acco_idx].hasOwnProperty('actw')) {
+                                                                                if (getType(acco[acco_idx].actw) == 'string') {
+                                                                                    temp = acco[acco_idx].actw;
+                                                                                    acco[acco_idx]['actw'] = [];
+                                                                                    acco[acco_idx].actw[0] = temp;
+                                                                                }
+                                                                            }
+                                                                        }
+                                                                    }
+                                                                }
                                                             }
                                                         }
                                                     }
@@ -238,6 +272,40 @@ function make_json_obj(bodytype, str, callback) {
                                                             if (result[prop][attr][attr2].pvs.acr.hasOwnProperty(acr_idx)) {
                                                                 if (result[prop][attr][attr2].pvs.acr[acr_idx].acor) {
                                                                     result[prop][attr][attr2].pvs.acr[acr_idx].acor = result[prop][attr][attr2].pvs.acr[acr_idx].acor.split(' ');
+                                                                }
+
+                                                                if (result[prop][attr][attr2].pvs.acr[acr_idx].hasOwnProperty('acco')) {
+                                                                    acco = result[prop][attr][attr2].pvs.acr[acr_idx].acco;
+
+                                                                    if (!Array.isArray(acco)) {
+                                                                        temp = acco;
+                                                                        acco = [];
+                                                                        acco[0] = temp;
+                                                                    }
+
+                                                                    for(acco_idx in acco) {
+                                                                        if(acco.hasOwnProperty(acco_idx)) {
+                                                                            if (acco[acco_idx].hasOwnProperty('acip')) {
+                                                                                if (acco[acco_idx].acip.hasOwnProperty('ipv4')) {
+                                                                                    if (getType(acco[acco_idx].acip['ipv4']) == 'string') {
+                                                                                        acco[acco_idx].acip['ipv4'] = acco[acco_idx].acip.ipv4.split(' ');
+                                                                                    }
+                                                                                }
+                                                                                else if (acco[acco_idx].acip.hasOwnProperty('ipv6')) {
+                                                                                    if (getType(acco[acco_idx].acip['ipv6']) == 'string') {
+                                                                                        acco[acco_idx].acip['ipv6'] = acco[acco_idx].acip.ipv6.split(' ');
+                                                                                    }
+                                                                                }
+                                                                            }
+                                                                            else if (acco[acco_idx].hasOwnProperty('actw')) {
+                                                                                if (getType(acco[acco_idx].actw) == 'string') {
+                                                                                    temp = acco[acco_idx].actw;
+                                                                                    acco[acco_idx]['actw'] = [];
+                                                                                    acco[acco_idx].actw[0] = temp;
+                                                                                }
+                                                                            }
+                                                                        }
+                                                                    }
                                                                 }
                                                             }
                                                         }
@@ -312,7 +380,7 @@ function make_json_obj(bodytype, str, callback) {
         callback('0');
     }
 }
-
+*/
 function ws_message_handler(message) {
     var _this = this;
     if(message.type === 'utf8') {

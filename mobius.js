@@ -19,14 +19,13 @@ var fs = require('fs');
 var data  = fs.readFileSync('conf.json', 'utf-8');
 var conf = JSON.parse(data);
 
-global.defaultnmtype        = 'short';
 global.defaultbodytype      = 'json';
 
 
 // my CSE information
 global.usecsetype           = 'in'; // select 'in' or 'mn' or asn'
 global.usecsebase           = 'Mobius';
-global.usecseid             = '/Mobius';
+global.usecseid             = '/Mobius2';
 global.usecsebaseport       = conf.csebaseport;
 
 global.usedbhost            = 'localhost';
@@ -40,7 +39,7 @@ global.usepxymqttport       = '7578';
 global.usetsagentport       = '7582';
 
 global.usemqttbroker        = 'localhost'; // mqttbroker for mobius
-global.usesemanticbroker    = '10.10.202.114';
+
 global.usesecure            = 'disable';
 if(usesecure === 'enable') {
     global.usemqttport      = '8883';
@@ -54,33 +53,13 @@ global.useaccesscontrolpolicy = 'disable';
 global.wdt = require('./wdt');
 
 
-global.allowed_app_id = [];
-allowed_app_id.push('C-allowed-id');
+global.allowed_ae_ids = [];
+//allowed_ae_ids.push('ryeubi');
 
-var file = 'hit.json';
-fs.open(file, 'w', function(err, fd) {
-    if (err) {
-        throw err;
-    }
-    else {
-        var hit = {};
+global.allowed_app_ids = [];
+//allowed_app_ids.push('APP01');
 
-        var moment = require('moment');
-        var a = moment().utc();
-        var cur_t = a.format('YYYYMMDD');
-        var h = a.hours();
-
-        if(!hit.hasOwnProperty(cur_t)) {
-            hit[cur_t] = [];
-            for(var i = 0; i < 24; i++) {
-                hit[cur_t].push({});
-            }
-        }
-
-        //console.log(hit);
-        fs.writeFileSync('hit.json', JSON.stringify(hit, null, 4), 'utf8');
-    }
-});
+global.usesemanticbroker    = '10.10.202.114';
 
 // CSE core
 require('./app');

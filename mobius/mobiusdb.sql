@@ -1,8 +1,8 @@
--- MySQL dump 10.13  Distrib 5.7.17, for macos10.12 (x86_64)
+-- MySQL dump 10.13  Distrib 5.7.17, for Win64 (x86_64)
 --
--- Host: 127.0.0.1    Database: mobiusdb
+-- Host: localhost    Database: mobiusdb
 -- ------------------------------------------------------
--- Server version	5.7.21
+-- Server version	5.7.21-log
 
 /*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
 /*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
@@ -24,8 +24,8 @@ DROP TABLE IF EXISTS `acp`;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `acp` (
   `ri` varchar(200) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
-  `pv` longtext,
-  `pvs` longtext,
+  `pv` longtext NOT NULL,
+  `pvs` longtext NOT NULL,
   PRIMARY KEY (`ri`),
   UNIQUE KEY `ri_UNIQUE` (`ri`),
   CONSTRAINT `acp_ri` FOREIGN KEY (`ri`) REFERENCES `lookup` (`ri`) ON DELETE CASCADE ON UPDATE CASCADE
@@ -41,13 +41,13 @@ DROP TABLE IF EXISTS `ae`;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `ae` (
   `ri` varchar(200) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
-  `apn` varchar(45) DEFAULT NULL,
-  `api` varchar(45) DEFAULT NULL,
-  `aei` varchar(200) DEFAULT NULL,
-  `poa` varchar(200) DEFAULT NULL,
-  `or` varchar(45) DEFAULT NULL,
-  `rr` varchar(45) DEFAULT NULL,
-  `nl` varchar(45) DEFAULT NULL,
+  `apn` varchar(45) NOT NULL,
+  `api` varchar(45) NOT NULL,
+  `aei` varchar(200) NOT NULL,
+  `poa` varchar(200) NOT NULL,
+  `or` varchar(45) NOT NULL,
+  `rr` varchar(45) NOT NULL,
+  `nl` varchar(45) NOT NULL,
   `csz` varchar(45) DEFAULT NULL,
   PRIMARY KEY (`ri`),
   UNIQUE KEY `path_UNIQUE` (`ri`),
@@ -65,12 +65,12 @@ DROP TABLE IF EXISTS `cb`;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `cb` (
   `ri` varchar(200) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
-  `cst` varchar(45) DEFAULT NULL,
-  `csi` varchar(45) DEFAULT NULL,
-  `srt` varchar(100) DEFAULT NULL,
-  `poa` varchar(200) DEFAULT NULL,
-  `nl` varchar(45) DEFAULT NULL,
-  `ncp` varchar(45) DEFAULT NULL,
+  `cst` varchar(45) NOT NULL,
+  `csi` varchar(45) NOT NULL,
+  `srt` varchar(100) NOT NULL,
+  `poa` varchar(200) NOT NULL,
+  `nl` varchar(45) NOT NULL,
+  `ncp` varchar(45) NOT NULL,
   PRIMARY KEY (`ri`),
   UNIQUE KEY `path_UNIQUE` (`ri`),
   CONSTRAINT `cb_ri` FOREIGN KEY (`ri`) REFERENCES `lookup` (`ri`) ON DELETE CASCADE ON UPDATE CASCADE
@@ -85,15 +85,16 @@ DROP TABLE IF EXISTS `cin`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `cin` (
+  `pi` varchar(200) NOT NULL,
   `ri` varchar(200) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
-  `cr` varchar(45) DEFAULT NULL,
-  `cnf` varchar(45) DEFAULT NULL,
-  `cs` varchar(45) DEFAULT NULL,
-  `or` varchar(45) DEFAULT NULL,
-  `con` longtext,
-  PRIMARY KEY (`ri`),
+  `cs` int(11) NOT NULL,
+  `cr` varchar(45) NOT NULL,
+  `cnf` varchar(45) NOT NULL,
+  `or` varchar(45) NOT NULL,
+  `con` longtext NOT NULL,
+  PRIMARY KEY (`ri`,`pi`),
   UNIQUE KEY `ri_UNIQUE` (`ri`),
-  KEY `cin_ri_idx` (`ri`),
+  KEY `cin_ri_idx` (`pi`,`ri`,`cs`),
   CONSTRAINT `cin_ri` FOREIGN KEY (`ri`) REFERENCES `lookup` (`ri`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
@@ -107,14 +108,14 @@ DROP TABLE IF EXISTS `cnt`;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `cnt` (
   `ri` varchar(200) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
-  `cr` varchar(45) DEFAULT NULL,
-  `mni` varchar(45) DEFAULT NULL,
-  `mbs` varchar(45) DEFAULT NULL,
-  `mia` varchar(45) DEFAULT NULL,
-  `cni` varchar(45) DEFAULT NULL,
-  `cbs` varchar(45) DEFAULT NULL,
-  `li` varchar(45) DEFAULT NULL,
-  `or` varchar(45) DEFAULT NULL,
+  `cr` varchar(45) NOT NULL,
+  `mni` int(10) unsigned NOT NULL,
+  `mbs` int(10) unsigned NOT NULL,
+  `mia` int(10) unsigned NOT NULL,
+  `cni` int(10) unsigned NOT NULL,
+  `cbs` int(10) unsigned NOT NULL,
+  `li` varchar(45) NOT NULL,
+  `or` varchar(45) NOT NULL,
   `disr` varchar(45) DEFAULT NULL,
   PRIMARY KEY (`ri`),
   UNIQUE KEY `resourceid_UNIQUE` (`ri`),
@@ -131,14 +132,14 @@ DROP TABLE IF EXISTS `csr`;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `csr` (
   `ri` varchar(200) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
-  `cst` varchar(45) DEFAULT NULL,
-  `poa` varchar(200) DEFAULT NULL,
-  `cb` varchar(200) DEFAULT NULL,
-  `csi` varchar(200) DEFAULT NULL,
-  `mei` varchar(45) DEFAULT NULL,
-  `tri` varchar(45) DEFAULT NULL,
-  `rr` varchar(45) DEFAULT NULL,
-  `nl` varchar(45) DEFAULT NULL,
+  `cst` varchar(45) NOT NULL,
+  `poa` varchar(200) NOT NULL,
+  `cb` varchar(200) NOT NULL,
+  `csi` varchar(200) NOT NULL,
+  `mei` varchar(45) NOT NULL,
+  `tri` varchar(45) NOT NULL,
+  `rr` varchar(45) NOT NULL,
+  `nl` varchar(45) NOT NULL,
   PRIMARY KEY (`ri`),
   UNIQUE KEY `ri_UNIQUE` (`ri`),
   KEY `csr_ri_idx` (`ri`),
@@ -155,15 +156,15 @@ DROP TABLE IF EXISTS `grp`;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `grp` (
   `ri` varchar(200) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
-  `cr` varchar(45) DEFAULT NULL,
+  `cr` varchar(45) NOT NULL,
   `mt` varchar(45) NOT NULL,
   `cnm` varchar(45) NOT NULL,
   `mnm` varchar(45) NOT NULL,
-  `mid` mediumtext,
-  `macp` mediumtext,
-  `mtv` varchar(45) DEFAULT NULL,
-  `csy` varchar(45) DEFAULT NULL,
-  `gn` varchar(45) DEFAULT NULL,
+  `mid` mediumtext NOT NULL,
+  `macp` mediumtext NOT NULL,
+  `mtv` varchar(45) NOT NULL,
+  `csy` varchar(45) NOT NULL,
+  `gn` varchar(45) NOT NULL,
   PRIMARY KEY (`ri`),
   UNIQUE KEY `ri_UNIQUE` (`ri`),
   CONSTRAINT `grp_ri` FOREIGN KEY (`ri`) REFERENCES `lookup` (`ri`) ON DELETE CASCADE ON UPDATE CASCADE
@@ -179,13 +180,14 @@ DROP TABLE IF EXISTS `lcp`;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `lcp` (
   `ri` varchar(200) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
-  `los` varchar(45) DEFAULT NULL,
-  `lou` varchar(45) DEFAULT NULL,
-  `lot` varchar(45) DEFAULT NULL,
-  `lor` varchar(45) DEFAULT NULL,
-  `loi` varchar(45) DEFAULT NULL,
-  `lon` varchar(45) DEFAULT NULL,
-  `lost` varchar(45) DEFAULT NULL,
+  `los` varchar(45) NOT NULL,
+  `lou` varchar(45) NOT NULL,
+  `lot` varchar(45) NOT NULL,
+  `lor` varchar(45) NOT NULL,
+  `loi` varchar(45) NOT NULL,
+  `lon` varchar(45) NOT NULL,
+  `lost` varchar(45) NOT NULL,
+  `cr` varchar(45) NOT NULL,
   PRIMARY KEY (`ri`),
   UNIQUE KEY `ri_UNIQUE` (`ri`),
   CONSTRAINT `lcp_ri` FOREIGN KEY (`ri`) REFERENCES `lookup` (`ri`) ON DELETE CASCADE ON UPDATE CASCADE
@@ -201,24 +203,23 @@ DROP TABLE IF EXISTS `lookup`;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `lookup` (
   `pi` varchar(200) NOT NULL,
-  `ty` varchar(8) NOT NULL,
-  `ct` varchar(15) NOT NULL,
   `ri` varchar(200) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
+  `ty` int(11) unsigned NOT NULL,
+  `ct` varchar(15) NOT NULL,
+  `st` int(11) unsigned NOT NULL,
   `rn` varchar(45) NOT NULL,
   `lt` varchar(45) NOT NULL,
-  `et` varchar(45) DEFAULT NULL,
-  `acpi` varchar(200) DEFAULT NULL,
-  `lbl` varchar(200) DEFAULT NULL,
-  `at` varchar(45) DEFAULT NULL,
-  `aa` varchar(45) DEFAULT NULL,
-  `st` varchar(45) DEFAULT NULL,
-  `sri` varchar(45) DEFAULT NULL,
-  `spi` varchar(45) DEFAULT NULL,
-  PRIMARY KEY (`pi`,`ty`,`ct`,`ri`),
+  `et` varchar(45) NOT NULL,
+  `acpi` varchar(200) NOT NULL,
+  `lbl` varchar(200) NOT NULL,
+  `at` varchar(45) NOT NULL,
+  `aa` varchar(45) NOT NULL,
+  `sri` varchar(45) NOT NULL,
+  `spi` varchar(45) NOT NULL,
+  PRIMARY KEY (`pi`,`ri`,`ty`),
   UNIQUE KEY `ri_UNIQUE` (`ri`),
-  KEY `idx_lookup_resourcetype` (`ty`),
-  KEY `idx_lookup_parentid` (`pi`),
-  KEY `idx_lookup_ct` (`ct`)
+  KEY `idx_lookup_ty` (`ty`) USING BTREE,
+  KEY `idx_lookup_pi` (`pi`,`st`,`ct`) USING BTREE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
@@ -257,6 +258,7 @@ CREATE TABLE `mgo` (
   `dis` varchar(45) DEFAULT NULL,
   `rbo` varchar(45) DEFAULT NULL,
   `far` varchar(45) DEFAULT NULL,
+  `cr` varchar(45) DEFAULT NULL,
   PRIMARY KEY (`ri`),
   UNIQUE KEY `ri_UNIQUE` (`ri`),
   CONSTRAINT `mgo_ri` FOREIGN KEY (`ri`) REFERENCES `lookup` (`ri`) ON DELETE CASCADE ON UPDATE CASCADE
@@ -278,6 +280,7 @@ CREATE TABLE `mms` (
   `asd` varchar(45) DEFAULT NULL,
   `osd` varchar(45) DEFAULT NULL,
   `sst` varchar(45) DEFAULT NULL,
+  `cr` varchar(45) DEFAULT NULL,
   PRIMARY KEY (`ri`),
   UNIQUE KEY `ri_UNIQUE` (`ri`),
   CONSTRAINT `mms_ri` FOREIGN KEY (`ri`) REFERENCES `lookup` (`ri`) ON DELETE CASCADE ON UPDATE CASCADE
@@ -296,6 +299,7 @@ CREATE TABLE `nod` (
   `ni` varchar(45) NOT NULL,
   `hcl` varchar(45) DEFAULT NULL,
   `mgca` varchar(45) DEFAULT NULL,
+  `cr` varchar(45) DEFAULT NULL,
   PRIMARY KEY (`ri`),
   UNIQUE KEY `ri_UNIQUE` (`ri`),
   CONSTRAINT `nod_ri` FOREIGN KEY (`ri`) REFERENCES `lookup` (`ri`) ON DELETE CASCADE ON UPDATE CASCADE
@@ -319,6 +323,7 @@ CREATE TABLE `req` (
   `pc` longtext,
   `rs` varchar(45) DEFAULT NULL,
   `ors` varchar(45) DEFAULT NULL,
+  `cr` varchar(45) DEFAULT NULL,
   PRIMARY KEY (`ri`),
   UNIQUE KEY `ri_UNIQUE` (`ri`),
   CONSTRAINT `req_ri` FOREIGN KEY (`ri`) REFERENCES `lookup` (`ri`) ON DELETE CASCADE ON UPDATE CASCADE
@@ -335,11 +340,11 @@ DROP TABLE IF EXISTS `smd`;
 CREATE TABLE `smd` (
   `ri` varchar(200) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
   `cr` varchar(45) DEFAULT NULL,
-  `dcrp` longtext,
-  `or` mediumtext,
   `dsp` longtext,
+  `or` mediumtext,
   `soe` varchar(200) DEFAULT NULL,
   `rels` varchar(400) DEFAULT NULL,
+  `dcrp` longtext,
   PRIMARY KEY (`ri`),
   UNIQUE KEY `ri_UNIQUE` (`ri`),
   CONSTRAINT `sd_ri` FOREIGN KEY (`ri`) REFERENCES `lookup` (`ri`) ON DELETE CASCADE ON UPDATE CASCADE
@@ -413,8 +418,9 @@ CREATE TABLE `tm` (
   `tst` varchar(45) DEFAULT NULL,
   `tmr` varchar(45) DEFAULT NULL,
   `tmh` varchar(45) DEFAULT NULL,
-  `rqps` tinytext,
-  `rsps` tinytext,
+  `rqps` mediumtext,
+  `rsps` mediumtext,
+  `cr` varchar(45) DEFAULT NULL,
   PRIMARY KEY (`ri`),
   UNIQUE KEY `ri_UNIQUE` (`ri`),
   CONSTRAINT `tm_ri` FOREIGN KEY (`ri`) REFERENCES `lookup` (`ri`) ON DELETE CASCADE ON UPDATE CASCADE
@@ -438,8 +444,8 @@ CREATE TABLE `tr` (
   `text` varchar(45) DEFAULT NULL,
   `tct` varchar(45) DEFAULT NULL,
   `tltp` varchar(45) DEFAULT NULL,
-  `trqp` tinytext NOT NULL,
-  `trsp` tinytext,
+  `trqp` mediumtext NOT NULL,
+  `trsp` mediumtext,
   PRIMARY KEY (`ri`),
   UNIQUE KEY `ri_UNIQUE` (`ri`),
   CONSTRAINT `tr_ri` FOREIGN KEY (`ri`) REFERENCES `lookup` (`ri`) ON DELETE CASCADE ON UPDATE CASCADE
@@ -465,7 +471,7 @@ CREATE TABLE `ts` (
   `pei` varchar(45) DEFAULT NULL,
   `mdd` varchar(45) DEFAULT NULL,
   `mdn` varchar(45) DEFAULT NULL,
-  `mdlt` longtext,
+  `mdl` longtext,
   `mdc` varchar(45) DEFAULT NULL,
   `mdt` varchar(45) DEFAULT NULL,
   PRIMARY KEY (`ri`),
@@ -482,11 +488,14 @@ DROP TABLE IF EXISTS `tsi`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `tsi` (
+  `pi` varchar(200) NOT NULL,
   `ri` varchar(200) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
+  `cs` int(11) DEFAULT NULL,
   `dgt` varchar(45) DEFAULT NULL,
   `con` varchar(45) DEFAULT NULL,
   `sqn` varchar(45) DEFAULT NULL,
-  PRIMARY KEY (`ri`),
+  `cr` varchar(45) DEFAULT NULL,
+  PRIMARY KEY (`pi`,`ri`),
   UNIQUE KEY `ri_UNIQUE` (`ri`),
   CONSTRAINT `tsi_ri` FOREIGN KEY (`ri`) REFERENCES `lookup` (`ri`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
@@ -501,4 +510,4 @@ CREATE TABLE `tsi` (
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2018-03-14 19:06:40
+-- Dump completed on 2018-05-15  0:31:22

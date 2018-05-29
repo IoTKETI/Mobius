@@ -30,7 +30,7 @@ var _this = this;
 
 
 
-const attrLname = {
+var attrLname = {
     "acpi": "accessControlPolicyIDs",
     "aa":   "announcedAttribute",
     "at":   "announceTo",
@@ -318,7 +318,7 @@ const attrLname = {
     "rtv":"responseTypeValue"
 };
 
-const attrSname = {
+var attrSname = {
     "accessControlPolicyIDs"       :"acpi",
     "announcedAttribute"           :"aa",
     "announceTo"                   :"at",
@@ -607,7 +607,7 @@ const attrSname = {
     "firmwarename":"fwnnam"
 };
 
-const rceLname = {
+var rceLname = {
     "cb" : "CSEBase",
     "ae" : "AE",
     "csr": "remoteCSE",
@@ -686,7 +686,7 @@ const rceLname = {
 };
 
 
-const rceSname = {
+var rceSname = {
     "CSEBase"           : "cb",
     "AE"                : "ae",
     "remoteCSE"         : "csr",
@@ -764,7 +764,7 @@ const rceSname = {
 };
 
 
-const typeRsrc = {
+var typeRsrc = {
     "1": "acp",
     "2": "ae",
     "3": "cnt",
@@ -786,7 +786,7 @@ const typeRsrc = {
     "99": "rsp"
 };
 
-const mgoType = {
+var mgoType = {
     "1001": "fwr",
     "1006": "bat",
     "1007": "dvi",
@@ -910,7 +910,7 @@ function typeCheckAction(index1, body_Obj) {
                 delete body_Obj[index2];
             }
             else if (index2 == 'pv' || index2 == 'pvs') {
-                if (!Array.isArray(body_Obj[index2].acr)) {
+                if(getType(body_Obj[index2]) === 'string') {
                     body_Obj[index2] = JSON.parse(body_Obj[index2]);
                 }
             }
@@ -1067,7 +1067,6 @@ function xmlAction(xml, body_Obj) {
         }
         else if (xml.name === 'm2m:sub') {
             xmlInsert(xml, body_Obj, 'daci', 'et');
-            xmlInsert(xml, body_Obj, 'cr');
 
             for (attr in body_Obj) {
                 if (body_Obj.hasOwnProperty(attr)) {
@@ -1111,6 +1110,7 @@ function xmlAction(xml, body_Obj) {
             xmlInsert(xml, body_Obj, 'ln');
             xmlInsert(xml, body_Obj, 'nct');
             xmlInsert(xml, body_Obj, 'nec');
+            xmlInsert(xml, body_Obj, 'cr');
             xmlInsert(xml, body_Obj, 'su');
         }
 
@@ -1156,7 +1156,7 @@ function xmlAction(xml, body_Obj) {
         else if (xml.name === 'm2m:acp') {
             for (attr in body_Obj) {
                 if (body_Obj.hasOwnProperty(attr)) {
-                    if (attr == 'pv') {
+                    if (attr == 'pv' || attr == 'pvs') {
                         xml2 = xml.ele(attr, '');
                         for (sub_attr in body_Obj[attr]) {
                             if (body_Obj[attr].hasOwnProperty(sub_attr)) {
@@ -1165,7 +1165,33 @@ function xmlAction(xml, body_Obj) {
                                         var xml3 = xml2.ele(sub_attr, '');
                                         for (var sub_attr3 in body_Obj[attr][sub_attr][sub_attr2]) {
                                             if (body_Obj[attr][sub_attr][sub_attr2].hasOwnProperty(sub_attr3)) {
-                                                xml3.ele(sub_attr3, body_Obj[attr][sub_attr][sub_attr2][sub_attr3].toString().replace(/,/g, ' '));
+                                                if(sub_attr3 == 'acco') {
+                                                    for (var sub_attr4 in body_Obj[attr][sub_attr][sub_attr2][sub_attr3]) {
+                                                        if (body_Obj[attr][sub_attr][sub_attr2][sub_attr3].hasOwnProperty(sub_attr4)) {
+                                                            var xml4 = xml3.ele(sub_attr3, '');
+                                                            for (var sub_attr5 in body_Obj[attr][sub_attr][sub_attr2][sub_attr3][sub_attr4]) {
+                                                                if (body_Obj[attr][sub_attr][sub_attr2][sub_attr3][sub_attr4].hasOwnProperty(sub_attr5)) {
+                                                                    if(sub_attr5 == 'acip') {
+                                                                        var xml5 = xml4.ele(sub_attr5, '');
+                                                                        for (var sub_attr6 in body_Obj[attr][sub_attr][sub_attr2][sub_attr3][sub_attr4][sub_attr5]) {
+                                                                            if (body_Obj[attr][sub_attr][sub_attr2][sub_attr3][sub_attr4][sub_attr5].hasOwnProperty(sub_attr6)) {
+                                                                                var xml6 = xml5.ele(sub_attr6, '');
+                                                                                xml6.txt(body_Obj[attr][sub_attr][sub_attr2][sub_attr3][sub_attr4][sub_attr5][sub_attr6]);
+                                                                            }
+                                                                        }
+                                                                    }
+                                                                    if(sub_attr5 == 'actw') {
+                                                                        xml5 = xml4.ele(sub_attr5, '');
+                                                                        xml5.txt(body_Obj[attr][sub_attr][sub_attr2][sub_attr3][sub_attr4][sub_attr5]);
+                                                                    }
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                                else {
+                                                    xml3.ele(sub_attr3, body_Obj[attr][sub_attr][sub_attr2][sub_attr3].toString().replace(/,/g, ' '));
+                                                }
                                             }
                                         }
                                     }
@@ -1173,31 +1199,6 @@ function xmlAction(xml, body_Obj) {
                             }
                         }
                         delete body_Obj[attr];
-                        break;
-                    }
-                }
-            }
-
-            for (attr in body_Obj) {
-                if (body_Obj.hasOwnProperty(attr)) {
-                    if (attr == 'pvs') {
-                        xml2 = xml.ele(attr, '');
-                        for (sub_attr in body_Obj[attr]) {
-                            if (body_Obj[attr].hasOwnProperty(sub_attr)) {
-                                for (sub_attr2 in body_Obj[attr][sub_attr]) {
-                                    if (body_Obj[attr][sub_attr].hasOwnProperty(sub_attr2)) {
-                                        xml3 = xml2.ele(sub_attr, '');
-                                        for (sub_attr3 in body_Obj[attr][sub_attr][sub_attr2]) {
-                                            if (body_Obj[attr][sub_attr][sub_attr2].hasOwnProperty(sub_attr3)) {
-                                                xml3.ele(sub_attr3, body_Obj[attr][sub_attr][sub_attr2][sub_attr3].toString().replace(/,/g, ' '));
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                        delete body_Obj[attr];
-                        break;
                     }
                 }
             }
@@ -1314,7 +1315,7 @@ function xmlAction(xml, body_Obj) {
     }
 }
 
-function convertXml(rootnm, body_Obj) {
+exports.convertXml = function(rootnm, body_Obj) {
     var xml = xmlbuilder.create('m2m:' + rootnm, {version: '1.0', encoding: 'UTF-8', standalone: true},
         {pubID: null, sysID: null}, {
             allowSurrogateChars: false,
@@ -1339,9 +1340,9 @@ function convertXml(rootnm, body_Obj) {
         }
     }
     return xml.end({pretty: false, indent: '  ', newline: '\n'}).toString();
-}
+};
 
-function convertXml2(rootnm, body_Obj) {
+exports.convertXml2 = function(rootnm, body_Obj) {
     var xml = xmlbuilder.create('m2m:' + rootnm, {version: '1.0', encoding: 'UTF-8', standalone: true},
         {pubID: null, sysID: null}, {
             allowSurrogateChars: false,
@@ -1389,7 +1390,105 @@ function convertXml2(rootnm, body_Obj) {
     }
 
     return xml.end({pretty: false, indent: '  ', newline: '\n'}).toString();
-}
+};
+
+
+exports.convertXmlMqtt = function(rootnm, body_Obj) {
+    var xml = xmlbuilder.create('m2m:' + rootnm, {version: '1.0', encoding: 'UTF-8', standalone: true},
+        {pubID: null, sysID: null}, {
+            allowSurrogateChars: false,
+            skipNullAttributes: false,
+            headless: false,
+            ignoreDecorators: false,
+            stringify: {}
+        }
+    ).att('xmlns:m2m', 'http://www.onem2m.org/xml/protocols').att('xmlns:xsi', 'http://www.w3.org/2001/XMLSchema-instance');
+
+    xmlInsert(xml, body_Obj, 'rsc');
+    xmlInsert(xml, body_Obj, 'rqi');
+    var xml2 = xml.ele('pc');
+
+    for (var index in body_Obj) {
+        if (body_Obj.hasOwnProperty(index)) {
+            if(index == 'pc') {
+                for (var attr in body_Obj[index]) {
+                    if (body_Obj[index].hasOwnProperty(attr)) {
+                        if(attr == 'm2m:dbg') {
+                            xmlAction(xml2, body_Obj[index]);
+                            break;
+                        }
+                        else {
+                            var xml3 = xml2.ele(attr);
+                            xmlAction(xml3, body_Obj[index][attr]);
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return xml.end({pretty: false, indent: '  ', newline: '\n'}).toString();
+};
+
+exports.convertXmlSgn = function(rootnm, body_Obj) {
+    var sgn = xmlbuilder.create(rootnm, {version: '1.0', encoding: 'UTF-8', standalone: true},
+        {pubID: null, sysID: null}, {
+            allowSurrogateChars: false,
+            skipNullAttributes: false,
+            headless: false,
+            ignoreDecorators: false,
+            stringify: {}
+        }
+    ).att('xmlns:m2m', 'http://www.onem2m.org/xml/protocols').att('xmlns:xsi', 'http://www.w3.org/2001/XMLSchema-instance');
+
+    var sequence1 = ['nev', 'vrq', 'sud', 'sur', 'cr'];
+    var sequence2 = ['rep', 'net'];
+
+    for(var seq1 in sequence1) {
+        if(sequence1.hasOwnProperty(seq1)) {
+            for (var prop in body_Obj) {
+                if (body_Obj.hasOwnProperty(prop)) {
+                    if (prop === sequence1[seq1]) {
+                        if (prop === 'nev') {
+                            var xml_0 = sgn.ele(prop);
+                            for(var seq2 in sequence2) {
+                                if (sequence2.hasOwnProperty(seq2)) {
+                                    for (var agr_attr in body_Obj[prop]) {
+                                        if (body_Obj[prop].hasOwnProperty(agr_attr)) {
+                                            if (agr_attr === sequence2[seq2]) {
+                                                if (agr_attr === 'rep') {
+                                                    var xml_01 = xml_0.ele(agr_attr);
+                                                    for (var pc_attr in body_Obj[prop][agr_attr]) {
+                                                        if (body_Obj[prop][agr_attr].hasOwnProperty(pc_attr)) {
+                                                            var xml_1 = xml_01.ele(pc_attr);
+                                                            xmlAction(xml_1, body_Obj[prop][agr_attr][pc_attr]);
+                                                        }
+                                                    }
+                                                    break;
+                                                }
+                                                else if (agr_attr === 'net') {
+                                                    xml_0.ele(agr_attr, body_Obj[prop][agr_attr]);
+                                                    break;
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            break;
+                        }
+                        else {
+                            sgn.ele(prop, body_Obj[prop]);
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    return sgn.end({pretty: false, indent: '  ', newline: '\n'}).toString();
+};
 
 exports.typeCheckforJson = function(body_Obj) {
     for (var index1 in body_Obj) {
@@ -1409,6 +1508,35 @@ function typeCheckforJson2(body_Obj) {
             }
         }
     }
+}
+
+function store_to_req_resource(request, bodyString, rsc, cap) {
+    db_sql.update_req('/' + request.headers.tg, bodyString, rsc, function () {
+        var rspObj = {};
+        rspObj.rsc = rsc;
+        rspObj.ri = request.method + "-" + ri + "-" + JSON.stringify(request.query);
+        rspObj = cap;
+        console.log(JSON.stringify(rspObj));
+
+        if (request.headers['x-m2m-rtu'] != null && request.headers['x-m2m-rtu'] != '') {
+            var nu = request.headers['x-m2m-rtu'];
+            var sub_nu = url.parse(nu);
+            var xm2mri = require('shortid').generate();
+
+            if (sub_nu.protocol == 'http:') {
+                request_noti_http(nu, bodyString, request.headers.usebodytype, xm2mri);
+            }
+            else if (sub_nu.protocol == 'coap:') {
+                request_noti_coap(nu, bodyString, request.headers.usebodytype, xm2mri);
+            }
+            else if (sub_nu.protocol == 'ws:') {
+                request_noti_ws(nu, bodyString, request.headers.usebodytype, xm2mri);
+            }
+            else { // mqtt:
+                request_noti_mqtt(nu, bodyString, request.headers.usebodytype, xm2mri);
+            }
+        }
+    });
 }
 
 exports.response_result = function(request, response, status, body_Obj, rsc, ri, cap) {
@@ -1491,14 +1619,14 @@ exports.response_result = function(request, response, status, body_Obj, rsc, ri,
 
         console.log(bodyString);
 
-        if (request.query.rt == 3) {
+        if (request.query.rt == 3 || (request.query.rt == 2 && request.headers['x-m2m-rtu'] == null && request.headers['x-m2m-rtu'] == '')) {
             if (request.headers.usebodytype == 'json') {
             }
             else if (request.headers.usebodytype == 'cbor') {
                 bodyString = cbor.encode(body_Obj).toString('hex');
             }
             else {
-                bodyString = convertXml(rootnm, body_Obj);
+                bodyString = _this.convertXml(rootnm, body_Obj);
             }
 
             response.status(status).end(bodyString);
@@ -1518,33 +1646,8 @@ exports.response_result = function(request, response, status, body_Obj, rsc, ri,
             // fs.appendFileSync('get_elapsed_time.log', elapsed_hr_str, 'utf-8');
             // delete elapsed_hrstart[elapsed_tid];
         }
-        else if (request.query.rt == 1 || request.query.rt == 2) {
-            db_sql.update_req('/'+request.headers.tg, bodyString, rsc, function () {
-                rspObj = {};
-                rspObj.rsc = rsc;
-                rspObj.ri = request.method + "-" + ri + "-" + JSON.stringify(request.query);
-                rspObj = cap;
-                console.log(JSON.stringify(rspObj));
-
-                if(request.query.rt == 2 && request.headers['x-m2m-rtu'] != null) {
-                    var nu = request.headers['x-m2m-rtu'];
-                    var sub_nu = url.parse(nu);
-                    var xm2mri = require('shortid').generate();
-
-                    if (sub_nu.protocol == 'http:') {
-                        request_noti_http(nu, bodyString, request.headers.usebodytype, xm2mri);
-                    }
-                    else if (sub_nu.protocol == 'coap:') {
-                        request_noti_coap(nu, bodyString, request.headers.usebodytype, xm2mri);
-                    }
-                    else if (sub_nu.protocol == 'ws:') {
-                        request_noti_ws(nu, JSON.stringify(node), request.headers.usebodytype, xm2mri);
-                    }
-                    else { // mqtt:
-                        request_noti_mqtt(nu, JSON.stringify(node), request.headers.usebodytype, xm2mri);
-                    }
-                }
-            });
+        else if (request.query.rt == 1 || (request.query.rt == 2 && request.headers['x-m2m-rtu'] != null && request.headers['x-m2m-rtu'] != '')) {
+            store_to_req_resource(request, bodyString, rsc, cap);
         }
     }
 };
@@ -1601,7 +1704,7 @@ exports.response_rcn3_result = function(request, response, status, body_Obj, rsc
 
     var bodyString = JSON.stringify(body_Obj);
 
-    if (request.query.rt == 3) {
+    if (request.query.rt == 3 || (request.query.rt == 2 && request.headers['x-m2m-rtu'] == null && request.headers['x-m2m-rtu'] == '')) {
         if (request.headers.usebodytype == 'json') {
         }
         else if (request.headers.usebodytype == 'cbor') {
@@ -1644,33 +1747,8 @@ exports.response_rcn3_result = function(request, response, status, body_Obj, rsc
         rspObj = cap;
         console.log(JSON.stringify(rspObj));
     }
-    else if (request.query.rt == 1 || request.query.rt == 2) {
-        db_sql.update_req('/'+request.headers.tg, bodyString, rsc, function () {
-            rspObj = {};
-            rspObj.rsc = rsc;
-            rspObj.ri = request.method + "-" + ri + "-" + JSON.stringify(request.query);
-            rspObj = cap;
-            console.log(JSON.stringify(rspObj));
-
-            if(request.query.rt == 2 && request.headers['x-m2m-rtu'] != null) {
-                var nu = request.headers['x-m2m-rtu'];
-                var sub_nu = url.parse(nu);
-                var xm2mri = require('shortid').generate();
-
-                if (sub_nu.protocol == 'http:') {
-                    request_noti_http(nu, bodyString, request.headers.usebodytype, xm2mri);
-                }
-                else if (sub_nu.protocol == 'coap:') {
-                    request_noti_coap(nu, bodyString, request.headers.usebodytype, xm2mri);
-                }
-                else if (sub_nu.protocol == 'ws:') {
-                    request_noti_ws(nu, JSON.stringify(node), request.headers.usebodytype, xm2mri);
-                }
-                else { // mqtt:
-                    request_noti_mqtt(nu, JSON.stringify(node), request.headers.usebodytype, xm2mri);
-                }
-            }
-        });
+    else if (request.query.rt == 1 || (request.query.rt == 2 && request.headers['x-m2m-rtu'] != null && request.headers['x-m2m-rtu'] != '')) {
+        store_to_req_resource(request, bodyString, rsc, cap);
     }
 };
 
@@ -1807,7 +1885,7 @@ exports.search_result = function(request, response, status, body_Obj, rsc, ri, c
 
         bodyString = JSON.stringify(body_Obj);
 
-        if (request.query.rt == 3) {
+        if (request.query.rt == 3 || (request.query.rt == 2 && request.headers['x-m2m-rtu'] == null && request.headers['x-m2m-rtu'] == '')) {
             if (request.headers.usebodytype == 'json') {
             }
             else if (request.headers.usebodytype == 'cbor') {
@@ -1815,10 +1893,10 @@ exports.search_result = function(request, response, status, body_Obj, rsc, ri, c
             }
             else {
                 if(rootnm == 'agr') {
-                    bodyString = convertXml2(rootnm, body_Obj['m2m:' + rootnm]);
+                    bodyString = _this.convertXml2(rootnm, body_Obj['m2m:' + rootnm]);
                 }
                 else {
-                    bodyString = convertXml2(rootnm, body_Obj);
+                    bodyString = _this.convertXml2(rootnm, body_Obj);
                 }
             }
 
@@ -1830,33 +1908,8 @@ exports.search_result = function(request, response, status, body_Obj, rsc, ri, c
             rspObj = cap;
             console.log(JSON.stringify(rspObj));
         }
-        else if (request.query.rt == 1 || request.query.rt == 2) {
-            db_sql.update_req('/'+request.headers.tg, bodyString, rsc, function () {
-                rspObj = {};
-                rspObj.rsc = rsc;
-                rspObj.ri = request.method + "-" + ri + "-" + JSON.stringify(request.query);
-                rspObj = cap;
-                console.log(JSON.stringify(rspObj));
-
-                if(request.query.rt == 2 && request.headers['x-m2m-rtu'] != null) {
-                    var nu = request.headers['x-m2m-rtu'];
-                    var sub_nu = url.parse(nu);
-                    var xm2mri = require('shortid').generate();
-
-                    if (sub_nu.protocol == 'http:') {
-                        request_noti_http(nu, bodyString, request.headers.usebodytype, xm2mri);
-                    }
-                    else if (sub_nu.protocol == 'coap:') {
-                        request_noti_coap(nu, bodyString, request.headers.usebodytype, xm2mri);
-                    }
-                    else if (sub_nu.protocol == 'ws:') {
-                        request_noti_ws(nu, JSON.stringify(node), request.headers.usebodytype, xm2mri);
-                    }
-                    else { // mqtt:
-                        request_noti_mqtt(nu, JSON.stringify(node), request.headers.usebodytype, xm2mri);
-                    }
-                }
-            });
+        else if (request.query.rt == 1 || (request.query.rt == 2 && request.headers['x-m2m-rtu'] != null && request.headers['x-m2m-rtu'] != '')) {
+            store_to_req_resource(request, bodyString, rsc, cap);
         }
     }
 };
@@ -1868,7 +1921,6 @@ exports.error_result = function(request, response, status, rsc, dbg_string) {
 
     _this.response_result(request, response, status, body_Obj, rsc, request.url, body_Obj['dbg']);
 };
-
 
 function request_noti_http(nu, bodyString, bodytype, xm2mri) {
     var options = {

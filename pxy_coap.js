@@ -22,16 +22,8 @@ var fs = require('fs');
 var http = require('http');
 var https = require('https');
 var coap = require('coap');
-var util = require('util');
-var xml2js = require('xml2js');
-var url = require('url');
-var xmlbuilder = require('xmlbuilder');
-var moment = require('moment');
-var ip = require("ip");
-
 
 global.NOPRINT = 'true';
-
 
 var _this = this;
 
@@ -41,10 +33,7 @@ var coap_state = 'init';
 var events = require('events');
 var coap_custom = new events.EventEmitter();
 
-
 var usecoapcbhost = 'localhost'; // pxycoap to mobius
-
-
 
 var coap_rsc_code = {
     '2000': '2.05',
@@ -190,6 +179,7 @@ function coap_message_handler(request, response) {
     delete headers['X-M2M-TY'];
 
     headers['binding'] = 'C';
+    headers['remoteaddress'] = request.rsinfo.address;
 
     var responseBody = '';
 
@@ -258,7 +248,7 @@ function coap_message_handler(request, response) {
     }
 
     req.on('error', function (e) {
-        if (e.message !== 'read ECONNRESET') {
+        if (e.message != 'read ECONNRESET') {
             console.log('[pxycoap - http_retrieve_CSEBase] problem with request: ' + e.message);
         }
     });
