@@ -1328,7 +1328,6 @@ function check_http(request, response, callback) {
                                 if(attr == 'aa' || attr == 'at' || attr == 'poa' || attr == 'acpi' || attr == 'srt' ||
                                     attr == 'nu' || attr == 'mid' || attr == 'macp' || attr == 'rels' || attr == 'rqps') {
                                     if (!Array.isArray(body_Obj[prop][attr])) {
-                                        if(body_Objbody_Obj[prop][attr])
                                         body_Obj = {};
                                         body_Obj['dbg'] = attr + ' attribute should be json array format';
                                         responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
