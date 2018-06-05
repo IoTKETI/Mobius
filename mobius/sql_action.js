@@ -1130,7 +1130,7 @@ exports.search_lookup = function (ri, query, cur_lim, pi_list, pi_index, found_O
     }
 
     var sql = build_discovery_sql(ri, query, cur_lim, cur_pi, cni);
-    console.log(loop_cnt + ' - ' + sql);
+    //console.log(loop_cnt + ' - ' + sql);
     db.getResult(sql, '', function (err, search_Obj) {
         if(!err) {
             if(search_Obj.length > 0) {

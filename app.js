@@ -2056,80 +2056,35 @@ function lookup_retrieve(request, response) {
                     });
                 }
                 else { //if(op == 'direct') {
-                    //if(results_comm.ty == 2 || results_comm.ty == 4 || results_comm.ty == 3 || results_comm.ty == 9 || results_comm.ty == 16 || results_comm.ty == 24 ||
-                    //    results_comm.ty == 23 || results_comm.ty == 29 || results_comm.ty == 38 || results_comm.ty == 39) {
-                    // db_sql.select_resource(responder.typeRsrc[result_Obj.ty], result_Obj.ri, function (err, results_spec) {
-                    //     if (!err) {
-                    //         if (results_spec.length == 0) {
-                    //             results_spec[0] = {};
-                    //             results_spec[0].cr = '';
-                    //             console.log('no creator');
-                    //         }
-                    //         else {
-                                if (result_Obj.ty == 2) {
-                                    result_Obj.cr = result_Obj.aei;
-                                }
-                                else if (result_Obj.ty == 16) {
-                                    result_Obj.cr = result_Obj.csi;
-                                }
-                            // }
+                    if (result_Obj.ty == 2) {
+                        result_Obj.cr = result_Obj.aei;
+                    }
+                    else if (result_Obj.ty == 16) {
+                        result_Obj.cr = result_Obj.csi;
+                    }
 
-                            if (request.query.fu == 1) {
-                                security.check(request, response, result_Obj.ty, result_Obj.acpi, '32', result_Obj.cr, function (rsc, request, response) {
-                                    if (rsc == '0') {
-                                        body_Obj = {};
-                                        body_Obj['dbg'] = resultStatusCode['4103'];
-                                        responder.response_result(request, response, 403, body_Obj, 4103, request.url, resultStatusCode['4103']);
-                                        return '0';
-                                    }
-                                    resource.retrieve(request, response, result_Obj);
-                                });
+                    if (request.query.fu == 1) {
+                        security.check(request, response, result_Obj.ty, result_Obj.acpi, '32', result_Obj.cr, function (rsc, request, response) {
+                            if (rsc == '0') {
+                                body_Obj = {};
+                                body_Obj['dbg'] = resultStatusCode['4103'];
+                                responder.response_result(request, response, 403, body_Obj, 4103, request.url, resultStatusCode['4103']);
+                                return '0';
                             }
-                            else {
-                                security.check(request, response, result_Obj.ty, result_Obj.acpi, '2', result_Obj.cr, function (rsc, request, response) {
-                                    if (rsc == '0') {
-                                        body_Obj = {};
-                                        body_Obj['dbg'] = resultStatusCode['4103'];
-                                        responder.response_result(request, response, 403, body_Obj, 4103, request.url, resultStatusCode['4103']);
-                                        return '0';
-                                    }
-                                    resource.retrieve(request, response, result_Obj);
-                                });
+                            resource.retrieve(request, response, result_Obj);
+                        });
+                    }
+                    else {
+                        security.check(request, response, result_Obj.ty, result_Obj.acpi, '2', result_Obj.cr, function (rsc, request, response) {
+                            if (rsc == '0') {
+                                body_Obj = {};
+                                body_Obj['dbg'] = resultStatusCode['4103'];
+                                responder.response_result(request, response, 403, body_Obj, 4103, request.url, resultStatusCode['4103']);
+                                return '0';
                             }
-                        // }
-                        // else {
-                        //     body_Obj = {};
-                        //     body_Obj['dbg'] = 'select resource error in security';
-                        //     responder.response_result(request, response, 500, search_Obj, 5000, request.url, body_Obj['dbg']);
-                        //     callback('0', search_Obj);
-                        //     return '0';
-                        // }
-                    // });
-                    // }
-                    // else {
-                    //     if (request.query.fu == 1) {
-                    //         security.check(request, response, results_comm.ty, results_comm.acpi, '32', '', function (rsc, request, response) {
-                    //             if (rsc == '0') {
-                    //                 body_Obj = {};
-                    //                 body_Obj['dbg'] = resultStatusCode['4103'];
-                    //                 responder.response_result(request, response, 403, body_Obj, 4103, request.url, resultStatusCode['4103']);
-                    //                 return '0';
-                    //             }
-                    //             resource.retrieve(request, response, results_comm);
-                    //         });
-                    //     }
-                    //     else {
-                    //         security.check(request, response, results_comm.ty, results_comm.acpi, '2', '', function (rsc, request, response) {
-                    //             if (rsc == '0') {
-                    //                 body_Obj = {};
-                    //                 body_Obj['dbg'] = resultStatusCode['4103'];
-                    //                 responder.response_result(request, response, 403, body_Obj, 4103, request.url, resultStatusCode['4103']);
-                    //                 return '0';
-                    //             }
-                    //             resource.retrieve(request, response, results_comm);
-                    //         });
-                    //     }
-                    // }
+                            resource.retrieve(request, response, result_Obj);
+                        });
+                    }
                 }
             });
         });
@@ -2368,6 +2323,15 @@ function updateHitCount(binding) {
             _hit[cur_t][h][binding]++;
 
             //console.log(hit);
+            set_hit_cache(cur_t, _hit[cur_t]);
+        }
+        else {
+            _hit[cur_t] = [];
+            for (var i = 0; i < 24; i++) {
+                _hit[cur_t].push({});
+            }
+            _hit[cur_t][h][binding]++;
+
             set_hit_cache(cur_t, _hit[cur_t]);
         }
     }

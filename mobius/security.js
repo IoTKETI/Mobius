@@ -398,11 +398,6 @@ exports.check = function(request, response, ty, acpiList, access_value, cr, call
         return '1';
     }
 
-    // if(request.headers['x-m2m-origin'] == cr) {
-    //     callback('1');
-    //     return '1';
-    // }
-
     if(ty == '1') { // check selfPrevileges
         if (acpiList.length > 0) {
 
@@ -422,7 +417,7 @@ exports.check = function(request, response, ty, acpiList, access_value, cr, call
             // 2017-12-06 we decide to not permit to everybody for security interop event for oneM2M in korea
             // and we allowed retrieve and create right to observer only
 
-            if(ty == '3' || ty == '23') { // cnt or sub --> check parents acpi to AE
+            if(ty == '3' || ty == '23' || ty == '4') { // cnt or sub --> check parents acpi to AE
                 var pi_list = [];
                 var pi = '';
                 var targetUri = request.url.split('?')[0];
