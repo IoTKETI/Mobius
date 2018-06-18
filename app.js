@@ -298,7 +298,7 @@ global.set_hit_cache = function (name, val) {
 
     if ( cluster.isWorker ) {
         process.send({
-            cmd: 'hit:edit-request',
+            cmd: 'hit:broadcast_set',
             name: name,
             val: val
         });
@@ -440,10 +440,6 @@ if (use_clustering) {
             else if (message.cmd === 'cbs:broadcast') {
                 broadcast_cbs_cache();
             }
-            else if(message.cmd === 'hit:edit-request' ) {
-                hit_cache[message.name] = message.val;
-                broadcast_set_hit_cache(message.name, message.val);
-            }
             else if(message.cmd === 'hit:del-request' ) {
                 delete hit_cache[message.name];
                 broadcast_hit_cache();
@@ -453,6 +449,7 @@ if (use_clustering) {
                 broadcast_hit_cache();
             }
             else if (message.cmd === 'hit:broadcast_set') {
+                hit_cache[message.name] = message.val;
                 broadcast_set_hit_cache(message.name, message.val);
                 fs.writeFileSync('hit.json', JSON.stringify(hit_cache, null, 4), 'utf8');
             }
