@@ -2812,7 +2812,13 @@ function update_resource(request, response, ty, body_Obj, resource_Obj, callback
             }
         }
 
-        check_acp_update_acpi(request, response, body_Obj, resource_Obj[rootnm].acpi, resource_Obj[rootnm].cr, function (rsc, request, response, body_Obj) {
+        if(body_Obj[rootnm].hasOwnProperty('acpi')) {
+            var updateAcpiList = body_Obj[rootnm].acpi;
+        }
+        else {
+            updateAcpiList = [];
+        }
+        check_acp_update_acpi(request, response, body_Obj, updateAcpiList, resource_Obj[rootnm].cr, function (rsc, request, response, body_Obj) {
             if (rsc == '0') {
                 body_Obj = {};
                 body_Obj['dbg'] = resultStatusCode['4103'];
