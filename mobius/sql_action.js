@@ -1212,7 +1212,8 @@ exports.select_latest_resource = function(ri, cur_d, loop_cnt, ty, cni, lim, cal
 
 exports.select_oldest_resource = function(ri, callback) {
     console.time('select_oldest ' + ri);
-    var sql = util.format('select a.* from (select ri from lookup where (pi = \'%s\') limit 100) b left join lookup as a on b.ri = a.ri where a.ty = \'4\' or a.ty = \'30\' limit 1', ri);
+    //var sql = util.format('select a.* from (select ri from lookup where (pi = \'%s\') limit 100) b left join lookup as a on b.ri = a.ri where a.ty = \'4\' or a.ty = \'30\' limit 1', ri);
+    var sql = 'select * from lookup where pi = \'' + ri + '\' and ty = \'4\'';
     db.getResult(sql, '', function (err, oldest_Comm) {
         if(!err) {
             if(oldest_Comm.length >= 1) {
@@ -1225,7 +1226,7 @@ exports.select_oldest_resource = function(ri, callback) {
                 });
             }
             else {
-                console.timeEnd('select_latest ' + ri);
+                console.timeEnd('select_oldest ' + ri);
                 callback(err, oldest_Comm);
             }
         }
