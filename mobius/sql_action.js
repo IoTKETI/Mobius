@@ -252,7 +252,7 @@ function get_info_cins(pi, cni, callback) {
     }
 }
 
-function create_action_cni(ty, pi, cni, cbs, mni, mbs, callback) {
+global.create_action_cni = function(ty, pi, cni, cbs, mni, mbs, st, callback) {
     if (cni > parseInt(mni, 10) || cbs > parseInt(mbs, 10)) {
         _this.select_cs_parent(ty, pi, function (err, results_cs) { // select oldest
             if (results_cs.length == 1) {
@@ -261,7 +261,7 @@ function create_action_cni(ty, pi, cni, cbs, mni, mbs, callback) {
                         cni = (parseInt(cni, 10) - 1).toString();
                         cbs = (parseInt(cbs, 10) - parseInt(results_cs[0].cs, 10)).toString();
 
-                        create_action_cni(ty, pi, cni, cbs, mni, mbs, function (rsc, cni, cbs) {
+                        create_action_cni(ty, pi, cni, cbs, mni, mbs, st, function (rsc, cni, cbs) {
                             callback(rsc, cni, cbs);
                         });
                     }
@@ -284,9 +284,17 @@ function create_action_cni(ty, pi, cni, cbs, mni, mbs, callback) {
         });
     }
     else {
-        callback('1', cni, cbs);
+        st = parseInt(st, 10) + 1;
+        _this.update_cni_parent(ty, cni, cbs, st, pi, function (err, results) {
+            if (!err) {
+                callback('1', cni, cbs);
+            }
+            else {
+                callback('0', cni, cbs);
+            }
+        });
     }
-}
+};
 
 exports.insert_cin = function(obj, mni, mbs, p_st, callback) {
     console.time('total_insert_cin ' + obj.ri);
@@ -313,33 +321,47 @@ exports.insert_cin = function(obj, mni, mbs, p_st, callback) {
                         cni = parseInt(cni, 10) + 1;
                         cbs = parseInt(cbs, 10) + parseInt(obj.cs, 10);
 
-                        create_action_cni(obj.ty, obj.pi, cni, cbs, mni, mbs, function (rsc, cni, cbs) {
-                            if(rsc == '1') {
-                                if (cbs_cache.hasOwnProperty(obj.pi)) {
-                                    cbs_cache[obj.pi].cni = cni;
-                                    cbs_cache[obj.pi].cbs = cbs;
-                                    cbs_cache[obj.pi].st = st;
-                                    set_cbs_cache(obj.pi, cbs_cache[obj.pi]);
-                                }
-                                else {
-                                    console.log(cbs_cache);
-                                }
+                        cbs_cache[obj.pi].cni = cni;
+                        cbs_cache[obj.pi].cbs = cbs;
+                        cbs_cache[obj.pi].st = st;
+                        cbs_cache[obj.pi].ty = obj.ty;
+                        cbs_cache[obj.pi].mni = mni;
+                        cbs_cache[obj.pi].mbs = mbs;
+                        set_cbs_cache(obj.pi, cbs_cache[obj.pi]);
 
-                                p_st = parseInt(p_st, 10) + 1;
-                                _this.update_cni_parent(obj.ty, cni, cbs, p_st, obj.pi, function (err, results) {
-                                    if (!err) {
-                                        console.timeEnd('total_insert_cin ' + obj.ri);
-                                        callback(err, results);
-                                    }
-                                    else {
-                                        callback(err, results);
-                                    }
-                                });
-                            }
-                            else {
-                                callback('0');
-                            }
-                        });
+                        console.timeEnd('total_insert_cin ' + obj.ri);
+                        callback(err, results);
+
+                        // create_action_cni(obj.ty, obj.pi, cni, cbs, mni, mbs, function (rsc, cni, cbs) {
+                        //     if(rsc == '1') {
+                        //         if (cbs_cache.hasOwnProperty(obj.pi)) {
+                        //             cbs_cache[obj.pi].cni = cni;
+                        //             cbs_cache[obj.pi].cbs = cbs;
+                        //             cbs_cache[obj.pi].st = st;
+                        //             cbs_cache[obj.pi].ty = obj.ty;
+                        //             cbs_cache[obj.pi].mni = mni;
+                        //             cbs_cache[obj.pi].mbs = mbs;
+                        //             set_cbs_cache(obj.pi, cbs_cache[obj.pi]);
+                        //         }
+                        //         else {
+                        //             console.log(cbs_cache);
+                        //         }
+                        //
+                        //         p_st = parseInt(p_st, 10) + 1;
+                        //         _this.update_cni_parent(obj.ty, cni, cbs, p_st, obj.pi, function (err, results) {
+                        //             if (!err) {
+                        //                 console.timeEnd('total_insert_cin ' + obj.ri);
+                        //                 callback(err, results);
+                        //             }
+                        //             else {
+                        //                 callback(err, results);
+                        //             }
+                        //         });
+                        //     }
+                        //     else {
+                        //         callback('0');
+                        //     }
+                        // });
 
                     }
                 });

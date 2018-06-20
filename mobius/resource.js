@@ -422,47 +422,7 @@ function create_action_st(ri, ty, pi, callback) {
         }
     });
 }
-/*
-function create_action_cni(ty, pi, cni, cbs, mni, mbs, st, callback) {
-    if (parseInt(cni, 10) > parseInt(mni, 10) || parseInt(cbs, 10) > parseInt(mbs, 10)) {
-        db_sql.select_cs_parent(ty, pi, function (err, results_cs) { // select oldest
-            if (results_cs.length == 1) {
-                db_sql.delete_ri_lookup(results_cs[0].ri, function (err) {
-                    if (!err) {
-                        cni = (parseInt(cni, 10) - 1).toString();
-                        cbs = (parseInt(cbs, 10) - parseInt(results_cs[0].cs, 10)).toString();
-                        db_sql.update_cni_parent(ty, cni, cbs, st, pi, function (err, results) {
-                            if (!err) {
-                                create_action_cni(ty, pi, cni, cbs, mni, mbs, st, function (rsc) {
-                                    callback(rsc);
-                                });
-                            }
-                            else {
-                                var body_Obj = {};
-                                body_Obj['dbg'] = results.message;
-                                console.log(JSON.stringify(body_Obj));
-                                callback('0');
-                                return '0';
-                            }
-                        });
-                    }
-                    else {
-                        var body_Obj = {};
-                        body_Obj['dbg'] = results_cs.message;
-                        //responder.response_result(request, response, 500, body_Obj, 5000, request.url, results.message);
-                        console.log(JSON.stringify(body_Obj));
-                        callback('0');
-                        return '0';
-                    }
-                });
-            }
-        });
-    }
-    else {
-        callback('1');
-    }
-}
-*/
+
 function create_action(request, response, ty, resource_Obj, callback) {
     var rootnm = request.headers.rootnm;
     var body_Obj = {};
