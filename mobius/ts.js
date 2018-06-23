@@ -46,8 +46,8 @@ exports.build_ts = function(request, response, resource_Obj, body_Obj, callback)
     resource_Obj[rootnm].mdc = (body_Obj[rootnm].mdc) ? body_Obj[rootnm].mdc : '0';
     resource_Obj[rootnm].mdt = (body_Obj[rootnm].mdt) ? body_Obj[rootnm].mdt : '0';
 
-    resource_Obj[rootnm].cni = '0';
-    resource_Obj[rootnm].cbs = '0';
+    resource_Obj[rootnm].cni = 0;
+    resource_Obj[rootnm].cbs = 0;
 
     callback('1', resource_Obj);
 };

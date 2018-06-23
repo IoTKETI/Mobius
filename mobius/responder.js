@@ -1955,14 +1955,7 @@ function request_noti_http(nu, bodyString, bodytype, xm2mri) {
     });
 
     req.on('close', function() {
-        ss_fail_count[req._headers.ri]++;
         console.log('[nonblocking-async-http] close: no response for notification');
-
-        var xm2mri = require('shortid').generate();
-        if (ss_fail_count[req._headers.ri] >= 8) {
-            delete ss_fail_count[req._headers.ri];
-            delete_sub(req._headers.ri, xm2mri);
-        }
     });
 
     console.log('<---- [nonblocking-async-http] notification for non-blocking request with ' + bodytype + ' to ' + nu);
