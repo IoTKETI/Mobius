@@ -1969,7 +1969,7 @@ function request_noti_coap(nu, bodyString, bodytype, xm2mri) {
         port: url.parse(nu).port,
         pathname: url.parse(nu).path,
         method: 'post',
-        confirmable: 'true',
+        confirmable: 'false',
         options: {
             'Accept': 'application/'+bodytype,
             'Content-Type': 'application/'+bodytype,

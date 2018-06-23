@@ -202,16 +202,6 @@ function broadcast_ss_ri_cache() {
                     cmd: 'ss_ri:edit',
                     data: ss_ri_cache
                 });
-
-                // for(var idx in ss_ri_cache) {
-                //     if(ss_ri_cache.hasOwnProperty(idx)) {
-                //         worker.send({
-                //             cmd: 'ss_ri:edit',
-                //             name: idx,
-                //             val: ss_ri_cache[idx]
-                //         });
-                //     }
-                // }
             }
         }
     }
@@ -307,8 +297,6 @@ global.get_all_hit_cache = function () {
 global.set_hit_cache = function (name, val) {
     hit_cache[name] = val;
 
-    fs.writeFileSync('hit.json', JSON.stringify(hit_cache, null, 4), 'utf8');
-
     if ( cluster.isWorker ) {
         process.send({
             cmd: 'hit:broadcast_set',
@@ -341,22 +329,6 @@ function broadcast_set_hit_cache(name, val) {
         });
     }
 }
-
-global.del_hit_cache = function (name) {
-    delete hit_cache[name];
-
-    fs.writeFileSync('hit.json', JSON.stringify(hit_cache, null, 4), 'utf8');
-
-    if ( cluster.isWorker ) {
-        process.send({
-            cmd: 'hit:broadcast',
-            name: name
-        });
-    }
-    else {
-        broadcast_hit_cache();
-    }
-};
 
 function broadcast_hit_cache() {
     if ( cluster.isMaster ) {
@@ -445,6 +417,8 @@ if (use_clustering) {
             }
             else if (message.cmd === 'hit:broadcast_set') {
                 hit_cache[message.name] = message.val;
+                console.log(message.name + ' : ' + JSON.stringify(hit_cache[message.name]));
+                fs.writeFileSync('hit.json', JSON.stringify(hit_cache, null, 4), 'utf8');
                 broadcast_set_hit_cache(message.name, message.val);
             }
             else if (message.cmd === 'hit:broadcast') {

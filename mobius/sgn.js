@@ -860,6 +860,7 @@ function request_noti_http(nu, ri, bodyString, bodytype, xm2mri) {
         });
 
         console.log('<---- [request_noti_http - ' + ss_fail_count[ri] + '] ');
+        console.log(bodyString);
         req.write(bodyString);
         req.end();
     }
@@ -897,8 +898,12 @@ function request_noti_coap(nu, ri, bodyString, bodytype, xm2mri) {
         });
     });
 
-    console.log('<---- [request_noti_coap] request for notification through coap with ' + bodytype);
+    req.on('error', function (e) {
+        console.log('[request_noti_coap] problem with request: ' + e.message);
+    });
 
+    console.log('<---- [request_noti_coap] request for notification through coap with ' + bodytype);
+    console.log(bodyString);
     req.write(bodyString);
     req.end();
 }
