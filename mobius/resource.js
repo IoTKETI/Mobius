@@ -2814,7 +2814,7 @@ function update_resource(request, response, ty, body_Obj, resource_Obj, callback
         }
 
         if(body_Obj[rootnm].hasOwnProperty('acpi')) {
-            var updateAcpiList = body_Obj[rootnm].acpi;
+            var updateAcpiList = resource_Obj[rootnm].acpi;
         }
         else {
             updateAcpiList = [];

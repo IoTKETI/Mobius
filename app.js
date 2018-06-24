@@ -2009,37 +2009,15 @@ function lookup_update(request, response) {
                                 }
                             }
 
-                            var acpi_check = 0;
-                            var other_check = 0;
-                            for(var rootnm in body_Obj) {
-                                if(body_Obj.hasOwnProperty(rootnm)) {
-                                    for(var attr in body_Obj[rootnm]) {
-                                        if(body_Obj[rootnm].hasOwnProperty(attr)) {
-                                            if(attr == 'acpi') {
-                                                acpi_check++;
-                                            }
-                                            else {
-                                                other_check++;
-                                            }
-                                        }
-                                    }
+                            security.check(request, response, results_comm.ty, results_comm.acpi, '4', results_spec[0].cr, function (rsc, request, response) {
+                                if (rsc == '0') {
+                                    body_Obj = {};
+                                    body_Obj['dbg'] = resultStatusCode['4103'];
+                                    responder.response_result(request, response, 403, body_Obj, 4103, request.url, resultStatusCode['4103']);
+                                    return '0';
                                 }
-                            }
-
-                            if(other_check > 0) {
-                                security.check(request, response, results_comm.ty, results_comm.acpi, '4', results_spec[0].cr, function (rsc, request, response) {
-                                    if (rsc == '0') {
-                                        body_Obj = {};
-                                        body_Obj['dbg'] = resultStatusCode['4103'];
-                                        responder.response_result(request, response, 403, body_Obj, 4103, request.url, resultStatusCode['4103']);
-                                        return '0';
-                                    }
-                                    resource.update(request, response, results_comm, body_Obj);
-                                });
-                            }
-                            else {
                                 resource.update(request, response, results_comm, body_Obj);
-                            }
+                            });
                         }
                         else {
                             body_Obj = {};
