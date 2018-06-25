@@ -199,7 +199,7 @@ function security_check_action_pv(request, response, acpiList, cr, access_value,
     });
 }
 
-function security_check_action_pvs(request, response, acpiList, cr, access_value, callback) {
+function security_check_action_pvs(request, response, acpiList, access_value, cr, callback) {
     make_internal_ri(acpiList);
     var ri_list = [];
     get_ri_list_sri(request, response, acpiList, ri_list, 0, function (ri_list, request, response) {
@@ -405,7 +405,7 @@ exports.check = function(request, response, ty, acpiList, access_value, cr, call
         else {
             acpiList = [url.parse(request.url).pathname.split('?')[0]];
         }
-        security_check_action_pvs(request, response, acpiList, cr, access_value, function (rsc, request, response) {
+        security_check_action_pvs(request, response, acpiList, access_value, cr, function (rsc, request, response) {
             callback(rsc, request, response);
             return rsc;
         });

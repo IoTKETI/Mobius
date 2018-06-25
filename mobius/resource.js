@@ -2749,7 +2749,7 @@ function create_resource(request, response, ty, body_Obj, resource_Obj, callback
 function check_acp_update_acpi(request, response, bodyObj, acpi, cr, callback) {
     // when update acpi check pvs of acp
     if (acpi.length > 0) {
-        security.check(request, response, '1', acpi, '4', cr, function (rsc, request, response) {
+        security.check(request, response, '1', acpi, '4', '', function (rsc, request, response) {
             callback(rsc, request, response, bodyObj);
         });
     }
