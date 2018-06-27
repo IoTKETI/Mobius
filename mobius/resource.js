@@ -1520,7 +1520,7 @@ exports.create = function (request, response, ty, body_Obj, callback) {
                     sgn.check(request, notiObj[rootnm], 3);
                 }
 
-                if(ty == 23) { // when ty is 23, send notification for verification
+                else if(ty == 23) { // when ty is 23, send notification for verification
                     var notiObj = JSON.parse(JSON.stringify(resource_Obj));
                     _this.remove_no_value(request, notiObj);
                     sgn.check(request, notiObj[rootnm], 256);
@@ -1544,15 +1544,8 @@ exports.create = function (request, response, ty, body_Obj, callback) {
 
                         _this.remove_no_value(request, create_Obj);
 
-                        if (request.query.real != 4) { // realtime, new
-                            // if(ty == 23) { // when ty is 23, send notification for verification
-                            //     var notiObj = JSON.parse(JSON.stringify(create_Obj));
-                            //     _this.remove_no_value(request, notiObj);
-                            //     sgn.check(request, notiObj[rootnm], 99);
-                            // }
-                            // else {
-                                sgn.check(request, create_Obj[rootnm], 3);
-                            // }
+                        if (request.query.real != 4 && create_Obj[rootnm].ty != 23) {
+                            sgn.check(request, create_Obj[rootnm], 3);
                         }
 
                         var status_code = 201;
@@ -2965,7 +2958,7 @@ exports.update = function (request, response, comm_Obj, body_Obj) {
                 if (rsc == '1') {
                     _this.remove_no_value(request, update_Obj);
 
-                    if (request.query.real != 4) { // realtime, new
+                    if (request.query.real != 4) {
                         sgn.check(request, update_Obj[rootnm], 1);
                     }
 
@@ -3135,7 +3128,7 @@ exports.delete = function (request, response, comm_Obj) {
             if (rsc == '1') {
                 _this.remove_no_value(request, delete_Obj);
 
-                if (request.query.real != 4) { // realtime, new
+                if (request.query.real != 4) {
                     sgn.check(request, delete_Obj[rootnm], 4);
                 }
 
