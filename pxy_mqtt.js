@@ -554,13 +554,26 @@ function mqtt_response(resp_topic, rsc, op, to, fr, rqi, inpc, bodytype) {
     else if(bodytype === 'cbor') {
         bodyString = cbor.encode(rsp_message['m2m:rsp']).toString('hex');
 
-        message_cache[cache_key].rsp = bodyString.toString();
+        if(message_cache.hasOwnProperty(cache_key)) {
+            message_cache[cache_key].rsp = bodyString.toString();
+        }
+        else {
+            message_cache[cache_key] = {};
+            message_cache[cache_key].rsp = bodyString.toString();
+        }
 
         pxymqtt_client.publish(resp_topic, bodyString);
     }
     else { // 'json'
         try {
-            message_cache[cache_key].rsp = JSON.stringify(rsp_message['m2m:rsp']);
+            if(message_cache.hasOwnProperty(cache_key)) {
+                message_cache[cache_key].rsp = JSON.stringify(rsp_message['m2m:rsp']);
+            }
+            else {
+                message_cache[cache_key] = {};
+                message_cache[cache_key].rsp = JSON.stringify(rsp_message['m2m:rsp']);
+            }
+
             pxymqtt_client.publish(resp_topic, message_cache[cache_key].rsp);
         }
         catch (e) {
