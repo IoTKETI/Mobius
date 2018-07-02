@@ -1134,12 +1134,17 @@ exports.search_lookup = function (ri, query, cur_lim, pi_list, pi_index, found_O
 };
 
 exports.select_latest_resource = function(ri, ty, loop_cnt, st, callback) {
-    console.time('select_latest ' + ri);
+    if(loop_cnt == 1) {
+        console.time('select_latest ' + ri);
+    }
 
     st = st - Math.pow(8, loop_cnt);
     if(st < 0) {
-        st = 0;
+        var result_Obj = [];
+        callback(null, result_Obj);
+        return '0';
     }
+
     var sql = 'select * from lookup where pi = \'' + ri + '\' and ty = \'4\' and st >= \'' + st + '\'';
     db.getResult(sql, '', function (err, latest_Comm) {
         if (!err) {
@@ -1147,14 +1152,13 @@ exports.select_latest_resource = function(ri, ty, loop_cnt, st, callback) {
                 sql = "select * from " + responder.typeRsrc[ty] + " where ri = \'" + latest_Comm[latest_Comm.length-1].ri + "\'";
                 db.getResult(sql, '', function (err, latest_Spec) {
                     console.timeEnd('select_latest ' + ri);
-                    var result_Obj = [];
+                    result_Obj = [];
                     result_Obj.push(merge(latest_Comm[latest_Comm.length-1], latest_Spec[0]));
                     callback(err, result_Obj);
                 });
             }
             else {
                 _this.select_latest_resource(ri, ty, ++loop_cnt, st, function(err, result_Obj) {
-                    console.timeEnd('select_latest ' + ri);
                     callback(err, result_Obj);
                 });
             }

@@ -541,7 +541,13 @@ function mqtt_response(resp_topic, rsc, op, to, fr, rqi, inpc, bodytype) {
 
         var bodyString = js2xmlparser.parse("m2m:rsp", rsp_message['m2m:rsp']);
 */
-        message_cache[cache_key].rsp = bodyString.toString();
+        if(message_cache.hasOwnProperty(cache_key)) {
+            message_cache[cache_key].rsp = bodyString.toString();
+        }
+        else {
+            message_cache[cache_key] = {};
+            message_cache[cache_key].rsp = bodyString.toString();
+        }
 
         pxymqtt_client.publish(resp_topic, bodyString.toString());
     }
