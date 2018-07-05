@@ -501,7 +501,7 @@ exports.check = function(request, notiObj, check_value) {
                 for (var i = 0; i < results_ss.length; i++) {
                     for (var index in results_ss[i]) {
                         if (results_ss[i].hasOwnProperty(index)) {
-                            if(results_ss[i][index].sri == noti_ri) {
+                            if(results_ss[i][index].ri == noti_ri) {
                                 continue;
                             }
 
