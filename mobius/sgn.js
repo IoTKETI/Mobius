@@ -499,12 +499,11 @@ exports.check = function(request, notiObj, check_value) {
         db_sql.select_sub(pi, function (err, results_ss) {
             if (!err) {
                 for (var i = 0; i < results_ss.length; i++) {
+                    if(results_ss[i].ri == noti_ri) {
+                        continue;
+                    }
                     for (var index in results_ss[i]) {
                         if (results_ss[i].hasOwnProperty(index)) {
-                            if(results_ss[i][index].ri == noti_ri) {
-                                continue;
-                            }
-
                             if (request.hash) {
                                 if (request.hash.split('#')[1] == index) {
 
