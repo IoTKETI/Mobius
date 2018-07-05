@@ -1544,7 +1544,7 @@ exports.create = function (request, response, ty, body_Obj, callback) {
 
                         _this.remove_no_value(request, create_Obj);
 
-                        if (request.query.real != 4 && create_Obj[rootnm].ty != 23) {
+                        if (request.query.real != 4) {
                             sgn.check(request, create_Obj[rootnm], 3);
                         }
 

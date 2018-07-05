@@ -1138,11 +1138,16 @@ exports.select_latest_resource = function(ri, ty, loop_cnt, st, callback) {
         console.time('select_latest ' + ri);
     }
 
-    st = st - Math.pow(8, loop_cnt);
-    if(st < 0) {
+    if(st == 0) {
+        console.timeEnd('select_latest ' + ri);
         var result_Obj = [];
         callback(null, result_Obj);
         return '0';
+    }
+
+    st = st - Math.pow(8, loop_cnt);
+    if(st < 0) {
+        st = 0;
     }
 
     var sql = 'select * from lookup where pi = \'' + ri + '\' and ty = \'4\' and st >= \'' + st + '\'';
