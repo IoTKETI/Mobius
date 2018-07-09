@@ -69,20 +69,21 @@ function init_TS(callback) {
 
     var responseBody = '';
 
-    if(usesecure == 'disable') {
-        var options = {
-            hostname: 'localhost',
-            port: usetsagentport,
-            path: ri,
-            method: 'post',
-            headers: {
-                'X-M2M-RI': rqi,
-                'Accept': 'application/json',
-                'X-M2M-Origin': usecseid,
-                'Content-Type': 'application/vnd.onem2m-res+json'
-            }
-        };
+    var options = {
+        hostname: 'localhost',
+        port: usetsagentport,
+        path: ri,
+        method: 'post',
+        headers: {
+            'X-M2M-RI': rqi,
+            'Accept': 'application/json',
+            'X-M2M-Origin': usecseid,
+            'Content-Type': 'application/vnd.onem2m-res+json'
+        },
+        rejectUnauthorized: false
+    };
 
+    if(usesecure == 'disable') {
         var req = http.request(options, function (res) {
             res.setEncoding('utf8');
             res.on('data', function (chunk) {
@@ -95,19 +96,7 @@ function init_TS(callback) {
         });
     }
     else {
-        options = {
-            hostname: 'localhost',
-            port: usetsagentport,
-            path: ri,
-            method: 'post',
-            headers: {
-                'X-M2M-RI': rqi,
-                'Accept': 'application/json',
-                'X-M2M-Origin': usecseid,
-                'Content-Type': 'application/vnd.onem2m-res+json'
-            },
-            ca: fs.readFileSync('ca-crt.pem')
-        };
+        options.ca = fs.readFileSync('ca-crt.pem');
 
         req = https.request(options, function (res) {
             res.setEncoding('utf8');
@@ -138,19 +127,20 @@ function search_TS(request, response, callback) {
     var rqi = moment().utc().format('mmssSSS') + randomValueBase64(4);
     var responseBody = '';
 
-    if(usesecure == 'disable') {
-        var options = {
-            hostname: 'localhost',
-            port: usecsebaseport,
-            path: ri,
-            method: 'get',
-            headers: {
-                'X-M2M-RI': rqi,
-                'Accept': 'application/json',
-                'X-M2M-Origin': usecseid
-            }
-        };
+    var options = {
+        hostname: 'localhost',
+        port: usecsebaseport,
+        path: ri,
+        method: 'get',
+        headers: {
+            'X-M2M-RI': rqi,
+            'Accept': 'application/json',
+            'X-M2M-Origin': usecseid
+        },
+        rejectUnauthorized: false
+    };
 
+    if(usesecure == 'disable') {
         var req = http.request(options, function (res) {
             res.setEncoding('utf8');
             res.on('data', function (chunk) {
@@ -163,18 +153,7 @@ function search_TS(request, response, callback) {
         });
     }
     else {
-        options = {
-            hostname: 'localhost',
-            port: usecsebaseport,
-            path: ri,
-            method: 'get',
-            headers: {
-                'X-M2M-RI': rqi,
-                'Accept': 'application/json',
-                'X-M2M-Origin': usecseid
-            },
-            ca: fs.readFileSync('ca-crt.pem')
-        };
+        options.ca = fs.readFileSync('ca-crt.pem');
 
         req = https.request(options, function (res) {
             res.setEncoding('utf8');

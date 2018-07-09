@@ -763,7 +763,8 @@ function http_retrieve_CSEBase(callback) {
             'X-M2M-RI': rqi,
             'Accept': 'application/json',
             'X-M2M-Origin': usecseid
-        }
+        },
+        rejectUnauthorized: false
     };
 
     if(usesecure == 'disable') {
