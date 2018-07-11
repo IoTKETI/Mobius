@@ -971,7 +971,22 @@ function check_http(request, response, callback) {
             if (rsc == '1') {
                 if (request.method == 'POST') {
                     try {
-                        var ty = content_type[1].split('=')[1];
+                        var ty = '99';
+                        for(var i in content_type) {
+                            if(content_type.hasOwnProperty(i)) {
+                                var ty_arr = content_type[i].replace(' ', '').split('=');
+                                if(ty_arr[0].replace(' ', '') == 'ty') {
+                                    ty = ty_arr[1].replace(' ', '');
+                                    break;
+                                }
+                            }
+                        }
+
+                        if(ty == '99') {
+                            responder.error_result(request, response, 400, 4000, 'ty is none');
+                            callback('0', body_Obj, request, response);
+                            return '0';
+                        }
 
                         if(request.headers['x-m2m-origin'] == null) {
                             if (ty == '2' || ty == '16') {
