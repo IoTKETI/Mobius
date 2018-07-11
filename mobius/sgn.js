@@ -577,6 +577,7 @@ function request_noti_http(nu, ri, bodyString, bodytype, xm2mri) {
                 'Accept': 'application/' + bodytype,
                 'X-M2M-Origin': usecseid,
                 'Content-Type': 'application/' + bodytype,
+                'Content-Length' : bodyString.length,
                 'ri': ri
             }
         };

@@ -31,6 +31,7 @@ exports.build_ae = function(request, response, resource_Obj, body_Obj, callback)
     resource_Obj[rootnm].poa = (body_Obj[rootnm].poa) ? body_Obj[rootnm].poa : [];
     resource_Obj[rootnm].or = (body_Obj[rootnm].or) ? body_Obj[rootnm].or : '';
     resource_Obj[rootnm].csz = (body_Obj[rootnm].csz) ? body_Obj[rootnm].csz : '';
+    resource_Obj[rootnm].srv = (body_Obj[rootnm].srv) ? body_Obj[rootnm].srv : '';
 
     if( (request.headers['x-m2m-origin'] == 'S') ) {
         resource_Obj[rootnm].aei = 'S' + require('shortid').generate();

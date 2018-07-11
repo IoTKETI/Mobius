@@ -246,7 +246,10 @@ function ws_message_action(connection, bodytype, jsonObj) {
     else {
         console.log('ws message tag is not different : m2m:rqp');
 
-        ws_response(connection, 4000, "", usecseid, "", '\"m2m:dbg\":\"ws message tag is different : m2m:rqp\"', bodytype);
+        var res_body = {};
+        res_body['m2m:dbg'] = 'ws message tag is different : m2m:rqp';
+
+        ws_response(connection, 4000, "", usecseid, "", JSON.parse(res_body), bodytype);
     }
 }
 

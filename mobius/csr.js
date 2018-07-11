@@ -34,6 +34,7 @@ exports.build_csr = function(request, response, resource_Obj, body_Obj, callback
     resource_Obj[rootnm].mei = (body_Obj[rootnm].mei) ? body_Obj[rootnm].mei : '';
     resource_Obj[rootnm].tri = (body_Obj[rootnm].tri) ? body_Obj[rootnm].tri : '';
     resource_Obj[rootnm].nl = (body_Obj[rootnm].nl) ? body_Obj[rootnm].nl : '';
+    resource_Obj[rootnm].srv = (body_Obj[rootnm].srv) ? body_Obj[rootnm].srv : '';
 
     callback('1', resource_Obj);
 };
