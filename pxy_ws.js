@@ -177,8 +177,16 @@ function ws_message_handler(message) {
 
 function ws_message_action(connection, bodytype, jsonObj) {
     if (jsonObj['m2m:rqp'] != null) {
-        var op = (jsonObj['m2m:rqp'].op == null) ? '' : jsonObj['m2m:rqp'].op;
-        var to = (jsonObj['m2m:rqp'].to == null) ? '' : jsonObj['m2m:rqp'].to;
+        console.log('m2m:rqp tag of ws message is removed');
+
+        var res_body = {};
+        res_body['m2m:dbg'] = 'm2m:rqp tag of ws message is removed';
+
+        ws_response(connection, 4000, "", usecseid, "", JSON.parse(res_body), bodytype);
+    }
+    else {
+        var op = (jsonObj.op == null) ? '' : jsonObj.op;
+        var to = (jsonObj.to == null) ? '' : jsonObj.to;
         if(to.split(usespid + '/' + usecseid + '/' + usecsebase)[0] == '') { // Absolute
             var to_arr = to.split(usespid + '/' + usecseid + '/' + usecsebase);
             to='/'+usecsebase;
@@ -203,15 +211,15 @@ function ws_message_action(connection, bodytype, jsonObj) {
                 to += to_arr[i];
             }
         }
-        var fr = (jsonObj['m2m:rqp'].fr == null) ? '' : jsonObj['m2m:rqp'].fr;
-        var rqi = (jsonObj['m2m:rqp'].rqi == null) ? '' : jsonObj['m2m:rqp'].rqi;
-        var ty = (jsonObj['m2m:rqp'].ty == null) ? '' : jsonObj['m2m:rqp'].ty.toString();
-        var pc = (jsonObj['m2m:rqp'].pc == null) ? '' : jsonObj['m2m:rqp'].pc;
+        var fr = (jsonObj.fr == null) ? '' : jsonObj.fr;
+        var rqi = (jsonObj.rqi == null) ? '' : jsonObj.rqi;
+        var ty = (jsonObj.ty == null) ? '' : jsonObj.ty.toString();
+        var pc = (jsonObj.pc == null) ? '' : jsonObj.pc;
 
-        if(jsonObj['m2m:rqp'].fc) {
+        if(jsonObj.fc) {
             var query_count = 0;
-            for(var fc_idx in jsonObj['m2m:rqp'].fc) {
-                if(jsonObj['m2m:rqp'].fc.hasOwnProperty(fc_idx)) {
+            for(var fc_idx in jsonObj.fc) {
+                if(jsonObj.fc.hasOwnProperty(fc_idx)) {
                     if(query_count == 0) {
                         to += '?';
                     }
@@ -220,7 +228,7 @@ function ws_message_action(connection, bodytype, jsonObj) {
                     }
                     to += fc_idx;
                     to += '=';
-                    to += jsonObj['m2m:rqp'].fc[fc_idx].toString();
+                    to += jsonObj.fc[fc_idx].toString();
                 }
             }
         }
@@ -242,14 +250,6 @@ function ws_message_action(connection, bodytype, jsonObj) {
             console.error(e);
             ws_response(connection, 5000, fr, usecseid, rqi, 'to parsing error', bodytype);
         }
-    }
-    else {
-        console.log('ws message tag is not different : m2m:rqp');
-
-        var res_body = {};
-        res_body['m2m:dbg'] = 'ws message tag is different : m2m:rqp';
-
-        ws_response(connection, 4000, "", usecseid, "", JSON.parse(res_body), bodytype);
     }
 }
 
@@ -290,7 +290,8 @@ function ws_binding(op, to, fr, rqi, ty, pc, bodytype, callback) {
             'X-M2M-Origin': fr,
             'Content-Type': content_type,
             'binding': 'W'
-        }
+        },
+        rejectUnauthorized: false
     };
 
     if(usesecure == 'disable') {
