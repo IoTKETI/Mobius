@@ -901,7 +901,24 @@ function check_http(request, response, callback) {
     if (request.query.real == 4) {
         if (request.method == 'POST' || request.method == 'PUT') {
             try {
-                var ty = request.headers['content-type'].split(';')[1].split('ty=')[1];
+                var content_type = request.headers['content-type'].split(';');
+                var ty = '99';
+                for(var i in content_type) {
+                    if(content_type.hasOwnProperty(i)) {
+                        var ty_arr = content_type[i].replace(/ /g, '').split('=');
+                        if(ty_arr[0].replace(/ /g, '') == 'ty') {
+                            ty = ty_arr[1].replace(' ', '');
+                            break;
+                        }
+                    }
+                }
+
+                if(ty == '99') {
+                    responder.error_result(request, response, 400, 4000, 'ty is none');
+                    callback('0', body_Obj, request, response);
+                    return '0';
+                }
+
                 body_Obj = JSON.parse(request.body.toString());
                 var rootnm = Object.keys(body_Obj)[0].split(':')[1];
                 body_Obj[rootnm] = body_Obj[Object.keys(body_Obj)[0]];
@@ -974,8 +991,8 @@ function check_http(request, response, callback) {
                         var ty = '99';
                         for(var i in content_type) {
                             if(content_type.hasOwnProperty(i)) {
-                                var ty_arr = content_type[i].replace(' ', '').split('=');
-                                if(ty_arr[0].replace(' ', '') == 'ty') {
+                                var ty_arr = content_type[i].replace(/ /g, '').split('=');
+                                if(ty_arr[0].replace(/ /g, '') == 'ty') {
                                     ty = ty_arr[1].replace(' ', '');
                                     break;
                                 }
