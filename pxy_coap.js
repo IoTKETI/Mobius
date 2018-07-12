@@ -158,6 +158,9 @@ function coap_message_handler(request, response) {
             else if (request.options[idx].name == '267') { // 'X-M2M-TY
                 headers['X-M2M-TY'] = Buffer.isBuffer(request.options[idx].value) ? request.options[idx].value[0].toString() : request.options[idx].value.toString();
             }
+            // else if (request.options[idx].name == '268') { // 'X-M2M-RVI
+            //     headers['X-M2M-RVI'] = request.options[idx].value.toString();
+            // }
         }
     }
 
@@ -213,6 +216,10 @@ function coap_message_handler(request, response) {
                 if (res.headers['content-type']) {
                     response.setOption("Content-Format", res.headers['content-type']);
                 }
+                // if(res.headers.hasOwnProperty('x-m2m-rvi')) {
+                //     var rvi = Buffer.from(res.headers['x-m2m-rvi'], 'utf-8');
+                //     response.setOption("268", rvi);    // X-M2M-RVI
+                // }
                 response.code = coap_rsc_code[res.headers['x-m2m-rsc']];
                 response.end(responseBody);
             });
@@ -240,6 +247,9 @@ function coap_message_handler(request, response) {
                 if (res.headers['content-type']) {
                     response.setOption("Content-Format", res.headers['content-type']);
                 }
+                // if(res.headers.hasOwnProperty('x-m2m-rvi')) {
+                //     response.setOption("X-M2M-RVI", res.headers['x-m2m-rvi']);
+                // }
                 response.code = coap_rsc_code[res.headers['x-m2m-rsc']];
                 response.end(responseBody);
             });

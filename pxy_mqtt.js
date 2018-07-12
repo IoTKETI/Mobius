@@ -451,7 +451,8 @@ function mqtt_binding(op, to, fr, rqi, ty, pc, bodytype, callback) {
             'Accept': 'application/json',
             'X-M2M-Origin': fr,
             'Content-Type': content_type,
-            'binding': 'M'
+            'binding': 'M',
+            'X-M2M-RVI': uservi
         }
     };
 
@@ -762,7 +763,8 @@ function http_retrieve_CSEBase(callback) {
         headers: {
             'X-M2M-RI': rqi,
             'Accept': 'application/json',
-            'X-M2M-Origin': usecseid
+            'X-M2M-Origin': usecseid,
+            'X-M2M-RVI': uservi
         },
         rejectUnauthorized: false
     };

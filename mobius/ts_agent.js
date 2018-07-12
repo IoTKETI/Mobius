@@ -78,7 +78,8 @@ function init_TS(callback) {
             'X-M2M-RI': rqi,
             'Accept': 'application/json',
             'X-M2M-Origin': usecseid,
-            'Content-Type': 'application/vnd.onem2m-res+json'
+            'Content-Type': 'application/vnd.onem2m-res+json',
+            'X-M2M-RVI': uservi
         },
         rejectUnauthorized: false
     };
@@ -135,7 +136,8 @@ function search_TS(request, response, callback) {
         headers: {
             'X-M2M-RI': rqi,
             'Accept': 'application/json',
-            'X-M2M-Origin': usecseid
+            'X-M2M-Origin': usecseid,
+            'X-M2M-RVI': uservi
         },
         rejectUnauthorized: false
     };

@@ -106,7 +106,8 @@ function check_member(request, response, mt, req_count, mid, cse_poa, valid_mid,
                 headers: {
                     'X-M2M-RI': rqi,
                     'Accept': 'application/' + request.headers.usebodytype,
-                    'X-M2M-Origin': request.headers['x-m2m-origin']
+                    'X-M2M-Origin': request.headers['x-m2m-origin'],
+                    'X-M2M-RVI': uservi
                 }
             };
 

@@ -153,7 +153,8 @@ exports.request_lock = function(obj, retry_count, callback) {
                     'X-M2M-RI': rqi,
                     'Accept': 'application/json',
                     'X-M2M-Origin': rqps[idx].fr,
-                    'Content-Type': content_type
+                    'Content-Type': content_type,
+                    'X-M2M-RVI': uservi
                 }
             };
 
@@ -324,7 +325,8 @@ function request_tctl(obj, retry_count, tctl, callback) {
                     'X-M2M-RI': rqi,
                     'Accept': 'application/json',
                     'X-M2M-Origin': rqps[idx].fr,
-                    'Content-Type': content_type
+                    'Content-Type': content_type,
+                    'X-M2M-RVI': uservi
                 }
             };
 

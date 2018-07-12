@@ -289,7 +289,8 @@ function ws_binding(op, to, fr, rqi, ty, pc, bodytype, callback) {
             'Accept': 'application/json',
             'X-M2M-Origin': fr,
             'Content-Type': content_type,
-            'binding': 'W'
+            'binding': 'W',
+            'X-M2M-RVI': uservi
         },
         rejectUnauthorized: false
     };
@@ -402,7 +403,8 @@ function http_retrieve_CSEBase(callback) {
             headers: {
                 'X-M2M-RI': rqi,
                 'Accept': 'application/json',
-                'X-M2M-Origin': usecseid
+                'X-M2M-Origin': usecseid,
+                'X-M2M-RVI': uservi
             }
         };
 
@@ -426,7 +428,8 @@ function http_retrieve_CSEBase(callback) {
             headers: {
                 'X-M2M-RI': rqi,
                 'Accept': 'application/json',
-                'X-M2M-Origin': usecseid
+                'X-M2M-Origin': usecseid,
+                'X-M2M-RVI': uservi
             },
             ca: fs.readFileSync('ca-crt.pem')
         };

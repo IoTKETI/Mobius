@@ -80,8 +80,8 @@ create_np_attr_list.rbo = ['ty', 'ri', 'pi', 'ct', 'lt', 'st'];
 
 global.create_m_attr_list = {};
 create_m_attr_list.acp = ['pv', 'pvs'];
-create_m_attr_list.csr = ['cb', 'csi', 'rr', 'srv'];
-create_m_attr_list.ae = ['api', 'rr', 'srv'];
+create_m_attr_list.csr = ['cb', 'csi', 'rr'];
+create_m_attr_list.ae = ['api', 'rr'];
 create_m_attr_list.cnt = [];
 create_m_attr_list.cin = ['con'];
 create_m_attr_list.sub = ['nu'];
@@ -104,8 +104,8 @@ create_m_attr_list.rbo = ['mgd'];
 
 global.create_opt_attr_list = {};
 create_opt_attr_list.acp = ['rn', 'et', 'lbl', 'aa', 'at'];
-create_opt_attr_list.csr = ['rn', 'acpi', 'et', 'lbl', 'aa', 'at', 'daci', 'cst', 'poa', 'mei', 'tri', 'nl', 'esi'];
-create_opt_attr_list.ae = ['rn', 'acpi', 'et', 'lbl', 'aa', 'at', 'daci', 'apn', 'poa', 'or', 'nl', 'csz', 'esi'];
+create_opt_attr_list.csr = ['rn', 'acpi', 'et', 'lbl', 'aa', 'at', 'daci', 'cst', 'poa', 'mei', 'tri', 'nl', 'esi', 'srv'];
+create_opt_attr_list.ae = ['rn', 'acpi', 'et', 'lbl', 'aa', 'at', 'daci', 'apn', 'poa', 'or', 'nl', 'csz', 'esi', 'srv'];
 create_opt_attr_list.cnt = ['rn', 'acpi', 'et', 'lbl', 'aa', 'at', 'daci', 'cr', 'mni', 'mbs', 'mia', 'li', 'or', 'disr'];
 create_opt_attr_list.cin = ['rn', 'et', 'lbl', 'aa', 'at', 'daci', 'cr', 'cnf', 'conr', 'or'];
 create_opt_attr_list.sub = ['rn', 'acpi', 'et', 'lbl', 'daci', 'cr', 'enc', 'exc', 'gpi', 'nfu', 'bn', 'rl', 'psn', 'pn', 'nsp', 'ln', 'nct', 'nec', 'su'];
@@ -150,8 +150,8 @@ update_np_attr_list.rbo = ['rn', 'ty', 'ri', 'pi', 'ct', 'lt', 'st', 'mgd', 'obj
 
 global.update_m_attr_list = {};
 update_m_attr_list.acp = [];
-update_m_attr_list.csr = ['srv'];
-update_m_attr_list.ae = ['srv'];
+update_m_attr_list.csr = [];
+update_m_attr_list.ae = [];
 update_m_attr_list.cnt = [];
 update_m_attr_list.sub = [];
 update_m_attr_list.lcp = [];
@@ -171,8 +171,8 @@ update_m_attr_list.rbo = [];
 
 global.update_opt_attr_list = {};
 update_opt_attr_list.acp = ['et', 'lbl', 'aa', 'at', 'pv', 'pvs'];
-update_opt_attr_list.csr = ['acpi', 'et', 'lbl', 'aa', 'at', 'daci', 'poa', 'mei', 'rr', 'nl', 'tri', 'esi'];
-update_opt_attr_list.ae = ['acpi', 'et', 'lbl', 'aa', 'at', 'daci', 'apn', 'poa', 'or', 'nl', 'rr', 'csz', 'esi'];
+update_opt_attr_list.csr = ['acpi', 'et', 'lbl', 'aa', 'at', 'daci', 'poa', 'mei', 'rr', 'nl', 'tri', 'esi', 'srv'];
+update_opt_attr_list.ae = ['acpi', 'et', 'lbl', 'aa', 'at', 'daci', 'apn', 'poa', 'or', 'nl', 'rr', 'csz', 'esi', 'srv'];
 update_opt_attr_list.cnt = ['acpi', 'et', 'lbl', 'aa', 'at', 'daci', 'mni', 'mbs', 'mia', 'li', 'or'];
 update_opt_attr_list.sub = ['acpi', 'et', 'lbl', 'daci', 'enc', 'exc', 'nu', 'gpi', 'bn', 'rl', 'pn', 'nsp', 'ln', 'nct', 'nec'];
 update_opt_attr_list.lcp = ['acpi', 'et', 'lbl', 'aa', 'at', 'daci', 'lou'];
@@ -279,7 +279,8 @@ function check_TS(ri, callback) {
                 'X-M2M-RI': rqi,
                 'Accept': 'application/json',
                 'X-M2M-Origin': usecseid,
-                'Content-Type': 'application/vnd.onem2m-res+json'
+                'Content-Type': 'application/vnd.onem2m-res+json',
+                'X-M2M-RVI': uservi
             }
         };
 
@@ -304,7 +305,8 @@ function check_TS(ri, callback) {
                 'X-M2M-RI': rqi,
                 'Accept': 'application/json',
                 'X-M2M-Origin': usecseid,
-                'Content-Type': 'application/vnd.onem2m-res+json'
+                'Content-Type': 'application/vnd.onem2m-res+json',
+                'X-M2M-RVI': uservi
             },
             ca: fs.readFileSync('ca-crt.pem')
         };
@@ -347,7 +349,8 @@ function delete_TS(callback) {
             headers: {
                 'X-M2M-RI': rqi,
                 'Accept': 'application/json',
-                'X-M2M-Origin': usecseid
+                'X-M2M-Origin': usecseid,
+                'X-M2M-RVI': uservi
             }
         };
 
@@ -371,7 +374,8 @@ function delete_TS(callback) {
             headers: {
                 'X-M2M-RI': rqi,
                 'Accept': 'application/json',
-                'X-M2M-Origin': usecseid
+                'X-M2M-Origin': usecseid,
+                'X-M2M-RVI': uservi
             },
             ca: fs.readFileSync('ca-crt.pem')
         };
@@ -1562,7 +1566,12 @@ exports.create = function (request, response, ty, body_Obj, callback) {
                         if (Object.keys(create_Obj)[0] == 'req') {
                             request.headers.tg = create_Obj[rootnm].ri.replace('/', '');
                             status_code = 202;
-                            rsc_code = 1000;
+                            if(request.headers.hasOwnProperty('x-m2m-rtu')) {
+                                rsc_code = 1002;
+                            }
+                            else {
+                                rsc_code = 1001;
+                            }
                             request.headers.rootnm = 'uri';
                             var resource_Obj = {};
                             resource_Obj.uri = {};
@@ -1830,6 +1839,12 @@ global.makeObject = function (obj) {
         if (obj.hasOwnProperty('rsps')) {
             obj.rsps = JSON.parse(obj.rsps);
         }
+        if (obj.hasOwnProperty('srv')) {
+            obj.srv = JSON.parse(obj.srv);
+        }
+        if (obj.hasOwnProperty('mi')) {
+            obj.mi = JSON.parse(obj.mi);
+        }
         if (obj.hasOwnProperty('trqp')) {
             var trqp_type = getType(obj.trqp);
             if (trqp_type === 'object' || trqp_type === 'array' || trqp_type === 'string_object') {
@@ -2008,7 +2023,7 @@ global.update_body = function (rootnm, body_Obj, resource_Obj) {
                 resource_Obj[rootnm][attr] = body_Obj[rootnm][attr];
             }
 
-            if (attr === 'aa' || attr === 'poa' || attr === 'lbl' || attr === 'acpi' || attr === 'srt' || attr === 'nu' || attr === 'mid' || attr === 'macp') {
+            if (attr === 'aa' || attr === 'poa' || attr === 'lbl' || attr === 'acpi' || attr === 'srt' || attr === 'nu' || attr === 'mid' || attr === 'macp' || attr === 'srv') {
                 if (body_Obj[rootnm][attr] === '') {
                     resource_Obj[rootnm][attr] = [];
                 }

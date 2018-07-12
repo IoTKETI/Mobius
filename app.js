@@ -684,7 +684,7 @@ global.make_json_arraytype = function (body_Obj) {
         if (body_Obj.hasOwnProperty(prop)) {
             for (var attr in body_Obj[prop]) {
                 if (body_Obj[prop].hasOwnProperty(attr)) {
-                    if (attr == 'aa' || attr == 'at' || attr == 'poa' || attr == 'lbl' || attr == 'acpi' || attr == 'srt' || attr == 'nu' || attr == 'mid' || attr == 'macp' || attr == 'rels') {
+                    if (attr == 'srv' || attr == 'aa' || attr == 'at' || attr == 'poa' || attr == 'lbl' || attr == 'acpi' || attr == 'srt' || attr == 'nu' || attr == 'mid' || attr == 'macp' || attr == 'rels') {
                         if (body_Obj[prop][attr]) {
                             body_Obj[prop][attr] = body_Obj[prop][attr].split(' ');
                         }
@@ -946,6 +946,16 @@ function check_http(request, response, callback) {
         return '0';
     }
 
+    // Check X-M2M-RVI Header
+    if ((request.headers['x-m2m-rvi'] == null)) {
+        // responder.error_result(request, response, 400, 4000, 'BAD REQUEST: X-M2M-RI is none');
+        // callback('0', body_Obj, request, response);
+        // return '0';
+        // todo: RVI check
+        request.headers['x-m2m-rvi'] = uservi;
+    }
+
+
     // Check X-M2M-Origin Header
 
     if(request.headers['x-m2m-origin'] == null) {
@@ -1168,7 +1178,7 @@ function check_http(request, response, callback) {
                         for (var attr in body_Obj[prop]) {
                             if (body_Obj[prop].hasOwnProperty(attr)) {
                                 if(attr == 'aa' || attr == 'at' || attr == 'poa' || attr == 'acpi' || attr == 'srt' ||
-                                    attr == 'nu' || attr == 'mid' || attr == 'macp' || attr == 'rels' || attr == 'rqps') {
+                                    attr == 'nu' || attr == 'mid' || attr == 'macp' || attr == 'rels' || attr == 'rqps' || attr == 'srv') {
                                     if (!Array.isArray(body_Obj[prop][attr])) {
                                         body_Obj = {};
                                         body_Obj['dbg'] = attr + ' attribute should be json array format';
@@ -1627,10 +1637,10 @@ function check_rt_query(request, response, body_Obj, callback) {
         var temp_rootnm = request.headers.rootnm;
         //var temp_rt = request.query.rt;
         var ty = '17';
-        body_Obj = {req: {}};
-        request.headers.rootnm = Object.keys(body_Obj)[0];
+        var rt_body_Obj = {req: {}};
+        request.headers.rootnm = Object.keys(rt_body_Obj)[0];
         request.query.rt = 3;
-        resource.create(request, response, ty, body_Obj, function (rsc) {
+        resource.create(request, response, ty, rt_body_Obj, function (rsc) {
             if (rsc == '1') {
                 request.headers.rootnm = temp_rootnm;
                 request.query.rt = 1;
@@ -2250,8 +2260,8 @@ var onem2mParser = bodyParser.text(
 app.use(function (req, res, next) {
     res.header('Access-Control-Allow-Origin', '*');
     res.header('Access-Control-Allow-Methods', 'GET, PUT, POST, DELETE, OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, X-M2M-RI, X-M2M-RSC, Accept, X-M2M-Origin, Locale');
-    res.header('Access-Control-Expose-Headers', 'Origin, X-Requested-With, Content-Type, X-M2M-RI, X-M2M-RSC, Accept, X-M2M-Origin, Locale');
+    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, X-M2M-RI, X-M2M-RVI, X-M2M-RSC, Accept, X-M2M-Origin, Locale');
+    res.header('Access-Control-Expose-Headers', 'Origin, X-Requested-With, Content-Type, X-M2M-RI, X-M2M-RVI, X-M2M-RSC, Accept, X-M2M-Origin, Locale');
     (req.method == 'OPTIONS') ? res.sendStatus(200) : next();
 });
 
@@ -2745,6 +2755,9 @@ function notify_http(hostname, port, path, request, response) {
             if (res.headers['x-m2m-ri']) {
                 response.setHeader('X-M2M-RI', res.headers['x-m2m-ri']);
             }
+            if (res.headers['x-m2m-rvi']) {
+                response.setHeader('X-M2M-RVI', res.headers['x-m2m-rvi']);
+            }
             if (res.headers['x-m2m-rsc']) {
                 response.setHeader('X-M2M-RSC', res.headers['x-m2m-rsc']);
             }
@@ -2806,6 +2819,9 @@ function forward_http(forwardcbhost, forwardcbport, request, response) {
             }
             if (res.headers['x-m2m-ri']) {
                 response.setHeader('X-M2M-RI', res.headers['x-m2m-ri']);
+            }
+            if (res.headers['x-m2m-rvi']) {
+                response.setHeader('X-M2M-RVI', res.headers['x-m2m-rvi']);
             }
             if (res.headers['x-m2m-rsc']) {
                 response.setHeader('X-M2M-RSC', res.headers['x-m2m-rsc']);

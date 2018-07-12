@@ -1740,10 +1740,10 @@ exports.update_csr = function (lt, acpi, et, st, lbl, at, aa, ri, poa, mei, tri,
     });
 };
 
-exports.update_req = function (ri, pc, rs, callback) {
+exports.update_req = function (ri, pc, op, mi, rs, ors, callback) {
     console.time('update_req ' + ri);
     //var sql2 = util.format('update req set pc = \'%s\', rs = \'%s\' where ri = \'%s\'', (new Buffer(pc)).toString('base64'), rs, ri);
-    var sql2 = util.format('update req set pc = \'%s\', rs = \'%s\' where ri = \'%s\'', pc, rs, ri);
+    var sql2 = util.format('update req set pc = \'%s\', op = \'%s\', mi = \'%s\', rs = \'%s\', ors = \'%s\' where ri = \'%s\'', pc, op, mi, rs, ors, ri);
     db.getResult(sql2, '', function (err, results) {
         if (!err) {
             console.timeEnd('update_req ' + ri);

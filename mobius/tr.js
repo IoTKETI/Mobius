@@ -152,7 +152,8 @@ exports.request_execute = function(obj, callback) {
             'X-M2M-RI': rqi,
             'Accept': 'application/json',
             'X-M2M-Origin': obj.tr.trqp.fr,
-            'Content-Type': content_type
+            'Content-Type': content_type,
+            'X-M2M-RVI': uservi
         }
     };
 
@@ -328,7 +329,8 @@ exports.request_commit = function(obj, callback) {
             'X-M2M-RI': rqi,
             'Accept': 'application/json',
             'X-M2M-Origin': obj.tr.trqp.fr,
-            'Content-Type': content_type
+            'Content-Type': content_type,
+            'X-M2M-RVI': uservi
         }
     };
 

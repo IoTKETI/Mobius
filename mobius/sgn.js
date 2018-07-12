@@ -578,7 +578,8 @@ function request_noti_http(nu, ri, bodyString, bodytype, xm2mri) {
                 'X-M2M-Origin': usecseid,
                 'Content-Type': 'application/' + bodytype,
                 'Content-Length' : bodyString.length,
-                'ri': ri
+                'ri': ri,
+                'X-M2M-RVI': uservi
             }
         };
 
@@ -834,7 +835,8 @@ function delete_sub(ri, xm2mri) {
         headers: {
             'X-M2M-RI': xm2mri,
             'Accept': 'application/json',
-            'X-M2M-Origin': usesuperuser
+            'X-M2M-Origin': usesuperuser,
+            'X-M2M-RVI': uservi
         }
     };
 

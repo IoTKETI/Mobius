@@ -39,7 +39,8 @@ function retrieve_CSEBase_http(cbname, cbhost, cbhostport, callback) {
         headers: {
             'X-M2M-RI': rqi,
             'Accept': 'application/'+defaultbodytype,
-            'X-M2M-Origin': usecseid
+            'X-M2M-Origin': usecseid,
+            'X-M2M-RVI': uservi
         }
     };
 
@@ -179,7 +180,8 @@ function create_remoteCSE_http(cbname, cbhost, cbhostport, body_Obj, callback) {
             'X-M2M-RI': rqi,
             'Accept': 'application/'+defaultbodytype,
             'X-M2M-Origin': usecseid,
-            'Content-Type': 'application/'+defaultbodytype+';ty=16'
+            'Content-Type': 'application/'+defaultbodytype+';ty=16',
+            'X-M2M-RVI': uservi
         }
     };
 
@@ -407,7 +409,8 @@ function create_remoteCSE_mqtt(cseid, csebasename, body_Obj, callback) {
             'cseid': cseid,
             'csebasename': csebasename,
             'bodytype': defaultbodytype,
-            'binding': 'M'
+            'binding': 'M',
+            'X-M2M-RVI': uservi
         }
     };
 
@@ -446,7 +449,8 @@ function retrieve_CSEBase_mqtt(cseid, csebasename, callback) {
             'Content-Type': 'application/vnd.onem2m-res+'+defaultbodytype,
             'cseid': cseid,
             'csebasename': csebasename,
-            'bodytype': defaultbodytype
+            'bodytype': defaultbodytype,
+            'X-M2M-RVI': uservi
         }
     };
 

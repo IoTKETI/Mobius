@@ -61,5 +61,7 @@ global.allowed_app_ids = [];
 
 global.usesemanticbroker    = '10.10.202.114';
 
+global.uservi = '2a';
+
 // CSE core
 require('./app');
