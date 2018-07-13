@@ -661,7 +661,7 @@ global.make_json_obj = function(bodytype, str, callback) {
         else if (bodytype === 'cbor') {
             cbor.decodeFirst(str, function(err, result) {
                 if (err) {
-                    console.log('[mqtt make json obj] cbor parser error]');
+                    console.log('cbor parser error]');
                 }
                 else {
                     callback('1', result);

@@ -856,6 +856,24 @@ function typeCheckAction(index1, body_Obj) {
                         }
                     }
                 }
+                else if (index2 == 'mid') {
+                    if(body_Obj[index2].length > 0) {
+                        for(var idx in body_Obj[index2]) {
+                            if(body_Obj[index2].hasOwnProperty(idx)) {
+                                body_Obj[index2][idx] = body_Obj[index2][idx].replace(usespid + usecseid + '/', '/'); // absolute
+                                body_Obj[index2][idx] = body_Obj[index2][idx].replace(usecseid + '/', '/'); // SP
+
+                                // if(body_Obj[index2][idx].charAt(0) != '/') {
+                                //     body_Obj[index2][idx] = '/' + body_Obj[index2][idx];
+                                // }
+
+                                if(body_Obj[index2][idx].charAt(0) == '/') {
+                                    body_Obj[index2][idx] = body_Obj[index2][idx].replace('/', '');
+                                }
+                            }
+                        }
+                    }
+                }
             }
             else if (index2 == 'enc') {
                 if (Object.keys(body_Obj[index2])[0] != 'net') {

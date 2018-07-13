@@ -361,9 +361,11 @@ function mqtt_message_action(topic_arr, bodytype, jsonObj) {
                 if(jsonObj['m2m:rqp'].fc.hasOwnProperty(fc_idx)) {
                     if(query_count == 0) {
                         to += '?';
+                        query_count++;
                     }
                     else {
                         to += '&';
+                        query_count++;
                     }
                     to += fc_idx;
                     to += '=';

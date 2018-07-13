@@ -171,7 +171,38 @@ function ws_message_handler(message) {
         });
     }
     else if(message.type === 'binary') {
+        // Buffer.from('80', 'hex').toString('utf8');
+        // Buffer.from(message).toString('hex');
+        console.log(message.binaryData.toString('hex'));
 
+        //var data = Buffer.from(message);
+
+        //Array.prototype.map.call(new Uint8Array(data), x => ('00' + x.toString(16)).slice(-2)).join('').match(/[a-fA-F0-9]{2}/g).reverse().join('');
+
+        var protocol_arr = this.protocol.split('.');
+        var bodytype = protocol_arr[protocol_arr.length-1];
+
+        var str = message.binaryData.toString('hex');
+        make_json_obj(bodytype, str, function(rsc, result) {
+            if(rsc == '1') {
+                ws_message_action(_this, bodytype, result);
+            }
+            else {
+                ws_response(_this, 4000, '', '', '', 'to parsing error', bodytype);
+            }
+        });
+
+        // var protocol_arr = this.protocol.split('.');
+        // var bodytype = protocol_arr[protocol_arr.length-1];
+        //
+        // make_json_obj(bodytype, message.utf8Data.toString(), function(rsc, result) {
+        //     if(rsc == '1') {
+        //         ws_message_action(_this, bodytype, result);
+        //     }
+        //     else {
+        //         ws_response(_this, 4000, '', '', '', 'to parsing error', bodytype);
+        //     }
+        // });
     }
 }
 
@@ -187,30 +218,14 @@ function ws_message_action(connection, bodytype, jsonObj) {
     else {
         var op = (jsonObj.op == null) ? '' : jsonObj.op;
         var to = (jsonObj.to == null) ? '' : jsonObj.to;
-        if(to.split(usespid + '/' + usecseid + '/' + usecsebase)[0] == '') { // Absolute
-            var to_arr = to.split(usespid + '/' + usecseid + '/' + usecsebase);
-            to='/'+usecsebase;
-            for(var i = 1; i < to_arr.length; i++) {
-                to += '/';
-                to += to_arr[i];
-            }
+
+        to = to.replace(usespid + usecseid + '/', '/');
+        to = to.replace(usecseid + '/', '/');
+
+        if(to.charAt(0) != '/') {
+            to = '/' + to;
         }
-        else if(to.split(usecseid + '/' + usecsebase)[0] == '') { // SP Relative
-            var to_arr = to.split(usespid + '/' + usecseid + '/' + usecsebase);
-            to='/'+usecsebase;
-            for(i = 1; i < to_arr.length; i++) {
-                to += '/';
-                to += to_arr[i];
-            }
-        }
-        else if(to.split(usecsebase)[0] == '') { // CSE Relative
-            var to_arr = to.split(usespid + '/' + usecseid + '/' + usecsebase);
-            to='/'+usecsebase;
-            for(i = 1; i < to_arr.length; i++) {
-                to += '/';
-                to += to_arr[i];
-            }
-        }
+
         var fr = (jsonObj.fr == null) ? '' : jsonObj.fr;
         var rqi = (jsonObj.rqi == null) ? '' : jsonObj.rqi;
         var ty = (jsonObj.ty == null) ? '' : jsonObj.ty.toString();
@@ -222,9 +237,11 @@ function ws_message_action(connection, bodytype, jsonObj) {
                 if(jsonObj.fc.hasOwnProperty(fc_idx)) {
                     if(query_count == 0) {
                         to += '?';
+                        query_count++;
                     }
                     else {
                         to += '&';
+                        query_count++;
                     }
                     to += fc_idx;
                     to += '=';
@@ -234,17 +251,17 @@ function ws_message_action(connection, bodytype, jsonObj) {
         }
 
         try {
-            if (to.split('/')[1].split('?')[0] == usecsebase) {
+            //if (to.split('/')[1].split('?')[0] == usecsebase) {
                 ws_binding(op, to, fr, rqi, ty, pc, bodytype, function (res, res_body) {
                     if (res_body == '') {
                         res_body = '{}';
                     }
                     ws_response(connection, res.headers['x-m2m-rsc'], to, usecseid, rqi, JSON.parse(res_body), bodytype);
                 });
-            }
-            else {
-                ws_response(connection, 4004, fr, usecseid, rqi, 'this is not MN-CSE, csebase do not exist', bodytype);
-            }
+            // }
+            // else {
+            //     ws_response(connection, 4004, fr, usecseid, rqi, 'this is not MN-CSE, csebase do not exist', bodytype);
+            // }
         }
         catch (e) {
             console.error(e);
@@ -346,8 +363,8 @@ function ws_response(connection, rsc, to, fr, rqi, inpc, bodytype) {
     //rsp_message['m2m:rsp'].fr = fr;
 
     rsp_message['m2m:rsp'].rqi = rqi;
+    rsp_message['m2m:rsp'].rvi = uservi;
     rsp_message['m2m:rsp'].pc = inpc;
-
 
     if (bodytype === 'xml') {
         rsp_message['m2m:rsp']['@'] = {
@@ -380,9 +397,10 @@ function ws_response(connection, rsc, to, fr, rqi, inpc, bodytype) {
 
         connection.sendUTF(bodyString.toString());
     }
-    else if (bodytype === 'cbor') { // 'json'
+    else if (bodytype === 'cbor') { // 'cbor'
         bodyString = cbor.encode(rsp_message['m2m:rsp']).toString('hex');
-        connection.sendUTF(bodyString);
+        var bytearray = Buffer.from(bodyString, 'hex');
+        connection.send(bytearray);
     }
     else { // 'json'
         connection.sendUTF(JSON.stringify(rsp_message['m2m:rsp']));
