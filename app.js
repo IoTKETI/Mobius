@@ -1389,6 +1389,7 @@ function check_resource(request, response, body_Obj, callback) {
     }
     else {
         console.log('X-M2M-Origin: ' + request.headers['x-m2m-origin']);
+        console.log(body_Obj);
 
         var url_arr = ri.split('/');
         var last_url = url_arr[url_arr.length - 1];

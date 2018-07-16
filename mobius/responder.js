@@ -806,7 +806,7 @@ function typeCheckAction(index1, body_Obj) {
         if(body_Obj.hasOwnProperty(index2)) {
             if (body_Obj[index2] == null || body_Obj[index2] == '' || body_Obj[index2] == 'undefined' || body_Obj[index2] == '[]' || body_Obj[index2] == '\"\"') {
                 //delete body_Obj[index2];
-                if(index2 != 'pi') {
+                if(index2 != 'pi' || index2 != 'pv') {
                     delete body_Obj[index2];
                 }
             }

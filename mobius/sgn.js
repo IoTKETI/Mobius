@@ -187,6 +187,7 @@ function sgn_action_send(nu, sub_nu, sub_bodytype, node, short_flag, check_value
             node['m2m:sgn'].cr = ss_cr;
             delete node['m2m:sgn'].nev;
         }
+        node['m2m:sgn'].rvi = uservi;
 
         if (sub_nu.protocol == 'http:') {
             try {
@@ -222,18 +223,19 @@ function sgn_action_send(nu, sub_nu, sub_bodytype, node, short_flag, check_value
             }
         }
         else if (sub_nu.protocol == 'ws:') {
-            if(check_value == 128) {
-                node['m2m:sgn'].sud = true;
-                delete node['m2m:sgn'].nev;
-            }
-            else if(check_value == 256) {
-                node['m2m:sgn'].vrq = true;
-                temp = node['m2m:sgn'].sur;
-                delete node['m2m:sgn'].sur;
-                node['m2m:sgn'].sur = temp;
-                node['m2m:sgn'].cr = ss_cr;
-                delete node['m2m:sgn'].nev;
-            }
+            // if(check_value == 128) {
+            //     node['m2m:sgn'].sud = true;
+            //     delete node['m2m:sgn'].nev;
+            // }
+            // else if(check_value == 256) {
+            //     node['m2m:sgn'].vrq = true;
+            //     temp = node['m2m:sgn'].sur;
+            //     delete node['m2m:sgn'].sur;
+            //     node['m2m:sgn'].sur = temp;
+            //     node['m2m:sgn'].cr = ss_cr;
+            //     delete node['m2m:sgn'].nev;
+            // }
+
             bodyString = make_xml_noti_message(node, xm2mri);
             //bodyString = responder.convertXmlSgn(Object.keys(node)[0], node[Object.keys(node)[0]]);
             if (bodyString == "") { // parse error
@@ -269,6 +271,8 @@ function sgn_action_send(nu, sub_nu, sub_bodytype, node, short_flag, check_value
             node['m2m:sgn'].cr = ss_cr;
             delete node['m2m:sgn'].nev;
         }
+        node['m2m:sgn'].rvi = uservi;
+
         if (sub_nu.protocol == 'http:') {
             //node['m2m:'+Object.keys(node)[0]] = node[Object.keys(node)[0]];
             //delete node[Object.keys(node)[0]];
@@ -302,8 +306,8 @@ function sgn_action_send(nu, sub_nu, sub_bodytype, node, short_flag, check_value
             node['m2m:sgn'].sur = temp;
             node['m2m:sgn'].cr = ss_cr;
             delete node['m2m:sgn'].nev;
-
         }
+        node['m2m:sgn'].rvi = uservi;
 
         if (sub_nu.protocol == 'http:') {
             //node['m2m:'+Object.keys(node)[0]] = node[Object.keys(node)[0]];
