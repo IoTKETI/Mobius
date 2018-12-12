@@ -62,12 +62,15 @@ exports.insert_lookup = function(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, 
         'pi, ri, ty, ct, st, rn, lt, et, acpi, lbl, at, aa, sri, spi) ' +
         'value (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
         pi, ri, ty, ct, st, rn, lt, et, acpi, lbl, at, aa, sri, spi);
-    db.getResult(sql, '', function (err) {
+    db.getResult(sql, '', function (err, results) {
         if(!err) {
             set_sri_sri(ri, sri, function (err, results) {
                 console.timeEnd('insert_lookup ' + ri);
                 callback(err, results);
             });
+        }
+        else {
+            callback(err, results);
         }
     });
 };
@@ -146,9 +149,6 @@ exports.insert_ae = function(ty, ri, rn, pi, ct, lt, et, acpi, lbl, at, aa, st, 
             });
         }
         else {
-            sql = util.format("delete from lookup where ri = \'%s\'", ri);
-            db.getResult(sql, '', function () {
-            });
             callback(err, results);
         }
     });
@@ -758,6 +758,28 @@ exports.insert_tm = function(obj, callback) {
     });
 };
 
+exports.select_resource_from_url = function(ri, sri, callback) {
+    var sql = util.format('select * from lookup where ri = \'%s\' or ri = (select ri from sri where sri = \'%s\')', ri, sri);
+    db.getResult(sql, '', function (err, comm_Obj) {
+        if(!err) {
+            if(comm_Obj.length == 0) {
+                callback(err, comm_Obj);
+            }
+            else {
+                var sql = "select * from " + responder.typeRsrc[comm_Obj[0].ty] + " where ri = \'" + comm_Obj[0].ri + "\'";
+                db.getResult(sql, '', function (err, spec_Obj) {
+                    var resource_Obj = [];
+                    resource_Obj.push(merge(comm_Obj[0], spec_Obj[0]));
+                    callback(err, resource_Obj);
+                });
+            }
+        }
+        else {
+            callback(err, comm_Obj);
+        }
+    });
+};
+
 exports.select_csr_like = function(cb, callback) {
     var sql = util.format("select * from csr where ri like \'/%s/%%\'", cb);
     db.getResult(sql, '', function (err, results_csr) {
@@ -1172,10 +1194,10 @@ exports.select_latest_resource = function(ri, ty, loop_cnt, st, callback) {
     });
 };
 
-exports.select_oldest_resource = function(ri, callback) {
+exports.select_oldest_resource = function(ty, ri, callback) {
     console.time('select_oldest ' + ri);
     //var sql = util.format('select a.* from (select ri from lookup where (pi = \'%s\') limit 100) b left join lookup as a on b.ri = a.ri where a.ty = \'4\' or a.ty = \'30\' limit 1', ri);
-    var sql = 'select * from lookup where pi = \'' + ri + '\' and ty = \'4\'';
+    var sql = 'select * from lookup where pi = \'' + ri + '\' and ty = \'' + ty + '\'';
     db.getResult(sql, '', function (err, oldest_Comm) {
         if(!err) {
             if(oldest_Comm.length >= 1) {
@@ -1462,10 +1484,10 @@ exports.update_cb_poa_csi = function (poa, csi, srt, ri, callback) {
 };
 
 exports.update_st_lookup = function (st, ri, callback) {
-    console.time('update_st_lookup ' + ri);
+    //console.time('update_st_lookup ' + ri);
     var sql = util.format('update lookup set st = \'%s\' where ri=\'%s\'', st, ri);
     db.getResult(sql, '', function (err, results) {
-        console.timeEnd('update_st_lookup ' + ri);
+        //console.timeEnd('update_st_lookup ' + ri);
         callback(err, results);
     });
 };

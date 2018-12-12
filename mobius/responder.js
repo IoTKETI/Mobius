@@ -1588,24 +1588,17 @@ exports.response_result = function(request, response, status, body_Obj, rsc, ri,
 
         response.setHeader('X-M2M-RSC', rsc);
 
-        if (request.headers.accept) {
-            try {
-                if ((request.headers.accept.split('/')[1] == 'xml') || (request.headers.accept.split('+')[1] == 'xml')) {
-                    request.headers.usebodytype = 'xml';
-                }
-            }
-            catch (e) {
-            }
+        if(request.headers['accept'].includes('xml')) {
+            request.headers.usebodytype = 'xml';
+            response.setHeader('Content-Type', 'application/xml');
         }
-
-        if (request.headers.usebodytype == 'json') {
-            response.setHeader('Content-Type', 'application/json');
-        }
-        else if (request.headers.usebodytype == 'cbor') {
+        else if(request.headers['accept'].includes('cbor')) {
+            request.headers.usebodytype = 'cbor';
             response.setHeader('Content-Type', 'application/cbor');
         }
         else {
-            response.setHeader('Content-Type', 'application/xml');
+            request.headers.usebodytype = 'json';
+            response.setHeader('Content-Type', 'application/json');
         }
     }
 
@@ -1711,24 +1704,17 @@ exports.response_rcn3_result = function(request, response, status, body_Obj, rsc
 
         response.setHeader('X-M2M-RSC', rsc);
 
-        if (request.headers.accept) {
-            try {
-                if ((request.headers.accept.split('/')[1] == 'xml') || (request.headers.accept.split('+')[1] == 'xml')) {
-                    request.headers.usebodytype = 'xml';
-                }
-            }
-            catch (e) {
-            }
+        if(request.headers['accept'].includes('xml')) {
+            request.headers.usebodytype = 'xml';
+            response.setHeader('Content-Type', 'application/xml');
         }
-
-        if (request.headers.usebodytype == 'json') {
-            response.setHeader('Content-Type', 'application/json');
-        }
-        else if (request.headers.usebodytype == 'cbor') {
+        else if(request.headers['accept'].includes('cbor')) {
+            request.headers.usebodytype = 'cbor';
             response.setHeader('Content-Type', 'application/cbor');
         }
         else {
-            response.setHeader('Content-Type', 'application/xml');
+            request.headers.usebodytype = 'json';
+            response.setHeader('Content-Type', 'application/json');
         }
     }
 
@@ -1815,24 +1801,17 @@ exports.search_result = function(request, response, status, body_Obj, rsc, ri, c
 
         response.setHeader('X-M2M-RSC', rsc);
 
-        if (request.headers.accept) {
-            try {
-                if ((request.headers.accept.split('/')[1] == 'xml') || (request.headers.accept.split('+')[1] == 'xml')) {
-                    request.headers.usebodytype = 'xml';
-                }
-            }
-            catch (e) {
-            }
+        if(request.headers['accept'].includes('xml')) {
+            request.headers.usebodytype = 'xml';
+            response.setHeader('Content-Type', 'application/xml');
         }
-
-        if (request.headers.usebodytype == 'json') {
-            response.setHeader('Content-Type', 'application/json');
-        }
-        else if (request.headers.usebodytype == 'cbor') {
+        else if(request.headers['accept'].includes('cbor')) {
+            request.headers.usebodytype = 'cbor';
             response.setHeader('Content-Type', 'application/cbor');
         }
         else {
-            response.setHeader('Content-Type', 'application/xml');
+            request.headers.usebodytype = 'json';
+            response.setHeader('Content-Type', 'application/json');
         }
     }
 

@@ -24,7 +24,7 @@ var moment = require('moment');
 
 var db_sql = require('./sql_action');
 
-function parse_create_action(callback) {
+function cb_create_action(callback) {
     var rootnm = 'cb';
     var rspObj = {};
     var resource_Obj = {};
@@ -120,7 +120,7 @@ function parse_create_action(callback) {
 }
 
 exports.create = function(callback) {
-    parse_create_action(function(rspObj) {
+    cb_create_action(function(rspObj) {
         callback(rspObj);
     });
 };

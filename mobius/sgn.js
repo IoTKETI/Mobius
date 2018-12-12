@@ -547,6 +547,11 @@ exports.check = function(request, notiObj, check_value) {
                     if (ss_fail_count[results_ss[i].ri] == null) {
                         ss_fail_count[results_ss[i].ri] = 0;
                     }
+                    else {
+                        if(results_ss[i].exc == 0) {
+                            ss_fail_count[results_ss[i].ri] = 0;
+                        }
+                    }
                     sgn_action(rootnm, check_value, results_ss[i], noti_Obj, request.headers.usebodytype);
                 }
             }

@@ -49,6 +49,7 @@ CREATE TABLE `ae` (
   `rr` varchar(45) NOT NULL,
   `nl` varchar(45) NOT NULL,
   `csz` varchar(45) DEFAULT NULL,
+  `srv` varchar(45) DEFAULT NULL,
   PRIMARY KEY (`ri`),
   UNIQUE KEY `path_UNIQUE` (`ri`),
   UNIQUE KEY `aei_UNIQUE` (`aei`),
@@ -141,6 +142,7 @@ CREATE TABLE `csr` (
   `tri` varchar(45) NOT NULL,
   `rr` varchar(45) NOT NULL,
   `nl` varchar(45) NOT NULL,
+  `srv` varchar(45) DEFAULT NULL,
   PRIMARY KEY (`ri`),
   UNIQUE KEY `ri_UNIQUE` (`ri`),
   KEY `csr_ri_idx` (`ri`),
@@ -511,4 +513,4 @@ CREATE TABLE `tsi` (
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2018-09-11 18:51:46
+-- Dump completed on 2018-10-15  9:33:26

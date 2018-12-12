@@ -231,6 +231,7 @@ exports.build_mn = function(ri, callback) {
                             delete rspObj.csr.lt;
                             delete rspObj.csr.st;
                             delete rspObj.csr.sri;
+                            delete rspObj.csr.srv;
 
                             rspObj.csr.cst = '5';
                             rspObj.csr.rr = 'true';
@@ -518,6 +519,7 @@ function retrieve_CSEBase_mqtt(cseid, csebasename, callback) {
                 delete jsonObj.csr.ct;
                 delete jsonObj.csr.lt;
                 delete jsonObj.csr.st;
+                delete jsonObj.csr.srv;
 
                 jsonObj.csr.cst = '5';
                 jsonObj.csr.rr = 'true';
