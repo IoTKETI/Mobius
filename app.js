@@ -1833,7 +1833,7 @@ global.set_info_instances = function (targetObject, callback) {
     }
 };
 
-var resource_cache = {};
+// var resource_cache = {};
 global.get_resource_from_url = function(absolute_url, absolute_url_arr, callback) {
     var option = '';
     var sri = absolute_url_arr[1].split('?')[0];
@@ -1853,11 +1853,11 @@ global.get_resource_from_url = function(absolute_url, absolute_url_arr, callback
     }
 
     var targetObject = {};
-    if(resource_cache.hasOwnProperty(ri+option)) {
-        targetObject = JSON.parse(resource_cache[ri]);
-        callback(targetObject);
-    }
-    else {
+    // if(resource_cache.hasOwnProperty(ri+option)) {
+    //     targetObject = JSON.parse(resource_cache[ri]);
+    //     callback(targetObject);
+    // }
+    // else {
         db_sql.select_resource_from_url(ri, sri, function (err, results) {
             if (err) {
                 callback(null, 500);
@@ -1917,12 +1917,12 @@ global.get_resource_from_url = function(absolute_url, absolute_url_arr, callback
                 }
                 else {
                     ri = (results.length == 0) ? absolute_url : ((results[0].hasOwnProperty('ri')) ? absolute_url.replace('/' + absolute_url_arr[1], results[0].ri) : absolute_url);
-                    resource_cache[targetObject[rootnm].ri] = JSON.stringify(targetObject);
+                    // resource_cache[targetObject[rootnm].ri] = JSON.stringify(targetObject);
                     callback(targetObject);
                 }
             }
         });
-    }
+    // }
 };
 
 global.elapsed_hrstart = {};
@@ -1980,12 +1980,6 @@ app.use(function (request, response, next) {
                             }
                         }
                     }
-
-                    // if (ty == '99') {
-                    //     responder.error_result(request, response, 400, 4000, 'BAD REQUEST: ty of Content-Type header is none');
-                    //     return '0';
-                    // }
-
                     request.ty = ty;
                 }
                 catch (e) {
