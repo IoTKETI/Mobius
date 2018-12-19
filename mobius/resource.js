@@ -403,54 +403,6 @@ function delete_TS(callback) {
     req.end();
 }
 
-/* 20180322 removed <-- update stateTag for every resources
-
-*/
-function create_action_st(ri, ty, pi, callback) {
-    db_sql.select_st(pi, function (err, results_st) {
-        if (results_st.length == 1) {
-            var st = results_st[0]['st'];
-            st = (parseInt(st, 10) + 1).toString();
-            db_sql.update_st_lookup(st, pi, function (err, results) {
-                if (!err) {
-                    callback('1');
-                }
-                else {
-                    var body_Obj = {};
-                    body_Obj['dbg'] = '[create_action_st] ' + results.message;
-                    console.log(JSON.stringify(body_Obj));
-                    callback('0');
-                    return '0';
-                }
-            });
-        }
-    });
-}
-
-global.check_cbs_cache = function(ty, ri, callback) {
-    if (cbs_cache.hasOwnProperty(ri)) {
-        callback(cbs_cache[ri].cni, cbs_cache[ri].cbs, cbs_cache[ri].st);
-    }
-    else {
-        cbs_cache[ri] = {};
-        db_sql.select_st(ri, function (err, results_st) {
-            if (results_st.length == 1) {
-                var st = results_st[0].st;
-                cbs_cache[ri].st = parseInt(st, 10);
-                db_sql.select_count_ri(parseInt(ty, 10) + 1, ri, function (err, results) {
-                    if (results.length == 1) {
-                        cbs_cache[ri].cni = results[0]['count(*)'];
-                        cbs_cache[ri].cbs = (results[0]['sum(cs)'] == null) ? 0 : results[0]['sum(cs)'];
-                        set_cbs_cache(ri, cbs_cache[ri]);
-
-                        callback(cbs_cache[ri].cni, cbs_cache[ri].cbs, cbs_cache[ri].st);
-                    }
-                });
-            }
-        });
-    }
-};
-
 function create_action(request, response, ty, resource_Obj, callback) {
     var rootnm = request.headers.rootnm;
     var body_Obj = {};
@@ -461,8 +413,6 @@ function create_action(request, response, ty, resource_Obj, callback) {
             JSON.stringify(resource_Obj[rootnm].aa), resource_Obj[rootnm].st, resource_Obj[rootnm].sri, resource_Obj[rootnm].spi,
             JSON.stringify(resource_Obj[rootnm].pv), JSON.stringify(resource_Obj[rootnm].pvs), function (err, results) {
                 if (!err) {
-                    // create_action_st(resource_Obj[rootnm].ri, resource_Obj[rootnm].ty, resource_Obj[rootnm].pi, function (rsc) {
-                    // });
                     callback('1', resource_Obj);
                 }
                 else {
@@ -489,8 +439,6 @@ function create_action(request, response, ty, resource_Obj, callback) {
             resource_Obj[rootnm].apn, resource_Obj[rootnm].api, resource_Obj[rootnm].aei, JSON.stringify(resource_Obj[rootnm].poa),
             resource_Obj[rootnm].or, resource_Obj[rootnm].nl, resource_Obj[rootnm].rr, resource_Obj[rootnm].csz, JSON.stringify(resource_Obj[rootnm].srv), function (err, results) {
                 if (!err) {
-                    // create_action_st(resource_Obj[rootnm].ri, resource_Obj[rootnm].ty, resource_Obj[rootnm].pi, function (rsc) {
-                    // });
                     callback('1', resource_Obj);
                 }
                 else {
@@ -516,11 +464,6 @@ function create_action(request, response, ty, resource_Obj, callback) {
             resource_Obj[rootnm].cr, resource_Obj[rootnm].mbs, resource_Obj[rootnm].mia,
             resource_Obj[rootnm].cni, resource_Obj[rootnm].cbs, resource_Obj[rootnm].li, resource_Obj[rootnm].or, resource_Obj[rootnm].disr, function (err, results) {
             if (!err) {
-                cbs_cache[resource_Obj[rootnm].ri] = {};
-                cbs_cache[resource_Obj[rootnm].ri].cni = 0;
-                cbs_cache[resource_Obj[rootnm].ri].cbs = 0;
-                cbs_cache[resource_Obj[rootnm].ri].st = 0;
-
                 callback('1', resource_Obj);
             }
             else {
@@ -540,26 +483,37 @@ function create_action(request, response, ty, resource_Obj, callback) {
         });
     }
     else if (ty == '4') {
-        check_cbs_cache(parseInt(resource_Obj[rootnm].ty, 10) - 1, resource_Obj[rootnm].pi, function (cni, cbs, st) {
-            db_sql.insert_cin(resource_Obj[rootnm], cni, cbs, st, request.headers.mni, request.headers.mbs, function (err, results) {
-                if (!err) {
-                    callback('1', resource_Obj);
+        // 20180322 removed <-- update stateTag for every resources
+        var parent_rootnm = Object.keys(request.targetObject)[0];
+        resource_Obj[rootnm].st = parseInt(request.targetObject[parent_rootnm].st, 10) + 1;
+        request.targetObject[parent_rootnm].st = resource_Obj[rootnm].st;
+        db_sql.update_st(request.targetObject[parent_rootnm], function() {
+        });
+
+        db_sql.insert_cin(resource_Obj[rootnm], function (err, results) {
+            if (!err) {
+                // request.targetObject[parent_rootnm].st = resource_Obj[rootnm].st;
+                // request.targetObject[parent_rootnm].cni = parseInt(request.targetObject[parent_rootnm].cni, 10) + 1;
+                // request.targetObject[parent_rootnm].cbs = parseInt(request.targetObject[parent_rootnm].cni, 10) + parseInt(resource_Obj[rootnm].cs, 10);
+                // db_sql.update_cnt_cni(request.targetObject[parent_rootnm], function () {
+                //
+                // });
+                callback('1', resource_Obj);
+            }
+            else {
+                if (results.code == 'ER_DUP_ENTRY') {
+                    body_Obj = {};
+                    body_Obj['dbg'] = "resource (" + resource_Obj[rootnm].rn + ") is already exist";
+                    responder.response_result(request, response, 409, body_Obj, 4105, request.url, body_Obj['dbg']);
                 }
                 else {
-                    if (results.code == 'ER_DUP_ENTRY') {
-                        body_Obj = {};
-                        body_Obj['dbg'] = "resource (" + resource_Obj[rootnm].rn + ") is already exist";
-                        responder.response_result(request, response, 409, body_Obj, 4105, request.url, body_Obj['dbg']);
-                    }
-                    else {
-                        body_Obj = {};
-                        body_Obj['dbg'] = '[create_action] ' + results.message;
-                        responder.response_result(request, response, 500, body_Obj, 5000, request.url, body_Obj['dbg']);
-                    }
-                    callback('0', resource_Obj);
-                    return '0';
+                    body_Obj = {};
+                    body_Obj['dbg'] = '[create_action] ' + results.message;
+                    responder.response_result(request, response, 500, body_Obj, 5000, request.url, body_Obj['dbg']);
                 }
-            });
+                callback('0', resource_Obj);
+                return '0';
+            }
         });
     }
     else if (ty == '9') {
@@ -569,8 +523,6 @@ function create_action(request, response, ty, resource_Obj, callback) {
             resource_Obj[rootnm].cr, resource_Obj[rootnm].mt, resource_Obj[rootnm].cnm, resource_Obj[rootnm].mnm,
             JSON.stringify(resource_Obj[rootnm].mid), JSON.stringify(resource_Obj[rootnm].macp), resource_Obj[rootnm].mtv, resource_Obj[rootnm].csy, resource_Obj[rootnm].gn, function (err, results) {
                 if (!err) {
-                    // create_action_st(resource_Obj[rootnm].ri, resource_Obj[rootnm].ty, resource_Obj[rootnm].pi, function (rsc) {
-                    // });
                     callback('1', resource_Obj);
                 }
                 else {
@@ -596,8 +548,6 @@ function create_action(request, response, ty, resource_Obj, callback) {
             resource_Obj[rootnm].los, resource_Obj[rootnm].lou, resource_Obj[rootnm].lot, resource_Obj[rootnm].lor,
             resource_Obj[rootnm].loi, resource_Obj[rootnm].lon, resource_Obj[rootnm].lost, function (err, results) {
                 if (!err) {
-                    // create_action_st(resource_Obj[rootnm].ri, resource_Obj[rootnm].ty, resource_Obj[rootnm].pi, function (rsc) {
-                    // });
                     callback('1', resource_Obj);
                 }
                 else {
@@ -624,8 +574,6 @@ function create_action(request, response, ty, resource_Obj, callback) {
                 resource_Obj[rootnm].mgd, resource_Obj[rootnm].objs, resource_Obj[rootnm].obps, resource_Obj[rootnm].dc,
                 resource_Obj[rootnm].vr, resource_Obj[rootnm].fwnnam, resource_Obj[rootnm].url, resource_Obj[rootnm].ud, JSON.stringify(resource_Obj[rootnm].uds), function (err, results) {
                     if (!err) {
-                        // create_action_st(resource_Obj[rootnm].ri, resource_Obj[rootnm].ty, resource_Obj[rootnm].pi, function (rsc) {
-                        // });
                         callback('1', resource_Obj);
                     }
                     else {
@@ -651,8 +599,6 @@ function create_action(request, response, ty, resource_Obj, callback) {
                 resource_Obj[rootnm].mgd, resource_Obj[rootnm].objs, resource_Obj[rootnm].obps, resource_Obj[rootnm].dc,
                 resource_Obj[rootnm].btl, resource_Obj[rootnm].bts, function (err, results) {
                     if (!err) {
-                        // create_action_st(resource_Obj[rootnm].ri, resource_Obj[rootnm].ty, resource_Obj[rootnm].pi, function (rsc) {
-                        // });
                         callback('1', resource_Obj);
                     }
                     else {
@@ -678,8 +624,6 @@ function create_action(request, response, ty, resource_Obj, callback) {
                 resource_Obj[rootnm].mgd, resource_Obj[rootnm].objs, resource_Obj[rootnm].obps, resource_Obj[rootnm].dc,
                 resource_Obj[rootnm].dbl, resource_Obj[rootnm].man, resource_Obj[rootnm].mod, resource_Obj[rootnm].dty, resource_Obj[rootnm].fwv, resource_Obj[rootnm].swv, resource_Obj[rootnm].hwv, function (err, results) {
                     if (!err) {
-                        // create_action_st(resource_Obj[rootnm].ri, resource_Obj[rootnm].ty, resource_Obj[rootnm].pi, function (rsc) {
-                        // });
                         callback('1', resource_Obj);
                     }
                     else {
@@ -705,8 +649,6 @@ function create_action(request, response, ty, resource_Obj, callback) {
                 resource_Obj[rootnm].mgd, resource_Obj[rootnm].objs, resource_Obj[rootnm].obps, resource_Obj[rootnm].dc,
                 resource_Obj[rootnm].can, resource_Obj[rootnm].att, JSON.stringify(resource_Obj[rootnm].cas), resource_Obj[rootnm].cus, resource_Obj[rootnm].ena, resource_Obj[rootnm].dis, function (err, results) {
                     if (!err) {
-                        // create_action_st(resource_Obj[rootnm].ri, resource_Obj[rootnm].ty, resource_Obj[rootnm].pi, function (rsc) {
-                        // });
                         callback('1', resource_Obj);
                     }
                     else {
@@ -732,8 +674,6 @@ function create_action(request, response, ty, resource_Obj, callback) {
                 resource_Obj[rootnm].mgd, resource_Obj[rootnm].objs, resource_Obj[rootnm].obps, resource_Obj[rootnm].dc,
                 resource_Obj[rootnm].rbo, resource_Obj[rootnm].far, function (err, results) {
                     if (!err) {
-                        // create_action_st(resource_Obj[rootnm].ri, resource_Obj[rootnm].ty, resource_Obj[rootnm].pi, function (rsc) {
-                        // });
                         callback('1', resource_Obj);
                     }
                     else {
@@ -764,8 +704,6 @@ function create_action(request, response, ty, resource_Obj, callback) {
             JSON.stringify(resource_Obj[rootnm].aa), resource_Obj[rootnm].st, resource_Obj[rootnm].sri, resource_Obj[rootnm].spi,
             resource_Obj[rootnm].ni, resource_Obj[rootnm].hcl, resource_Obj[rootnm].mgca, function (err, results) {
                 if (!err) {
-                    // create_action_st(resource_Obj[rootnm].ri, resource_Obj[rootnm].ty, resource_Obj[rootnm].pi, function (rsc) {
-                    // });
                     callback('1', resource_Obj);
                 }
                 else {
@@ -791,8 +729,6 @@ function create_action(request, response, ty, resource_Obj, callback) {
             resource_Obj[rootnm].cst, JSON.stringify(resource_Obj[rootnm].poa), resource_Obj[rootnm].cb, resource_Obj[rootnm].csi,
             resource_Obj[rootnm].mei, resource_Obj[rootnm].tri, resource_Obj[rootnm].rr, resource_Obj[rootnm].nl, JSON.stringify(resource_Obj[rootnm].srv), function (err, results) {
                 if (!err) {
-                    // create_action_st(resource_Obj[rootnm].ri, resource_Obj[rootnm].ty, resource_Obj[rootnm].pi, function (rsc) {
-                    // });
                     callback('1', resource_Obj);
                 }
                 else {
@@ -818,8 +754,6 @@ function create_action(request, response, ty, resource_Obj, callback) {
             resource_Obj[rootnm].op, resource_Obj[rootnm].tg, resource_Obj[rootnm].org, resource_Obj[rootnm].rid,
             resource_Obj[rootnm].mi, resource_Obj[rootnm].pc, resource_Obj[rootnm].rs, resource_Obj[rootnm].ors, function (err, results) {
                 if (!err) {
-                    // create_action_st(resource_Obj[rootnm].ri, resource_Obj[rootnm].ty, resource_Obj[rootnm].pi, function (rsc) {
-                    // });
                     callback('1', resource_Obj);
                 }
                 else {
@@ -847,8 +781,6 @@ function create_action(request, response, ty, resource_Obj, callback) {
             resource_Obj[rootnm].pn, resource_Obj[rootnm].nsp, resource_Obj[rootnm].ln, resource_Obj[rootnm].nct, resource_Obj[rootnm].nec,
             resource_Obj[rootnm].cr, resource_Obj[rootnm].su, function (err, results) {
                 if (!err) {
-                    // create_action_st(resource_Obj[rootnm].ri, resource_Obj[rootnm].ty, resource_Obj[rootnm].pi, function (rsc) {
-                    // });
                     callback('1', resource_Obj);
                 }
                 else {
@@ -873,8 +805,6 @@ function create_action(request, response, ty, resource_Obj, callback) {
             JSON.stringify(resource_Obj[rootnm].aa), resource_Obj[rootnm].st, resource_Obj[rootnm].sri, resource_Obj[rootnm].spi,
             resource_Obj[rootnm].cr, resource_Obj[rootnm].dsp, resource_Obj[rootnm].dcrp, resource_Obj[rootnm].soe, JSON.stringify(resource_Obj[rootnm].rels), resource_Obj[rootnm].or, function (err, results) {
                 if (!err) {
-                    // create_action_st(resource_Obj[rootnm].ri, resource_Obj[rootnm].ty, resource_Obj[rootnm].pi, function (rsc) {
-                    // });
                     callback('1', resource_Obj);
                 }
                 else {
@@ -901,8 +831,6 @@ function create_action(request, response, ty, resource_Obj, callback) {
             resource_Obj[rootnm].cni, resource_Obj[rootnm].cbs, resource_Obj[rootnm].or, resource_Obj[rootnm].pei, resource_Obj[rootnm].mdd,
             resource_Obj[rootnm].mdn, resource_Obj[rootnm].mdlt, resource_Obj[rootnm].mdc, resource_Obj[rootnm].mdt, function (err, results) {
                 if (!err) {
-                    // create_action_st(resource_Obj[rootnm].ri, resource_Obj[rootnm].ty, resource_Obj[rootnm].pi, function (rsc) {
-                    // });
                     check_TS(resource_Obj[rootnm].ri, function (rsc, res_Obj) {
                     });
                     callback('1', resource_Obj);
@@ -928,32 +856,6 @@ function create_action(request, response, ty, resource_Obj, callback) {
             if (!err) {
                 resource_Obj[rootnm].st = st;
                 callback('1', resource_Obj);
-
-                // var ty = resource_Obj[rootnm].ty;
-                // var pi = resource_Obj[rootnm].pi;
-                // var mni = request.headers.mni;
-                // var mbs = request.headers.mbs;
-                // var cni = (parseInt(request.headers.cni, 10) + 1).toString();
-                // var cbs = (parseInt(request.headers.cbs, 10) + parseInt(resource_Obj[rootnm].cs, 10)).toString();
-                // var st = (parseInt(request.headers.st, 10) + 1).toString();
-                // db_sql.update_cni_parent(ty, cni, cbs, st, pi, function (err, results) {
-                //     if (!err) {
-                //         create_action_cni(resource_Obj[rootnm].ty, resource_Obj[rootnm].pi, cni, cbs, mni, mbs, st, function (rsc) {
-                //             resource_Obj[rootnm].st = st;
-                //             callback('1', resource_Obj);
-                //         });
-                //     }
-                //     else {
-                //         // rollback
-                //         db_sql.delete_ri_lookup(resource_Obj[rootnm].ri, function (err) {
-                //             body_Obj = {};
-                //             body_Obj['dbg'] = '[create_action] ' + results.message;
-                //             responder.response_result(request, response, 500, body_Obj, 5000, request.url, body_Obj['dbg']);
-                //             callback('0', resource_Obj);
-                //             return '0';
-                //         });
-                //     }
-                // });
             }
             else {
                 if (results.code == 'ER_DUP_ENTRY') {
@@ -978,8 +880,6 @@ function create_action(request, response, ty, resource_Obj, callback) {
             resource_Obj[rootnm].sid, resource_Obj[rootnm].soid, resource_Obj[rootnm].stid, resource_Obj[rootnm].asd,
             resource_Obj[rootnm].osd, resource_Obj[rootnm].sst, function (err, results) {
                 if (!err) {
-                    // create_action_st(resource_Obj[rootnm].ri, resource_Obj[rootnm].ty, resource_Obj[rootnm].pi, function (rsc) {
-                    // });
                     callback('1', resource_Obj);
                 }
                 else {
@@ -1003,8 +903,6 @@ function create_action(request, response, ty, resource_Obj, callback) {
             resource_Obj[rootnm].tst = tst_v.INITIAL;
             db_sql.insert_tm(resource_Obj[rootnm], function (err, results) {
                 if (!err) {
-                    // create_action_st(resource_Obj[rootnm].ri, resource_Obj[rootnm].ty, resource_Obj[rootnm].pi, function (rsc) {
-                    // });
                     callback('1', resource_Obj);
                 }
                 else {
@@ -1066,8 +964,6 @@ function create_action(request, response, ty, resource_Obj, callback) {
 
                 db_sql.insert_tm(resource_Obj[rootnm], function (err, results) {
                     if (!err) {
-                        // create_action_st(resource_Obj[rootnm].ri, resource_Obj[rootnm].ty, resource_Obj[rootnm].pi, function (rsc) {
-                        // });
                         callback('1', resource_Obj);
                     }
                     else {
@@ -1091,8 +987,6 @@ function create_action(request, response, ty, resource_Obj, callback) {
     else if (ty == '39') { // transaction resource
         db_sql.insert_tr(resource_Obj[rootnm], function (err, results) {
             if (!err) {
-                // create_action_st(resource_Obj[rootnm].ri, resource_Obj[rootnm].ty, resource_Obj[rootnm].pi, function (rsc) {
-                // });
                 callback('1', resource_Obj);
             }
             else {
@@ -1253,261 +1147,116 @@ function build_resource(request, response, ty, body_Obj, callback) {
         return '0';
     }
 
-    if (request.query.real == 4) { // realtime, new
-        resource_Obj[rootnm].acpi = (body_Obj[rootnm].acpi) ? body_Obj[rootnm].acpi : [];
-        resource_Obj[rootnm].et = (body_Obj[rootnm].et) ? body_Obj[rootnm].et : resource_Obj[rootnm].et;
-        resource_Obj[rootnm].lbl = (body_Obj[rootnm].lbl) ? body_Obj[rootnm].lbl : [];
-        resource_Obj[rootnm].at = (body_Obj[rootnm].at) ? body_Obj[rootnm].at : [];
-        resource_Obj[rootnm].aa = (body_Obj[rootnm].aa) ? body_Obj[rootnm].aa : [];
+    resource_Obj[rootnm].acpi = (body_Obj[rootnm].acpi) ? body_Obj[rootnm].acpi : [];
+    resource_Obj[rootnm].et = (body_Obj[rootnm].et) ? body_Obj[rootnm].et : resource_Obj[rootnm].et;
+    resource_Obj[rootnm].lbl = (body_Obj[rootnm].lbl) ? body_Obj[rootnm].lbl : [];
+    resource_Obj[rootnm].at = (body_Obj[rootnm].at) ? body_Obj[rootnm].at : [];
+    resource_Obj[rootnm].aa = (body_Obj[rootnm].aa) ? body_Obj[rootnm].aa : [];
 
-        if (body_Obj[rootnm].et == '') {
-            if (body_Obj[rootnm].et < resource_Obj[rootnm].ct) {
-                body_Obj = {};
-                body_Obj['dbg'] = 'expiration time is before now';
-                responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-                callback('0', resource_Obj);
-                return '0';
-            }
+    if (body_Obj[rootnm].et == '') {
+        if (body_Obj[rootnm].et < resource_Obj[rootnm].ct) {
+            body_Obj = {};
+            body_Obj['dbg'] = 'expiration time is before now';
+            responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
+            callback('0', resource_Obj);
+            return '0';
         }
-
-        switch (ty) {
-            case '1':
-                acp.build_acp(request, response, resource_Obj, body_Obj, function (rsc, resource_Obj) {
-                    callback(rsc, resource_Obj);
-                });
-                break;
-            case '2':
-                ae.build_ae(request, response, resource_Obj, body_Obj, function (rsc, resource_Obj) {
-                    callback(rsc, resource_Obj);
-                });
-                break;
-            case '3':
-                cnt.build_cnt(request, response, resource_Obj, body_Obj, function (rsc, resource_Obj) {
-                    callback(rsc, resource_Obj);
-                });
-                break;
-            case '4':
-                cin.build_cin(request, response, resource_Obj, body_Obj, function (rsc, resource_Obj) {
-                    callback(rsc, resource_Obj);
-                });
-                break;
-            case '9':
-                grp.build_grp(request, response, resource_Obj, body_Obj, function (rsc, resource_Obj) {
-                    callback(rsc, resource_Obj);
-                });
-                break;
-            case '10':
-                lcp.build_lcp(request, response, resource_Obj, body_Obj, function (rsc, resource_Obj) {
-                    callback(rsc, resource_Obj);
-                });
-                break;
-            case '13':
-                mgo.build_mgo(request, response, resource_Obj, body_Obj, function (rsc, resource_Obj) {
-                    callback(rsc, resource_Obj);
-                });
-                break;
-            case '14':
-                nod.build_nod(request, response, resource_Obj, body_Obj, function (rsc, resource_Obj) {
-                    callback(rsc, resource_Obj);
-                });
-                break;
-            case '16':
-                csr.build_csr(request, response, resource_Obj, body_Obj, function (rsc, resource_Obj) {
-                    callback(rsc, resource_Obj);
-                });
-                break;
-            case '17':
-                req.build_req(request, response, resource_Obj, body_Obj, function (rsc, resource_Obj) {
-                    callback(rsc, resource_Obj);
-                });
-                break;
-            case '23':
-                sub.build_sub(request, response, resource_Obj, body_Obj, function (rsc, resource_Obj) {
-                    callback(rsc, resource_Obj);
-                });
-                break;
-            case '24':
-                smd.build_smd(request, response, resource_Obj, body_Obj, function (rsc, resource_Obj) {
-                    callback(rsc, resource_Obj);
-                });
-                break;
-            case '27':
-                mms.build_mms(request, response, resource_Obj, body_Obj, function (rsc, resource_Obj) {
-                    callback(rsc, resource_Obj);
-                });
-                break;
-            case '29':
-                ts.build_ts(request, response, resource_Obj, body_Obj, function (rsc, resource_Obj) {
-                    callback(rsc, resource_Obj);
-                });
-                break;
-            case '30':
-                tsi.build_tsi(request, response, resource_Obj, body_Obj, function (rsc, resource_Obj) {
-                    callback(rsc, resource_Obj);
-                });
-                break;
-            case '38':
-                tm.build_tm(request, response, resource_Obj, body_Obj, function (rsc, resource_Obj) {
-                    callback(rsc, resource_Obj);
-                });
-                break;
-            case '39':
-                tr.build_tr(request, response, resource_Obj, body_Obj, function (rsc, resource_Obj) {
-                    callback(rsc, resource_Obj);
-                });
-                break;
-            default: {
-                body_Obj = {};
-                body_Obj['dbg'] = "resource requested is not supported";
-                responder.response_result(request, response, 500, body_Obj, 5000, request.url, body_Obj['dbg']);
-                callback('0');
-                return '0';
-            }
-        }
-        return '1';
     }
 
-    // db_sql.select_direct_lookup(resource_Obj[rootnm].ri, function (err, result_Obj) {
-    //     if (!err) {
-    //         if (result_Obj.length == 1) {
-    //             if(result_Obj[0].ty == 3) {
-    //                 check_cbs_cache(result_Obj[0].ty, result_Obj[0].ri, function (cni, cbs, st) {
-    //                     body_Obj = {};
-    //                     body_Obj['dbg'] = "resource (" + result_Obj[0].rn + ") is already exist";
-    //                     responder.response_result(request, response, 409, body_Obj, 4105, request.url, body_Obj['dbg']);
-    //                     callback('0');
-    //                     return '0';
-    //                 });
-    //             }
-    //             else {
-    //                 body_Obj = {};
-    //                 body_Obj['dbg'] = "resource (" + result_Obj[0].rn + ") is already exist";
-    //                 responder.response_result(request, response, 409, body_Obj, 4105, request.url, body_Obj['dbg']);
-    //                 callback('0');
-    //                 return '0';
-    //             }
-    //         }
-    //         else {
-                resource_Obj[rootnm].acpi = (body_Obj[rootnm].acpi) ? body_Obj[rootnm].acpi : [];
-                resource_Obj[rootnm].et = (body_Obj[rootnm].et) ? body_Obj[rootnm].et : resource_Obj[rootnm].et;
-                resource_Obj[rootnm].lbl = (body_Obj[rootnm].lbl) ? body_Obj[rootnm].lbl : [];
-                resource_Obj[rootnm].at = (body_Obj[rootnm].at) ? body_Obj[rootnm].at : [];
-                resource_Obj[rootnm].aa = (body_Obj[rootnm].aa) ? body_Obj[rootnm].aa : [];
-
-                if (body_Obj[rootnm].et == '') {
-                    if (body_Obj[rootnm].et < resource_Obj[rootnm].ct) {
-                        body_Obj = {};
-                        body_Obj['dbg'] = 'expiration time is before now';
-                        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-                        callback('0', resource_Obj);
-                        return '0';
-                    }
-                }
-
-                switch (ty) {
-                    case '1':
-                        acp.build_acp(request, response, resource_Obj, body_Obj, function (rsc, resource_Obj) {
-                            callback(rsc, resource_Obj);
-                        });
-                        break;
-                    case '2':
-                        ae.build_ae(request, response, resource_Obj, body_Obj, function (rsc, resource_Obj) {
-                            callback(rsc, resource_Obj);
-                        });
-                        break;
-                    case '3':
-                        cnt.build_cnt(request, response, resource_Obj, body_Obj, function (rsc, resource_Obj) {
-                            callback(rsc, resource_Obj);
-                        });
-                        break;
-                    case '4':
-                        cin.build_cin(request, response, resource_Obj, body_Obj, function (rsc, resource_Obj) {
-                            callback(rsc, resource_Obj);
-                        });
-                        break;
-                    case '9':
-                        grp.build_grp(request, response, resource_Obj, body_Obj, function (rsc, resource_Obj) {
-                            callback(rsc, resource_Obj);
-                        });
-                        break;
-                    case '10':
-                        lcp.build_lcp(request, response, resource_Obj, body_Obj, function (rsc, resource_Obj) {
-                            callback(rsc, resource_Obj);
-                        });
-                        break;
-                    case '13':
-                        mgo.build_mgo(request, response, resource_Obj, body_Obj, function (rsc, resource_Obj) {
-                            callback(rsc, resource_Obj);
-                        });
-                        break;
-                    case '14':
-                        nod.build_nod(request, response, resource_Obj, body_Obj, function (rsc, resource_Obj) {
-                            callback(rsc, resource_Obj);
-                        });
-                        break;
-                    case '16':
-                        csr.build_csr(request, response, resource_Obj, body_Obj, function (rsc, resource_Obj) {
-                            callback(rsc, resource_Obj);
-                        });
-                        break;
-                    case '17':
-                        req.build_req(request, response, resource_Obj, body_Obj, function (rsc, resource_Obj) {
-                            callback(rsc, resource_Obj);
-                        });
-                        break;
-                    case '23':
-                        sub.build_sub(request, response, resource_Obj, body_Obj, function (rsc, resource_Obj) {
-                            callback(rsc, resource_Obj);
-                        });
-                        break;
-                    case '24':
-                        smd.build_smd(request, response, resource_Obj, body_Obj, function (rsc, resource_Obj) {
-                            callback(rsc, resource_Obj);
-                        });
-                        break;
-                    case '27':
-                        mms.build_mms(request, response, resource_Obj, body_Obj, function (rsc, resource_Obj) {
-                            callback(rsc, resource_Obj);
-                        });
-                        break;
-                    case '29':
-                        ts.build_ts(request, response, resource_Obj, body_Obj, function (rsc, resource_Obj) {
-                            callback(rsc, resource_Obj);
-                        });
-                        break;
-                    case '30':
-                        tsi.build_tsi(request, response, resource_Obj, body_Obj, function (rsc, resource_Obj) {
-                            callback(rsc, resource_Obj);
-                        });
-                        break;
-                    case '38':
-                        tm.build_tm(request, response, resource_Obj, body_Obj, function (rsc, resource_Obj) {
-                            callback(rsc, resource_Obj);
-                        });
-                        break;
-                    case '39':
-                        tr.build_tr(request, response, resource_Obj, body_Obj, function (rsc, resource_Obj) {
-                            callback(rsc, resource_Obj);
-                        });
-                        break;
-                    default: {
-                        body_Obj = {};
-                        body_Obj['dbg'] = "resource requested is not supported";
-                        responder.response_result(request, response, 500, body_Obj, 5000, request.url, body_Obj['dbg']);
-                        callback('0');
-                        return '0';
-                    }
-                }
-    //         }
-    //     }
-    //     else {
-    //         body_Obj = {};
-    //         body_Obj['dbg'] = result_Obj.message;
-    //         responder.response_result(request, response, 500, body_Obj, 5000, request.url, body_Obj['dbg']);
-    //         callback('0');
-    //         return '0';
-    //     }
-    // });
+    switch (ty) {
+        case '1':
+            acp.build_acp(request, response, resource_Obj, body_Obj, function (rsc, resource_Obj) {
+                callback(rsc, resource_Obj);
+            });
+            break;
+        case '2':
+            ae.build_ae(request, response, resource_Obj, body_Obj, function (rsc, resource_Obj) {
+                callback(rsc, resource_Obj);
+            });
+            break;
+        case '3':
+            cnt.build_cnt(request, response, resource_Obj, body_Obj, function (rsc, resource_Obj) {
+                callback(rsc, resource_Obj);
+            });
+            break;
+        case '4':
+            cin.build_cin(request, response, resource_Obj, body_Obj, function (rsc, resource_Obj) {
+                callback(rsc, resource_Obj);
+            });
+            break;
+        case '9':
+            grp.build_grp(request, response, resource_Obj, body_Obj, function (rsc, resource_Obj) {
+                callback(rsc, resource_Obj);
+            });
+            break;
+        case '10':
+            lcp.build_lcp(request, response, resource_Obj, body_Obj, function (rsc, resource_Obj) {
+                callback(rsc, resource_Obj);
+            });
+            break;
+        case '13':
+            mgo.build_mgo(request, response, resource_Obj, body_Obj, function (rsc, resource_Obj) {
+                callback(rsc, resource_Obj);
+            });
+            break;
+        case '14':
+            nod.build_nod(request, response, resource_Obj, body_Obj, function (rsc, resource_Obj) {
+                callback(rsc, resource_Obj);
+            });
+            break;
+        case '16':
+            csr.build_csr(request, response, resource_Obj, body_Obj, function (rsc, resource_Obj) {
+                callback(rsc, resource_Obj);
+            });
+            break;
+        case '17':
+            req.build_req(request, response, resource_Obj, body_Obj, function (rsc, resource_Obj) {
+                callback(rsc, resource_Obj);
+            });
+            break;
+        case '23':
+            sub.build_sub(request, response, resource_Obj, body_Obj, function (rsc, resource_Obj) {
+                callback(rsc, resource_Obj);
+            });
+            break;
+        case '24':
+            smd.build_smd(request, response, resource_Obj, body_Obj, function (rsc, resource_Obj) {
+                callback(rsc, resource_Obj);
+            });
+            break;
+        case '27':
+            mms.build_mms(request, response, resource_Obj, body_Obj, function (rsc, resource_Obj) {
+                callback(rsc, resource_Obj);
+            });
+            break;
+        case '29':
+            ts.build_ts(request, response, resource_Obj, body_Obj, function (rsc, resource_Obj) {
+                callback(rsc, resource_Obj);
+            });
+            break;
+        case '30':
+            tsi.build_tsi(request, response, resource_Obj, body_Obj, function (rsc, resource_Obj) {
+                callback(rsc, resource_Obj);
+            });
+            break;
+        case '38':
+            tm.build_tm(request, response, resource_Obj, body_Obj, function (rsc, resource_Obj) {
+                callback(rsc, resource_Obj);
+            });
+            break;
+        case '39':
+            tr.build_tr(request, response, resource_Obj, body_Obj, function (rsc, resource_Obj) {
+                callback(rsc, resource_Obj);
+            });
+            break;
+        default: {
+            body_Obj = {};
+            body_Obj['dbg'] = "resource requested is not supported";
+            responder.response_result(request, response, 500, body_Obj, 5000, request.url, body_Obj['dbg']);
+            callback('0');
+            return '0';
+        }
+    }
 }
 
 exports.create = function (request, response, ty, body_Obj, callback) {
@@ -1549,11 +1298,6 @@ exports.create = function (request, response, ty, body_Obj, callback) {
 
         create_action(request, response, ty, resource_Obj, function (rsc, create_Obj) {
             if (rsc == '1') {
-                if(ty != 4 && ty != 30) {
-                    create_action_st(create_Obj[rootnm].ri, create_Obj[rootnm].ty, create_Obj[rootnm].pi, function (rsc) {
-                    });
-                }
-
                 _this.remove_no_value(request, create_Obj);
 
                 if (request.query.real != 4) {
@@ -1641,11 +1385,9 @@ function presearch_action(request, response, ri_list, comm_Obj, callback) {
                 request.query.lvl = '1';
             }
 
-            // if (comm_Obj.ty == '3' && request.query.la) {
-            //     //var ofst = parseInt(comm_Obj.cni, 10) - (parseInt(request.query.la, 10) - 1);
-            //     //request.query.ofst = (ofst < 0) ? '0' : ofst;
-            //     //request.query.lim = request.query.la;
-            // }
+            if (comm_Obj.ty == '3' && request.query.la) {
+                request.query.cni = parseInt(comm_Obj.cni, 10);
+            }
 
             if (request.query.lim != null) {
                 if (request.query.lim > max_lim) {
@@ -1655,7 +1397,6 @@ function presearch_action(request, response, ri_list, comm_Obj, callback) {
             else {
                 request.query.lim = max_lim;
             }
-
 
             var cur_lvl = parseInt((url.parse(request.url).pathname.split('/').length), 10) - 2;
             for (var i = 0; i < search_Obj.length; i++) {
@@ -1838,39 +1579,6 @@ global.makeObject = function (obj) {
     }
 };
 
-function retrieve_action(request, response, ty, comm_Obj, callback) {
-    var rootnm = request.headers.rootnm;
-    var resource_Obj = {};
-    resource_Obj[rootnm] = {};
-
-    var tid = require('shortid').generate();
-    console.time('resource_retrieve ' + comm_Obj.ri + ' (' + tid + ')');
-    db_sql.select_resource(responder.typeRsrc[ty], comm_Obj.ri, function (err, spec_Obj) {
-        if (!err) {
-            if (spec_Obj.length == 1) {
-                console.timeEnd('resource_retrieve ' + comm_Obj.ri + ' (' + tid + ')');
-                makeObject(spec_Obj[0]);
-                resource_Obj[rootnm] = merge(comm_Obj, spec_Obj[0]);
-                callback('1', resource_Obj);
-            }
-            else {
-                spec_Obj = {};
-                spec_Obj['dbg'] = '[retrieve_action] resource does not exist';
-                responder.response_result(request, response, 404, spec_Obj, 4004, request.url, spec_Obj['dbg']);
-                callback('0', resource_Obj);
-                return '0';
-            }
-        }
-        else {
-            spec_Obj = {};
-            spec_Obj['dbg'] = spec_Obj.message;
-            responder.response_result(request, response, 500, spec_Obj, 5000, request.url, spec_Obj['dbg']);
-            callback('0', resource_Obj);
-            return '0';
-        }
-    });
-}
-
 function get_resource(request, callback) {
     var rootnm = request.headers.rootnm;
     var resource_Obj = {};
@@ -1896,17 +1604,17 @@ exports.retrieve = function (request, response, resource_Obj) {
 
         var rootnm = request.headers.rootnm;
 
-        get_resource(request, function (rsc) {
-            if (rsc == '0') {
-                return rsc;
-            }
+        // get_resource(request, function (rsc) {
+        //     if (rsc == '0') {
+        //         return rsc;
+        //     }
 
             var retrieve_Obj = {};
             retrieve_Obj[rootnm] = merge({}, resource_Obj);
             _this.remove_no_value(request, retrieve_Obj);
             responder.response_result(request, response, 200, retrieve_Obj, 2000, retrieve_Obj[rootnm].ri, '');
             return '0';
-        });
+        // });
     }
     else if (request.query.fu == 1 && (request.query.smf)) {
         smd.request_get_discovery(request, response, request.query.smf, function (response, statusCode, searchStr) {
@@ -2004,63 +1712,6 @@ global.update_body = function (rootnm, body_Obj, resource_Obj) {
     }
 };
 
-function update_action_mni(ty, ri, mni, mbs, callback) {
-    check_cbs_cache(ty, ri, function (cni, cbs, st) {
-        if (cni > parseInt(mni, 10)) {
-            var offset = parseInt(cni, 10) - parseInt(mni, 10);
-            db_sql.delete_ri_lookup_in(ty, ri, offset, function (err, results) {
-                if (!err) {
-                    db_sql.select_count_ri(ty, ri, function (err, results) {
-                        if (results.length == 1) {
-                            cbs_cache[ri].cni = results[0]['count(*)'];
-                            cbs_cache[ri].cbs = (results[0]['sum(cs)'] == null) ? 0 : results[0]['sum(cs)'];
-                            set_cbs_cache(ri, cbs_cache[ri]);
-
-                            update_action_mni(ty, ri, mni, mbs, function (rsc, cni, cbs) {
-                                callback(rsc, cni, cbs);
-                            });
-                        }
-                    });
-                }
-                else {
-                    var body_Obj = {};
-                    body_Obj['dbg'] = results.message;
-                    console.log(JSON.stringify(body_Obj));
-                    callback('0');
-                    return '0';
-                }
-            });
-        }
-        else if (cbs > parseInt(mbs, 10)) {
-            db_sql.select_cs_parent(ty, ri, function (err, results_cs) { // select oldest
-                if (results_cs.length == 1) {
-                    db_sql.delete_ri_lookup(results_cs[0].ri, function (err) {
-                        if (!err) {
-                            cbs_cache[ri].cni = (parseInt(cni, 10) - 1).toString();
-                            cbs_cache[ri].cbs = (parseInt(cbs, 10) - parseInt(results_cs[0].cs, 10)).toString();
-                            set_cbs_cache(ri, cbs_cache[ri]);
-
-                            update_action_mni(ty, ri, mni, mbs, function (rsc, cni, cbs) {
-                                callback(rsc, cni, cbs);
-                            });
-                        }
-                    });
-                }
-                else {
-                    var body_Obj = {};
-                    body_Obj['dbg'] = results_cs.message;
-                    console.log(JSON.stringify(body_Obj));
-                    callback('0');
-                    return '0';
-                }
-            });
-        }
-        else {
-            callback('1', cni, cbs);
-        }
-    });
-}
-
 function update_action(request, response, ty, resource_Obj, callback) {
     var rootnm = request.headers.rootnm;
     var body_Obj = {};
@@ -2098,14 +1749,12 @@ function update_action(request, response, ty, resource_Obj, callback) {
             });
     }
     else if (ty == '3') {
-        update_action_mni('4', resource_Obj[rootnm].ri, resource_Obj[rootnm].mni, resource_Obj[rootnm].mbs, function (rsc, cni, cbs) {
+        db_sql.get_cni_count(resource_Obj[rootnm], function (cni, cbs, st) {
             resource_Obj[rootnm].cni = cni;
             resource_Obj[rootnm].cbs = cbs;
+            resource_Obj[rootnm].st = st + 1;
             db_sql.update_cnt(resource_Obj[rootnm], function (err, results) {
                 if (!err) {
-                    cbs_cache[resource_Obj[rootnm].ri].st = resource_Obj[rootnm].st;
-                    set_cbs_cache(resource_Obj[rootnm].ri, cbs_cache[resource_Obj[rootnm].ri]);
-
                     callback('1', resource_Obj);
                 }
                 else {
@@ -2824,170 +2473,61 @@ function update_resource(request, response, ty, body_Obj, resource_Obj, callback
         callback('0', body_Obj);
         return '0';
     }
-
-// //    var rootnm = request.headers.rootnm;
-//     switch (ty) {
-//         case '1':
-//             acp.modify_acp(request, response, resource_Obj, body_Obj, function(rsc, resource_Obj) {
-//                 callback(rsc, resource_Obj);
-//             });
-//             break;
-//         case '2':
-//             ae.modify_ae(request, response, resource_Obj, body_Obj, function(rsc, resource_Obj) {
-//                 callback(rsc, resource_Obj);
-//             });
-//             break;
-//         case '3':
-//             cnt.modify_cnt(request, response, resource_Obj, body_Obj, function(rsc, resource_Obj) {
-//                 callback(rsc, resource_Obj);
-//             });
-//             break;
-//         case '9':
-//             grp.modify_grp(request, response, resource_Obj, body_Obj, function(rsc, resource_Obj) {
-//                 callback(rsc, resource_Obj);
-//             });
-//             break;
-//         case '10':
-//             lcp.modify_lcp(request, response, resource_Obj, body_Obj, function(rsc, resource_Obj) {
-//                 callback(rsc, resource_Obj);
-//             });
-//             break;
-//         case '13':
-//             mgo.modify_mgo(request, response, resource_Obj, body_Obj, function(rsc, resource_Obj) {
-//                 callback(rsc, resource_Obj);
-//             });
-//             break;
-//         case '14':
-//             nod.modify_nod(request, response, resource_Obj, body_Obj, function(rsc, resource_Obj) {
-//                 callback(rsc, resource_Obj);
-//             });
-//             break;
-//         case '16':
-//             csr.modify_csr(request, response, resource_Obj, body_Obj, function(rsc, resource_Obj) {
-//                 callback(rsc, resource_Obj);
-//             });
-//             break;
-//         case '23':
-//             sub.modify_sub(request, response, resource_Obj, body_Obj, function(rsc, resource_Obj) {
-//                 callback(rsc, resource_Obj);
-//             });
-//             break;
-//         case '24':
-//             smd.modify_sd(request, response, resource_Obj, body_Obj, function(rsc, resource_Obj) {
-//                 callback(rsc, resource_Obj);
-//             }); break;
-//         case '29':
-//             ts.modify_ts(request, response, resource_Obj, body_Obj, function(rsc, resource_Obj) {
-//                 callback(rsc, resource_Obj);
-//             });
-//             break;
-//         case '27':
-//             mms.modify_mms(request, response, resource_Obj, body_Obj, function(rsc, resource_Obj) {
-//                 callback(rsc, resource_Obj);
-//             });
-//             break;
-//         default:
-//             body_Obj = {};
-//             body_Obj['dbg'] = 'request is not supported in oneM2M Spec!';
-//             responder.response_result(request, response, 405, body_Obj, 4005, request.url, body_Obj['dbg']);
-//             callback('0', body_Obj);
-//             break;
-//     }
 }
-
 
 exports.update = function (request, response, comm_Obj, body_Obj) {
     var rootnm = request.headers.rootnm;
-    var ty = comm_Obj.ty;
+    var updateObj = request.targetObject;
+    var ty = updateObj[rootnm].ty;
 
-    retrieve_action(request, response, ty, comm_Obj, function (rsc, retrieve_Obj) {
+    if(ty == 2) {
+        updateObj[rootnm].cr = updateObj[rootnm].aei;
+    }
+    else if (ty == 16) {
+        updateObj[rootnm].cr = updateObj[rootnm].cb;
+    }
+
+    update_resource(request, response, ty, body_Obj, updateObj, function (rsc, update_resource_Obj) {
         if (rsc == '0') {
             return rsc;
         }
 
-        if(ty == 2) {
-            retrieve_Obj[rootnm].cr = retrieve_Obj[rootnm].aei;
+        if (request.query.real == 4) { // realtime, new
+            var notiObj = JSON.parse(JSON.stringify(update_resource_Obj));
+            _this.remove_no_value(request, notiObj);
+            sgn.check(request, notiObj[rootnm], 1);
         }
-        else if (ty == 16) {
-            retrieve_Obj[rootnm].cr = retrieve_Obj[rootnm].cb;
+
+        if(ty == 23) { // when ty is 23, send notification for verification
+            var notiObj = JSON.parse(JSON.stringify(update_resource_Obj));
+            _this.remove_no_value(request, notiObj);
+            sgn.check(request, notiObj[rootnm], 256);
         }
 
-        update_resource(request, response, ty, body_Obj, retrieve_Obj, function (rsc, update_resource_Obj) {
-            if (rsc == '0') {
-                return rsc;
-            }
+        update_action(request, response, ty, update_resource_Obj, function (rsc, update_Obj) {
+            if (rsc == '1') {
+                _this.remove_no_value(request, update_Obj);
 
-            if (request.query.real == 4) { // realtime, new
-                var notiObj = JSON.parse(JSON.stringify(update_resource_Obj));
-                _this.remove_no_value(request, notiObj);
-                sgn.check(request, notiObj[rootnm], 1);
-            }
-
-            if(ty == 23) { // when ty is 23, send notification for verification
-                var notiObj = JSON.parse(JSON.stringify(update_resource_Obj));
-                _this.remove_no_value(request, notiObj);
-                sgn.check(request, notiObj[rootnm], 256);
-            }
-
-            update_action(request, response, ty, update_resource_Obj, function (rsc, update_Obj) {
-                if (rsc == '1') {
-                    _this.remove_no_value(request, update_Obj);
-
-                    if (request.query.real != 4) {
-                        sgn.check(request, update_Obj[rootnm], 1);
-                    }
-
-                    responder.response_result(request, response, 200, update_Obj, 2004, update_Obj[rootnm].ri, '');
-                    return '0';
+                if (request.query.real != 4) {
+                    sgn.check(request, update_Obj[rootnm], 1);
                 }
-            });
+
+                responder.response_result(request, response, 200, update_Obj, 2004, update_Obj[rootnm].ri, '');
+                return '0';
+            }
         });
     });
 };
 
-function delete_action_cni(ri, ty, pi, cs, callback) {
-    db_sql.select_cni_parent(ty, pi, function (err, results_cni) {
-        if (results_cni.length == 1) {
-            var cni = results_cni[0]['cni'];
-            var cbs = results_cni[0]['cbs'];
-            var st = results_cni[0]['st'];
-
-            cni = (parseInt(cni, 10) - 1).toString();
-            cbs = (parseInt(cbs, 10) - parseInt(cs, 10)).toString();
-            st = (parseInt(st, 10) + 1).toString();
-
-            cbs_cache[pi].cni = cni;
-            cbs_cache[pi].cbs = cbs;
-            cbs_cache[pi].st = st;
-
-            set_cbs_cache(pi, cbs_cache[pi]);
-
-            db_sql.update_cni_parent(ty, pi, cni, cbs, st, function (err, results) {
-                if (!err) {
-                    callback('1', st);
-                }
-                else {
-                    var body_Obj = {};
-                    body_Obj['dbg'] = results.message;
-                    //responder.response_result(request, response, 500, body_Obj, 5000, request.url, results.message);
-                    console.log(JSON.stringify(body_Obj));
-                    callback('0');
-                    return '0';
-                }
-            });
-        }
-    });
-}
-
 /* 20180322 removed <-- update stateTag for every resources
 
 */
-function delete_action_st(ri, ty, pi, callback) {
+function delete_action_st(pi, callback) {
     db_sql.select_st(pi, function (err, results_st) {
         if (results_st.length == 1) {
             var st = results_st[0]['st'];
             st = (parseInt(st, 10) + 1).toString();
-            db_sql.update_st_lookup(st, pi, function (err, results) {
+            db_sql.update_st(results_st[0], function (err, results) {
                 if (!err) {
                     callback('1', st);
                 }
@@ -3023,8 +2563,8 @@ function delete_action(request, response, resource_Obj, comm_Obj, callback) {
             var finding_Obj = [];
             console.time('delete_lookup ' + comm_Obj.ri);
             db_sql.delete_lookup(comm_Obj.ri, pi_list, 0, finding_Obj, 0, function (err, search_Obj) {
-                console.timeEnd('delete_lookup ' + comm_Obj.ri);
                 if (!err) {
+                    console.timeEnd('delete_lookup ' + comm_Obj.ri);
                     if (comm_Obj.ty == '23') {
                         if(comm_Obj.hasOwnProperty('su')) {
                             if(comm_Obj.su != '') {
@@ -3041,14 +2581,11 @@ function delete_action(request, response, resource_Obj, comm_Obj, callback) {
                         callback('1', resource_Obj);
                     }
                     else if (comm_Obj.ty == '4') {
-                        delete_action_cni(comm_Obj.ri, comm_Obj.ty, comm_Obj.pi, comm_Obj.cs, function (rsc) {
-
+                        delete_action_st(comm_Obj.pi, function (rsc) {
                         });
                         callback('1', resource_Obj);
                     }
                     else {
-                        delete_action_st(comm_Obj.ri, comm_Obj.ty, comm_Obj.pi, function (rsc) {
-                        });
                         callback('1', resource_Obj);
                     }
                 }

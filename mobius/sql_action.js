@@ -24,6 +24,22 @@ var _this = this;
 
 global.max_lim = 1000;
 
+exports.set_tuning = function(callback) {
+    var sql = util.format('set global max_connections = 2000');
+    db.getResult(sql, '', function (err, results) {
+        sql = util.format('set global innodb_flush_log_at_trx_commit=0');
+        db.getResult(sql, '', function (err, results) {
+            sql = util.format('set global sync_binlog=0');
+            db.getResult(sql, '', function (err, results) {
+                sql = util.format('set global transaction_isolation=\'READ-UNCOMMITTED\'');
+                db.getResult(sql, '', function (err, results) {
+                    callback(err, results);
+                });
+            });
+        });
+    });
+};
+
 exports.get_sri_sri = function (ri, callback) {
     var sql = util.format('select sri from sri where ri = \'%s\'', ri);
     db.getResult(sql, '', function (err, results) {
@@ -210,58 +226,40 @@ global.getType = function (p) {
     return type;
 };
 
-global.create_action_cni = function(ty, pi, cni, cbs, st, mni, mbs, callback) {
-    if (cni > parseInt(mni, 10) || cbs > parseInt(mbs, 10)) {
-        _this.select_cs_parent(ty, pi, function (err, results_cs) { // select oldest
-            if (results_cs.length == 1) {
-                _this.delete_ri_lookup(results_cs[0].ri, function (err) {
-                    if (!err) {
-                        cni = (parseInt(cni, 10) - 1);
-                        cbs = (parseInt(cbs, 10) - parseInt(results_cs[0].cs, 10));
 
-                        cbs_cache[pi].cni = cni;
-                        cbs_cache[pi].cbs = cbs;
-                        cbs_cache[pi].st = st;
+exports.get_cni_count = function(obj, callback) {
+    _this.select_count_ri(parseInt(obj.ty, 10) + 1, obj.ri, function (err, results) {
+        if (results.length == 1) {
+            var cni = results[0]['count(*)'];
+            var cbs = results[0]['sum('+responder.typeRsrc[parseInt(obj.ty, 10) + 1]+'.cs)'];
+            var st = results[0]['st'];
 
-                        set_cbs_cache(pi, cbs_cache[pi]);
-
-                        create_action_cni(ty, pi, cni, cbs, st, mni, mbs, function (rsc, cni, cbs, st) {
-                            callback(rsc, cni, cbs, st);
+            if (cni > parseInt(obj.mni, 10) || cbs > parseInt(obj.mbs, 10)) {
+                var count = (cni - parseInt(obj.mni, 10));
+                if(count > 5000) {
+                    count = 5000;
+                }
+                _this.delete_oldests(obj, count, function (err, results_oldest) { // select oldest
+                    if (results_oldest.affectedRows == count) {
+                        _this.get_cni_count(obj, function (cni, cbs, st) {
+                            callback(cni, cbs, st);
                         });
                     }
                     else {
-                        var body_Obj = {};
-                        body_Obj['dbg'] = 'delete error in create_action_cni';
-                        console.log(JSON.stringify(body_Obj));
-                        callback('0', cni, cbs, st);
-                        return '0';
+                        callback(cni, cbs, st);
                     }
                 });
             }
             else {
-                var body_Obj = {};
-                body_Obj['dbg'] = results_cs.message;
-                console.log(JSON.stringify(body_Obj));
-                callback('0', cni, cbs, st);
-                return '0';
+                callback(cni, cbs, st);
             }
-        });
-    }
-    else {
-        _this.update_cni_parent(ty, pi, cni, cbs, st, function (err, results) {
-            if (!err) {
-                callback('1', cni, cbs, st);
-            }
-            else {
-                callback('0', cni, cbs, st);
-            }
-        });
-    }
+        }
+    });
 };
 
-exports.insert_cin = function(obj, p_cni, p_cbs, p_st, p_mni, p_mbs, callback) {
-    console.time('insert_cin ' + obj.ri);
-    obj.st = p_st;
+exports.insert_cin = function(obj, callback) {
+    var cin_id = 'insert_cin ' + obj.ri + ' - ' + require('shortid').generate();
+    console.time(cin_id);
     _this.insert_lookup(obj.ty, obj.ri, obj.rn, obj.pi, obj.ct, obj.lt, obj.et, JSON.stringify(obj.acpi), JSON.stringify(obj.lbl), JSON.stringify(obj.at), JSON.stringify(obj.aa), obj.st, obj.sri, obj.spi, function (err, results) {
         if (!err) {
             var con_type = getType(obj.con);
@@ -278,25 +276,8 @@ exports.insert_cin = function(obj, p_cni, p_cbs, p_st, p_mni, p_mbs, callback) {
                 obj.ri, obj.pi, obj.cr, obj.cnf, obj.cs, obj.or, (con_type == 'string') ? obj.con.replace(/'/g, "\\'") : JSON.stringify(obj.con));
             db.getResult(sql, '', function (err, results) {
                 if (!err) {
-                    p_cni = parseInt(p_cni, 10) + 1;
-                    p_cbs = parseInt(p_cbs, 10) + parseInt(obj.cs, 10);
-                    p_st = parseInt(p_st, 10) + 1;
-
-                    cbs_cache[obj.pi].cni = p_cni;
-                    cbs_cache[obj.pi].cbs = p_cbs;
-                    cbs_cache[obj.pi].st = p_st;
-
-                    set_cbs_cache(obj.pi, cbs_cache[obj.pi]);
-
-                    create_action_cni(obj.ty, obj.pi, p_cni, p_cbs, p_st, p_mni, p_mbs, function (rsc, cni, cbs, st) {
-                        if(rsc == '1') {
-                            console.timeEnd('insert_cin ' + obj.ri);
-                            callback(err, results);
-                        }
-                        else {
-                            callback(err, results);
-                        }
-                    });
+                    console.timeEnd(cin_id);
+                    callback(err, results);
                 }
             });
         }
@@ -847,18 +828,18 @@ function build_discovery_sql(ri, query, cur_lim, pi_list, cni) {
 //    var list_ri = '';
     var query_where = '';
     var query_count = 0;
-    if(query.lbl != null) {
+    if (query.lbl != null) {
         query_where = ' where ';
-        if(query.lbl.toString().split(',')[1] == null) {
+        if (query.lbl.toString().split(',')[1] == null) {
             query_where += util.format(' a.lbl like \'[\"%%%s%%\"]\'', query.lbl);
             //query_where += util.format(' lbl like \'%s\'', request.query.lbl);
         }
         else {
-            for(var i = 0; i < query.lbl.length; i++) {
+            for (var i = 0; i < query.lbl.length; i++) {
                 query_where += util.format(' a.lbl like \'%%\"%s\"%%\'', query.lbl[i]);
                 //query_where += util.format(' lbl like \'%s\'', request.query.lbl[i]);
 
-                if(i < query.lbl.length-1) {
+                if (i < query.lbl.length - 1) {
                     query_where += ' or ';
                 }
             }
@@ -867,26 +848,26 @@ function build_discovery_sql(ri, query, cur_lim, pi_list, cni) {
     }
 
     var ty_str = '';
-    if(query.ty != null) {
+    if (query.ty != null) {
         ty_str = ' and ';
-        if(query_count == 0) {
+        if (query_count == 0) {
             query_where = ' where ';
         }
         else {
             query_where += ' and ';
         }
 
-        if(query.ty.toString().split(',').length == 1) {
+        if (query.ty.toString().split(',').length == 1) {
             query_where += util.format('a.ty = \'%s\'', query.ty);
             ty_str += util.format('ty = \'%s\'', query.ty);
         }
         else {
             query_where += ' (';
             ty_str += ' (';
-            for(i = 0; i < query.ty.length; i++) {
+            for (i = 0; i < query.ty.length; i++) {
                 query_where += util.format('a.ty = \'%s\'', query.ty[i]);
                 ty_str += util.format('ty = \'%s\'', query.ty[i]);
-                if(i < query.ty.length-1) {
+                if (i < query.ty.length - 1) {
                     query_where += ' or ';
                     ty_str += ' or ';
                 }
@@ -897,8 +878,8 @@ function build_discovery_sql(ri, query, cur_lim, pi_list, cni) {
         query_count++;
     }
 
-    if(query.cra != null) {
-        if(query_count == 0) {
+    if (query.cra != null) {
+        if (query_count == 0) {
             query_where = ' where ';
         }
         else {
@@ -908,24 +889,8 @@ function build_discovery_sql(ri, query, cur_lim, pi_list, cni) {
         query_count++;
     }
 
-    if(query.la != null) {
-        if(query_count == 0) {
-            query_where = ' where ';
-        }
-        else {
-            query_where += ' and ';
-        }
-
-        var st = parseInt(cbs_cache[ri].st, 10) - (parseInt(query.la, 10) + 1);
-        if(st < 0) {
-            st = 0;
-        }
-        query_where += util.format(' a.st >= \'%s\'', st);
-        query_count++;
-    }
-
-    if(query.crb != null) {
-        if(query_count == 0) {
+    if (query.crb != null) {
+        if (query_count == 0) {
             query_where = ' where ';
         }
         else {
@@ -935,8 +900,8 @@ function build_discovery_sql(ri, query, cur_lim, pi_list, cni) {
         query_count++;
     }
 
-    if(query.ms != null) {
-        if(query_count == 0) {
+    if (query.ms != null) {
+        if (query_count == 0) {
             query_where = ' where ';
         }
         else {
@@ -946,8 +911,8 @@ function build_discovery_sql(ri, query, cur_lim, pi_list, cni) {
         query_count++;
     }
 
-    if(query.us != null) {
-        if(query_count == 0) {
+    if (query.us != null) {
+        if (query_count == 0) {
             query_where = ' where ';
         }
         else {
@@ -957,8 +922,8 @@ function build_discovery_sql(ri, query, cur_lim, pi_list, cni) {
         query_count++;
     }
 
-    if(query.exa != null) {
-        if(query_count == 0) {
+    if (query.exa != null) {
+        if (query_count == 0) {
             query_where = ' where ';
         }
         else {
@@ -968,8 +933,8 @@ function build_discovery_sql(ri, query, cur_lim, pi_list, cni) {
         query_count++;
     }
 
-    if(query.exb != null) {
-        if(query_count == 0) {
+    if (query.exb != null) {
+        if (query_count == 0) {
             query_where = ' where ';
         }
         else {
@@ -979,8 +944,8 @@ function build_discovery_sql(ri, query, cur_lim, pi_list, cni) {
         query_count++;
     }
 
-    if(query.sts != null) {
-        if(query_count == 0) {
+    if (query.sts != null) {
+        if (query_count == 0) {
             query_where = ' where ';
         }
         else {
@@ -990,8 +955,8 @@ function build_discovery_sql(ri, query, cur_lim, pi_list, cni) {
         query_count++;
     }
 
-    if(query.stb != null) {
-        if(query_count == 0) {
+    if (query.stb != null) {
+        if (query_count == 0) {
             query_where = ' where ';
         }
         else {
@@ -1001,8 +966,8 @@ function build_discovery_sql(ri, query, cur_lim, pi_list, cni) {
         query_count++;
     }
 
-    if(query.sza != null) {
-        if(query_count == 0) {
+    if (query.sza != null) {
+        if (query_count == 0) {
             query_where = ' where ';
         }
         else {
@@ -1012,8 +977,8 @@ function build_discovery_sql(ri, query, cur_lim, pi_list, cni) {
         query_count++;
     }
 
-    if(query.szb != null) {
-        if(query_count == 0) {
+    if (query.szb != null) {
+        if (query_count == 0) {
             query_where = ' where ';
         }
         else {
@@ -1023,8 +988,8 @@ function build_discovery_sql(ri, query, cur_lim, pi_list, cni) {
         query_count++;
     }
 
-    if(query.cty != null) {
-        if(query_count == 0) {
+    if (query.cty != null) {
+        if (query_count == 0) {
             query_where = ' where ';
         }
         else {
@@ -1034,13 +999,25 @@ function build_discovery_sql(ri, query, cur_lim, pi_list, cni) {
         query_count++;
     }
 
-    query_where += ' limit ' + cur_lim;
+    if (query.la != null) {
+        // if (query_count == 0) {
+        //     query_where = ' where ';
+        // }
+        // else {
+        //     query_where += ' and ';
+        // }
+
+        query_where += util.format(' limit %s offset %s ', parseInt(query.la, 10), parseInt(cni, 10) - parseInt(query.la, 10));
+        query_count++;
+    }
+    else {
+        query_where += ' limit ' + cur_lim;
 //    query_where += util.format(' order by ct desc limit %s', cur_lim);
 
-    if(query.ofst != null) {
-        query_where += util.format(' offset %s', query.ofst);
+        if (query.ofst != null) {
+            query_where += util.format(' offset %s', query.ofst);
+        }
     }
-
     query_where = "select a.* from (select ri from lookup where ((ri = \'" + ri + "\') or (pi in ("+JSON.stringify(pi_list).replace('[','').replace(']','')+"))" + ty_str + ")) b left join lookup as a on b.ri = a.ri " + query_where;
     //query_where = util.format("select a.* from (select ri from lookup where ((ri = \'" + ri + "\') or (pi in ("+JSON.stringify(pi_list).replace('[','').replace(']','')+")) %s and ((\'%s\' < ct) and (ct <= \'%s\')))) b left join lookup as a on b.ri = a.ri", ty_str, bef_ct, cur_ct) + query_where;
     //query_where = util.format("select a.* from (select ri from lookup where ((ri = \'" + ri + "\') or pi in ("+JSON.stringify(pi_list).replace('[','').replace(']','')+")) %s and (ct > \'%s\' and ct <= \'%s\') limit 1000) b left join lookup as a on b.ri = a.ri", ty_str, bef_ct, cur_ct) + query_where;
@@ -1153,43 +1130,19 @@ exports.search_lookup = function (ri, query, cur_lim, pi_list, pi_index, found_O
     });
 };
 
-exports.select_latest_resource = function(ri, ty, loop_cnt, st, callback) {
-    if(loop_cnt == 1) {
-        console.time('select_latest ' + ri);
-    }
-
-    if(st == 0) {
-        console.timeEnd('select_latest ' + ri);
-        var result_Obj = [];
-        callback(null, result_Obj);
-        return '0';
-    }
-
-    st = st - Math.pow(8, loop_cnt);
-    if(st < 0) {
-        st = 0;
-    }
-
-    var sql = 'select * from lookup where pi = \'' + ri + '\' and ty = \'4\' and st >= \'' + st + '\'';
-    db.getResult(sql, '', function (err, latest_Comm) {
-        if (!err) {
-            if (latest_Comm.length >= 1) {
-                sql = "select * from " + responder.typeRsrc[ty] + " where ri = \'" + latest_Comm[latest_Comm.length-1].ri + "\'";
-                db.getResult(sql, '', function (err, latest_Spec) {
-                    console.timeEnd('select_latest ' + ri);
-                    result_Obj = [];
-                    result_Obj.push(merge(latest_Comm[latest_Comm.length-1], latest_Spec[0]));
-                    callback(err, result_Obj);
-                });
-            }
-            else {
-                _this.select_latest_resource(ri, ty, ++loop_cnt, st, function(err, result_Obj) {
-                    callback(err, result_Obj);
-                });
-            }
+exports.select_latest_resource = function(parentObj, callback) {
+    var la_id = 'select_latest ' + parentObj.ri + ' - ' + require('shortid').generate();
+    console.time(la_id);
+    var sql = util.format('select * from (select * from lookup where pi = \'%s\' and ty = \'%s\' limit 10 offset %s) b join %s as a on b.ri = a.ri', parentObj.ri, parseInt(parentObj.ty, 10) + 1, parseInt(parentObj.cni, 10) - 5, responder.typeRsrc[parseInt(parentObj.ty, 10) + 1]);
+    db.getResult(sql, '', function (err, results_latest) {
+        if(!err) {
+            console.timeEnd(la_id);
+            var latest_cin = [];
+            latest_cin.push(results_latest[results_latest.length-1]);
+            callback(err, latest_cin);
         }
         else {
-            callback(err, latest_Comm);
+            callback(err, results_latest);
         }
     });
 };
@@ -1228,17 +1181,6 @@ exports.select_direct_lookup = function(ri, callback) {
     db.getResult(sql, '', function (err, direct_Obj) {
         console.timeEnd('select_direct_lookup ' + ri + ' (' + tid + ')');
         callback(err, direct_Obj);
-    });
-};
-
-exports.select_resource = function(ty, ri, callback) {
-    var tid = require('shortid').generate();
-    console.time('select_resource '+ ty + ' ' + ri + ' (' + tid + ')');
-    //var sql = util.format("select * from " + ty + " where ri = \'%s\'", ri);
-    var sql = "select * from " + ty + " where ri = \'" + ri + "\'";
-    db.getResult(sql, '', function (err, rsc_Obj) {
-        console.timeEnd('select_resource ' + ty + ' ' + ri + ' (' + tid + ')');
-        callback(err, rsc_Obj);
     });
 };
 
@@ -1378,16 +1320,26 @@ exports.select_cni_parent = function (ty, pi, callback) {
 };
 
 exports.select_st = function (ri, callback) {
-    var sql = util.format("select st from lookup where ri = \'%s\'", ri);
+    var sql = util.format("select ri, st from lookup where ri = \'%s\'", ri);
 
     db.getResult(sql, '', function (err, results_st) {
         callback(err, results_st);
     });
 };
 
-exports.select_cs_parent = function (ty, pi, callback) {
-    var sql = util.format("select cs, ri from cin where ri = (select ri from lookup where pi = \'%s\' and ty = \'%s\' order by ri asc limit 1)", pi, ty);
+exports.select_oldests = function (obj, count, callback) {
+    var sql = util.format('select * from (select * from lookup where pi = \'%s\' and ty = \'%s\' limit %s) b join %s as a on b.ri = a.ri', obj.ri, parseInt(obj.ty, 10) + 1, count, responder.typeRsrc[parseInt(obj.ty, 10) + 1]);
     db.getResult(sql, '', function (err, results) {
+        callback(err, results);
+    });
+};
+
+exports.delete_oldests = function (obj, count, callback) {
+    var del_id = 'delete_oldests (' + count + ') ' + obj.ri + ' - ' + require('shortid').generate() + '';
+    console.time(del_id);
+    var sql = util.format('delete from lookup where pi = \'%s\' and ty = \'%s\' limit %s', obj.ri, parseInt(obj.ty, 10) + 1, count);
+    db.getResult(sql, '', function (err, results) {
+        console.timeEnd(del_id);
         callback(err, results);
     });
 };
@@ -1451,18 +1403,8 @@ exports.select_ts_in = function (ri_list, callback) {
 };
 
 exports.select_count_ri = function (ty, ri, callback) {
-    // var sql = 'select count(*) from ' + responder.typeRsrc[ty] + ' where pi = \'' + ri + '\'';
-    // db.getResult(sql, '', function (err, results) {
-    //     var cni = results[0]['count(*)'];
-    //     var sql2 = 'select sum(cs) from ' + responder.typeRsrc[ty] + ' where pi = \'' + ri + '\'';
-    //     db.getResult(sql2, '', function (err, results) {
-    //         results[0]['count(*)'] = cni;
-    //         callback(err, results);
-    //     });
-    // });
-
-    var sql2 = 'select count(*), sum(cs) from ' + responder.typeRsrc[ty] + ' where pi = \'' + ri + '\'';
-    db.getResult(sql2, '', function (err, results) {
+    var sql = util.format('select lookup.st, count(*), sum(%s.cs) FROM lookup, %s where lookup.ri = \'%s\' and cin.pi = \'%s\'', responder.typeRsrc[ty], responder.typeRsrc[ty], ri, ri);
+    db.getResult(sql, '', function (err, results) {
         callback(err, results);
     });
 };
@@ -1483,21 +1425,22 @@ exports.update_cb_poa_csi = function (poa, csi, srt, ri, callback) {
     });
 };
 
-exports.update_st_lookup = function (st, ri, callback) {
-    //console.time('update_st_lookup ' + ri);
-    var sql = util.format('update lookup set st = \'%s\' where ri=\'%s\'', st, ri);
+exports.update_st = function (obj, callback) {
+    var st_id = 'update_st ' + obj.ri + ' - ' + require('shortid').generate();
+    console.time(st_id);
+    var sql = util.format('update lookup set st = \'%s\' where ri=\'%s\'', obj.st, obj.ri);
     db.getResult(sql, '', function (err, results) {
-        //console.timeEnd('update_st_lookup ' + ri);
+        console.timeEnd(st_id);
         callback(err, results);
     });
 };
 
 exports.update_lookup = function (lt, acpi, et, st, lbl, at, aa, ri, callback) {
-    console.time('update_lookup ' + ri);
+    //console.time('update_lookup ' + ri);
     var sql1 = util.format('update lookup set lt = \'%s\', acpi = \'%s\', et = \'%s\', st = \'%s\', lbl = \'%s\', at = \'%s\', aa = \'%s\' where ri = \'%s\'',
         lt, acpi, et, st, lbl, at, aa, ri);
     db.getResult(sql1, '', function (err, results) {
-        console.timeEnd('update_lookup ' + ri);
+        //console.timeEnd('update_lookup ' + ri);
         callback(err, results);
     });
 };
@@ -1547,14 +1490,15 @@ exports.update_ae = function (lt, acpi, et, st, lbl, at, aa, ri, apn, poa, or, r
 };
 
 exports.update_cnt = function (obj, callback) {
-    console.time('update_cnt ' + obj.ri);
+    var cnt_id = 'update_cnt ' + obj.ri + ' - ' + require('shortid').generate();
+    console.time(cnt_id);
     _this.update_lookup(obj.lt, JSON.stringify(obj.acpi), obj.et, obj.st, JSON.stringify(obj.lbl), JSON.stringify(obj.at), JSON.stringify(obj.aa), obj.ri, function (err, results) {
         if (!err) {
             var sql2 = util.format('update cnt set mni = \'%s\', mbs = \'%s\', mia = \'%s\', li = \'%s\', cnt.or = \'%s\', cni = \'%s\', cbs = \'%s\' where ri = \'%s\'',
                 obj.mni, obj.mbs, obj.mia, obj.li, obj.or, obj.cni, obj.cbs, obj.ri);
             db.getResult(sql2, '', function (err, results) {
                 if (!err) {
-                    console.timeEnd('update_cnt ' + obj.ri);
+                    console.timeEnd(cnt_id);
                     callback(err, results);
                 }
                 else {
@@ -1937,35 +1881,20 @@ exports.update_tr_tst = function (ri, tst, callback) {
     });
 };
 
-
-exports.update_cni_parent = function (ty, pi, cni, cbs, st, callback) {
-    var lt = moment().utc().format('YYYYMMDDTHHmmss');
-    if (ty == '4') {
-        var sql = util.format("update cnt, lookup set cnt.cni = \'%s\', cnt.cbs = \'%s\', lookup.st = \'%s\', lookup.lt = \'%s\' where cnt.ri = \'%s\' and lookup.ri = \'%s\'", cni, cbs, st, lt, pi, pi);
-    }
-    else {
-        sql = util.format("update ts, lookup set ts.cni = \'%s\', ts.cbs = \'%s\', lookup.st = \'%s\', lookup.lt = \'%s\' where ts.ri = \'%s\' and lookup.ri = \'%s\'", cni, cbs, st, lt, pi, pi);
-    }
-
+exports.update_cnt_cni = function (obj, callback) {
+    var cni_id = 'update_cnt_cni ' + obj.ri + ' - ' + require('shortid').generate();
+    console.time(cni_id);
+    var sql = util.format('update cnt, lookup set cnt.cni = \'%s\', cnt.cbs = \'%s\', lookup.st = \'%s\' where lookup.ri = \'%s\' and cnt.ri = \'%s\'', obj.cni, obj.cbs, obj.st, obj.ri, obj.ri);
     db.getResult(sql, '', function (err, results) {
-        callback(err, results);
+        if (!err) {
+            console.timeEnd(cni_id);
+            callback(err, results);
+        }
+        else {
+            callback(err, results);
+        }
     });
 };
-
-exports.update_cni_ri = function (ty, ri, cni, cbs, callback) {
-    if (ty == '4') {
-        var sql = util.format("update cnt set cni = \'%s\', cbs = \'%s\' where ri = \'%s\'", cni, cbs, ri);
-    }
-    else {
-        sql = util.format("update ts set cni = \'%s\', cbs = \'%s\' where ri = \'%s\'", cni, cbs, ri);
-    }
-
-    db.getResult(sql, '', function (err, results) {
-        callback(err, results);
-    });
-};
-
-
 
 exports.delete_ri_lookup = function (ri, callback) {
     var sql = util.format("delete from lookup where ri = \'%s\'", ri);

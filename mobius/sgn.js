@@ -387,42 +387,30 @@ function sgn_action(rootnm, check_value, results_ss, noti_Obj, sub_bodytype) {
                         else {
                             absolute_url = (results.length == 0) ? absolute_url : ((results[0].hasOwnProperty('ri')) ? absolute_url.replace('/' + absolute_url_arr[1], results[0].ri) : absolute_url);
 
-                            db_sql.select_direct_lookup(absolute_url, function (err, comm_Obj) {
-                                if(!err) {
-                                    if(comm_Obj.length == 1) {
-                                        if(comm_Obj[0].ty == 2) {
-                                            db_sql.select_resource(responder.typeRsrc[comm_Obj[0].ty], comm_Obj[0].ri, function (err, spec_Obj) {
-                                                if (!err) {
-                                                    if (spec_Obj.length == 1) {
-                                                        if (spec_Obj[0].poa != null || spec_Obj[0].poa != '') {
-                                                            var poa_arr = JSON.parse(spec_Obj[0].poa);
-                                                            for (var i = 0; i < poa_arr.length; i++) {
-                                                                sub_nu = url.parse(poa_arr[i]);
-                                                                if(sub_nu.protocol == null) {
-                                                                    nu = 'http://localhost:7579' + absolute_url;
-                                                                    sub_nu = url.parse(nu);
-                                                                    if (nct == 2 || nct == 1) {
-                                                                        sgn_action_send(nu, sub_nu, sub_bodytype, node, short_flag, check_value, results_ss.cr, results_ss.ri, xm2mri);
-                                                                    }
-                                                                }
-                                                                else {
-                                                                    nu = poa_arr[i];
-                                                                    if (nct == 2 || nct == 1) {
-                                                                        sgn_action_send(nu, sub_nu, sub_bodytype, node, short_flag, check_value, results_ss.cr, results_ss.ri, xm2mri);
-                                                                    }
-                                                                }
-                                                            }
-                                                        }
+                            var sri = absolute_url_arr[1].split('?')[0];
+                            var ri = absolute_url.split('?')[0];
+                            db_sql.select_resource_from_url(ri, sri, function (err, result_Obj) {
+                                if (!err) {
+                                    if (result_Obj.length == 1) {
+                                        if (result_Obj[0].poa != null || result_Obj[0].poa != '') {
+                                            var poa_arr = JSON.parse(result_Obj[0].poa);
+                                            for (var i = 0; i < poa_arr.length; i++) {
+                                                sub_nu = url.parse(poa_arr[i]);
+                                                if(sub_nu.protocol == null) {
+                                                    nu = 'http://localhost:7579' + absolute_url;
+                                                    sub_nu = url.parse(nu);
+                                                    if (nct == 2 || nct == 1) {
+                                                        sgn_action_send(nu, sub_nu, sub_bodytype, node, short_flag, check_value, results_ss.cr, results_ss.ri, xm2mri);
                                                     }
                                                 }
-                                            });
+                                                else {
+                                                    nu = poa_arr[i];
+                                                    if (nct == 2 || nct == 1) {
+                                                        sgn_action_send(nu, sub_nu, sub_bodytype, node, short_flag, check_value, results_ss.cr, results_ss.ri, xm2mri);
+                                                    }
+                                                }
+                                            }
                                         }
-                                        else {
-                                            console.log('[sgn_action] nu resource is not AE resource)');
-                                        }
-                                    }
-                                    else {
-                                        console.log('[sgn_action] nu resource is not exist)');
                                     }
                                 }
                                 else {
