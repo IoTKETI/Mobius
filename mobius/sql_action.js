@@ -829,14 +829,14 @@ function build_discovery_sql(ri, query, cur_lim, pi_list, cni) {
     var query_where = '';
     var query_count = 0;
     if (query.lbl != null) {
-        query_where = ' where ';
+        query_where = ' and ';
         if (query.lbl.toString().split(',')[1] == null) {
-            query_where += util.format(' a.lbl like \'[\"%%%s%%\"]\'', query.lbl);
+            query_where += util.format(' lbl like \'[\"%%%s%%\"]\'', query.lbl);
             //query_where += util.format(' lbl like \'%s\'', request.query.lbl);
         }
         else {
             for (var i = 0; i < query.lbl.length; i++) {
-                query_where += util.format(' a.lbl like \'%%\"%s\"%%\'', query.lbl[i]);
+                query_where += util.format(' lbl like \'%%\"%s\"%%\'', query.lbl[i]);
                 //query_where += util.format(' lbl like \'%s\'', request.query.lbl[i]);
 
                 if (i < query.lbl.length - 1) {
@@ -850,22 +850,17 @@ function build_discovery_sql(ri, query, cur_lim, pi_list, cni) {
     var ty_str = '';
     if (query.ty != null) {
         ty_str = ' and ';
-        if (query_count == 0) {
-            query_where = ' where ';
-        }
-        else {
-            query_where += ' and ';
-        }
+        query_where += ' and ';
 
         if (query.ty.toString().split(',').length == 1) {
-            query_where += util.format('a.ty = \'%s\'', query.ty);
+            query_where += util.format('ty = \'%s\'', query.ty);
             ty_str += util.format('ty = \'%s\'', query.ty);
         }
         else {
             query_where += ' (';
             ty_str += ' (';
             for (i = 0; i < query.ty.length; i++) {
-                query_where += util.format('a.ty = \'%s\'', query.ty[i]);
+                query_where += util.format('ty = \'%s\'', query.ty[i]);
                 ty_str += util.format('ty = \'%s\'', query.ty[i]);
                 if (i < query.ty.length - 1) {
                     query_where += ' or ';
@@ -879,146 +874,82 @@ function build_discovery_sql(ri, query, cur_lim, pi_list, cni) {
     }
 
     if (query.cra != null) {
-        if (query_count == 0) {
-            query_where = ' where ';
-        }
-        else {
-            query_where += ' and ';
-        }
-        query_where += util.format('\'%s\' <= a.ct', query.cra);
+        query_where += ' and ';
+        query_where += util.format('\'%s\' <= ct', query.cra);
         query_count++;
     }
 
     if (query.crb != null) {
-        if (query_count == 0) {
-            query_where = ' where ';
-        }
-        else {
-            query_where += ' and ';
-        }
-        query_where += util.format(' a.ct < \'%s\'', query.crb);
+        query_where += ' and ';
+        query_where += util.format(' ct < \'%s\'', query.crb);
         query_count++;
     }
 
     if (query.ms != null) {
-        if (query_count == 0) {
-            query_where = ' where ';
-        }
-        else {
-            query_where += ' and ';
-        }
-        query_where += util.format('\'%s\' <= a.lt', query.ms);
+        query_where += ' and ';
+        query_where += util.format('\'%s\' <= lt', query.ms);
         query_count++;
     }
 
     if (query.us != null) {
-        if (query_count == 0) {
-            query_where = ' where ';
-        }
-        else {
-            query_where += ' and ';
-        }
-        query_where += util.format(' a.lt < \'%s\'', query.us);
+        query_where += ' and ';
+        query_where += util.format(' lt < \'%s\'', query.us);
         query_count++;
     }
 
     if (query.exa != null) {
-        if (query_count == 0) {
-            query_where = ' where ';
-        }
-        else {
-            query_where += ' and ';
-        }
-        query_where += util.format('\'%s\' <= a.et', query.exa);
+        query_where += ' and ';
+        query_where += util.format('\'%s\' <= et', query.exa);
         query_count++;
     }
 
     if (query.exb != null) {
-        if (query_count == 0) {
-            query_where = ' where ';
-        }
-        else {
-            query_where += ' and ';
-        }
-        query_where += util.format(' a.et < \'%s\'', query.exb);
+        query_where += ' and ';
+        query_where += util.format(' et < \'%s\'', query.exb);
         query_count++;
     }
 
     if (query.sts != null) {
-        if (query_count == 0) {
-            query_where = ' where ';
-        }
-        else {
-            query_where += ' and ';
-        }
-        query_where += util.format(' a.st < \'%s\'', query.sts);
+        query_where += ' and ';
+        query_where += util.format(' st < \'%s\'', query.sts);
         query_count++;
     }
 
     if (query.stb != null) {
-        if (query_count == 0) {
-            query_where = ' where ';
-        }
-        else {
-            query_where += ' and ';
-        }
-        query_where += util.format('\'%s\' <= a.st', query.stb);
+        query_where += ' and ';
+        query_where += util.format('\'%s\' <= st', query.stb);
         query_count++;
     }
 
     if (query.sza != null) {
-        if (query_count == 0) {
-            query_where = ' where ';
-        }
-        else {
-            query_where += ' and ';
-        }
-        query_where += util.format('%s <= a.cs', query.sza);
+        query_where += ' and ';
+        query_where += util.format('%s <= cs', query.sza);
         query_count++;
     }
 
     if (query.szb != null) {
-        if (query_count == 0) {
-            query_where = ' where ';
-        }
-        else {
-            query_where += ' and ';
-        }
-        query_where += util.format('a.cs < %s', query.szb);
+        query_where += ' and ';
+        query_where += util.format('cs < %s', query.szb);
         query_count++;
     }
 
     if (query.cty != null) {
-        if (query_count == 0) {
-            query_where = ' where ';
-        }
-        else {
-            query_where += ' and ';
-        }
-        query_where += util.format('a.cnf = \'%s\'', query.cty);
+        query_where += ' and ';
+        query_where += util.format('cnf = \'%s\'', query.cty);
         query_count++;
     }
 
     if (query.la != null) {
-        // if (query_count == 0) {
-        //     query_where = ' where ';
-        // }
-        // else {
-        //     query_where += ' and ';
-        // }
-
         query_where += util.format(' limit %s offset %s ', parseInt(query.la, 10), parseInt(cni, 10) - parseInt(query.la, 10));
         query_count++;
     }
     else {
         query_where += ' limit ' + cur_lim;
-//    query_where += util.format(' order by ct desc limit %s', cur_lim);
-
         if (query.ofst != null) {
             query_where += util.format(' offset %s', query.ofst);
         }
     }
-    query_where = "select a.* from (select ri from lookup where ((ri = \'" + ri + "\') or (pi in ("+JSON.stringify(pi_list).replace('[','').replace(']','')+"))" + ty_str + ")) b left join lookup as a on b.ri = a.ri " + query_where;
+    query_where = "select a.* from (select ri from lookup where ((ri = \'" + ri + "\') or (pi in ("+JSON.stringify(pi_list).replace('[','').replace(']','')+"))" + ty_str + ") " + query_where + " ) b left join lookup as a on b.ri = a.ri ";
     //query_where = util.format("select a.* from (select ri from lookup where ((ri = \'" + ri + "\') or (pi in ("+JSON.stringify(pi_list).replace('[','').replace(']','')+")) %s and ((\'%s\' < ct) and (ct <= \'%s\')))) b left join lookup as a on b.ri = a.ri", ty_str, bef_ct, cur_ct) + query_where;
     //query_where = util.format("select a.* from (select ri from lookup where ((ri = \'" + ri + "\') or pi in ("+JSON.stringify(pi_list).replace('[','').replace(']','')+")) %s and (ct > \'%s\' and ct <= \'%s\') limit 1000) b left join lookup as a on b.ri = a.ri", ty_str, bef_ct, cur_ct) + query_where;
     //query_where = util.format("select a.* from (select ri from lookup where (pi in ("+JSON.stringify(pi_list).replace('[','').replace(']','')+")) %s and (ct > \'%s\' and ct <= \'%s\') order by ct desc limit 1000) b left join lookup as a on b.ri = a.ri", ty_str, bef_ct, cur_ct) + query_where;

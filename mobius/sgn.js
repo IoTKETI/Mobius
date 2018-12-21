@@ -129,6 +129,53 @@ function make_json_noti_message(nu, pc, xm2mri, short_flag) {
     }
 }
 
+function make_body_string_for_noti(protocol, nu, node, sub_bodytype, xm2mri, short_flag, callback) {
+    if (sub_bodytype == 'xml') {
+        if (protocol == 'http:' || protocol == 'coap:') {
+            try {
+                var bodyString = responder.convertXmlSgn(Object.keys(node)[0], node[Object.keys(node)[0]]);
+            }
+            catch (e) {
+                bodyString = "";
+            }
+            callback(bodyString);
+        }
+        else if (protocol == 'ws:' || protocol == 'mqtt:') {
+            bodyString = make_xml_noti_message(node, xm2mri);
+            callback(bodyString);
+        }
+        else {
+            callback('');
+        }
+    }
+    else if (sub_bodytype == 'cbor') {
+        if (protocol == 'http:' || protocol == 'coap:') {
+            bodyString = cbor.encode(node).toString('hex');
+            callback(bodyString);
+        }
+        else if (protocol == 'ws:' || protocol == 'mqtt:') {
+            bodyString = make_cbor_noti_message(node, xm2mri);
+            callback(bodyString);
+        }
+        else {
+            callback('');
+        }
+    }
+    else { // defaultbodytype == 'json')
+        if (protocol == 'http:' || protocol == 'coap:') {
+            bodyString = JSON.stringify(node);
+            callback(bodyString);
+        }
+        else if (protocol == 'ws:' || protocol == 'mqtt:') {
+            bodyString = make_json_noti_message(nu, node, xm2mri, short_flag);
+            callback(bodyString);
+        }
+        else {
+            callback('');
+        }
+    }
+}
+
 function sgn_action_send(nu, sub_nu, sub_bodytype, node, short_flag, check_value, ss_cr, ss_ri, xm2mri) {
     if (sub_nu.query != null) {
         var sub_nu_query_arr = sub_nu.query.split('&');
@@ -174,160 +221,40 @@ function sgn_action_send(nu, sub_nu, sub_bodytype, node, short_flag, check_value
         }
     }
 
-    if (sub_bodytype == 'xml') {
-        if(check_value == 128) {
-            node['m2m:sgn'].sud = true;
-            delete node['m2m:sgn'].nev;
+    if(check_value == 128) {
+        node['m2m:sgn'].sud = true;
+        delete node['m2m:sgn'].nev;
+    }
+    else if(check_value == 256) {
+        node['m2m:sgn'].vrq = true;
+        temp = node['m2m:sgn'].sur;
+        delete node['m2m:sgn'].sur;
+        node['m2m:sgn'].sur = temp;
+        node['m2m:sgn'].cr = ss_cr;
+        delete node['m2m:sgn'].nev;
+    }
+    node['m2m:sgn'].rvi = uservi;
+
+    make_body_string_for_noti(sub_nu.protocol, nu, node, sub_bodytype, xm2mri, short_flag, function (bodyString) {
+        if (bodyString == "") { // parse error
+            ss_fail_count[ss_ri]++;
+            console.log('can not send notification since error of converting json to xml');
         }
-        else if(check_value == 256) {
-            node['m2m:sgn'].vrq = true;
-            var temp = node['m2m:sgn'].sur;
-            delete node['m2m:sgn'].sur;
-            node['m2m:sgn'].sur = temp;
-            node['m2m:sgn'].cr = ss_cr;
-            delete node['m2m:sgn'].nev;
-        }
-        node['m2m:sgn'].rvi = uservi;
-
-        if (sub_nu.protocol == 'http:') {
-            try {
-                var bodyString = responder.convertXmlSgn(Object.keys(node)[0], node[Object.keys(node)[0]]);
-
+        else {
+            if (sub_nu.protocol == 'http:') {
+            request_noti_http(nu, ss_ri, bodyString, sub_bodytype, xm2mri);
             }
-            catch (e) {
-                bodyString = "";
-            }
-
-            if (bodyString == "") { // parse error
-                ss_fail_count[ss_ri]++;
-                console.log('can not send notification since error of converting json to xml');
-            }
-            else {
-                request_noti_http(nu, ss_ri, bodyString, sub_bodytype, xm2mri);
-            }
-        }
-        else if (sub_nu.protocol == 'coap:') {
-            try {
-                bodyString = responder.convertXmlSgn(Object.keys(node)[0], node[Object.keys(node)[0]]);
-            }
-            catch (e) {
-                bodyString = "";
-            }
-
-            if (bodyString == "") { // parse error
-                ss_fail_count[ss_ri]++;
-                console.log('can not send notification since error of converting json to xml');
-            }
-            else {
+            else if (sub_nu.protocol == 'coap:') {
                 request_noti_coap(nu, ss_ri, bodyString, sub_bodytype, xm2mri);
             }
-        }
-        else if (sub_nu.protocol == 'ws:') {
-            // if(check_value == 128) {
-            //     node['m2m:sgn'].sud = true;
-            //     delete node['m2m:sgn'].nev;
-            // }
-            // else if(check_value == 256) {
-            //     node['m2m:sgn'].vrq = true;
-            //     temp = node['m2m:sgn'].sur;
-            //     delete node['m2m:sgn'].sur;
-            //     node['m2m:sgn'].sur = temp;
-            //     node['m2m:sgn'].cr = ss_cr;
-            //     delete node['m2m:sgn'].nev;
-            // }
-
-            bodyString = make_xml_noti_message(node, xm2mri);
-            //bodyString = responder.convertXmlSgn(Object.keys(node)[0], node[Object.keys(node)[0]]);
-            if (bodyString == "") { // parse error
-                ss_fail_count[ss_ri]++;
-                console.log('can not send notification since error of converting json to xml');
-            }
-            else {
+            else if (sub_nu.protocol == 'ws:') {
                 request_noti_ws(nu, ss_ri, bodyString, sub_bodytype, xm2mri);
             }
-        }
-        else { // mqtt:
-            bodyString = make_xml_noti_message(node, xm2mri);
-            //bodyString = responder.convertXmlSgn(Object.keys(node)[0], node[Object.keys(node)[0]]);
-            if (bodyString == "") { // parse error
-                ss_fail_count[ss_ri]++;
-                console.log('can not send notification since error of converting json to xml');
-            }
-            else {
+            else { // mqtt:
                 request_noti_mqtt(nu, ss_ri, bodyString, sub_bodytype, xm2mri);
             }
         }
-    }
-    else if (sub_bodytype == 'cbor') {
-        if(check_value == 128) {
-            node['m2m:sgn'].sud = true;
-            delete node['m2m:sgn'].nev;
-        }
-        else if(check_value == 256) {
-            node['m2m:sgn'].vrq = true;
-            temp = node['m2m:sgn'].sur;
-            delete node['m2m:sgn'].sur;
-            node['m2m:sgn'].sur = temp;
-            node['m2m:sgn'].cr = ss_cr;
-            delete node['m2m:sgn'].nev;
-        }
-        node['m2m:sgn'].rvi = uservi;
-
-        if (sub_nu.protocol == 'http:') {
-            //node['m2m:'+Object.keys(node)[0]] = node[Object.keys(node)[0]];
-            //delete node[Object.keys(node)[0]];
-            bodyString = cbor.encode(node).toString('hex');
-            request_noti_http(nu, ss_ri, bodyString, sub_bodytype, xm2mri);
-        }
-        else if (sub_nu.protocol == 'coap:') {
-            //node['m2m:'+Object.keys(node)[0]] = node[Object.keys(node)[0]];
-            //delete node[Object.keys(node)[0]];
-            bodyString = cbor.encode(node).toString('hex');
-            request_noti_coap(nu, ss_ri, bodyString, sub_bodytype, xm2mri);
-        }
-        else if (sub_nu.protocol == 'ws:') {
-            bodyString = make_cbor_noti_message(node, xm2mri);
-            request_noti_ws(nu, ss_ri, bodyString, sub_bodytype, xm2mri);
-        }
-        else { // mqtt:
-            bodyString = make_cbor_noti_message(node, xm2mri);
-            request_noti_mqtt(nu, ss_ri, bodyString, sub_bodytype, xm2mri);
-        }
-    }
-    else { // defaultbodytype == 'json')
-        if(check_value == 128) {
-            node['m2m:sgn'].sud = true;
-            delete node['m2m:sgn'].nev;
-        }
-        else if(check_value == 256) {
-            node['m2m:sgn'].vrq = true;
-            temp = node['m2m:sgn'].sur;
-            delete node['m2m:sgn'].sur;
-            node['m2m:sgn'].sur = temp;
-            node['m2m:sgn'].cr = ss_cr;
-            delete node['m2m:sgn'].nev;
-        }
-        node['m2m:sgn'].rvi = uservi;
-
-        if (sub_nu.protocol == 'http:') {
-            //node['m2m:'+Object.keys(node)[0]] = node[Object.keys(node)[0]];
-            //delete node[Object.keys(node)[0]];
-            request_noti_http(nu, ss_ri, JSON.stringify(node), sub_bodytype, xm2mri);
-        }
-        else if (sub_nu.protocol == 'coap:') {
-            //node['m2m:'+Object.keys(node)[0]] = node[Object.keys(node)[0]];
-            //delete node[Object.keys(node)[0]];
-            request_noti_coap(nu, ss_ri, JSON.stringify(node), sub_bodytype, xm2mri);
-        }
-        else if (sub_nu.protocol == 'ws:') {
-            bodyString = make_json_noti_message(nu, node, xm2mri, short_flag);
-            request_noti_ws(nu, ss_ri, bodyString, sub_bodytype, xm2mri);
-        }
-        else { // mqtt:
-            bodyString = make_json_noti_message(nu, node, xm2mri, short_flag);
-            request_noti_mqtt(nu, ss_ri, bodyString, sub_bodytype, xm2mri);
-        }
-    }
+    });
 }
 
 function sgn_action(rootnm, check_value, results_ss, noti_Obj, sub_bodytype) {
