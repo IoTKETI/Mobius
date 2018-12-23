@@ -46,6 +46,7 @@ function cb_create_action(callback) {
     resource_Obj[rootnm].aa = [];
     resource_Obj[rootnm].st = '0';
     resource_Obj[rootnm].srv = [];
+    resource_Obj[rootnm].subl = [];
 
     resource_Obj[rootnm].srv.push('1');
     resource_Obj[rootnm].srv.push('2');
@@ -90,10 +91,7 @@ function cb_create_action(callback) {
                     if (!err) {
                         resource_Obj[rootnm].spi = (results.length == 0) ? '' : results[0].sri;
                         resource_Obj[rootnm].sri = require('shortid').generate();
-                        db_sql.insert_cb(resource_Obj[rootnm].ty, resource_Obj[rootnm].ri, resource_Obj[rootnm].rn, resource_Obj[rootnm].pi, resource_Obj[rootnm].ct,
-                            resource_Obj[rootnm].lt, resource_Obj[rootnm].et, JSON.stringify(resource_Obj[rootnm].acpi), JSON.stringify(resource_Obj[rootnm].lbl), JSON.stringify(resource_Obj[rootnm].at),
-                            JSON.stringify(resource_Obj[rootnm].aa), resource_Obj[rootnm].st, resource_Obj[rootnm].sri, resource_Obj[rootnm].spi, resource_Obj[rootnm].cst, resource_Obj[rootnm].csi, JSON.stringify(resource_Obj[rootnm].srt), JSON.stringify(resource_Obj[rootnm].poa),
-                            resource_Obj[rootnm].nl, resource_Obj[rootnm].ncp, JSON.stringify(resource_Obj[rootnm].srv), function (err, results) {
+                        db_sql.insert_cb(resource_Obj[rootnm], function (err, results) {
                             if (!err) {
                                 rspObj.rsc = '2001';
                                 rspObj.ri = resource_Obj[rootnm].ri;

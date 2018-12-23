@@ -131,7 +131,7 @@ function make_json_noti_message(nu, pc, xm2mri, short_flag) {
 
 function make_body_string_for_noti(protocol, nu, node, sub_bodytype, xm2mri, short_flag, callback) {
     if (sub_bodytype == 'xml') {
-        if (protocol == 'http:' || protocol == 'coap:') {
+        if (protocol == 'http:' || protocol == 'https:' || protocol == 'coap:') {
             try {
                 var bodyString = responder.convertXmlSgn(Object.keys(node)[0], node[Object.keys(node)[0]]);
             }
@@ -149,7 +149,7 @@ function make_body_string_for_noti(protocol, nu, node, sub_bodytype, xm2mri, sho
         }
     }
     else if (sub_bodytype == 'cbor') {
-        if (protocol == 'http:' || protocol == 'coap:') {
+        if (protocol == 'http:' || protocol == 'https:' || protocol == 'coap:') {
             bodyString = cbor.encode(node).toString('hex');
             callback(bodyString);
         }
@@ -162,7 +162,7 @@ function make_body_string_for_noti(protocol, nu, node, sub_bodytype, xm2mri, sho
         }
     }
     else { // defaultbodytype == 'json')
-        if (protocol == 'http:' || protocol == 'coap:') {
+        if (protocol == 'http:' || protocol == 'https:' || protocol == 'coap:') {
             bodyString = JSON.stringify(node);
             callback(bodyString);
         }
@@ -241,8 +241,8 @@ function sgn_action_send(nu, sub_nu, sub_bodytype, node, short_flag, check_value
             console.log('can not send notification since error of converting json to xml');
         }
         else {
-            if (sub_nu.protocol == 'http:') {
-            request_noti_http(nu, ss_ri, bodyString, sub_bodytype, xm2mri);
+            if (sub_nu.protocol == 'http:' || sub_nu.protocol == 'https:') {
+                request_noti_http(nu, ss_ri, bodyString, sub_bodytype, xm2mri);
             }
             else if (sub_nu.protocol == 'coap:') {
                 request_noti_coap(nu, ss_ri, bodyString, sub_bodytype, xm2mri);
@@ -250,7 +250,7 @@ function sgn_action_send(nu, sub_nu, sub_bodytype, node, short_flag, check_value
             else if (sub_nu.protocol == 'ws:') {
                 request_noti_ws(nu, ss_ri, bodyString, sub_bodytype, xm2mri);
             }
-            else { // mqtt:
+            else if (sub_nu.protocol == 'mqtt:') { // mqtt:
                 request_noti_mqtt(nu, ss_ri, bodyString, sub_bodytype, xm2mri);
             }
         }
@@ -415,68 +415,85 @@ exports.check = function(request, notiObj, check_value) {
         noti_Obj.pi = noti_Obj.spi;
         delete noti_Obj.spi;
 
-        db_sql.select_sub(pi, function (err, results_ss) {
-            if (!err) {
-                for (var i = 0; i < results_ss.length; i++) {
-                    if(results_ss[i].ri == noti_ri) {
-                        continue;
-                    }
-                    for (var index in results_ss[i]) {
-                        if (results_ss[i].hasOwnProperty(index)) {
-                            if (request.hash) {
-                                if (request.hash.split('#')[1] == index) {
+        var subl = request.targetObject[Object.keys(request.targetObject)[0]].subl;
+        for (var i = 0; i < subl.length; i++) {
+            if(subl[i].ri == noti_ri) {
+                continue;
+            }
 
-                                }
-                                else {
-                                    delete results_ss[i][index];
-                                }
-                            }
-                            else {
-                                if(index == 'enc' || index == 'nu') {
-                                    results_ss[i][index] = JSON.parse(results_ss[i][index]);
-                                }
-
-                                if (typeof results_ss[i][index] === 'boolean') {
-                                    results_ss[i][index] = results_ss[i][index].toString();
-                                }
-                                else if (typeof results_ss[i][index] === 'string') {
-                                    if (results_ss[i][index] == '' || results_ss[i][index] == 'undefined' || results_ss[i][index] == '[]') {
-                                        if (results_ss[i][index] == '' && index == 'pi') {
-                                            results_ss[i][index] = 'NULL';
-                                        }
-                                        else {
-                                            delete results_ss[i][index];
-                                        }
-                                    }
-                                }
-                                else if (typeof results_ss[i][index] === 'number') {
-                                    results_ss[i][index] = results_ss[i][index].toString();
-                                }
-                                else {
-                                }
-                            }
-                        }
-                    }
-
-                    var xm2mri = require('shortid').generate();
-                    if (ss_fail_count[results_ss[i].ri] == null) {
-                        ss_fail_count[results_ss[i].ri] = 0;
-                    }
-                    else {
-                        if(results_ss[i].exc == 0) {
-                            ss_fail_count[results_ss[i].ri] = 0;
-                        }
-                    }
-                    sgn_action(rootnm, check_value, results_ss[i], noti_Obj, request.headers.usebodytype);
-                }
+            var xm2mri = require('shortid').generate();
+            if (ss_fail_count[subl[i].ri] == null) {
+                ss_fail_count[subl[i].ri] = 0;
             }
             else {
-                console.log('query error: ' + results_ss.message);
+                if(subl[i].exc == 0) {
+                    ss_fail_count[subl[i].ri] = 0;
+                }
             }
-        });
+            sgn_action(rootnm, check_value, subl[i], noti_Obj, request.headers.usebodytype);
+        }
+
+        // db_sql.select_sub(request, function (err, results_ss) {
+        //     if (!err) {
+        //         for (var i = 0; i < results_ss.length; i++) {
+        //             if(results_ss[i].ri == noti_ri) {
+        //                 continue;
+        //             }
+        //             for (var index in results_ss[i]) {
+        //                 if (results_ss[i].hasOwnProperty(index)) {
+        //                     if (request.hash) {
+        //                         if (request.hash.split('#')[1] == index) {
+        //
+        //                         }
+        //                         else {
+        //                             delete results_ss[i][index];
+        //                         }
+        //                     }
+        //                     else {
+        //                         if(index == 'enc' || index == 'nu') {
+        //                             results_ss[i][index] = JSON.parse(results_ss[i][index]);
+        //                         }
+        //
+        //                         if (typeof results_ss[i][index] === 'boolean') {
+        //                             results_ss[i][index] = results_ss[i][index].toString();
+        //                         }
+        //                         else if (typeof results_ss[i][index] === 'string') {
+        //                             if (results_ss[i][index] == '' || results_ss[i][index] == 'undefined' || results_ss[i][index] == '[]') {
+        //                                 if (results_ss[i][index] == '' && index == 'pi') {
+        //                                     results_ss[i][index] = 'NULL';
+        //                                 }
+        //                                 else {
+        //                                     delete results_ss[i][index];
+        //                                 }
+        //                             }
+        //                         }
+        //                         else if (typeof results_ss[i][index] === 'number') {
+        //                             results_ss[i][index] = results_ss[i][index].toString();
+        //                         }
+        //                         else {
+        //                         }
+        //                     }
+        //                 }
+        //             }
+        //
+        //             var xm2mri = require('shortid').generate();
+        //             if (ss_fail_count[results_ss[i].ri] == null) {
+        //                 ss_fail_count[results_ss[i].ri] = 0;
+        //             }
+        //             else {
+        //                 if(results_ss[i].exc == 0) {
+        //                     ss_fail_count[results_ss[i].ri] = 0;
+        //                 }
+        //             }
+        //             sgn_action(rootnm, check_value, results_ss[i], noti_Obj, request.headers.usebodytype);
+        //         }
+        //     }
+        //     else {
+        //         console.log('query error: ' + results_ss.message);
+        //     }
+        // });
     }
 };
-
 
 function request_noti_http(nu, ri, bodyString, bodytype, xm2mri) {
     if(ss_fail_count[ri] == null) {
@@ -552,7 +569,6 @@ function request_noti_http(nu, ri, bodyString, bodytype, xm2mri) {
         req.end();
     }
 }
-
 
 function request_noti_coap(nu, ri, bodyString, bodytype, xm2mri) {
     var options = {

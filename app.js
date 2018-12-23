@@ -1565,45 +1565,6 @@ function updateHitCount(binding) {
     }
 }
 
-global.set_info_instances = function (targetObject, callback) {
-    var rootnm = Object.keys(targetObject)[0];
-    var ty = targetObject[rootnm].ty;
-
-    if(parseInt(ty, 10) == 3 || parseInt(ty, 10) == 29) {
-        var ri = targetObject[rootnm].ri;
-        var sri = targetObject[rootnm].sri;
-
-        db_sql.select_count_instance(parseInt(targetObject[rootnm].ty, 10) + 1, ri, function (err, results) {
-            if (results.length == 1) {
-                var cni = results[0]['count(*)'];
-                var cbs = (results[0]['sum(cs)'] == null) ? 0 : results[0]['sum(cs)'];
-                var st = targetObject[rootnm].st;
-
-                if(parseInt(st, 10) < parseInt(cni, 10)) {
-                    targetObject[rootnm].st = cni;
-                }
-
-                targetObject[rootnm].cni = cni;
-                targetObject[rootnm].cbs = cbs;
-
-                if(parseInt(ty, 10) == 3) {
-                    db_sql.update_cnt(targetObject[rootnm], function () {
-                        callback();
-                    });
-                }
-                else {
-                    db_sql.update_ts(targetObject[rootnm], function () {
-                        callback();
-                    });
-                }
-            }
-        });
-    }
-    else {
-        callback();
-    }
-};
-
 // var resource_cache = {};
 global.get_resource_from_url = function(absolute_url, absolute_url_arr, callback) {
     var option = '';

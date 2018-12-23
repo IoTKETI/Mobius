@@ -810,6 +810,9 @@ function typeCheckAction(index1, body_Obj) {
                     delete body_Obj[index2];
                 }
             }
+            else if (index2 == 'subl') {
+                delete body_Obj[index2];
+            }
             else if (index2 == 'et') {
                 if (index1 == 'm2m:cb') {
                     delete body_Obj[index2];

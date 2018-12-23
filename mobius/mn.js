@@ -79,6 +79,10 @@ function retrieve_CSEBase_http(cbname, cbhost, cbhostport, callback) {
                                 result['m2m:cb'].acpi = result['m2m:cb'].acpi.split(' ');
                             }
 
+                            if(result['m2m:cb'].subl) {
+                                result['m2m:cb'].subl = result['m2m:cb'].subl.split(' ');
+                            }
+
                             jsonObj.csr = {};
                             jsonObj.csr = result['m2m:cb'];
                         }
@@ -159,6 +163,9 @@ function create_remoteCSE_http(cbname, cbhost, cbhostport, body_Obj, callback) {
                         else if (attr == 'poa') {
                             xml.ele(attr, body_Obj[index][attr].toString().replace(/,/g, ' '));
                         }
+                        else if (attr == 'subl') {
+                            xml.ele(attr, body_Obj[index][attr].toString().replace(/,/g, ' '));
+                        }
                         else {
                             xml.ele(attr, body_Obj[index][attr]);
                         }
@@ -208,7 +215,7 @@ function create_remoteCSE_http(cbname, cbhost, cbhostport, body_Obj, callback) {
 exports.build_mn = function(ri, callback) {
     // check remotecse if parent cse exist
     var rspObj = {};
-    db_sql.select_direct_lookup(ri, function (err, results_comm) {
+    db_sql.select_lookup(ri, function (err, results_comm) {
         if(!err) {
             if (results_comm.length == 1) {
                 db_sql.select_cb(ri, function (err, results_cb) {
@@ -252,6 +259,11 @@ exports.build_mn = function(ri, callback) {
                             if (rspObj.csr.srt) {
                                 rspObj.csr.srt = JSON.parse(rspObj.csr.srt);
                                 delete rspObj.csr.srt;
+                            }
+
+                            if (rspObj.csr.subl) {
+                                rspObj.csr.subl = JSON.parse(rspObj.csr.subl);
+                                delete rspObj.csr.subl;
                             }
 
                             if(parent_cbprotocol == 'http') {
@@ -386,6 +398,9 @@ function create_remoteCSE_mqtt(cseid, csebasename, body_Obj, callback) {
                         else if (attr == 'pointOfAccess' || attr == 'poa') {
                             xml.ele(attr, body_Obj[index][attr].toString().replace(/,/g, ' '));
                         }
+                        else if (attr == 'subl') {
+                            xml.ele(attr, body_Obj[index][attr].toString().replace(/,/g, ' '));
+                        }
                         else {
                             xml.ele(attr, body_Obj[index][attr]);
                         }
@@ -491,6 +506,10 @@ function retrieve_CSEBase_mqtt(cseid, csebasename, callback) {
 
                             if(result['m2m:cb'].acpi) {
                                 result['m2m:cb'].acpi = result['m2m:cb'].acpi.split(' ');
+                            }
+
+                            if(result['m2m:cb'].subl) {
+                                result['m2m:cb'].subl = result['m2m:cb'].subl.split(' ');
                             }
 
                             jsonObj.csr = {};
