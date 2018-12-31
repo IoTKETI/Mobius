@@ -431,32 +431,33 @@ if (use_clustering) {
 
         db.connect(usedbhost, 3306, 'root', usedbpass, function (rsc) {
             if (rsc == '1') {
-                db_sql.set_tuning(function (err) {
-                    if(!err) {
-                        console.log('CPU Count:', cpuCount);
-
-                        for (var i = 0; i < cpuCount; i++) {
-                            worker[i] = cluster.fork();
-                        }
-
-                        cb.create(function (rsp) {
-                            console.log(JSON.stringify(rsp));
-
-                            wdt.set_wdt(require('shortid').generate(), 43200, del_req_resource);
-                            wdt.set_wdt(require('shortid').generate(), 86400, del_expired_resource);
-
-                            require('./pxy_mqtt');
-                            require('./pxy_coap');
-                            require('./pxy_ws');
-                            require('./cache_man');
-
-                            if (usecsetype == 'mn' || usecsetype == 'asn') {
-                                global.refreshIntervalId = setInterval(function () {
-                                    csr_custom.emit('register_remoteCSE');
-                                }, 5000);
-                            }
-                        });
+                db_sql.set_tuning(function (err, results) {
+                    if(err) {
+                        console.log('[set_tuning] ' + results.message);
                     }
+
+                    console.log('CPU Count:', cpuCount);
+                    for (var i = 0; i < cpuCount; i++) {
+                        worker[i] = cluster.fork();
+                    }
+
+                    cb.create(function (rsp) {
+                        console.log(JSON.stringify(rsp));
+
+                        wdt.set_wdt(require('shortid').generate(), 43200, del_req_resource);
+                        wdt.set_wdt(require('shortid').generate(), 86400, del_expired_resource);
+
+                        require('./pxy_mqtt');
+                        require('./pxy_coap');
+                        require('./pxy_ws');
+                        require('./cache_man');
+
+                        if (usecsetype == 'mn' || usecsetype == 'asn') {
+                            global.refreshIntervalId = setInterval(function () {
+                                csr_custom.emit('register_remoteCSE');
+                            }, 5000);
+                        }
+                    });
                 });
             }
         });

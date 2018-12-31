@@ -189,10 +189,8 @@ function sgn_action_send(nu, sub_nu, sub_bodytype, node, short_flag, check_value
                         sub_bodytype = 'json';
                     }
                 }
-
                 else if (sub_nu_query_arr[prop].split('=')[0] == 'rcn') {
                     if (sub_nu_query_arr[prop].split('=')[1] == '9') {
-
                         for (var index in node['m2m:sgn'].nev.rep) {
                             if (node['m2m:sgn'].nev.rep.hasOwnProperty(index)) {
                                 if (node['m2m:sgn'].nev.rep[index].cr) {
