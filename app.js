@@ -1608,25 +1608,39 @@ global.get_resource_from_url = function(absolute_url, absolute_url_arr, callback
                 makeObject(targetObject[rootnm]);
 
                 if (option == '/latest') {
-                    db_sql.select_latest_resource(targetObject[rootnm], function (err, result_Obj) {
-                        if (!err) {
-                            if (result_Obj.length == 1) {
-                                targetObject = {};
-                                targetObject[responder.typeRsrc[result_Obj[0].ty]] = result_Obj[0];
-                                makeObject(targetObject[Object.keys(targetObject)[0]]);
-                                ri = (result_Obj.length == 0) ? absolute_url : ((result_Obj[0].hasOwnProperty('ri')) ? absolute_url.replace('/' + absolute_url_arr[1], result_Obj[0].ri) : absolute_url);
-                                callback(targetObject);
+                    // db_sql.get_cni_count(targetObject[rootnm], function (cni, cbs, st) {
+                    //     targetObject[rootnm].cni = cni;
+                    //     targetObject[rootnm].cbs = cbs;
+                    //     targetObject[rootnm].st = st;
+                    //
+                    //     if (parseInt(targetObject[rootnm].cni, 10) != cni || parseInt(targetObject[rootnm].cbs, 10) != cbs || parseInt(targetObject[rootnm].st, 10) != st) {
+                    //         db_sql.update_cnt_cni(targetObject[rootnm], function () {
+                    //         });
+                    //     }
+
+                        var la_id = 'select_latest_resource ' + targetObject[rootnm].ri + ' - ' + require('shortid').generate();
+                        console.time(la_id);
+                        db_sql.select_latest_resource(targetObject[rootnm], 0, function (err, result_Obj) {
+                            if (!err) {
+                                console.timeEnd(la_id);
+                                if (result_Obj.length == 1) {
+                                    targetObject = {};
+                                    targetObject[responder.typeRsrc[result_Obj[0].ty]] = result_Obj[0];
+                                    makeObject(targetObject[Object.keys(targetObject)[0]]);
+                                    ri = (result_Obj.length == 0) ? absolute_url : ((result_Obj[0].hasOwnProperty('ri')) ? absolute_url.replace('/' + absolute_url_arr[1], result_Obj[0].ri) : absolute_url);
+                                    callback(targetObject);
+                                }
+                                else {
+                                    callback(null, 404);
+                                    return '0';
+                                }
                             }
                             else {
-                                callback(null, 404);
+                                callback(null, 500);
                                 return '0';
                             }
-                        }
-                        else {
-                            callback(null, 500);
-                            return '0';
-                        }
-                    });
+                        });
+                    // });
                 }
                 else if (option == '/oldest') {
                     db_sql.select_oldest_resource(parseInt(ty, 10) + 1, ri, function (err, result_Obj) {
@@ -1651,6 +1665,18 @@ global.get_resource_from_url = function(absolute_url, absolute_url_arr, callback
                 else {
                     ri = (results.length == 0) ? absolute_url : ((results[0].hasOwnProperty('ri')) ? absolute_url.replace('/' + absolute_url_arr[1], results[0].ri) : absolute_url);
                     // resource_cache[targetObject[rootnm].ri] = JSON.stringify(targetObject);
+
+                    if(targetObject[rootnm].ty == 3 || targetObject[rootnm].ty == 29) {
+                        db_sql.get_cni_count(targetObject[rootnm], function (cni, cbs, st) {
+                            if (parseInt(targetObject[rootnm].cni, 10) != cni || parseInt(targetObject[rootnm].cbs, 10) != cbs || parseInt(targetObject[rootnm].st, 10) != st) {
+                                targetObject[rootnm].cni = cni;
+                                targetObject[rootnm].cbs = cbs;
+                                targetObject[rootnm].st = st;
+                                db_sql.update_cnt_cni(targetObject[rootnm], function () {
+                                });
+                            }
+                        });
+                    }
                     callback(targetObject);
                 }
             }
@@ -1984,21 +2010,7 @@ app.get(onem2mParser, function (request, response) {
 
         request.url = absolute_url;
         if ((request.query.fu == 1 || request.query.fu == 2) && (request.query.rcn == 1 || request.query.rcn == 4 || request.query.rcn == 5 || request.query.rcn == 6 || request.query.rcn == 7)) {
-            if(request.targetObject[rootnm].ty == 3 || request.targetObject[rootnm].ty == 29) {
-                db_sql.get_cni_count(request.targetObject[rootnm], function (cni, cbs, st) {
-                    if (parseInt(request.targetObject[rootnm].cni, 10) != cni || parseInt(request.targetObject[rootnm].cbs, 10) != cbs || parseInt(request.targetObject[rootnm].st, 10) != st) {
-                        request.targetObject[rootnm].cni = cni;
-                        request.targetObject[rootnm].cbs = cbs;
-                        request.targetObject[rootnm].st = st;
-                        db_sql.update_cnt_cni(request.targetObject[rootnm], function () {
-                        });
-                    }
-                    lookup_retrieve(request, response);
-                });
-            }
-            else {
-                lookup_retrieve(request, response);
-            }
+            lookup_retrieve(request, response);
         }
         else {
             responder.error_result(request, response, 400, 4000, 'BAD_REQUEST (rcn or fu query is not supported at GET request)');

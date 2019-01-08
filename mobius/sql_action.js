@@ -829,6 +829,40 @@ exports.search_parents_lookup = function(ri, pi_list, result_ri, callback) {
     });
 };
 
+
+function select_spec_ri(found_Obj, count, callback) {
+    var ri = Object.keys(found_Obj)[count];
+    var sql = "select * from " + responder.typeRsrc[found_Obj[ri].ty] + " where ri = \'" + ri + "\'";
+    db.getResult(sql, ri, function (err, spec_Obj, ri) {
+        if(err) {
+            delete found_Obj[ri];
+            select_spec_ri(found_Obj, count, function (err, found_Obj) {
+                callback(err, found_Obj);
+            });
+        }
+        else {
+            if(spec_Obj.length >= 1) {
+                makeObject(spec_Obj[0]);
+                found_Obj[spec_Obj[0].ri] = merge(found_Obj[spec_Obj[0].ri], spec_Obj[0]);
+                if (++count >= Object.keys(found_Obj).length) {
+                    callback(err, found_Obj);
+                }
+                else {
+                    select_spec_ri(found_Obj, count, function (err, found_Obj) {
+                        callback(err, found_Obj);
+                    });
+                }
+            }
+            else {
+                delete found_Obj[ri];
+                select_spec_ri(found_Obj, count, function (err, found_Obj) {
+                    callback(err, found_Obj);
+                });
+            }
+        }
+    });
+}
+
 function build_discovery_sql(ri, query, cur_lim, pi_list, cni) {
 //    var list_ri = '';
     var query_where = '';
@@ -962,40 +996,6 @@ function build_discovery_sql(ri, query, cur_lim, pi_list, cni) {
     return query_where;
 }
 
-function select_spec_ri(found_Obj, count, callback) {
-    var ri = Object.keys(found_Obj)[count];
-    var sql = "select * from " + responder.typeRsrc[found_Obj[ri].ty] + " where ri = \'" + ri + "\'";
-    db.getResult(sql, ri, function (err, spec_Obj, ri) {
-        if(err) {
-            delete found_Obj[ri];
-            select_spec_ri(found_Obj, count, function (err, found_Obj) {
-                callback(err, found_Obj);
-            });
-        }
-        else {
-            if(spec_Obj.length >= 1) {
-                makeObject(spec_Obj[0]);
-                found_Obj[spec_Obj[0].ri] = merge(found_Obj[spec_Obj[0].ri], spec_Obj[0]);
-                if (++count >= Object.keys(found_Obj).length) {
-                    callback(err, found_Obj);
-                }
-                else {
-                    select_spec_ri(found_Obj, count, function (err, found_Obj) {
-                        callback(err, found_Obj);
-                    });
-                }
-            }
-            else {
-                delete found_Obj[ri];
-                select_spec_ri(found_Obj, count, function (err, found_Obj) {
-                    callback(err, found_Obj);
-                });
-            }
-        }
-    });
-}
-
-
 var search_tid = '';
 exports.search_lookup = function (ri, query, cur_lim, pi_list, pi_index, found_Obj, found_Cnt, cni, cur_d, loop_cnt, response, callback) {
     var cur_pi = [];
@@ -1066,16 +1066,28 @@ exports.search_lookup = function (ri, query, cur_lim, pi_list, pi_index, found_O
     });
 };
 
-exports.select_latest_resource = function(parentObj, callback) {
-    var la_id = 'select_latest ' + parentObj.ri + ' - ' + require('shortid').generate();
-    console.time(la_id);
-    var sql = util.format('select * from (select * from lookup where pi = \'%s\' and ty = \'%s\' limit 10 offset %s) b join %s as a on b.ri = a.ri', parentObj.ri, parseInt(parentObj.ty, 10) + 1, parseInt(parentObj.cni, 10) - 5, responder.typeRsrc[parseInt(parentObj.ty, 10) + 1]);
+exports.select_latest_resource = function(parentObj, loop_count, callback) {
+    var before_ct = moment().subtract(Math.pow(5, ++loop_count), 'minutes').utc().format('YYYYMMDDTHHmmss');
+
+    var sql = util.format('select * from (select * from lookup where (pi = \'%s\' and ct > \'%s\') and ty = \'%s\') b join %s as a on b.ri = a.ri', parentObj.ri, before_ct, parseInt(parentObj.ty, 10) + 1, responder.typeRsrc[parseInt(parentObj.ty, 10) + 1]);
     db.getResult(sql, '', function (err, results_latest) {
         if(!err) {
-            console.timeEnd(la_id);
-            var latest_cin = [];
-            latest_cin.push(results_latest[results_latest.length-1]);
-            callback(err, latest_cin);
+            if(results_latest.length > 0) {
+                var latest_cin = [];
+                latest_cin.push(results_latest[results_latest.length-1]);
+                callback(err, latest_cin);
+            }
+            else {
+                if(loop_count >= 6) {
+                    latest_cin = [];
+                    callback(err, latest_cin);
+                }
+                else {
+                    _this.select_latest_resource(parentObj, loop_count, function (err, resultObj) {
+                        callback(err, resultObj);
+                    });
+                }
+            }
         }
         else {
             callback(err, results_latest);

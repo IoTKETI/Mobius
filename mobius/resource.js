@@ -408,10 +408,7 @@ function create_action(request, response, ty, resource_Obj, callback) {
     var body_Obj = {};
 
     if (ty == '1') {
-        db_sql.insert_acp(resource_Obj[rootnm].ty, resource_Obj[rootnm].ri, resource_Obj[rootnm].rn, resource_Obj[rootnm].pi, resource_Obj[rootnm].ct,
-            resource_Obj[rootnm].lt, resource_Obj[rootnm].et, JSON.stringify(resource_Obj[rootnm].acpi), JSON.stringify(resource_Obj[rootnm].lbl), JSON.stringify(resource_Obj[rootnm].at),
-            JSON.stringify(resource_Obj[rootnm].aa), resource_Obj[rootnm].st, resource_Obj[rootnm].sri, resource_Obj[rootnm].spi,
-            JSON.stringify(resource_Obj[rootnm].pv), JSON.stringify(resource_Obj[rootnm].pvs), function (err, results) {
+        db_sql.insert_acp(resource_Obj[rootnm], function (err, results) {
                 if (!err) {
                     callback('1', resource_Obj);
                 }
@@ -1239,6 +1236,13 @@ exports.create = function (request, response, ty, body_Obj, callback) {
             callback(rsc);
             return '0';
         }
+
+        // for ceritification
+        // if (request.query.real != 4) {
+        //     notiObj = JSON.parse(JSON.stringify(resource_Obj));
+        //     _this.remove_no_value(request, notiObj);
+        //     sgn.check(request, notiObj[rootnm], 3);
+        // }
 
         create_action(request, response, ty, resource_Obj, function (rsc, create_Obj) {
             if (rsc == '1') {
