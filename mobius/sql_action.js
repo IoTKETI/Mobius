@@ -984,11 +984,10 @@ function search_resource_action(ri, query, cur_lim, pi_list, cni, loop_count, se
     if (query.la != null) {
         cur_lim = parseInt(query.la, 10);
 
-        var cur_ct = moment().subtract(Math.pow(5, loop_count), 'minutes').utc().format('YYYYMMDDTHHmmss');
-        var before_ct = moment().subtract(Math.pow(5, ++loop_count), 'minutes').utc().format('YYYYMMDDTHHmmss');
+        var before_ct = moment().subtract(Math.pow(10, ++loop_count), 'minutes').utc().format('YYYYMMDDTHHmmss');
 
         query_where += ' and ';
-        query_where += util.format(' (\'%s\' < ct and ct <= \'%s\') ', before_ct, cur_ct);
+        query_where += util.format(' (\'%s\' < ct) ', before_ct);
         query_count++;
     }
     else {
@@ -1005,7 +1004,9 @@ function search_resource_action(ri, query, cur_lim, pi_list, cni, loop_count, se
     db.getResult(query_where, '', function (err, search_Obj) {
         if(!err) {
             if(query.la != null) {
-                for(i = 0; i < search_Obj.length; i++) {
+                seekObj[search_Obj[0].ri] = search_Obj[0];
+                var st_idx = (search_Obj.length > parseInt(cur_lim, 10)) ? (search_Obj.length - parseInt(cur_lim, 10) + 1) : 0;
+                for(i = st_idx; i < search_Obj.length; i++) {
                     seekObj[search_Obj[i].ri] = search_Obj[i];
                     if(Object.keys(seekObj).length > cur_lim) {
                         break;
