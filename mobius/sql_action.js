@@ -28,26 +28,30 @@ exports.set_tuning = function(callback) {
     var sql = util.format('set global max_connections = 2000');
     db.getResult(sql, '', function (err, results) {
         if(err) {
-            callback(err, results);
-            return;
+            //callback(err, results);
+            //return;
+            console.log(results.message);
         }
         sql = util.format('set global innodb_flush_log_at_trx_commit=0');
         db.getResult(sql, '', function (err, results) {
             if(err) {
-                callback(err, results);
-                return;
+                //callback(err, results);
+                //return;
+                console.log(results.message);
             }
             sql = util.format('set global sync_binlog=0');
             db.getResult(sql, '', function (err, results) {
                 if(err) {
-                    callback(err, results);
-                    return;
+                    //callback(err, results);
+                    //return;
+                    console.log(results.message);
                 }
                 sql = util.format('set global transaction_isolation=\'READ-UNCOMMITTED\'');
                 db.getResult(sql, '', function (err, results) {
                     if(err) {
-                        callback(err, results);
-                        return;
+                        //callback(err, results);
+                        //return;
+                        console.log(results.message);
                     }
                     callback(err, results);
                 });

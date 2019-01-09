@@ -433,7 +433,7 @@ if (use_clustering) {
             if (rsc == '1') {
                 db_sql.set_tuning(function (err, results) {
                     if(err) {
-                        console.log('[set_tuning] ' + results.message);
+                        console.log('[set_tuning] error');
                     }
 
                     console.log('CPU Count:', cpuCount);
