@@ -249,8 +249,8 @@ exports.get_cni_count = function(obj, callback) {
     _this.select_count_ri(parseInt(obj.ty, 10) + 1, obj.ri, function (err, results) {
         if (results.length == 1) {
             var cni = results[0]['count(*)'];
-            var cbs = results[0]['sum('+responder.typeRsrc[parseInt(obj.ty, 10) + 1]+'.cs)'];
-            var st = results[0]['st'];
+            var cbs = (results[0]['sum('+responder.typeRsrc[parseInt(obj.ty, 10) + 1]+'.cs)'] == null) ? 0 : results[0]['sum('+responder.typeRsrc[parseInt(obj.ty, 10) + 1]+'.cs)'];
+            var st = (results[0]['st'] == null) ? 0 : results[0]['st'];
 
             if (cni > parseInt(obj.mni, 10) || cbs > parseInt(obj.mbs, 10)) {
                 var count = (cni - parseInt(obj.mni, 10));
@@ -810,21 +810,21 @@ exports.search_parents_lookup = function(ri, pi_list, result_ri, callback) {
                 callback(err, result_ri);
             }
             else {
-                pi_list = [];
+                var found_pi_list = [];
                 for(var idx in result_lookup_ri) {
                     if(result_lookup_ri.hasOwnProperty(idx)) {
                         if(result_lookup_ri[idx].ty != '23' && result_lookup_ri[idx].ty != '4' && result_lookup_ri[idx].ty != '30' && result_lookup_ri[idx].ty != '17') {
-                            pi_list.push(result_lookup_ri[idx].ri);
+                            found_pi_list.push(result_lookup_ri[idx].ri);
                             result_ri.push(result_lookup_ri[idx]);
                         }
                     }
                 }
 
-                if(pi_list.length === 0) {
+                if(found_pi_list.length === 0) {
                     callback(err, result_ri);
                 }
                 else {
-                    _this.search_parents_lookup(ri, pi_list, result_ri, function (err, result_ri) {
+                    _this.search_parents_lookup(ri, found_pi_list, result_ri, function (err, result_ri) {
                         callback(err, result_ri);
                     });
                 }
@@ -983,7 +983,7 @@ function build_discovery_sql(ri, query, cur_lim, pi_list, cni) {
     }
 
     if (query.la != null) {
-        query_where += util.format(' limit %s offset %s ', parseInt(query.la, 10), parseInt(cni, 10) - parseInt(query.la, 10));
+        query_where += util.format(' limit %s offset %s ', parseInt(query.la, 10) + 1, ((parseInt(cni, 10) - parseInt(query.la, 10)) > 0) ? (parseInt(cni, 10) - parseInt(query.la, 10)) : 0);
         query_count++;
     }
     else {
