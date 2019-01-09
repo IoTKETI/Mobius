@@ -1666,17 +1666,25 @@ global.get_resource_from_url = function(absolute_url, absolute_url_arr, callback
                     ri = (results.length == 0) ? absolute_url : ((results[0].hasOwnProperty('ri')) ? absolute_url.replace('/' + absolute_url_arr[1], results[0].ri) : absolute_url);
                     // resource_cache[targetObject[rootnm].ri] = JSON.stringify(targetObject);
 
-                    if(targetObject[rootnm].ty == 3 || targetObject[rootnm].ty == 29) {
-                        db_sql.get_cni_count(targetObject[rootnm], function (cni, cbs, st) {
-                            if (parseInt(targetObject[rootnm].cni, 10) != cni || parseInt(targetObject[rootnm].cbs, 10) != cbs || parseInt(targetObject[rootnm].st, 10) != st) {
-                                targetObject[rootnm].cni = cni;
-                                targetObject[rootnm].cbs = cbs;
-                                targetObject[rootnm].st = st;
-                                db_sql.update_cnt_cni(targetObject[rootnm], function () {
-                                });
-                            }
-                        });
-                    }
+                    // if(targetObject[rootnm].ty == 3 || targetObject[rootnm].ty == 29) {
+                    //     if(cbs_cache[targetObject[rootnm].ri] == null ||
+                    //         (parseInt(cbs_cache[targetObject[rootnm].ri].cni, 10) != targetObject[rootnm].cni || parseInt(cbs_cache[targetObject[rootnm].ri].cbs, 10) != targetObject[rootnm].cbs)) {
+                    //         db_sql.get_cni_count(targetObject[rootnm], function (cni, cbs, st) {
+                    //             if (parseInt(targetObject[rootnm].cni, 10) != cni || parseInt(targetObject[rootnm].cbs, 10) != cbs || parseInt(targetObject[rootnm].st, 10) != st) {
+                    //                 targetObject[rootnm].cni = cni;
+                    //                 targetObject[rootnm].cbs = cbs;
+                    //                 targetObject[rootnm].st = st;
+                    //                 cbs_cache[targetObject[rootnm].ri] = {};
+                    //                 cbs_cache[targetObject[rootnm].ri].cni = cni;
+                    //                 cbs_cache[targetObject[rootnm].ri].cbs = cbs;
+                    //                 db_sql.update_cnt_cni(targetObject[rootnm], function () {
+                    //                 });
+                    //             }
+                    //         });
+                    //     }
+                    //     else {
+                    //     }
+                    // }
                     callback(targetObject);
                 }
             }
@@ -2010,7 +2018,30 @@ app.get(onem2mParser, function (request, response) {
 
         request.url = absolute_url;
         if ((request.query.fu == 1 || request.query.fu == 2) && (request.query.rcn == 1 || request.query.rcn == 4 || request.query.rcn == 5 || request.query.rcn == 6 || request.query.rcn == 7)) {
-            lookup_retrieve(request, response);
+            if(request.targetObject[rootnm].ty == 3 || request.targetObject[rootnm].ty == 29) {
+                if(cbs_cache[request.targetObject[rootnm].ri] == null ||
+                    (parseInt(cbs_cache[request.targetObject[rootnm].ri].cni, 10) != request.targetObject[rootnm].cni || parseInt(cbs_cache[request.targetObject[rootnm].ri].cbs, 10) != request.targetObject[rootnm].cbs)) {
+                    db_sql.get_cni_count(request.targetObject[rootnm], function (cni, cbs, st) {
+                        if (parseInt(request.targetObject[rootnm].cni, 10) != cni || parseInt(request.targetObject[rootnm].cbs, 10) != cbs || parseInt(request.targetObject[rootnm].st, 10) != st) {
+                            request.targetObject[rootnm].cni = cni;
+                            request.targetObject[rootnm].cbs = cbs;
+                            request.targetObject[rootnm].st = st;
+                            cbs_cache[request.targetObject[rootnm].ri] = {};
+                            cbs_cache[request.targetObject[rootnm].ri].cni = cni;
+                            cbs_cache[request.targetObject[rootnm].ri].cbs = cbs;
+                            db_sql.update_cnt_cni(request.targetObject[rootnm], function () {
+                            });
+                            lookup_retrieve(request, response);
+                        }
+                    });
+                }
+                else {
+                    lookup_retrieve(request, response);
+                }
+            }
+            else {
+                lookup_retrieve(request, response);
+            }
         }
         else {
             responder.error_result(request, response, 400, 4000, 'BAD_REQUEST (rcn or fu query is not supported at GET request)');

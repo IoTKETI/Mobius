@@ -487,6 +487,10 @@ function create_action(request, response, ty, resource_Obj, callback) {
                 // db_sql.update_cnt_cni(request.targetObject[parent_rootnm], function () {
                 //
                 // });
+                if(cbs_cache[request.targetObject[parent_rootnm].ri]) {
+                    cbs_cache[request.targetObject[parent_rootnm].ri].cni = parseInt(cbs_cache[request.targetObject[parent_rootnm].ri].cni, 10) + 1;
+                    cbs_cache[request.targetObject[parent_rootnm].ri].cbs = parseInt(cbs_cache[request.targetObject[parent_rootnm].ri].cbs, 10) + parseInt(resource_Obj[rootnm].cs, 10);
+                }
                 callback('1', resource_Obj);
             }
             else {
