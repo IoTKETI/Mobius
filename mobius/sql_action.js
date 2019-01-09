@@ -867,6 +867,188 @@ function select_spec_ri(found_Obj, count, callback) {
     });
 }
 
+function search_resource_action(ri, query, cur_lim, pi_list, cni, loop_count, seekObj, callback) {
+    var query_where = '';
+    var query_count = 0;
+    if (query.lbl != null) {
+        query_where = ' and ';
+        if (query.lbl.toString().split(',')[1] == null) {
+            query_where += util.format(' lbl like \'[\"%%%s%%\"]\'', query.lbl);
+            //query_where += util.format(' lbl like \'%s\'', request.query.lbl);
+        }
+        else {
+            for (var i = 0; i < query.lbl.length; i++) {
+                query_where += util.format(' lbl like \'%%\"%s\"%%\'', query.lbl[i]);
+                //query_where += util.format(' lbl like \'%s\'', request.query.lbl[i]);
+
+                if (i < query.lbl.length - 1) {
+                    query_where += ' or ';
+                }
+            }
+        }
+        query_count++;
+    }
+
+    var ty_str = '';
+    if (query.ty != null) {
+        ty_str = ' and ';
+        query_where += ' and ';
+
+        if (query.ty.toString().split(',').length == 1) {
+            query_where += util.format('ty = \'%s\'', query.ty);
+            ty_str += util.format('ty = \'%s\'', query.ty);
+        }
+        else {
+            query_where += ' (';
+            ty_str += ' (';
+            for (i = 0; i < query.ty.length; i++) {
+                query_where += util.format('ty = \'%s\'', query.ty[i]);
+                ty_str += util.format('ty = \'%s\'', query.ty[i]);
+                if (i < query.ty.length - 1) {
+                    query_where += ' or ';
+                    ty_str += ' or ';
+                }
+            }
+            query_where += ') ';
+            ty_str += ') ';
+        }
+        query_count++;
+    }
+
+    if (query.cra != null) {
+        query_where += ' and ';
+        query_where += util.format('\'%s\' <= ct', query.cra);
+        query_count++;
+    }
+
+    if (query.crb != null) {
+        query_where += ' and ';
+        query_where += util.format(' ct < \'%s\'', query.crb);
+        query_count++;
+    }
+
+    if (query.ms != null) {
+        query_where += ' and ';
+        query_where += util.format('\'%s\' <= lt', query.ms);
+        query_count++;
+    }
+
+    if (query.us != null) {
+        query_where += ' and ';
+        query_where += util.format(' lt < \'%s\'', query.us);
+        query_count++;
+    }
+
+    if (query.exa != null) {
+        query_where += ' and ';
+        query_where += util.format('\'%s\' <= et', query.exa);
+        query_count++;
+    }
+
+    if (query.exb != null) {
+        query_where += ' and ';
+        query_where += util.format(' et < \'%s\'', query.exb);
+        query_count++;
+    }
+
+    if (query.sts != null) {
+        query_where += ' and ';
+        query_where += util.format(' st < \'%s\'', query.sts);
+        query_count++;
+    }
+
+    if (query.stb != null) {
+        query_where += ' and ';
+        query_where += util.format('\'%s\' <= st', query.stb);
+        query_count++;
+    }
+
+    if (query.sza != null) {
+        query_where += ' and ';
+        query_where += util.format('%s <= cs', query.sza);
+        query_count++;
+    }
+
+    if (query.szb != null) {
+        query_where += ' and ';
+        query_where += util.format('cs < %s', query.szb);
+        query_count++;
+    }
+
+    if (query.cty != null) {
+        query_where += ' and ';
+        query_where += util.format('cnf = \'%s\'', query.cty);
+        query_count++;
+    }
+
+    if (query.la != null) {
+        cur_lim = parseInt(query.la, 10);
+
+        var cur_ct = moment().subtract(Math.pow(5, loop_count), 'minutes').utc().format('YYYYMMDDTHHmmss');
+        var before_ct = moment().subtract(Math.pow(5, ++loop_count), 'minutes').utc().format('YYYYMMDDTHHmmss');
+
+        query_where += ' and ';
+        query_where += util.format(' (\'%s\' < ct and ct <= \'%s\') ', before_ct, cur_ct);
+        query_count++;
+    }
+    else {
+        query_where += ' limit ' + cur_lim;
+        if (query.ofst != null) {
+            query_where += util.format(' offset %s', query.ofst);
+        }
+    }
+    query_where = "select a.* from (select ri from lookup where (ri = \'" + ri + "\') or (pi in ("+JSON.stringify(pi_list).replace('[','').replace(']','')+")) " + query_where + " ) b left join lookup as a on b.ri = a.ri ";
+    //query_where = util.format("select a.* from (select ri from lookup where ((ri = \'" + ri + "\') or (pi in ("+JSON.stringify(pi_list).replace('[','').replace(']','')+")) %s and ((\'%s\' < ct) and (ct <= \'%s\')))) b left join lookup as a on b.ri = a.ri", ty_str, bef_ct, cur_ct) + query_where;
+    //query_where = util.format("select a.* from (select ri from lookup where ((ri = \'" + ri + "\') or pi in ("+JSON.stringify(pi_list).replace('[','').replace(']','')+")) %s and (ct > \'%s\' and ct <= \'%s\') limit 1000) b left join lookup as a on b.ri = a.ri", ty_str, bef_ct, cur_ct) + query_where;
+    //query_where = util.format("select a.* from (select ri from lookup where (pi in ("+JSON.stringify(pi_list).replace('[','').replace(']','')+")) %s and (ct > \'%s\' and ct <= \'%s\') order by ct desc limit 1000) b left join lookup as a on b.ri = a.ri", ty_str, bef_ct, cur_ct) + query_where;
+
+    db.getResult(query_where, '', function (err, search_Obj) {
+        if(!err) {
+            if(query.la != null) {
+                for(i = 0; i < search_Obj.length; i++) {
+                    seekObj[search_Obj[i].ri] = search_Obj[i];
+                    if(Object.keys(seekObj).length > cur_lim) {
+                        break;
+                    }
+                }
+
+                if(Object.keys(seekObj).length > cur_lim) {
+                    search_Obj = [];
+                    for(var idx in seekObj) {
+                        if(seekObj.hasOwnProperty(idx)) {
+                            search_Obj.push(seekObj[idx]);
+                        }
+                    }
+                    callback(err, search_Obj);
+                }
+                else {
+                    if(loop_count >= 6) {
+                        search_Obj = [];
+                        for(idx in seekObj) {
+                            if(seekObj.hasOwnProperty(idx)) {
+                                search_Obj.push(seekObj[idx]);
+                            }
+                        }
+                        callback(err, search_Obj);
+                    }
+                    else {
+                        var foundCount = Object.keys(seekObj).length;
+                        search_resource_action(ri, query, parseInt(cur_lim, 10) - foundCount, pi_list, cni, loop_count, seekObj, function (err, search_Obj) {
+                            callback(err, search_Obj);
+                        });
+                    }
+                }
+            }
+            else {
+                callback(err, search_Obj);
+            }
+        }
+        else {
+            callback(err, search_Obj);
+        }
+    });
+}
+
 function build_discovery_sql(ri, query, cur_lim, pi_list, cni) {
 //    var list_ri = '';
     var query_where = '';
@@ -1018,9 +1200,8 @@ exports.search_lookup = function (ri, query, cur_lim, pi_list, pi_index, found_O
         }
     }
 
-    var sql = build_discovery_sql(ri, query, cur_lim, cur_pi, cni);
-    //console.log(loop_cnt + ' - ' + sql);
-    db.getResult(sql, '', function (err, search_Obj) {
+    var seekObj = {};
+    search_resource_action(ri, query, cur_lim, cur_pi, cni, 0, seekObj, function (err, search_Obj) {
         if(!err) {
             if(search_Obj.length > 0) {
                 for(var i = 0; i < search_Obj.length; i++) {
@@ -1068,6 +1249,55 @@ exports.search_lookup = function (ri, query, cur_lim, pi_list, pi_index, found_O
             callback(err, search_Obj, response);
         }
     });
+    // //console.log(loop_cnt + ' - ' + sql);
+    // db.getResult(sql, '', function (err, search_Obj) {
+    //     if(!err) {
+    //         if(search_Obj.length > 0) {
+    //             for(var i = 0; i < search_Obj.length; i++) {
+    //                 found_Obj[search_Obj[i].ri] = search_Obj[i];
+    //                 if(Object.keys(found_Obj).length >= query.lim) {
+    //                     break;
+    //                 }
+    //             }
+    //
+    //             if(Object.keys(found_Obj).length >= query.lim) {
+    //                 select_spec_ri(found_Obj, 0, function (err, found_Obj) {
+    //                     console.timeEnd('search_lookup (' + search_tid + ')');
+    //                     callback(err, found_Obj, response);
+    //                 });
+    //             }
+    //             else {
+    //                 select_spec_ri(found_Obj, 0, function (err, found_Obj) {
+    //                     if (pi_index >= pi_list.length) {
+    //                         console.timeEnd('search_lookup (' + search_tid + ')');
+    //                         callback(err, found_Obj, response);
+    //                     }
+    //                     else {
+    //                         cur_lim = parseInt(query.lim) - Object.keys(found_Obj).length;
+    //                         _this.search_lookup(ri, query, cur_lim, pi_list, pi_index, found_Obj, found_Cnt, cni, cur_d, ++loop_cnt, response, function (err, found_Obj, response) {
+    //                             callback(err, found_Obj, response);
+    //                         });
+    //                     }
+    //                 });
+    //             }
+    //         }
+    //         else {
+    //             if (pi_index >= pi_list.length) {
+    //                 console.timeEnd('search_lookup (' + search_tid + ')');
+    //                 callback(err, found_Obj, response);
+    //             }
+    //             else {
+    //                 cur_lim = parseInt(query.lim) - Object.keys(found_Obj).length;
+    //                 _this.search_lookup(ri, query, cur_lim, pi_list, pi_index, found_Obj, found_Cnt, cni, cur_d, ++loop_cnt, response, function (err, found_Obj, response) {
+    //                     callback(err, found_Obj, response);
+    //                 });
+    //             }
+    //         }
+    //     }
+    //     else {
+    //         callback(err, search_Obj, response);
+    //     }
+    // });
 };
 
 exports.select_latest_resource = function(parentObj, loop_count, callback) {
