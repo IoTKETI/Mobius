@@ -476,8 +476,8 @@ function create_action(request, response, ty, resource_Obj, callback) {
         var parent_rootnm = Object.keys(request.targetObject)[0];
         resource_Obj[rootnm].st = parseInt(request.targetObject[parent_rootnm].st, 10) + 1;
         request.targetObject[parent_rootnm].st = resource_Obj[rootnm].st;
-        db_sql.update_st(request.targetObject[parent_rootnm], function() {
-        });
+        // db_sql.update_st(request.targetObject[parent_rootnm], function() {
+        // });
 
         db_sql.insert_cin(resource_Obj[rootnm], function (err, results) {
             if (!err) {
@@ -487,10 +487,10 @@ function create_action(request, response, ty, resource_Obj, callback) {
                 // db_sql.update_cnt_cni(request.targetObject[parent_rootnm], function () {
                 //
                 // });
-                if(cbs_cache[request.targetObject[parent_rootnm].ri]) {
-                    cbs_cache[request.targetObject[parent_rootnm].ri].cni = parseInt(cbs_cache[request.targetObject[parent_rootnm].ri].cni, 10) + 1;
-                    cbs_cache[request.targetObject[parent_rootnm].ri].cbs = parseInt(cbs_cache[request.targetObject[parent_rootnm].ri].cbs, 10) + parseInt(resource_Obj[rootnm].cs, 10);
-                }
+
+                db_sql.update_cnt_by_cni(request.targetObject[parent_rootnm], parseInt(resource_Obj[rootnm].cs, 10), function () {
+                });
+
                 callback('1', resource_Obj);
             }
             else {
@@ -2466,10 +2466,10 @@ exports.update = function (request, response, comm_Obj, body_Obj) {
 
 */
 function delete_action_st(pi, callback) {
-    db_sql.select_st(pi, function (err, results_st) {
-        if (results_st.length == 1) {
-            var st = results_st[0]['st'];
-            st = (parseInt(st, 10) + 1).toString();
+    // db_sql.select_st(pi, function (err, results_st) {
+    //     if (results_st.length == 1) {
+    //         var st = results_st[0]['st'];
+    //         st = (parseInt(st, 10) + 1).toString();
             db_sql.update_st(results_st[0], function (err, results) {
                 if (!err) {
                     callback('1', st);
@@ -2482,8 +2482,8 @@ function delete_action_st(pi, callback) {
                     return '0';
                 }
             });
-        }
-    });
+    //     }
+    // });
 }
 
 function delete_action(request, response, resource_Obj, comm_Obj, callback) {

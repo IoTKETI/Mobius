@@ -213,78 +213,78 @@ function broadcast_ss_ri_cache() {
         });
     }
 }
-
-global.cbs_cache = {};
-
-global.set_cbs_cache = function (name, val) {
-    cbs_cache[name] = val;
-
-    if ( cluster.isWorker ) {
-        process.send({
-            cmd: 'cbs:broadcast_set',
-            name: name,
-            val: val
-        });
-    }
-    else {
-        broadcast_set_cbs_cache(name, val);
-    }
-};
-
-function broadcast_set_cbs_cache(name, val) {
-    if ( cluster.isMaster ) {
-        for (var id in cluster.workers) {
-            if(cluster.workers.hasOwnProperty(id)) {
-                var worker = cluster.workers[id];
-
-                worker.send({
-                    cmd: 'cbs:edit_set',
-                    name: name,
-                    val: val
-                });
-            }
-        }
-    }
-    else {
-        process.send({
-            cmd: 'cbs:broadcast_set'
-        });
-    }
-}
-
-global.del_cbs_cache = function (name) {
-    delete cbs_cache[name];
-
-    if ( cluster.isWorker ) {
-        process.send({
-            cmd: 'cbs:broadcast',
-            name: name
-        });
-    }
-    else {
-        broadcast_cbs_cache();
-    }
-};
-
-function broadcast_cbs_cache() {
-    if ( cluster.isMaster ) {
-        for (var id in cluster.workers) {
-            if(cluster.workers.hasOwnProperty(id)) {
-                var worker = cluster.workers[id];
-
-                worker.send({
-                    cmd: 'cbs:edit',
-                    data: cbs_cache
-                });
-            }
-        }
-    }
-    else {
-        process.send({
-            cmd: 'cbs:broadcast'
-        });
-    }
-}
+//
+// global.cbs_cache = {};
+//
+// global.set_cbs_cache = function (name, val) {
+//     cbs_cache[name] = val;
+//
+//     if ( cluster.isWorker ) {
+//         process.send({
+//             cmd: 'cbs:broadcast_set',
+//             name: name,
+//             val: val
+//         });
+//     }
+//     else {
+//         broadcast_set_cbs_cache(name, val);
+//     }
+// };
+//
+// function broadcast_set_cbs_cache(name, val) {
+//     if ( cluster.isMaster ) {
+//         for (var id in cluster.workers) {
+//             if(cluster.workers.hasOwnProperty(id)) {
+//                 var worker = cluster.workers[id];
+//
+//                 worker.send({
+//                     cmd: 'cbs:edit_set',
+//                     name: name,
+//                     val: val
+//                 });
+//             }
+//         }
+//     }
+//     else {
+//         process.send({
+//             cmd: 'cbs:broadcast_set'
+//         });
+//     }
+// }
+//
+// global.del_cbs_cache = function (name) {
+//     delete cbs_cache[name];
+//
+//     if ( cluster.isWorker ) {
+//         process.send({
+//             cmd: 'cbs:broadcast',
+//             name: name
+//         });
+//     }
+//     else {
+//         broadcast_cbs_cache();
+//     }
+// };
+//
+// function broadcast_cbs_cache() {
+//     if ( cluster.isMaster ) {
+//         for (var id in cluster.workers) {
+//             if(cluster.workers.hasOwnProperty(id)) {
+//                 var worker = cluster.workers[id];
+//
+//                 worker.send({
+//                     cmd: 'cbs:edit',
+//                     data: cbs_cache
+//                 });
+//             }
+//         }
+//     }
+//     else {
+//         process.send({
+//             cmd: 'cbs:broadcast'
+//         });
+//     }
+// }
 
 var hit_cache = {};
 
@@ -388,8 +388,8 @@ if (use_clustering) {
                         broadcast_hit_cache();
                     }
 
-                    cbs_cache = {};
-                    broadcast_cbs_cache();
+                    //cbs_cache = {};
+                    //broadcast_cbs_cache();
                 }
             }
             else if(message.cmd === 'ss_ri:edit-request' ) {
@@ -403,15 +403,15 @@ if (use_clustering) {
             else if (message.cmd === 'ss_ri:broadcast') {
                 broadcast_ss_ri_cache();
             }
-            else if(message.cmd === 'cbs:broadcast_set' ) {
-                cbs_cache[message.name] = message.val;
-                //console.log(message.name + ' : ' + JSON.stringify(cbs_cache[message.name]));
-                broadcast_set_cbs_cache(message.name, message.val);
-            }
-            else if (message.cmd === 'cbs:broadcast') {
-                delete cbs_cache[message.name];
-                broadcast_cbs_cache();
-            }
+            // else if(message.cmd === 'cbs:broadcast_set' ) {
+            //     cbs_cache[message.name] = message.val;
+            //     //console.log(message.name + ' : ' + JSON.stringify(cbs_cache[message.name]));
+            //     broadcast_set_cbs_cache(message.name, message.val);
+            // }
+            // else if (message.cmd === 'cbs:broadcast') {
+            //     delete cbs_cache[message.name];
+            //     broadcast_cbs_cache();
+            // }
             else if (message.cmd === 'hit:broadcast_set') {
                 hit_cache[message.name] = message.val;
                 //console.log(message.name + ' : ' + JSON.stringify(hit_cache[message.name]));
@@ -477,15 +477,15 @@ if (use_clustering) {
                 ss_ri_cache = message.data;
                 //console.log(ss_ri_cache);
             }
-            else if (message.cmd === 'cbs:edit_set') {
-                cbs_cache[message.name] = message.val;
-                //console.log(message.val);
-            }
-            else if (message.cmd === 'cbs:edit') {
-                //cbs_cache[message.name] = message.val;
-                cbs_cache = message.data;
-                //console.log(cbs_cache);
-            }
+            // else if (message.cmd === 'cbs:edit_set') {
+            //     cbs_cache[message.name] = message.val;
+            //     //console.log(message.val);
+            // }
+            // else if (message.cmd === 'cbs:edit') {
+            //     //cbs_cache[message.name] = message.val;
+            //     cbs_cache = message.data;
+            //     //console.log(cbs_cache);
+            // }
             else if (message.cmd === 'hit:edit_set') {
                 hit_cache[message.name] = message.val;
                 //console.log(message.val);
@@ -1521,14 +1521,14 @@ function lookup_delete(request, response) {
                         return '0';
                     }
 
-                    for(var idx in cbs_cache) {
-                        if(cbs_cache.hasOwnProperty(idx)) {
-                            if(idx.includes(resultObj.ri)) {
-                                delete cbs_cache[idx];
-                                del_cbs_cache(idx);
-                            }
-                        }
-                    }
+                    // for(var idx in cbs_cache) {
+                    //     if(cbs_cache.hasOwnProperty(idx)) {
+                    //         if(idx.includes(resultObj.ri)) {
+                    //             delete cbs_cache[idx];
+                    //             del_cbs_cache(idx);
+                    //         }
+                    //     }
+                    // }
 
                     resource.delete(request, response, resultObj);
                 });
@@ -1666,17 +1666,17 @@ global.get_resource_from_url = function(absolute_url, absolute_url_arr, callback
                     ri = (results.length == 0) ? absolute_url : ((results[0].hasOwnProperty('ri')) ? absolute_url.replace('/' + absolute_url_arr[1], results[0].ri) : absolute_url);
                     // resource_cache[targetObject[rootnm].ri] = JSON.stringify(targetObject);
 
-                    if(targetObject[rootnm].ty == 3 || targetObject[rootnm].ty == 29) {
-                        db_sql.get_cni_count(targetObject[rootnm], function (cni, cbs, st) {
-                            if (parseInt(targetObject[rootnm].cni, 10) != cni || parseInt(targetObject[rootnm].cbs, 10) != cbs || parseInt(targetObject[rootnm].st, 10) != st) {
-                                targetObject[rootnm].cni = cni;
-                                targetObject[rootnm].cbs = cbs;
-                                targetObject[rootnm].st = st;
-                                db_sql.update_cnt_cni(targetObject[rootnm], function () {
-                                });
-                            }
-                        });
-                    }
+                    // if(targetObject[rootnm].ty == 3 || targetObject[rootnm].ty == 29) {
+                    //     db_sql.get_cni_count(targetObject[rootnm], function (cni, cbs, st) {
+                    //         if (parseInt(targetObject[rootnm].cni, 10) != cni || parseInt(targetObject[rootnm].cbs, 10) != cbs || parseInt(targetObject[rootnm].st, 10) != st) {
+                    //             targetObject[rootnm].cni = cni;
+                    //             targetObject[rootnm].cbs = cbs;
+                    //             targetObject[rootnm].st = st;
+                    //             db_sql.update_cnt_cni(targetObject[rootnm], function () {
+                    //             });
+                    //         }
+                    //     });
+                    // }
 
                     // if(targetObject[rootnm].ty == 3 || targetObject[rootnm].ty == 29) {
                     //     if(cbs_cache[targetObject[rootnm].ri] == null ||
