@@ -85,7 +85,7 @@ exports.build_sub = function(request, response, resource_Obj, body_Obj, callback
             resource_Obj[rootnm].nu = body_Obj[rootnm].nu;
 
             resource_Obj[rootnm].enc = (body_Obj[rootnm].enc) ? body_Obj[rootnm].enc : {"net": ["1"]};
-            resource_Obj[rootnm].exc = (body_Obj[rootnm].exc) ? body_Obj[rootnm].exc : '';
+            resource_Obj[rootnm].exc = (body_Obj[rootnm].exc) ? body_Obj[rootnm].exc : '100';
             resource_Obj[rootnm].gpi = (body_Obj[rootnm].gpi) ? body_Obj[rootnm].gpi : '';
             resource_Obj[rootnm].nfu = (body_Obj[rootnm].nfu) ? body_Obj[rootnm].nfu : '';
             resource_Obj[rootnm].bn = (body_Obj[rootnm].bn) ? body_Obj[rootnm].bn : {};

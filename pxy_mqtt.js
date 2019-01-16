@@ -68,7 +68,7 @@ var pxymqtt_client = null;
 //mqtt_custom.on('mqtt_watchdog', function() {
 exports.mqtt_watchdog = function() {
     if(mqtt_state === 'init') {
-        if(usesecure === 'disable') {
+        if(use_secure === 'disable') {
             http.globalAgent.maxSockets = 1000000;
             http.createServer(mqtt_app).listen({port: usepxymqttport, agent: false}, function () {
                 NOPRINT==='true'?NOPRINT='true':console.log('pxymqtt server (' + ip.address() + ') running at ' + usepxymqttport + ' port');
@@ -110,13 +110,13 @@ exports.mqtt_watchdog = function() {
     }
     else if(mqtt_state === 'connecting') {
         if(pxymqtt_client == null) {
-            if(usesecure === 'disable') {
-                pxymqtt_client = mqtt.connect('mqtt://' + usemqttbroker + ':' + usemqttport);
+            if(use_secure === 'disable') {
+                pxymqtt_client = mqtt.connect('mqtt://' + use_mqtt_broker + ':' + use_mqtt_port);
             }
             else {
                 var connectOptions = {
-                    host: usemqttbroker,
-                    port: usemqttport,
+                    host: use_mqtt_broker,
+                    port: use_mqtt_port,
                     protocol: "mqtts",
                     keepalive: 10,
        //             clientId: serverUID,
@@ -458,7 +458,7 @@ function mqtt_binding(op, to, fr, rqi, ty, pc, bodytype, callback) {
         }
     };
 
-    if(usesecure == 'disable') {
+    if(use_secure == 'disable') {
         var req = http.request(options, function (res) {
             res.setEncoding('utf8');
 
@@ -771,7 +771,7 @@ function http_retrieve_CSEBase(callback) {
         rejectUnauthorized: false
     };
 
-    if(usesecure == 'disable') {
+    if(use_secure == 'disable') {
         var req = http.request(options, function (res) {
             res.setEncoding('utf8');
             res.on('data', function (chunk) {

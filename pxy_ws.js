@@ -53,7 +53,7 @@ function originIsAllowed(origin) {
 
 exports.ws_watchdog = function() {
     if(ws_state === 'init') {
-        if(usesecure === 'disable') {
+        if(use_secure === 'disable') {
             http.globalAgent.maxSockets = 1000000;
             _server = http.createServer(ws_app);
 
@@ -312,7 +312,7 @@ function ws_binding(op, to, fr, rqi, ty, pc, bodytype, callback) {
         rejectUnauthorized: false
     };
 
-    if(usesecure == 'disable') {
+    if(use_secure == 'disable') {
         var req = http.request(options, function (res) {
             res.setEncoding('utf8');
 
@@ -412,7 +412,7 @@ function http_retrieve_CSEBase(callback) {
     var resourceid = '/' + usecsebase;
     var responseBody = '';
 
-    if(usesecure == 'disable') {
+    if(use_secure == 'disable') {
         var options = {
             hostname: usewscbhost,
             port: usecsebaseport,

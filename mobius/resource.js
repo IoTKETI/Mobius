@@ -269,7 +269,7 @@ function check_TS(ri, callback) {
 
     var responseBody = '';
 
-    if (usesecure == 'disable') {
+    if (use_secure == 'disable') {
         var options = {
             hostname: 'localhost',
             port: usetsagentport,
@@ -340,7 +340,7 @@ function delete_TS(callback) {
 
     var responseBody = '';
 
-    if (usesecure == 'disable') {
+    if (use_secure == 'disable') {
         var options = {
             hostname: 'localhost',
             port: usetsagentport,

@@ -31,7 +31,7 @@ var db_sql = require('./sql_action');
 // ������ �����մϴ�.
 var ts_app = express();
 
-if(usesecure == 'disable') {
+if(use_secure == 'disable') {
     http.globalAgent.maxSockets = 1000000;
     http.createServer(ts_app).listen({port: usetsagentport, agent: false}, function () {
         console.log('ts_missing agent server (' + ip.address() + ') running at ' + usetsagentport + ' port');
@@ -84,7 +84,7 @@ function init_TS(callback) {
         rejectUnauthorized: false
     };
 
-    if(usesecure == 'disable') {
+    if(use_secure == 'disable') {
         var req = http.request(options, function (res) {
             res.setEncoding('utf8');
             res.on('data', function (chunk) {
@@ -142,7 +142,7 @@ function search_TS(request, response, callback) {
         rejectUnauthorized: false
     };
 
-    if(usesecure == 'disable') {
+    if(use_secure == 'disable') {
         var req = http.request(options, function (res) {
             res.setEncoding('utf8');
             res.on('data', function (chunk) {

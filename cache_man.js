@@ -14,34 +14,34 @@
  * @copyright KETI Korea 2018, KETI
  * @author Il Yeup Ahn [iyahn@keti.re.kr]
  */
-
-var ss_ri_cache_keep = 10;
-var os = require('os');
-
-function ss_ri_cache_ttl_manager() {
-    try {
-        var ss_ri_cache = get_all_ss_ri_cache();
-        for (var idx in ss_ri_cache) {
-            if (ss_ri_cache.hasOwnProperty(idx)) {
-                ss_ri_cache[idx].ttl--;
-                if (ss_ri_cache[idx].ttl <= 0) {
-                    delete ss_ri_cache[idx];
-                    console.log('delete cache of ' + idx);
-                    del_ss_ri_cache(idx);
-                }
-                else {
-                    console.log('ttl of cache of ' + idx + ' : ' + ss_ri_cache[idx].ttl);
-                    set_ss_ri_cache(idx, ss_ri_cache[idx]);
-                }
-            }
-        }
-    }
-    catch (e) {
-        console.log("[ss_ri_cache_ttl_manager] " + e.message);
-    }
-}
-
-wdt.set_wdt(require('shortid').generate(), ss_ri_cache_keep, ss_ri_cache_ttl_manager);
+//
+// var ss_ri_cache_keep = 10;
+// var os = require('os');
+//
+// function ss_ri_cache_ttl_manager() {
+//     try {
+//         var ss_ri_cache = get_all_ss_ri_cache();
+//         for (var idx in ss_ri_cache) {
+//             if (ss_ri_cache.hasOwnProperty(idx)) {
+//                 ss_ri_cache[idx].ttl--;
+//                 if (ss_ri_cache[idx].ttl <= 0) {
+//                     delete ss_ri_cache[idx];
+//                     console.log('delete cache of ' + idx);
+//                     del_ss_ri_cache(idx);
+//                 }
+//                 else {
+//                     console.log('ttl of cache of ' + idx + ' : ' + ss_ri_cache[idx].ttl);
+//                     set_ss_ri_cache(idx, ss_ri_cache[idx]);
+//                 }
+//             }
+//         }
+//     }
+//     catch (e) {
+//         console.log("[ss_ri_cache_ttl_manager] " + e.message);
+//     }
+// }
+//
+// wdt.set_wdt(require('shortid').generate(), ss_ri_cache_keep, ss_ri_cache_ttl_manager);
 
 /*
 var cbs_cache_keep = 10 * 60;

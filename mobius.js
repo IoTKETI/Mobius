@@ -35,17 +35,16 @@ global.usedbpass            = conf.dbpass;
 global.usepxywsport         = '7577';
 global.usepxymqttport       = '7578';
 
+global.use_sgn_man_port     = '7597';
 
 global.usetsagentport       = '7582';
 
-global.usemqttbroker        = 'localhost'; // mqttbroker for mobius
+global.use_mqtt_broker      = 'localhost'; // mqttbroker for mobius
 
-global.usesecure            = 'disable';
-if(usesecure === 'enable') {
-    global.usemqttport      = '8883';
-}
-else {
-    usemqttport             = '1883';
+global.use_secure           = 'disable';
+global.use_mqtt_port        = '1883';
+if(use_secure === 'enable') {
+    use_mqtt_port           = '8883';
 }
 
 global.useaccesscontrolpolicy = 'disable';

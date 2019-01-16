@@ -35,7 +35,7 @@ var cbor = require('cbor');
 var moment = require('moment');
 
 var mqtt = require('mqtt');
-global.noti_mqtt = null;
+//global.noti_mqtt = null;
 
 global.NOPRINT = 'true';
 global.ONCE = 'true';
@@ -116,38 +116,38 @@ function del_expired_resource() {
         }
     });
 }
-
-function noti_mqtt_begin() {
-    if(noti_mqtt == null) {
-        if(usesecure === 'disable') {
-            noti_mqtt = mqtt.connect('mqtt://' + usemqttbroker + ':' + usemqttport);
-        }
-        else {
-            var connectOptions = {
-                host: usemqttbroker,
-                port: usemqttport,
-                protocol: "mqtts",
-                keepalive: 15,
-                //             clientId: serverUID,
-                protocolId: "MQTT",
-                protocolVersion: 4,
-                clean: true,
-                reconnectPeriod: 2000,
-                connectTimeout: 2000,
-                key: fs.readFileSync("./server-key.pem"),
-                cert: fs.readFileSync("./server-crt.pem"),
-                rejectUnauthorized: false
-            };
-            noti_mqtt = mqtt.connect(connectOptions);
-        }
-
-        noti_mqtt.on('connect', function () {
-            console.log('noti_mqtt is connected');
-        });
-
-        noti_mqtt.on('message', sgn.response_noti_handler);
-    }
-}
+//
+// function noti_mqtt_begin() {
+//     if(noti_mqtt == null) {
+//         if(use_secure === 'disable') {
+//             noti_mqtt = mqtt.connect('mqtt://' + use_mqtt_broker + ':' + use_mqtt_port);
+//         }
+//         else {
+//             var connectOptions = {
+//                 host: use_mqtt_broker,
+//                 port: use_mqtt_port,
+//                 protocol: "mqtts",
+//                 keepalive: 15,
+//                 //             clientId: serverUID,
+//                 protocolId: "MQTT",
+//                 protocolVersion: 4,
+//                 clean: true,
+//                 reconnectPeriod: 2000,
+//                 connectTimeout: 2000,
+//                 key: fs.readFileSync("./server-key.pem"),
+//                 cert: fs.readFileSync("./server-crt.pem"),
+//                 rejectUnauthorized: false
+//             };
+//             noti_mqtt = mqtt.connect(connectOptions);
+//         }
+//
+//         noti_mqtt.on('connect', function () {
+//             console.log('noti_mqtt is connected');
+//         });
+//
+//         noti_mqtt.on('message', sgn.response_noti_handler);
+//     }
+// }
 
 var cluster = require('cluster');
 var os = require('os');
@@ -155,64 +155,64 @@ var os = require('os');
 var cpuCount = os.cpus().length;
 
 var worker = [];
-var ss_ri_cache = {};
-
-global.get_ss_ri_cache = function (name) {
-    return ss_ri_cache[name];
-};
-
-global.get_all_ss_ri_cache = function () {
-    return ss_ri_cache;
-};
-
-global.set_ss_ri_cache = function (name, val) {
-    ss_ri_cache[name] = val;
-
-    if ( cluster.isWorker ) {
-        process.send({
-            cmd: 'ss_ri:edit-request',
-            name: name,
-            val: val
-        });
-    }
-    else {
-        broadcast_ss_ri_cache();
-    }
-};
-
-global.del_ss_ri_cache = function (name) {
-    delete ss_ri_cache[name];
-
-    if ( cluster.isWorker ) {
-        process.send({
-            cmd: 'ss_ri:del-request',
-            name: name
-        });
-    }
-    else {
-        broadcast_ss_ri_cache();
-    }
-};
-
-function broadcast_ss_ri_cache() {
-    if ( cluster.isMaster ) {
-        for (var id in cluster.workers) {
-            if(cluster.workers.hasOwnProperty(id)) {
-                var worker = cluster.workers[id];
-
-                worker.send({
-                    cmd: 'ss_ri:edit',
-                    data: ss_ri_cache
-                });
-            }
-        }
-    }
-    else {
-        process.send({
-            cmd: 'ss_ri:broadcast'
-        });
-    }
-}
+// var ss_ri_cache = {};
+//
+// global.get_ss_ri_cache = function (name) {
+//     return ss_ri_cache[name];
+// };
+//
+// global.get_all_ss_ri_cache = function () {
+//     return ss_ri_cache;
+// };
+//
+// global.set_ss_ri_cache = function (name, val) {
+//     ss_ri_cache[name] = val;
+//
+//     if ( cluster.isWorker ) {
+//         process.send({
+//             cmd: 'ss_ri:edit-request',
+//             name: name,
+//             val: val
+//         });
+//     }
+//     else {
+//         broadcast_ss_ri_cache();
+//     }
+// };
+//
+// global.del_ss_ri_cache = function (name) {
+//     delete ss_ri_cache[name];
+//
+//     if ( cluster.isWorker ) {
+//         process.send({
+//             cmd: 'ss_ri:del-request',
+//             name: name
+//         });
+//     }
+//     else {
+//         broadcast_ss_ri_cache();
+//     }
+// };
+//
+// function broadcast_ss_ri_cache() {
+//     if ( cluster.isMaster ) {
+//         for (var id in cluster.workers) {
+//             if(cluster.workers.hasOwnProperty(id)) {
+//                 var worker = cluster.workers[id];
+//
+//                 worker.send({
+//                     cmd: 'ss_ri:edit',
+//                     data: ss_ri_cache
+//                 });
+//             }
+//         }
+//     }
+//     else {
+//         process.send({
+//             cmd: 'ss_ri:broadcast'
+//         });
+//     }
+// }
 //
 // global.cbs_cache = {};
 //
@@ -392,17 +392,17 @@ if (use_clustering) {
                     //broadcast_cbs_cache();
                 }
             }
-            else if(message.cmd === 'ss_ri:edit-request' ) {
-                ss_ri_cache[message.name] = message.val;
-                broadcast_ss_ri_cache();
-            }
-            else if(message.cmd === 'ss_ri:del-request' ) {
-                delete ss_ri_cache[message.name];
-                broadcast_ss_ri_cache();
-            }
-            else if (message.cmd === 'ss_ri:broadcast') {
-                broadcast_ss_ri_cache();
-            }
+            // else if(message.cmd === 'ss_ri:edit-request' ) {
+            //     ss_ri_cache[message.name] = message.val;
+            //     broadcast_ss_ri_cache();
+            // }
+            // else if(message.cmd === 'ss_ri:del-request' ) {
+            //     delete ss_ri_cache[message.name];
+            //     broadcast_ss_ri_cache();
+            // }
+            // else if (message.cmd === 'ss_ri:broadcast') {
+            //     broadcast_ss_ri_cache();
+            // }
             // else if(message.cmd === 'cbs:broadcast_set' ) {
             //     cbs_cache[message.name] = message.val;
             //     //console.log(message.name + ' : ' + JSON.stringify(cbs_cache[message.name]));
@@ -451,6 +451,7 @@ if (use_clustering) {
                         require('./pxy_coap');
                         require('./pxy_ws');
                         require('./cache_man');
+                        require('./sgn_man');
 
                         if (usecsetype == 'mn' || usecsetype == 'asn') {
                             global.refreshIntervalId = setInterval(function () {
@@ -472,11 +473,11 @@ if (use_clustering) {
         });
 
         process.on('message', function (message) {
-            if (message.cmd === 'ss_ri:edit') {
-                //ss_ri_cache[message.name] = message.val;
-                ss_ri_cache = message.data;
-                //console.log(ss_ri_cache);
-            }
+            // if (message.cmd === 'ss_ri:edit') {
+            //     //ss_ri_cache[message.name] = message.val;
+            //     ss_ri_cache = message.data;
+            //     //console.log(ss_ri_cache);
+            // }
             // else if (message.cmd === 'cbs:edit_set') {
             //     cbs_cache[message.name] = message.val;
             //     //console.log(message.val);
@@ -486,7 +487,7 @@ if (use_clustering) {
             //     cbs_cache = message.data;
             //     //console.log(cbs_cache);
             // }
-            else if (message.cmd === 'hit:edit_set') {
+            if (message.cmd === 'hit:edit_set') {
                 hit_cache[message.name] = message.val;
                 //console.log(message.val);
             }
@@ -498,13 +499,13 @@ if (use_clustering) {
 
         db.connect(usedbhost, 3306, 'root', usedbpass, function (rsc) {
             if (rsc == '1') {
-                if(usesecure === 'disable') {
+                if(use_secure === 'disable') {
                     http.globalAgent.maxSockets = 1000000;
                     http.createServer(app).listen({port: usecsebaseport, agent: false}, function () {
                         console.log('mobius server (' + ip.address() + ') running at ' + usecsebaseport + ' port');
                         cb.create(function (rsp) {
                             console.log(JSON.stringify(rsp));
-                            noti_mqtt_begin();
+                            //noti_mqtt_begin();
                         });
                     });
                 }
@@ -519,7 +520,7 @@ if (use_clustering) {
                         console.log('mobius server (' + ip.address() + ') running at ' + usecsebaseport + ' port');
                         cb.create(function (rsp) {
                             console.log(JSON.stringify(rsp));
-                            noti_mqtt_begin();
+                            //noti_mqtt_begin();
                         });
                     });
                 }
@@ -533,12 +534,12 @@ else {
             cb.create(function (rsp) {
                 console.log(JSON.stringify(rsp));
 
-                if(usesecure === 'disable') {
+                if(use_secure === 'disable') {
                     http.globalAgent.maxSockets = 1000000;
                     http.createServer(app).listen({port: usecsebaseport, agent: false}, function () {
                         console.log('mobius server (' + ip.address() + ') running at ' + usecsebaseport + ' port');
                         require('./pxy_mqtt');
-                        noti_mqtt_begin();
+                        //noti_mqtt_begin();
 
                         if (usecsetype === 'mn' || usecsetype === 'asn') {
                             global.refreshIntervalId = setInterval(function () {
@@ -557,7 +558,7 @@ else {
                     https.createServer(options, app).listen({port: usecsebaseport, agent: false}, function () {
                         console.log('mobius server (' + ip.address() + ') running at ' + usecsebaseport + ' port');
                         require('./pxy_mqtt');
-                        noti_mqtt_begin();
+                        //noti_mqtt_begin();
                         //require('./mobius/ts_agent');
 
                         if (usecsetype === 'mn' || usecsetype === 'asn') {

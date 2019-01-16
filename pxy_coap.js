@@ -194,7 +194,7 @@ function coap_message_handler(request, response) {
         headers: headers
     };
 
-    if(usesecure === 'disable') {
+    if(use_secure === 'disable') {
         var req = http.request(options, function (res) {
             res.setEncoding('utf8');
             res.on('data', function (chunk) {
@@ -225,7 +225,7 @@ function coap_message_handler(request, response) {
             });
         });
     }
-    else if(usesecure === 'enable') {
+    else if(use_secure === 'enable') {
         options.ca = fs.readFileSync('ca-crt.pem');
 
         req = https.request(options, function (res) {

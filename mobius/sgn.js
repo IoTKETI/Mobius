@@ -28,10 +28,6 @@ var merge = require('merge');
 
 var responder = require('./responder');
 
-var ss_fail_count = {};
-
-var MAX_NUM_RETRY = 16;
-
 function make_xml_noti_message(pc, xm2mri) {
     try {
         var noti_message = {};
@@ -176,7 +172,7 @@ function make_body_string_for_noti(protocol, nu, node, sub_bodytype, xm2mri, sho
     }
 }
 
-function sgn_action_send(nu, sub_nu, sub_bodytype, node, short_flag, check_value, ss_cr, ss_ri, xm2mri) {
+function sgn_action_send(nu, sub_nu, sub_bodytype, node, short_flag, check_value, ss_cr, ss_ri, xm2mri, exc) {
     if (sub_nu.query != null) {
         var sub_nu_query_arr = sub_nu.query.split('&');
         for (var prop in sub_nu_query_arr) {
@@ -235,22 +231,10 @@ function sgn_action_send(nu, sub_nu, sub_bodytype, node, short_flag, check_value
 
     make_body_string_for_noti(sub_nu.protocol, nu, node, sub_bodytype, xm2mri, short_flag, function (bodyString) {
         if (bodyString == "") { // parse error
-            ss_fail_count[ss_ri]++;
             console.log('can not send notification since error of converting json to xml');
         }
         else {
-            if (sub_nu.protocol == 'http:' || sub_nu.protocol == 'https:') {
-                request_noti_http(nu, ss_ri, bodyString, sub_bodytype, xm2mri);
-            }
-            else if (sub_nu.protocol == 'coap:') {
-                request_noti_coap(nu, ss_ri, bodyString, sub_bodytype, xm2mri);
-            }
-            else if (sub_nu.protocol == 'ws:') {
-                request_noti_ws(nu, ss_ri, bodyString, sub_bodytype, xm2mri);
-            }
-            else if (sub_nu.protocol == 'mqtt:') { // mqtt:
-                request_noti_mqtt(nu, ss_ri, bodyString, sub_bodytype, xm2mri);
-            }
+            request_noti(nu, ss_ri, bodyString, sub_bodytype, xm2mri, exc);
         }
     });
 }
@@ -325,13 +309,13 @@ function sgn_action(rootnm, check_value, results_ss, noti_Obj, sub_bodytype) {
                                                     nu = 'http://localhost:7579' + absolute_url;
                                                     sub_nu = url.parse(nu);
                                                     if (nct == 2 || nct == 1) {
-                                                        sgn_action_send(nu, sub_nu, sub_bodytype, node, short_flag, check_value, results_ss.cr, results_ss.ri, xm2mri);
+                                                        sgn_action_send(nu, sub_nu, sub_bodytype, node, short_flag, check_value, results_ss.cr, results_ss.ri, xm2mri, results_ss.exc);
                                                     }
                                                 }
                                                 else {
                                                     nu = poa_arr[i];
                                                     if (nct == 2 || nct == 1) {
-                                                        sgn_action_send(nu, sub_nu, sub_bodytype, node, short_flag, check_value, results_ss.cr, results_ss.ri, xm2mri);
+                                                        sgn_action_send(nu, sub_nu, sub_bodytype, node, short_flag, check_value, results_ss.cr, results_ss.ri, xm2mri, results_ss.exc);
                                                     }
                                                 }
                                             }
@@ -347,7 +331,7 @@ function sgn_action(rootnm, check_value, results_ss, noti_Obj, sub_bodytype) {
                 }
                 else { // url format
                     if (nct == 2 || nct == 1) {
-                        sgn_action_send(nu, sub_nu, sub_bodytype, node, short_flag, check_value, results_ss.cr, results_ss.ri, xm2mri);
+                        sgn_action_send(nu, sub_nu, sub_bodytype, node, short_flag, check_value, results_ss.cr, results_ss.ri, xm2mri, results_ss.exc);
                     }
                     else {
                         console.log('nct except 2 (All Attribute) do not support');
@@ -394,16 +378,12 @@ exports.check = function(request, notiObj, check_value) {
             results_ss.enc.net.push('3');
             results_ss.nu = [];
             results_ss.nu.push((request.query.hasOwnProperty('nu') ? request.query.nu : 'http://localhost'));
-            //if (ss_fail_count[results_ss.ri] == null) {
-                ss_fail_count[results_ss.ri] = 0;
-            //}
             sgn_action(rootnm, check_value, results_ss, noti_Obj, request.headers.usebodytype);
         }
         return'1';
     }
 
     if(check_value == 256 || check_value == 128) { // verification
-        ss_fail_count[ri] = 0;
         sgn_action(rootnm, check_value, notiObj, noti_Obj, request.headers.usebodytype);
     }
     else {
@@ -419,399 +399,70 @@ exports.check = function(request, notiObj, check_value) {
                 continue;
             }
 
-            var xm2mri = require('shortid').generate();
-            if (ss_fail_count[subl[i].ri] == null) {
-                ss_fail_count[subl[i].ri] = 0;
-            }
-            else {
-                if(subl[i].exc == 0) {
-                    ss_fail_count[subl[i].ri] = 0;
-                }
-            }
             sgn_action(rootnm, check_value, subl[i], noti_Obj, request.headers.usebodytype);
         }
-
-        // db_sql.select_sub(request, function (err, results_ss) {
-        //     if (!err) {
-        //         for (var i = 0; i < results_ss.length; i++) {
-        //             if(results_ss[i].ri == noti_ri) {
-        //                 continue;
-        //             }
-        //             for (var index in results_ss[i]) {
-        //                 if (results_ss[i].hasOwnProperty(index)) {
-        //                     if (request.hash) {
-        //                         if (request.hash.split('#')[1] == index) {
-        //
-        //                         }
-        //                         else {
-        //                             delete results_ss[i][index];
-        //                         }
-        //                     }
-        //                     else {
-        //                         if(index == 'enc' || index == 'nu') {
-        //                             results_ss[i][index] = JSON.parse(results_ss[i][index]);
-        //                         }
-        //
-        //                         if (typeof results_ss[i][index] === 'boolean') {
-        //                             results_ss[i][index] = results_ss[i][index].toString();
-        //                         }
-        //                         else if (typeof results_ss[i][index] === 'string') {
-        //                             if (results_ss[i][index] == '' || results_ss[i][index] == 'undefined' || results_ss[i][index] == '[]') {
-        //                                 if (results_ss[i][index] == '' && index == 'pi') {
-        //                                     results_ss[i][index] = 'NULL';
-        //                                 }
-        //                                 else {
-        //                                     delete results_ss[i][index];
-        //                                 }
-        //                             }
-        //                         }
-        //                         else if (typeof results_ss[i][index] === 'number') {
-        //                             results_ss[i][index] = results_ss[i][index].toString();
-        //                         }
-        //                         else {
-        //                         }
-        //                     }
-        //                 }
-        //             }
-        //
-        //             var xm2mri = require('shortid').generate();
-        //             if (ss_fail_count[results_ss[i].ri] == null) {
-        //                 ss_fail_count[results_ss[i].ri] = 0;
-        //             }
-        //             else {
-        //                 if(results_ss[i].exc == 0) {
-        //                     ss_fail_count[results_ss[i].ri] = 0;
-        //                 }
-        //             }
-        //             sgn_action(rootnm, check_value, results_ss[i], noti_Obj, request.headers.usebodytype);
-        //         }
-        //     }
-        //     else {
-        //         console.log('query error: ' + results_ss.message);
-        //     }
-        // });
     }
 };
 
-function request_noti_http(nu, ri, bodyString, bodytype, xm2mri) {
-    if(ss_fail_count[ri] == null) {
-        ss_fail_count[ri] = 0;
-    }
-
-    ss_fail_count[ri]++;
-    if (ss_fail_count[ri] >= MAX_NUM_RETRY) {
-        delete ss_fail_count[ri];
-        delete_sub(ri, xm2mri);
-        console.log('      [request_noti_http - ' + ss_fail_count[ri] + '] remove subscription because no response');
-    }
-    else {
-        var bodyStr = '';
-        var options = {
-            hostname: url.parse(nu).hostname,
-            port: url.parse(nu).port,
-            path: url.parse(nu).path,
-            method: 'POST',
-            headers: {
-                'X-M2M-RI': xm2mri,
-                'Accept': 'application/' + bodytype,
-                'X-M2M-Origin': usecseid,
-                'Content-Type': 'application/' + bodytype,
-                'Content-Length' : bodyString.length,
-                'ri': ri,
-                'X-M2M-RVI': uservi
-            }
-        };
-
-        function response_noti_http(res) {
-            res.on('data', function (chunk) {
-                bodyStr += chunk;
-            });
-
-            res.on('end', function () {
-                if (res.statusCode == 200 || res.statusCode == 201) {
-                    console.log('----> [request_noti_http - ' + ss_fail_count[res.req._headers.ri] + ']');
-                    delete ss_fail_count[res.req._headers.ri];
-                }
-            });
-        }
-
-        if (url.parse(nu).protocol == 'http:') {
-            var req = http.request(options, function (res) {
-                response_noti_http(res);
-            });
-        }
-        else {
-            options.ca = fs.readFileSync('ca-crt.pem');
-
-            req = https.request(options, function (res) {
-                response_noti_http(res);
-            });
-        }
-
-        req.on('error', function (e) {
-            console.log('[request_noti_http - problem with request: ' + e.message + ']');
-            console.log('[request_noti_http - no response - ' + ss_fail_count[ri] + ']');
-            // if (ss_fail_count[req._headers.ri] >= MAX_NUM_RETRY) {
-            //     delete ss_fail_count[req._headers.ri];
-            //     delete_sub(req._headers.ri, xm2mri);
-            // }
-        });
-
-        req.on('close', function () {
-            console.log('[request_noti_http - close: no response for notification');
-        });
-
-        console.log('<---- [request_noti_http - ' + ss_fail_count[ri] + '] ');
-        console.log(bodyString);
-        req.write(bodyString);
-        req.end();
-    }
-}
-
-function request_noti_coap(nu, ri, bodyString, bodytype, xm2mri) {
-    var options = {
-        host: url.parse(nu).hostname,
-        port: url.parse(nu).port,
-        pathname: url.parse(nu).path,
-        method: 'post',
-        confirmable: 'false',
-        options: {
-            'Accept': 'application/'+bodytype,
-            'Content-Type': 'application/'+bodytype,
-            'Content-Length' : bodyString.length
-        }
-    };
-
-    var responseBody = '';
-    var req = coap.request(options);
-    req.setOption("256", new Buffer(usecseid));      // X-M2M-Origin
-    req.setOption("257", new Buffer(xm2mri));    // X-M2M-RI
-    req.on('response', function (res) {
-        res.on('data', function () {
-            responseBody += res.payload.toString();
-        });
-
-        res.on('end', function () {
-            if(res.code == '2.03' || res.code == '2.01') {
-                ss_fail_count[ri] = 0;
-                console.log('----> [request_noti_coap] response for notification through coap  ' + res.code + ' - ' + ri);
-            }
-        });
-    });
-
-    req.on('error', function (e) {
-        console.log('[request_noti_coap] problem with request: ' + e.message);
-    });
-
-    console.log('<---- [request_noti_coap] request for notification through coap with ' + bodytype);
-    console.log(bodyString);
-    req.write(bodyString);
-    req.end();
-}
-
-exports.response_noti_handler = function(topic, message) {
-    var topic_arr = topic.split('/');
-    if(topic_arr[5] != null) {
-        var bodytype = (topic_arr[5] == 'xml') ? topic_arr[5] : ((topic_arr[5] == 'json') ? topic_arr[5] : ((topic_arr[5] == 'cbor') ? topic_arr[5] : 'json'));
-    }
-    else {
-        bodytype = defaultbodytype;
-        topic_arr[5] = defaultbodytype;
-    }
-
-    if((topic_arr[1] == 'oneM2M' && topic_arr[2] == 'resp' && ((topic_arr[3].replace(':', '/') == usecseid) || (topic_arr[3] == usecseid.replace('/', ''))))) {
-        make_json_obj(bodytype, message.toString(), function(rsc, jsonObj) {
-            if(rsc == '1') {
-                if(jsonObj['m2m:rsp'] == null) {
-                    jsonObj['m2m:rsp'] = jsonObj;
-                }
-
-                var ss_ri_cache = get_all_ss_ri_cache();
-                for (var idx in ss_ri_cache) {
-                    if (ss_ri_cache.hasOwnProperty(idx)) {
-                        if(idx == jsonObj['m2m:rsp'].rqi) {
-                            var ri = ss_ri_cache[idx].ri;
-
-                            noti_mqtt.unsubscribe(topic);
-
-                            console.log('----> [response_noti_mqtt - ' + ss_fail_count[ri] + '] ' + jsonObj['m2m:rsp'].rsc + ' - ' + topic);
-                            NOPRINT === 'true' ? NOPRINT = 'true' : console.log(message.toString());
-
-                            ss_fail_count[ri] = 0;
-                            delete ss_fail_count[ri];
-                            delete ss_ri_cache[idx];
-
-                            del_ss_ri_cache(idx);
-                        }
-                    }
-                }
-            }
-            else {
-                console.log('[response_noti_mqtt] parsing error');
-            }
-        });
-    }
-};
-
-var cache_ttl = 2;
-function request_noti_mqtt(nu, ri, bodyString, bodytype, xm2mri) {
-    if(noti_mqtt == null) {
-        console.log('[request_noti_mqtt] noti_mqtt is not connected to Mobius');
-        return '0';
-    }
-
-    try {
-        var aeid = url.parse(nu).pathname.replace('/', '').split('?')[0];
-        var noti_resp_topic = '/oneM2M/resp/' + usecseid.replace('/', '') + '/' + aeid + '/' + bodytype;
-        var noti_resp_topic2 = '/oneM2M/resp/' + usecsebase + '/' + aeid + '/' + bodytype;
-
-        if(ss_fail_count[ri] == null) {
-            ss_fail_count[ri] = 0;
-        }
-        ss_fail_count[ri]++;
-        if (ss_fail_count[ri] >= MAX_NUM_RETRY) {
-            delete ss_fail_count[ri];
-            delete_sub(ri, xm2mri);
-            noti_mqtt.unsubscribe(noti_resp_topic);
-            console.log('      [request_noti_mqtt - ' + ss_fail_count[ri] + '] remove subscription because no response');
-        }
-        else {
-            var ss_ri_cache = get_all_ss_ri_cache();
-            ss_ri_cache[xm2mri] = {};
-            ss_ri_cache[xm2mri].ri = ri;
-            ss_ri_cache[xm2mri].ttl = cache_ttl;
-
-            set_ss_ri_cache(xm2mri, ss_ri_cache[xm2mri]);
-
-            //noti_mqtt.unsubscribe(noti_resp_topic);
-            noti_mqtt.subscribe(noti_resp_topic);
-            console.log('subscribe noti_resp_topic as ' + noti_resp_topic);
-
-            noti_mqtt.subscribe(noti_resp_topic2);
-            console.log('subscribe noti_resp_topic as ' + noti_resp_topic2);
-
-            var noti_topic = '/oneM2M/req/' + usecseid.replace('/', '') + '/' + aeid + '/' + bodytype;
-            noti_mqtt.publish(noti_topic, bodyString);
-            console.log('<---- [request_noti_mqtt - ' + ss_fail_count[ri] + '] publish - ' + noti_topic);
-            NOPRINT==='true'?NOPRINT='true':console.log(bodyString);
-        }
-    }
-    catch (e) {
-        console.log(e.message);
-        console.log('can not send notification to ' + nu);
-    }
-}
-
-function request_noti_ws(nu, ri, bodyString, bodytype, xm2mri) {
-    var bodyStr = '';
-
-    if(usesecure == 'disable') {
-        var WebSocketClient = require('websocket').client;
-        var ws_client = new WebSocketClient();
-
-        if(bodytype == 'xml') {
-            ws_client.connect(nu, 'onem2m.r2.0.xml');
-        }
-        else if(bodytype == 'cbor') {
-            ws_client.connect(nu, 'onem2m.r2.0.cbor');
-        }
-        else {
-            ws_client.connect(nu, 'onem2m.r2.0.json');
-        }
-
-        ws_client.on('connectFailed', function (error) {
-            ss_fail_count[ri]++;
-            console.log('Connect Error: ' + error.toString() + ' - ' + ss_fail_count[ri]);
-            ws_client.removeAllListeners();
-
-            if (ss_fail_count[ri] >= MAX_NUM_RETRY) {
-                delete ss_fail_count[ri];
-                delete_sub(ri, xm2mri);
-            }
-        });
-
-        ws_client.on('connect', function (connection) {
-            console.log('<---- [request_noti_ws] ' + nu + ' - ' + bodyString);
-
-            connection.sendUTF(bodyString);
-
-            connection.on('error', function (error) {
-                console.log("[request_noti_ws] Connection Error: " + error.toString());
-
-            });
-            connection.on('close', function () {
-                console.log('[request_noti_ws] Connection Closed');
-            });
-            connection.on('message', function (message) {
-                console.log(message.utf8Data.toString());
-
-                console.log('----> [request_noti_ws] ' + message.utf8Data.toString());
-                ss_fail_count[ri] = 0;
-
-                connection.close();
-            });
-        });
-    }
-    else {
-        console.log('not support secure notification through ws');
-    }
-}
-
-function delete_sub(ri, xm2mri) {
-    // db_sql.delete_ri_lookup(ri, function (err) {
-    //     if (!err) {
-    //         console.log('delete sgn of ' + ri + ' for no response');
-    //     }
-    // });
-
-    var bodyStr = '';
+function request_noti(nu, ri, bodyString, bodytype, xm2mri, exc) {
     var options = {
         hostname: 'localhost',
-        port: usecsebaseport,
-        path: ri,
-        method: 'DELETE',
+        port: use_sgn_man_port,
+        path: '/sgn',
+        method: 'POST',
         headers: {
             'X-M2M-RI': xm2mri,
-            'Accept': 'application/json',
-            'X-M2M-Origin': usesuperuser,
-            'X-M2M-RVI': uservi
+            'Accept': 'application/'+bodytype,
+            'X-M2M-Origin': usecseid,
+            'Content-Type': 'application/' + bodytype,
+            'Content-Length' : bodyString.length,
+            'X-M2M-RVI': uservi,
+            'nu': nu,
+            'bodytype': bodytype,
+            'ri': ri,
+            'exc': exc
         }
     };
 
-    function response_del_sub(res) {
+    var bodyStr = '';
+    if (use_secure == 'disable') {
+        var req = http.request(options, function (res) {
+            resp_noti(res);
+        });
+    }
+    else {
+        options.ca = fs.readFileSync('ca-crt.pem');
+
+        req = https.request(options, function (res) {
+            resp_noti(res);
+        });
+    }
+
+    function resp_noti(res) {
+        res.setEncoding('utf8');
+
         res.on('data', function (chunk) {
             bodyStr += chunk;
         });
 
         res.on('end', function () {
-            if (res.statusCode == 200 || res.statusCode == 202) {
-                console.log('----> [delete_sub - ' + res.statusCode + ']');
+            if(res.statusCode == 200 || res.statusCode == 201) {
+                console.log('-------> [response_noti - ' + res.headers['x-m2m-rsc'] + '] - ' + ri);
             }
         });
     }
 
-    if(usesecure == 'disable') {
-        var req = http.request(options, function (res) {
-            response_del_sub(res);
-        });
-    }
-    else {
-        options.ca = fs.readFileSync('ca-crt.pem');
-        req = https.request(options, function (res) {
-            response_del_sub(res);
-        });
-    }
-
     req.on('error', function (e) {
-        console.log('[delete_sub - problem with request: ' + e.message + ']');
+        if(e.message != 'read ECONNRESET') {
+            //console.log('--xxx--> [request_noti - problem with request: ' + e.message + ']');
+            console.log('--xxx--> [request_noti - no response - ' + ri + ']');
+        }
     });
 
-    req.on('close', function() {
-        console.log('[delete_sub - close: no response for notification');
+    req.on('close', function () {
+        //console.log('--xxx--> [request_noti - close: no response for notification');
     });
 
-    console.log('<---- [delete_sub - ]');
-    req.write('');
+    req.write(bodyString);
     req.end();
 }
-

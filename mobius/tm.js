@@ -158,7 +158,7 @@ exports.request_lock = function(obj, retry_count, callback) {
                 }
             };
 
-            if (usesecure == 'disable') {
+            if (use_secure == 'disable') {
                 var req = http.request(options, function (res) {
                     res.on('data', function (chunk) {
                         resBody += chunk;
@@ -330,7 +330,7 @@ function request_tctl(obj, retry_count, tctl, callback) {
                 }
             };
 
-            if (usesecure == 'disable') {
+            if (use_secure == 'disable') {
                 var req = http.request(options, function (res) {
                     res.on('data', function (chunk) {
                         resBody += chunk;

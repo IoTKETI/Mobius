@@ -157,7 +157,7 @@ exports.request_execute = function(obj, callback) {
         }
     };
 
-    if (usesecure == 'disable') {
+    if (use_secure == 'disable') {
         var req = http.request(options, function (res) {
             res.on('data', function (chunk) {
                 resBody += chunk;
@@ -334,7 +334,7 @@ exports.request_commit = function(obj, callback) {
         }
     };
 
-    if (usesecure == 'disable') {
+    if (use_secure == 'disable') {
         var req = http.request(options, function (res) {
             res.on('data', function (chunk) {
                 resBody += chunk;
