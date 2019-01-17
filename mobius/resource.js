@@ -2511,19 +2511,25 @@ function delete_action(request, response, resource_Obj, comm_Obj, callback) {
             db_sql.delete_lookup(comm_Obj.ri, pi_list, 0, finding_Obj, 0, function (err, search_Obj) {
                 if (!err) {
                     console.timeEnd('delete_lookup ' + comm_Obj.ri);
-                    if (comm_Obj.ty == '23') {
-                        if(comm_Obj.hasOwnProperty('su')) {
-                            if(comm_Obj.su != '') {
-                                var notiObj = JSON.parse(JSON.stringify(comm_Obj));
-                                _this.remove_no_value(request, notiObj);
-                                sgn.check(request, notiObj, 128);
-                            }
-                        }
 
-                        db_sql.select_lookup(comm_Obj.pi, function (err, results_comm) {
-                            if (!err) {
-                                makeObject(results_comm[0]);
-                                var parentObj = results_comm[0];
+                    db_sql.select_lookup(comm_Obj.pi, function (err, results) {
+                        if (!err) {
+                            var ty = results[0].ty;
+                            request.targetObject = {};
+                            request.targetObject[responder.typeRsrc[ty]] = results[0];
+                            var parent_rootnm = Object.keys(request.targetObject)[0];
+                            makeObject(request.targetObject[parent_rootnm]);
+
+                            if (comm_Obj.ty == '23') {
+                                if(comm_Obj.hasOwnProperty('su')) {
+                                    if(comm_Obj.su != '') {
+                                        var notiObj = JSON.parse(JSON.stringify(comm_Obj));
+                                        _this.remove_no_value(request, notiObj);
+                                        sgn.check(request, notiObj, 128);
+                                    }
+                                }
+
+                                var parentObj = request.targetObject[parent_rootnm];
                                 for(var idx in parentObj.subl) {
                                     if(parentObj.subl.hasOwnProperty(idx)) {
                                         if(parentObj.subl[idx].ri == comm_Obj.ri) {
@@ -2532,27 +2538,28 @@ function delete_action(request, response, resource_Obj, comm_Obj, callback) {
                                         }
                                     }
                                 }
+
                                 db_sql.update_lookup(parentObj, function (err, results) {
                                     if (!err) {
                                         callback('1', resource_Obj);
                                     }
                                 });
                             }
-                        });
-                    }
-                    else if (comm_Obj.ty == '29') {
-                        delete_TS(function (rsc, res_Obj) {
-                        });
-                        callback('1', resource_Obj);
-                    }
-                    else if (comm_Obj.ty == '4') {
-                        update_cnt_by_delete(comm_Obj.pi, function (rsc) {
-                        });
-                        callback('1', resource_Obj);
-                    }
-                    else {
-                        callback('1', resource_Obj);
-                    }
+                            else if (comm_Obj.ty == '29') {
+                                delete_TS(function (rsc, res_Obj) {
+                                });
+                                callback('1', resource_Obj);
+                            }
+                            else if (comm_Obj.ty == '4') {
+                                update_cnt_by_delete(comm_Obj.pi, function (rsc) {
+                                });
+                                callback('1', resource_Obj);
+                            }
+                            else {
+                                callback('1', resource_Obj);
+                            }
+                        }
+                    });
                 }
                 else {
                     var body_Obj = {};
