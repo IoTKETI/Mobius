@@ -285,144 +285,144 @@ var worker = [];
 //         });
 //     }
 // }
-
-var hit_cache = {};
-
-global.get_hit_cache = function (name) {
-    return hit_cache[name];
-};
-
-global.get_all_hit_cache = function () {
-    return hit_cache;
-};
-
-global.set_hit_cache = function (name, val) {
-    hit_cache[name] = val;
-
-    if ( cluster.isWorker ) {
-        process.send({
-            cmd: 'hit:broadcast_set',
-            name: name,
-            val: val
-        });
-    }
-    else {
-        broadcast_set_hit_cache(name, val);
-    }
-};
-
-function broadcast_set_hit_cache(name, val) {
-    if ( cluster.isMaster ) {
-        for (var id in cluster.workers) {
-            if(cluster.workers.hasOwnProperty(id)) {
-                var worker = cluster.workers[id];
-
-                worker.send({
-                    cmd: 'hit:edit_set',
-                    name: name,
-                    val: val
-                });
-            }
-        }
-    }
-    else {
-        process.send({
-            cmd: 'hit:broadcast_set'
-        });
-    }
-}
-
-function broadcast_hit_cache() {
-    if ( cluster.isMaster ) {
-        for (var id in cluster.workers) {
-            if(cluster.workers.hasOwnProperty(id)) {
-                var worker = cluster.workers[id];
-
-                worker.send({
-                    cmd: 'hit:edit',
-                    data: hit_cache
-                });
-            }
-        }
-    }
-    else {
-        process.send({
-            cmd: 'hit:broadcast'
-        });
-    }
-}
+//
+// var hit_cache = {};
+//
+// global.get_hit_cache = function (name) {
+//     return hit_cache[name];
+// };
+//
+// global.get_all_hit_cache = function () {
+//     return hit_cache;
+// };
+//
+// global.set_hit_cache = function (name, val) {
+//     hit_cache[name] = val;
+//
+//     if ( cluster.isWorker ) {
+//         process.send({
+//             cmd: 'hit:broadcast_set',
+//             name: name,
+//             val: val
+//         });
+//     }
+//     else {
+//         broadcast_set_hit_cache(name, val);
+//     }
+// };
+//
+// function broadcast_set_hit_cache(name, val) {
+//     if ( cluster.isMaster ) {
+//         for (var id in cluster.workers) {
+//             if(cluster.workers.hasOwnProperty(id)) {
+//                 var worker = cluster.workers[id];
+//
+//                 worker.send({
+//                     cmd: 'hit:edit_set',
+//                     name: name,
+//                     val: val
+//                 });
+//             }
+//         }
+//     }
+//     else {
+//         process.send({
+//             cmd: 'hit:broadcast_set'
+//         });
+//     }
+// }
+//
+// function broadcast_hit_cache() {
+//     if ( cluster.isMaster ) {
+//         for (var id in cluster.workers) {
+//             if(cluster.workers.hasOwnProperty(id)) {
+//                 var worker = cluster.workers[id];
+//
+//                 worker.send({
+//                     cmd: 'hit:edit',
+//                     data: hit_cache
+//                 });
+//             }
+//         }
+//     }
+//     else {
+//         process.send({
+//             cmd: 'hit:broadcast'
+//         });
+//     }
+// }
 
 var use_clustering = 1;
 var worker_init_count = 0;
 if (use_clustering) {
     if (cluster.isMaster) {
-        cluster.on('message', function(worker, message) {
-            if(message.cmd === 'init:notify' ) {
-                worker_init_count++;
-                if(worker_init_count >= cpuCount) {
-                    try {
-                        var hitStr = fs.readFileSync('hit.json', 'utf8');
-                        hit_cache = JSON.parse(hitStr);
-
-                        var moment = require('moment');
-                        var a = moment().utc();
-                        var cur_t = a.format('YYYYMMDD');
-                        if (!hit_cache.hasOwnProperty(cur_t)) {
-                            hit_cache[cur_t] = [];
-                            for (var h = 0; h < 24; h++) {
-                                hit_cache[cur_t].push({});
-                            }
-                        }
-                        broadcast_hit_cache();
-                    }
-                    catch (e) {
-                        moment = require('moment');
-                        a = moment().utc();
-                        cur_t = a.format('YYYYMMDD');
-                        if (!hit_cache.hasOwnProperty(cur_t)) {
-                            hit_cache[cur_t] = [];
-                            for (h = 0; h < 24; h++) {
-                                hit_cache[cur_t].push({});
-                            }
-                        }
-                        broadcast_hit_cache();
-                    }
-
-                    //cbs_cache = {};
-                    //broadcast_cbs_cache();
-                }
-            }
-            // else if(message.cmd === 'ss_ri:edit-request' ) {
-            //     ss_ri_cache[message.name] = message.val;
-            //     broadcast_ss_ri_cache();
-            // }
-            // else if(message.cmd === 'ss_ri:del-request' ) {
-            //     delete ss_ri_cache[message.name];
-            //     broadcast_ss_ri_cache();
-            // }
-            // else if (message.cmd === 'ss_ri:broadcast') {
-            //     broadcast_ss_ri_cache();
-            // }
-            // else if(message.cmd === 'cbs:broadcast_set' ) {
-            //     cbs_cache[message.name] = message.val;
-            //     //console.log(message.name + ' : ' + JSON.stringify(cbs_cache[message.name]));
-            //     broadcast_set_cbs_cache(message.name, message.val);
-            // }
-            // else if (message.cmd === 'cbs:broadcast') {
-            //     delete cbs_cache[message.name];
-            //     broadcast_cbs_cache();
-            // }
-            else if (message.cmd === 'hit:broadcast_set') {
-                hit_cache[message.name] = message.val;
-                //console.log(message.name + ' : ' + JSON.stringify(hit_cache[message.name]));
-                fs.writeFileSync('hit.json', JSON.stringify(hit_cache, null, 4), 'utf8');
-                broadcast_set_hit_cache(message.name, message.val);
-            }
-            else if (message.cmd === 'hit:broadcast') {
-                delete hit_cache[message.name];
-                broadcast_hit_cache();
-            }
-        });
+        // cluster.on('message', function(worker, message) {
+        //     // if(message.cmd === 'init:notify' ) {
+        //     //     worker_init_count++;
+        //     //     if(worker_init_count >= cpuCount) {
+        //     //         // try {
+        //     //         //     var hitStr = fs.readFileSync('hit.json', 'utf8');
+        //     //         //     hit_cache = JSON.parse(hitStr);
+        //     //         //
+        //     //         //     var moment = require('moment');
+        //     //         //     var a = moment().utc();
+        //     //         //     var cur_t = a.format('YYYYMMDD');
+        //     //         //     if (!hit_cache.hasOwnProperty(cur_t)) {
+        //     //         //         hit_cache[cur_t] = [];
+        //     //         //         for (var h = 0; h < 24; h++) {
+        //     //         //             hit_cache[cur_t].push({});
+        //     //         //         }
+        //     //         //     }
+        //     //         //     broadcast_hit_cache();
+        //     //         // }
+        //     //         // catch (e) {
+        //     //         //     moment = require('moment');
+        //     //         //     a = moment().utc();
+        //     //         //     cur_t = a.format('YYYYMMDD');
+        //     //         //     if (!hit_cache.hasOwnProperty(cur_t)) {
+        //     //         //         hit_cache[cur_t] = [];
+        //     //         //         for (h = 0; h < 24; h++) {
+        //     //         //             hit_cache[cur_t].push({});
+        //     //         //         }
+        //     //         //     }
+        //     //         //     broadcast_hit_cache();
+        //     //         // }
+        //     //
+        //     //         //cbs_cache = {};
+        //     //         //broadcast_cbs_cache();
+        //     //     }
+        //     // }
+        //     // else if(message.cmd === 'ss_ri:edit-request' ) {
+        //     //     ss_ri_cache[message.name] = message.val;
+        //     //     broadcast_ss_ri_cache();
+        //     // }
+        //     // else if(message.cmd === 'ss_ri:del-request' ) {
+        //     //     delete ss_ri_cache[message.name];
+        //     //     broadcast_ss_ri_cache();
+        //     // }
+        //     // else if (message.cmd === 'ss_ri:broadcast') {
+        //     //     broadcast_ss_ri_cache();
+        //     // }
+        //     // else if(message.cmd === 'cbs:broadcast_set' ) {
+        //     //     cbs_cache[message.name] = message.val;
+        //     //     //console.log(message.name + ' : ' + JSON.stringify(cbs_cache[message.name]));
+        //     //     broadcast_set_cbs_cache(message.name, message.val);
+        //     // }
+        //     // else if (message.cmd === 'cbs:broadcast') {
+        //     //     delete cbs_cache[message.name];
+        //     //     broadcast_cbs_cache();
+        //     // }
+        //     // else if (message.cmd === 'hit:broadcast_set') {
+        //     //     hit_cache[message.name] = message.val;
+        //     //     //console.log(message.name + ' : ' + JSON.stringify(hit_cache[message.name]));
+        //     //     fs.writeFileSync('hit.json', JSON.stringify(hit_cache, null, 4), 'utf8');
+        //     //     broadcast_set_hit_cache(message.name, message.val);
+        //     // }
+        //     // else if (message.cmd === 'hit:broadcast') {
+        //     //     delete hit_cache[message.name];
+        //     //     broadcast_hit_cache();
+        //     // }
+        // });
 
         cluster.on('death', function (worker) {
             console.log('worker' + worker.pid + ' died --> start again');
@@ -450,8 +450,8 @@ if (use_clustering) {
                         require('./pxy_mqtt');
                         require('./pxy_coap');
                         require('./pxy_ws');
-                        require('./cache_man');
                         require('./sgn_man');
+                        require('./hit_man');
 
                         if (usecsetype == 'mn' || usecsetype == 'asn') {
                             global.refreshIntervalId = setInterval(function () {
@@ -468,34 +468,34 @@ if (use_clustering) {
         //   app.use(bodyParser.json({limit: '1mb', type: 'application/*+json' }));
         //   app.use(bodyParser.text({limit: '1mb', type: 'application/*+xml' }));
 
-        process.send({
-            cmd: 'init:notify'
-        });
+        // process.send({
+        //     cmd: 'init:notify'
+        // });
 
-        process.on('message', function (message) {
-            // if (message.cmd === 'ss_ri:edit') {
-            //     //ss_ri_cache[message.name] = message.val;
-            //     ss_ri_cache = message.data;
-            //     //console.log(ss_ri_cache);
-            // }
-            // else if (message.cmd === 'cbs:edit_set') {
-            //     cbs_cache[message.name] = message.val;
-            //     //console.log(message.val);
-            // }
-            // else if (message.cmd === 'cbs:edit') {
-            //     //cbs_cache[message.name] = message.val;
-            //     cbs_cache = message.data;
-            //     //console.log(cbs_cache);
-            // }
-            if (message.cmd === 'hit:edit_set') {
-                hit_cache[message.name] = message.val;
-                //console.log(message.val);
-            }
-            else if (message.cmd === 'hit:edit') {
-                hit_cache = message.data;
-                //console.log(hit_cache);
-            }
-        });
+        // process.on('message', function (message) {
+        //     // if (message.cmd === 'ss_ri:edit') {
+        //     //     //ss_ri_cache[message.name] = message.val;
+        //     //     ss_ri_cache = message.data;
+        //     //     //console.log(ss_ri_cache);
+        //     // }
+        //     // else if (message.cmd === 'cbs:edit_set') {
+        //     //     cbs_cache[message.name] = message.val;
+        //     //     //console.log(message.val);
+        //     // }
+        //     // else if (message.cmd === 'cbs:edit') {
+        //     //     //cbs_cache[message.name] = message.val;
+        //     //     cbs_cache = message.data;
+        //     //     //console.log(cbs_cache);
+        //     // }
+        //     // if (message.cmd === 'hit:edit_set') {
+        //     //     hit_cache[message.name] = message.val;
+        //     //     //console.log(message.val);
+        //     // }
+        //     // else if (message.cmd === 'hit:edit') {
+        //     //     hit_cache = message.data;
+        //     //     //console.log(hit_cache);
+        //     // }
+        // });
 
         db.connect(usedbhost, 3306, 'root', usedbpass, function (rsc) {
             if (rsc == '1') {
@@ -1539,32 +1539,63 @@ function lookup_delete(request, response) {
 }
 
 function updateHitCount(binding) {
-    try {
-        var _hit = get_all_hit_cache();
+    var bodyObj = {};
+    bodyObj.binding = binding;
+    var bodyString = JSON.stringify(bodyObj);
 
-        var a = moment().utc();
-        var cur_t = a.format('YYYYMMDD');
-        var h = a.hours();
-
-        if (_hit.hasOwnProperty(cur_t)) {
-            _hit[cur_t][h][binding]++;
-
-            //console.log(hit);
-            set_hit_cache(cur_t, _hit[cur_t]);
+    var options = {
+        hostname: 'localhost',
+        port: use_hit_man_port,
+        path: '/hit',
+        method: 'POST',
+        headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+            'Content-Length' : bodyString.length
         }
-        else {
-            _hit[cur_t] = [];
-            for (var i = 0; i < 24; i++) {
-                _hit[cur_t].push({});
-            }
-            _hit[cur_t][h][binding]++;
+    };
 
-            set_hit_cache(cur_t, _hit[cur_t]);
+    var bodyStr = '';
+    if (use_secure == 'disable') {
+        var req = http.request(options, function (res) {
+            resp_noti(res);
+        });
+    }
+    else {
+        options.ca = fs.readFileSync('ca-crt.pem');
+
+        req = https.request(options, function (res) {
+            resp_noti(res);
+        });
+    }
+
+    function resp_noti(res) {
+        res.setEncoding('utf8');
+
+        res.on('data', function (chunk) {
+            bodyStr += chunk;
+        });
+
+        res.on('end', function () {
+            //if(res.statusCode == 200 || res.statusCode == 201) {
+            //    console.log('-------> [response_noti - ' + res.headers['x-m2m-rsc'] + '] - ' + ri);
+            //}
+        });
+    }
+
+    req.on('error', function (e) {
+        if(e.message != 'read ECONNRESET') {
+            //console.log('--xxx--> [request_noti - problem with request: ' + e.message + ']');
+            //console.log('--xxx--> [request_noti - no response - ' + ri + ']');
         }
-    }
-    catch (e) {
-        console.log('[updateHitCount] ' + e.message);
-    }
+    });
+
+    req.on('close', function () {
+        //console.log('--xxx--> [request_noti - close: no response for notification');
+    });
+
+    req.write(bodyString);
+    req.end();
 }
 
 // var resource_cache = {};

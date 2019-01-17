@@ -2084,11 +2084,27 @@ exports.update_cnt_cni = function (obj, callback) {
     });
 };
 
-exports.update_cnt_by_cni = function (obj, cs, callback) {
+exports.update_parent_by_insert = function (obj, cs, callback) {
     var tableName = responder.typeRsrc[parseInt(obj.ty, 10)];
-    var cni_id = 'update_cnt_by_cni ' + obj.ri + ' - ' + require('shortid').generate();
+    var cni_id = 'update_parent_by_insert ' + obj.ri + ' - ' + require('shortid').generate();
     console.time(cni_id);
     var sql = util.format('update %s, lookup set %s.cni = %s.cni+1, %s.cbs = %s.cbs+%s, lookup.st = lookup.st+1 where lookup.ri = \'%s\' and %s.ri = \'%s\'', tableName, tableName, tableName, tableName, tableName, cs, obj.ri, tableName,  obj.ri);
+    db.getResult(sql, '', function (err, results) {
+        if (!err) {
+            console.timeEnd(cni_id);
+            callback(err, results);
+        }
+        else {
+            callback(err, results);
+        }
+    });
+};
+
+exports.update_parent_by_delete = function (obj, cs, callback) {
+    var tableName = responder.typeRsrc[parseInt(obj.ty, 10)];
+    var cni_id = 'update_parent_by_insert ' + obj.ri + ' - ' + require('shortid').generate();
+    console.time(cni_id);
+    var sql = util.format('update %s, lookup set %s.cni = %s.cni-1, %s.cbs = %s.cbs-%s, lookup.st = lookup.st+1 where lookup.ri = \'%s\' and %s.ri = \'%s\'', tableName, tableName, tableName, tableName, tableName, cs, obj.ri, tableName,  obj.ri);
     db.getResult(sql, '', function (err, results) {
         if (!err) {
             console.timeEnd(cni_id);

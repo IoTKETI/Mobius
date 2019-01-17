@@ -488,7 +488,7 @@ function create_action(request, response, ty, resource_Obj, callback) {
                 //
                 // });
 
-                db_sql.update_cnt_by_cni(request.targetObject[parent_rootnm], parseInt(resource_Obj[rootnm].cs, 10), function () {
+                db_sql.update_parent_by_insert(request.targetObject[parent_rootnm], parseInt(resource_Obj[rootnm].cs, 10), function () {
                 });
 
                 callback('1', resource_Obj);
@@ -2465,25 +2465,28 @@ exports.update = function (request, response, comm_Obj, body_Obj) {
 /* 20180322 removed <-- update stateTag for every resources
 
 */
-function delete_action_st(pi, callback) {
-    // db_sql.select_st(pi, function (err, results_st) {
-    //     if (results_st.length == 1) {
-    //         var st = results_st[0]['st'];
-    //         st = (parseInt(st, 10) + 1).toString();
-            db_sql.update_st(results_st[0], function (err, results) {
-                if (!err) {
-                    callback('1', st);
-                }
-                else {
-                    var body_Obj = {};
-                    body_Obj['dbg'] = results.message;
-                    console.log(JSON.stringify(body_Obj));
-                    callback('0');
-                    return '0';
-                }
+function update_cnt_by_delete(pi, cs, callback) {
+    db_sql.select_resource_from_url(pi, pi, function (err, results) {
+        if (err) {
+            callback(null, 500);
+            return '0';
+        }
+        else {
+            if (results.length == 0) {
+                callback(null, 404);
+                return '0';
+            }
+
+            var targetObject = {};
+            var ty = results[0].ty;
+            targetObject[responder.typeRsrc[ty]] = results[0];
+            var rootnm = Object.keys(targetObject)[0];
+            makeObject(targetObject[rootnm]);
+
+            db_sql.update_parent_by_delete(targetObject[rootnm], cs, function (err, results) {
             });
-    //     }
-    // });
+        }
+    });
 }
 
 function delete_action(request, response, resource_Obj, comm_Obj, callback) {
@@ -2543,7 +2546,7 @@ function delete_action(request, response, resource_Obj, comm_Obj, callback) {
                         callback('1', resource_Obj);
                     }
                     else if (comm_Obj.ty == '4') {
-                        delete_action_st(comm_Obj.pi, function (rsc) {
+                        update_cnt_by_delete(comm_Obj.pi, function (rsc) {
                         });
                         callback('1', resource_Obj);
                     }

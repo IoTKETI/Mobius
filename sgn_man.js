@@ -29,8 +29,6 @@ var moment = require('moment');
 var ip = require("ip");
 var cbor = require('cbor');
 
-var responder = require('./mobius/responder');
-
 var resp_mqtt_rqi_arr = [];
 var resp_mqtt_rqi_arr_max_size = 512;
 var http_response_q = {};
@@ -65,7 +63,7 @@ else {
 }
 
 sgn_server.listen({port: use_sgn_man_port, agent: false}, function () {
-    NOPRINT === 'true' ? NOPRINT = 'true' : console.log('sgn_man server (' + ip.address() + ') running at ' + use_sgn_man_port + ' port');
+    console.log('sgn_man server (' + ip.address() + ') running at ' + use_sgn_man_port + ' port');
 });
 
 sgn_server.on('connection', function (socket) {
