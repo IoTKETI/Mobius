@@ -28,7 +28,7 @@ var merge = require('merge');
 
 var responder = require('./responder');
 
-function make_xml_noti_message(pc, xm2mri) {
+function make_xml_noti_message(pc, xm2mri, callback) {
     try {
         var noti_message = {};
         noti_message['m2m:rqp'] = {};
@@ -73,10 +73,13 @@ function make_xml_noti_message(pc, xm2mri) {
             "xmlns:xsi": "http://www.w3.org/2001/XMLSchema-instance"
         };
 
-        return js2xmlparser.parse("m2m:rqp", noti_message['m2m:rqp']);
+        var xmlString = js2xmlparser.parse("m2m:rqp", noti_message['m2m:rqp']);
+
+        callback(xmlString);
     }
     catch (e) {
         console.log('[make_xml_noti_message] xml parsing error');
+        callback(e.message);
         return "";
     }
 }
@@ -137,8 +140,10 @@ function make_body_string_for_noti(protocol, nu, node, sub_bodytype, xm2mri, sho
             callback(bodyString);
         }
         else if (protocol == 'ws:' || protocol == 'mqtt:') {
-            bodyString = make_xml_noti_message(node, xm2mri);
-            callback(bodyString);
+            make_xml_noti_message(node, xm2mri, function (bodyString) {
+                callback(bodyString);
+            });
+
         }
         else {
             callback('');
@@ -240,6 +245,8 @@ function sgn_action_send(nu, sub_nu, sub_bodytype, node, short_flag, check_value
 }
 
 function sgn_action(rootnm, check_value, results_ss, noti_Obj, sub_bodytype) {
+    var notiObj = merge({}, noti_Obj);
+
     var nct = results_ss.nct;
     var enc_Obj = results_ss.enc;
     var net_arr = enc_Obj.net;
@@ -269,7 +276,7 @@ function sgn_action(rootnm, check_value, results_ss, noti_Obj, sub_bodytype) {
                 node['m2m:sgn'].nev = {};
                 node['m2m:sgn'].nev.net = parseInt(net_arr[j].toString());
                 node['m2m:sgn'].nev.rep = {};
-                node['m2m:sgn'].nev.rep['m2m:' + rootnm] = noti_Obj;
+                node['m2m:sgn'].nev.rep['m2m:' + rootnm] = notiObj;
 
                 responder.typeCheckforJson(node['m2m:sgn'].nev.rep);
 
@@ -399,6 +406,7 @@ exports.check = function(request, notiObj, check_value) {
                 continue;
             }
 
+            console.log('send sgn ' + i);
             sgn_action(rootnm, check_value, subl[i], noti_Obj, request.headers.usebodytype);
         }
     }
