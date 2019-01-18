@@ -68,7 +68,7 @@ sgn_server.listen({port: use_sgn_man_port, agent: false}, function () {
 
 sgn_server.on('connection', function (socket) {
     //console.log("A new connection was made by a client.");
-    socket.setTimeout(10 * 1000, function () {
+    socket.setTimeout(5000, function () {
         if(ss_fail_count.hasOwnProperty(socket._httpMessage.req.headers.ri)) {
             ss_fail_count[socket._httpMessage.req.headers.ri]++;
         }
@@ -249,12 +249,7 @@ function sgn_mqtt_message_handler(topic, message) {
                 }
             }
             else {
-                var resp_topic = '/oneM2M/resp/';
-                if (topic_arr[2] === 'reg_req') {
-                    resp_topic = '/oneM2M/reg_resp/';
-                }
-                resp_topic += (topic_arr[3] + '/' + topic_arr[4] + '/' + topic_arr[5]);
-                mqtt_response(resp_topic, 4000, '', '', '', '', 'to parsing error', bodytype);
+                console.log('[sgn_mqtt_message_handler] parsing error')
             }
         });
     }

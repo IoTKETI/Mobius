@@ -19,23 +19,10 @@ var http = require('http');
 var https = require('https');
 var express = require('express');
 var bodyParser = require('body-parser');
-var url = require('url');
-var xmlbuilder = require('xmlbuilder');
 var moment = require('moment');
 var ip = require("ip");
 
-var resp_mqtt_rqi_arr = [];
-var resp_mqtt_rqi_arr_max_size = 512;
-var http_response_q = {};
-
-global.NOPRINT = 'true';
-
-var _this = this;
-
 var hit_cache = {};
-
-var MAX_NUM_RETRY = 16;
-var ss_fail_count = {};
 
 var hit_app = express();
 
@@ -91,18 +78,7 @@ hit_server.listen({port: use_hit_man_port, agent: false}, function () {
 
 hit_server.on('connection', function (socket) {
     //console.log("A new connection was made by a client.");
-    socket.setTimeout(10 * 1000, function () {
-        if(ss_fail_count.hasOwnProperty(socket._httpMessage.req.headers.ri)) {
-            ss_fail_count[socket._httpMessage.req.headers.ri]++;
-        }
-
-        for (var i = 0; i < resp_mqtt_rqi_arr.length; i++) {
-            if (resp_mqtt_rqi_arr[i] == socket._httpMessage.req.headers['x-m2m-ri']) {
-                delete http_response_q[resp_mqtt_rqi_arr[i]];
-                resp_mqtt_rqi_arr.splice(i, 1);
-                break;
-            }
-        }
+    socket.setTimeout(1000, function () {
     });
 });
 
@@ -141,6 +117,7 @@ hit_app.post('/hit', onem2mParser, function(request, response, next) {
             }
 
             fs.writeFileSync('hit.json', JSON.stringify(hit_cache, null, 4), 'utf8');
+            response.status(201).end('');
         }
         catch (e) {
             console.log('[updateHitCount] ' + e.message);
