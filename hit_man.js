@@ -90,7 +90,7 @@ var onem2mParser = bodyParser.text(
     }
 );
 
-hit_app.post('/hit', onem2mParser, function(request, response, next) {
+hit_app.post('/hit_count', onem2mParser, function(request, response, next) {
     var fullBody = '';
     request.on('data', function(chunk) {
         fullBody += chunk.toString();
@@ -118,6 +118,24 @@ hit_app.post('/hit', onem2mParser, function(request, response, next) {
 
             fs.writeFileSync('hit.json', JSON.stringify(hit_cache, null, 4), 'utf8');
             response.status(201).end('');
+        }
+        catch (e) {
+            console.log('[updateHitCount] ' + e.message);
+        }
+    });
+});
+
+hit_app.get('/hit_count', onem2mParser, function(request, response, next) {
+    var fullBody = '';
+    request.on('data', function(chunk) {
+        fullBody += chunk.toString();
+    });
+
+    request.on('end', function() {
+        request.body = fullBody;
+
+        try {
+            response.status(200).end(JSON.stringify(hit_cache));
         }
         catch (e) {
             console.log('[updateHitCount] ' + e.message);

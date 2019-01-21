@@ -1546,7 +1546,7 @@ function updateHitCount(binding) {
     var options = {
         hostname: 'localhost',
         port: use_hit_man_port,
-        path: '/hit',
+        path: '/hit_count',
         method: 'POST',
         headers: {
             'Accept': 'application/json',
@@ -1736,6 +1736,58 @@ global.get_resource_from_url = function(absolute_url, absolute_url_arr, callback
     // }
 };
 
+function retrieveHitCount(response) {
+    var options = {
+        hostname: 'localhost',
+        port: use_hit_man_port,
+        path: '/hit_count',
+        method: 'GET',
+        headers: {
+            'Accept': 'application/json'
+        }
+    };
+
+    var bodyStr = '';
+    if (use_secure == 'disable') {
+        var req = http.request(options, function (res) {
+            resp_noti(res);
+        });
+    }
+    else {
+        options.ca = fs.readFileSync('ca-crt.pem');
+
+        req = https.request(options, function (res) {
+            resp_noti(res);
+        });
+    }
+
+    function resp_noti(res) {
+        res.setEncoding('utf8');
+
+        res.on('data', function (chunk) {
+            bodyStr += chunk;
+        });
+
+        res.on('end', function () {
+            response.status(200).end(bodyStr);
+        });
+    }
+
+    req.on('error', function (e) {
+        if(e.message != 'read ECONNRESET') {
+            //console.log('--xxx--> [request_noti - problem with request: ' + e.message + ']');
+            //console.log('--xxx--> [request_noti - no response - ' + ri + ']');
+        }
+    });
+
+    req.on('close', function () {
+        //console.log('--xxx--> [request_noti - close: no response for notification');
+    });
+
+    req.write('');
+    req.end();
+}
+
 global.elapsed_hrstart = {};
 
 var onem2mParser = bodyParser.text(
@@ -1887,6 +1939,33 @@ app.use(function (request, response, next) {
                     return '0';
                 }
                 else {
+                    if(request.method == 'GET') {
+                        if (url.parse(absolute_url).pathname == '/hit') {
+                            retrieveHitCount(response);
+                            return;
+                        }
+
+                        if (url.parse(absolute_url).pathname == '/total_ae') {
+                            db_sql.select_sum_ae(function (err, result) {
+                                if (!err) {
+                                    var total_ae = result[0];
+                                    response.status(200).end(JSON.stringify(total_ae, null, 4));
+                                }
+                            });
+                            return;
+                        }
+
+                        if (url.parse(absolute_url).pathname == '/total_cbs') {
+                            db_sql.select_sum_cbs(function (err, result) {
+                                if (!err) {
+                                    var total_cbs = result[0];
+                                    response.status(200).end(JSON.stringify(total_cbs, null, 4));
+                                }
+                            });
+                            return;
+                        }
+                    }
+
                     check_csr(absolute_url, request, response);
                     return '0';
                 }
@@ -2033,32 +2112,6 @@ app.get(onem2mParser, function (request, response) {
 
         var rootnm = Object.keys(request.targetObject)[0];
         var absolute_url = request.targetObject[rootnm].ri;
-
-        if (url.parse(absolute_url).pathname == '/hit') {
-            var _hit = get_all_hit_cache();
-            response.status(200).end(JSON.stringify(_hit, null, 4));
-            return;
-        }
-
-        if (url.parse(absolute_url).pathname == '/total_ae') {
-            db_sql.select_sum_ae(function (err, result) {
-                if(!err) {
-                    var total_ae = result[0];
-                    response.status(200).end(JSON.stringify(total_ae, null, 4));
-                }
-            });
-            return;
-        }
-
-        if (url.parse(absolute_url).pathname == '/total_cbs') {
-            db_sql.select_sum_cbs(function (err, result) {
-                if(!err) {
-                    var total_cbs = result[0];
-                    response.status(200).end(JSON.stringify(total_cbs, null, 4));
-                }
-            });
-            return;
-        }
 
         request.url = absolute_url;
         if ((request.query.fu == 1 || request.query.fu == 2) && (request.query.rcn == 1 || request.query.rcn == 4 || request.query.rcn == 5 || request.query.rcn == 6 || request.query.rcn == 7)) {
