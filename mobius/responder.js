@@ -1577,32 +1577,41 @@ function store_to_req_resource(request, bodyString, rsc, cap) {
 
 exports.response_result = function(request, response, status, body_Obj, rsc, ri, cap) {
     if (request.query.rt == 3) {
-        if (request.headers['x-m2m-ri'] != null) {
-            response.setHeader('X-M2M-RI', request.headers['x-m2m-ri']);
-        }
+        var check_header = ['x-m2m-ri', 'x-m2m-rvi', 'locale', 'accept'];
 
-        if (request.headers['x-m2m-rvi'] != null) {
-            response.setHeader('X-M2M-rvi', request.headers['x-m2m-rvi']);
-        }
-
-        if (request.headers.locale != null) {
-            response.setHeader('locale', request.headers.locale);
+        for(var idx in check_header) {
+            var chk = check_header[idx];
+            if(request.headers.hasOwnProperty(chk)) {
+                if(chk === 'x-m2m-ri' || chk === 'x-m2m-rvi') {
+                    response.setHeader(chk.toUpperCase(), request.headers[chk]);
+                }
+                else if(chk === 'locale') {
+                    response.setHeader(chk, request.headers[chk]);
+                }
+                else if(chk === 'accept') {
+                    if(request.headers[chk].includes('xml')) {
+                        request.headers.usebodytype = 'xml';
+                        response.setHeader('Content-Type', 'application/xml');
+                    }
+                    else if(request.headers[chk].includes('cbor')) {
+                        request.headers.usebodytype = 'cbor';
+                        response.setHeader('Content-Type', 'application/cbor');
+                    }
+                    else {
+                        request.headers.usebodytype = 'json';
+                        response.setHeader('Content-Type', 'application/json');
+                    }
+                }
+            }
+            else {
+                if(chk === 'accept') {
+                    request.headers.usebodytype = 'json';
+                    response.setHeader('Content-Type', 'application/json');
+                }
+            }
         }
 
         response.setHeader('X-M2M-RSC', rsc);
-
-        if(request.headers['accept'].includes('xml')) {
-            request.headers.usebodytype = 'xml';
-            response.setHeader('Content-Type', 'application/xml');
-        }
-        else if(request.headers['accept'].includes('cbor')) {
-            request.headers.usebodytype = 'cbor';
-            response.setHeader('Content-Type', 'application/cbor');
-        }
-        else {
-            request.headers.usebodytype = 'json';
-            response.setHeader('Content-Type', 'application/json');
-        }
     }
 
     if (request.query.rcn == 0 && Object.keys(body_Obj)[0] != 'dbg') {
@@ -1693,32 +1702,41 @@ exports.response_result = function(request, response, status, body_Obj, rsc, ri,
 
 exports.response_rcn3_result = function(request, response, status, body_Obj, rsc, ri, cap) {
     if (request.query.rt == 3) {
-        if (request.headers['x-m2m-ri'] != null) {
-            response.setHeader('X-M2M-RI', request.headers['x-m2m-ri']);
-        }
+        var check_header = ['x-m2m-ri', 'x-m2m-rvi', 'locale', 'accept'];
 
-        if (request.headers['x-m2m-rvi'] != null) {
-            response.setHeader('X-M2M-rvi', request.headers['x-m2m-rvi']);
-        }
-
-        if (request.headers.locale != null) {
-            response.setHeader('locale', request.headers.locale);
+        for(var idx in check_header) {
+            var chk = check_header[idx];
+            if(request.headers.hasOwnProperty(chk)) {
+                if(chk === 'x-m2m-ri' || chk === 'x-m2m-rvi') {
+                    response.setHeader(chk.toUpperCase(), request.headers[chk]);
+                }
+                else if(chk === 'locale') {
+                    response.setHeader(chk, request.headers[chk]);
+                }
+                else if(chk === 'accept') {
+                    if(request.headers[chk].includes('xml')) {
+                        request.headers.usebodytype = 'xml';
+                        response.setHeader('Content-Type', 'application/xml');
+                    }
+                    else if(request.headers[chk].includes('cbor')) {
+                        request.headers.usebodytype = 'cbor';
+                        response.setHeader('Content-Type', 'application/cbor');
+                    }
+                    else {
+                        request.headers.usebodytype = 'json';
+                        response.setHeader('Content-Type', 'application/json');
+                    }
+                }
+            }
+            else {
+                if(chk === 'accept') {
+                    request.headers.usebodytype = 'json';
+                    response.setHeader('Content-Type', 'application/json');
+                }
+            }
         }
 
         response.setHeader('X-M2M-RSC', rsc);
-
-        if(request.headers['accept'].includes('xml')) {
-            request.headers.usebodytype = 'xml';
-            response.setHeader('Content-Type', 'application/xml');
-        }
-        else if(request.headers['accept'].includes('cbor')) {
-            request.headers.usebodytype = 'cbor';
-            response.setHeader('Content-Type', 'application/cbor');
-        }
-        else {
-            request.headers.usebodytype = 'json';
-            response.setHeader('Content-Type', 'application/json');
-        }
     }
 
     var rootnm = request.headers.rootnm;
@@ -1790,32 +1808,41 @@ exports.response_rcn3_result = function(request, response, status, body_Obj, rsc
 
 exports.search_result = function(request, response, status, body_Obj, rsc, ri, cap) {
     if (request.query.rt == 3) {
-        if (request.headers['x-m2m-ri'] != null) {
-            response.setHeader('X-M2M-RI', request.headers['x-m2m-ri']);
-        }
+        var check_header = ['x-m2m-ri', 'x-m2m-rvi', 'locale', 'accept'];
 
-        if (request.headers['x-m2m-rvi'] != null) {
-            response.setHeader('X-M2M-rvi', request.headers['x-m2m-rvi']);
-        }
-
-        if (request.headers.locale != null) {
-            response.setHeader('locale', request.headers.locale);
+        for(var idx in check_header) {
+            var chk = check_header[idx];
+            if(request.headers.hasOwnProperty(chk)) {
+                if(chk === 'x-m2m-ri' || chk === 'x-m2m-rvi') {
+                    response.setHeader(chk.toUpperCase(), request.headers[chk]);
+                }
+                else if(chk === 'locale') {
+                    response.setHeader(chk, request.headers[chk]);
+                }
+                else if(chk === 'accept') {
+                    if(request.headers[chk].includes('xml')) {
+                        request.headers.usebodytype = 'xml';
+                        response.setHeader('Content-Type', 'application/xml');
+                    }
+                    else if(request.headers[chk].includes('cbor')) {
+                        request.headers.usebodytype = 'cbor';
+                        response.setHeader('Content-Type', 'application/cbor');
+                    }
+                    else {
+                        request.headers.usebodytype = 'json';
+                        response.setHeader('Content-Type', 'application/json');
+                    }
+                }
+            }
+            else {
+                if(chk === 'accept') {
+                    request.headers.usebodytype = 'json';
+                    response.setHeader('Content-Type', 'application/json');
+                }
+            }
         }
 
         response.setHeader('X-M2M-RSC', rsc);
-
-        if(request.headers['accept'].includes('xml')) {
-            request.headers.usebodytype = 'xml';
-            response.setHeader('Content-Type', 'application/xml');
-        }
-        else if(request.headers['accept'].includes('cbor')) {
-            request.headers.usebodytype = 'cbor';
-            response.setHeader('Content-Type', 'application/cbor');
-        }
-        else {
-            request.headers.usebodytype = 'json';
-            response.setHeader('Content-Type', 'application/json');
-        }
     }
 
     if (Object.keys(body_Obj)[0] == 'rsp') {
