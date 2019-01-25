@@ -308,7 +308,7 @@ ts_app.post('/missingDataDetect', onem2mParser, function(request, response) {
                             }
                         }
 
-                        response.setHeader('X-M2M-RSC', '2000');
+                        response.header('X-M2M-RSC', '2000');
 
                         ts.status = '2000';
                         ts.ri = jsonObj['m2m:uril']['_'];
@@ -316,7 +316,7 @@ ts_app.post('/missingDataDetect', onem2mParser, function(request, response) {
                     });
                 }
                 else {
-                    response.setHeader('X-M2M-RSC', '4004');
+                    response.header('X-M2M-RSC', '4004');
                     ts.status = '4004';
                     ts.ri = '';
                     response.status(404).end(JSON.stringify(ts));
@@ -329,7 +329,7 @@ ts_app.post('/missingDataDetect', onem2mParser, function(request, response) {
                     if (results_ts.length == 1) {
                         missing_detect_check(results_ts[0].pei, results_ts[0].mdd, results_ts[0].mdt, results_ts[0].cni, results_ts[0].ri, function (rsc) {
                             console.log(rsc.status + ' - ' + rsc.ri);
-                            response.setHeader('X-M2M-RSC', '2000');
+                            response.header('X-M2M-RSC', '2000');
                             response.status(200).end(JSON.stringify(rsc));
                         });
                     }
@@ -367,7 +367,7 @@ ts_app.delete('/missingDataDetect', onem2mParser, function(request, response) {
         rsc.status = 2000;
         rsc.ri = request.url;
         console.log(rsc.status + ' - ' + rsc.ri);
-        response.setHeader('X-M2M-RSC', '2000');
+        response.header('X-M2M-RSC', '2000');
         response.status(200).end(JSON.stringify(rsc));
     });
 });

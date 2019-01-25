@@ -168,7 +168,7 @@ sgn_app.post('/sgn', onem2mParser, function(request, response, next) {
             var rsp_Obj = {};
             rsp_Obj['rsp'] = {};
             rsp_Obj['rsp'].dbg = 'notificationUrl does not support : ' + request.headers.nu;
-            response.setHeader('X-M2M-RSC', '4000');
+            response.header('X-M2M-RSC', '4000');
             response.status(400).end(JSON.stringify(rsp_Obj));
         }
     });
@@ -216,8 +216,8 @@ function sgn_mqtt_message_handler(topic, message) {
                         if (resp_mqtt_rqi_arr[i] == jsonObj['m2m:rsp'].rqi) {
                             NOPRINT==='true'?NOPRINT='true':console.log('----> ' + jsonObj['m2m:rsp'].rsc);
 
-                            http_response_q[resp_mqtt_rqi_arr[i]].setHeader('X-M2M-RSC', jsonObj['m2m:rsp'].rsc);
-                            http_response_q[resp_mqtt_rqi_arr[i]].setHeader('X-M2M-RI', resp_mqtt_rqi_arr[i]);
+                            http_response_q[resp_mqtt_rqi_arr[i]].header('X-M2M-RSC', jsonObj['m2m:rsp'].rsc);
+                            http_response_q[resp_mqtt_rqi_arr[i]].header('X-M2M-RI', resp_mqtt_rqi_arr[i]);
 
                             var status_code = '404';
                             if(jsonObj['m2m:rsp'].rsc == '4105') {
@@ -285,8 +285,8 @@ function request_noti_http(response, nu, ri, bodyString, bodytype, xm2mri) {
                 //console.log('----> [request_noti_http - ' + ss_fail_count[ri] + ']');
                 delete ss_fail_count[ri];
 
-                response.setHeader('X-M2M-RSC', res.headers['x-m2m-rsc']);
-                response.setHeader('X-M2M-RI', res.headers['x-m2m-ri']);
+                response.header('X-M2M-RSC', res.headers['x-m2m-rsc']);
+                response.header('X-M2M-RI', res.headers['x-m2m-ri']);
 
                 response.status(res.statusCode).end(bodyStr);
             }
@@ -349,8 +349,8 @@ function request_noti_coap(response, nu, ri, bodyString, bodytype, xm2mri) {
                 //console.log('----> [request_noti_coap] response for notification through coap  ' + res.code + ' - ' + ri);
                 delete ss_fail_count[ri];
 
-                response.setHeader('X-M2M-RSC', 2000);
-                response.setHeader('X-M2M-RI', xm2mri);
+                response.header('X-M2M-RSC', 2000);
+                response.header('X-M2M-RI', xm2mri);
 
                 response.status(200).end(responseBody);
             }
@@ -441,8 +441,8 @@ function request_noti_ws(response, nu, ri, bodyString, bodytype, xm2mri) {
 
                 delete ss_fail_count[ri];
 
-                response.setHeader('X-M2M-RSC', 2000);
-                response.setHeader('X-M2M-RI', xm2mri);
+                response.header('X-M2M-RSC', 2000);
+                response.header('X-M2M-RI', xm2mri);
 
                 response.status(200).end(message.utf8Data.toString());
 

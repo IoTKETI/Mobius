@@ -202,8 +202,8 @@ function mqtt_message_handler(topic, message) {
                         if (resp_mqtt_rqi_arr[i] == jsonObj['m2m:rsp'].rqi) {
                             NOPRINT==='true'?NOPRINT='true':console.log('----> ' + jsonObj['m2m:rsp'].rsc);
 
-                            http_response_q[resp_mqtt_rqi_arr[i]].setHeader('X-M2M-RSC', jsonObj['m2m:rsp'].rsc);
-                            http_response_q[resp_mqtt_rqi_arr[i]].setHeader('X-M2M-RI', resp_mqtt_rqi_arr[i]);
+                            http_response_q[resp_mqtt_rqi_arr[i]].header('X-M2M-RSC', jsonObj['m2m:rsp'].rsc);
+                            http_response_q[resp_mqtt_rqi_arr[i]].header('X-M2M-RI', resp_mqtt_rqi_arr[i]);
 
                             var status_code = '404';
                             if(jsonObj['m2m:rsp'].rsc == '4105') {
@@ -633,7 +633,7 @@ mqtt_app.post('/notification', onem2mParser, function(request, response, next) {
             var rsp_Obj = {};
             rsp_Obj['rsp'] = {};
             rsp_Obj['rsp'].dbg = 'notificationUrl does not support : ' + request.headers.nu;
-            response.setHeader('X-M2M-RSC', '4000');
+            response.header('X-M2M-RSC', '4000');
             response.status(400).end(JSON.stringify(rsp_Obj));
         }
     });

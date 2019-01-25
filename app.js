@@ -1811,6 +1811,36 @@ app.use(function (req, res, next) {
 });
 
 app.use(function (request, response, next) {
+    if(request.method == 'GET') {
+        if (request.url == '/hit') {
+            response.header('Content-Type', 'application/json');
+            retrieveHitCount(response);
+            return;
+        }
+
+        if (request.url == '/total_ae') {
+            db_sql.select_sum_ae(function (err, result) {
+                if (!err) {
+                    var total_ae = result[0];
+                    response.header('Content-Type', 'application/json');
+                    response.status(200).end(JSON.stringify(total_ae, null, 4));
+                }
+            });
+            return;
+        }
+
+        if (request.url == '/total_cbs') {
+            db_sql.select_sum_cbs(function (err, result) {
+                if (!err) {
+                    var total_cbs = result[0];
+                    response.header('Content-Type', 'application/json');
+                    response.status(200).end(JSON.stringify(total_cbs, null, 4));
+                }
+            });
+            return;
+        }
+    }
+
     // Check X-M2M-RI Header
     if ((request.headers['x-m2m-ri'] == null)) {
         responder.error_result(request, response, 400, 4000, 'BAD REQUEST: X-M2M-RI is none');
@@ -1939,33 +1969,6 @@ app.use(function (request, response, next) {
                     return '0';
                 }
                 else {
-                    if(request.method == 'GET') {
-                        if (url.parse(absolute_url).pathname == '/hit') {
-                            retrieveHitCount(response);
-                            return;
-                        }
-
-                        if (url.parse(absolute_url).pathname == '/total_ae') {
-                            db_sql.select_sum_ae(function (err, result) {
-                                if (!err) {
-                                    var total_ae = result[0];
-                                    response.status(200).end(JSON.stringify(total_ae, null, 4));
-                                }
-                            });
-                            return;
-                        }
-
-                        if (url.parse(absolute_url).pathname == '/total_cbs') {
-                            db_sql.select_sum_cbs(function (err, result) {
-                                if (!err) {
-                                    var total_cbs = result[0];
-                                    response.status(200).end(JSON.stringify(total_cbs, null, 4));
-                                }
-                            });
-                            return;
-                        }
-                    }
-
                     check_csr(absolute_url, request, response);
                     return '0';
                 }
@@ -2411,19 +2414,19 @@ function notify_http(hostname, port, path, request, response) {
 
             //response.headers = res.headers;
             if (res.headers['content-type']) {
-                response.setHeader('Content-Type', res.headers['content-type']);
+                response.header('Content-Type', res.headers['content-type']);
             }
             if (res.headers['x-m2m-ri']) {
-                response.setHeader('X-M2M-RI', res.headers['x-m2m-ri']);
+                response.header('X-M2M-RI', res.headers['x-m2m-ri']);
             }
             if (res.headers['x-m2m-rvi']) {
-                response.setHeader('X-M2M-RVI', res.headers['x-m2m-rvi']);
+                response.header('X-M2M-RVI', res.headers['x-m2m-rvi']);
             }
             if (res.headers['x-m2m-rsc']) {
-                response.setHeader('X-M2M-RSC', res.headers['x-m2m-rsc']);
+                response.header('X-M2M-RSC', res.headers['x-m2m-rsc']);
             }
             if (res.headers['content-location']) {
-                response.setHeader('Content-Location', res.headers['content-location']);
+                response.header('Content-Location', res.headers['content-location']);
             }
 
             response.statusCode = res.statusCode;
@@ -2476,19 +2479,19 @@ function forward_http(forwardcbhost, forwardcbport, request, response) {
 
             //response.headers = res.headers;
             if (res.headers['content-type']) {
-                response.setHeader('Content-Type', res.headers['content-type']);
+                response.header('Content-Type', res.headers['content-type']);
             }
             if (res.headers['x-m2m-ri']) {
-                response.setHeader('X-M2M-RI', res.headers['x-m2m-ri']);
+                response.header('X-M2M-RI', res.headers['x-m2m-ri']);
             }
             if (res.headers['x-m2m-rvi']) {
-                response.setHeader('X-M2M-RVI', res.headers['x-m2m-rvi']);
+                response.header('X-M2M-RVI', res.headers['x-m2m-rvi']);
             }
             if (res.headers['x-m2m-rsc']) {
-                response.setHeader('X-M2M-RSC', res.headers['x-m2m-rsc']);
+                response.header('X-M2M-RSC', res.headers['x-m2m-rsc']);
             }
             if (res.headers['content-location']) {
-                response.setHeader('Content-Location', res.headers['content-location']);
+                response.header('Content-Location', res.headers['content-location']);
             }
 
             response.statusCode = res.statusCode;

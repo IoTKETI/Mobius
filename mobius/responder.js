@@ -1583,35 +1583,35 @@ exports.response_result = function(request, response, status, body_Obj, rsc, ri,
             var chk = check_header[idx];
             if(request.headers.hasOwnProperty(chk)) {
                 if(chk === 'x-m2m-ri' || chk === 'x-m2m-rvi') {
-                    response.setHeader(chk.toUpperCase(), request.headers[chk]);
+                    response.header(chk.toUpperCase(), request.headers[chk]);
                 }
                 else if(chk === 'locale') {
-                    response.setHeader(chk, request.headers[chk]);
+                    response.header(chk, request.headers[chk]);
                 }
                 else if(chk === 'accept') {
                     if(request.headers[chk].includes('xml')) {
                         request.headers.usebodytype = 'xml';
-                        response.setHeader('Content-Type', 'application/xml');
+                        response.header('Content-Type', 'application/xml');
                     }
                     else if(request.headers[chk].includes('cbor')) {
                         request.headers.usebodytype = 'cbor';
-                        response.setHeader('Content-Type', 'application/cbor');
+                        response.header('Content-Type', 'application/cbor');
                     }
                     else {
                         request.headers.usebodytype = 'json';
-                        response.setHeader('Content-Type', 'application/json');
+                        response.header('Content-Type', 'application/json');
                     }
                 }
             }
             else {
                 if(chk === 'accept') {
                     request.headers.usebodytype = 'json';
-                    response.setHeader('Content-Type', 'application/json');
+                    response.header('Content-Type', 'application/json');
                 }
             }
         }
 
-        response.setHeader('X-M2M-RSC', rsc);
+        response.header('X-M2M-RSC', rsc);
     }
 
     if (request.query.rcn == 0 && Object.keys(body_Obj)[0] != 'dbg') {
@@ -1708,35 +1708,35 @@ exports.response_rcn3_result = function(request, response, status, body_Obj, rsc
             var chk = check_header[idx];
             if(request.headers.hasOwnProperty(chk)) {
                 if(chk === 'x-m2m-ri' || chk === 'x-m2m-rvi') {
-                    response.setHeader(chk.toUpperCase(), request.headers[chk]);
+                    response.header(chk.toUpperCase(), request.headers[chk]);
                 }
                 else if(chk === 'locale') {
-                    response.setHeader(chk, request.headers[chk]);
+                    response.header(chk, request.headers[chk]);
                 }
                 else if(chk === 'accept') {
                     if(request.headers[chk].includes('xml')) {
                         request.headers.usebodytype = 'xml';
-                        response.setHeader('Content-Type', 'application/xml');
+                        response.header('Content-Type', 'application/xml');
                     }
                     else if(request.headers[chk].includes('cbor')) {
                         request.headers.usebodytype = 'cbor';
-                        response.setHeader('Content-Type', 'application/cbor');
+                        response.header('Content-Type', 'application/cbor');
                     }
                     else {
                         request.headers.usebodytype = 'json';
-                        response.setHeader('Content-Type', 'application/json');
+                        response.header('Content-Type', 'application/json');
                     }
                 }
             }
             else {
                 if(chk === 'accept') {
                     request.headers.usebodytype = 'json';
-                    response.setHeader('Content-Type', 'application/json');
+                    response.header('Content-Type', 'application/json');
                 }
             }
         }
 
-        response.setHeader('X-M2M-RSC', rsc);
+        response.header('X-M2M-RSC', rsc);
     }
 
     var rootnm = request.headers.rootnm;
@@ -1814,35 +1814,35 @@ exports.search_result = function(request, response, status, body_Obj, rsc, ri, c
             var chk = check_header[idx];
             if(request.headers.hasOwnProperty(chk)) {
                 if(chk === 'x-m2m-ri' || chk === 'x-m2m-rvi') {
-                    response.setHeader(chk.toUpperCase(), request.headers[chk]);
+                    response.header(chk.toUpperCase(), request.headers[chk]);
                 }
                 else if(chk === 'locale') {
-                    response.setHeader(chk, request.headers[chk]);
+                    response.header(chk, request.headers[chk]);
                 }
                 else if(chk === 'accept') {
                     if(request.headers[chk].includes('xml')) {
                         request.headers.usebodytype = 'xml';
-                        response.setHeader('Content-Type', 'application/xml');
+                        response.header('Content-Type', 'application/xml');
                     }
                     else if(request.headers[chk].includes('cbor')) {
                         request.headers.usebodytype = 'cbor';
-                        response.setHeader('Content-Type', 'application/cbor');
+                        response.header('Content-Type', 'application/cbor');
                     }
                     else {
                         request.headers.usebodytype = 'json';
-                        response.setHeader('Content-Type', 'application/json');
+                        response.header('Content-Type', 'application/json');
                     }
                 }
             }
             else {
                 if(chk === 'accept') {
                     request.headers.usebodytype = 'json';
-                    response.setHeader('Content-Type', 'application/json');
+                    response.header('Content-Type', 'application/json');
                 }
             }
         }
 
-        response.setHeader('X-M2M-RSC', rsc);
+        response.header('X-M2M-RSC', rsc);
     }
 
     if (Object.keys(body_Obj)[0] == 'rsp') {

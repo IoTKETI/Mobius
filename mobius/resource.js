@@ -1260,7 +1260,7 @@ exports.create = function (request, response, ty, body_Obj, callback) {
                 var rsc_code = 2001;
 
                 if (request.query.rt == 3) {
-                    response.setHeader('Content-Location', create_Obj[rootnm].ri.replace('/', ''));
+                    response.header('Content-Location', create_Obj[rootnm].ri.replace('/', ''));
                 }
 
                 if (rootnm == 'smd') {
@@ -1374,13 +1374,13 @@ function presearch_action(request, response, ri_list, comm_Obj, callback) {
                 if (!err) {
                     if (Object.keys(search_Obj).length >= 1) {
                         if (Object.keys(search_Obj).length >= max_lim) {
-                            response.setHeader('X-M2M-CTS', 1);
+                            response.header('X-M2M-CTS', 1);
 
                             if (request.query.ofst != null) {
-                                response.setHeader('X-M2M-CTO', parseInt(request.query.ofst, 10) + Object.keys(search_Obj).length);
+                                response.header('X-M2M-CTO', parseInt(request.query.ofst, 10) + Object.keys(search_Obj).length);
                             }
                             else {
-                                response.setHeader('X-M2M-CTO', Object.keys(search_Obj).length);
+                                response.header('X-M2M-CTO', Object.keys(search_Obj).length);
                             }
                         }
 
