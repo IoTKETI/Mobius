@@ -1006,7 +1006,7 @@ function search_resource_action(ri, query, cur_lim, pi_list, cni, loop_count, se
             if(query.la != null) {
                 seekObj[search_Obj[0].ri] = search_Obj[0];
                 var st_idx = (search_Obj.length > parseInt(cur_lim, 10)) ? (search_Obj.length - parseInt(cur_lim, 10) + 1) : 0;
-                for(i = st_idx; i < search_Obj.length; i++) {
+                for(i = search_Obj.length-1; i >= st_idx; i--) {
                     seekObj[search_Obj[i].ri] = search_Obj[i];
                     if(Object.keys(seekObj).length > cur_lim) {
                         break;
@@ -1020,6 +1020,7 @@ function search_resource_action(ri, query, cur_lim, pi_list, cni, loop_count, se
                             search_Obj.push(seekObj[idx]);
                         }
                     }
+                    search_Obj.reverse();
                     callback(err, search_Obj);
                 }
                 else {
@@ -1030,6 +1031,7 @@ function search_resource_action(ri, query, cur_lim, pi_list, cni, loop_count, se
                                 search_Obj.push(seekObj[idx]);
                             }
                         }
+                        search_Obj.reverse();
                         callback(err, search_Obj);
                     }
                     else {
@@ -1302,7 +1304,7 @@ exports.search_lookup = function (ri, query, cur_lim, pi_list, pi_index, found_O
 };
 
 exports.select_latest_resource = function(parentObj, loop_count, callback) {
-    var before_ct = moment().subtract(Math.pow(5, ++loop_count), 'minutes').utc().format('YYYYMMDDTHHmmss');
+    var before_ct = moment().subtract(Math.pow(10, ++loop_count), 'minutes').utc().format('YYYYMMDDTHHmmss');
 
     var sql = util.format('select * from (select * from lookup where (pi = \'%s\' and ct > \'%s\') and ty = \'%s\') b join %s as a on b.ri = a.ri', parentObj.ri, before_ct, parseInt(parentObj.ty, 10) + 1, responder.typeRsrc[parseInt(parentObj.ty, 10) + 1]);
     db.getResult(sql, '', function (err, results_latest) {
