@@ -1558,28 +1558,34 @@ function updateHitCount(binding) {
     var bodyStr = '';
     if (use_secure == 'disable') {
         var req = http.request(options, function (res) {
-            resp_noti(res);
+            res.setEncoding('utf8');
+
+            res.on('data', function (chunk) {
+                bodyStr += chunk;
+            });
+
+            res.on('end', function () {
+                //if(res.statusCode == 200 || res.statusCode == 201) {
+                //    console.log('-------> [response_noti - ' + res.headers['x-m2m-rsc'] + '] - ' + ri);
+                //}
+            });
         });
     }
     else {
         options.ca = fs.readFileSync('ca-crt.pem');
 
         req = https.request(options, function (res) {
-            resp_noti(res);
-        });
-    }
+            res.setEncoding('utf8');
 
-    function resp_noti(res) {
-        res.setEncoding('utf8');
+            res.on('data', function (chunk) {
+                bodyStr += chunk;
+            });
 
-        res.on('data', function (chunk) {
-            bodyStr += chunk;
-        });
-
-        res.on('end', function () {
-            //if(res.statusCode == 200 || res.statusCode == 201) {
-            //    console.log('-------> [response_noti - ' + res.headers['x-m2m-rsc'] + '] - ' + ri);
-            //}
+            res.on('end', function () {
+                //if(res.statusCode == 200 || res.statusCode == 201) {
+                //    console.log('-------> [response_noti - ' + res.headers['x-m2m-rsc'] + '] - ' + ri);
+                //}
+            });
         });
     }
 
@@ -1750,26 +1756,30 @@ function retrieveHitCount(response) {
     var bodyStr = '';
     if (use_secure == 'disable') {
         var req = http.request(options, function (res) {
-            resp_noti(res);
+            res.setEncoding('utf8');
+
+            res.on('data', function (chunk) {
+                bodyStr += chunk;
+            });
+
+            res.on('end', function () {
+                response.status(200).end(bodyStr);
+            });
         });
     }
     else {
         options.ca = fs.readFileSync('ca-crt.pem');
 
         req = https.request(options, function (res) {
-            resp_noti(res);
-        });
-    }
+            res.setEncoding('utf8');
 
-    function resp_noti(res) {
-        res.setEncoding('utf8');
+            res.on('data', function (chunk) {
+                bodyStr += chunk;
+            });
 
-        res.on('data', function (chunk) {
-            bodyStr += chunk;
-        });
-
-        res.on('end', function () {
-            response.status(200).end(bodyStr);
+            res.on('end', function () {
+                response.status(200).end(bodyStr);
+            });
         });
     }
 

@@ -435,28 +435,34 @@ function request_noti(nu, ri, bodyString, bodytype, xm2mri, exc) {
     var bodyStr = '';
     if (use_secure == 'disable') {
         var req = http.request(options, function (res) {
-            resp_noti(res);
+            res.setEncoding('utf8');
+
+            res.on('data', function (chunk) {
+                bodyStr += chunk;
+            });
+
+            res.on('end', function () {
+                if(res.statusCode == 200 || res.statusCode == 201) {
+                    console.log('-------> [response_noti - ' + res.headers['x-m2m-rsc'] + '] - ' + ri);
+                }
+            });
         });
     }
     else {
         options.ca = fs.readFileSync('ca-crt.pem');
 
         req = https.request(options, function (res) {
-            resp_noti(res);
-        });
-    }
+            res.setEncoding('utf8');
 
-    function resp_noti(res) {
-        res.setEncoding('utf8');
+            res.on('data', function (chunk) {
+                bodyStr += chunk;
+            });
 
-        res.on('data', function (chunk) {
-            bodyStr += chunk;
-        });
-
-        res.on('end', function () {
-            if(res.statusCode == 200 || res.statusCode == 201) {
-                console.log('-------> [response_noti - ' + res.headers['x-m2m-rsc'] + '] - ' + ri);
-            }
+            res.on('end', function () {
+                if(res.statusCode == 200 || res.statusCode == 201) {
+                    console.log('-------> [response_noti - ' + res.headers['x-m2m-rsc'] + '] - ' + ri);
+                }
+            });
         });
     }
 
