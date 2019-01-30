@@ -44,14 +44,12 @@ var sgn_app = express();
 
 var sgn_server = null;
 
-if(use_secure === 'disable') {
-    if(sgn_server == null) {
+if(sgn_server == null) {
+    if(use_secure === 'disable') {
         http.globalAgent.maxSockets = 10000;
         sgn_server = http.createServer(sgn_app);
     }
-}
-else {
-    if(sgn_server == null) {
+    else {
         var options = {
             key: fs.readFileSync('server-key.pem'),
             cert: fs.readFileSync('server-crt.pem'),
@@ -60,37 +58,36 @@ else {
         https.globalAgent.maxSockets = 10000;
         sgn_server = https.createServer(options, sgn_app);
     }
-}
 
-sgn_server.listen({port: use_sgn_man_port, agent: false}, function () {
-    console.log('sgn_man server (' + ip.address() + ') running at ' + use_sgn_man_port + ' port');
-});
-
-sgn_server.on('connection', function (socket) {
-    //console.log("A new connection was made by a client.");
-    socket.setTimeout(5000, function () {
-        if(ss_fail_count.hasOwnProperty(socket._httpMessage.req.headers.ri)) {
-            ss_fail_count[socket._httpMessage.req.headers.ri]++;
-        }
-
-        for (var i = 0; i < resp_mqtt_rqi_arr.length; i++) {
-            if (resp_mqtt_rqi_arr[i] == socket._httpMessage.req.headers['x-m2m-ri']) {
-                delete http_response_q[resp_mqtt_rqi_arr[i]];
-                resp_mqtt_rqi_arr.splice(i, 1);
-                break;
-            }
-        }
+    sgn_server.listen({port: use_sgn_man_port, agent: false}, function () {
+        console.log('sgn_man server (' + ip.address() + ') running at ' + use_sgn_man_port + ' port');
     });
-});
+
+    sgn_server.on('connection', function (socket) {
+        //console.log("A new connection was made by a client.");
+        socket.setTimeout(5000, function () {
+            if(ss_fail_count.hasOwnProperty(socket._httpMessage.req.headers.ri)) {
+                ss_fail_count[socket._httpMessage.req.headers.ri]++;
+            }
+
+            for (var i = 0; i < resp_mqtt_rqi_arr.length; i++) {
+                if (resp_mqtt_rqi_arr[i] == socket._httpMessage.req.headers['x-m2m-ri']) {
+                    delete http_response_q[resp_mqtt_rqi_arr[i]];
+                    resp_mqtt_rqi_arr.splice(i, 1);
+                    break;
+                }
+            }
+        });
+    });
+}
 
 var sgn_mqtt_client = null;
-if(use_secure === 'disable') {
-    if(sgn_mqtt_client == null) {
+
+if(sgn_mqtt_client == null) {
+    if(use_secure === 'disable') {
         sgn_mqtt_client = mqtt.connect('mqtt://' + use_mqtt_broker + ':' + use_mqtt_port);
     }
-}
-else {
-    if(sgn_mqtt_client == null) {
+    else {
         var connectOptions = {
             host: use_mqtt_broker,
             port: use_mqtt_port,
@@ -108,14 +105,17 @@ else {
         };
         sgn_mqtt_client = mqtt.connect(connectOptions);
     }
+
+    sgn_mqtt_client.on('connect', function () {
+        console.log('sgn_mqtt_client is connected');
+    });
+
+    sgn_mqtt_client.on('message', sgn_mqtt_message_handler);
+
+    sgn_mqtt_client.on('error', function () {
+        sgn_mqtt_client = null;
+    });
 }
-
-sgn_mqtt_client.on('connect', function () {
-    console.log('sgn_mqtt_client is connected')
-});
-
-sgn_mqtt_client.on('message', sgn_mqtt_message_handler);
-
 
 // for notification
 var onem2mParser = bodyParser.text(

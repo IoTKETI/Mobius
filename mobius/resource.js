@@ -1350,8 +1350,62 @@ function presearch_action(request, response, ri_list, comm_Obj, callback) {
                 request.query.lim = max_lim;
             }
 
+            for (var i = 0; i < search_Obj.length; i) {
+                if (request.query.ty == '4') {
+                    if (search_Obj[i].ty != '3') {
+                        search_Obj.splice(i, 1);
+                    }
+                    else {
+                        i++;
+                    }
+                }
+                else if (request.query.ty == '2') {
+                    if (search_Obj[i].ty != '5') {
+                        search_Obj.splice(i, 1);
+                    }
+                    else {
+                        i++;
+                    }
+                }
+                else if (request.query.ty == '3') {
+                    if (search_Obj[i].ty != '2' && search_Obj[i].ty != '3' && search_Obj[i].ty != '5') {
+                        search_Obj.splice(i, 1);
+                    }
+                    else {
+                        i++;
+                    }
+                }
+                else if (request.query.ty == '1') {
+                    if (search_Obj[i].ty != '2' && search_Obj[i].ty != '3' && search_Obj[i].ty != '5' && search_Obj[i].ty != '29') {
+                        search_Obj.splice(i, 1);
+                    }
+                    else {
+                        i++;
+                    }
+                }
+                else if (request.query.ty == '29') {
+                    if (search_Obj[i].ty != '2' && search_Obj[i].ty != '29' && search_Obj[i].ty != '5') {
+                        search_Obj.splice(i, 1);
+                    }
+                    else {
+                        i++;
+                    }
+                }
+                else if (request.query.ty == '30') {
+                    if (search_Obj[i].ty != '29') {
+                        search_Obj.splice(i, 1);
+                    }
+                    else {
+                        i++;
+                    }
+                }
+                else {
+                    i++;
+                }
+            }
+
             var cur_lvl = parseInt((url.parse(request.url).pathname.split('/').length), 10) - 2;
-            for (var i = 0; i < search_Obj.length; i++) {
+            for (i = 0; i < search_Obj.length; i++) {
                 if (request.query.lvl != null) {
                     var lvl = request.query.lvl;
                     if ((search_Obj[i].ri.split('/').length - 1) <= (cur_lvl + (parseInt(lvl, 10)))) {

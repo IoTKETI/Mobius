@@ -823,6 +823,9 @@ exports.search_parents_lookup = function(ri, pi_list, result_ri, callback) {
                 if(found_pi_list.length === 0) {
                     callback(err, result_ri);
                 }
+                else if(found_pi_list.length > 3000) {
+                    callback(err, result_ri);
+                }
                 else {
                     _this.search_parents_lookup(ri, found_pi_list, result_ri, function (err, result_ri) {
                         callback(err, result_ri);
@@ -867,7 +870,7 @@ function select_spec_ri(found_Obj, count, callback) {
     });
 }
 
-function search_resource_action(ri, query, cur_lim, pi_list, cni, loop_count, seekObj, callback) {
+function search_resource_action(p_loop_count, ri, query, cur_lim, pi_list, cni, loop_count, seekObj, callback) {
     var query_where = '';
     var query_count = 0;
     if (query.lbl != null) {
@@ -984,7 +987,7 @@ function search_resource_action(ri, query, cur_lim, pi_list, cni, loop_count, se
     if (query.la != null) {
         cur_lim = parseInt(query.la, 10);
 
-        var before_ct = moment().subtract(Math.pow(10, ++loop_count), 'minutes').utc().format('YYYYMMDDTHHmmss');
+        var before_ct = moment().subtract(Math.pow(20, ++loop_count), 'minutes').utc().format('YYYYMMDDTHHmmss');
 
         query_where += ' and ';
         query_where += util.format(' (\'%s\' < ct) ', before_ct);
@@ -996,11 +999,17 @@ function search_resource_action(ri, query, cur_lim, pi_list, cni, loop_count, se
             query_where += util.format(' offset %s', query.ofst);
         }
     }
-    query_where = "select a.* from (select ri from lookup where (ri = \'" + ri + "\') or (pi in ("+JSON.stringify(pi_list).replace('[','').replace(']','')+")) " + query_where + " ) b left join lookup as a on b.ri = a.ri ";
-    //query_where = util.format("select a.* from (select ri from lookup where ((ri = \'" + ri + "\') or (pi in ("+JSON.stringify(pi_list).replace('[','').replace(']','')+")) %s and ((\'%s\' < ct) and (ct <= \'%s\')))) b left join lookup as a on b.ri = a.ri", ty_str, bef_ct, cur_ct) + query_where;
-    //query_where = util.format("select a.* from (select ri from lookup where ((ri = \'" + ri + "\') or pi in ("+JSON.stringify(pi_list).replace('[','').replace(']','')+")) %s and (ct > \'%s\' and ct <= \'%s\') limit 1000) b left join lookup as a on b.ri = a.ri", ty_str, bef_ct, cur_ct) + query_where;
-    //query_where = util.format("select a.* from (select ri from lookup where (pi in ("+JSON.stringify(pi_list).replace('[','').replace(']','')+")) %s and (ct > \'%s\' and ct <= \'%s\') order by ct desc limit 1000) b left join lookup as a on b.ri = a.ri", ty_str, bef_ct, cur_ct) + query_where;
 
+    if(p_loop_count == 0) {
+        query_where = "select a.* from (select ri from lookup where (ri = \'" + ri + "\') or (pi in (" + JSON.stringify(pi_list).replace('[', '').replace(']', '') + ")) " + query_where + " ) b left join lookup as a on b.ri = a.ri ";
+        //query_where = util.format("select a.* from (select ri from lookup where ((ri = \'" + ri + "\') or (pi in ("+JSON.stringify(pi_list).replace('[','').replace(']','')+")) %s and ((\'%s\' < ct) and (ct <= \'%s\')))) b left join lookup as a on b.ri = a.ri", ty_str, bef_ct, cur_ct) + query_where;
+        //query_where = util.format("select a.* from (select ri from lookup where ((ri = \'" + ri + "\') or pi in ("+JSON.stringify(pi_list).replace('[','').replace(']','')+")) %s and (ct > \'%s\' and ct <= \'%s\') limit 1000) b left join lookup as a on b.ri = a.ri", ty_str, bef_ct, cur_ct) + query_where;
+        //query_where = util.format("select a.* from (select ri from lookup where (pi in ("+JSON.stringify(pi_list).replace('[','').replace(']','')+")) %s and (ct > \'%s\' and ct <= \'%s\') order by ct desc limit 1000) b left join lookup as a on b.ri = a.ri", ty_str, bef_ct, cur_ct) + query_where;
+    }
+    else {
+        query_where = "select a.* from (select ri from lookup where (pi in (" + JSON.stringify(pi_list).replace('[', '').replace(']', '') + ")) " + query_where + " ) b left join lookup as a on b.ri = a.ri ";
+    }
+    //console.log(query_where);
     db.getResult(query_where, '', function (err, search_Obj) {
         if(!err) {
             if(query.la != null) {
@@ -1024,7 +1033,7 @@ function search_resource_action(ri, query, cur_lim, pi_list, cni, loop_count, se
                     callback(err, search_Obj);
                 }
                 else {
-                    if(loop_count >= 6) {
+                    if(loop_count >= 4) {
                         search_Obj = [];
                         for(idx in seekObj) {
                             if(seekObj.hasOwnProperty(idx)) {
@@ -1036,7 +1045,7 @@ function search_resource_action(ri, query, cur_lim, pi_list, cni, loop_count, se
                     }
                     else {
                         var foundCount = Object.keys(seekObj).length;
-                        search_resource_action(ri, query, parseInt(cur_lim, 10) - foundCount, pi_list, cni, loop_count, seekObj, function (err, search_Obj) {
+                        search_resource_action(p_loop_count, ri, query, parseInt(cur_lim, 10) - foundCount, pi_list, cni, loop_count, seekObj, function (err, search_Obj) {
                             callback(err, search_Obj);
                         });
                     }
@@ -1052,139 +1061,6 @@ function search_resource_action(ri, query, cur_lim, pi_list, cni, loop_count, se
     });
 }
 
-function build_discovery_sql(ri, query, cur_lim, pi_list, cni) {
-//    var list_ri = '';
-    var query_where = '';
-    var query_count = 0;
-    if (query.lbl != null) {
-        query_where = ' and ';
-        if (query.lbl.toString().split(',')[1] == null) {
-            query_where += util.format(' lbl like \'[\"%%%s%%\"]\'', query.lbl);
-            //query_where += util.format(' lbl like \'%s\'', request.query.lbl);
-        }
-        else {
-            for (var i = 0; i < query.lbl.length; i++) {
-                query_where += util.format(' lbl like \'%%\"%s\"%%\'', query.lbl[i]);
-                //query_where += util.format(' lbl like \'%s\'', request.query.lbl[i]);
-
-                if (i < query.lbl.length - 1) {
-                    query_where += ' or ';
-                }
-            }
-        }
-        query_count++;
-    }
-
-    var ty_str = '';
-    if (query.ty != null) {
-        ty_str = ' and ';
-        query_where += ' and ';
-
-        if (query.ty.toString().split(',').length == 1) {
-            query_where += util.format('ty = \'%s\'', query.ty);
-            ty_str += util.format('ty = \'%s\'', query.ty);
-        }
-        else {
-            query_where += ' (';
-            ty_str += ' (';
-            for (i = 0; i < query.ty.length; i++) {
-                query_where += util.format('ty = \'%s\'', query.ty[i]);
-                ty_str += util.format('ty = \'%s\'', query.ty[i]);
-                if (i < query.ty.length - 1) {
-                    query_where += ' or ';
-                    ty_str += ' or ';
-                }
-            }
-            query_where += ') ';
-            ty_str += ') ';
-        }
-        query_count++;
-    }
-
-    if (query.cra != null) {
-        query_where += ' and ';
-        query_where += util.format('\'%s\' <= ct', query.cra);
-        query_count++;
-    }
-
-    if (query.crb != null) {
-        query_where += ' and ';
-        query_where += util.format(' ct < \'%s\'', query.crb);
-        query_count++;
-    }
-
-    if (query.ms != null) {
-        query_where += ' and ';
-        query_where += util.format('\'%s\' <= lt', query.ms);
-        query_count++;
-    }
-
-    if (query.us != null) {
-        query_where += ' and ';
-        query_where += util.format(' lt < \'%s\'', query.us);
-        query_count++;
-    }
-
-    if (query.exa != null) {
-        query_where += ' and ';
-        query_where += util.format('\'%s\' <= et', query.exa);
-        query_count++;
-    }
-
-    if (query.exb != null) {
-        query_where += ' and ';
-        query_where += util.format(' et < \'%s\'', query.exb);
-        query_count++;
-    }
-
-    if (query.sts != null) {
-        query_where += ' and ';
-        query_where += util.format(' st < \'%s\'', query.sts);
-        query_count++;
-    }
-
-    if (query.stb != null) {
-        query_where += ' and ';
-        query_where += util.format('\'%s\' <= st', query.stb);
-        query_count++;
-    }
-
-    if (query.sza != null) {
-        query_where += ' and ';
-        query_where += util.format('%s <= cs', query.sza);
-        query_count++;
-    }
-
-    if (query.szb != null) {
-        query_where += ' and ';
-        query_where += util.format('cs < %s', query.szb);
-        query_count++;
-    }
-
-    if (query.cty != null) {
-        query_where += ' and ';
-        query_where += util.format('cnf = \'%s\'', query.cty);
-        query_count++;
-    }
-
-    if (query.la != null) {
-        query_where += util.format(' limit %s offset %s ', parseInt(query.la, 10) + 1, ((parseInt(cni, 10) - parseInt(query.la, 10)) > 0) ? (parseInt(cni, 10) - parseInt(query.la, 10)) : 0);
-        query_count++;
-    }
-    else {
-        query_where += ' limit ' + cur_lim;
-        if (query.ofst != null) {
-            query_where += util.format(' offset %s', query.ofst);
-        }
-    }
-    query_where = "select a.* from (select ri from lookup where ((ri = \'" + ri + "\') or (pi in ("+JSON.stringify(pi_list).replace('[','').replace(']','')+"))" + ty_str + ") " + query_where + " ) b left join lookup as a on b.ri = a.ri ";
-    //query_where = util.format("select a.* from (select ri from lookup where ((ri = \'" + ri + "\') or (pi in ("+JSON.stringify(pi_list).replace('[','').replace(']','')+")) %s and ((\'%s\' < ct) and (ct <= \'%s\')))) b left join lookup as a on b.ri = a.ri", ty_str, bef_ct, cur_ct) + query_where;
-    //query_where = util.format("select a.* from (select ri from lookup where ((ri = \'" + ri + "\') or pi in ("+JSON.stringify(pi_list).replace('[','').replace(']','')+")) %s and (ct > \'%s\' and ct <= \'%s\') limit 1000) b left join lookup as a on b.ri = a.ri", ty_str, bef_ct, cur_ct) + query_where;
-    //query_where = util.format("select a.* from (select ri from lookup where (pi in ("+JSON.stringify(pi_list).replace('[','').replace(']','')+")) %s and (ct > \'%s\' and ct <= \'%s\') order by ct desc limit 1000) b left join lookup as a on b.ri = a.ri", ty_str, bef_ct, cur_ct) + query_where;
-
-    return query_where;
-}
-
 var search_tid = '';
 exports.search_lookup = function (ri, query, cur_lim, pi_list, pi_index, found_Obj, found_Cnt, cni, cur_d, loop_cnt, response, callback) {
     var cur_pi = [];
@@ -1194,7 +1070,7 @@ exports.search_lookup = function (ri, query, cur_lim, pi_list, pi_index, found_O
         console.time('search_lookup (' + search_tid + ')');
     }
 
-    for(var idx = 0; idx < 16; idx++) {
+    for(var idx = 0; idx < 32; idx++) {
         if (pi_index < pi_list.length) {
             cur_pi.push(pi_list[pi_index++]);
         }
@@ -1204,7 +1080,7 @@ exports.search_lookup = function (ri, query, cur_lim, pi_list, pi_index, found_O
     }
 
     var seekObj = {};
-    search_resource_action(ri, query, cur_lim, cur_pi, cni, 0, seekObj, function (err, search_Obj) {
+    search_resource_action(loop_cnt, ri, query, cur_lim, cur_pi, cni, 0, seekObj, function (err, search_Obj) {
         if(!err) {
             if(search_Obj.length > 0) {
                 for(var i = 0; i < search_Obj.length; i++) {
@@ -1304,7 +1180,7 @@ exports.search_lookup = function (ri, query, cur_lim, pi_list, pi_index, found_O
 };
 
 exports.select_latest_resource = function(parentObj, loop_count, callback) {
-    var before_ct = moment().subtract(Math.pow(10, ++loop_count), 'minutes').utc().format('YYYYMMDDTHHmmss');
+    var before_ct = moment().subtract(Math.pow(20, ++loop_count), 'minutes').utc().format('YYYYMMDDTHHmmss');
 
     var sql = util.format('select * from (select * from lookup where (pi = \'%s\' and ct > \'%s\') and ty = \'%s\') b join %s as a on b.ri = a.ri', parentObj.ri, before_ct, parseInt(parentObj.ty, 10) + 1, responder.typeRsrc[parseInt(parentObj.ty, 10) + 1]);
     db.getResult(sql, '', function (err, results_latest) {
@@ -1315,7 +1191,7 @@ exports.select_latest_resource = function(parentObj, loop_count, callback) {
                 callback(err, latest_cin);
             }
             else {
-                if(loop_count >= 6) {
+                if(loop_count >= 4) {
                     latest_cin = [];
                     callback(err, latest_cin);
                 }

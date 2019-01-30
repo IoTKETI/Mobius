@@ -447,11 +447,11 @@ if (use_clustering) {
                         wdt.set_wdt(require('shortid').generate(), 43200, del_req_resource);
                         wdt.set_wdt(require('shortid').generate(), 86400, del_expired_resource);
 
+                        require('./hit_man');
                         require('./pxy_mqtt');
                         require('./pxy_coap');
                         require('./pxy_ws');
                         require('./sgn_man');
-                        require('./hit_man');
 
                         if (usecsetype == 'mn' || usecsetype == 'asn') {
                             global.refreshIntervalId = setInterval(function () {
