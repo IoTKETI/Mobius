@@ -106,7 +106,17 @@ hit_app.post('/hit_count', onem2mParser, function(request, response, next) {
             var h = a.hours();
 
             if (hit_cache.hasOwnProperty(cur_t)) {
-                hit_cache[cur_t][h][_hit.binding]++;
+                if(hit_cache[cur_t][h].hasOwnProperty(_hit.binding)) {
+                    if(hit_cache[cur_t][h][_hit.binding] == null) {
+                        hit_cache[cur_t][h][_hit.binding] = 1;
+                    }
+                    else {
+                        hit_cache[cur_t][h][_hit.binding]++;
+                    }
+                }
+                else {
+                    hit_cache[cur_t][h][_hit.binding] = 1;
+                }
             }
             else {
                 hit_cache[cur_t] = [];
