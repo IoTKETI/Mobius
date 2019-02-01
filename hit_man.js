@@ -113,7 +113,18 @@ hit_app.post('/hit_count', onem2mParser, function(request, response, next) {
                 for (var i = 0; i < 24; i++) {
                     _hit[cur_t].push({});
                 }
-                hit_cache[cur_t][h][_hit.binding]++;
+
+                if(hit_cache[cur_t][h].hasOwnProperty(_hit.binding)) {
+                    if(hit_cache[cur_t][h][_hit.binding] == null) {
+                        hit_cache[cur_t][h][_hit.binding] = 1;
+                    }
+                    else {
+                        hit_cache[cur_t][h][_hit.binding]++;
+                    }
+                }
+                else {
+                    hit_cache[cur_t][h][_hit.binding] = 1;
+                }
             }
 
             fs.writeFileSync('hit.json', JSON.stringify(hit_cache, null, 4), 'utf8');
