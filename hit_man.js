@@ -106,21 +106,41 @@ hit_app.post('/hit_count', onem2mParser, function(request, response, next) {
             var h = a.hours();
 
             if (hit_cache.hasOwnProperty(cur_t)) {
-                if(hit_cache[cur_t][h].hasOwnProperty(_hit.binding)) {
-                    if(hit_cache[cur_t][h][_hit.binding] == null) {
-                        hit_cache[cur_t][h][_hit.binding] = 1;
+                if(hit_cache[cur_t].hasOwnProperty(h)) {
+                    if(hit_cache[cur_t][h].hasOwnProperty(_hit.binding)) {
+                        if(hit_cache[cur_t][h][_hit.binding] == null) {
+                            hit_cache[cur_t][h][_hit.binding] = 1;
+                        }
+                        else {
+                            hit_cache[cur_t][h][_hit.binding]++;
+                        }
                     }
                     else {
-                        hit_cache[cur_t][h][_hit.binding]++;
+                        hit_cache[cur_t][h][_hit.binding] = 1;
                     }
                 }
                 else {
-                    hit_cache[cur_t][h][_hit.binding] = 1;
+                    hit_cache[cur_t] = [];
+                    for (var i = 0; i < 24; i++) {
+                        _hit[cur_t].push({});
+                    }
+
+                    if(hit_cache[cur_t][h].hasOwnProperty(_hit.binding)) {
+                        if(hit_cache[cur_t][h][_hit.binding] == null) {
+                            hit_cache[cur_t][h][_hit.binding] = 1;
+                        }
+                        else {
+                            hit_cache[cur_t][h][_hit.binding]++;
+                        }
+                    }
+                    else {
+                        hit_cache[cur_t][h][_hit.binding] = 1;
+                    }
                 }
             }
             else {
                 hit_cache[cur_t] = [];
-                for (var i = 0; i < 24; i++) {
+                for (i = 0; i < 24; i++) {
                     _hit[cur_t].push({});
                 }
 
