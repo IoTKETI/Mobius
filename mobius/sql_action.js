@@ -978,6 +978,12 @@ function search_resource_action(p_loop_count, ri, query, cur_lim, pi_list, cni, 
         query_count++;
     }
 
+    if (query.rn != null) {
+        query_where += ' and ';
+        query_where += util.format('rn = \'%s\'', query.rn);
+        query_count++;
+    }
+
     if (query.cty != null) {
         query_where += ' and ';
         query_where += util.format('cnf = \'%s\'', query.cty);
@@ -1000,20 +1006,21 @@ function search_resource_action(p_loop_count, ri, query, cur_lim, pi_list, cni, 
         }
     }
 
-    if(p_loop_count == 0) {
-        query_where = "select a.* from (select ri from lookup where (ri = \'" + ri + "\') or (pi in (" + JSON.stringify(pi_list).replace('[', '').replace(']', '') + ")) " + query_where + " ) b left join lookup as a on b.ri = a.ri ";
-        //query_where = util.format("select a.* from (select ri from lookup where ((ri = \'" + ri + "\') or (pi in ("+JSON.stringify(pi_list).replace('[','').replace(']','')+")) %s and ((\'%s\' < ct) and (ct <= \'%s\')))) b left join lookup as a on b.ri = a.ri", ty_str, bef_ct, cur_ct) + query_where;
-        //query_where = util.format("select a.* from (select ri from lookup where ((ri = \'" + ri + "\') or pi in ("+JSON.stringify(pi_list).replace('[','').replace(']','')+")) %s and (ct > \'%s\' and ct <= \'%s\') limit 1000) b left join lookup as a on b.ri = a.ri", ty_str, bef_ct, cur_ct) + query_where;
-        //query_where = util.format("select a.* from (select ri from lookup where (pi in ("+JSON.stringify(pi_list).replace('[','').replace(']','')+")) %s and (ct > \'%s\' and ct <= \'%s\') order by ct desc limit 1000) b left join lookup as a on b.ri = a.ri", ty_str, bef_ct, cur_ct) + query_where;
-    }
-    else {
-        query_where = "select a.* from (select ri from lookup where (pi in (" + JSON.stringify(pi_list).replace('[', '').replace(']', '') + ")) " + query_where + " ) b left join lookup as a on b.ri = a.ri ";
-    }
+    // when search resource it's not included target resource
+    // if(p_loop_count == 0) {
+    //     query_where = "select a.* from (select ri from lookup where (ri = \'" + ri + "\') or (pi in (" + JSON.stringify(pi_list).replace('[', '').replace(']', '') + ")) " + query_where + " ) b left join lookup as a on b.ri = a.ri ";
+    //     //query_where = util.format("select a.* from (select ri from lookup where ((ri = \'" + ri + "\') or (pi in ("+JSON.stringify(pi_list).replace('[','').replace(']','')+")) %s and ((\'%s\' < ct) and (ct <= \'%s\')))) b left join lookup as a on b.ri = a.ri", ty_str, bef_ct, cur_ct) + query_where;
+    //     //query_where = util.format("select a.* from (select ri from lookup where ((ri = \'" + ri + "\') or pi in ("+JSON.stringify(pi_list).replace('[','').replace(']','')+")) %s and (ct > \'%s\' and ct <= \'%s\') limit 1000) b left join lookup as a on b.ri = a.ri", ty_str, bef_ct, cur_ct) + query_where;
+    //     //query_where = util.format("select a.* from (select ri from lookup where (pi in ("+JSON.stringify(pi_list).replace('[','').replace(']','')+")) %s and (ct > \'%s\' and ct <= \'%s\') order by ct desc limit 1000) b left join lookup as a on b.ri = a.ri", ty_str, bef_ct, cur_ct) + query_where;
+    // }
+    // else {
+         query_where = "select a.* from (select ri from lookup where (pi in (" + JSON.stringify(pi_list).replace('[', '').replace(']', '') + ")) " + query_where + " ) b left join lookup as a on b.ri = a.ri ";
+    // }
     //console.log(query_where);
     db.getResult(query_where, '', function (err, search_Obj) {
         if(!err) {
             if(query.la != null) {
-                seekObj[search_Obj[0].ri] = search_Obj[0];
+                //seekObj[search_Obj[0].ri] = search_Obj[0]; // when search resource it's not included target resource
                 var st_idx = (search_Obj.length > parseInt(cur_lim, 10)) ? (search_Obj.length - parseInt(cur_lim, 10) + 1) : 0;
                 for(i = search_Obj.length-1; i >= st_idx; i--) {
                     seekObj[search_Obj[i].ri] = search_Obj[i];
