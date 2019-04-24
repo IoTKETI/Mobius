@@ -60,18 +60,24 @@ Eclipse Mosquitto™ is an open source (EPL/EDL licensed) message broker that im
 - [Mobius](https://github.com/IoTKETI/Mobius/archive/master.zip)<br/>
 Mobius source codes are written in javascript. So they don't need any compilation or installation before running.
 
-## Mobius Docker Version
-We deploy Mobius as a Docker image using the virtualization open source tool Docker.
+## Quick setup
 
-- [Mobius_Docker](https://github.com/IoTKETI/Mobius_Docker)<br/>
+In case you don't want a sytem-wide installation of MySQL and Mosquitto, you can use the provided `docker-compose.yml` file at the root of the project.
+
+It defines two persistent volumes for data storage of MySQL and Mosquitto. Before launching `docker-compose`, adapt the local part of the volumes to suit your needs or remove them if you don't want such a persistent storage.
+
+You can also edit the MySQL root password if you wish.
+
+Then just launch the two services with the `docker-compose up` command.
 
 ## Configuration
-- Import SQL script<br/>
+
+- Import SQL script in a `mobiusdb` database (create it beforehand)<br/>
 After installation of MySQL server, you need the DB Schema for storing oneM2M resources in Mobius. You can find this file in the following Mobius source directory.
 ```
 [Mobius home]/mobius/mobiusdb.sql
 ```
-- Run Mosquitto MQTT broker<br/>
+- Run Mosquitto MQTT broker (if not already launched with `docker-compose`)<br/>
 ```
 mosquitto -v
 ```
