@@ -119,7 +119,7 @@ This is the list of library dependencies for Mobius
 - xmlbuilder
 
 ## Document
-If you want more details please download the full [installation guide document](https://github.com/IoTKETI/Mobius/raw/master/doc/Installation%20Guide_Mobius_v2.0.0_EN(170718).pdf).
+If you want more details please check the full [installation guides in the `doc` directory](https://github.com/IoTKETI/Mobius/blob/master/doc).
 
 # Author
 Jaeho Kim (jhkim@keti.re.kr)
