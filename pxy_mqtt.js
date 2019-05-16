@@ -110,6 +110,7 @@ exports.mqtt_watchdog = function() {
     }
     else if(mqtt_state === 'connecting') {
         if(pxymqtt_client == null) {
+            console.log('Trying to connect to MQTT on host ' + use_mqtt_broker);
             if(use_secure === 'disable') {
                 pxymqtt_client = mqtt.connect('mqtt://' + use_mqtt_broker + ':' + use_mqtt_port);
             }

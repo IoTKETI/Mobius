@@ -14,17 +14,7 @@
  * @author Il Yeup Ahn [iyahn@keti.re.kr]
  */
 
-var fs = require('fs');
 
-var conf = {};
-try {
-    conf = JSON.parse(fs.readFileSync('conf.json', 'utf8'));
-}
-catch (e) {
-    conf.csebaseport = "7579";
-    conf.dbpass = "dksdlfduq2";
-    fs.writeFileSync('conf.json', JSON.stringify(conf, null, 4), 'utf8');
-}
 
 global.defaultbodytype      = 'json';
 
@@ -32,10 +22,10 @@ global.defaultbodytype      = 'json';
 global.usecsetype           = 'in'; // select 'in' or 'mn' or asn'
 global.usecsebase           = 'Mobius';
 global.usecseid             = '/Mobius2';
-global.usecsebaseport       = conf.csebaseport;
+global.usecsebaseport       = process.env.CSE_BASE_PORT || '7579';
 
-global.usedbhost            = 'localhost';
-global.usedbpass            = conf.dbpass;
+global.usedbhost            = process.env.MYSQL_HOST || 'localhost';
+global.usedbpass            = process.env.MYSQL_PWD || 'password';
 
 
 global.usepxywsport         = '7577';
@@ -47,7 +37,7 @@ global.use_hit_man_port     = '7594';
 
 global.usetsagentport       = '7582';
 
-global.use_mqtt_broker      = 'localhost'; // mqttbroker for mobius
+global.use_mqtt_broker      = process.env.MQTT_HOST || 'localhost'; // mqttbroker for mobius
 
 global.use_secure           = 'disable';
 global.use_mqtt_port        = '1883';
