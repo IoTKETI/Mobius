@@ -452,6 +452,7 @@ if (use_clustering) {
                         require('./pxy_coap');
                         require('./pxy_ws');
                         require('./sgn_man');
+                        require('./cnt_man');
 
                         if (usecsetype == 'mn' || usecsetype == 'asn') {
                             global.refreshIntervalId = setInterval(function () {
@@ -1963,9 +1964,9 @@ app.use(function (request, response, next) {
     request.bodyObj = {};
 
     var tid = require('shortid').generate();
-    console.time('get_resource_from_url' + ' (' + tid + ')');
+    console.time('get_resource_from_url' + ' (' + tid + ') - ' + absolute_url);
     get_resource_from_url(absolute_url, absolute_url_arr, function(targetObject, status) {
-        console.timeEnd('get_resource_from_url' + ' (' + tid + ')');
+        console.timeEnd('get_resource_from_url' + ' (' + tid + ') - ' + absolute_url);
         if (targetObject) {
             request.targetObject = targetObject;
             absolute_url = targetObject[Object.keys(targetObject)[0]].ri;
@@ -1984,7 +1985,7 @@ app.use(function (request, response, next) {
                 }
             }
             else if(status == 500) {
-                responder.error_result(request, response, 404, 4004, '[app.use] Database error at get_resource_from_url in'+usecsebase);
+                responder.error_result(request, response, 404, 4004, '[app.use] Database error at get_resource_from_url in '+usecsebase);
                 return '0';
             }
         }
