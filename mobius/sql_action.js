@@ -179,7 +179,11 @@ exports.insert_ae = function(obj, callback) {
                 else {
                     sql = util.format("delete from lookup where ri = \'%s\'", obj.ri);
                     db.getResult(sql, '', function () {
+                        sql = util.format("delete from sri where ri = \'%s\'", obj.ri);
+                        db.getResult(sql, '', function () {
+                        });
                     });
+
                     callback(err, results);
                 }
             });
@@ -991,7 +995,7 @@ function search_resource_action(p_loop_count, ri, query, cur_lim, pi_list, cni, 
     }
 
     if (query.la != null) {
-        cur_lim = parseInt(query.la, 10);
+        cur_lim = parseInt(query.la, 10)+1;
 
         var before_ct = moment().subtract(Math.pow(20, ++loop_count), 'minutes').utc().format('YYYYMMDDTHHmmss');
 

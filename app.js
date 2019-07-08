@@ -452,6 +452,7 @@ if (use_clustering) {
                         require('./pxy_coap');
                         require('./pxy_ws');
                         require('./sgn_man');
+                        require('./cnt_man');
 
                         if (usecsetype == 'mn' || usecsetype == 'asn') {
                             global.refreshIntervalId = setInterval(function () {
@@ -1122,7 +1123,7 @@ function check_rt_query(request, response, body_Obj, callback) {
     }
 }
 
-function check_grp(request, response, ri, callback) {
+function check_grp(request, response, callback) {
     var result_Obj = request.targetObject;
     var rootnm = Object.keys(result_Obj)[0];
 
@@ -1170,7 +1171,7 @@ function lookup_create(request, response) {
 
             if (op == 'fanoutpoint') {
                 // check access right for fanoutpoint
-                check_grp(request, response, parentObj.ri, function (rsc, result_grp) {
+                check_grp(request, response, function (rsc, result_grp) {
                     if (rsc == '0') {
                         return rsc;
                     }
@@ -1329,7 +1330,7 @@ function lookup_retrieve(request, response) {
 
             if (op == 'fanoutpoint') {
                 // check access right for fanoutpoint
-                check_grp(request, response, resultObj.ri, function (rsc, result_grp) {
+                check_grp(request, response, function (rsc, result_grp) {
                     if (rsc == '0') {
                         return rsc;
                     }
@@ -1412,7 +1413,7 @@ function lookup_update(request, response) {
 
             if (op == 'fanoutpoint') {
                 // check access right for fanoutpoint
-                check_grp(request, response, resultObj.ri, function (rsc, result_grp) {
+                check_grp(request, response, function (rsc, result_grp) {
                     if (rsc == '0') {
                         return rsc;
                     }
@@ -1489,7 +1490,7 @@ function lookup_delete(request, response) {
 
             if (op == 'fanoutpoint') {
                 // check access right for fanoutpoint
-                check_grp(request, response, resultObj.ri, function (rsc, result_grp) {
+                check_grp(request, response, function (rsc, result_grp) {
                     if (rsc == '0') {
                         return rsc;
                     }
@@ -1605,24 +1606,7 @@ function updateHitCount(binding) {
 }
 
 // var resource_cache = {};
-global.get_resource_from_url = function(absolute_url, absolute_url_arr, callback) {
-    var option = '';
-    var sri = absolute_url_arr[1].split('?')[0];
-    if(absolute_url_arr[absolute_url_arr.length-1] == 'la' || absolute_url_arr[absolute_url_arr.length-1] == 'latest') {
-        var ri = absolute_url.split('?')[0].replace('/latest', '');
-        ri = ri.replace('/la', '');
-        option = '/latest';
-    }
-    else if(absolute_url_arr[absolute_url_arr.length-1] == 'ol' || absolute_url_arr[absolute_url_arr.length-1] == 'oldest') {
-        ri = absolute_url.split('?')[0].replace('/oldest', '');
-        ri = ri.replace('/ol', '');
-        option = '/oldest'
-    }
-    else {
-        ri = absolute_url.split('?')[0];
-        option = '';
-    }
-
+global.get_resource_from_url = function(ri, sri, option, callback) {
     var targetObject = {};
     // if(resource_cache.hasOwnProperty(ri+option)) {
     //     targetObject = JSON.parse(resource_cache[ri]);
@@ -1700,8 +1684,12 @@ global.get_resource_from_url = function(absolute_url, absolute_url_arr, callback
                         }
                     });
                 }
+                else if (option == '/fopt') {
+                    //ri = (results.length == 0) ? absolute_url : ((results[0].hasOwnProperty('ri')) ? absolute_url.replace('/' + absolute_url_arr[1], results[0].ri) : absolute_url);
+                    callback(targetObject);
+                }
                 else {
-                    ri = (results.length == 0) ? absolute_url : ((results[0].hasOwnProperty('ri')) ? absolute_url.replace('/' + absolute_url_arr[1], results[0].ri) : absolute_url);
+                    //ri = (results.length == 0) ? absolute_url : ((results[0].hasOwnProperty('ri')) ? absolute_url.replace('/' + absolute_url_arr[1], results[0].ri) : absolute_url);
                     // resource_cache[targetObject[rootnm].ri] = JSON.stringify(targetObject);
 
                     // if(targetObject[rootnm].ty == 3 || targetObject[rootnm].ty == 29) {
@@ -1821,198 +1809,71 @@ app.use(function (req, res, next) {
 });
 
 app.use(function (request, response, next) {
-    if(request.method == 'GET') {
-        if (request.url == '/hit') {
-            response.header('Content-Type', 'application/json');
-            retrieveHitCount(response);
-            return;
+    var fullBody = '';
+    request.on('data', function(chunk) {
+        fullBody += chunk.toString();
+    });
+    request.on('end', function() {
+        request.body = fullBody;
+
+        if (request.method == 'GET') {
+            if (request.url == '/hit') {
+                response.header('Content-Type', 'application/json');
+                retrieveHitCount(response);
+                return;
+            }
+
+            if (request.url == '/total_ae') {
+                db_sql.select_sum_ae(function (err, result) {
+                    if (!err) {
+                        var total_ae = result[0];
+                        response.header('Content-Type', 'application/json');
+                        response.status(200).end(JSON.stringify(total_ae, null, 4));
+                    }
+                });
+                return;
+            }
+
+            if (request.url == '/total_cbs') {
+                db_sql.select_sum_cbs(function (err, result) {
+                    if (!err) {
+                        var total_cbs = result[0];
+                        response.header('Content-Type', 'application/json');
+                        response.status(200).end(JSON.stringify(total_cbs, null, 4));
+                    }
+                });
+                return;
+            }
         }
 
-        if (request.url == '/total_ae') {
-            db_sql.select_sum_ae(function (err, result) {
-                if (!err) {
-                    var total_ae = result[0];
-                    response.header('Content-Type', 'application/json');
-                    response.status(200).end(JSON.stringify(total_ae, null, 4));
-                }
-            });
-            return;
+        // Check X-M2M-RI Header
+        if ((request.headers['x-m2m-ri'] == null)) {
+            responder.error_result(request, response, 400, 4000, 'BAD REQUEST: X-M2M-RI is none');
+            return '0';
         }
 
-        if (request.url == '/total_cbs') {
-            db_sql.select_sum_cbs(function (err, result) {
-                if (!err) {
-                    var total_cbs = result[0];
-                    response.header('Content-Type', 'application/json');
-                    response.status(200).end(JSON.stringify(total_cbs, null, 4));
-                }
-            });
-            return;
+        // Check X-M2M-RVI Header
+        if ((request.headers['x-m2m-rvi'] == null)) {
+            // responder.error_result(request, response, 400, 4000, 'BAD REQUEST: X-M2M-RI is none');
+            // callback('0', body_Obj, request, response);
+            // return '0';
+            // todo: RVI check
+            request.headers['x-m2m-rvi'] = uservi;
         }
-    }
 
-    // Check X-M2M-RI Header
-    if ((request.headers['x-m2m-ri'] == null)) {
-        responder.error_result(request, response, 400, 4000, 'BAD REQUEST: X-M2M-RI is none');
-        return '0';
-    }
-
-    // Check X-M2M-RVI Header
-    if ((request.headers['x-m2m-rvi'] == null)) {
-        // responder.error_result(request, response, 400, 4000, 'BAD REQUEST: X-M2M-RI is none');
-        // callback('0', body_Obj, request, response);
-        // return '0';
-        // todo: RVI check
-        request.headers['x-m2m-rvi'] = uservi;
-    }
-
-    if(request.headers.hasOwnProperty('content-type')) {
-        if(request.headers['content-type'].includes('xml')) {
-            request.headers.usebodytype = 'xml';
-        }
-        else if(request.headers['content-type'].includes('cbor')) {
-            request.headers.usebodytype = 'cbor';
+        if (request.headers.hasOwnProperty('content-type')) {
+            if (request.headers['content-type'].includes('xml')) {
+                request.headers.usebodytype = 'xml';
+            }
+            else if (request.headers['content-type'].includes('cbor')) {
+                request.headers.usebodytype = 'cbor';
+            }
+            else {
+                request.headers.usebodytype = 'json';
+            }
         }
         else {
             request.headers.usebodytype = 'json';
-        }
-    }
-    else {
-        request.headers.usebodytype = 'json';
-    }
-
-    request.ty = '99';
-    if(request.method == 'POST') {
-        var content_type = request.headers['content-type'].split(';');
-        try {
-            var ty = '99';
-            for (var i in content_type) {
-                if (content_type.hasOwnProperty(i)) {
-                    var ty_arr = content_type[i].replace(/ /g, '').split('=');
-                    if (ty_arr[0].replace(/ /g, '') == 'ty') {
-                        ty = ty_arr[1].replace(' ', '');
-                        break;
-                    }
-                }
-            }
-            request.ty = ty;
-        }
-        catch (e) {
-            responder.error_result(request, response, 400, 4000, 'ty is none');
-            return '0';
-        }
-
-        if (request.ty == '5') {
-            responder.error_result(request, response, 405, 4005, 'OPERATION_NOT_ALLOWED: CSEBase can not be created by others');
-            return '0';
-        }
-
-        if (request.ty == '17') {
-            responder.error_result(request, response, 405, 4005, 'OPERATION_NOT_ALLOWED (req is not supported when post request)');
-            return '0';
-        }
-    }
-
-    // Check X-M2M-Origin Header
-    if (request.headers['x-m2m-origin'] == null || request.headers['x-m2m-origin'] == '') {
-        if (request.ty == '2' || request.ty == '16') {
-            request.headers['x-m2m-origin'] = 'S';
-        }
-        else {
-            responder.error_result(request, response, 400, 4000, 'BAD REQUEST: X-M2M-Origin header is Mandatory');
-            return '0';
-        }
-    }
-
-    var allow = 1;
-    if(allowed_ae_ids.length > 0) {
-        allow = 0;
-        for(var idx in allowed_ae_ids) {
-            if(allowed_ae_ids.hasOwnProperty(idx)) {
-                if(usecseid == request.headers['x-m2m-origin']) {
-                    allow = 1;
-                    break;
-                }
-                else if(allowed_ae_ids[idx] == request.headers['x-m2m-origin']) {
-                    allow = 1;
-                    break;
-                }
-            }
-        }
-
-        if(allow == 0) {
-            responder.error_result(request, response, 403, 4107, 'OPERATION_NOT_ALLOWED: AE-ID is not allowed');
-            return '0';
-        }
-    }
-
-    if(responder.typeRsrc[request.ty] == null) {
-        responder.error_result(request, response, 405, 4005, 'OPERATION_NOT_ALLOWED: we do not support (' + request.ty + ') resource');
-        return '0';
-    }
-
-    request.url = request.url.replace('%23', '#'); // convert '%23' to '#' of url
-    request.hash = url.parse(request.url).hash;
-
-    var absolute_url = request.url.replace('\/_\/', '\/\/').split('#')[0];
-    absolute_url = absolute_url.replace(usespid, '/~');
-    absolute_url = absolute_url.replace(/\/~\/[^\/]+\/?/, '/');
-    var absolute_url_arr = absolute_url.split('/');
-
-    console.log('\n' + request.method + ' : ' + request.url);
-    request.bodyObj = {};
-
-    var tid = require('shortid').generate();
-    console.time('get_resource_from_url' + ' (' + tid + ')');
-    get_resource_from_url(absolute_url, absolute_url_arr, function(targetObject, status) {
-        console.timeEnd('get_resource_from_url' + ' (' + tid + ')');
-        if (targetObject) {
-            request.targetObject = targetObject;
-            absolute_url = targetObject[Object.keys(targetObject)[0]].ri;
-
-            next();
-        }
-        else {
-            if(status == 404) {
-                if (url.parse(absolute_url).pathname.split('/')[1] == usecsebase) {
-                    responder.error_result(request, response, 404, 4004, '[app.use] resource does not exist');
-                    return '0';
-                }
-                else {
-                    check_csr(absolute_url, request, response);
-                    return '0';
-                }
-            }
-            else if(status == 500) {
-                responder.error_result(request, response, 404, 4004, '[app.use] Database error at get_resource_from_url in'+usecsebase);
-                return '0';
-            }
-        }
-    });
-});
-
-// remoteCSE, ae, cnt
-app.post(onem2mParser, function (request, response) {
-    // request.headers.elapsed_tid = require('shortid').generate();
-    // elapsed_hrstart[request.headers.elapsed_tid] = process.hrtime();
-    // console.time(request.headers.elapsed_tid);
-
-    var fullBody = '';
-    request.on('data', function (chunk) {
-        fullBody += chunk.toString();
-    });
-    request.on('end', function () {
-        if (request.headers.hasOwnProperty('binding')) {
-            updateHitCount(request.headers['binding']);
-        }
-        else {
-            updateHitCount('H');
-        }
-
-        request.body = fullBody;
-        if (request.body == "") {
-            responder.error_result(request, response, 400, 4000, 'body is empty');
-            return '0';
         }
 
         if (request.query.fu == null) {
@@ -2023,6 +1884,204 @@ app.post(onem2mParser, function (request, response) {
         }
         if (request.query.rt == null) {
             request.query.rt = 3;
+        }
+
+        request.ty = '99';
+        if (request.method == 'POST') {
+            var content_type = request.headers['content-type'].split(';');
+            try {
+                var ty = '99';
+                for (var i in content_type) {
+                    if (content_type.hasOwnProperty(i)) {
+                        var ty_arr = content_type[i].replace(/ /g, '').split('=');
+                        if (ty_arr[0].replace(/ /g, '') == 'ty') {
+                            ty = ty_arr[1].replace(' ', '');
+                            break;
+                        }
+                    }
+                }
+                request.ty = ty;
+            }
+            catch (e) {
+                responder.error_result(request, response, 400, 4000, 'ty is none');
+                return '0';
+            }
+
+            if (request.ty == '5') {
+                responder.error_result(request, response, 405, 4005, 'OPERATION_NOT_ALLOWED: CSEBase can not be created by others');
+                return '0';
+            }
+
+            if (request.ty == '17') {
+                responder.error_result(request, response, 405, 4005, 'OPERATION_NOT_ALLOWED (req is not supported when post request)');
+                return '0';
+            }
+        }
+
+        // Check X-M2M-Origin Header
+        if (request.headers['x-m2m-origin'] == null || request.headers['x-m2m-origin'] == '') {
+            if (request.ty == '2' || request.ty == '16') {
+                request.headers['x-m2m-origin'] = 'S';
+            }
+            else {
+                responder.error_result(request, response, 400, 4000, 'BAD REQUEST: X-M2M-Origin header is Mandatory');
+                return '0';
+            }
+        }
+
+        var allow = 1;
+        if (allowed_ae_ids.length > 0) {
+            allow = 0;
+            for (var idx in allowed_ae_ids) {
+                if (allowed_ae_ids.hasOwnProperty(idx)) {
+                    if (usecseid == request.headers['x-m2m-origin']) {
+                        allow = 1;
+                        break;
+                    }
+                    else if (allowed_ae_ids[idx] == request.headers['x-m2m-origin']) {
+                        allow = 1;
+                        break;
+                    }
+                }
+            }
+
+            if (allow == 0) {
+                responder.error_result(request, response, 403, 4107, 'OPERATION_NOT_ALLOWED: AE-ID is not allowed');
+                return '0';
+            }
+        }
+
+        if (responder.typeRsrc[request.ty] == null) {
+            responder.error_result(request, response, 405, 4005, 'OPERATION_NOT_ALLOWED: we do not support (' + request.ty + ') resource');
+            return '0';
+        }
+
+        request.url = request.url.replace('%23', '#'); // convert '%23' to '#' of url
+        request.hash = url.parse(request.url).hash;
+
+        var absolute_url = request.url.replace('\/_\/', '\/\/').split('#')[0];
+        absolute_url = absolute_url.replace(usespid, '/~');
+        absolute_url = absolute_url.replace(/\/~\/[^\/]+\/?/, '/');
+        var absolute_url_arr = absolute_url.split('/');
+
+        console.log('\n' + request.method + ' : ' + request.url);
+        request.bodyObj = {};
+
+        var option = '';
+        var sri = absolute_url_arr[1].split('?')[0];
+        if (absolute_url_arr[absolute_url_arr.length - 1] == 'la' || absolute_url_arr[absolute_url_arr.length - 1] == 'latest') {
+            var ri = absolute_url.split('?')[0].replace('/latest', '');
+            ri = ri.replace('/la', '');
+            option = '/latest';
+        }
+        else if (absolute_url_arr[absolute_url_arr.length - 1] == 'ol' || absolute_url_arr[absolute_url_arr.length - 1] == 'oldest') {
+            ri = absolute_url.split('?')[0].replace('/oldest', '');
+            ri = ri.replace('/ol', '');
+            option = '/oldest';
+        }
+        else if (absolute_url_arr[absolute_url_arr.length - 1] == 'fopt') {
+            ri = absolute_url.split('?')[0].replace('/fopt', '');
+            option = '/fopt';
+        }
+        else {
+            ri = absolute_url.split('?')[0];
+            option = '';
+        }
+
+        var tid = require('shortid').generate();
+        console.time('get_resource_from_url' + ' (' + tid + ') - ' + absolute_url);
+        get_resource_from_url(ri, sri, option, function (targetObject, status) {
+            console.timeEnd('get_resource_from_url' + ' (' + tid + ') - ' + absolute_url);
+            if (targetObject) {
+                request.targetObject = targetObject;
+                if (option == '/fopt') {
+                    // check access right for fanoutpoint
+                    check_grp(request, response, function (rsc, result_grp) {
+                        if (rsc == '0') {
+                            return rsc;
+                        }
+
+                        if (request.method.toLowerCase() == 'post') {
+                            var access_value = '1';
+                        }
+                        else if (request.method.toLowerCase() == 'get') {
+                            access_value = '2';
+                        }
+                        else if (request.method.toLowerCase() == 'put') {
+                            access_value = '4';
+                        }
+                        else {
+                            access_value = '8'
+                        }
+
+                        var body_Obj = {};
+                        security.check(request, response, targetObject[Object.keys(targetObject)[0]].ty, result_grp.macp, access_value, result_grp.cr, function (rsc, request, response) {
+                            if (rsc == '0') {
+                                responder.error_result(request, response, 403, 4103, '[app.use] ACCESS DENIED (fopt)');
+                                return '0';
+                            }
+
+                            if (request.method.toLowerCase() == 'post' || request.method.toLowerCase() == 'put') {
+                                parse_body_format(request, response, function (rsc, body_Obj) {
+                                    if (rsc != '0') {
+                                        fopt.check(request, response, result_grp, targetObject[Object.keys(targetObject)[0]].ty, body_Obj);
+                                    }
+                                });
+                            }
+                            else {
+                                fopt.check(request, response, result_grp, targetObject[Object.keys(targetObject)[0]].ty, body_Obj);
+                            }
+                        });
+                    });
+                }
+                else {
+                    absolute_url = targetObject[Object.keys(targetObject)[0]].ri;
+
+                    next();
+                }
+            }
+            else {
+                if (status == 404) {
+                    if (url.parse(absolute_url).pathname.split('/')[1] == usecsebase) {
+                        responder.error_result(request, response, 404, 4004, '[app.use] resource does not exist');
+                        return '0';
+                    }
+                    else {
+                        check_csr(absolute_url, request, response);
+                        return '0';
+                    }
+                }
+                else if (status == 500) {
+                    responder.error_result(request, response, 404, 4004, '[app.use] Database error at get_resource_from_url in ' + usecsebase);
+                    return '0';
+                }
+            }
+        });
+    });
+});
+
+// remoteCSE, ae, cnt
+app.post(onem2mParser, function (request, response) {
+    // request.headers.elapsed_tid = require('shortid').generate();
+    // elapsed_hrstart[request.headers.elapsed_tid] = process.hrtime();
+    // console.time(request.headers.elapsed_tid);
+
+    // var fullBody = '';
+    // request.on('data', function (chunk) {
+    //     fullBody += chunk.toString();
+    // });
+    // request.on('end', function () {
+        if (request.headers.hasOwnProperty('binding')) {
+            updateHitCount(request.headers['binding']);
+        }
+        else {
+            updateHitCount('H');
+        }
+
+        //request.body = fullBody;
+        if (request.body == "") {
+            responder.error_result(request, response, 400, 4000, 'body is empty');
+            return '0';
         }
 
         parse_body_format(request, response, function (rsc, body_Obj) {
@@ -2091,7 +2150,7 @@ app.post(onem2mParser, function (request, response) {
                 });
             }
         });
-    });
+    //});
 });
 
 app.get(onem2mParser, function (request, response) {
@@ -2099,11 +2158,11 @@ app.get(onem2mParser, function (request, response) {
     // elapsed_hrstart[elapsed_tid] = process.hrtime();
     // console.time(elapsed_tid);
 
-    var fullBody = '';
-    request.on('data', function (chunk) {
-        fullBody += chunk.toString();
-    });
-    request.on('end', function () {
+    // var fullBody = '';
+    // request.on('data', function (chunk) {
+    //     fullBody += chunk.toString();
+    // });
+    // request.on('end', function () {
         if (request.headers.hasOwnProperty('binding')) {
             updateHitCount(request.headers['binding']);
         }
@@ -2111,17 +2170,7 @@ app.get(onem2mParser, function (request, response) {
             updateHitCount('H');
         }
 
-        request.body = fullBody;
-
-        if (request.query.fu == null) {
-            request.query.fu = 2;
-        }
-        if (request.query.rcn == null) {
-            request.query.rcn = 1;
-        }
-        if (request.query.rt == null) {
-            request.query.rt = 3;
-        }
+        //request.body = fullBody;
 
         var rootnm = Object.keys(request.targetObject)[0];
         var absolute_url = request.targetObject[rootnm].ri;
@@ -2156,7 +2205,7 @@ app.get(onem2mParser, function (request, response) {
         else {
             responder.error_result(request, response, 400, 4000, 'BAD_REQUEST (rcn or fu query is not supported at GET request)');
         }
-    });
+    // });
 });
 
 
@@ -2165,11 +2214,11 @@ app.put(onem2mParser, function (request, response) {
     // elapsed_hrstart[elapsed_tid] = process.hrtime();
     // console.time(elapsed_tid);
 
-    var fullBody = '';
-    request.on('data', function (chunk) {
-        fullBody += chunk.toString();
-    });
-    request.on('end', function () {
+    // var fullBody = '';
+    // request.on('data', function (chunk) {
+    //     fullBody += chunk.toString();
+    // });
+    // request.on('end', function () {
         if (request.headers.hasOwnProperty('binding')) {
             updateHitCount(request.headers['binding']);
         }
@@ -2177,20 +2226,10 @@ app.put(onem2mParser, function (request, response) {
             updateHitCount('H');
         }
 
-        request.body = fullBody;
+        //request.body = fullBody;
         if (request.body == "") {
             responder.error_result(request, response, 400, 4000, 'body is empty');
             return '0';
-        }
-
-        if (request.query.fu == null) {
-            request.query.fu = 2;
-        }
-        if (request.query.rcn == null) {
-            request.query.rcn = 1;
-        }
-        if (request.query.rt == null) {
-            request.query.rt = 3;
         }
 
         parse_body_format(request, response, function (rsc, body_Obj) {
@@ -2241,7 +2280,7 @@ app.put(onem2mParser, function (request, response) {
                 }
             }
         });
-    });
+    //});
 });
 
 app.delete(onem2mParser, function (request, response) {
@@ -2249,11 +2288,11 @@ app.delete(onem2mParser, function (request, response) {
     // elapsed_hrstart[elapsed_tid] = process.hrtime();
     // console.time(elapsed_tid);
 
-    var fullBody = '';
-    request.on('data', function (chunk) {
-        fullBody += chunk.toString();
-    });
-    request.on('end', function () {
+    // var fullBody = '';
+    // request.on('data', function (chunk) {
+    //     fullBody += chunk.toString();
+    // });
+    // request.on('end', function () {
         if (request.headers.hasOwnProperty('binding')) {
             updateHitCount(request.headers['binding']);
         }
@@ -2262,16 +2301,6 @@ app.delete(onem2mParser, function (request, response) {
         }
 
         request.body = fullBody;
-
-        if (request.query.fu == null) {
-            request.query.fu = 2;
-        }
-        if (request.query.rcn == null) {
-            request.query.rcn = 1;
-        }
-        if (request.query.rt == null) {
-            request.query.rt = 3;
-        }
 
         var rootnm = Object.keys(request.targetObject)[0];
         var absolute_url = request.targetObject[rootnm].ri;
@@ -2289,7 +2318,7 @@ app.delete(onem2mParser, function (request, response) {
         else {
             responder.error_result(request, response, 400, 4000, 'rcn query is not supported at DELETE request');
         }
-    });
+    //});
 });
 
 function check_notification(request, url, callback) {

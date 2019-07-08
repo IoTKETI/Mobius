@@ -488,6 +488,8 @@ function create_action(request, response, ty, resource_Obj, callback) {
                 //
                 // });
 
+                request_update_cnt(JSON.stringify(request.targetObject), parseInt(resource_Obj[rootnm].cs));
+
                 db_sql.update_parent_by_insert(request.targetObject[parent_rootnm], parseInt(resource_Obj[rootnm].cs, 10), function () {
                 });
 
@@ -2677,3 +2679,67 @@ exports.delete = function (request, response, comm_Obj) {
     });
 };
 
+
+function request_update_cnt(bodyString, cs) {
+    var options = {
+        hostname: 'localhost',
+        port: use_cnt_man_port,
+        path: '/cnt',
+        method: 'PUT',
+        headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+            'Content-Length': bodyString.length,
+            'cs': cs
+        }
+    };
+
+    var bodyStr = '';
+    if (use_secure == 'disable') {
+        var req = http.request(options, function (res) {
+            res.setEncoding('utf8');
+
+            res.on('data', function (chunk) {
+                bodyStr += chunk;
+            });
+
+            res.on('end', function () {
+                if(res.statusCode == 200 || res.statusCode == 201) {
+                    console.log('-------> [response_update_cnt] - ' + bodyStr);
+                }
+            });
+        });
+    }
+    else {
+        options.ca = fs.readFileSync('ca-crt.pem');
+
+        req = https.request(options, function (res) {
+            res.setEncoding('utf8');
+
+            res.on('data', function (chunk) {
+                bodyStr += chunk;
+            });
+
+            res.on('end', function () {
+                if(res.statusCode == 200 || res.statusCode == 201) {
+                    console.log('-------> [response_update_cnt] - ' + bodyStr);
+                }
+            });
+        });
+    }
+
+    req.on('error', function (e) {
+        if(e.message != 'read ECONNRESET') {
+            //console.log('--xxx--> [request_noti - problem with request: ' + e.message + ']');
+            console.log('--xxx--> [request_update_cnt]');
+        }
+    });
+
+    req.on('close', function () {
+        //console.log('--xxx--> [request_noti - close: no response for notification');
+    });
+
+    console.log('<------- [request_update_cnt]');
+    req.write(bodyString);
+    req.end();
+}
