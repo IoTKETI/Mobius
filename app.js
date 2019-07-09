@@ -1649,7 +1649,7 @@ global.get_resource_from_url = function(ri, sri, option, callback) {
                                     targetObject = {};
                                     targetObject[responder.typeRsrc[result_Obj[0].ty]] = result_Obj[0];
                                     makeObject(targetObject[Object.keys(targetObject)[0]]);
-                                    ri = (result_Obj.length == 0) ? absolute_url : ((result_Obj[0].hasOwnProperty('ri')) ? absolute_url.replace('/' + absolute_url_arr[1], result_Obj[0].ri) : absolute_url);
+                                    //ri = (result_Obj.length == 0) ? absolute_url : ((result_Obj[0].hasOwnProperty('ri')) ? absolute_url.replace('/' + absolute_url_arr[1], result_Obj[0].ri) : absolute_url);
                                     callback(targetObject);
                                 }
                                 else {
