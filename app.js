@@ -2300,7 +2300,7 @@ app.delete(onem2mParser, function (request, response) {
             updateHitCount('H');
         }
 
-        request.body = fullBody;
+        //request.body = fullBody;
 
         var rootnm = Object.keys(request.targetObject)[0];
         var absolute_url = request.targetObject[rootnm].ri;
