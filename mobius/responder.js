@@ -1560,16 +1560,16 @@ function store_to_req_resource(request, bodyString, rsc, cap) {
             var xm2mri = require('shortid').generate();
 
             if (sub_nu.protocol == 'http:') {
-                request_noti_http(nu, bodyString, request.headers.usebodytype, xm2mri);
+                request_noti_http(nu, bodyString, request.usebodytype, xm2mri);
             }
             else if (sub_nu.protocol == 'coap:') {
-                request_noti_coap(nu, bodyString, request.headers.usebodytype, xm2mri);
+                request_noti_coap(nu, bodyString, request.usebodytype, xm2mri);
             }
             else if (sub_nu.protocol == 'ws:') {
-                request_noti_ws(nu, bodyString, request.headers.usebodytype, xm2mri);
+                request_noti_ws(nu, bodyString, request.usebodytype, xm2mri);
             }
             else { // mqtt:
-                request_noti_mqtt(nu, bodyString, request.headers.usebodytype, xm2mri);
+                request_noti_mqtt(nu, bodyString, request.usebodytype, xm2mri);
             }
         }
     });
@@ -1590,22 +1590,22 @@ exports.response_result = function(request, response, status, body_Obj, rsc, ri,
                 }
                 else if(chk === 'accept') {
                     if(request.headers[chk].includes('xml')) {
-                        request.headers.usebodytype = 'xml';
+                        request.usebodytype = 'xml';
                         response.header('Content-Type', 'application/xml');
                     }
                     else if(request.headers[chk].includes('cbor')) {
-                        request.headers.usebodytype = 'cbor';
+                        request.usebodytype = 'cbor';
                         response.header('Content-Type', 'application/cbor');
                     }
                     else {
-                        request.headers.usebodytype = 'json';
+                        request.usebodytype = 'json';
                         response.header('Content-Type', 'application/json');
                     }
                 }
             }
             else {
                 if(chk === 'accept') {
-                    request.headers.usebodytype = 'json';
+                    request.usebodytype = 'json';
                     response.header('Content-Type', 'application/json');
                 }
             }
@@ -1667,9 +1667,9 @@ exports.response_result = function(request, response, status, body_Obj, rsc, ri,
         console.log(bodyString);
 
         if (request.query.rt == 3 || (request.query.rt == 2 && request.headers['x-m2m-rtu'] == null && request.headers['x-m2m-rtu'] == '')) {
-            if (request.headers.usebodytype == 'json') {
+            if (request.usebodytype == 'json') {
             }
-            else if (request.headers.usebodytype == 'cbor') {
+            else if (request.usebodytype == 'cbor') {
                 bodyString = cbor.encode(body_Obj).toString('hex');
             }
             else {
@@ -1683,15 +1683,6 @@ exports.response_result = function(request, response, status, body_Obj, rsc, ri,
             rspObj.ri = request.method + "-" + ri + "-" + JSON.stringify(request.query);
             rspObj = cap;
             console.log(JSON.stringify(rspObj));
-
-            // for test of measuring elapsed time of processing in mobius
-            // var hrend = process.hrtime(elapsed_hrstart[elapsed_tid]);
-            // var elapsed_hr_str = util.format(require('moment')().utc().format('YYYYMMDDTHHmmss') + "(hr): %ds %dms\r\n", hrend[0], hrend[1]/1000000);
-            // console.info(elapsed_hr_str);
-            // console.timeEnd(elapsed_tid);
-            // var fs = require('fs');
-            // fs.appendFileSync('get_elapsed_time.log', elapsed_hr_str, 'utf-8');
-            // delete elapsed_hrstart[elapsed_tid];
         }
         else if (request.query.rt == 1 || (request.query.rt == 2 && request.headers['x-m2m-rtu'] != null && request.headers['x-m2m-rtu'] != '')) {
             store_to_req_resource(request, bodyString, rsc, cap);
@@ -1715,22 +1706,22 @@ exports.response_rcn3_result = function(request, response, status, body_Obj, rsc
                 }
                 else if(chk === 'accept') {
                     if(request.headers[chk].includes('xml')) {
-                        request.headers.usebodytype = 'xml';
+                        request.usebodytype = 'xml';
                         response.header('Content-Type', 'application/xml');
                     }
                     else if(request.headers[chk].includes('cbor')) {
-                        request.headers.usebodytype = 'cbor';
+                        request.usebodytype = 'cbor';
                         response.header('Content-Type', 'application/cbor');
                     }
                     else {
-                        request.headers.usebodytype = 'json';
+                        request.usebodytype = 'json';
                         response.header('Content-Type', 'application/json');
                     }
                 }
             }
             else {
                 if(chk === 'accept') {
-                    request.headers.usebodytype = 'json';
+                    request.usebodytype = 'json';
                     response.header('Content-Type', 'application/json');
                 }
             }
@@ -1758,9 +1749,9 @@ exports.response_rcn3_result = function(request, response, status, body_Obj, rsc
     var bodyString = JSON.stringify(body_Obj);
 
     if (request.query.rt == 3 || (request.query.rt == 2 && request.headers['x-m2m-rtu'] == null && request.headers['x-m2m-rtu'] == '')) {
-        if (request.headers.usebodytype == 'json') {
+        if (request.usebodytype == 'json') {
         }
-        else if (request.headers.usebodytype == 'cbor') {
+        else if (request.usebodytype == 'cbor') {
             bodyString = cbor.encode(body_Obj).toString('hex');
         }
         else {
@@ -1821,22 +1812,22 @@ exports.search_result = function(request, response, status, body_Obj, rsc, ri, c
                 }
                 else if(chk === 'accept') {
                     if(request.headers[chk].includes('xml')) {
-                        request.headers.usebodytype = 'xml';
+                        request.usebodytype = 'xml';
                         response.header('Content-Type', 'application/xml');
                     }
                     else if(request.headers[chk].includes('cbor')) {
-                        request.headers.usebodytype = 'cbor';
+                        request.usebodytype = 'cbor';
                         response.header('Content-Type', 'application/cbor');
                     }
                     else {
-                        request.headers.usebodytype = 'json';
+                        request.usebodytype = 'json';
                         response.header('Content-Type', 'application/json');
                     }
                 }
             }
             else {
                 if(chk === 'accept') {
-                    request.headers.usebodytype = 'json';
+                    request.usebodytype = 'json';
                     response.header('Content-Type', 'application/json');
                 }
             }
@@ -1858,9 +1849,9 @@ exports.search_result = function(request, response, status, body_Obj, rsc, ri, c
 
             var bodyString = JSON.stringify(body_Obj);
 
-            if (request.headers.usebodytype == 'json') {
+            if (request.usebodytype == 'json') {
             }
-            else if (request.headers.usebodytype == 'cbor') {
+            else if (request.usebodytype == 'cbor') {
                 bodyString = cbor.encode(body_Obj).toString('hex');
             }
             else {
@@ -1950,9 +1941,9 @@ exports.search_result = function(request, response, status, body_Obj, rsc, ri, c
         bodyString = JSON.stringify(body_Obj);
 
         if (request.query.rt == 3 || (request.query.rt == 2 && request.headers['x-m2m-rtu'] == null && request.headers['x-m2m-rtu'] == '')) {
-            if (request.headers.usebodytype == 'json') {
+            if (request.usebodytype == 'json') {
             }
-            else if (request.headers.usebodytype == 'cbor') {
+            else if (request.usebodytype == 'cbor') {
                 bodyString = cbor.encode(body_Obj['m2m:' + rootnm]).toString('hex');
             }
             else {

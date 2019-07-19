@@ -116,38 +116,6 @@ function del_expired_resource() {
         }
     });
 }
-//
-// function noti_mqtt_begin() {
-//     if(noti_mqtt == null) {
-//         if(use_secure === 'disable') {
-//             noti_mqtt = mqtt.connect('mqtt://' + use_mqtt_broker + ':' + use_mqtt_port);
-//         }
-//         else {
-//             var connectOptions = {
-//                 host: use_mqtt_broker,
-//                 port: use_mqtt_port,
-//                 protocol: "mqtts",
-//                 keepalive: 15,
-//                 //             clientId: serverUID,
-//                 protocolId: "MQTT",
-//                 protocolVersion: 4,
-//                 clean: true,
-//                 reconnectPeriod: 2000,
-//                 connectTimeout: 2000,
-//                 key: fs.readFileSync("./server-key.pem"),
-//                 cert: fs.readFileSync("./server-crt.pem"),
-//                 rejectUnauthorized: false
-//             };
-//             noti_mqtt = mqtt.connect(connectOptions);
-//         }
-//
-//         noti_mqtt.on('connect', function () {
-//             console.log('noti_mqtt is connected');
-//         });
-//
-//         noti_mqtt.on('message', sgn.response_noti_handler);
-//     }
-// }
 
 var cluster = require('cluster');
 var os = require('os');
@@ -155,275 +123,10 @@ var os = require('os');
 var cpuCount = os.cpus().length;
 
 var worker = [];
-// var ss_ri_cache = {};
-//
-// global.get_ss_ri_cache = function (name) {
-//     return ss_ri_cache[name];
-// };
-//
-// global.get_all_ss_ri_cache = function () {
-//     return ss_ri_cache;
-// };
-//
-// global.set_ss_ri_cache = function (name, val) {
-//     ss_ri_cache[name] = val;
-//
-//     if ( cluster.isWorker ) {
-//         process.send({
-//             cmd: 'ss_ri:edit-request',
-//             name: name,
-//             val: val
-//         });
-//     }
-//     else {
-//         broadcast_ss_ri_cache();
-//     }
-// };
-//
-// global.del_ss_ri_cache = function (name) {
-//     delete ss_ri_cache[name];
-//
-//     if ( cluster.isWorker ) {
-//         process.send({
-//             cmd: 'ss_ri:del-request',
-//             name: name
-//         });
-//     }
-//     else {
-//         broadcast_ss_ri_cache();
-//     }
-// };
-//
-// function broadcast_ss_ri_cache() {
-//     if ( cluster.isMaster ) {
-//         for (var id in cluster.workers) {
-//             if(cluster.workers.hasOwnProperty(id)) {
-//                 var worker = cluster.workers[id];
-//
-//                 worker.send({
-//                     cmd: 'ss_ri:edit',
-//                     data: ss_ri_cache
-//                 });
-//             }
-//         }
-//     }
-//     else {
-//         process.send({
-//             cmd: 'ss_ri:broadcast'
-//         });
-//     }
-// }
-//
-// global.cbs_cache = {};
-//
-// global.set_cbs_cache = function (name, val) {
-//     cbs_cache[name] = val;
-//
-//     if ( cluster.isWorker ) {
-//         process.send({
-//             cmd: 'cbs:broadcast_set',
-//             name: name,
-//             val: val
-//         });
-//     }
-//     else {
-//         broadcast_set_cbs_cache(name, val);
-//     }
-// };
-//
-// function broadcast_set_cbs_cache(name, val) {
-//     if ( cluster.isMaster ) {
-//         for (var id in cluster.workers) {
-//             if(cluster.workers.hasOwnProperty(id)) {
-//                 var worker = cluster.workers[id];
-//
-//                 worker.send({
-//                     cmd: 'cbs:edit_set',
-//                     name: name,
-//                     val: val
-//                 });
-//             }
-//         }
-//     }
-//     else {
-//         process.send({
-//             cmd: 'cbs:broadcast_set'
-//         });
-//     }
-// }
-//
-// global.del_cbs_cache = function (name) {
-//     delete cbs_cache[name];
-//
-//     if ( cluster.isWorker ) {
-//         process.send({
-//             cmd: 'cbs:broadcast',
-//             name: name
-//         });
-//     }
-//     else {
-//         broadcast_cbs_cache();
-//     }
-// };
-//
-// function broadcast_cbs_cache() {
-//     if ( cluster.isMaster ) {
-//         for (var id in cluster.workers) {
-//             if(cluster.workers.hasOwnProperty(id)) {
-//                 var worker = cluster.workers[id];
-//
-//                 worker.send({
-//                     cmd: 'cbs:edit',
-//                     data: cbs_cache
-//                 });
-//             }
-//         }
-//     }
-//     else {
-//         process.send({
-//             cmd: 'cbs:broadcast'
-//         });
-//     }
-// }
-//
-// var hit_cache = {};
-//
-// global.get_hit_cache = function (name) {
-//     return hit_cache[name];
-// };
-//
-// global.get_all_hit_cache = function () {
-//     return hit_cache;
-// };
-//
-// global.set_hit_cache = function (name, val) {
-//     hit_cache[name] = val;
-//
-//     if ( cluster.isWorker ) {
-//         process.send({
-//             cmd: 'hit:broadcast_set',
-//             name: name,
-//             val: val
-//         });
-//     }
-//     else {
-//         broadcast_set_hit_cache(name, val);
-//     }
-// };
-//
-// function broadcast_set_hit_cache(name, val) {
-//     if ( cluster.isMaster ) {
-//         for (var id in cluster.workers) {
-//             if(cluster.workers.hasOwnProperty(id)) {
-//                 var worker = cluster.workers[id];
-//
-//                 worker.send({
-//                     cmd: 'hit:edit_set',
-//                     name: name,
-//                     val: val
-//                 });
-//             }
-//         }
-//     }
-//     else {
-//         process.send({
-//             cmd: 'hit:broadcast_set'
-//         });
-//     }
-// }
-//
-// function broadcast_hit_cache() {
-//     if ( cluster.isMaster ) {
-//         for (var id in cluster.workers) {
-//             if(cluster.workers.hasOwnProperty(id)) {
-//                 var worker = cluster.workers[id];
-//
-//                 worker.send({
-//                     cmd: 'hit:edit',
-//                     data: hit_cache
-//                 });
-//             }
-//         }
-//     }
-//     else {
-//         process.send({
-//             cmd: 'hit:broadcast'
-//         });
-//     }
-// }
-
 var use_clustering = 1;
 var worker_init_count = 0;
 if (use_clustering) {
     if (cluster.isMaster) {
-        // cluster.on('message', function(worker, message) {
-        //     // if(message.cmd === 'init:notify' ) {
-        //     //     worker_init_count++;
-        //     //     if(worker_init_count >= cpuCount) {
-        //     //         // try {
-        //     //         //     var hitStr = fs.readFileSync('hit.json', 'utf8');
-        //     //         //     hit_cache = JSON.parse(hitStr);
-        //     //         //
-        //     //         //     var moment = require('moment');
-        //     //         //     var a = moment().utc();
-        //     //         //     var cur_t = a.format('YYYYMMDD');
-        //     //         //     if (!hit_cache.hasOwnProperty(cur_t)) {
-        //     //         //         hit_cache[cur_t] = [];
-        //     //         //         for (var h = 0; h < 24; h++) {
-        //     //         //             hit_cache[cur_t].push({});
-        //     //         //         }
-        //     //         //     }
-        //     //         //     broadcast_hit_cache();
-        //     //         // }
-        //     //         // catch (e) {
-        //     //         //     moment = require('moment');
-        //     //         //     a = moment().utc();
-        //     //         //     cur_t = a.format('YYYYMMDD');
-        //     //         //     if (!hit_cache.hasOwnProperty(cur_t)) {
-        //     //         //         hit_cache[cur_t] = [];
-        //     //         //         for (h = 0; h < 24; h++) {
-        //     //         //             hit_cache[cur_t].push({});
-        //     //         //         }
-        //     //         //     }
-        //     //         //     broadcast_hit_cache();
-        //     //         // }
-        //     //
-        //     //         //cbs_cache = {};
-        //     //         //broadcast_cbs_cache();
-        //     //     }
-        //     // }
-        //     // else if(message.cmd === 'ss_ri:edit-request' ) {
-        //     //     ss_ri_cache[message.name] = message.val;
-        //     //     broadcast_ss_ri_cache();
-        //     // }
-        //     // else if(message.cmd === 'ss_ri:del-request' ) {
-        //     //     delete ss_ri_cache[message.name];
-        //     //     broadcast_ss_ri_cache();
-        //     // }
-        //     // else if (message.cmd === 'ss_ri:broadcast') {
-        //     //     broadcast_ss_ri_cache();
-        //     // }
-        //     // else if(message.cmd === 'cbs:broadcast_set' ) {
-        //     //     cbs_cache[message.name] = message.val;
-        //     //     //console.log(message.name + ' : ' + JSON.stringify(cbs_cache[message.name]));
-        //     //     broadcast_set_cbs_cache(message.name, message.val);
-        //     // }
-        //     // else if (message.cmd === 'cbs:broadcast') {
-        //     //     delete cbs_cache[message.name];
-        //     //     broadcast_cbs_cache();
-        //     // }
-        //     // else if (message.cmd === 'hit:broadcast_set') {
-        //     //     hit_cache[message.name] = message.val;
-        //     //     //console.log(message.name + ' : ' + JSON.stringify(hit_cache[message.name]));
-        //     //     fs.writeFileSync('hit.json', JSON.stringify(hit_cache, null, 4), 'utf8');
-        //     //     broadcast_set_hit_cache(message.name, message.val);
-        //     // }
-        //     // else if (message.cmd === 'hit:broadcast') {
-        //     //     delete hit_cache[message.name];
-        //     //     broadcast_hit_cache();
-        //     // }
-        // });
-
         cluster.on('death', function (worker) {
             console.log('worker' + worker.pid + ' died --> start again');
             cluster.fork();
@@ -465,39 +168,6 @@ if (use_clustering) {
         });
     }
     else {
-        //   app.use(bodyParser.urlencoded({ extended: true }));
-        //   app.use(bodyParser.json({limit: '1mb', type: 'application/*+json' }));
-        //   app.use(bodyParser.text({limit: '1mb', type: 'application/*+xml' }));
-
-        // process.send({
-        //     cmd: 'init:notify'
-        // });
-
-        // process.on('message', function (message) {
-        //     // if (message.cmd === 'ss_ri:edit') {
-        //     //     //ss_ri_cache[message.name] = message.val;
-        //     //     ss_ri_cache = message.data;
-        //     //     //console.log(ss_ri_cache);
-        //     // }
-        //     // else if (message.cmd === 'cbs:edit_set') {
-        //     //     cbs_cache[message.name] = message.val;
-        //     //     //console.log(message.val);
-        //     // }
-        //     // else if (message.cmd === 'cbs:edit') {
-        //     //     //cbs_cache[message.name] = message.val;
-        //     //     cbs_cache = message.data;
-        //     //     //console.log(cbs_cache);
-        //     // }
-        //     // if (message.cmd === 'hit:edit_set') {
-        //     //     hit_cache[message.name] = message.val;
-        //     //     //console.log(message.val);
-        //     // }
-        //     // else if (message.cmd === 'hit:edit') {
-        //     //     hit_cache = message.data;
-        //     //     //console.log(hit_cache);
-        //     // }
-        // });
-
         db.connect(usedbhost, 3306, 'root', usedbpass, function (rsc) {
             if (rsc == '1') {
                 if(use_secure === 'disable') {
@@ -798,7 +468,7 @@ global.make_json_arraytype = function (body_Obj) {
 function parse_to_json(request, response, callback) {
     var body_Obj = {};
 
-    if (request.headers.usebodytype === 'xml') {
+    if (request.usebodytype === 'xml') {
         try {
             var parser = new xml2js.Parser({explicitArray: false});
             parser.parseString(request.body.toString(), function (err, result) {
@@ -822,7 +492,7 @@ function parse_to_json(request, response, callback) {
             callback('0', body_Obj);
         }
     }
-    else if (request.headers.usebodytype === 'cbor') {
+    else if (request.usebodytype === 'cbor') {
         try {
             var encoded = request.body;
             cbor.decodeFirst(encoded, function(err, result) {
@@ -1169,147 +839,127 @@ function lookup_create(request, response) {
                 return '0';
             }
 
-            if (op == 'fanoutpoint') {
-                // check access right for fanoutpoint
-                check_grp(request, response, function (rsc, result_grp) {
-                    if (rsc == '0') {
-                        return rsc;
-                    }
 
-                    security.check(request, response, parentObj.ty, result_grp.macp, '1', result_grp.cr, function (rsc, request, response) {
-                        if (rsc == '0') {
-                            body_Obj = {};
-                            body_Obj['dbg'] = resultStatusCode['4103'];
-                            responder.response_result(request, response, 403, body_Obj, 4103, request.url, resultStatusCode['4103']);
-                            return '0';
-                        }
+            if(request.query.real == 4) {
 
-                        fopt.check(request, response, result_grp, ty, body_Obj);
-                    });
-                });
             }
-            else { //if(op == 'direct') {
-                if(request.query.real == 4) {
 
-                }
-
-                if ((request.ty == 1) && (parentObj.ty == 5 || parentObj.ty == 16 || parentObj.ty == 2)) { // accessControlPolicy
-                }
-                else if ((request.ty == 9) && (parentObj.ty == 5 || parentObj.ty == 16 || parentObj.ty == 2)) { // group
-                }
-                else if ((request.ty == 16) && (parentObj.ty == 5)) { // remoteCSE
-                    if (usecsetype == 'asn' && request.headers.csr == null) {
-                        body_Obj = {};
-                        body_Obj['dbg'] = 'ASN CSE can not have child CSE (remoteCSE)';
-                        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-                        return '0';
-                    }
-                }
-                else if ((request.ty == 10) && (parentObj.ty == 5)) { // locationPolicy
-                }
-                else if ((request.ty == 2) && (parentObj.ty == 5)) { // ae
-                }
-                else if ((request.ty == 3) && (parentObj.ty == 5 || parentObj.ty == 2 || parentObj.ty == 3)) { // container
-                }
-                else if ((request.ty == 23) && (parentObj.ty == 5 || parentObj.ty == 16 || parentObj.ty == 2 ||
-                        parentObj.ty == 3 || parentObj.ty == 24 || parentObj.ty == 29 || parentObj.ty == 9 || parentObj.ty == 1 || parentObj.ty == 27)) { // sub
-                }
-                else if ((request.ty == 4) && (parentObj.ty == 3)) { // contentInstance
-                }
-                else if ((request.ty == 24) && (parentObj.ty == 2 || parentObj.ty == 3 || parentObj.ty == 4 || parentObj.ty == 29)) { // semanticDescriptor
-                }
-                else if ((request.ty == 29) && (parentObj.ty == 5 || parentObj.ty == 16 || parentObj.ty == 2)) { // timeSeries
-                }
-                else if ((request.ty == 30) && (parentObj.ty == 29)) { // timeSeriesInstance
-                    //body_Obj[rootnm].mni = parent_comm.mni;
-                }
-                else if ((request.ty == 27) && (parentObj.ty == 2 || parentObj.ty == 16)) { // multimediaSession
-                }
-                else if ((request.ty == 14) && (parentObj.ty == 5)) { // node
-                }
-                else if ((request.ty == 13) && (parentObj.ty == 14)) { // mgmtObj
-                }
-                else if ((request.ty == 38) && (parentObj.ty == 5 || parentObj.ty == 16 || parentObj.ty == 2 ||
-                        parentObj.ty == 3 || parentObj.ty == 24 || parentObj.ty == 29 || parentObj.ty == 9 || parentObj.ty == 1 || parentObj.ty == 27)) { // transaction
-                }
-                else if ((request.ty == 39) && (parentObj.ty == 5 || parentObj.ty == 16 || parentObj.ty == 2 ||
-                        parentObj.ty == 3 || parentObj.ty == 24 || parentObj.ty == 29 || parentObj.ty == 9 || parentObj.ty == 1 || parentObj.ty == 27)) { // transaction
-                }
-                else {
+            if ((request.ty == 1) && (parentObj.ty == 5 || parentObj.ty == 16 || parentObj.ty == 2)) { // accessControlPolicy
+            }
+            else if ((request.ty == 9) && (parentObj.ty == 5 || parentObj.ty == 16 || parentObj.ty == 2)) { // group
+            }
+            else if ((request.ty == 16) && (parentObj.ty == 5)) { // remoteCSE
+                if (usecsetype == 'asn' && request.headers.csr == null) {
                     body_Obj = {};
-                    body_Obj['dbg'] = 'TARGET_NOT_SUBSCRIBABLE: request ty creating can not create under parent resource';
-                    responder.response_result(request, response, 403, body_Obj, 5203, request.url, body_Obj['dbg']);
+                    body_Obj['dbg'] = 'ASN CSE can not have child CSE (remoteCSE)';
+                    responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
                     return '0';
                 }
+            }
+            else if ((request.ty == 10) && (parentObj.ty == 5)) { // locationPolicy
+            }
+            else if ((request.ty == 2) && (parentObj.ty == 5)) { // ae
+            }
+            else if ((request.ty == 3) && (parentObj.ty == 5 || parentObj.ty == 2 || parentObj.ty == 3)) { // container
+            }
+            else if ((request.ty == 23) && (parentObj.ty == 5 || parentObj.ty == 16 || parentObj.ty == 2 ||
+                    parentObj.ty == 3 || parentObj.ty == 24 || parentObj.ty == 29 || parentObj.ty == 9 || parentObj.ty == 1 || parentObj.ty == 27)) { // sub
+            }
+            else if ((request.ty == 4) && (parentObj.ty == 3)) { // contentInstance
+            }
+            else if ((request.ty == 24) && (parentObj.ty == 2 || parentObj.ty == 3 || parentObj.ty == 4 || parentObj.ty == 29)) { // semanticDescriptor
+            }
+            else if ((request.ty == 29) && (parentObj.ty == 5 || parentObj.ty == 16 || parentObj.ty == 2)) { // timeSeries
+            }
+            else if ((request.ty == 30) && (parentObj.ty == 29)) { // timeSeriesInstance
+                //body_Obj[rootnm].mni = parent_comm.mni;
+            }
+            else if ((request.ty == 27) && (parentObj.ty == 2 || parentObj.ty == 16)) { // multimediaSession
+            }
+            else if ((request.ty == 14) && (parentObj.ty == 5)) { // node
+            }
+            else if ((request.ty == 13) && (parentObj.ty == 14)) { // mgmtObj
+            }
+            else if ((request.ty == 38) && (parentObj.ty == 5 || parentObj.ty == 16 || parentObj.ty == 2 ||
+                    parentObj.ty == 3 || parentObj.ty == 24 || parentObj.ty == 29 || parentObj.ty == 9 || parentObj.ty == 1 || parentObj.ty == 27)) { // transaction
+            }
+            else if ((request.ty == 39) && (parentObj.ty == 5 || parentObj.ty == 16 || parentObj.ty == 2 ||
+                    parentObj.ty == 3 || parentObj.ty == 24 || parentObj.ty == 29 || parentObj.ty == 9 || parentObj.ty == 1 || parentObj.ty == 27)) { // transaction
+            }
+            else {
+                body_Obj = {};
+                body_Obj['dbg'] = 'TARGET_NOT_SUBSCRIBABLE: request ty creating can not create under parent resource';
+                responder.response_result(request, response, 403, body_Obj, 5203, request.url, body_Obj['dbg']);
+                return '0';
+            }
 
-                if (((request.ty == 4) && (parentObj.ty == 3)) || ((request.ty == 30) && (parentObj.ty == 29))) { // contentInstance
-                    if (parentObj.mni == null) {
-                        //body_Obj[rootnm].mni = '3153600000';
-                    }
-                    else {
-                        if (parseInt(parentObj.mni) == 0) {
-                            body_Obj = {};
-                            body_Obj['dbg'] = 'can not create cin because mni value is zero';
-                            responder.response_result(request, response, 406, body_Obj, 5207, request.url, body_Obj['dbg']);
-                            return '0';
-                        }
-                        else if (parseInt(parentObj.mbs) == 0) {
-                            body_Obj = {};
-                            body_Obj['dbg'] = 'can not create cin because mbs value is zero';
-                            responder.response_result(request, response, 406, body_Obj, 5207, request.url, body_Obj['dbg']);
-                            return '0';
-                        }
-                        else if (parentObj.disr == true) {
-                            body_Obj = {};
-                            body_Obj['dbg'] = 'OPERATION NOT ALLOWED: disr attribute is true';
-                            responder.response_result(request, response, 405, body_Obj, 4005, request.url, body_Obj['dbg']);
-                            return '0';
-                        }
-                        else {
-                            //body_Obj[rootnm].mni = parent_spec[0].mni;
-                        }
-                    }
-
-                    request.headers.mni = parentObj.mni;
-                    request.headers.mbs = parentObj.mbs;
-                    request.headers.cni = parentObj.cni;
-                    request.headers.cbs = parentObj.cbs;
-                    request.headers.st = parentObj.st;
-                }
-
-                if (parentObj.length == 0) {
-                    parentObj = {};
-                    parentObj.cr = '';
-                    console.log('no creator');
-                }
-                else {
-                    if (parentObj.ty == 2) {
-                        parentObj.cr = parentObj.aei;
-                    }
-                }
-
-                if (request.ty == 23) {
-                    var access_value = '3';
+            if (((request.ty == 4) && (parentObj.ty == 3)) || ((request.ty == 30) && (parentObj.ty == 29))) { // contentInstance
+                if (parentObj.mni == null) {
+                    //body_Obj[rootnm].mni = '3153600000';
                 }
                 else {
-                    access_value = '1';
-                }
-
-                var tid = 'security.check - ' + require('shortid').generate();
-                console.time(tid);
-                security.check(request, response, parentObj.ty, parentObj.acpi, access_value, parentObj.cr, function (rsc, request, response) {
-                    if (rsc == '0') {
+                    if (parseInt(parentObj.mni) == 0) {
                         body_Obj = {};
-                        body_Obj['dbg'] = resultStatusCode['4103'];
-                        responder.response_result(request, response, 403, body_Obj, 4103, request.url, resultStatusCode['4103']);
+                        body_Obj['dbg'] = 'can not create cin because mni value is zero';
+                        responder.response_result(request, response, 406, body_Obj, 5207, request.url, body_Obj['dbg']);
                         return '0';
                     }
-                    console.timeEnd(tid);
-                    resource.create(request, response, request.ty, body_Obj, function (rsc) {
+                    else if (parseInt(parentObj.mbs) == 0) {
+                        body_Obj = {};
+                        body_Obj['dbg'] = 'can not create cin because mbs value is zero';
+                        responder.response_result(request, response, 406, body_Obj, 5207, request.url, body_Obj['dbg']);
+                        return '0';
+                    }
+                    else if (parentObj.disr == true) {
+                        body_Obj = {};
+                        body_Obj['dbg'] = 'OPERATION NOT ALLOWED: disr attribute is true';
+                        responder.response_result(request, response, 405, body_Obj, 4005, request.url, body_Obj['dbg']);
+                        return '0';
+                    }
+                    else {
+                        //body_Obj[rootnm].mni = parent_spec[0].mni;
+                    }
+                }
 
-                    });
-                });
+                request.headers.mni = parentObj.mni;
+                request.headers.mbs = parentObj.mbs;
+                request.headers.cni = parentObj.cni;
+                request.headers.cbs = parentObj.cbs;
+                request.headers.st = parentObj.st;
             }
+
+            if (parentObj.length == 0) {
+                parentObj = {};
+                parentObj.cr = '';
+                console.log('no creator');
+            }
+            else {
+                if (parentObj.ty == 2) {
+                    parentObj.cr = parentObj.aei;
+                }
+            }
+
+            if (request.ty == 23) {
+                var access_value = '3';
+            }
+            else {
+                access_value = '1';
+            }
+
+            var tid = 'security.check - ' + require('shortid').generate();
+            console.time(tid);
+            security.check(request, response, parentObj.ty, parentObj.acpi, access_value, parentObj.cr, function (rsc, request, response) {
+                if (rsc == '0') {
+                    body_Obj = {};
+                    body_Obj['dbg'] = resultStatusCode['4103'];
+                    responder.response_result(request, response, 403, body_Obj, 4103, request.url, resultStatusCode['4103']);
+                    return '0';
+                }
+                console.timeEnd(tid);
+                resource.create(request, response, request.ty, body_Obj, function (rsc) {
+
+                });
+            });
         });
     });
 }
@@ -1328,70 +978,34 @@ function lookup_retrieve(request, response) {
                 return '0';
             }
 
-            if (op == 'fanoutpoint') {
-                // check access right for fanoutpoint
-                check_grp(request, response, function (rsc, result_grp) {
+            if (resultObj.ty == 2) {
+                resultObj.cr = resultObj.aei;
+            }
+            else if (resultObj.ty == 16) {
+                resultObj.cr = resultObj.csi;
+            }
+
+            if (request.query.fu == 1) {
+                security.check(request, response, resultObj.ty, resultObj.acpi, '32', resultObj.cr, function (rsc, request, response) {
                     if (rsc == '0') {
-                        return rsc;
+                        body_Obj = {};
+                        body_Obj['dbg'] = resultStatusCode['4103'];
+                        responder.response_result(request, response, 403, body_Obj, 4103, request.url, resultStatusCode['4103']);
+                        return '0';
                     }
-
-                    if (request.query.fu == 1) {
-                        security.check(request, response, resultObj.ty, result_grp.macp, '32', result_grp.cr, function (rsc, request, response) {
-                            if (rsc == '0') {
-                                body_Obj = {};
-                                body_Obj['dbg'] = resultStatusCode['4103'];
-                                responder.response_result(request, response, 403, body_Obj, 4103, request.url, resultStatusCode['4103']);
-                                return '0';
-                            }
-
-                            fopt.check(request, response, result_grp, body_Obj);
-                        });
-                    }
-                    else {
-                        security.check(request, response, resultObj.ty, result_grp.macp, '2', result_grp.cr, function (rsc, request, response) {
-                            if (rsc == '0') {
-                                body_Obj = {};
-                                body_Obj['dbg'] = resultStatusCode['4103'];
-                                responder.response_result(request, response, 403, body_Obj, 4103, request.url, resultStatusCode['4103']);
-                                return '0';
-                            }
-
-                            fopt.check(request, response, result_grp, body_Obj);
-                        });
-                    }
-
+                    resource.retrieve(request, response, resultObj);
                 });
             }
-            else { //if(op == 'direct') {
-                if (resultObj.ty == 2) {
-                    resultObj.cr = resultObj.aei;
-                }
-                else if (resultObj.ty == 16) {
-                    resultObj.cr = resultObj.csi;
-                }
-
-                if (request.query.fu == 1) {
-                    security.check(request, response, resultObj.ty, resultObj.acpi, '32', resultObj.cr, function (rsc, request, response) {
-                        if (rsc == '0') {
-                            body_Obj = {};
-                            body_Obj['dbg'] = resultStatusCode['4103'];
-                            responder.response_result(request, response, 403, body_Obj, 4103, request.url, resultStatusCode['4103']);
-                            return '0';
-                        }
-                        resource.retrieve(request, response, resultObj);
-                    });
-                }
-                else {
-                    security.check(request, response, resultObj.ty, resultObj.acpi, '2', resultObj.cr, function (rsc, request, response) {
-                        if (rsc == '0') {
-                            body_Obj = {};
-                            body_Obj['dbg'] = resultStatusCode['4103'];
-                            responder.response_result(request, response, 403, body_Obj, 4103, request.url, resultStatusCode['4103']);
-                            return '0';
-                        }
-                        resource.retrieve(request, response, resultObj);
-                    });
-                }
+            else {
+                security.check(request, response, resultObj.ty, resultObj.acpi, '2', resultObj.cr, function (rsc, request, response) {
+                    if (rsc == '0') {
+                        body_Obj = {};
+                        body_Obj['dbg'] = resultStatusCode['4103'];
+                        responder.response_result(request, response, 403, body_Obj, 4103, request.url, resultStatusCode['4103']);
+                        return '0';
+                    }
+                    resource.retrieve(request, response, resultObj);
+                });
             }
         });
     });
@@ -1411,64 +1025,43 @@ function lookup_update(request, response) {
                 return '0';
             }
 
-            if (op == 'fanoutpoint') {
-                // check access right for fanoutpoint
-                check_grp(request, response, function (rsc, result_grp) {
-                    if (rsc == '0') {
-                        return rsc;
-                    }
-
-                    security.check(request, response, resultObj.ty, result_grp.macp, '4', result_grp.cr, function (rsc, request, response) {
-                        if (rsc == '0') {
-                            body_Obj = {};
-                            body_Obj['dbg'] = resultStatusCode['4103'];
-                            responder.response_result(request, response, 403, body_Obj, 4103, request.url, resultStatusCode['4103']);
-                            return '0';
-                        }
-
-                        fopt.check(request, response, result_grp, resultObj.ty, body_Obj);
-                    });
-                });
+            if (resultObj.ty == 2) {
+                resultObj.cr = resultObj.aei;
             }
-            else { //if(op == 'direct') {
-                if (resultObj.ty == 2) {
-                    resultObj.cr = resultObj.aei;
-                }
-                else if (resultObj.ty == 16) {
-                    resultObj.cr = resultObj.csi;
-                }
+            else if (resultObj.ty == 16) {
+                resultObj.cr = resultObj.csi;
+            }
 
-                var acpi_check = 0;
-                var other_check = 0;
-                for(var rootnm in body_Obj) {
-                    if(body_Obj.hasOwnProperty(rootnm)) {
-                        for(var attr in body_Obj[rootnm]) {
-                            if(body_Obj[rootnm].hasOwnProperty(attr)) {
-                                if(attr == 'acpi') {
-                                    acpi_check++;
-                                }
-                                else {
-                                    other_check++;
-                                }
+            var acpi_check = 0;
+            var other_check = 0;
+            for(var rootnm in body_Obj) {
+                if(body_Obj.hasOwnProperty(rootnm)) {
+                    for(var attr in body_Obj[rootnm]) {
+                        if(body_Obj[rootnm].hasOwnProperty(attr)) {
+                            if(attr == 'acpi') {
+                                acpi_check++;
+                            }
+                            else {
+                                other_check++;
                             }
                         }
                     }
                 }
+            }
 
-                if(other_check > 0) {
-                    security.check(request, response, resultObj.ty, resultObj.acpi, '4', resultObj.cr, function (rsc, request, response) {
-                        if (rsc == '0') {
-                            body_Obj = {};
-                            body_Obj['dbg'] = resultStatusCode['4103'];
-                            responder.response_result(request, response, 403, body_Obj, 4103, request.url, resultStatusCode['4103']);
-                            return '0';
-                        }
-                        resource.update(request, response, resultObj, body_Obj);
-                    });
-                }
-                else {
+            if(other_check > 0) {
+                security.check(request, response, resultObj.ty, resultObj.acpi, '4', resultObj.cr, function (rsc, request, response) {
+                    if (rsc == '0') {
+                        body_Obj = {};
+                        body_Obj['dbg'] = resultStatusCode['4103'];
+                        responder.response_result(request, response, 403, body_Obj, 4103, request.url, resultStatusCode['4103']);
+                        return '0';
+                    }
                     resource.update(request, response, resultObj, body_Obj);
-                }
+                });
+            }
+            else {
+                resource.update(request, response, resultObj, body_Obj);
             }
         });
     });
@@ -1488,53 +1081,32 @@ function lookup_delete(request, response) {
                 return '0';
             }
 
-            if (op == 'fanoutpoint') {
-                // check access right for fanoutpoint
-                check_grp(request, response, function (rsc, result_grp) {
-                    if (rsc == '0') {
-                        return rsc;
-                    }
-
-                    security.check(request, response, resultObj.ty, result_grp.macp, '8', result_grp.cr, function (rsc, request, response) {
-                        if (rsc == '0') {
-                            body_Obj = {};
-                            body_Obj['dbg'] = resultStatusCode['4103'];
-                            responder.response_result(request, response, 403, body_Obj, 4103, request.url, resultStatusCode['4103']);
-                            return '0';
-                        }
-
-                        fopt.check(request, response, result_grp, resultObj.ty, body_Obj);
-                    });
-                });
+            if (resultObj.ty == 2) {
+                resultObj.cr = resultObj.aei;
             }
-            else { //if(op == 'direct') {
-                if (resultObj.ty == 2) {
-                    resultObj.cr = resultObj.aei;
-                }
-                else if (resultObj.ty == 16) {
-                    resultObj.cr = resultObj.csi;
+            else if (resultObj.ty == 16) {
+                resultObj.cr = resultObj.csi;
+            }
+
+            security.check(request, response, resultObj.ty, resultObj.acpi, '8', resultObj.cr, function (rsc, request, response) {
+                if (rsc == '0') {
+                    body_Obj = {};
+                    body_Obj['dbg'] = resultStatusCode['4103'];
+                    responder.response_result(request, response, 403, body_Obj, 4103, request.url, resultStatusCode['4103']);
+                    return '0';
                 }
 
-                security.check(request, response, resultObj.ty, resultObj.acpi, '8', resultObj.cr, function (rsc, request, response) {
-                    if (rsc == '0') {
-                        body_Obj = {};
-                        body_Obj['dbg'] = resultStatusCode['4103'];
-                        responder.response_result(request, response, 403, body_Obj, 4103, request.url, resultStatusCode['4103']);
-                        return '0';
-                    }
+                // for(var idx in cbs_cache) {
+                //     if(cbs_cache.hasOwnProperty(idx)) {
+                //         if(idx.includes(resultObj.ri)) {
+                //             delete cbs_cache[idx];
+                //             del_cbs_cache(idx);
+                //         }
+                //     }
+                // }
 
-                    // for(var idx in cbs_cache) {
-                    //     if(cbs_cache.hasOwnProperty(idx)) {
-                    //         if(idx.includes(resultObj.ri)) {
-                    //             delete cbs_cache[idx];
-                    //             del_cbs_cache(idx);
-                    //         }
-                    //     }
-                    // }
-
-                    resource.delete(request, response, resultObj);
-                });
-            }
+                resource.delete(request, response, resultObj);
+            });
         });
     });
 }
@@ -1786,16 +1358,85 @@ function retrieveHitCount(response) {
     req.end();
 }
 
-global.elapsed_hrstart = {};
+function check_headers_requested(headers, callback) {
+    // Check X-M2M-RI Header
+    if ((headers['x-m2m-ri'] == null)) {
+        responder.error_result(request, response, 400, 4000, 'BAD REQUEST: X-M2M-RI is none');
+        return '0';
+    }
+
+    // Check X-M2M-RVI Header
+    if ((headers['x-m2m-rvi'] == null)) {
+        // responder.error_result(request, response, 400, 4000, 'BAD REQUEST: X-M2M-RI is none');
+        // callback('0', body_Obj, request, response);
+        // return '0';
+        // todo: RVI check
+        headers['x-m2m-rvi'] = uservi;
+    }
+
+    request.ty = '99';
+    var content_type = request.headers['content-type'].split(';');
+    try {
+        var ty = '99';
+        for (var i in content_type) {
+            if (content_type.hasOwnProperty(i)) {
+                var ty_arr = content_type[i].replace(/ /g, '').split('=');
+                if (ty_arr[0].replace(/ /g, '') == 'ty') {
+                    ty = ty_arr[1].replace(' ', '');
+                    break;
+                }
+            }
+        }
+        request.ty = ty;
+    }
+    catch (e) {
+        responder.error_result(request, response, 400, 4000, 'ty is none');
+        return '0';
+    }
+
+    if (request.ty == '5') {
+        responder.error_result(request, response, 405, 4005, 'OPERATION_NOT_ALLOWED: CSEBase can not be created by others');
+        return '0';
+    }
+
+    if (request.ty == '17') {
+        responder.error_result(request, response, 405, 4005, 'OPERATION_NOT_ALLOWED (req is not supported when post request)');
+        return '0';
+    }
+
+    if (headers.hasOwnProperty('content-type')) {
+        if (headers['content-type'].includes('xml')) {
+            request.usebodytype = 'xml';
+        }
+        else if (headers['content-type'].includes('cbor')) {
+            request.usebodytype = 'cbor';
+        }
+        else {
+            request.usebodytype = 'json';
+        }
+    }
+    else {
+        request.usebodytype = 'json';
+    }
+
+    // Check X-M2M-Origin Header
+    if (headers['x-m2m-origin'] == null || headers['x-m2m-origin'] == '') {
+        if (request.ty == '2' || request.ty == '16') {
+            headers['x-m2m-origin'] = 'S';
+        }
+        else {
+            responder.error_result(request, response, 400, 4000, 'BAD REQUEST: X-M2M-Origin header is Mandatory');
+            return '0';
+        }
+    }
+}
 
 var onem2mParser = bodyParser.text(
     {
-        limit: '1mb',
+        limit: '5mb',
         type: 'application/onem2m-resource+xml;application/xml;application/json;application/vnd.onem2m-res+xml;application/vnd.onem2m-res+json'
     }
 );
-//var onem2mParser = bodyParser.text({ limit: '1mb', type: '*/*' });
-
 
 //////// contribution code
 // Kevin Lee, Executive Director, Unibest INC, Owner of Howchip.com
@@ -1813,38 +1454,9 @@ app.use(function (request, response, next) {
     request.on('data', function(chunk) {
         fullBody += chunk.toString();
     });
+
     request.on('end', function() {
         request.body = fullBody;
-
-        if (request.method == 'GET') {
-            if (request.url == '/hit') {
-                response.header('Content-Type', 'application/json');
-                retrieveHitCount(response);
-                return;
-            }
-
-            if (request.url == '/total_ae') {
-                db_sql.select_sum_ae(function (err, result) {
-                    if (!err) {
-                        var total_ae = result[0];
-                        response.header('Content-Type', 'application/json');
-                        response.status(200).end(JSON.stringify(total_ae, null, 4));
-                    }
-                });
-                return;
-            }
-
-            if (request.url == '/total_cbs') {
-                db_sql.select_sum_cbs(function (err, result) {
-                    if (!err) {
-                        var total_cbs = result[0];
-                        response.header('Content-Type', 'application/json');
-                        response.status(200).end(JSON.stringify(total_cbs, null, 4));
-                    }
-                });
-                return;
-            }
-        }
 
         // Check X-M2M-RI Header
         if ((request.headers['x-m2m-ri'] == null)) {
@@ -1861,33 +1473,8 @@ app.use(function (request, response, next) {
             request.headers['x-m2m-rvi'] = uservi;
         }
 
-        if (request.headers.hasOwnProperty('content-type')) {
-            if (request.headers['content-type'].includes('xml')) {
-                request.headers.usebodytype = 'xml';
-            }
-            else if (request.headers['content-type'].includes('cbor')) {
-                request.headers.usebodytype = 'cbor';
-            }
-            else {
-                request.headers.usebodytype = 'json';
-            }
-        }
-        else {
-            request.headers.usebodytype = 'json';
-        }
-
-        if (request.query.fu == null) {
-            request.query.fu = 2;
-        }
-        if (request.query.rcn == null) {
-            request.query.rcn = 1;
-        }
-        if (request.query.rt == null) {
-            request.query.rt = 3;
-        }
-
         request.ty = '99';
-        if (request.method == 'POST') {
+        if(request.method.toLowerCase() == 'post') {
             var content_type = request.headers['content-type'].split(';');
             try {
                 var ty = '99';
@@ -1927,6 +1514,31 @@ app.use(function (request, response, next) {
                 responder.error_result(request, response, 400, 4000, 'BAD REQUEST: X-M2M-Origin header is Mandatory');
                 return '0';
             }
+        }
+
+        if (request.headers.hasOwnProperty('content-type')) {
+            if (request.headers['content-type'].includes('xml')) {
+                request.usebodytype = 'xml';
+            }
+            else if (request.headers['content-type'].includes('cbor')) {
+                request.usebodytype = 'cbor';
+            }
+            else {
+                request.usebodytype = 'json';
+            }
+        }
+        else {
+            request.usebodytype = 'json';
+        }
+
+        if (request.query.fu == null) {
+            request.query.fu = 2;
+        }
+        if (request.query.rcn == null) {
+            request.query.rcn = 1;
+        }
+        if (request.query.rt == null) {
+            request.query.rt = 3;
         }
 
         var allow = 1;
@@ -2005,7 +1617,12 @@ app.use(function (request, response, next) {
                             var access_value = '1';
                         }
                         else if (request.method.toLowerCase() == 'get') {
-                            access_value = '2';
+                            if (request.query.fu == 1) {
+                                access_value = '32';
+                            }
+                            else {
+                                access_value = '2';
+                            }
                         }
                         else if (request.method.toLowerCase() == 'put') {
                             access_value = '4';
@@ -2062,263 +1679,222 @@ app.use(function (request, response, next) {
 
 // remoteCSE, ae, cnt
 app.post(onem2mParser, function (request, response) {
-    // request.headers.elapsed_tid = require('shortid').generate();
-    // elapsed_hrstart[request.headers.elapsed_tid] = process.hrtime();
-    // console.time(request.headers.elapsed_tid);
+    if (request.headers.hasOwnProperty('binding')) {
+        updateHitCount(request.headers['binding']);
+    }
+    else {
+        updateHitCount('H');
+    }
 
-    // var fullBody = '';
-    // request.on('data', function (chunk) {
-    //     fullBody += chunk.toString();
-    // });
-    // request.on('end', function () {
-        if (request.headers.hasOwnProperty('binding')) {
-            updateHitCount(request.headers['binding']);
-        }
-        else {
-            updateHitCount('H');
-        }
+    if (request.body == "") {
+        responder.error_result(request, response, 400, 4000, 'body is empty');
+        return '0';
+    }
 
-        //request.body = fullBody;
-        if (request.body == "") {
-            responder.error_result(request, response, 400, 4000, 'body is empty');
-            return '0';
-        }
-
-        parse_body_format(request, response, function (rsc, body_Obj) {
-            if (rsc != '0') {
-                if (responder.typeRsrc[request.ty] != Object.keys(body_Obj)[0]) {
-                    if(responder.typeRsrc[request.ty] == 'mgo') {
-                        var support_mgo = 0;
-                        for (var prop in responder.mgoType) {
-                            if(responder.mgoType.hasOwnProperty(prop)) {
-                                if (responder.mgoType[prop] == Object.keys(body_Obj)[0]) {
-                                    support_mgo = 1;
-                                    break;
-                                }
+    parse_body_format(request, response, function (rsc, body_Obj) {
+        if (rsc != '0') {
+            if (responder.typeRsrc[request.ty] != Object.keys(body_Obj)[0]) {
+                if(responder.typeRsrc[request.ty] == 'mgo') {
+                    var support_mgo = 0;
+                    for (var prop in responder.mgoType) {
+                        if(responder.mgoType.hasOwnProperty(prop)) {
+                            if (responder.mgoType[prop] == Object.keys(body_Obj)[0]) {
+                                support_mgo = 1;
+                                break;
                             }
                         }
-
-                        if(support_mgo == 0) {
-                            responder.error_result(request, response, 400, 4000, 'ty [' + request.ty + '] is different with body (' + Object.keys(body_Obj)[0] + ')');
-                            return '0';
-                        }
                     }
-                    else {
+
+                    if(support_mgo == 0) {
                         responder.error_result(request, response, 400, 4000, 'ty [' + request.ty + '] is different with body (' + Object.keys(body_Obj)[0] + ')');
                         return '0';
                     }
                 }
+                else {
+                    responder.error_result(request, response, 400, 4000, 'ty [' + request.ty + '] is different with body (' + Object.keys(body_Obj)[0] + ')');
+                    return '0';
+                }
+            }
 
-                if(request.ty == '2') {
-                    var allow = 1;
-                    if(allowed_app_ids.length > 0) {
-                        allow = 0;
-                        for(var idx in allowed_app_ids) {
-                            if(allowed_app_ids.hasOwnProperty(idx)) {
-                                if(allowed_app_ids[idx] == request.bodyObj.ae.api) {
-                                    allow = 1;
-                                    break;
-                                }
+            if(request.ty == '2') {
+                var allow = 1;
+                if(allowed_app_ids.length > 0) {
+                    allow = 0;
+                    for(var idx in allowed_app_ids) {
+                        if(allowed_app_ids.hasOwnProperty(idx)) {
+                            if(allowed_app_ids[idx] == request.bodyObj.ae.api) {
+                                allow = 1;
+                                break;
                             }
                         }
+                    }
 
-                        if(allow == 0) {
-                            responder.error_result(request, response, 403, 4107, 'OPERATION_NOT_ALLOWED: APP-ID in AE is not allowed');
-                            return '0';
-                        }
+                    if(allow == 0) {
+                        responder.error_result(request, response, 403, 4107, 'OPERATION_NOT_ALLOWED: APP-ID in AE is not allowed');
+                        return '0';
                     }
                 }
-
-                var rootnm = Object.keys(request.targetObject)[0];
-                var absolute_url = request.targetObject[rootnm].ri;
-                check_notification(request, absolute_url, function (status, http_code, rsc_code, caption) {
-                    if (status == 'notify') {
-                        check_ae(request.targetObject, request, response);
-                    }
-                    else if (status == 'post') {
-                        request.url = absolute_url;
-                        if ((request.query.fu == 2) && (request.query.rcn == 0 || request.query.rcn == 1 || request.query.rcn == 2 || request.query.rcn == 3)) {
-                            lookup_create(request, response);
-                        }
-                        else {
-                            responder.error_result(request, response, http_code, rsc_code, 'rcn or fu query is not supported at POST request');
-                        }
-                    }
-                    else if (status == '0') {
-                        responder.error_result(request, response, http_code, rsc_code, caption);
-                    }
-                });
             }
-        });
-    //});
+
+            var rootnm = Object.keys(request.targetObject)[0];
+            var absolute_url = request.targetObject[rootnm].ri;
+            check_notification(request, absolute_url, function (status, http_code, rsc_code, caption) {
+                if (status == 'notify') {
+                    check_ae(request.targetObject, request, response);
+                }
+                else if (status == 'post') {
+                    request.url = absolute_url;
+                    if ((request.query.fu == 2) && (request.query.rcn == 0 || request.query.rcn == 1 || request.query.rcn == 2 || request.query.rcn == 3)) {
+                        lookup_create(request, response);
+                    }
+                    else {
+                        responder.error_result(request, response, http_code, rsc_code, 'rcn or fu query is not supported at POST request');
+                    }
+                }
+                else if (status == '0') {
+                    responder.error_result(request, response, http_code, rsc_code, caption);
+                }
+            });
+        }
+    });
 });
 
 app.get(onem2mParser, function (request, response) {
-    // elapsed_tid = require('shortid').generate();
-    // elapsed_hrstart[elapsed_tid] = process.hrtime();
-    // console.time(elapsed_tid);
+    if (request.url == '/hit') {
+        response.header('Content-Type', 'application/json');
+        retrieveHitCount(response);
+        return;
+    }
 
-    // var fullBody = '';
-    // request.on('data', function (chunk) {
-    //     fullBody += chunk.toString();
-    // });
-    // request.on('end', function () {
-        if (request.headers.hasOwnProperty('binding')) {
-            updateHitCount(request.headers['binding']);
-        }
-        else {
-            updateHitCount('H');
-        }
+    if (request.url == '/total_ae') {
+        db_sql.select_sum_ae(function (err, result) {
+            if (!err) {
+                var total_ae = result[0];
+                response.header('Content-Type', 'application/json');
+                response.status(200).end(JSON.stringify(total_ae, null, 4));
+            }
+        });
+        return;
+    }
 
-        //request.body = fullBody;
+    if (request.url == '/total_cbs') {
+        db_sql.select_sum_cbs(function (err, result) {
+            if (!err) {
+                var total_cbs = result[0];
+                response.header('Content-Type', 'application/json');
+                response.status(200).end(JSON.stringify(total_cbs, null, 4));
+            }
+        });
+        return;
+    }
 
-        var rootnm = Object.keys(request.targetObject)[0];
-        var absolute_url = request.targetObject[rootnm].ri;
+    if (request.headers.hasOwnProperty('binding')) {
+        updateHitCount(request.headers['binding']);
+    }
+    else {
+        updateHitCount('H');
+    }
 
-        request.url = absolute_url;
-        if ((request.query.fu == 1 || request.query.fu == 2) && (request.query.rcn == 1 || request.query.rcn == 4 || request.query.rcn == 5 || request.query.rcn == 6 || request.query.rcn == 7)) {
-            // if(request.targetObject[rootnm].ty == 3 || request.targetObject[rootnm].ty == 29) {
-            //     if(cbs_cache[request.targetObject[rootnm].ri] == null ||
-            //         (parseInt(cbs_cache[request.targetObject[rootnm].ri].cni, 10) != request.targetObject[rootnm].cni || parseInt(cbs_cache[request.targetObject[rootnm].ri].cbs, 10) != request.targetObject[rootnm].cbs)) {
-            //         db_sql.get_cni_count(request.targetObject[rootnm], function (cni, cbs, st) {
-            //             if (parseInt(request.targetObject[rootnm].cni, 10) != cni || parseInt(request.targetObject[rootnm].cbs, 10) != cbs || parseInt(request.targetObject[rootnm].st, 10) != st) {
-            //                 request.targetObject[rootnm].cni = cni;
-            //                 request.targetObject[rootnm].cbs = cbs;
-            //                 request.targetObject[rootnm].st = st;
-            //                 cbs_cache[request.targetObject[rootnm].ri] = {};
-            //                 cbs_cache[request.targetObject[rootnm].ri].cni = cni;
-            //                 cbs_cache[request.targetObject[rootnm].ri].cbs = cbs;
-            //                 db_sql.update_cnt_cni(request.targetObject[rootnm], function () {
-            //                 });
-            //                 lookup_retrieve(request, response);
-            //             }
-            //         });
-            //     }
-            //     else {
-            //         lookup_retrieve(request, response);
-            //     }
-            // }
-            // else {
-                lookup_retrieve(request, response);
-            // }
-        }
-        else {
-            responder.error_result(request, response, 400, 4000, 'BAD_REQUEST (rcn or fu query is not supported at GET request)');
-        }
-    // });
+    var rootnm = Object.keys(request.targetObject)[0];
+    var absolute_url = request.targetObject[rootnm].ri;
+
+    request.url = absolute_url;
+    if ((request.query.fu == 1 || request.query.fu == 2) && (request.query.rcn == 1 || request.query.rcn == 4 || request.query.rcn == 5 || request.query.rcn == 6 || request.query.rcn == 7)) {
+        lookup_retrieve(request, response);
+    }
+    else {
+        responder.error_result(request, response, 400, 4000, 'BAD_REQUEST (rcn or fu query is not supported at GET request)');
+    }
 });
 
 
 app.put(onem2mParser, function (request, response) {
-    // elapsed_tid = require('shortid').generate();
-    // elapsed_hrstart[elapsed_tid] = process.hrtime();
-    // console.time(elapsed_tid);
+    if (request.headers.hasOwnProperty('binding')) {
+        updateHitCount(request.headers['binding']);
+    }
+    else {
+        updateHitCount('H');
+    }
 
-    // var fullBody = '';
-    // request.on('data', function (chunk) {
-    //     fullBody += chunk.toString();
-    // });
-    // request.on('end', function () {
-        if (request.headers.hasOwnProperty('binding')) {
-            updateHitCount(request.headers['binding']);
-        }
-        else {
-            updateHitCount('H');
-        }
+    if (request.body == "") {
+        responder.error_result(request, response, 400, 4000, 'body is empty');
+        return '0';
+    }
 
-        //request.body = fullBody;
-        if (request.body == "") {
-            responder.error_result(request, response, 400, 4000, 'body is empty');
-            return '0';
-        }
-
-        parse_body_format(request, response, function (rsc, body_Obj) {
-            if (rsc != '0') {
-                for (var ty_idx in responder.typeRsrc) {
-                    if (responder.typeRsrc.hasOwnProperty(ty_idx)) {
-                        if ((ty_idx == 4) && (responder.typeRsrc[ty_idx] == Object.keys(body_Obj)[0])) {
-                            responder.error_result(request, response, 405, 4005, 'Update cin is not supported');
-                            return '0';
+    parse_body_format(request, response, function (rsc, body_Obj) {
+        if (rsc != '0') {
+            for (var ty_idx in responder.typeRsrc) {
+                if (responder.typeRsrc.hasOwnProperty(ty_idx)) {
+                    if ((ty_idx == 4) && (responder.typeRsrc[ty_idx] == Object.keys(body_Obj)[0])) {
+                        responder.error_result(request, response, 405, 4005, 'Update cin is not supported');
+                        return '0';
+                    }
+                    else if ((ty_idx != 4) && (responder.typeRsrc[ty_idx] == Object.keys(body_Obj)[0])) {
+                        if ((ty_idx == 17) && (responder.typeRsrc[ty_idx] == Object.keys(body_Obj)[0])) {
+                            responder.error_result(request, response, 405, 4005, 'OPERATION_NOT_ALLOWED (req is not supported when put request)');
+                            return 0;
                         }
-                        else if ((ty_idx != 4) && (responder.typeRsrc[ty_idx] == Object.keys(body_Obj)[0])) {
-                            if ((ty_idx == 17) && (responder.typeRsrc[ty_idx] == Object.keys(body_Obj)[0])) {
-                                responder.error_result(request, response, 405, 4005, 'OPERATION_NOT_ALLOWED (req is not supported when put request)');
-                                return 0;
-                            }
-                            else {
-                                request.ty = ty_idx;
-                                break;
-                            }
+                        else {
+                            request.ty = ty_idx;
+                            break;
                         }
-                        else if (ty_idx == 13) {
-                            for (var mgo_idx in responder.mgoType) {
-                                if (responder.mgoType.hasOwnProperty(mgo_idx)) {
-                                    if ((responder.mgoType[mgo_idx] == Object.keys(body_Obj)[0])) {
-                                        request.ty = ty_idx;
-                                        break;
-                                    }
+                    }
+                    else if (ty_idx == 13) {
+                        for (var mgo_idx in responder.mgoType) {
+                            if (responder.mgoType.hasOwnProperty(mgo_idx)) {
+                                if ((responder.mgoType[mgo_idx] == Object.keys(body_Obj)[0])) {
+                                    request.ty = ty_idx;
+                                    break;
                                 }
                             }
                         }
                     }
                 }
-
-                var rootnm = Object.keys(request.targetObject)[0];
-                var absolute_url = request.targetObject[rootnm].ri;
-
-                if (url.parse(absolute_url).pathname == ('/' + usecsebase)) {
-                    responder.error_result(request, response, 405, 4005, 'OPERATION_NOT_ALLOWED');
-                    return '0';
-                }
-
-                request.url = absolute_url;
-                if ((request.query.fu == 2) && (request.query.rcn == 0 || request.query.rcn == 1)) {
-                    lookup_update(request, response);
-                }
-                else {
-                    responder.error_result(request, response, 400, 4000, 'rcn query is not supported at PUT request');
-                }
             }
-        });
-    //});
+
+            var rootnm = Object.keys(request.targetObject)[0];
+            var absolute_url = request.targetObject[rootnm].ri;
+
+            if (url.parse(absolute_url).pathname == ('/' + usecsebase)) {
+                responder.error_result(request, response, 405, 4005, 'OPERATION_NOT_ALLOWED');
+                return '0';
+            }
+
+            request.url = absolute_url;
+            if ((request.query.fu == 2) && (request.query.rcn == 0 || request.query.rcn == 1)) {
+                lookup_update(request, response);
+            }
+            else {
+                responder.error_result(request, response, 400, 4000, 'rcn query is not supported at PUT request');
+            }
+        }
+    });
 });
 
 app.delete(onem2mParser, function (request, response) {
-    // elapsed_tid = require('shortid').generate();
-    // elapsed_hrstart[elapsed_tid] = process.hrtime();
-    // console.time(elapsed_tid);
+    if (request.headers.hasOwnProperty('binding')) {
+        updateHitCount(request.headers['binding']);
+    }
+    else {
+        updateHitCount('H');
+    }
 
-    // var fullBody = '';
-    // request.on('data', function (chunk) {
-    //     fullBody += chunk.toString();
-    // });
-    // request.on('end', function () {
-        if (request.headers.hasOwnProperty('binding')) {
-            updateHitCount(request.headers['binding']);
-        }
-        else {
-            updateHitCount('H');
-        }
+    var rootnm = Object.keys(request.targetObject)[0];
+    var absolute_url = request.targetObject[rootnm].ri;
 
-        //request.body = fullBody;
+    if (url.parse(absolute_url).pathname == ('/' + usecsebase)) {
+        responder.error_result(request, response, 405, 4005, 'OPERATION_NOT_ALLOWED');
+        return '0';
+    }
 
-        var rootnm = Object.keys(request.targetObject)[0];
-        var absolute_url = request.targetObject[rootnm].ri;
-
-        if (url.parse(absolute_url).pathname == ('/' + usecsebase)) {
-            responder.error_result(request, response, 405, 4005, 'OPERATION_NOT_ALLOWED');
-            return '0';
-        }
-
-        request.url = absolute_url;
-        if ((request.query.fu == 2) &&
-            (request.query.rcn == 0 || request.query.rcn == 1)) {
-            lookup_delete(request, response);
-        }
-        else {
-            responder.error_result(request, response, 400, 4000, 'rcn query is not supported at DELETE request');
-        }
-    //});
+    request.url = absolute_url;
+    if ((request.query.fu == 2) &&
+        (request.query.rcn == 0 || request.query.rcn == 1)) {
+        lookup_delete(request, response);
+    }
+    else {
+        responder.error_result(request, response, 400, 4000, 'rcn query is not supported at DELETE request');
+    }
 });
 
 function check_notification(request, url, callback) {

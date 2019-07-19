@@ -57,11 +57,14 @@ function check_body(res, body_type, res_body, callback) {
     }
     else { // json
         var result = JSON.parse(res_body);
-        //for (var prop in result) {
+        if(res.req.path.charAt(0) == '/') {
+            retrieve_Obj.fr = res.req.path.replace('/', '');
+        }
+        else {
             retrieve_Obj.fr = res.req.path;
-            retrieve_Obj.rsc = res.headers['x-m2m-rsc'];
-            retrieve_Obj.pc = result;
-        //}
+        }
+        retrieve_Obj.rsc = res.headers['x-m2m-rsc'];
+        retrieve_Obj.pc = result;
         callback('1', retrieve_Obj);
         return '1';
     }
@@ -109,7 +112,7 @@ function fopt_member(request, response, req_count, mid, body_Obj, cse_poa, agr, 
                 });
 
                 res.on('end', function () {
-                    check_body(res, request.headers.usebodytype, responseBody, function (rsc, retrieve_Obj) {
+                    check_body(res, request.usebodytype, responseBody, function (rsc, retrieve_Obj) {
                         if (rsc == '1') {
                             //for (var prop in retrieve_Obj.pc) {
                             agr[retrieve_Obj.fr] = retrieve_Obj;
