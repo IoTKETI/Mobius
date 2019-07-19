@@ -105,7 +105,7 @@ function check_member(request, response, mt, req_count, mid, cse_poa, valid_mid,
                 method: 'get',
                 headers: {
                     'X-M2M-RI': rqi,
-                    'Accept': 'application/' + request.headers.usebodytype,
+                    'Accept': 'application/' + request.usebodytype,
                     'X-M2M-Origin': request.headers['x-m2m-origin'],
                     'X-M2M-RVI': uservi
                 }
@@ -120,7 +120,7 @@ function check_member(request, response, mt, req_count, mid, cse_poa, valid_mid,
 
                 res.on('end', function () {
                     if (res.statusCode == 200) {
-                        check_mt(request.headers.usebodytype, mt, responseBody, function (rsc) {
+                        check_mt(request.usebodytype, mt, responseBody, function (rsc) {
                             if (rsc == '1') {
                                 valid_mid.push(ri);
                             }
