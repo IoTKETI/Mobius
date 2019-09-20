@@ -1458,6 +1458,36 @@ app.use(function (request, response, next) {
     request.on('end', function() {
         request.body = fullBody;
 
+        if(request.method.toLowerCase() == 'get') {
+            if (request.url == '/hit') {
+                response.header('Content-Type', 'application/json');
+                retrieveHitCount(response);
+                return;
+            }
+
+            if (request.url == '/total_ae') {
+                db_sql.select_sum_ae(function (err, result) {
+                    if (!err) {
+                        var total_ae = result[0];
+                        response.header('Content-Type', 'application/json');
+                        response.status(200).end(JSON.stringify(total_ae, null, 4));
+                    }
+                });
+                return;
+            }
+
+            if (request.url == '/total_cbs') {
+                db_sql.select_sum_cbs(function (err, result) {
+                    if (!err) {
+                        var total_cbs = result[0];
+                        response.header('Content-Type', 'application/json');
+                        response.status(200).end(JSON.stringify(total_cbs, null, 4));
+                    }
+                });
+                return;
+            }
+        }
+
         // Check X-M2M-RI Header
         if ((request.headers['x-m2m-ri'] == null)) {
             responder.error_result(request, response, 400, 4000, 'BAD REQUEST: X-M2M-RI is none');
@@ -1566,6 +1596,22 @@ app.use(function (request, response, next) {
         if (responder.typeRsrc[request.ty] == null) {
             responder.error_result(request, response, 405, 4005, 'OPERATION_NOT_ALLOWED: we do not support (' + request.ty + ') resource');
             return '0';
+        }
+
+        if(request.method.toLowerCase() == 'post' || request.method.toLowerCase() == 'put' ) {
+            if(request.body != '') {
+                try {
+                    var rootnm = Object.keys(JSON.parse(request.body))[0].replace('m2m:', '');
+                    if(Object.values(responder.typeRsrc).indexOf(rootnm) < 0) {
+                        responder.error_result(request, response, 400, 4000, 'BAD REQUEST');
+                        return '0';
+                    }
+                }
+                catch(e) {
+                    responder.error_result(request, response, 400, 4000, 'BAD REQUEST');
+                    return '0';
+                }
+            }
         }
 
         request.url = request.url.replace('%23', '#'); // convert '%23' to '#' of url
@@ -1760,34 +1806,6 @@ app.post(onem2mParser, function (request, response) {
 });
 
 app.get(onem2mParser, function (request, response) {
-    if (request.url == '/hit') {
-        response.header('Content-Type', 'application/json');
-        retrieveHitCount(response);
-        return;
-    }
-
-    if (request.url == '/total_ae') {
-        db_sql.select_sum_ae(function (err, result) {
-            if (!err) {
-                var total_ae = result[0];
-                response.header('Content-Type', 'application/json');
-                response.status(200).end(JSON.stringify(total_ae, null, 4));
-            }
-        });
-        return;
-    }
-
-    if (request.url == '/total_cbs') {
-        db_sql.select_sum_cbs(function (err, result) {
-            if (!err) {
-                var total_cbs = result[0];
-                response.header('Content-Type', 'application/json');
-                response.status(200).end(JSON.stringify(total_cbs, null, 4));
-            }
-        });
-        return;
-    }
-
     if (request.headers.hasOwnProperty('binding')) {
         updateHitCount(request.headers['binding']);
     }

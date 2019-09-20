@@ -453,6 +453,11 @@ function create_action(request, response, ty, resource_Obj, callback) {
     else if (ty == '3') {
         db_sql.insert_cnt(resource_Obj[rootnm], function (err, results) {
             if (!err) {
+                // for cert
+                db_sql.update_parent_st(request.targetObject[Object.keys(request.targetObject)[0]], function () {
+                });
+                //
+
                 callback('1', resource_Obj);
             }
             else {
@@ -1217,6 +1222,10 @@ exports.create = function (request, response, ty, body_Obj, callback) {
         resource_Obj[rootnm].spi = request.targetObject[Object.keys(request.targetObject)[0]].sri;
         resource_Obj[rootnm].sri = require('shortid').generate();
 
+        if(resource_Obj[rootnm].ty == 2) {
+            resource_Obj[rootnm].sri = resource_Obj[rootnm].aei;
+        }
+
         // var cipher = crypto.createCipher('des','d6F3Efeq');
         // var crypted = cipher.update(resource_Obj[rootnm].ri,'utf8','hex');
         // crypted += cipher.final('hex');
@@ -1242,13 +1251,6 @@ exports.create = function (request, response, ty, body_Obj, callback) {
             callback(rsc);
             return '0';
         }
-
-        // for ceritification
-        // if (request.query.real != 4) {
-        //     notiObj = JSON.parse(JSON.stringify(resource_Obj));
-        //     _this.remove_no_value(request, notiObj);
-        //     sgn.check(request, notiObj[rootnm], 3);
-        // }
 
         create_action(request, response, ty, resource_Obj, function (rsc, create_Obj) {
             if (rsc == '1') {
@@ -1286,6 +1288,14 @@ exports.create = function (request, response, ty, body_Obj, callback) {
                     callback(rsc);
                     return 0;
                 }
+
+                // for cert
+                if(ty == 23) { // when ty is 23, send notification for verification
+                    var count = 1000000000;
+                    while(count--) {
+                    }
+                }
+                //
 
                 if (request.query.rcn == 2) { // hierarchical address
                     status_code = 201;
@@ -2671,6 +2681,17 @@ exports.delete = function (request, response, comm_Obj) {
                 if (request.query.real != 4) {
                     sgn.check(request, delete_Obj[rootnm], 4);
                 }
+
+                // for cert
+                if(delete_Obj[rootnm].ty == 4) {
+                    db_sql.update_parent_by_delete(request.targetObject[Object.keys(request.targetObject)[0]], parseInt(delete_Obj[rootnm].cs, 10), function () {
+                    });
+                }
+                else {
+                    db_sql.update_parent_st(request.targetObject[Object.keys(request.targetObject)[0]], function () {
+                    });
+                }
+                //
 
                 responder.response_result(request, response, 200, delete_Obj, 2002, delete_Obj[rootnm].ri, '');
                 return '0';

@@ -274,8 +274,9 @@ function request_noti_http(response, nu, ri, bodyString, bodytype, xm2mri) {
             'Accept': 'application/' + bodytype,
             'X-M2M-Origin': usecseid,
             'Content-Type': 'application/' + bodytype,
-            'Content-Length' : bodyString.length,
-            'X-M2M-RVI': uservi
+            'Content-Length' : bodyString.length //, for cert
+            //'X-M2M-RVI': uservi
+            //
         }
     };
 
@@ -293,6 +294,9 @@ function request_noti_http(response, nu, ri, bodyString, bodytype, xm2mri) {
                 response.header('X-M2M-RI', res.headers['x-m2m-ri']);
 
                 response.status(res.statusCode).end(bodyStr);
+            }
+            else {
+                console.log('----> [request_noti - wrong response - ' + res.statusCode + ']');
             }
         });
     }
