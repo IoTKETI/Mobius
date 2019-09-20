@@ -232,7 +232,9 @@ function sgn_action_send(nu, sub_nu, sub_bodytype, node, short_flag, check_value
         node['m2m:sgn'].cr = ss_cr;
         delete node['m2m:sgn'].nev;
     }
-    node['m2m:sgn'].rvi = uservi;
+    // for cert
+    // node['m2m:sgn'].rvi = uservi;
+    //
 
     make_body_string_for_noti(sub_nu.protocol, nu, node, sub_bodytype, xm2mri, short_flag, function (bodyString) {
         if (bodyString == "") { // parse error

@@ -257,10 +257,18 @@ exports.get_cni_count = function(obj, callback) {
             var st = (results[0]['st'] == null) ? 0 : results[0]['st'];
 
             if (cni > parseInt(obj.mni, 10) || cbs > parseInt(obj.mbs, 10)) {
-                var count = (cni - parseInt(obj.mni, 10));
-                if(count > 5000) {
-                    count = 5000;
+
+                if(cni > parseInt(obj.mni, 10)) {
+                    var count = (cni - parseInt(obj.mni, 10));
+                    if (count > 5000) {
+                        count = 5000;
+                    }
                 }
+
+                else if (cbs > parseInt(obj.mbs, 10)) {
+                    count = 1;
+                }
+
                 _this.delete_oldests(obj, count, function (err, results_oldest) { // select oldest
                     if (results_oldest.affectedRows == count) {
                         _this.get_cni_count(obj, function (cni, cbs, st) {
@@ -1981,6 +1989,38 @@ exports.update_parent_by_insert = function (obj, cs, callback) {
     db.getResult(sql, '', function (err, results) {
         if (!err) {
             console.timeEnd(cni_id);
+            callback(err, results);
+        }
+        else {
+            callback(err, results);
+        }
+    });
+};
+
+exports.update_parent_by_delete = function (obj, cs, callback) {
+    var tableName = responder.typeRsrc[parseInt(obj.ty, 10)];
+    var cni_id = 'update_parent_by_insert ' + obj.ri + ' - ' + require('shortid').generate();
+    console.time(cni_id);
+    var sql = util.format('update %s, lookup set %s.cni = %s.cni-1, %s.cbs = %s.cbs-%s, lookup.st = lookup.st+1 where lookup.ri = \'%s\' and %s.ri = \'%s\'', tableName, tableName, tableName, tableName, tableName, cs, obj.ri, tableName,  obj.ri);
+    db.getResult(sql, '', function (err, results) {
+        if (!err) {
+            console.timeEnd(cni_id);
+            callback(err, results);
+        }
+        else {
+            callback(err, results);
+        }
+    });
+};
+
+exports.update_parent_st = function (obj, callback) {
+    var tableName = responder.typeRsrc[parseInt(obj.ty, 10)];
+    var st_id = 'update_parent_st ' + obj.ri + ' - ' + require('shortid').generate();
+    console.time(st_id);
+    var sql = util.format('update %s, lookup set lookup.st = lookup.st+1 where lookup.ri = \'%s\' and %s.ri = \'%s\'', tableName, obj.ri, tableName,  obj.ri);
+    db.getResult(sql, '', function (err, results) {
+        if (!err) {
+            console.timeEnd(st_id);
             callback(err, results);
         }
         else {

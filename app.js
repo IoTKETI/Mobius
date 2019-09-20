@@ -1598,6 +1598,22 @@ app.use(function (request, response, next) {
             return '0';
         }
 
+        if(request.method.toLowerCase() == 'post' || request.method.toLowerCase() == 'put' ) {
+            if(request.body != '') {
+                try {
+                    var rootnm = Object.keys(JSON.parse(request.body))[0].replace('m2m:', '');
+                    if(Object.values(responder.typeRsrc).indexOf(rootnm) < 0) {
+                        responder.error_result(request, response, 400, 4000, 'BAD REQUEST');
+                        return '0';
+                    }
+                }
+                catch(e) {
+                    responder.error_result(request, response, 400, 4000, 'BAD REQUEST');
+                    return '0';
+                }
+            }
+        }
+
         request.url = request.url.replace('%23', '#'); // convert '%23' to '#' of url
         request.hash = url.parse(request.url).hash;
 
