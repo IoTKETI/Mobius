@@ -436,8 +436,14 @@ function create_action(request, response, ty, resource_Obj, callback) {
                 }
                 else {
                     if (results.code == 'ER_DUP_ENTRY') {
-                        body_Obj = {};
-                        body_Obj['dbg'] = "resource (" + resource_Obj[rootnm].rn + ") is already exist";
+                        if (results.message.includes('PRIMARY')) {
+                            body_Obj = {};
+                            body_Obj['dbg'] = "resource (" + resource_Obj[rootnm].rn + ") is already exist";
+                        }
+                        else {
+                            body_Obj = {};
+                            body_Obj['dbg'] = "ae-id (" + resource_Obj[rootnm].aei + ") is duplicated";
+                        }
                         responder.response_result(request, response, 409, body_Obj, 4105, request.url, body_Obj['dbg']);
                     }
                     else {

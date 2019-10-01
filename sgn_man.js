@@ -67,16 +67,18 @@ if(sgn_server == null) {
         //console.log("A new connection was made by a client.");
         socket.setTimeout(5000, function () {
             if(socket.hasOwnProperty('_httpMessage')) {
-                if (socket._httpMessage.hasOwnProperty('req')) {
-                    if (ss_fail_count.hasOwnProperty(socket._httpMessage.req.headers.ri)) {
-                        ss_fail_count[socket._httpMessage.req.headers.ri]++;
-                    }
+                if(socket._httpMessage != null) {
+                    if (socket._httpMessage.hasOwnProperty('req')) {
+                        if (ss_fail_count.hasOwnProperty(socket._httpMessage.req.headers.ri)) {
+                            ss_fail_count[socket._httpMessage.req.headers.ri]++;
+                        }
 
-                    for (var i = 0; i < resp_mqtt_rqi_arr.length; i++) {
-                        if (resp_mqtt_rqi_arr[i] == socket._httpMessage.req.headers['x-m2m-ri']) {
-                            delete http_response_q[resp_mqtt_rqi_arr[i]];
-                            resp_mqtt_rqi_arr.splice(i, 1);
-                            break;
+                        for (var i = 0; i < resp_mqtt_rqi_arr.length; i++) {
+                            if (resp_mqtt_rqi_arr[i] == socket._httpMessage.req.headers['x-m2m-ri']) {
+                                delete http_response_q[resp_mqtt_rqi_arr[i]];
+                                resp_mqtt_rqi_arr.splice(i, 1);
+                                break;
+                            }
                         }
                     }
                 }
