@@ -135,7 +135,7 @@ exports.mqtt_watchdog = function() {
             pxymqtt_client.on('connect', function () {
                 req_sub();
                 reg_req_sub();
-                //resp_sub();
+                resp_sub();
                 mqtt_state = 'ready';
                 
                 require('./mobius/ts_agent');
@@ -150,18 +150,27 @@ var mqtt_tid = require('shortid').generate();
 wdt.set_wdt(mqtt_tid, 2, _this.mqtt_watchdog);
 
 
+
 function resp_sub() {
-    // var resp_topic = util.format('/oneM2M/resp/%s/#', usecseid.replace('/', ':'));
-    // pxymqtt_client.subscribe(resp_topic);
-
-    var resp_topic = util.format('/oneM2M/resp/%s/#', usecseid.replace('/', ''));
+    var originator = usecseid;
+    while(originator.indexOf('/') == 0) {
+        originator = originator.substring(1);
+    }
+    originator = originator.replace('/', ':');
+    
+    var resp_topic = util.format('/oneM2M/resp/%s/#', originator);
     pxymqtt_client.subscribe(resp_topic);
-
     console.log('subscribe resp_topic as ' + resp_topic);
 }
 
 function req_sub() {
-    var req_topic = util.format('/oneM2M/req/+/%s/+', usecseid.replace('/', ''));
+    var receiver = usecseid;
+    while(receiver.indexOf('/') == 0) {
+        receiver = receiver.substring(1);
+    }
+    receiver = receiver.replace('/', ':');
+    
+    var req_topic = util.format('/oneM2M/req/+/%s/+', receiver);
     pxymqtt_client.subscribe(req_topic);
     console.log('subscribe req_topic as ' + req_topic);
 
@@ -171,7 +180,13 @@ function req_sub() {
 }
 
 function reg_req_sub() {
-    var reg_req_topic = util.format('/oneM2M/reg_req/+/%s/+', usecseid.replace('/', ''));
+    var receiver = usecseid;
+    while(receiver.indexOf('/') == 0) {
+        receiver = receiver.substring(1);
+    }
+    receiver = receiver.replace('/', ':');
+    
+    var reg_req_topic = util.format('/oneM2M/reg_req/+/%s/+', receiver);
     pxymqtt_client.subscribe(reg_req_topic);
     console.log('subscribe reg_req_topic as ' + reg_req_topic);
 
