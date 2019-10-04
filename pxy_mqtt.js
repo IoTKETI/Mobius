@@ -655,7 +655,19 @@ mqtt_app.post('/register_csr', onem2mParser, function(request, response, next) {
         }
 
         if (mqtt_state == 'ready') {
-            var reg_req_topic = util.format('/oneM2M/reg_req/%s/%s/%s', usecseid.replace('/', ':'), cseid.replace('/', ':'), request.headers.bodytype);
+            var originator = usecseid;
+            while(originator.indexOf('/') == 0) {
+                originator = originator.substring(1);
+            }
+            originator = originator.replace('/', ':');
+
+            var receiver = cseid;
+            while(receiver.indexOf('/') == 0) {
+                receiver = receiver.substring(1);
+            }
+            receiver = receiver.replace('/', ':');            
+            
+            var reg_req_topic = util.format('/oneM2M/req/%s/%s/%s', originator, receiver, request.headers.bodytype);
 
             var rqi = request.headers['x-m2m-ri'];
             resp_mqtt_rqi_arr.push(rqi);
@@ -711,7 +723,19 @@ mqtt_app.get('/get_cb', onem2mParser, function(request, response, next) {
         }
 
         if (mqtt_state == 'ready') {
-            var reg_req_topic = util.format('/oneM2M/reg_req/%s/%s/%s', usecseid.replace('/', ':'), cseid.replace('/', ':'), request.headers.bodytype);
+            var originator = usecseid;
+            while(originator.indexOf('/') == 0) {
+                originator = originator.substring(1);
+            }
+            originator = originator.replace('/', ':');
+
+            var receiver = cseid;
+            while(receiver.indexOf('/') == 0) {
+                receiver = receiver.substring(1);
+            }
+            receiver = receiver.replace('/', ':');            
+            
+            var reg_req_topic = util.format('/oneM2M/req/%s/%s/%s', originator, receiver, request.headers.bodytype);
 
             var rqi = request.headers['x-m2m-ri'];
             resp_mqtt_rqi_arr.push(rqi);
