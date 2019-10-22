@@ -80,15 +80,21 @@ cnt_app.put('/cnt', onem2mParser, function(request, response, next) {
         request.body = fullBody;
 
         var resource_Obj = JSON.parse(request.body);
-        var rootnm = Object.keys(resource_Obj)[0];
-        db_sql.get_cni_count(resource_Obj[rootnm], function (cni, cbs, st) {
-            var resBody = {};
-            resBody[resource_Obj[rootnm].ri] = {
-                cni: cni,
-                cbs: cbs,
-                st: st
-            };
-            response.status(200).end(JSON.stringify(resBody));
-        });
+        setTimeout(updateAction, 0, resource_Obj);
+        response.status(200).end();
     });
 });
+
+function updateAction(resource_Obj) {
+    var rootnm = Object.keys(resource_Obj)[0];
+    db_sql.get_cni_count(resource_Obj[rootnm], function (cni, cbs, st) {
+        var resBody = {};
+        resBody[resource_Obj[rootnm].ri] = {
+            cni: cni,
+            cbs: cbs,
+            st: st
+        };
+        console.log(resBody);
+    });
+
+}

@@ -36,7 +36,7 @@ global.usepxywsport         = '7577';
 global.usepxymqttport       = '7578';
 
 global.use_sgn_man_port     = '7599';
-global.use_cnt_man_port     = '7597';
+global.use_cnt_man_port     = '7583';
 global.use_hit_man_port     = '7594';
 
 global.usetsagentport       = '7582';

@@ -65,7 +65,7 @@ if(sgn_server == null) {
 
     sgn_server.on('connection', function (socket) {
         //console.log("A new connection was made by a client.");
-        socket.setTimeout(5000, function () {
+        socket.setTimeout(3000, function () {
             if(socket.hasOwnProperty('_httpMessage')) {
                 if (socket._httpMessage.hasOwnProperty('req')) {
                     if (ss_fail_count.hasOwnProperty(socket._httpMessage.req.headers.ri)) {
