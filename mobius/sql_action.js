@@ -250,10 +250,10 @@ global.getType = function (p) {
 };
 
 exports.get_cni_count = function(obj, callback) {
-    _this.select_count_ri(parseInt(obj.ty, 10) + 1, obj.ri, function (err, results) {
+    _this.select_count_ri(parseInt(obj.ty, 10), obj.ri, function (err, results) {
         if (results.length == 1) {
-            var cni = results[0]['count(*)'];
-            var cbs = (results[0]['sum('+responder.typeRsrc[parseInt(obj.ty, 10) + 1]+'.cs)'] == null) ? 0 : results[0]['sum('+responder.typeRsrc[parseInt(obj.ty, 10) + 1]+'.cs)'];
+            var cni = results[0]['cni'];
+            var cbs = (results[0]['cbs'] == null) ? 0 : results[0]['cbs'];
             var st = (results[0]['st'] == null) ? 0 : results[0]['st'];
 
             if (cni > parseInt(obj.mni, 10) || cbs > parseInt(obj.mbs, 10)) {
@@ -1485,7 +1485,8 @@ exports.select_ts_in = function (ri_list, callback) {
 };
 
 exports.select_count_ri = function (ty, ri, callback) {
-    var sql = util.format('select lookup.st, count(*), sum(%s.cs) FROM lookup, %s where lookup.ri = \'%s\' and cin.pi = \'%s\'', responder.typeRsrc[ty], responder.typeRsrc[ty], ri, ri);
+    //var sql = util.format('select lookup.st, count(*), sum(%s.cs) FROM lookup, %s where lookup.ri = \'%s\' and cin.pi = \'%s\'', responder.typeRsrc[ty], responder.typeRsrc[ty], ri, ri);
+    var sql = util.format('select lookup.st, %s.cni, %s.cbs FROM lookup, %s where lookup.ri = \'%s\' and %s.ri = \'%s\'', responder.typeRsrc[ty], responder.typeRsrc[ty], responder.typeRsrc[ty], ri, responder.typeRsrc[ty], ri);
     db.getResult(sql, '', function (err, results) {
         callback(err, results);
     });
