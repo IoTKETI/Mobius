@@ -90,8 +90,9 @@ function cb_create_action(callback) {
                 db_sql.get_sri_sri(resource_Obj[rootnm].pi, function (err, results) {
                     if (!err) {
                         resource_Obj[rootnm].spi = (results.length == 0) ? '' : results[0].sri;
-                        resource_Obj[rootnm].sri = require('shortid').generate();
-                        db_sql.insert_cb(resource_Obj[rootnm], function (err, results) {
+                        //resource_Obj[rootnm].sri = require('shortid').generate();
+                        resource_Obj[rootnm].sri = ty + '-' + moment().utc().format('YYYYMMDDhhmmssSSS');
+                            db_sql.insert_cb(resource_Obj[rootnm], function (err, results) {
                             if (!err) {
                                 rspObj.rsc = '2001';
                                 rspObj.ri = resource_Obj[rootnm].ri;

@@ -1600,17 +1600,19 @@ app.use(function (request, response, next) {
 
         if(request.method.toLowerCase() == 'post' || request.method.toLowerCase() == 'put' ) {
             if(request.body != '') {
-                try {
-                    var rootnm = Object.keys(JSON.parse(request.body))[0].replace('m2m:', '');
-                    if(Object.values(responder.typeRsrc).indexOf(rootnm) < 0) {
+                make_json_obj(request.usebodytype, request.body, function(err, body) {
+                    try {
+                        var rootnm = Object.keys(body)[0].replace('m2m:', '');
+                        if (Object.values(responder.typeRsrc).indexOf(rootnm) < 0) {
+                            responder.error_result(request, response, 400, 4000, 'BAD REQUEST');
+                            return '0';
+                        }
+                    }
+                    catch (e) {
                         responder.error_result(request, response, 400, 4000, 'BAD REQUEST');
                         return '0';
                     }
-                }
-                catch(e) {
-                    responder.error_result(request, response, 400, 4000, 'BAD REQUEST');
-                    return '0';
-                }
+                });
             }
         }
 

@@ -972,14 +972,16 @@ function build_resource(request, response, ty, body_Obj, callback) {
     resource_Obj[rootnm] = {};
 
     var cur_d = new Date();
-    var msec = (parseInt(cur_d.getMilliseconds(), 10) < 10) ? ('00' + cur_d.getMilliseconds()) : ((parseInt(cur_d.getMilliseconds(), 10) < 100) ? ('0' + cur_d.getMilliseconds()) : cur_d.getMilliseconds());
+    //var msec = (parseInt(cur_d.getMilliseconds(), 10) < 10) ? ('00' + cur_d.getMilliseconds()) : ((parseInt(cur_d.getMilliseconds(), 10) < 100) ? ('0' + cur_d.getMilliseconds()) : cur_d.getMilliseconds());
 
     //resource_Obj[rootnm].rn = ty + '-' + cur_d.toISOString().replace(/-/, '').replace(/-/, '').replace(/T/, '').replace(/:/, '').replace(/:/, '').replace(/\..+/, '') + msec + randomValueBase64(4);
 
-    var hrTime = process.hrtime();
-    var timeTail = '000000'+hrTime[1].toString();
-    timeTail = timeTail.substring(timeTail.length-9, timeTail.length);
-    resource_Obj[rootnm].rn = ty + '-' + cur_d.toISOString().replace(/-/, '').replace(/-/, '').replace(/T/, '').replace(/:/, '').replace(/:/, '').replace(/\..+/, '') + timeTail;
+    //var hrTime = process.hrtime();
+    //var timeTail = '000000'+hrTime[1].toString();
+    //timeTail = timeTail.substring(timeTail.length-9, timeTail.length);
+    //resource_Obj[rootnm].rn = ty + '-' + cur_d.toISOString().replace(/-/, '').replace(/-/, '').replace(/T/, '').replace(/:/, '').replace(/:/, '').replace(/\..+/, '') + timeTail;
+
+    resource_Obj[rootnm].rn = ty + '-' + moment().utc().format('YYYYMMDDhhmmssSSS');
 
     if (request.headers['x-m2m-nm'] != null && request.headers['x-m2m-nm'] != '') {
         resource_Obj[rootnm].rn = request.headers['x-m2m-nm'];
@@ -1001,11 +1003,12 @@ function build_resource(request, response, ty, body_Obj, callback) {
     resource_Obj[rootnm].ty = ty;
     resource_Obj[rootnm].pi = url.parse(request.url).pathname;
     resource_Obj[rootnm].ri = resource_Obj[rootnm].pi + '/' + resource_Obj[rootnm].rn;
-    resource_Obj[rootnm].ct = cur_d.toISOString().replace(/-/, '').replace(/-/, '').replace(/:/, '').replace(/:/, '').replace(/\..+/, '');
+    //resource_Obj[rootnm].ct = cur_d.toISOString().replace(/-/, '').replace(/-/, '').replace(/:/, '').replace(/:/, '').replace(/\..+/, '');
+    resource_Obj[rootnm].ct = moment().utc().format('YYYYMMDDThhmmssSSS');
     //var et = new Date();
     //et.setYear(cur_d.getFullYear()+1); // adds time to existing time
     //resource_Obj[rootnm].et = et.toISOString().replace(/-/, '').replace(/-/, '').replace(/:/, '').replace(/:/, '').replace(/\..+/, '');
-    resource_Obj[rootnm].et = moment().utc().add(3, 'years').format('YYYYMMDDTHHmmss');
+    resource_Obj[rootnm].et = moment().utc().add(2, 'years').format('YYYYMMDDTHHmmss');
     if (ty == 17) {
         resource_Obj[rootnm].et = moment().utc().add(1, 'days').format('YYYYMMDDTHHmmss');
     }
@@ -1220,7 +1223,8 @@ exports.create = function (request, response, ty, body_Obj, callback) {
         }
 
         resource_Obj[rootnm].spi = request.targetObject[Object.keys(request.targetObject)[0]].sri;
-        resource_Obj[rootnm].sri = require('shortid').generate();
+        //resource_Obj[rootnm].sri = require('shortid').generate();
+        resource_Obj[rootnm].sri = ty + '-' + moment().utc().format('YYYYMMDDhhmmssSSS');
 
         if(resource_Obj[rootnm].ty == 2) {
             resource_Obj[rootnm].sri = resource_Obj[rootnm].aei;
