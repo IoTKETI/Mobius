@@ -437,7 +437,12 @@ function create_action(request, response, ty, resource_Obj, callback) {
                 else {
                     if (results.code == 'ER_DUP_ENTRY') {
                         body_Obj = {};
-                        body_Obj['dbg'] = "resource (" + resource_Obj[rootnm].rn + ") is already exist";
+                        if(results.message.includes('aei_UNIQUE')) {
+                            body_Obj['dbg'] = '[create_action] ' + results.message;
+                        }
+                        else {
+                            body_Obj['dbg'] = "resource (" + resource_Obj[rootnm].rn + ") is already exist";
+                        }
                         responder.response_result(request, response, 409, body_Obj, 4105, request.url, body_Obj['dbg']);
                     }
                     else {
@@ -1004,7 +1009,7 @@ function build_resource(request, response, ty, body_Obj, callback) {
     resource_Obj[rootnm].pi = url.parse(request.url).pathname;
     resource_Obj[rootnm].ri = resource_Obj[rootnm].pi + '/' + resource_Obj[rootnm].rn;
     //resource_Obj[rootnm].ct = cur_d.toISOString().replace(/-/, '').replace(/-/, '').replace(/:/, '').replace(/:/, '').replace(/\..+/, '');
-    resource_Obj[rootnm].ct = moment().utc().format('YYYYMMDDThhmmssSSS');
+    resource_Obj[rootnm].ct = moment().utc().format('YYYYMMDDThhmmss');
     //var et = new Date();
     //et.setYear(cur_d.getFullYear()+1); // adds time to existing time
     //resource_Obj[rootnm].et = et.toISOString().replace(/-/, '').replace(/-/, '').replace(/:/, '').replace(/:/, '').replace(/\..+/, '');

@@ -65,8 +65,19 @@ if(sgn_server == null) {
 
     sgn_server.on('connection', function (socket) {
         //console.log("A new connection was made by a client.");
-        socket.setTimeout(3000, function () {
-            if(socket.hasOwnProperty('_httpMessage')) {
+        try {
+            socket.setTimeout(3000, updateFailCount(), socket);
+        }
+        catch (e) {
+            ss_fail_count[socket._httpMessage.req.headers.ri]++;
+        }
+    });
+}
+
+function updateFailCount(socket) {
+    try {
+        if (socket.hasOwnProperty('_httpMessage')) {
+            if(socket._httpMessage != null) {
                 if (socket._httpMessage.hasOwnProperty('req')) {
                     if (ss_fail_count.hasOwnProperty(socket._httpMessage.req.headers.ri)) {
                         ss_fail_count[socket._httpMessage.req.headers.ri]++;
@@ -81,8 +92,12 @@ if(sgn_server == null) {
                     }
                 }
             }
-        });
-    });
+            else {
+            }
+        }
+    }
+    catch (e) {
+    }
 }
 
 var sgn_mqtt_client = null;
