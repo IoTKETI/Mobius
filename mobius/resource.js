@@ -498,10 +498,11 @@ function create_action(request, response, ty, resource_Obj, callback) {
                 //
                 // });
 
-                // request_update_cnt(JSON.stringify(request.targetObject), parseInt(resource_Obj[rootnm].cs));
+                var targetObject = JSON.parse(JSON.stringify(request.targetObject));
+                var cs = parseInt(resource_Obj[rootnm].cs);
 
-                db_sql.update_parent_by_insert(request.targetObject[parent_rootnm], parseInt(resource_Obj[rootnm].cs, 10), function () {
-                    request_update_cnt(JSON.stringify(request.targetObject), parseInt(resource_Obj[rootnm].cs));
+                db_sql.update_parent_by_insert(targetObject[parent_rootnm], cs, function () {
+                    request_update_cnt(JSON.stringify(targetObject), cs);
                 });
 
                 callback('1', resource_Obj);
