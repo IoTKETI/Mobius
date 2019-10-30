@@ -154,8 +154,6 @@ if (use_clustering) {
                         require('./pxy_mqtt');
                         require('./pxy_coap');
                         require('./pxy_ws');
-                        require('./sgn_man');
-                        require('./cnt_man');
 
                         if (usecsetype == 'mn' || usecsetype == 'asn') {
                             global.refreshIntervalId = setInterval(function () {
@@ -1603,8 +1601,18 @@ app.use(function (request, response, next) {
                 make_json_obj(request.usebodytype, request.body, function(err, body) {
                     try {
                         var rootnm = Object.keys(body)[0].replace('m2m:', '');
-                        if (Object.values(responder.typeRsrc).indexOf(rootnm) < 0) {
-                            responder.error_result(request, response, 400, 4000, 'BAD REQUEST');
+                        var checkCount = 0;
+                        for( var key in responder.typeRsrc ) {
+                            if(responder.typeRsrc.hasOwnProperty(key)) {
+                                if(responder.typeRsrc[key] == rootnm) {
+                                    break;
+                                }
+                                checkCount++;
+                            }
+                        }
+
+                        if(checkCount >= Object.keys(responder.typeRsrc).length) {
+                            responder.error_result(request, response, 400, 4000, 'BAD REQUEST - not supported resource type requested');
                             return '0';
                         }
                     }

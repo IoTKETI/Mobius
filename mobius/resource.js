@@ -50,6 +50,8 @@ var security = require('./security');
 
 var db_sql = require('./sql_action');
 
+var cnt_man = require('./cnt_man');
+
 var _this = this;
 
 global.ty_list = ['1', '2', '3', '4', '5', '9', '10', '13', '14', '16', '17', '23', '24', '27', '29', '30', '38', '39'];
@@ -458,10 +460,12 @@ function create_action(request, response, ty, resource_Obj, callback) {
     else if (ty == '3') {
         db_sql.insert_cnt(resource_Obj[rootnm], function (err, results) {
             if (!err) {
-                // for cert
-                db_sql.update_parent_st(request.targetObject[Object.keys(request.targetObject)[0]], function () {
-                });
-                //
+                if(useCert == 'enable') {
+                    db_sql.update_parent_st(request.targetObject[Object.keys(request.targetObject)[0]], function () {
+                    });
+                }
+                else {
+                }
 
                 callback('1', resource_Obj);
             }
@@ -502,7 +506,9 @@ function create_action(request, response, ty, resource_Obj, callback) {
                 var cs = parseInt(resource_Obj[rootnm].cs);
 
                 db_sql.update_parent_by_insert(targetObject[parent_rootnm], cs, function () {
-                    request_update_cnt(JSON.stringify(targetObject), cs);
+                    //request_update_cnt(JSON.stringify(targetObject), cs);
+
+                    cnt_man.put(JSON.stringify(targetObject));
                 });
 
                 callback('1', resource_Obj);
@@ -1248,12 +1254,6 @@ exports.create = function (request, response, ty, body_Obj, callback) {
             sgn.check(request, notiObj[rootnm], 3);
         }
 
-        else if(ty == 23) { // when ty is 23, send notification for verification
-            var notiObj = JSON.parse(JSON.stringify(resource_Obj));
-            _this.remove_no_value(request, notiObj);
-            sgn.check(request, notiObj[rootnm], 256);
-        }
-
         if (request.query.tctl == 3) { // for EXECUTE of transaction
             var resultObj = JSON.parse(JSON.stringify(resource_Obj));
             _this.remove_no_value(request, resultObj);
@@ -1300,13 +1300,19 @@ exports.create = function (request, response, ty, body_Obj, callback) {
                     return 0;
                 }
 
-                // for cert
-                if(ty == 23) { // when ty is 23, send notification for verification
-                    var count = 1000000000;
-                    while(count--) {
+                if(useCert == 'enable') {
+                    if (ty == 23) { // when ty is 23, send notification for verification
+                        var notiObj = JSON.parse(JSON.stringify(create_Obj));
+                        _this.remove_no_value(request, notiObj);
+                        sgn.check(request, notiObj[rootnm], 256);
+
+                        var count = 1000000000;
+                        while (count--) {
+                        }
                     }
                 }
-                //
+                else {
+                }
 
                 if (request.query.rcn == 2) { // hierarchical address
                     status_code = 201;
@@ -2693,16 +2699,18 @@ exports.delete = function (request, response, comm_Obj) {
                     sgn.check(request, delete_Obj[rootnm], 4);
                 }
 
-                // for cert
-                if(delete_Obj[rootnm].ty == 4) {
-                    db_sql.update_parent_by_delete(request.targetObject[Object.keys(request.targetObject)[0]], parseInt(delete_Obj[rootnm].cs, 10), function () {
-                    });
+                if(useCert == 'enable') {
+                    if (delete_Obj[rootnm].ty == 4) {
+                        db_sql.update_parent_by_delete(request.targetObject[Object.keys(request.targetObject)[0]], parseInt(delete_Obj[rootnm].cs, 10), function () {
+                        });
+                    }
+                    else {
+                        db_sql.update_parent_st(request.targetObject[Object.keys(request.targetObject)[0]], function () {
+                        });
+                    }
                 }
                 else {
-                    db_sql.update_parent_st(request.targetObject[Object.keys(request.targetObject)[0]], function () {
-                    });
                 }
-                //
 
                 responder.response_result(request, response, 200, delete_Obj, 2002, delete_Obj[rootnm].ri, '');
                 return '0';

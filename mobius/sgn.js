@@ -28,6 +28,8 @@ var merge = require('merge');
 
 var responder = require('./responder');
 
+var sgn_man = require('./sgn_man');
+
 function make_xml_noti_message(pc, xm2mri, callback) {
     try {
         var noti_message = {};
@@ -232,16 +234,20 @@ function sgn_action_send(nu, sub_nu, sub_bodytype, node, short_flag, check_value
         node['m2m:sgn'].cr = ss_cr;
         delete node['m2m:sgn'].nev;
     }
-    // for cert
-    // node['m2m:sgn'].rvi = uservi;
-    //
+
+    if(useCert == 'enable') {
+    }
+    else {
+        node['m2m:sgn'].rvi = uservi;
+    }
 
     make_body_string_for_noti(sub_nu.protocol, nu, node, sub_bodytype, xm2mri, short_flag, function (bodyString) {
         if (bodyString == "") { // parse error
             console.log('can not send notification since error of converting json to xml');
         }
         else {
-            request_noti(nu, ss_ri, bodyString, sub_bodytype, xm2mri, exc);
+            //request_noti(nu, ss_ri, bodyString, sub_bodytype, xm2mri, exc);
+            sgn_man.post(ss_ri, exc, nu, sub_bodytype, xm2mri, bodyString);
         }
     });
 }
@@ -347,6 +353,7 @@ function sgn_action(rootnm, check_value, results_ss, noti_Obj, sub_bodytype) {
                     }
                 }
             }
+            break;
         }
         //else {
         //    console.log('enc-net except 3 do not support');
@@ -437,7 +444,7 @@ function request_noti(nu, ri, bodyString, bodytype, xm2mri, exc) {
 
             res.on('end', function () {
                 if(res.statusCode == 200 || res.statusCode == 201) {
-                    console.log('-------> [response_noti - ' + res.headers['x-m2m-rsc'] + '] - ' + ri);
+                    console.log('=======> [response_noti - ' + res.headers['x-m2m-rsc'] + '] - ' + ri);
                 }
             });
         });
@@ -454,7 +461,7 @@ function request_noti(nu, ri, bodyString, bodytype, xm2mri, exc) {
 
             res.on('end', function () {
                 if(res.statusCode == 200 || res.statusCode == 201) {
-                    console.log('-------> [response_noti - ' + res.headers['x-m2m-rsc'] + '] - ' + ri);
+                    console.log('=======> [response_noti - ' + res.headers['x-m2m-rsc'] + '] - ' + ri);
                 }
             });
         });

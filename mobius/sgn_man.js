@@ -29,9 +29,7 @@ var moment = require('moment');
 var ip = require("ip");
 var cbor = require('cbor');
 
-var resp_mqtt_rqi_arr = [];
-var resp_mqtt_rqi_arr_max_size = 512;
-var http_response_q = {};
+var resp_mqtt_rqi_arr = {};
 
 global.NOPRINT = 'true';
 
@@ -40,65 +38,65 @@ var _this = this;
 var MAX_NUM_RETRY = 16;
 var ss_fail_count = {};
 
-var sgn_app = express();
-
-var sgn_server = null;
-
-if(sgn_server == null) {
-    if(use_secure === 'disable') {
-        http.globalAgent.maxSockets = 10000;
-        sgn_server = http.createServer(sgn_app);
-    }
-    else {
-        var options = {
-            key: fs.readFileSync('server-key.pem'),
-            cert: fs.readFileSync('server-crt.pem'),
-            ca: fs.readFileSync('ca-crt.pem')
-        };
-        https.globalAgent.maxSockets = 10000;
-        sgn_server = https.createServer(options, sgn_app);
-    }
-
-    sgn_server.listen({port: use_sgn_man_port, agent: false}, function () {
-        console.log('sgn_man server (' + ip.address() + ') running at ' + use_sgn_man_port + ' port');
-    });
-
-    sgn_server.on('connection', function (socket) {
-        //console.log("A new connection was made by a client.");
-        try {
-            socket.setTimeout(3000, updateFailCount(), socket);
-        }
-        catch (e) {
-            ss_fail_count[socket._httpMessage.req.headers.ri]++;
-        }
-    });
-}
-
-function updateFailCount(socket) {
-    try {
-        if (socket.hasOwnProperty('_httpMessage')) {
-            if(socket._httpMessage != null) {
-                if (socket._httpMessage.hasOwnProperty('req')) {
-                    if (ss_fail_count.hasOwnProperty(socket._httpMessage.req.headers.ri)) {
-                        ss_fail_count[socket._httpMessage.req.headers.ri]++;
-                    }
-
-                    for (var i = 0; i < resp_mqtt_rqi_arr.length; i++) {
-                        if (resp_mqtt_rqi_arr[i] == socket._httpMessage.req.headers['x-m2m-ri']) {
-                            delete http_response_q[resp_mqtt_rqi_arr[i]];
-                            resp_mqtt_rqi_arr.splice(i, 1);
-                            break;
-                        }
-                    }
-                }
-            }
-            else {
-            }
-        }
-    }
-    catch (e) {
-    }
-}
+// var sgn_app = express();
+//
+// var sgn_server = null;
+//
+// if(sgn_server == null) {
+//     if(use_secure === 'disable') {
+//         http.globalAgent.maxSockets = 10000;
+//         sgn_server = http.createServer(sgn_app);
+//     }
+//     else {
+//         var options = {
+//             key: fs.readFileSync('server-key.pem'),
+//             cert: fs.readFileSync('server-crt.pem'),
+//             ca: fs.readFileSync('ca-crt.pem')
+//         };
+//         https.globalAgent.maxSockets = 10000;
+//         sgn_server = https.createServer(options, sgn_app);
+//     }
+//
+//     sgn_server.listen({port: use_sgn_man_port, agent: false}, function () {
+//         console.log('sgn_man server (' + ip.address() + ') running at ' + use_sgn_man_port + ' port');
+//     });
+//
+//     sgn_server.on('connection', function (socket) {
+//         //console.log("A new connection was made by a client.");
+//         try {
+//             socket.setTimeout(3000, updateFailCount(), socket);
+//         }
+//         catch (e) {
+//             ss_fail_count[socket._httpMessage.req.headers.ri]++;
+//         }
+//     });
+// }
+//
+// function updateFailCount(socket) {
+//     try {
+//         if (socket.hasOwnProperty('_httpMessage')) {
+//             if(socket._httpMessage != null) {
+//                 if (socket._httpMessage.hasOwnProperty('req')) {
+//                     if (ss_fail_count.hasOwnProperty(socket._httpMessage.req.headers.ri)) {
+//                         ss_fail_count[socket._httpMessage.req.headers.ri]++;
+//                     }
+//
+//                     for (var i = 0; i < resp_mqtt_rqi_arr.length; i++) {
+//                         if (resp_mqtt_rqi_arr[i] == socket._httpMessage.req.headers['x-m2m-ri']) {
+//                             delete http_response_q[resp_mqtt_rqi_arr[i]];
+//                             resp_mqtt_rqi_arr.splice(i, 1);
+//                             break;
+//                         }
+//                     }
+//                 }
+//             }
+//             else {
+//             }
+//         }
+//     }
+//     catch (e) {
+//     }
+// }
 
 var sgn_mqtt_client = null;
 
@@ -135,83 +133,63 @@ if(sgn_mqtt_client == null) {
         sgn_mqtt_client = null;
     });
 }
+//
+exports.post = function(ri, exc, nu, bodytype, rqi, bodyString) {
+    try {
+        if(ss_fail_count.hasOwnProperty(ri)) {
+            if(exc != "" && ( exc == 0 || exc == '0')) {
+                ss_fail_count[ri] = 0;
+            }
+        }
+        else {
+            ss_fail_count[ri] = 0;
+        }
 
-// for notification
-var onem2mParser = bodyParser.text(
-    {
-        limit: '1mb',
-        type: 'application/onem2m-resource+xml;application/xml;application/json;application/vnd.onem2m-res+xml;application/vnd.onem2m-res+json'
+        if (ss_fail_count[ri] >= MAX_NUM_RETRY) {
+            delete ss_fail_count[ri];
+            delete_sub(ri, rqi);
+            console.log('      [sgn_man] remove subscription because no response');
+        }
+        else {
+            var sub_nu = url.parse(nu);
+            if (sub_nu.protocol == 'http:' || sub_nu.protocol == 'https:') {
+                request_noti_http(nu, ri, bodyString, bodytype, rqi);
+            }
+            else if (sub_nu.protocol == 'coap:') {
+                request_noti_coap(nu, ri, bodyString, bodytype, rqi);
+            }
+            else if (sub_nu.protocol == 'ws:') {
+                request_noti_ws(nu, ri, bodyString, bodytype, rqi);
+            }
+            else if (sub_nu.protocol == 'mqtt:') { // mqtt:
+                request_noti_mqtt(nu, ri, bodyString, bodytype, rqi);
+            }
+        }
     }
-);
-
-sgn_app.post('/sgn', onem2mParser, function(request, response, next) {
-    var fullBody = '';
-    request.on('data', function(chunk) {
-        fullBody += chunk.toString();
-    });
-    request.on('end', function() {
-        request.body = fullBody;
-
-        try {
-            if(ss_fail_count[request.headers.ri] == null) {
-                ss_fail_count[request.headers.ri] = 0;
-            }
-
-            if(request.headers.exc != "" && ( request.headers.exc == 0 || request.headers.exc == '0')) {
-                ss_fail_count[request.headers.ri] = 0;
-            }
-
-            if (ss_fail_count[request.headers.ri] >= MAX_NUM_RETRY) {
-                delete ss_fail_count[request.headers.ri];
-                delete_sub(request.headers.ri, request.headers['x-m2m-ri']);
-                console.log('      [sgn_man] remove subscription because no response');
-            }
-            else {
-                var sub_nu = url.parse(request.headers.nu);
-                if (sub_nu.protocol == 'http:' || sub_nu.protocol == 'https:') {
-                    request_noti_http(response, request.headers.nu, request.headers.ri, request.body, request.headers.bodytype, request.headers['x-m2m-ri']);
-                }
-                else if (sub_nu.protocol == 'coap:') {
-                    request_noti_coap(response, request.headers.nu, request.headers.ri, request.body, request.headers.bodytype, request.headers['x-m2m-ri']);
-                }
-                else if (sub_nu.protocol == 'ws:') {
-                    request_noti_ws(response, request.headers.nu, request.headers.ri, request.body, request.headers.bodytype, request.headers['x-m2m-ri']);
-                }
-                else if (sub_nu.protocol == 'mqtt:') { // mqtt:
-                    request_noti_mqtt(response, request.headers.nu, request.headers.ri, request.body, request.headers.bodytype, request.headers['x-m2m-ri']);
-                }
-            }
-        }
-        catch (e) {
-            NOPRINT==='true'?NOPRINT='true':console.log(e.message);
-            var rsp_Obj = {};
-            rsp_Obj['rsp'] = {};
-            rsp_Obj['rsp'].dbg = 'notificationUrl does not support : ' + request.headers.nu;
-            response.header('X-M2M-RSC', '4000');
-            response.status(400).end(JSON.stringify(rsp_Obj));
-        }
-    });
-});
-
-function req_sub() {
-    var req_topic = util.format('/oneM2M/req/+/%s/+', usecseid.replace('/', ''));
-    sgn_mqtt_client.subscribe(req_topic);
-    console.log('subscribe req_topic as ' + req_topic);
-
-    req_topic = util.format('/oneM2M/req/+/%s/+', usecsebase);
-    sgn_mqtt_client.subscribe(req_topic);
-    console.log('subscribe req_topic as ' + req_topic);
-}
-
-function reg_req_sub() {
-    var reg_req_topic = util.format('/oneM2M/reg_req/+/%s/+', usecseid.replace('/', ''));
-    sgn_mqtt_client.subscribe(reg_req_topic);
-    console.log('subscribe reg_req_topic as ' + reg_req_topic);
-
-    reg_req_topic = util.format('/oneM2M/reg_req/+/%s/+', usecsebase);
-    sgn_mqtt_client.subscribe(reg_req_topic);
-    console.log('subscribe reg_req_topic as ' + reg_req_topic);
-}
+    catch (e) {
+        console.log('[sgn_man] post function exception - ' + e.message);
+    }
+};
+//
+// function req_sub() {
+//     var req_topic = util.format('/oneM2M/req/+/%s/+', usecseid.replace('/', ''));
+//     sgn_mqtt_client.subscribe(req_topic);
+//     console.log('subscribe req_topic as ' + req_topic);
+//
+//     req_topic = util.format('/oneM2M/req/+/%s/+', usecsebase);
+//     sgn_mqtt_client.subscribe(req_topic);
+//     console.log('subscribe req_topic as ' + req_topic);
+// }
+//
+// function reg_req_sub() {
+//     var reg_req_topic = util.format('/oneM2M/reg_req/+/%s/+', usecseid.replace('/', ''));
+//     sgn_mqtt_client.subscribe(reg_req_topic);
+//     console.log('subscribe reg_req_topic as ' + reg_req_topic);
+//
+//     reg_req_topic = util.format('/oneM2M/reg_req/+/%s/+', usecsebase);
+//     sgn_mqtt_client.subscribe(reg_req_topic);
+//     console.log('subscribe reg_req_topic as ' + reg_req_topic);
+// }
 
 function sgn_mqtt_message_handler(topic, message) {
     var topic_arr = topic.split("/");
@@ -231,39 +209,16 @@ function sgn_mqtt_message_handler(topic, message) {
                 }
 
                 if (jsonObj['m2m:rsp'] != null) {
-                    for (var i = 0; i < resp_mqtt_rqi_arr.length; i++) {
-                        if (resp_mqtt_rqi_arr[i] == jsonObj['m2m:rsp'].rqi) {
-                            NOPRINT==='true'?NOPRINT='true':console.log('----> ' + jsonObj['m2m:rsp'].rsc);
+                    if(timerID.hasOwnProperty(jsonObj['m2m:rsp'].rqi)) {
+                        clearTimeout(timerID[jsonObj['m2m:rsp'].rqi]);
+                        delete timerID[jsonObj['m2m:rsp'].rqi];
+                        sgn_mqtt_client.unsubscribe(topic);
+                    }
 
-                            http_response_q[resp_mqtt_rqi_arr[i]].header('X-M2M-RSC', jsonObj['m2m:rsp'].rsc);
-                            http_response_q[resp_mqtt_rqi_arr[i]].header('X-M2M-RI', resp_mqtt_rqi_arr[i]);
-
-                            var status_code = '404';
-                            if(jsonObj['m2m:rsp'].rsc == '4105') {
-                                status_code = '409';
-                            }
-                            else if(jsonObj['m2m:rsp'].rsc == '2000') {
-                                status_code = '200';
-                            }
-                            else if(jsonObj['m2m:rsp'].rsc == '2001') {
-                                status_code = '201';
-                            }
-                            else if(jsonObj['m2m:rsp'].rsc == '4000') {
-                                status_code = '400';
-                            }
-                            else if(jsonObj['m2m:rsp'].rsc == '5000') {
-                                status_code = '500';
-                            }
-                            else {
-                            }
-
-                            http_response_q[resp_mqtt_rqi_arr[i]].status(status_code).end(JSON.stringify(jsonObj['m2m:rsp'].pc));
-
-                            delete ss_fail_count[http_response_q[resp_mqtt_rqi_arr[i]].req.headers.ri];
-                            delete http_response_q[resp_mqtt_rqi_arr[i]];
-                            resp_mqtt_rqi_arr.splice(i, 1);
-                            break;
-                        }
+                    if(resp_mqtt_rqi_arr.hasOwnProperty(jsonObj['m2m:rsp'].rqi)) {
+                        console.log('=======> [response_noti_mqtt]' + resp_mqtt_rqi_arr[jsonObj['m2m:rsp'].rqi]);
+                        delete ss_fail_count[resp_mqtt_rqi_arr[jsonObj['m2m:rsp'].rqi]];
+                        delete resp_mqtt_rqi_arr[jsonObj['m2m:rsp'].rqi];
                     }
                 }
             }
@@ -277,7 +232,7 @@ function sgn_mqtt_message_handler(topic, message) {
     }
 }
 
-function request_noti_http(response, nu, ri, bodyString, bodytype, xm2mri) {
+function request_noti_http(nu, ri, bodyString, bodytype, xm2mri) {
     var bodyStr = '';
     var options = {
         hostname: url.parse(nu).hostname,
@@ -301,17 +256,22 @@ function request_noti_http(response, nu, ri, bodyString, bodytype, xm2mri) {
         });
 
         res.on('end', function () {
-            if (res.statusCode == 200 || res.statusCode == 201) {
-                //console.log('----> [request_noti_http - ' + ss_fail_count[ri] + ']');
-                delete ss_fail_count[ri];
+            // if (res.statusCode == 200 || res.statusCode == 201) {
+            //     //console.log('----> [request_noti_http - ' + ss_fail_count[ri] + ']');
+            //     delete ss_fail_count[ri];
+            // }
+            // else {
+            //     console.log('----> [request_noti - wrong response - ' + res.statusCode + ']');
+            // }
 
-                response.header('X-M2M-RSC', res.headers['x-m2m-rsc']);
-                response.header('X-M2M-RI', res.headers['x-m2m-ri']);
-
-                response.status(res.statusCode).end(bodyStr);
+            if(timerID.hasOwnProperty(xm2mri)) {
+                clearTimeout(timerID[xm2mri]);
+                delete timerID[xm2mri];
             }
-            else {
-                console.log('----> [request_noti - wrong response - ' + res.statusCode + ']');
+
+            if(ss_fail_count.hasOwnProperty(ri)) {
+                console.log('=======> [response_noti_http] - ' + ri);
+                delete ss_fail_count[ri];
             }
         });
     }
@@ -335,16 +295,42 @@ function request_noti_http(response, nu, ri, bodyString, bodytype, xm2mri) {
     });
 
     req.on('close', function () {
-        //console.log('[request_noti_http - close: no response for notification');
+        //console.log('[request_noti_http] - close event - ' + ri + ' - ' + xm2mri);
     });
 
-    console.log('<------- [request_noti_http - ' + ss_fail_count[ri] + '] ');
+    req.on('socket',function(socket) {
+        console.log('<======= [request_noti_http] - socket event - ' + ri + ' - ' + xm2mri);
+        timerID[xm2mri] = setTimeout(checkResponse, 3000, ri, xm2mri, socket);
+    });
+
     console.log(bodyString);
     req.write(bodyString);
     req.end();
 }
 
-function request_noti_coap(response, nu, ri, bodyString, bodytype, xm2mri) {
+function checkResponse(ri, rqi, socket) {
+    console.log('[checkResponse]');
+
+    if(timerID.hasOwnProperty(rqi)) {
+        delete timerID[rqi];
+
+        if(socket != null) {
+            socket.destroy();
+        }
+    }
+
+    if(ss_fail_count.hasOwnProperty(ri)) {
+        ss_fail_count[ri]++;
+        console.log('=XXXXX=> [' + ss_fail_count[ri] + '] ' + ri);
+
+        if (ss_fail_count[ri] >= MAX_NUM_RETRY) {
+            delete_sub(ri, rqi);
+            console.log('      [sgn_man] remove subscription because no response');
+        }
+    }
+}
+
+function request_noti_coap(nu, ri, bodyString, bodytype, xm2mri) {
     var options = {
         host: url.parse(nu).hostname,
         port: url.parse(nu).port,
@@ -368,14 +354,19 @@ function request_noti_coap(response, nu, ri, bodyString, bodytype, xm2mri) {
         });
 
         res.on('end', function () {
-            if(res.code == '2.03' || res.code == '2.01') {
-                //console.log('----> [request_noti_coap] response for notification through coap  ' + res.code + ' - ' + ri);
+            // if(res.code == '2.03' || res.code == '2.01') {
+            //     //console.log('----> [request_noti_coap] response for notification through coap  ' + res.code + ' - ' + ri);
+            //     delete ss_fail_count[ri];
+            // }
+
+            if(timerID.hasOwnProperty(xm2mri)) {
+                clearTimeout(timerID[xm2mri]);
+                delete timerID[xm2mri];
+            }
+
+            if(ss_fail_count.hasOwnProperty(ri)) {
+                console.log('=======> [response_noti_coap] - ' + ri);
                 delete ss_fail_count[ri];
-
-                response.header('X-M2M-RSC', 2000);
-                response.header('X-M2M-RI', xm2mri);
-
-                response.status(200).end(responseBody);
             }
         });
     });
@@ -384,36 +375,34 @@ function request_noti_coap(response, nu, ri, bodyString, bodytype, xm2mri) {
         //console.log('[request_noti_coap] problem with request: ' + e.message);
     });
 
-    console.log('<------- [request_noti_coap - ' + ss_fail_count[ri] + '] ');
+    req.on('socket',function(socket) {
+        console.log('<======= [request_noti_coap] - socket event - ' + ri + ' - ' + xm2mri);
+        timerID[xm2mri] = setTimeout(checkResponse, 3000, ri, xm2mri, socket);
+    });
+
     console.log(bodyString);
     req.write(bodyString);
     req.end();
 }
 
-function request_noti_mqtt(response, nu, ri, bodyString, bodytype, xm2mri) {
+var timerID = {};
+function request_noti_mqtt(nu, ri, bodyString, bodytype, xm2mri) {
     try {
-        if(resp_mqtt_rqi_arr.length >= resp_mqtt_rqi_arr_max_size) {
-            resp_mqtt_rqi_arr.splice(0, 1);
-        }
-
-        resp_mqtt_rqi_arr.push(xm2mri);
-        http_response_q[xm2mri] = response;
+        resp_mqtt_rqi_arr[xm2mri] = ri;
 
         var aeid = url.parse(nu).pathname.replace('/', '').split('?')[0];
         var noti_resp_topic = '/oneM2M/resp/' + usecseid.replace('/', '') + '/' + aeid + '/' + bodytype;
-        var noti_resp_topic2 = '/oneM2M/resp/' + usecsebase + '/' + aeid + '/' + bodytype;
 
-        //noti_mqtt.unsubscribe(noti_resp_topic);
         sgn_mqtt_client.subscribe(noti_resp_topic);
         console.log('subscribe noti_resp_topic as ' + noti_resp_topic);
 
-        sgn_mqtt_client.subscribe(noti_resp_topic2);
-        console.log('subscribe noti_resp_topic as ' + noti_resp_topic2);
-
         var noti_topic = '/oneM2M/req/' + usecseid.replace('/', '') + '/' + aeid + '/' + bodytype;
         sgn_mqtt_client.publish(noti_topic, bodyString);
-        console.log('<------- [request_noti_mqtt - ' + ss_fail_count[ri] + '] publish - ' + noti_topic);
-        NOPRINT==='true'?NOPRINT='true':console.log(bodyString);
+
+        timerID[xm2mri] = setTimeout(checkResponseMqtt, 3000, ri, noti_resp_topic, xm2mri);
+
+        console.log('<======= [request_noti_mqtt - ' + ri + '] publish - ' + noti_topic);
+        console.log(bodyString);
     }
     catch (e) {
         console.log(e.message);
@@ -421,8 +410,30 @@ function request_noti_mqtt(response, nu, ri, bodyString, bodytype, xm2mri) {
     }
 }
 
+function checkResponseMqtt(ri, resp_topic, rqi) {
+    console.log('[checkResponseMqtt]');
 
-function request_noti_ws(response, nu, ri, bodyString, bodytype, xm2mri) {
+    if(timerID.hasOwnProperty(rqi)) {
+        delete timerID[rqi];
+        sgn_mqtt_client.unsubscribe(resp_topic);
+    }
+
+    if(resp_mqtt_rqi_arr.hasOwnProperty(rqi)) {
+        delete resp_mqtt_rqi_arr[rqi];
+    }
+
+    if(ss_fail_count.hasOwnProperty(ri)) {
+        ss_fail_count[ri]++;
+        console.log('=XXXXX=> [' + ss_fail_count[ri] + '] ' + ri);
+
+        if (ss_fail_count[ri] >= MAX_NUM_RETRY) {
+            delete_sub(ri, rqi);
+            console.log('      [sgn_man] remove subscription because no response');
+        }
+    }
+}
+
+function request_noti_ws(nu, ri, bodyString, bodytype, xm2mri) {
     var bodyStr = '';
 
     if(use_secure == 'disable') {
@@ -446,7 +457,8 @@ function request_noti_ws(response, nu, ri, bodyString, bodytype, xm2mri) {
         });
 
         ws_client.on('connect', function (connection) {
-            console.log('<---- [request_noti_ws] ' + nu + ' - ' + bodyString);
+            console.log('<======= [request_noti_ws] - connection - ' + ri + ' - ' + xm2mri);
+            timerID[xm2mri] = setTimeout(checkResponse, 3000, ri, xm2mri, connection);
 
             connection.sendUTF(bodyString);
 
@@ -462,19 +474,24 @@ function request_noti_ws(response, nu, ri, bodyString, bodytype, xm2mri) {
 
                 //console.log('----> [request_noti_ws] ' + message.utf8Data.toString());
 
-                delete ss_fail_count[ri];
+                //delete ss_fail_count[ri];
 
-                response.header('X-M2M-RSC', 2000);
-                response.header('X-M2M-RI', xm2mri);
+                if(timerID.hasOwnProperty(xm2mri)) {
+                    clearTimeout(timerID[xm2mri]);
+                    delete timerID[xm2mri];
+                }
 
-                response.status(200).end(message.utf8Data.toString());
+                if(ss_fail_count.hasOwnProperty(ri)) {
+                    console.log('=======> [response_noti_ws] - ' + ri);
+                    delete ss_fail_count[ri];
+                }
 
                 connection.close();
             });
         });
     }
     else {
-        console.log('not support secure notification through ws');
+        console.log('[request_noti_ws] not support secure notification through ws');
     }
 }
 
@@ -501,6 +518,7 @@ function delete_sub(ri, xm2mri) {
 
         res.on('end', function () {
             if (res.statusCode == 200 || res.statusCode == 202) {
+                delete ss_fail_count[ri];
                 console.log('----> [delete_sub - ' + res.statusCode + ']');
             }
         });

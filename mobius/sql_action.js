@@ -1326,7 +1326,7 @@ exports.select_acp_cnt = function(loop, uri_arr, callback) {
                     if (results[0].ty == '3') {
                         _this.select_acp_cnt(++loop, uri_arr, function (err, acpiList) {
                             if (err) {
-                                callback(err, acpiList.message);
+                                callback(err, acpiList);
                             }
                             else {
                                 callback(err, acpiList);
