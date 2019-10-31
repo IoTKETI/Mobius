@@ -171,7 +171,6 @@ if (use_clustering) {
                                 wdt.set_wdt(require('shortid').generate(), 43200, del_req_resource);
                                 wdt.set_wdt(require('shortid').generate(), 86400, del_expired_resource);
 
-                                require('./hit_man');
                                 require('./pxy_mqtt');
                                 require('./pxy_coap');
                                 require('./pxy_ws');
@@ -1154,72 +1153,6 @@ function lookup_delete(request, response) {
     });
 }
 
-function updateHitCount(binding) {
-    var bodyObj = {};
-    bodyObj.binding = binding;
-    var bodyString = JSON.stringify(bodyObj);
-
-    var options = {
-        hostname: 'localhost',
-        port: use_hit_man_port,
-        path: '/hit_count',
-        method: 'POST',
-        headers: {
-            'Accept': 'application/json',
-            'Content-Type': 'application/json',
-            'Content-Length' : bodyString.length
-        }
-    };
-
-    var bodyStr = '';
-    if (use_secure == 'disable') {
-        var req = http.request(options, function (res) {
-            res.setEncoding('utf8');
-
-            res.on('data', function (chunk) {
-                bodyStr += chunk;
-            });
-
-            res.on('end', function () {
-                //if(res.statusCode == 200 || res.statusCode == 201) {
-                //    console.log('-------> [response_noti - ' + res.headers['x-m2m-rsc'] + '] - ' + ri);
-                //}
-            });
-        });
-    }
-    else {
-        options.ca = fs.readFileSync('ca-crt.pem');
-
-        req = https.request(options, function (res) {
-            res.setEncoding('utf8');
-
-            res.on('data', function (chunk) {
-                bodyStr += chunk;
-            });
-
-            res.on('end', function () {
-                //if(res.statusCode == 200 || res.statusCode == 201) {
-                //    console.log('-------> [response_noti - ' + res.headers['x-m2m-rsc'] + '] - ' + ri);
-                //}
-            });
-        });
-    }
-
-    req.on('error', function (e) {
-        if(e.message != 'read ECONNRESET') {
-            //console.log('--xxx--> [request_noti - problem with request: ' + e.message + ']');
-            //console.log('--xxx--> [request_noti - no response - ' + ri + ']');
-        }
-    });
-
-    req.on('close', function () {
-        //console.log('--xxx--> [request_noti - close: no response for notification');
-    });
-
-    req.write(bodyString);
-    req.end();
-}
-
 // var resource_cache = {};
 global.get_resource_from_url = function(connection, ri, sri, option, callback) {
     var targetObject = {};
@@ -1345,62 +1278,6 @@ global.get_resource_from_url = function(connection, ri, sri, option, callback) {
     // }
 };
 
-function retrieveHitCount(response) {
-    var options = {
-        hostname: 'localhost',
-        port: use_hit_man_port,
-        path: '/hit_count',
-        method: 'GET',
-        headers: {
-            'Accept': 'application/json'
-        }
-    };
-
-    var bodyStr = '';
-    if (use_secure == 'disable') {
-        var req = http.request(options, function (res) {
-            res.setEncoding('utf8');
-
-            res.on('data', function (chunk) {
-                bodyStr += chunk;
-            });
-
-            res.on('end', function () {
-                response.status(200).end(bodyStr);
-            });
-        });
-    }
-    else {
-        options.ca = fs.readFileSync('ca-crt.pem');
-
-        req = https.request(options, function (res) {
-            res.setEncoding('utf8');
-
-            res.on('data', function (chunk) {
-                bodyStr += chunk;
-            });
-
-            res.on('end', function () {
-                response.status(200).end(bodyStr);
-            });
-        });
-    }
-
-    req.on('error', function (e) {
-        if(e.message != 'read ECONNRESET') {
-            //console.log('--xxx--> [request_noti - problem with request: ' + e.message + ']');
-            //console.log('--xxx--> [request_noti - no response - ' + ri + ']');
-        }
-    });
-
-    req.on('close', function () {
-        //console.log('--xxx--> [request_noti - close: no response for notification');
-    });
-
-    req.write('');
-    req.end();
-}
-
 function check_headers_requested(headers, callback) {
     // Check X-M2M-RI Header
     if ((headers['x-m2m-ri'] == null)) {
@@ -1512,7 +1389,58 @@ app.use(function (request, response, next) {
                 if (request.method.toLowerCase() == 'get') {
                     if (request.url == '/hit') {
                         response.header('Content-Type', 'application/json');
-                        retrieveHitCount(response);
+
+                        // for backup hit count
+                        if (0) {
+                            var _hit_old = JSON.parse(fs.readFileSync('hit.json', 'utf-8'));
+                            for (var dd in _hit_old) {
+                                if (_hit_old.hasOwnProperty(dd)) {
+                                    for (var ff in _hit_old[dd]) {
+                                        if (_hit_old[dd].hasOwnProperty(ff)) {
+                                            if (Object.keys(_hit_old[dd][ff]).length > 0) {
+                                                for (var gg in _hit_old[dd][ff]) {
+                                                    if (_hit_old[dd][ff].hasOwnProperty(gg)) {
+                                                        var _http = 0;
+                                                        var _mqtt = 0;
+                                                        var _coap = 0;
+                                                        var _ws = 0;
+
+                                                        if (_hit_old[dd][ff][gg] == null) {
+                                                            _hit_old[dd][ff][gg] = 0;
+                                                        }
+                                                        if (gg == 'H') {
+                                                            _http = _hit_old[dd][ff][gg];
+                                                        }
+                                                        else if (gg == 'M') {
+                                                            _mqtt = _hit_old[dd][ff][gg];
+                                                        }
+                                                        else if (gg == 'C') {
+                                                            _coap = _hit_old[dd][ff][gg];
+                                                        }
+                                                        else if (gg == 'W') {
+                                                            _ws = _hit_old[dd][ff][gg];
+                                                        }
+                                                    }
+                                                }
+
+                                                db_sql.set_hit(request.connection, dd, _http, _mqtt, _coap, _ws, function () {
+
+                                                });
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        db_sql.get_hit_all(request.connection, function (err, result) {
+                            if (!err) {
+                                request.connection.release();
+                                var total_hit = result;
+                                response.header('Content-Type', 'application/json');
+                                response.status(200).end(JSON.stringify(total_hit, null, 4));
+                            }
+                        });
                         return;
                     }
 
@@ -1792,11 +1720,33 @@ app.use(function (request, response, next) {
 
 // remoteCSE, ae, cnt
 app.post(onem2mParser, function (request, response) {
+    var _ct = moment().utc().format('YYYYMMDD');
+    var _http = 0;
+    var _mqtt = 0;
+    var _coap = 0;
+    var _ws = 0;
     if (request.headers.hasOwnProperty('binding')) {
-        updateHitCount(request.headers['binding']);
+        if(request.headers['binding'] == 'H') {
+            _http = 1;
+        }
+        else if(request.headers['binding'] == 'M') {
+            _mqtt = 1;
+        }
+        else if(request.headers['binding'] == 'C') {
+            _coap = 1;
+        }
+        else if(request.headers['binding'] == 'W') {
+            _ws = 1;
+        }
+        db_sql.set_hit(request.connection, _ct, _http, _mqtt, _coap, _ws, function () {
+
+        });
     }
     else {
-        updateHitCount('H');
+        _http = 1;
+        db_sql.set_hit(request.connection, _ct, _http, _mqtt, _coap, _ws, function () {
+
+        });
     }
 
     if (request.body == "") {
@@ -1873,11 +1823,33 @@ app.post(onem2mParser, function (request, response) {
 });
 
 app.get(onem2mParser, function (request, response) {
+    var _ct = moment().utc().format('YYYYMMDD');
+    var _http = 0;
+    var _mqtt = 0;
+    var _coap = 0;
+    var _ws = 0;
     if (request.headers.hasOwnProperty('binding')) {
-        updateHitCount(request.headers['binding']);
+        if(request.headers['binding'] == 'H') {
+            _http = 1;
+        }
+        else if(request.headers['binding'] == 'M') {
+            _mqtt = 1;
+        }
+        else if(request.headers['binding'] == 'C') {
+            _coap = 1;
+        }
+        else if(request.headers['binding'] == 'W') {
+            _ws = 1;
+        }
+        db_sql.set_hit(request.connection, _ct, _http, _mqtt, _coap, _ws, function () {
+
+        });
     }
     else {
-        updateHitCount('H');
+        _http = 1;
+        db_sql.set_hit(request.connection, _ct, _http, _mqtt, _coap, _ws, function () {
+
+        });
     }
 
     var rootnm = Object.keys(request.targetObject)[0];
@@ -1894,11 +1866,33 @@ app.get(onem2mParser, function (request, response) {
 
 
 app.put(onem2mParser, function (request, response) {
+    var _ct = moment().utc().format('YYYYMMDD');
+    var _http = 0;
+    var _mqtt = 0;
+    var _coap = 0;
+    var _ws = 0;
     if (request.headers.hasOwnProperty('binding')) {
-        updateHitCount(request.headers['binding']);
+        if(request.headers['binding'] == 'H') {
+            _http = 1;
+        }
+        else if(request.headers['binding'] == 'M') {
+            _mqtt = 1;
+        }
+        else if(request.headers['binding'] == 'C') {
+            _coap = 1;
+        }
+        else if(request.headers['binding'] == 'W') {
+            _ws = 1;
+        }
+        db_sql.set_hit(request.connection, _ct, _http, _mqtt, _coap, _ws, function () {
+
+        });
     }
     else {
-        updateHitCount('H');
+        _http = 1;
+        db_sql.set_hit(request.connection, _ct, _http, _mqtt, _coap, _ws, function () {
+
+        });
     }
 
     if (request.body == "") {
@@ -1957,11 +1951,33 @@ app.put(onem2mParser, function (request, response) {
 });
 
 app.delete(onem2mParser, function (request, response) {
+    var _ct = moment().utc().format('YYYYMMDD');
+    var _http = 0;
+    var _mqtt = 0;
+    var _coap = 0;
+    var _ws = 0;
     if (request.headers.hasOwnProperty('binding')) {
-        updateHitCount(request.headers['binding']);
+        if(request.headers['binding'] == 'H') {
+            _http = 1;
+        }
+        else if(request.headers['binding'] == 'M') {
+            _mqtt = 1;
+        }
+        else if(request.headers['binding'] == 'C') {
+            _coap = 1;
+        }
+        else if(request.headers['binding'] == 'W') {
+            _ws = 1;
+        }
+        db_sql.set_hit(request.connection, _ct, _http, _mqtt, _coap, _ws, function () {
+
+        });
     }
     else {
-        updateHitCount('H');
+        _http = 1;
+        db_sql.set_hit(request.connection, _ct, _http, _mqtt, _coap, _ws, function () {
+
+        });
     }
 
     var rootnm = Object.keys(request.targetObject)[0];

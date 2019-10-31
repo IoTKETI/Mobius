@@ -119,8 +119,13 @@ function cb_create_action(connection, callback) {
 }
 
 exports.create = function(connection, callback) {
-    cb_create_action(connection, function(rspObj) {
-        callback(rspObj);
+    var _ct = moment().utc().format('YYYYMMDD');
+    db_sql.set_hit(connection, _ct, 0, 0, 0, 0, function (err, results) {
+        cb_create_action(connection, function(rspObj) {
+            callback(rspObj);
+        });
     });
+
+
 };
 
