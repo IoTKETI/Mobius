@@ -25,7 +25,7 @@ function security_check_action_pv(request, response, acpiList, cr, access_value,
     make_internal_ri(acpiList);
     var ri_list = [];
     get_ri_list_sri(request, response, acpiList, ri_list, 0, function (ri_list, request, response) {
-        db_sql.select_acp_in(ri_list, function (err, results_acp) {
+        db_sql.select_acp_in(request.connection, ri_list, function (err, results_acp) {
             if (!err) {
                 if (results_acp.length == 0) {
                     if (request.headers['x-m2m-origin'] == cr) {
@@ -203,7 +203,7 @@ function security_check_action_pvs(request, response, acpiList, access_value, cr
     make_internal_ri(acpiList);
     var ri_list = [];
     get_ri_list_sri(request, response, acpiList, ri_list, 0, function (ri_list, request, response) {
-        db_sql.select_acp_in(ri_list, function (err, results_acp) {
+        db_sql.select_acp_in(request.connection, ri_list, function (err, results_acp) {
             if (!err) {
                 if (results_acp.length == 0) {
                     if (request.headers['x-m2m-origin'] == cr) {
@@ -424,7 +424,7 @@ exports.check = function(request, response, ty, acpiList, access_value, cr, call
                 var targetUri_arr = targetUri.split('/');
 
                 var loop_cnt = 0;
-                db_sql.select_acp_cnt(loop_cnt, targetUri_arr, function (err, results_acpi) {
+                db_sql.select_acp_cnt(request.connection, loop_cnt, targetUri_arr, function (err, results_acpi) {
                     if(!err) {
                         if(results_acpi.length == 0) {
                             security_default_check_action(request, response, cr, access_value, function (rsc, request, response) {

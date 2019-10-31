@@ -79,7 +79,7 @@ function check_member(request, response, mt, req_count, mid, cse_poa, valid_mid,
             absolute_ri = ri.replace(/\/\/[^\/]+\/?/, '\/');
             absolute_ri = absolute_ri.replace(/\/[^\/]+\/?/, '/');
         }
-        db_sql.get_ri_sri(request, response, absolute_ri, function (err, results, request, response) {
+        db_sql.get_ri_sri(request.connection, request, response, absolute_ri, function (err, results, request, response) {
             ri = ((results.length == 0) ? ri : results[0].ri);
             var target_cb = ri.split('/')[1];
             var hostname = 'localhost';

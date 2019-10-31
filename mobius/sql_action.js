@@ -24,30 +24,30 @@ var _this = this;
 
 global.max_lim = 1000;
 
-exports.set_tuning = function(callback) {
+exports.set_tuning = function(connection, callback) {
     var sql = util.format('set global max_connections = 2000');
-    db.getResult(sql, '', function (err, results) {
+    db.getResult(sql, connection, function (err, results) {
         if(err) {
             //callback(err, results);
             //return;
             console.log(results.message);
         }
         sql = util.format('set global innodb_flush_log_at_trx_commit=0');
-        db.getResult(sql, '', function (err, results) {
+        db.getResult(sql, connection, function (err, results) {
             if(err) {
                 //callback(err, results);
                 //return;
                 console.log(results.message);
             }
             sql = util.format('set global sync_binlog=0');
-            db.getResult(sql, '', function (err, results) {
+            db.getResult(sql, connection, function (err, results) {
                 if(err) {
                     //callback(err, results);
                     //return;
                     console.log(results.message);
                 }
                 sql = util.format('set global transaction_isolation=\'READ-UNCOMMITTED\'');
-                db.getResult(sql, '', function (err, results) {
+                db.getResult(sql, connection, function (err, results) {
                     if(err) {
                         //callback(err, results);
                         //return;
@@ -60,14 +60,14 @@ exports.set_tuning = function(callback) {
     });
 };
 
-exports.get_sri_sri = function (ri, callback) {
+exports.get_sri_sri = function (connection, ri, callback) {
     var sql = util.format('select sri from sri where ri = \'%s\'', ri);
-    db.getResult(sql, '', function (err, results) {
+    db.getResult(sql, connection, function (err, results) {
         callback(err, results);
     });
 };
 
-exports.get_ri_sri = function (request, response, sri, callback) {
+exports.get_ri_sri = function (connection, request, response, sri, callback) {
     if(request.query != null) {
         if (request.query.real == 4) {
             var results = [];
@@ -79,28 +79,28 @@ exports.get_ri_sri = function (request, response, sri, callback) {
     var tid = require('shortid').generate();
     console.time('get_ri_sri' + ' (' + tid + ')');
     var sql = util.format('select ri from sri where sri = \'%s\'', sri);
-    db.getResult(sql, '', function (err, results) {
+    db.getResult(sql, connection, function (err, results) {
         console.timeEnd('get_ri_sri' + ' (' + tid + ')');
         callback(err, results, request, response);
     });
 };
 
-function set_sri_sri(ri, sri, callback) {
+function set_sri_sri(connection, ri, sri, callback) {
     var sql = util.format('insert into sri (ri, sri) value (\'%s\', \'%s\')', ri, sri);
-    db.getResult(sql, '', function (err, results) {
+    db.getResult(sql, connection, function (err, results) {
         callback(err, results);
     });
 }
 
-exports.insert_lookup = function(obj, callback) {
+exports.insert_lookup = function(connection, obj, callback) {
     //console.time('insert_lookup ' + obj.ri);
     var sql = util.format('insert into lookup (' +
         'pi, ri, ty, ct, st, rn, lt, et, acpi, lbl, at, aa, sri, spi, subl) ' +
         'value (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
         obj.pi, obj.ri, obj.ty, obj.ct, obj.st, obj.rn, obj.lt, obj.et, JSON.stringify(obj.acpi), JSON.stringify(obj.lbl), JSON.stringify(obj.at), JSON.stringify(obj.aa), obj.sri, obj.spi, JSON.stringify(obj.subl));
-    db.getResult(sql, '', function (err, results) {
+    db.getResult(sql, connection, function (err, results) {
         if(!err) {
-            set_sri_sri(obj.ri, obj.sri, function (err, results) {
+            set_sri_sri(connection, obj.ri, obj.sri, function (err, results) {
                 //console.timeEnd('insert_lookup ' + obj.ri);
                 callback(err, results);
             });
@@ -111,22 +111,22 @@ exports.insert_lookup = function(obj, callback) {
     });
 };
 
-exports.insert_cb = function(obj, callback) {
+exports.insert_cb = function(connection, obj, callback) {
     console.time('insert_cb ' + obj.ri);
-    _this.insert_lookup(obj, function (err, results) {
+    _this.insert_lookup(connection, obj, function (err, results) {
         if(!err) {
             var sql = util.format('insert into cb (' +
                 'ri, cst, csi, srt, poa, nl, ncp, srv) ' +
                 'value (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
                 obj.ri, obj.cst, obj.csi, JSON.stringify(obj.srt), JSON.stringify(obj.poa), obj.nl, obj.ncp, JSON.stringify(obj.srv));
-            db.getResult(sql, '', function (err, results) {
+            db.getResult(sql, connection, function (err, results) {
                 if(!err) {
                     console.timeEnd('insert_cb ' + obj.ri);
                     callback(err, results);
                 }
                 else {
                     sql = util.format("delete from lookup where ri = \'%s\'", obj.ri);
-                    db.getResult(sql, '', function () {
+                    db.getResult(sql, connection, function () {
                         callback(err, results);
                     });
                 }
@@ -138,21 +138,21 @@ exports.insert_cb = function(obj, callback) {
     });
 };
 
-exports.insert_acp = function(obj, callback) {
+exports.insert_acp = function(connection, obj, callback) {
     console.time('insert_acp ' + obj.ri);
-    _this.insert_lookup(obj, function (err, results) {
+    _this.insert_lookup(connection, obj, function (err, results) {
         if(!err) {
             var sql = util.format('insert into acp (ri, pv, pvs) ' +
                 'value (\'%s\', \'%s\', \'%s\')',
                 obj.ri, JSON.stringify(obj.pv), JSON.stringify(obj.pvs));
-            db.getResult(sql, '', function (err, results) {
+            db.getResult(sql, connection, function (err, results) {
                 if(!err) {
                     console.timeEnd('insert_acp ' + obj.ri);
                     callback(err, results);
                 }
                 else {
                     sql = util.format("delete from lookup where ri = \'%s\'", obj.ri);
-                    db.getResult(sql, '', function () {
+                    db.getResult(sql, connection, function () {
                         callback(err, results);
                     });
                 }
@@ -164,23 +164,23 @@ exports.insert_acp = function(obj, callback) {
     });
 };
 
-exports.insert_ae = function(obj, callback) {
+exports.insert_ae = function(connection, obj, callback) {
     console.time('insert_ae ' + obj.ri);
-    _this.insert_lookup(obj, function (err, results) {
+    _this.insert_lookup(connection, obj, function (err, results) {
         if(!err) {
             var sql = util.format('insert into ae (ri, apn, api, aei, poa, ae.or, nl, rr, csz, srv) ' +
                 'value (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
                 obj.ri, obj.apn, obj.api, obj.aei, JSON.stringify(obj.poa), obj.or, obj.nl, obj.rr, obj.csz, JSON.stringify(obj.srv));
-            db.getResult(sql, '', function (err, results) {
+            db.getResult(sql, connection, function (err, results) {
                 if(!err) {
                     console.timeEnd('insert_ae ' + obj.ri);
                     callback(err, results);
                 }
                 else {
                     sql = util.format("delete from lookup where ri = \'%s\'", obj.ri);
-                    db.getResult(sql, '', function () {
+                    db.getResult(sql, connection, function () {
                         sql = util.format("delete from sri where ri = \'%s\'", obj.ri);
-                        db.getResult(sql, '', function () {
+                        db.getResult(sql, connection, function () {
                         });
                     });
 
@@ -194,21 +194,21 @@ exports.insert_ae = function(obj, callback) {
     });
 };
 
-exports.insert_cnt = function(obj, callback) {
+exports.insert_cnt = function(connection, obj, callback) {
     console.time('insert_cnt ' + obj.ri);
-    _this.insert_lookup(obj, function (err, results) {
+    _this.insert_lookup(connection, obj, function (err, results) {
         if(!err) {
             var sql = util.format('insert into cnt (ri, cr, mni, mbs, mia, cni, cbs, li, cnt.or, disr) ' +
                 'value (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
                 obj.ri, obj.cr, obj.mni, obj.mbs, obj.mia, obj.cni, obj.cbs, obj.li, obj.or, obj.disr);
-            db.getResult(sql, '', function (err, results) {
+            db.getResult(sql, connection, function (err, results) {
                 if(!err) {
                     console.timeEnd('insert_cnt ' + obj.ri);
                     callback(err, results);
                 }
                 else {
                     sql = util.format("delete from lookup where ri = \'%s\'", obj.ri);
-                    db.getResult(sql, '', function () {
+                    db.getResult(sql, connection, function () {
                         callback(err, results);
                     });
                 }
@@ -249,8 +249,8 @@ global.getType = function (p) {
     return type;
 };
 
-exports.get_cni_count = function(obj, callback) {
-    _this.select_count_ri(parseInt(obj.ty, 10), obj.ri, function (err, results) {
+exports.get_cni_count = function(connection, obj, callback) {
+    _this.select_count_ri(connection, parseInt(obj.ty, 10), obj.ri, function (err, results) {
         if (results.length == 1) {
             var cni = results[0]['cni'];
             var cbs = (results[0]['cbs'] == null) ? 0 : results[0]['cbs'];
@@ -269,9 +269,9 @@ exports.get_cni_count = function(obj, callback) {
                     count = 1;
                 }
 
-                _this.delete_oldests(obj, count, function (err, results_oldest) { // select oldest
+                _this.delete_oldests(connection, obj, count, function (err, results_oldest) { // select oldest
                     if (results_oldest.affectedRows == count) {
-                        _this.get_cni_count(obj, function (cni, cbs, st) {
+                        _this.get_cni_count(connection, obj, function (cni, cbs, st) {
                             callback(cni, cbs, st);
                         });
                     }
@@ -287,10 +287,10 @@ exports.get_cni_count = function(obj, callback) {
     });
 };
 
-exports.insert_cin = function(obj, callback) {
+exports.insert_cin = function(connection, obj, callback) {
     var cin_id = 'insert_cin ' + obj.ri + ' - ' + require('shortid').generate();
     console.time(cin_id);
-    _this.insert_lookup(obj, function (err, results) {
+    _this.insert_lookup(connection, obj, function (err, results) {
         if (!err) {
             var con_type = getType(obj.con);
             if (con_type === 'string_object') {
@@ -304,7 +304,7 @@ exports.insert_cin = function(obj, callback) {
             var sql = util.format('insert into cin (ri, pi, cr, cnf, cs, cin.or, con) ' +
                 'value (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
                 obj.ri, obj.pi, obj.cr, obj.cnf, obj.cs, obj.or, (con_type == 'string') ? obj.con.replace(/'/g, "\\'") : JSON.stringify(obj.con));
-            db.getResult(sql, '', function (err, results) {
+            db.getResult(sql, connection, function (err, results) {
                 if (!err) {
                     console.timeEnd(cin_id);
                     callback(err, results);
@@ -317,21 +317,21 @@ exports.insert_cin = function(obj, callback) {
     });
 };
 
-exports.insert_grp = function(obj, callback) {
+exports.insert_grp = function(connection, obj, callback) {
     console.time('insert_grp ' + obj.ri);
-    _this.insert_lookup(obj, function (err, results) {
+    _this.insert_lookup(connection, obj, function (err, results) {
         if(!err) {
             var sql = util.format('insert into grp (ri, cr, mt, cnm, mnm, mid, macp, mtv, csy, gn) ' +
                 'value (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
                 obj.ri, obj.cr, obj.mt, obj.cnm, obj.mnm, JSON.stringify(obj.mid), JSON.stringify(obj.macp), obj.mtv, obj.csy, obj.gn);
-            db.getResult(sql, '', function (err, results) {
+            db.getResult(sql, connection, function (err, results) {
                 if(!err) {
                     console.timeEnd('insert_grp ' + obj.ri);
                     callback(err, results);
                 }
                 else {
                     sql = util.format("delete from lookup where ri = \'%s\'", obj.ri);
-                    db.getResult(sql, '', function () {
+                    db.getResult(sql, connection, function () {
                         callback(err, results);
                     });
                 }
@@ -343,21 +343,21 @@ exports.insert_grp = function(obj, callback) {
     });
 };
 
-exports.insert_lcp = function(obj, callback) {
+exports.insert_lcp = function(connection, obj, callback) {
     console.time('insert_lcp ' + obj.ri);
-    _this.insert_lookup(obj, function (err, results) {
+    _this.insert_lookup(connection, obj, function (err, results) {
         if(!err) {
             var sql = util.format('insert into lcp (ri, los, lou, lot, lor, loi, lon, lost) ' +
                 'value (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
                 obj.ri, obj.los, obj.lou, obj.lot, obj.lor, obj.loi, obj.lon, obj.lost);
-            db.getResult(sql, '', function (err, results) {
+            db.getResult(sql, connection, function (err, results) {
                 if(!err) {
                     console.timeEnd('insert_lcp ' + obj.ri);
                     callback(err, results);
                 }
                 else {
                     sql = util.format("delete from lookup where ri = \'%s\'", obj.ri);
-                    db.getResult(sql, '', function () {
+                    db.getResult(sql, connection, function () {
                         callback(err, results);
                     });
                 }
@@ -369,21 +369,21 @@ exports.insert_lcp = function(obj, callback) {
     });
 };
 
-exports.insert_fwr = function(obj, callback) {
+exports.insert_fwr = function(connection, obj, callback) {
     console.time('insert_fwr ' + obj.ri);
-    _this.insert_lookup(obj, function (err, results) {
+    _this.insert_lookup(connection, obj, function (err, results) {
         if(!err) {
             var sql = util.format('insert into mgo (ri, mgd, objs, obps, dc, vr, fwnnam, url, ud, uds) ' +
                 'value (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
                 obj.ri, obj.mgd, obj.objs, obj.obps, obj.dc, obj.vr, obj.fwnnam, obj.url, obj.ud, JSON.stringify(obj.uds));
-            db.getResult(sql, '', function (err, results) {
+            db.getResult(sql, connection, function (err, results) {
                 if(!err) {
                     console.timeEnd('insert_fwr ' + obj.ri);
                     callback(err, results);
                 }
                 else {
                     sql = util.format("delete from lookup where ri = \'%s\'", obj.ri);
-                    db.getResult(sql, '', function () {
+                    db.getResult(sql, connection, function () {
                         callback(err, results);
                     });
                 }
@@ -395,21 +395,21 @@ exports.insert_fwr = function(obj, callback) {
     });
 };
 
-exports.insert_bat = function(obj, callback) {
+exports.insert_bat = function(connection, obj, callback) {
     console.time('insert_bat ' + obj.ri);
-    _this.insert_lookup(obj, function (err, results) {
+    _this.insert_lookup(connection, obj, function (err, results) {
         if(!err) {
             var sql = util.format('insert into mgo (ri, mgd, objs, obps, dc, btl, bts) ' +
                 'value (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
                 obj.ri, obj.mgd, obj.objs, obj.obps, obj.dc, obj.btl, obj.bts);
-            db.getResult(sql, '', function (err, results) {
+            db.getResult(sql, connection, function (err, results) {
                 if(!err) {
                     console.timeEnd('insert_bat ' + obj.ri);
                     callback(err, results);
                 }
                 else {
                     sql = util.format("delete from lookup where ri = \'%s\'", obj.ri);
-                    db.getResult(sql, '', function () {
+                    db.getResult(sql, connection, function () {
                         callback(err, results);
                     });
                 }
@@ -421,21 +421,21 @@ exports.insert_bat = function(obj, callback) {
     });
 };
 
-exports.insert_dvi = function(obj, callback) {
+exports.insert_dvi = function(connection, obj, callback) {
     console.time('insert_dvi ' + obj.ri);
-    _this.insert_lookup(obj, function (err, results) {
+    _this.insert_lookup(connection, obj, function (err, results) {
         if(!err) {
             var sql = util.format('insert into mgo (ri, mgd, objs, obps, dc, dbl, man, mgo.mod, dty, fwv, swv, hwv) ' +
                 'value (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
                 obj.ri, obj.mgd, obj.objs, obj.obps, obj.dc, obj.dbl, obj.man, obj.mod, obj.dty, obj.fwv, obj.swv, obj.hwv);
-            db.getResult(sql, '', function (err, results) {
+            db.getResult(sql, connection, function (err, results) {
                 if(!err) {
                     console.timeEnd('insert_dvi ' + obj.ri);
                     callback(err, results);
                 }
                 else {
                     sql = util.format("delete from lookup where ri = \'%s\'", obj.ri);
-                    db.getResult(sql, '', function () {
+                    db.getResult(sql, connection, function () {
                         callback(err, results);
                     });
                 }
@@ -447,21 +447,21 @@ exports.insert_dvi = function(obj, callback) {
     });
 };
 
-exports.insert_dvc = function(obj, callback) {
+exports.insert_dvc = function(connection, obj, callback) {
     console.time('insert_dvc ' + obj.ri);
-    _this.insert_lookup(obj, function (err, results) {
+    _this.insert_lookup(connection, obj, function (err, results) {
         if(!err) {
             var sql = util.format('insert into mgo (ri, mgd, objs, obps, dc, can, att, cas, cus, ena, dis) ' +
                 'value (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
                 obj.ri, obj.mgd, obj.objs, obj.obps, obj.dc, obj.can, obj.att, JSON.stringify(obj.cas), obj.cus, obj.ena, obj.dis);
-            db.getResult(sql, '', function (err, results) {
+            db.getResult(sql, connection, function (err, results) {
                 if(!err) {
                     console.timeEnd('insert_dvc ' + obj.ri);
                     callback(err, results);
                 }
                 else {
                     sql = util.format("delete from lookup where ri = \'%s\'", obj.ri);
-                    db.getResult(sql, '', function () {
+                    db.getResult(sql, connection, function () {
                         callback(err, results);
                     });
                 }
@@ -473,21 +473,21 @@ exports.insert_dvc = function(obj, callback) {
     });
 };
 
-exports.insert_rbo = function(obj, callback) {
+exports.insert_rbo = function(connection, obj, callback) {
     console.time('insert_rbo ' + obj.ri);
-    _this.insert_lookup(obj, function (err, results) {
+    _this.insert_lookup(connection, obj, function (err, results) {
         if(!err) {
             var sql = util.format('insert into mgo (ri, mgd, objs, obps, dc, rbo, far) ' +
                 'value (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
                 obj.ri, obj.mgd, obj.objs, obj.obps, obj.dc, obj.rbo, obj.far);
-            db.getResult(sql, '', function (err, results) {
+            db.getResult(sql, connection, function (err, results) {
                 if(!err) {
                     console.timeEnd('insert_rbo ' + obj.ri);
                     callback(err, results);
                 }
                 else {
                     sql = util.format("delete from lookup where ri = \'%s\'", obj.ri);
-                    db.getResult(sql, '', function () {
+                    db.getResult(sql, connection, function () {
                         callback(err, results);
                     });
                 }
@@ -499,21 +499,21 @@ exports.insert_rbo = function(obj, callback) {
     });
 };
 
-exports.insert_nod = function(obj, callback) {
+exports.insert_nod = function(connection, obj, callback) {
     console.time('insert_nod ' + obj.ri);
-    _this.insert_lookup(obj, function (err, results) {
+    _this.insert_lookup(connection, obj, function (err, results) {
         if(!err) {
             var sql = util.format('insert into nod (ri, ni, hcl, mgca) ' +
                 'value (\'%s\', \'%s\', \'%s\', \'%s\')',
                 obj.ri, obj.ni, obj.hcl, obj.mgca);
-            db.getResult(sql, '', function (err, results) {
+            db.getResult(sql, connection, function (err, results) {
                 if(!err) {
                     console.timeEnd('insert_nod ' + obj.ri);
                     callback(err, results);
                 }
                 else {
                     sql = util.format("delete from lookup where ri = \'%s\'", obj.ri);
-                    db.getResult(sql, '', function () {
+                    db.getResult(sql, connection, function () {
                         callback(err, results);
                     });
                 }
@@ -525,21 +525,21 @@ exports.insert_nod = function(obj, callback) {
     });
 };
 
-exports.insert_csr = function(obj, callback) {
+exports.insert_csr = function(connection, obj, callback) {
     console.time('insert_csr ' + obj.ri);
-    _this.insert_lookup(obj, function (err, results) {
+    _this.insert_lookup(connection, obj, function (err, results) {
         if(!err) {
             var sql = util.format('insert into csr (ri, cst, poa, cb, csi, mei, tri, rr, nl, srv) ' +
                 'value (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
                 obj.ri, obj.cst, JSON.stringify(obj.poa), obj.cb, obj.csi, obj.mei, obj.tri, obj.rr, obj.nl, JSON.stringify(obj.srv));
-            db.getResult(sql, '', function (err, results) {
+            db.getResult(sql, connection, function (err, results) {
                 if(!err) {
                     console.timeEnd('insert_csr ' + obj.ri);
                     callback(err, results);
                 }
                 else {
                     sql = util.format("delete from lookup where ri = \'%s\'", obj.ri);
-                    db.getResult(sql, '', function () {
+                    db.getResult(sql, connection, function () {
                         callback(err, results);
                     });
                 }
@@ -551,21 +551,21 @@ exports.insert_csr = function(obj, callback) {
     });
 };
 
-exports.insert_req = function(obj, callback) {
+exports.insert_req = function(connection, obj, callback) {
     console.time('insert_req ' + obj.ri);
-    _this.insert_lookup(obj, function (err, results) {
+    _this.insert_lookup(connection, obj, function (err, results) {
         if(!err) {
             var sql = util.format('insert into req (ri, op, tg, org, rid, mi, pc, rs, ors) ' +
                 'value (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
                 obj.ri, obj.op, obj.tg, obj.org, obj.rid, obj.mi, obj.pc, obj.rs, obj.ors);
-            db.getResult(sql, '', function (err, results) {
+            db.getResult(sql, connection, function (err, results) {
                 if(!err) {
                     console.timeEnd('insert_req ' + obj.ri);
                     callback(err, results);
                 }
                 else {
                     sql = util.format("delete from lookup where ri = \'%s\'", obj.ri);
-                    db.getResult(sql, '', function () {
+                    db.getResult(sql, connection, function () {
                         callback(err, results);
                     });
                 }
@@ -577,21 +577,21 @@ exports.insert_req = function(obj, callback) {
     });
 };
 
-exports.insert_sub = function(obj, callback) {
+exports.insert_sub = function(connection, obj, callback) {
     console.time('insert_sub ' + obj.ri);
-    _this.insert_lookup(obj, function (err, results) {
+    _this.insert_lookup(connection, obj, function (err, results) {
         if(!err) {
             var sql = util.format('insert into sub (ri, pi, enc, exc, nu, gpi, nfu, bn, rl, psn, pn, nsp, ln, nct, nec, cr, su) ' +
                 'value (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
                 obj.ri, obj.pi, JSON.stringify(obj.enc), obj.exc, JSON.stringify(obj.nu), obj.gpi, obj.nfu, JSON.stringify(obj.bn), obj.rl, obj.psn, obj.pn, obj.nsp, obj.ln, obj.nct, obj.nec, obj.cr, obj.su);
-            db.getResult(sql, '', function (err, results) {
+            db.getResult(sql, connection, function (err, results) {
                 if(!err) {
                     console.timeEnd('insert_sub ' + obj.ri);
                     callback(err, results);
                 }
                 else {
                     sql = util.format("delete from lookup where ri = \'%s\'", obj.ri);
-                    db.getResult(sql, '', function () {
+                    db.getResult(sql, connection, function () {
                         callback(err, results);
                     });
                 }
@@ -603,21 +603,21 @@ exports.insert_sub = function(obj, callback) {
     });
 };
 
-exports.insert_smd = function(obj, callback) {
+exports.insert_smd = function(connection, obj, callback) {
     console.time('insert_smd ' + obj.ri);
-    _this.insert_lookup(obj, function (err, results) {
+    _this.insert_lookup(connection, obj, function (err, results) {
         if(!err) {
             var sql = util.format('insert into smd (ri, cr, dsp, dcrp, soe, rels, smd.or) ' +
                 'value (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
                 obj.ri, obj.cr, obj.dsp, obj.dcrp, obj.soe, JSON.stringify(obj.rels), obj.or);
-            db.getResult(sql, '', function (err, results) {
+            db.getResult(sql, connection, function (err, results) {
                 if(!err) {
                     console.timeEnd('insert_smd ' + obj.ri);
                     callback(err, results);
                 }
                 else {
                     sql = util.format("delete from lookup where ri = \'%s\'", obj.ri);
-                    db.getResult(sql, '', function () {
+                    db.getResult(sql, connection, function () {
                         callback(err, results);
                     });
                 }
@@ -629,22 +629,22 @@ exports.insert_smd = function(obj, callback) {
     });
 };
 
-exports.insert_ts = function(obj, callback) {
+exports.insert_ts = function(connection, obj, callback) {
     console.time('insert_ts ' + obj.ri);
-    _this.insert_lookup(obj, function (err, results) {
+    _this.insert_lookup(connection, obj, function (err, results) {
         if(!err) {
             var sql = util.format('insert into ts (ri, cr, mni, mbs, mia, cni, cbs, ts.or, pei, mdd, mdn, mdlt, mdc, mdt) ' +
                 'value (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', ' +
                 '\'%s\', \'%s\', \'%s\', \'%s\')',
                 obj.ri, obj.cr, obj.mni, obj.mbs, obj.mia, obj.cni, obj.cbs, obj.or, obj.pei, obj.mdd, obj.mdn, obj.mdlt, obj.mdc, obj.mdt);
-            db.getResult(sql, '', function (err, results) {
+            db.getResult(sql, connection, function (err, results) {
                 if(!err) {
                     console.timeEnd('insert_ts ' + obj.ri);
                     callback(err, results);
                 }
                 else {
                     sql = util.format("delete from lookup where ri = \'%s\'", obj.ri);
-                    db.getResult(sql, '', function () {
+                    db.getResult(sql, connection, function () {
                         callback(err, results);
                     });
                 }
@@ -656,21 +656,21 @@ exports.insert_ts = function(obj, callback) {
     });
 };
 
-exports.insert_tsi = function(obj, callback) {
+exports.insert_tsi = function(connection, obj, callback) {
     console.time('insert_tsi ' + obj.ri);
-    _this.insert_lookup(obj, function (err, results) {
+    _this.insert_lookup(connection, obj, function (err, results) {
         if(!err) {
             var sql = util.format('insert into tsi (ri, pi, dgt, con, sqn, cs) ' +
                 'value (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
                 obj.ri, obj.pi, obj.dgt, obj.con, obj.sqn, obj.cs);
-            db.getResult(sql, '', function (err, results) {
+            db.getResult(sql, connection, function (err, results) {
                 if(!err) {
                     console.timeEnd('insert_tsi ' + obj.ri);
                     callback(err, results);
                 }
                 else {
                     sql = util.format("delete from lookup where ri = \'%s\'", obj.ri);
-                    db.getResult(sql, '', function () {
+                    db.getResult(sql, connection, function () {
                         callback(err, results);
                     });
                 }
@@ -682,21 +682,21 @@ exports.insert_tsi = function(obj, callback) {
     });
 };
 
-exports.insert_mms = function(obj, callback) {
+exports.insert_mms = function(connection, obj, callback) {
     console.time('insert_mms ' + obj.ri);
-    _this.insert_lookup(obj, function (err, results) {
+    _this.insert_lookup(connection, obj, function (err, results) {
         if(!err) {
             var sql = util.format('insert into mms (ri, sid, soid, stid, asd, osd, sst) ' +
                 'value (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
                 obj.ri, obj.sid, obj.soid, obj.stid, obj.asd, obj.osd, obj.sst);
-            db.getResult(sql, '', function (err, results) {
+            db.getResult(sql, connection, function (err, results) {
                 if(!err) {
                     console.timeEnd('insert_mms ' + obj.ri);
                     callback(err, results);
                 }
                 else {
                     sql = util.format("delete from lookup where ri = \'%s\'", obj.ri);
-                    db.getResult(sql, '', function () {
+                    db.getResult(sql, connection, function () {
                         callback(err, results);
                     });
                 }
@@ -708,21 +708,21 @@ exports.insert_mms = function(obj, callback) {
     });
 };
 
-exports.insert_tr = function(obj, callback) {
+exports.insert_tr = function(connection, obj, callback) {
     console.time('insert_tr ' + obj.ri);
-    _this.insert_lookup(obj, function (err, results) {
+    _this.insert_lookup(connection, obj, function (err, results) {
         if(!err) {
             var sql = util.format('insert into tr (ri, cr, tid, tctl, tst, tltm, text, tct, tltp, trqp, trsp) ' +
                 'value (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
                 obj.ri, obj.cr, obj.tid, obj.tctl, obj.tst, obj.tltm, obj.text, obj.tct, obj.tltp, JSON.stringify(obj.trqp), JSON.stringify(obj.trsp));
-            db.getResult(sql, '', function (err, results) {
+            db.getResult(sql, connection, function (err, results) {
                 if(!err) {
                     console.timeEnd('insert_tr ' + obj.ri);
                     callback(err, results);
                 }
                 else {
                     sql = util.format("delete from lookup where ri = \'%s\'", obj.ri);
-                    db.getResult(sql, '', function () {
+                    db.getResult(sql, connection, function () {
                         callback(err, results);
                     });
                 }
@@ -734,21 +734,21 @@ exports.insert_tr = function(obj, callback) {
     });
 };
 
-exports.insert_tm = function(obj, callback) {
+exports.insert_tm = function(connection, obj, callback) {
     console.time('insert_tm ' + obj.ri);
-    _this.insert_lookup(obj, function (err, results) {
+    _this.insert_lookup(connection, obj, function (err, results) {
         if(!err) {
             var sql = util.format('insert into tm (ri, tltm, text, tct, tept, tmd, tltp, tctl, tst, tmr, tmh, rqps, rsps, cr) ' +
                 'value (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
                 obj.ri, obj.tltm, obj.text, obj.tct, obj.tept, obj.tmd, obj.tltp, obj.tctl, obj.tst, obj.tmr, obj.tmh, JSON.stringify(obj.rqps), JSON.stringify(obj.rsps), obj.cr);
-            db.getResult(sql, '', function (err, results) {
+            db.getResult(sql, connection, function (err, results) {
                 if(!err) {
                     console.timeEnd('insert_tm ' + obj.ri);
                     callback(err, results);
                 }
                 else {
                     sql = util.format("delete from lookup where ri = \'%s\'", obj.ri);
-                    db.getResult(sql, '', function () {
+                    db.getResult(sql, connection, function () {
                         callback(err, results);
                     });
                 }
@@ -760,16 +760,16 @@ exports.insert_tm = function(obj, callback) {
     });
 };
 
-exports.select_resource_from_url = function(ri, sri, callback) {
+exports.select_resource_from_url = function(connection, ri, sri, callback) {
     var sql = util.format('select * from lookup where ri = \'%s\' or ri = (select ri from sri where sri = \'%s\')', ri, sri);
-    db.getResult(sql, '', function (err, comm_Obj) {
+    db.getResult(sql, connection, function (err, comm_Obj) {
         if(!err) {
             if(comm_Obj.length == 0) {
                 callback(err, comm_Obj);
             }
             else {
                 var sql = "select * from " + responder.typeRsrc[comm_Obj[0].ty] + " where ri = \'" + comm_Obj[0].ri + "\'";
-                db.getResult(sql, '', function (err, spec_Obj) {
+                db.getResult(sql, connection, function (err, spec_Obj) {
                     var resource_Obj = [];
                     resource_Obj.push(merge(comm_Obj[0], spec_Obj[0]));
                     callback(err, resource_Obj);
@@ -782,9 +782,9 @@ exports.select_resource_from_url = function(ri, sri, callback) {
     });
 };
 
-exports.select_csr_like = function(cb, callback) {
+exports.select_csr_like = function(connection, cb, callback) {
     var sql = util.format("select * from csr where ri like \'/%s/%%\'", cb);
-    db.getResult(sql, '', function (err, results_csr) {
+    db.getResult(sql, connection, function (err, results_csr) {
         if (!Array.isArray(results_csr.poa)) {
             results_csr.poa = [];
         }
@@ -792,31 +792,31 @@ exports.select_csr_like = function(cb, callback) {
     });
 };
 
-exports.select_csr = function(ri, callback) {
+exports.select_csr = function(connection, ri, callback) {
     var sql = util.format("select * from csr where ri = \'%s\'", ri);
-    db.getResult(sql, '', function (err, results_csr) {
+    db.getResult(sql, connection, function (err, results_csr) {
         callback(err, results_csr);
     });
 };
 
-exports.select_ae = function(ri, callback) {
+exports.select_ae = function(connection, ri, callback) {
     var sql = util.format("select * from ae where ri = \'%s\'", ri);
-    db.getResult(sql, '', function (err, results_ae) {
+    db.getResult(sql, connection, function (err, results_ae) {
         callback(err, results_ae);
     });
 };
 
 
-exports.search_parents_lookup = function(ri, pi_list, result_ri, callback) {
+exports.search_parents_lookup = function(connection, ri, pi_list, result_ri, callback) {
     // //var sql = util.format("select ri from lookup where (ri =\'%s\') or ((pi=\'%s\' or pi like \'%s/%%\') and ty != \'1\' and ty != \'4\' and ty != \'23\' and ty != \'30\' and ty != \'9\' and ty != \'17\')", ri, ri, ri);
     // var sql = util.format("select ri from lookup where (ri =\'%s\') or (pi=\'%s\' or pi like \'%s/%%\')", ri, ri, ri);
-    // db.getResult(sql, '', function (err, result_lookup_ri) {
+    // db.getResult(sql, connection, function (err, result_lookup_ri) {
     //     console.timeEnd('search_parents_lookup ' + ri);
     //     callback(err, result_lookup_ri);
     // });
 
     var sql = util.format("select ri, ty from lookup where pi in ("+JSON.stringify(pi_list).replace('[','').replace(']','')+") limit 1000");
-    db.getResult(sql, '', function (err, result_lookup_ri) {
+    db.getResult(sql, connection, function (err, result_lookup_ri) {
         if(!err) {
             if(result_lookup_ri.length === 0) {
                 callback(err, result_ri);
@@ -839,7 +839,7 @@ exports.search_parents_lookup = function(ri, pi_list, result_ri, callback) {
                     callback(err, result_ri);
                 }
                 else {
-                    _this.search_parents_lookup(ri, found_pi_list, result_ri, function (err, result_ri) {
+                    _this.search_parents_lookup(connection, ri, found_pi_list, result_ri, function (err, result_ri) {
                         callback(err, result_ri);
                     });
                 }
@@ -849,7 +849,7 @@ exports.search_parents_lookup = function(ri, pi_list, result_ri, callback) {
 };
 
 
-function select_spec_ri(found_Obj, count, callback) {
+function select_spec_ri(connection, found_Obj, count, callback) {
     var ri = Object.keys(found_Obj)[count];
     var sql = "select * from " + responder.typeRsrc[found_Obj[ri].ty] + " where ri = \'" + ri + "\'";
     db.getResult(sql, ri, function (err, spec_Obj, ri) {
@@ -882,7 +882,7 @@ function select_spec_ri(found_Obj, count, callback) {
     });
 }
 
-function search_resource_action(p_loop_count, ri, query, cur_lim, pi_list, cni, loop_count, seekObj, callback) {
+function search_resource_action(connection, p_loop_count, ri, query, cur_lim, pi_list, cni, loop_count, seekObj, callback) {
     var query_where = '';
     var query_count = 0;
     if (query.lbl != null) {
@@ -1029,7 +1029,7 @@ function search_resource_action(p_loop_count, ri, query, cur_lim, pi_list, cni, 
          query_where = "select a.* from (select ri from lookup where (pi in (" + JSON.stringify(pi_list).replace('[', '').replace(']', '') + ")) " + query_where + " ) b left join lookup as a on b.ri = a.ri ";
     // }
     //console.log(query_where);
-    db.getResult(query_where, '', function (err, search_Obj) {
+    db.getResult(query_where, connection, function (err, search_Obj) {
         if(!err) {
             if(query.la != null) {
                 //seekObj[search_Obj[0].ri] = search_Obj[0]; // when search resource it's not included target resource
@@ -1081,7 +1081,7 @@ function search_resource_action(p_loop_count, ri, query, cur_lim, pi_list, cni, 
 }
 
 var search_tid = '';
-exports.search_lookup = function (ri, query, cur_lim, pi_list, pi_index, found_Obj, found_Cnt, cni, cur_d, loop_cnt, response, callback) {
+exports.search_lookup = function (connection, ri, query, cur_lim, pi_list, pi_index, found_Obj, found_Cnt, cni, cur_d, loop_cnt, response, callback) {
     var cur_pi = [];
 
     if(loop_cnt == 0) {
@@ -1099,7 +1099,7 @@ exports.search_lookup = function (ri, query, cur_lim, pi_list, pi_index, found_O
     }
 
     var seekObj = {};
-    search_resource_action(loop_cnt, ri, query, cur_lim, cur_pi, cni, 0, seekObj, function (err, search_Obj) {
+    search_resource_action(connection, loop_cnt, ri, query, cur_lim, cur_pi, cni, 0, seekObj, function (err, search_Obj) {
         if(!err) {
             if(search_Obj.length > 0) {
                 for(var i = 0; i < search_Obj.length; i++) {
@@ -1110,20 +1110,20 @@ exports.search_lookup = function (ri, query, cur_lim, pi_list, pi_index, found_O
                 }
 
                 if(Object.keys(found_Obj).length >= query.lim) {
-                    select_spec_ri(found_Obj, 0, function (err, found_Obj) {
+                    select_spec_ri(connection, found_Obj, 0, function (err, found_Obj) {
                         console.timeEnd('search_lookup (' + search_tid + ')');
                         callback(err, found_Obj, response);
                     });
                 }
                 else {
-                    select_spec_ri(found_Obj, 0, function (err, found_Obj) {
+                    select_spec_ri(connection, found_Obj, 0, function (err, found_Obj) {
                         if (pi_index >= pi_list.length) {
                             console.timeEnd('search_lookup (' + search_tid + ')');
                             callback(err, found_Obj, response);
                         }
                         else {
                             cur_lim = parseInt(query.lim) - Object.keys(found_Obj).length;
-                            _this.search_lookup(ri, query, cur_lim, pi_list, pi_index, found_Obj, found_Cnt, cni, cur_d, ++loop_cnt, response, function (err, found_Obj, response) {
+                            _this.search_lookup(connection, ri, query, cur_lim, pi_list, pi_index, found_Obj, found_Cnt, cni, cur_d, ++loop_cnt, response, function (err, found_Obj, response) {
                                 callback(err, found_Obj, response);
                             });
                         }
@@ -1137,7 +1137,7 @@ exports.search_lookup = function (ri, query, cur_lim, pi_list, pi_index, found_O
                 }
                 else {
                     cur_lim = parseInt(query.lim) - Object.keys(found_Obj).length;
-                    _this.search_lookup(ri, query, cur_lim, pi_list, pi_index, found_Obj, found_Cnt, cni, cur_d, ++loop_cnt, response, function (err, found_Obj, response) {
+                    _this.search_lookup(connection, ri, query, cur_lim, pi_list, pi_index, found_Obj, found_Cnt, cni, cur_d, ++loop_cnt, response, function (err, found_Obj, response) {
                         callback(err, found_Obj, response);
                     });
                 }
@@ -1148,7 +1148,7 @@ exports.search_lookup = function (ri, query, cur_lim, pi_list, pi_index, found_O
         }
     });
     // //console.log(loop_cnt + ' - ' + sql);
-    // db.getResult(sql, '', function (err, search_Obj) {
+    // db.getResult(sql, connection, function (err, search_Obj) {
     //     if(!err) {
     //         if(search_Obj.length > 0) {
     //             for(var i = 0; i < search_Obj.length; i++) {
@@ -1172,7 +1172,7 @@ exports.search_lookup = function (ri, query, cur_lim, pi_list, pi_index, found_O
     //                     }
     //                     else {
     //                         cur_lim = parseInt(query.lim) - Object.keys(found_Obj).length;
-    //                         _this.search_lookup(ri, query, cur_lim, pi_list, pi_index, found_Obj, found_Cnt, cni, cur_d, ++loop_cnt, response, function (err, found_Obj, response) {
+    //                         _this.search_lookup(connection, ri, query, cur_lim, pi_list, pi_index, found_Obj, found_Cnt, cni, cur_d, ++loop_cnt, response, function (err, found_Obj, response) {
     //                             callback(err, found_Obj, response);
     //                         });
     //                     }
@@ -1186,7 +1186,7 @@ exports.search_lookup = function (ri, query, cur_lim, pi_list, pi_index, found_O
     //             }
     //             else {
     //                 cur_lim = parseInt(query.lim) - Object.keys(found_Obj).length;
-    //                 _this.search_lookup(ri, query, cur_lim, pi_list, pi_index, found_Obj, found_Cnt, cni, cur_d, ++loop_cnt, response, function (err, found_Obj, response) {
+    //                 _this.search_lookup(connection, ri, query, cur_lim, pi_list, pi_index, found_Obj, found_Cnt, cni, cur_d, ++loop_cnt, response, function (err, found_Obj, response) {
     //                     callback(err, found_Obj, response);
     //                 });
     //             }
@@ -1198,11 +1198,11 @@ exports.search_lookup = function (ri, query, cur_lim, pi_list, pi_index, found_O
     // });
 };
 
-exports.select_latest_resource = function(parentObj, loop_count, callback) {
+exports.select_latest_resource = function(connection, parentObj, loop_count, callback) {
     var before_ct = moment().subtract(Math.pow(20, ++loop_count), 'minutes').utc().format('YYYYMMDDTHHmmss');
 
     var sql = util.format('select * from (select * from lookup where (pi = \'%s\' and ct > \'%s\') and ty = \'%s\') b join %s as a on b.ri = a.ri', parentObj.ri, before_ct, parseInt(parentObj.ty, 10) + 1, responder.typeRsrc[parseInt(parentObj.ty, 10) + 1]);
-    db.getResult(sql, '', function (err, results_latest) {
+    db.getResult(sql, connection, function (err, results_latest) {
         if(!err) {
             if(results_latest.length > 0) {
                 var latest_cin = [];
@@ -1215,7 +1215,7 @@ exports.select_latest_resource = function(parentObj, loop_count, callback) {
                     callback(err, latest_cin);
                 }
                 else {
-                    _this.select_latest_resource(parentObj, loop_count, function (err, resultObj) {
+                    _this.select_latest_resource(connection, parentObj, loop_count, function (err, resultObj) {
                         callback(err, resultObj);
                     });
                 }
@@ -1227,15 +1227,15 @@ exports.select_latest_resource = function(parentObj, loop_count, callback) {
     });
 };
 
-exports.select_oldest_resource = function(ty, ri, callback) {
+exports.select_oldest_resource = function(connection, ty, ri, callback) {
     console.time('select_oldest ' + ri);
     //var sql = util.format('select a.* from (select ri from lookup where (pi = \'%s\') limit 100) b left join lookup as a on b.ri = a.ri where a.ty = \'4\' or a.ty = \'30\' limit 1', ri);
     var sql = 'select * from lookup where pi = \'' + ri + '\' and ty = \'' + ty + '\'';
-    db.getResult(sql, '', function (err, oldest_Comm) {
+    db.getResult(sql, connection, function (err, oldest_Comm) {
         if(!err) {
             if(oldest_Comm.length >= 1) {
                 sql = "select * from " + responder.typeRsrc[oldest_Comm[0].ty] + " where ri = \'" + oldest_Comm[0].ri + "\'";
-                db.getResult(sql, '', function (err, oldest_Spec) {
+                db.getResult(sql, connection, function (err, oldest_Spec) {
                     console.timeEnd('select_oldest ' + ri);
                     var result_Obj = [];
                     result_Obj.push(merge(oldest_Comm[0], oldest_Spec[0]));
@@ -1254,50 +1254,50 @@ exports.select_oldest_resource = function(ty, ri, callback) {
     });
 };
 
-exports.select_lookup = function(ri, callback) {
+exports.select_lookup = function(connection, ri, callback) {
     //var tid = require('shortid').generate();
     //console.time('select_lookup ' + ri + ' (' + tid + ')');
     var sql = util.format("select * from lookup where ri = \'%s\'", ri);
-    db.getResult(sql, '', function (err, direct_Obj) {
+    db.getResult(sql, connection, function (err, direct_Obj) {
         //console.timeEnd('select_lookup ' + ri + ' (' + tid + ')');
         callback(err, direct_Obj);
     });
 };
 
-exports.select_ri_lookup = function(ri, callback) {
+exports.select_ri_lookup = function(connection, ri, callback) {
     console.time('select_ri_lookup ' + ri);
     //var sql = util.format("select ri from lookup where ri = \'%s\'", ri);
     var sql = "select ri from lookup where ri = \'" + ri + "\'";
-    db.getResult(sql, '', function (err, ri_Obj) {
+    db.getResult(sql, connection, function (err, ri_Obj) {
         console.timeEnd('select_ri_lookup ' + ri);
         callback(err, ri_Obj);
     });
 };
 
-exports.select_grp_lookup = function(ri, callback) {
+exports.select_grp_lookup = function(connection, ri, callback) {
     console.time('select_group ' + ri);
     var sql = util.format("select * from lookup where ri = \'%s\' and ty = '9'", ri);
-    db.getResult(sql, '', function (err, group_Obj) {
+    db.getResult(sql, connection, function (err, group_Obj) {
         console.timeEnd('select_group ' + ri);
         callback(err, group_Obj);
     });
 };
 
-exports.select_grp = function(ri, callback) {
+exports.select_grp = function(connection, ri, callback) {
     var sql = util.format("select * from grp where ri = \'%s\'", ri);
-    db.getResult(sql, '', function (err, grp_Obj) {
+    db.getResult(sql, connection, function (err, grp_Obj) {
         callback(err, grp_Obj);
     });
 };
 
-exports.select_acp = function(ri, callback) {
+exports.select_acp = function(connection, ri, callback) {
     var sql = util.format("select * from acp where ri = \'%s\'", ri);
-    db.getResult(sql, '', function (err, results_acp) {
+    db.getResult(sql, connection, function (err, results_acp) {
         callback(err, results_acp);
     });
 };
 
-exports.select_acp_cnt = function(loop, uri_arr, callback) {
+exports.select_acp_cnt = function(connection, loop, uri_arr, callback) {
     var pi = '';
 
     for (var idx in uri_arr) {
@@ -1311,7 +1311,7 @@ exports.select_acp_cnt = function(loop, uri_arr, callback) {
     }
 
     var sql = util.format("select acpi, ty from lookup where ri = \"%s\"", pi);
-    db.getResult(sql, '', function (err, results) {
+    db.getResult(sql, connection, function (err, results) {
         if (err) {
             callback(err, results.message);
         }
@@ -1324,7 +1324,7 @@ exports.select_acp_cnt = function(loop, uri_arr, callback) {
 
                 if (results[0].acpi.length == 0) {
                     if (results[0].ty == '3') {
-                        _this.select_acp_cnt(++loop, uri_arr, function (err, acpiList) {
+                        _this.select_acp_cnt(connection, ++loop, uri_arr, function (err, acpiList) {
                             if (err) {
                                 callback(err, acpiList);
                             }
@@ -1345,32 +1345,32 @@ exports.select_acp_cnt = function(loop, uri_arr, callback) {
     });
 };
 
-exports.select_acp_in = function(acpiList, callback) {
+exports.select_acp_in = function(connection, acpiList, callback) {
     var sql = util.format("select * from acp where ri in (" + JSON.stringify(acpiList).replace('[', '').replace(']', '') + ")");
-    db.getResult(sql, '', function (err, results_acp) {
+    db.getResult(sql, connection, function (err, results_acp) {
         callback(err, results_acp);
     });
 };
 
-exports.select_sub = function(pi, callback) {
+exports.select_sub = function(connection, pi, callback) {
     console.time('select_sub');
     var sql = util.format('select * from sub where pi = \'%s\'', pi);
-    db.getResult(sql, '', function (err, results_ss) {
+    db.getResult(sql, connection, function (err, results_ss) {
         console.timeEnd('select_sub');
         callback(err, results_ss);
     });
 };
 
-exports.select_tr = function(pi, callback) {
+exports.select_tr = function(connection, pi, callback) {
     var sql = util.format('select * from lookup where pi = \'%s\' and ty = \'39\'', pi);
-    db.getResult(sql, '', function (err, results_comm_tr) {
+    db.getResult(sql, connection, function (err, results_comm_tr) {
         if(!err) {
             if(results_comm_tr.length === 0) {
                 callback(err, results_comm_tr);
             }
             else {
                 var sql2 = util.format('select * from tr where ri = \'%s\'', results_comm_tr[0].ri);
-                db.getResult(sql2, '', function (err, results_tr) {
+                db.getResult(sql2, connection, function (err, results_tr) {
                     callback(err, results_tr);
                 });
             }
@@ -1381,14 +1381,14 @@ exports.select_tr = function(pi, callback) {
     });
 };
 
-exports.select_cb = function(ri, callback) {
+exports.select_cb = function(connection, ri, callback) {
     var sql = util.format("select * from cb where ri = \'%s\'", ri);
-    db.getResult(sql, '', function (err, results_cb) {
+    db.getResult(sql, connection, function (err, results_cb) {
         callback(err, results_cb);
     });
 };
 
-exports.select_cni_parent = function (ty, pi, callback) {
+exports.select_cni_parent = function (connection, ty, pi, callback) {
     if(ty == '4') {
         var sql = util.format("select cni, cbs, st, mni, mbs from cnt, lookup where cnt.ri = \'%s\' and lookup.ri = \'%s\'", pi, pi);
     }
@@ -1396,44 +1396,44 @@ exports.select_cni_parent = function (ty, pi, callback) {
         sql = util.format("select cni, cbs, st, mni, mbs from ts, lookup where ts.ri = \'%s\' and lookup.ri = \'%s\'", pi, pi);
     }
 
-    db.getResult(sql, '', function (err, results_cni) {
+    db.getResult(sql, connection, function (err, results_cni) {
         callback(err, results_cni);
     });
 };
 
-exports.select_st = function (ri, callback) {
+exports.select_st = function (connection, ri, callback) {
     var sql = util.format("select ri, st from lookup where ri = \'%s\'", ri);
 
-    db.getResult(sql, '', function (err, results_st) {
+    db.getResult(sql, connection, function (err, results_st) {
         callback(err, results_st);
     });
 };
 
-exports.select_oldests = function (obj, count, callback) {
+exports.select_oldests = function (connection, obj, count, callback) {
     var sql = util.format('select * from (select * from lookup where pi = \'%s\' and ty = \'%s\' limit %s) b join %s as a on b.ri = a.ri', obj.ri, parseInt(obj.ty, 10) + 1, count, responder.typeRsrc[parseInt(obj.ty, 10) + 1]);
-    db.getResult(sql, '', function (err, results) {
+    db.getResult(sql, connection, function (err, results) {
         callback(err, results);
     });
 };
 
-exports.delete_oldests = function (obj, count, callback) {
+exports.delete_oldests = function (connection, obj, count, callback) {
     var del_id = 'delete_oldests (' + count + ') ' + obj.ri + ' - ' + require('shortid').generate() + '';
     console.time(del_id);
     var sql = util.format('delete from lookup where pi = \'%s\' and ty = \'%s\' limit %s', obj.ri, parseInt(obj.ty, 10) + 1, count);
-    db.getResult(sql, '', function (err, results) {
+    db.getResult(sql, connection, function (err, results) {
         console.timeEnd(del_id);
         callback(err, results);
     });
 };
 
-exports.select_ts = function (ri, callback) {
+exports.select_ts = function (connection, ri, callback) {
     var sql = util.format("select * from ts where ri = \'%s\'", ri);
-    db.getResult(sql, '', function (err, ts_Obj) {
+    db.getResult(sql, connection, function (err, ts_Obj) {
         callback(err, ts_Obj);
     });
 };
 
-exports.select_in_ri_list = function (tbl, ri_list, ri_index, found_Obj, loop_cnt, callback) {
+exports.select_in_ri_list = function (connection, tbl, ri_list, ri_index, found_Obj, loop_cnt, callback) {
     var cur_ri = [];
 
     if(loop_cnt == 0) {
@@ -1451,7 +1451,7 @@ exports.select_in_ri_list = function (tbl, ri_list, ri_index, found_Obj, loop_cn
     }
 
     var sql = util.format("select * from " + tbl + " where ri in ("+JSON.stringify(cur_ri).replace('[','').replace(']','')+")");
-    db.getResult(sql, '', function (err, search_Obj) {
+    db.getResult(sql, connection, function (err, search_Obj) {
         if(!err) {
             for(var i = 0; i < search_Obj.length; i++) {
                 found_Obj.push(search_Obj[i]);
@@ -1463,7 +1463,7 @@ exports.select_in_ri_list = function (tbl, ri_list, ri_index, found_Obj, loop_cn
             }
             else {
                 setTimeout( function() {
-                    _this.select_in_ri_list(tbl, ri_list, ri_index, found_Obj, loop_cnt, function (err, found_Obj) {
+                    _this.select_in_ri_list(connection, tbl, ri_list, ri_index, found_Obj, loop_cnt, function (err, found_Obj) {
                         callback(err, found_Obj);
                     });
                 }, 0);
@@ -1476,65 +1476,65 @@ exports.select_in_ri_list = function (tbl, ri_list, ri_index, found_Obj, loop_cn
 };
 
 
-exports.select_ts_in = function (ri_list, callback) {
+exports.select_ts_in = function (connection, ri_list, callback) {
     var sql = util.format("select * from ts where ri in ("+JSON.stringify(ri_list).replace('[','').replace(']','') + ")");
-    db.getResult(sql, '', function (err, ts_Obj) {
+    db.getResult(sql, connection, function (err, ts_Obj) {
         callback(err, ts_Obj);
     });
 
 };
 
-exports.select_count_ri = function (ty, ri, callback) {
+exports.select_count_ri = function (connection, ty, ri, callback) {
     //var sql = util.format('select lookup.st, count(*), sum(%s.cs) FROM lookup, %s where lookup.ri = \'%s\' and cin.pi = \'%s\'', responder.typeRsrc[ty], responder.typeRsrc[ty], ri, ri);
     var sql = util.format('select lookup.st, %s.cni, %s.cbs FROM lookup, %s where lookup.ri = \'%s\' and %s.ri = \'%s\'', responder.typeRsrc[ty], responder.typeRsrc[ty], responder.typeRsrc[ty], ri, responder.typeRsrc[ty], ri);
-    db.getResult(sql, '', function (err, results) {
+    db.getResult(sql, connection, function (err, results) {
         callback(err, results);
     });
 };
 
-exports.update_ts_mdcn_mdl = function (mdc, mdlt, ri, callback) {
+exports.update_ts_mdcn_mdl = function (connection, mdc, mdlt, ri, callback) {
     var sql = util.format("update ts set mdc = \'%s\', mdlt = \'%s\' where ri = \'%s\'", mdc, mdlt, ri);
-    db.getResult(sql, '', function (err, results) {
+    db.getResult(sql, connection, function (err, results) {
         callback(err, results);
     });
 };
 
-exports.update_cb_poa_csi = function (poa, csi, srt, ri, callback) {
+exports.update_cb_poa_csi = function (connection, poa, csi, srt, ri, callback) {
     console.time('update_cb_poa_csi ' + ri);
     var sql = util.format('update cb set poa = \'%s\', csi = \'%s\', srt = \'%s\' where ri=\'%s\'', poa, csi, srt, ri);
-    db.getResult(sql, '', function (err, results) {
+    db.getResult(sql, connection, function (err, results) {
         console.timeEnd('update_cb_poa_csi ' + ri);
         callback(err, results);
     });
 };
 
-exports.update_st = function (obj, callback) {
+exports.update_st = function (connection, obj, callback) {
     var st_id = 'update_st ' + obj.ri + ' - ' + require('shortid').generate();
     console.time(st_id);
     var sql = util.format('update lookup set st = st+1 where ri=\'%s\'', obj.ri);
-    db.getResult(sql, '', function (err, results) {
+    db.getResult(sql, connection, function (err, results) {
         console.timeEnd(st_id);
         callback(err, results);
     });
 };
 
-exports.update_lookup = function (obj, callback) {
+exports.update_lookup = function (connection, obj, callback) {
     //console.time('update_lookup ' + ri);
     var sql1 = util.format('update lookup set lt = \'%s\', acpi = \'%s\', et = \'%s\', st = \'%s\', lbl = \'%s\', at = \'%s\', aa = \'%s\', subl = \'%s\' where ri = \'%s\'',
         obj.lt, JSON.stringify(obj.acpi), obj.et, obj.st, JSON.stringify(obj.lbl), JSON.stringify(obj.at), JSON.stringify(obj.aa), JSON.stringify(obj.subl), obj.ri);
-    db.getResult(sql1, '', function (err, results) {
+    db.getResult(sql1, connection, function (err, results) {
         //console.timeEnd('update_lookup ' + ri);
         callback(err, results);
     });
 };
 
-exports.update_acp = function (obj, callback) {
+exports.update_acp = function (connection, obj, callback) {
     console.time('update_acp ' + obj.ri);
-    _this.update_lookup(obj, function (err, results) {
+    _this.update_lookup(connection, obj, function (err, results) {
         if (!err) {
             var sql2 = util.format('update acp set pv = \'%s\', pvs = \'%s\' where ri = \'%s\'',
                 JSON.stringify(obj.pv), JSON.stringify(obj.pvs), obj.ri);
-            db.getResult(sql2, '', function (err, results) {
+            db.getResult(sql2, connection, function (err, results) {
                 if (!err) {
                     console.timeEnd('update_acp ' + obj.ri);
                     callback(err, results);
@@ -1550,13 +1550,13 @@ exports.update_acp = function (obj, callback) {
     });
 };
 
-exports.update_ae = function (obj, callback) {
+exports.update_ae = function (connection, obj, callback) {
     console.time('update_ae ' + obj.ri);
-    _this.update_lookup(obj, function (err, results) {
+    _this.update_lookup(connection, obj, function (err, results) {
         if (!err) {
             var sql2 = util.format('update ae set apn = \'%s\', poa = \'%s\', ae.or = \'%s\', rr = \'%s\' where ri = \'%s\'',
                 obj.apn, JSON.stringify(obj.poa), obj.or, obj.rr, obj.ri);
-            db.getResult(sql2, '', function (err, results) {
+            db.getResult(sql2, connection, function (err, results) {
                 if (!err) {
                     console.timeEnd('update_ae ' + obj.ri);
                     callback(err, results);
@@ -1572,14 +1572,14 @@ exports.update_ae = function (obj, callback) {
     });
 };
 
-exports.update_cnt = function (obj, callback) {
+exports.update_cnt = function (connection, obj, callback) {
     var cnt_id = 'update_cnt ' + obj.ri + ' - ' + require('shortid').generate();
     console.time(cnt_id);
-    _this.update_lookup(obj, function (err, results) {
+    _this.update_lookup(connection, obj, function (err, results) {
         if (!err) {
             var sql2 = util.format('update cnt set mni = \'%s\', mbs = \'%s\', mia = \'%s\', li = \'%s\', cnt.or = \'%s\', cni = \'%s\', cbs = \'%s\' where ri = \'%s\'',
                 obj.mni, obj.mbs, obj.mia, obj.li, obj.or, obj.cni, obj.cbs, obj.ri);
-            db.getResult(sql2, '', function (err, results) {
+            db.getResult(sql2, connection, function (err, results) {
                 if (!err) {
                     console.timeEnd(cnt_id);
                     callback(err, results);
@@ -1595,13 +1595,13 @@ exports.update_cnt = function (obj, callback) {
     });
 };
 
-exports.update_grp = function (obj, callback) {
+exports.update_grp = function (connection, obj, callback) {
     console.time('update_grp ' + obj.ri);
-    _this.update_lookup(obj, function (err, results) {
+    _this.update_lookup(connection, obj, function (err, results) {
         if (!err) {
             var sql2 = util.format('update grp set mnm = \'%s\', mid = \'%s\', macp = \'%s\', gn = \'%s\' where ri = \'%s\'',
                 obj.mnm, JSON.stringify(obj.mid), JSON.stringify(obj.macp), obj.gn, obj.ri);
-            db.getResult(sql2, '', function (err, results) {
+            db.getResult(sql2, connection, function (err, results) {
                 if (!err) {
                     console.timeEnd('update_grp ' + obj.ri);
                     callback(err, results);
@@ -1617,13 +1617,13 @@ exports.update_grp = function (obj, callback) {
     });
 };
 
-exports.update_lcp = function (obj, callback) {
+exports.update_lcp = function (connection, obj, callback) {
     console.time('update_lcp ' + obj.ri);
-    _this.update_lookup(obj, function (err, results) {
+    _this.update_lookup(connection, obj, function (err, results) {
         if (!err) {
             var sql2 = util.format('update lcp set lou = \'%s\', lon = \'%s\' where ri = \'%s\'',
                 obj.lou, obj.lon, obj.ri);
-            db.getResult(sql2, '', function (err, results) {
+            db.getResult(sql2, connection, function (err, results) {
                 if (!err) {
                     console.timeEnd('update_lcp ' + obj.ri);
                     callback(err, results);
@@ -1639,13 +1639,13 @@ exports.update_lcp = function (obj, callback) {
     });
 };
 
-exports.update_fwr = function (obj, callback) {
+exports.update_fwr = function (connection, obj, callback) {
     console.time('update_fwr ' + obj.ri);
-    _this.update_lookup(obj, function (err, results) {
+    _this.update_lookup(connection, obj, function (err, results) {
         if (!err) {
             var sql2 = util.format('update mgo set dc = \'%s\', vr = \'%s\', fwnnam = \'%s\', url = \'%s\', ud = \'%s\', uds = \'%s\' where ri = \'%s\'',
                 obj.dc, obj.vr, obj.fwnnam, obj.url, obj.ud, JSON.stringify(obj.uds), obj.ri);
-            db.getResult(sql2, '', function (err, results) {
+            db.getResult(sql2, connection, function (err, results) {
                 if (!err) {
                     console.timeEnd('update_fwr ' + obj.ri);
                     callback(err, results);
@@ -1661,12 +1661,12 @@ exports.update_fwr = function (obj, callback) {
     });
 };
 
-exports.update_bat = function (obj, callback) {
+exports.update_bat = function (connection, obj, callback) {
     console.time('update_bat ' + obj.ri);
-    _this.update_lookup(obj, function (err, results) {
+    _this.update_lookup(connection, obj, function (err, results) {
         if (!err) {
             var sql2 = util.format('update mgo set dc = \'%s\', btl = \'%s\', bts = \'%s\' where ri = \'%s\'', obj.dc, obj.btl, obj.bts, obj.ri);
-            db.getResult(sql2, '', function (err, results) {
+            db.getResult(sql2, connection, function (err, results) {
                 if (!err) {
                     console.timeEnd('update_bat ' + obj.ri);
                     callback(err, results);
@@ -1682,13 +1682,13 @@ exports.update_bat = function (obj, callback) {
     });
 };
 
-exports.update_dvi = function (obj, callback) {
+exports.update_dvi = function (connection, obj, callback) {
     console.time('update_dvi ' + obj.ri);
-    _this.update_lookup(obj, function (err, results) {
+    _this.update_lookup(connection, obj, function (err, results) {
         if (!err) {
             var sql2 = util.format('update mgo set dc = \'%s\', dbl = \'%s\', man = \'%s\', mgo.mod = \'%s\', dty = \'%s\', fwv = \'%s\', swv = \'%s\', hwv = \'%s\' where ri = \'%s\'',
                 obj.dc, obj.dbl, obj.man, obj.mod, obj.dty, obj.fwv, obj.swv, obj.hwv, obj.ri);
-            db.getResult(sql2, '', function (err, results) {
+            db.getResult(sql2, connection, function (err, results) {
                 if (!err) {
                     console.timeEnd('update_dvi ' + obj.ri);
                     callback(err, results);
@@ -1704,13 +1704,13 @@ exports.update_dvi = function (obj, callback) {
     });
 };
 
-exports.update_dvc = function (obj, callback) {
+exports.update_dvc = function (connection, obj, callback) {
     console.time('update_dvc ' + obj.ri);
-    _this.update_lookup(obj, function (err, results) {
+    _this.update_lookup(connection, obj, function (err, results) {
         if (!err) {
             var sql2 = util.format('update mgo set dc = \'%s\', can = \'%s\', att = \'%s\', cas = \'%s\', cus = \'%s\', ena = \'%s\', dis = \'%s\' where ri = \'%s\'',
                 obj.dc, obj.can, obj.att, JSON.stringify(obj.cas), obj.cus, obj.ena, obj.dis, obj.ri);
-            db.getResult(sql2, '', function (err, results) {
+            db.getResult(sql2, connection, function (err, results) {
                 if (!err) {
                     console.timeEnd('update_dvc ' + obj.ri);
                     callback(err, results);
@@ -1726,13 +1726,13 @@ exports.update_dvc = function (obj, callback) {
     });
 };
 
-exports.update_rbo = function (obj, callback) {
+exports.update_rbo = function (connection, obj, callback) {
     console.time('update_rbo ' + obj.ri);
-    _this.update_lookup(obj, function (err, results) {
+    _this.update_lookup(connection, obj, function (err, results) {
         if (!err) {
             var sql2 = util.format('update mgo set dc = \'%s\', rbo = \'%s\', far = \'%s\' where ri = \'%s\'',
                 obj.dc, obj.rbo, obj.far, obj.ri);
-            db.getResult(sql2, '', function (err, results) {
+            db.getResult(sql2, connection, function (err, results) {
                 if (!err) {
                     console.timeEnd('update_rbo ' + obj.ri);
                     callback(err, results);
@@ -1748,12 +1748,12 @@ exports.update_rbo = function (obj, callback) {
     });
 };
 
-exports.update_nod = function (obj, callback) {
+exports.update_nod = function (connection, obj, callback) {
     console.time('update_nod ' + obj.ri);
-    _this.update_lookup(obj, function (err, results) {
+    _this.update_lookup(connection, obj, function (err, results) {
         if (!err) {
             var sql2 = util.format('update nod set ni = \'%s\', mgca = \'%s\' where ri = \'%s\'', obj.ni, obj.mgca, obj.ri);
-            db.getResult(sql2, '', function (err, results) {
+            db.getResult(sql2, connection, function (err, results) {
                 if (!err) {
                     console.timeEnd('update_nod ' + obj.ri);
                     callback(err, results);
@@ -1769,13 +1769,13 @@ exports.update_nod = function (obj, callback) {
     });
 };
 
-exports.update_csr = function (obj, callback) {
+exports.update_csr = function (connection, obj, callback) {
     console.time('update_csr ' + obj.ri);
-    _this.update_lookup(obj, function (err, results) {
+    _this.update_lookup(connection, obj, function (err, results) {
         if (!err) {
             var sql2 = util.format('update csr set poa = \'%s\', mei = \'%s\', tri = \'%s\', rr = \'%s\', nl = \'%s\' where ri = \'%s\'',
                 JSON.stringify(obj.poa), obj.mei, obj.tri, obj.rr, obj.nl, obj.ri);
-            db.getResult(sql2, '', function (err, results) {
+            db.getResult(sql2, connection, function (err, results) {
                 if (!err) {
                     console.timeEnd('update_csr ' + obj.ri);
                     callback(err, results);
@@ -1791,11 +1791,11 @@ exports.update_csr = function (obj, callback) {
     });
 };
 
-exports.update_req = function (ri, pc, op, mi, rs, ors, callback) {
+exports.update_req = function (connection, ri, pc, op, mi, rs, ors, callback) {
     console.time('update_req ' + ri);
     //var sql2 = util.format('update req set pc = \'%s\', rs = \'%s\' where ri = \'%s\'', (new Buffer(pc)).toString('base64'), rs, ri);
     var sql2 = util.format('update req set pc = \'%s\', op = \'%s\', mi = \'%s\', rs = \'%s\', ors = \'%s\' where ri = \'%s\'', pc, op, mi, rs, ors, ri);
-    db.getResult(sql2, '', function (err, results) {
+    db.getResult(sql2, connection, function (err, results) {
         if (!err) {
             console.timeEnd('update_req ' + ri);
             callback(err, results);
@@ -1806,13 +1806,13 @@ exports.update_req = function (ri, pc, op, mi, rs, ors, callback) {
     });
 };
 
-exports.update_sub = function (obj, callback) {
+exports.update_sub = function (connection, obj, callback) {
     console.time('update_sub ' + obj.ri);
-    _this.update_lookup(obj, function (err, results) {
+    _this.update_lookup(connection, obj, function (err, results) {
         if (!err) {
             var sql2 = util.format('update sub set enc = \'%s\', exc = \'%s\', nu = \'%s\', gpi = \'%s\', nfu = \'%s\', bn = \'%s\', rl = \'%s\', pn = \'%s\', nsp = \'%s\', ln = \'%s\', nct = \'%s\', nec = \'%s\' where ri = \'%s\'',
                 JSON.stringify(obj.enc), obj.exc, JSON.stringify(obj.nu), obj.gpi, obj.nfu, JSON.stringify(obj.bn), obj.rl, obj.pn, obj.nsp, obj.ln, obj.nct, obj.nec, obj.ri);
-            db.getResult(sql2, '', function (err, results) {
+            db.getResult(sql2, connection, function (err, results) {
                 if (!err) {
                     console.timeEnd('update_sub ' + obj.ri);
                     callback(err, results);
@@ -1828,13 +1828,13 @@ exports.update_sub = function (obj, callback) {
     });
 };
 
-exports.update_smd = function (obj, callback) {
+exports.update_smd = function (connection, obj, callback) {
     console.time('update_smd ' + obj.ri);
-    _this.update_lookup(obj, function (err, results) {
+    _this.update_lookup(connection, obj, function (err, results) {
         if (!err) {
             var sql2 = util.format('update smd set dsp = \'%s\', dcrp = \'%s\', soe = \'%s\', rels = \'%s\', smd.or = \'%s\' where ri = \'%s\'',
                 obj.dsp, obj.dcrp, obj.soe, JSON.stringify(obj.rels), obj.or, obj.ri);
-            db.getResult(sql2, '', function (err, results) {
+            db.getResult(sql2, connection, function (err, results) {
                 if (!err) {
                     console.timeEnd('update_smd ' + obj.ri);
                     callback(err, results);
@@ -1850,13 +1850,13 @@ exports.update_smd = function (obj, callback) {
     });
 };
 
-exports.update_ts = function (obj, callback) {
+exports.update_ts = function (connection, obj, callback) {
     console.time('update_ts ' + obj.ri);
-    _this.update_lookup(obj, function (err, results) {
+    _this.update_lookup(connection, obj, function (err, results) {
         if (!err) {
             var sql2 = util.format('update ts set mni = \'%s\', mbs = \'%s\', mia = \'%s\', ts.or = \'%s\', mdn = \'%s\', mdt = \'%s\', mdlt = \'%s\', mdc = \'%s\'  where ri = \'%s\'',
                 obj.mni, obj.mbs, obj.mia, obj.or, obj.mdn, obj.mdt, obj.mdlt, obj.mdc, obj.ri);
-            db.getResult(sql2, '', function (err, results) {
+            db.getResult(sql2, connection, function (err, results) {
                 if (!err) {
                     console.timeEnd('update_ts ' + obj.ri);
                     callback(err, results);
@@ -1872,13 +1872,13 @@ exports.update_ts = function (obj, callback) {
     });
 };
 
-exports.update_mms = function (obj, callback) {
+exports.update_mms = function (connection, obj, callback) {
     console.time('update_mms ' + obj.ri);
-    _this.update_lookup(obj, function (err, results) {
+    _this.update_lookup(connection, obj, function (err, results) {
         if (!err) {
             var sql2 = util.format('update mms set stid = \'%s\', asd = \'%s\', osd = \'%s\', sst = \'%s\' where ri = \'%s\'',
                 obj.stid, obj.asd, obj.osd, obj.sst, obj.ri);
-            db.getResult(sql2, '', function (err, results) {
+            db.getResult(sql2, connection, function (err, results) {
                 if (!err) {
                     console.timeEnd('update_mms ' + obj.ri);
                     callback(err, results);
@@ -1894,13 +1894,13 @@ exports.update_mms = function (obj, callback) {
     });
 };
 
-exports.update_tm = function (obj, callback) {
+exports.update_tm = function (connection, obj, callback) {
     console.time('update_tm ' + obj.ri);
-    _this.update_lookup(obj, function (err, results) {
+    _this.update_lookup(connection, obj, function (err, results) {
         if (!err) {
             var sql2 = util.format('update tm set cr = \'%s\', tctl = \'%s\', tst = \'%s\', tmr = \'%s\', tmh = \'%s\', rsps = \'%s\' where ri = \'%s\'',
                 obj.cr, obj.tctl, obj.tst, obj.tmr, obj.tmh, JSON.stringify(obj.rsps), obj.ri);
-            db.getResult(sql2, '', function (err, results) {
+            db.getResult(sql2, connection, function (err, results) {
                 if (!err) {
                     console.timeEnd('update_tm ' + obj.ri);
                     callback(err, results);
@@ -1917,13 +1917,13 @@ exports.update_tm = function (obj, callback) {
 };
 
 
-exports.update_tr = function (obj, callback) {
+exports.update_tr = function (connection, obj, callback) {
     console.time('update_tr ' + obj.ri);
-    _this.update_lookup(obj, function (err, results) {
+    _this.update_lookup(connection, obj, function (err, results) {
         if (!err) {
             var sql2 = util.format('update tr set cr = \'%s\', tctl = \'%s\', tst = \'%s\', trsp = \'%s\' where ri = \'%s\'',
                 obj.cr, obj.tctl, obj.tst, JSON.stringify(obj.trsp), obj.ri);
-            db.getResult(sql2, '', function (err, results) {
+            db.getResult(sql2, connection, function (err, results) {
                 if (!err) {
                     console.timeEnd('update_tr ' + obj.ri);
                     callback(err, results);
@@ -1939,10 +1939,10 @@ exports.update_tr = function (obj, callback) {
     });
 };
 
-exports.update_tr_trsp = function (ri, tst, trsp, callback) {
+exports.update_tr_trsp = function (connection, ri, tst, trsp, callback) {
     console.time('update_tr_trsp ' + ri);
     var sql2 = util.format('update tr set tst = \'%s\', trsp = \'%s\' where ri = \'%s\'', tst, trsp, ri);
-    db.getResult(sql2, '', function (err, results) {
+    db.getResult(sql2, connection, function (err, results) {
         if (!err) {
             console.timeEnd('update_tr_trsp ' + ri);
             callback(err, results);
@@ -1953,10 +1953,10 @@ exports.update_tr_trsp = function (ri, tst, trsp, callback) {
     });
 };
 
-exports.update_tr_tst = function (ri, tst, callback) {
+exports.update_tr_tst = function (connection, ri, tst, callback) {
     console.time('update_tr_tst ' + ri);
     var sql2 = util.format('update tr set tst = \'%s\' where ri = \'%s\'', tst, ri);
-    db.getResult(sql2, '', function (err, results) {
+    db.getResult(sql2, connection, function (err, results) {
         if (!err) {
             console.timeEnd('update_tr_tst ' + ri);
             callback(err, results);
@@ -1967,11 +1967,11 @@ exports.update_tr_tst = function (ri, tst, callback) {
     });
 };
 
-exports.update_cnt_cni = function (obj, callback) {
+exports.update_cnt_cni = function (connection, obj, callback) {
     var cni_id = 'update_cnt_cni ' + obj.ri + ' - ' + require('shortid').generate();
     console.time(cni_id);
     var sql = util.format('update cnt, lookup set cnt.cni = \'%s\', cnt.cbs = \'%s\', lookup.st = \'%s\' where lookup.ri = \'%s\' and cnt.ri = \'%s\'', obj.cni, obj.cbs, obj.st, obj.ri, obj.ri);
-    db.getResult(sql, '', function (err, results) {
+    db.getResult(sql, connection, function (err, results) {
         if (!err) {
             console.timeEnd(cni_id);
             callback(err, results);
@@ -1982,12 +1982,12 @@ exports.update_cnt_cni = function (obj, callback) {
     });
 };
 
-exports.update_parent_by_insert = function (obj, cs, callback) {
+exports.update_parent_by_insert = function (connection, obj, cs, callback) {
     var tableName = responder.typeRsrc[parseInt(obj.ty, 10)];
     var cni_id = 'update_parent_by_insert ' + obj.ri + ' - ' + require('shortid').generate();
     console.time(cni_id);
     var sql = util.format('update %s, lookup set %s.cni = %s.cni+1, %s.cbs = %s.cbs+%s, lookup.st = lookup.st+1 where lookup.ri = \'%s\' and %s.ri = \'%s\'', tableName, tableName, tableName, tableName, tableName, cs, obj.ri, tableName,  obj.ri);
-    db.getResult(sql, '', function (err, results) {
+    db.getResult(sql, connection, function (err, results) {
         if (!err) {
             console.timeEnd(cni_id);
             callback(err, results);
@@ -1998,12 +1998,12 @@ exports.update_parent_by_insert = function (obj, cs, callback) {
     });
 };
 
-exports.update_parent_by_delete = function (obj, cs, callback) {
+exports.update_parent_by_delete = function (connection, obj, cs, callback) {
     var tableName = responder.typeRsrc[parseInt(obj.ty, 10)];
     var cni_id = 'update_parent_by_insert ' + obj.ri + ' - ' + require('shortid').generate();
     console.time(cni_id);
     var sql = util.format('update %s, lookup set %s.cni = %s.cni-1, %s.cbs = %s.cbs-%s, lookup.st = lookup.st+1 where lookup.ri = \'%s\' and %s.ri = \'%s\'', tableName, tableName, tableName, tableName, tableName, cs, obj.ri, tableName,  obj.ri);
-    db.getResult(sql, '', function (err, results) {
+    db.getResult(sql, connection, function (err, results) {
         if (!err) {
             console.timeEnd(cni_id);
             callback(err, results);
@@ -2014,12 +2014,12 @@ exports.update_parent_by_delete = function (obj, cs, callback) {
     });
 };
 
-exports.update_parent_st = function (obj, callback) {
+exports.update_parent_st = function (connection, obj, callback) {
     var tableName = responder.typeRsrc[parseInt(obj.ty, 10)];
     var st_id = 'update_parent_st ' + obj.ri + ' - ' + require('shortid').generate();
     console.time(st_id);
     var sql = util.format('update %s, lookup set lookup.st = lookup.st+1 where lookup.ri = \'%s\' and %s.ri = \'%s\'', tableName, obj.ri, tableName,  obj.ri);
-    db.getResult(sql, '', function (err, results) {
+    db.getResult(sql, connection, function (err, results) {
         if (!err) {
             console.timeEnd(st_id);
             callback(err, results);
@@ -2030,12 +2030,12 @@ exports.update_parent_st = function (obj, callback) {
     });
 };
 
-exports.update_parent_by_delete = function (obj, cs, callback) {
+exports.update_parent_by_delete = function (connection, obj, cs, callback) {
     var tableName = responder.typeRsrc[parseInt(obj.ty, 10)];
     var cni_id = 'update_parent_by_insert ' + obj.ri + ' - ' + require('shortid').generate();
     console.time(cni_id);
     var sql = util.format('update %s, lookup set %s.cni = %s.cni-1, %s.cbs = %s.cbs-%s, lookup.st = lookup.st+1 where lookup.ri = \'%s\' and %s.ri = \'%s\'', tableName, tableName, tableName, tableName, tableName, cs, obj.ri, tableName,  obj.ri);
-    db.getResult(sql, '', function (err, results) {
+    db.getResult(sql, connection, function (err, results) {
         if (!err) {
             console.timeEnd(cni_id);
             callback(err, results);
@@ -2046,24 +2046,24 @@ exports.update_parent_by_delete = function (obj, cs, callback) {
     });
 };
 
-exports.delete_ri_lookup = function (ri, callback) {
+exports.delete_ri_lookup = function (connection, ri, callback) {
     var sql = util.format("delete from lookup where ri = \'%s\'", ri);
-    db.getResult(sql, '', function (err, delete_Obj) {
+    db.getResult(sql, connection, function (err, delete_Obj) {
         if(!err) {
             callback(err, delete_Obj);
         }
     });
 };
 
-exports.delete_ri_lookup_in = function (ty, ri, offset, callback) {
+exports.delete_ri_lookup_in = function (connection, ty, ri, offset, callback) {
     var sql = util.format("DELETE FROM lookup WHERE pi = \'%s\' and ty = \'%s\' LIMIT %d", ri, ty, offset);
     //console.log(sql);
-    db.getResult(sql, '', function (err, results) {
+    db.getResult(sql, connection, function (err, results) {
         callback(err, results);
     });
 };
 
-exports.delete_lookup = function (ri, pi_list, pi_index, found_Obj, found_Cnt, callback) {
+exports.delete_lookup = function (connection, ri, pi_list, pi_index, found_Obj, found_Cnt, callback) {
     var cur_pi = [];
 
     for(var idx = 0; idx < 8; idx++) {
@@ -2073,12 +2073,12 @@ exports.delete_lookup = function (ri, pi_list, pi_index, found_Obj, found_Cnt, c
     }
 
     var sql = util.format("delete a.* from (select ri from lookup where pi in ("+JSON.stringify(cur_pi).replace('[','').replace(']','') + ")) b left join lookup as a on b.ri = a.ri");
-    db.getResult(sql, '', function (err, search_Obj) {
+    db.getResult(sql, connection, function (err, search_Obj) {
         if(!err) {
             found_Cnt += search_Obj.affectedRows;
             if(pi_index >= pi_list.length) {
                 sql = util.format("delete from lookup where ri = \'%s\'", ri);
-                db.getResult(sql, '', function (err, search_Obj) {
+                db.getResult(sql, connection, function (err, search_Obj) {
                     if(!err) {
                         found_Cnt += search_Obj.affectedRows;
                         console.log('deleted ' + found_Cnt + ' resource(s).');
@@ -2090,7 +2090,7 @@ exports.delete_lookup = function (ri, pi_list, pi_index, found_Obj, found_Cnt, c
                 });
             }
             else {
-                _this.delete_lookup(ri, pi_list, pi_index, found_Obj, found_Cnt, function (err, found_Obj) {
+                _this.delete_lookup(connection, ri, pi_list, pi_index, found_Obj, found_Cnt, function (err, found_Obj) {
                     callback(err, found_Obj);
                 });
             }
@@ -2098,17 +2098,17 @@ exports.delete_lookup = function (ri, pi_list, pi_index, found_Obj, found_Cnt, c
     });
 };
 
-exports.delete_lookup_et = function (et, callback) {
+exports.delete_lookup_et = function (connection, et, callback) {
     var pi_list = [];
     var sql = util.format("select ri from lookup where et < \'%s\'", et);
-    db.getResult(sql, '', function (err, delete_Obj) {
+    db.getResult(sql, connection, function (err, delete_Obj) {
         if(!err) {
             for(var i = 0; i < delete_Obj.length; i++) {
                 pi_list.push(delete_Obj[i].ri);
             }
 
             var finding_Obj = [];
-            _this.delete_lookup('', pi_list, 0, finding_Obj, 0, function (err, search_Obj) {
+            _this.delete_lookup(connection, '', pi_list, 0, finding_Obj, 0, function (err, search_Obj) {
                 callback(err, search_Obj);
             });
         }
@@ -2116,9 +2116,9 @@ exports.delete_lookup_et = function (et, callback) {
 };
 
 
-exports.delete_req = function (callback) {
+exports.delete_req = function (connection, callback) {
     var sql = util.format("delete from lookup where ty = \'17\'");
-    db.getResult(sql, '', function (err, delete_Obj) {
+    db.getResult(sql, connection, function (err, delete_Obj) {
         if(!err) {
             callback(err, delete_Obj);
         }
@@ -2126,21 +2126,21 @@ exports.delete_req = function (callback) {
 };
 
 
-exports.select_sum_cbs = function(callback) {
+exports.select_sum_cbs = function(connection, callback) {
     var tid = require('shortid').generate();
     console.time('select_sum_cbs ' + tid);
     var sql = util.format('select sum(cbs) from cnt');
-    db.getResult(sql, '', function (err, result_Obj) {
+    db.getResult(sql, connection, function (err, result_Obj) {
         console.timeEnd('select_sum_cbs ' + tid);
         callback(err, result_Obj);
     });
 };
 
-exports.select_sum_ae = function(callback) {
+exports.select_sum_ae = function(connection, callback) {
     var tid = require('shortid').generate();
     console.time('select_sum_ae ' + tid);
     var sql = util.format('select count(*) from ae');
-    db.getResult(sql, '', function (err, result_Obj) {
+    db.getResult(sql, connection, function (err, result_Obj) {
         console.timeEnd('select_sum_ae ' + tid);
         callback(err, result_Obj);
     });

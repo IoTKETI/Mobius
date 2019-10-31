@@ -252,7 +252,7 @@ function sgn_action_send(nu, sub_nu, sub_bodytype, node, short_flag, check_value
     });
 }
 
-function sgn_action(rootnm, check_value, results_ss, noti_Obj, sub_bodytype) {
+function sgn_action(connection, rootnm, check_value, results_ss, noti_Obj, sub_bodytype) {
     var notiObj = merge({}, noti_Obj);
 
     var nct = results_ss.nct;
@@ -304,7 +304,7 @@ function sgn_action(rootnm, check_value, results_ss, noti_Obj, sub_bodytype) {
 
                     var absolute_url_arr = absolute_url.split('/');
 
-                    db_sql.get_ri_sri(node, absolute_url, absolute_url_arr[1].split('?')[0], function (err, results, node, absolute_url) {
+                    db_sql.get_ri_sri(connection, node, absolute_url, absolute_url_arr[1].split('?')[0], function (err, results, node, absolute_url) {
                         if (err) {
                             console.log('[sgn_action] database error (can not get resourceID from database)');
                         }
@@ -313,7 +313,7 @@ function sgn_action(rootnm, check_value, results_ss, noti_Obj, sub_bodytype) {
 
                             var sri = absolute_url_arr[1].split('?')[0];
                             var ri = absolute_url.split('?')[0];
-                            db_sql.select_resource_from_url(ri, sri, function (err, result_Obj) {
+                            db_sql.select_resource_from_url(connection, ri, sri, function (err, result_Obj) {
                                 if (!err) {
                                     if (result_Obj.length == 1) {
                                         if (result_Obj[0].poa != null || result_Obj[0].poa != '') {
@@ -386,13 +386,13 @@ exports.check = function(request, notiObj, check_value) {
             results_ss.enc.net.push('3');
             results_ss.nu = [];
             results_ss.nu.push((request.query.hasOwnProperty('nu') ? request.query.nu : 'http://localhost'));
-            sgn_action(rootnm, check_value, results_ss, noti_Obj, request.usebodytype);
+            sgn_action(request.connection, rootnm, check_value, results_ss, noti_Obj, request.usebodytype);
         }
         return'1';
     }
 
     if(check_value == 256 || check_value == 128) { // verification
-        sgn_action(rootnm, check_value, notiObj, noti_Obj, request.usebodytype);
+        sgn_action(request.connection, rootnm, check_value, notiObj, noti_Obj, request.usebodytype);
     }
     else {
         var noti_ri = noti_Obj.ri;
@@ -408,7 +408,7 @@ exports.check = function(request, notiObj, check_value) {
             }
 
             console.log('send sgn ' + i);
-            sgn_action(rootnm, check_value, subl[i], noti_Obj, request.usebodytype);
+            sgn_action(request.connection, rootnm, check_value, subl[i], noti_Obj, request.usebodytype);
         }
     }
 };

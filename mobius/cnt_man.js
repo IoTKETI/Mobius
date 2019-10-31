@@ -85,14 +85,14 @@ var db_sql = require('./sql_action');
 //     });
 // });
 
-exports.put = function(bodyString) {
+exports.put = function(connection, bodyString) {
     var resource_Obj = JSON.parse(bodyString);
-    setTimeout(updateAction, 0, resource_Obj);
+    setTimeout(updateAction, 0, connection, resource_Obj);
 };
 
-function updateAction(resource_Obj) {
+function updateAction(connection, resource_Obj) {
     var rootnm = Object.keys(resource_Obj)[0];
-    db_sql.get_cni_count(resource_Obj[rootnm], function (cni, cbs, st) {
+    db_sql.get_cni_count(connection, resource_Obj[rootnm], function (cni, cbs, st) {
         var resBody = {};
         resBody[resource_Obj[rootnm].ri] = {
             cni: cni,

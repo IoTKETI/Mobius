@@ -213,13 +213,13 @@ function create_remoteCSE_http(cbname, cbhost, cbhostport, body_Obj, callback) {
     req.end();
 }
 
-exports.build_asn = function(ri, callback) {
+exports.build_asn = function(connection, ri, callback) {
     // check remotecse if parent cse exist
     var rspObj = {};
-    db_sql.select_lookup(ri, function (err, results_comm) {
+    db_sql.select_lookup(connection, ri, function (err, results_comm) {
         if(!err) {
             if (results_comm.length == 1) {
-                db_sql.select_cb(ri, function (err, results_cb) {
+                db_sql.select_cb(connection, ri, function (err, results_cb) {
                     if(!err) {
                         if (results_cb.length == 1) {
                             rspObj.csr = {};

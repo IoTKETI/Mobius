@@ -64,7 +64,7 @@ exports.build_tm = function(request, response, resource_Obj, body_Obj, callback)
     callback('1', resource_Obj);
 };
 
-function rsps_action(ri, rsps) {
+function rsps_action(connection, ri, rsps) {
     console.log('rsps_action'); //callback(res.headers['x-m2m-rsc'], resBody);
     console.log(rsps);
 /*
@@ -100,13 +100,13 @@ function rsps_action(ri, rsps) {
     */
 }
 
-function store_trsp(ri, tst_value, res, bodyObj) {
+function store_trsp(connection, ri, tst_value, res, bodyObj) {
     var trsp_primitive = {};
     trsp_primitive.rsc = parseInt(res.headers['x-m2m-rsc']); // convert to int
     trsp_primitive.rqi = res.headers['x-m2m-ri'];
     trsp_primitive.pc = bodyObj;
 
-    db_sql.update_tr_trsp(ri, tst_value, JSON.stringify(trsp_primitive), function (err) {
+    db_sql.update_tr_trsp(connection, ri, tst_value, JSON.stringify(trsp_primitive), function (err) {
         if(!err) {
             console.log('store_trsp success');
         }

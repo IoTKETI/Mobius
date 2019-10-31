@@ -98,21 +98,37 @@ app.use(morgan('combined', {stream: accessLogStream}));
 //ts_app.use(morgan('short', {stream: accessLogStream}));
 
 function del_req_resource() {
-    db_sql.delete_req(function (err, delete_Obj) {
-        if(!err) {
-            console.log('deleted ' + delete_Obj.affectedRows + ' request resource(s).');
+    db.getConnection(function (err, connection) {
+        if(err) {
+            console.log('[del_req_resource] No Connection');
+        }
+        else {
+            db_sql.delete_req(connection, function (err, delete_Obj) {
+                if (!err) {
+                    console.log('deleted ' + delete_Obj.affectedRows + ' request resource(s).');
+                    db.releaseConnection(connection);
+                }
+            });
         }
     });
 }
 
 function del_expired_resource() {
-    // this routine is that delete resource expired time exceed et of resource
-    var et = moment().utc().format('YYYYMMDDTHHmmss');
-    db_sql.delete_lookup_et(et, function (err) {
-        if(!err) {
-            console.log('---------------');
-            console.log('delete resources expired et');
-            console.log('---------------');
+    db.getConnection(function (err, connection) {
+        if(err) {
+            console.log('[del_expired_resource] No Connection');
+        }
+        else {
+            // this routine is that delete resource expired time exceed et of resource
+            var et = moment().utc().format('YYYYMMDDTHHmmss');
+            db_sql.delete_lookup_et(connection, et, function (err) {
+                if (!err) {
+                    console.log('---------------');
+                    console.log('delete resources expired et');
+                    console.log('---------------');
+                    db.releaseConnection(connection);
+                }
+            });
         }
     });
 }
@@ -134,33 +150,42 @@ if (use_clustering) {
 
         db.connect(usedbhost, 3306, 'root', usedbpass, function (rsc) {
             if (rsc == '1') {
-                db_sql.set_tuning(function (err, results) {
+                db.getConnection(function (err, connection) {
                     if(err) {
-                        console.log('[set_tuning] error');
+                        console.log('[db.connect] No Connection');
                     }
+                    else {
+                        db_sql.set_tuning(connection, function (err, results) {
+                            if (err) {
+                                console.log('[set_tuning] error');
+                            }
 
-                    console.log('CPU Count:', cpuCount);
-                    for (var i = 0; i < cpuCount; i++) {
-                        worker[i] = cluster.fork();
+                            console.log('CPU Count:', cpuCount);
+                            for (var i = 0; i < cpuCount; i++) {
+                                worker[i] = cluster.fork();
+                            }
+
+                            cb.create(connection, function (rsp) {
+                                console.log(JSON.stringify(rsp));
+
+                                wdt.set_wdt(require('shortid').generate(), 43200, del_req_resource);
+                                wdt.set_wdt(require('shortid').generate(), 86400, del_expired_resource);
+
+                                require('./hit_man');
+                                require('./pxy_mqtt');
+                                require('./pxy_coap');
+                                require('./pxy_ws');
+
+                                if (usecsetype == 'mn' || usecsetype == 'asn') {
+                                    global.refreshIntervalId = setInterval(function () {
+                                        csr_custom.emit('register_remoteCSE');
+                                    }, 5000);
+                                }
+
+                                db.releaseConnection(connection);
+                            });
+                        });
                     }
-
-                    cb.create(function (rsp) {
-                        console.log(JSON.stringify(rsp));
-
-                        wdt.set_wdt(require('shortid').generate(), 43200, del_req_resource);
-                        wdt.set_wdt(require('shortid').generate(), 86400, del_expired_resource);
-
-                        require('./hit_man');
-                        require('./pxy_mqtt');
-                        require('./pxy_coap');
-                        require('./pxy_ws');
-
-                        if (usecsetype == 'mn' || usecsetype == 'asn') {
-                            global.refreshIntervalId = setInterval(function () {
-                                csr_custom.emit('register_remoteCSE');
-                            }, 5000);
-                        }
-                    });
                 });
             }
         });
@@ -168,31 +193,42 @@ if (use_clustering) {
     else {
         db.connect(usedbhost, 3306, 'root', usedbpass, function (rsc) {
             if (rsc == '1') {
-                if(use_secure === 'disable') {
-                    http.globalAgent.maxSockets = 1000000;
-                    http.createServer(app).listen({port: usecsebaseport, agent: false}, function () {
-                        console.log('mobius server (' + ip.address() + ') running at ' + usecsebaseport + ' port');
-                        cb.create(function (rsp) {
-                            console.log(JSON.stringify(rsp));
-                            //noti_mqtt_begin();
-                        });
-                    });
-                }
-                else {
-                    var options = {
-                        key: fs.readFileSync('server-key.pem'),
-                        cert: fs.readFileSync('server-crt.pem'),
-                        ca: fs.readFileSync('ca-crt.pem')
-                    };
-                    https.globalAgent.maxSockets = 1000000;
-                    https.createServer(options, app).listen({port: usecsebaseport, agent: false}, function () {
-                        console.log('mobius server (' + ip.address() + ') running at ' + usecsebaseport + ' port');
-                        cb.create(function (rsp) {
-                            console.log(JSON.stringify(rsp));
-                            //noti_mqtt_begin();
-                        });
-                    });
-                }
+                db.getConnection(function (err, connection) {
+                    if (err) {
+                        console.log('[db.connect] No Connection');
+                    }
+                    else {
+                        if (use_secure === 'disable') {
+                            http.globalAgent.maxSockets = 1000000;
+                            http.createServer(app).listen({port: usecsebaseport, agent: false}, function () {
+                                console.log('mobius server (' + ip.address() + ') running at ' + usecsebaseport + ' port');
+                                cb.create(connection, function (rsp) {
+                                    console.log(JSON.stringify(rsp));
+                                    //noti_mqtt_begin();
+
+                                    db.releaseConnection(connection);
+                                });
+                            });
+                        }
+                        else {
+                            var options = {
+                                key: fs.readFileSync('server-key.pem'),
+                                cert: fs.readFileSync('server-crt.pem'),
+                                ca: fs.readFileSync('ca-crt.pem')
+                            };
+                            https.globalAgent.maxSockets = 1000000;
+                            https.createServer(options, app).listen({port: usecsebaseport, agent: false}, function () {
+                                console.log('mobius server (' + ip.address() + ') running at ' + usecsebaseport + ' port');
+                                cb.create(connection, function (rsp) {
+                                    console.log(JSON.stringify(rsp));
+                                    //noti_mqtt_begin();
+
+                                    db.releaseConnection(connection);
+                                });
+                            });
+                        }
+                    }
+                });
             }
         });
     }
@@ -200,41 +236,50 @@ if (use_clustering) {
 else {
     db.connect(usedbhost, 3306, 'root', usedbpass, function (rsc) {
         if (rsc == '1') {
-            cb.create(function (rsp) {
-                console.log(JSON.stringify(rsp));
-
-                if(use_secure === 'disable') {
-                    http.globalAgent.maxSockets = 1000000;
-                    http.createServer(app).listen({port: usecsebaseport, agent: false}, function () {
-                        console.log('mobius server (' + ip.address() + ') running at ' + usecsebaseport + ' port');
-                        require('./pxy_mqtt');
-                        //noti_mqtt_begin();
-
-                        if (usecsetype === 'mn' || usecsetype === 'asn') {
-                            global.refreshIntervalId = setInterval(function () {
-                                csr_custom.emit('register_remoteCSE');
-                            }, 5000);
-                        }
-                    });
+            db.getConnection(function (err, connection) {
+                if (err) {
+                    console.log('[db.connect] No Connection');
                 }
                 else {
-                    var options = {
-                        key: fs.readFileSync('server-key.pem'),
-                        cert: fs.readFileSync('server-crt.pem'),
-                        ca: fs.readFileSync('ca-crt.pem')
-                    };
-                    https.globalAgent.maxSockets = 1000000;
-                    https.createServer(options, app).listen({port: usecsebaseport, agent: false}, function () {
-                        console.log('mobius server (' + ip.address() + ') running at ' + usecsebaseport + ' port');
-                        require('./pxy_mqtt');
-                        //noti_mqtt_begin();
-                        //require('./mobius/ts_agent');
+                    cb.create(connection, function (rsp) {
+                        console.log(JSON.stringify(rsp));
 
-                        if (usecsetype === 'mn' || usecsetype === 'asn') {
-                            global.refreshIntervalId = setInterval(function () {
-                                csr_custom.emit('register_remoteCSE');
-                            }, 5000);
+                        if (use_secure === 'disable') {
+                            http.globalAgent.maxSockets = 1000000;
+                            http.createServer(app).listen({port: usecsebaseport, agent: false}, function () {
+                                console.log('mobius server (' + ip.address() + ') running at ' + usecsebaseport + ' port');
+                                require('./pxy_mqtt');
+                                //noti_mqtt_begin();
+
+                                if (usecsetype === 'mn' || usecsetype === 'asn') {
+                                    global.refreshIntervalId = setInterval(function () {
+                                        csr_custom.emit('register_remoteCSE');
+                                    }, 5000);
+                                }
+                            });
                         }
+                        else {
+                            var options = {
+                                key: fs.readFileSync('server-key.pem'),
+                                cert: fs.readFileSync('server-crt.pem'),
+                                ca: fs.readFileSync('ca-crt.pem')
+                            };
+                            https.globalAgent.maxSockets = 1000000;
+                            https.createServer(options, app).listen({port: usecsebaseport, agent: false}, function () {
+                                console.log('mobius server (' + ip.address() + ') running at ' + usecsebaseport + ' port');
+                                require('./pxy_mqtt');
+                                //noti_mqtt_begin();
+                                //require('./mobius/ts_agent');
+
+                                if (usecsetype === 'mn' || usecsetype === 'asn') {
+                                    global.refreshIntervalId = setInterval(function () {
+                                        csr_custom.emit('register_remoteCSE');
+                                    }, 5000);
+                                }
+                            });
+                        }
+
+                        db.releaseConnection(connection);
                     });
                 }
             });
@@ -247,7 +292,7 @@ global.get_ri_list_sri = function (request, response, sri_list, ri_list, count, 
         callback(sri_list, request, response);
     }
     else {
-        db_sql.get_ri_sri(request, response, sri_list[count], function (err, results, request, response) {
+        db_sql.get_ri_sri(request.connection, request, response, sri_list[count], function (err, results, request, response) {
             ri_list[count] = ((results.length == 0) ? sri_list[count] : results[0].ri);
 
             if (sri_list.length <= ++count) {
@@ -262,9 +307,9 @@ global.get_ri_list_sri = function (request, response, sri_list, ri_list, count, 
     }
 };
 
-global.update_route = function (callback) {
+global.update_route = function (connection, callback) {
     var cse_poa = {};
-    db_sql.select_csr_like(usecsebase, function (err, results_csr) {
+    db_sql.select_csr_like(connection, usecsebase, function (err, results_csr) {
         if (!err) {
             for (var i = 0; i < results_csr.length; i++) {
                 var poa_arr = JSON.parse(results_csr[i].poa);
@@ -698,7 +743,7 @@ function check_resource(request, response, body_Obj, callback) {
     if(chk_fopt.length == 2) {
         ri = chk_fopt[0];
         op = 'fanoutpoint';
-        db_sql.select_grp_lookup(ri, function (err, result_Obj) {
+        db_sql.select_grp_lookup(request.connection, ri, function (err, result_Obj) {
             if (!err) {
                 if (result_Obj.length == 1) {
                     result_Obj[0].acpi = JSON.parse(result_Obj[0].acpi);
@@ -1176,14 +1221,14 @@ function updateHitCount(binding) {
 }
 
 // var resource_cache = {};
-global.get_resource_from_url = function(ri, sri, option, callback) {
+global.get_resource_from_url = function(connection, ri, sri, option, callback) {
     var targetObject = {};
     // if(resource_cache.hasOwnProperty(ri+option)) {
     //     targetObject = JSON.parse(resource_cache[ri]);
     //     callback(targetObject);
     // }
     // else {
-        db_sql.select_resource_from_url(ri, sri, function (err, results) {
+        db_sql.select_resource_from_url(connection, ri, sri, function (err, results) {
             if (err) {
                 callback(null, 500);
                 return '0';
@@ -1200,19 +1245,19 @@ global.get_resource_from_url = function(ri, sri, option, callback) {
                 makeObject(targetObject[rootnm]);
 
                 if (option == '/latest') {
-                    // db_sql.get_cni_count(targetObject[rootnm], function (cni, cbs, st) {
+                    // db_sql.get_cni_count(connection, targetObject[rootnm], function (cni, cbs, st) {
                     //     targetObject[rootnm].cni = cni;
                     //     targetObject[rootnm].cbs = cbs;
                     //     targetObject[rootnm].st = st;
                     //
                     //     if (parseInt(targetObject[rootnm].cni, 10) != cni || parseInt(targetObject[rootnm].cbs, 10) != cbs || parseInt(targetObject[rootnm].st, 10) != st) {
-                    //         db_sql.update_cnt_cni(targetObject[rootnm], function () {
+                    //         db_sql.update_cnt_cni(connection, targetObject[rootnm], function () {
                     //         });
                     //     }
 
                         var la_id = 'select_latest_resource ' + targetObject[rootnm].ri + ' - ' + require('shortid').generate();
                         console.time(la_id);
-                        db_sql.select_latest_resource(targetObject[rootnm], 0, function (err, result_Obj) {
+                        db_sql.select_latest_resource(connection, targetObject[rootnm], 0, function (err, result_Obj) {
                             if (!err) {
                                 console.timeEnd(la_id);
                                 if (result_Obj.length == 1) {
@@ -1235,7 +1280,7 @@ global.get_resource_from_url = function(ri, sri, option, callback) {
                     // });
                 }
                 else if (option == '/oldest') {
-                    db_sql.select_oldest_resource(parseInt(ty, 10) + 1, ri, function (err, result_Obj) {
+                    db_sql.select_oldest_resource(connection, parseInt(ty, 10) + 1, ri, function (err, result_Obj) {
                         if (!err) {
                             if (result_Obj.length == 1) {
                                 targetObject = {};
@@ -1263,12 +1308,12 @@ global.get_resource_from_url = function(ri, sri, option, callback) {
                     // resource_cache[targetObject[rootnm].ri] = JSON.stringify(targetObject);
 
                     // if(targetObject[rootnm].ty == 3 || targetObject[rootnm].ty == 29) {
-                    //     db_sql.get_cni_count(targetObject[rootnm], function (cni, cbs, st) {
+                    //     db_sql.get_cni_count(connection, targetObject[rootnm], function (cni, cbs, st) {
                     //         if (parseInt(targetObject[rootnm].cni, 10) != cni || parseInt(targetObject[rootnm].cbs, 10) != cbs || parseInt(targetObject[rootnm].st, 10) != st) {
                     //             targetObject[rootnm].cni = cni;
                     //             targetObject[rootnm].cbs = cbs;
                     //             targetObject[rootnm].st = st;
-                    //             db_sql.update_cnt_cni(targetObject[rootnm], function () {
+                    //             db_sql.update_cnt_cni(connection, targetObject[rootnm], function () {
                     //             });
                     //         }
                     //     });
@@ -1277,7 +1322,7 @@ global.get_resource_from_url = function(ri, sri, option, callback) {
                     // if(targetObject[rootnm].ty == 3 || targetObject[rootnm].ty == 29) {
                     //     if(cbs_cache[targetObject[rootnm].ri] == null ||
                     //         (parseInt(cbs_cache[targetObject[rootnm].ri].cni, 10) != targetObject[rootnm].cni || parseInt(cbs_cache[targetObject[rootnm].ri].cbs, 10) != targetObject[rootnm].cbs)) {
-                    //         db_sql.get_cni_count(targetObject[rootnm], function (cni, cbs, st) {
+                    //         db_sql.get_cni_count(connection, targetObject[rootnm], function (cni, cbs, st) {
                     //             if (parseInt(targetObject[rootnm].cni, 10) != cni || parseInt(targetObject[rootnm].cbs, 10) != cbs || parseInt(targetObject[rootnm].st, 10) != st) {
                     //                 targetObject[rootnm].cni = cni;
                     //                 targetObject[rootnm].cbs = cbs;
@@ -1285,7 +1330,7 @@ global.get_resource_from_url = function(ri, sri, option, callback) {
                     //                 cbs_cache[targetObject[rootnm].ri] = {};
                     //                 cbs_cache[targetObject[rootnm].ri].cni = cni;
                     //                 cbs_cache[targetObject[rootnm].ri].cbs = cbs;
-                    //                 db_sql.update_cnt_cni(targetObject[rootnm], function () {
+                    //                 db_sql.update_cnt_cni(connection, targetObject[rootnm], function () {
                     //                 });
                     //             }
                     //         });
@@ -1456,278 +1501,290 @@ app.use(function (request, response, next) {
     request.on('end', function() {
         request.body = fullBody;
 
-        if(request.method.toLowerCase() == 'get') {
-            if (request.url == '/hit') {
-                response.header('Content-Type', 'application/json');
-                retrieveHitCount(response);
-                return;
-            }
-
-            if (request.url == '/total_ae') {
-                db_sql.select_sum_ae(function (err, result) {
-                    if (!err) {
-                        var total_ae = result[0];
-                        response.header('Content-Type', 'application/json');
-                        response.status(200).end(JSON.stringify(total_ae, null, 4));
-                    }
-                });
-                return;
-            }
-
-            if (request.url == '/total_cbs') {
-                db_sql.select_sum_cbs(function (err, result) {
-                    if (!err) {
-                        var total_cbs = result[0];
-                        response.header('Content-Type', 'application/json');
-                        response.status(200).end(JSON.stringify(total_cbs, null, 4));
-                    }
-                });
-                return;
-            }
-        }
-
-        // Check X-M2M-RI Header
-        if ((request.headers['x-m2m-ri'] == null)) {
-            responder.error_result(request, response, 400, 4000, 'BAD REQUEST: X-M2M-RI is none');
-            return '0';
-        }
-
-        // Check X-M2M-RVI Header
-        if ((request.headers['x-m2m-rvi'] == null)) {
-            // responder.error_result(request, response, 400, 4000, 'BAD REQUEST: X-M2M-RI is none');
-            // callback('0', body_Obj, request, response);
-            // return '0';
-            // todo: RVI check
-            request.headers['x-m2m-rvi'] = uservi;
-        }
-
-        request.ty = '99';
-        if(request.method.toLowerCase() == 'post') {
-            var content_type = request.headers['content-type'].split(';');
-            try {
-                var ty = '99';
-                for (var i in content_type) {
-                    if (content_type.hasOwnProperty(i)) {
-                        var ty_arr = content_type[i].replace(/ /g, '').split('=');
-                        if (ty_arr[0].replace(/ /g, '') == 'ty') {
-                            ty = ty_arr[1].replace(' ', '');
-                            break;
-                        }
-                    }
-                }
-                request.ty = ty;
-            }
-            catch (e) {
-                responder.error_result(request, response, 400, 4000, 'ty is none');
+        db.getConnection(function (err, connection) {
+            if (err) {
+                console.log('[app.use] No Connection');
+                responder.error_result(request, response, 500, 5000, 'DB Error : No Connection Pool');
                 return '0';
-            }
-
-            if (request.ty == '5') {
-                responder.error_result(request, response, 405, 4005, 'OPERATION_NOT_ALLOWED: CSEBase can not be created by others');
-                return '0';
-            }
-
-            if (request.ty == '17') {
-                responder.error_result(request, response, 405, 4005, 'OPERATION_NOT_ALLOWED (req is not supported when post request)');
-                return '0';
-            }
-        }
-
-        // Check X-M2M-Origin Header
-        if (request.headers['x-m2m-origin'] == null || request.headers['x-m2m-origin'] == '') {
-            if (request.ty == '2' || request.ty == '16') {
-                request.headers['x-m2m-origin'] = 'S';
             }
             else {
-                responder.error_result(request, response, 400, 4000, 'BAD REQUEST: X-M2M-Origin header is Mandatory');
-                return '0';
-            }
-        }
-
-        if (request.headers.hasOwnProperty('content-type')) {
-            if (request.headers['content-type'].includes('xml')) {
-                request.usebodytype = 'xml';
-            }
-            else if (request.headers['content-type'].includes('cbor')) {
-                request.usebodytype = 'cbor';
-            }
-            else {
-                request.usebodytype = 'json';
-            }
-        }
-        else {
-            request.usebodytype = 'json';
-        }
-
-        if (request.query.fu == null) {
-            request.query.fu = 2;
-        }
-        if (request.query.rcn == null) {
-            request.query.rcn = 1;
-        }
-        if (request.query.rt == null) {
-            request.query.rt = 3;
-        }
-
-        var allow = 1;
-        if (allowed_ae_ids.length > 0) {
-            allow = 0;
-            for (var idx in allowed_ae_ids) {
-                if (allowed_ae_ids.hasOwnProperty(idx)) {
-                    if (usecseid == request.headers['x-m2m-origin']) {
-                        allow = 1;
-                        break;
+                request.connection = connection;
+                if (request.method.toLowerCase() == 'get') {
+                    if (request.url == '/hit') {
+                        response.header('Content-Type', 'application/json');
+                        retrieveHitCount(response);
+                        return;
                     }
-                    else if (allowed_ae_ids[idx] == request.headers['x-m2m-origin']) {
-                        allow = 1;
-                        break;
+
+                    if (request.url == '/total_ae') {
+                        db_sql.select_sum_ae(request.connection, function (err, result) {
+                            if (!err) {
+                                request.connection.release();
+                                var total_ae = result[0];
+                                response.header('Content-Type', 'application/json');
+                                response.status(200).end(JSON.stringify(total_ae, null, 4));
+                            }
+                        });
+                        return;
+                    }
+
+                    if (request.url == '/total_cbs') {
+                        db_sql.select_sum_cbs(request.connection, function (err, result) {
+                            if (!err) {
+                                request.connection.release();
+                                var total_cbs = result[0];
+                                response.header('Content-Type', 'application/json');
+                                response.status(200).end(JSON.stringify(total_cbs, null, 4));
+                            }
+                        });
+                        return;
                     }
                 }
-            }
 
-            if (allow == 0) {
-                responder.error_result(request, response, 403, 4107, 'OPERATION_NOT_ALLOWED: AE-ID is not allowed');
-                return '0';
-            }
-        }
+                // Check X-M2M-RI Header
+                if ((request.headers['x-m2m-ri'] == null)) {
+                    responder.error_result(request, response, 400, 4000, 'BAD REQUEST: X-M2M-RI is none');
+                    return '0';
+                }
 
-        if (responder.typeRsrc[request.ty] == null) {
-            responder.error_result(request, response, 405, 4005, 'OPERATION_NOT_ALLOWED: we do not support (' + request.ty + ') resource');
-            return '0';
-        }
+                // Check X-M2M-RVI Header
+                if ((request.headers['x-m2m-rvi'] == null)) {
+                    // responder.error_result(request, response, 400, 4000, 'BAD REQUEST: X-M2M-RI is none');
+                    // callback('0', body_Obj, request, response);
+                    // return '0';
+                    // todo: RVI check
+                    request.headers['x-m2m-rvi'] = uservi;
+                }
 
-        if(request.method.toLowerCase() == 'post' || request.method.toLowerCase() == 'put' ) {
-            if(request.body != '') {
-                make_json_obj(request.usebodytype, request.body, function(err, body) {
+                request.ty = '99';
+                if (request.method.toLowerCase() == 'post') {
+                    var content_type = request.headers['content-type'].split(';');
                     try {
-                        var rootnm = Object.keys(body)[0].replace('m2m:', '');
-                        var checkCount = 0;
-                        for( var key in responder.typeRsrc ) {
-                            if(responder.typeRsrc.hasOwnProperty(key)) {
-                                if(responder.typeRsrc[key] == rootnm) {
+                        var ty = '99';
+                        for (var i in content_type) {
+                            if (content_type.hasOwnProperty(i)) {
+                                var ty_arr = content_type[i].replace(/ /g, '').split('=');
+                                if (ty_arr[0].replace(/ /g, '') == 'ty') {
+                                    ty = ty_arr[1].replace(' ', '');
                                     break;
                                 }
-                                checkCount++;
                             }
                         }
-
-                        if(checkCount >= Object.keys(responder.typeRsrc).length) {
-                            responder.error_result(request, response, 400, 4000, 'BAD REQUEST - not supported resource type requested');
-                            return '0';
-                        }
+                        request.ty = ty;
                     }
                     catch (e) {
-                        responder.error_result(request, response, 400, 4000, 'BAD REQUEST');
+                        responder.error_result(request, response, 400, 4000, 'ty is none');
                         return '0';
                     }
-                });
-            }
-        }
 
-        request.url = request.url.replace('%23', '#'); // convert '%23' to '#' of url
-        request.hash = url.parse(request.url).hash;
+                    if (request.ty == '5') {
+                        responder.error_result(request, response, 405, 4005, 'OPERATION_NOT_ALLOWED: CSEBase can not be created by others');
+                        return '0';
+                    }
 
-        var absolute_url = request.url.replace('\/_\/', '\/\/').split('#')[0];
-        absolute_url = absolute_url.replace(usespid, '/~');
-        absolute_url = absolute_url.replace(/\/~\/[^\/]+\/?/, '/');
-        var absolute_url_arr = absolute_url.split('/');
+                    if (request.ty == '17') {
+                        responder.error_result(request, response, 405, 4005, 'OPERATION_NOT_ALLOWED (req is not supported when post request)');
+                        return '0';
+                    }
+                }
 
-        console.log('\n' + request.method + ' : ' + request.url);
-        request.bodyObj = {};
+                // Check X-M2M-Origin Header
+                if (request.headers['x-m2m-origin'] == null || request.headers['x-m2m-origin'] == '') {
+                    if (request.ty == '2' || request.ty == '16') {
+                        request.headers['x-m2m-origin'] = 'S';
+                    }
+                    else {
+                        responder.error_result(request, response, 400, 4000, 'BAD REQUEST: X-M2M-Origin header is Mandatory');
+                        return '0';
+                    }
+                }
 
-        var option = '';
-        var sri = absolute_url_arr[1].split('?')[0];
-        if (absolute_url_arr[absolute_url_arr.length - 1] == 'la' || absolute_url_arr[absolute_url_arr.length - 1] == 'latest') {
-            var ri = absolute_url.split('?')[0].replace('/latest', '');
-            ri = ri.replace('/la', '');
-            option = '/latest';
-        }
-        else if (absolute_url_arr[absolute_url_arr.length - 1] == 'ol' || absolute_url_arr[absolute_url_arr.length - 1] == 'oldest') {
-            ri = absolute_url.split('?')[0].replace('/oldest', '');
-            ri = ri.replace('/ol', '');
-            option = '/oldest';
-        }
-        else if (absolute_url_arr[absolute_url_arr.length - 1] == 'fopt') {
-            ri = absolute_url.split('?')[0].replace('/fopt', '');
-            option = '/fopt';
-        }
-        else {
-            ri = absolute_url.split('?')[0];
-            option = '';
-        }
+                if (request.headers.hasOwnProperty('content-type')) {
+                    if (request.headers['content-type'].includes('xml')) {
+                        request.usebodytype = 'xml';
+                    }
+                    else if (request.headers['content-type'].includes('cbor')) {
+                        request.usebodytype = 'cbor';
+                    }
+                    else {
+                        request.usebodytype = 'json';
+                    }
+                }
+                else {
+                    request.usebodytype = 'json';
+                }
 
-        var tid = require('shortid').generate();
-        console.time('get_resource_from_url' + ' (' + tid + ') - ' + absolute_url);
-        get_resource_from_url(ri, sri, option, function (targetObject, status) {
-            console.timeEnd('get_resource_from_url' + ' (' + tid + ') - ' + absolute_url);
-            if (targetObject) {
-                request.targetObject = targetObject;
-                if (option == '/fopt') {
-                    // check access right for fanoutpoint
-                    check_grp(request, response, function (rsc, result_grp) {
-                        if (rsc == '0') {
-                            return rsc;
-                        }
+                if (request.query.fu == null) {
+                    request.query.fu = 2;
+                }
+                if (request.query.rcn == null) {
+                    request.query.rcn = 1;
+                }
+                if (request.query.rt == null) {
+                    request.query.rt = 3;
+                }
 
-                        if (request.method.toLowerCase() == 'post') {
-                            var access_value = '1';
-                        }
-                        else if (request.method.toLowerCase() == 'get') {
-                            if (request.query.fu == 1) {
-                                access_value = '32';
+                var allow = 1;
+                if (allowed_ae_ids.length > 0) {
+                    allow = 0;
+                    for (var idx in allowed_ae_ids) {
+                        if (allowed_ae_ids.hasOwnProperty(idx)) {
+                            if (usecseid == request.headers['x-m2m-origin']) {
+                                allow = 1;
+                                break;
                             }
-                            else {
-                                access_value = '2';
+                            else if (allowed_ae_ids[idx] == request.headers['x-m2m-origin']) {
+                                allow = 1;
+                                break;
                             }
                         }
-                        else if (request.method.toLowerCase() == 'put') {
-                            access_value = '4';
-                        }
-                        else {
-                            access_value = '8'
-                        }
+                    }
 
-                        var body_Obj = {};
-                        security.check(request, response, targetObject[Object.keys(targetObject)[0]].ty, result_grp.macp, access_value, result_grp.cr, function (rsc, request, response) {
-                            if (rsc == '0') {
-                                responder.error_result(request, response, 403, 4103, '[app.use] ACCESS DENIED (fopt)');
+                    if (allow == 0) {
+                        responder.error_result(request, response, 403, 4107, 'OPERATION_NOT_ALLOWED: AE-ID is not allowed');
+                        return '0';
+                    }
+                }
+
+                if (responder.typeRsrc[request.ty] == null) {
+                    responder.error_result(request, response, 405, 4005, 'OPERATION_NOT_ALLOWED: we do not support (' + request.ty + ') resource');
+                    return '0';
+                }
+
+                if (request.method.toLowerCase() == 'post' || request.method.toLowerCase() == 'put') {
+                    if (request.body != '') {
+                        make_json_obj(request.usebodytype, request.body, function (err, body) {
+                            try {
+                                var rootnm = Object.keys(body)[0].replace('m2m:', '');
+                                var checkCount = 0;
+                                for (var key in responder.typeRsrc) {
+                                    if (responder.typeRsrc.hasOwnProperty(key)) {
+                                        if (responder.typeRsrc[key] == rootnm) {
+                                            break;
+                                        }
+                                        checkCount++;
+                                    }
+                                }
+
+                                if (checkCount >= Object.keys(responder.typeRsrc).length) {
+                                    responder.error_result(request, response, 400, 4000, 'BAD REQUEST - not supported resource type requested');
+                                    return '0';
+                                }
+                            }
+                            catch (e) {
+                                responder.error_result(request, response, 400, 4000, 'BAD REQUEST');
                                 return '0';
                             }
+                        });
+                    }
+                }
 
-                            if (request.method.toLowerCase() == 'post' || request.method.toLowerCase() == 'put') {
-                                parse_body_format(request, response, function (rsc, body_Obj) {
-                                    if (rsc != '0') {
+                request.url = request.url.replace('%23', '#'); // convert '%23' to '#' of url
+                request.hash = url.parse(request.url).hash;
+
+                var absolute_url = request.url.replace('\/_\/', '\/\/').split('#')[0];
+                absolute_url = absolute_url.replace(usespid, '/~');
+                absolute_url = absolute_url.replace(/\/~\/[^\/]+\/?/, '/');
+                var absolute_url_arr = absolute_url.split('/');
+
+                console.log('\n' + request.method + ' : ' + request.url);
+                request.bodyObj = {};
+
+                var option = '';
+                var sri = absolute_url_arr[1].split('?')[0];
+                if (absolute_url_arr[absolute_url_arr.length - 1] == 'la' || absolute_url_arr[absolute_url_arr.length - 1] == 'latest') {
+                    var ri = absolute_url.split('?')[0].replace('/latest', '');
+                    ri = ri.replace('/la', '');
+                    option = '/latest';
+                }
+                else if (absolute_url_arr[absolute_url_arr.length - 1] == 'ol' || absolute_url_arr[absolute_url_arr.length - 1] == 'oldest') {
+                    ri = absolute_url.split('?')[0].replace('/oldest', '');
+                    ri = ri.replace('/ol', '');
+                    option = '/oldest';
+                }
+                else if (absolute_url_arr[absolute_url_arr.length - 1] == 'fopt') {
+                    ri = absolute_url.split('?')[0].replace('/fopt', '');
+                    option = '/fopt';
+                }
+                else {
+                    ri = absolute_url.split('?')[0];
+                    option = '';
+                }
+
+                var tid = require('shortid').generate();
+                console.time('get_resource_from_url' + ' (' + tid + ') - ' + absolute_url);
+                get_resource_from_url(request.connection, ri, sri, option, function (targetObject, status) {
+                    console.timeEnd('get_resource_from_url' + ' (' + tid + ') - ' + absolute_url);
+                    if (targetObject) {
+                        request.targetObject = targetObject;
+                        if (option == '/fopt') {
+                            // check access right for fanoutpoint
+                            check_grp(request, response, function (rsc, result_grp) {
+                                if (rsc == '0') {
+                                    return rsc;
+                                }
+
+                                if (request.method.toLowerCase() == 'post') {
+                                    var access_value = '1';
+                                }
+                                else if (request.method.toLowerCase() == 'get') {
+                                    if (request.query.fu == 1) {
+                                        access_value = '32';
+                                    }
+                                    else {
+                                        access_value = '2';
+                                    }
+                                }
+                                else if (request.method.toLowerCase() == 'put') {
+                                    access_value = '4';
+                                }
+                                else {
+                                    access_value = '8'
+                                }
+
+                                var body_Obj = {};
+                                security.check(request, response, targetObject[Object.keys(targetObject)[0]].ty, result_grp.macp, access_value, result_grp.cr, function (rsc, request, response) {
+                                    if (rsc == '0') {
+                                        responder.error_result(request, response, 403, 4103, '[app.use] ACCESS DENIED (fopt)');
+                                        return '0';
+                                    }
+
+                                    if (request.method.toLowerCase() == 'post' || request.method.toLowerCase() == 'put') {
+                                        parse_body_format(request, response, function (rsc, body_Obj) {
+                                            if (rsc != '0') {
+                                                fopt.check(request, response, result_grp, targetObject[Object.keys(targetObject)[0]].ty, body_Obj);
+                                            }
+                                        });
+                                    }
+                                    else {
                                         fopt.check(request, response, result_grp, targetObject[Object.keys(targetObject)[0]].ty, body_Obj);
                                     }
                                 });
-                            }
-                            else {
-                                fopt.check(request, response, result_grp, targetObject[Object.keys(targetObject)[0]].ty, body_Obj);
-                            }
-                        });
-                    });
-                }
-                else {
-                    absolute_url = targetObject[Object.keys(targetObject)[0]].ri;
+                            });
+                        }
+                        else {
+                            absolute_url = targetObject[Object.keys(targetObject)[0]].ri;
 
-                    next();
-                }
-            }
-            else {
-                if (status == 404) {
-                    if (url.parse(absolute_url).pathname.split('/')[1] == usecsebase) {
-                        responder.error_result(request, response, 404, 4004, '[app.use] resource does not exist');
-                        return '0';
+                            next();
+                        }
                     }
                     else {
-                        check_csr(absolute_url, request, response);
-                        return '0';
+                        if (status == 404) {
+                            if (url.parse(absolute_url).pathname.split('/')[1] == usecsebase) {
+                                responder.error_result(request, response, 404, 4004, '[app.use] resource does not exist');
+                                return '0';
+                            }
+                            else {
+                                check_csr(absolute_url, request, response);
+                                return '0';
+                            }
+                        }
+                        else if (status == 500) {
+                            responder.error_result(request, response, 404, 4004, '[app.use] Database error at get_resource_from_url in ' + usecsebase);
+                            return '0';
+                        }
                     }
-                }
-                else if (status == 500) {
-                    responder.error_result(request, response, 404, 4004, '[app.use] Database error at get_resource_from_url in ' + usecsebase);
-                    return '0';
-                }
+                });
             }
         });
     });
@@ -1992,7 +2049,7 @@ function check_ae(absolute_url, request, response) {
 function check_csr(absolute_url, request, response) {
     var ri = util.format('/%s/%s', usecsebase, url.parse(absolute_url).pathname.split('/')[1]);
     console.log('[check_csr] : ' + ri);
-    db_sql.select_csr(ri, function (err, result_csr) {
+    db_sql.select_csr(request.connection, ri, function (err, result_csr) {
         if (!err) {
             if (result_csr.length == 1) {
                 var point = {};
@@ -2006,6 +2063,7 @@ function check_csr(absolute_url, request, response) {
 
                         console.log('csebase forwarding to ' + point.forwardcbname);
 
+                        request.connection.release();
                         forward_http(point.forwardcbhost, point.forwardcbport, request, response);
                     }
                     else if (poa.protocol == 'mqtt:') {

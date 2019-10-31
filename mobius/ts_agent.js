@@ -26,6 +26,7 @@ var ip = require('ip');
 var js2xmlparser = require('js2xmlparser');
 var moment = require('moment');
 
+var db = require('./db_action');
 var db_sql = require('./sql_action');
 
 // ������ �����մϴ�.
@@ -191,7 +192,7 @@ var onem2mParser = bodyParser.text(
 var ts_timer = {};
 var ts_timer_id = {};
 
-var missing_detect_check = function(pei, mdd, mdt, cni, ri, callback) {
+var missing_detect_check = function(connection, pei, mdd, mdt, cni, ri, callback) {
     var rsc = {};
     rsc.status = 2000;
     if((pei != null && pei != '' && pei != '0') && (mdd != null && mdd == 'TRUE') && mdt != '0') {
@@ -200,7 +201,7 @@ var missing_detect_check = function(pei, mdd, mdt, cni, ri, callback) {
             var events = require('events');
             ts_timer[ri] = new events.EventEmitter();
             ts_timer[ri].on(ri, function () {
-                db_sql.select_ts(ri, function (err, results) {
+                db_sql.select_ts(connection, ri, function (err, results) {
                     if (results.length == 1) {
                         console.log(results[0].ri);
                         var new_cni = results[0]['cni'];
@@ -211,7 +212,7 @@ var missing_detect_check = function(pei, mdd, mdt, cni, ri, callback) {
                                 var mdlt = timestamp + ' ' + results[0].mdlt;
                                 var mdc = (parseInt(results[0].mdc, 10) + 1).toString();
                                 console.log(mdc, mdlt);
-                                db_sql.update_ts_mdcn_mdl(mdc, mdlt, ri, function (err, results) {
+                                db_sql.update_ts_mdcn_mdl(connection, mdc, mdlt, ri, function (err, results) {
                                     if (!err) {
                                     }
                                     else {
@@ -277,65 +278,77 @@ ts_app.post('/missingDataDetect', onem2mParser, function(request, response) {
     request.on('end', function() {
         request.body = fullBody;
 
-        var jsonObj = JSON.parse(request.body);
-        if (jsonObj.ts.ri == 'all') {
-            search_TS(request, response, function (request, response, rsc, responseBody) {
-                //console.log(rsc);
-                //console.log(responseBody);
+        db.getConnection(function (err, connection) {
+            if(err) {
+                console.log('[ts_app.post] - /missingDataDetect - No Connection');
+            }
+            else {
+                request.connection = connection;
 
-                var jsonObj = JSON.parse(responseBody);
-                var ts_ri = [];
-                if (jsonObj['m2m:dbg']) {
-                    ts_ri = [];
-                }
-                else if (jsonObj['m2m:uril']) {
-                    if (jsonObj['m2m:uril'].hasOwnProperty('_')) {
-                        ts_ri = jsonObj['m2m:uril']['_'].toString().split(' ');
-                    }
-                    else {
-                        ts_ri = [];
-                    }
-                }
+                var jsonObj = JSON.parse(request.body);
+                if (jsonObj.ts.ri == 'all') {
+                    search_TS(request, response, function (request, response, rsc, responseBody) {
+                        //console.log(rsc);
+                        //console.log(responseBody);
 
-                var ts = {};
-                if (ts_ri.length >= 1) {
-                    db_sql.select_ts_in(ts_ri, function (err, results_ts) {
-                        if (!err) {
-                            if (results_ts.length >= 1) {
-                                missing_detect_check(results_ts[0].pei, results_ts[0].mdd, results_ts[0].mdt, results_ts[0].cni, results_ts[0].ri, function (rsc) {
-                                    console.log(rsc);
-                                });
+                        var jsonObj = JSON.parse(responseBody);
+                        var ts_ri = [];
+                        if (jsonObj['m2m:dbg']) {
+                            ts_ri = [];
+                        }
+                        else if (jsonObj['m2m:uril']) {
+                            if (jsonObj['m2m:uril'].hasOwnProperty('_')) {
+                                ts_ri = jsonObj['m2m:uril']['_'].toString().split(' ');
+                            }
+                            else {
+                                ts_ri = [];
                             }
                         }
 
-                        response.header('X-M2M-RSC', '2000');
+                        var ts = {};
+                        if (ts_ri.length >= 1) {
+                            db_sql.select_ts_in(request.connection, ts_ri, function (err, results_ts) {
+                                if (!err) {
+                                    if (results_ts.length >= 1) {
+                                        missing_detect_check(request.connection, results_ts[0].pei, results_ts[0].mdd, results_ts[0].mdt, results_ts[0].cni, results_ts[0].ri, function (rsc) {
+                                            console.log(rsc);
+                                            request.connection.release();
+                                        });
+                                    }
+                                }
 
-                        ts.status = '2000';
-                        ts.ri = jsonObj['m2m:uril']['_'];
-                        response.status(200).end(JSON.stringify(ts));
+                                response.header('X-M2M-RSC', '2000');
+
+                                ts.status = '2000';
+                                ts.ri = jsonObj['m2m:uril']['_'];
+                                response.status(200).end(JSON.stringify(ts));
+                            });
+                        }
+                        else {
+                            request.connection.release();
+                            response.header('X-M2M-RSC', '4004');
+                            ts.status = '4004';
+                            ts.ri = '';
+                            response.status(404).end(JSON.stringify(ts));
+                        }
                     });
                 }
                 else {
-                    response.header('X-M2M-RSC', '4004');
-                    ts.status = '4004';
-                    ts.ri = '';
-                    response.status(404).end(JSON.stringify(ts));
+                    db_sql.select_ts(request.connection, jsonObj.ts.ri, function (err, results_ts) {
+                        if (!err) {
+                            if (results_ts.length == 1) {
+                                missing_detect_check(request.connection, results_ts[0].pei, results_ts[0].mdd, results_ts[0].mdt, results_ts[0].cni, results_ts[0].ri, function (rsc) {
+                                    request.connection.release();
+                                    console.log(rsc.status + ' - ' + rsc.ri);
+                                    response.header('X-M2M-RSC', '2000');
+                                    response.status(200).end(JSON.stringify(rsc));
+                                });
+                            }
+                        }
+                    });
                 }
-            });
-        }
-        else {
-            db_sql.select_ts(jsonObj.ts.ri, function (err, results_ts) {
-                if (!err) {
-                    if (results_ts.length == 1) {
-                        missing_detect_check(results_ts[0].pei, results_ts[0].mdd, results_ts[0].mdt, results_ts[0].cni, results_ts[0].ri, function (rsc) {
-                            console.log(rsc.status + ' - ' + rsc.ri);
-                            response.header('X-M2M-RSC', '2000');
-                            response.status(200).end(JSON.stringify(rsc));
-                        });
-                    }
-                }
-            });
-        }
+            }
+        });
     });
 });
 
@@ -367,6 +380,7 @@ ts_app.delete('/missingDataDetect', onem2mParser, function(request, response) {
         rsc.status = 2000;
         rsc.ri = request.url;
         console.log(rsc.status + ' - ' + rsc.ri);
+        request.connection.release();
         response.header('X-M2M-RSC', '2000');
         response.status(200).end(JSON.stringify(rsc));
     });

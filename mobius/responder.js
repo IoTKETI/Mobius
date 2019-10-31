@@ -1544,13 +1544,13 @@ var operation = {
     'delete': 4
 };
 
-function store_to_req_resource(request, bodyString, rsc, cap) {
+function store_to_req_resource(request, bodyString, rsc, cap, callback) {
     var op = operation[request.method];
     var mi = {};
     mi.rvi = request.headers['x-m2m-rvi'];
     var rs = 1;
     var ors = rsc;
-    db_sql.update_req('/' + request.headers.tg, bodyString, op, JSON.stringify(mi), rs, ors, function () {
+    db_sql.update_req(request.connection, '/' + request.headers.tg, bodyString, op, JSON.stringify(mi), rs, ors, function () {
         var rspObj = {};
         rspObj.rsc = rsc;
         rspObj.ri = request.method + "-" + request.headers['x-m2m-ri'] + "-" + JSON.stringify(request.query);
@@ -1575,6 +1575,8 @@ function store_to_req_resource(request, bodyString, rsc, cap) {
                 request_noti_mqtt(nu, bodyString, request.usebodytype, xm2mri);
             }
         }
+
+        callback();
     });
 }
 
@@ -1619,6 +1621,7 @@ exports.response_result = function(request, response, status, body_Obj, rsc, ri,
 
     if (request.query.rcn == 0 && Object.keys(body_Obj)[0] != 'dbg') {
         if (request.query.rt == 3) {
+            request.connection.release();
             response.status(status).end('');
 
             var rspObj = {
@@ -1634,7 +1637,7 @@ exports.response_result = function(request, response, status, body_Obj, rsc, ri,
             mi.rvi = request.headers['x-m2m-rvi'];
             var rs = 1;
             var ors = rsc;
-            db_sql.update_req('/'+request.headers.tg, '', op, JSON.stringify(mi), rs, ors, function () {
+            db_sql.update_req(request.connection, '/'+request.headers.tg, '', op, JSON.stringify(mi), rs, ors, function () {
                 var rspObj = {
                     rsc: rsc,
                     ri: ri,
@@ -1679,6 +1682,7 @@ exports.response_result = function(request, response, status, body_Obj, rsc, ri,
                 bodyString = _this.convertXml(rootnm, body_Obj);
             }
 
+            request.connection.release();
             response.status(status).end(bodyString);
 
             rspObj = {};
@@ -1688,7 +1692,9 @@ exports.response_result = function(request, response, status, body_Obj, rsc, ri,
             console.log(JSON.stringify(rspObj));
         }
         else if (request.query.rt == 1 || (request.query.rt == 2 && request.headers['x-m2m-rtu'] != null && request.headers['x-m2m-rtu'] != '')) {
-            store_to_req_resource(request, bodyString, rsc, cap);
+            store_to_req_resource(request, bodyString, rsc, cap, function () {
+                request.connection.release();
+            });
         }
     }
 };
@@ -1786,6 +1792,7 @@ exports.response_rcn3_result = function(request, response, status, body_Obj, rsc
             bodyString = xml.end({pretty: false, indent: '  ', newline: '\n'}).toString();
         }
 
+        request.connection.release();
         response.status(status).end(bodyString);
 
         var rspObj = {};
@@ -1795,7 +1802,9 @@ exports.response_rcn3_result = function(request, response, status, body_Obj, rsc
         console.log(JSON.stringify(rspObj));
     }
     else if (request.query.rt == 1 || (request.query.rt == 2 && request.headers['x-m2m-rtu'] != null && request.headers['x-m2m-rtu'] != '')) {
-        store_to_req_resource(request, bodyString, rsc, cap);
+        store_to_req_resource(request, bodyString, rsc, cap, function () {
+            request.connection.release();
+        });
     }
 };
 
@@ -1871,6 +1880,8 @@ exports.search_result = function(request, response, status, body_Obj, rsc, ri, c
                 xml.txt(body_Obj['m2m:' + rootnm]);
                 bodyString = xml.end({pretty: false, indent: '  ', newline: '\n'}).toString();
             }
+
+            request.connection.release();
             response.status(status).end(bodyString);
 
             var rspObj = {};
@@ -1892,7 +1903,7 @@ exports.search_result = function(request, response, status, body_Obj, rsc, ri, c
             mi.rvi = request.headers['x-m2m-rvi'];
             var rs = 1;
             var ors = rsc;
-            db_sql.update_req('/'+request.headers.tg, bodyString, op, JSON.stringify(mi), rs, ors, function () {
+            db_sql.update_req(request.connection, '/'+request.headers.tg, bodyString, op, JSON.stringify(mi), rs, ors, function () {
                 rspObj = {};
                 rspObj.rsc = rsc;
                 rspObj.ri = request.method + "-" + ri + "-" + JSON.stringify(request.query);
@@ -1958,6 +1969,7 @@ exports.search_result = function(request, response, status, body_Obj, rsc, ri, c
                 }
             }
 
+            request.connection.release();
             response.status(status).end(bodyString);
 
             var rspObj = {};
@@ -1967,7 +1979,9 @@ exports.search_result = function(request, response, status, body_Obj, rsc, ri, c
             console.log(JSON.stringify(rspObj));
         }
         else if (request.query.rt == 1 || (request.query.rt == 2 && request.headers['x-m2m-rtu'] != null && request.headers['x-m2m-rtu'] != '')) {
-            store_to_req_resource(request, bodyString, rsc, cap);
+            store_to_req_resource(request, bodyString, rsc, cap, function () {
+                request.connection.release();
+            });
         }
     }
 };

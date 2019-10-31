@@ -39,39 +39,70 @@ exports.connect = function (host, port, user, password, callback) {
 };
 
 
-function executeQuery(pool, query, callback) {
-    pool.getConnection(function (err, connection) {
+// function executeQuery(pool, query, callback) {
+//     pool.getConnection(function (err, connection) {
+//         if (err) {
+//             return callback(err, null);
+//         }
+//         else if (connection) {
+//             connection.query({sql:query, timeout:60000}, function (err, rows, fields) {
+//                 connection.release();
+//                 if (err) {
+//                     return callback(err, null);
+//                 }
+//                 return callback(null, rows);
+//             });
+//         }
+//         else {
+//             return callback(true, "No Connection");
+//         }
+//     });
+// }
+
+function executeQuery(pool, query, connection, callback) {
+    connection.query({sql:query, timeout:60000}, function (err, rows, fields) {
         if (err) {
             return callback(err, null);
         }
-        else if (connection) {
-            connection.query({sql:query, timeout:60000}, function (err, rows, fields) {
-                connection.release();
-                if (err) {
-                    return callback(err, null);
-                }
-                return callback(null, rows);
-            })
-        }
-        else {
-            return callback(true, "No Connection");
-        }
+        return callback(null, rows);
     });
 }
 
+exports.getConnection = function(callback) {
+    if(mysql_pool == null) {
+        console.error("mysql is not connected");
+        callback(true, "mysql is not connected");
+    }
 
-exports.getResult = function(query, db_Obj, callback) {
+    mysql_pool.getConnection(function (err, connection) {
+        if (err) {
+            callback(err, null);
+        }
+        else if (connection) {
+            callback(err, connection);
+        }
+        else {
+            callback(true, "No Connection");
+        }
+    });
+};
+
+exports.releaseConnection = function(connection) {
+    connection.release();
+};
+
+exports.getResult = function(query, connection, callback) {
     if(mysql_pool == null) {
         console.error("mysql is not connected");
         return '0';
     }
 
-    executeQuery(mysql_pool, query, function (err, rows) {
+    executeQuery(mysql_pool, query, connection, function (err, rows) {
         if (!err) {
-            callback(null,rows, db_Obj);
+            callback(null,rows);
         }
         else {
-            callback(true,err, db_Obj);
+            callback(true,err);
         }
     });
 };

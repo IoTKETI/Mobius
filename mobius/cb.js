@@ -24,7 +24,7 @@ var moment = require('moment');
 
 var db_sql = require('./sql_action');
 
-function cb_create_action(callback) {
+function cb_create_action(connection, callback) {
     var rootnm = 'cb';
     var rspObj = {};
     var resource_Obj = {};
@@ -67,10 +67,10 @@ function cb_create_action(callback) {
     resource_Obj[rootnm].ncp = '';
     resource_Obj[rootnm].cst = '1';
 
-    db_sql.select_ri_lookup(resource_Obj[rootnm].ri, function (err, results_ri) {
+    db_sql.select_ri_lookup(connection, resource_Obj[rootnm].ri, function (err, results_ri) {
         if(!err) {
             if(results_ri.length == 1) {
-                db_sql.update_cb_poa_csi(JSON.stringify(resource_Obj[rootnm].poa), resource_Obj[rootnm].csi, JSON.stringify(resource_Obj[rootnm].srt), resource_Obj[rootnm].ri, function (err, results) {
+                db_sql.update_cb_poa_csi(connection, JSON.stringify(resource_Obj[rootnm].poa), resource_Obj[rootnm].csi, JSON.stringify(resource_Obj[rootnm].srt), resource_Obj[rootnm].ri, function (err, results) {
                     if (!err) {
                         usecseid = resource_Obj[rootnm].csi;
                         rspObj.rsc = '2004';
@@ -87,12 +87,12 @@ function cb_create_action(callback) {
                 });
             }
             else {
-                db_sql.get_sri_sri(resource_Obj[rootnm].pi, function (err, results) {
+                db_sql.get_sri_sri(connection, resource_Obj[rootnm].pi, function (err, results) {
                     if (!err) {
                         resource_Obj[rootnm].spi = (results.length == 0) ? '' : results[0].sri;
                         //resource_Obj[rootnm].sri = require('shortid').generate();
                         resource_Obj[rootnm].sri = '5-' + moment().utc().format('YYYYMMDDhhmmssSSS');
-                            db_sql.insert_cb(resource_Obj[rootnm], function (err, results) {
+                            db_sql.insert_cb(connection, resource_Obj[rootnm], function (err, results) {
                             if (!err) {
                                 rspObj.rsc = '2001';
                                 rspObj.ri = resource_Obj[rootnm].ri;
@@ -118,8 +118,8 @@ function cb_create_action(callback) {
     });
 }
 
-exports.create = function(callback) {
-    cb_create_action(function(rspObj) {
+exports.create = function(connection, callback) {
+    cb_create_action(connection, function(rspObj) {
         callback(rspObj);
     });
 };

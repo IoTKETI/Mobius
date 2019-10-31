@@ -410,7 +410,7 @@ function create_action(request, response, ty, resource_Obj, callback) {
     var body_Obj = {};
 
     if (ty == '1') {
-        db_sql.insert_acp(resource_Obj[rootnm], function (err, results) {
+        db_sql.insert_acp(request.connection, resource_Obj[rootnm], function (err, results) {
                 if (!err) {
                     callback('1', resource_Obj);
                 }
@@ -432,7 +432,7 @@ function create_action(request, response, ty, resource_Obj, callback) {
     }
     else if (ty == '2') {
         //resource_Obj[rootnm].sri = resource_Obj[rootnm].aei;
-        db_sql.insert_ae(resource_Obj[rootnm], function (err, results) {
+        db_sql.insert_ae(request.connection, resource_Obj[rootnm], function (err, results) {
                 if (!err) {
                     callback('1', resource_Obj);
                 }
@@ -458,10 +458,10 @@ function create_action(request, response, ty, resource_Obj, callback) {
             });
     }
     else if (ty == '3') {
-        db_sql.insert_cnt(resource_Obj[rootnm], function (err, results) {
+        db_sql.insert_cnt(request.connection, resource_Obj[rootnm], function (err, results) {
             if (!err) {
                 if(useCert == 'enable') {
-                    db_sql.update_parent_st(request.targetObject[Object.keys(request.targetObject)[0]], function () {
+                    db_sql.update_parent_st(request.connection, request.targetObject[Object.keys(request.targetObject)[0]], function () {
                     });
                 }
                 else {
@@ -490,25 +490,25 @@ function create_action(request, response, ty, resource_Obj, callback) {
         var parent_rootnm = Object.keys(request.targetObject)[0];
         resource_Obj[rootnm].st = parseInt(request.targetObject[parent_rootnm].st, 10) + 1;
         request.targetObject[parent_rootnm].st = resource_Obj[rootnm].st;
-        // db_sql.update_st(request.targetObject[parent_rootnm], function() {
+        // db_sql.update_st(request.connection, request.targetObject[parent_rootnm], function() {
         // });
 
-        db_sql.insert_cin(resource_Obj[rootnm], function (err, results) {
+        db_sql.insert_cin(request.connection, resource_Obj[rootnm], function (err, results) {
             if (!err) {
                 // request.targetObject[parent_rootnm].st = resource_Obj[rootnm].st;
                 // request.targetObject[parent_rootnm].cni = parseInt(request.targetObject[parent_rootnm].cni, 10) + 1;
                 // request.targetObject[parent_rootnm].cbs = parseInt(request.targetObject[parent_rootnm].cni, 10) + parseInt(resource_Obj[rootnm].cs, 10);
-                // db_sql.update_cnt_cni(request.targetObject[parent_rootnm], function () {
+                // db_sql.update_cnt_cni(request.connection, request.targetObject[parent_rootnm], function () {
                 //
                 // });
 
                 var targetObject = JSON.parse(JSON.stringify(request.targetObject));
                 var cs = parseInt(resource_Obj[rootnm].cs);
 
-                db_sql.update_parent_by_insert(targetObject[parent_rootnm], cs, function () {
+                db_sql.update_parent_by_insert(request.connection, targetObject[parent_rootnm], cs, function () {
                     //request_update_cnt(JSON.stringify(targetObject), cs);
 
-                    cnt_man.put(JSON.stringify(targetObject));
+                    cnt_man.put(request.connection, JSON.stringify(targetObject));
                 });
 
                 callback('1', resource_Obj);
@@ -530,7 +530,7 @@ function create_action(request, response, ty, resource_Obj, callback) {
         });
     }
     else if (ty == '9') {
-        db_sql.insert_grp(resource_Obj[rootnm], function (err, results) {
+        db_sql.insert_grp(request.connection, resource_Obj[rootnm], function (err, results) {
                 if (!err) {
                     callback('1', resource_Obj);
                 }
@@ -551,7 +551,7 @@ function create_action(request, response, ty, resource_Obj, callback) {
             });
     }
     else if (ty == '10') {
-        db_sql.insert_lcp(resource_Obj[rootnm], function (err, results) {
+        db_sql.insert_lcp(request.connection, resource_Obj[rootnm], function (err, results) {
                 if (!err) {
                     callback('1', resource_Obj);
                 }
@@ -573,7 +573,7 @@ function create_action(request, response, ty, resource_Obj, callback) {
     }
     else if (ty == '13') {
         if (resource_Obj[rootnm].mgd == 1001) {
-            db_sql.insert_fwr(resource_Obj[rootnm], function (err, results) {
+            db_sql.insert_fwr(request.connection, resource_Obj[rootnm], function (err, results) {
                     if (!err) {
                         callback('1', resource_Obj);
                     }
@@ -594,7 +594,7 @@ function create_action(request, response, ty, resource_Obj, callback) {
                 });
         }
         else if (resource_Obj[rootnm].mgd == 1006) {
-            db_sql.insert_bat(resource_Obj[rootnm], function (err, results) {
+            db_sql.insert_bat(request.connection, resource_Obj[rootnm], function (err, results) {
                     if (!err) {
                         callback('1', resource_Obj);
                     }
@@ -615,7 +615,7 @@ function create_action(request, response, ty, resource_Obj, callback) {
                 });
         }
         else if (resource_Obj[rootnm].mgd == 1007) {
-            db_sql.insert_dvi(resource_Obj[rootnm], function (err, results) {
+            db_sql.insert_dvi(request.connection, resource_Obj[rootnm], function (err, results) {
                     if (!err) {
                         callback('1', resource_Obj);
                     }
@@ -636,7 +636,7 @@ function create_action(request, response, ty, resource_Obj, callback) {
                 });
         }
         else if (resource_Obj[rootnm].mgd == 1008) {
-            db_sql.insert_dvc(resource_Obj[rootnm], function (err, results) {
+            db_sql.insert_dvc(request.connection, resource_Obj[rootnm], function (err, results) {
                     if (!err) {
                         callback('1', resource_Obj);
                     }
@@ -657,7 +657,7 @@ function create_action(request, response, ty, resource_Obj, callback) {
                 });
         }
         else if (resource_Obj[rootnm].mgd == 1009) {
-            db_sql.insert_rbo(resource_Obj[rootnm], function (err, results) {
+            db_sql.insert_rbo(request.connection, resource_Obj[rootnm], function (err, results) {
                     if (!err) {
                         callback('1', resource_Obj);
                     }
@@ -684,7 +684,7 @@ function create_action(request, response, ty, resource_Obj, callback) {
         }
     }
     else if (ty == '14') {
-        db_sql.insert_nod(resource_Obj[rootnm], function (err, results) {
+        db_sql.insert_nod(request.connection, resource_Obj[rootnm], function (err, results) {
                 if (!err) {
                     callback('1', resource_Obj);
                 }
@@ -705,7 +705,7 @@ function create_action(request, response, ty, resource_Obj, callback) {
             });
     }
     else if (ty == '16') {
-        db_sql.insert_csr(resource_Obj[rootnm], function (err, results) {
+        db_sql.insert_csr(request.connection, resource_Obj[rootnm], function (err, results) {
                 if (!err) {
                     callback('1', resource_Obj);
                 }
@@ -726,7 +726,7 @@ function create_action(request, response, ty, resource_Obj, callback) {
             });
     }
     else if (ty == '17') {
-        db_sql.insert_req(resource_Obj[rootnm], function (err, results) {
+        db_sql.insert_req(request.connection, resource_Obj[rootnm], function (err, results) {
                 if (!err) {
                     callback('1', resource_Obj);
                 }
@@ -747,13 +747,13 @@ function create_action(request, response, ty, resource_Obj, callback) {
             });
     }
     else if (ty == '23') {
-        db_sql.insert_sub(resource_Obj[rootnm], function (err, results) {
+        db_sql.insert_sub(request.connection, resource_Obj[rootnm], function (err, results) {
             if (!err) {
                 var parent_rootnm = Object.keys(request.targetObject)[0];
                 var parentObj = request.targetObject;
                 parentObj[parent_rootnm].subl.push(resource_Obj[rootnm]);
 
-                db_sql.update_lookup(parentObj[parent_rootnm], function (err, results) {
+                db_sql.update_lookup(request.connection, parentObj[parent_rootnm], function (err, results) {
                     if(!err) {
                         callback('1', resource_Obj);
                     }
@@ -776,7 +776,7 @@ function create_action(request, response, ty, resource_Obj, callback) {
         });
     }
     else if (ty == '24') {
-        db_sql.insert_smd(resource_Obj[rootnm], function (err, results) {
+        db_sql.insert_smd(request.connection, resource_Obj[rootnm], function (err, results) {
                 if (!err) {
                     callback('1', resource_Obj);
                 }
@@ -797,7 +797,7 @@ function create_action(request, response, ty, resource_Obj, callback) {
             });
     }
     else if (ty == '29') {
-        db_sql.insert_ts(resource_Obj[rootnm], function (err, results) {
+        db_sql.insert_ts(request.connection, resource_Obj[rootnm], function (err, results) {
                 if (!err) {
                     check_TS(resource_Obj[rootnm].ri, function (rsc, res_Obj) {
                     });
@@ -820,7 +820,7 @@ function create_action(request, response, ty, resource_Obj, callback) {
             });
     }
     else if (ty == '30') {
-        db_sql.insert_tsi(resource_Obj[rootnm], function (err, results) {
+        db_sql.insert_tsi(request.connection, resource_Obj[rootnm], function (err, results) {
             if (!err) {
                 resource_Obj[rootnm].st = st;
                 callback('1', resource_Obj);
@@ -842,7 +842,7 @@ function create_action(request, response, ty, resource_Obj, callback) {
         });
     }
     else if (ty == '27') {
-        db_sql.insert_mms(resource_Obj[rootnm], function (err, results) {
+        db_sql.insert_mms(request.connection, resource_Obj[rootnm], function (err, results) {
                 if (!err) {
                     callback('1', resource_Obj);
                 }
@@ -865,7 +865,7 @@ function create_action(request, response, ty, resource_Obj, callback) {
     else if (ty == '38') { // transactionMgmt resource
         if (resource_Obj[rootnm].tmd == tmd_v.CREATOR_CONTROLLED) { // INITIAL
             resource_Obj[rootnm].tst = tst_v.INITIAL;
-            db_sql.insert_tm(resource_Obj[rootnm], function (err, results) {
+            db_sql.insert_tm(request.connection, resource_Obj[rootnm], function (err, results) {
                 if (!err) {
                     callback('1', resource_Obj);
                 }
@@ -926,7 +926,7 @@ function create_action(request, response, ty, resource_Obj, callback) {
                 }
                 resource_Obj[rootnm].rsps = rsps;
 
-                db_sql.insert_tm(resource_Obj[rootnm], function (err, results) {
+                db_sql.insert_tm(request.connection, resource_Obj[rootnm], function (err, results) {
                     if (!err) {
                         callback('1', resource_Obj);
                     }
@@ -949,7 +949,7 @@ function create_action(request, response, ty, resource_Obj, callback) {
         }
     }
     else if (ty == '39') { // transaction resource
-        db_sql.insert_tr(resource_Obj[rootnm], function (err, results) {
+        db_sql.insert_tr(request.connection, resource_Obj[rootnm], function (err, results) {
             if (!err) {
                 callback('1', resource_Obj);
             }
@@ -1355,7 +1355,7 @@ function presearch_action(request, response, ri_list, comm_Obj, callback) {
     var result_ri = [];
     pi_list.push(comm_Obj.ri);
     console.time('search_parents_lookup ' + comm_Obj.ri);
-    db_sql.search_parents_lookup(comm_Obj.ri, pi_list, result_ri, function (err, search_Obj) {
+    db_sql.search_parents_lookup(request.connection, comm_Obj.ri, pi_list, result_ri, function (err, search_Obj) {
         console.timeEnd('search_parents_lookup ' + comm_Obj.ri);
         if (!err) {
             var finding_Obj = {};
@@ -1453,7 +1453,7 @@ function presearch_action(request, response, ri_list, comm_Obj, callback) {
             var cur_d = moment().add(1, 'd').utc().format('YYYY-MM-DD HH:mm:ss');
             //var bef_d = moment(cur_d).subtract(Math.pow(3, 0), 'hours').format('YYYY-MM-DD HH:mm:ss');
 
-            db_sql.search_lookup(comm_Obj.ri, request.query, request.query.lim, pi_list, 0, finding_Obj, 0, request.query.cni, cur_d, 0, response, function (err, search_Obj, response) {
+            db_sql.search_lookup(request.connection, comm_Obj.ri, request.query, request.query.lim, pi_list, 0, finding_Obj, 0, request.query.cni, cur_d, 0, response, function (err, search_Obj, response) {
                 if (!err) {
                     if (Object.keys(search_Obj).length >= 1) {
                         if (Object.keys(search_Obj).length >= max_lim) {
@@ -1524,7 +1524,7 @@ function search_action(request, response, seq, resource_Obj, ri_list, strObj, pr
         seq = ty_list.length;
     }
 
-    db_sql.select_in_ri_list(responder.typeRsrc[tbl], ri_list, 0, finding_Obj, 0, function (err, search_Obj) {
+    db_sql.select_in_ri_list(request.connection, responder.typeRsrc[tbl], ri_list, 0, finding_Obj, 0, function (err, search_Obj) {
         if (!err) {
             if (search_Obj.length >= 1) {
                 //console.timeEnd('search_resource');
@@ -1757,7 +1757,7 @@ function update_action(request, response, ty, resource_Obj, callback) {
     var body_Obj = {};
 
     if (ty == '1') {
-        db_sql.update_acp(resource_Obj[rootnm], function (err, results) {
+        db_sql.update_acp(request.connection, resource_Obj[rootnm], function (err, results) {
                 if (!err) {
                     callback('1', resource_Obj);
                 }
@@ -1771,7 +1771,7 @@ function update_action(request, response, ty, resource_Obj, callback) {
             });
     }
     else if (ty == '2') {
-        db_sql.update_ae(resource_Obj[rootnm], function (err, results) {
+        db_sql.update_ae(request.connection, resource_Obj[rootnm], function (err, results) {
                 if (!err) {
                     callback('1', resource_Obj);
                 }
@@ -1785,11 +1785,11 @@ function update_action(request, response, ty, resource_Obj, callback) {
             });
     }
     else if (ty == '3') {
-        db_sql.get_cni_count(resource_Obj[rootnm], function (cni, cbs, st) {
+        db_sql.get_cni_count(request.connection, resource_Obj[rootnm], function (cni, cbs, st) {
             resource_Obj[rootnm].cni = cni;
             resource_Obj[rootnm].cbs = cbs;
             resource_Obj[rootnm].st = st + 1;
-            db_sql.update_cnt(resource_Obj[rootnm], function (err, results) {
+            db_sql.update_cnt(request.connection, resource_Obj[rootnm], function (err, results) {
                 if (!err) {
                     callback('1', resource_Obj);
                 }
@@ -1804,7 +1804,7 @@ function update_action(request, response, ty, resource_Obj, callback) {
         });
     }
     else if (ty == '9') {
-        db_sql.update_grp(resource_Obj[rootnm], function (err, results) {
+        db_sql.update_grp(request.connection, resource_Obj[rootnm], function (err, results) {
                 if (!err) {
                     callback('1', resource_Obj);
                 }
@@ -1818,7 +1818,7 @@ function update_action(request, response, ty, resource_Obj, callback) {
             });
     }
     else if (ty == '10') {
-        db_sql.update_lcp(resource_Obj[rootnm], function (err, results) {
+        db_sql.update_lcp(request.connection, resource_Obj[rootnm], function (err, results) {
                 if (!err) {
                     callback('1', resource_Obj);
                 }
@@ -1834,7 +1834,7 @@ function update_action(request, response, ty, resource_Obj, callback) {
     else if (ty == '13') {
         if (responder.mgoType[resource_Obj[rootnm].mgd] == rootnm) {
             if (resource_Obj[rootnm].mgd == 1001) {
-                db_sql.update_fwr(resource_Obj[rootnm], function (err, results) {
+                db_sql.update_fwr(request.connection, resource_Obj[rootnm], function (err, results) {
                         if (!err) {
                             callback('1', resource_Obj);
                         }
@@ -1848,7 +1848,7 @@ function update_action(request, response, ty, resource_Obj, callback) {
                     });
             }
             else if (resource_Obj[rootnm].mgd == 1006) {
-                db_sql.update_bat(resource_Obj[rootnm], function (err, results) {
+                db_sql.update_bat(request.connection, resource_Obj[rootnm], function (err, results) {
                         if (!err) {
                             callback('1', resource_Obj);
                         }
@@ -1862,7 +1862,7 @@ function update_action(request, response, ty, resource_Obj, callback) {
                     });
             }
             else if (resource_Obj[rootnm].mgd == 1007) {
-                db_sql.update_dvi(resource_Obj[rootnm], function (err, results) {
+                db_sql.update_dvi(request.connection, resource_Obj[rootnm], function (err, results) {
                         if (!err) {
                             callback('1', resource_Obj);
                         }
@@ -1876,7 +1876,7 @@ function update_action(request, response, ty, resource_Obj, callback) {
                     });
             }
             else if (resource_Obj[rootnm].mgd == 1008) {
-                db_sql.update_dvc(resource_Obj[rootnm].lt, JSON.stringify(resource_Obj[rootnm].acpi), resource_Obj[rootnm].et, resource_Obj[rootnm].st, JSON.stringify(resource_Obj[rootnm].lbl),
+                db_sql.update_dvc(request.connection, resource_Obj[rootnm].lt, JSON.stringify(resource_Obj[rootnm].acpi), resource_Obj[rootnm].et, resource_Obj[rootnm].st, JSON.stringify(resource_Obj[rootnm].lbl),
                     JSON.stringify(resource_Obj[rootnm].at), JSON.stringify(resource_Obj[rootnm].aa), resource_Obj[rootnm].ri,
                     resource_Obj[rootnm].dc, resource_Obj[rootnm].can, resource_Obj[rootnm].att, JSON.stringify(resource_Obj[rootnm].cas), resource_Obj[rootnm].cus,
                     resource_Obj[rootnm].ena, resource_Obj[rootnm].dis, function (err, results) {
@@ -1893,7 +1893,7 @@ function update_action(request, response, ty, resource_Obj, callback) {
                     });
             }
             else if (resource_Obj[rootnm].mgd == 1009) {
-                db_sql.update_rbo(resource_Obj[rootnm], function (err, results) {
+                db_sql.update_rbo(request.connection, resource_Obj[rootnm], function (err, results) {
                         if (!err) {
                             callback('1', resource_Obj);
                         }
@@ -1923,7 +1923,7 @@ function update_action(request, response, ty, resource_Obj, callback) {
         }
     }
     else if (ty == '14') {
-        db_sql.update_nod(resource_Obj[rootnm], function (err, results) {
+        db_sql.update_nod(request.connection, resource_Obj[rootnm], function (err, results) {
                 if (!err) {
                     callback('1', resource_Obj);
                 }
@@ -1937,7 +1937,7 @@ function update_action(request, response, ty, resource_Obj, callback) {
             });
     }
     else if (ty == '16') {
-        db_sql.update_csr(resource_Obj[rootnm], function (err, results) {
+        db_sql.update_csr(request.connection, resource_Obj[rootnm], function (err, results) {
                 if (!err) {
                     callback('1', resource_Obj);
                 }
@@ -1951,9 +1951,9 @@ function update_action(request, response, ty, resource_Obj, callback) {
             });
     }
     else if (ty == '23') {
-        db_sql.update_sub(resource_Obj[rootnm], function (err, results) {
+        db_sql.update_sub(request.connection, resource_Obj[rootnm], function (err, results) {
             if (!err) {
-                db_sql.select_lookup(resource_Obj[rootnm].pi, function (err, results_comm) {
+                db_sql.select_lookup(request.connection, resource_Obj[rootnm].pi, function (err, results_comm) {
                     if (!err) {
                         makeObject(results_comm[0]);
                         var parentObj = results_comm[0];
@@ -1965,7 +1965,7 @@ function update_action(request, response, ty, resource_Obj, callback) {
                                 }
                             }
                         }
-                        db_sql.update_lookup(parentObj, function (err, results) {
+                        db_sql.update_lookup(request.connection, parentObj, function (err, results) {
                             if (!err) {
                                 callback('1', resource_Obj);
                             }
@@ -1983,7 +1983,7 @@ function update_action(request, response, ty, resource_Obj, callback) {
         });
     }
     else if (ty == '24') {
-        db_sql.update_smd(resource_Obj[rootnm], function (err, results) {
+        db_sql.update_smd(request.connection, resource_Obj[rootnm], function (err, results) {
                 if (!err) {
                     callback('1', resource_Obj);
                 }
@@ -1997,7 +1997,7 @@ function update_action(request, response, ty, resource_Obj, callback) {
             });
     }
     else if (ty == '29') {
-        db_sql.update_ts(resource_Obj[rootnm], function (err, results) {
+        db_sql.update_ts(request.connection, resource_Obj[rootnm], function (err, results) {
                 if (!err) {
                     check_TS(resource_Obj[rootnm].ri, function (rsc, res_Obj) {
                     });
@@ -2013,7 +2013,7 @@ function update_action(request, response, ty, resource_Obj, callback) {
             });
     }
     else if (ty == '27') {
-        db_sql.update_mms(resource_Obj[rootnm], function (err, results) {
+        db_sql.update_mms(request.connection, resource_Obj[rootnm], function (err, results) {
                 if (!err) {
                     callback('1', resource_Obj);
                 }
@@ -2068,7 +2068,7 @@ function update_action(request, response, ty, resource_Obj, callback) {
                 }
                 resource_Obj[rootnm].rsps = rsps;
 
-                db_sql.update_tm(resource_Obj[rootnm], function (err, results) {
+                db_sql.update_tm(request.connection, resource_Obj[rootnm], function (err, results) {
                     if (!err) {
                         callback('1', resource_Obj);
                     }
@@ -2117,7 +2117,7 @@ function update_action(request, response, ty, resource_Obj, callback) {
                 }
                 resource_Obj[rootnm].rsps = rsps;
 
-                db_sql.update_tm(resource_Obj[rootnm], function (err, results) {
+                db_sql.update_tm(request.connection, resource_Obj[rootnm], function (err, results) {
                     if (!err) {
                         callback('1', resource_Obj);
                     }
@@ -2166,7 +2166,7 @@ function update_action(request, response, ty, resource_Obj, callback) {
                 }
                 resource_Obj[rootnm].rsps = rsps;
 
-                db_sql.update_tm(resource_Obj[rootnm], function (err, results) {
+                db_sql.update_tm(request.connection, resource_Obj[rootnm], function (err, results) {
                     if (!err) {
                         callback('1', resource_Obj);
                     }
@@ -2215,7 +2215,7 @@ function update_action(request, response, ty, resource_Obj, callback) {
                 }
                 resource_Obj[rootnm].rsps = rsps;
 
-                db_sql.update_tm(resource_Obj[rootnm], function (err, results) {
+                db_sql.update_tm(request.connection, resource_Obj[rootnm], function (err, results) {
                     if (!err) {
                         callback('1', resource_Obj);
                     }
@@ -2233,7 +2233,7 @@ function update_action(request, response, ty, resource_Obj, callback) {
             resource_Obj[rootnm].tst = tst_v.INITIAL;
             resource_Obj[rootnm].rsps = [];
 
-            db_sql.update_tm(resource_Obj[rootnm], function (err, results) {
+            db_sql.update_tm(request.connection, resource_Obj[rootnm], function (err, results) {
                 if (!err) {
                     callback('1', resource_Obj);
                 }
@@ -2258,7 +2258,7 @@ function update_action(request, response, ty, resource_Obj, callback) {
         if (resource_Obj[rootnm].tctl == tctl_v.LOCK && (resource_Obj[rootnm].tst == tst_v.ABORTED || resource_Obj[rootnm].tst == tst_v.COMMITTED)) { // LOCK
             resource_Obj[rootnm].tst = tst_v.LOCKED;
             resource_Obj[rootnm].trsp = '';
-            db_sql.update_tr(resource_Obj[rootnm], function (err, results) {
+            db_sql.update_tr(request.connection, resource_Obj[rootnm], function (err, results) {
                 if (!err) {
                     callback('1', resource_Obj);
                 }
@@ -2273,7 +2273,7 @@ function update_action(request, response, ty, resource_Obj, callback) {
         }
         else if (resource_Obj[rootnm].tctl == tctl_v.EXECUTE && (resource_Obj[rootnm].tst == tst_v.LOCKED)) { // EXCUTE
             tr.request_execute(resource_Obj, function(rsc, resource_Obj) {
-                db_sql.update_tr(resource_Obj[rootnm], function (err, results) {
+                db_sql.update_tr(request.connection, resource_Obj[rootnm], function (err, results) {
                     if (!err) {
                         callback('1', resource_Obj);
                     }
@@ -2289,7 +2289,7 @@ function update_action(request, response, ty, resource_Obj, callback) {
         }
         else if (resource_Obj[rootnm].tctl == tctl_v.COMMIT && (resource_Obj[rootnm].tst == tst_v.EXECUTED)) { // COMMIT
             tr.request_commit(resource_Obj, function (rsc, resource_Obj) {
-                db_sql.update_tr(resource_Obj[rootnm], function (err, results) {
+                db_sql.update_tr(request.connection, resource_Obj[rootnm], function (err, results) {
                     if (!err) {
                         callback('1', resource_Obj);
                     }
@@ -2305,7 +2305,7 @@ function update_action(request, response, ty, resource_Obj, callback) {
         }
         else if (resource_Obj[rootnm].tctl == tctl_v.ABORT && (resource_Obj[rootnm].tst == tst_v.LOCKED || resource_Obj[rootnm].tst == tst_v.EXECUTED)) { // ABORT
             resource_Obj[rootnm].tst = tst_v.ABORTED;
-            db_sql.update_tr(resource_Obj[rootnm], function (err, results) {
+            db_sql.update_tr(request.connection, resource_Obj[rootnm], function (err, results) {
                 if (!err) {
                     callback('1', resource_Obj);
                 }
@@ -2548,8 +2548,8 @@ exports.update = function (request, response, comm_Obj, body_Obj) {
 /* 20180322 removed <-- update stateTag for every resources
 
 */
-function update_cnt_by_delete(pi, cs, callback) {
-    db_sql.select_resource_from_url(pi, pi, function (err, results) {
+function update_cnt_by_delete(connection, pi, cs, callback) {
+    db_sql.select_resource_from_url(connection, pi, pi, function (err, results) {
         if (err) {
             callback(null, 500);
             return '0';
@@ -2566,7 +2566,7 @@ function update_cnt_by_delete(pi, cs, callback) {
             var rootnm = Object.keys(targetObject)[0];
             makeObject(targetObject[rootnm]);
 
-            db_sql.update_parent_by_delete(targetObject[rootnm], cs, function (err, results) {
+            db_sql.update_parent_by_delete(connection, targetObject[rootnm], cs, function (err, results) {
             });
         }
     });
@@ -2577,7 +2577,7 @@ function delete_action(request, response, resource_Obj, comm_Obj, callback) {
     var result_ri = [];
     pi_list.push(comm_Obj.ri);
     console.time('search_parents_lookup ' + comm_Obj.ri);
-    db_sql.search_parents_lookup(comm_Obj.ri, pi_list, result_ri, function (err, search_Obj) {
+    db_sql.search_parents_lookup(request.connection, comm_Obj.ri, pi_list, result_ri, function (err, search_Obj) {
         console.timeEnd('search_parents_lookup ' + comm_Obj.ri);
         if (!err) {
             //if(search_Obj.length == 0) {
@@ -2591,11 +2591,11 @@ function delete_action(request, response, resource_Obj, comm_Obj, callback) {
 
             var finding_Obj = [];
             console.time('delete_lookup ' + comm_Obj.ri);
-            db_sql.delete_lookup(comm_Obj.ri, pi_list, 0, finding_Obj, 0, function (err, search_Obj) {
+            db_sql.delete_lookup(request.connection, comm_Obj.ri, pi_list, 0, finding_Obj, 0, function (err, search_Obj) {
                 if (!err) {
                     console.timeEnd('delete_lookup ' + comm_Obj.ri);
 
-                    db_sql.select_lookup(comm_Obj.pi, function (err, results) {
+                    db_sql.select_lookup(request.connection, comm_Obj.pi, function (err, results) {
                         if (!err) {
                             var ty = results[0].ty;
                             request.targetObject = {};
@@ -2622,7 +2622,7 @@ function delete_action(request, response, resource_Obj, comm_Obj, callback) {
                                     }
                                 }
 
-                                db_sql.update_lookup(parentObj, function (err, results) {
+                                db_sql.update_lookup(request.connection, parentObj, function (err, results) {
                                     if (!err) {
                                         callback('1', resource_Obj);
                                     }
@@ -2634,7 +2634,7 @@ function delete_action(request, response, resource_Obj, comm_Obj, callback) {
                                 callback('1', resource_Obj);
                             }
                             else if (comm_Obj.ty == '4') {
-                                update_cnt_by_delete(comm_Obj.pi, function (rsc) {
+                                update_cnt_by_delete(request.connection, comm_Obj.pi, function (rsc) {
                                 });
                                 callback('1', resource_Obj);
                             }
@@ -2701,11 +2701,11 @@ exports.delete = function (request, response, comm_Obj) {
 
                 if(useCert == 'enable') {
                     if (delete_Obj[rootnm].ty == 4) {
-                        db_sql.update_parent_by_delete(request.targetObject[Object.keys(request.targetObject)[0]], parseInt(delete_Obj[rootnm].cs, 10), function () {
+                        db_sql.update_parent_by_delete(request.connection, request.targetObject[Object.keys(request.targetObject)[0]], parseInt(delete_Obj[rootnm].cs, 10), function () {
                         });
                     }
                     else {
-                        db_sql.update_parent_st(request.targetObject[Object.keys(request.targetObject)[0]], function () {
+                        db_sql.update_parent_st(request.connection, request.targetObject[Object.keys(request.targetObject)[0]], function () {
                         });
                     }
                 }
