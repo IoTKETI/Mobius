@@ -872,7 +872,7 @@ function select_spec_ri(connection, found_Obj, count, callback) {
     db.getResult(sql, connection, function (err, spec_Obj, ri) {
         if(err) {
             delete found_Obj[ri];
-            select_spec_ri(found_Obj, count, function (err, found_Obj) {
+            select_spec_ri(connection, found_Obj, count, function (err, found_Obj) {
                 callback(err, found_Obj);
             });
         }
@@ -884,14 +884,14 @@ function select_spec_ri(connection, found_Obj, count, callback) {
                     callback(err, found_Obj);
                 }
                 else {
-                    select_spec_ri(found_Obj, count, function (err, found_Obj) {
+                    select_spec_ri(connection, found_Obj, count, function (err, found_Obj) {
                         callback(err, found_Obj);
                     });
                 }
             }
             else {
                 delete found_Obj[ri];
-                select_spec_ri(found_Obj, count, function (err, found_Obj) {
+                select_spec_ri(connection, found_Obj, count, function (err, found_Obj) {
                     callback(err, found_Obj);
                 });
             }
@@ -1081,7 +1081,7 @@ function search_resource_action(connection, p_loop_count, ri, query, cur_lim, pi
                     }
                     else {
                         var foundCount = Object.keys(seekObj).length;
-                        search_resource_action(p_loop_count, ri, query, parseInt(cur_lim, 10) - foundCount, pi_list, cni, loop_count, seekObj, function (err, search_Obj) {
+                        search_resource_action(connection, p_loop_count, ri, query, parseInt(cur_lim, 10) - foundCount, pi_list, cni, loop_count, seekObj, function (err, search_Obj) {
                             callback(err, search_Obj);
                         });
                     }
