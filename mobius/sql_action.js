@@ -869,7 +869,7 @@ exports.search_parents_lookup = function(connection, ri, pi_list, result_ri, cal
 function select_spec_ri(connection, found_Obj, count, callback) {
     var ri = Object.keys(found_Obj)[count];
     var sql = "select * from " + responder.typeRsrc[found_Obj[ri].ty] + " where ri = \'" + ri + "\'";
-    db.getResult(sql, ri, function (err, spec_Obj, ri) {
+    db.getResult(sql, connection, function (err, spec_Obj, ri) {
         if(err) {
             delete found_Obj[ri];
             select_spec_ri(found_Obj, count, function (err, found_Obj) {
