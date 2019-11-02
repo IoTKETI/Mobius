@@ -1349,6 +1349,47 @@ exports.create = function (request, response, ty, body_Obj, callback) {
     });
 };
 
+function search_resources_action(request, response, pi_list, foundObj, callback) {
+    //var rootnm = request.headers.rootnm;
+
+    if(pi_list.length == 0) {
+        callback('1', foundObj);
+        return;
+    }
+
+    var foundObj = {};
+    var cur_lim = max_lim;
+    if(request.query.lim != null) {
+        cur_lim = request.query.lim;
+    }
+    var st_id = 'search_lookup_parents ' + pi_list[0] + ' - ' + require('shortid').generate();
+    console.time(st_id);
+    db_sql.search_lookup_parents(request.connection, request.query, pi_list[0], cur_lim, 0, foundObj, function (rsc, foundObj) {
+        //if(!err) {
+            // if(objSearched.length > 0) {
+            //     //Array.prototype.push.apply(foundObj, objSearched);
+            //     for(var idx in objSearched) {
+            //         if(objSearched.hasOwnProperty(idx)) {
+            //             foundObj[objSearched[idx].ri] = objSearched[idx];
+            //         }
+            //     }
+            // }
+
+            // pi_list.splice(0, 1);
+            // search_resources_action(request, response, pi_list, foundObj, function (rsc, foundObj) {
+                console.timeEnd(st_id);
+                callback(rsc, foundObj);
+            // });
+        //}
+        // else {
+        //     callback('0');
+        // }
+    });
+}
+
+
+
+
 function presearch_action(request, response, ri_list, comm_Obj, callback) {
     //var rootnm = request.headers.rootnm;
     var pi_list = [];
@@ -1682,14 +1723,22 @@ exports.retrieve = function (request, response, resource_Obj) {
             if (rsc == '0') {
                 return rsc;
             }
-            //var ri_list = [comm_Obj.ri];
-            var ri_list = [];
-            presearch_action(request, response, ri_list, resource_Obj, function (rsc, ri_list, search_Obj) {
+
+            var pi_list = [];
+            pi_list.push(resource_Obj.ri);
+            var foundObj = {};
+            search_resources_action(request, response, pi_list, foundObj, function (rsc, search_Obj) {
                 if (rsc == '0') {
                     return rsc;
                 }
 
                 if (request.query.fu == 1) {
+                    var ri_list = [];
+                    for(var idx in search_Obj) {
+                        if(search_Obj.hasOwnProperty(idx)) {
+                            ri_list.push(search_Obj[idx].ri);
+                        }
+                    }
                     request.headers.rootnm = 'uril';
                     resource_Obj = {};
                     resource_Obj.uril = {};
@@ -1711,6 +1760,36 @@ exports.retrieve = function (request, response, resource_Obj) {
                     responder.response_result(request, response, 501, resource_Obj, 5001, request.url, resource_Obj['dbg']);
                 }
             });
+
+            //var ri_list = [comm_Obj.ri];
+            // var ri_list = [];
+            // presearch_action(request, response, ri_list, resource_Obj, function (rsc, ri_list, search_Obj) {
+            //     if (rsc == '0') {
+            //         return rsc;
+            //     }
+            //
+            //     if (request.query.fu == 1) {
+            //         request.headers.rootnm = 'uril';
+            //         resource_Obj = {};
+            //         resource_Obj.uril = {};
+            //         resource_Obj.uril = ri_list;
+            //         make_cse_relative(ri_list);
+            //         responder.search_result(request, response, 200, resource_Obj, 2000, resource_Obj.ri, '');
+            //     }
+            //     else if (request.query.rcn == 4 || request.query.rcn == 5 || request.query.rcn == 6) {
+            //         request.headers.rootnm = 'rsp';
+            //         resource_Obj = merge({}, search_Obj);
+            //         _this.remove_no_value(request, resource_Obj);
+            //         responder.search_result(request, response, 200, resource_Obj, 2000, resource_Obj.ri, '');
+            //     }
+            //     else {
+            //         request.headers.rootnm = 'rsp';
+            //         resource_Obj = {};
+            //         resource_Obj['dbg'] = {};
+            //         resource_Obj['dbg'] = 'response with hierarchical resource structure mentioned in onem2m spec is not supported instead all the requested resources will be returned !';
+            //         responder.response_result(request, response, 501, resource_Obj, 5001, request.url, resource_Obj['dbg']);
+            //     }
+            // });
         });
     }
 };
