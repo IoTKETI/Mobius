@@ -2654,19 +2654,19 @@ function update_cnt_by_delete(connection, pi, cs, callback) {
 function delete_action(request, response, resource_Obj, comm_Obj, callback) {
     var pi_list = [];
     var result_ri = [];
-    pi_list.push(comm_Obj.ri);
-    console.time('search_parents_lookup ' + comm_Obj.ri);
-    db_sql.search_parents_lookup(request.connection, comm_Obj.ri, pi_list, result_ri, function (err, search_Obj) {
-        console.timeEnd('search_parents_lookup ' + comm_Obj.ri);
-        if (!err) {
-            //if(search_Obj.length == 0) {
-            //    pi_list.push(comm_Obj.ri);
-            //}
-
-            //pi_list.push(comm_Obj.ri);
-            for (var i = 0; i < search_Obj.length; i++) {
-                pi_list.push(search_Obj[i].ri);
-            }
+    // pi_list.push(comm_Obj.ri);
+    // console.time('search_parents_lookup ' + comm_Obj.ri);
+    // db_sql.search_parents_lookup(request.connection, comm_Obj.ri, pi_list, result_ri, function (err, search_Obj) {
+    //     console.timeEnd('search_parents_lookup ' + comm_Obj.ri);
+    //     if (!err) {
+    //         //if(search_Obj.length == 0) {
+    //         //    pi_list.push(comm_Obj.ri);
+    //         //}
+    //
+    //         //pi_list.push(comm_Obj.ri);
+    //         for (var i = 0; i < search_Obj.length; i++) {
+    //             pi_list.push(search_Obj[i].ri);
+    //         }
 
             var finding_Obj = [];
             console.time('delete_lookup ' + comm_Obj.ri);
@@ -2731,15 +2731,15 @@ function delete_action(request, response, resource_Obj, comm_Obj, callback) {
                     return '0';
                 }
             });
-        }
-        else {
-            var body_Obj = {};
-            body_Obj['dbg'] = search_Obj.message;
-            responder.response_result(request, response, 500, body_Obj, 5000, request.url, body_Obj['dbg']);
-            callback('0', body_Obj);
-            return '0';
-        }
-    });
+    //     }
+    //     else {
+    //         var body_Obj = {};
+    //         body_Obj['dbg'] = search_Obj.message;
+    //         responder.response_result(request, response, 500, body_Obj, 5000, request.url, body_Obj['dbg']);
+    //         callback('0', body_Obj);
+    //         return '0';
+    //     }
+    // });
 }
 
 function delete_resource(request, comm_Obj, callback) {

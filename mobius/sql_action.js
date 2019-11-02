@@ -2392,37 +2392,38 @@ exports.delete_ri_lookup_in = function (connection, ty, ri, offset, callback) {
     });
 };
 
-exports.delete_lookup = function (connection, ri, pi_list, pi_index, found_Obj, found_Cnt, callback) {
-    var cur_pi = [];
+exports.delete_lookup = function (connection, pi, pi_list, pi_index, found_Obj, found_Cnt, callback) {
+    // var cur_pi = [];
+    //
+    // for(var idx = 0; idx < 8; idx++) {
+    //     if (pi_index < pi_list.length) {
+    //         cur_pi.push(pi_list[pi_index++]);
+    //     }
+    // }
 
-    for(var idx = 0; idx < 8; idx++) {
-        if (pi_index < pi_list.length) {
-            cur_pi.push(pi_list[pi_index++]);
-        }
-    }
-
-    var sql = util.format("delete a.* from (select ri from lookup where pi in ("+JSON.stringify(cur_pi).replace('[','').replace(']','') + ")) b left join lookup as a on b.ri = a.ri");
+    //var sql = util.format("delete a.* from (select ri from lookup where pi in ("+JSON.stringify(cur_pi).replace('[','').replace(']','') + ")) b left join lookup as a on b.ri = a.ri");
+    var sql = 'delete from lookup where (ri = \'' + pi + '\') or (pi like \'' + pi + '%\' and ri like \'' + pi + '/%\')';
     db.getResult(sql, connection, function (err, search_Obj) {
         if(!err) {
-            found_Cnt += search_Obj.affectedRows;
-            if(pi_index >= pi_list.length) {
-                sql = util.format("delete from lookup where ri = \'%s\'", ri);
-                db.getResult(sql, connection, function (err, search_Obj) {
-                    if(!err) {
+            // found_Cnt += search_Obj.affectedRows;
+            // if(pi_index >= pi_list.length) {
+            //     sql = util.format("delete from lookup where ri = \'%s\'", ri);
+            //     db.getResult(sql, connection, function (err, search_Obj) {
+            //         if(!err) {
                         found_Cnt += search_Obj.affectedRows;
                         console.log('deleted ' + found_Cnt + ' resource(s).');
                         callback(err, found_Obj);
-                    }
-                    else {
-                        callback(err, search_Obj);
-                    }
-                });
-            }
-            else {
-                _this.delete_lookup(connection, ri, pi_list, pi_index, found_Obj, found_Cnt, function (err, found_Obj) {
-                    callback(err, found_Obj);
-                });
-            }
+            //         }
+            //         else {
+            //             callback(err, search_Obj);
+            //         }
+            //     });
+            // }
+            // else {
+            //     _this.delete_lookup(connection, ri, pi_list, pi_index, found_Obj, found_Cnt, function (err, found_Obj) {
+            //         callback(err, found_Obj);
+            //     });
+            // }
         }
     });
 };
