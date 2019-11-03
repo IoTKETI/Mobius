@@ -27,7 +27,6 @@ CREATE TABLE `acp` (
   `pv` longtext NOT NULL,
   `pvs` longtext NOT NULL,
   PRIMARY KEY (`ri`),
-  UNIQUE KEY `ri_UNIQUE` (`ri`),
   CONSTRAINT `acp_ri` FOREIGN KEY (`ri`) REFERENCES `lookup` (`ri`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
@@ -51,7 +50,6 @@ CREATE TABLE `ae` (
   `csz` varchar(45) DEFAULT NULL,
   `srv` varchar(45) DEFAULT NULL,
   PRIMARY KEY (`ri`),
-  UNIQUE KEY `path_UNIQUE` (`ri`),
   UNIQUE KEY `aei_UNIQUE` (`aei`),
   CONSTRAINT `ae_ri` FOREIGN KEY (`ri`) REFERENCES `lookup` (`ri`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
@@ -74,7 +72,6 @@ CREATE TABLE `cb` (
   `ncp` varchar(45) NOT NULL,
   `srv` varchar(45) DEFAULT NULL,
   PRIMARY KEY (`ri`),
-  UNIQUE KEY `path_UNIQUE` (`ri`),
   CONSTRAINT `cb_ri` FOREIGN KEY (`ri`) REFERENCES `lookup` (`ri`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
@@ -94,9 +91,8 @@ CREATE TABLE `cin` (
   `cnf` varchar(45) NOT NULL,
   `or` varchar(45) NOT NULL,
   `con` longtext NOT NULL,
-  PRIMARY KEY (`ri`,`pi`),
+  PRIMARY KEY (`ri`,`pi`,`cs`),
   UNIQUE KEY `ri_UNIQUE` (`ri`),
-  KEY `cin_ri_idx` (`pi`,`ri`,`cs`),
   CONSTRAINT `cin_ri` FOREIGN KEY (`ri`) REFERENCES `lookup` (`ri`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
@@ -120,7 +116,6 @@ CREATE TABLE `cnt` (
   `or` varchar(45) NOT NULL,
   `disr` varchar(45) DEFAULT NULL,
   PRIMARY KEY (`ri`),
-  UNIQUE KEY `resourceid_UNIQUE` (`ri`),
   CONSTRAINT `cnt_ri` FOREIGN KEY (`ri`) REFERENCES `lookup` (`ri`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
@@ -144,8 +139,6 @@ CREATE TABLE `csr` (
   `nl` varchar(45) NOT NULL,
   `srv` varchar(45) DEFAULT NULL,
   PRIMARY KEY (`ri`),
-  UNIQUE KEY `ri_UNIQUE` (`ri`),
-  KEY `csr_ri_idx` (`ri`),
   CONSTRAINT `csr_ri` FOREIGN KEY (`ri`) REFERENCES `lookup` (`ri`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
@@ -169,9 +162,25 @@ CREATE TABLE `grp` (
   `csy` varchar(45) NOT NULL,
   `gn` varchar(45) NOT NULL,
   PRIMARY KEY (`ri`),
-  UNIQUE KEY `ri_UNIQUE` (`ri`),
   CONSTRAINT `grp_ri` FOREIGN KEY (`ri`) REFERENCES `lookup` (`ri`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `hit`
+--
+
+DROP TABLE IF EXISTS `hit`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+ SET character_set_client = utf8mb4 ;
+CREATE TABLE `hit` (
+  `ct` varchar(15) NOT NULL,
+  `http` int(11) DEFAULT NULL,
+  `mqtt` int(11) DEFAULT NULL,
+  `coap` int(11) DEFAULT NULL,
+  `ws` int(11) DEFAULT NULL,
+  PRIMARY KEY (`ct`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -192,7 +201,6 @@ CREATE TABLE `lcp` (
   `lost` varchar(45) NOT NULL,
   `cr` varchar(45) NOT NULL,
   PRIMARY KEY (`ri`),
-  UNIQUE KEY `ri_UNIQUE` (`ri`),
   CONSTRAINT `lcp_ri` FOREIGN KEY (`ri`) REFERENCES `lookup` (`ri`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
@@ -211,19 +219,18 @@ CREATE TABLE `lookup` (
   `ct` varchar(15) NOT NULL,
   `st` int(11) unsigned NOT NULL,
   `rn` varchar(45) NOT NULL,
-  `lt` varchar(45) NOT NULL,
-  `et` varchar(45) NOT NULL,
+  `lt` varchar(15) NOT NULL,
+  `et` varchar(15) NOT NULL,
   `acpi` varchar(200) NOT NULL,
   `lbl` varchar(200) NOT NULL,
   `at` varchar(45) NOT NULL,
   `aa` varchar(45) NOT NULL,
-  `sri` varchar(45) NOT NULL,
-  `spi` varchar(45) NOT NULL,
+  `sri` varchar(25) NOT NULL,
+  `spi` varchar(25) NOT NULL,
   `subl` mediumtext,
-  PRIMARY KEY (`pi`,`ri`,`ty`),
-  UNIQUE KEY `ri_UNIQUE` (`ri`),
+  PRIMARY KEY (`ri`),
   KEY `idx_lookup_ty` (`ty`) USING BTREE,
-  KEY `idx_lookup_pi` (`pi`,`st`,`ct`) USING BTREE
+  KEY `idx_lookup_pi` (`pi`,`ct`,`st`) USING BTREE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
@@ -264,7 +271,6 @@ CREATE TABLE `mgo` (
   `far` varchar(45) DEFAULT NULL,
   `cr` varchar(45) DEFAULT NULL,
   PRIMARY KEY (`ri`),
-  UNIQUE KEY `ri_UNIQUE` (`ri`),
   CONSTRAINT `mgo_ri` FOREIGN KEY (`ri`) REFERENCES `lookup` (`ri`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
@@ -286,7 +292,6 @@ CREATE TABLE `mms` (
   `sst` varchar(45) DEFAULT NULL,
   `cr` varchar(45) DEFAULT NULL,
   PRIMARY KEY (`ri`),
-  UNIQUE KEY `ri_UNIQUE` (`ri`),
   CONSTRAINT `mms_ri` FOREIGN KEY (`ri`) REFERENCES `lookup` (`ri`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
@@ -305,7 +310,6 @@ CREATE TABLE `nod` (
   `mgca` varchar(45) DEFAULT NULL,
   `cr` varchar(45) DEFAULT NULL,
   PRIMARY KEY (`ri`),
-  UNIQUE KEY `ri_UNIQUE` (`ri`),
   CONSTRAINT `nod_ri` FOREIGN KEY (`ri`) REFERENCES `lookup` (`ri`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
@@ -329,7 +333,6 @@ CREATE TABLE `req` (
   `ors` varchar(45) DEFAULT NULL,
   `cr` varchar(45) DEFAULT NULL,
   PRIMARY KEY (`ri`),
-  UNIQUE KEY `ri_UNIQUE` (`ri`),
   CONSTRAINT `req_ri` FOREIGN KEY (`ri`) REFERENCES `lookup` (`ri`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
@@ -350,7 +353,6 @@ CREATE TABLE `smd` (
   `rels` varchar(400) DEFAULT NULL,
   `dcrp` longtext,
   PRIMARY KEY (`ri`),
-  UNIQUE KEY `ri_UNIQUE` (`ri`),
   CONSTRAINT `sd_ri` FOREIGN KEY (`ri`) REFERENCES `lookup` (`ri`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
@@ -398,7 +400,6 @@ CREATE TABLE `sub` (
   `cr` varchar(45) DEFAULT NULL,
   `su` varchar(45) DEFAULT NULL,
   PRIMARY KEY (`ri`),
-  UNIQUE KEY `resourceid_UNIQUE` (`ri`),
   CONSTRAINT `sub_ri` FOREIGN KEY (`ri`) REFERENCES `lookup` (`ri`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
@@ -426,7 +427,6 @@ CREATE TABLE `tm` (
   `rsps` mediumtext,
   `cr` varchar(45) DEFAULT NULL,
   PRIMARY KEY (`ri`),
-  UNIQUE KEY `ri_UNIQUE` (`ri`),
   CONSTRAINT `tm_ri` FOREIGN KEY (`ri`) REFERENCES `lookup` (`ri`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1;
 /*!40101 SET character_set_client = @saved_cs_client */;
@@ -451,7 +451,6 @@ CREATE TABLE `tr` (
   `trqp` mediumtext NOT NULL,
   `trsp` mediumtext,
   PRIMARY KEY (`ri`),
-  UNIQUE KEY `ri_UNIQUE` (`ri`),
   CONSTRAINT `tr_ri` FOREIGN KEY (`ri`) REFERENCES `lookup` (`ri`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1;
 /*!40101 SET character_set_client = @saved_cs_client */;
@@ -479,7 +478,6 @@ CREATE TABLE `ts` (
   `mdc` varchar(45) DEFAULT NULL,
   `mdt` varchar(45) DEFAULT NULL,
   PRIMARY KEY (`ri`),
-  UNIQUE KEY `ri_UNIQUE` (`ri`),
   CONSTRAINT `ts_ri` FOREIGN KEY (`ri`) REFERENCES `lookup` (`ri`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
@@ -494,12 +492,12 @@ DROP TABLE IF EXISTS `tsi`;
 CREATE TABLE `tsi` (
   `pi` varchar(200) NOT NULL,
   `ri` varchar(200) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
-  `cs` int(11) DEFAULT NULL,
+  `cs` int(11) NOT NULL,
   `dgt` varchar(45) DEFAULT NULL,
   `con` varchar(45) DEFAULT NULL,
   `sqn` varchar(45) DEFAULT NULL,
   `cr` varchar(45) DEFAULT NULL,
-  PRIMARY KEY (`pi`,`ri`),
+  PRIMARY KEY (`ri`,`pi`,`cs`),
   UNIQUE KEY `ri_UNIQUE` (`ri`),
   CONSTRAINT `tsi_ri` FOREIGN KEY (`ri`) REFERENCES `lookup` (`ri`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
@@ -514,4 +512,4 @@ CREATE TABLE `tsi` (
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2018-12-23 18:49:36
+-- Dump completed on 2019-11-03 12:31:45
