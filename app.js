@@ -168,8 +168,8 @@ if (use_clustering) {
                             cb.create(connection, function (rsp) {
                                 console.log(JSON.stringify(rsp));
 
-                                wdt.set_wdt(require('shortid').generate(), 43200, del_req_resource);
-                                wdt.set_wdt(require('shortid').generate(), 86400, del_expired_resource);
+                                setInterval(del_req_resource, (24) * (60) * (1000));
+                                setInterval(del_expired_resource, (24) * (60) * (1000));
 
                                 require('./pxy_mqtt');
                                 require('./pxy_coap');
