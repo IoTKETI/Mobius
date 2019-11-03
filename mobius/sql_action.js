@@ -1293,6 +1293,11 @@ function search_lookup_action(connection, pi_list, count, result_ri, query_where
 }
 
 function search_resource_action(connection, p_loop_count, ri, query, cur_lim, pi_list, cni, loop_count, seekObj, callback) {
+    if(loop_count >= 20) {
+        callback(null, seekObj);
+        return;
+    }
+
     var query_where = '';
     var query_count = 0;
     if (query.lbl != null) {
@@ -1415,7 +1420,7 @@ function search_resource_action(connection, p_loop_count, ri, query, cur_lim, pi
     if (query.la != null) {
         cur_lim = parseInt(query.la, 10)+1;
 
-        var before_ct = moment().subtract(Math.pow(20, ++loop_count), 'minutes').utc().format('YYYYMMDDTHHmmss');
+        var before_ct = moment().subtract(Math.pow(2, loop_count*1), 'minutes').utc().format('YYYYMMDDTHHmmss');
 
         query_where += ' and ';
         query_where += util.format(' (\'%s\' < ct) ', before_ct);
@@ -1447,10 +1452,13 @@ function search_resource_action(connection, p_loop_count, ri, query, cur_lim, pi
             if(query.la != null) {
                 //seekObj[search_Obj[0].ri] = search_Obj[0]; // when search resource it's not included target resource
                 var st_idx = (search_Obj.length > parseInt(cur_lim, 10)) ? (search_Obj.length - parseInt(cur_lim, 10) + 1) : 0;
-                for(i = search_Obj.length-1; i >= st_idx; i--) {
-                    seekObj[search_Obj[i].ri] = search_Obj[i];
-                    if(Object.keys(seekObj).length > cur_lim) {
-                        break;
+                search_Obj = search_Obj.reverse();
+                for(var i in search_Obj) {
+                    if(search_Obj.hasOwnProperty(i)) {
+                        seekObj[search_Obj[i].ri] = search_Obj[i];
+                        if (Object.keys(seekObj).length > cur_lim) {
+                            break;
+                        }
                     }
                 }
 
@@ -1461,26 +1469,13 @@ function search_resource_action(connection, p_loop_count, ri, query, cur_lim, pi
                             search_Obj.push(seekObj[idx]);
                         }
                     }
-                    search_Obj.reverse();
                     callback(err, search_Obj);
                 }
                 else {
-                    if(loop_count >= 5) {
-                        search_Obj = [];
-                        for(idx in seekObj) {
-                            if(seekObj.hasOwnProperty(idx)) {
-                                search_Obj.push(seekObj[idx]);
-                            }
-                        }
-                        search_Obj.reverse();
+                    var foundCount = Object.keys(seekObj).length;
+                    search_resource_action(connection, p_loop_count, ri, query, parseInt(cur_lim, 10) - foundCount, pi_list, cni, ++loop_count, seekObj, function (err, search_Obj) {
                         callback(err, search_Obj);
-                    }
-                    else {
-                        var foundCount = Object.keys(seekObj).length;
-                        search_resource_action(connection, p_loop_count, ri, query, parseInt(cur_lim, 10) - foundCount, pi_list, cni, loop_count, seekObj, function (err, search_Obj) {
-                            callback(err, search_Obj);
-                        });
-                    }
+                    });
                 }
             }
             else {
