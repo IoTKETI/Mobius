@@ -681,6 +681,8 @@ function create_action(request, response, ty, resource_Obj, callback) {
             body_Obj = {};
             body_Obj['dbg'] = "this resource of mgmtObj is not supported";
             responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
+            callback('0', resource_Obj);
+            return '0';
         }
     }
     else if (ty == '14') {

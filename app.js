@@ -517,6 +517,7 @@ function parse_to_json(request, response, callback) {
                 if (err) {
                     responder.error_result(request, response, 400, 4000, '[parse_to_json] do not parse xml body' + err.message);
                     callback('0', body_Obj);
+                    return '0';
                 }
                 else {
                     body_Obj = result;
@@ -532,6 +533,7 @@ function parse_to_json(request, response, callback) {
         catch(e) {
             responder.error_result(request, response, 400, 4000, '[parse_to_json] do not parse xml body');
             callback('0', body_Obj);
+            return '0';
         }
     }
     else if (request.usebodytype === 'cbor') {
@@ -541,6 +543,7 @@ function parse_to_json(request, response, callback) {
                 if (err) {
                     responder.error_result(request, response, 400, 4000, '[parse_to_json] do not parse cbor body');
                     callback('0', body_Obj);
+                    return '0';
                 }
                 else {
                     body_Obj = result;
@@ -556,6 +559,7 @@ function parse_to_json(request, response, callback) {
         catch(e) {
             responder.error_result(request, response, 400, 4000, '[parse_to_json] do not parse cbor body');
             callback('0', body_Obj);
+            return '0';
         }
     }
     else {
@@ -566,6 +570,7 @@ function parse_to_json(request, response, callback) {
             if (Object.keys(body_Obj)[0] == 'undefined') {
                 responder.error_result(request, response, 400, 4000, '[parse_to_json] root tag of body is not matched');
                 callback('0', body_Obj);
+                return '0';
             }
 
             request.headers.rootnm = Object.keys(body_Obj)[0];
@@ -575,6 +580,7 @@ function parse_to_json(request, response, callback) {
         catch (e) {
             responder.error_result(request, response, 400, 4000, '[parse_to_json] do not parse json body');
             callback('0', body_Obj);
+            return '0';
         }
     }
 }
@@ -1812,10 +1818,12 @@ app.post(onem2mParser, function (request, response) {
                     }
                     else {
                         responder.error_result(request, response, http_code, rsc_code, 'rcn or fu query is not supported at POST request');
+                        return '0';
                     }
                 }
                 else if (status == '0') {
                     responder.error_result(request, response, http_code, rsc_code, caption);
+                    return '0';
                 }
             });
         }
@@ -1861,6 +1869,7 @@ app.get(onem2mParser, function (request, response) {
     }
     else {
         responder.error_result(request, response, 400, 4000, 'BAD_REQUEST (rcn or fu query is not supported at GET request)');
+        return '0';
     }
 });
 
@@ -1945,6 +1954,7 @@ app.put(onem2mParser, function (request, response) {
             }
             else {
                 responder.error_result(request, response, 400, 4000, 'rcn query is not supported at PUT request');
+                return '0';
             }
         }
     });
@@ -1995,6 +2005,7 @@ app.delete(onem2mParser, function (request, response) {
     }
     else {
         responder.error_result(request, response, 400, 4000, 'rcn query is not supported at DELETE request');
+        return '0';
     }
 });
 
@@ -2039,14 +2050,17 @@ function check_ae(absolute_url, request, response) {
                     }
                     else if (poa.protocol == 'mqtt:') {
                         responder.error_result(request, response, 500, 5000, 'notification with mqtt is not supported');
+                        return '0';
                     }
                     else if (poa.protocol == 'ws:') {
                         responder.error_result(request, response, 500, 5000, 'notification with mqtt is not supported');
+                        return '0';
                     }
                     else {
                         point = {};
                         point['dbg'] = 'protocol(' + poa.protocol + ') in poa of ae is not supported';
                         responder.error_result(request, response, 400, 4000, point['dbg']);
+                        return '0';
                     }
                 }
             }
@@ -2054,6 +2068,7 @@ function check_ae(absolute_url, request, response) {
                 point = {};
                 point['dbg'] = 'ae is not found';
                 responder.error_result(request, response, 400, 4000, point['dbg']);
+                return '0';
             }
         }
         else {
@@ -2086,11 +2101,13 @@ function check_csr(absolute_url, request, response) {
                         point.forwardcbmqtt = poa.hostname;
 
                         responder.error_result(request, response, 500, 5000, 'forwarding with mqtt is not supported');
+                        return '0';
                     }
                     else {
                         point = {};
                         point['dbg'] = 'protocol(' + poa.protocol + ') in poa of csr is not supported';
                         responder.error_result(request, response, 400, 4000, point['dbg']);
+                        return '0';
                     }
                 }
             }
@@ -2098,6 +2115,7 @@ function check_csr(absolute_url, request, response) {
                 point = {};
                 point['dbg'] = 'csebase is not found';
                 responder.error_result(request, response, 400, 4000, point['dbg']);
+                return '0';
             }
         }
         else {
