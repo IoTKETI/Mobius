@@ -806,10 +806,11 @@ function typeCheckAction(index1, body_Obj) {
         if(body_Obj.hasOwnProperty(index2)) {
             if (body_Obj[index2] == null || body_Obj[index2] == '' || body_Obj[index2] == 'undefined' || body_Obj[index2] == '[]' || body_Obj[index2] == '\"\"') {
                 //delete body_Obj[index2];
-                if(index2 != 'pi') {
-                    delete body_Obj[index2];
+                if(index2 == 'pi') {
                 }
-                else if(index2 != 'pv') {
+                else if(index2 == 'pv') {
+                }
+                else {
                     delete body_Obj[index2];
                 }
             }
