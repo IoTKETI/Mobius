@@ -1294,7 +1294,13 @@ function search_lookup_action(connection, pi_list, count, result_ri, query_where
 
 function search_resource_action(connection, p_loop_count, ri, query, cur_lim, pi_list, cni, loop_count, seekObj, callback) {
     if(loop_count >= 20) {
-        callback(null, seekObj);
+        var search_Obj = [];
+        for(var idx in seekObj) {
+            if(seekObj.hasOwnProperty(idx)) {
+                search_Obj.push(seekObj[idx]);
+            }
+        }
+        callback(null, search_Obj);
         return;
     }
 
