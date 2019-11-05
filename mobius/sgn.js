@@ -324,13 +324,15 @@ function sgn_action(connection, rootnm, check_value, results_ss, noti_Obj, sub_b
                                                     nu = 'http://localhost:7579' + absolute_url;
                                                     sub_nu = url.parse(nu);
                                                     if (nct == 2 || nct == 1) {
-                                                        sgn_action_send(nu, sub_nu, sub_bodytype, node, short_flag, check_value, results_ss.cr, results_ss.ri, xm2mri, results_ss.exc);
+                                                        var gap = parseInt(1 + Math.random() * 10);
+                                                        setTimeout(sgn_action_send, gap, nu, sub_nu, sub_bodytype, node, short_flag, check_value, results_ss.cr, results_ss.ri, xm2mri, results_ss.exc);
                                                     }
                                                 }
                                                 else {
                                                     nu = poa_arr[i];
                                                     if (nct == 2 || nct == 1) {
-                                                        sgn_action_send(nu, sub_nu, sub_bodytype, node, short_flag, check_value, results_ss.cr, results_ss.ri, xm2mri, results_ss.exc);
+                                                        gap = parseInt(1 + Math.random() * 10);
+                                                        setTimeout(sgn_action_send, gap, nu, sub_nu, sub_bodytype, node, short_flag, check_value, results_ss.cr, results_ss.ri, xm2mri, results_ss.exc);
                                                     }
                                                 }
                                             }
@@ -346,7 +348,8 @@ function sgn_action(connection, rootnm, check_value, results_ss, noti_Obj, sub_b
                 }
                 else { // url format
                     if (nct == 2 || nct == 1) {
-                        sgn_action_send(nu, sub_nu, sub_bodytype, node, short_flag, check_value, results_ss.cr, results_ss.ri, xm2mri, results_ss.exc);
+                        var gap = parseInt(1 + Math.random() * 10);
+                        setTimeout(sgn_action_send, gap, nu, sub_nu, sub_bodytype, node, short_flag, check_value, results_ss.cr, results_ss.ri, xm2mri, results_ss.exc);
                     }
                     else {
                         console.log('nct except 2 (All Attribute) do not support');
@@ -386,13 +389,15 @@ exports.check = function(request, notiObj, check_value) {
             results_ss.enc.net.push('3');
             results_ss.nu = [];
             results_ss.nu.push((request.query.hasOwnProperty('nu') ? request.query.nu : 'http://localhost'));
-            sgn_action(request.connection, rootnm, check_value, results_ss, noti_Obj, request.usebodytype);
+            var gap = parseInt(1 + Math.random() * 10);
+            setTimeout(sgn_action, gap, request.connection, rootnm, check_value, results_ss, noti_Obj, request.usebodytype);
         }
         return'1';
     }
 
     if(check_value == 256 || check_value == 128) { // verification
-        sgn_action(request.connection, rootnm, check_value, notiObj, noti_Obj, request.usebodytype);
+        gap = parseInt(1 + Math.random() * 10);
+        setTimeout(sgn_action, gap, request.connection, rootnm, check_value, notiObj, noti_Obj, request.usebodytype);
     }
     else {
         var noti_ri = noti_Obj.ri;
@@ -408,10 +413,13 @@ exports.check = function(request, notiObj, check_value) {
             }
 
             console.log('send sgn ' + i);
-            sgn_action(request.connection, rootnm, check_value, subl[i], noti_Obj, request.usebodytype);
+            gap = parseInt(1 + Math.random() * 10);
+            setTimeout(sgn_action, gap, request.connection, rootnm, check_value, subl[i], noti_Obj, request.usebodytype);
         }
     }
 };
+
+
 
 function request_noti(nu, ri, bodyString, bodytype, xm2mri, exc) {
     var options = {

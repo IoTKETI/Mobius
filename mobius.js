@@ -16,8 +16,15 @@
 
 var fs = require('fs');
 
-var data  = fs.readFileSync('conf.json', 'utf-8');
-var conf = JSON.parse(data);
+var conf = {};
+try {
+    conf = JSON.parse(fs.readFileSync('conf.json', 'utf8'));
+}
+catch (e) {
+    conf.csebaseport = "7579";
+    conf.dbpass = "dksdlfduq2";
+    fs.writeFileSync('conf.json', JSON.stringify(conf, null, 4), 'utf8');
+}
 
 global.defaultbodytype      = 'json';
 
