@@ -140,6 +140,10 @@ exports.post = function(ri, exc, nu, bodytype, rqi, bodyString, parentObj) {
         }
 
         if (ss_fail_count[ri] >= MAX_NUM_RETRY) {
+            var aeid = url.parse(nu).pathname.replace('/', '').split('?')[0];
+            var noti_resp_topic = '/oneM2M/resp/' + usecseid.replace('/', '') + '/' + aeid + '/' + bodytype;
+            sgn_mqtt_client.unsubscribe(noti_resp_topic);
+
             delete ss_fail_count[ri];
             delete_sub(ri, rqi, parentObj);
         }
@@ -205,7 +209,7 @@ function sgn_mqtt_message_handler(topic, message) {
                     if(timerID.hasOwnProperty(jsonObj['m2m:rsp'].rqi)) {
                         clearTimeout(timerID[jsonObj['m2m:rsp'].rqi]);
                         delete timerID[jsonObj['m2m:rsp'].rqi];
-                        sgn_mqtt_client.unsubscribe(topic);
+                        //sgn_mqtt_client.unsubscribe(topic);
                     }
 
                     if(resp_mqtt_rqi_arr.hasOwnProperty(jsonObj['m2m:rsp'].rqi)) {
