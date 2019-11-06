@@ -2619,7 +2619,6 @@ function delete_action(request, response, resource_Obj, comm_Obj, callback) {
                                     if(parentObj.subl.hasOwnProperty(idx)) {
                                         if(parentObj.subl[idx].ri == comm_Obj.ri) {
                                             parentObj.subl.splice(idx, 1);
-                                            break;
                                         }
                                     }
                                 }

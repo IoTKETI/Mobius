@@ -179,7 +179,7 @@ function make_body_string_for_noti(protocol, nu, node, sub_bodytype, xm2mri, sho
     }
 }
 
-function sgn_action_send(nu, sub_nu, sub_bodytype, node, short_flag, check_value, ss_cr, ss_ri, xm2mri, exc) {
+function sgn_action_send(nu, sub_nu, sub_bodytype, node, short_flag, check_value, ss_cr, ss_ri, xm2mri, exc, parentObj) {
     if (sub_nu.query != null) {
         var sub_nu_query_arr = sub_nu.query.split('&');
         for (var prop in sub_nu_query_arr) {
@@ -247,12 +247,12 @@ function sgn_action_send(nu, sub_nu, sub_bodytype, node, short_flag, check_value
         }
         else {
             //request_noti(nu, ss_ri, bodyString, sub_bodytype, xm2mri, exc);
-            sgn_man.post(ss_ri, exc, nu, sub_bodytype, xm2mri, bodyString);
+            sgn_man.post(ss_ri, exc, nu, sub_bodytype, xm2mri, bodyString, parentObj);
         }
     });
 }
 
-function sgn_action(connection, rootnm, check_value, results_ss, noti_Obj, sub_bodytype) {
+function sgn_action(connection, rootnm, check_value, results_ss, noti_Obj, sub_bodytype, parentObj) {
     var notiObj = merge({}, noti_Obj);
 
     var nct = results_ss.nct;
@@ -325,14 +325,14 @@ function sgn_action(connection, rootnm, check_value, results_ss, noti_Obj, sub_b
                                                     sub_nu = url.parse(nu);
                                                     if (nct == 2 || nct == 1) {
                                                         var gap = parseInt(1 + Math.random() * 10);
-                                                        setTimeout(sgn_action_send, gap, nu, sub_nu, sub_bodytype, node, short_flag, check_value, results_ss.cr, results_ss.ri, xm2mri, results_ss.exc);
+                                                        setTimeout(sgn_action_send, gap, nu, sub_nu, sub_bodytype, node, short_flag, check_value, results_ss.cr, results_ss.ri, xm2mri, results_ss.exc, parentObj);
                                                     }
                                                 }
                                                 else {
                                                     nu = poa_arr[i];
                                                     if (nct == 2 || nct == 1) {
                                                         gap = parseInt(1 + Math.random() * 10);
-                                                        setTimeout(sgn_action_send, gap, nu, sub_nu, sub_bodytype, node, short_flag, check_value, results_ss.cr, results_ss.ri, xm2mri, results_ss.exc);
+                                                        setTimeout(sgn_action_send, gap, nu, sub_nu, sub_bodytype, node, short_flag, check_value, results_ss.cr, results_ss.ri, xm2mri, results_ss.exc, parentObj);
                                                     }
                                                 }
                                             }
@@ -349,7 +349,7 @@ function sgn_action(connection, rootnm, check_value, results_ss, noti_Obj, sub_b
                 else { // url format
                     if (nct == 2 || nct == 1) {
                         var gap = parseInt(1 + Math.random() * 10);
-                        setTimeout(sgn_action_send, gap, nu, sub_nu, sub_bodytype, node, short_flag, check_value, results_ss.cr, results_ss.ri, xm2mri, results_ss.exc);
+                        setTimeout(sgn_action_send, gap, nu, sub_nu, sub_bodytype, node, short_flag, check_value, results_ss.cr, results_ss.ri, xm2mri, results_ss.exc, parentObj);
                     }
                     else {
                         console.log('nct except 2 (All Attribute) do not support');
@@ -379,6 +379,8 @@ exports.check = function(request, notiObj, check_value) {
     var noti_Str = JSON.stringify(notiObj);
     var noti_Obj = JSON.parse(noti_Str);
 
+    var parentObj = JSON.parse(JSON.stringify(request.targetObject))[Object.keys(request.targetObject)[0]];
+
     if (request.query.real == 4) {
         if(request.query.hasOwnProperty('nu')) {
             var results_ss = {};
@@ -390,14 +392,14 @@ exports.check = function(request, notiObj, check_value) {
             results_ss.nu = [];
             results_ss.nu.push((request.query.hasOwnProperty('nu') ? request.query.nu : 'http://localhost'));
             var gap = parseInt(1 + Math.random() * 10);
-            setTimeout(sgn_action, gap, request.connection, rootnm, check_value, results_ss, noti_Obj, request.usebodytype);
+            setTimeout(sgn_action, gap, request.connection, rootnm, check_value, results_ss, noti_Obj, request.usebodytype, parentObj);
         }
         return'1';
     }
 
     if(check_value == 256 || check_value == 128) { // verification
         gap = parseInt(1 + Math.random() * 10);
-        setTimeout(sgn_action, gap, request.connection, rootnm, check_value, notiObj, noti_Obj, request.usebodytype);
+        setTimeout(sgn_action, gap, request.connection, rootnm, check_value, notiObj, noti_Obj, request.usebodytype, parentObj);
     }
     else {
         var noti_ri = noti_Obj.ri;
@@ -414,7 +416,7 @@ exports.check = function(request, notiObj, check_value) {
 
             console.log('send sgn ' + i);
             gap = parseInt(1 + Math.random() * 10);
-            setTimeout(sgn_action, gap, request.connection, rootnm, check_value, subl[i], noti_Obj, request.usebodytype);
+            setTimeout(sgn_action, gap, request.connection, rootnm, check_value, subl[i], noti_Obj, request.usebodytype, parentObj);
         }
     }
 };

@@ -17,17 +17,11 @@
 var fs = require('fs');
 var http = require('http');
 var https = require('https');
-var express = require('express');
-var bodyParser = require('body-parser');
 var mqtt = require('mqtt');
-var util = require('util');
-var xml2js = require('xml2js');
-var js2xmlparser = require('js2xmlparser');
 var url = require('url');
-var xmlbuilder = require('xmlbuilder');
-var moment = require('moment');
-var ip = require("ip");
-var cbor = require('cbor');
+
+var db = require('./db_action');
+var db_sql = require('./sql_action');
 
 var resp_mqtt_rqi_arr = {};
 
@@ -134,7 +128,7 @@ if(sgn_mqtt_client == null) {
     });
 }
 //
-exports.post = function(ri, exc, nu, bodytype, rqi, bodyString) {
+exports.post = function(ri, exc, nu, bodytype, rqi, bodyString, parentObj) {
     try {
         if(ss_fail_count.hasOwnProperty(ri)) {
             if(exc != "" && ( exc == 0 || exc == '0')) {
@@ -147,8 +141,7 @@ exports.post = function(ri, exc, nu, bodytype, rqi, bodyString) {
 
         if (ss_fail_count[ri] >= MAX_NUM_RETRY) {
             delete ss_fail_count[ri];
-            delete_sub(ri, rqi);
-            console.log('      [sgn_man] remove subscription because no response');
+            delete_sub(ri, rqi, parentObj);
         }
         else {
             var sub_nu = url.parse(nu);
@@ -402,7 +395,7 @@ function request_noti_mqtt(nu, ri, bodyString, bodytype, xm2mri) {
         timerID[xm2mri] = setTimeout(checkResponseMqtt, 3000, ri, noti_resp_topic, xm2mri);
 
         console.log('<======= [request_noti_mqtt - ' + ri + '] publish - ' + noti_topic);
-        console.log(bodyString);
+        //console.log(bodyString);
     }
     catch (e) {
         console.log(e.message);
@@ -456,20 +449,20 @@ function request_noti_ws(nu, ri, bodyString, bodytype, xm2mri) {
             ws_client.removeAllListeners();
         });
 
-        ws_client.on('connect', function (connection) {
+        ws_client.on('connect', function (conn) {
             console.log('<======= [request_noti_ws] - connection - ' + ri + ' - ' + xm2mri);
-            timerID[xm2mri] = setTimeout(checkResponse, 3000, ri, xm2mri, connection);
+            timerID[xm2mri] = setTimeout(checkResponse, 3000, ri, xm2mri, conn);
 
-            connection.sendUTF(bodyString);
+            conn.sendUTF(bodyString);
 
-            connection.on('error', function (error) {
+            conn.on('error', function (error) {
                 //console.log("[request_noti_ws] Connection Error: " + error.toString());
 
             });
-            connection.on('close', function () {
+            conn.on('close', function () {
                 //console.log('[request_noti_ws] Connection Closed');
             });
-            connection.on('message', function (message) {
+            conn.on('message', function (message) {
                 console.log(message.utf8Data.toString());
 
                 //console.log('----> [request_noti_ws] ' + message.utf8Data.toString());
@@ -486,7 +479,7 @@ function request_noti_ws(nu, ri, bodyString, bodytype, xm2mri) {
                     delete ss_fail_count[ri];
                 }
 
-                connection.close();
+                conn.close();
             });
         });
     }
@@ -496,55 +489,29 @@ function request_noti_ws(nu, ri, bodyString, bodytype, xm2mri) {
 }
 
 
-function delete_sub(ri, xm2mri) {
-    var bodyStr = '';
-    var options = {
-        hostname: 'localhost',
-        port: usecsebaseport,
-        path: ri,
-        method: 'DELETE',
-        headers: {
-            'X-M2M-RI': xm2mri,
-            'Accept': 'application/json',
-            'X-M2M-Origin': usesuperuser,
-            'X-M2M-RVI': uservi
+
+function delete_sub(ri, xm2mri, parentObj) {
+    db.getConnection(function (err, connection) {
+        if(err) {
+            console.log('[delete_sub] - No Connection');
         }
-    };
-
-    function response_del_sub(res) {
-        res.on('data', function (chunk) {
-            bodyStr += chunk;
-        });
-
-        res.on('end', function () {
-            if (res.statusCode == 200 || res.statusCode == 202) {
-                delete ss_fail_count[ri];
-                console.log('----> [delete_sub - ' + res.statusCode + ']');
+        else {
+            for (var idx in parentObj.subl) {
+                if (parentObj.subl.hasOwnProperty(idx)) {
+                    if (parentObj.subl[idx].ri == ri) {
+                        parentObj.subl.splice(idx, 1);
+                    }
+                }
             }
-        });
-    }
 
-    if(use_secure == 'disable') {
-        var req = http.request(options, function (res) {
-            response_del_sub(res);
-        });
-    }
-    else {
-        options.ca = fs.readFileSync('ca-crt.pem');
-        req = https.request(options, function (res) {
-            response_del_sub(res);
-        });
-    }
-
-    req.on('error', function (e) {
-        console.log('[delete_sub - problem with request: ' + e.message + ']');
+            db_sql.update_lookup(connection, parentObj, function (err, results) {
+                if (!err) {
+                    db_sql.delete_ri_lookup(connection, ri, function () {
+                        db.releaseConnection(connection);
+                        console.log('      [sgn_man] remove subscription because no response');
+                    });
+                }
+            });
+        }
     });
-
-    req.on('close', function() {
-        console.log('[delete_sub - close: no response for notification');
-    });
-
-    console.log('<---- [delete_sub - ]');
-    req.write('');
-    req.end();
 }
