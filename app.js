@@ -168,8 +168,8 @@ if (use_clustering) {
                             cb.create(connection, function (rsp) {
                                 console.log(JSON.stringify(rsp));
 
-                                setInterval(del_req_resource, (24) * (60) * (1000));
-                                setInterval(del_expired_resource, (24) * (60) * (1000));
+                                setInterval(del_req_resource, (24) * (60) * (60) * (1000));
+                                setInterval(del_expired_resource, (24) * (60) * (60) * (1000));
 
                                 require('./pxy_mqtt');
                                 require('./pxy_coap');

@@ -323,10 +323,10 @@ function checkResponse(ri, rqi, socket) {
         ss_fail_count[ri]++;
         console.log('=XXXXX=> [' + ss_fail_count[ri] + '] ' + ri);
 
-        if (ss_fail_count[ri] >= MAX_NUM_RETRY) {
-            delete_sub(ri, rqi);
-            console.log('      [sgn_man] remove subscription because no response');
-        }
+        // if (ss_fail_count[ri] >= MAX_NUM_RETRY) {
+        //     delete_sub(ri, rqi);
+        //     console.log('      [sgn_man] remove subscription because no response');
+        // }
     }
 }
 
@@ -415,7 +415,7 @@ function checkResponseMqtt(ri, resp_topic, rqi) {
 
     if(timerID.hasOwnProperty(rqi)) {
         delete timerID[rqi];
-        sgn_mqtt_client.unsubscribe(resp_topic);
+//        sgn_mqtt_client.unsubscribe(resp_topic);
     }
 
     if(resp_mqtt_rqi_arr.hasOwnProperty(rqi)) {
@@ -426,10 +426,10 @@ function checkResponseMqtt(ri, resp_topic, rqi) {
         ss_fail_count[ri]++;
         console.log('=XXXXX=> [' + ss_fail_count[ri] + '] ' + ri);
 
-        if (ss_fail_count[ri] >= MAX_NUM_RETRY) {
-            delete_sub(ri, rqi);
-            console.log('      [sgn_man] remove subscription because no response');
-        }
+        // if (ss_fail_count[ri] >= MAX_NUM_RETRY) {
+        //     delete_sub(ri, rqi);
+        //     console.log('      [sgn_man] remove subscription because no response');
+        // }
     }
 }
 
