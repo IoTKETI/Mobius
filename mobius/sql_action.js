@@ -22,7 +22,7 @@ var db = require('./db_action');
 
 var _this = this;
 
-global.max_lim = 1000;
+global.max_lim = 5000;
 
 exports.set_tuning = function(connection, callback) {
     var sql = util.format('set global max_connections = 2000');
@@ -1136,7 +1136,7 @@ function search_parents_lookup_action(connection, pi_list, count, result_ri, cal
         return;
     }
 
-    var sql = util.format("select ri, ty from lookup where pi = \'" + pi_list[count] + "\' and ty <> \'23\' and ty <> \'4\' and ty <> \'30\' and ty <> \'17\' limit 1000");
+    var sql = util.format("select ri, ty from lookup where pi = \'" + pi_list[count] + "\' and ty <> \'23\' and ty <> \'4\' and ty <> \'30\' and ty <> \'17\' limit 5000");
     db.getResult(sql, connection, function (err, result_lookup_ri) {
         if(!err) {
             if(result_lookup_ri.length === 0) {
