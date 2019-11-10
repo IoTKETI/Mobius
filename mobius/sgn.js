@@ -123,7 +123,10 @@ function make_json_noti_message(nu, pc, xm2mri, short_flag) {
 
         noti_message['m2m:rqp'].pc = pc;
 
-        return JSON.stringify(noti_message['m2m:rqp']);
+        var notiString = JSON.stringify(noti_message['m2m:rqp']);
+        delete noti_message;
+        noti_message = null;
+        return notiString;
     }
     catch (e) {
         console.log('[make_json_noti_message] json parsing error');
@@ -242,6 +245,8 @@ function sgn_action_send(nu, sub_nu, sub_bodytype, node, short_flag, check_value
     }
 
     make_body_string_for_noti(sub_nu.protocol, nu, node, sub_bodytype, xm2mri, short_flag, function (bodyString) {
+        delete node;
+        node = null;
         if (bodyString == "") { // parse error
             console.log('can not send notification since error of converting json to xml');
         }
@@ -284,7 +289,9 @@ function sgn_action(connection, rootnm, check_value, results_ss, noti_Obj, sub_b
                 node['m2m:sgn'].nev = {};
                 node['m2m:sgn'].nev.net = parseInt(net_arr[j].toString());
                 node['m2m:sgn'].nev.rep = {};
-                node['m2m:sgn'].nev.rep['m2m:' + rootnm] = notiObj;
+                node['m2m:sgn'].nev.rep['m2m:' + rootnm] = JSON.parse(JSON.stringify(notiObj));
+                delete notiObj;
+                notiObj = null;
 
                 responder.typeCheckforJson(node['m2m:sgn'].nev.rep);
 
@@ -324,14 +331,14 @@ function sgn_action(connection, rootnm, check_value, results_ss, noti_Obj, sub_b
                                                     nu = 'http://localhost:7579' + absolute_url;
                                                     sub_nu = url.parse(nu);
                                                     if (nct == 2 || nct == 1) {
-                                                        var gap = parseInt(1 + Math.random() * 10);
+                                                        var gap = parseInt(10 + Math.random() * 20);
                                                         setTimeout(sgn_action_send, gap, nu, sub_nu, sub_bodytype, node, short_flag, check_value, results_ss.cr, results_ss.ri, xm2mri, results_ss.exc, parentObj);
                                                     }
                                                 }
                                                 else {
                                                     nu = poa_arr[i];
                                                     if (nct == 2 || nct == 1) {
-                                                        gap = parseInt(1 + Math.random() * 10);
+                                                        gap = parseInt(10 + Math.random() * 20);
                                                         setTimeout(sgn_action_send, gap, nu, sub_nu, sub_bodytype, node, short_flag, check_value, results_ss.cr, results_ss.ri, xm2mri, results_ss.exc, parentObj);
                                                     }
                                                 }
@@ -348,7 +355,7 @@ function sgn_action(connection, rootnm, check_value, results_ss, noti_Obj, sub_b
                 }
                 else { // url format
                     if (nct == 2 || nct == 1) {
-                        var gap = parseInt(1 + Math.random() * 10);
+                        var gap = parseInt(10 + Math.random() * 20);
                         setTimeout(sgn_action_send, gap, nu, sub_nu, sub_bodytype, node, short_flag, check_value, results_ss.cr, results_ss.ri, xm2mri, results_ss.exc, parentObj);
                     }
                     else {
@@ -391,14 +398,14 @@ exports.check = function(request, notiObj, check_value) {
             results_ss.enc.net.push('3');
             results_ss.nu = [];
             results_ss.nu.push((request.query.hasOwnProperty('nu') ? request.query.nu : 'http://localhost'));
-            var gap = parseInt(1 + Math.random() * 10);
+            var gap = parseInt(10 + Math.random() * 10);
             setTimeout(sgn_action, gap, request.connection, rootnm, check_value, results_ss, noti_Obj, request.usebodytype, parentObj);
         }
         return'1';
     }
 
     if(check_value == 256 || check_value == 128) { // verification
-        gap = parseInt(1 + Math.random() * 10);
+        gap = parseInt(10 + Math.random() * 10);
         setTimeout(sgn_action, gap, request.connection, rootnm, check_value, notiObj, noti_Obj, request.usebodytype, parentObj);
     }
     else {
@@ -415,7 +422,7 @@ exports.check = function(request, notiObj, check_value) {
             }
 
             console.log('send sgn ' + i);
-            gap = parseInt(1 + Math.random() * 10);
+            gap = parseInt(10 + Math.random() * 10);
             setTimeout(sgn_action, gap, request.connection, rootnm, check_value, subl[i], noti_Obj, request.usebodytype, parentObj);
         }
     }

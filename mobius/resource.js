@@ -509,8 +509,12 @@ function create_action(request, response, ty, resource_Obj, callback) {
                     //request_update_cnt(JSON.stringify(targetObject), cs);
 
                     cnt_man.put(request.connection, JSON.stringify(targetObject));
+                    delete targetObject;
+                    targetObject = null;
                 });
 
+                delete results;
+                results = null;
                 callback('1', resource_Obj);
             }
             else {
@@ -524,6 +528,8 @@ function create_action(request, response, ty, resource_Obj, callback) {
                     body_Obj['dbg'] = '[create_action] ' + results.message;
                     responder.response_result(request, response, 500, body_Obj, 5000, request.url, body_Obj['dbg']);
                 }
+                delete results;
+                results = null;
                 callback('0', resource_Obj);
                 return '0';
             }
@@ -1232,6 +1238,9 @@ function build_resource(request, response, ty, body_Obj, callback) {
 exports.create = function (request, response, ty, body_Obj, callback) {
     var rootnm = request.headers.rootnm;
     build_resource(request, response, ty, body_Obj, function (rsc, resource_Obj) {
+        delete body_Obj;
+        body_Obj = null;
+
         if (rsc == '0') {
             callback(rsc);
             return rsc;
@@ -1261,6 +1270,8 @@ exports.create = function (request, response, ty, body_Obj, callback) {
             _this.remove_no_value(request, resultObj);
 
             responder.response_result(request, response, 201, resultObj, 2001, resultObj[rootnm].ri, '');
+            delete resource_Obj;
+            resource_Obj = null;
             callback(rsc);
             return '0';
         }
@@ -1298,6 +1309,8 @@ exports.create = function (request, response, ty, body_Obj, callback) {
                     resource_Obj.uri = {};
                     resource_Obj.uri = create_Obj[rootnm].ri.replace('/', '');
                     responder.response_result(request, response, status_code, resource_Obj, rsc_code, create_Obj[rootnm].ri, '');
+                    delete create_Obj;
+                    create_Obj = null;
                     callback(rsc);
                     return 0;
                 }
@@ -1320,11 +1333,13 @@ exports.create = function (request, response, ty, body_Obj, callback) {
                     status_code = 201;
                     rsc_code = 2001;
                     request.headers.rootnm = 'uri';
-                    var resource_Obj = {};
+                    resource_Obj = {};
                     resource_Obj.uri = {};
                     resource_Obj.uri = create_Obj[rootnm].ri;
                     resource_Obj.uri = resource_Obj.uri.replace('/', ''); // make cse relative uri
                     responder.response_result(request, response, status_code, resource_Obj, rsc_code, create_Obj[rootnm].ri, '');
+                    delete create_Obj;
+                    create_Obj = null;
                     callback(rsc);
                     return 0;
                 }
@@ -1338,11 +1353,15 @@ exports.create = function (request, response, ty, body_Obj, callback) {
                     create_Obj.rce[rootnm] = create_Obj[rootnm];
                     delete create_Obj[rootnm];
                     responder.response_rcn3_result(request, response, status_code, create_Obj, rsc_code, create_Obj.rce[rootnm].ri, '');
+                    delete create_Obj;
+                    create_Obj = null;
                     callback(rsc);
                     return '0';
                 }
                 else {
                     responder.response_result(request, response, status_code, create_Obj, rsc_code, create_Obj[rootnm].ri, '');
+                    delete create_Obj;
+                    create_Obj = null;
                     callback(rsc);
                     return '0';
                 }

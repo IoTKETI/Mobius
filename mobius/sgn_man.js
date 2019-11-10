@@ -148,6 +148,8 @@ exports.post = function(ri, exc, nu, bodytype, rqi, bodyString, parentObj) {
             delete_sub(ri, rqi, parentObj);
         }
         else {
+            delete parentObj;
+            parentObj = null;
             var sub_nu = url.parse(nu);
             if (sub_nu.protocol == 'http:' || sub_nu.protocol == 'https:') {
                 request_noti_http(nu, ri, bodyString, bodytype, rqi);
@@ -513,6 +515,8 @@ function delete_sub(ri, xm2mri, parentObj) {
                     db_sql.delete_ri_lookup(connection, ri, function () {
                         db.releaseConnection(connection);
                         console.log('      [sgn_man] remove subscription because no response');
+                        delete parentObj;
+                        parentObj = null;
                     });
                 }
             });

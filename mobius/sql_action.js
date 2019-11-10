@@ -789,6 +789,10 @@ exports.select_resource_from_url = function(connection, ri, sri, callback) {
                 db.getResult(sql, connection, function (err, spec_Obj) {
                     var resource_Obj = [];
                     resource_Obj.push(merge(comm_Obj[0], spec_Obj[0]));
+                    comm_Obj = [];
+                    spec_Obj = [];
+                    comm_Obj = null;
+                    spec_Obj = null;
                     callback(err, resource_Obj);
                 });
             }

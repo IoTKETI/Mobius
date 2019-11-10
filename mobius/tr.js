@@ -378,9 +378,9 @@ exports.request_commit = function(obj, callback) {
     req.end();
 };
 
-exports.check = function(request, pi, body_Obj, callback) {
+exports.check = function(request, pi, callback) {
     if(request.query.real == 4) {
-        callback('1', body_Obj);
+        callback('1');
         return '1';
     }
 
@@ -390,7 +390,7 @@ exports.check = function(request, pi, body_Obj, callback) {
         if (!err) {
             for (var i = 0; i < results_tr.length; i++) {
                 if(request.query.tid == results_tr[i].tid) {
-                    callback('1', body_Obj);
+                    callback('1');
                     return '0';
                 }
 
@@ -421,15 +421,15 @@ exports.check = function(request, pi, body_Obj, callback) {
             }
 
             if (state === tst_v.COMMITTED || state === tst_v.ABORTED) {
-                callback('1', body_Obj);
+                callback('1');
             }
             else {
-                callback('0', body_Obj);
+                callback('0');
             }
         }
         else {
             console.log('query error: ' + results_tr.message);
-            callback('1', body_Obj);
+            callback('1');
         }
     });
 

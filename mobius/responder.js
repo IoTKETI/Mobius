@@ -1631,6 +1631,16 @@ exports.response_result = function(request, response, status, body_Obj, rsc, ri,
                 dbg: cap
             };
             console.log(JSON.stringify(rspObj));
+
+            delete body_Obj;
+            delete request;
+            delete response;
+            delete rspObj;
+
+            body_Obj = null;
+            request = null;
+            response = null;
+            rspObj = null;
         }
         else if (request.query.rt == 1) {
             var op = operation[request.method];
@@ -1645,6 +1655,16 @@ exports.response_result = function(request, response, status, body_Obj, rsc, ri,
                     dbg: cap
                 };
                 console.log(JSON.stringify(rspObj));
+
+                delete body_Obj;
+                delete request;
+                delete response;
+                delete rspObj;
+
+                body_Obj = null;
+                request = null;
+                response = null;
+                rspObj = null;
             });
         }
     }
@@ -1691,10 +1711,30 @@ exports.response_result = function(request, response, status, body_Obj, rsc, ri,
             rspObj.ri = request.method + "-" + ri + "-" + JSON.stringify(request.query);
             rspObj = cap;
             console.log(JSON.stringify(rspObj));
+
+            delete body_Obj;
+            delete request;
+            delete response;
+            delete rspObj;
+
+            body_Obj = null;
+            request = null;
+            response = null;
+            rspObj = null;
         }
         else if (request.query.rt == 1 || (request.query.rt == 2 && request.headers['x-m2m-rtu'] != null && request.headers['x-m2m-rtu'] != '')) {
             store_to_req_resource(request, bodyString, rsc, cap, function () {
                 request.connection.release();
+
+                delete body_Obj;
+                delete request;
+                delete response;
+                delete rspObj;
+
+                body_Obj = null;
+                request = null;
+                response = null;
+                rspObj = null;
             });
         }
     }
@@ -1801,6 +1841,16 @@ exports.response_rcn3_result = function(request, response, status, body_Obj, rsc
         rspObj.ri = request.method + "-" + ri + "-" + JSON.stringify(request.query);
         rspObj = cap;
         console.log(JSON.stringify(rspObj));
+
+        delete body_Obj;
+        delete request;
+        delete response;
+        delete rspObj;
+
+        body_Obj = null;
+        request = null;
+        response = null;
+        rspObj = null;
     }
     else if (request.query.rt == 1 || (request.query.rt == 2 && request.headers['x-m2m-rtu'] != null && request.headers['x-m2m-rtu'] != '')) {
         store_to_req_resource(request, bodyString, rsc, cap, function () {
@@ -1890,6 +1940,16 @@ exports.search_result = function(request, response, status, body_Obj, rsc, ri, c
             rspObj.ri = request.method + "-" + request.url;
             rspObj = cap;
             console.log(JSON.stringify(rspObj));
+
+            delete body_Obj;
+            delete request;
+            delete response;
+            delete rspObj;
+
+            body_Obj = null;
+            request = null;
+            response = null;
+            rspObj = null;
         }
         else if (request.query.rt == 1) {
             body_Obj[rootnm] = body_Obj[rootnm].toString().replace(/,/g, ' ');
@@ -1910,6 +1970,16 @@ exports.search_result = function(request, response, status, body_Obj, rsc, ri, c
                 rspObj.ri = request.method + "-" + ri + "-" + JSON.stringify(request.query);
                 rspObj = cap;
                 console.log(JSON.stringify(rspObj));
+
+                delete body_Obj;
+                delete request;
+                delete response;
+                delete rspObj;
+
+                body_Obj = null;
+                request = null;
+                response = null;
+                rspObj = null;
             });
         }
     }
@@ -1973,11 +2043,22 @@ exports.search_result = function(request, response, status, body_Obj, rsc, ri, c
             request.connection.release();
             response.status(status).end(bodyString);
 
+
             var rspObj = {};
             rspObj.rsc = rsc;
             rspObj.ri = request.method + "-" + request.url;
             rspObj = cap;
             console.log(JSON.stringify(rspObj));
+
+            delete body_Obj;
+            delete request;
+            delete response;
+            delete rspObj;
+
+            body_Obj = null;
+            request = null;
+            response = null;
+            rspObj = null;
         }
         else if (request.query.rt == 1 || (request.query.rt == 2 && request.headers['x-m2m-rtu'] != null && request.headers['x-m2m-rtu'] != '')) {
             store_to_req_resource(request, bodyString, rsc, cap, function () {
