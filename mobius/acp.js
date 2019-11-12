@@ -30,7 +30,10 @@ exports.build_acp = function(request, response, resource_Obj, body_Obj, callback
     resource_Obj[rootnm].pv = body_Obj[rootnm].pv;
     resource_Obj[rootnm].pvs = body_Obj[rootnm].pvs;
 
-    callback('1', resource_Obj);
+    request.resourceObj = JSON.parse(JSON.stringify(resource_Obj));
+    resource_Obj = null;
+
+    callback('200');
 };
 
 

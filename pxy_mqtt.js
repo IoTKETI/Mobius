@@ -165,9 +165,9 @@ function req_sub() {
     pxymqtt_client.subscribe(req_topic);
     console.log('subscribe req_topic as ' + req_topic);
 
-    req_topic = util.format('/oneM2M/req/+/%s/+', usecsebase);
-    pxymqtt_client.subscribe(req_topic);
-    console.log('subscribe req_topic as ' + req_topic);
+    // req_topic = util.format('/oneM2M/req/+/%s/+', usecsebase);
+    // pxymqtt_client.subscribe(req_topic);
+    // console.log('subscribe req_topic as ' + req_topic);
 }
 
 function reg_req_sub() {
@@ -175,9 +175,9 @@ function reg_req_sub() {
     pxymqtt_client.subscribe(reg_req_topic);
     console.log('subscribe reg_req_topic as ' + reg_req_topic);
 
-    reg_req_topic = util.format('/oneM2M/reg_req/+/%s/+', usecsebase);
-    pxymqtt_client.subscribe(reg_req_topic);
-    console.log('subscribe reg_req_topic as ' + reg_req_topic);
+    // reg_req_topic = util.format('/oneM2M/reg_req/+/%s/+', usecsebase);
+    // pxymqtt_client.subscribe(reg_req_topic);
+    // console.log('subscribe reg_req_topic as ' + reg_req_topic);
 }
 
 function mqtt_message_handler(topic, message) {
@@ -753,7 +753,6 @@ mqtt_app.get('/get_cb', onem2mParser, function(request, response, next) {
 
 
 function http_retrieve_CSEBase(callback) {
-    var rqi = moment().utc().format('mmssSSS') + randomValueBase64(4);
     var resourceid = '/' + usecsebase;
     var responseBody = '';
 
@@ -763,7 +762,7 @@ function http_retrieve_CSEBase(callback) {
         path: resourceid,
         method: 'get',
         headers: {
-            'X-M2M-RI': rqi,
+            'X-M2M-RI': require('shortid').generate(),
             'Accept': 'application/json',
             'X-M2M-Origin': usecseid,
             'X-M2M-RVI': uservi

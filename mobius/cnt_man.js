@@ -88,6 +88,7 @@ var db_sql = require('./sql_action');
 exports.put = function(connection, bodyString) {
     var resource_Obj = JSON.parse(bodyString);
     setTimeout(updateAction, 0, connection, resource_Obj);
+    delete resource_Obj;
 };
 
 function updateAction(connection, resource_Obj) {
@@ -100,6 +101,10 @@ function updateAction(connection, resource_Obj) {
             st: st
         };
         console.log(resBody);
+        delete resource_Obj;
+        resource_Obj = null;
+        delete resBody;
+        resBody = null;
     });
 
 }

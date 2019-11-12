@@ -61,7 +61,10 @@ exports.build_tm = function(request, response, resource_Obj, body_Obj, callback)
 
     resource_Obj[rootnm].rsps = (body_Obj[rootnm].rsps) ? body_Obj[rootnm].rsps : '[]';
 
-    callback('1', resource_Obj);
+    request.resourceObj = JSON.parse(JSON.stringify(resource_Obj));
+    resource_Obj = null;
+
+    callback('200');
 };
 
 function rsps_action(connection, ri, rsps) {

@@ -77,7 +77,7 @@ function fopt_member(request, response, req_count, mid, body_Obj, cse_poa, agr, 
     else {
         var ri_prefix = request.url.split('/fopt')[1];
         var ri = mid[req_count++];
-        db_sql.get_ri_sri(request.connection, request, response, ri, function (err, results, request, response) {
+        db_sql.get_ri_sri(request.connection, ri, function (err, results) {
             ri = ((results.length == 0) ? ri : results[0].ri);
             var target_cb = ri.split('/')[1];
             var hostname = 'localhost';
@@ -148,14 +148,15 @@ exports.check = function(request, response, grp, body_Obj) {
 
     update_route(function (cse_poa) {
         var ri_list = [];
-        get_ri_list_sri(request, response, grp.mid, ri_list, 0, function (ri_list, request, response) {
+        get_ri_list_sri(request, response, grp.mid, ri_list, 0, function (ri_list) {
             var req_count = 0;
             var agr = {};
             make_internal_ri(ri_list);
             fopt_member(request, response, req_count, ri_list, body_Obj, cse_poa, agr, function (retrieve_Obj) {
                 if (Object.keys(retrieve_Obj).length != 0) {
-                    responder.search_result(request, response, 200, retrieve_Obj, 2000, request.url, '');
-                    return '0';
+                    request.resourceObj = JSON.parse(JSON.stringify(retrieve_Obj));
+                    retrieve_Obj = null;
+                    responder.search_result(request, response, 200, 2000, '');
                 }
                 else {
                     retrieve_Obj = {};

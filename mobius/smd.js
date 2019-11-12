@@ -36,7 +36,10 @@ exports.build_smd = function(request, response, resource_Obj, body_Obj, callback
     resource_Obj[rootnm].soe = (body_Obj[rootnm].soe) ? body_Obj[rootnm].soe : '';
     resource_Obj[rootnm].rels = (body_Obj[rootnm].rels) ? body_Obj[rootnm].rels : [];
 
-    callback('1', resource_Obj);
+    request.resourceObj = JSON.parse(JSON.stringify(resource_Obj));
+    resource_Obj = null;
+
+    callback('200');
 };
 
 
@@ -77,14 +80,14 @@ exports.request_post = function(uri, bodyString) {
 };
 
 
-exports.request_get_discovery = function(request, response, smf, callback) {
+exports.request_get_discovery = function(request, response, callback) {
     var options = {
         hostname: usesemanticbroker,
         port: 7591,
         path: '',
         method: 'GET',
         headers: {
-            'smf': encodeURI(smf)
+            'smf': encodeURI(request.query.smf)
         }
     };
 
@@ -98,11 +101,32 @@ exports.request_get_discovery = function(request, response, smf, callback) {
         res.on('end', function () {
             console.log('----> [smd.request_post()] response for smd  ' + res.statusCode);
             callback(response, res.statusCode, bodyStr);
+
+            var ri_list = bodyStr.split(',');
+            if (res.statusCode == 200) {
+                make_cse_relative(ri_list);
+                request.headers.rootnm = 'uril';
+                request.resourceObj = {};
+                request.resourceObj.uril = {};
+                request.resourceObj.uril = ri_list;
+
+                callback('200-1');
+            }
+            else {
+                if(res.statusCode == 400) {
+                    callback('400');
+                }
+                else {
+                    callback('404');
+                }
+            }
         });
     });
 
     req.on('error', function (e) {
         console.log('[smd.request_post()] problem with request: ' + e.message);
+
+        callback('404');
     });
 
     req.on('close', function() {

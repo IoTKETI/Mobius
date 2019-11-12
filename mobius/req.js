@@ -45,6 +45,9 @@ exports.build_req = function(request, response, resource_Obj, body_Obj, callback
     resource_Obj[rootnm].rs = (body_Obj[rootnm].rs) ? body_Obj[rootnm].rs : '';
     resource_Obj[rootnm].ors = (body_Obj[rootnm].ors) ? body_Obj[rootnm].ors : '';
 
-    callback('1', resource_Obj);
+    request.resourceObj = JSON.parse(JSON.stringify(resource_Obj));
+    resource_Obj = null;
+
+    callback('200');
 };
 

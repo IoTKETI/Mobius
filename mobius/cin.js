@@ -58,11 +58,8 @@ exports.build_cin = function(request, response, resource_Obj, body_Obj, callback
 
         if(request.headers.hasOwnProperty('mbs')) {
             if(parseInt(request.headers.mbs) < parseInt(resource_Obj[rootnm].cs)) {
-                body_Obj = {};
-                body_Obj['dbg'] = 'NOT_ACCEPTABLE: cs is exceed mbs';
-                responder.response_result(request, response, 406, body_Obj, 5207, request.url, body_Obj['dbg']);
-                callback('0', resource_Obj);
-                return '0';
+                callback('406-3');
+                return;
             }
         }
     }
@@ -80,16 +77,16 @@ exports.build_cin = function(request, response, resource_Obj, body_Obj, callback
     resource_Obj[rootnm].cnf = (body_Obj[rootnm].cnf) ? body_Obj[rootnm].cnf : '';
     if(resource_Obj[rootnm].cnf != '') {
         if (resource_Obj[rootnm].cnf.split(':')[0] == '') {
-            body_Obj = {};
-            body_Obj['dbg'] = 'BAD REQUEST: contentInfo(cnf) format is not match';
-            responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-            callback('0', resource_Obj);
-            return '0';
+            callback('400-32');
+            return;
         }
     }
 
     resource_Obj[rootnm].or = (body_Obj[rootnm].or) ? body_Obj[rootnm].or : '';
     resource_Obj[rootnm].cr = (body_Obj[rootnm].cr) ? body_Obj[rootnm].cr : request.headers['x-m2m-origin'];
 
-    callback('1', resource_Obj);
+    request.resourceObj = JSON.parse(JSON.stringify(resource_Obj));
+    resource_Obj = null;
+
+    callback('200');
 };

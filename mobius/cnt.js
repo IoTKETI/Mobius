@@ -26,17 +26,6 @@ exports.build_cnt = function(request, response, resource_Obj, body_Obj, callback
 
     // body
     resource_Obj[rootnm].disr = (body_Obj[rootnm].disr) ? body_Obj[rootnm].disr : '';
-    // resource_Obj[rootnm].disr = (body_Obj[rootnm].disr) ? body_Obj[rootnm].disr : 'false';
-    // if(typeof(resource_Obj[rootnm].disr) === "boolean" || resource_Obj[rootnm].disr == 'true' || resource_Obj[rootnm].disr == 'false') {
-    // }
-    // else {
-    //     body_Obj = {};
-    //     body_Obj['dbg'] = 'BAD REQUEST: disr attritute is not boolean type';
-    //     responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-    //     callback('0', resource_Obj);
-    //     return '0';
-    // }
-
     resource_Obj[rootnm].mni = (body_Obj[rootnm].mni) ? body_Obj[rootnm].mni : '3153600000';
     if(parseInt(resource_Obj[rootnm].mni) >= 3153600000) {
         resource_Obj[rootnm].mni = '3153600000';
@@ -46,29 +35,19 @@ exports.build_cnt = function(request, response, resource_Obj, body_Obj, callback
     resource_Obj[rootnm].mia = (body_Obj[rootnm].mia) ? body_Obj[rootnm].mia : '31536000';
 
     if(parseInt(resource_Obj[rootnm].mni) < 0) { // clsase 7.4.6.2.1 TS-0004
-        body_Obj = {};
-        body_Obj['dbg'] = 'mni is negative value';
-        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-        callback('0', resource_Obj);
-        return '0';
+        callback('400-29');
+        return;
     }
 
     if(parseInt(resource_Obj[rootnm].mbs) < 0) { // clsase 7.4.6.2.1 TS-0004
-        body_Obj = {};
-        body_Obj['dbg'] = 'mbs is negative value';
-        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-        callback('0', resource_Obj);
-        return '0';
+        callback('400-30');
+        return;
     }
 
     if(parseInt(resource_Obj[rootnm].mia) < 0) { // clsase 7.4.6.2.1 TS-0004
-        body_Obj = {};
-        body_Obj['dbg'] = 'mia is negative value';
-        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-        callback('0', resource_Obj);
-        return '0';
+        callback('400-31');
+        return;
     }
-
 
     resource_Obj[rootnm].li = (body_Obj[rootnm].li) ? body_Obj[rootnm].li : '';
     resource_Obj[rootnm].or = (body_Obj[rootnm].or) ? body_Obj[rootnm].or : '';
@@ -77,7 +56,10 @@ exports.build_cnt = function(request, response, resource_Obj, body_Obj, callback
     resource_Obj[rootnm].cni = 0;
     resource_Obj[rootnm].cbs = 0;
 
-    callback('1', resource_Obj);
+    request.resourceObj = JSON.parse(JSON.stringify(resource_Obj));
+    resource_Obj = null;
+
+    callback('200');
 };
 
 

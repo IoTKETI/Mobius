@@ -311,7 +311,7 @@ function sgn_action(connection, rootnm, check_value, results_ss, noti_Obj, sub_b
 
                     var absolute_url_arr = absolute_url.split('/');
 
-                    db_sql.get_ri_sri(connection, node, absolute_url, absolute_url_arr[1].split('?')[0], function (err, results, node, absolute_url) {
+                    db_sql.get_ri_sri(connection, absolute_url_arr[1].split('?')[0], function (err, results) {
                         if (err) {
                             console.log('[sgn_action] database error (can not get resourceID from database)');
                         }
@@ -387,22 +387,6 @@ exports.check = function(request, notiObj, check_value) {
     var noti_Obj = JSON.parse(noti_Str);
 
     var parentObj = JSON.parse(JSON.stringify(request.targetObject))[Object.keys(request.targetObject)[0]];
-
-    if (request.query.real == 4) {
-        if(request.query.hasOwnProperty('nu')) {
-            var results_ss = {};
-            results_ss.ri = pi + '/' + (request.query.hasOwnProperty('rn') ? request.query.rn : 'sub');
-            results_ss.nct = '2';
-            results_ss.enc = {};
-            results_ss.enc.net = [];
-            results_ss.enc.net.push('3');
-            results_ss.nu = [];
-            results_ss.nu.push((request.query.hasOwnProperty('nu') ? request.query.nu : 'http://localhost'));
-            var gap = parseInt(10 + Math.random() * 10);
-            setTimeout(sgn_action, gap, request.connection, rootnm, check_value, results_ss, noti_Obj, request.usebodytype, parentObj);
-        }
-        return'1';
-    }
 
     if(check_value == 256 || check_value == 128) { // verification
         gap = parseInt(10 + Math.random() * 10);

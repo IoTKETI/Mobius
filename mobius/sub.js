@@ -22,47 +22,54 @@ var util = require('util');
 var responder = require('./responder');
 var db_sql = require('./sql_action');
 
-function verify_nu(request, response, body_Obj, callback) {
+function verify_nu(request, response, body_Obj, req_count, callback) {
     var rootnm = request.headers.rootnm;
     var nu_arr = body_Obj[rootnm].nu;
 
-    for (var k = 0; k < nu_arr.length; k++) {
-        var nu = nu_arr[k];
-        var sub_nu = url.parse(nu);
-        if(sub_nu.protocol == null) { // ID format
-            if (nu.charAt(0) != '/') {
-                var absolute_url = '/' + nu;
-            }
-            else {
-                absolute_url = nu.replace(/\/\/[^\/]+\/?/, '\/');
-                absolute_url = absolute_url.replace(/\/[^\/]+\/?/, '/');
-            }
+    if(req_count == nu_arr.length) {
+        callback('200');
+        return;
+    }
 
-            var absolute_url_arr = absolute_url.split('/');
-
-            db_sql.get_ri_sri(request.connection, k, body_Obj, absolute_url_arr[1].split('?')[0], function (err, results, k, body_Obj) {
-                if (err) {
-                    callback('0', k);
-                    return '0'
-                }
-                else {
-                    absolute_url = (results.length == 0) ? absolute_url : ((results[0].hasOwnProperty('ri')) ? absolute_url.replace('/' + absolute_url_arr[1], results[0].ri) : absolute_url);
-
-                    db_sql.select_ri_lookup(request.connection, absolute_url, function (err, results_ri) {
-                        if (results_ri.length == 0) {
-                            callback('0', k, body_Obj);
-                            return '0';
-                        }
-                        else {
-                            callback('1', k, body_Obj);
-                        }
-                    });
-                }
-            });
+    var nu = nu_arr[req_count];
+    var sub_nu = url.parse(nu);
+    if(sub_nu.protocol == null) { // ID format
+        if (nu.charAt(0) != '/') {
+            var absolute_url = '/' + nu;
         }
         else {
-            callback('1', k, body_Obj);
+            absolute_url = nu.replace(/\/\/[^\/]+\/?/, '\/');
+            absolute_url = absolute_url.replace(/\/[^\/]+\/?/, '/');
         }
+
+        var absolute_url_arr = absolute_url.split('/');
+
+        db_sql.get_ri_sri(request.connection, absolute_url_arr[1].split('?')[0], function (err, results) {
+            if (err) {
+                callback('500-2');
+            }
+            else {
+                absolute_url = (results.length == 0) ? absolute_url : ((results[0].hasOwnProperty('ri')) ? absolute_url.replace('/' + absolute_url_arr[1], results[0].ri) : absolute_url);
+
+                results = null;
+                db_sql.select_ri_lookup(request.connection, absolute_url, function (err, results_ri) {
+                    if (results_ri.length == 0) {
+                        callback('500-2');
+                        return;
+                    }
+
+                    results_ri = null;
+                    verify_nu(request, response, body_Obj, ++req_count, function (code) {
+                        callback(code);
+                    });
+                });
+            }
+        });
+    }
+    else {
+        verify_nu(request, response, body_Obj, ++req_count, function (code) {
+            callback(code);
+        });
     }
 }
 
@@ -72,16 +79,8 @@ exports.build_sub = function(request, response, resource_Obj, body_Obj, callback
     // body
 
     // verify nu
-    verify_nu(request, response, body_Obj, function (rsc, k, body_Obj) {
-        if(rsc == '0') {
-            var body_Obj = {};
-            body_Obj['dbg'] = 'SUBSCRIPTION_VERIFICATION_INITIATION_FAILED';
-            responder.response_result(request, response, 500, body_Obj, 5204, request.url, body_Obj['dbg']);
-            callback('0', resource_Obj);
-            return '0';
-        }
-
-        if((k+1) >= body_Obj[rootnm].nu.length) {
+    verify_nu(request, response, body_Obj, 0, function (code) {
+        if(code === '200') {
             resource_Obj[rootnm].nu = body_Obj[rootnm].nu;
 
             resource_Obj[rootnm].enc = (body_Obj[rootnm].enc) ? body_Obj[rootnm].enc : {"net": ["1"]};
@@ -99,7 +98,13 @@ exports.build_sub = function(request, response, resource_Obj, body_Obj, callback
             resource_Obj[rootnm].su = (body_Obj[rootnm].su) ? body_Obj[rootnm].su : '';
             resource_Obj[rootnm].cr = (body_Obj[rootnm].cr) ? body_Obj[rootnm].cr : request.headers['x-m2m-origin'];
 
-            callback('1', resource_Obj);
+            request.resourceObj = JSON.parse(JSON.stringify(resource_Obj));
+            resource_Obj = null;
+
+            callback(code);
+        }
+        else {
+            callback(code)
         }
     });
 };

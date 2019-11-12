@@ -24,7 +24,7 @@ var moment = require('moment');
 function security_check_action_pv(request, response, acpiList, cr, access_value, callback) {
     make_internal_ri(acpiList);
     var ri_list = [];
-    get_ri_list_sri(request, response, acpiList, ri_list, 0, function (ri_list, request, response) {
+    get_ri_list_sri(request, response, acpiList, ri_list, 0, function (ri_list) {
         db_sql.select_acp_in(request.connection, ri_list, function (err, results_acp) {
             if (!err) {
                 if (results_acp.length == 0) {
@@ -202,15 +202,15 @@ function security_check_action_pv(request, response, acpiList, cr, access_value,
 function security_check_action_pvs(request, response, acpiList, access_value, cr, callback) {
     make_internal_ri(acpiList);
     var ri_list = [];
-    get_ri_list_sri(request, response, acpiList, ri_list, 0, function (ri_list, request, response) {
+    get_ri_list_sri(request, response, acpiList, ri_list, 0, function (ri_list) {
         db_sql.select_acp_in(request.connection, ri_list, function (err, results_acp) {
             if (!err) {
                 if (results_acp.length == 0) {
                     if (request.headers['x-m2m-origin'] == cr) {
-                        callback('1', request, response);
+                        callback('1');
                     }
                     else {
-                        callback('0', request, response);
+                        callback('0');
                     }
                 }
                 else {
@@ -342,7 +342,8 @@ function security_check_action_pvs(request, response, acpiList, access_value, cr
                                     }
 
                                     if(acip_permit == 1 && actw_permit == 1 && acor_permit == 1) {
-                                        callback('1', request, response);
+                                        results_acp = null;
+                                        callback('1');
                                         return '1';
                                     }
                                 }
@@ -352,12 +353,12 @@ function security_check_action_pvs(request, response, acpiList, access_value, cr
                             }
                         }
                     }
-                    callback('0', request, response);
+                    callback('0');
                 }
             }
             else {
                 console.log('query error: ' + results_acp.message);
-                callback('0', request, response);
+                callback('0');
             }
         });
     });
@@ -388,13 +389,8 @@ function security_default_check_action(request, response, cr, access_value, call
 }
 
 exports.check = function(request, response, ty, acpiList, access_value, cr, callback) {
-    if(request.query.real == 4) {
-        callback('1', request, response);
-        return '1';
-    }
-
     if(request.headers['x-m2m-origin'] == usesuperuser || request.headers['x-m2m-origin'] == ('/'+usesuperuser)) {
-        callback('1', request, response);
+        callback('1');
         return '1';
     }
 
@@ -406,7 +402,7 @@ exports.check = function(request, response, ty, acpiList, access_value, cr, call
             acpiList = [url.parse(request.url).pathname.split('?')[0]];
         }
         security_check_action_pvs(request, response, acpiList, access_value, cr, function (rsc, request, response) {
-            callback(rsc, request, response);
+            callback(rsc);
             return rsc;
         });
     }
@@ -428,34 +424,34 @@ exports.check = function(request, response, ty, acpiList, access_value, cr, call
                     if(!err) {
                         if(results_acpi.length == 0) {
                             security_default_check_action(request, response, cr, access_value, function (rsc, request, response) {
-                                callback(rsc, request, response);
+                                callback(rsc);
                                 return rsc;
                             });
                         }
                         else {
                             security_check_action_pv(request, response, results_acpi, cr, access_value, function (rsc, request, response) {
-                                callback(rsc, request, response);
+                                callback(rsc);
                                 return rsc;
                             });
                         }
                     }
                     else {
                         console.log('query error: ');
-                        callback('0', request, response);
+                        callback('0');
                         return '0';
                     }
                 });
             }
             else {
                 security_default_check_action(request, response, cr, access_value, function (rsc, request, response) {
-                    callback(rsc, request, response);
+                    callback(rsc);
                     return rsc;
                 });
             }
         }
         else {
             security_check_action_pv(request, response, acpiList, cr, access_value, function (rsc, request, response) {
-                callback(rsc, request, response);
+                callback(rsc);
                 return rsc;
             });
         }

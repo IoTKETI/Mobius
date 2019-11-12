@@ -1581,94 +1581,88 @@ function store_to_req_resource(request, bodyString, rsc, cap, callback) {
     });
 }
 
-exports.response_result = function(request, response, status, body_Obj, rsc, ri, cap) {
-    if (request.query.rt == 3) {
-        var check_header = ['x-m2m-ri', 'x-m2m-rvi', 'locale', 'accept'];
-
-        for(var idx in check_header) {
-            var chk = check_header[idx];
-            if(request.headers.hasOwnProperty(chk)) {
-                if(chk === 'x-m2m-ri' || chk === 'x-m2m-rvi') {
-                    response.header(chk.toUpperCase(), request.headers[chk]);
-                }
-                else if(chk === 'locale') {
-                    response.header(chk, request.headers[chk]);
-                }
-                else if(chk === 'accept') {
-                    if(request.headers[chk].includes('xml')) {
-                        request.usebodytype = 'xml';
-                        response.header('Content-Type', 'application/xml');
-                    }
-                    else if(request.headers[chk].includes('cbor')) {
-                        request.usebodytype = 'cbor';
-                        response.header('Content-Type', 'application/cbor');
-                    }
-                    else {
-                        request.usebodytype = 'json';
-                        response.header('Content-Type', 'application/json');
-                    }
-                }
-            }
-            else {
-                if(chk === 'accept') {
-                    request.usebodytype = 'json';
-                    response.header('Content-Type', 'application/json');
-                }
-            }
-        }
-
-        response.header('X-M2M-RSC', rsc);
-    }
+exports.response_result = function(request, response, status, rsc, cap, callback) {
+    var body_Obj = request.resourceObj;
 
     if (request.query.rcn == 0 && Object.keys(body_Obj)[0] != 'dbg') {
         if (request.query.rt == 3) {
-            request.connection.release();
             response.status(status).end('');
 
             var rspObj = {
                 rsc: rsc,
-                ri: ri,
                 dbg: cap
             };
+            rspObj.ri = request.method + "-" + request.url + "-" + JSON.stringify(request.query);
+
             console.log(JSON.stringify(rspObj));
 
-            delete body_Obj;
-            delete request;
-            delete response;
-            delete rspObj;
-
             body_Obj = null;
-            request = null;
-            response = null;
             rspObj = null;
+
+            request.connection.release();
+            callback();
         }
         else if (request.query.rt == 1) {
-            var op = operation[request.method];
             var mi = {};
-            mi.rvi = request.headers['x-m2m-rvi'];
-            var rs = 1;
-            var ors = rsc;
-            db_sql.update_req(request.connection, '/'+request.headers.tg, '', op, JSON.stringify(mi), rs, ors, function () {
+            if(request.headers.hasOwnProperty('x-m2m-rvi')) {
+                mi.rvi = request.headers['x-m2m-rvi'];
+            }
+            db_sql.update_req(request.connection, '/'+request.headers.tg, '', operation[request.method], JSON.stringify(mi), 1, rsc, function () {
                 var rspObj = {
                     rsc: rsc,
-                    ri: ri,
                     dbg: cap
                 };
+                rspObj.ri = request.method + "-" + request.url + "-" + JSON.stringify(request.query);
+
                 console.log(JSON.stringify(rspObj));
 
-                delete body_Obj;
-                delete request;
-                delete response;
-                delete rspObj;
-
                 body_Obj = null;
-                request = null;
-                response = null;
                 rspObj = null;
+
+                request.connection.release();
+                callback();
             });
+        }
+        else {
+            callback();
         }
     }
     else {
+        if (request.query.rt == 3) {
+            var check_header = ['x-m2m-ri', 'x-m2m-rvi', 'locale', 'accept'];
+            for(var idx in check_header) {
+                if(check_header.hasOwnProperty(idx)) {
+                    var chk = check_header[idx];
+                    if (request.headers.hasOwnProperty(chk)) {
+                        if (chk === 'x-m2m-ri' || chk === 'x-m2m-rvi' || chk === 'locale') {
+                            response.header(chk, request.headers[chk]);
+                        }
+                        else if (chk === 'accept') {
+                            if (request.headers[chk].includes('xml')) {
+                                request.usebodytype = 'xml';
+                                response.header('Content-Type', 'application/xml');
+                            }
+                            else if (request.headers[chk].includes('cbor')) {
+                                request.usebodytype = 'cbor';
+                                response.header('Content-Type', 'application/cbor');
+                            }
+                            else {
+                                request.usebodytype = 'json';
+                                response.header('Content-Type', 'application/json');
+                            }
+                        }
+                    }
+                    else {
+                        if (chk === 'accept') {
+                            request.usebodytype = 'json';
+                            response.header('Content-Type', 'application/json');
+                        }
+                    }
+                }
+            }
+            response.header('X-M2M-RSC', rsc);
+        }
+
         var rootnm = Object.keys(body_Obj)[0];
 
         if(rootnm == 'mgo') {
@@ -1703,38 +1697,27 @@ exports.response_result = function(request, response, status, body_Obj, rsc, ri,
                 bodyString = _this.convertXml(rootnm, body_Obj);
             }
 
-            request.connection.release();
             response.status(status).end(bodyString);
 
             rspObj = {};
             rspObj.rsc = rsc;
-            rspObj.ri = request.method + "-" + ri + "-" + JSON.stringify(request.query);
+            rspObj.ri = request.method + "-" + request.url + "-" + JSON.stringify(request.query);
             rspObj = cap;
             console.log(JSON.stringify(rspObj));
 
-            delete body_Obj;
-            delete request;
-            delete response;
-            delete rspObj;
-
             body_Obj = null;
-            request = null;
-            response = null;
             rspObj = null;
+
+            request.connection.release();
+            callback();
         }
         else if (request.query.rt == 1 || (request.query.rt == 2 && request.headers['x-m2m-rtu'] != null && request.headers['x-m2m-rtu'] != '')) {
             store_to_req_resource(request, bodyString, rsc, cap, function () {
-                request.connection.release();
-
-                delete body_Obj;
-                delete request;
-                delete response;
-                delete rspObj;
-
                 body_Obj = null;
-                request = null;
-                response = null;
                 rspObj = null;
+
+                request.connection.release();
+                callback();
             });
         }
     }
@@ -1860,7 +1843,9 @@ exports.response_rcn3_result = function(request, response, status, body_Obj, rsc
 };
 
 
-exports.search_result = function(request, response, status, body_Obj, rsc, ri, cap) {
+exports.search_result = function(request, response, status, rsc, cap, callback) {
+    var body_Obj = request.resourceObj;
+
     if (request.query.rt == 3) {
         var check_header = ['x-m2m-ri', 'x-m2m-rvi', 'locale', 'accept'];
 
@@ -1932,24 +1917,16 @@ exports.search_result = function(request, response, status, body_Obj, rsc, ri, c
                 bodyString = xml.end({pretty: false, indent: '  ', newline: '\n'}).toString();
             }
 
-            request.connection.release();
             response.status(status).end(bodyString);
 
             var rspObj = {};
             rspObj.rsc = rsc;
-            rspObj.ri = request.method + "-" + request.url;
+            rspObj.ri = request.method + "-" + request.url + "-" + JSON.stringify(request.query);
             rspObj = cap;
             console.log(JSON.stringify(rspObj));
 
-            delete body_Obj;
-            delete request;
-            delete response;
-            delete rspObj;
-
-            body_Obj = null;
-            request = null;
-            response = null;
-            rspObj = null;
+            request.connection.release();
+            callback();
         }
         else if (request.query.rt == 1) {
             body_Obj[rootnm] = body_Obj[rootnm].toString().replace(/,/g, ' ');
@@ -1959,26 +1936,16 @@ exports.search_result = function(request, response, status, body_Obj, rsc, ri, c
 
             bodyString = JSON.stringify(body_Obj);
 
-            var op = operation[request.method];
             var mi = {};
             mi.rvi = request.headers['x-m2m-rvi'];
-            var rs = 1;
-            var ors = rsc;
-            db_sql.update_req(request.connection, '/'+request.headers.tg, bodyString, op, JSON.stringify(mi), rs, ors, function () {
+            db_sql.update_req(request.connection, '/'+request.headers.tg, bodyString, operation[request.method], JSON.stringify(mi), 1, rsc, function () {
                 rspObj = {};
                 rspObj.rsc = rsc;
-                rspObj.ri = request.method + "-" + ri + "-" + JSON.stringify(request.query);
+                rspObj.ri = request.method + "-" + request.url + "-" + JSON.stringify(request.query);
                 rspObj = cap;
                 console.log(JSON.stringify(rspObj));
 
-                delete body_Obj;
-                delete request;
-                delete response;
-                delete rspObj;
-
                 body_Obj = null;
-                request = null;
-                response = null;
                 rspObj = null;
             });
         }
@@ -2011,9 +1978,9 @@ exports.search_result = function(request, response, status, body_Obj, rsc, ri, c
                         res_Obj['m2m:' + typeRsrc[ty]] = [];
                     }
 
-                    var tmp_Obj = {};
+                    tmp_Obj = {};
                     tmp_Obj['m2m:' + typeRsrc[ty]] = body_Obj[prop];
-                   res_Obj['m2m:' + typeRsrc[ty]].push(tmp_Obj['m2m:' + typeRsrc[ty]]);
+                    res_Obj['m2m:' + typeRsrc[ty]].push(tmp_Obj['m2m:' + typeRsrc[ty]]);
                     delete body_Obj[prop];
                 }
             }
@@ -2040,40 +2007,92 @@ exports.search_result = function(request, response, status, body_Obj, rsc, ri, c
                 }
             }
 
-            request.connection.release();
             response.status(status).end(bodyString);
 
-
-            var rspObj = {};
+            rspObj = {};
             rspObj.rsc = rsc;
-            rspObj.ri = request.method + "-" + request.url;
+            rspObj.ri = request.method + "-" + request.url + "-" + JSON.stringify(request.query);
             rspObj = cap;
             console.log(JSON.stringify(rspObj));
 
-            delete body_Obj;
-            delete request;
-            delete response;
-            delete rspObj;
-
             body_Obj = null;
-            request = null;
-            response = null;
             rspObj = null;
+
+            request.connection.release();
+            callback();
         }
         else if (request.query.rt == 1 || (request.query.rt == 2 && request.headers['x-m2m-rtu'] != null && request.headers['x-m2m-rtu'] != '')) {
             store_to_req_resource(request, bodyString, rsc, cap, function () {
+                body_Obj = null;
+                rspObj = null;
+
                 request.connection.release();
+                callback();
             });
         }
     }
 };
 
-exports.error_result = function(request, response, status, rsc, dbg_string) {
+exports.error_result = function(request, response, status, rsc, dbg_string, callback) {
     request.query.rt = 3;
     var body_Obj = {};
-    body_Obj['dbg'] = dbg_string;
+    body_Obj['m2m:dbg'] = dbg_string;
 
-    _this.response_result(request, response, status, body_Obj, rsc, request.url, body_Obj['dbg']);
+    if(request.headers.hasOwnProperty('x-m2m-ri')) {
+        response.header('X-M2M-RI', request.headers['x-m2m-ri']);
+    }
+
+    if(request.headers.hasOwnProperty('x-m2m-rvi')) {
+        response.header('X-M2M-RVI', request.headers['x-m2m-rvi']);
+    }
+
+    if(request.headers.hasOwnProperty('accept')) {
+        response.header('Accept', request.headers['accept']);
+
+        if(request.headers['accept'].includes('xml')) {
+            request.usebodytype = 'xml';
+            response.header('Content-Type', 'application/xml');
+        }
+        else if(request.headers['accept'].includes('cbor')) {
+            request.usebodytype = 'cbor';
+            response.header('Content-Type', 'application/cbor');
+        }
+        else {
+            request.usebodytype = 'json';
+            response.header('Content-Type', 'application/json');
+        }
+    }
+
+    if(request.headers.hasOwnProperty('locale')) {
+        response.header('Locale', request.headers['locale']);
+    }
+
+    response.header('X-M2M-RSC', rsc);
+
+    if (request.usebodytype == 'json') {
+        var bodyString = JSON.stringify(body_Obj);
+    }
+    else if (request.usebodytype == 'cbor') {
+        bodyString = cbor.encode(body_Obj).toString('hex');
+    }
+    else {
+        bodyString = _this.convertXml('dbg', body_Obj);
+    }
+
+    body_Obj = null;
+
+    response.status(status).end(bodyString);
+
+    var rspObj = {};
+    rspObj.rsc = rsc;
+    rspObj.ri = request.method + "-" + request.url + "-" + JSON.stringify(request.query);
+    rspObj.msg = dbg_string;
+    console.log(JSON.stringify(rspObj));
+    rspObj = null;
+
+    request.connection.release();
+
+    callback();
 };
 
 function request_noti_http(nu, bodyString, bodytype, xm2mri) {

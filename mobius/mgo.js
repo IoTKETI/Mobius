@@ -64,14 +64,14 @@ exports.build_mgo = function(request, response, resource_Obj, body_Obj, callback
         resource_Obj[rootnm].far = (body_Obj[rootnm].far) ? body_Obj[rootnm].far : 'true';
     }
     else {
-        body_Obj = {};
-        body_Obj['dbg'] = 'mgmtDefinition is not match with mgmtObj resource';
-        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-        callback('0', resource_Obj);
-        return '0';
+        callback('400-35');
+        return;
     }
 
-    callback('1', resource_Obj);
+    request.resourceObj = JSON.parse(JSON.stringify(resource_Obj));
+    resource_Obj = null;
+
+    callback('200');
 };
 
 // exports.modify_mgo = function(request, response, resource_Obj, body_Obj, callback) {

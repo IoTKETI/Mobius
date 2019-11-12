@@ -59,7 +59,10 @@ exports.build_tr = function(request, response, resource_Obj, body_Obj, callback)
     resource_Obj[rootnm].trqp = (body_Obj[rootnm].trqp) ? body_Obj[rootnm].trqp : '';
     resource_Obj[rootnm].trsp = (body_Obj[rootnm].trsp) ? body_Obj[rootnm].trsp : '';
 
-    callback('1', resource_Obj);
+    request.resourceObj = JSON.parse(JSON.stringify(resource_Obj));
+    resource_Obj = null;
+
+    callback('200');
 };
 
 function execute_action(ri, bodytype, res, resBody, callback) {
@@ -378,20 +381,17 @@ exports.request_commit = function(obj, callback) {
     req.end();
 };
 
-exports.check = function(request, pi, callback) {
-    if(request.query.real == 4) {
-        callback('1');
-        return '1';
-    }
+exports.check = function(request, callback) {
+    var pi = request.targetObject[Object.keys(request.targetObject)[0]].ri;
 
     var state = tst_v.COMMITTED;
-
     db_sql.select_tr(request.connection, pi, function (err, results_tr) {
         if (!err) {
             for (var i = 0; i < results_tr.length; i++) {
                 if(request.query.tid == results_tr[i].tid) {
-                    callback('1');
-                    return '0';
+                    results_tr = null;
+                    callback('200');
+                    return;
                 }
 
                 if (results_tr[i].hasOwnProperty('tltp')) {
@@ -421,15 +421,18 @@ exports.check = function(request, pi, callback) {
             }
 
             if (state === tst_v.COMMITTED || state === tst_v.ABORTED) {
-                callback('1');
+                results_tr = null;
+                callback('200');
             }
             else {
-                callback('0');
+                results_tr = null;
+                callback('423-1');
             }
         }
         else {
             console.log('query error: ' + results_tr.message);
-            callback('1');
+            results_tr = null;
+            callback('200');
         }
     });
 

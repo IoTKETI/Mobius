@@ -163,6 +163,7 @@ exports.post = function(ri, exc, nu, bodytype, rqi, bodyString, parentObj) {
             else if (sub_nu.protocol == 'mqtt:') { // mqtt:
                 request_noti_mqtt(nu, ri, bodyString, bodytype, rqi);
             }
+            nu = null;
         }
     }
     catch (e) {
@@ -220,6 +221,8 @@ function sgn_mqtt_message_handler(topic, message) {
                         delete resp_mqtt_rqi_arr[jsonObj['m2m:rsp'].rqi];
                     }
                 }
+                delete jsonObj;
+                jsonObj = null;
             }
             else {
                 console.log('[sgn_mqtt_message_handler] parsing error')

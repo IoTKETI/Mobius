@@ -288,18 +288,19 @@ else {
 
 global.get_ri_list_sri = function (request, response, sri_list, ri_list, count, callback) {
     if(sri_list.length <= count) {
-        callback(sri_list, request, response);
+        callback(sri_list);
     }
     else {
-        db_sql.get_ri_sri(request.connection, request, response, sri_list[count], function (err, results, request, response) {
+        db_sql.get_ri_sri(request.connection, sri_list[count], function (err, results) {
+            results = null;
             ri_list[count] = ((results.length == 0) ? sri_list[count] : results[0].ri);
 
             if (sri_list.length <= ++count) {
-                callback(ri_list, request, response);
+                callback(ri_list);
             }
             else {
-                get_ri_list_sri(request, response, sri_list, ri_list, count, function (ri_list, request, response) {
-                    callback(ri_list, request, response);
+                get_ri_list_sri(request, response, sri_list, ri_list, count, function (ri_list) {
+                    callback(ri_list);
                 });
             }
         });
@@ -508,34 +509,25 @@ global.make_json_arraytype = function (body_Obj) {
 };
 
 function parse_to_json(request, response, callback) {
-    var body_Obj = {};
-
     if (request.usebodytype === 'xml') {
         try {
             var parser = new xml2js.Parser({explicitArray: false});
             parser.parseString(request.body.toString(), function (err, result) {
                 if (err) {
-                    responder.error_result(request, response, 400, 4000, '[parse_to_json] do not parse xml body' + err.message);
-                    callback('0', body_Obj);
-                    return '0';
+                    callback('400-5');
                 }
                 else {
-                    body_Obj = result;
-                    make_short_nametype(body_Obj);
-                    make_json_arraytype(body_Obj);
+                    request.bodyObj = result;
+                    make_short_nametype(request.bodyObj);
+                    make_json_arraytype(request.bodyObj);
 
-                    request.headers.rootnm = Object.keys(body_Obj)[0];
-                    request.bodyObj = JSON.parse(JSON.stringify(body_Obj));
-                    delete body_Obj;
-                    body_Obj = null;
-                    callback('1', request.bodyObj);
+                    request.headers.rootnm = Object.keys(request.bodyObj)[0];
+                    callback('200');
                 }
             });
         }
         catch(e) {
-            responder.error_result(request, response, 400, 4000, '[parse_to_json] do not parse xml body');
-            callback('0', body_Obj);
-            return '0';
+            callback('400-5');
         }
     }
     else if (request.usebodytype === 'cbor') {
@@ -543,61 +535,45 @@ function parse_to_json(request, response, callback) {
             var encoded = request.body;
             cbor.decodeFirst(encoded, function(err, result) {
                 if (err) {
-                    responder.error_result(request, response, 400, 4000, '[parse_to_json] do not parse cbor body');
-                    callback('0', body_Obj);
-                    return '0';
+                    callback('400-6');
                 }
                 else {
-                    body_Obj = result;
-                    make_short_nametype(body_Obj);
-                    //make_json_arraytype(body_Obj);
+                    request.bodyObj = result;
+                    make_short_nametype(request.bodyObj);
+                    //make_json_arraytype(request.bodyObj);
 
-                    request.headers.rootnm = Object.keys(body_Obj)[0];
-                    request.bodyObj = JSON.parse(JSON.stringify(body_Obj));
-                    delete body_Obj;
-                    body_Obj = null;
-                    callback('1', request.bodyObj);
+                    request.headers.rootnm = Object.keys(request.bodyObj)[0];
+                    callback('200');
                 }
             });
         }
         catch(e) {
-            responder.error_result(request, response, 400, 4000, '[parse_to_json] do not parse cbor body');
-            callback('0', body_Obj);
-            return '0';
+            callback('400-6');
         }
     }
     else {
         try {
-            body_Obj = JSON.parse(request.body.toString());
-            make_short_nametype(body_Obj);
+            request.bodyObj = JSON.parse(request.body.toString());
+            make_short_nametype(request.bodyObj);
 
-            if (Object.keys(body_Obj)[0] == 'undefined') {
-                responder.error_result(request, response, 400, 4000, '[parse_to_json] root tag of body is not matched');
-                callback('0', body_Obj);
-                return '0';
+            if (Object.keys(request.bodyObj)[0] == 'undefined') {
+                callback('400-7');
             }
-
-            request.headers.rootnm = Object.keys(body_Obj)[0];
-            request.bodyObj = JSON.parse(JSON.stringify(body_Obj));
-            delete body_Obj;
-            body_Obj = null;
-            callback('1', request.bodyObj);
+            else {
+                request.headers.rootnm = Object.keys(request.bodyObj)[0];
+                callback('200');
+            }
         }
         catch (e) {
-            responder.error_result(request, response, 400, 4000, '[parse_to_json] do not parse json body');
-            callback('0', body_Obj);
-            return '0';
+            callback('400-7');
         }
     }
 }
 
 function parse_body_format(request, response, callback) {
-    parse_to_json(request, response, function(rsc, body_Obj) {
-        if(rsc == '0') {
-            callback('0', body_Obj);
-        }
-        else {
-            request.headers.rootnm = Object.keys(body_Obj)[0];
+    parse_to_json(request, response, function(code) {
+        if(code === '200') {
+            var body_Obj = request.bodyObj;
             for (var prop in body_Obj) {
                 if (body_Obj.hasOwnProperty(prop)) {
                     for (var attr in body_Obj[prop]) {
@@ -605,11 +581,8 @@ function parse_body_format(request, response, callback) {
                             if (attr == 'aa' || attr == 'at' || attr == 'poa' || attr == 'acpi' || attr == 'srt' ||
                                 attr == 'nu' || attr == 'mid' || attr == 'macp' || attr == 'rels' || attr == 'rqps' || attr == 'srv') {
                                 if (!Array.isArray(body_Obj[prop][attr])) {
-                                    body_Obj = {};
-                                    body_Obj['dbg'] = attr + ' attribute should be json array format';
-                                    responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-                                    callback('0', body_Obj);
-                                    return '0';
+                                    callback('400-8');
+                                    return;
                                 }
                             }
                             else if (attr == 'lbl') {
@@ -617,61 +590,41 @@ function parse_body_format(request, response, callback) {
                                     body_Obj[prop][attr] = [];
                                 }
                                 else if (!Array.isArray(body_Obj[prop][attr])) {
-                                    body_Obj = {};
-                                    body_Obj['dbg'] = attr + ' attribute should be json array format';
-                                    responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-                                    callback('0', body_Obj);
-                                    return '0';
+                                    callback('400-9');
+                                    return;
                                 }
                             }
                             else if (attr == 'enc') {
                                 if (body_Obj[prop][attr].net) {
                                     if (!Array.isArray(body_Obj[prop][attr].net)) {
-                                        body_Obj = {};
-                                        body_Obj['dbg'] = attr + '.net attribute should be json array format';
-                                        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-                                        callback('0', body_Obj);
-                                        return '0';
+                                        callback('400-10');
+                                        return;
                                     }
                                 }
                                 else {
-                                    body_Obj = {};
-                                    body_Obj['dbg'] = attr + 'attribute should have net key as child in json format';
-                                    responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-                                    callback('0', body_Obj);
-                                    return '0';
+                                    callback('400-11');
+                                    return;
                                 }
                             }
                             else if (attr == 'pv' || attr == 'pvs') {
                                 if (body_Obj[prop][attr].hasOwnProperty('acr')) {
                                     if (!Array.isArray(body_Obj[prop][attr].acr)) {
-                                        body_Obj = {};
-                                        body_Obj['dbg'] = attr + '.acr should be json array format';
-                                        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-                                        callback('0', body_Obj);
-                                        return '0';
+                                        callback('400-12');
+                                        return;
                                     }
-
                                     var acr = body_Obj[prop][attr].acr;
                                     for (var acr_idx in acr) {
                                         if (acr.hasOwnProperty(acr_idx)) {
                                             if (acr[acr_idx].acor) {
                                                 if (!Array.isArray(acr[acr_idx].acor)) {
-                                                    body_Obj = {};
-                                                    body_Obj['dbg'] = attr + '.acr[' + acr_idx + '].acor should be json array format';
-                                                    responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-                                                    callback('0', body_Obj);
-                                                    return '0';
+                                                    callback('400-13');
+                                                    return;
                                                 }
                                             }
-
                                             if (acr[acr_idx].acco) {
                                                 if (!Array.isArray(acr[acr_idx].acco)) {
-                                                    body_Obj = {};
-                                                    body_Obj['dbg'] = attr + '.acr[' + acr_idx + '].acco should be json array format';
-                                                    responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-                                                    callback('0', body_Obj);
-                                                    return '0';
+                                                    callback('400-14');
+                                                    return;
                                                 }
                                                 for (var acco_idx in acr[acr_idx].acco) {
                                                     if (acr[acr_idx].acco.hasOwnProperty(acco_idx)) {
@@ -679,31 +632,21 @@ function parse_body_format(request, response, callback) {
                                                         if (acco.acip) {
                                                             if (acco.acip['ipv4']) {
                                                                 if (!Array.isArray(acco.acip['ipv4'])) {
-                                                                    body_Obj = {};
-                                                                    body_Obj['dbg'] = attr + '.acr[' + acr_idx + '].acco.acip.ipv4 should be json array format';
-                                                                    responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-                                                                    callback('0', body_Obj);
-                                                                    return '0';
+                                                                    callback('400-15');
+                                                                    return;
                                                                 }
                                                             }
                                                             else if (acco.acip['ipv6']) {
                                                                 if (!Array.isArray(acco.acip['ipv6'])) {
-                                                                    body_Obj = {};
-                                                                    body_Obj['dbg'] = attr + '.acr[' + acr_idx + '].acco.acip.ipv6 should be json array format';
-                                                                    responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-                                                                    callback('0', body_Obj);
-                                                                    return '0';
+                                                                    callback('400-16');
+                                                                    return;
                                                                 }
                                                             }
                                                         }
-
                                                         if (acco.actw) {
                                                             if (!Array.isArray(acco.actw)) {
-                                                                body_Obj = {};
-                                                                body_Obj['dbg'] = attr + '.acr[' + acr_idx + '].acco[' + acco_idx + '].actw should be json array format';
-                                                                responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-                                                                callback('0', body_Obj);
-                                                                return '0';
+                                                                callback('400-17');
+                                                                return;
                                                             }
                                                         }
                                                     }
@@ -717,22 +660,16 @@ function parse_body_format(request, response, callback) {
                                 if (body_Obj[prop][attr].can && body_Obj[prop][attr].sus) {
                                 }
                                 else {
-                                    body_Obj = {};
-                                    body_Obj['dbg'] = attr + ' attribute should have can and sus key in json format';
-                                    responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-                                    callback('0', body_Obj);
-                                    return '0';
+                                    callback('400-18');
+                                    return;
                                 }
                             }
                             else if (attr == 'cas') {
                                 if (body_Obj[prop][attr].can && body_Obj[prop][attr].sus) {
                                 }
                                 else {
-                                    body_Obj = {};
-                                    body_Obj['dbg'] = attr + ' attribute should have can and sus key in json format';
-                                    responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-                                    callback('0', body_Obj);
-                                    return '0';
+                                    callback('400-18');
+                                    return;
                                 }
                             }
                             else {
@@ -741,8 +678,10 @@ function parse_body_format(request, response, callback) {
                     }
                 }
             }
-
-            callback(request.ty, body_Obj);
+            callback(code);
+        }
+        else {
+            callback(code);
         }
     });
 }
@@ -753,7 +692,6 @@ function check_resource(request, response, callback) {
     var chk_fopt = ri.split('/fopt');
     if(chk_fopt.length == 2) {
         ri = chk_fopt[0];
-        op = 'fanoutpoint';
         db_sql.select_grp_lookup(request.connection, ri, function (err, result_Obj) {
             if (!err) {
                 if (result_Obj.length == 1) {
@@ -761,84 +699,70 @@ function check_resource(request, response, callback) {
                     result_Obj[0].lbl = JSON.parse(result_Obj[0].lbl);
                     result_Obj[0].aa = JSON.parse(result_Obj[0].aa);
                     result_Obj[0].at = JSON.parse(result_Obj[0].at);
-                    callback('1', result_Obj[0], op);
+
+                    request.targetObj = JSON.parse(JSON.stringify(result_Obj[0]));
+                    result_Obj = null;
+
+                    callback('200');
                 }
                 else {
-                    result_Obj = {};
-                    result_Obj['dbg'] = '[check_resource] resource does not exist';
-                    responder.response_result(request, response, 404, result_Obj, 4004, request.url, result_Obj['dbg']);
-                    callback('0', {}, '');
-                    return '0';
+                    callback('404-4');
                 }
             }
             else {
-                var code = result_Obj.message;
-                result_Obj = {};
-                result_Obj['dbg'] = code;
-                responder.response_result(request, response, 500, result_Obj, 5000, request.url, result_Obj['dbg']);
-                callback('0', {}, '');
-                return '0';
+                callback('500-3');
             }
         });
     }
     else {
         console.log('X-M2M-Origin: ' + request.headers['x-m2m-origin']);
-        callback('1', request.targetObject[Object.keys(request.targetObject)[0]], 'direct');
-        return '0';
+        callback('200');
     }
 }
 
-function check_rt_query(request, response, callback) {
+function check_request_query_rt(request, response, callback) {
     //var ri = url.parse(request.url).pathname;
 
     //var url_arr = ri.split('/');
     //var last_url = url_arr[url_arr.length-1];
     //var op = 'direct';
 
-    if (request.query.real == 4) {
-        var check_Obj = {};
-        check_Obj.ty = '3';
-        callback('1', check_Obj, 'direct');
-        return'1';
-    }
-
     if (request.query.rt == 3) { // default, blocking
-        check_resource(request, response, function (rsc, check_Obj, op) {
-            callback(rsc, check_Obj, op);
-        });
+        callback('200');
     }
     else if (request.query.rt == 1 || request.query.rt == 2) { // nonblocking
-        if(request.query.rt == 2 && request.headers['x-m2m-rtu'] == null && request.headers['x-m2m-rtu'] == '') {
-            var body_Obj = {};
-            body_Obj['dbg'] = 'X-M2M-RTU is none';
-            responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-            callback('0', {}, '');
-            return '0';
+        if (request.query.rt == 2 && request.headers['x-m2m-rtu'] == null && request.headers['x-m2m-rtu'] == '') {
+            callback('400-21');
         }
+        else {
+            // first create request resource under CSEBase
+            var temp_rootnm = request.headers.rootnm;
+            var temp_body_Obj = JSON.parse(JSON.stringify(request.bodyObj));
+            var temp_ty = request.ty;
 
-        // first create request resource under CSEBase
-        var temp_rootnm = request.headers.rootnm;
-        //var temp_rt = request.query.rt;
-        var ty = '17';
-        var rt_body_Obj = {req: {}};
-        request.headers.rootnm = Object.keys(rt_body_Obj)[0];
-        request.query.rt = 3;
-        resource.create(request, response, ty, rt_body_Obj, function (rsc) {
-            if (rsc == '1') {
-                request.headers.rootnm = temp_rootnm;
-                request.query.rt = 1;
-                check_resource(request, response, function (rsc, parent_comm, op) {
-                    callback(rsc, parent_comm, op);
-                });
-            }
-        });
+
+            request.ty = '17';
+            var rt_body_Obj = {req: {}};
+            request.headers.rootnm = 'req';
+            request.bodyObj = rt_body_Obj;
+            request.query.rt = 3;
+
+            resource.create(request, response, function (code) {
+                if(code === '200') {
+                    request.ty = temp_ty;
+                    request.headers.rootnm = temp_rootnm;
+                    request.bodyObj = temp_body_Obj;
+                    request.query.rt = 1;
+                    callback(code);
+                }
+                else {
+                    callback(code);
+                }
+            });
+        }
     }
     else {
-        body_Obj = {};
-        body_Obj['dbg'] = 'OPERATION_NOT_ALLOWED (rt query is not supported)';
-        responder.response_result(request, response, 405, body_Obj, 4005, request.url, body_Obj['dbg']);
-        callback('0', {}, '');
-        return '0';
+        callback('405-4');
     }
 }
 
@@ -867,296 +791,266 @@ function check_grp(request, response, callback) {
     }
 }
 
-/**
- *
- * @param request
- * @param response
- */
-function lookup_create(request, response) {
-    check_rt_query(request, response, function (rsc, parentObj, op) {
-        if (rsc == '0') {
-            return rsc;
-        }
+function lookup_create(request, response, callback) {
+    check_request_query_rt(request, response, function (code) {
+        if(code === '200') {
+            var parentObj = request.targetObject[Object.keys(request.targetObject)[0]];
 
-        var rootnm = request.headers.rootnm;
-
-        tr.check(request, parentObj.ri, function (rsc) {
-            if (rsc == '0') {
-                var body_Obj = {};
-                body_Obj['dbg'] = resultStatusCode['4230'];
-                responder.response_result(request, response, 423, body_Obj, 4230, request.url, resultStatusCode['4230']);
-                return '0';
-            }
-
-
-            if(request.query.real == 4) {
-
-            }
-
-            if ((request.ty == 1) && (parentObj.ty == 5 || parentObj.ty == 16 || parentObj.ty == 2)) { // accessControlPolicy
-            }
-            else if ((request.ty == 9) && (parentObj.ty == 5 || parentObj.ty == 16 || parentObj.ty == 2)) { // group
-            }
-            else if ((request.ty == 16) && (parentObj.ty == 5)) { // remoteCSE
-                if (usecsetype == 'asn' && request.headers.csr == null) {
-                    body_Obj = {};
-                    body_Obj['dbg'] = 'ASN CSE can not have child CSE (remoteCSE)';
-                    responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-                    return '0';
-                }
-            }
-            else if ((request.ty == 10) && (parentObj.ty == 5)) { // locationPolicy
-            }
-            else if ((request.ty == 2) && (parentObj.ty == 5)) { // ae
-            }
-            else if ((request.ty == 3) && (parentObj.ty == 5 || parentObj.ty == 2 || parentObj.ty == 3)) { // container
-            }
-            else if ((request.ty == 23) && (parentObj.ty == 5 || parentObj.ty == 16 || parentObj.ty == 2 ||
-                    parentObj.ty == 3 || parentObj.ty == 24 || parentObj.ty == 29 || parentObj.ty == 9 || parentObj.ty == 1 || parentObj.ty == 27)) { // sub
-            }
-            else if ((request.ty == 4) && (parentObj.ty == 3)) { // contentInstance
-            }
-            else if ((request.ty == 24) && (parentObj.ty == 2 || parentObj.ty == 3 || parentObj.ty == 4 || parentObj.ty == 29)) { // semanticDescriptor
-            }
-            else if ((request.ty == 29) && (parentObj.ty == 5 || parentObj.ty == 16 || parentObj.ty == 2)) { // timeSeries
-            }
-            else if ((request.ty == 30) && (parentObj.ty == 29)) { // timeSeriesInstance
-                //body_Obj[rootnm].mni = parent_comm.mni;
-            }
-            else if ((request.ty == 27) && (parentObj.ty == 2 || parentObj.ty == 16)) { // multimediaSession
-            }
-            else if ((request.ty == 14) && (parentObj.ty == 5)) { // node
-            }
-            else if ((request.ty == 13) && (parentObj.ty == 14)) { // mgmtObj
-            }
-            else if ((request.ty == 38) && (parentObj.ty == 5 || parentObj.ty == 16 || parentObj.ty == 2 ||
-                    parentObj.ty == 3 || parentObj.ty == 24 || parentObj.ty == 29 || parentObj.ty == 9 || parentObj.ty == 1 || parentObj.ty == 27)) { // transaction
-            }
-            else if ((request.ty == 39) && (parentObj.ty == 5 || parentObj.ty == 16 || parentObj.ty == 2 ||
-                    parentObj.ty == 3 || parentObj.ty == 24 || parentObj.ty == 29 || parentObj.ty == 9 || parentObj.ty == 1 || parentObj.ty == 27)) { // transaction
-            }
-            else {
-                body_Obj = {};
-                body_Obj['dbg'] = 'TARGET_NOT_SUBSCRIBABLE: request ty creating can not create under parent resource';
-                responder.response_result(request, response, 403, body_Obj, 5203, request.url, body_Obj['dbg']);
-                return '0';
-            }
-
-            if (((request.ty == 4) && (parentObj.ty == 3)) || ((request.ty == 30) && (parentObj.ty == 29))) { // contentInstance
-                if (parentObj.mni == null) {
-                    //body_Obj[rootnm].mni = '3153600000';
-                }
-                else {
-                    if (parseInt(parentObj.mni) == 0) {
-                        body_Obj = {};
-                        body_Obj['dbg'] = 'can not create cin because mni value is zero';
-                        responder.response_result(request, response, 406, body_Obj, 5207, request.url, body_Obj['dbg']);
-                        return '0';
+            tr.check(request, function (code) {
+                if(code === '200') {
+                    if ((request.ty == 1) && (parentObj.ty == 5 || parentObj.ty == 16 || parentObj.ty == 2)) { // accessControlPolicy
                     }
-                    else if (parseInt(parentObj.mbs) == 0) {
-                        body_Obj = {};
-                        body_Obj['dbg'] = 'can not create cin because mbs value is zero';
-                        responder.response_result(request, response, 406, body_Obj, 5207, request.url, body_Obj['dbg']);
-                        return '0';
+                    else if ((request.ty == 9) && (parentObj.ty == 5 || parentObj.ty == 16 || parentObj.ty == 2)) { // group
                     }
-                    else if (parentObj.disr == true) {
-                        body_Obj = {};
-                        body_Obj['dbg'] = 'OPERATION NOT ALLOWED: disr attribute is true';
-                        responder.response_result(request, response, 405, body_Obj, 4005, request.url, body_Obj['dbg']);
-                        return '0';
+                    else if ((request.ty == 16) && (parentObj.ty == 5)) { // remoteCSE
+                        if (usecsetype == 'asn' && request.headers.csr == null) {
+                            callback('400-28');
+                            return;
+                        }
+                    }
+                    else if ((request.ty == 10) && (parentObj.ty == 5)) { // locationPolicy
+                    }
+                    else if ((request.ty == 2) && (parentObj.ty == 5)) { // ae
+                    }
+                    else if ((request.ty == 3) && (parentObj.ty == 5 || parentObj.ty == 2 || parentObj.ty == 3)) { // container
+                    }
+                    else if ((request.ty == 23) && (parentObj.ty == 5 || parentObj.ty == 16 || parentObj.ty == 2 || parentObj.ty == 3 || parentObj.ty == 24 || parentObj.ty == 29 || parentObj.ty == 9 || parentObj.ty == 1 || parentObj.ty == 27)) { // sub
+                    }
+                    else if ((request.ty == 4) && (parentObj.ty == 3)) { // contentInstance
+                    }
+                    else if ((request.ty == 24) && (parentObj.ty == 2 || parentObj.ty == 3 || parentObj.ty == 4 || parentObj.ty == 29)) { // semanticDescriptor
+                    }
+                    else if ((request.ty == 29) && (parentObj.ty == 5 || parentObj.ty == 16 || parentObj.ty == 2)) { // timeSeries
+                    }
+                    else if ((request.ty == 30) && (parentObj.ty == 29)) { // timeSeriesInstance
+                    }
+                    else if ((request.ty == 27) && (parentObj.ty == 2 || parentObj.ty == 16)) { // multimediaSession
+                    }
+                    else if ((request.ty == 14) && (parentObj.ty == 5)) { // node
+                    }
+                    else if ((request.ty == 13) && (parentObj.ty == 14)) { // mgmtObj
+                    }
+                    else if ((request.ty == 38) && (parentObj.ty == 5 || parentObj.ty == 16 || parentObj.ty == 2 || parentObj.ty == 3 || parentObj.ty == 24 || parentObj.ty == 29 || parentObj.ty == 9 || parentObj.ty == 1 || parentObj.ty == 27)) { // transaction
+                    }
+                    else if ((request.ty == 39) && (parentObj.ty == 5 || parentObj.ty == 16 || parentObj.ty == 2 || parentObj.ty == 3 || parentObj.ty == 24 || parentObj.ty == 29 || parentObj.ty == 9 || parentObj.ty == 1 || parentObj.ty == 27)) { // transaction
                     }
                     else {
-                        //body_Obj[rootnm].mni = parent_spec[0].mni;
+                        callback('403-2');
+                        return;
                     }
+
+                    if (((request.ty == 4) && (parentObj.ty == 3)) || ((request.ty == 30) && (parentObj.ty == 29))) { // contentInstance
+                        if (parseInt(parentObj.mni) == 0) {
+                            callback('406-1');
+                            return;
+                        }
+                        else if (parseInt(parentObj.mbs) == 0) {
+                            callback('406-2');
+                            return;
+                        }
+                        else if (parentObj.disr == true) {
+                            callback('405-6');
+                            return;
+                        }
+
+                        request.headers.mni = parentObj.mni;
+                        request.headers.mbs = parentObj.mbs;
+                        request.headers.cni = parentObj.cni;
+                        request.headers.cbs = parentObj.cbs;
+                        request.headers.st = parentObj.st;
+                    }
+
+                    if (parentObj.length == 0) {
+                        parentObj = {};
+                        parentObj.cr = '';
+                        console.log('no creator');
+                    }
+                    else {
+                        if (parentObj.ty == 2) {
+                            parentObj.cr = parentObj.aei;
+                        }
+                    }
+
+                    if (request.ty == 23) {
+                        var access_value = '3';
+                    }
+                    else {
+                        access_value = '1';
+                    }
+
+                    var tid = 'security.check - ' + require('shortid').generate();
+                    console.time(tid);
+                    security.check(request, response, parentObj.ty, parentObj.acpi, access_value, parentObj.cr, function (rsc) {
+                        if (rsc == '0') {
+                            body_Obj = {};
+                            body_Obj['dbg'] = resultStatusCode['4103'];
+                            responder.response_result(request, response, 403, body_Obj, 4103, request.url, resultStatusCode['4103']);
+                            return '0';
+                        }
+                        console.timeEnd(tid);
+                        resource.create(request, response, function (code) {
+                            callback(code);
+                        });
+                    });
                 }
-
-                request.headers.mni = parentObj.mni;
-                request.headers.mbs = parentObj.mbs;
-                request.headers.cni = parentObj.cni;
-                request.headers.cbs = parentObj.cbs;
-                request.headers.st = parentObj.st;
-            }
-
-            if (parentObj.length == 0) {
-                parentObj = {};
-                parentObj.cr = '';
-                console.log('no creator');
-            }
-            else {
-                if (parentObj.ty == 2) {
-                    parentObj.cr = parentObj.aei;
+                else {
+                    callback(code);
                 }
-            }
-
-            if (request.ty == 23) {
-                var access_value = '3';
-            }
-            else {
-                access_value = '1';
-            }
-
-            var tid = 'security.check - ' + require('shortid').generate();
-            console.time(tid);
-            security.check(request, response, parentObj.ty, parentObj.acpi, access_value, parentObj.cr, function (rsc, request, response) {
-                if (rsc == '0') {
-                    body_Obj = {};
-                    body_Obj['dbg'] = resultStatusCode['4103'];
-                    responder.response_result(request, response, 403, body_Obj, 4103, request.url, resultStatusCode['4103']);
-                    return '0';
-                }
-                console.timeEnd(tid);
-                resource.create(request, response, request.ty, request.bodyObj, function (rsc) {
-                    return '0';
-                });
             });
-        });
+        }
+        else {
+            callback(code);
+        }
     });
 }
 
-function lookup_retrieve(request, response) {
-    check_rt_query(request, response, function (rsc, resultObj, op) {
-        if (rsc == '0') {
-            return rsc;
-        }
+function lookup_retrieve(request, response, callback) {
+    check_request_query_rt(request, response, function (code) {
+        if(code === '200') {
+            var resultObj =  request.targetObject[Object.keys(request.targetObject)[0]];
 
-        tr.check(request, resultObj.ri, function (rsc) {
-            if (rsc == '0') {
-                var body_Obj = {};
-                body_Obj['dbg'] = resultStatusCode['4230'];
-                responder.response_result(request, response, 423, body_Obj, 4230, request.url, resultStatusCode['4230']);
-                return '0';
-            }
-
-            if (resultObj.ty == 2) {
-                resultObj.cr = resultObj.aei;
-            }
-            else if (resultObj.ty == 16) {
-                resultObj.cr = resultObj.csi;
-            }
-
-            if (request.query.fu == 1) {
-                security.check(request, response, resultObj.ty, resultObj.acpi, '32', resultObj.cr, function (rsc, request, response) {
-                    if (rsc == '0') {
-                        body_Obj = {};
-                        body_Obj['dbg'] = resultStatusCode['4103'];
-                        responder.response_result(request, response, 403, body_Obj, 4103, request.url, resultStatusCode['4103']);
-                        return '0';
+            tr.check(request, function (code) {
+                if(code === '200') {
+                    if (resultObj.ty == 2) {
+                        resultObj.cr = resultObj.aei;
                     }
-                    resource.retrieve(request, response, resultObj);
-                });
-            }
-            else {
-                security.check(request, response, resultObj.ty, resultObj.acpi, '2', resultObj.cr, function (rsc, request, response) {
-                    if (rsc == '0') {
-                        body_Obj = {};
-                        body_Obj['dbg'] = resultStatusCode['4103'];
-                        responder.response_result(request, response, 403, body_Obj, 4103, request.url, resultStatusCode['4103']);
-                        return '0';
+                    else if (resultObj.ty == 16) {
+                        resultObj.cr = resultObj.csi;
                     }
-                    resource.retrieve(request, response, resultObj);
-                });
-            }
-        });
-    });
-}
 
-function lookup_update(request, response) {
-    check_rt_query(request, response, function (rsc, resultObj, op) {
-        if (rsc == '0') {
-            return rsc;
-        }
-
-        tr.check(request, resultObj.ri, function (rsc) {
-            if (rsc == '0') {
-                body_Obj = {};
-                body_Obj['dbg'] = resultStatusCode['4230'];
-                responder.response_result(request, response, 423, body_Obj, 4230, request.url, resultStatusCode['4230']);
-                return '0';
-            }
-
-            if (resultObj.ty == 2) {
-                resultObj.cr = resultObj.aei;
-            }
-            else if (resultObj.ty == 16) {
-                resultObj.cr = resultObj.csi;
-            }
-
-            var acpi_check = 0;
-            var other_check = 0;
-            for(var rootnm in body_Obj) {
-                if(body_Obj.hasOwnProperty(rootnm)) {
-                    for(var attr in body_Obj[rootnm]) {
-                        if(body_Obj[rootnm].hasOwnProperty(attr)) {
-                            if(attr == 'acpi') {
-                                acpi_check++;
+                    if (request.query.fu == 1) {
+                        security.check(request, response, resultObj.ty, resultObj.acpi, '32', resultObj.cr, function (rsc) {
+                            if (rsc == '0') {
+                                body_Obj = {};
+                                body_Obj['dbg'] = resultStatusCode['4103'];
+                                responder.response_result(request, response, 403, body_Obj, 4103, request.url, resultStatusCode['4103']);
+                                return '0';
                             }
-                            else {
-                                other_check++;
+                            resource.retrieve(request, response, function (code) {
+                                callback(code);
+                            });
+                        });
+                    }
+                    else {
+                        security.check(request, response, resultObj.ty, resultObj.acpi, '2', resultObj.cr, function (rsc) {
+                            // todo: security.check
+                            if (rsc == '0') {
+                                body_Obj = {};
+                                body_Obj['dbg'] = resultStatusCode['4103'];
+                                responder.response_result(request, response, 403, body_Obj, 4103, request.url, resultStatusCode['4103']);
+                                return '0';
+                            }
+
+                            resource.retrieve(request, response, function (code) {
+                                callback(code);
+                            });
+                        });
+                    }
+                }
+                else {
+                    callback(code);
+                }
+            });
+        }
+        else {
+            callback(code);
+        }
+    });
+}
+
+function lookup_update(request, response, callback) {
+    check_request_query_rt(request, response, function (code) {
+        if(code === '200') {
+            var resultObj = request.targetObject[Object.keys(request.targetObject)[0]];
+
+            tr.check(request, function (code) {
+                if(code === '200') {
+                    if (resultObj.ty == 2) {
+                        resultObj.cr = resultObj.aei;
+                    }
+                    else if (resultObj.ty == 16) {
+                        resultObj.cr = resultObj.csi;
+                    }
+
+                    var acpi_check = 0;
+                    var other_check = 0;
+                    for (var rootnm in request.bodyObj) {
+                        if (request.bodyObj.hasOwnProperty(rootnm)) {
+                            for (var attr in request.bodyObj[rootnm]) {
+                                if (request.bodyObj[rootnm].hasOwnProperty(attr)) {
+                                    if (attr == 'acpi') {
+                                        acpi_check++;
+                                    }
+                                    else {
+                                        other_check++;
+                                    }
+                                }
                             }
                         }
                     }
-                }
-            }
 
-            if(other_check > 0) {
-                security.check(request, response, resultObj.ty, resultObj.acpi, '4', resultObj.cr, function (rsc, request, response) {
-                    if (rsc == '0') {
-                        body_Obj = {};
-                        body_Obj['dbg'] = resultStatusCode['4103'];
-                        responder.response_result(request, response, 403, body_Obj, 4103, request.url, resultStatusCode['4103']);
-                        return '0';
+                    if (other_check > 0) {
+                        security.check(request, response, resultObj.ty, resultObj.acpi, '4', resultObj.cr, function (rsc) {
+                            if (rsc == '0') {
+                                body_Obj = {};
+                                body_Obj['dbg'] = resultStatusCode['4103'];
+                                responder.response_result(request, response, 403, body_Obj, 4103, request.url, resultStatusCode['4103']);
+                                return '0';
+                            }
+                            resource.update(request, response, function (code) {
+                                callback(code)
+                            });
+                        });
                     }
-                    resource.update(request, response, resultObj, body_Obj);
-                });
-            }
-            else {
-                resource.update(request, response, resultObj, body_Obj);
-            }
-        });
+                    else {
+                        resource.update(request, response, function (code) {
+                            callback(code)
+                        });
+                    }
+                }
+                else {
+                    callback(code);
+                }
+            });
+        }
+        else {
+            callback(code);
+        }
     });
 }
 
-function lookup_delete(request, response) {
-    check_rt_query(request, response, function (rsc, resultObj, op) {
-        if (rsc == '0') {
-            return rsc;
-        }
+function lookup_delete(request, response, callback) {
+    check_request_query_rt(request, response, function (code) {
+        if(code === '200') {
+            var resultObj = request.targetObject[Object.keys(request.targetObject)[0]];
 
-        tr.check(request, resultObj.ri, function (rsc) {
-            if (rsc == '0') {
-                var body_Obj = {};
-                body_Obj['dbg'] = resultStatusCode['4230'];
-                responder.response_result(request, response, 423, body_Obj, 4230, request.url, resultStatusCode['4230']);
-                return '0';
-            }
+            tr.check(request, function (code) {
+                if(code === '200') {
+                    if (resultObj.ty == 2) {
+                        resultObj.cr = resultObj.aei;
+                    }
+                    else if (resultObj.ty == 16) {
+                        resultObj.cr = resultObj.csi;
+                    }
 
-            if (resultObj.ty == 2) {
-                resultObj.cr = resultObj.aei;
-            }
-            else if (resultObj.ty == 16) {
-                resultObj.cr = resultObj.csi;
-            }
-
-            security.check(request, response, resultObj.ty, resultObj.acpi, '8', resultObj.cr, function (rsc, request, response) {
-                if (rsc == '0') {
-                    body_Obj = {};
-                    body_Obj['dbg'] = resultStatusCode['4103'];
-                    responder.response_result(request, response, 403, body_Obj, 4103, request.url, resultStatusCode['4103']);
-                    return '0';
+                    security.check(request, response, resultObj.ty, resultObj.acpi, '8', resultObj.cr, function (rsc) {
+                        if (rsc == '0') {
+                            body_Obj = {};
+                            body_Obj['dbg'] = resultStatusCode['4103'];
+                            responder.response_result(request, response, 403, body_Obj, 4103, request.url, resultStatusCode['4103']);
+                            return '0';
+                        }
+                        resource.delete(request, response, resultObj);
+                    });
                 }
-
-                // for(var idx in cbs_cache) {
-                //     if(cbs_cache.hasOwnProperty(idx)) {
-                //         if(idx.includes(resultObj.ri)) {
-                //             delete cbs_cache[idx];
-                //             del_cbs_cache(idx);
-                //         }
-                //     }
-                // }
-
-                resource.delete(request, response, resultObj);
+                else {
+                    callback(code);
+                }
             });
-        });
+        }
+        else {
+            callback(code);
+        }
     });
 }
 
@@ -1358,6 +1252,284 @@ function check_headers_requested(headers, callback) {
     }
 }
 
+function extra_api_action(connection, url, callback) {
+    if (url == '/hit') {
+        // for backup hit count
+        if (0) {
+            var _hit_old = JSON.parse(fs.readFileSync('hit.json', 'utf-8'));
+            for (var dd in _hit_old) {
+                if (_hit_old.hasOwnProperty(dd)) {
+                    for (var ff in _hit_old[dd]) {
+                        if (_hit_old[dd].hasOwnProperty(ff)) {
+                            if (Object.keys(_hit_old[dd][ff]).length > 0) {
+                                for (var gg in _hit_old[dd][ff]) {
+                                    if (_hit_old[dd][ff].hasOwnProperty(gg)) {
+                                        var _http = 0;
+                                        var _mqtt = 0;
+                                        var _coap = 0;
+                                        var _ws = 0;
+
+                                        if (_hit_old[dd][ff][gg] == null) {
+                                            _hit_old[dd][ff][gg] = 0;
+                                        }
+                                        if (gg == 'H') {
+                                            _http = _hit_old[dd][ff][gg];
+                                        }
+                                        else if (gg == 'M') {
+                                            _mqtt = _hit_old[dd][ff][gg];
+                                        }
+                                        else if (gg == 'C') {
+                                            _coap = _hit_old[dd][ff][gg];
+                                        }
+                                        else if (gg == 'W') {
+                                            _ws = _hit_old[dd][ff][gg];
+                                        }
+                                    }
+                                }
+
+                                db_sql.set_hit(request.connection, dd, _http, _mqtt, _coap, _ws, function (err, results) {
+                                    results = null;
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        db_sql.get_hit_all(connection, function (err, result) {
+            callback(err, result);
+        });
+    }
+
+    else if (url == '/total_ae') {
+        db_sql.select_sum_ae(request.connection, function (err, result) {
+            callback(err, result);
+        });
+    }
+
+    else if (url == '/total_cbs') {
+        db_sql.select_sum_cbs(request.connection, function (err, result) {
+            callback(err, result);
+        });
+    }
+
+    else {
+        callback(null, null);
+    }
+}
+
+function check_xm2m_headers(request, callback) {
+    // Check X-M2M-RI Header
+    if(request.headers.hasOwnProperty('x-m2m-ri')) {
+        if(request.headers['x-m2m-ri'] === '') {
+            callback('400-1');
+            return;
+        }
+    }
+    else {
+        callback('400-1');
+        return;
+    }
+
+    // Check X-M2M-RVI Header
+    if(!request.headers.hasOwnProperty('x-m2m-rvi')) {
+        // responder.error_result(request, response, 400, 4000, 'BAD REQUEST: X-M2M-RI is none');
+        // callback('0', body_Obj, request, response);
+        // return '0';
+        // todo: RVI check
+        request.headers['x-m2m-rvi'] = uservi;
+    }
+
+    request.ty = '99';
+    if(request.headers.hasOwnProperty('content-type')) {
+        var content_type = request.headers['content-type'].split(';');
+        for (var i in content_type) {
+            if (content_type.hasOwnProperty(i)) {
+                var ty_arr = content_type[i].replace(/ /g, '').split('=');
+                if (ty_arr[0].replace(/ /g, '') == 'ty') {
+                    request.ty = ty_arr[1].replace(' ', '');
+                    content_type = null;
+                    break;
+                }
+            }
+        }
+
+        if (request.ty == '5') {
+            callback('405-1');
+            return;
+        }
+
+        if (request.ty == '17') {
+            callback('405-2');
+            return;
+        }
+    }
+
+    // Check X-M2M-Origin Header
+    if(request.headers.hasOwnProperty('x-m2m-origin')) {
+        if(request.headers['x-m2m-origin'] === '') {
+            if (request.ty == '2' || request.ty == '16') {
+                request.headers['x-m2m-origin'] = 'S';
+            }
+            else {
+                callback('400-2');
+                return;
+            }
+        }
+    }
+    else {
+        callback('400-2');
+        return;
+    }
+
+    if (!request.query.hasOwnProperty('fu')) {
+        request.query.fu = 2;
+    }
+
+    if (!request.query.hasOwnProperty('rcn')) {
+        request.query.rcn = 1;
+    }
+
+    if (!request.query.hasOwnProperty('rt')) {
+        request.query.rt = 3;
+    }
+
+    var allow = 1;
+    if (allowed_ae_ids.length > 0) {
+        allow = 0;
+        for (var idx in allowed_ae_ids) {
+            if (allowed_ae_ids.hasOwnProperty(idx)) {
+                if (usecseid == request.headers['x-m2m-origin']) {
+                    allow = 1;
+                    break;
+                }
+                else if (allowed_ae_ids[idx] == request.headers['x-m2m-origin']) {
+                    allow = 1;
+                    break;
+                }
+            }
+        }
+
+        if (allow == 0) {
+            callback('403-1');
+            return;
+        }
+    }
+
+    if (!responder.typeRsrc.hasOwnProperty(request.ty)) {
+        callback('405-3');
+        return;
+    }
+
+    callback('200');
+}
+
+function check_resource_supported(request, response, callback) {
+    make_json_obj(request.usebodytype, request.body, function (err, body) {
+        try {
+            var rootnm = Object.keys(body)[0].replace('m2m:', '');
+            var checkCount = 0;
+            for (var key in responder.typeRsrc) {
+                if (responder.typeRsrc.hasOwnProperty(key)) {
+                    if (responder.typeRsrc[key] == rootnm) {
+                        break;
+                    }
+                    checkCount++;
+                }
+            }
+
+            delete body;
+            body = null;
+
+            if (checkCount >= Object.keys(responder.typeRsrc).length) {
+                callback('400-3');
+            }
+            else {
+                callback('200');
+            }
+        }
+        catch(e) {
+            callback('400-4');
+        }
+    });
+}
+
+function get_target_url(request, response, callback) {
+    request.url = request.url.replace('%23', '#'); // convert '%23' to '#' of url
+    request.hash = url.parse(request.url).hash;
+
+    var absolute_url = request.url.replace('\/_\/', '\/\/').split('#')[0];
+    absolute_url = absolute_url.replace(usespid, '/~');
+    absolute_url = absolute_url.replace(/\/~\/[^\/]+\/?/, '/');
+    var absolute_url_arr = absolute_url.split('/');
+
+    console.log('\n' + request.method + ' : ' + request.url);
+    request.bodyObj = {};
+
+    request.option = '';
+    request.sri = absolute_url_arr[1].split('?')[0];
+    if (absolute_url_arr[absolute_url_arr.length - 1] == 'la' || absolute_url_arr[absolute_url_arr.length - 1] == 'latest') {
+        if(request.method.toLowerCase() == 'get' || request.method.toLowerCase() == 'delete') {
+            request.ri = absolute_url.split('?')[0].replace('/latest', '');
+            request.ri = request.ri.replace('/la', '');
+            request.option = '/latest';
+        }
+        else {
+            callback('409-1');
+        }
+    }
+    else if (absolute_url_arr[absolute_url_arr.length - 1] == 'ol' || absolute_url_arr[absolute_url_arr.length - 1] == 'oldest') {
+        if(request.method.toLowerCase() == 'get' || request.method.toLowerCase() == 'delete') {
+            request.ri = absolute_url.split('?')[0].replace('/oldest', '');
+            request.ri = request.ri.replace('/ol', '');
+            request.option = '/oldest';
+        }
+        else {
+            callback('409-2')
+        }
+    }
+    else if (absolute_url_arr[absolute_url_arr.length - 1] == 'fopt') {
+        request.ri = absolute_url.split('?')[0].replace('/fopt', '');
+        request.option = '/fopt';
+    }
+    else {
+        request.ri = absolute_url.split('?')[0];
+        request.option = '';
+    }
+
+    request.absolute_url = absolute_url;
+    absolute_url = null;
+    var tid = require('shortid').generate();
+    console.time('get_resource_from_url' + ' (' + tid + ') - ' + request.absolute_url);
+    get_resource_from_url(request.connection, request.ri, request.sri, request.option, function (targetObject, status) {
+        console.timeEnd('get_resource_from_url' + ' (' + tid + ') - ' + request.absolute_url);
+        if (status == 404) {
+            if (url.parse(request.absolute_url).pathname.split('/')[1] == usecsebase) {
+                callback('404-1');
+            }
+            else {
+                callback('301-1');
+            }
+        }
+        else if (status == 500) {
+            callback('500-1');
+        }
+        else {
+            if (targetObject) {
+                request.targetObject = JSON.parse(JSON.stringify(targetObject));
+                delete targetObject;
+                targetObject = null;
+
+                callback('200');
+            }
+            else {
+                callback('404-2');
+            }
+        }
+    });
+}
+
 var onem2mParser = bodyParser.text(
     {
         limit: '5mb',
@@ -1382,8 +1554,473 @@ app.use(function (req, res, next) {
 //     heapdump.writeSnapshot(filename);
 //     res.send('Heapdump has been generated in '+filename);
 // });
+//
+// app.use(function (request, response, next) {
+//     var fullBody = '';
+//     request.on('data', function(chunk) {
+//         fullBody += chunk.toString();
+//     });
+//
+//     request.on('end', function() {
+//         request.body = fullBody;
+//
+//         db.getConnection(function (err, connection) {
+//             if (err) {
+//                 console.log('[app.use] No Connection');
+//                 responder.error_result(request, response, 500, 5000, 'DB Error : No Connection Pool');
+//                 return '0';
+//             }
+//             else {
+//                 request.connection = connection;
+//                 if (request.method.toLowerCase() == 'get') {
+//                     if (request.url == '/hit') {
+//                         response.header('Content-Type', 'application/json');
+//
+//                         // for backup hit count
+//                         if (0) {
+//                             var _hit_old = JSON.parse(fs.readFileSync('hit.json', 'utf-8'));
+//                             for (var dd in _hit_old) {
+//                                 if (_hit_old.hasOwnProperty(dd)) {
+//                                     for (var ff in _hit_old[dd]) {
+//                                         if (_hit_old[dd].hasOwnProperty(ff)) {
+//                                             if (Object.keys(_hit_old[dd][ff]).length > 0) {
+//                                                 for (var gg in _hit_old[dd][ff]) {
+//                                                     if (_hit_old[dd][ff].hasOwnProperty(gg)) {
+//                                                         var _http = 0;
+//                                                         var _mqtt = 0;
+//                                                         var _coap = 0;
+//                                                         var _ws = 0;
+//
+//                                                         if (_hit_old[dd][ff][gg] == null) {
+//                                                             _hit_old[dd][ff][gg] = 0;
+//                                                         }
+//                                                         if (gg == 'H') {
+//                                                             _http = _hit_old[dd][ff][gg];
+//                                                         }
+//                                                         else if (gg == 'M') {
+//                                                             _mqtt = _hit_old[dd][ff][gg];
+//                                                         }
+//                                                         else if (gg == 'C') {
+//                                                             _coap = _hit_old[dd][ff][gg];
+//                                                         }
+//                                                         else if (gg == 'W') {
+//                                                             _ws = _hit_old[dd][ff][gg];
+//                                                         }
+//                                                     }
+//                                                 }
+//
+//                                                 db_sql.set_hit(request.connection, dd, _http, _mqtt, _coap, _ws, function () {
+//
+//                                                 });
+//                                             }
+//                                         }
+//                                     }
+//                                 }
+//                             }
+//                         }
+//
+//                         db_sql.get_hit_all(request.connection, function (err, result) {
+//                             if (!err) {
+//                                 request.connection.release();
+//                                 var total_hit = result;
+//                                 response.header('Content-Type', 'application/json');
+//                                 response.status(200).end(JSON.stringify(total_hit, null, 4));
+//                             }
+//                         });
+//                         return;
+//                     }
+//
+//                     if (request.url == '/total_ae') {
+//                         db_sql.select_sum_ae(request.connection, function (err, result) {
+//                             if (!err) {
+//                                 request.connection.release();
+//                                 var total_ae = result[0];
+//                                 response.header('Content-Type', 'application/json');
+//                                 response.status(200).end(JSON.stringify(total_ae, null, 4));
+//                             }
+//                         });
+//                         return;
+//                     }
+//
+//                     if (request.url == '/total_cbs') {
+//                         db_sql.select_sum_cbs(request.connection, function (err, result) {
+//                             if (!err) {
+//                                 request.connection.release();
+//                                 var total_cbs = result[0];
+//                                 response.header('Content-Type', 'application/json');
+//                                 response.status(200).end(JSON.stringify(total_cbs, null, 4));
+//                             }
+//                         });
+//                         return;
+//                     }
+//                 }
+//
+//                 // Check X-M2M-RI Header
+//                 if ((request.headers['x-m2m-ri'] == null)) {
+//                     responder.error_result(request, response, 400, 4000, 'BAD REQUEST: X-M2M-RI is none');
+//                     return '0';
+//                 }
+//
+//                 // Check X-M2M-RVI Header
+//                 if ((request.headers['x-m2m-rvi'] == null)) {
+//                     // responder.error_result(request, response, 400, 4000, 'BAD REQUEST: X-M2M-RI is none');
+//                     // callback('0', body_Obj, request, response);
+//                     // return '0';
+//                     // todo: RVI check
+//                     request.headers['x-m2m-rvi'] = uservi;
+//                 }
+//
+//                 request.ty = '99';
+//                 if (request.method.toLowerCase() == 'post') {
+//                     var content_type = request.headers['content-type'].split(';');
+//                     try {
+//                         var ty = '99';
+//                         for (var i in content_type) {
+//                             if (content_type.hasOwnProperty(i)) {
+//                                 var ty_arr = content_type[i].replace(/ /g, '').split('=');
+//                                 if (ty_arr[0].replace(/ /g, '') == 'ty') {
+//                                     ty = ty_arr[1].replace(' ', '');
+//                                     break;
+//                                 }
+//                             }
+//                         }
+//                         request.ty = ty;
+//                     }
+//                     catch (e) {
+//                         responder.error_result(request, response, 400, 4000, 'ty is none');
+//                         return '0';
+//                     }
+//
+//                     if (request.ty == '5') {
+//                         responder.error_result(request, response, 405, 4005, 'OPERATION_NOT_ALLOWED: CSEBase can not be created by others');
+//                         return '0';
+//                     }
+//
+//                     if (request.ty == '17') {
+//                         responder.error_result(request, response, 405, 4005, 'OPERATION_NOT_ALLOWED (req is not supported when post request)');
+//                         return '0';
+//                     }
+//                 }
+//
+//                 // Check X-M2M-Origin Header
+//                 if (request.headers['x-m2m-origin'] == null || request.headers['x-m2m-origin'] == '') {
+//                     if (request.ty == '2' || request.ty == '16') {
+//                         request.headers['x-m2m-origin'] = 'S';
+//                     }
+//                     else {
+//                         responder.error_result(request, response, 400, 4000, 'BAD REQUEST: X-M2M-Origin header is Mandatory');
+//                         return '0';
+//                     }
+//                 }
+//
+//                 if (request.headers.hasOwnProperty('content-type')) {
+//                     if (request.headers['content-type'].includes('xml')) {
+//                         request.usebodytype = 'xml';
+//                     }
+//                     else if (request.headers['content-type'].includes('cbor')) {
+//                         request.usebodytype = 'cbor';
+//                     }
+//                     else {
+//                         request.usebodytype = 'json';
+//                     }
+//                 }
+//                 else {
+//                     request.usebodytype = 'json';
+//                 }
+//
+//                 if (request.query.fu == null) {
+//                     request.query.fu = 2;
+//                 }
+//                 if (request.query.rcn == null) {
+//                     request.query.rcn = 1;
+//                 }
+//                 if (request.query.rt == null) {
+//                     request.query.rt = 3;
+//                 }
+//
+//                 var allow = 1;
+//                 if (allowed_ae_ids.length > 0) {
+//                     allow = 0;
+//                     for (var idx in allowed_ae_ids) {
+//                         if (allowed_ae_ids.hasOwnProperty(idx)) {
+//                             if (usecseid == request.headers['x-m2m-origin']) {
+//                                 allow = 1;
+//                                 break;
+//                             }
+//                             else if (allowed_ae_ids[idx] == request.headers['x-m2m-origin']) {
+//                                 allow = 1;
+//                                 break;
+//                             }
+//                         }
+//                     }
+//
+//                     if (allow == 0) {
+//                         responder.error_result(request, response, 403, 4107, 'OPERATION_NOT_ALLOWED: AE-ID is not allowed');
+//                         return '0';
+//                     }
+//                 }
+//
+//                 if (responder.typeRsrc[request.ty] == null) {
+//                     responder.error_result(request, response, 405, 4005, 'OPERATION_NOT_ALLOWED: we do not support (' + request.ty + ') resource');
+//                     return '0';
+//                 }
+//
+//                 if (request.method.toLowerCase() == 'post' || request.method.toLowerCase() == 'put') {
+//                     if (request.body != '') {
+//                         make_json_obj(request.usebodytype, request.body, function (err, body) {
+//                             try {
+//                                 var rootnm = Object.keys(body)[0].replace('m2m:', '');
+//                                 var checkCount = 0;
+//                                 for (var key in responder.typeRsrc) {
+//                                     if (responder.typeRsrc.hasOwnProperty(key)) {
+//                                         if (responder.typeRsrc[key] == rootnm) {
+//                                             break;
+//                                         }
+//                                         checkCount++;
+//                                     }
+//                                 }
+//
+//                                 delete body;
+//                                 body = null;
+//
+//                                 if (checkCount >= Object.keys(responder.typeRsrc).length) {
+//                                     responder.error_result(request, response, 400, 4000, 'BAD REQUEST - not supported resource type requested');
+//                                     return '0';
+//                                 }
+//
+//                                 request.url = request.url.replace('%23', '#'); // convert '%23' to '#' of url
+//                                 request.hash = url.parse(request.url).hash;
+//
+//                                 var absolute_url = request.url.replace('\/_\/', '\/\/').split('#')[0];
+//                                 absolute_url = absolute_url.replace(usespid, '/~');
+//                                 absolute_url = absolute_url.replace(/\/~\/[^\/]+\/?/, '/');
+//                                 var absolute_url_arr = absolute_url.split('/');
+//
+//                                 console.log('\n' + request.method + ' : ' + request.url);
+//                                 request.bodyObj = {};
+//
+//                                 var option = '';
+//                                 var sri = absolute_url_arr[1].split('?')[0];
+//                                 if (absolute_url_arr[absolute_url_arr.length - 1] == 'la' || absolute_url_arr[absolute_url_arr.length - 1] == 'latest') {
+//                                     var ri = absolute_url.split('?')[0].replace('/latest', '');
+//                                     ri = ri.replace('/la', '');
+//                                     option = '/latest';
+//                                 }
+//                                 else if (absolute_url_arr[absolute_url_arr.length - 1] == 'ol' || absolute_url_arr[absolute_url_arr.length - 1] == 'oldest') {
+//                                     ri = absolute_url.split('?')[0].replace('/oldest', '');
+//                                     ri = ri.replace('/ol', '');
+//                                     option = '/oldest';
+//                                 }
+//                                 else if (absolute_url_arr[absolute_url_arr.length - 1] == 'fopt') {
+//                                     ri = absolute_url.split('?')[0].replace('/fopt', '');
+//                                     option = '/fopt';
+//                                 }
+//                                 else {
+//                                     ri = absolute_url.split('?')[0];
+//                                     option = '';
+//                                 }
+//
+//                                 var tid = require('shortid').generate();
+//                                 console.time('get_resource_from_url' + ' (' + tid + ') - ' + absolute_url);
+//                                 get_resource_from_url(request.connection, ri, sri, option, function (targetObject, status) {
+//                                     console.timeEnd('get_resource_from_url' + ' (' + tid + ') - ' + absolute_url);
+//                                     if (targetObject) {
+//                                         request.targetObject = JSON.parse(JSON.stringify(targetObject));
+//                                         delete targetObject;
+//                                         targetObject = null;
+//                                         if (option == '/fopt') {
+//                                             // check access right for fanoutpoint
+//                                             check_grp(request, response, function (rsc, result_grp) {
+//                                                 if (rsc == '0') {
+//                                                     return rsc;
+//                                                 }
+//
+//                                                 if (request.method.toLowerCase() == 'post') {
+//                                                     var access_value = '1';
+//                                                 }
+//                                                 else if (request.method.toLowerCase() == 'get') {
+//                                                     if (request.query.fu == 1) {
+//                                                         access_value = '32';
+//                                                     }
+//                                                     else {
+//                                                         access_value = '2';
+//                                                     }
+//                                                 }
+//                                                 else if (request.method.toLowerCase() == 'put') {
+//                                                     access_value = '4';
+//                                                 }
+//                                                 else {
+//                                                     access_value = '8'
+//                                                 }
+//
+//                                                 var body_Obj = {};
+//                                                 security.check(request, response, request.targetObject[Object.keys(request.targetObject)[0]].ty, result_grp.macp, access_value, result_grp.cr, function (rsc, request, response) {
+//                                                     if (rsc == '0') {
+//                                                         responder.error_result(request, response, 403, 4103, '[app.use] ACCESS DENIED (fopt)');
+//                                                         return '0';
+//                                                     }
+//
+//                                                     if (request.method.toLowerCase() == 'post' || request.method.toLowerCase() == 'put') {
+//                                                         parse_body_format(request, response, function (rsc, body_Obj) {
+//                                                             if (rsc != '0') {
+//                                                                 fopt.check(request, response, result_grp, request.targetObject[Object.keys(request.targetObject)[0]].ty, body_Obj);
+//                                                             }
+//                                                         });
+//                                                     }
+//                                                     else {
+//                                                         fopt.check(request, response, result_grp, request.targetObject[Object.keys(request.targetObject)[0]].ty, body_Obj);
+//                                                     }
+//                                                 });
+//                                             });
+//                                         }
+//                                         else {
+//                                             //absolute_url = request.targetObject[Object.keys(request.targetObject)[0]].ri;
+//
+//                                             next();
+//                                         }
+//                                     }
+//                                     else {
+//                                         if (status == 404) {
+//                                             if (url.parse(absolute_url).pathname.split('/')[1] == usecsebase) {
+//                                                 responder.error_result(request, response, 404, 4004, '[app.use] resource does not exist');
+//                                                 return '0';
+//                                             }
+//                                             else {
+//                                                 check_csr(absolute_url, request, response);
+//                                                 return '0';
+//                                             }
+//                                         }
+//                                         else if (status == 500) {
+//                                             responder.error_result(request, response, 404, 4004, '[app.use] Database error at get_resource_from_url in ' + usecsebase);
+//                                             return '0';
+//                                         }
+//                                     }
+//                                 });
+//                             }
+//                             catch (e) {
+//                                 responder.error_result(request, response, 400, 4000, 'BAD REQUEST');
+//                                 return '0';
+//                             }
+//                         });
+//                     }
+//                 }
+//                 else {
+//                     request.url = request.url.replace('%23', '#'); // convert '%23' to '#' of url
+//                     request.hash = url.parse(request.url).hash;
+//
+//                     var absolute_url = request.url.replace('\/_\/', '\/\/').split('#')[0];
+//                     absolute_url = absolute_url.replace(usespid, '/~');
+//                     absolute_url = absolute_url.replace(/\/~\/[^\/]+\/?/, '/');
+//                     var absolute_url_arr = absolute_url.split('/');
+//
+//                     console.log('\n' + request.method + ' : ' + request.url);
+//                     request.bodyObj = {};
+//
+//                     var option = '';
+//                     var sri = absolute_url_arr[1].split('?')[0];
+//                     if (absolute_url_arr[absolute_url_arr.length - 1] == 'la' || absolute_url_arr[absolute_url_arr.length - 1] == 'latest') {
+//                         var ri = absolute_url.split('?')[0].replace('/latest', '');
+//                         ri = ri.replace('/la', '');
+//                         option = '/latest';
+//                     }
+//                     else if (absolute_url_arr[absolute_url_arr.length - 1] == 'ol' || absolute_url_arr[absolute_url_arr.length - 1] == 'oldest') {
+//                         ri = absolute_url.split('?')[0].replace('/oldest', '');
+//                         ri = ri.replace('/ol', '');
+//                         option = '/oldest';
+//                     }
+//                     else if (absolute_url_arr[absolute_url_arr.length - 1] == 'fopt') {
+//                         ri = absolute_url.split('?')[0].replace('/fopt', '');
+//                         option = '/fopt';
+//                     }
+//                     else {
+//                         ri = absolute_url.split('?')[0];
+//                         option = '';
+//                     }
+//
+//                     var tid = require('shortid').generate();
+//                     console.time('get_resource_from_url' + ' (' + tid + ') - ' + absolute_url);
+//                     get_resource_from_url(request.connection, ri, sri, option, function (targetObject, status) {
+//                         console.timeEnd('get_resource_from_url' + ' (' + tid + ') - ' + absolute_url);
+//                         if (targetObject) {
+//                             request.targetObject = JSON.parse(JSON.stringify(targetObject));
+//                             delete targetObject;
+//                             targetObject = null;
+//                             if (option == '/fopt') {
+//                                 // check access right for fanoutpoint
+//                                 check_grp(request, response, function (rsc, result_grp) {
+//                                     if (rsc == '0') {
+//                                         return rsc;
+//                                     }
+//
+//                                     if (request.method.toLowerCase() == 'post') {
+//                                         var access_value = '1';
+//                                     }
+//                                     else if (request.method.toLowerCase() == 'get') {
+//                                         if (request.query.fu == 1) {
+//                                             access_value = '32';
+//                                         }
+//                                         else {
+//                                             access_value = '2';
+//                                         }
+//                                     }
+//                                     else if (request.method.toLowerCase() == 'put') {
+//                                         access_value = '4';
+//                                     }
+//                                     else {
+//                                         access_value = '8'
+//                                     }
+//
+//                                     var body_Obj = {};
+//                                     security.check(request, response, request.targetObject[Object.keys(request.targetObject)[0]].ty, result_grp.macp, access_value, result_grp.cr, function (rsc, request, response) {
+//                                         if (rsc == '0') {
+//                                             responder.error_result(request, response, 403, 4103, '[app.use] ACCESS DENIED (fopt)');
+//                                             return '0';
+//                                         }
+//
+//                                         if (request.method.toLowerCase() == 'post' || request.method.toLowerCase() == 'put') {
+//                                             parse_body_format(request, response, function (rsc, body_Obj) {
+//                                                 if (rsc != '0') {
+//                                                     fopt.check(request, response, result_grp, request.targetObject[Object.keys(request.targetObject)[0]].ty, body_Obj);
+//                                                 }
+//                                             });
+//                                         }
+//                                         else {
+//                                             fopt.check(request, response, result_grp, request.targetObject[Object.keys(request.targetObject)[0]].ty, body_Obj);
+//                                         }
+//                                     });
+//                                 });
+//                             }
+//                             else {
+//                                 //absolute_url = request.targetObject[Object.keys(request.targetObject)[0]].ri;
+//
+//                                 next();
+//                             }
+//                         }
+//                         else {
+//                             if (status == 404) {
+//                                 if (url.parse(absolute_url).pathname.split('/')[1] == usecsebase) {
+//                                     responder.error_result(request, response, 404, 4004, '[app.use] resource does not exist');
+//                                     return '0';
+//                                 }
+//                                 else {
+//                                     check_csr(absolute_url, request, response);
+//                                     return '0';
+//                                 }
+//                             }
+//                             else if (status == 500) {
+//                                 responder.error_result(request, response, 404, 4004, '[app.use] Database error at get_resource_from_url in ' + usecsebase);
+//                                 return '0';
+//                             }
+//                         }
+//                     });
+//                 }
+//             }
+//         });
+//     });
+// });
 
-app.use(function (request, response, next) {
+// remoteCSE, ae, cnt
+app.post(onem2mParser, function (request, response) {
     var fullBody = '';
     request.on('data', function(chunk) {
         fullBody += chunk.toString();
@@ -1400,724 +2037,1839 @@ app.use(function (request, response, next) {
             }
             else {
                 request.connection = connection;
-                if (request.method.toLowerCase() == 'get') {
-                    if (request.url == '/hit') {
-                        response.header('Content-Type', 'application/json');
 
-                        // for backup hit count
-                        if (0) {
-                            var _hit_old = JSON.parse(fs.readFileSync('hit.json', 'utf-8'));
-                            for (var dd in _hit_old) {
-                                if (_hit_old.hasOwnProperty(dd)) {
-                                    for (var ff in _hit_old[dd]) {
-                                        if (_hit_old[dd].hasOwnProperty(ff)) {
-                                            if (Object.keys(_hit_old[dd][ff]).length > 0) {
-                                                for (var gg in _hit_old[dd][ff]) {
-                                                    if (_hit_old[dd][ff].hasOwnProperty(gg)) {
-                                                        var _http = 0;
-                                                        var _mqtt = 0;
-                                                        var _coap = 0;
-                                                        var _ws = 0;
+                var _ct = moment().utc().format('YYYYMMDD');
+                var _http = 0;
+                var _mqtt = 0;
+                var _coap = 0;
+                var _ws = 0;
+                if (request.headers.hasOwnProperty('binding')) {
+                    if (request.headers['binding'] == 'H') {
+                        _http = 1;
+                    }
+                    else if (request.headers['binding'] == 'M') {
+                        _mqtt = 1;
+                    }
+                    else if (request.headers['binding'] == 'C') {
+                        _coap = 1;
+                    }
+                    else if (request.headers['binding'] == 'W') {
+                        _ws = 1;
+                    }
+                    db_sql.set_hit(request.connection, _ct, _http, _mqtt, _coap, _ws, function (err, results) {
+                        results = null;
+                    });
+                }
+                else {
+                    _http = 1;
+                    db_sql.set_hit(request.connection, _ct, _http, _mqtt, _coap, _ws, function (err, results) {
+                        results = null;
+                    });
+                }
 
-                                                        if (_hit_old[dd][ff][gg] == null) {
-                                                            _hit_old[dd][ff][gg] = 0;
-                                                        }
-                                                        if (gg == 'H') {
-                                                            _http = _hit_old[dd][ff][gg];
-                                                        }
-                                                        else if (gg == 'M') {
-                                                            _mqtt = _hit_old[dd][ff][gg];
-                                                        }
-                                                        else if (gg == 'C') {
-                                                            _coap = _hit_old[dd][ff][gg];
-                                                        }
-                                                        else if (gg == 'W') {
-                                                            _ws = _hit_old[dd][ff][gg];
-                                                        }
-                                                    }
+                check_xm2m_headers(request, function (code) {
+                    if(code === '400-1') {
+                        responder.error_result(request, response, 400, 4000, 'BAD REQUEST: X-M2M-RI is none', function () {
+                            request = null;
+                            response = null;
+                        });
+                    }
+                    else if(code === '400-2') {
+                        responder.error_result(request, response, 400, 4000, 'BAD REQUEST: X-M2M-Origin header is Mandatory', function () {
+                            request = null;
+                            response = null;
+                        });
+                    }
+                    else if(code === '405-1') {
+                        responder.error_result(request, response, 405, 4005, 'OPERATION_NOT_ALLOWED: CSEBase can not be created by others', function () {
+                            request = null;
+                            response = null;
+                        });
+                    }
+                    else if(code === '405-2') {
+                        responder.error_result(request, response, 405, 4005, 'OPERATION_NOT_ALLOWED (req is not supported when post request)', function () {
+                            request = null;
+                            response = null;
+                        });
+                    }
+                    else if(code === '405-3') {
+                        responder.error_result(request, response, 405, 4005, 'OPERATION_NOT_ALLOWED: we do not support (' + request.ty + ') resource', function () {
+                            request = null;
+                            response = null;
+                        });
+                    }
+                    else if(code === '403-1') {
+                        responder.error_result(request, response, 403, 4107, 'OPERATION_NOT_ALLOWED: AE-ID is not allowed', function () {
+                            request = null;
+                            response = null;
+                        });
+                    }
+                    else {
+                        if (request.body == "") {
+                            responder.error_result(request, response, 400, 4000, 'body is empty', function () {
+                                request = null;
+                                response = null;
+                            });
+                        }
+                        else {
+                            check_resource_supported(request, response, function (code) {
+                                if(code === '400-3') {
+                                    responder.error_result(request, response, 400, 4000, 'BAD REQUEST: not supported resource type requested', function () {
+                                        request = null;
+                                        response = null;
+                                    });
+                                }
+                                else if(code === '400-4') {
+                                    responder.error_result(request, response, 400, 4000, 'BAD REQUEST: not parse your body', function () {
+                                        request = null;
+                                        response = null;
+                                    });
+                                }
+                                else {
+                                    get_target_url(request, response, function (code) {
+                                        if(code === '409-1') {
+                                            responder.error_result(request, response, 409, 4005, 'can not use post, put method at latest resource', function () {
+                                                request = null;
+                                                response = null;
+                                            });
+                                        }
+                                        else if(code === '409-2') {
+                                            responder.error_result(request, response, 409, 4005, 'can not use post, put method at oldest resource', function () {
+                                                request = null;
+                                                response = null;
+                                            });
+                                        }
+                                        else if(code === '404-1') {
+                                            responder.error_result(request, response, 404, 4004, 'resource does not exist (get_target_url)', function () {
+                                                request = null;
+                                                response = null;
+                                            });
+                                        }
+                                        else if(code === '404-2') {
+                                            responder.error_result(request, response, 404, 4004, 'resource does not exist (get_target_url)', function () {
+                                                request = null;
+                                                response = null;
+                                            });
+                                        }
+                                        else if(code === '404-3') {
+                                            responder.error_result(request, response, 404, 4004, 'csebase is not found', function () {
+                                                request = null;
+                                                response = null;
+                                            });
+                                        }
+                                        else if(code === '500-1') {
+                                            responder.error_result(request, response, 500, 5000, 'database error (get_target_url)', function () {
+                                                request = null;
+                                                response = null;
+                                            });
+                                        }
+                                        else if(code === '301-1') {
+                                            check_csr(request, response, function () {
+                                                if(code === '404-3') {
+                                                    responder.error_result(request, response, 404, 4004, 'csebase is not found', function () {
+                                                        request = null;
+                                                        response = null;
+                                                    });
                                                 }
+                                                else if(code === '301-2') {
+                                                    response.status(response.statusCode).end(response.body);
+                                                    request = null;
+                                                    response = null;
+                                                }
+                                            });
+                                        }
+                                        else {
+                                            if (request.option == '/fopt') {
+                                                // check access right for fanoutpoint
+                                                // todo: fopt - create
+                                                check_grp(request, response, function (rsc, result_grp) {
+                                                    if (rsc == '0') {
+                                                        return rsc;
+                                                    }
 
-                                                db_sql.set_hit(request.connection, dd, _http, _mqtt, _coap, _ws, function () {
+                                                    var access_value = '1';
+                                                    var body_Obj = {};
+                                                    security.check(request, response, request.targetObject[Object.keys(request.targetObject)[0]].ty, result_grp.macp, access_value, result_grp.cr, function (rsc, request, response) {
+                                                        if (rsc == '0') {
+                                                            responder.error_result(request, response, 403, 4103, '[app.use] ACCESS DENIED (fopt)');
+                                                            return '0';
+                                                        }
 
+                                                        parse_body_format(request, response, function (code) {
+                                                            if(code === '400-5') {
+                                                                responder.error_result(request, response, 400, 4000, '[parse_to_json] do not parse xml body', function () {
+                                                                    request = null;
+                                                                    response = null;
+                                                                });
+                                                            }
+                                                            else if(code === '400-6') {
+                                                                responder.error_result(request, response, 400, 4000, '[parse_to_json] do not parse cbor body', function () {
+                                                                    request = null;
+                                                                    response = null;
+                                                                });
+                                                            }
+                                                            else if(code === '400-7') {
+                                                                responder.error_result(request, response, 400, 4000, '[parse_to_json] root tag of body is not matched', function () {
+                                                                    request = null;
+                                                                    response = null;
+                                                                });
+                                                            }
+                                                            else if(code === '400-8') {
+                                                                responder.error_result(request, response, 400, 4000, '(aa, at, poa, acpi, srt, nu, mid, macp, rels, rqps, srv) attribute should be json array format', function () {
+                                                                    request = null;
+                                                                    response = null;
+                                                                });
+                                                            }
+                                                            else if(code === '400-9') {
+                                                                responder.error_result(request, response, 400, 4000, '(lbl) attribute should be json array format', function () {
+                                                                    request = null;
+                                                                    response = null;
+                                                                });
+                                                            }
+                                                            else if(code === '400-10') {
+                                                                responder.error_result(request, response, 400, 4000, '(enc.net) attribute should be json array format', function () {
+                                                                    request = null;
+                                                                    response = null;
+                                                                });
+                                                            }
+                                                            else if(code === '400-11') {
+                                                                responder.error_result(request, response, 400, 4000, '(enc) attribute should have net key as child in json format', function () {
+                                                                    request = null;
+                                                                    response = null;
+                                                                });
+                                                            }
+                                                            else if(code === '400-12') {
+                                                                responder.error_result(request, response, 400, 4000, '(pv.acr, pvs.acr) attribute should be json array format', function () {
+                                                                    request = null;
+                                                                    response = null;
+                                                                });
+                                                            }
+                                                            else if(code === '400-13') {
+                                                                responder.error_result(request, response, 400, 4000, '(pv.acr.acor, pvs.acr.acor) attribute should be json array format', function () {
+                                                                    request = null;
+                                                                    response = null;
+                                                                });
+                                                            }
+                                                            else if(code === '400-14') {
+                                                                responder.error_result(request, response, 400, 4000, '(pv.acr.acco, pvs.acr.acco) attribute should be json array format', function () {
+                                                                    request = null;
+                                                                    response = null;
+                                                                });
+                                                            }
+                                                            else if(code === '400-15') {
+                                                                responder.error_result(request, response, 400, 4000, '(pv.acr.acco.acip.ipv4, pvs.acr.acco.acip.ipv4) attribute should be json array format', function () {
+                                                                    request = null;
+                                                                    response = null;
+                                                                });
+                                                            }
+                                                            else if(code === '400-16') {
+                                                                responder.error_result(request, response, 400, 4000, '(pv.acr.acco.acip.ipv6, pvs.acr.acco.acip.ipv6) attribute should be json array format', function () {
+                                                                    request = null;
+                                                                    response = null;
+                                                                });
+                                                            }
+                                                            else if(code === '400-17') {
+                                                                responder.error_result(request, response, 400, 4000, '(pv.acr.acco.actw, pvs.acr.acco.actw) attribute should be json array format', function () {
+                                                                    request = null;
+                                                                    response = null;
+                                                                });
+                                                            }
+                                                            else if(code === '400-18') {
+                                                                responder.error_result(request, response, 400, 4000, '(uds, cas) attribute should be json array format', function () {
+                                                                    request = null;
+                                                                    response = null;
+                                                                });
+                                                            }
+                                                            else {
+                                                                fopt.check(request, response, result_grp, request.targetObject[Object.keys(request.targetObject)[0]].ty, body_Obj);
+                                                            }
+                                                        });
+                                                    });
+                                                });
+                                            }
+                                            else {
+                                                parse_body_format(request, response, function (code) {
+                                                    if(code === '400-5') {
+                                                        responder.error_result(request, response, 400, 4000, '[parse_to_json] do not parse xml body', function () {
+                                                            request = null;
+                                                            response = null;
+                                                        });
+                                                    }
+                                                    else if(code === '400-6') {
+                                                        responder.error_result(request, response, 400, 4000, '[parse_to_json] do not parse cbor body', function () {
+                                                            request = null;
+                                                            response = null;
+                                                        });
+                                                    }
+                                                    else if(code === '400-7') {
+                                                        responder.error_result(request, response, 400, 4000, '[parse_to_json] root tag of body is not matched', function () {
+                                                            request = null;
+                                                            response = null;
+                                                        });
+                                                    }
+                                                    else if(code === '400-8') {
+                                                        responder.error_result(request, response, 400, 4000, '(aa, at, poa, acpi, srt, nu, mid, macp, rels, rqps, srv) attribute should be json array format', function () {
+                                                            request = null;
+                                                            response = null;
+                                                        });
+                                                    }
+                                                    else if(code === '400-9') {
+                                                        responder.error_result(request, response, 400, 4000, '(lbl) attribute should be json array format', function () {
+                                                            request = null;
+                                                            response = null;
+                                                        });
+                                                    }
+                                                    else if(code === '400-10') {
+                                                        responder.error_result(request, response, 400, 4000, '(enc.net) attribute should be json array format', function () {
+                                                            request = null;
+                                                            response = null;
+                                                        });
+                                                    }
+                                                    else if(code === '400-11') {
+                                                        responder.error_result(request, response, 400, 4000, '(enc) attribute should have net key as child in json format', function () {
+                                                            request = null;
+                                                            response = null;
+                                                        });
+                                                    }
+                                                    else if(code === '400-12') {
+                                                        responder.error_result(request, response, 400, 4000, '(pv.acr, pvs.acr) attribute should be json array format', function () {
+                                                            request = null;
+                                                            response = null;
+                                                        });
+                                                    }
+                                                    else if(code === '400-13') {
+                                                        responder.error_result(request, response, 400, 4000, '(pv.acr.acor, pvs.acr.acor) attribute should be json array format', function () {
+                                                            request = null;
+                                                            response = null;
+                                                        });
+                                                    }
+                                                    else if(code === '400-14') {
+                                                        responder.error_result(request, response, 400, 4000, '(pv.acr.acco, pvs.acr.acco) attribute should be json array format', function () {
+                                                            request = null;
+                                                            response = null;
+                                                        });
+                                                    }
+                                                    else if(code === '400-15') {
+                                                        responder.error_result(request, response, 400, 4000, '(pv.acr.acco.acip.ipv4, pvs.acr.acco.acip.ipv4) attribute should be json array format', function () {
+                                                            request = null;
+                                                            response = null;
+                                                        });
+                                                    }
+                                                    else if(code === '400-16') {
+                                                        responder.error_result(request, response, 400, 4000, '(pv.acr.acco.acip.ipv6, pvs.acr.acco.acip.ipv6) attribute should be json array format', function () {
+                                                            request = null;
+                                                            response = null;
+                                                        });
+                                                    }
+                                                    else if(code === '400-17') {
+                                                        responder.error_result(request, response, 400, 4000, '(pv.acr.acco.actw, pvs.acr.acco.actw) attribute should be json array format', function () {
+                                                            request = null;
+                                                            response = null;
+                                                        });
+                                                    }
+                                                    else if(code === '400-18') {
+                                                        responder.error_result(request, response, 400, 4000, '(uds, cas) attribute should be json array format', function () {
+                                                            request = null;
+                                                            response = null;
+                                                        });
+                                                    }
+                                                    else {
+                                                        if (responder.typeRsrc[request.ty] != Object.keys(request.bodyObj)[0]) {
+                                                            if (responder.typeRsrc[request.ty] == 'mgo') {
+                                                                var support_mgo = 0;
+                                                                for (var prop in responder.mgoType) {
+                                                                    if (responder.mgoType.hasOwnProperty(prop)) {
+                                                                        if (responder.mgoType[prop] == Object.keys(request.bodyObj)[0]) {
+                                                                            support_mgo = 1;
+                                                                            break;
+                                                                        }
+                                                                    }
+                                                                }
+
+                                                                if (support_mgo == 0) {
+                                                                    responder.error_result(request, response, 400, 4000, 'ty [' + request.ty + '] is different with body (' + Object.keys(request.bodyObj)[0] + ')', function () {
+                                                                        request = null;
+                                                                        response = null;
+                                                                    });
+                                                                    return;
+                                                                }
+                                                            }
+                                                            else {
+                                                                responder.error_result(request, response, 400, 4000, 'ty [' + request.ty + '] is different with body (' + Object.keys(request.bodyObj)[0] + ')', function () {
+                                                                    request = null;
+                                                                    response = null;
+                                                                });
+                                                                return;
+                                                            }
+                                                        }
+
+                                                        if (request.ty == '2') {
+                                                            var allow = 1;
+                                                            if (allowed_app_ids.length > 0) {
+                                                                allow = 0;
+                                                                for (var idx in allowed_app_ids) {
+                                                                    if (allowed_app_ids.hasOwnProperty(idx)) {
+                                                                        if (allowed_app_ids[idx] == request.bodyObj.ae.api) {
+                                                                            allow = 1;
+                                                                            break;
+                                                                        }
+                                                                    }
+                                                                }
+                                                                if (allow == 0) {
+                                                                    responder.error_result(request, response, 403, 4107, 'OPERATION_NOT_ALLOWED: APP-ID in AE is not allowed', function () {
+                                                                        request = null;
+                                                                        response = null;
+                                                                    });
+                                                                    return;
+                                                                }
+                                                            }
+                                                        }
+
+                                                        var rootnm = Object.keys(request.targetObject)[0];
+                                                        var absolute_url = request.targetObject[rootnm].ri;
+                                                        check_notification(request, response, function (code) {
+                                                            if (code === 'notify') {
+                                                                // todo : check ae - notify
+                                                                check_ae(request.targetObject, request, response);
+                                                                return '0';
+                                                            }
+                                                            else if (code === 'post') {
+                                                                request.url = absolute_url;
+                                                                if ((request.query.fu == 2) && (request.query.rcn == 0 || request.query.rcn == 1 || request.query.rcn == 2 || request.query.rcn == 3)) {
+                                                                    lookup_create(request, response, function (code) {
+                                                                        if(code === '405-4') {
+                                                                            responder.error_result(request, response, 405, 4005, 'OPERATION_NOT_ALLOWED (rt query is not supported)', function () {
+                                                                                request = null;
+                                                                                response = null;
+                                                                            });
+                                                                        }
+                                                                        else if(code === '400-21') {
+                                                                            responder.error_result(request, response, 400, 4000, 'X-M2M-RTU is none', function () {
+                                                                                request = null;
+                                                                                response = null;
+                                                                            });
+                                                                        }
+                                                                        else if(code === '400-22') {
+                                                                            responder.error_result(request, response, 400, 4000, 'BAD REQUEST: \'Not Present\' attribute', function () {
+                                                                                request = null;
+                                                                                response = null;
+                                                                            });
+                                                                        }
+                                                                        else if(code === '400-23') {
+                                                                            responder.error_result(request, response, 400, 4000, 'BAD REQUEST: .acr must have values', function () {
+                                                                                request = null;
+                                                                                response = null;
+                                                                            });
+                                                                        }
+                                                                        else if(code === '400-24') {
+                                                                            responder.error_result(request, response, 400, 4000, 'BAD REQUEST: nu must have values', function () {
+                                                                                request = null;
+                                                                                response = null;
+                                                                            });
+                                                                        }
+                                                                        else if(code === '400-25') {
+                                                                            responder.error_result(request, response, 400, 4000, 'BAD REQUEST: attribute is not defined', function () {
+                                                                                request = null;
+                                                                                response = null;
+                                                                            });
+                                                                        }
+                                                                        else if(code === '400-26') {
+                                                                            responder.error_result(request, response, 400, 4000, 'BAD REQUEST: attribute is \'Mandatory\' attribute', function () {
+                                                                                request = null;
+                                                                                response = null;
+                                                                            });
+                                                                        }
+                                                                        else if(code === '400-27') {
+                                                                            responder.error_result(request, response, 400, 4000, 'BAD REQUEST: expiration time is before now', function () {
+                                                                                request = null;
+                                                                                response = null;
+                                                                            });
+                                                                        }
+                                                                        else if(code === '400-28') {
+                                                                            responder.error_result(request, response, 400, 4000, 'BAD REQUEST: ASN CSE can not have child CSE (remoteCSE)', function () {
+                                                                                request = null;
+                                                                                response = null;
+                                                                            });
+                                                                        }
+                                                                        else if(code === '400-29') {
+                                                                            responder.error_result(request, response, 400, 4000, 'BAD REQUEST: mni is negative value', function () {
+                                                                                request = null;
+                                                                                response = null;
+                                                                            });
+                                                                        }
+                                                                        else if(code === '400-30') {
+                                                                            responder.error_result(request, response, 400, 4000, 'BAD REQUEST: mbs is negative value', function () {
+                                                                                request = null;
+                                                                                response = null;
+                                                                            });
+                                                                        }
+                                                                        else if(code === '400-31') {
+                                                                            responder.error_result(request, response, 400, 4000, 'BAD REQUEST: mia is negative value', function () {
+                                                                                request = null;
+                                                                                response = null;
+                                                                            });
+                                                                        }
+                                                                        else if(code === '400-32') {
+                                                                            responder.error_result(request, response, 400, 4000, 'BAD REQUEST: contentInfo(cnf) format is not match', function () {
+                                                                                request = null;
+                                                                                response = null;
+                                                                            });
+                                                                        }
+                                                                        else if(code === '400-33') {
+                                                                            responder.error_result(request, response, 400, 6010, 'MAX_NUMBER_OF_MEMBER_EXCEEDED', function () {
+                                                                                request = null;
+                                                                                response = null;
+                                                                            });
+                                                                        }
+                                                                        else if(code === '400-34') {
+                                                                            responder.error_result(request, response, 400, 6011, 'can not create group because csy is ABANDON_GROUP when MEMBER_TYPE_INCONSISTENT', function () {
+                                                                                request = null;
+                                                                                response = null;
+                                                                            });
+                                                                        }
+                                                                        else if(code === '400-35') {
+                                                                            responder.error_result(request, response, 400, 4000, 'mgmtDefinition is not match with mgmtObj resource', function () {
+                                                                                request = null;
+                                                                                response = null;
+                                                                            });
+                                                                        }
+                                                                        else if(code === '400-36') {
+                                                                            responder.error_result(request, response, 400, 4000, 'ty does not supported', function () {
+                                                                                request = null;
+                                                                                response = null;
+                                                                            });
+                                                                        }
+                                                                        else if(code === '400-37') {
+                                                                            responder.error_result(request, response, 400, 4000, 'BAD_REQUEST: transaction resource could not create', function () {
+                                                                                request = null;
+                                                                                response = null;
+                                                                            });
+                                                                        }
+                                                                        else if(code === '403-2') {
+                                                                            responder.error_result(request, response, 403, 5203, 'TARGET_NOT_SUBSCRIBABLE: request ty creating can not create under parent resource', function () {
+                                                                                request = null;
+                                                                                response = null;
+                                                                            });
+                                                                        }
+                                                                        else if(code === '405-5') {
+                                                                            responder.error_result(request, response, 405, 4005, 'we do not support to create resource', function () {
+                                                                                request = null;
+                                                                                response = null;
+                                                                            });
+                                                                        }
+                                                                        else if(code === '405-6') {
+                                                                            responder.error_result(request, response, 405, 4005, 'OPERATION NOT ALLOWED: disr attribute is true', function () {
+                                                                                request = null;
+                                                                                response = null;
+                                                                            });
+                                                                        }
+                                                                        else if(code === '406-1') {
+                                                                            responder.error_result(request, response, 406, 5207, 'NOT_ACCEPTABLE: can not create cin because mni value is zero', function () {
+                                                                                request = null;
+                                                                                response = null;
+                                                                            });
+                                                                        }
+                                                                        else if(code === '406-2') {
+                                                                            responder.error_result(request, response, 406, 5207, 'NOT_ACCEPTABLE: can not create cin because mbs value is zero', function () {
+                                                                                request = null;
+                                                                                response = null;
+                                                                            });
+                                                                        }
+                                                                        else if(code === '406-3') {
+                                                                            responder.error_result(request, response, 406, 5207, 'NOT_ACCEPTABLE: cs is exceed mbs', function () {
+                                                                                request = null;
+                                                                                response = null;
+                                                                            });
+                                                                        }
+
+                                                                        else if(code === '409-3') {
+                                                                            responder.error_result(request, response, 409, 4005, 'resource name can not use that is keyword', function () {
+                                                                                request = null;
+                                                                                response = null;
+                                                                            });
+                                                                        }
+                                                                        else if(code === '409-4') {
+                                                                            responder.error_result(request, response, 409, 4005, 'resource requested is not supported', function () {
+                                                                                request = null;
+                                                                                response = null;
+                                                                            });
+                                                                        }
+                                                                        else if(code === '409-5') {
+                                                                            responder.error_result(request, response, 409, 4105, 'resource is already exist', function () {
+                                                                                request = null;
+                                                                                response = null;
+                                                                            });
+                                                                        }
+                                                                        else if(code === '409-6') {
+                                                                            responder.error_result(request, response, 409, 4105, '[create_action] aei_UNIQUE', function () {
+                                                                                request = null;
+                                                                                response = null;
+                                                                            });
+                                                                        }
+                                                                        else if(code === '423-1') {
+                                                                            responder.error_result(request, response, 423, 4230, 'LOCKED: this resource was occupied by others', function () {
+                                                                                request = null;
+                                                                                response = null;
+                                                                            });
+                                                                        }
+                                                                        else if(code === '500-2') {
+                                                                            responder.error_result(request, response, 500, 5204, 'SUBSCRIPTION_VERIFICATION_INITIATION_FAILED', function () {
+                                                                                request = null;
+                                                                                response = null;
+                                                                            });
+                                                                        }
+                                                                        else if(code === '500-4') {
+                                                                            responder.error_result(request, response, 500, 5000, '[create_action] create resource error', function () {
+                                                                                request = null;
+                                                                                response = null;
+                                                                            });
+                                                                        }
+                                                                        else if(code === '201') {
+                                                                            responder.response_result(request, response, 201, 2001, '', function () {
+                                                                                request = null;
+                                                                                response = null;
+                                                                            });
+                                                                        }
+                                                                        else if(code === '201-3') {
+                                                                            responder.response_rcn3_result(request, response, 201, 2001, '', function () {
+                                                                                request = null;
+                                                                                response = null;
+                                                                            });
+                                                                        }
+                                                                        else if(code === '202-1') {
+                                                                            responder.response_result(request, response, 202, 1001, '', function () {
+                                                                                request = null;
+                                                                                response = null;
+                                                                            });
+                                                                        }
+                                                                        else if(code === '202-2') {
+                                                                            responder.response_result(request, response, 202, 1002, '', function () {
+                                                                                request = null;
+                                                                                response = null;
+                                                                            });
+                                                                        }
+                                                                        else {
+
+                                                                        }
+                                                                    });
+                                                                }
+                                                                else {
+                                                                    responder.error_result(request, response, 400, 4000, 'rcn or fu query is not supported at POST request', function () {
+                                                                        request = null;
+                                                                        response = null;
+                                                                    });
+                                                                }
+                                                            }
+                                                            else if(code === '400-19') {
+                                                                responder.error_result(request, response, 400, 4000, '[check_notification] post request without ty value is but body is not for notification', function () {
+                                                                    request = null;
+                                                                    response = null;
+                                                                });
+                                                            }
+                                                            else if (code === '400-20') {
+                                                                responder.error_result(request, response, 400, 4000, '[check_notification] content-type is none', function () {
+                                                                    request = null;
+                                                                    response = null;
+                                                                });
+                                                            }
+                                                        });
+                                                    }
                                                 });
                                             }
                                         }
-                                    }
+                                    });
                                 }
-                            }
-                        }
-
-                        db_sql.get_hit_all(request.connection, function (err, result) {
-                            if (!err) {
-                                request.connection.release();
-                                var total_hit = result;
-                                response.header('Content-Type', 'application/json');
-                                response.status(200).end(JSON.stringify(total_hit, null, 4));
-                            }
-                        });
-                        return;
-                    }
-
-                    if (request.url == '/total_ae') {
-                        db_sql.select_sum_ae(request.connection, function (err, result) {
-                            if (!err) {
-                                request.connection.release();
-                                var total_ae = result[0];
-                                response.header('Content-Type', 'application/json');
-                                response.status(200).end(JSON.stringify(total_ae, null, 4));
-                            }
-                        });
-                        return;
-                    }
-
-                    if (request.url == '/total_cbs') {
-                        db_sql.select_sum_cbs(request.connection, function (err, result) {
-                            if (!err) {
-                                request.connection.release();
-                                var total_cbs = result[0];
-                                response.header('Content-Type', 'application/json');
-                                response.status(200).end(JSON.stringify(total_cbs, null, 4));
-                            }
-                        });
-                        return;
-                    }
-                }
-
-                // Check X-M2M-RI Header
-                if ((request.headers['x-m2m-ri'] == null)) {
-                    responder.error_result(request, response, 400, 4000, 'BAD REQUEST: X-M2M-RI is none');
-                    return '0';
-                }
-
-                // Check X-M2M-RVI Header
-                if ((request.headers['x-m2m-rvi'] == null)) {
-                    // responder.error_result(request, response, 400, 4000, 'BAD REQUEST: X-M2M-RI is none');
-                    // callback('0', body_Obj, request, response);
-                    // return '0';
-                    // todo: RVI check
-                    request.headers['x-m2m-rvi'] = uservi;
-                }
-
-                request.ty = '99';
-                if (request.method.toLowerCase() == 'post') {
-                    var content_type = request.headers['content-type'].split(';');
-                    try {
-                        var ty = '99';
-                        for (var i in content_type) {
-                            if (content_type.hasOwnProperty(i)) {
-                                var ty_arr = content_type[i].replace(/ /g, '').split('=');
-                                if (ty_arr[0].replace(/ /g, '') == 'ty') {
-                                    ty = ty_arr[1].replace(' ', '');
-                                    break;
-                                }
-                            }
-                        }
-                        request.ty = ty;
-                    }
-                    catch (e) {
-                        responder.error_result(request, response, 400, 4000, 'ty is none');
-                        return '0';
-                    }
-
-                    if (request.ty == '5') {
-                        responder.error_result(request, response, 405, 4005, 'OPERATION_NOT_ALLOWED: CSEBase can not be created by others');
-                        return '0';
-                    }
-
-                    if (request.ty == '17') {
-                        responder.error_result(request, response, 405, 4005, 'OPERATION_NOT_ALLOWED (req is not supported when post request)');
-                        return '0';
-                    }
-                }
-
-                // Check X-M2M-Origin Header
-                if (request.headers['x-m2m-origin'] == null || request.headers['x-m2m-origin'] == '') {
-                    if (request.ty == '2' || request.ty == '16') {
-                        request.headers['x-m2m-origin'] = 'S';
-                    }
-                    else {
-                        responder.error_result(request, response, 400, 4000, 'BAD REQUEST: X-M2M-Origin header is Mandatory');
-                        return '0';
-                    }
-                }
-
-                if (request.headers.hasOwnProperty('content-type')) {
-                    if (request.headers['content-type'].includes('xml')) {
-                        request.usebodytype = 'xml';
-                    }
-                    else if (request.headers['content-type'].includes('cbor')) {
-                        request.usebodytype = 'cbor';
-                    }
-                    else {
-                        request.usebodytype = 'json';
-                    }
-                }
-                else {
-                    request.usebodytype = 'json';
-                }
-
-                if (request.query.fu == null) {
-                    request.query.fu = 2;
-                }
-                if (request.query.rcn == null) {
-                    request.query.rcn = 1;
-                }
-                if (request.query.rt == null) {
-                    request.query.rt = 3;
-                }
-
-                var allow = 1;
-                if (allowed_ae_ids.length > 0) {
-                    allow = 0;
-                    for (var idx in allowed_ae_ids) {
-                        if (allowed_ae_ids.hasOwnProperty(idx)) {
-                            if (usecseid == request.headers['x-m2m-origin']) {
-                                allow = 1;
-                                break;
-                            }
-                            else if (allowed_ae_ids[idx] == request.headers['x-m2m-origin']) {
-                                allow = 1;
-                                break;
-                            }
+                            });
                         }
                     }
+                });
+            }
+        });
+    });
+});
 
-                    if (allow == 0) {
-                        responder.error_result(request, response, 403, 4107, 'OPERATION_NOT_ALLOWED: AE-ID is not allowed');
-                        return '0';
-                    }
-                }
+app.get(onem2mParser, function (request, response) {
+    var fullBody = '';
+    request.on('data', function(chunk) {
+        fullBody += chunk.toString();
+    });
 
-                if (responder.typeRsrc[request.ty] == null) {
-                    responder.error_result(request, response, 405, 4005, 'OPERATION_NOT_ALLOWED: we do not support (' + request.ty + ') resource');
-                    return '0';
-                }
+    request.on('end', function() {
+        request.body = fullBody;
 
-                if (request.method.toLowerCase() == 'post' || request.method.toLowerCase() == 'put') {
-                    if (request.body != '') {
-                        make_json_obj(request.usebodytype, request.body, function (err, body) {
-                            try {
-                                var rootnm = Object.keys(body)[0].replace('m2m:', '');
-                                var checkCount = 0;
-                                for (var key in responder.typeRsrc) {
-                                    if (responder.typeRsrc.hasOwnProperty(key)) {
-                                        if (responder.typeRsrc[key] == rootnm) {
-                                            break;
-                                        }
-                                        checkCount++;
-                                    }
-                                }
+        db.getConnection(function (err, connection) {
+            if (err) {
+                console.log('[app.use] No Connection');
+                responder.error_result(request, response, 500, 5000, 'DB Error : No Connection Pool');
+                return '0';
+            }
+            else {
+                request.connection = connection;
 
-                                if (checkCount >= Object.keys(responder.typeRsrc).length) {
-                                    responder.error_result(request, response, 400, 4000, 'BAD REQUEST - not supported resource type requested');
-                                    return '0';
-                                }
+                extra_api_action(connection, request.url, function(err, result) {
+                    if(err == null && result == null) {
+                        var _ct = moment().utc().format('YYYYMMDD');
+                        var _http = 0;
+                        var _mqtt = 0;
+                        var _coap = 0;
+                        var _ws = 0;
+                        if (request.headers.hasOwnProperty('binding')) {
+                            if (request.headers['binding'] == 'H') {
+                                _http = 1;
                             }
-                            catch (e) {
-                                responder.error_result(request, response, 400, 4000, 'BAD REQUEST');
-                                return '0';
+                            else if (request.headers['binding'] == 'M') {
+                                _mqtt = 1;
                             }
-                        });
-                    }
-                }
+                            else if (request.headers['binding'] == 'C') {
+                                _coap = 1;
+                            }
+                            else if (request.headers['binding'] == 'W') {
+                                _ws = 1;
+                            }
+                            db_sql.set_hit(request.connection, _ct, _http, _mqtt, _coap, _ws, function (err, results) {
+                                results = null;
+                            });
+                        }
+                        else {
+                            _http = 1;
+                            db_sql.set_hit(request.connection, _ct, _http, _mqtt, _coap, _ws, function (err, results) {
+                                results = null;
+                            });
+                        }
 
-                request.url = request.url.replace('%23', '#'); // convert '%23' to '#' of url
-                request.hash = url.parse(request.url).hash;
-
-                var absolute_url = request.url.replace('\/_\/', '\/\/').split('#')[0];
-                absolute_url = absolute_url.replace(usespid, '/~');
-                absolute_url = absolute_url.replace(/\/~\/[^\/]+\/?/, '/');
-                var absolute_url_arr = absolute_url.split('/');
-
-                console.log('\n' + request.method + ' : ' + request.url);
-                request.bodyObj = {};
-
-                var option = '';
-                var sri = absolute_url_arr[1].split('?')[0];
-                if (absolute_url_arr[absolute_url_arr.length - 1] == 'la' || absolute_url_arr[absolute_url_arr.length - 1] == 'latest') {
-                    var ri = absolute_url.split('?')[0].replace('/latest', '');
-                    ri = ri.replace('/la', '');
-                    option = '/latest';
-                }
-                else if (absolute_url_arr[absolute_url_arr.length - 1] == 'ol' || absolute_url_arr[absolute_url_arr.length - 1] == 'oldest') {
-                    ri = absolute_url.split('?')[0].replace('/oldest', '');
-                    ri = ri.replace('/ol', '');
-                    option = '/oldest';
-                }
-                else if (absolute_url_arr[absolute_url_arr.length - 1] == 'fopt') {
-                    ri = absolute_url.split('?')[0].replace('/fopt', '');
-                    option = '/fopt';
-                }
-                else {
-                    ri = absolute_url.split('?')[0];
-                    option = '';
-                }
-
-                var tid = require('shortid').generate();
-                console.time('get_resource_from_url' + ' (' + tid + ') - ' + absolute_url);
-                get_resource_from_url(request.connection, ri, sri, option, function (targetObject, status) {
-                    console.timeEnd('get_resource_from_url' + ' (' + tid + ') - ' + absolute_url);
-                    if (targetObject) {
-                        request.targetObject = JSON.parse(JSON.stringify(targetObject));
-                        delete targetObject;
-                        targetObject = null;
-                        if (option == '/fopt') {
-                            // check access right for fanoutpoint
-                            check_grp(request, response, function (rsc, result_grp) {
-                                if (rsc == '0') {
-                                    return rsc;
-                                }
-
-                                if (request.method.toLowerCase() == 'post') {
-                                    var access_value = '1';
-                                }
-                                else if (request.method.toLowerCase() == 'get') {
-                                    if (request.query.fu == 1) {
-                                        access_value = '32';
+                        check_xm2m_headers(request, function (code) {
+                            if (code === '400-1') {
+                                responder.error_result(request, response, 400, 4000, 'BAD REQUEST: X-M2M-RI is none', function () {
+                                    request = null;
+                                    response = null;
+                                });
+                            }
+                            else if (code === '400-2') {
+                                responder.error_result(request, response, 400, 4000, 'BAD REQUEST: X-M2M-Origin header is Mandatory', function () {
+                                    request = null;
+                                    response = null;
+                                });
+                            }
+                            else if (code === '405-1') {
+                                responder.error_result(request, response, 405, 4005, 'OPERATION_NOT_ALLOWED: CSEBase can not be created by others', function () {
+                                    request = null;
+                                    response = null;
+                                });
+                            }
+                            else if (code === '405-2') {
+                                responder.error_result(request, response, 405, 4005, 'OPERATION_NOT_ALLOWED (req is not supported when post request)', function () {
+                                    request = null;
+                                    response = null;
+                                });
+                            }
+                            else if(code === '405-3') {
+                                responder.error_result(request, response, 405, 4005, 'OPERATION_NOT_ALLOWED: we do not support (' + request.ty + ') resource', function () {
+                                    request = null;
+                                    response = null;
+                                });
+                            }
+                            else if(code === '403-1') {
+                                responder.error_result(request, response, 403, 4107, 'OPERATION_NOT_ALLOWED: AE-ID is not allowed', function () {
+                                    request = null;
+                                    response = null;
+                                });
+                            }
+                            else {
+                                get_target_url(request, response, function (code) {
+                                    if (code === '409-1') {
+                                        responder.error_result(request, response, 409, 4005, 'can not use post, put method at latest resource', function () {
+                                            request = null;
+                                            response = null;
+                                        });
                                     }
-                                    else {
-                                        access_value = '2';
+                                    else if (code === '409-2') {
+                                        responder.error_result(request, response, 409, 4005, 'can not use post, put method at oldest resource', function () {
+                                            request = null;
+                                            response = null;
+                                        });
                                     }
-                                }
-                                else if (request.method.toLowerCase() == 'put') {
-                                    access_value = '4';
-                                }
-                                else {
-                                    access_value = '8'
-                                }
-
-                                var body_Obj = {};
-                                security.check(request, response, request.targetObject[Object.keys(request.targetObject)[0]].ty, result_grp.macp, access_value, result_grp.cr, function (rsc, request, response) {
-                                    if (rsc == '0') {
-                                        responder.error_result(request, response, 403, 4103, '[app.use] ACCESS DENIED (fopt)');
-                                        return '0';
+                                    else if (code === '404-1') {
+                                        responder.error_result(request, response, 404, 4004, 'resource does not exist (get_target_url)', function () {
+                                            request = null;
+                                            response = null;
+                                        });
                                     }
-
-                                    if (request.method.toLowerCase() == 'post' || request.method.toLowerCase() == 'put') {
-                                        parse_body_format(request, response, function (rsc, body_Obj) {
-                                            if (rsc != '0') {
-                                                fopt.check(request, response, result_grp, request.targetObject[Object.keys(request.targetObject)[0]].ty, body_Obj);
+                                    else if (code === '404-2') {
+                                        responder.error_result(request, response, 404, 4004, 'resource does not exist (get_target_url)', function () {
+                                            request = null;
+                                            response = null;
+                                        });
+                                    }
+                                    else if (code === '404-3') {
+                                        responder.error_result(request, response, 404, 4004, 'csebase is not found', function () {
+                                            request = null;
+                                            response = null;
+                                        });
+                                    }
+                                    else if (code === '500-1') {
+                                        responder.error_result(request, response, 500, 5000, 'database error (get_target_url)', function () {
+                                            request = null;
+                                            response = null;
+                                        });
+                                    }
+                                    else if (code === '301-1') {
+                                        check_csr(request, response, function () {
+                                            if (code === '404-3') {
+                                                responder.error_result(request, response, 404, 4004, 'csebase is not found', function () {
+                                                    request = null;
+                                                    response = null;
+                                                });
+                                            }
+                                            else if (code === '301-2') {
+                                                response.status(response.statusCode).end(response.body);
+                                                request = null;
+                                                response = null;
                                             }
                                         });
                                     }
                                     else {
-                                        fopt.check(request, response, result_grp, request.targetObject[Object.keys(request.targetObject)[0]].ty, body_Obj);
+                                        if (request.option == '/fopt') {
+                                            // check access right for fanoutpoint
+                                            // todo: fopt - retrieve
+                                            check_grp(request, response, function (rsc, result_grp) {
+                                                if (rsc == '0') {
+                                                    return rsc;
+                                                }
+
+                                                if (request.query.fu == 1) {
+                                                    var access_value = '32';
+                                                }
+                                                else {
+                                                    access_value = '2';
+                                                }
+
+                                                var body_Obj = {};
+                                                security.check(request, response, request.targetObject[Object.keys(request.targetObject)[0]].ty, result_grp.macp, access_value, result_grp.cr, function (rsc, request, response) {
+                                                    if (rsc == '0') {
+                                                        responder.error_result(request, response, 403, 4103, '[app.use] ACCESS DENIED (fopt)');
+                                                        return '0';
+                                                    }
+
+                                                    fopt.check(request, response, result_grp, request.targetObject[Object.keys(request.targetObject)[0]].ty, body_Obj);
+                                                });
+                                            });
+                                        }
+                                        else {
+                                            var rootnm = Object.keys(request.targetObject)[0];
+                                            var absolute_url = request.targetObject[rootnm].ri;
+                                            request.url = absolute_url;
+                                            if ((request.query.fu == 1 || request.query.fu == 2) && (request.query.rcn == 1 || request.query.rcn == 4 || request.query.rcn == 5 || request.query.rcn == 6 || request.query.rcn == 7)) {
+                                                lookup_retrieve(request, response, function (code) {
+                                                    if(code === '405-4') {
+                                                        responder.error_result(request, response, 405, 4005, 'OPERATION_NOT_ALLOWED (rt query is not supported)', function () {
+                                                            request = null;
+                                                            response = null;
+                                                        });
+                                                    }
+                                                    else if(code === '400-21') {
+                                                        responder.error_result(request, response, 400, 4000, 'X-M2M-RTU is none', function () {
+                                                            request = null;
+                                                            response = null;
+                                                        });
+                                                    }
+                                                    else if(code === '400-22') {
+                                                        responder.error_result(request, response, 400, 4000, 'BAD REQUEST: \'Not Present\' attribute', function () {
+                                                            request = null;
+                                                            response = null;
+                                                        });
+                                                    }
+                                                    else if(code === '400-23') {
+                                                        responder.error_result(request, response, 400, 4000, 'BAD REQUEST: .acr must have values', function () {
+                                                            request = null;
+                                                            response = null;
+                                                        });
+                                                    }
+                                                    else if(code === '400-24') {
+                                                        responder.error_result(request, response, 400, 4000, 'BAD REQUEST: nu must have values', function () {
+                                                            request = null;
+                                                            response = null;
+                                                        });
+                                                    }
+                                                    else if(code === '400-25') {
+                                                        responder.error_result(request, response, 400, 4000, 'BAD REQUEST: attribute is not defined', function () {
+                                                            request = null;
+                                                            response = null;
+                                                        });
+                                                    }
+                                                    else if(code === '400-26') {
+                                                        responder.error_result(request, response, 400, 4000, 'BAD REQUEST: attribute is \'Mandatory\' attribute', function () {
+                                                            request = null;
+                                                            response = null;
+                                                        });
+                                                    }
+                                                    else if(code === '400-27') {
+                                                        responder.error_result(request, response, 400, 4000, 'BAD REQUEST: expiration time is before now', function () {
+                                                            request = null;
+                                                            response = null;
+                                                        });
+                                                    }
+                                                    else if(code === '400-28') {
+                                                        responder.error_result(request, response, 400, 4000, 'BAD REQUEST: ASN CSE can not have child CSE (remoteCSE)', function () {
+                                                            request = null;
+                                                            response = null;
+                                                        });
+                                                    }
+                                                    else if(code === '400') {
+                                                        responder.error_result(request, response, 400, 4000, 'BAD REQUEST', function () {
+                                                            request = null;
+                                                            response = null;
+                                                        });
+                                                    }
+                                                    else if(code === '404') {
+                                                        responder.error_result(request, response, 400, 4000, 'RESOURCE DOES NOT FOUND', function () {
+                                                            request = null;
+                                                            response = null;
+                                                        });
+                                                    }
+                                                    else if(code === '403-2') {
+                                                        responder.error_result(request, response, 403, 5203, 'TARGET_NOT_SUBSCRIBABLE: request ty creating can not create under parent resource', function () {
+                                                            request = null;
+                                                            response = null;
+                                                        });
+                                                    }
+                                                    else if(code === '405-5') {
+                                                        responder.error_result(request, response, 405, 4005, 'we do not support to create resource', function () {
+                                                            request = null;
+                                                            response = null;
+                                                        });
+                                                    }
+                                                    else if(code === '409-3') {
+                                                        responder.error_result(request, response, 409, 4005, 'resource name can not use that is keyword', function () {
+                                                            request = null;
+                                                            response = null;
+                                                        });
+                                                    }
+                                                    else if(code === '409-4') {
+                                                        responder.error_result(request, response, 409, 4005, 'resource requested is not supported', function () {
+                                                            request = null;
+                                                            response = null;
+                                                        });
+                                                    }
+                                                    else if(code === '423-1') {
+                                                        responder.error_result(request, response, 423, 4230, 'LOCKED: this resource was occupied by others', function () {
+                                                            request = null;
+                                                            response = null;
+                                                        });
+                                                    }
+                                                    else if(code === '501') {
+                                                        responder.error_result(request, response, 501, 5001, 'response with hierarchical resource structure mentioned in onem2m spec is not supported instead all the requested resources will be returned !', function () {
+                                                            request = null;
+                                                            response = null;
+                                                        });
+                                                    }
+                                                    else if(code === '500') {
+                                                        responder.error_result(request, response, 500, 5000, 'database error', function () {
+                                                            request = null;
+                                                            response = null;
+                                                        });
+                                                    }
+                                                    else if(code === '200') {
+                                                        responder.response_result(request, response, 200, 2000, '', function () {
+                                                            request = null;
+                                                            response = null;
+                                                        });
+                                                    }
+                                                    else if(code === '200-1') {
+                                                        responder.search_result(request, response, 200, 2000, '', function () {
+                                                            request = null;
+                                                            response = null;
+                                                        });
+                                                    }
+                                                    else {
+                                                    }
+                                                });
+                                            }
+                                            else {
+                                                responder.error_result(request, response, 400, 4000, 'BAD_REQUEST (rcn or fu query is not supported at GET request)', function () {
+                                                    request = null;
+                                                    response = null;
+                                                });
+                                            }
+                                        }
                                     }
                                 });
-                            });
-                        }
-                        else {
-                            //absolute_url = request.targetObject[Object.keys(request.targetObject)[0]].ri;
-
-                            next();
-                        }
+                            }
+                        });
                     }
                     else {
-                        if (status == 404) {
-                            if (url.parse(absolute_url).pathname.split('/')[1] == usecsebase) {
-                                responder.error_result(request, response, 404, 4004, '[app.use] resource does not exist');
-                                return '0';
-                            }
-                            else {
-                                check_csr(absolute_url, request, response);
-                                return '0';
-                            }
+                        if(!err) {
+                            response.setHeader('Content-Type', 'application/json');
+                            response.status(200).end(JSON.stringify(result, null, 4));
+                            result = null;
                         }
-                        else if (status == 500) {
-                            responder.error_result(request, response, 404, 4004, '[app.use] Database error at get_resource_from_url in ' + usecsebase);
-                            return '0';
+                        else {
+                            response.setHeader('Content-Type', 'application/json');
+                            response.status(500).end(JSON.stringify({'err': 'extra_api_action'}, null, 4));
+                            result = null;
                         }
                     }
                 });
             }
         });
     });
-});
-
-// remoteCSE, ae, cnt
-app.post(onem2mParser, function (request, response) {
-    var _ct = moment().utc().format('YYYYMMDD');
-    var _http = 0;
-    var _mqtt = 0;
-    var _coap = 0;
-    var _ws = 0;
-    if (request.headers.hasOwnProperty('binding')) {
-        if(request.headers['binding'] == 'H') {
-            _http = 1;
-        }
-        else if(request.headers['binding'] == 'M') {
-            _mqtt = 1;
-        }
-        else if(request.headers['binding'] == 'C') {
-            _coap = 1;
-        }
-        else if(request.headers['binding'] == 'W') {
-            _ws = 1;
-        }
-        db_sql.set_hit(request.connection, _ct, _http, _mqtt, _coap, _ws, function () {
-
-        });
-    }
-    else {
-        _http = 1;
-        db_sql.set_hit(request.connection, _ct, _http, _mqtt, _coap, _ws, function () {
-
-        });
-    }
-
-    if (request.body == "") {
-        responder.error_result(request, response, 400, 4000, 'body is empty');
-        return '0';
-    }
-
-    parse_body_format(request, response, function (rsc, bodyObj) {
-        if (rsc != '0') {
-            var body_Obj = JSON.parse(JSON.stringify(bodyObj));
-            delete bodyObj;
-            bodyObj = null;
-            setTimeout(function(request, response) {
-                if (responder.typeRsrc[request.ty] != Object.keys(body_Obj)[0]) {
-                    if(responder.typeRsrc[request.ty] == 'mgo') {
-                        var support_mgo = 0;
-                        for (var prop in responder.mgoType) {
-                            if(responder.mgoType.hasOwnProperty(prop)) {
-                                if (responder.mgoType[prop] == Object.keys(body_Obj)[0]) {
-                                    support_mgo = 1;
-                                    break;
-                                }
-                            }
-                        }
-
-                        if(support_mgo == 0) {
-                            responder.error_result(request, response, 400, 4000, 'ty [' + request.ty + '] is different with body (' + Object.keys(body_Obj)[0] + ')');
-                            return '0';
-                        }
-                    }
-                    else {
-                        responder.error_result(request, response, 400, 4000, 'ty [' + request.ty + '] is different with body (' + Object.keys(body_Obj)[0] + ')');
-                        return '0';
-                    }
-                }
-
-                if(request.ty == '2') {
-                    var allow = 1;
-                    if(allowed_app_ids.length > 0) {
-                        allow = 0;
-                        for(var idx in allowed_app_ids) {
-                            if(allowed_app_ids.hasOwnProperty(idx)) {
-                                if(allowed_app_ids[idx] == request.bodyObj.ae.api) {
-                                    allow = 1;
-                                    break;
-                                }
-                            }
-                        }
-
-                        if(allow == 0) {
-                            responder.error_result(request, response, 403, 4107, 'OPERATION_NOT_ALLOWED: APP-ID in AE is not allowed');
-                            return '0';
-                        }
-                    }
-                }
-
-                var rootnm = Object.keys(request.targetObject)[0];
-                var absolute_url = request.targetObject[rootnm].ri;
-                check_notification(request.headers, absolute_url, function (status, http_code, rsc_code, caption) {
-                    if (status == 'notify') {
-                        check_ae(request.targetObject, request, response);
-                        return '0';
-                    }
-                    else if (status == 'post') {
-                        request.url = absolute_url;
-                        if ((request.query.fu == 2) && (request.query.rcn == 0 || request.query.rcn == 1 || request.query.rcn == 2 || request.query.rcn == 3)) {
-                            lookup_create(request, response);
-                            return '0';
-                        }
-                        else {
-                            responder.error_result(request, response, http_code, rsc_code, 'rcn or fu query is not supported at POST request');
-                            return '0';
-                        }
-                    }
-                    else if (status == '0') {
-                        responder.error_result(request, response, http_code, rsc_code, caption);
-                        return '0';
-                    }
-                });
-            }, 0, request, response);
-        }
-    });
-    // parse_body_format(request, response, function (rsc, bodyObj) {
-    //     if (rsc != '0') {
-    //         var body_Obj = JSON.parse(JSON.stringify(bodyObj));
-    //         delete bodyObj;
-    //         bodyObj = null;
-    //         if (responder.typeRsrc[request.ty] != Object.keys(body_Obj)[0]) {
-    //             if(responder.typeRsrc[request.ty] == 'mgo') {
-    //                 var support_mgo = 0;
-    //                 for (var prop in responder.mgoType) {
-    //                     if(responder.mgoType.hasOwnProperty(prop)) {
-    //                         if (responder.mgoType[prop] == Object.keys(body_Obj)[0]) {
-    //                             support_mgo = 1;
-    //                             break;
-    //                         }
-    //                     }
-    //                 }
-    //
-    //                 if(support_mgo == 0) {
-    //                     responder.error_result(request, response, 400, 4000, 'ty [' + request.ty + '] is different with body (' + Object.keys(body_Obj)[0] + ')');
-    //                     return '0';
-    //                 }
-    //             }
-    //             else {
-    //                 responder.error_result(request, response, 400, 4000, 'ty [' + request.ty + '] is different with body (' + Object.keys(body_Obj)[0] + ')');
-    //                 return '0';
-    //             }
-    //         }
-    //
-    //         if(request.ty == '2') {
-    //             var allow = 1;
-    //             if(allowed_app_ids.length > 0) {
-    //                 allow = 0;
-    //                 for(var idx in allowed_app_ids) {
-    //                     if(allowed_app_ids.hasOwnProperty(idx)) {
-    //                         if(allowed_app_ids[idx] == request.bodyObj.ae.api) {
-    //                             allow = 1;
-    //                             break;
-    //                         }
-    //                     }
-    //                 }
-    //
-    //                 if(allow == 0) {
-    //                     responder.error_result(request, response, 403, 4107, 'OPERATION_NOT_ALLOWED: APP-ID in AE is not allowed');
-    //                     return '0';
-    //                 }
-    //             }
-    //         }
-    //
-    //         var rootnm = Object.keys(request.targetObject)[0];
-    //         var absolute_url = request.targetObject[rootnm].ri;
-    //         check_notification(request, absolute_url, function (status, http_code, rsc_code, caption) {
-    //             if (status == 'notify') {
-    //                 check_ae(request.targetObject, request, response);
-    //             }
-    //             else if (status == 'post') {
-    //                 request.url = absolute_url;
-    //                 if ((request.query.fu == 2) && (request.query.rcn == 0 || request.query.rcn == 1 || request.query.rcn == 2 || request.query.rcn == 3)) {
-    //                     lookup_create(request, response);
-    //                 }
-    //                 else {
-    //                     responder.error_result(request, response, http_code, rsc_code, 'rcn or fu query is not supported at POST request');
-    //                     return '0';
-    //                 }
-    //             }
-    //             else if (status == '0') {
-    //                 responder.error_result(request, response, http_code, rsc_code, caption);
-    //                 return '0';
-    //             }
-    //         });
-    //     }
-    // });
-});
-
-app.get(onem2mParser, function (request, response) {
-    var _ct = moment().utc().format('YYYYMMDD');
-    var _http = 0;
-    var _mqtt = 0;
-    var _coap = 0;
-    var _ws = 0;
-    if (request.headers.hasOwnProperty('binding')) {
-        if(request.headers['binding'] == 'H') {
-            _http = 1;
-        }
-        else if(request.headers['binding'] == 'M') {
-            _mqtt = 1;
-        }
-        else if(request.headers['binding'] == 'C') {
-            _coap = 1;
-        }
-        else if(request.headers['binding'] == 'W') {
-            _ws = 1;
-        }
-        db_sql.set_hit(request.connection, _ct, _http, _mqtt, _coap, _ws, function () {
-
-        });
-    }
-    else {
-        _http = 1;
-        db_sql.set_hit(request.connection, _ct, _http, _mqtt, _coap, _ws, function () {
-
-        });
-    }
-
-    var rootnm = Object.keys(request.targetObject)[0];
-    var absolute_url = request.targetObject[rootnm].ri;
-
-    request.url = absolute_url;
-    if ((request.query.fu == 1 || request.query.fu == 2) && (request.query.rcn == 1 || request.query.rcn == 4 || request.query.rcn == 5 || request.query.rcn == 6 || request.query.rcn == 7)) {
-        lookup_retrieve(request, response);
-    }
-    else {
-        responder.error_result(request, response, 400, 4000, 'BAD_REQUEST (rcn or fu query is not supported at GET request)');
-        return '0';
-    }
 });
 
 
 app.put(onem2mParser, function (request, response) {
-    var _ct = moment().utc().format('YYYYMMDD');
-    var _http = 0;
-    var _mqtt = 0;
-    var _coap = 0;
-    var _ws = 0;
-    if (request.headers.hasOwnProperty('binding')) {
-        if(request.headers['binding'] == 'H') {
-            _http = 1;
-        }
-        else if(request.headers['binding'] == 'M') {
-            _mqtt = 1;
-        }
-        else if(request.headers['binding'] == 'C') {
-            _coap = 1;
-        }
-        else if(request.headers['binding'] == 'W') {
-            _ws = 1;
-        }
-        db_sql.set_hit(request.connection, _ct, _http, _mqtt, _coap, _ws, function () {
+    var fullBody = '';
+    request.on('data', function(chunk) {
+        fullBody += chunk.toString();
+    });
 
-        });
-    }
-    else {
-        _http = 1;
-        db_sql.set_hit(request.connection, _ct, _http, _mqtt, _coap, _ws, function () {
+    request.on('end', function() {
+        request.body = fullBody;
 
-        });
-    }
+        db.getConnection(function (err, connection) {
+            if (err) {
+                console.log('[app.use] No Connection');
+                responder.error_result(request, response, 500, 5000, 'DB Error : No Connection Pool');
+                return '0';
+            }
+            else {
+                request.connection = connection;
 
-    if (request.body == "") {
-        responder.error_result(request, response, 400, 4000, 'body is empty');
-        return '0';
-    }
-
-    parse_body_format(request, response, function (rsc, bodyObj) {
-        if (rsc != '0') {
-            var body_Obj = JSON.parse(JSON.stringify(bodyObj));
-            delete bodyObj;
-            bodyObj = null;
-            setTimeout(function(request, response) {
-                for (var ty_idx in responder.typeRsrc) {
-                    if (responder.typeRsrc.hasOwnProperty(ty_idx)) {
-                        if ((ty_idx == 4) && (responder.typeRsrc[ty_idx] == Object.keys(body_Obj)[0])) {
-                            responder.error_result(request, response, 405, 4005, 'Update cin is not supported');
-                            return '0';
-                        }
-                        else if ((ty_idx != 4) && (responder.typeRsrc[ty_idx] == Object.keys(body_Obj)[0])) {
-                            if ((ty_idx == 17) && (responder.typeRsrc[ty_idx] == Object.keys(body_Obj)[0])) {
-                                responder.error_result(request, response, 405, 4005, 'OPERATION_NOT_ALLOWED (req is not supported when put request)');
-                                return 0;
-                            }
-                            else {
-                                request.ty = ty_idx;
-                                break;
-                            }
-                        }
-                        else if (ty_idx == 13) {
-                            for (var mgo_idx in responder.mgoType) {
-                                if (responder.mgoType.hasOwnProperty(mgo_idx)) {
-                                    if ((responder.mgoType[mgo_idx] == Object.keys(body_Obj)[0])) {
-                                        request.ty = ty_idx;
-                                        break;
-                                    }
-                                }
-                            }
-                        }
+                var _ct = moment().utc().format('YYYYMMDD');
+                var _http = 0;
+                var _mqtt = 0;
+                var _coap = 0;
+                var _ws = 0;
+                if (request.headers.hasOwnProperty('binding')) {
+                    if (request.headers['binding'] == 'H') {
+                        _http = 1;
                     }
-                }
-
-                var rootnm = Object.keys(request.targetObject)[0];
-                var absolute_url = request.targetObject[rootnm].ri;
-
-                if (url.parse(absolute_url).pathname == ('/' + usecsebase)) {
-                    responder.error_result(request, response, 405, 4005, 'OPERATION_NOT_ALLOWED');
-                    return '0';
-                }
-
-                request.url = absolute_url;
-                if ((request.query.fu == 2) && (request.query.rcn == 0 || request.query.rcn == 1)) {
-                    lookup_update(request, response);
+                    else if (request.headers['binding'] == 'M') {
+                        _mqtt = 1;
+                    }
+                    else if (request.headers['binding'] == 'C') {
+                        _coap = 1;
+                    }
+                    else if (request.headers['binding'] == 'W') {
+                        _ws = 1;
+                    }
+                    db_sql.set_hit(request.connection, _ct, _http, _mqtt, _coap, _ws, function (err, results) {
+                        results = null;
+                    });
                 }
                 else {
-                    responder.error_result(request, response, 400, 4000, 'rcn query is not supported at PUT request');
-                    return '0';
+                    _http = 1;
+                    db_sql.set_hit(request.connection, _ct, _http, _mqtt, _coap, _ws, function (err, results) {
+                        results = null;
+                    });
                 }
-            }, 0, request, response);
-        }
+
+                check_xm2m_headers(request, function (code) {
+                    if (code === '400-1') {
+                        responder.error_result(request, response, 400, 4000, 'BAD REQUEST: X-M2M-RI is none', function () {
+                            request = null;
+                            response = null;
+                        });
+                    }
+                    else if (code === '400-2') {
+                        responder.error_result(request, response, 400, 4000, 'BAD REQUEST: X-M2M-Origin header is Mandatory', function () {
+                            request = null;
+                            response = null;
+                        });
+                    }
+                    else if (code === '405-1') {
+                        responder.error_result(request, response, 405, 4005, 'OPERATION_NOT_ALLOWED: CSEBase can not be created by others', function () {
+                            request = null;
+                            response = null;
+                        });
+                    }
+                    else if (code === '405-2') {
+                        responder.error_result(request, response, 405, 4005, 'OPERATION_NOT_ALLOWED (req is not supported when post request)', function () {
+                            request = null;
+                            response = null;
+                        });
+                    }
+                    else if(code === '405-3') {
+                        responder.error_result(request, response, 405, 4005, 'OPERATION_NOT_ALLOWED: we do not support (' + request.ty + ') resource', function () {
+                            request = null;
+                            response = null;
+                        });
+                    }
+                    else if(code === '403-1') {
+                        responder.error_result(request, response, 403, 4107, 'OPERATION_NOT_ALLOWED: AE-ID is not allowed', function () {
+                            request = null;
+                            response = null;
+                        });
+                    }
+                    else {
+                        if (request.body == "") {
+                            responder.error_result(request, response, 400, 4000, 'body is empty', function () {
+                                request = null;
+                                response = null;
+                            });
+                        }
+                        else {
+                            check_resource_supported(request, response, function (code) {
+                                if (code === '400-3') {
+                                    responder.error_result(request, response, 400, 4000, 'BAD REQUEST: not supported resource type requested', function () {
+                                        request = null;
+                                        response = null;
+                                    });
+                                }
+                                else if (code === '400-4') {
+                                    responder.error_result(request, response, 400, 4000, 'BAD REQUEST: not parse your body', function () {
+                                        request = null;
+                                        response = null;
+                                    });
+                                }
+                                else {
+                                    get_target_url(request, response, function (code) {
+                                        if (code === '409-1') {
+                                            responder.error_result(request, response, 409, 4005, 'can not use post, put method at latest resource', function () {
+                                                request = null;
+                                                response = null;
+                                            });
+                                        }
+                                        else if (code === '409-2') {
+                                            responder.error_result(request, response, 409, 4005, 'can not use post, put method at oldest resource', function () {
+                                                request = null;
+                                                response = null;
+                                            });
+                                        }
+                                        else if (code === '404-1') {
+                                            responder.error_result(request, response, 404, 4004, 'resource does not exist (get_target_url)', function () {
+                                                request = null;
+                                                response = null;
+                                            });
+                                        }
+                                        else if (code === '404-2') {
+                                            responder.error_result(request, response, 404, 4004, 'resource does not exist (get_target_url)', function () {
+                                                request = null;
+                                                response = null;
+                                            });
+                                        }
+                                        else if (code === '404-3') {
+                                            responder.error_result(request, response, 404, 4004, 'csebase is not found', function () {
+                                                request = null;
+                                                response = null;
+                                            });
+                                        }
+                                        else if (code === '500-1') {
+                                            responder.error_result(request, response, 500, 5000, 'database error (get_target_url)', function () {
+                                                request = null;
+                                                response = null;
+                                            });
+                                        }
+                                        else if (code === '301-1') {
+                                            check_csr(request, response, function () {
+                                                if (code === '404-3') {
+                                                    responder.error_result(request, response, 404, 4004, 'csebase is not found', function () {
+                                                        request = null;
+                                                        response = null;
+                                                    });
+                                                }
+                                                else if (code === '301-2') {
+                                                    response.status(response.statusCode).end(response.body);
+                                                    request = null;
+                                                    response = null;
+                                                }
+                                            });
+                                        }
+                                        else {
+                                            if (request.option == '/fopt') {
+                                                //todo: fopt - update
+                                                // check access right for fanoutpoint
+                                                check_grp(request, response, function (rsc, result_grp) {
+                                                    if (rsc == '0') {
+                                                        return rsc;
+                                                    }
+
+                                                    var access_value = '4';
+                                                    var body_Obj = {};
+                                                    security.check(request, response, request.targetObject[Object.keys(request.targetObject)[0]].ty, result_grp.macp, access_value, result_grp.cr, function (rsc, request, response) {
+                                                        if (rsc == '0') {
+                                                            responder.error_result(request, response, 403, 4103, '[app.use] ACCESS DENIED (fopt)');
+                                                            return '0';
+                                                        }
+
+                                                        parse_body_format(request, response, function (code) {
+                                                            if(code === '400-5') {
+                                                                responder.error_result(request, response, 400, 4000, '[parse_to_json] do not parse xml body', function () {
+                                                                    request = null;
+                                                                    response = null;
+                                                                });
+                                                            }
+                                                            else if(code === '400-6') {
+                                                                responder.error_result(request, response, 400, 4000, '[parse_to_json] do not parse cbor body', function () {
+                                                                    request = null;
+                                                                    response = null;
+                                                                });
+                                                            }
+                                                            else if(code === '400-7') {
+                                                                responder.error_result(request, response, 400, 4000, '[parse_to_json] root tag of body is not matched', function () {
+                                                                    request = null;
+                                                                    response = null;
+                                                                });
+                                                            }
+                                                            else if(code === '400-8') {
+                                                                responder.error_result(request, response, 400, 4000, '(aa, at, poa, acpi, srt, nu, mid, macp, rels, rqps, srv) attribute should be json array format', function () {
+                                                                    request = null;
+                                                                    response = null;
+                                                                });
+                                                            }
+                                                            else if(code === '400-9') {
+                                                                responder.error_result(request, response, 400, 4000, '(lbl) attribute should be json array format', function () {
+                                                                    request = null;
+                                                                    response = null;
+                                                                });
+                                                            }
+                                                            else if(code === '400-10') {
+                                                                responder.error_result(request, response, 400, 4000, '(enc.net) attribute should be json array format', function () {
+                                                                    request = null;
+                                                                    response = null;
+                                                                });
+                                                            }
+                                                            else if(code === '400-11') {
+                                                                responder.error_result(request, response, 400, 4000, '(enc) attribute should have net key as child in json format', function () {
+                                                                    request = null;
+                                                                    response = null;
+                                                                });
+                                                            }
+                                                            else if(code === '400-12') {
+                                                                responder.error_result(request, response, 400, 4000, '(pv.acr, pvs.acr) attribute should be json array format', function () {
+                                                                    request = null;
+                                                                    response = null;
+                                                                });
+                                                            }
+                                                            else if(code === '400-13') {
+                                                                responder.error_result(request, response, 400, 4000, '(pv.acr.acor, pvs.acr.acor) attribute should be json array format', function () {
+                                                                    request = null;
+                                                                    response = null;
+                                                                });
+                                                            }
+                                                            else if(code === '400-14') {
+                                                                responder.error_result(request, response, 400, 4000, '(pv.acr.acco, pvs.acr.acco) attribute should be json array format', function () {
+                                                                    request = null;
+                                                                    response = null;
+                                                                });
+                                                            }
+                                                            else if(code === '400-15') {
+                                                                responder.error_result(request, response, 400, 4000, '(pv.acr.acco.acip.ipv4, pvs.acr.acco.acip.ipv4) attribute should be json array format', function () {
+                                                                    request = null;
+                                                                    response = null;
+                                                                });
+                                                            }
+                                                            else if(code === '400-16') {
+                                                                responder.error_result(request, response, 400, 4000, '(pv.acr.acco.acip.ipv6, pvs.acr.acco.acip.ipv6) attribute should be json array format', function () {
+                                                                    request = null;
+                                                                    response = null;
+                                                                });
+                                                            }
+                                                            else if(code === '400-17') {
+                                                                responder.error_result(request, response, 400, 4000, '(pv.acr.acco.actw, pvs.acr.acco.actw) attribute should be json array format', function () {
+                                                                    request = null;
+                                                                    response = null;
+                                                                });
+                                                            }
+                                                            else if(code === '400-18') {
+                                                                responder.error_result(request, response, 400, 4000, '(uds, cas) attribute should be json array format', function () {
+                                                                    request = null;
+                                                                    response = null;
+                                                                });
+                                                            }
+                                                            else {
+                                                                fopt.check(request, response, result_grp, request.targetObject[Object.keys(request.targetObject)[0]].ty, body_Obj);
+                                                            }
+                                                        });
+                                                    });
+                                                });
+                                            }
+                                            else {
+                                                parse_body_format(request, response, function (code) {
+                                                    if(code === '400-5') {
+                                                        responder.error_result(request, response, 400, 4000, '[parse_to_json] do not parse xml body', function () {
+                                                            request = null;
+                                                            response = null;
+                                                        });
+                                                    }
+                                                    else if(code === '400-6') {
+                                                        responder.error_result(request, response, 400, 4000, '[parse_to_json] do not parse cbor body', function () {
+                                                            request = null;
+                                                            response = null;
+                                                        });
+                                                    }
+                                                    else if(code === '400-7') {
+                                                        responder.error_result(request, response, 400, 4000, '[parse_to_json] root tag of body is not matched', function () {
+                                                            request = null;
+                                                            response = null;
+                                                        });
+                                                    }
+                                                    else if(code === '400-8') {
+                                                        responder.error_result(request, response, 400, 4000, '(aa, at, poa, acpi, srt, nu, mid, macp, rels, rqps, srv) attribute should be json array format', function () {
+                                                            request = null;
+                                                            response = null;
+                                                        });
+                                                    }
+                                                    else if(code === '400-9') {
+                                                        responder.error_result(request, response, 400, 4000, '(lbl) attribute should be json array format', function () {
+                                                            request = null;
+                                                            response = null;
+                                                        });
+                                                    }
+                                                    else if(code === '400-10') {
+                                                        responder.error_result(request, response, 400, 4000, '(enc.net) attribute should be json array format', function () {
+                                                            request = null;
+                                                            response = null;
+                                                        });
+                                                    }
+                                                    else if(code === '400-11') {
+                                                        responder.error_result(request, response, 400, 4000, '(enc) attribute should have net key as child in json format', function () {
+                                                            request = null;
+                                                            response = null;
+                                                        });
+                                                    }
+                                                    else if(code === '400-12') {
+                                                        responder.error_result(request, response, 400, 4000, '(pv.acr, pvs.acr) attribute should be json array format', function () {
+                                                            request = null;
+                                                            response = null;
+                                                        });
+                                                    }
+                                                    else if(code === '400-13') {
+                                                        responder.error_result(request, response, 400, 4000, '(pv.acr.acor, pvs.acr.acor) attribute should be json array format', function () {
+                                                            request = null;
+                                                            response = null;
+                                                        });
+                                                    }
+                                                    else if(code === '400-14') {
+                                                        responder.error_result(request, response, 400, 4000, '(pv.acr.acco, pvs.acr.acco) attribute should be json array format', function () {
+                                                            request = null;
+                                                            response = null;
+                                                        });
+                                                    }
+                                                    else if(code === '400-15') {
+                                                        responder.error_result(request, response, 400, 4000, '(pv.acr.acco.acip.ipv4, pvs.acr.acco.acip.ipv4) attribute should be json array format', function () {
+                                                            request = null;
+                                                            response = null;
+                                                        });
+                                                    }
+                                                    else if(code === '400-16') {
+                                                        responder.error_result(request, response, 400, 4000, '(pv.acr.acco.acip.ipv6, pvs.acr.acco.acip.ipv6) attribute should be json array format', function () {
+                                                            request = null;
+                                                            response = null;
+                                                        });
+                                                    }
+                                                    else if(code === '400-17') {
+                                                        responder.error_result(request, response, 400, 4000, '(pv.acr.acco.actw, pvs.acr.acco.actw) attribute should be json array format', function () {
+                                                            request = null;
+                                                            response = null;
+                                                        });
+                                                    }
+                                                    else if(code === '400-18') {
+                                                        responder.error_result(request, response, 400, 4000, '(uds, cas) attribute should be json array format', function () {
+                                                            request = null;
+                                                            response = null;
+                                                        });
+                                                    }
+                                                    else {
+                                                        for (var ty_idx in responder.typeRsrc) {
+                                                            if (responder.typeRsrc.hasOwnProperty(ty_idx)) {
+                                                                if ((ty_idx == 4) && (responder.typeRsrc[ty_idx] == Object.keys(request.bodyObj)[0])) {
+                                                                    responder.error_result(request, response, 405, 4005, 'Update cin is not supported', function () {
+                                                                        request = null;
+                                                                        response = null;
+                                                                    });
+                                                                    return;
+                                                                }
+                                                                else if ((ty_idx != 4) && (responder.typeRsrc[ty_idx] == Object.keys(request.bodyObj)[0])) {
+                                                                    if ((ty_idx == 17) && (responder.typeRsrc[ty_idx] == Object.keys(request.bodyObj)[0])) {
+                                                                        responder.error_result(request, response, 405, 4005, 'OPERATION_NOT_ALLOWED (req is not supported when put request)', function () {
+                                                                            request = null;
+                                                                            response = null;
+                                                                        });
+                                                                        return;
+                                                                    }
+                                                                    else {
+                                                                        request.ty = ty_idx;
+                                                                        break;
+                                                                    }
+                                                                }
+                                                                else if (ty_idx == 13) {
+                                                                    for (var mgo_idx in responder.mgoType) {
+                                                                        if (responder.mgoType.hasOwnProperty(mgo_idx)) {
+                                                                            if ((responder.mgoType[mgo_idx] == Object.keys(request.bodyObj)[0])) {
+                                                                                request.ty = ty_idx;
+                                                                                break;
+                                                                            }
+                                                                        }
+                                                                    }
+                                                                }
+                                                            }
+                                                        }
+
+                                                        var rootnm = Object.keys(request.targetObject)[0];
+                                                        var absolute_url = request.targetObject[rootnm].ri;
+
+                                                        if (url.parse(absolute_url).pathname == ('/' + usecsebase)) {
+                                                            responder.error_result(request, response, 405, 4005, 'OPERATION_NOT_ALLOWED (csebase is not supported when put request)', function () {
+                                                                request = null;
+                                                                response = null;
+                                                            });
+                                                            return;
+                                                        }
+
+                                                        request.url = absolute_url;
+                                                        if ((request.query.fu == 2) && (request.query.rcn == 0 || request.query.rcn == 1)) {
+                                                            lookup_update(request, response, function (code) {
+                                                                if(code === '405-4') {
+                                                                    responder.error_result(request, response, 405, 4005, 'OPERATION_NOT_ALLOWED (rt query is not supported)', function () {
+                                                                        request = null;
+                                                                        response = null;
+                                                                    });
+                                                                }
+                                                                else if(code === '400-21') {
+                                                                    responder.error_result(request, response, 400, 4000, 'X-M2M-RTU is none', function () {
+                                                                        request = null;
+                                                                        response = null;
+                                                                    });
+                                                                }
+                                                                else if(code === '400-22') {
+                                                                    responder.error_result(request, response, 400, 4000, 'BAD REQUEST: \'Not Present\' attribute', function () {
+                                                                        request = null;
+                                                                        response = null;
+                                                                    });
+                                                                }
+                                                                else if(code === '400-23') {
+                                                                    responder.error_result(request, response, 400, 4000, 'BAD REQUEST: .acr must have values', function () {
+                                                                        request = null;
+                                                                        response = null;
+                                                                    });
+                                                                }
+                                                                else if(code === '400-24') {
+                                                                    responder.error_result(request, response, 400, 4000, 'BAD REQUEST: nu must have values', function () {
+                                                                        request = null;
+                                                                        response = null;
+                                                                    });
+                                                                }
+                                                                else if(code === '400-25') {
+                                                                    responder.error_result(request, response, 400, 4000, 'BAD REQUEST: attribute is not defined', function () {
+                                                                        request = null;
+                                                                        response = null;
+                                                                    });
+                                                                }
+                                                                else if(code === '400-26') {
+                                                                    responder.error_result(request, response, 400, 4000, 'BAD REQUEST: attribute is \'Mandatory\' attribute', function () {
+                                                                        request = null;
+                                                                        response = null;
+                                                                    });
+                                                                }
+                                                                else if(code === '400-27') {
+                                                                    responder.error_result(request, response, 400, 4000, 'BAD REQUEST: expiration time is before now', function () {
+                                                                        request = null;
+                                                                        response = null;
+                                                                    });
+                                                                }
+                                                                else if(code === '400-28') {
+                                                                    responder.error_result(request, response, 400, 4000, 'BAD REQUEST: ASN CSE can not have child CSE (remoteCSE)', function () {
+                                                                        request = null;
+                                                                        response = null;
+                                                                    });
+                                                                }
+                                                                else if(code === '403-2') {
+                                                                    responder.error_result(request, response, 403, 5203, 'TARGET_NOT_SUBSCRIBABLE: request ty creating can not create under parent resource', function () {
+                                                                        request = null;
+                                                                        response = null;
+                                                                    });
+                                                                }
+                                                                else if(code === '403-3') {
+                                                                    responder.error_result(request, response, 403, 4103, 'ACCESS DENIED', function () {
+                                                                        request = null;
+                                                                        response = null;
+                                                                    });
+                                                                }
+                                                                else if(code === '405-5') {
+                                                                    responder.error_result(request, response, 405, 4005, 'we do not support to create resource', function () {
+                                                                        request = null;
+                                                                        response = null;
+                                                                    });
+                                                                }
+                                                                else if(code === '409-3') {
+                                                                    responder.error_result(request, response, 409, 4005, 'resource name can not use that is keyword', function () {
+                                                                        request = null;
+                                                                        response = null;
+                                                                    });
+                                                                }
+                                                                else if(code === '409-4') {
+                                                                    responder.error_result(request, response, 409, 4005, 'resource requested is not supported', function () {
+                                                                        request = null;
+                                                                        response = null;
+                                                                    });
+                                                                }
+                                                                else if(code === '423-1') {
+                                                                    responder.error_result(request, response, 423, 4230, 'LOCKED: this resource was occupied by others', function () {
+                                                                        request = null;
+                                                                        response = null;
+                                                                    });
+                                                                }
+                                                                else if(code === '500') {
+                                                                    responder.error_result(request, response, 500, 5000, 'database error', function () {
+                                                                        request = null;
+                                                                        response = null;
+                                                                    });
+                                                                }
+                                                                else if(code === '400-50') {
+                                                                    responder.error_result(request, response, 400, 4000, 'BAD_REQUEST: state of transaction is mismatch', function () {
+                                                                        request = null;
+                                                                        response = null;
+                                                                    });
+                                                                }
+                                                                else if(code === '400-51') {
+                                                                    responder.error_result(request, response, 400, 4000, 'mgmtObj requested is not match with content type of body', function () {
+                                                                        request = null;
+                                                                        response = null;
+                                                                    });
+                                                                }
+                                                                else if(code === '400-52') {
+                                                                    responder.error_result(request, response, 400, 4000, 'BAD_REQUEST: ty does not supported', function () {
+                                                                        request = null;
+                                                                        response = null;
+                                                                    });
+                                                                }
+                                                                else if(code === '400-53') {
+                                                                    responder.error_result(request, response, 400, 4000, 'this resource of mgmtObj is not supported', function () {
+                                                                        request = null;
+                                                                        response = null;
+                                                                    });
+                                                                }
+                                                                else if(code === '200') {
+                                                                    responder.response_result(request, response, 200, 2004, '', function () {
+                                                                        request = null;
+                                                                        response = null;
+                                                                    });
+                                                                }
+                                                                else {
+                                                                }
+                                                            });
+                                                        }
+                                                        else {
+                                                            responder.error_result(request, response, 400, 4000, 'rcn query is not supported at PUT request', function () {
+                                                                request = null;
+                                                                response = null;
+                                                            });
+                                                        }
+                                                    }
+                                                });
+                                            }
+                                        }
+                                    });
+                                }
+                            });
+                        }
+                    }
+                });
+            }
+        });
     });
 });
 
 app.delete(onem2mParser, function (request, response) {
-    var _ct = moment().utc().format('YYYYMMDD');
-    var _http = 0;
-    var _mqtt = 0;
-    var _coap = 0;
-    var _ws = 0;
-    if (request.headers.hasOwnProperty('binding')) {
-        if(request.headers['binding'] == 'H') {
-            _http = 1;
-        }
-        else if(request.headers['binding'] == 'M') {
-            _mqtt = 1;
-        }
-        else if(request.headers['binding'] == 'C') {
-            _coap = 1;
-        }
-        else if(request.headers['binding'] == 'W') {
-            _ws = 1;
-        }
-        db_sql.set_hit(request.connection, _ct, _http, _mqtt, _coap, _ws, function () {
+    var fullBody = '';
+    request.on('data', function(chunk) {
+        fullBody += chunk.toString();
+    });
 
+    request.on('end', function() {
+        request.body = fullBody;
+
+        db.getConnection(function (err, connection) {
+            if (err) {
+                console.log('[app.use] No Connection');
+                responder.error_result(request, response, 500, 5000, 'DB Error : No Connection Pool');
+                return '0';
+            }
+            else {
+                request.connection = connection;
+
+                var _ct = moment().utc().format('YYYYMMDD');
+                var _http = 0;
+                var _mqtt = 0;
+                var _coap = 0;
+                var _ws = 0;
+                if (request.headers.hasOwnProperty('binding')) {
+                    if (request.headers['binding'] == 'H') {
+                        _http = 1;
+                    }
+                    else if (request.headers['binding'] == 'M') {
+                        _mqtt = 1;
+                    }
+                    else if (request.headers['binding'] == 'C') {
+                        _coap = 1;
+                    }
+                    else if (request.headers['binding'] == 'W') {
+                        _ws = 1;
+                    }
+                    db_sql.set_hit(request.connection, _ct, _http, _mqtt, _coap, _ws, function (err, results) {
+                        results = null;
+                    });
+                }
+                else {
+                    _http = 1;
+                    db_sql.set_hit(request.connection, _ct, _http, _mqtt, _coap, _ws, function (err, results) {
+                        results = null;
+                    });
+                }
+
+                check_xm2m_headers(request, function (code) {
+                    if (code === '400-1') {
+                        responder.error_result(request, response, 400, 4000, 'BAD REQUEST: X-M2M-RI is none', function () {
+                            request = null;
+                            response = null;
+                        });
+                    }
+                    else if (code === '400-2') {
+                        responder.error_result(request, response, 400, 4000, 'BAD REQUEST: X-M2M-Origin header is Mandatory', function () {
+                            request = null;
+                            response = null;
+                        });
+                    }
+                    else if (code === '405-1') {
+                        responder.error_result(request, response, 405, 4005, 'OPERATION_NOT_ALLOWED: CSEBase can not be created by others', function () {
+                            request = null;
+                            response = null;
+                        });
+                    }
+                    else if (code === '405-2') {
+                        responder.error_result(request, response, 405, 4005, 'OPERATION_NOT_ALLOWED (req is not supported when post request)', function () {
+                            request = null;
+                            response = null;
+                        });
+                    }
+                    else if(code === '405-3') {
+                        responder.error_result(request, response, 405, 4005, 'OPERATION_NOT_ALLOWED: we do not support (' + request.ty + ') resource', function () {
+                            request = null;
+                            response = null;
+                        });
+                    }
+                    else if(code === '403-1') {
+                        responder.error_result(request, response, 403, 4107, 'OPERATION_NOT_ALLOWED: AE-ID is not allowed', function () {
+                            request = null;
+                            response = null;
+                        });
+                    }
+                    else {
+                        get_target_url(request, response, function (code) {
+                            if (code === '409-1') {
+                                responder.error_result(request, response, 409, 4005, 'can not use post, put method at latest resource', function () {
+                                    request = null;
+                                    response = null;
+                                });
+                            }
+                            else if (code === '409-2') {
+                                responder.error_result(request, response, 409, 4005, 'can not use post, put method at oldest resource', function () {
+                                    request = null;
+                                    response = null;
+                                });
+                            }
+                            else if (code === '404-1') {
+                                responder.error_result(request, response, 404, 4004, 'resource does not exist (get_target_url)', function () {
+                                    request = null;
+                                    response = null;
+                                });
+                            }
+                            else if (code === '404-2') {
+                                responder.error_result(request, response, 404, 4004, 'resource does not exist (get_target_url)', function () {
+                                    request = null;
+                                    response = null;
+                                });
+                            }
+                            else if (code === '404-3') {
+                                responder.error_result(request, response, 404, 4004, 'csebase is not found', function () {
+                                    request = null;
+                                    response = null;
+                                });
+                            }
+                            else if (code === '500-1') {
+                                responder.error_result(request, response, 500, 5000, 'database error (get_target_url)', function () {
+                                    request = null;
+                                    response = null;
+                                });
+                            }
+                            else if (code === '301-1') {
+                                check_csr(request, response, function () {
+                                    if (code === '404-3') {
+                                        responder.error_result(request, response, 404, 4004, 'csebase is not found', function () {
+                                            request = null;
+                                            response = null;
+                                        });
+                                    }
+                                    else if (code === '301-2') {
+                                        response.status(response.statusCode).end(response.body);
+                                        request = null;
+                                        response = null;
+                                    }
+                                });
+                            }
+                            else {
+                                if (request.option == '/fopt') {
+                                    // todo: fopt - delete
+                                    // check access right for fanoutpoint
+                                    check_grp(request, response, function (rsc, result_grp) {
+                                        if (rsc == '0') {
+                                            return rsc;
+                                        }
+
+                                        var access_value = '8';
+                                        var body_Obj = {};
+                                        security.check(request, response, request.targetObject[Object.keys(request.targetObject)[0]].ty, result_grp.macp, access_value, result_grp.cr, function (rsc, request, response) {
+                                            if (rsc == '0') {
+                                                responder.error_result(request, response, 403, 4103, '[app.use] ACCESS DENIED (fopt)');
+                                                return '0';
+                                            }
+
+                                            if (request.method.toLowerCase() == 'post' || request.method.toLowerCase() == 'put') {
+                                                parse_body_format(request, response, function (rsc, body_Obj) {
+                                                    if (rsc != '0') {
+                                                        fopt.check(request, response, result_grp, request.targetObject[Object.keys(request.targetObject)[0]].ty, body_Obj);
+                                                    }
+                                                });
+                                            }
+                                            else {
+                                                fopt.check(request, response, result_grp, request.targetObject[Object.keys(request.targetObject)[0]].ty, body_Obj);
+                                            }
+                                        });
+                                    });
+                                }
+                                else {
+                                    var rootnm = Object.keys(request.targetObject)[0];
+                                    var absolute_url = request.targetObject[rootnm].ri;
+
+                                    if (url.parse(absolute_url).pathname == ('/' + usecsebase)) {
+                                        responder.error_result(request, response, 405, 4005, 'OPERATION_NOT_ALLOWED (csebase resource is not deleted)', function () {
+                                            request = null;
+                                            response = null;
+                                        });
+                                    }
+
+                                    request.url = absolute_url;
+                                    if ((request.query.fu == 2) && (request.query.rcn == 0 || request.query.rcn == 1)) {
+                                        lookup_delete(request, response, function (code) {
+                                            if(code === '405-4') {
+                                                responder.error_result(request, response, 405, 4005, 'OPERATION_NOT_ALLOWED (rt query is not supported)', function () {
+                                                    request = null;
+                                                    response = null;
+                                                });
+                                            }
+                                            else if(code === '400-21') {
+                                                responder.error_result(request, response, 400, 4000, 'X-M2M-RTU is none', function () {
+                                                    request = null;
+                                                    response = null;
+                                                });
+                                            }
+                                            else if(code === '400-22') {
+                                                responder.error_result(request, response, 400, 4000, 'BAD REQUEST: \'Not Present\' attribute', function () {
+                                                    request = null;
+                                                    response = null;
+                                                });
+                                            }
+                                            else if(code === '400-23') {
+                                                responder.error_result(request, response, 400, 4000, 'BAD REQUEST: .acr must have values', function () {
+                                                    request = null;
+                                                    response = null;
+                                                });
+                                            }
+                                            else if(code === '400-24') {
+                                                responder.error_result(request, response, 400, 4000, 'BAD REQUEST: nu must have values', function () {
+                                                    request = null;
+                                                    response = null;
+                                                });
+                                            }
+                                            else if(code === '400-25') {
+                                                responder.error_result(request, response, 400, 4000, 'BAD REQUEST: attribute is not defined', function () {
+                                                    request = null;
+                                                    response = null;
+                                                });
+                                            }
+                                            else if(code === '400-26') {
+                                                responder.error_result(request, response, 400, 4000, 'BAD REQUEST: attribute is \'Mandatory\' attribute', function () {
+                                                    request = null;
+                                                    response = null;
+                                                });
+                                            }
+                                            else if(code === '400-27') {
+                                                responder.error_result(request, response, 400, 4000, 'BAD REQUEST: expiration time is before now', function () {
+                                                    request = null;
+                                                    response = null;
+                                                });
+                                            }
+                                            else if(code === '400-28') {
+                                                responder.error_result(request, response, 400, 4000, 'BAD REQUEST: ASN CSE can not have child CSE (remoteCSE)', function () {
+                                                    request = null;
+                                                    response = null;
+                                                });
+                                            }
+                                            else if(code === '403-2') {
+                                                responder.error_result(request, response, 403, 5203, 'TARGET_NOT_SUBSCRIBABLE: request ty creating can not create under parent resource', function () {
+                                                    request = null;
+                                                    response = null;
+                                                });
+                                            }
+                                            else if(code === '405-5') {
+                                                responder.error_result(request, response, 405, 4005, 'we do not support to create resource', function () {
+                                                    request = null;
+                                                    response = null;
+                                                });
+                                            }
+                                            else if(code === '409-3') {
+                                                responder.error_result(request, response, 409, 4005, 'resource name can not use that is keyword', function () {
+                                                    request = null;
+                                                    response = null;
+                                                });
+                                            }
+                                            else if(code === '409-4') {
+                                                responder.error_result(request, response, 409, 4005, 'resource requested is not supported', function () {
+                                                    request = null;
+                                                    response = null;
+                                                });
+                                            }
+                                            else if(code === '423-1') {
+                                                responder.error_result(request, response, 423, 4230, 'LOCKED: this resource was occupied by others', function () {
+                                                    request = null;
+                                                    response = null;
+                                                });
+                                            }
+                                            else {
+                                            }
+                                        });
+                                    }
+                                    else {
+                                        responder.error_result(request, response, 400, 4000, 'rcn query is not supported at DELETE request', function () {
+                                            request = null;
+                                            response = null;
+                                        });
+                                    }
+                                }
+                            }
+                        });
+                    }
+                });
+            }
         });
-    }
-    else {
-        _http = 1;
-        db_sql.set_hit(request.connection, _ct, _http, _mqtt, _coap, _ws, function () {
-
-        });
-    }
-
-    var rootnm = Object.keys(request.targetObject)[0];
-    var absolute_url = request.targetObject[rootnm].ri;
-
-    if (url.parse(absolute_url).pathname == ('/' + usecsebase)) {
-        responder.error_result(request, response, 405, 4005, 'OPERATION_NOT_ALLOWED');
-        return '0';
-    }
-
-    request.url = absolute_url;
-    if ((request.query.fu == 2) &&
-        (request.query.rcn == 0 || request.query.rcn == 1)) {
-        lookup_delete(request, response);
-    }
-    else {
-        responder.error_result(request, response, 400, 4000, 'rcn query is not supported at DELETE request');
-        return '0';
-    }
+    });
 });
 
-function check_notification(headers, url, callback) {
-    if(headers.hasOwnProperty('content-type')) {
-        if(headers['content-type'].includes('ty')) { // post
+function check_notification(request, response, callback) {
+    if(request.headers.hasOwnProperty('content-type')) {
+        if(request.headers['content-type'].includes('ty')) { // post
             callback('post');
         }
         else {
-            if(headers.rootnm == 'sgn') {
+            if(request.headers.rootnm == 'sgn') {
                 callback('notify');
             }
             else {
-                callback('0', 400, 4000, '[check_notification] post request without ty value is but body is not for notification');
+                callback('400-19');
             }
         }
     }
     else {
-        callback('0', 400, 4000, 'content-type is none');
+        callback('400-20');
     }
 }
 
@@ -2170,8 +3922,8 @@ function check_ae(absolute_url, request, response) {
     });
 }
 
-function check_csr(absolute_url, request, response) {
-    var ri = util.format('/%s/%s', usecsebase, url.parse(absolute_url).pathname.split('/')[1]);
+function check_csr(request, response, callback) {
+    var ri = util.format('/%s/%s', usecsebase, url.parse(request.absolute_url).pathname.split('/')[1]);
     console.log('[check_csr] : ' + ri);
     db_sql.select_csr(request.connection, ri, function (err, result_csr) {
         if (!err) {
@@ -2187,32 +3939,58 @@ function check_csr(absolute_url, request, response) {
 
                         console.log('csebase forwarding to ' + point.forwardcbname);
 
-                        request.connection.release();
-                        forward_http(point.forwardcbhost, point.forwardcbport, request, response);
+                        forward_http(point.forwardcbhost, point.forwardcbport, request.url, request.method, request.headers, request.body, function (code, _res) {
+                            if(code === '200') {
+                                var res = JSON.parse(JSON.stringify(_res));
+                                _res = null;
+                                if (res.headers.hasOwnProperty('content-type')) {
+                                    response.setHeader('Content-Type', res.headers['content-type']);
+                                }
+
+                                if (res.headers.hasOwnProperty('x-m2m-ri')) {
+                                    response.setHeader('X-M2M-RI', res.headers['x-m2m-ri']);
+                                }
+
+                                if (res.headers.hasOwnProperty('x-m2m-rvi')) {
+                                    response.setHeader('X-M2M-RVI', res.headers['x-m2m-rvi']);
+                                }
+
+                                if (res.headers.hasOwnProperty('x-m2m-rsc')) {
+                                    response.setHeader('X-M2M-RSC', res.headers['x-m2m-rsc']);
+                                }
+
+                                if (res.headers.hasOwnProperty('content-location')) {
+                                    response.setHeader('Content-Location', res.headers['content-location']);
+                                }
+
+                                response.body = res.body;
+                                response.statusCode = res.statusCode;
+
+                                callback('302-2');
+                            }
+                            else {
+                                callback(code);
+                            }
+                        });
                     }
                     else if (poa.protocol == 'mqtt:') {
                         point.forwardcbmqtt = poa.hostname;
-
-                        responder.error_result(request, response, 500, 5000, 'forwarding with mqtt is not supported');
-                        return '0';
+                        console.log('forwarding with mqtt is not supported');
                     }
                     else {
-                        point = {};
-                        point['dbg'] = 'protocol(' + poa.protocol + ') in poa of csr is not supported';
-                        responder.error_result(request, response, 400, 4000, point['dbg']);
-                        return '0';
+                        console.log('protocol in poa of csr is not supported');
                     }
                 }
+                result_csr = null;
             }
             else {
-                point = {};
-                point['dbg'] = 'csebase is not found';
-                responder.error_result(request, response, 400, 4000, point['dbg']);
-                return '0';
+                result_csr = null;
+                callback('404-3');
             }
         }
         else {
             console.log('[check_csr] query error: ' + result_csr.message);
+            callback('404-3');
         }
     });
 }
@@ -2283,67 +4061,51 @@ function notify_http(hostname, port, path, request, response) {
     req.end();
 }
 
-function forward_http(forwardcbhost, forwardcbport, request, response) {
+function forward_http(forwardcbhost, forwardcbport, f_url, f_method, f_headers, f_body, callback) {
     var options = {
         hostname: forwardcbhost,
         port: forwardcbport,
-        path: request.url,
-        method: request.method,
-        headers: request.headers
+        path: f_url,
+        method: f_method,
+        headers: f_headers
     };
 
     var req = http.request(options, function (res) {
         var fullBody = '';
+
         res.on('data', function (chunk) {
             fullBody += chunk.toString();
         });
 
         res.on('end', function () {
+            res.body = fullBody;
+
             console.log('--------------------------------------------------------------------------');
             console.log(res.url);
             console.log(res.headers);
-            console.log(fullBody);
+            console.log(res.body);
             console.log('[Forward response : ' + res.statusCode + ']');
 
-            //response.headers = res.headers;
-            if (res.headers['content-type']) {
-                response.header('Content-Type', res.headers['content-type']);
-            }
-            if (res.headers['x-m2m-ri']) {
-                response.header('X-M2M-RI', res.headers['x-m2m-ri']);
-            }
-            if (res.headers['x-m2m-rvi']) {
-                response.header('X-M2M-RVI', res.headers['x-m2m-rvi']);
-            }
-            if (res.headers['x-m2m-rsc']) {
-                response.header('X-M2M-RSC', res.headers['x-m2m-rsc']);
-            }
-            if (res.headers['content-location']) {
-                response.header('Content-Location', res.headers['content-location']);
-            }
-
-            response.statusCode = res.statusCode;
-            response.send(fullBody);
+            callback('200', res);
         });
     });
 
     req.on('error', function (e) {
         console.log('[forward_http] problem with request: ' + e.message);
 
-        response.statusCode = '404';
-        response.send(url.parse(request.url).pathname + ' : ' + e.message);
+        callback('404-3');
     });
 
-    console.log(request.method + ' - ' + request.url);
-    console.log(request.headers);
-    console.log(request.body);
+    console.log(f_method + ' - ' + f_url);
+    console.log(f_headers);
+    console.log(f_body);
 
     // write data to request body
-    if ((request.method.toLowerCase() == 'get') || (request.method.toLowerCase() == 'delete')) {
+    if ((f_method.toLowerCase() == 'get') || (f_method.toLowerCase() == 'delete')) {
         req.write('');
     }
     else {
-        req.write(request.body);
+        req.write(f_body);
     }
     req.end();
 }
@@ -2353,3 +4115,23 @@ if (process.env.NODE_ENV == 'production') {
 } else if (process.env.NODE_ENV == 'development') {
     console.log("Development Mode");
 }
+
+function scheduleGc() {
+    if (!global.gc) {
+        console.log('Garbage collection is not exposed');
+        return;
+    }
+
+    // schedule next gc within a random interval (e.g. 15-45 minutes)
+    // tweak this based on your app's memory usage
+    var nextMinutes = Math.random() * 30 + 15;
+
+    setTimeout(function(){
+        global.gc();
+        console.log('Manual gc', process.memoryUsage());
+        scheduleGc();
+    }, nextMinutes * 60 * 1000);
+}
+
+// call this in the startup script of your app (once per process)
+scheduleGc();
