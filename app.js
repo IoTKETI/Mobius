@@ -1040,7 +1040,9 @@ function lookup_delete(request, response, callback) {
                             responder.response_result(request, response, 403, body_Obj, 4103, request.url, resultStatusCode['4103']);
                             return '0';
                         }
-                        resource.delete(request, response, resultObj);
+                        resource.delete(request, response, function (code) {
+                            callback(code);
+                        });
                     });
                 }
                 else {
@@ -3723,16 +3725,7 @@ app.delete(onem2mParser, function (request, response) {
                                                 return '0';
                                             }
 
-                                            if (request.method.toLowerCase() == 'post' || request.method.toLowerCase() == 'put') {
-                                                parse_body_format(request, response, function (rsc, body_Obj) {
-                                                    if (rsc != '0') {
-                                                        fopt.check(request, response, result_grp, request.targetObject[Object.keys(request.targetObject)[0]].ty, body_Obj);
-                                                    }
-                                                });
-                                            }
-                                            else {
-                                                fopt.check(request, response, result_grp, request.targetObject[Object.keys(request.targetObject)[0]].ty, body_Obj);
-                                            }
+                                            fopt.check(request, response, result_grp, request.targetObject[Object.keys(request.targetObject)[0]].ty, body_Obj);
                                         });
                                     });
                                 }
@@ -3830,6 +3823,12 @@ app.delete(onem2mParser, function (request, response) {
                                             }
                                             else if(code === '423-1') {
                                                 responder.error_result(request, response, 423, 4230, 'LOCKED: this resource was occupied by others', function () {
+                                                    request = null;
+                                                    response = null;
+                                                });
+                                            }
+                                            else if(code === '200') {
+                                                responder.error_result(request, response, 200, 2002, '', function () {
                                                     request = null;
                                                     response = null;
                                                 });

@@ -1448,6 +1448,15 @@ function search_resource_action(connection, ri, query, cur_lim, pi_list, cni, lo
                 }
             }
             else {
+                for(i in search_Obj) {
+                    if(search_Obj.hasOwnProperty(i)) {
+                        seekObj[search_Obj[i].ri] = search_Obj[i];
+                        if (Object.keys(seekObj).length > cur_lim) {
+                            break;
+                        }
+                    }
+                }
+
                 callback(code);
             }
         }

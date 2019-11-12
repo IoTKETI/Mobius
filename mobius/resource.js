@@ -2165,30 +2165,28 @@ function update_cnt_by_delete(connection, pi, cs, callback) {
     });
 }
 
-function delete_action(request, response, resource_Obj, comm_Obj, callback) {
+function delete_action(request, response, callback) {
+    var resource_Obj = request.resourceObj;
+    var rootnm = Object.keys(request.resourceObj)[0];
+
     var pi_list = [];
     var result_ri = [];
-    pi_list.push(comm_Obj.ri);
-    console.time('search_parents_lookup ' + comm_Obj.ri);
-    db_sql.search_parents_lookup(request.connection, pi_list, result_ri, function (err, search_Obj) {
-        console.timeEnd('search_parents_lookup ' + comm_Obj.ri);
-        if (!err) {
-            //if(search_Obj.length == 0) {
-            //    pi_list.push(comm_Obj.ri);
-            //}
-
-            //pi_list.push(comm_Obj.ri);
-            for (var i = 0; i < search_Obj.length; i++) {
-                pi_list.push(search_Obj[i].ri);
+    pi_list.push(resource_Obj[rootnm].ri);
+    console.time('search_parents_lookup ' + resource_Obj[rootnm].ri);
+    db_sql.search_parents_lookup(request.connection, pi_list, result_ri, function (code) {
+        console.timeEnd('search_parents_lookup ' + resource_Obj[rootnm].ri);
+        if(code === '200') {
+            for (var i = 0; i < result_ri.length; i++) {
+                pi_list.push(result_ri[i].ri);
             }
 
             var finding_Obj = [];
-            console.time('delete_lookup ' + comm_Obj.ri);
-            db_sql.delete_lookup(request.connection, comm_Obj.ri, pi_list, 0, finding_Obj, 0, function (err, search_Obj) {
+            console.time('delete_lookup ' + resource_Obj[rootnm].ri);
+            db_sql.delete_lookup(request.connection, resource_Obj[rootnm].ri, pi_list, 0, finding_Obj, 0, function (err, search_Obj) {
                 if (!err) {
-                    console.timeEnd('delete_lookup ' + comm_Obj.ri);
+                    console.timeEnd('delete_lookup ' + resource_Obj[rootnm].ri);
 
-                    db_sql.select_lookup(request.connection, comm_Obj.pi, function (err, results) {
+                    db_sql.select_lookup(request.connection, resource_Obj[rootnm].pi, function (err, results) {
                         if (!err) {
                             var ty = results[0].ty;
                             request.targetObject = {};
@@ -2196,10 +2194,10 @@ function delete_action(request, response, resource_Obj, comm_Obj, callback) {
                             var parent_rootnm = Object.keys(request.targetObject)[0];
                             makeObject(request.targetObject[parent_rootnm]);
 
-                            if (comm_Obj.ty == '23') {
-                                if(comm_Obj.hasOwnProperty('su')) {
-                                    if(comm_Obj.su != '') {
-                                        var notiObj = JSON.parse(JSON.stringify(comm_Obj));
+                            if (resource_Obj[rootnm].ty == '23') {
+                                if(resource_Obj[rootnm].hasOwnProperty('su')) {
+                                    if(resource_Obj[rootnm].su != '') {
+                                        var notiObj = JSON.parse(JSON.stringify(resource_Obj[rootnm]));
                                         _this.remove_no_value(request, notiObj);
                                         sgn.check(request, notiObj, 128);
                                     }
@@ -2208,7 +2206,7 @@ function delete_action(request, response, resource_Obj, comm_Obj, callback) {
                                 var parentObj = request.targetObject[parent_rootnm];
                                 for(var idx in parentObj.subl) {
                                     if(parentObj.subl.hasOwnProperty(idx)) {
-                                        if(parentObj.subl[idx].ri == comm_Obj.ri) {
+                                        if(parentObj.subl[idx].ri == resource_Obj[rootnm].ri) {
                                             parentObj.subl.splice(idx, 1);
                                         }
                                     }
@@ -2216,41 +2214,37 @@ function delete_action(request, response, resource_Obj, comm_Obj, callback) {
 
                                 db_sql.update_lookup(request.connection, parentObj, function (err, results) {
                                     if (!err) {
-                                        callback('1', resource_Obj);
                                     }
                                 });
+
+                                callback('200');
                             }
-                            else if (comm_Obj.ty == '29') {
+                            else if (resource_Obj[rootnm].ty == '29') {
                                 delete_TS(function (rsc, res_Obj) {
                                 });
-                                callback('1', resource_Obj);
+                                callback('200');
                             }
-                            else if (comm_Obj.ty == '4') {
-                                update_cnt_by_delete(request.connection, comm_Obj.pi, function (rsc) {
+                            else if (resource_Obj[rootnm].ty == '4') {
+                                update_cnt_by_delete(request.connection, resource_Obj[rootnm].pi, function (rsc) {
                                 });
-                                callback('1', resource_Obj);
+                                callback('200');
                             }
                             else {
-                                callback('1', resource_Obj);
+                                callback('200');
                             }
+                        }
+                        else {
+                            callback('500');
                         }
                     });
                 }
                 else {
-                    var body_Obj = {};
-                    body_Obj['dbg'] = search_Obj.message;
-                    responder.response_result(request, response, 500, body_Obj, 5000, request.url, body_Obj['dbg']);
-                    callback('0', body_Obj);
-                    return '0';
+                    callback('500');
                 }
             });
         }
         else {
-            var body_Obj = {};
-            body_Obj['dbg'] = search_Obj.message;
-            responder.response_result(request, response, 500, body_Obj, 5000, request.url, body_Obj['dbg']);
-            callback('0', body_Obj);
-            return '0';
+            callback(code);
         }
     });
 }
@@ -2265,41 +2259,36 @@ function delete_resource(request, comm_Obj, callback) {
     callback('1', resource_Obj);
 }
 
-exports.delete = function (request, response, comm_Obj) {
-    var ty = comm_Obj.ty;
+exports.delete = function (request, response, callback) {
+    var ty = request.ty;
 
     _this.set_rootnm(request, ty);
 
     var rootnm = request.headers.rootnm;
 
-    delete_resource(request, comm_Obj, function (rsc, resource_Obj) {
-        if (rsc == '0') {
-            return rsc;
-        }
+    request.resourceObj = JSON.parse(JSON.stringify(request.targetObject));
 
-        delete_action(request, response, resource_Obj, comm_Obj, function (rsc, delete_Obj) {
-            if (rsc == '1') {
-                _this.remove_no_value(request, delete_Obj);
+    delete_action(request, response, function (code) {
+        if (code === '200') {
+            _this.remove_no_value(request, request.resourceObj);
 
-                sgn.check(request, delete_Obj[rootnm], 4);
+            sgn.check(request, request.resourceObj[rootnm], 4);
 
-                if(useCert == 'enable') {
-                    if (delete_Obj[rootnm].ty == 4) {
-                        db_sql.update_parent_by_delete(request.connection, request.targetObject[Object.keys(request.targetObject)[0]], parseInt(delete_Obj[rootnm].cs, 10), function () {
-                        });
-                    }
-                    else {
-                        db_sql.update_parent_st(request.connection, request.targetObject[Object.keys(request.targetObject)[0]], function () {
-                        });
-                    }
+            if(useCert == 'enable') {
+                if (request.resourceObj[rootnm].ty == 4) {
+                    db_sql.update_parent_by_delete(request.connection, request.targetObject[Object.keys(request.targetObject)[0]], parseInt(delete_Obj[rootnm].cs, 10), function () {
+                    });
                 }
                 else {
+                    db_sql.update_parent_st(request.connection, request.targetObject[Object.keys(request.targetObject)[0]], function () {
+                    });
                 }
-
-                responder.response_result(request, response, 200, delete_Obj, 2002, delete_Obj[rootnm].ri, '');
-                return '0';
+                callback('200');
             }
-        });
+            else {
+                callback('200');
+            }
+        }
     });
 };
 
