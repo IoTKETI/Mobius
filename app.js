@@ -292,9 +292,8 @@ global.get_ri_list_sri = function (request, response, sri_list, ri_list, count, 
     }
     else {
         db_sql.get_ri_sri(request.connection, sri_list[count], function (err, results) {
-            results = null;
             ri_list[count] = ((results.length == 0) ? sri_list[count] : results[0].ri);
-
+            results = null;
             if (sri_list.length <= ++count) {
                 callback(ri_list);
             }
@@ -882,10 +881,8 @@ function lookup_create(request, response, callback) {
                     console.time(tid);
                     security.check(request, response, parentObj.ty, parentObj.acpi, access_value, parentObj.cr, function (rsc) {
                         if (rsc == '0') {
-                            body_Obj = {};
-                            body_Obj['dbg'] = resultStatusCode['4103'];
-                            responder.response_result(request, response, 403, body_Obj, 4103, request.url, resultStatusCode['4103']);
-                            return '0';
+                            callback('403-3');
+                            return;
                         }
                         console.timeEnd(tid);
                         resource.create(request, response, function (code) {
@@ -921,10 +918,8 @@ function lookup_retrieve(request, response, callback) {
                     if (request.query.fu == 1) {
                         security.check(request, response, resultObj.ty, resultObj.acpi, '32', resultObj.cr, function (rsc) {
                             if (rsc == '0') {
-                                body_Obj = {};
-                                body_Obj['dbg'] = resultStatusCode['4103'];
-                                responder.response_result(request, response, 403, body_Obj, 4103, request.url, resultStatusCode['4103']);
-                                return '0';
+                                callback('403-3');
+                                return;
                             }
                             resource.retrieve(request, response, function (code) {
                                 callback(code);
@@ -935,10 +930,8 @@ function lookup_retrieve(request, response, callback) {
                         security.check(request, response, resultObj.ty, resultObj.acpi, '2', resultObj.cr, function (rsc) {
                             // todo: security.check
                             if (rsc == '0') {
-                                body_Obj = {};
-                                body_Obj['dbg'] = resultStatusCode['4103'];
-                                responder.response_result(request, response, 403, body_Obj, 4103, request.url, resultStatusCode['4103']);
-                                return '0';
+                                callback('403-3');
+                                return;
                             }
 
                             resource.retrieve(request, response, function (code) {
@@ -992,10 +985,8 @@ function lookup_update(request, response, callback) {
                     if (other_check > 0) {
                         security.check(request, response, resultObj.ty, resultObj.acpi, '4', resultObj.cr, function (rsc) {
                             if (rsc == '0') {
-                                body_Obj = {};
-                                body_Obj['dbg'] = resultStatusCode['4103'];
-                                responder.response_result(request, response, 403, body_Obj, 4103, request.url, resultStatusCode['4103']);
-                                return '0';
+                                callback('403-3');
+                                return;
                             }
                             resource.update(request, response, function (code) {
                                 callback(code)
@@ -1035,10 +1026,8 @@ function lookup_delete(request, response, callback) {
 
                     security.check(request, response, resultObj.ty, resultObj.acpi, '8', resultObj.cr, function (rsc) {
                         if (rsc == '0') {
-                            body_Obj = {};
-                            body_Obj['dbg'] = resultStatusCode['4103'];
-                            responder.response_result(request, response, 403, body_Obj, 4103, request.url, resultStatusCode['4103']);
-                            return '0';
+                            callback('403-3');
+                            return;
                         }
                         resource.delete(request, response, function (code) {
                             callback(code);
@@ -2194,7 +2183,7 @@ app.post(onem2mParser, function (request, response) {
                                                     security.check(request, response, request.targetObject[Object.keys(request.targetObject)[0]].ty, result_grp.macp, access_value, result_grp.cr, function (rsc, request, response) {
                                                         if (rsc == '0') {
                                                             responder.error_result(request, response, 403, 4103, '[app.use] ACCESS DENIED (fopt)');
-                                                            return '0';
+                                                            return;
                                                         }
 
                                                         parse_body_format(request, response, function (code) {
@@ -2553,6 +2542,12 @@ app.post(onem2mParser, function (request, response) {
                                                                                 response = null;
                                                                             });
                                                                         }
+                                                                        else if(code === '403-3') {
+                                                                            responder.error_result(request, response, 403, 4103, 'ACCESS DENIED', function () {
+                                                                                request = null;
+                                                                                response = null;
+                                                                            });
+                                                                        }
                                                                         else if(code === '405-5') {
                                                                             responder.error_result(request, response, 405, 4005, 'we do not support to create resource', function () {
                                                                                 request = null;
@@ -2849,7 +2844,7 @@ app.get(onem2mParser, function (request, response) {
                                                 security.check(request, response, request.targetObject[Object.keys(request.targetObject)[0]].ty, result_grp.macp, access_value, result_grp.cr, function (rsc, request, response) {
                                                     if (rsc == '0') {
                                                         responder.error_result(request, response, 403, 4103, '[app.use] ACCESS DENIED (fopt)');
-                                                        return '0';
+                                                        return;
                                                     }
 
                                                     fopt.check(request, response, result_grp, request.targetObject[Object.keys(request.targetObject)[0]].ty, body_Obj);
@@ -2930,6 +2925,12 @@ app.get(onem2mParser, function (request, response) {
                                                     }
                                                     else if(code === '403-2') {
                                                         responder.error_result(request, response, 403, 5203, 'TARGET_NOT_SUBSCRIBABLE: request ty creating can not create under parent resource', function () {
+                                                            request = null;
+                                                            response = null;
+                                                        });
+                                                    }
+                                                    else if(code === '403-3') {
+                                                        responder.error_result(request, response, 403, 4103, 'ACCESS DENIED', function () {
                                                             request = null;
                                                             response = null;
                                                         });
@@ -3189,7 +3190,7 @@ app.put(onem2mParser, function (request, response) {
                                                     security.check(request, response, request.targetObject[Object.keys(request.targetObject)[0]].ty, result_grp.macp, access_value, result_grp.cr, function (rsc, request, response) {
                                                         if (rsc == '0') {
                                                             responder.error_result(request, response, 403, 4103, '[app.use] ACCESS DENIED (fopt)');
-                                                            return '0';
+                                                            return;
                                                         }
 
                                                         parse_body_format(request, response, function (code) {
@@ -3799,6 +3800,12 @@ app.delete(onem2mParser, function (request, response) {
                                             }
                                             else if(code === '403-2') {
                                                 responder.error_result(request, response, 403, 5203, 'TARGET_NOT_SUBSCRIBABLE: request ty creating can not create under parent resource', function () {
+                                                    request = null;
+                                                    response = null;
+                                                });
+                                            }
+                                            else if(code === '403-3') {
+                                                responder.error_result(request, response, 403, 4103, 'ACCESS DENIED', function () {
                                                     request = null;
                                                     response = null;
                                                 });

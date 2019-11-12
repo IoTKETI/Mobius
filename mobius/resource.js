@@ -2264,9 +2264,8 @@ exports.delete = function (request, response, callback) {
 
     _this.set_rootnm(request, ty);
 
-    var rootnm = request.headers.rootnm;
-
     request.resourceObj = JSON.parse(JSON.stringify(request.targetObject));
+    var rootnm = Object.keys(request.resourceObj)[0];
 
     delete_action(request, response, function (code) {
         if (code === '200') {
