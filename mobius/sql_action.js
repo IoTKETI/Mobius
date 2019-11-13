@@ -1162,7 +1162,7 @@ function search_parents_lookup_action(connection, pi_list, count, result_ri, cal
             }
         }
         else {
-            callback('500');
+            callback('500-1');
         }
     });
 }
@@ -1275,7 +1275,7 @@ function search_lookup_action(connection, pi_list, count, result_ri, query_where
             }
         }
         else {
-            callback('500');
+            callback('500-1');
         }
     });
 }

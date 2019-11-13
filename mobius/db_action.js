@@ -76,19 +76,17 @@ exports.getConnection = function(callback) {
 
     mysql_pool.getConnection(function (err, connection) {
         if (err) {
-            callback(err, null);
-        }
-        else if (connection) {
-            callback(err, connection);
+            callback('500-5');
         }
         else {
-            callback(true, "No Connection");
+            if (connection) {
+                callback('200', connection);
+            }
+            else {
+                callback('500-5');
+            }
         }
     });
-};
-
-exports.releaseConnection = function(connection) {
-    connection.release();
 };
 
 exports.getResult = function(query, connection, callback) {

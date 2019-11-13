@@ -500,11 +500,8 @@ function request_noti_ws(nu, ri, bodyString, bodytype, xm2mri) {
 
 
 function delete_sub(ri, xm2mri, parentObj) {
-    db.getConnection(function (err, connection) {
-        if(err) {
-            console.log('[delete_sub] - No Connection');
-        }
-        else {
+    db.getConnection(function (code, connection) {
+        if(code === '200') {
             for (var idx in parentObj.subl) {
                 if (parentObj.subl.hasOwnProperty(idx)) {
                     if (parentObj.subl[idx].ri == ri) {
@@ -516,13 +513,18 @@ function delete_sub(ri, xm2mri, parentObj) {
             db_sql.update_lookup(connection, parentObj, function (err, results) {
                 if (!err) {
                     db_sql.delete_ri_lookup(connection, ri, function () {
-                        db.releaseConnection(connection);
                         console.log('      [sgn_man] remove subscription because no response');
-                        delete parentObj;
                         parentObj = null;
+                        connection.release();
                     });
                 }
+                else {
+                    connection.release();
+                }
             });
+        }
+        else {
+            console.log('[delete_sub] - No Connection');
         }
     });
 }

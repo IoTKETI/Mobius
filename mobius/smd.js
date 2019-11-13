@@ -114,10 +114,10 @@ exports.request_get_discovery = function(request, response, callback) {
             }
             else {
                 if(res.statusCode == 400) {
-                    callback('400');
+                    callback('400-41');
                 }
                 else {
-                    callback('404');
+                    callback('404-2');
                 }
             }
         });
@@ -126,7 +126,7 @@ exports.request_get_discovery = function(request, response, callback) {
     req.on('error', function (e) {
         console.log('[smd.request_post()] problem with request: ' + e.message);
 
-        callback('404');
+        callback('404-2');
     });
 
     req.on('close', function() {

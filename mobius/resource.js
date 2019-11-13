@@ -1442,7 +1442,7 @@ exports.retrieve = function (request, response, callback) {
                     callback('200-1');
                 }
                 else {
-                    callback('501');
+                    callback('501-1');
                 }
             }
             else {
@@ -1501,7 +1501,7 @@ function update_action(request, response, callback) {
                 callback('200');
             }
             else {
-                callback('500');
+                callback('500-1');
             }
         });
     }
@@ -1511,7 +1511,7 @@ function update_action(request, response, callback) {
                 callback('200');
             }
             else {
-                callback('500');
+                callback('500-1');
             }
         });
     }
@@ -1525,7 +1525,7 @@ function update_action(request, response, callback) {
                     callback('200');
                 }
                 else {
-                    callback('500');
+                    callback('500-1');
                 }
             });
         });
@@ -1536,7 +1536,7 @@ function update_action(request, response, callback) {
                     callback('200');
                 }
                 else {
-                    callback('500');
+                    callback('500-1');
                 }
             });
     }
@@ -1546,7 +1546,7 @@ function update_action(request, response, callback) {
                     callback('200');
                 }
                 else {
-                    callback('500');
+                    callback('500-1');
                 }
             });
     }
@@ -1558,7 +1558,7 @@ function update_action(request, response, callback) {
                             callback('200');
                         }
                         else {
-                            callback('500');
+                            callback('500-1');
                         }
                     });
             }
@@ -1568,7 +1568,7 @@ function update_action(request, response, callback) {
                             callback('200');
                         }
                         else {
-                            callback('500');
+                            callback('500-1');
                         }
                     });
             }
@@ -1578,7 +1578,7 @@ function update_action(request, response, callback) {
                             callback('200');
                         }
                         else {
-                            callback('500');
+                            callback('500-1');
                         }
                     });
             }
@@ -1591,7 +1591,7 @@ function update_action(request, response, callback) {
                             callback('200');
                         }
                         else {
-                            callback('500');
+                            callback('500-1');
                         }
                     });
             }
@@ -1601,7 +1601,7 @@ function update_action(request, response, callback) {
                             callback('200');
                         }
                         else {
-                            callback('500');
+                            callback('500-1');
                         }
                     });
             }
@@ -1619,7 +1619,7 @@ function update_action(request, response, callback) {
                     callback('200');
                 }
                 else {
-                    callback('500');
+                    callback('500-1');
                 }
             });
     }
@@ -1629,7 +1629,7 @@ function update_action(request, response, callback) {
                     callback('200');
                 }
                 else {
-                    callback('500');
+                    callback('500-1');
                 }
             });
     }
@@ -1657,7 +1657,7 @@ function update_action(request, response, callback) {
                 });
             }
             else {
-                callback('500');
+                callback('500-1');
             }
         });
     }
@@ -1667,7 +1667,7 @@ function update_action(request, response, callback) {
                     callback('200');
                 }
                 else {
-                    callback('500');
+                    callback('500-1');
                 }
             });
     }
@@ -1679,7 +1679,7 @@ function update_action(request, response, callback) {
                     callback('200');
                 }
                 else {
-                    callback('500');
+                    callback('500-1');
                 }
             });
     }
@@ -1689,7 +1689,7 @@ function update_action(request, response, callback) {
                     callback('200');
                 }
                 else {
-                    callback('500');
+                    callback('500-1');
                 }
             });
     }
@@ -1740,7 +1740,7 @@ function update_action(request, response, callback) {
                         callback('200');
                     }
                     else {
-                        callback('500');
+                        callback('500-1');
                     }
                 });
             });
@@ -1785,7 +1785,7 @@ function update_action(request, response, callback) {
                         callback('200');
                     }
                     else {
-                        callback('500');
+                        callback('500-1');
                     }
                 });
             });
@@ -1830,7 +1830,7 @@ function update_action(request, response, callback) {
                         callback('200');
                     }
                     else {
-                        callback('500');
+                        callback('500-1');
                     }
                 });
             });
@@ -1875,7 +1875,7 @@ function update_action(request, response, callback) {
                         callback('200');
                     }
                     else {
-                        callback('500');
+                        callback('500-1');
                     }
                 });
             });
@@ -1889,7 +1889,7 @@ function update_action(request, response, callback) {
                     callback('200');
                 }
                 else {
-                    callback('500');
+                    callback('500-1');
                 }
             });
         }
@@ -1906,7 +1906,7 @@ function update_action(request, response, callback) {
                     callback('200');
                 }
                 else {
-                    callback('500');
+                    callback('500-1');
                 }
             });
         }
@@ -1917,7 +1917,7 @@ function update_action(request, response, callback) {
                         callback('200');
                     }
                     else {
-                        callback('500');
+                        callback('500-1');
                     }
                 });
             });
@@ -1929,7 +1929,7 @@ function update_action(request, response, callback) {
                         callback('200');
                     }
                     else {
-                        callback('500');
+                        callback('500-1');
                     }
                 });
             });
@@ -1941,7 +1941,7 @@ function update_action(request, response, callback) {
                     callback('200');
                 }
                 else {
-                    callback('500');
+                    callback('500-1');
                 }
             });
         }
@@ -2234,12 +2234,12 @@ function delete_action(request, response, callback) {
                             }
                         }
                         else {
-                            callback('500');
+                            callback('500-1');
                         }
                     });
                 }
                 else {
-                    callback('500');
+                    callback('500-1');
                 }
             });
         }

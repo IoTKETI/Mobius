@@ -2090,7 +2090,9 @@ exports.error_result = function(request, response, status, rsc, dbg_string, call
     console.log(JSON.stringify(rspObj));
     rspObj = null;
 
-    request.connection.release();
+    if(request.hasOwnProperty('connection')) {
+        request.connection.release();
+    }
 
     callback();
 };

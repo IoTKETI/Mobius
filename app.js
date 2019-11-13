@@ -93,27 +93,24 @@ app.use(morgan('combined', {stream: accessLogStream}));
 //ts_app.use(morgan('short', {stream: accessLogStream}));
 
 function del_req_resource() {
-    db.getConnection(function (err, connection) {
-        if(err) {
-            console.log('[del_req_resource] No Connection');
-        }
-        else {
+    db.getConnection(function (code, connection) {
+        if(code === '200') {
             db_sql.delete_req(connection, function (err, delete_Obj) {
                 if (!err) {
                     console.log('deleted ' + delete_Obj.affectedRows + ' request resource(s).');
-                    db.releaseConnection(connection);
                 }
+                connection.release();
             });
+        }
+        else {
+            console.log('[del_req_resource] No Connection');
         }
     });
 }
 
 function del_expired_resource() {
-    db.getConnection(function (err, connection) {
-        if(err) {
-            console.log('[del_expired_resource] No Connection');
-        }
-        else {
+    db.getConnection(function (code, connection) {
+        if(code === '200') {
             // this routine is that delete resource expired time exceed et of resource
             var et = moment().utc().format('YYYYMMDDTHHmmss');
             db_sql.delete_lookup_et(connection, et, function (err) {
@@ -121,9 +118,12 @@ function del_expired_resource() {
                     console.log('---------------');
                     console.log('delete resources expired et');
                     console.log('---------------');
-                    db.releaseConnection(connection);
                 }
+                connection.release();
             });
+        }
+        else {
+            console.log('[del_expired_resource] No Connection');
         }
     });
 }
@@ -145,11 +145,8 @@ if (use_clustering) {
 
         db.connect(usedbhost, 3306, 'root', usedbpass, function (rsc) {
             if (rsc == '1') {
-                db.getConnection(function (err, connection) {
-                    if(err) {
-                        console.log('[db.connect] No Connection');
-                    }
-                    else {
+                db.getConnection(function (code, connection) {
+                    if(code === '200') {
                         db_sql.set_tuning(connection, function (err, results) {
                             if (err) {
                                 console.log('[set_tuning] error');
@@ -176,9 +173,12 @@ if (use_clustering) {
                                     }, 5000);
                                 }
 
-                                db.releaseConnection(connection);
+                                connection.release();
                             });
                         });
+                    }
+                    else {
+                        console.log('[db.connect] No Connection');
                     }
                 });
             }
@@ -187,11 +187,8 @@ if (use_clustering) {
     else {
         db.connect(usedbhost, 3306, 'root', usedbpass, function (rsc) {
             if (rsc == '1') {
-                db.getConnection(function (err, connection) {
-                    if (err) {
-                        console.log('[db.connect] No Connection');
-                    }
-                    else {
+                db.getConnection(function (code, connection) {
+                    if(code === '200') {
                         if (use_secure === 'disable') {
                             http.globalAgent.maxSockets = 1000000;
                             http.createServer(app).listen({port: usecsebaseport, agent: false}, function () {
@@ -200,7 +197,7 @@ if (use_clustering) {
                                     console.log(JSON.stringify(rsp));
                                     //noti_mqtt_begin();
 
-                                    db.releaseConnection(connection);
+                                    connection.release();
                                 });
                             });
                         }
@@ -217,10 +214,13 @@ if (use_clustering) {
                                     console.log(JSON.stringify(rsp));
                                     //noti_mqtt_begin();
 
-                                    db.releaseConnection(connection);
+                                    connection.release();
                                 });
                             });
                         }
+                    }
+                    else {
+                        console.log('[db.connect] No Connection');
                     }
                 });
             }
@@ -230,11 +230,8 @@ if (use_clustering) {
 else {
     db.connect(usedbhost, 3306, 'root', usedbpass, function (rsc) {
         if (rsc == '1') {
-            db.getConnection(function (err, connection) {
-                if (err) {
-                    console.log('[db.connect] No Connection');
-                }
-                else {
+            db.getConnection(function (code, connection) {
+                if(code === '200') {
                     cb.create(connection, function (rsp) {
                         console.log(JSON.stringify(rsp));
 
@@ -250,6 +247,8 @@ else {
                                         csr_custom.emit('register_remoteCSE');
                                     }, 5000);
                                 }
+
+                                connection.release();
                             });
                         }
                         else {
@@ -270,11 +269,14 @@ else {
                                         csr_custom.emit('register_remoteCSE');
                                     }, 5000);
                                 }
+
+                                connection.release();
                             });
                         }
-
-                        db.releaseConnection(connection);
                     });
+                }
+                else {
+                    console.log('[db.connect] No Connection');
                 }
             });
         }
@@ -796,21 +798,71 @@ var resultStatusCode = {
     '400-5': [400, 4000, "BAD REQUEST: [parse_to_json] do not parse xml body"],
     '400-6': [400, 4000, "BAD REQUEST: [parse_to_json] do not parse cbor body"],
     '400-7': [400, 4000, "BAD REQUEST: [parse_to_json] root tag of body is not matched"],
+    '400-8': [400, 4000, "BAD REQUEST: (aa, at, poa, acpi, srt, nu, mid, macp, rels, rqps, srv) attribute should be json array format"],
+    '400-9': [400, 4000, "BAD REQUEST: (lbl) attribute should be json array format"],
+    '400-10': [400, 4000, "BAD REQUEST: (enc.net) attribute should be json array format"],
+    '400-11': [400, 4000, "BAD REQUEST: (enc) attribute should have net key as child in json format"],
+    '400-12': [400, 4000, "BAD REQUEST: (pv.acr, pvs.acr) attribute should be json array format"],
+    '400-13': [400, 4000, "BAD REQUEST: (pv.acr.acor, pvs.acr.acor) attribute should be json array format"],
+    '400-14': [400, 4000, "BAD REQUEST: (pv.acr.acco, pvs.acr.acco) attribute should be json array format"],
+    '400-15': [400, 4000, "BAD REQUEST: (pv.acr.acco.acip.ipv4, pvs.acr.acco.acip.ipv4) attribute should be json array format"],
+    '400-16': [400, 4000, "BAD REQUEST: (pv.acr.acco.acip.ipv6, pvs.acr.acco.acip.ipv6) attribute should be json array format"],
+    '400-17': [400, 4000, "BAD REQUEST: (pv.acr.acco.actw, pvs.acr.acco.actw) attribute should be json array format"],
+    '400-18': [400, 4000, "BAD REQUEST: (uds, cas) attribute should be json array format"],
+    '400-21': [400, 4000, "BAD REQUEST: X-M2M-RTU is none"],
+    '400-22': [400, 4000, "BAD REQUEST: \'Not Present\' attribute"],
+    '400-23': [400, 4000, "BAD REQUEST: .acr must have values"],
+    '400-24': [400, 4000, "BAD REQUEST: nu must have values"],
+    '400-25': [400, 4000, "BAD REQUEST: attribute is not defined"],
+    '400-26': [400, 4000, "BAD REQUEST: attribute is \'Mandatory\' attribute"],
+    '400-27': [400, 4000, "BAD REQUEST: expiration time is before now"],
+    '400-28': [400, 4000, "BAD REQUEST: ASN CSE can not have child CSE (remoteCSE)"],
+    '400-29': [400, 4000, "BAD REQUEST: mni is negative value"],
+    '400-30': [400, 4000, "BAD REQUEST: mbs is negative valuee"],
+    '400-31': [400, 4000, "BAD REQUEST: mia is negative value"],
+    '400-32': [400, 4000, "BAD REQUEST: contentInfo(cnf) format is not match"],
+    '400-33': [400, 6010, "MAX_NUMBER_OF_MEMBER_EXCEEDED"],
+    '400-34': [400, 6011, "can not create group because csy is ABANDON_GROUP when MEMBER_TYPE_INCONSISTENT"],
+    '400-35': [400, 4000, "BAD REQUEST: mgmtDefinition is not match with mgmtObj resource"],
+    '400-36': [400, 4000, "BAD REQUEST: ty does not supported"],
+    '400-37': [400, 4000, "BAD REQUEST: transaction resource could not create"],
     '400-40': [400, 4000, "BAD REQUEST: body is empty"],
+    '400-41': [400, 4000, "BAD REQUEST"],
 
     '403-1': [403, 4107, "OPERATION_NOT_ALLOWED: AE-ID is not allowed"],
+    '403-2': [403, 5203, "TARGET_NOT_SUBSCRIBABLE: request ty creating can not create under parent resource"],
+    '403-3': [403, 4103, "ACCESS DENIED"],
 
     '404-1': [404, 4004, "resource does not exist (get_target_url)"],
+    '404-2': [404, 4004, "RESOURCE DOES NOT FOUND"],
     '404-3': [404, 4004, "csebase is not found"],
 
     '405-1': [405, 4005, "OPERATION_NOT_ALLOWED: CSEBase can not be created by others"],
     '405-2': [405, 4005, "OPERATION_NOT_ALLOWED (req is not supported when post request)"],
     '405-3': [405, 4005, "OPERATION_NOT_ALLOWED: we do not support resource type requested"],
+    '405-4': [405, 4005, "OPERATION_NOT_ALLOWED: rt query is not supported"],
+    '405-5': [405, 4005, "OPERATION_NOT_ALLOWED: we do not support to create resource"],
+    '405-6': [405, 4005, "OPERATION NOT ALLOWED: disr attribute is true"],
+
+    '406-1': [406, 5207, "NOT_ACCEPTABLE: can not create cin because mni value is zero"],
+    '406-2': [406, 5207, "NOT_ACCEPTABLE: can not create cin because mbs value is zero"],
+    '406-3': [406, 5207, "NOT_ACCEPTABLE: cs is exceed mbs"],
 
     '409-1': [409, 4005, "can not use post, put method at latest resource"],
     '409-2': [409, 4005, "can not use post, put method at oldest resource"],
+    '409-3': [409, 4005, "resource name can not use that is keyword"],
+    '409-4': [409, 4005, "resource requested is not supported"],
+    '409-5': [409, 4005, "resource is already exist"],
+    '409-6': [409, 4005, "[create_action] aei is duplicated"],
 
-    '500-1': [500, 5000, "database error (get_target_url)"]
+    '423-1': [423, 4230, "LOCKED: this resource was occupied by others"],
+
+    '500-1': [500, 5000, "database error"],
+    '500-2': [500, 5204, "SUBSCRIPTION_VERIFICATION_INITIATION_FAILED"],
+    '500-4': [500, 5000, "[create_action] create resource error"],
+    '500-5': [500, 5000, "DB Error : No Connection Pool"],
+
+    '501-1': [501, 5001, "response with hierarchical resource structure mentioned in onem2m spec is not supported instead all the requested resources will be returned !"]
 
 };
 
@@ -2050,13 +2102,8 @@ app.post(onem2mParser, function (request, response) {
     request.on('end', function() {
         request.body = fullBody;
 
-        db.getConnection(function (err, connection) {
-            if (err) {
-                console.log('[app.use] No Connection');
-                responder.error_result(request, response, 500, 5000, 'DB Error : No Connection Pool');
-                return '0';
-            }
-            else {
+        db.getConnection(function (code, connection) {
+            if(code === '200') {
                 request.connection = connection;
 
                 var _ct = moment().utc().format('YYYYMMDD');
@@ -2101,201 +2148,9 @@ app.post(onem2mParser, function (request, response) {
                                 if(code === '200') {
                                     get_target_url(request, response, function (code) {
                                         if(code === '200') {
-                                            if (request.option == '/fopt') {
-                                                // check access right for fanoutpoint
-                                                // todo: fopt - create
-                                                check_grp(request, response, function (rsc, result_grp) {
-                                                    if (rsc == '0') {
-                                                        return rsc;
-                                                    }
-
-                                                    var access_value = '1';
-                                                    var body_Obj = {};
-                                                    security.check(request, response, request.targetObject[Object.keys(request.targetObject)[0]].ty, result_grp.macp, access_value, result_grp.cr, function (rsc, request, response) {
-                                                        if (rsc == '0') {
-                                                            responder.error_result(request, response, 403, 4103, '[app.use] ACCESS DENIED (fopt)');
-                                                            return;
-                                                        }
-
-                                                        parse_body_format(request, response, function (code) {
-                                                            if(code === '400-5') {
-                                                                responder.error_result(request, response, 400, 4000, '[parse_to_json] do not parse xml body', function () {
-                                                                    request = null;
-                                                                    response = null;
-                                                                });
-                                                            }
-                                                            else if(code === '400-6') {
-                                                                responder.error_result(request, response, 400, 4000, '[parse_to_json] do not parse cbor body', function () {
-                                                                    request = null;
-                                                                    response = null;
-                                                                });
-                                                            }
-                                                            else if(code === '400-7') {
-                                                                responder.error_result(request, response, 400, 4000, '[parse_to_json] root tag of body is not matched', function () {
-                                                                    request = null;
-                                                                    response = null;
-                                                                });
-                                                            }
-                                                            else if(code === '400-8') {
-                                                                responder.error_result(request, response, 400, 4000, '(aa, at, poa, acpi, srt, nu, mid, macp, rels, rqps, srv) attribute should be json array format', function () {
-                                                                    request = null;
-                                                                    response = null;
-                                                                });
-                                                            }
-                                                            else if(code === '400-9') {
-                                                                responder.error_result(request, response, 400, 4000, '(lbl) attribute should be json array format', function () {
-                                                                    request = null;
-                                                                    response = null;
-                                                                });
-                                                            }
-                                                            else if(code === '400-10') {
-                                                                responder.error_result(request, response, 400, 4000, '(enc.net) attribute should be json array format', function () {
-                                                                    request = null;
-                                                                    response = null;
-                                                                });
-                                                            }
-                                                            else if(code === '400-11') {
-                                                                responder.error_result(request, response, 400, 4000, '(enc) attribute should have net key as child in json format', function () {
-                                                                    request = null;
-                                                                    response = null;
-                                                                });
-                                                            }
-                                                            else if(code === '400-12') {
-                                                                responder.error_result(request, response, 400, 4000, '(pv.acr, pvs.acr) attribute should be json array format', function () {
-                                                                    request = null;
-                                                                    response = null;
-                                                                });
-                                                            }
-                                                            else if(code === '400-13') {
-                                                                responder.error_result(request, response, 400, 4000, '(pv.acr.acor, pvs.acr.acor) attribute should be json array format', function () {
-                                                                    request = null;
-                                                                    response = null;
-                                                                });
-                                                            }
-                                                            else if(code === '400-14') {
-                                                                responder.error_result(request, response, 400, 4000, '(pv.acr.acco, pvs.acr.acco) attribute should be json array format', function () {
-                                                                    request = null;
-                                                                    response = null;
-                                                                });
-                                                            }
-                                                            else if(code === '400-15') {
-                                                                responder.error_result(request, response, 400, 4000, '(pv.acr.acco.acip.ipv4, pvs.acr.acco.acip.ipv4) attribute should be json array format', function () {
-                                                                    request = null;
-                                                                    response = null;
-                                                                });
-                                                            }
-                                                            else if(code === '400-16') {
-                                                                responder.error_result(request, response, 400, 4000, '(pv.acr.acco.acip.ipv6, pvs.acr.acco.acip.ipv6) attribute should be json array format', function () {
-                                                                    request = null;
-                                                                    response = null;
-                                                                });
-                                                            }
-                                                            else if(code === '400-17') {
-                                                                responder.error_result(request, response, 400, 4000, '(pv.acr.acco.actw, pvs.acr.acco.actw) attribute should be json array format', function () {
-                                                                    request = null;
-                                                                    response = null;
-                                                                });
-                                                            }
-                                                            else if(code === '400-18') {
-                                                                responder.error_result(request, response, 400, 4000, '(uds, cas) attribute should be json array format', function () {
-                                                                    request = null;
-                                                                    response = null;
-                                                                });
-                                                            }
-                                                            else {
-                                                                fopt.check(request, response, result_grp, request.targetObject[Object.keys(request.targetObject)[0]].ty, body_Obj);
-                                                            }
-                                                        });
-                                                    });
-                                                });
-                                            }
-                                            else {
+                                            if (request.option !== '/fopt') {
                                                 parse_body_format(request, response, function (code) {
-                                                    if(code === '400-5') {
-                                                        responder.error_result(request, response, 400, 4000, '[parse_to_json] do not parse xml body', function () {
-                                                            request = null;
-                                                            response = null;
-                                                        });
-                                                    }
-                                                    else if(code === '400-6') {
-                                                        responder.error_result(request, response, 400, 4000, '[parse_to_json] do not parse cbor body', function () {
-                                                            request = null;
-                                                            response = null;
-                                                        });
-                                                    }
-                                                    else if(code === '400-7') {
-                                                        responder.error_result(request, response, 400, 4000, '[parse_to_json] root tag of body is not matched', function () {
-                                                            request = null;
-                                                            response = null;
-                                                        });
-                                                    }
-                                                    else if(code === '400-8') {
-                                                        responder.error_result(request, response, 400, 4000, '(aa, at, poa, acpi, srt, nu, mid, macp, rels, rqps, srv) attribute should be json array format', function () {
-                                                            request = null;
-                                                            response = null;
-                                                        });
-                                                    }
-                                                    else if(code === '400-9') {
-                                                        responder.error_result(request, response, 400, 4000, '(lbl) attribute should be json array format', function () {
-                                                            request = null;
-                                                            response = null;
-                                                        });
-                                                    }
-                                                    else if(code === '400-10') {
-                                                        responder.error_result(request, response, 400, 4000, '(enc.net) attribute should be json array format', function () {
-                                                            request = null;
-                                                            response = null;
-                                                        });
-                                                    }
-                                                    else if(code === '400-11') {
-                                                        responder.error_result(request, response, 400, 4000, '(enc) attribute should have net key as child in json format', function () {
-                                                            request = null;
-                                                            response = null;
-                                                        });
-                                                    }
-                                                    else if(code === '400-12') {
-                                                        responder.error_result(request, response, 400, 4000, '(pv.acr, pvs.acr) attribute should be json array format', function () {
-                                                            request = null;
-                                                            response = null;
-                                                        });
-                                                    }
-                                                    else if(code === '400-13') {
-                                                        responder.error_result(request, response, 400, 4000, '(pv.acr.acor, pvs.acr.acor) attribute should be json array format', function () {
-                                                            request = null;
-                                                            response = null;
-                                                        });
-                                                    }
-                                                    else if(code === '400-14') {
-                                                        responder.error_result(request, response, 400, 4000, '(pv.acr.acco, pvs.acr.acco) attribute should be json array format', function () {
-                                                            request = null;
-                                                            response = null;
-                                                        });
-                                                    }
-                                                    else if(code === '400-15') {
-                                                        responder.error_result(request, response, 400, 4000, '(pv.acr.acco.acip.ipv4, pvs.acr.acco.acip.ipv4) attribute should be json array format', function () {
-                                                            request = null;
-                                                            response = null;
-                                                        });
-                                                    }
-                                                    else if(code === '400-16') {
-                                                        responder.error_result(request, response, 400, 4000, '(pv.acr.acco.acip.ipv6, pvs.acr.acco.acip.ipv6) attribute should be json array format', function () {
-                                                            request = null;
-                                                            response = null;
-                                                        });
-                                                    }
-                                                    else if(code === '400-17') {
-                                                        responder.error_result(request, response, 400, 4000, '(pv.acr.acco.actw, pvs.acr.acco.actw) attribute should be json array format', function () {
-                                                            request = null;
-                                                            response = null;
-                                                        });
-                                                    }
-                                                    else if(code === '400-18') {
-                                                        responder.error_result(request, response, 400, 4000, '(uds, cas) attribute should be json array format', function () {
-                                                            request = null;
-                                                            response = null;
-                                                        });
-                                                    }
-                                                    else {
+                                                    if(code === '200') {
                                                         if (responder.typeRsrc[request.ty] != Object.keys(request.bodyObj)[0]) {
                                                             if (responder.typeRsrc[request.ty] == 'mgo') {
                                                                 var support_mgo = 0;
@@ -2359,200 +2214,7 @@ app.post(onem2mParser, function (request, response) {
                                                                 request.url = absolute_url;
                                                                 if ((request.query.fu == 2) && (request.query.rcn == 0 || request.query.rcn == 1 || request.query.rcn == 2 || request.query.rcn == 3)) {
                                                                     lookup_create(request, response, function (code) {
-                                                                        if(code === '405-4') {
-                                                                            responder.error_result(request, response, 405, 4005, 'OPERATION_NOT_ALLOWED (rt query is not supported)', function () {
-                                                                                request = null;
-                                                                                response = null;
-                                                                            });
-                                                                        }
-                                                                        else if(code === '400-21') {
-                                                                            responder.error_result(request, response, 400, 4000, 'X-M2M-RTU is none', function () {
-                                                                                request = null;
-                                                                                response = null;
-                                                                            });
-                                                                        }
-                                                                        else if(code === '400-22') {
-                                                                            responder.error_result(request, response, 400, 4000, 'BAD REQUEST: \'Not Present\' attribute', function () {
-                                                                                request = null;
-                                                                                response = null;
-                                                                            });
-                                                                        }
-                                                                        else if(code === '400-23') {
-                                                                            responder.error_result(request, response, 400, 4000, 'BAD REQUEST: .acr must have values', function () {
-                                                                                request = null;
-                                                                                response = null;
-                                                                            });
-                                                                        }
-                                                                        else if(code === '400-24') {
-                                                                            responder.error_result(request, response, 400, 4000, 'BAD REQUEST: nu must have values', function () {
-                                                                                request = null;
-                                                                                response = null;
-                                                                            });
-                                                                        }
-                                                                        else if(code === '400-25') {
-                                                                            responder.error_result(request, response, 400, 4000, 'BAD REQUEST: attribute is not defined', function () {
-                                                                                request = null;
-                                                                                response = null;
-                                                                            });
-                                                                        }
-                                                                        else if(code === '400-26') {
-                                                                            responder.error_result(request, response, 400, 4000, 'BAD REQUEST: attribute is \'Mandatory\' attribute', function () {
-                                                                                request = null;
-                                                                                response = null;
-                                                                            });
-                                                                        }
-                                                                        else if(code === '400-27') {
-                                                                            responder.error_result(request, response, 400, 4000, 'BAD REQUEST: expiration time is before now', function () {
-                                                                                request = null;
-                                                                                response = null;
-                                                                            });
-                                                                        }
-                                                                        else if(code === '400-28') {
-                                                                            responder.error_result(request, response, 400, 4000, 'BAD REQUEST: ASN CSE can not have child CSE (remoteCSE)', function () {
-                                                                                request = null;
-                                                                                response = null;
-                                                                            });
-                                                                        }
-                                                                        else if(code === '400-29') {
-                                                                            responder.error_result(request, response, 400, 4000, 'BAD REQUEST: mni is negative value', function () {
-                                                                                request = null;
-                                                                                response = null;
-                                                                            });
-                                                                        }
-                                                                        else if(code === '400-30') {
-                                                                            responder.error_result(request, response, 400, 4000, 'BAD REQUEST: mbs is negative value', function () {
-                                                                                request = null;
-                                                                                response = null;
-                                                                            });
-                                                                        }
-                                                                        else if(code === '400-31') {
-                                                                            responder.error_result(request, response, 400, 4000, 'BAD REQUEST: mia is negative value', function () {
-                                                                                request = null;
-                                                                                response = null;
-                                                                            });
-                                                                        }
-                                                                        else if(code === '400-32') {
-                                                                            responder.error_result(request, response, 400, 4000, 'BAD REQUEST: contentInfo(cnf) format is not match', function () {
-                                                                                request = null;
-                                                                                response = null;
-                                                                            });
-                                                                        }
-                                                                        else if(code === '400-33') {
-                                                                            responder.error_result(request, response, 400, 6010, 'MAX_NUMBER_OF_MEMBER_EXCEEDED', function () {
-                                                                                request = null;
-                                                                                response = null;
-                                                                            });
-                                                                        }
-                                                                        else if(code === '400-34') {
-                                                                            responder.error_result(request, response, 400, 6011, 'can not create group because csy is ABANDON_GROUP when MEMBER_TYPE_INCONSISTENT', function () {
-                                                                                request = null;
-                                                                                response = null;
-                                                                            });
-                                                                        }
-                                                                        else if(code === '400-35') {
-                                                                            responder.error_result(request, response, 400, 4000, 'mgmtDefinition is not match with mgmtObj resource', function () {
-                                                                                request = null;
-                                                                                response = null;
-                                                                            });
-                                                                        }
-                                                                        else if(code === '400-36') {
-                                                                            responder.error_result(request, response, 400, 4000, 'ty does not supported', function () {
-                                                                                request = null;
-                                                                                response = null;
-                                                                            });
-                                                                        }
-                                                                        else if(code === '400-37') {
-                                                                            responder.error_result(request, response, 400, 4000, 'BAD_REQUEST: transaction resource could not create', function () {
-                                                                                request = null;
-                                                                                response = null;
-                                                                            });
-                                                                        }
-                                                                        else if(code === '403-2') {
-                                                                            responder.error_result(request, response, 403, 5203, 'TARGET_NOT_SUBSCRIBABLE: request ty creating can not create under parent resource', function () {
-                                                                                request = null;
-                                                                                response = null;
-                                                                            });
-                                                                        }
-                                                                        else if(code === '403-3') {
-                                                                            responder.error_result(request, response, 403, 4103, 'ACCESS DENIED', function () {
-                                                                                request = null;
-                                                                                response = null;
-                                                                            });
-                                                                        }
-                                                                        else if(code === '405-5') {
-                                                                            responder.error_result(request, response, 405, 4005, 'we do not support to create resource', function () {
-                                                                                request = null;
-                                                                                response = null;
-                                                                            });
-                                                                        }
-                                                                        else if(code === '405-6') {
-                                                                            responder.error_result(request, response, 405, 4005, 'OPERATION NOT ALLOWED: disr attribute is true', function () {
-                                                                                request = null;
-                                                                                response = null;
-                                                                            });
-                                                                        }
-                                                                        else if(code === '406-1') {
-                                                                            responder.error_result(request, response, 406, 5207, 'NOT_ACCEPTABLE: can not create cin because mni value is zero', function () {
-                                                                                request = null;
-                                                                                response = null;
-                                                                            });
-                                                                        }
-                                                                        else if(code === '406-2') {
-                                                                            responder.error_result(request, response, 406, 5207, 'NOT_ACCEPTABLE: can not create cin because mbs value is zero', function () {
-                                                                                request = null;
-                                                                                response = null;
-                                                                            });
-                                                                        }
-                                                                        else if(code === '406-3') {
-                                                                            responder.error_result(request, response, 406, 5207, 'NOT_ACCEPTABLE: cs is exceed mbs', function () {
-                                                                                request = null;
-                                                                                response = null;
-                                                                            });
-                                                                        }
-
-                                                                        else if(code === '409-3') {
-                                                                            responder.error_result(request, response, 409, 4005, 'resource name can not use that is keyword', function () {
-                                                                                request = null;
-                                                                                response = null;
-                                                                            });
-                                                                        }
-                                                                        else if(code === '409-4') {
-                                                                            responder.error_result(request, response, 409, 4005, 'resource requested is not supported', function () {
-                                                                                request = null;
-                                                                                response = null;
-                                                                            });
-                                                                        }
-                                                                        else if(code === '409-5') {
-                                                                            responder.error_result(request, response, 409, 4105, 'resource is already exist', function () {
-                                                                                request = null;
-                                                                                response = null;
-                                                                            });
-                                                                        }
-                                                                        else if(code === '409-6') {
-                                                                            responder.error_result(request, response, 409, 4105, '[create_action] aei_UNIQUE', function () {
-                                                                                request = null;
-                                                                                response = null;
-                                                                            });
-                                                                        }
-                                                                        else if(code === '423-1') {
-                                                                            responder.error_result(request, response, 423, 4230, 'LOCKED: this resource was occupied by others', function () {
-                                                                                request = null;
-                                                                                response = null;
-                                                                            });
-                                                                        }
-                                                                        else if(code === '500-2') {
-                                                                            responder.error_result(request, response, 500, 5204, 'SUBSCRIPTION_VERIFICATION_INITIATION_FAILED', function () {
-                                                                                request = null;
-                                                                                response = null;
-                                                                            });
-                                                                        }
-                                                                        else if(code === '500-4') {
-                                                                            responder.error_result(request, response, 500, 5000, '[create_action] create resource error', function () {
-                                                                                request = null;
-                                                                                response = null;
-                                                                            });
-                                                                        }
-                                                                        else if(code === '201') {
+                                                                        if(code === '201') {
                                                                             responder.response_result(request, response, 201, 2001, '', function () {
                                                                                 request = null;
                                                                                 response = null;
@@ -2577,7 +2239,10 @@ app.post(onem2mParser, function (request, response) {
                                                                             });
                                                                         }
                                                                         else {
-
+                                                                            responder.error_result(request, response, 400, 4000, 'rcn or fu query is not supported at POST request', function () {
+                                                                                request = null;
+                                                                                response = null;
+                                                                            });
                                                                         }
                                                                     });
                                                                 }
@@ -2602,6 +2267,43 @@ app.post(onem2mParser, function (request, response) {
                                                             }
                                                         });
                                                     }
+                                                    else {
+                                                        response_error_result(request, response, code, function () {
+                                                            request = null;
+                                                            response = null;
+                                                        });
+                                                    }
+                                                });
+                                            }
+                                            else {
+                                                // check access right for fanoutpoint
+                                                // todo: fopt - create
+                                                check_grp(request, response, function (rsc, result_grp) {
+                                                    if (rsc == '0') {
+                                                        return rsc;
+                                                    }
+
+                                                    var access_value = '1';
+                                                    var body_Obj = {};
+                                                    security.check(request, response, request.targetObject[Object.keys(request.targetObject)[0]].ty, result_grp.macp, access_value, result_grp.cr, function (rsc, request, response) {
+                                                        if (rsc == '0') {
+                                                            responder.error_result(request, response, 403, 4103, '[app.use] ACCESS DENIED (fopt)');
+                                                            return;
+                                                        }
+
+                                                        parse_body_format(request, response, function (code) {
+                                                            if(code === '200') {
+                                                                // todo: fopt.check
+                                                                fopt.check(request, response, result_grp, request.targetObject[Object.keys(request.targetObject)[0]].ty, body_Obj);
+                                                            }
+                                                            else {
+                                                                response_error_result(request, response, code, function () {
+                                                                    request = null;
+                                                                    response = null;
+                                                                });
+                                                            }
+                                                        });
+                                                    });
                                                 });
                                             }
                                         }
@@ -2638,11 +2340,14 @@ app.post(onem2mParser, function (request, response) {
                         }
                     }
                     else {
-                        response_error_result(request, response, code, function () {
-                            request = null;
-                            response = null;
-                        });
+
                     }
+                });
+            }
+            else {
+                response_error_result(request, response, code, function () {
+                    request = null;
+                    response = null;
                 });
             }
         });
@@ -2658,13 +2363,8 @@ app.get(onem2mParser, function (request, response) {
     request.on('end', function() {
         request.body = fullBody;
 
-        db.getConnection(function (err, connection) {
-            if (err) {
-                console.log('[app.use] No Connection');
-                responder.error_result(request, response, 500, 5000, 'DB Error : No Connection Pool');
-                return '0';
-            }
-            else {
+        db.getConnection(function (code, connection) {
+            if(code === '200') {
                 request.connection = connection;
 
                 extra_api_action(connection, request.url, function(err, result) {
@@ -2699,97 +2399,42 @@ app.get(onem2mParser, function (request, response) {
                         }
 
                         check_xm2m_headers(request, function (code) {
-                            if (code === '400-1') {
-                                responder.error_result(request, response, 400, 4000, 'BAD REQUEST: X-M2M-RI is none', function () {
-                                    request = null;
-                                    response = null;
-                                });
-                            }
-                            else if (code === '400-2') {
-                                responder.error_result(request, response, 400, 4000, 'BAD REQUEST: X-M2M-Origin header is Mandatory', function () {
-                                    request = null;
-                                    response = null;
-                                });
-                            }
-                            else if (code === '405-1') {
-                                responder.error_result(request, response, 405, 4005, 'OPERATION_NOT_ALLOWED: CSEBase can not be created by others', function () {
-                                    request = null;
-                                    response = null;
-                                });
-                            }
-                            else if (code === '405-2') {
-                                responder.error_result(request, response, 405, 4005, 'OPERATION_NOT_ALLOWED (req is not supported when post request)', function () {
-                                    request = null;
-                                    response = null;
-                                });
-                            }
-                            else if(code === '405-3') {
-                                responder.error_result(request, response, 405, 4005, 'OPERATION_NOT_ALLOWED: we do not support (' + request.ty + ') resource', function () {
-                                    request = null;
-                                    response = null;
-                                });
-                            }
-                            else if(code === '403-1') {
-                                responder.error_result(request, response, 403, 4107, 'OPERATION_NOT_ALLOWED: AE-ID is not allowed', function () {
-                                    request = null;
-                                    response = null;
-                                });
-                            }
-                            else {
+                            if(code === '200') {
                                 get_target_url(request, response, function (code) {
-                                    if (code === '409-1') {
-                                        responder.error_result(request, response, 409, 4005, 'can not use post, put method at latest resource', function () {
-                                            request = null;
-                                            response = null;
-                                        });
-                                    }
-                                    else if (code === '409-2') {
-                                        responder.error_result(request, response, 409, 4005, 'can not use post, put method at oldest resource', function () {
-                                            request = null;
-                                            response = null;
-                                        });
-                                    }
-                                    else if (code === '404-1') {
-                                        responder.error_result(request, response, 404, 4004, 'resource does not exist (get_target_url)', function () {
-                                            request = null;
-                                            response = null;
-                                        });
-                                    }
-                                    else if (code === '404-2') {
-                                        responder.error_result(request, response, 404, 4004, 'resource does not exist (get_target_url)', function () {
-                                            request = null;
-                                            response = null;
-                                        });
-                                    }
-                                    else if (code === '404-3') {
-                                        responder.error_result(request, response, 404, 4004, 'csebase is not found', function () {
-                                            request = null;
-                                            response = null;
-                                        });
-                                    }
-                                    else if (code === '500-1') {
-                                        responder.error_result(request, response, 500, 5000, 'database error (get_target_url)', function () {
-                                            request = null;
-                                            response = null;
-                                        });
-                                    }
-                                    else if (code === '301-1') {
-                                        check_csr(request, response, function () {
-                                            if (code === '404-3') {
-                                                responder.error_result(request, response, 404, 4004, 'csebase is not found', function () {
+                                    if (code === '200') {
+                                        if (request.option !== '/fopt') {
+                                            var rootnm = Object.keys(request.targetObject)[0];
+                                            request.url = request.targetObject[rootnm].ri;
+                                            if ((request.query.fu == 1 || request.query.fu == 2) && (request.query.rcn == 1 || request.query.rcn == 4 || request.query.rcn == 5 || request.query.rcn == 6 || request.query.rcn == 7)) {
+                                                lookup_retrieve(request, response, function (code) {
+                                                    if(code === '200') {
+                                                        responder.response_result(request, response, 200, 2000, '', function () {
+                                                            request = null;
+                                                            response = null;
+                                                        });
+                                                    }
+                                                    else if(code === '200-1') {
+                                                        responder.search_result(request, response, 200, 2000, '', function () {
+                                                            request = null;
+                                                            response = null;
+                                                        });
+                                                    }
+                                                    else {
+                                                        responder.error_result(request, response, 400, 4000, 'BAD_REQUEST (rcn or fu query is not supported at GET request)', function () {
+                                                            request = null;
+                                                            response = null;
+                                                        });
+                                                    }
+                                                });
+                                            }
+                                            else {
+                                                responder.error_result(request, response, 400, 4000, 'BAD_REQUEST (rcn or fu query is not supported at GET request)', function () {
                                                     request = null;
                                                     response = null;
                                                 });
                                             }
-                                            else if (code === '301-2') {
-                                                response.status(response.statusCode).end(response.body);
-                                                request = null;
-                                                response = null;
-                                            }
-                                        });
-                                    }
-                                    else {
-                                        if (request.option == '/fopt') {
+                                        }
+                                        else { //if (request.option === '/fopt') {
                                             // check access right for fanoutpoint
                                             // todo: fopt - retrieve
                                             check_grp(request, response, function (rsc, result_grp) {
@@ -2805,6 +2450,7 @@ app.get(onem2mParser, function (request, response) {
                                                 }
 
                                                 var body_Obj = {};
+                                                // todo: security.check
                                                 security.check(request, response, request.targetObject[Object.keys(request.targetObject)[0]].ty, result_grp.macp, access_value, result_grp.cr, function (rsc, request, response) {
                                                     if (rsc == '0') {
                                                         responder.error_result(request, response, 403, 4103, '[app.use] ACCESS DENIED (fopt)');
@@ -2815,150 +2461,34 @@ app.get(onem2mParser, function (request, response) {
                                                 });
                                             });
                                         }
-                                        else {
-                                            var rootnm = Object.keys(request.targetObject)[0];
-                                            var absolute_url = request.targetObject[rootnm].ri;
-                                            request.url = absolute_url;
-                                            if ((request.query.fu == 1 || request.query.fu == 2) && (request.query.rcn == 1 || request.query.rcn == 4 || request.query.rcn == 5 || request.query.rcn == 6 || request.query.rcn == 7)) {
-                                                lookup_retrieve(request, response, function (code) {
-                                                    if(code === '405-4') {
-                                                        responder.error_result(request, response, 405, 4005, 'OPERATION_NOT_ALLOWED (rt query is not supported)', function () {
-                                                            request = null;
-                                                            response = null;
-                                                        });
-                                                    }
-                                                    else if(code === '400-21') {
-                                                        responder.error_result(request, response, 400, 4000, 'X-M2M-RTU is none', function () {
-                                                            request = null;
-                                                            response = null;
-                                                        });
-                                                    }
-                                                    else if(code === '400-22') {
-                                                        responder.error_result(request, response, 400, 4000, 'BAD REQUEST: \'Not Present\' attribute', function () {
-                                                            request = null;
-                                                            response = null;
-                                                        });
-                                                    }
-                                                    else if(code === '400-23') {
-                                                        responder.error_result(request, response, 400, 4000, 'BAD REQUEST: .acr must have values', function () {
-                                                            request = null;
-                                                            response = null;
-                                                        });
-                                                    }
-                                                    else if(code === '400-24') {
-                                                        responder.error_result(request, response, 400, 4000, 'BAD REQUEST: nu must have values', function () {
-                                                            request = null;
-                                                            response = null;
-                                                        });
-                                                    }
-                                                    else if(code === '400-25') {
-                                                        responder.error_result(request, response, 400, 4000, 'BAD REQUEST: attribute is not defined', function () {
-                                                            request = null;
-                                                            response = null;
-                                                        });
-                                                    }
-                                                    else if(code === '400-26') {
-                                                        responder.error_result(request, response, 400, 4000, 'BAD REQUEST: attribute is \'Mandatory\' attribute', function () {
-                                                            request = null;
-                                                            response = null;
-                                                        });
-                                                    }
-                                                    else if(code === '400-27') {
-                                                        responder.error_result(request, response, 400, 4000, 'BAD REQUEST: expiration time is before now', function () {
-                                                            request = null;
-                                                            response = null;
-                                                        });
-                                                    }
-                                                    else if(code === '400-28') {
-                                                        responder.error_result(request, response, 400, 4000, 'BAD REQUEST: ASN CSE can not have child CSE (remoteCSE)', function () {
-                                                            request = null;
-                                                            response = null;
-                                                        });
-                                                    }
-                                                    else if(code === '400') {
-                                                        responder.error_result(request, response, 400, 4000, 'BAD REQUEST', function () {
-                                                            request = null;
-                                                            response = null;
-                                                        });
-                                                    }
-                                                    else if(code === '404') {
-                                                        responder.error_result(request, response, 400, 4000, 'RESOURCE DOES NOT FOUND', function () {
-                                                            request = null;
-                                                            response = null;
-                                                        });
-                                                    }
-                                                    else if(code === '403-2') {
-                                                        responder.error_result(request, response, 403, 5203, 'TARGET_NOT_SUBSCRIBABLE: request ty creating can not create under parent resource', function () {
-                                                            request = null;
-                                                            response = null;
-                                                        });
-                                                    }
-                                                    else if(code === '403-3') {
-                                                        responder.error_result(request, response, 403, 4103, 'ACCESS DENIED', function () {
-                                                            request = null;
-                                                            response = null;
-                                                        });
-                                                    }
-                                                    else if(code === '405-5') {
-                                                        responder.error_result(request, response, 405, 4005, 'we do not support to create resource', function () {
-                                                            request = null;
-                                                            response = null;
-                                                        });
-                                                    }
-                                                    else if(code === '409-3') {
-                                                        responder.error_result(request, response, 409, 4005, 'resource name can not use that is keyword', function () {
-                                                            request = null;
-                                                            response = null;
-                                                        });
-                                                    }
-                                                    else if(code === '409-4') {
-                                                        responder.error_result(request, response, 409, 4005, 'resource requested is not supported', function () {
-                                                            request = null;
-                                                            response = null;
-                                                        });
-                                                    }
-                                                    else if(code === '423-1') {
-                                                        responder.error_result(request, response, 423, 4230, 'LOCKED: this resource was occupied by others', function () {
-                                                            request = null;
-                                                            response = null;
-                                                        });
-                                                    }
-                                                    else if(code === '501') {
-                                                        responder.error_result(request, response, 501, 5001, 'response with hierarchical resource structure mentioned in onem2m spec is not supported instead all the requested resources will be returned !', function () {
-                                                            request = null;
-                                                            response = null;
-                                                        });
-                                                    }
-                                                    else if(code === '500') {
-                                                        responder.error_result(request, response, 500, 5000, 'database error', function () {
-                                                            request = null;
-                                                            response = null;
-                                                        });
-                                                    }
-                                                    else if(code === '200') {
-                                                        responder.response_result(request, response, 200, 2000, '', function () {
-                                                            request = null;
-                                                            response = null;
-                                                        });
-                                                    }
-                                                    else if(code === '200-1') {
-                                                        responder.search_result(request, response, 200, 2000, '', function () {
-                                                            request = null;
-                                                            response = null;
-                                                        });
-                                                    }
-                                                    else {
-                                                    }
-                                                });
+                                    }
+                                    else if(code === '301-1') {
+                                        check_csr(request, response, function () {
+                                            if(code === '301-2') {
+                                                response.status(response.statusCode).end(response.body);
+                                                request = null;
+                                                response = null;
                                             }
                                             else {
-                                                responder.error_result(request, response, 400, 4000, 'BAD_REQUEST (rcn or fu query is not supported at GET request)', function () {
+                                                response_error_result(request, response, code, function () {
                                                     request = null;
                                                     response = null;
                                                 });
                                             }
-                                        }
+                                        });
                                     }
+                                    else {
+                                        response_error_result(request, response, code, function () {
+                                            request = null;
+                                            response = null;
+                                        });
+                                    }
+                                });
+                            }
+                            else {
+                                response_error_result(request, response, code, function () {
+                                    request = null;
+                                    response = null;
                                 });
                             }
                         });
@@ -2977,6 +2507,12 @@ app.get(onem2mParser, function (request, response) {
                     }
                 });
             }
+            else {
+                response_error_result(request, response, code, function () {
+                    request = null;
+                    response = null;
+                });
+            }
         });
     });
 });
@@ -2991,13 +2527,8 @@ app.put(onem2mParser, function (request, response) {
     request.on('end', function() {
         request.body = fullBody;
 
-        db.getConnection(function (err, connection) {
-            if (err) {
-                console.log('[app.use] No Connection');
-                responder.error_result(request, response, 500, 5000, 'DB Error : No Connection Pool');
-                return '0';
-            }
-            else {
+        db.getConnection(function (code, connection) {
+            if(code === '200') {
                 request.connection = connection;
 
                 var _ct = moment().utc().format('YYYYMMDD');
@@ -3475,7 +3006,7 @@ app.put(onem2mParser, function (request, response) {
                                                                         response = null;
                                                                     });
                                                                 }
-                                                                else if(code === '500') {
+                                                                else if(code === '500-1') {
                                                                     responder.error_result(request, response, 500, 5000, 'database error', function () {
                                                                         request = null;
                                                                         response = null;
@@ -3532,6 +3063,12 @@ app.put(onem2mParser, function (request, response) {
                     }
                 });
             }
+            else {
+                response_error_result(request, response, code, function () {
+                    request = null;
+                    response = null;
+                });
+            }
         });
     });
 });
@@ -3545,13 +3082,8 @@ app.delete(onem2mParser, function (request, response) {
     request.on('end', function() {
         request.body = fullBody;
 
-        db.getConnection(function (err, connection) {
-            if (err) {
-                console.log('[app.use] No Connection');
-                responder.error_result(request, response, 500, 5000, 'DB Error : No Connection Pool');
-                return '0';
-            }
-            else {
+        db.getConnection(function (code, connection) {
+            if(code === '200') {
                 request.connection = connection;
 
                 var _ct = moment().utc().format('YYYYMMDD');
@@ -3818,6 +3350,12 @@ app.delete(onem2mParser, function (request, response) {
                             }
                         });
                     }
+                });
+            }
+            else {
+                response_error_result(request, response, code, function () {
+                    request = null;
+                    response = null;
                 });
             }
         });

@@ -278,11 +278,13 @@ ts_app.post('/missingDataDetect', onem2mParser, function(request, response) {
     request.on('end', function() {
         request.body = fullBody;
 
-        db.getConnection(function (err, connection) {
+        db.getConnection(function (code, connection) {
             if(err) {
                 console.log('[ts_app.post] - /missingDataDetect - No Connection');
             }
             else {
+            }
+            if(code === '200') {
                 request.connection = connection;
 
                 var jsonObj = JSON.parse(request.body);
@@ -347,6 +349,13 @@ ts_app.post('/missingDataDetect', onem2mParser, function(request, response) {
                         }
                     });
                 }
+            }
+            else {
+                console.log('[ts_app.post] - /missingDataDetect - No Connection');
+                response.header('X-M2M-RSC', '5000');
+                ts.status = '4004';
+                ts.ri = '';
+                response.status(404).end("[ts_app.post] No Connection to DB");
             }
         });
     });
