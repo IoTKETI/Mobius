@@ -1294,13 +1294,13 @@ function extra_api_action(connection, url, callback) {
     }
 
     else if (url == '/total_ae') {
-        db_sql.select_sum_ae(request.connection, function (err, result) {
+        db_sql.select_sum_ae(connection, function (err, result) {
             callback(err, result);
         });
     }
 
     else if (url == '/total_cbs') {
-        db_sql.select_sum_cbs(request.connection, function (err, result) {
+        db_sql.select_sum_cbs(connection, function (err, result) {
             callback(err, result);
         });
     }
