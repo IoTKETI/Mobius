@@ -1470,6 +1470,19 @@ function check_xm2m_headers(request, callback) {
             callback('405-2');
             return;
         }
+
+        if (request.headers['content-type'].includes('xml')) {
+            request.usebodytype = 'xml';
+        }
+        else if (request.headers['content-type'].includes('cbor')) {
+            request.usebodytype = 'cbor';
+        }
+        else {
+            request.usebodytype = 'json';
+        }
+    }
+    else {
+        request.usebodytype = 'json';
     }
 
     // Check X-M2M-Origin Header

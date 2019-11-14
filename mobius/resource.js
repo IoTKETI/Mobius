@@ -1060,7 +1060,9 @@ exports.create = function (request, response, callback) {
                 if(code === '200') {
                     _this.remove_no_value(request, request.resourceObj);
 
-                    sgn.check(request, request.resourceObj[rootnm], 3);
+                    sgn.check(request, request.resourceObj[rootnm], 3, function (code) {
+
+                    });
 
                     if (request.query.rt == 3) {
                         response.header('Content-Location', request.resourceObj[rootnm].ri.replace('/', ''));
@@ -1090,7 +1092,9 @@ exports.create = function (request, response, callback) {
                             if (request.ty == 23) { // when ty is 23, send notification for verification
                                 var notiObj = JSON.parse(JSON.stringify(request.resourceObj));
                                 _this.remove_no_value(request, notiObj);
-                                sgn.check(request, notiObj[rootnm], 256);
+                                sgn.check(request, notiObj[rootnm], 256, function (code) {
+
+                                });
 
                                 var count = 1000000000;
                                 while (count--) {
@@ -2116,14 +2120,18 @@ exports.update = function (request, response, callback) {
             if (ty == 23) { // when ty is 23, send notification for verification
                 var notiObj = JSON.parse(JSON.stringify(request.resourceObj));
                 _this.remove_no_value(request, notiObj);
-                sgn.check(request, notiObj[rootnm], 256);
+                sgn.check(request, notiObj[rootnm], 256, function (code) {
+
+                });
             }
 
             update_action(request, response, function (code) {
                 if (code == '200') {
                     _this.remove_no_value(request, request.resourceObj);
 
-                    sgn.check(request, request.resourceObj[rootnm], 1);
+                    sgn.check(request, request.resourceObj[rootnm], 1, function (code) {
+
+                    });
 
                     callback('200');
                 }
@@ -2199,7 +2207,9 @@ function delete_action(request, response, callback) {
                                     if(resource_Obj[rootnm].su != '') {
                                         var notiObj = JSON.parse(JSON.stringify(resource_Obj[rootnm]));
                                         _this.remove_no_value(request, notiObj);
-                                        sgn.check(request, notiObj, 128);
+                                        sgn.check(request, notiObj, 128, function (code) {
+
+                                        });
                                     }
                                 }
 
@@ -2271,7 +2281,9 @@ exports.delete = function (request, response, callback) {
         if (code === '200') {
             _this.remove_no_value(request, request.resourceObj);
 
-            sgn.check(request, request.resourceObj[rootnm], 4);
+            sgn.check(request, request.resourceObj[rootnm], 4, function (code) {
+
+            });
 
             if(useCert == 'enable') {
                 if (request.resourceObj[rootnm].ty == 4) {
