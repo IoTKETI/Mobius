@@ -279,11 +279,6 @@ ts_app.post('/missingDataDetect', onem2mParser, function(request, response) {
         request.body = fullBody;
 
         db.getConnection(function (code, connection) {
-            if(err) {
-                console.log('[ts_app.post] - /missingDataDetect - No Connection');
-            }
-            else {
-            }
             if(code === '200') {
                 request.connection = connection;
 

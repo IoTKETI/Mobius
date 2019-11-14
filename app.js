@@ -809,6 +809,8 @@ var resultStatusCode = {
     '400-16': [400, 4000, "BAD REQUEST: (pv.acr.acco.acip.ipv6, pvs.acr.acco.acip.ipv6) attribute should be json array format"],
     '400-17': [400, 4000, "BAD REQUEST: (pv.acr.acco.actw, pvs.acr.acco.actw) attribute should be json array format"],
     '400-18': [400, 4000, "BAD REQUEST: (uds, cas) attribute should be json array format"],
+    '400-19': [400, 4000, "BAD REQUEST: [check_notification] post request without ty value is but body is not for notification"],
+    '400-20': [400, 4000, "BAD REQUEST: [check_notification] content-type is none"],
     '400-21': [400, 4000, "BAD REQUEST: X-M2M-RTU is none"],
     '400-22': [400, 4000, "BAD REQUEST: \'Not Present\' attribute"],
     '400-23': [400, 4000, "BAD REQUEST: .acr must have values"],
@@ -828,10 +830,14 @@ var resultStatusCode = {
     '400-37': [400, 4000, "BAD REQUEST: transaction resource could not create"],
     '400-40': [400, 4000, "BAD REQUEST: body is empty"],
     '400-41': [400, 4000, "BAD REQUEST"],
+    '400-42': [400, 4000, "BAD REQUEST: ty is different with body"],
+    '400-43': [400, 4000, "BAD REQUEST: rcn or fu query is not supported at POST request"],
+    '400-44': [400, 4000, "BAD REQUEST: rcn or fu query is not supported at GET request"],
 
     '403-1': [403, 4107, "OPERATION_NOT_ALLOWED: AE-ID is not allowed"],
     '403-2': [403, 5203, "TARGET_NOT_SUBSCRIBABLE: request ty creating can not create under parent resource"],
     '403-3': [403, 4103, "ACCESS DENIED"],
+    '403-4': [403, 4107, "OPERATION_NOT_ALLOWED: APP-ID in AE is not allowed"],
 
     '404-1': [404, 4004, "resource does not exist (get_target_url)"],
     '404-2': [404, 4004, "RESOURCE DOES NOT FOUND"],
@@ -1361,7 +1367,7 @@ function extra_api_action(connection, url, callback) {
                                     }
                                 }
 
-                                db_sql.set_hit(request.connection, dd, _http, _mqtt, _coap, _ws, function (err, results) {
+                                db_sql.set_hit_n(connection, dd, _http, _mqtt, _coap, _ws, function (err, results) {
                                     results = null;
                                 });
                             }
@@ -1372,24 +1378,39 @@ function extra_api_action(connection, url, callback) {
         }
 
         db_sql.get_hit_all(connection, function (err, result) {
-            callback(err, result);
+            if(err) {
+                callback('500-1');
+            }
+            else {
+                callback('201', result);
+            }
         });
     }
 
     else if (url == '/total_ae') {
         db_sql.select_sum_ae(connection, function (err, result) {
-            callback(err, result);
+            if(err) {
+                callback('500-1');
+            }
+            else {
+                callback('201', result);
+            }
         });
     }
 
     else if (url == '/total_cbs') {
         db_sql.select_sum_cbs(connection, function (err, result) {
-            callback(err, result);
+            if(err) {
+                callback('500-1');
+            }
+            else {
+                callback('201', result);
+            }
         });
     }
 
     else {
-        callback(null, null);
+        callback('200');
     }
 }
 
@@ -1601,6 +1622,52 @@ function get_target_url(request, response, callback) {
             }
         }
     });
+}
+
+function check_allowed_app_ids(request, callback) {
+    if (responder.typeRsrc[request.ty] != Object.keys(request.bodyObj)[0]) {
+        if (responder.typeRsrc[request.ty] == 'mgo') {
+            var support_mgo = 0;
+            for (var prop in responder.mgoType) {
+                if (responder.mgoType.hasOwnProperty(prop)) {
+                    if (responder.mgoType[prop] == Object.keys(request.bodyObj)[0]) {
+                        support_mgo = 1;
+                        break;
+                    }
+                }
+            }
+
+            if (support_mgo == 0) {
+                callback('400-42');
+                return;
+            }
+        }
+        else {
+            callback('400-42');
+            return;
+        }
+    }
+
+    if (request.ty == '2') {
+        var allow = 1;
+        if (allowed_app_ids.length > 0) {
+            allow = 0;
+            for (var idx in allowed_app_ids) {
+                if (allowed_app_ids.hasOwnProperty(idx)) {
+                    if (allowed_app_ids[idx] == request.bodyObj.ae.api) {
+                        allow = 1;
+                        break;
+                    }
+                }
+            }
+            if (allow == 0) {
+                callback('403-4');
+                return;
+            }
+        }
+    }
+
+    callback('200');
 }
 
 var onem2mParser = bodyParser.text(
@@ -2106,44 +2173,17 @@ app.post(onem2mParser, function (request, response) {
             if(code === '200') {
                 request.connection = connection;
 
-                var _ct = moment().utc().format('YYYYMMDD');
-                var _http = 0;
-                var _mqtt = 0;
-                var _coap = 0;
-                var _ws = 0;
-                if (request.headers.hasOwnProperty('binding')) {
-                    if (request.headers['binding'] == 'H') {
-                        _http = 1;
-                    }
-                    else if (request.headers['binding'] == 'M') {
-                        _mqtt = 1;
-                    }
-                    else if (request.headers['binding'] == 'C') {
-                        _coap = 1;
-                    }
-                    else if (request.headers['binding'] == 'W') {
-                        _ws = 1;
-                    }
-                    db_sql.set_hit(request.connection, _ct, _http, _mqtt, _coap, _ws, function (err, results) {
-                        results = null;
-                    });
+                if (!request.headers.hasOwnProperty('binding')) {
+                    request.headers['binding'] = 'H';
                 }
-                else {
-                    _http = 1;
-                    db_sql.set_hit(request.connection, _ct, _http, _mqtt, _coap, _ws, function (err, results) {
-                        results = null;
-                    });
-                }
+
+                db_sql.set_hit(request.connection, request.headers['binding'], function (err, results) {
+                    results = null;
+                });
 
                 check_xm2m_headers(request, function (code) {
                     if(code === '200') {
-                        if (request.body == "") {
-                            response_error_result(request, response, '400-40', function () {
-                                request = null;
-                                response = null;
-                            });
-                        }
-                        else {
+                        if (request.body !== "") {
                             check_resource_supported(request, response, function (code) {
                                 if(code === '200') {
                                     get_target_url(request, response, function (code) {
@@ -2151,116 +2191,69 @@ app.post(onem2mParser, function (request, response) {
                                             if (request.option !== '/fopt') {
                                                 parse_body_format(request, response, function (code) {
                                                     if(code === '200') {
-                                                        if (responder.typeRsrc[request.ty] != Object.keys(request.bodyObj)[0]) {
-                                                            if (responder.typeRsrc[request.ty] == 'mgo') {
-                                                                var support_mgo = 0;
-                                                                for (var prop in responder.mgoType) {
-                                                                    if (responder.mgoType.hasOwnProperty(prop)) {
-                                                                        if (responder.mgoType[prop] == Object.keys(request.bodyObj)[0]) {
-                                                                            support_mgo = 1;
-                                                                            break;
-                                                                        }
+                                                        check_allowed_app_ids(request, function (code) {
+                                                            if(code === '200') {
+                                                                var rootnm = Object.keys(request.targetObject)[0];
+                                                                var absolute_url = request.targetObject[rootnm].ri;
+                                                                check_notification(request, response, function (code) {
+                                                                    if (code === 'notify') {
+                                                                        // todo : check ae - notify
+                                                                        check_ae(request.targetObject, request, response);
+                                                                        return '0';
                                                                     }
-                                                                }
-
-                                                                if (support_mgo == 0) {
-                                                                    responder.error_result(request, response, 400, 4000, 'ty [' + request.ty + '] is different with body (' + Object.keys(request.bodyObj)[0] + ')', function () {
-                                                                        request = null;
-                                                                        response = null;
-                                                                    });
-                                                                    return;
-                                                                }
-                                                            }
-                                                            else {
-                                                                responder.error_result(request, response, 400, 4000, 'ty [' + request.ty + '] is different with body (' + Object.keys(request.bodyObj)[0] + ')', function () {
-                                                                    request = null;
-                                                                    response = null;
-                                                                });
-                                                                return;
-                                                            }
-                                                        }
-
-                                                        if (request.ty == '2') {
-                                                            var allow = 1;
-                                                            if (allowed_app_ids.length > 0) {
-                                                                allow = 0;
-                                                                for (var idx in allowed_app_ids) {
-                                                                    if (allowed_app_ids.hasOwnProperty(idx)) {
-                                                                        if (allowed_app_ids[idx] == request.bodyObj.ae.api) {
-                                                                            allow = 1;
-                                                                            break;
-                                                                        }
-                                                                    }
-                                                                }
-                                                                if (allow == 0) {
-                                                                    responder.error_result(request, response, 403, 4107, 'OPERATION_NOT_ALLOWED: APP-ID in AE is not allowed', function () {
-                                                                        request = null;
-                                                                        response = null;
-                                                                    });
-                                                                    return;
-                                                                }
-                                                            }
-                                                        }
-
-                                                        var rootnm = Object.keys(request.targetObject)[0];
-                                                        var absolute_url = request.targetObject[rootnm].ri;
-                                                        check_notification(request, response, function (code) {
-                                                            if (code === 'notify') {
-                                                                // todo : check ae - notify
-                                                                check_ae(request.targetObject, request, response);
-                                                                return '0';
-                                                            }
-                                                            else if (code === 'post') {
-                                                                request.url = absolute_url;
-                                                                if ((request.query.fu == 2) && (request.query.rcn == 0 || request.query.rcn == 1 || request.query.rcn == 2 || request.query.rcn == 3)) {
-                                                                    lookup_create(request, response, function (code) {
-                                                                        if(code === '201') {
-                                                                            responder.response_result(request, response, 201, 2001, '', function () {
-                                                                                request = null;
-                                                                                response = null;
-                                                                            });
-                                                                        }
-                                                                        else if(code === '201-3') {
-                                                                            responder.response_rcn3_result(request, response, 201, 2001, '', function () {
-                                                                                request = null;
-                                                                                response = null;
-                                                                            });
-                                                                        }
-                                                                        else if(code === '202-1') {
-                                                                            responder.response_result(request, response, 202, 1001, '', function () {
-                                                                                request = null;
-                                                                                response = null;
-                                                                            });
-                                                                        }
-                                                                        else if(code === '202-2') {
-                                                                            responder.response_result(request, response, 202, 1002, '', function () {
-                                                                                request = null;
-                                                                                response = null;
+                                                                    else if (code === 'post') {
+                                                                        request.url = absolute_url;
+                                                                        if ((request.query.fu == 2) && (request.query.rcn == 0 || request.query.rcn == 1 || request.query.rcn == 2 || request.query.rcn == 3)) {
+                                                                            lookup_create(request, response, function (code) {
+                                                                                if(code === '201') {
+                                                                                    responder.response_result(request, response, 201, 2001, '', function () {
+                                                                                        request = null;
+                                                                                        response = null;
+                                                                                    });
+                                                                                }
+                                                                                else if(code === '201-3') {
+                                                                                    responder.response_rcn3_result(request, response, 201, 2001, '', function () {
+                                                                                        request = null;
+                                                                                        response = null;
+                                                                                    });
+                                                                                }
+                                                                                else if(code === '202-1') {
+                                                                                    responder.response_result(request, response, 202, 1001, '', function () {
+                                                                                        request = null;
+                                                                                        response = null;
+                                                                                    });
+                                                                                }
+                                                                                else if(code === '202-2') {
+                                                                                    responder.response_result(request, response, 202, 1002, '', function () {
+                                                                                        request = null;
+                                                                                        response = null;
+                                                                                    });
+                                                                                }
+                                                                                else {
+                                                                                    response_error_result(request, response, code, function () {
+                                                                                        request = null;
+                                                                                        response = null;
+                                                                                    });
+                                                                                }
                                                                             });
                                                                         }
                                                                         else {
-                                                                            responder.error_result(request, response, 400, 4000, 'rcn or fu query is not supported at POST request', function () {
+                                                                            response_error_result(request, response, '400-43', function () {
                                                                                 request = null;
                                                                                 response = null;
                                                                             });
                                                                         }
-                                                                    });
-                                                                }
-                                                                else {
-                                                                    responder.error_result(request, response, 400, 4000, 'rcn or fu query is not supported at POST request', function () {
-                                                                        request = null;
-                                                                        response = null;
-                                                                    });
-                                                                }
-                                                            }
-                                                            else if(code === '400-19') {
-                                                                responder.error_result(request, response, 400, 4000, '[check_notification] post request without ty value is but body is not for notification', function () {
-                                                                    request = null;
-                                                                    response = null;
+                                                                    }
+                                                                    else {
+                                                                        response_error_result(request, response, code, function () {
+                                                                            request = null;
+                                                                            response = null;
+                                                                        });
+                                                                    }
                                                                 });
                                                             }
-                                                            else if (code === '400-20') {
-                                                                responder.error_result(request, response, 400, 4000, '[check_notification] content-type is none', function () {
+                                                            else {
+                                                                response_error_result(request, response, code, function () {
                                                                     request = null;
                                                                     response = null;
                                                                 });
@@ -2338,9 +2331,18 @@ app.post(onem2mParser, function (request, response) {
                                 }
                             });
                         }
+                        else {
+                            response_error_result(request, response, '400-40', function () {
+                                request = null;
+                                response = null;
+                            });
+                        }
                     }
                     else {
-
+                        response_error_result(request, response, code, function () {
+                            request = null;
+                            response = null;
+                        });
                     }
                 });
             }
@@ -2367,36 +2369,15 @@ app.get(onem2mParser, function (request, response) {
             if(code === '200') {
                 request.connection = connection;
 
-                extra_api_action(connection, request.url, function(err, result) {
-                    if(err == null && result == null) {
-                        var _ct = moment().utc().format('YYYYMMDD');
-                        var _http = 0;
-                        var _mqtt = 0;
-                        var _coap = 0;
-                        var _ws = 0;
-                        if (request.headers.hasOwnProperty('binding')) {
-                            if (request.headers['binding'] == 'H') {
-                                _http = 1;
-                            }
-                            else if (request.headers['binding'] == 'M') {
-                                _mqtt = 1;
-                            }
-                            else if (request.headers['binding'] == 'C') {
-                                _coap = 1;
-                            }
-                            else if (request.headers['binding'] == 'W') {
-                                _ws = 1;
-                            }
-                            db_sql.set_hit(request.connection, _ct, _http, _mqtt, _coap, _ws, function (err, results) {
-                                results = null;
-                            });
+                extra_api_action(connection, request.url, function(code, result) {
+                    if(code === '200') {
+                        if (!request.headers.hasOwnProperty('binding')) {
+                            request.headers['binding'] = 'H';
                         }
-                        else {
-                            _http = 1;
-                            db_sql.set_hit(request.connection, _ct, _http, _mqtt, _coap, _ws, function (err, results) {
-                                results = null;
-                            });
-                        }
+
+                        db_sql.set_hit(request.connection, request.headers['binding'], function (err, results) {
+                            results = null;
+                        });
 
                         check_xm2m_headers(request, function (code) {
                             if(code === '200') {
@@ -2420,7 +2401,7 @@ app.get(onem2mParser, function (request, response) {
                                                         });
                                                     }
                                                     else {
-                                                        responder.error_result(request, response, 400, 4000, 'BAD_REQUEST (rcn or fu query is not supported at GET request)', function () {
+                                                        response_error_result(request, response, code, function () {
                                                             request = null;
                                                             response = null;
                                                         });
@@ -2428,7 +2409,7 @@ app.get(onem2mParser, function (request, response) {
                                                 });
                                             }
                                             else {
-                                                responder.error_result(request, response, 400, 4000, 'BAD_REQUEST (rcn or fu query is not supported at GET request)', function () {
+                                                response_error_result(request, response, '400-44', function () {
                                                     request = null;
                                                     response = null;
                                                 });
@@ -2493,17 +2474,16 @@ app.get(onem2mParser, function (request, response) {
                             }
                         });
                     }
+                    else if(code === '201') {
+                        response.header('Content-Type', 'application/json');
+                        response.status(200).end(JSON.stringify(result, null, 4));
+                        result = null;
+                    }
                     else {
-                        if(!err) {
-                            response.setHeader('Content-Type', 'application/json');
-                            response.status(200).end(JSON.stringify(result, null, 4));
-                            result = null;
-                        }
-                        else {
-                            response.setHeader('Content-Type', 'application/json');
-                            response.status(500).end(JSON.stringify({'err': 'extra_api_action'}, null, 4));
-                            result = null;
-                        }
+                        response_error_result(request, response, code, function () {
+                            request = null;
+                            response = null;
+                        });
                     }
                 });
             }
@@ -2531,80 +2511,17 @@ app.put(onem2mParser, function (request, response) {
             if(code === '200') {
                 request.connection = connection;
 
-                var _ct = moment().utc().format('YYYYMMDD');
-                var _http = 0;
-                var _mqtt = 0;
-                var _coap = 0;
-                var _ws = 0;
-                if (request.headers.hasOwnProperty('binding')) {
-                    if (request.headers['binding'] == 'H') {
-                        _http = 1;
-                    }
-                    else if (request.headers['binding'] == 'M') {
-                        _mqtt = 1;
-                    }
-                    else if (request.headers['binding'] == 'C') {
-                        _coap = 1;
-                    }
-                    else if (request.headers['binding'] == 'W') {
-                        _ws = 1;
-                    }
-                    db_sql.set_hit(request.connection, _ct, _http, _mqtt, _coap, _ws, function (err, results) {
-                        results = null;
-                    });
-                }
-                else {
-                    _http = 1;
-                    db_sql.set_hit(request.connection, _ct, _http, _mqtt, _coap, _ws, function (err, results) {
-                        results = null;
-                    });
+                if (!request.headers.hasOwnProperty('binding')) {
+                    request.headers['binding'] = 'H';
                 }
 
+                db_sql.set_hit(request.connection, request.headers['binding'], function (err, results) {
+                    results = null;
+                });
+
                 check_xm2m_headers(request, function (code) {
-                    if (code === '400-1') {
-                        responder.error_result(request, response, 400, 4000, 'BAD REQUEST: X-M2M-RI is none', function () {
-                            request = null;
-                            response = null;
-                        });
-                    }
-                    else if (code === '400-2') {
-                        responder.error_result(request, response, 400, 4000, 'BAD REQUEST: X-M2M-Origin header is Mandatory', function () {
-                            request = null;
-                            response = null;
-                        });
-                    }
-                    else if (code === '405-1') {
-                        responder.error_result(request, response, 405, 4005, 'OPERATION_NOT_ALLOWED: CSEBase can not be created by others', function () {
-                            request = null;
-                            response = null;
-                        });
-                    }
-                    else if (code === '405-2') {
-                        responder.error_result(request, response, 405, 4005, 'OPERATION_NOT_ALLOWED (req is not supported when post request)', function () {
-                            request = null;
-                            response = null;
-                        });
-                    }
-                    else if(code === '405-3') {
-                        responder.error_result(request, response, 405, 4005, 'OPERATION_NOT_ALLOWED: we do not support (' + request.ty + ') resource', function () {
-                            request = null;
-                            response = null;
-                        });
-                    }
-                    else if(code === '403-1') {
-                        responder.error_result(request, response, 403, 4107, 'OPERATION_NOT_ALLOWED: AE-ID is not allowed', function () {
-                            request = null;
-                            response = null;
-                        });
-                    }
-                    else {
-                        if (request.body == "") {
-                            responder.error_result(request, response, 400, 4000, 'body is empty', function () {
-                                request = null;
-                                response = null;
-                            });
-                        }
-                        else {
+                    if(code === '200') {
+                        if (request.body !== "") {
                             check_resource_supported(request, response, function (code) {
                                 if (code === '400-3') {
                                     responder.error_result(request, response, 400, 4000, 'BAD REQUEST: not supported resource type requested', function () {
@@ -3060,6 +2977,18 @@ app.put(onem2mParser, function (request, response) {
                                 }
                             });
                         }
+                        else {
+                            response_error_result(request, response, '400-40', function () {
+                                request = null;
+                                response = null;
+                            });
+                        }
+                    }
+                    else {
+                        response_error_result(request, response, code, function () {
+                            request = null;
+                            response = null;
+                        });
                     }
                 });
             }
@@ -3086,34 +3015,13 @@ app.delete(onem2mParser, function (request, response) {
             if(code === '200') {
                 request.connection = connection;
 
-                var _ct = moment().utc().format('YYYYMMDD');
-                var _http = 0;
-                var _mqtt = 0;
-                var _coap = 0;
-                var _ws = 0;
-                if (request.headers.hasOwnProperty('binding')) {
-                    if (request.headers['binding'] == 'H') {
-                        _http = 1;
-                    }
-                    else if (request.headers['binding'] == 'M') {
-                        _mqtt = 1;
-                    }
-                    else if (request.headers['binding'] == 'C') {
-                        _coap = 1;
-                    }
-                    else if (request.headers['binding'] == 'W') {
-                        _ws = 1;
-                    }
-                    db_sql.set_hit(request.connection, _ct, _http, _mqtt, _coap, _ws, function (err, results) {
-                        results = null;
-                    });
+                if (!request.headers.hasOwnProperty('binding')) {
+                    request.headers['binding'] = 'H';
                 }
-                else {
-                    _http = 1;
-                    db_sql.set_hit(request.connection, _ct, _http, _mqtt, _coap, _ws, function (err, results) {
-                        results = null;
-                    });
-                }
+
+                db_sql.set_hit(request.connection, request.headers['binding'], function (err, results) {
+                    results = null;
+                });
 
                 check_xm2m_headers(request, function (code) {
                     if (code === '400-1') {

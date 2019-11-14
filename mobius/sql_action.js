@@ -67,7 +67,26 @@ exports.get_hit_all = function(connection, callback) {
     });
 };
 
-exports.set_hit = function(connection, _ct, _http, _mqtt, _coap, _ws, callback) {
+exports.set_hit = function(connection, binding, callback) {
+    var _ct = moment().utc().format('YYYYMMDD');
+    var _http = 0;
+    var _mqtt = 0;
+    var _coap = 0;
+    var _ws = 0;
+
+    if (binding === 'H') {
+        _http = 1;
+    }
+    else if (binding === 'M') {
+        _mqtt = 1;
+    }
+    else if (binding === 'C') {
+        _coap = 1;
+    }
+    else if (binding === 'W') {
+        _ws = 1;
+    }
+
     var sql = util.format('INSERT INTO hit (ct, http, mqtt, coap, ws) VALUES (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\') ON DUPLICATE KEY UPDATE http=http+%s, mqtt=mqtt+%s, coap=coap+%s, ws=ws+%s;',
         _ct, _http, _mqtt, _coap, _ws, _http, _mqtt, _coap, _ws);
 
@@ -75,6 +94,16 @@ exports.set_hit = function(connection, _ct, _http, _mqtt, _coap, _ws, callback) 
         callback(err, results);
     });
 };
+
+exports.set_hit_n = function(connection, _ct, _http, _mqtt, _coap, _ws, callback) {
+    var sql = util.format('INSERT INTO hit (ct, http, mqtt, coap, ws) VALUES (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\') ON DUPLICATE KEY UPDATE http=http+%s, mqtt=mqtt+%s, coap=coap+%s, ws=ws+%s;',
+        _ct, _http, _mqtt, _coap, _ws, _http, _mqtt, _coap, _ws);
+
+    db.getResult(sql, connection, function (err, results) {
+        callback(err, results);
+    });
+};
+
 
 
 exports.get_sri_sri = function (connection, ri, callback) {
