@@ -222,11 +222,13 @@ exports.insert_ae = function(connection, obj, callback) {
                         });
                     });
 
+                    console.timeEnd('insert_ae ' + obj.ri);
                     callback(err, results);
                 }
             });
         }
         else {
+            console.timeEnd('insert_ae ' + obj.ri);
             callback(err, results);
         }
     });
@@ -247,12 +249,14 @@ exports.insert_cnt = function(connection, obj, callback) {
                 else {
                     sql = util.format("delete from lookup where ri = \'%s\'", obj.ri);
                     db.getResult(sql, connection, function () {
+                        console.timeEnd('insert_cnt ' + obj.ri);
                         callback(err, results);
                     });
                 }
             });
         }
         else {
+            console.timeEnd('insert_cnt ' + obj.ri);
             callback(err, results);
         }
     });

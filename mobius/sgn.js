@@ -374,10 +374,10 @@ function sgn_action(connection, rootnm, check_value, results_ss, noti_Obj, sub_b
 exports.check = function(request, notiObj, check_value) {
     var rootnm = request.headers.rootnm;
 
-    if((request.method == "PUT" && check_value == 1)) {
+    if((request.method.toLowerCase() == "put" && check_value == 1)) {
         var pi = notiObj.ri;
     }
-    else if ((request.method == "POST" && check_value == 3) || (request.method == "DELETE" && check_value == 4)) {
+    else if ((request.method.toLowerCase() == "post" && check_value == 3) || (request.method.toLowerCase() == "delete" && check_value == 4)) {
         pi = notiObj.pi;
     }
 
@@ -389,7 +389,7 @@ exports.check = function(request, notiObj, check_value) {
     var parentObj = JSON.parse(JSON.stringify(request.targetObject))[Object.keys(request.targetObject)[0]];
 
     if(check_value == 256 || check_value == 128) { // verification
-        gap = parseInt(10 + Math.random() * 10);
+        var gap = parseInt(10 + Math.random() * 10);
         setTimeout(sgn_action, gap, request.connection, rootnm, check_value, notiObj, noti_Obj, request.usebodytype, parentObj);
     }
     else {
