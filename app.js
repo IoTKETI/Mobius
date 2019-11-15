@@ -1348,6 +1348,11 @@ function extra_api_action(connection, url, callback) {
         // for backup hit count
         if (0) {
             var _hit_old = JSON.parse(fs.readFileSync('hit.json', 'utf-8'));
+            var _http = 0;
+            var _mqtt = 0;
+            var _coap = 0;
+            var _ws = 0;
+
             for (var dd in _hit_old) {
                 if (_hit_old.hasOwnProperty(dd)) {
                     for (var ff in _hit_old[dd]) {
@@ -1355,11 +1360,6 @@ function extra_api_action(connection, url, callback) {
                             if (Object.keys(_hit_old[dd][ff]).length > 0) {
                                 for (var gg in _hit_old[dd][ff]) {
                                     if (_hit_old[dd][ff].hasOwnProperty(gg)) {
-                                        var _http = 0;
-                                        var _mqtt = 0;
-                                        var _coap = 0;
-                                        var _ws = 0;
-
                                         if (_hit_old[dd][ff][gg] == null) {
                                             _hit_old[dd][ff][gg] = 0;
                                         }
@@ -1385,6 +1385,28 @@ function extra_api_action(connection, url, callback) {
                         }
                     }
                 }
+            }
+        }
+
+        if(0) {
+            var count = 0;
+            setTimeout(random_hit, 100, count);
+
+            function random_hit(count) {
+                if(count > 250) {
+                    return;
+                }
+                var dd = moment().utc().subtract(count, 'days').format('YYYYMMDD');
+                var _http = 5000 + Math.random() * 50000;
+                var _mqtt = 1000 + Math.random() * 9000;
+                var _coap = 0;
+                var _ws = 0;
+
+                db_sql.set_hit_n(connection, dd, _http, _mqtt, _coap, _ws, function (err, results) {
+                    results = null;
+                    console.log(count);
+                    setTimeout(random_hit, 100, ++count);
+                });
             }
         }
 
