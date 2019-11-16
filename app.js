@@ -1388,7 +1388,7 @@ function extra_api_action(connection, url, callback) {
             }
         }
 
-        if(0) {
+        if (0) {
             var count = 0;
             setTimeout(random_hit, 100, count);
 
@@ -2336,7 +2336,7 @@ app.delete(onem2mParser, function (request, response) {
                                             if ((request.query.fu == 2) && (request.query.rcn == 0 || request.query.rcn == 1)) {
                                                 lookup_delete(request, response, function (code) {
                                                     if(code === '200') {
-                                                        responder.error_result(request, response, 200, 2002, '', function () {
+                                                        responder.response_result(request, response, 200, 2002, '', function () {
                                                             request = null;
                                                             response = null;
                                                         });

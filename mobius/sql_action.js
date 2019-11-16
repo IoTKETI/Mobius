@@ -61,7 +61,9 @@ exports.set_tuning = function(connection, callback) {
 };
 
 exports.get_hit_all = function(connection, callback) {
-    var sql = util.format('select * from hit limit 1000');
+    var until = moment().utc().subtract(1, 'year').format('YYYYMMDD');
+
+    var sql = util.format('select * from hit where ct > \'' + until + '\' limit 1000');
     db.getResult(sql, connection, function (err, results) {
         callback(err, results);
     });
@@ -1165,7 +1167,7 @@ function search_parents_lookup_action(connection, pi_list, count, result_ri, cal
         return;
     }
 
-    var sql = util.format("select ri, ty from lookup where pi = \'" + pi_list[count] + "\' and ty <> \'23\' and ty <> \'4\' and ty <> \'30\' and ty <> \'17\' limit 5000");
+    var sql = util.format("select ri, ty from lookup where pi = \'" + pi_list[count] + "\' and ty <> \'23\' and ty <> \'4\' and ty <> \'30\' and ty <> \'17\' limit 3000");
     db.getResult(sql, connection, function (err, result_lookup_ri) {
         if(!err) {
             if(result_lookup_ri.length === 0) {
@@ -1215,7 +1217,7 @@ exports.search_parents_lookup = function(connection, pi_list, result_ri, callbac
                 callback(code);
             }
             else {
-                pi_list = [];
+                var pi_list = [];
                 for (var idx in cur_result_ri) {
                     if (cur_result_ri.hasOwnProperty(idx)) {
                         pi_list.push(cur_result_ri[idx].ri);
@@ -1457,19 +1459,17 @@ function search_resource_action(connection, ri, query, cur_lim, pi_list, cni, lo
     var search_Obj = [];
     search_lookup_action(connection, pi_list, 0, search_Obj, query_where, function (code) {
         if(code === '200') {
-            if(query.la != null) {
-                //seekObj[search_Obj[0].ri] = search_Obj[0]; // when search resource it's not included target resource
-                var st_idx = (search_Obj.length > parseInt(cur_lim, 10)) ? (search_Obj.length - parseInt(cur_lim, 10) + 1) : 0;
-                search_Obj = search_Obj.reverse();
-                for(var i in search_Obj) {
-                    if(search_Obj.hasOwnProperty(i)) {
-                        seekObj[search_Obj[i].ri] = search_Obj[i];
-                        if (Object.keys(seekObj).length > cur_lim) {
-                            break;
-                        }
+            search_Obj = search_Obj.reverse();
+            for(var i in search_Obj) {
+                if(search_Obj.hasOwnProperty(i)) {
+                    seekObj[search_Obj[i].ri] = search_Obj[i];
+                    if (Object.keys(seekObj).length > cur_lim) {
+                        break;
                     }
                 }
+            }
 
+            if(query.la != null) {
                 if(Object.keys(seekObj).length > cur_lim) {
                     callback(code);
                 }
@@ -1481,15 +1481,6 @@ function search_resource_action(connection, ri, query, cur_lim, pi_list, cni, lo
                 }
             }
             else {
-                for(i in search_Obj) {
-                    if(search_Obj.hasOwnProperty(i)) {
-                        seekObj[search_Obj[i].ri] = search_Obj[i];
-                        if (Object.keys(seekObj).length > cur_lim) {
-                            break;
-                        }
-                    }
-                }
-
                 callback(code);
             }
         }
@@ -2436,9 +2427,7 @@ exports.update_parent_by_delete = function (connection, obj, cs, callback) {
 exports.delete_ri_lookup = function (connection, ri, callback) {
     var sql = util.format("delete from lookup where ri = \'%s\'", ri);
     db.getResult(sql, connection, function (err, delete_Obj) {
-        if(!err) {
-            callback(err, delete_Obj);
-        }
+        callback(err, delete_Obj);
     });
 };
 
@@ -2450,15 +2439,55 @@ exports.delete_ri_lookup_in = function (connection, ty, ri, offset, callback) {
     });
 };
 
-exports.delete_lookup = function (connection, ri, pi_list, pi_index, found_Obj, found_Cnt, callback) {
+function delete_lookup_action(connection, pi_list, req_count, callback) {
+    if(pi_list.length <= req_count) {
+        callback('200');
+        return;
+    }
+
+    var sql = 'delete from lookup where pi = \'' + pi_list[req_count] + '\'';
+    db.getResult(sql, connection, function (err, deleted_Obj) {
+        if(!err) {
+            console.log('deleted ' + deleted_Obj.affectedRows + ' resource(s) of ' + pi_list[req_count]);
+
+            delete_lookup_action(connection, pi_list, ++req_count, function (code) {
+                callback(code);
+            });
+        }
+        else {
+            callback('500-1');
+        }
+    });
+}
+
+exports.delete_lookup = function (connection, pi_list, pi_index, found_Obj, found_Cnt, callback) {
     var cur_pi = [];
 
-    for(var idx = 0; idx < 8; idx++) {
+    for(var idx = 0; idx < 32; idx++) {
         if (pi_index < pi_list.length) {
             cur_pi.push(pi_list[pi_index++]);
         }
+        else {
+            break;
+        }
     }
 
+    delete_lookup_action(connection, cur_pi, 0, function (code) {
+        if(code === '200') {
+            if(pi_index >= pi_list.length) {
+                callback(code);
+            }
+            else {
+                _this.delete_lookup(connection, pi_list, pi_index, found_Obj, found_Cnt, function (err, found_Obj) {
+                    callback(err, found_Obj);
+                });
+            }
+        }
+        else {
+            callback(code);
+        }
+    });
+/*
     var sql = util.format("delete a.* from (select ri from lookup where pi in ("+JSON.stringify(cur_pi).replace('[','').replace(']','') + ")) b left join lookup as a on b.ri = a.ri");
     db.getResult(sql, connection, function (err, search_Obj) {
         if(!err) {
@@ -2477,12 +2506,12 @@ exports.delete_lookup = function (connection, ri, pi_list, pi_index, found_Obj, 
                 });
             }
             else {
-                _this.delete_lookup(connection, ri, pi_list, pi_index, found_Obj, found_Cnt, function (err, found_Obj) {
+                _this.delete_lookup(connection, pi_list, pi_index, found_Obj, found_Cnt, function (err, found_Obj) {
                     callback(err, found_Obj);
                 });
             }
         }
-    });
+    });*/
 };
 
 exports.delete_lookup_et = function (connection, et, callback) {
@@ -2495,7 +2524,7 @@ exports.delete_lookup_et = function (connection, et, callback) {
             }
 
             var finding_Obj = [];
-            _this.delete_lookup(connection, '', pi_list, 0, finding_Obj, 0, function (err, search_Obj) {
+            _this.delete_lookup(connection, pi_list, 0, finding_Obj, 0, function (err, search_Obj) {
                 callback(err, search_Obj);
             });
         }

@@ -1143,10 +1143,10 @@ function presearch_action(request, response, ri_list, found_Obj, callback) {
     var rootnm = Object.keys(resource_Obj)[0];
     var pi_list = [];
     pi_list.push(resource_Obj[rootnm].ri);
-    var result_ri = [];
+    var found_parent_list = [];
 
     console.time('search_parents_lookup ' + resource_Obj[rootnm].ri);
-    db_sql.search_parents_lookup(request.connection, pi_list, result_ri, function (code) {
+    db_sql.search_parents_lookup(request.connection, pi_list, found_parent_list, function (code) {
         console.timeEnd('search_parents_lookup ' + resource_Obj[rootnm].ri);
         if(code === '200') {
             request.query.cni = '0';
@@ -1154,8 +1154,10 @@ function presearch_action(request, response, ri_list, found_Obj, callback) {
                 request.query.lvl = '1';
             }
 
-            if (resource_Obj[rootnm].ty == '3' && request.query.la) {
-                request.query.cni = parseInt(resource_Obj[rootnm].cni, 10);
+            if (request.query.la != null) {
+                if (resource_Obj[rootnm].ty == '3') {
+                    request.query.cni = parseInt(resource_Obj[rootnm].cni, 10);
+                }
             }
 
             if (request.query.lim != null) {
@@ -1167,72 +1169,80 @@ function presearch_action(request, response, ri_list, found_Obj, callback) {
                 request.query.lim = max_lim;
             }
 
-            for (var i = 0; i < result_ri.length; i) {
-                if (request.query.ty == '4') {
-                    if (result_ri[i].ty != '3') {
-                        result_ri.splice(i, 1);
+            // remove pi be parent resource
+            if (request.query.ty == '4') {
+                for (var i = 0; i < found_parent_list.length; i) {
+                    if (found_parent_list[i].ty != '3') {
+                        found_parent_list.splice(i, 1);
                     }
                     else {
                         i++;
                     }
                 }
-                else if (request.query.ty == '2') {
-                    if (result_ri[i].ty != '5') {
-                        result_ri.splice(i, 1);
+            }
+            else if (request.query.ty == '2') {
+                for (i = 0; i < found_parent_list.length; i) {
+                    if (found_parent_list[i].ty != '5') {
+                        found_parent_list.splice(i, 1);
                     }
                     else {
                         i++;
                     }
                 }
-                else if (request.query.ty == '3') {
-                    if (result_ri[i].ty != '2' && result_ri[i].ty != '3' && result_ri[i].ty != '5') {
-                        result_ri.splice(i, 1);
+            }
+            else if (request.query.ty == '3') {
+                for (i = 0; i < found_parent_list.length; i) {
+                    if (found_parent_list[i].ty != '2' && found_parent_list[i].ty != '3' && found_parent_list[i].ty != '5') {
+                        found_parent_list.splice(i, 1);
                     }
                     else {
                         i++;
                     }
                 }
-                else if (request.query.ty == '1') {
-                    if (result_ri[i].ty != '2' && result_ri[i].ty != '3' && result_ri[i].ty != '5' && result_ri[i].ty != '29') {
-                        result_ri.splice(i, 1);
+            }
+            else if (request.query.ty == '1') {
+                for (i = 0; i < found_parent_list.length; i) {
+                    if (found_parent_list[i].ty != '2' && found_parent_list[i].ty != '3' && found_parent_list[i].ty != '5' && found_parent_list[i].ty != '29') {
+                        found_parent_list.splice(i, 1);
                     }
                     else {
                         i++;
                     }
                 }
-                else if (request.query.ty == '29') {
-                    if (result_ri[i].ty != '2' && result_ri[i].ty != '29' && result_ri[i].ty != '5') {
-                        result_ri.splice(i, 1);
+            }
+            else if (request.query.ty == '29') {
+                for (i = 0; i < found_parent_list.length; i) {
+                    if (found_parent_list[i].ty != '2' && found_parent_list[i].ty != '29' && found_parent_list[i].ty != '5') {
+                        found_parent_list.splice(i, 1);
                     }
                     else {
                         i++;
                     }
                 }
-                else if (request.query.ty == '30') {
-                    if (result_ri[i].ty != '29') {
-                        result_ri.splice(i, 1);
+            }
+            else if (request.query.ty == '30') {
+                for (i = 0; i < found_parent_list.length; i) {
+                    if (found_parent_list[i].ty != '29') {
+                        found_parent_list.splice(i, 1);
                     }
                     else {
                         i++;
                     }
-                }
-                else {
-                    i++;
                 }
             }
 
             pi_list = [];
             pi_list.push(resource_Obj[rootnm].ri);
             var cur_lvl = parseInt((url.parse(request.url).pathname.split('/').length), 10) - 2;
-            for (i = 0; i < result_ri.length; i++) {
+            for (i = 0; i < found_parent_list.length; i++) {
                 if (request.query.lvl != null) {
                     var lvl = request.query.lvl;
-                    if ((result_ri[i].ri.split('/').length - 1) <= (cur_lvl + (parseInt(lvl, 10)))) {
-                        pi_list.push(result_ri[i].ri);
+                    if ((found_parent_list[i].ri.split('/').length - 1) <= (cur_lvl + (parseInt(lvl, 10)))) {
+                        pi_list.push(found_parent_list[i].ri);
                     }
                 }
                 else {
-                    pi_list.push(result_ri[i].ri);
+                    pi_list.push(found_parent_list[i].ri);
                 }
             }
 
@@ -2187,69 +2197,79 @@ function delete_action(request, response, callback) {
             for (var i = 0; i < result_ri.length; i++) {
                 pi_list.push(result_ri[i].ri);
             }
+            result_ri = null;
 
+            pi_list.reverse();
             var finding_Obj = [];
             console.time('delete_lookup ' + resource_Obj[rootnm].ri);
-            db_sql.delete_lookup(request.connection, resource_Obj[rootnm].ri, pi_list, 0, finding_Obj, 0, function (err, search_Obj) {
-                if (!err) {
-                    console.timeEnd('delete_lookup ' + resource_Obj[rootnm].ri);
+            db_sql.delete_lookup(request.connection, pi_list, 0, finding_Obj, 0, function (code) {
+                if (code === '200') {
+                    db_sql.delete_ri_lookup(request.connection, resource_Obj[rootnm].ri, function (err) {
+                        if(!err) {
+                            console.timeEnd('delete_lookup ' + resource_Obj[rootnm].ri);
 
-                    db_sql.select_lookup(request.connection, resource_Obj[rootnm].pi, function (err, results) {
-                        if (!err) {
-                            var ty = results[0].ty;
-                            request.targetObject = {};
-                            request.targetObject[responder.typeRsrc[ty]] = results[0];
-                            var parent_rootnm = Object.keys(request.targetObject)[0];
-                            makeObject(request.targetObject[parent_rootnm]);
+                            // for sgn
+                            db_sql.select_lookup(request.connection, resource_Obj[rootnm].pi, function (err, results) {
+                                if (!err) {
+                                    var ty = results[0].ty;
+                                    request.targetObject = {};
+                                    request.targetObject[responder.typeRsrc[ty]] = results[0];
+                                    var parent_rootnm = Object.keys(request.targetObject)[0];
+                                    makeObject(request.targetObject[parent_rootnm]);
 
-                            if (resource_Obj[rootnm].ty == '23') {
-                                if(resource_Obj[rootnm].hasOwnProperty('su')) {
-                                    if(resource_Obj[rootnm].su != '') {
-                                        var notiObj = JSON.parse(JSON.stringify(resource_Obj[rootnm]));
-                                        _this.remove_no_value(request, notiObj);
-                                        sgn.check(request, notiObj, 128, function (code) {
+                                    if (resource_Obj[rootnm].ty == '23') {
+                                        if(resource_Obj[rootnm].hasOwnProperty('su')) {
+                                            if(resource_Obj[rootnm].su != '') {
+                                                var notiObj = JSON.parse(JSON.stringify(resource_Obj[rootnm]));
+                                                _this.remove_no_value(request, notiObj);
+                                                sgn.check(request, notiObj, 128, function (code) {
 
-                                        });
-                                    }
-                                }
-
-                                var parentObj = request.targetObject[parent_rootnm];
-                                for(var idx in parentObj.subl) {
-                                    if(parentObj.subl.hasOwnProperty(idx)) {
-                                        if(parentObj.subl[idx].ri == resource_Obj[rootnm].ri) {
-                                            parentObj.subl.splice(idx, 1);
+                                                });
+                                            }
                                         }
+
+                                        var parentObj = request.targetObject[parent_rootnm];
+                                        for(var idx in parentObj.subl) {
+                                            if(parentObj.subl.hasOwnProperty(idx)) {
+                                                if(parentObj.subl[idx].ri == resource_Obj[rootnm].ri) {
+                                                    parentObj.subl.splice(idx, 1);
+                                                }
+                                            }
+                                        }
+
+                                        db_sql.update_lookup(request.connection, parentObj, function (err, results) {
+                                        });
+
+                                        callback('200');
+                                    }
+                                    else if (resource_Obj[rootnm].ty == '29') {
+                                        delete_TS(function (rsc, res_Obj) {
+                                        });
+                                        callback('200');
+                                    }
+                                    else if (resource_Obj[rootnm].ty == '4') {
+                                        update_cnt_by_delete(request.connection, resource_Obj[rootnm].pi, function (rsc) {
+                                        });
+                                        callback('200');
+                                    }
+                                    else {
+                                        callback('200');
                                     }
                                 }
-
-                                db_sql.update_lookup(request.connection, parentObj, function (err, results) {
-                                    if (!err) {
-                                    }
-                                });
-
-                                callback('200');
-                            }
-                            else if (resource_Obj[rootnm].ty == '29') {
-                                delete_TS(function (rsc, res_Obj) {
-                                });
-                                callback('200');
-                            }
-                            else if (resource_Obj[rootnm].ty == '4') {
-                                update_cnt_by_delete(request.connection, resource_Obj[rootnm].pi, function (rsc) {
-                                });
-                                callback('200');
-                            }
-                            else {
-                                callback('200');
-                            }
+                                else {
+                                    callback('500-1');
+                                }
+                            });
                         }
                         else {
+                            console.timeEnd('delete_lookup ' + resource_Obj[rootnm].ri);
                             callback('500-1');
                         }
                     });
                 }
                 else {
-                    callback('500-1');
+                    console.timeEnd('delete_lookup ' + resource_Obj[rootnm].ri);
+                    callback(code);
                 }
             });
         }
@@ -2299,6 +2319,9 @@ exports.delete = function (request, response, callback) {
             else {
                 callback('200');
             }
+        }
+        else {
+            callback(code);
         }
     });
 };
