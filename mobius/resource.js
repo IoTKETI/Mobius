@@ -428,23 +428,6 @@ function create_action(request, response, callback) {
     }
     else if (ty == '2') {
         //resource_Obj[rootnm].sri = resource_Obj[rootnm].aei;
-<<<<<<< HEAD
-        db_sql.insert_ae(resource_Obj[rootnm], function (err, results) {
-                if (!err) {
-                    callback('1', resource_Obj);
-                }
-                else {
-                    if (results.code == 'ER_DUP_ENTRY') {
-                        if (results.message.includes('PRIMARY')) {
-                            body_Obj = {};
-                            body_Obj['dbg'] = "resource (" + resource_Obj[rootnm].rn + ") is already exist";
-                        }
-                        else {
-                            body_Obj = {};
-                            body_Obj['dbg'] = "ae-id (" + resource_Obj[rootnm].aei + ") is duplicated";
-                        }
-                        responder.response_result(request, response, 409, body_Obj, 4105, request.url, body_Obj['dbg']);
-=======
         db_sql.insert_ae(request.connection, resource_Obj[rootnm], function (err, results) {
             if (!err) {
                 callback('200');
@@ -453,7 +436,6 @@ function create_action(request, response, callback) {
                 if (results.code == 'ER_DUP_ENTRY') {
                     if(results.message.includes('aei_UNIQUE')) {
                         callback('409-6');
->>>>>>> develop
                     }
                     else {
                         callback('409-5');
