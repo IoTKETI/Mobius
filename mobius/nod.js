@@ -31,7 +31,10 @@ exports.build_nod = function(request, response, resource_Obj, body_Obj, callback
     resource_Obj[rootnm].hcl = (body_Obj[rootnm].hcl) ? body_Obj[rootnm].hcl : '';
     resource_Obj[rootnm].mgca = (body_Obj[rootnm].mgca) ? body_Obj[rootnm].mgca : '';
 
-    callback('1', resource_Obj);
+    request.resourceObj = JSON.parse(JSON.stringify(resource_Obj));
+    resource_Obj = null;
+
+    callback('200');
 };
 
 

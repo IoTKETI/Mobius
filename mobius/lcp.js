@@ -28,7 +28,6 @@ exports.build_lcp = function(request, response, resource_Obj, body_Obj, callback
 
     // body
     resource_Obj[rootnm].los = body_Obj[rootnm].los;
-
     resource_Obj[rootnm].lou = (body_Obj[rootnm].lou) ? body_Obj[rootnm].lou : '0';
     resource_Obj[rootnm].lot = (body_Obj[rootnm].lot) ? body_Obj[rootnm].lot : '';
     resource_Obj[rootnm].lor = (body_Obj[rootnm].lor) ? body_Obj[rootnm].lor : '';
@@ -36,7 +35,10 @@ exports.build_lcp = function(request, response, resource_Obj, body_Obj, callback
     resource_Obj[rootnm].lon = (body_Obj[rootnm].lon) ? body_Obj[rootnm].lon : '';
     resource_Obj[rootnm].lost = (body_Obj[rootnm].lost) ? body_Obj[rootnm].lost : '';
 
-    callback('1', resource_Obj);
+    request.resourceObj = JSON.parse(JSON.stringify(resource_Obj));
+    resource_Obj = null;
+
+    callback('200');
 };
 
 

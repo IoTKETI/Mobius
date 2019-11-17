@@ -32,7 +32,10 @@ exports.build_mms = function(request, response, resource_Obj, body_Obj, callback
 
     resource_Obj[rootnm].sid = resource_Obj[rootnm].ri;
 
-    callback('1', resource_Obj);
+    request.resourceObj = JSON.parse(JSON.stringify(resource_Obj));
+    resource_Obj = null;
+
+    callback('200');
 };
 
 //

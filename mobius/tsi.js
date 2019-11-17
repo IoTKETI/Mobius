@@ -32,5 +32,8 @@ exports.build_tsi = function(request, response, resource_Obj, body_Obj, callback
     resource_Obj[rootnm].dgt = (body_Obj[rootnm].dgt) ? body_Obj[rootnm].dgt : '';
     resource_Obj[rootnm].sqn = (body_Obj[rootnm].sqn) ? body_Obj[rootnm].sqn : '';
 
-    callback('1', resource_Obj);
+    request.resourceObj = JSON.parse(JSON.stringify(resource_Obj));
+    resource_Obj = null;
+
+    callback('200');
 };

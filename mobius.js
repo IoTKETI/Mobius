@@ -16,11 +16,17 @@
 
 var fs = require('fs');
 
-var data  = fs.readFileSync('conf.json', 'utf-8');
-var conf = JSON.parse(data);
+var conf = {};
+try {
+    conf = JSON.parse(fs.readFileSync('conf.json', 'utf8'));
+}
+catch (e) {
+    conf.csebaseport = "7579";
+    conf.dbpass = "dksdlfduq2";
+    fs.writeFileSync('conf.json', JSON.stringify(conf, null, 4), 'utf8');
+}
 
 global.defaultbodytype      = 'json';
-
 
 // my CSE information
 global.usecsetype           = 'in'; // select 'in' or 'mn' or asn'
@@ -36,7 +42,7 @@ global.usepxywsport         = '7577';
 global.usepxymqttport       = '7578';
 
 global.use_sgn_man_port     = '7599';
-global.use_cnt_man_port     = '7597';
+global.use_cnt_man_port     = '7583';
 global.use_hit_man_port     = '7594';
 
 global.usetsagentport       = '7582';
@@ -63,6 +69,8 @@ global.allowed_app_ids = [];
 global.usesemanticbroker    = '10.10.202.114';
 
 global.uservi = '2a';
+
+global.useCert = 'disable';
 
 // CSE core
 require('./app');

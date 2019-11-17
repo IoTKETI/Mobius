@@ -70,100 +70,140 @@ function check_body(res, body_type, res_body, callback) {
     }
 }
 
+function request_to_member(request, hostname, port, ri, agr, callback) {
+    var ri_prefix = request.url.split('/fopt')[1];
+
+    var options = {
+        hostname: hostname,
+        port: port,
+        path: ri + ri_prefix,
+        method: request.method,
+        headers: request.headers
+    };
+
+    var responseBody = '';
+    var req = http.request(options, function (res) {
+        //res.setEncoding('utf8');
+        res.on('data', function (chunk) {
+            responseBody += chunk;
+        });
+
+        res.on('end', function () {
+            check_body(res, request.usebodytype, responseBody, function (rsc, retrieve_Obj) {
+                if (rsc == '1') {
+                    agr[retrieve_Obj.fr] = JSON.parse(JSON.stringify(retrieve_Obj));
+                    retrieve_Obj = null;
+
+                    callback('200');
+                }
+            });
+        });
+    });
+
+    req.on('error', function (e) {
+        if (e.message != 'read ECONNRESET') {
+            console.log('[fopt_member] problem with request: ' + e.message);
+        }
+
+        callback('200');
+    });
+
+    req.write(request.body);
+    req.end();
+}
+
 function fopt_member(request, response, req_count, mid, body_Obj, cse_poa, agr, callback) {
-    if(req_count == mid.length) {
-        callback(agr);
+    if(req_count >= mid.length) {
+        callback('200');
     }
     else {
         var ri_prefix = request.url.split('/fopt')[1];
-        var ri = mid[req_count++];
-        db_sql.get_ri_sri(request, response, ri, function (err, results, request, response) {
-            ri = ((results.length == 0) ? ri : results[0].ri);
-            var target_cb = ri.split('/')[1];
-            var hostname = 'localhost';
-            var port = usecsebaseport;
-            if (target_cb != usecsebase) {
-                if (cse_poa[target_cb]) {
-                    hostname = url.parse(cse_poa[target_cb]).hostname;
-                    port = url.parse(cse_poa[target_cb]).port;
+        var ri = mid[req_count];
+        db_sql.get_ri_sri(request.connection, ri, function (err, results) {
+            if(!err) {
+                ri = ((results.length == 0) ? ri : results[0].ri);
+                var target_cb = ri.split('/')[1];
+                var hostname = 'localhost';
+                var port = usecsebaseport;
+
+                if (target_cb != usecsebase) {
+                    if (cse_poa[target_cb]) {
+                        hostname = url.parse(cse_poa[target_cb]).hostname;
+                        port = url.parse(cse_poa[target_cb]).port;
+                        request_to_member(request, hostname, port, ri, agr, function (code) {
+                            if(code === '200') {
+                                fopt_member(request, response, req_count, mid, body_Obj, cse_poa, agr, function (code) {
+                                    callback(code);
+                                });
+                            }
+                            else {
+                                callback(code);
+                            }
+                        });
+                    }
+                    else {
+                        fopt_member(request, response, ++req_count, mid, body_Obj, cse_poa, agr, function (code) {
+                            callback(code);
+                        });
+                    }
                 }
                 else {
-                    fopt_member(request, response, req_count, mid, body_Obj, cse_poa, agr, function (agr) {
-                        callback(agr);
+                    request_to_member(request, hostname, port, ri, agr, function (code) {
+                        if(code === '200') {
+                            fopt_member(request, response, req_count, mid, body_Obj, cse_poa, agr, function (code) {
+                                callback(code);
+                            });
+                        }
+                        else {
+                            callback(code);
+                        }
                     });
-                    return;
                 }
             }
-
-            //var rqi = moment().utc().format('mmssSSS') + randomValueBase64(4);
-            var options = {
-                hostname: hostname,
-                port: port,
-                path: ri + ri_prefix,
-                method: request.method,
-                headers: request.headers
-            };
-
-            var responseBody = '';
-            var req = http.request(options, function (res) {
-                //res.setEncoding('utf8');
-                res.on('data', function (chunk) {
-                    responseBody += chunk;
+            else {
+                fopt_member(request, response, ++req_count, mid, body_Obj, cse_poa, agr, function (code) {
+                    callback(code);
                 });
-
-                res.on('end', function () {
-                    check_body(res, request.usebodytype, responseBody, function (rsc, retrieve_Obj) {
-                        if (rsc == '1') {
-                            //for (var prop in retrieve_Obj.pc) {
-                            agr[retrieve_Obj.fr] = retrieve_Obj;
-                            //}
-                        }
-
-                        fopt_member(request, response, req_count, mid, body_Obj, cse_poa, agr, function (agr) {
-                            callback(agr);
-                        });
-                    });
-                });
-            });
-
-            req.on('error', function (e) {
-                if (e.message != 'read ECONNRESET') {
-                    console.log('[fopt_member] problem with request: ' + e.message);
-                }
-
-                fopt_member(request, response, req_count, mid, body_Obj, cse_poa, agr, function (agr) {
-                    callback(agr);
-                });
-            });
-
-            req.write(request.body);
-            req.end();
+            }
         });
     }
 }
 
 
-exports.check = function(request, response, grp, body_Obj) {
+exports.check = function(request, response, grp, body_Obj, callback) {
     request.headers.rootnm = 'agr';
+    var cse_poa = {};
+    update_route(request.connection, cse_poa, function (code) {
+        if(code === '200') {
+            var ri_list = [];
+            get_ri_list_sri(request, response, grp.mid, ri_list, 0, function (code) {
+                if(code === '200') {
+                    var req_count = 0;
+                    var agr = {};
+                    make_internal_ri(ri_list);
+                    fopt_member(request, response, req_count, ri_list, body_Obj, cse_poa, agr, function (code) {
+                        if(code == '200') {
+                            var retrieve_Obj = agr;
+                            if (Object.keys(retrieve_Obj).length != 0) {
+                                request.resourceObj = JSON.parse(JSON.stringify(retrieve_Obj));
+                                retrieve_Obj = null;
 
-    update_route(function (cse_poa) {
-        var ri_list = [];
-        get_ri_list_sri(request, response, grp.mid, ri_list, 0, function (ri_list, request, response) {
-            var req_count = 0;
-            var agr = {};
-            make_internal_ri(ri_list);
-            fopt_member(request, response, req_count, ri_list, body_Obj, cse_poa, agr, function (retrieve_Obj) {
-                if (Object.keys(retrieve_Obj).length != 0) {
-                    responder.search_result(request, response, 200, retrieve_Obj, 2000, request.url, '');
-                    return '0';
+                                callback('200)');
+                            }
+                            else {
+                                callback('404-5');
+                            }
+                        }
+                    });
                 }
                 else {
-                    retrieve_Obj = {};
-                    retrieve_Obj['dbg'] = 'response is not from fanOutPoint';
-                    responder.response_result(request, response, 404, retrieve_Obj, 4004, request.url, retrieve_Obj['dbg']);
+                    callback(code);
                 }
             });
-        });
+        }
+        else {
+            callback(code);
+        }
     });
 };
 

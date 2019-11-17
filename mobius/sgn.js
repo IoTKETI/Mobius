@@ -28,6 +28,8 @@ var merge = require('merge');
 
 var responder = require('./responder');
 
+var sgn_man = require('./sgn_man');
+
 function make_xml_noti_message(pc, xm2mri, callback) {
     try {
         var noti_message = {};
@@ -121,7 +123,10 @@ function make_json_noti_message(nu, pc, xm2mri, short_flag) {
 
         noti_message['m2m:rqp'].pc = pc;
 
-        return JSON.stringify(noti_message['m2m:rqp']);
+        var notiString = JSON.stringify(noti_message['m2m:rqp']);
+        delete noti_message;
+        noti_message = null;
+        return notiString;
     }
     catch (e) {
         console.log('[make_json_noti_message] json parsing error');
@@ -177,7 +182,15 @@ function make_body_string_for_noti(protocol, nu, node, sub_bodytype, xm2mri, sho
     }
 }
 
-function sgn_action_send(nu, sub_nu, sub_bodytype, node, short_flag, check_value, ss_cr, ss_ri, xm2mri, exc) {
+function sgn_action_send(nu_arr, req_count, sub_bodytype, node, short_flag, check_value, ss_cr, ss_ri, xm2mri, exc, parentObj, callback) {
+    if(nu_arr.length <= req_count) {
+        callback('200');
+        return;
+    }
+
+    var nu = nu_arr[req_count];
+    var sub_nu = url.parse(nu);
+
     if (sub_nu.query != null) {
         var sub_nu_query_arr = sub_nu.query.split('&');
         for (var prop in sub_nu_query_arr) {
@@ -226,141 +239,247 @@ function sgn_action_send(nu, sub_nu, sub_bodytype, node, short_flag, check_value
     }
     else if(check_value == 256) {
         node['m2m:sgn'].vrq = true;
-        temp = node['m2m:sgn'].sur;
+        var temp = node['m2m:sgn'].sur;
         delete node['m2m:sgn'].sur;
         node['m2m:sgn'].sur = temp;
         node['m2m:sgn'].cr = ss_cr;
         delete node['m2m:sgn'].nev;
     }
-    // for cert
-    // node['m2m:sgn'].rvi = uservi;
-    //
+
+    if(useCert !== 'enable') {
+        node['m2m:sgn'].rvi = uservi;
+    }
 
     make_body_string_for_noti(sub_nu.protocol, nu, node, sub_bodytype, xm2mri, short_flag, function (bodyString) {
+        delete node;
+        node = null;
         if (bodyString == "") { // parse error
             console.log('can not send notification since error of converting json to xml');
         }
         else {
-            request_noti(nu, ss_ri, bodyString, sub_bodytype, xm2mri, exc);
+            var gap = parseInt(10 + Math.random() * 10);
+            setTimeout(sgn_man.post, gap, ss_ri, exc, nu, sub_bodytype, xm2mri, bodyString, parentObj);
         }
+
+        sgn_action_send(nu_arr, ++req_count, sub_bodytype, node, short_flag, check_value, ss_cr, ss_ri, xm2mri, exc, parentObj, function (code) {
+            callback(code);
+        });
     });
 }
 
-function sgn_action(rootnm, check_value, results_ss, noti_Obj, sub_bodytype) {
+function get_nu_arr(connection, nu_arr, req_count, callback) {
+    if(nu_arr.length <= req_count) {
+        callback('200');
+        return;
+    }
+
+    var nu = nu_arr[req_count];
+    var sub_nu = url.parse(nu);
+
+    if(sub_nu.protocol == null) { // ID format
+        var absolute_url = nu;
+        absolute_url = absolute_url.replace(usespid + usecseid + '/', '/');
+        absolute_url = absolute_url.replace(usecseid + '/', '/');
+
+        if(absolute_url.charAt(0) != '/') {
+            absolute_url = '/' + absolute_url;
+        }
+
+        var absolute_url_arr = absolute_url.split('/');
+
+        db_sql.get_ri_sri(connection, absolute_url_arr[1].split('?')[0], function (err, results) {
+            if (err) {
+                console.log('[sgn_action] database error (can not get resourceID from database)');
+                callback('200');
+            }
+            else {
+                absolute_url = (results.length == 0) ? absolute_url : ((results[0].hasOwnProperty('ri')) ? absolute_url.replace('/' + absolute_url_arr[1], results[0].ri) : absolute_url);
+
+                var sri = absolute_url_arr[1].split('?')[0];
+                var ri = absolute_url.split('?')[0];
+                db_sql.select_resource_from_url(connection, ri, sri, function (err, result_Obj) {
+                    if (!err) {
+                        if (result_Obj.length == 1) {
+                            if (result_Obj[0].poa != null || result_Obj[0].poa != '') {
+                                var poa_arr = JSON.parse(result_Obj[0].poa);
+                                for (var i = 0; i < poa_arr.length; i++) {
+                                    sub_nu = url.parse(poa_arr[i]);
+                                    if(sub_nu.protocol == null) {
+                                        nu_arr.push('http://localhost:7579' + absolute_url);
+                                    }
+                                    else {
+                                        nu_arr.push(poa_arr[i]);
+                                    }
+                                }
+
+                                get_nu_arr(connection, nu_arr, ++req_count, function (code) {
+                                    callback(code);
+                                });
+                            }
+                        }
+                    }
+                    else {
+                        console.log('[sgn_action] database error (nu resource)');
+                        callback('200');
+                    }
+                });
+            }
+        });
+    }
+    else {
+        callback('200');
+    }
+}
+
+function sgn_action(connection, rootnm, check_value, subl, req_count, noti_Obj, sub_bodytype, parentObj, callback) {
+    if(subl.length <= req_count) {
+        callback('200');
+        return;
+    }
+
+    var results_ss = subl[req_count];
     var notiObj = merge({}, noti_Obj);
 
     var nct = results_ss.nct;
     var enc_Obj = results_ss.enc;
     var net_arr = enc_Obj.net;
+    var nu_arr = results_ss.nu;
+
+    var xm2mri = require('shortid').generate();
+    var short_flag = 0;
+
+    var node = {};
+    node['m2m:sgn'] = {};
+
+    if(results_ss.ri.charAt(0) == '/') {
+        node['m2m:sgn'].sur = results_ss.ri.replace('/', '');
+    }
+    else {
+        node['m2m:sgn'].sur = results_ss.ri;
+    }
+
+    if (results_ss.nec) {
+        node['m2m:sgn'].nec = results_ss.nec;
+    }
+    node['m2m:sgn'].nev = {};
+    node['m2m:sgn'].nev.rep = {};
+
+    responder.typeCheckforJson(node['m2m:sgn'].nev.rep);
 
     for (var j = 0; j < net_arr.length; j++) {
-        /* for testing, make comment statement
-        if (net_arr[j] == check_value) { // 1 : Update_of_Subscribed_Resource, 3 : Create_of_Direct_Child_Resource, 4 : Delete_of_Direct_Child_Resource
-         */
         if (net_arr[j] == check_value || check_value == 256 || check_value == 128) { // 1 : Update_of_Subscribed_Resource, 3 : Create_of_Direct_Child_Resource, 4 : Delete_of_Direct_Child_Resource
-            var nu_arr = results_ss.nu;
-            for (var k = 0; k < nu_arr.length; k++) {
-                var nu = nu_arr[k];
+            node['m2m:sgn'].nev.net = parseInt(net_arr[j].toString());
+            node['m2m:sgn'].nev.rep['m2m:' + rootnm] = JSON.parse(JSON.stringify(notiObj));
+            notiObj = null;
 
-                var node = {};
-                node['m2m:sgn'] = {};
-
-                if(results_ss.ri.charAt(0) == '/') {
-                    node['m2m:sgn'].sur = results_ss.ri.replace('/', '');
-                }
-                else {
-                    node['m2m:sgn'].sur = results_ss.ri;
-                }
-
-                if (results_ss.nec) {
-                    node['m2m:sgn'].nec = results_ss.nec;
-                }
-                node['m2m:sgn'].nev = {};
-                node['m2m:sgn'].nev.net = parseInt(net_arr[j].toString());
-                node['m2m:sgn'].nev.rep = {};
-                node['m2m:sgn'].nev.rep['m2m:' + rootnm] = notiObj;
-
-                responder.typeCheckforJson(node['m2m:sgn'].nev.rep);
-
-                var xm2mri = require('shortid').generate();
-                var short_flag = 0;
-
-                var sub_nu = url.parse(nu);
-
-                if(sub_nu.protocol == null) { // ID format
-                    var absolute_url = nu;
-                    absolute_url = absolute_url.replace(usespid + usecseid + '/', '/');
-                    absolute_url = absolute_url.replace(usecseid + '/', '/');
-
-                    if(absolute_url.charAt(0) != '/') {
-                        absolute_url = '/' + absolute_url;
-                    }
-
-                    var absolute_url_arr = absolute_url.split('/');
-
-                    db_sql.get_ri_sri(node, absolute_url, absolute_url_arr[1].split('?')[0], function (err, results, node, absolute_url) {
-                        if (err) {
-                            console.log('[sgn_action] database error (can not get resourceID from database)');
-                        }
-                        else {
-                            absolute_url = (results.length == 0) ? absolute_url : ((results[0].hasOwnProperty('ri')) ? absolute_url.replace('/' + absolute_url_arr[1], results[0].ri) : absolute_url);
-
-                            var sri = absolute_url_arr[1].split('?')[0];
-                            var ri = absolute_url.split('?')[0];
-                            db_sql.select_resource_from_url(ri, sri, function (err, result_Obj) {
-                                if (!err) {
-                                    if (result_Obj.length == 1) {
-                                        if (result_Obj[0].poa != null || result_Obj[0].poa != '') {
-                                            var poa_arr = JSON.parse(result_Obj[0].poa);
-                                            for (var i = 0; i < poa_arr.length; i++) {
-                                                sub_nu = url.parse(poa_arr[i]);
-                                                if(sub_nu.protocol == null) {
-                                                    nu = 'http://localhost:7579' + absolute_url;
-                                                    sub_nu = url.parse(nu);
-                                                    if (nct == 2 || nct == 1) {
-                                                        sgn_action_send(nu, sub_nu, sub_bodytype, node, short_flag, check_value, results_ss.cr, results_ss.ri, xm2mri, results_ss.exc);
-                                                    }
-                                                }
-                                                else {
-                                                    nu = poa_arr[i];
-                                                    if (nct == 2 || nct == 1) {
-                                                        sgn_action_send(nu, sub_nu, sub_bodytype, node, short_flag, check_value, results_ss.cr, results_ss.ri, xm2mri, results_ss.exc);
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                                else {
-                                    console.log('[sgn_action] database error (nu resource)');
-                                }
-                            });
-                        }
-                    });
-                }
-                else { // url format
+            get_nu_arr(connection, nu_arr, 0, function (code) {
+                if(code == '200') {
                     if (nct == 2 || nct == 1) {
-                        sgn_action_send(nu, sub_nu, sub_bodytype, node, short_flag, check_value, results_ss.cr, results_ss.ri, xm2mri, results_ss.exc);
+                        //var gap = parseInt(10 + Math.random() * 20);
+                        //setTimeout(sgn_action_send, gap, nu, sub_nu, sub_bodytype, node, short_flag, check_value, results_ss.cr, results_ss.ri, xm2mri, results_ss.exc, parentObj);
+                        sgn_action_send(nu_arr, 0, sub_bodytype, node, short_flag, check_value, results_ss.cr, results_ss.ri, xm2mri, results_ss.exc, parentObj, function (code) {
+                            if(code === '200') {
+
+                            }
+                            else {
+
+                            }
+                            sgn_action(connection, rootnm, check_value, subl, ++req_count, noti_Obj, sub_bodytype, parentObj, function (code) {
+                                callback(code);
+                            });
+                        });
                     }
                     else {
                         console.log('nct except 2 (All Attribute) do not support');
+                        sgn_action(connection, rootnm, check_value, subl, ++req_count, noti_Obj, sub_bodytype, parentObj, function (code) {
+                            callback(code);
+                        });
                     }
                 }
-            }
+            });
+            break;
+
+            // for (var k = 0; k < nu_arr.length; k++) {
+            //     var nu = nu_arr[k];
+            //     var sub_nu = url.parse(nu);
+            //
+            //     if(sub_nu.protocol == null) { // ID format
+            //         var absolute_url = nu;
+            //         absolute_url = absolute_url.replace(usespid + usecseid + '/', '/');
+            //         absolute_url = absolute_url.replace(usecseid + '/', '/');
+            //
+            //         if(absolute_url.charAt(0) != '/') {
+            //             absolute_url = '/' + absolute_url;
+            //         }
+            //
+            //         var absolute_url_arr = absolute_url.split('/');
+            //
+            //         db_sql.get_ri_sri(connection, absolute_url_arr[1].split('?')[0], function (err, results) {
+            //             if (err) {
+            //                 console.log('[sgn_action] database error (can not get resourceID from database)');
+            //             }
+            //             else {
+            //                 absolute_url = (results.length == 0) ? absolute_url : ((results[0].hasOwnProperty('ri')) ? absolute_url.replace('/' + absolute_url_arr[1], results[0].ri) : absolute_url);
+            //
+            //                 var sri = absolute_url_arr[1].split('?')[0];
+            //                 var ri = absolute_url.split('?')[0];
+            //                 db_sql.select_resource_from_url(connection, ri, sri, function (err, result_Obj) {
+            //                     if (!err) {
+            //                         if (result_Obj.length == 1) {
+            //                             if (result_Obj[0].poa != null || result_Obj[0].poa != '') {
+            //                                 var poa_arr = JSON.parse(result_Obj[0].poa);
+            //                                 for (var i = 0; i < poa_arr.length; i++) {
+            //                                     sub_nu = url.parse(poa_arr[i]);
+            //                                     if(sub_nu.protocol == null) {
+            //                                         nu_arr.push('http://localhost:7579' + absolute_url);
+            //                                         sub_nu = url.parse(nu);
+            //                                         if (nct == 2 || nct == 1) {
+            //                                             var gap = parseInt(10 + Math.random() * 20);
+            //                                             setTimeout(sgn_action_send, gap, nu, sub_nu, sub_bodytype, node, short_flag, check_value, results_ss.cr, results_ss.ri, xm2mri, results_ss.exc, parentObj);
+            //                                         }
+            //                                     }
+            //                                     else {
+            //                                         nu = poa_arr[i];
+            //                                         if (nct == 2 || nct == 1) {
+            //                                             gap = parseInt(10 + Math.random() * 20);
+            //                                             setTimeout(sgn_action_send, gap, nu, sub_nu, sub_bodytype, node, short_flag, check_value, results_ss.cr, results_ss.ri, xm2mri, results_ss.exc, parentObj);
+            //                                         }
+            //                                     }
+            //                                 }
+            //                             }
+            //                         }
+            //                     }
+            //                     else {
+            //                         console.log('[sgn_action] database error (nu resource)');
+            //                     }
+            //                 });
+            //             }
+            //         });
+            //     }
+            //     else { // url format
+            //         if (nct == 2 || nct == 1) {
+            //             var gap = parseInt(10 + Math.random() * 20);
+            //             //setTimeout(sgn_action_send, gap, nu, sub_nu, sub_bodytype, node, short_flag, check_value, results_ss.cr, results_ss.ri, xm2mri, results_ss.exc, parentObj);
+            //             sgn_action_send(nu_arr, 0, sub_bodytype, node, short_flag, check_value, results_ss.cr, results_ss.ri, xm2mri, results_ss.exc, parentObj, function (code) {
+            //                 callback(code);
+            //             });
+            //         }
+            //         else {
+            //             console.log('nct except 2 (All Attribute) do not support');
+            //         }
+            //     }
+            // }
         }
-        //else {
-        //    console.log('enc-net except 3 do not support');
-        //}
     }
 }
 
-exports.check = function(request, notiObj, check_value) {
+exports.check = function(request, notiObj, check_value, callback) {
     var rootnm = request.headers.rootnm;
 
-    if((request.method == "PUT" && check_value == 1)) {
+    if((request.method.toLowerCase() == "put" && check_value == 1)) {
         var pi = notiObj.ri;
     }
-    else if ((request.method == "POST" && check_value == 3) || (request.method == "DELETE" && check_value == 4)) {
+    else if ((request.method.toLowerCase() == "post" && check_value == 3) || (request.method.toLowerCase() == "delete" && check_value == 4)) {
         pi = notiObj.pi;
     }
 
@@ -369,23 +488,13 @@ exports.check = function(request, notiObj, check_value) {
     var noti_Str = JSON.stringify(notiObj);
     var noti_Obj = JSON.parse(noti_Str);
 
-    if (request.query.real == 4) {
-        if(request.query.hasOwnProperty('nu')) {
-            var results_ss = {};
-            results_ss.ri = pi + '/' + (request.query.hasOwnProperty('rn') ? request.query.rn : 'sub');
-            results_ss.nct = '2';
-            results_ss.enc = {};
-            results_ss.enc.net = [];
-            results_ss.enc.net.push('3');
-            results_ss.nu = [];
-            results_ss.nu.push((request.query.hasOwnProperty('nu') ? request.query.nu : 'http://localhost'));
-            sgn_action(rootnm, check_value, results_ss, noti_Obj, request.usebodytype);
-        }
-        return'1';
-    }
+    var parentObj = JSON.parse(JSON.stringify(request.targetObject))[Object.keys(request.targetObject)[0]];
+    var subl = request.targetObject[Object.keys(request.targetObject)[0]].subl;
 
     if(check_value == 256 || check_value == 128) { // verification
-        sgn_action(rootnm, check_value, notiObj, noti_Obj, request.usebodytype);
+        sgn_action(request.connection, rootnm, check_value, subl, 0, noti_Obj, request.usebodytype, parentObj, function (code) {
+            callback(code);
+        });
     }
     else {
         var noti_ri = noti_Obj.ri;
@@ -394,17 +503,13 @@ exports.check = function(request, notiObj, check_value) {
         noti_Obj.pi = noti_Obj.spi;
         delete noti_Obj.spi;
 
-        var subl = request.targetObject[Object.keys(request.targetObject)[0]].subl;
-        for (var i = 0; i < subl.length; i++) {
-            if(subl[i].ri == noti_ri) {
-                continue;
-            }
-
-            console.log('send sgn ' + i);
-            sgn_action(rootnm, check_value, subl[i], noti_Obj, request.usebodytype);
-        }
+        sgn_action(request.connection, rootnm, check_value, subl, 0, noti_Obj, request.usebodytype, parentObj, function (code) {
+            callback(code);
+        });
     }
 };
+
+
 
 function request_noti(nu, ri, bodyString, bodytype, xm2mri, exc) {
     var options = {
@@ -437,7 +542,7 @@ function request_noti(nu, ri, bodyString, bodytype, xm2mri, exc) {
 
             res.on('end', function () {
                 if(res.statusCode == 200 || res.statusCode == 201) {
-                    console.log('-------> [response_noti - ' + res.headers['x-m2m-rsc'] + '] - ' + ri);
+                    console.log('=======> [response_noti - ' + res.headers['x-m2m-rsc'] + '] - ' + ri);
                 }
             });
         });
@@ -454,7 +559,7 @@ function request_noti(nu, ri, bodyString, bodytype, xm2mri, exc) {
 
             res.on('end', function () {
                 if(res.statusCode == 200 || res.statusCode == 201) {
-                    console.log('-------> [response_noti - ' + res.headers['x-m2m-rsc'] + '] - ' + ri);
+                    console.log('=======> [response_noti - ' + res.headers['x-m2m-rsc'] + '] - ' + ri);
                 }
             });
         });

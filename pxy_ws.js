@@ -206,14 +206,14 @@ function ws_message_handler(message) {
     }
 }
 
-function ws_message_action(connection, bodytype, jsonObj) {
+function ws_message_action(ws_conn, bodytype, jsonObj) {
     if (jsonObj['m2m:rqp'] != null) {
         console.log('m2m:rqp tag of ws message is removed');
 
         var res_body = {};
         res_body['m2m:dbg'] = 'm2m:rqp tag of ws message is removed';
 
-        ws_response(connection, 4000, "", usecseid, "", JSON.parse(res_body), bodytype);
+        ws_response(ws_conn, 4000, "", usecseid, "", JSON.parse(res_body), bodytype);
     }
     else {
         var op = (jsonObj.op == null) ? '' : jsonObj.op;
@@ -256,16 +256,16 @@ function ws_message_action(connection, bodytype, jsonObj) {
                     if (res_body == '') {
                         res_body = '{}';
                     }
-                    ws_response(connection, res.headers['x-m2m-rsc'], to, usecseid, rqi, JSON.parse(res_body), bodytype);
+                    ws_response(ws_conn, res.headers['x-m2m-rsc'], to, usecseid, rqi, JSON.parse(res_body), bodytype);
                 });
             // }
             // else {
-            //     ws_response(connection, 4004, fr, usecseid, rqi, 'this is not MN-CSE, csebase do not exist', bodytype);
+            //     ws_response(ws_conn, 4004, fr, usecseid, rqi, 'this is not MN-CSE, csebase do not exist', bodytype);
             // }
         }
         catch (e) {
             console.error(e);
-            ws_response(connection, 5000, fr, usecseid, rqi, 'to parsing error', bodytype);
+            ws_response(ws_conn, 5000, fr, usecseid, rqi, 'to parsing error', bodytype);
         }
     }
 }
@@ -354,7 +354,7 @@ function ws_binding(op, to, fr, rqi, ty, pc, bodytype, callback) {
     req.end();
 }
 
-function ws_response(connection, rsc, to, fr, rqi, inpc, bodytype) {
+function ws_response(ws_conn, rsc, to, fr, rqi, inpc, bodytype) {
     var rsp_message = {};
     rsp_message['m2m:rsp'] = {};
     //rsp_message['m2m:rsp'].rsc = rsc;
@@ -395,15 +395,15 @@ function ws_response(connection, rsc, to, fr, rqi, inpc, bodytype) {
 
         var bodyString = js2xmlparser.parse("m2m:rsp", rsp_message['m2m:rsp']);
 
-        connection.sendUTF(bodyString.toString());
+        ws_conn.sendUTF(bodyString.toString());
     }
     else if (bodytype === 'cbor') { // 'cbor'
         bodyString = cbor.encode(rsp_message['m2m:rsp']).toString('hex');
         var bytearray = Buffer.from(bodyString, 'hex');
-        connection.send(bytearray);
+        ws_conn.send(bytearray);
     }
     else { // 'json'
-        connection.sendUTF(JSON.stringify(rsp_message['m2m:rsp']));
+        ws_conn.sendUTF(JSON.stringify(rsp_message['m2m:rsp']));
     }
 }
 

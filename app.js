@@ -59,11 +59,6 @@ global.usesuperuser         = 'Superman';
 
 global.useobserver          = 'Sandwich';
 
-global.resultStatusCode = {
-    '4230': "LOCKED: this resource was occupied by others",
-    '4103': "ACCESS DENIED"
-};
-
 global.randomValueBase64 = function (len) {
     return crypto.randomBytes(Math.ceil(len * 3 / 4))
         .toString('base64')   // convert to base64 format
@@ -98,21 +93,37 @@ app.use(morgan('combined', {stream: accessLogStream}));
 //ts_app.use(morgan('short', {stream: accessLogStream}));
 
 function del_req_resource() {
-    db_sql.delete_req(function (err, delete_Obj) {
-        if(!err) {
-            console.log('deleted ' + delete_Obj.affectedRows + ' request resource(s).');
+    db.getConnection(function (code, connection) {
+        if(code === '200') {
+            db_sql.delete_req(connection, function (err, delete_Obj) {
+                if (!err) {
+                    console.log('deleted ' + delete_Obj.affectedRows + ' request resource(s).');
+                }
+                connection.release();
+            });
+        }
+        else {
+            console.log('[del_req_resource] No Connection');
         }
     });
 }
 
 function del_expired_resource() {
-    // this routine is that delete resource expired time exceed et of resource
-    var et = moment().utc().format('YYYYMMDDTHHmmss');
-    db_sql.delete_lookup_et(et, function (err) {
-        if(!err) {
-            console.log('---------------');
-            console.log('delete resources expired et');
-            console.log('---------------');
+    db.getConnection(function (code, connection) {
+        if(code === '200') {
+            // this routine is that delete resource expired time exceed et of resource
+            var et = moment().utc().format('YYYYMMDDTHHmmss');
+            db_sql.delete_lookup_et(connection, et, function (err) {
+                if (!err) {
+                    console.log('---------------');
+                    console.log('delete resources expired et');
+                    console.log('---------------');
+                }
+                connection.release();
+            });
+        }
+        else {
+            console.log('[del_expired_resource] No Connection');
         }
     });
 }
@@ -134,35 +145,41 @@ if (use_clustering) {
 
         db.connect(usedbhost, 3306, 'root', usedbpass, function (rsc) {
             if (rsc == '1') {
-                db_sql.set_tuning(function (err, results) {
-                    if(err) {
-                        console.log('[set_tuning] error');
+                db.getConnection(function (code, connection) {
+                    if(code === '200') {
+                        db_sql.set_tuning(connection, function (err, results) {
+                            if (err) {
+                                console.log('[set_tuning] error');
+                            }
+
+                            console.log('CPU Count:', cpuCount);
+                            for (var i = 0; i < cpuCount; i++) {
+                                worker[i] = cluster.fork();
+                            }
+
+                            cb.create(connection, function (rsp) {
+                                console.log(JSON.stringify(rsp));
+
+                                setInterval(del_req_resource, (24) * (60) * (60) * (1000));
+                                setInterval(del_expired_resource, (24) * (60) * (60) * (1000));
+
+                                require('./pxy_mqtt');
+                                require('./pxy_coap');
+                                require('./pxy_ws');
+
+                                if (usecsetype == 'mn' || usecsetype == 'asn') {
+                                    global.refreshIntervalId = setInterval(function () {
+                                        csr_custom.emit('register_remoteCSE');
+                                    }, 5000);
+                                }
+
+                                connection.release();
+                            });
+                        });
                     }
-
-                    console.log('CPU Count:', cpuCount);
-                    for (var i = 0; i < cpuCount; i++) {
-                        worker[i] = cluster.fork();
+                    else {
+                        console.log('[db.connect] No Connection');
                     }
-
-                    cb.create(function (rsp) {
-                        console.log(JSON.stringify(rsp));
-
-                        wdt.set_wdt(require('shortid').generate(), 43200, del_req_resource);
-                        wdt.set_wdt(require('shortid').generate(), 86400, del_expired_resource);
-
-                        require('./hit_man');
-                        require('./pxy_mqtt');
-                        require('./pxy_coap');
-                        require('./pxy_ws');
-                        require('./sgn_man');
-                        require('./cnt_man');
-
-                        if (usecsetype == 'mn' || usecsetype == 'asn') {
-                            global.refreshIntervalId = setInterval(function () {
-                                csr_custom.emit('register_remoteCSE');
-                            }, 5000);
-                        }
-                    });
                 });
             }
         });
@@ -170,31 +187,42 @@ if (use_clustering) {
     else {
         db.connect(usedbhost, 3306, 'root', usedbpass, function (rsc) {
             if (rsc == '1') {
-                if(use_secure === 'disable') {
-                    http.globalAgent.maxSockets = 1000000;
-                    http.createServer(app).listen({port: usecsebaseport, agent: false}, function () {
-                        console.log('mobius server (' + ip.address() + ') running at ' + usecsebaseport + ' port');
-                        cb.create(function (rsp) {
-                            console.log(JSON.stringify(rsp));
-                            //noti_mqtt_begin();
-                        });
-                    });
-                }
-                else {
-                    var options = {
-                        key: fs.readFileSync('server-key.pem'),
-                        cert: fs.readFileSync('server-crt.pem'),
-                        ca: fs.readFileSync('ca-crt.pem')
-                    };
-                    https.globalAgent.maxSockets = 1000000;
-                    https.createServer(options, app).listen({port: usecsebaseport, agent: false}, function () {
-                        console.log('mobius server (' + ip.address() + ') running at ' + usecsebaseport + ' port');
-                        cb.create(function (rsp) {
-                            console.log(JSON.stringify(rsp));
-                            //noti_mqtt_begin();
-                        });
-                    });
-                }
+                db.getConnection(function (code, connection) {
+                    if(code === '200') {
+                        if (use_secure === 'disable') {
+                            http.globalAgent.maxSockets = 1000000;
+                            http.createServer(app).listen({port: usecsebaseport, agent: false}, function () {
+                                console.log('mobius server (' + ip.address() + ') running at ' + usecsebaseport + ' port');
+                                cb.create(connection, function (rsp) {
+                                    console.log(JSON.stringify(rsp));
+                                    //noti_mqtt_begin();
+
+                                    connection.release();
+                                });
+                            });
+                        }
+                        else {
+                            var options = {
+                                key: fs.readFileSync('server-key.pem'),
+                                cert: fs.readFileSync('server-crt.pem'),
+                                ca: fs.readFileSync('ca-crt.pem')
+                            };
+                            https.globalAgent.maxSockets = 1000000;
+                            https.createServer(options, app).listen({port: usecsebaseport, agent: false}, function () {
+                                console.log('mobius server (' + ip.address() + ') running at ' + usecsebaseport + ' port');
+                                cb.create(connection, function (rsp) {
+                                    console.log(JSON.stringify(rsp));
+                                    //noti_mqtt_begin();
+
+                                    connection.release();
+                                });
+                            });
+                        }
+                    }
+                    else {
+                        console.log('[db.connect] No Connection');
+                    }
+                });
             }
         });
     }
@@ -202,42 +230,53 @@ if (use_clustering) {
 else {
     db.connect(usedbhost, 3306, 'root', usedbpass, function (rsc) {
         if (rsc == '1') {
-            cb.create(function (rsp) {
-                console.log(JSON.stringify(rsp));
+            db.getConnection(function (code, connection) {
+                if(code === '200') {
+                    cb.create(connection, function (rsp) {
+                        console.log(JSON.stringify(rsp));
 
-                if(use_secure === 'disable') {
-                    http.globalAgent.maxSockets = 1000000;
-                    http.createServer(app).listen({port: usecsebaseport, agent: false}, function () {
-                        console.log('mobius server (' + ip.address() + ') running at ' + usecsebaseport + ' port');
-                        require('./pxy_mqtt');
-                        //noti_mqtt_begin();
+                        if (use_secure === 'disable') {
+                            http.globalAgent.maxSockets = 1000000;
+                            http.createServer(app).listen({port: usecsebaseport, agent: false}, function () {
+                                console.log('mobius server (' + ip.address() + ') running at ' + usecsebaseport + ' port');
+                                require('./pxy_mqtt');
+                                //noti_mqtt_begin();
 
-                        if (usecsetype === 'mn' || usecsetype === 'asn') {
-                            global.refreshIntervalId = setInterval(function () {
-                                csr_custom.emit('register_remoteCSE');
-                            }, 5000);
+                                if (usecsetype === 'mn' || usecsetype === 'asn') {
+                                    global.refreshIntervalId = setInterval(function () {
+                                        csr_custom.emit('register_remoteCSE');
+                                    }, 5000);
+                                }
+
+                                connection.release();
+                            });
+                        }
+                        else {
+                            var options = {
+                                key: fs.readFileSync('server-key.pem'),
+                                cert: fs.readFileSync('server-crt.pem'),
+                                ca: fs.readFileSync('ca-crt.pem')
+                            };
+                            https.globalAgent.maxSockets = 1000000;
+                            https.createServer(options, app).listen({port: usecsebaseport, agent: false}, function () {
+                                console.log('mobius server (' + ip.address() + ') running at ' + usecsebaseport + ' port');
+                                require('./pxy_mqtt');
+                                //noti_mqtt_begin();
+                                //require('./mobius/ts_agent');
+
+                                if (usecsetype === 'mn' || usecsetype === 'asn') {
+                                    global.refreshIntervalId = setInterval(function () {
+                                        csr_custom.emit('register_remoteCSE');
+                                    }, 5000);
+                                }
+
+                                connection.release();
+                            });
                         }
                     });
                 }
                 else {
-                    var options = {
-                        key: fs.readFileSync('server-key.pem'),
-                        cert: fs.readFileSync('server-crt.pem'),
-                        ca: fs.readFileSync('ca-crt.pem')
-                    };
-                    https.globalAgent.maxSockets = 1000000;
-                    https.createServer(options, app).listen({port: usecsebaseport, agent: false}, function () {
-                        console.log('mobius server (' + ip.address() + ') running at ' + usecsebaseport + ' port');
-                        require('./pxy_mqtt');
-                        //noti_mqtt_begin();
-                        //require('./mobius/ts_agent');
-
-                        if (usecsetype === 'mn' || usecsetype === 'asn') {
-                            global.refreshIntervalId = setInterval(function () {
-                                csr_custom.emit('register_remoteCSE');
-                            }, 5000);
-                        }
-                    });
+                    console.log('[db.connect] No Connection');
                 }
             });
         }
@@ -246,27 +285,27 @@ else {
 
 global.get_ri_list_sri = function (request, response, sri_list, ri_list, count, callback) {
     if(sri_list.length <= count) {
-        callback(sri_list, request, response);
+        callback('200');
     }
     else {
-        db_sql.get_ri_sri(request, response, sri_list[count], function (err, results, request, response) {
-            ri_list[count] = ((results.length == 0) ? sri_list[count] : results[0].ri);
+        db_sql.get_ri_sri(request.connection, sri_list[count], function (err, results) {
+            if(!err) {
+                ri_list[count] = ((results.length == 0) ? sri_list[count] : results[0].ri);
+                results = null;
 
-            if (sri_list.length <= ++count) {
-                callback(ri_list, request, response);
+                get_ri_list_sri(request, response, sri_list, ri_list, ++count, function (code) {
+                    callback(code);
+                });
             }
             else {
-                get_ri_list_sri(request, response, sri_list, ri_list, count, function (ri_list, request, response) {
-                    callback(ri_list, request, response);
-                });
+                callback('500-1');
             }
         });
     }
 };
 
-global.update_route = function (callback) {
-    var cse_poa = {};
-    db_sql.select_csr_like(usecsebase, function (err, results_csr) {
+global.update_route = function (connection, cse_poa, callback) {
+    db_sql.select_csr_like(connection, usecsebase, function (err, results_csr) {
         if (!err) {
             for (var i = 0; i < results_csr.length; i++) {
                 var poa_arr = JSON.parse(results_csr[i].poa);
@@ -276,8 +315,12 @@ global.update_route = function (callback) {
                     }
                 }
             }
+            results_csr = null;
+            callback('200');
         }
-        callback(cse_poa);
+        else {
+            callback('500-1');
+        }
     });
 };
 
@@ -466,30 +509,25 @@ global.make_json_arraytype = function (body_Obj) {
 };
 
 function parse_to_json(request, response, callback) {
-    var body_Obj = {};
-
     if (request.usebodytype === 'xml') {
         try {
             var parser = new xml2js.Parser({explicitArray: false});
             parser.parseString(request.body.toString(), function (err, result) {
                 if (err) {
-                    responder.error_result(request, response, 400, 4000, '[parse_to_json] do not parse xml body' + err.message);
-                    callback('0', body_Obj);
+                    callback('400-5');
                 }
                 else {
-                    body_Obj = result;
-                    make_short_nametype(body_Obj);
-                    make_json_arraytype(body_Obj);
+                    request.bodyObj = result;
+                    make_short_nametype(request.bodyObj);
+                    make_json_arraytype(request.bodyObj);
 
-                    request.headers.rootnm = Object.keys(body_Obj)[0];
-                    request.bodyObj = body_Obj;
-                    callback('1', body_Obj);
+                    request.headers.rootnm = Object.keys(request.bodyObj)[0];
+                    callback('200');
                 }
             });
         }
         catch(e) {
-            responder.error_result(request, response, 400, 4000, '[parse_to_json] do not parse xml body');
-            callback('0', body_Obj);
+            callback('400-5');
         }
     }
     else if (request.usebodytype === 'cbor') {
@@ -497,53 +535,45 @@ function parse_to_json(request, response, callback) {
             var encoded = request.body;
             cbor.decodeFirst(encoded, function(err, result) {
                 if (err) {
-                    responder.error_result(request, response, 400, 4000, '[parse_to_json] do not parse cbor body');
-                    callback('0', body_Obj);
+                    callback('400-6');
                 }
                 else {
-                    body_Obj = result;
-                    make_short_nametype(body_Obj);
-                    //make_json_arraytype(body_Obj);
+                    request.bodyObj = result;
+                    make_short_nametype(request.bodyObj);
+                    //make_json_arraytype(request.bodyObj);
 
-                    request.headers.rootnm = Object.keys(body_Obj)[0];
-                    request.bodyObj = body_Obj;
-                    callback('1', body_Obj);
+                    request.headers.rootnm = Object.keys(request.bodyObj)[0];
+                    callback('200');
                 }
             });
         }
         catch(e) {
-            responder.error_result(request, response, 400, 4000, '[parse_to_json] do not parse cbor body');
-            callback('0', body_Obj);
+            callback('400-6');
         }
     }
     else {
         try {
-            body_Obj = JSON.parse(request.body.toString());
-            make_short_nametype(body_Obj);
+            request.bodyObj = JSON.parse(request.body.toString());
+            make_short_nametype(request.bodyObj);
 
-            if (Object.keys(body_Obj)[0] == 'undefined') {
-                responder.error_result(request, response, 400, 4000, '[parse_to_json] root tag of body is not matched');
-                callback('0', body_Obj);
+            if (Object.keys(request.bodyObj)[0] == 'undefined') {
+                callback('400-7');
             }
-
-            request.headers.rootnm = Object.keys(body_Obj)[0];
-            request.bodyObj = body_Obj;
-            callback('1', body_Obj);
+            else {
+                request.headers.rootnm = Object.keys(request.bodyObj)[0];
+                callback('200');
+            }
         }
         catch (e) {
-            responder.error_result(request, response, 400, 4000, '[parse_to_json] do not parse json body');
-            callback('0', body_Obj);
+            callback('400-7');
         }
     }
 }
 
 function parse_body_format(request, response, callback) {
-    parse_to_json(request, response, function(rsc, body_Obj) {
-        if(rsc == '0') {
-            callback('0', body_Obj);
-        }
-        else {
-            request.headers.rootnm = Object.keys(body_Obj)[0];
+    parse_to_json(request, response, function(code) {
+        if(code === '200') {
+            var body_Obj = request.bodyObj;
             for (var prop in body_Obj) {
                 if (body_Obj.hasOwnProperty(prop)) {
                     for (var attr in body_Obj[prop]) {
@@ -551,11 +581,8 @@ function parse_body_format(request, response, callback) {
                             if (attr == 'aa' || attr == 'at' || attr == 'poa' || attr == 'acpi' || attr == 'srt' ||
                                 attr == 'nu' || attr == 'mid' || attr == 'macp' || attr == 'rels' || attr == 'rqps' || attr == 'srv') {
                                 if (!Array.isArray(body_Obj[prop][attr])) {
-                                    body_Obj = {};
-                                    body_Obj['dbg'] = attr + ' attribute should be json array format';
-                                    responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-                                    callback('0', body_Obj);
-                                    return '0';
+                                    callback('400-8');
+                                    return;
                                 }
                             }
                             else if (attr == 'lbl') {
@@ -563,61 +590,41 @@ function parse_body_format(request, response, callback) {
                                     body_Obj[prop][attr] = [];
                                 }
                                 else if (!Array.isArray(body_Obj[prop][attr])) {
-                                    body_Obj = {};
-                                    body_Obj['dbg'] = attr + ' attribute should be json array format';
-                                    responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-                                    callback('0', body_Obj);
-                                    return '0';
+                                    callback('400-9');
+                                    return;
                                 }
                             }
                             else if (attr == 'enc') {
                                 if (body_Obj[prop][attr].net) {
                                     if (!Array.isArray(body_Obj[prop][attr].net)) {
-                                        body_Obj = {};
-                                        body_Obj['dbg'] = attr + '.net attribute should be json array format';
-                                        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-                                        callback('0', body_Obj);
-                                        return '0';
+                                        callback('400-10');
+                                        return;
                                     }
                                 }
                                 else {
-                                    body_Obj = {};
-                                    body_Obj['dbg'] = attr + 'attribute should have net key as child in json format';
-                                    responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-                                    callback('0', body_Obj);
-                                    return '0';
+                                    callback('400-11');
+                                    return;
                                 }
                             }
                             else if (attr == 'pv' || attr == 'pvs') {
                                 if (body_Obj[prop][attr].hasOwnProperty('acr')) {
                                     if (!Array.isArray(body_Obj[prop][attr].acr)) {
-                                        body_Obj = {};
-                                        body_Obj['dbg'] = attr + '.acr should be json array format';
-                                        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-                                        callback('0', body_Obj);
-                                        return '0';
+                                        callback('400-12');
+                                        return;
                                     }
-
                                     var acr = body_Obj[prop][attr].acr;
                                     for (var acr_idx in acr) {
                                         if (acr.hasOwnProperty(acr_idx)) {
                                             if (acr[acr_idx].acor) {
                                                 if (!Array.isArray(acr[acr_idx].acor)) {
-                                                    body_Obj = {};
-                                                    body_Obj['dbg'] = attr + '.acr[' + acr_idx + '].acor should be json array format';
-                                                    responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-                                                    callback('0', body_Obj);
-                                                    return '0';
+                                                    callback('400-13');
+                                                    return;
                                                 }
                                             }
-
                                             if (acr[acr_idx].acco) {
                                                 if (!Array.isArray(acr[acr_idx].acco)) {
-                                                    body_Obj = {};
-                                                    body_Obj['dbg'] = attr + '.acr[' + acr_idx + '].acco should be json array format';
-                                                    responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-                                                    callback('0', body_Obj);
-                                                    return '0';
+                                                    callback('400-14');
+                                                    return;
                                                 }
                                                 for (var acco_idx in acr[acr_idx].acco) {
                                                     if (acr[acr_idx].acco.hasOwnProperty(acco_idx)) {
@@ -625,31 +632,21 @@ function parse_body_format(request, response, callback) {
                                                         if (acco.acip) {
                                                             if (acco.acip['ipv4']) {
                                                                 if (!Array.isArray(acco.acip['ipv4'])) {
-                                                                    body_Obj = {};
-                                                                    body_Obj['dbg'] = attr + '.acr[' + acr_idx + '].acco.acip.ipv4 should be json array format';
-                                                                    responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-                                                                    callback('0', body_Obj);
-                                                                    return '0';
+                                                                    callback('400-15');
+                                                                    return;
                                                                 }
                                                             }
                                                             else if (acco.acip['ipv6']) {
                                                                 if (!Array.isArray(acco.acip['ipv6'])) {
-                                                                    body_Obj = {};
-                                                                    body_Obj['dbg'] = attr + '.acr[' + acr_idx + '].acco.acip.ipv6 should be json array format';
-                                                                    responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-                                                                    callback('0', body_Obj);
-                                                                    return '0';
+                                                                    callback('400-16');
+                                                                    return;
                                                                 }
                                                             }
                                                         }
-
                                                         if (acco.actw) {
                                                             if (!Array.isArray(acco.actw)) {
-                                                                body_Obj = {};
-                                                                body_Obj['dbg'] = attr + '.acr[' + acr_idx + '].acco[' + acco_idx + '].actw should be json array format';
-                                                                responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-                                                                callback('0', body_Obj);
-                                                                return '0';
+                                                                callback('400-17');
+                                                                return;
                                                             }
                                                         }
                                                     }
@@ -663,22 +660,16 @@ function parse_body_format(request, response, callback) {
                                 if (body_Obj[prop][attr].can && body_Obj[prop][attr].sus) {
                                 }
                                 else {
-                                    body_Obj = {};
-                                    body_Obj['dbg'] = attr + ' attribute should have can and sus key in json format';
-                                    responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-                                    callback('0', body_Obj);
-                                    return '0';
+                                    callback('400-18');
+                                    return;
                                 }
                             }
                             else if (attr == 'cas') {
                                 if (body_Obj[prop][attr].can && body_Obj[prop][attr].sus) {
                                 }
                                 else {
-                                    body_Obj = {};
-                                    body_Obj['dbg'] = attr + ' attribute should have can and sus key in json format';
-                                    responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-                                    callback('0', body_Obj);
-                                    return '0';
+                                    callback('400-18');
+                                    return;
                                 }
                             }
                             else {
@@ -687,109 +678,91 @@ function parse_body_format(request, response, callback) {
                     }
                 }
             }
-
-            callback(request.ty, body_Obj);
+            callback(code);
+        }
+        else {
+            callback(code);
         }
     });
 }
 
-function check_resource(request, response, body_Obj, callback) {
+function check_resource(request, response, callback) {
     var ri = url.parse(request.url).pathname;
 
     var chk_fopt = ri.split('/fopt');
     if(chk_fopt.length == 2) {
         ri = chk_fopt[0];
-        op = 'fanoutpoint';
-        db_sql.select_grp_lookup(ri, function (err, result_Obj) {
+        db_sql.select_grp_lookup(request.connection, ri, function (err, result_Obj) {
             if (!err) {
                 if (result_Obj.length == 1) {
                     result_Obj[0].acpi = JSON.parse(result_Obj[0].acpi);
                     result_Obj[0].lbl = JSON.parse(result_Obj[0].lbl);
                     result_Obj[0].aa = JSON.parse(result_Obj[0].aa);
                     result_Obj[0].at = JSON.parse(result_Obj[0].at);
-                    callback('1', result_Obj[0], op, request, response, body_Obj);
+
+                    request.targetObj = JSON.parse(JSON.stringify(result_Obj[0]));
+                    result_Obj = null;
+
+                    callback('200');
                 }
                 else {
-                    result_Obj = {};
-                    result_Obj['dbg'] = '[check_resource] resource does not exist';
-                    responder.response_result(request, response, 404, result_Obj, 4004, request.url, result_Obj['dbg']);
-                    callback('0', {}, '', request, response, body_Obj);
-                    return '0';
+                    callback('404-4');
                 }
             }
             else {
-                var code = result_Obj.message;
-                result_Obj = {};
-                result_Obj['dbg'] = code;
-                responder.response_result(request, response, 500, result_Obj, 5000, request.url, result_Obj['dbg']);
-                callback('0', {}, '', request, response, body_Obj);
-                return '0';
+                callback('500-3');
             }
         });
     }
     else {
         console.log('X-M2M-Origin: ' + request.headers['x-m2m-origin']);
-        console.log(body_Obj);
-
-        var op = 'direct';
-        var resource_Obj = request.targetObject;
-        var rootnm = Object.keys(resource_Obj)[0];
-        callback('1', resource_Obj[rootnm], op, request, response, body_Obj);
-        return '0';
+        callback('200');
     }
 }
 
-function check_rt_query(request, response, body_Obj, callback) {
+function check_request_query_rt(request, response, callback) {
     //var ri = url.parse(request.url).pathname;
 
     //var url_arr = ri.split('/');
     //var last_url = url_arr[url_arr.length-1];
     //var op = 'direct';
 
-    if (request.query.real == 4) {
-        var check_Obj = {};
-        check_Obj.ty = '3';
-        callback('1', check_Obj, 'direct', request, response, body_Obj);
-        return'1';
-    }
-
     if (request.query.rt == 3) { // default, blocking
-        check_resource(request, response, body_Obj, function (rsc, check_Obj, op, request, response, body_Obj) {
-            callback(rsc, check_Obj, op, request, response, body_Obj);
-        });
+        callback('200');
     }
     else if (request.query.rt == 1 || request.query.rt == 2) { // nonblocking
-        if(request.query.rt == 2 && request.headers['x-m2m-rtu'] == null && request.headers['x-m2m-rtu'] == '') {
-            body_Obj = {};
-            body_Obj['dbg'] = 'X-M2M-RTU is none';
-            responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-            callback('0', {}, '', request, response, body_Obj);
-            return '0';
+        if (request.query.rt == 2 && request.headers['x-m2m-rtu'] == null && request.headers['x-m2m-rtu'] == '') {
+            callback('400-21');
         }
+        else {
+            // first create request resource under CSEBase
+            var temp_rootnm = request.headers.rootnm;
+            var temp_body_Obj = JSON.parse(JSON.stringify(request.bodyObj));
+            var temp_ty = request.ty;
 
-        // first create request resource under CSEBase
-        var temp_rootnm = request.headers.rootnm;
-        //var temp_rt = request.query.rt;
-        var ty = '17';
-        var rt_body_Obj = {req: {}};
-        request.headers.rootnm = Object.keys(rt_body_Obj)[0];
-        request.query.rt = 3;
-        resource.create(request, response, ty, rt_body_Obj, function (rsc) {
-            if (rsc == '1') {
-                request.headers.rootnm = temp_rootnm;
-                request.query.rt = 1;
-                check_resource(request, response, body_Obj, function (rsc, parent_comm, op, request, response, body_Obj) {
-                    callback(rsc, parent_comm, op, request, response, body_Obj);
-                });
-            }
-        });
+
+            request.ty = '17';
+            var rt_body_Obj = {req: {}};
+            request.headers.rootnm = 'req';
+            request.bodyObj = rt_body_Obj;
+            request.query.rt = 3;
+
+            resource.create(request, response, function (code) {
+                if(code === '200') {
+                    request.ty = temp_ty;
+                    request.headers.rootnm = temp_rootnm;
+                    request.bodyObj = temp_body_Obj;
+                    request.query.rt = 1;
+                    callback(code);
+                }
+                else {
+                    callback(code);
+                }
+            });
+        }
     }
     else {
-        body_Obj = {};
-        body_Obj['dbg'] = 'OPERATION_NOT_ALLOWED (rt query is not supported)';
-        responder.response_result(request, response, 405, body_Obj, 4005, request.url, body_Obj['dbg']);
-        callback('0', {}, '', request, response, body_Obj);
-        return '0';
+        callback('405-4');
     }
 }
 
@@ -818,374 +791,399 @@ function check_grp(request, response, callback) {
     }
 }
 
-/**
- *
- * @param request
- * @param response
- */
-function lookup_create(request, response) {
-    check_rt_query(request, response, request.bodyObj, function (rsc, parentObj, op, request, response, body_Obj) {
-        if (rsc == '0') {
-            return rsc;
-        }
+var resultStatusCode = {
+    '301-3': [405, 4005, "forwarding with mqtt is not supported"],
+    '301-4': [405, 4005, "protocol in poa of csr is not supported"],
 
-        var rootnm = request.headers.rootnm;
+    '400-1': [400, 4000, "BAD REQUEST: X-M2M-RI is none"],
+    '400-2': [400, 4000, "BAD REQUEST: X-M2M-Origin header is Mandatory"],
+    '400-3': [400, 4000, "BAD REQUEST: not supported resource type requested"],
+    '400-4': [400, 4000, "BAD REQUEST: not parse your body"],
+    '400-5': [400, 4000, "BAD REQUEST: [parse_to_json] do not parse xml body"],
+    '400-6': [400, 4000, "BAD REQUEST: [parse_to_json] do not parse cbor body"],
+    '400-7': [400, 4000, "BAD REQUEST: [parse_to_json] root tag of body is not matched"],
+    '400-8': [400, 4000, "BAD REQUEST: (aa, at, poa, acpi, srt, nu, mid, macp, rels, rqps, srv) attribute should be json array format"],
+    '400-9': [400, 4000, "BAD REQUEST: (lbl) attribute should be json array format"],
+    '400-10': [400, 4000, "BAD REQUEST: (enc.net) attribute should be json array format"],
+    '400-11': [400, 4000, "BAD REQUEST: (enc) attribute should have net key as child in json format"],
+    '400-12': [400, 4000, "BAD REQUEST: (pv.acr, pvs.acr) attribute should be json array format"],
+    '400-13': [400, 4000, "BAD REQUEST: (pv.acr.acor, pvs.acr.acor) attribute should be json array format"],
+    '400-14': [400, 4000, "BAD REQUEST: (pv.acr.acco, pvs.acr.acco) attribute should be json array format"],
+    '400-15': [400, 4000, "BAD REQUEST: (pv.acr.acco.acip.ipv4, pvs.acr.acco.acip.ipv4) attribute should be json array format"],
+    '400-16': [400, 4000, "BAD REQUEST: (pv.acr.acco.acip.ipv6, pvs.acr.acco.acip.ipv6) attribute should be json array format"],
+    '400-17': [400, 4000, "BAD REQUEST: (pv.acr.acco.actw, pvs.acr.acco.actw) attribute should be json array format"],
+    '400-18': [400, 4000, "BAD REQUEST: (uds, cas) attribute should be json array format"],
+    '400-19': [400, 4000, "BAD REQUEST: [check_notification] post request without ty value is but body is not for notification"],
+    '400-20': [400, 4000, "BAD REQUEST: [check_notification] content-type is none"],
+    '400-21': [400, 4000, "BAD REQUEST: X-M2M-RTU is none"],
+    '400-22': [400, 4000, "BAD REQUEST: \'Not Present\' attribute"],
+    '400-23': [400, 4000, "BAD REQUEST: .acr must have values"],
+    '400-24': [400, 4000, "BAD REQUEST: nu must have values"],
+    '400-25': [400, 4000, "BAD REQUEST: attribute is not defined"],
+    '400-26': [400, 4000, "BAD REQUEST: attribute is \'Mandatory\' attribute"],
+    '400-27': [400, 4000, "BAD REQUEST: expiration time is before now"],
+    '400-28': [400, 4000, "BAD REQUEST: ASN CSE can not have child CSE (remoteCSE)"],
+    '400-29': [400, 4000, "BAD REQUEST: mni is negative value"],
+    '400-30': [400, 4000, "BAD REQUEST: mbs is negative valuee"],
+    '400-31': [400, 4000, "BAD REQUEST: mia is negative value"],
+    '400-32': [400, 4000, "BAD REQUEST: contentInfo(cnf) format is not match"],
+    '400-33': [400, 6010, "MAX_NUMBER_OF_MEMBER_EXCEEDED"],
+    '400-34': [400, 6011, "can not create group because csy is ABANDON_GROUP when MEMBER_TYPE_INCONSISTENT"],
+    '400-35': [400, 4000, "BAD REQUEST: mgmtDefinition is not match with mgmtObj resource"],
+    '400-36': [400, 4000, "BAD REQUEST: ty does not supported"],
+    '400-37': [400, 4000, "BAD REQUEST: transaction resource could not create"],
+    '400-40': [400, 4000, "BAD REQUEST: body is empty"],
+    '400-41': [400, 4000, "BAD REQUEST"],
+    '400-42': [400, 4000, "BAD REQUEST: ty is different with body"],
+    '400-43': [400, 4000, "BAD REQUEST: rcn or fu query is not supported at POST request"],
+    '400-44': [400, 4000, "BAD REQUEST: rcn or fu query is not supported at GET request"],
+    '400-45': [400, 4000, "BAD REQUEST: rcn or fu query is not supported at PUT request"],
+    '400-46': [400, 4000, "BAD REQUEST: rcn or fu query is not supported at DELETE request"],
+    '400-47': [400, 4000, "BAD REQUEST: protocol in poa of ae is not supported"],
+    '400-50': [400, 4000, "BAD REQUEST: state of transaction is mismatch"],
+    '400-51': [400, 4000, "BAD REQUEST: mgmtObj requested is not match with content type of body"],
+    '400-52': [400, 4000, "BAD REQUEST: ty does not supported"],
+    '400-53': [400, 4000, "BAD REQUEST: this resource of mgmtObj is not supported"],
 
-        tr.check(request, parentObj.ri, body_Obj, function (rsc, body_Obj) {
-            if (rsc == '0') {
-                body_Obj = {};
-                body_Obj['dbg'] = resultStatusCode['4230'];
-                responder.response_result(request, response, 423, body_Obj, 4230, request.url, resultStatusCode['4230']);
-                return '0';
-            }
+    '403-1': [403, 4107, "OPERATION_NOT_ALLOWED: AE-ID is not allowed"],
+    '403-2': [403, 5203, "TARGET_NOT_SUBSCRIBABLE: request ty creating can not create under parent resource"],
+    '403-3': [403, 4103, "ACCESS DENIED"],
+    '403-4': [403, 4107, "OPERATION_NOT_ALLOWED: APP-ID in AE is not allowed"],
+    '403-5': [403, 4107, "[app.use] ACCESS DENIED (fopt)"],
 
+    '404-1': [404, 4004, "resource does not exist (get_target_url)"],
+    '404-2': [404, 4004, "RESOURCE DOES NOT FOUND"],
+    '404-3': [404, 4004, "csebase is not found"],
+    '404-4': [404, 4004, "group resource does not exist"],
+    '404-5': [404, 4004, "response is not from fanOutPoint"],
+    '404-6': [404, 4004, "AE for notify is not found"],
+    '404-7': [404, 4004, "AE for notify does not exist"],
 
-            if(request.query.real == 4) {
+    '405-1': [405, 4005, "OPERATION_NOT_ALLOWED: CSEBase can not be created by others"],
+    '405-2': [405, 4005, "OPERATION_NOT_ALLOWED: req is not supported when post request"],
+    '405-3': [405, 4005, "OPERATION_NOT_ALLOWED: we do not support resource type requested"],
+    '405-4': [405, 4005, "OPERATION_NOT_ALLOWED: rt query is not supported"],
+    '405-5': [405, 4005, "OPERATION_NOT_ALLOWED: we do not support to create resource"],
+    '405-6': [405, 4005, "OPERATION NOT ALLOWED: disr attribute is true"],
+    '405-7': [405, 4005, "OPERATION NOT ALLOWED: Update cin is not supported"],
+    '405-8': [405, 4005, "OPERATION NOT ALLOWED: req is not supported when put request"],
+    '405-9': [405, 4005, "OPERATION_NOT_ALLOWED: csebase is not supported when put request"],
+    '405-10': [405, 4005, "OPERATION_NOT_ALLOWED: notification with mqtt is not supported"],
+    '405-11': [405, 4005, "OPERATION_NOT_ALLOWED: notification with ws is not supported"],
+    '405-12': [405, 4005, "OPERATION_NOT_ALLOWED: notification with coap is not supported"],
 
-            }
+    '406-1': [406, 5207, "NOT_ACCEPTABLE: can not create cin because mni value is zero"],
+    '406-2': [406, 5207, "NOT_ACCEPTABLE: can not create cin because mbs value is zero"],
+    '406-3': [406, 5207, "NOT_ACCEPTABLE: cs is exceed mbs"],
 
-            if ((request.ty == 1) && (parentObj.ty == 5 || parentObj.ty == 16 || parentObj.ty == 2)) { // accessControlPolicy
-            }
-            else if ((request.ty == 9) && (parentObj.ty == 5 || parentObj.ty == 16 || parentObj.ty == 2)) { // group
-            }
-            else if ((request.ty == 16) && (parentObj.ty == 5)) { // remoteCSE
-                if (usecsetype == 'asn' && request.headers.csr == null) {
-                    body_Obj = {};
-                    body_Obj['dbg'] = 'ASN CSE can not have child CSE (remoteCSE)';
-                    responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-                    return '0';
-                }
-            }
-            else if ((request.ty == 10) && (parentObj.ty == 5)) { // locationPolicy
-            }
-            else if ((request.ty == 2) && (parentObj.ty == 5)) { // ae
-            }
-            else if ((request.ty == 3) && (parentObj.ty == 5 || parentObj.ty == 2 || parentObj.ty == 3)) { // container
-            }
-            else if ((request.ty == 23) && (parentObj.ty == 5 || parentObj.ty == 16 || parentObj.ty == 2 ||
-                    parentObj.ty == 3 || parentObj.ty == 24 || parentObj.ty == 29 || parentObj.ty == 9 || parentObj.ty == 1 || parentObj.ty == 27)) { // sub
-            }
-            else if ((request.ty == 4) && (parentObj.ty == 3)) { // contentInstance
-            }
-            else if ((request.ty == 24) && (parentObj.ty == 2 || parentObj.ty == 3 || parentObj.ty == 4 || parentObj.ty == 29)) { // semanticDescriptor
-            }
-            else if ((request.ty == 29) && (parentObj.ty == 5 || parentObj.ty == 16 || parentObj.ty == 2)) { // timeSeries
-            }
-            else if ((request.ty == 30) && (parentObj.ty == 29)) { // timeSeriesInstance
-                //body_Obj[rootnm].mni = parent_comm.mni;
-            }
-            else if ((request.ty == 27) && (parentObj.ty == 2 || parentObj.ty == 16)) { // multimediaSession
-            }
-            else if ((request.ty == 14) && (parentObj.ty == 5)) { // node
-            }
-            else if ((request.ty == 13) && (parentObj.ty == 14)) { // mgmtObj
-            }
-            else if ((request.ty == 38) && (parentObj.ty == 5 || parentObj.ty == 16 || parentObj.ty == 2 ||
-                    parentObj.ty == 3 || parentObj.ty == 24 || parentObj.ty == 29 || parentObj.ty == 9 || parentObj.ty == 1 || parentObj.ty == 27)) { // transaction
-            }
-            else if ((request.ty == 39) && (parentObj.ty == 5 || parentObj.ty == 16 || parentObj.ty == 2 ||
-                    parentObj.ty == 3 || parentObj.ty == 24 || parentObj.ty == 29 || parentObj.ty == 9 || parentObj.ty == 1 || parentObj.ty == 27)) { // transaction
-            }
-            else {
-                body_Obj = {};
-                body_Obj['dbg'] = 'TARGET_NOT_SUBSCRIBABLE: request ty creating can not create under parent resource';
-                responder.response_result(request, response, 403, body_Obj, 5203, request.url, body_Obj['dbg']);
-                return '0';
-            }
+    '409-1': [409, 4005, "can not use post, put method at latest resource"],
+    '409-2': [409, 4005, "can not use post, put method at oldest resource"],
+    '409-3': [409, 4005, "resource name can not use that is keyword"],
+    '409-4': [409, 4005, "resource requested is not supported"],
+    '409-5': [409, 4105, "resource is already exist"],
+    '409-6': [409, 4005, "[create_action] aei is duplicated"],
 
-            if (((request.ty == 4) && (parentObj.ty == 3)) || ((request.ty == 30) && (parentObj.ty == 29))) { // contentInstance
-                if (parentObj.mni == null) {
-                    //body_Obj[rootnm].mni = '3153600000';
-                }
-                else {
-                    if (parseInt(parentObj.mni) == 0) {
-                        body_Obj = {};
-                        body_Obj['dbg'] = 'can not create cin because mni value is zero';
-                        responder.response_result(request, response, 406, body_Obj, 5207, request.url, body_Obj['dbg']);
-                        return '0';
+    '423-1': [423, 4230, "LOCKED: this resource was occupied by others"],
+
+    '500-1': [500, 5000, "database error"],
+    '500-2': [500, 5204, "SUBSCRIPTION_VERIFICATION_INITIATION_FAILED"],
+    '500-4': [500, 5000, "[create_action] create resource error"],
+    '500-5': [500, 5000, "DB Error : No Connection Pool"],
+
+    '501-1': [501, 5001, "response with hierarchical resource structure mentioned in onem2m spec is not supported instead all the requested resources will be returned !"]
+
+};
+
+function response_error_result(request, response, code, callback) {
+    responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], function () {
+        callback();
+    });
+
+}
+
+function lookup_create(request, response, callback) {
+    check_request_query_rt(request, response, function (code) {
+        if(code === '200') {
+            var parentObj = request.targetObject[Object.keys(request.targetObject)[0]];
+
+            tr.check(request, function (code) {
+                if(code === '200') {
+                    if ((request.ty == 1) && (parentObj.ty == 5 || parentObj.ty == 16 || parentObj.ty == 2)) { // accessControlPolicy
                     }
-                    else if (parseInt(parentObj.mbs) == 0) {
-                        body_Obj = {};
-                        body_Obj['dbg'] = 'can not create cin because mbs value is zero';
-                        responder.response_result(request, response, 406, body_Obj, 5207, request.url, body_Obj['dbg']);
-                        return '0';
+                    else if ((request.ty == 9) && (parentObj.ty == 5 || parentObj.ty == 16 || parentObj.ty == 2)) { // group
                     }
-                    else if (parentObj.disr == true) {
-                        body_Obj = {};
-                        body_Obj['dbg'] = 'OPERATION NOT ALLOWED: disr attribute is true';
-                        responder.response_result(request, response, 405, body_Obj, 4005, request.url, body_Obj['dbg']);
-                        return '0';
+                    else if ((request.ty == 16) && (parentObj.ty == 5)) { // remoteCSE
+                        if (usecsetype == 'asn' && request.headers.csr == null) {
+                            callback('400-28');
+                            return;
+                        }
+                    }
+                    else if ((request.ty == 10) && (parentObj.ty == 5)) { // locationPolicy
+                    }
+                    else if ((request.ty == 2) && (parentObj.ty == 5)) { // ae
+                    }
+                    else if ((request.ty == 3) && (parentObj.ty == 5 || parentObj.ty == 2 || parentObj.ty == 3)) { // container
+                    }
+                    else if ((request.ty == 23) && (parentObj.ty == 5 || parentObj.ty == 16 || parentObj.ty == 2 || parentObj.ty == 3 || parentObj.ty == 24 || parentObj.ty == 29 || parentObj.ty == 9 || parentObj.ty == 1 || parentObj.ty == 27)) { // sub
+                    }
+                    else if ((request.ty == 4) && (parentObj.ty == 3)) { // contentInstance
+                    }
+                    else if ((request.ty == 24) && (parentObj.ty == 2 || parentObj.ty == 3 || parentObj.ty == 4 || parentObj.ty == 29)) { // semanticDescriptor
+                    }
+                    else if ((request.ty == 29) && (parentObj.ty == 5 || parentObj.ty == 16 || parentObj.ty == 2)) { // timeSeries
+                    }
+                    else if ((request.ty == 30) && (parentObj.ty == 29)) { // timeSeriesInstance
+                    }
+                    else if ((request.ty == 27) && (parentObj.ty == 2 || parentObj.ty == 16)) { // multimediaSession
+                    }
+                    else if ((request.ty == 14) && (parentObj.ty == 5)) { // node
+                    }
+                    else if ((request.ty == 13) && (parentObj.ty == 14)) { // mgmtObj
+                    }
+                    else if ((request.ty == 38) && (parentObj.ty == 5 || parentObj.ty == 16 || parentObj.ty == 2 || parentObj.ty == 3 || parentObj.ty == 24 || parentObj.ty == 29 || parentObj.ty == 9 || parentObj.ty == 1 || parentObj.ty == 27)) { // transaction
+                    }
+                    else if ((request.ty == 39) && (parentObj.ty == 5 || parentObj.ty == 16 || parentObj.ty == 2 || parentObj.ty == 3 || parentObj.ty == 24 || parentObj.ty == 29 || parentObj.ty == 9 || parentObj.ty == 1 || parentObj.ty == 27)) { // transaction
                     }
                     else {
-                        //body_Obj[rootnm].mni = parent_spec[0].mni;
+                        callback('403-2');
+                        return;
                     }
+
+                    if (((request.ty == 4) && (parentObj.ty == 3)) || ((request.ty == 30) && (parentObj.ty == 29))) { // contentInstance
+                        if (parseInt(parentObj.mni) == 0) {
+                            callback('406-1');
+                            return;
+                        }
+                        else if (parseInt(parentObj.mbs) == 0) {
+                            callback('406-2');
+                            return;
+                        }
+                        else if (parentObj.disr == true) {
+                            callback('405-6');
+                            return;
+                        }
+
+                        request.headers.mni = parentObj.mni;
+                        request.headers.mbs = parentObj.mbs;
+                        request.headers.cni = parentObj.cni;
+                        request.headers.cbs = parentObj.cbs;
+                        request.headers.st = parentObj.st;
+                    }
+
+                    if (parentObj.length == 0) {
+                        parentObj = {};
+                        parentObj.cr = '';
+                        console.log('no creator');
+                    }
+                    else {
+                        if (parentObj.ty == 2) {
+                            parentObj.cr = parentObj.aei;
+                        }
+                    }
+
+                    if (request.ty == 23) {
+                        var access_value = '3';
+                    }
+                    else {
+                        access_value = '1';
+                    }
+
+                    var tid = 'security.check - ' + require('shortid').generate();
+                    console.time(tid);
+                    security.check(request, response, parentObj.ty, parentObj.acpi, access_value, parentObj.cr, function (code) {
+                        console.timeEnd(tid);
+                        if (code === '1') {
+                            resource.create(request, response, function (code) {
+                                callback(code);
+                            });
+                        }
+                        else if (code === '0') {
+                            callback('403-3');
+
+                        }
+                        else {
+                            callback(code);
+                        }
+                    });
                 }
-
-                request.headers.mni = parentObj.mni;
-                request.headers.mbs = parentObj.mbs;
-                request.headers.cni = parentObj.cni;
-                request.headers.cbs = parentObj.cbs;
-                request.headers.st = parentObj.st;
-            }
-
-            if (parentObj.length == 0) {
-                parentObj = {};
-                parentObj.cr = '';
-                console.log('no creator');
-            }
-            else {
-                if (parentObj.ty == 2) {
-                    parentObj.cr = parentObj.aei;
+                else {
+                    callback(code);
                 }
-            }
-
-            if (request.ty == 23) {
-                var access_value = '3';
-            }
-            else {
-                access_value = '1';
-            }
-
-            var tid = 'security.check - ' + require('shortid').generate();
-            console.time(tid);
-            security.check(request, response, parentObj.ty, parentObj.acpi, access_value, parentObj.cr, function (rsc, request, response) {
-                if (rsc == '0') {
-                    body_Obj = {};
-                    body_Obj['dbg'] = resultStatusCode['4103'];
-                    responder.response_result(request, response, 403, body_Obj, 4103, request.url, resultStatusCode['4103']);
-                    return '0';
-                }
-                console.timeEnd(tid);
-                resource.create(request, response, request.ty, body_Obj, function (rsc) {
-
-                });
             });
-        });
+        }
+        else {
+            callback(code);
+        }
     });
 }
 
-function lookup_retrieve(request, response) {
-    check_rt_query(request, response, request.bodyObj, function (rsc, resultObj, op, request, response, body_Obj) {
-        if (rsc == '0') {
-            return rsc;
-        }
+function lookup_retrieve(request, response, callback) {
+    check_request_query_rt(request, response, function (code) {
+        if(code === '200') {
+            var resultObj =  request.targetObject[Object.keys(request.targetObject)[0]];
 
-        tr.check(request, resultObj.ri, body_Obj, function (rsc, body_Obj) {
-            if (rsc == '0') {
-                body_Obj = {};
-                body_Obj['dbg'] = resultStatusCode['4230'];
-                responder.response_result(request, response, 423, body_Obj, 4230, request.url, resultStatusCode['4230']);
-                return '0';
-            }
-
-            if (resultObj.ty == 2) {
-                resultObj.cr = resultObj.aei;
-            }
-            else if (resultObj.ty == 16) {
-                resultObj.cr = resultObj.csi;
-            }
-
-            if (request.query.fu == 1) {
-                security.check(request, response, resultObj.ty, resultObj.acpi, '32', resultObj.cr, function (rsc, request, response) {
-                    if (rsc == '0') {
-                        body_Obj = {};
-                        body_Obj['dbg'] = resultStatusCode['4103'];
-                        responder.response_result(request, response, 403, body_Obj, 4103, request.url, resultStatusCode['4103']);
-                        return '0';
+            tr.check(request, function (code) {
+                if(code === '200') {
+                    if (resultObj.ty == 2) {
+                        resultObj.cr = resultObj.aei;
                     }
-                    resource.retrieve(request, response, resultObj);
-                });
-            }
-            else {
-                security.check(request, response, resultObj.ty, resultObj.acpi, '2', resultObj.cr, function (rsc, request, response) {
-                    if (rsc == '0') {
-                        body_Obj = {};
-                        body_Obj['dbg'] = resultStatusCode['4103'];
-                        responder.response_result(request, response, 403, body_Obj, 4103, request.url, resultStatusCode['4103']);
-                        return '0';
+                    else if (resultObj.ty == 16) {
+                        resultObj.cr = resultObj.csi;
                     }
-                    resource.retrieve(request, response, resultObj);
-                });
-            }
-        });
-    });
-}
 
-function lookup_update(request, response) {
-    check_rt_query(request, response, request.bodyObj, function (rsc, resultObj, op, request, response, body_Obj) {
-        if (rsc == '0') {
-            return rsc;
-        }
-
-        tr.check(request, resultObj.ri, body_Obj, function (rsc, body_Obj) {
-            if (rsc == '0') {
-                body_Obj = {};
-                body_Obj['dbg'] = resultStatusCode['4230'];
-                responder.response_result(request, response, 423, body_Obj, 4230, request.url, resultStatusCode['4230']);
-                return '0';
-            }
-
-            if (resultObj.ty == 2) {
-                resultObj.cr = resultObj.aei;
-            }
-            else if (resultObj.ty == 16) {
-                resultObj.cr = resultObj.csi;
-            }
-
-            var acpi_check = 0;
-            var other_check = 0;
-            for(var rootnm in body_Obj) {
-                if(body_Obj.hasOwnProperty(rootnm)) {
-                    for(var attr in body_Obj[rootnm]) {
-                        if(body_Obj[rootnm].hasOwnProperty(attr)) {
-                            if(attr == 'acpi') {
-                                acpi_check++;
+                    if (request.query.fu == 1) {
+                        security.check(request, response, resultObj.ty, resultObj.acpi, '32', resultObj.cr, function (code) {
+                            if(code === '1' ) {
+                                resource.retrieve(request, response, function (code) {
+                                    callback(code);
+                                });
+                            }
+                            else if (code === '0') {
+                                callback('403-3');
                             }
                             else {
-                                other_check++;
+                                callback(code);
+                            }
+                        });
+                    }
+                    else {
+                        security.check(request, response, resultObj.ty, resultObj.acpi, '2', resultObj.cr, function (code) {
+                            if(code === '1') {
+                                resource.retrieve(request, response, function (code) {
+                                    callback(code);
+                                });
+                            }
+                            else if (code === '0') {
+                                callback('403-3');
+                            }
+                            else {
+                                callback(code);
+                            }
+                        });
+                    }
+                }
+                else {
+                    callback(code);
+                }
+            });
+        }
+        else {
+            callback(code);
+        }
+    });
+}
+
+function lookup_update(request, response, callback) {
+    check_request_query_rt(request, response, function (code) {
+        if(code === '200') {
+            var resultObj = request.targetObject[Object.keys(request.targetObject)[0]];
+
+            tr.check(request, function (code) {
+                if(code === '200') {
+                    if (resultObj.ty == 2) {
+                        resultObj.cr = resultObj.aei;
+                    }
+                    else if (resultObj.ty == 16) {
+                        resultObj.cr = resultObj.csi;
+                    }
+
+                    var acpi_check = 0;
+                    var other_check = 0;
+                    for (var rootnm in request.bodyObj) {
+                        if (request.bodyObj.hasOwnProperty(rootnm)) {
+                            for (var attr in request.bodyObj[rootnm]) {
+                                if (request.bodyObj[rootnm].hasOwnProperty(attr)) {
+                                    if (attr == 'acpi') {
+                                        acpi_check++;
+                                    }
+                                    else {
+                                        other_check++;
+                                    }
+                                }
                             }
                         }
                     }
-                }
-            }
 
-            if(other_check > 0) {
-                security.check(request, response, resultObj.ty, resultObj.acpi, '4', resultObj.cr, function (rsc, request, response) {
-                    if (rsc == '0') {
-                        body_Obj = {};
-                        body_Obj['dbg'] = resultStatusCode['4103'];
-                        responder.response_result(request, response, 403, body_Obj, 4103, request.url, resultStatusCode['4103']);
-                        return '0';
+                    if (other_check > 0) {
+                        security.check(request, response, resultObj.ty, resultObj.acpi, '4', resultObj.cr, function (code) {
+                            if(code === '1') {
+                                resource.update(request, response, function (code) {
+                                    callback(code)
+                                });
+                            }
+                            else if (code === '0') {
+                                callback('403-3');
+                            }
+                            else {
+                                callback(code);
+                            }
+                        });
                     }
-                    resource.update(request, response, resultObj, body_Obj);
-                });
-            }
-            else {
-                resource.update(request, response, resultObj, body_Obj);
-            }
-        });
-    });
-}
-
-function lookup_delete(request, response) {
-    check_rt_query(request, response, request.bodyObj, function (rsc, resultObj, op, request, response, body_Obj) {
-        if (rsc == '0') {
-            return rsc;
-        }
-
-        tr.check(request, resultObj.ri, body_Obj, function (rsc, body_Obj) {
-            if (rsc == '0') {
-                var body_Obj = {};
-                body_Obj['dbg'] = resultStatusCode['4230'];
-                responder.response_result(request, response, 423, body_Obj, 4230, request.url, resultStatusCode['4230']);
-                return '0';
-            }
-
-            if (resultObj.ty == 2) {
-                resultObj.cr = resultObj.aei;
-            }
-            else if (resultObj.ty == 16) {
-                resultObj.cr = resultObj.csi;
-            }
-
-            security.check(request, response, resultObj.ty, resultObj.acpi, '8', resultObj.cr, function (rsc, request, response) {
-                if (rsc == '0') {
-                    body_Obj = {};
-                    body_Obj['dbg'] = resultStatusCode['4103'];
-                    responder.response_result(request, response, 403, body_Obj, 4103, request.url, resultStatusCode['4103']);
-                    return '0';
+                    else {
+                        resource.update(request, response, function (code) {
+                            callback(code)
+                        });
+                    }
                 }
-
-                // for(var idx in cbs_cache) {
-                //     if(cbs_cache.hasOwnProperty(idx)) {
-                //         if(idx.includes(resultObj.ri)) {
-                //             delete cbs_cache[idx];
-                //             del_cbs_cache(idx);
-                //         }
-                //     }
-                // }
-
-                resource.delete(request, response, resultObj);
+                else {
+                    callback(code);
+                }
             });
-        });
+        }
+        else {
+            callback(code);
+        }
     });
 }
 
-function updateHitCount(binding) {
-    var bodyObj = {};
-    bodyObj.binding = binding;
-    var bodyString = JSON.stringify(bodyObj);
+function lookup_delete(request, response, callback) {
+    check_request_query_rt(request, response, function (code) {
+        if(code === '200') {
+            var resultObj = request.targetObject[Object.keys(request.targetObject)[0]];
 
-    var options = {
-        hostname: 'localhost',
-        port: use_hit_man_port,
-        path: '/hit_count',
-        method: 'POST',
-        headers: {
-            'Accept': 'application/json',
-            'Content-Type': 'application/json',
-            'Content-Length' : bodyString.length
+            tr.check(request, function (code) {
+                if(code === '200') {
+                    if (resultObj.ty == 2) {
+                        resultObj.cr = resultObj.aei;
+                    }
+                    else if (resultObj.ty == 16) {
+                        resultObj.cr = resultObj.csi;
+                    }
+
+                    security.check(request, response, resultObj.ty, resultObj.acpi, '8', resultObj.cr, function (code) {
+                        if(code === '1') {
+                            resource.delete(request, response, function (code) {
+                                callback(code);
+                            });
+                        }
+                        else if (code === '0') {
+                            callback('403-3');
+                        }
+                        else {
+                            callback(code);
+                        }
+                    });
+                }
+                else {
+                    callback(code);
+                }
+            });
         }
-    };
-
-    var bodyStr = '';
-    if (use_secure == 'disable') {
-        var req = http.request(options, function (res) {
-            res.setEncoding('utf8');
-
-            res.on('data', function (chunk) {
-                bodyStr += chunk;
-            });
-
-            res.on('end', function () {
-                //if(res.statusCode == 200 || res.statusCode == 201) {
-                //    console.log('-------> [response_noti - ' + res.headers['x-m2m-rsc'] + '] - ' + ri);
-                //}
-            });
-        });
-    }
-    else {
-        options.ca = fs.readFileSync('ca-crt.pem');
-
-        req = https.request(options, function (res) {
-            res.setEncoding('utf8');
-
-            res.on('data', function (chunk) {
-                bodyStr += chunk;
-            });
-
-            res.on('end', function () {
-                //if(res.statusCode == 200 || res.statusCode == 201) {
-                //    console.log('-------> [response_noti - ' + res.headers['x-m2m-rsc'] + '] - ' + ri);
-                //}
-            });
-        });
-    }
-
-    req.on('error', function (e) {
-        if(e.message != 'read ECONNRESET') {
-            //console.log('--xxx--> [request_noti - problem with request: ' + e.message + ']');
-            //console.log('--xxx--> [request_noti - no response - ' + ri + ']');
+        else {
+            callback(code);
         }
     });
-
-    req.on('close', function () {
-        //console.log('--xxx--> [request_noti - close: no response for notification');
-    });
-
-    req.write(bodyString);
-    req.end();
 }
 
 // var resource_cache = {};
-global.get_resource_from_url = function(ri, sri, option, callback) {
+function get_resource_from_url(connection, ri, sri, option, callback) {
     var targetObject = {};
     // if(resource_cache.hasOwnProperty(ri+option)) {
     //     targetObject = JSON.parse(resource_cache[ri]);
     //     callback(targetObject);
     // }
     // else {
-        db_sql.select_resource_from_url(ri, sri, function (err, results) {
+        db_sql.select_resource_from_url(connection, ri, sri, function (err, results) {
             if (err) {
                 callback(null, 500);
                 return '0';
@@ -1202,19 +1200,19 @@ global.get_resource_from_url = function(ri, sri, option, callback) {
                 makeObject(targetObject[rootnm]);
 
                 if (option == '/latest') {
-                    // db_sql.get_cni_count(targetObject[rootnm], function (cni, cbs, st) {
+                    // db_sql.get_cni_count(connection, targetObject[rootnm], function (cni, cbs, st) {
                     //     targetObject[rootnm].cni = cni;
                     //     targetObject[rootnm].cbs = cbs;
                     //     targetObject[rootnm].st = st;
                     //
                     //     if (parseInt(targetObject[rootnm].cni, 10) != cni || parseInt(targetObject[rootnm].cbs, 10) != cbs || parseInt(targetObject[rootnm].st, 10) != st) {
-                    //         db_sql.update_cnt_cni(targetObject[rootnm], function () {
+                    //         db_sql.update_cnt_cni(connection, targetObject[rootnm], function () {
                     //         });
                     //     }
 
                         var la_id = 'select_latest_resource ' + targetObject[rootnm].ri + ' - ' + require('shortid').generate();
                         console.time(la_id);
-                        db_sql.select_latest_resource(targetObject[rootnm], 0, function (err, result_Obj) {
+                        db_sql.select_latest_resource(connection, targetObject[rootnm], 0, function (err, result_Obj) {
                             if (!err) {
                                 console.timeEnd(la_id);
                                 if (result_Obj.length == 1) {
@@ -1237,7 +1235,7 @@ global.get_resource_from_url = function(ri, sri, option, callback) {
                     // });
                 }
                 else if (option == '/oldest') {
-                    db_sql.select_oldest_resource(parseInt(ty, 10) + 1, ri, function (err, result_Obj) {
+                    db_sql.select_oldest_resource(connection, parseInt(ty, 10) + 1, ri, function (err, result_Obj) {
                         if (!err) {
                             if (result_Obj.length == 1) {
                                 targetObject = {};
@@ -1265,12 +1263,12 @@ global.get_resource_from_url = function(ri, sri, option, callback) {
                     // resource_cache[targetObject[rootnm].ri] = JSON.stringify(targetObject);
 
                     // if(targetObject[rootnm].ty == 3 || targetObject[rootnm].ty == 29) {
-                    //     db_sql.get_cni_count(targetObject[rootnm], function (cni, cbs, st) {
+                    //     db_sql.get_cni_count(connection, targetObject[rootnm], function (cni, cbs, st) {
                     //         if (parseInt(targetObject[rootnm].cni, 10) != cni || parseInt(targetObject[rootnm].cbs, 10) != cbs || parseInt(targetObject[rootnm].st, 10) != st) {
                     //             targetObject[rootnm].cni = cni;
                     //             targetObject[rootnm].cbs = cbs;
                     //             targetObject[rootnm].st = st;
-                    //             db_sql.update_cnt_cni(targetObject[rootnm], function () {
+                    //             db_sql.update_cnt_cni(connection, targetObject[rootnm], function () {
                     //             });
                     //         }
                     //     });
@@ -1279,7 +1277,7 @@ global.get_resource_from_url = function(ri, sri, option, callback) {
                     // if(targetObject[rootnm].ty == 3 || targetObject[rootnm].ty == 29) {
                     //     if(cbs_cache[targetObject[rootnm].ri] == null ||
                     //         (parseInt(cbs_cache[targetObject[rootnm].ri].cni, 10) != targetObject[rootnm].cni || parseInt(cbs_cache[targetObject[rootnm].ri].cbs, 10) != targetObject[rootnm].cbs)) {
-                    //         db_sql.get_cni_count(targetObject[rootnm], function (cni, cbs, st) {
+                    //         db_sql.get_cni_count(connection, targetObject[rootnm], function (cni, cbs, st) {
                     //             if (parseInt(targetObject[rootnm].cni, 10) != cni || parseInt(targetObject[rootnm].cbs, 10) != cbs || parseInt(targetObject[rootnm].st, 10) != st) {
                     //                 targetObject[rootnm].cni = cni;
                     //                 targetObject[rootnm].cbs = cbs;
@@ -1287,7 +1285,7 @@ global.get_resource_from_url = function(ri, sri, option, callback) {
                     //                 cbs_cache[targetObject[rootnm].ri] = {};
                     //                 cbs_cache[targetObject[rootnm].ri].cni = cni;
                     //                 cbs_cache[targetObject[rootnm].ri].cbs = cbs;
-                    //                 db_sql.update_cnt_cni(targetObject[rootnm], function () {
+                    //                 db_sql.update_cnt_cni(connection, targetObject[rootnm], function () {
                     //                 });
                     //             }
                     //         });
@@ -1300,115 +1298,158 @@ global.get_resource_from_url = function(ri, sri, option, callback) {
             }
         });
     // }
-};
-
-function retrieveHitCount(response) {
-    var options = {
-        hostname: 'localhost',
-        port: use_hit_man_port,
-        path: '/hit_count',
-        method: 'GET',
-        headers: {
-            'Accept': 'application/json'
-        }
-    };
-
-    var bodyStr = '';
-    if (use_secure == 'disable') {
-        var req = http.request(options, function (res) {
-            res.setEncoding('utf8');
-
-            res.on('data', function (chunk) {
-                bodyStr += chunk;
-            });
-
-            res.on('end', function () {
-                response.status(200).end(bodyStr);
-            });
-        });
-    }
-    else {
-        options.ca = fs.readFileSync('ca-crt.pem');
-
-        req = https.request(options, function (res) {
-            res.setEncoding('utf8');
-
-            res.on('data', function (chunk) {
-                bodyStr += chunk;
-            });
-
-            res.on('end', function () {
-                response.status(200).end(bodyStr);
-            });
-        });
-    }
-
-    req.on('error', function (e) {
-        if(e.message != 'read ECONNRESET') {
-            //console.log('--xxx--> [request_noti - problem with request: ' + e.message + ']');
-            //console.log('--xxx--> [request_noti - no response - ' + ri + ']');
-        }
-    });
-
-    req.on('close', function () {
-        //console.log('--xxx--> [request_noti - close: no response for notification');
-    });
-
-    req.write('');
-    req.end();
 }
 
-function check_headers_requested(headers, callback) {
+function extra_api_action(connection, url, callback) {
+    if (url == '/hit') {
+        // for backup hit count
+        if (0) {
+            var _hit_old = JSON.parse(fs.readFileSync('hit.json', 'utf-8'));
+            var _http = 0;
+            var _mqtt = 0;
+            var _coap = 0;
+            var _ws = 0;
+
+            for (var dd in _hit_old) {
+                if (_hit_old.hasOwnProperty(dd)) {
+                    for (var ff in _hit_old[dd]) {
+                        if (_hit_old[dd].hasOwnProperty(ff)) {
+                            if (Object.keys(_hit_old[dd][ff]).length > 0) {
+                                for (var gg in _hit_old[dd][ff]) {
+                                    if (_hit_old[dd][ff].hasOwnProperty(gg)) {
+                                        if (_hit_old[dd][ff][gg] == null) {
+                                            _hit_old[dd][ff][gg] = 0;
+                                        }
+                                        if (gg == 'H') {
+                                            _http = _hit_old[dd][ff][gg];
+                                        }
+                                        else if (gg == 'M') {
+                                            _mqtt = _hit_old[dd][ff][gg];
+                                        }
+                                        else if (gg == 'C') {
+                                            _coap = _hit_old[dd][ff][gg];
+                                        }
+                                        else if (gg == 'W') {
+                                            _ws = _hit_old[dd][ff][gg];
+                                        }
+                                    }
+                                }
+
+                                db_sql.set_hit_n(connection, dd, _http, _mqtt, _coap, _ws, function (err, results) {
+                                    results = null;
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if (0) {
+            var count = 0;
+            setTimeout(random_hit, 100, count);
+
+            function random_hit(count) {
+                if(count > 250) {
+                    return;
+                }
+                var dd = moment().utc().subtract(count, 'days').format('YYYYMMDD');
+                var _http = 5000 + Math.random() * 50000;
+                var _mqtt = 1000 + Math.random() * 9000;
+                var _coap = 0;
+                var _ws = 0;
+
+                db_sql.set_hit_n(connection, dd, _http, _mqtt, _coap, _ws, function (err, results) {
+                    results = null;
+                    console.log(count);
+                    setTimeout(random_hit, 100, ++count);
+                });
+            }
+        }
+
+        db_sql.get_hit_all(connection, function (err, result) {
+            if(err) {
+                callback('500-1');
+            }
+            else {
+                callback('201', result);
+            }
+        });
+    }
+
+    else if (url == '/total_ae') {
+        db_sql.select_sum_ae(connection, function (err, result) {
+            if(err) {
+                callback('500-1');
+            }
+            else {
+                callback('201', result);
+            }
+        });
+    }
+
+    else if (url == '/total_cbs') {
+        db_sql.select_sum_cbs(connection, function (err, result) {
+            if(err) {
+                callback('500-1');
+            }
+            else {
+                callback('201', result);
+            }
+        });
+    }
+
+    else {
+        callback('200');
+    }
+}
+
+function check_xm2m_headers(request, callback) {
     // Check X-M2M-RI Header
-    if ((headers['x-m2m-ri'] == null)) {
-        responder.error_result(request, response, 400, 4000, 'BAD REQUEST: X-M2M-RI is none');
-        return '0';
+    if(request.headers.hasOwnProperty('x-m2m-ri')) {
+        if(request.headers['x-m2m-ri'] === '') {
+            callback('400-1');
+            return;
+        }
+    }
+    else {
+        callback('400-1');
+        return;
     }
 
     // Check X-M2M-RVI Header
-    if ((headers['x-m2m-rvi'] == null)) {
-        // responder.error_result(request, response, 400, 4000, 'BAD REQUEST: X-M2M-RI is none');
-        // callback('0', body_Obj, request, response);
-        // return '0';
-        // todo: RVI check
-        headers['x-m2m-rvi'] = uservi;
+    if(!request.headers.hasOwnProperty('x-m2m-rvi')) {
+        request.headers['x-m2m-rvi'] = uservi;
     }
 
     request.ty = '99';
-    var content_type = request.headers['content-type'].split(';');
-    try {
-        var ty = '99';
+    if(request.headers.hasOwnProperty('content-type')) {
+        var content_type = request.headers['content-type'].split(';');
         for (var i in content_type) {
             if (content_type.hasOwnProperty(i)) {
                 var ty_arr = content_type[i].replace(/ /g, '').split('=');
                 if (ty_arr[0].replace(/ /g, '') == 'ty') {
-                    ty = ty_arr[1].replace(' ', '');
+                    request.ty = ty_arr[1].replace(' ', '');
+                    content_type = null;
                     break;
                 }
             }
         }
-        request.ty = ty;
-    }
-    catch (e) {
-        responder.error_result(request, response, 400, 4000, 'ty is none');
-        return '0';
-    }
 
-    if (request.ty == '5') {
-        responder.error_result(request, response, 405, 4005, 'OPERATION_NOT_ALLOWED: CSEBase can not be created by others');
-        return '0';
-    }
+        if (request.ty == '5') {
+            callback('405-1');
+            return;
+        }
 
-    if (request.ty == '17') {
-        responder.error_result(request, response, 405, 4005, 'OPERATION_NOT_ALLOWED (req is not supported when post request)');
-        return '0';
-    }
+        if (request.ty == '17') {
+            callback('405-2');
+            return;
+        }
 
-    if (headers.hasOwnProperty('content-type')) {
-        if (headers['content-type'].includes('xml')) {
+        if (request.headers['content-type'].includes('xml')) {
             request.usebodytype = 'xml';
         }
-        else if (headers['content-type'].includes('cbor')) {
+        else if (request.headers['content-type'].includes('cbor')) {
             request.usebodytype = 'cbor';
         }
         else {
@@ -1420,14 +1461,256 @@ function check_headers_requested(headers, callback) {
     }
 
     // Check X-M2M-Origin Header
-    if (headers['x-m2m-origin'] == null || headers['x-m2m-origin'] == '') {
-        if (request.ty == '2' || request.ty == '16') {
-            headers['x-m2m-origin'] = 'S';
+    if(request.headers.hasOwnProperty('x-m2m-origin')) {
+        if(request.headers['x-m2m-origin'] === '') {
+            if (request.ty == '2' || request.ty == '16') {
+                request.headers['x-m2m-origin'] = 'S';
+            }
+            else {
+                callback('400-2');
+                return;
+            }
+        }
+    }
+    else {
+        callback('400-2');
+        return;
+    }
+
+    if (!request.query.hasOwnProperty('fu')) {
+        request.query.fu = 2;
+    }
+
+    if (!request.query.hasOwnProperty('rcn')) {
+        request.query.rcn = 1;
+    }
+
+    if (!request.query.hasOwnProperty('rt')) {
+        request.query.rt = 3;
+    }
+
+    var allow = 1;
+    if (allowed_ae_ids.length > 0) {
+        allow = 0;
+        for (var idx in allowed_ae_ids) {
+            if (allowed_ae_ids.hasOwnProperty(idx)) {
+                if (usecseid == request.headers['x-m2m-origin']) {
+                    allow = 1;
+                    break;
+                }
+                else if (allowed_ae_ids[idx] == request.headers['x-m2m-origin']) {
+                    allow = 1;
+                    break;
+                }
+            }
+        }
+
+        if (allow == 0) {
+            callback('403-1');
+            return;
+        }
+    }
+
+    if (!responder.typeRsrc.hasOwnProperty(request.ty)) {
+        callback('405-3');
+        return;
+    }
+
+    callback('200');
+}
+
+function check_resource_supported(request, response, callback) {
+    make_json_obj(request.usebodytype, request.body, function (err, body) {
+        try {
+            var rootnm = Object.keys(body)[0].replace('m2m:', '');
+            var checkCount = 0;
+            for (var key in responder.typeRsrc) {
+                if (responder.typeRsrc.hasOwnProperty(key)) {
+                    if (responder.typeRsrc[key] == rootnm) {
+                        break;
+                    }
+                    checkCount++;
+                }
+            }
+            body = null;
+
+            if (checkCount >= Object.keys(responder.typeRsrc).length) {
+                callback('400-3');
+            }
+            else {
+                callback('200');
+            }
+        }
+        catch(e) {
+            callback('400-4');
+        }
+    });
+}
+
+function get_target_url(request, response, callback) {
+    request.url = request.url.replace('%23', '#'); // convert '%23' to '#' of url
+    request.hash = url.parse(request.url).hash;
+
+    var absolute_url = request.url.replace('\/_\/', '\/\/').split('#')[0];
+    absolute_url = absolute_url.replace(usespid, '/~');
+    absolute_url = absolute_url.replace(/\/~\/[^\/]+\/?/, '/');
+    var absolute_url_arr = absolute_url.split('/');
+
+    console.log('\n' + request.method + ' : ' + request.url);
+    request.bodyObj = {};
+
+    request.option = '';
+    request.sri = absolute_url_arr[1].split('?')[0];
+    if (absolute_url_arr[absolute_url_arr.length - 1] == 'la' || absolute_url_arr[absolute_url_arr.length - 1] == 'latest') {
+        if(request.method.toLowerCase() == 'get' || request.method.toLowerCase() == 'delete') {
+            request.ri = absolute_url.split('?')[0].replace('/latest', '');
+            request.ri = request.ri.replace('/la', '');
+            request.option = '/latest';
         }
         else {
-            responder.error_result(request, response, 400, 4000, 'BAD REQUEST: X-M2M-Origin header is Mandatory');
-            return '0';
+            callback('409-1');
         }
+    }
+    else if (absolute_url_arr[absolute_url_arr.length - 1] == 'ol' || absolute_url_arr[absolute_url_arr.length - 1] == 'oldest') {
+        if(request.method.toLowerCase() == 'get' || request.method.toLowerCase() == 'delete') {
+            request.ri = absolute_url.split('?')[0].replace('/oldest', '');
+            request.ri = request.ri.replace('/ol', '');
+            request.option = '/oldest';
+        }
+        else {
+            callback('409-2')
+        }
+    }
+    else if (absolute_url_arr[absolute_url_arr.length - 1] == 'fopt') {
+        request.ri = absolute_url.split('?')[0].replace('/fopt', '');
+        request.option = '/fopt';
+    }
+    else {
+        request.ri = absolute_url.split('?')[0];
+        request.option = '';
+    }
+
+    request.absolute_url = absolute_url;
+    absolute_url = null;
+    var tid = require('shortid').generate();
+    console.time('get_resource_from_url' + ' (' + tid + ') - ' + request.absolute_url);
+    get_resource_from_url(request.connection, request.ri, request.sri, request.option, function (targetObject, status) {
+        console.timeEnd('get_resource_from_url' + ' (' + tid + ') - ' + request.absolute_url);
+        if (status == 404) {
+            if (url.parse(request.absolute_url).pathname.split('/')[1] == usecsebase) {
+                callback('404-1');
+            }
+            else {
+                callback('301-1');
+            }
+        }
+        else if (status == 500) {
+            callback('500-1');
+        }
+        else {
+            if (targetObject) {
+                request.targetObject = JSON.parse(JSON.stringify(targetObject));
+                targetObject = null;
+
+                callback('200');
+            }
+            else {
+                callback('404-1');
+            }
+        }
+    });
+}
+
+function check_allowed_app_ids(request, callback) {
+    if (responder.typeRsrc[request.ty] != Object.keys(request.bodyObj)[0]) {
+        if (responder.typeRsrc[request.ty] == 'mgo') {
+            var support_mgo = 0;
+            for (var prop in responder.mgoType) {
+                if (responder.mgoType.hasOwnProperty(prop)) {
+                    if (responder.mgoType[prop] == Object.keys(request.bodyObj)[0]) {
+                        support_mgo = 1;
+                        break;
+                    }
+                }
+            }
+
+            if (support_mgo == 0) {
+                callback('400-42');
+                return;
+            }
+        }
+        else {
+            callback('400-42');
+            return;
+        }
+    }
+
+    if (request.ty == '2') {
+        var allow = 1;
+        if (allowed_app_ids.length > 0) {
+            allow = 0;
+            for (var idx in allowed_app_ids) {
+                if (allowed_app_ids.hasOwnProperty(idx)) {
+                    if (allowed_app_ids[idx] == request.bodyObj.ae.api) {
+                        allow = 1;
+                        break;
+                    }
+                }
+            }
+            if (allow == 0) {
+                callback('403-4');
+                return;
+            }
+        }
+    }
+
+    callback('200');
+}
+
+function check_type_update_resource (request, callback) {
+    for (var ty_idx in responder.typeRsrc) {
+        if (responder.typeRsrc.hasOwnProperty(ty_idx)) {
+            if ((ty_idx == 4) && (responder.typeRsrc[ty_idx] == Object.keys(request.bodyObj)[0])) {
+                callback('405-7');
+                return;
+            }
+            else if ((ty_idx != 4) && (responder.typeRsrc[ty_idx] == Object.keys(request.bodyObj)[0])) {
+                if ((ty_idx == 17) && (responder.typeRsrc[ty_idx] == Object.keys(request.bodyObj)[0])) {
+                    callback('405-8');
+                    return;
+                }
+                else {
+                    request.ty = ty_idx;
+                    break;
+                }
+            }
+            else if (ty_idx == 13) {
+                for (var mgo_idx in responder.mgoType) {
+                    if (responder.mgoType.hasOwnProperty(mgo_idx)) {
+                        if ((responder.mgoType[mgo_idx] == Object.keys(request.bodyObj)[0])) {
+                            request.ty = ty_idx;
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if (url.parse(request.targetObject[Object.keys(request.targetObject)[0]].ri).pathname == ('/' + usecsebase)) {
+        callback('405-9');
+        return;
+    }
+
+    callback('200');
+}
+
+function check_type_delete_resource(request, callback) {
+    if (url.parse(request.targetObject[Object.keys(request.targetObject)[0]].ri).pathname == ('/' + usecsebase)) {
+        callback('405-9');
+    }
+    else {
+        callback('200');
     }
 }
 
@@ -1449,7 +1732,15 @@ app.use(function (req, res, next) {
     (req.method == 'OPTIONS') ? res.sendStatus(200) : next();
 });
 
-app.use(function (request, response, next) {
+// var heapdump = require('heapdump');
+// app.use('/heapdump',function(req,res,next){
+//     var filename = Date.now() + '.heapsnapshot';
+//     heapdump.writeSnapshot(filename);
+//     res.send('Heapdump has been generated in '+filename);
+// });
+
+// remoteCSE, ae, cnt
+app.post(onem2mParser, function (request, response) {
     var fullBody = '';
     request.on('data', function(chunk) {
         fullBody += chunk.toString();
@@ -1458,464 +1749,737 @@ app.use(function (request, response, next) {
     request.on('end', function() {
         request.body = fullBody;
 
-        if(request.method.toLowerCase() == 'get') {
-            if (request.url == '/hit') {
-                response.header('Content-Type', 'application/json');
-                retrieveHitCount(response);
-                return;
-            }
+        db.getConnection(function (code, connection) {
+            if(code === '200') {
+                request.connection = connection;
 
-            if (request.url == '/total_ae') {
-                db_sql.select_sum_ae(function (err, result) {
-                    if (!err) {
-                        var total_ae = result[0];
-                        response.header('Content-Type', 'application/json');
-                        response.status(200).end(JSON.stringify(total_ae, null, 4));
-                    }
+                if (!request.headers.hasOwnProperty('binding')) {
+                    request.headers['binding'] = 'H';
+                }
+
+                db_sql.set_hit(request.connection, request.headers['binding'], function (err, results) {
+                    results = null;
                 });
-                return;
-            }
 
-            if (request.url == '/total_cbs') {
-                db_sql.select_sum_cbs(function (err, result) {
-                    if (!err) {
-                        var total_cbs = result[0];
-                        response.header('Content-Type', 'application/json');
-                        response.status(200).end(JSON.stringify(total_cbs, null, 4));
-                    }
-                });
-                return;
-            }
-        }
+                check_xm2m_headers(request, function (code) {
+                    if(code === '200') {
+                        if (request.body !== "") {
+                            check_resource_supported(request, response, function (code) {
+                                if(code === '200') {
+                                    get_target_url(request, response, function (code) {
+                                        if(code === '200') {
+                                            if (request.option !== '/fopt') {
+                                                parse_body_format(request, response, function (code) {
+                                                    if(code === '200') {
+                                                        check_allowed_app_ids(request, function (code) {
+                                                            if(code === '200') {
+                                                                var rootnm = Object.keys(request.targetObject)[0];
+                                                                var absolute_url = request.targetObject[rootnm].ri;
+                                                                check_notification(request, response, function (code) {
+                                                                    if (code === 'post') {
+                                                                        request.url = absolute_url;
+                                                                        if ((request.query.fu == 2) && (request.query.rcn == 0 || request.query.rcn == 1 || request.query.rcn == 2 || request.query.rcn == 3)) {
+                                                                            lookup_create(request, response, function (code) {
+                                                                                if(code === '201') {
+                                                                                    responder.response_result(request, response, 201, 2001, '', function () {
+                                                                                        request = null;
+                                                                                        response = null;
+                                                                                    });
+                                                                                }
+                                                                                else if(code === '201-3') {
+                                                                                    responder.response_rcn3_result(request, response, 201, 2001, '', function () {
+                                                                                        request = null;
+                                                                                        response = null;
+                                                                                    });
+                                                                                }
+                                                                                else if(code === '202-1') {
+                                                                                    responder.response_result(request, response, 202, 1001, '', function () {
+                                                                                        request = null;
+                                                                                        response = null;
+                                                                                    });
+                                                                                }
+                                                                                else if(code === '202-2') {
+                                                                                    responder.response_result(request, response, 202, 1002, '', function () {
+                                                                                        request = null;
+                                                                                        response = null;
+                                                                                    });
+                                                                                }
+                                                                                else {
+                                                                                    response_error_result(request, response, code, function () {
+                                                                                        request = null;
+                                                                                        response = null;
+                                                                                    });
+                                                                                }
+                                                                            });
+                                                                        }
+                                                                        else {
+                                                                            response_error_result(request, response, '400-43', function () {
+                                                                                request = null;
+                                                                                response = null;
+                                                                            });
+                                                                        }
+                                                                    }
+                                                                    else if (code === 'notify') {
+                                                                        check_ae_notify(request, response, function (code, res) {
+                                                                            if(code === '200') {
+                                                                                if (res.headers['content-type']) {
+                                                                                    response.header('Content-Type', res.headers['content-type']);
+                                                                                }
+                                                                                if (res.headers['x-m2m-ri']) {
+                                                                                    response.header('X-M2M-RI', res.headers['x-m2m-ri']);
+                                                                                }
+                                                                                if (res.headers['x-m2m-rvi']) {
+                                                                                    response.header('X-M2M-RVI', res.headers['x-m2m-rvi']);
+                                                                                }
+                                                                                if (res.headers['x-m2m-rsc']) {
+                                                                                    response.header('X-M2M-RSC', res.headers['x-m2m-rsc']);
+                                                                                }
+                                                                                if (res.headers['content-location']) {
+                                                                                    response.header('Content-Location', res.headers['content-location']);
+                                                                                }
 
-        // Check X-M2M-RI Header
-        if ((request.headers['x-m2m-ri'] == null)) {
-            responder.error_result(request, response, 400, 4000, 'BAD REQUEST: X-M2M-RI is none');
-            return '0';
-        }
+                                                                                response.statusCode = res.statusCode;
+                                                                                response.send(res.body);
 
-        // Check X-M2M-RVI Header
-        if ((request.headers['x-m2m-rvi'] == null)) {
-            // responder.error_result(request, response, 400, 4000, 'BAD REQUEST: X-M2M-RI is none');
-            // callback('0', body_Obj, request, response);
-            // return '0';
-            // todo: RVI check
-            request.headers['x-m2m-rvi'] = uservi;
-        }
-
-        request.ty = '99';
-        if(request.method.toLowerCase() == 'post') {
-            var content_type = request.headers['content-type'].split(';');
-            try {
-                var ty = '99';
-                for (var i in content_type) {
-                    if (content_type.hasOwnProperty(i)) {
-                        var ty_arr = content_type[i].replace(/ /g, '').split('=');
-                        if (ty_arr[0].replace(/ /g, '') == 'ty') {
-                            ty = ty_arr[1].replace(' ', '');
-                            break;
-                        }
-                    }
-                }
-                request.ty = ty;
-            }
-            catch (e) {
-                responder.error_result(request, response, 400, 4000, 'ty is none');
-                return '0';
-            }
-
-            if (request.ty == '5') {
-                responder.error_result(request, response, 405, 4005, 'OPERATION_NOT_ALLOWED: CSEBase can not be created by others');
-                return '0';
-            }
-
-            if (request.ty == '17') {
-                responder.error_result(request, response, 405, 4005, 'OPERATION_NOT_ALLOWED (req is not supported when post request)');
-                return '0';
-            }
-        }
-
-        // Check X-M2M-Origin Header
-        if (request.headers['x-m2m-origin'] == null || request.headers['x-m2m-origin'] == '') {
-            if (request.ty == '2' || request.ty == '16') {
-                request.headers['x-m2m-origin'] = 'S';
-            }
-            else {
-                responder.error_result(request, response, 400, 4000, 'BAD REQUEST: X-M2M-Origin header is Mandatory');
-                return '0';
-            }
-        }
-
-        if (request.headers.hasOwnProperty('content-type')) {
-            if (request.headers['content-type'].includes('xml')) {
-                request.usebodytype = 'xml';
-            }
-            else if (request.headers['content-type'].includes('cbor')) {
-                request.usebodytype = 'cbor';
-            }
-            else {
-                request.usebodytype = 'json';
-            }
-        }
-        else {
-            request.usebodytype = 'json';
-        }
-
-        if (request.query.fu == null) {
-            request.query.fu = 2;
-        }
-        if (request.query.rcn == null) {
-            request.query.rcn = 1;
-        }
-        if (request.query.rt == null) {
-            request.query.rt = 3;
-        }
-
-        var allow = 1;
-        if (allowed_ae_ids.length > 0) {
-            allow = 0;
-            for (var idx in allowed_ae_ids) {
-                if (allowed_ae_ids.hasOwnProperty(idx)) {
-                    if (usecseid == request.headers['x-m2m-origin']) {
-                        allow = 1;
-                        break;
-                    }
-                    else if (allowed_ae_ids[idx] == request.headers['x-m2m-origin']) {
-                        allow = 1;
-                        break;
-                    }
-                }
-            }
-
-            if (allow == 0) {
-                responder.error_result(request, response, 403, 4107, 'OPERATION_NOT_ALLOWED: AE-ID is not allowed');
-                return '0';
-            }
-        }
-
-        if (responder.typeRsrc[request.ty] == null) {
-            responder.error_result(request, response, 405, 4005, 'OPERATION_NOT_ALLOWED: we do not support (' + request.ty + ') resource');
-            return '0';
-        }
-
-        if(request.method.toLowerCase() == 'post' || request.method.toLowerCase() == 'put' ) {
-            if(request.body != '') {
-                try {
-                    var rootnm = Object.keys(JSON.parse(request.body))[0].replace('m2m:', '');
-                    if(Object.values(responder.typeRsrc).indexOf(rootnm) < 0) {
-                        responder.error_result(request, response, 400, 4000, 'BAD REQUEST');
-                        return '0';
-                    }
-                }
-                catch(e) {
-                    responder.error_result(request, response, 400, 4000, 'BAD REQUEST');
-                    return '0';
-                }
-            }
-        }
-
-        request.url = request.url.replace('%23', '#'); // convert '%23' to '#' of url
-        request.hash = url.parse(request.url).hash;
-
-        var absolute_url = request.url.replace('\/_\/', '\/\/').split('#')[0];
-        absolute_url = absolute_url.replace(usespid, '/~');
-        absolute_url = absolute_url.replace(/\/~\/[^\/]+\/?/, '/');
-        var absolute_url_arr = absolute_url.split('/');
-
-        console.log('\n' + request.method + ' : ' + request.url);
-        request.bodyObj = {};
-
-        var option = '';
-        var sri = absolute_url_arr[1].split('?')[0];
-        if (absolute_url_arr[absolute_url_arr.length - 1] == 'la' || absolute_url_arr[absolute_url_arr.length - 1] == 'latest') {
-            var ri = absolute_url.split('?')[0].replace('/latest', '');
-            ri = ri.replace('/la', '');
-            option = '/latest';
-        }
-        else if (absolute_url_arr[absolute_url_arr.length - 1] == 'ol' || absolute_url_arr[absolute_url_arr.length - 1] == 'oldest') {
-            ri = absolute_url.split('?')[0].replace('/oldest', '');
-            ri = ri.replace('/ol', '');
-            option = '/oldest';
-        }
-        else if (absolute_url_arr[absolute_url_arr.length - 1] == 'fopt') {
-            ri = absolute_url.split('?')[0].replace('/fopt', '');
-            option = '/fopt';
-        }
-        else {
-            ri = absolute_url.split('?')[0];
-            option = '';
-        }
-
-        var tid = require('shortid').generate();
-        console.time('get_resource_from_url' + ' (' + tid + ') - ' + absolute_url);
-        get_resource_from_url(ri, sri, option, function (targetObject, status) {
-            console.timeEnd('get_resource_from_url' + ' (' + tid + ') - ' + absolute_url);
-            if (targetObject) {
-                request.targetObject = targetObject;
-                if (option == '/fopt') {
-                    // check access right for fanoutpoint
-                    check_grp(request, response, function (rsc, result_grp) {
-                        if (rsc == '0') {
-                            return rsc;
-                        }
-
-                        if (request.method.toLowerCase() == 'post') {
-                            var access_value = '1';
-                        }
-                        else if (request.method.toLowerCase() == 'get') {
-                            if (request.query.fu == 1) {
-                                access_value = '32';
-                            }
-                            else {
-                                access_value = '2';
-                            }
-                        }
-                        else if (request.method.toLowerCase() == 'put') {
-                            access_value = '4';
+                                                                                res = null;
+                                                                                request = null;
+                                                                                response = null;
+                                                                            }
+                                                                            else {
+                                                                                response_error_result(request, response, code, function () {
+                                                                                    request = null;
+                                                                                    response = null;
+                                                                                });
+                                                                            }
+                                                                        });
+                                                                    }
+                                                                    else {
+                                                                        response_error_result(request, response, code, function () {
+                                                                            request = null;
+                                                                            response = null;
+                                                                        });
+                                                                    }
+                                                                });
+                                                            }
+                                                            else {
+                                                                response_error_result(request, response, code, function () {
+                                                                    request = null;
+                                                                    response = null;
+                                                                });
+                                                            }
+                                                        });
+                                                    }
+                                                    else {
+                                                        response_error_result(request, response, code, function () {
+                                                            request = null;
+                                                            response = null;
+                                                        });
+                                                    }
+                                                });
+                                            }
+                                            else {
+                                                check_grp(request, response, function (rsc, result_grp) { // check access right for fanoutpoint
+                                                    if (rsc == '1') {
+                                                        var access_value = '1';
+                                                        var body_Obj = {};
+                                                        security.check(request, response, request.targetObject[Object.keys(request.targetObject)[0]].ty, result_grp.macp, access_value, result_grp.cr, function (code) {
+                                                            if(code === '1') {
+                                                                parse_body_format(request, response, function (code) {
+                                                                    if (code === '200') {
+                                                                        fopt.check(request, response, result_grp, request.targetObject[Object.keys(request.targetObject)[0]].ty, body_Obj, function (code) {
+                                                                            if(code === '200') {
+                                                                                responder.response_result(request, response, 200, 2000, '', function () {
+                                                                                    request = null;
+                                                                                    response = null;
+                                                                                });
+                                                                            }
+                                                                            else {
+                                                                                response_error_result(request, response, code, function () {
+                                                                                    request = null;
+                                                                                    response = null;
+                                                                                });
+                                                                            }
+                                                                        });
+                                                                    }
+                                                                    else {
+                                                                        response_error_result(request, response, code, function () {
+                                                                            request = null;
+                                                                            response = null;
+                                                                        });
+                                                                    }
+                                                                });
+                                                            }
+                                                            else if (code === '0') {
+                                                                response_error_result(request, response, '403-5', function () {
+                                                                    request = null;
+                                                                    response = null;
+                                                                });
+                                                            }
+                                                            else {
+                                                                response_error_result(request, response, code, function () {
+                                                                    request = null;
+                                                                    response = null;
+                                                                });
+                                                            }
+                                                        });
+                                                    }
+                                                    else {
+                                                        response_error_result(request, response, '404-4', function () {
+                                                            request = null;
+                                                            response = null;
+                                                        });
+                                                    }
+                                                });
+                                            }
+                                        }
+                                        else if(code === '301-1') {
+                                            check_csr(request, response, function () {
+                                                if(code === '301-2') {
+                                                    response.status(response.statusCode).end(response.body);
+                                                    request = null;
+                                                    response = null;
+                                                }
+                                                else {
+                                                    response_error_result(request, response, code, function () {
+                                                        request = null;
+                                                        response = null;
+                                                    });
+                                                }
+                                            });
+                                        }
+                                        else {
+                                            response_error_result(request, response, code, function () {
+                                                request = null;
+                                                response = null;
+                                            });
+                                        }
+                                    });
+                                }
+                                else {
+                                    response_error_result(request, response, code, function () {
+                                        request = null;
+                                        response = null;
+                                    });
+                                }
+                            });
                         }
                         else {
-                            access_value = '8'
+                            response_error_result(request, response, '400-40', function () {
+                                request = null;
+                                response = null;
+                            });
                         }
-
-                        var body_Obj = {};
-                        security.check(request, response, targetObject[Object.keys(targetObject)[0]].ty, result_grp.macp, access_value, result_grp.cr, function (rsc, request, response) {
-                            if (rsc == '0') {
-                                responder.error_result(request, response, 403, 4103, '[app.use] ACCESS DENIED (fopt)');
-                                return '0';
-                            }
-
-                            if (request.method.toLowerCase() == 'post' || request.method.toLowerCase() == 'put') {
-                                parse_body_format(request, response, function (rsc, body_Obj) {
-                                    if (rsc != '0') {
-                                        fopt.check(request, response, result_grp, targetObject[Object.keys(targetObject)[0]].ty, body_Obj);
-                                    }
-                                });
-                            }
-                            else {
-                                fopt.check(request, response, result_grp, targetObject[Object.keys(targetObject)[0]].ty, body_Obj);
-                            }
-                        });
-                    });
-                }
-                else {
-                    absolute_url = targetObject[Object.keys(targetObject)[0]].ri;
-
-                    next();
-                }
-            }
-            else {
-                if (status == 404) {
-                    if (url.parse(absolute_url).pathname.split('/')[1] == usecsebase) {
-                        responder.error_result(request, response, 404, 4004, '[app.use] resource does not exist');
-                        return '0';
                     }
                     else {
-                        check_csr(absolute_url, request, response);
-                        return '0';
+                        response_error_result(request, response, code, function () {
+                            request = null;
+                            response = null;
+                        });
                     }
-                }
-                else if (status == 500) {
-                    responder.error_result(request, response, 404, 4004, '[app.use] Database error at get_resource_from_url in ' + usecsebase);
-                    return '0';
-                }
+                });
+            }
+            else {
+                response_error_result(request, response, code, function () {
+                    request = null;
+                    response = null;
+                });
             }
         });
     });
 });
 
-// remoteCSE, ae, cnt
-app.post(onem2mParser, function (request, response) {
-    if (request.headers.hasOwnProperty('binding')) {
-        updateHitCount(request.headers['binding']);
-    }
-    else {
-        updateHitCount('H');
-    }
+app.get(onem2mParser, function (request, response) {
+    var fullBody = '';
+    request.on('data', function(chunk) {
+        fullBody += chunk.toString();
+    });
 
-    if (request.body == "") {
-        responder.error_result(request, response, 400, 4000, 'body is empty');
-        return '0';
-    }
+    request.on('end', function() {
+        request.body = fullBody;
 
-    parse_body_format(request, response, function (rsc, body_Obj) {
-        if (rsc != '0') {
-            if (responder.typeRsrc[request.ty] != Object.keys(body_Obj)[0]) {
-                if(responder.typeRsrc[request.ty] == 'mgo') {
-                    var support_mgo = 0;
-                    for (var prop in responder.mgoType) {
-                        if(responder.mgoType.hasOwnProperty(prop)) {
-                            if (responder.mgoType[prop] == Object.keys(body_Obj)[0]) {
-                                support_mgo = 1;
-                                break;
-                            }
+        db.getConnection(function (code, connection) {
+            if(code === '200') {
+                request.connection = connection;
+
+                extra_api_action(connection, request.url, function(code, result) {
+                    if(code === '200') {
+                        if (!request.headers.hasOwnProperty('binding')) {
+                            request.headers['binding'] = 'H';
                         }
-                    }
 
-                    if(support_mgo == 0) {
-                        responder.error_result(request, response, 400, 4000, 'ty [' + request.ty + '] is different with body (' + Object.keys(body_Obj)[0] + ')');
-                        return '0';
-                    }
-                }
-                else {
-                    responder.error_result(request, response, 400, 4000, 'ty [' + request.ty + '] is different with body (' + Object.keys(body_Obj)[0] + ')');
-                    return '0';
-                }
-            }
+                        db_sql.set_hit(request.connection, request.headers['binding'], function (err, results) {
+                            results = null;
+                        });
 
-            if(request.ty == '2') {
-                var allow = 1;
-                if(allowed_app_ids.length > 0) {
-                    allow = 0;
-                    for(var idx in allowed_app_ids) {
-                        if(allowed_app_ids.hasOwnProperty(idx)) {
-                            if(allowed_app_ids[idx] == request.bodyObj.ae.api) {
-                                allow = 1;
-                                break;
+                        check_xm2m_headers(request, function (code) {
+                            if(code === '200') {
+                                get_target_url(request, response, function (code) {
+                                    if (code === '200') {
+                                        if (request.option !== '/fopt') {
+                                            var rootnm = Object.keys(request.targetObject)[0];
+                                            request.url = request.targetObject[rootnm].ri;
+                                            if ((request.query.fu == 1 || request.query.fu == 2) && (request.query.rcn == 1 || request.query.rcn == 4 || request.query.rcn == 5 || request.query.rcn == 6 || request.query.rcn == 7)) {
+                                                lookup_retrieve(request, response, function (code) {
+                                                    if(code === '200') {
+                                                        responder.response_result(request, response, 200, 2000, '', function () {
+                                                            request = null;
+                                                            response = null;
+                                                        });
+                                                    }
+                                                    else if(code === '200-1') {
+                                                        responder.search_result(request, response, 200, 2000, '', function () {
+                                                            request = null;
+                                                            response = null;
+                                                        });
+                                                    }
+                                                    else {
+                                                        response_error_result(request, response, code, function () {
+                                                            request = null;
+                                                            response = null;
+                                                        });
+                                                    }
+                                                });
+                                            }
+                                            else {
+                                                response_error_result(request, response, '400-44', function () {
+                                                    request = null;
+                                                    response = null;
+                                                });
+                                            }
+                                        }
+                                        else { //if (request.option === '/fopt') {
+                                            check_grp(request, response, function (rsc, result_grp) { // check access right for fanoutpoint
+                                                if (rsc == '1') {
+                                                    var access_value = (request.query.fu == 1) ? '32' : '2';
+                                                    var body_Obj = {};
+                                                    security.check(request, response, request.targetObject[Object.keys(request.targetObject)[0]].ty, result_grp.macp, access_value, result_grp.cr, function (code) {
+                                                        if(code === '1') {
+                                                            fopt.check(request, response, result_grp, request.targetObject[Object.keys(request.targetObject)[0]].ty, body_Obj, function (code) {
+                                                                if(code === '200') {
+                                                                    responder.response_result(request, response, 200, 2000, '', function () {
+                                                                        request = null;
+                                                                        response = null;
+                                                                    });
+                                                                }
+                                                                else {
+                                                                    response_error_result(request, response, code, function () {
+                                                                        request = null;
+                                                                        response = null;
+                                                                    });
+                                                                }
+                                                            });
+                                                        }
+                                                        else if (code === '0') {
+                                                            response_error_result(request, response, '403-5', function () {
+                                                                request = null;
+                                                                response = null;
+                                                            });
+                                                        }
+                                                        else {
+                                                            response_error_result(request, response, code, function () {
+                                                                request = null;
+                                                                response = null;
+                                                            });
+                                                        }
+                                                    });
+                                                }
+                                                else {
+                                                    response_error_result(request, response, '404-4', function () {
+                                                        request = null;
+                                                        response = null;
+                                                    });
+                                                }
+                                            });
+                                        }
+                                    }
+                                    else if(code === '301-1') {
+                                        check_csr(request, response, function () {
+                                            if(code === '301-2') {
+                                                response.status(response.statusCode).end(response.body);
+                                                request = null;
+                                                response = null;
+                                            }
+                                            else {
+                                                response_error_result(request, response, code, function () {
+                                                    request = null;
+                                                    response = null;
+                                                });
+                                            }
+                                        });
+                                    }
+                                    else {
+                                        response_error_result(request, response, code, function () {
+                                            request = null;
+                                            response = null;
+                                        });
+                                    }
+                                });
                             }
-                        }
+                            else {
+                                response_error_result(request, response, code, function () {
+                                    request = null;
+                                    response = null;
+                                });
+                            }
+                        });
                     }
-
-                    if(allow == 0) {
-                        responder.error_result(request, response, 403, 4107, 'OPERATION_NOT_ALLOWED: APP-ID in AE is not allowed');
-                        return '0';
-                    }
-                }
-            }
-
-            var rootnm = Object.keys(request.targetObject)[0];
-            var absolute_url = request.targetObject[rootnm].ri;
-            check_notification(request, absolute_url, function (status, http_code, rsc_code, caption) {
-                if (status == 'notify') {
-                    check_ae(request.targetObject, request, response);
-                }
-                else if (status == 'post') {
-                    request.url = absolute_url;
-                    if ((request.query.fu == 2) && (request.query.rcn == 0 || request.query.rcn == 1 || request.query.rcn == 2 || request.query.rcn == 3)) {
-                        lookup_create(request, response);
+                    else if(code === '201') {
+                        response.header('Content-Type', 'application/json');
+                        response.status(200).end(JSON.stringify(result, null, 4));
+                        result = null;
                     }
                     else {
-                        responder.error_result(request, response, http_code, rsc_code, 'rcn or fu query is not supported at POST request');
+                        response_error_result(request, response, code, function () {
+                            request = null;
+                            response = null;
+                        });
                     }
-                }
-                else if (status == '0') {
-                    responder.error_result(request, response, http_code, rsc_code, caption);
-                }
-            });
-        }
+                });
+            }
+            else {
+                response_error_result(request, response, code, function () {
+                    request = null;
+                    response = null;
+                });
+            }
+        });
     });
-});
-
-app.get(onem2mParser, function (request, response) {
-    if (request.headers.hasOwnProperty('binding')) {
-        updateHitCount(request.headers['binding']);
-    }
-    else {
-        updateHitCount('H');
-    }
-
-    var rootnm = Object.keys(request.targetObject)[0];
-    var absolute_url = request.targetObject[rootnm].ri;
-
-    request.url = absolute_url;
-    if ((request.query.fu == 1 || request.query.fu == 2) && (request.query.rcn == 1 || request.query.rcn == 4 || request.query.rcn == 5 || request.query.rcn == 6 || request.query.rcn == 7)) {
-        lookup_retrieve(request, response);
-    }
-    else {
-        responder.error_result(request, response, 400, 4000, 'BAD_REQUEST (rcn or fu query is not supported at GET request)');
-    }
 });
 
 
 app.put(onem2mParser, function (request, response) {
-    if (request.headers.hasOwnProperty('binding')) {
-        updateHitCount(request.headers['binding']);
-    }
-    else {
-        updateHitCount('H');
-    }
+    var fullBody = '';
+    request.on('data', function(chunk) {
+        fullBody += chunk.toString();
+    });
 
-    if (request.body == "") {
-        responder.error_result(request, response, 400, 4000, 'body is empty');
-        return '0';
-    }
+    request.on('end', function() {
+        request.body = fullBody;
 
-    parse_body_format(request, response, function (rsc, body_Obj) {
-        if (rsc != '0') {
-            for (var ty_idx in responder.typeRsrc) {
-                if (responder.typeRsrc.hasOwnProperty(ty_idx)) {
-                    if ((ty_idx == 4) && (responder.typeRsrc[ty_idx] == Object.keys(body_Obj)[0])) {
-                        responder.error_result(request, response, 405, 4005, 'Update cin is not supported');
-                        return '0';
-                    }
-                    else if ((ty_idx != 4) && (responder.typeRsrc[ty_idx] == Object.keys(body_Obj)[0])) {
-                        if ((ty_idx == 17) && (responder.typeRsrc[ty_idx] == Object.keys(body_Obj)[0])) {
-                            responder.error_result(request, response, 405, 4005, 'OPERATION_NOT_ALLOWED (req is not supported when put request)');
-                            return 0;
+        db.getConnection(function (code, connection) {
+            if(code === '200') {
+                request.connection = connection;
+
+                if (!request.headers.hasOwnProperty('binding')) {
+                    request.headers['binding'] = 'H';
+                }
+
+                db_sql.set_hit(request.connection, request.headers['binding'], function (err, results) {
+                    results = null;
+                });
+
+                check_xm2m_headers(request, function (code) {
+                    if(code === '200') {
+                        if (request.body !== "") {
+                            check_resource_supported(request, response, function (code) {
+                                if(code === '200') {
+                                    get_target_url(request, response, function (code) {
+                                        if(code === '200') {
+                                            if (request.option !== '/fopt') {
+                                                parse_body_format(request, response, function (code) {
+                                                    if(code === '200') {
+                                                        check_type_update_resource(request, function (code) {
+                                                            if(code === '200') {
+                                                                var rootnm = Object.keys(request.targetObject)[0];
+                                                                request.url = request.targetObject[rootnm].ri;
+                                                                if ((request.query.fu == 2) && (request.query.rcn == 0 || request.query.rcn == 1)) {
+                                                                    lookup_update(request, response, function (code) {
+                                                                        if(code === '200') {
+                                                                            responder.response_result(request, response, 200, 2004, '', function () {
+                                                                                request = null;
+                                                                                response = null;
+                                                                            });
+                                                                        }
+                                                                        else {
+                                                                            response_error_result(request, response, code, function () {
+                                                                                request = null;
+                                                                                response = null;
+                                                                            });
+                                                                        }
+                                                                    });
+                                                                }
+                                                                else {
+                                                                    response_error_result(request, response, '400-45', function () {
+                                                                        request = null;
+                                                                        response = null;
+                                                                    });
+                                                                }
+                                                            }
+                                                            else {
+                                                                response_error_result(request, response, code, function () {
+                                                                    request = null;
+                                                                    response = null;
+                                                                });
+                                                            }
+                                                        });
+                                                    }
+                                                    else {
+                                                        response_error_result(request, response, code, function () {
+                                                            request = null;
+                                                            response = null;
+                                                        });
+                                                    }
+                                                });
+                                            }
+                                            else {
+                                                check_grp(request, response, function (rsc, result_grp) { // check access right for fanoutpoint
+                                                    if (rsc == '1') {
+                                                        var access_value = '4';
+                                                        var body_Obj = {};
+                                                        security.check(request, response, request.targetObject[Object.keys(request.targetObject)[0]].ty, result_grp.macp, access_value, result_grp.cr, function (code) {
+                                                            if(code === '1') {
+                                                                parse_body_format(request, response, function (code) {
+                                                                    if (code === '200') {
+                                                                        fopt.check(request, response, result_grp, request.targetObject[Object.keys(request.targetObject)[0]].ty, body_Obj, function (code) {
+                                                                            if(code === '200') {
+                                                                                responder.response_result(request, response, 200, 2000, '', function () {
+                                                                                    request = null;
+                                                                                    response = null;
+                                                                                });
+                                                                            }
+                                                                            else {
+                                                                                response_error_result(request, response, code, function () {
+                                                                                    request = null;
+                                                                                    response = null;
+                                                                                });
+                                                                            }
+                                                                        });
+                                                                    }
+                                                                    else {
+                                                                        response_error_result(request, response, code, function () {
+                                                                            request = null;
+                                                                            response = null;
+                                                                        });
+                                                                    }
+                                                                });
+                                                            }
+                                                            else if (code === '0') {
+                                                                response_error_result(request, response, '403-5', function () {
+                                                                    request = null;
+                                                                    response = null;
+                                                                });
+                                                            }
+                                                            else {
+                                                                response_error_result(request, response, code, function () {
+                                                                    request = null;
+                                                                    response = null;
+                                                                });
+                                                            }
+                                                        });
+                                                    }
+                                                    else {
+                                                        response_error_result(request, response, '404-4', function () {
+                                                            request = null;
+                                                            response = null;
+                                                        });
+                                                    }
+                                                });
+                                            }
+                                        }
+                                        else if(code === '301-1') {
+                                            check_csr(request, response, function () {
+                                                if(code === '301-2') {
+                                                    response.status(response.statusCode).end(response.body);
+                                                    request = null;
+                                                    response = null;
+                                                }
+                                                else {
+                                                    response_error_result(request, response, code, function () {
+                                                        request = null;
+                                                        response = null;
+                                                    });
+                                                }
+                                            });
+                                        }
+                                        else {
+                                            response_error_result(request, response, code, function () {
+                                                request = null;
+                                                response = null;
+                                            });
+                                        }
+                                    });
+                                }
+                                else {
+                                    response_error_result(request, response, code, function () {
+                                        request = null;
+                                        response = null;
+                                    });
+                                }
+                            });
                         }
                         else {
-                            request.ty = ty_idx;
-                            break;
+                            response_error_result(request, response, '400-40', function () {
+                                request = null;
+                                response = null;
+                            });
                         }
                     }
-                    else if (ty_idx == 13) {
-                        for (var mgo_idx in responder.mgoType) {
-                            if (responder.mgoType.hasOwnProperty(mgo_idx)) {
-                                if ((responder.mgoType[mgo_idx] == Object.keys(body_Obj)[0])) {
-                                    request.ty = ty_idx;
-                                    break;
-                                }
-                            }
-                        }
+                    else {
+                        response_error_result(request, response, code, function () {
+                            request = null;
+                            response = null;
+                        });
                     }
-                }
-            }
-
-            var rootnm = Object.keys(request.targetObject)[0];
-            var absolute_url = request.targetObject[rootnm].ri;
-
-            if (url.parse(absolute_url).pathname == ('/' + usecsebase)) {
-                responder.error_result(request, response, 405, 4005, 'OPERATION_NOT_ALLOWED');
-                return '0';
-            }
-
-            request.url = absolute_url;
-            if ((request.query.fu == 2) && (request.query.rcn == 0 || request.query.rcn == 1)) {
-                lookup_update(request, response);
+                });
             }
             else {
-                responder.error_result(request, response, 400, 4000, 'rcn query is not supported at PUT request');
+                response_error_result(request, response, code, function () {
+                    request = null;
+                    response = null;
+                });
             }
-        }
+        });
     });
 });
 
 app.delete(onem2mParser, function (request, response) {
-    if (request.headers.hasOwnProperty('binding')) {
-        updateHitCount(request.headers['binding']);
-    }
-    else {
-        updateHitCount('H');
-    }
+    var fullBody = '';
+    request.on('data', function(chunk) {
+        fullBody += chunk.toString();
+    });
 
-    var rootnm = Object.keys(request.targetObject)[0];
-    var absolute_url = request.targetObject[rootnm].ri;
+    request.on('end', function() {
+        request.body = fullBody;
 
-    if (url.parse(absolute_url).pathname == ('/' + usecsebase)) {
-        responder.error_result(request, response, 405, 4005, 'OPERATION_NOT_ALLOWED');
-        return '0';
-    }
+        db.getConnection(function (code, connection) {
+            if(code === '200') {
+                request.connection = connection;
 
-    request.url = absolute_url;
-    if ((request.query.fu == 2) &&
-        (request.query.rcn == 0 || request.query.rcn == 1)) {
-        lookup_delete(request, response);
-    }
-    else {
-        responder.error_result(request, response, 400, 4000, 'rcn query is not supported at DELETE request');
-    }
+                if (!request.headers.hasOwnProperty('binding')) {
+                    request.headers['binding'] = 'H';
+                }
+
+                db_sql.set_hit(request.connection, request.headers['binding'], function (err, results) {
+                    results = null;
+                });
+
+                check_xm2m_headers(request, function (code) {
+                    if(code === '200') {
+                        get_target_url(request, response, function (code) {
+                            if(code === '200') {
+                                if (request.option !== '/fopt') {
+                                    check_type_delete_resource(request, function (code) {
+                                        if(code === '200') {
+                                            var rootnm = Object.keys(request.targetObject)[0];
+                                            request.url = request.targetObject[rootnm].ri;
+                                            if ((request.query.fu == 2) && (request.query.rcn == 0 || request.query.rcn == 1)) {
+                                                lookup_delete(request, response, function (code) {
+                                                    if(code === '200') {
+                                                        responder.response_result(request, response, 200, 2002, '', function () {
+                                                            request = null;
+                                                            response = null;
+                                                        });
+                                                    }
+                                                    else {
+                                                        response_error_result(request, response, code, function () {
+                                                            request = null;
+                                                            response = null;
+                                                        });
+                                                    }
+                                                });
+                                            }
+                                            else {
+                                                response_error_result(request, response, '400-46', function () {
+                                                    request = null;
+                                                    response = null;
+                                                });
+                                            }
+                                        }
+                                        else {
+                                            response_error_result(request, response, code, function () {
+                                                request = null;
+                                                response = null;
+                                            });
+                                        }
+                                    });
+                                }
+                                else {
+                                    check_grp(request, response, function (rsc, result_grp) { // check access right for fanoutpoint
+                                        if (rsc == '1') {
+                                            var access_value = '8';
+                                            var body_Obj = {};
+                                            security.check(request, response, request.targetObject[Object.keys(request.targetObject)[0]].ty, result_grp.macp, access_value, result_grp.cr, function (code) {
+                                                if(code === '1') {
+                                                    fopt.check(request, response, result_grp, request.targetObject[Object.keys(request.targetObject)[0]].ty, body_Obj, function (code) {
+                                                        if(code === '200') {
+                                                            responder.response_result(request, response, 200, 2000, '', function () {
+                                                                request = null;
+                                                                response = null;
+                                                            });
+                                                        }
+                                                        else {
+                                                            response_error_result(request, response, code, function () {
+                                                                request = null;
+                                                                response = null;
+                                                            });
+                                                        }
+                                                    });
+                                                }
+                                                else if (code === '0') {
+                                                    response_error_result(request, response, '403-5', function () {
+                                                        request = null;
+                                                        response = null;
+                                                    });
+                                                }
+                                                else {
+                                                    response_error_result(request, response, code, function () {
+                                                        request = null;
+                                                        response = null;
+                                                    });
+                                                }
+                                            });
+                                        }
+                                        else {
+                                            response_error_result(request, response, '404-4', function () {
+                                                request = null;
+                                                response = null;
+                                            });
+                                        }
+                                    });
+                                }
+                            }
+                            else if (code === '301-1') {
+                                check_csr(request, response, function () {
+                                    if(code === '301-2') {
+                                        response.status(response.statusCode).end(response.body);
+                                        request = null;
+                                        response = null;
+                                    }
+                                    else {
+                                        response_error_result(request, response, code, function () {
+                                            request = null;
+                                            response = null;
+                                        });
+                                    }
+                                });
+                            }
+                            else {
+                                response_error_result(request, response, code, function () {
+                                    request = null;
+                                    response = null;
+                                });
+                            }
+                        });
+                    }
+                    else {
+                        response_error_result(request, response, code, function () {
+                            request = null;
+                            response = null;
+                        });
+                    }
+                });
+            }
+            else {
+                response_error_result(request, response, code, function () {
+                    request = null;
+                    response = null;
+                });
+            }
+        });
+    });
 });
 
-function check_notification(request, url, callback) {
+function check_notification(request, response, callback) {
     if(request.headers.hasOwnProperty('content-type')) {
         if(request.headers['content-type'].includes('ty')) { // post
             callback('post');
@@ -1925,18 +2489,18 @@ function check_notification(request, url, callback) {
                 callback('notify');
             }
             else {
-                callback('0', 400, 4000, '[check_notification] post request without ty value is but body is not for notification');
+                callback('400-19');
             }
         }
     }
     else {
-        callback('0', 400, 4000, 'content-type is none');
+        callback('400-20');
     }
 }
 
-function check_ae(absolute_url, request, response) {
-    var ri = absolute_url;
-    console.log('[check_ae] : ' + ri);
+function check_ae_notify(request, response, callback) {
+    var ri = request.targetObject[Object.keys(request.targetObject)[0]].ri;
+    console.log('[check_ae_notify] : ' + ri);
     db_sql.select_ae(ri, function (err, result_ae) {
         if (!err) {
             if (result_ae.length == 1) {
@@ -1946,43 +2510,40 @@ function check_ae(absolute_url, request, response) {
                     var poa = url.parse(poa_arr[i]);
                     if (poa.protocol == 'http:') {
                         console.log('send notification to ' + poa_arr[i]);
-
-                        notify_http(poa.hostname, poa.port, poa.path, request, response);
+                        notify_http(poa.hostname, poa.port, poa.path, request.method, request.headers, request.body, function (code, res) {
+                            callback(code, res)
+                        });
                     }
                     else if (poa.protocol == 'coap:') {
                         console.log('send notification to ' + poa_arr[i]);
-
-                        notify_http(poa.hostname, poa.port, poa.path, request, response);
+                        callback('405-12');
                     }
                     else if (poa.protocol == 'mqtt:') {
-                        responder.error_result(request, response, 500, 5000, 'notification with mqtt is not supported');
+                        callback('405-10');
                     }
                     else if (poa.protocol == 'ws:') {
-                        responder.error_result(request, response, 500, 5000, 'notification with mqtt is not supported');
+                        callback('405-11');
                     }
                     else {
-                        point = {};
-                        point['dbg'] = 'protocol(' + poa.protocol + ') in poa of ae is not supported';
-                        responder.error_result(request, response, 400, 4000, point['dbg']);
+                        callback('400-47');
                     }
                 }
             }
             else {
-                point = {};
-                point['dbg'] = 'ae is not found';
-                responder.error_result(request, response, 400, 4000, point['dbg']);
+                callback('404-6');
             }
         }
         else {
-            console.log('[check_ae] query error: ' + result_ae.message);
+            console.log('[check_ae_notify] query error: ' + result_ae.message);
+            callback('500-1');
         }
     });
 }
 
-function check_csr(absolute_url, request, response) {
-    var ri = util.format('/%s/%s', usecsebase, url.parse(absolute_url).pathname.split('/')[1]);
+function check_csr(request, response, callback) {
+    var ri = util.format('/%s/%s', usecsebase, url.parse(request.absolute_url).pathname.split('/')[1]);
     console.log('[check_csr] : ' + ri);
-    db_sql.select_csr(ri, function (err, result_csr) {
+    db_sql.select_csr(request.connection, ri, function (err, result_csr) {
         if (!err) {
             if (result_csr.length == 1) {
                 var point = {};
@@ -1996,40 +2557,74 @@ function check_csr(absolute_url, request, response) {
 
                         console.log('csebase forwarding to ' + point.forwardcbname);
 
-                        forward_http(point.forwardcbhost, point.forwardcbport, request, response);
+                        forward_http(point.forwardcbhost, point.forwardcbport, request.url, request.method, request.headers, request.body, function (code, _res) {
+                            if(code === '200') {
+                                var res = JSON.parse(JSON.stringify(_res));
+                                _res = null;
+                                if (res.headers.hasOwnProperty('content-type')) {
+                                    response.setHeader('Content-Type', res.headers['content-type']);
+                                }
+
+                                if (res.headers.hasOwnProperty('x-m2m-ri')) {
+                                    response.setHeader('X-M2M-RI', res.headers['x-m2m-ri']);
+                                }
+
+                                if (res.headers.hasOwnProperty('x-m2m-rvi')) {
+                                    response.setHeader('X-M2M-RVI', res.headers['x-m2m-rvi']);
+                                }
+
+                                if (res.headers.hasOwnProperty('x-m2m-rsc')) {
+                                    response.setHeader('X-M2M-RSC', res.headers['x-m2m-rsc']);
+                                }
+
+                                if (res.headers.hasOwnProperty('content-location')) {
+                                    response.setHeader('Content-Location', res.headers['content-location']);
+                                }
+
+                                response.body = res.body;
+                                response.statusCode = res.statusCode;
+
+                                callback('301-2');
+                            }
+                            else {
+                                callback(code);
+                            }
+                        });
                     }
                     else if (poa.protocol == 'mqtt:') {
                         point.forwardcbmqtt = poa.hostname;
+                        console.log('forwarding with mqtt is not supported');
 
-                        responder.error_result(request, response, 500, 5000, 'forwarding with mqtt is not supported');
+                        callback('301-3');
                     }
                     else {
-                        point = {};
-                        point['dbg'] = 'protocol(' + poa.protocol + ') in poa of csr is not supported';
-                        responder.error_result(request, response, 400, 4000, point['dbg']);
+                        console.log('protocol in poa of csr is not supported');
+
+                        callback('301-4');
                     }
                 }
+                result_csr = null;
             }
             else {
-                point = {};
-                point['dbg'] = 'csebase is not found';
-                responder.error_result(request, response, 400, 4000, point['dbg']);
+                result_csr = null;
+                callback('404-3');
             }
         }
         else {
             console.log('[check_csr] query error: ' + result_csr.message);
+            callback('404-3');
         }
     });
 }
 
 
-function notify_http(hostname, port, path, request, response) {
+function notify_http(hostname, port, path, method, headers, bodyString, callback) {
     var options = {
         hostname: hostname,
         port: port,
         path: path,
-        method: request.method,
-        headers: request.headers
+        method: method,
+        headers: headers
     };
 
     var req = http.request(options, function (res) {
@@ -2040,115 +2635,77 @@ function notify_http(hostname, port, path, request, response) {
 
         res.on('end', function () {
             console.log('--------------------------------------------------------------------------');
-            //console.log(res.url);
-            //console.log(res.headers);
             console.log(fullBody);
             console.log('[notify_http response : ' + res.statusCode + ']');
 
-            //response.headers = res.headers;
-            if (res.headers['content-type']) {
-                response.header('Content-Type', res.headers['content-type']);
-            }
-            if (res.headers['x-m2m-ri']) {
-                response.header('X-M2M-RI', res.headers['x-m2m-ri']);
-            }
-            if (res.headers['x-m2m-rvi']) {
-                response.header('X-M2M-RVI', res.headers['x-m2m-rvi']);
-            }
-            if (res.headers['x-m2m-rsc']) {
-                response.header('X-M2M-RSC', res.headers['x-m2m-rsc']);
-            }
-            if (res.headers['content-location']) {
-                response.header('Content-Location', res.headers['content-location']);
-            }
-
-            response.statusCode = res.statusCode;
-            response.send(fullBody);
+            callback('200', res);
         });
     });
 
     req.on('error', function (e) {
         console.log('[forward_http] problem with request: ' + e.message);
 
-        response.statusCode = '404';
-        response.send(url.parse(request.url).pathname + ' : ' + e.message);
+        callback('404-7');
     });
 
-    console.log(request.method + ' - ' + path);
-//    console.log(request.headers);
-    console.log(request.body);
+    console.log(method + ' - ' + path);
+    console.log(bodyString);
 
     // write data to request body
-    if ((request.method.toLowerCase() == 'get') || (request.method.toLowerCase() == 'delete')) {
+    if ((method.toLowerCase() == 'get') || (method.toLowerCase() == 'delete')) {
         req.write('');
     }
     else {
-        req.write(request.body);
+        req.write(bodyString);
     }
     req.end();
 }
 
-function forward_http(forwardcbhost, forwardcbport, request, response) {
+function forward_http(forwardcbhost, forwardcbport, f_url, f_method, f_headers, f_body, callback) {
     var options = {
         hostname: forwardcbhost,
         port: forwardcbport,
-        path: request.url,
-        method: request.method,
-        headers: request.headers
+        path: f_url,
+        method: f_method,
+        headers: f_headers
     };
 
     var req = http.request(options, function (res) {
         var fullBody = '';
+
         res.on('data', function (chunk) {
             fullBody += chunk.toString();
         });
 
         res.on('end', function () {
+            res.body = fullBody;
+
             console.log('--------------------------------------------------------------------------');
             console.log(res.url);
             console.log(res.headers);
-            console.log(fullBody);
+            console.log(res.body);
             console.log('[Forward response : ' + res.statusCode + ']');
 
-            //response.headers = res.headers;
-            if (res.headers['content-type']) {
-                response.header('Content-Type', res.headers['content-type']);
-            }
-            if (res.headers['x-m2m-ri']) {
-                response.header('X-M2M-RI', res.headers['x-m2m-ri']);
-            }
-            if (res.headers['x-m2m-rvi']) {
-                response.header('X-M2M-RVI', res.headers['x-m2m-rvi']);
-            }
-            if (res.headers['x-m2m-rsc']) {
-                response.header('X-M2M-RSC', res.headers['x-m2m-rsc']);
-            }
-            if (res.headers['content-location']) {
-                response.header('Content-Location', res.headers['content-location']);
-            }
-
-            response.statusCode = res.statusCode;
-            response.send(fullBody);
+            callback('200', res);
         });
     });
 
     req.on('error', function (e) {
         console.log('[forward_http] problem with request: ' + e.message);
 
-        response.statusCode = '404';
-        response.send(url.parse(request.url).pathname + ' : ' + e.message);
+        callback('404-3');
     });
 
-    console.log(request.method + ' - ' + request.url);
-    console.log(request.headers);
-    console.log(request.body);
+    console.log(f_method + ' - ' + f_url);
+    console.log(f_headers);
+    console.log(f_body);
 
     // write data to request body
-    if ((request.method.toLowerCase() == 'get') || (request.method.toLowerCase() == 'delete')) {
+    if ((f_method.toLowerCase() == 'get') || (f_method.toLowerCase() == 'delete')) {
         req.write('');
     }
     else {
-        req.write(request.body);
+        req.write(f_body);
     }
     req.end();
 }
@@ -2158,3 +2715,23 @@ if (process.env.NODE_ENV == 'production') {
 } else if (process.env.NODE_ENV == 'development') {
     console.log("Development Mode");
 }
+
+function scheduleGc() {
+    if (!global.gc) {
+        console.log('Garbage collection is not exposed');
+        return;
+    }
+
+    // schedule next gc within a random interval (e.g. 15-45 minutes)
+    // tweak this based on your app's memory usage
+    var nextMinutes = Math.random() * 30 + 15;
+
+    setTimeout(function(){
+        global.gc();
+        console.log('Manual gc', process.memoryUsage());
+        scheduleGc();
+    }, nextMinutes * 60 * 1000);
+}
+
+// call this in the startup script of your app (once per process)
+scheduleGc();
