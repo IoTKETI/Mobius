@@ -68,7 +68,7 @@ function check_mt(request, res_body, callback) {
 }
 
 function check_member(request, response, req_count, cse_poa, callback) {
-    if(req_count == request.mid.length) {
+    if(req_count >= request.mid.length) {
         callback('200');
     }
     else {
@@ -144,48 +144,55 @@ function check_member(request, response, req_count, cse_poa, callback) {
                     });
                 }
             }
+            else {
+                check_member(request, response, ++req_count, cse_poa, function (code) {
+                    callback(code);
+                });
+            }
         });
     }
 }
 
 
 function check_mtv(request, response, resource_Obj, callback) {
-    update_route(request.connection, function (_cse_poa) {
-        var cse_poa = JSON.parse(JSON.stringify(_cse_poa));
-        _cse_poa = null;
-
-        var req_count = 0;
-        var rootnm = Object.keys(resource_Obj)[0];
-        var mid = resource_Obj[rootnm].mid;
-        make_internal_ri(mid);
-        request.mid = mid;
-        request.mt = resource_Obj[Object.keys(resource_Obj)[0]].mt;
-        request.valid_mid = [];
-        check_member(request, response, req_count, cse_poa, function (code) {
-            if(code === '200') {
-                if (request.valid_mid.length == mid.length) {
-                    if (resource_Obj[rootnm].csy == '1') { // ABANDON_MEMBER
-                        resource_Obj[rootnm].mid = JSON.parse(JSON.stringify(request.valid_mid));
-                        resource_Obj[rootnm].cnm = request.valid_mid.length.toString();
+    var cse_poa = {};
+    update_route(request.connection, cse_poa, function (code) {
+        if(code === '200') {
+            var req_count = 0;
+            var rootnm = Object.keys(resource_Obj)[0];
+            var mid = resource_Obj[rootnm].mid;
+            make_internal_ri(mid);
+            request.mid = mid;
+            request.mt = resource_Obj[Object.keys(resource_Obj)[0]].mt;
+            request.valid_mid = [];
+            check_member(request, response, req_count, cse_poa, function (code) {
+                if (code === '200') {
+                    if (request.valid_mid.length == mid.length) {
+                        if (resource_Obj[rootnm].csy == '1') { // ABANDON_MEMBER
+                            resource_Obj[rootnm].mid = JSON.parse(JSON.stringify(request.valid_mid));
+                            resource_Obj[rootnm].cnm = request.valid_mid.length.toString();
+                            resource_Obj[rootnm].mtv = 'true';
+                            callback('200');
+                        }
+                        else if (resource_Obj[rootnm].csy == '2') { // ABANDON_GROUP
+                            callback('400-34');
+                        }
+                        else { // SET_MIXED
+                            resource_Obj[rootnm].mt = '0';
+                            resource_Obj[rootnm].mtv = 'false';
+                            callback('200');
+                        }
+                    }
+                    else {
                         resource_Obj[rootnm].mtv = 'true';
                         callback('200');
                     }
-                    else if (resource_Obj[rootnm].csy == '2') { // ABANDON_GROUP
-                        callback('400-34');
-                    }
-                    else { // SET_MIXED
-                        resource_Obj[rootnm].mt = '0';
-                        resource_Obj[rootnm].mtv = 'false';
-
-                        callback('200');
-                    }
                 }
-                else {
-                    resource_Obj[rootnm].mtv = 'true';
-                    callback('200');
-                }
-            }
-        });
+            });
+        }
+        else {
+            callback(code);
+        }
     });
 /*
     var sql = util.format("select ri from lookup where where ty = \'%s\' and ri in ("+JSON.stringify(mid).replace('[','').replace(']','')+")", mt);

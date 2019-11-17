@@ -2025,8 +2025,8 @@ function create_resource(request, response, ty, body_Obj, resource_Obj, callback
 function check_acp_update_acpi(request, response, acpi, cr, callback) {
     // when update acpi check pvs of acp
     if (acpi.length > 0) {
-        security.check(request, response, '1', acpi, '4', cr, function (rsc) {
-            callback(rsc);
+        security.check(request, response, '1', acpi, '4', cr, function (code) {
+            callback(code);
         });
     }
     else {
@@ -2085,11 +2085,8 @@ function update_resource(request, response, callback) {
         else {
             updateAcpiList = [];
         }
-        check_acp_update_acpi(request, response, updateAcpiList, resource_Obj[rootnm].cr, function (rsc) {
-            if (rsc == '0') {
-                callback('403-3');
-            }
-            else {
+        check_acp_update_acpi(request, response, updateAcpiList, resource_Obj[rootnm].cr, function (code) {
+            if (code === '1') {
                 update_body(rootnm, body_Obj, resource_Obj); // (attr == 'aa' || attr == 'poa' || attr == 'lbl' || attr == 'acpi' || attr == 'srt' || attr == 'nu' || attr == 'mid' || attr == 'macp')
 
                 resource_Obj[rootnm].st = (parseInt(resource_Obj[rootnm].st, 10) + 1).toString();
@@ -2101,10 +2098,15 @@ function update_resource(request, response, callback) {
                         return;
                     }
                 }
-
                 request.resourceObj = JSON.parse(JSON.stringify(resource_Obj));
 
                 callback('200');
+            }
+            else if (code === '0') {
+                callback('403-3');
+            }
+            else {
+                callback(code);
             }
         });
     }
