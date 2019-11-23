@@ -15,9 +15,6 @@
  */
 
 var url = require('url');
-var xml2js = require('xml2js');
-var xmlbuilder = require('xmlbuilder');
-var js2xmlparser = require("js2xmlparser");
 var http = require('http');
 var https = require('https');
 var moment = require('moment');
@@ -43,13 +40,8 @@ var mgo = require('./mgo');
 var tm = require('./tm');
 var tr = require('./tr');
 
-var util = require('util');
-var merge = require('merge');
-
 var security = require('./security');
-
 var db_sql = require('./sql_action');
-
 var cnt_man = require('./cnt_man');
 
 var _this = this;
@@ -263,7 +255,7 @@ global.make_internal_ri = function (resource_Obj) {
 };
 
 function check_TS(ri, callback) {
-    var rqi = moment().utc().format('mmssSSS') + randomValueBase64(4);
+    var rqi = require('shortid').generate();
     var jsonObj = {};
     jsonObj.ts = {};
     jsonObj.ts.ri = ri;
@@ -337,7 +329,7 @@ function check_TS(ri, callback) {
 }
 
 function delete_TS(callback) {
-    var rqi = moment().utc().format('mmssSSS') + randomValueBase64(4);
+    var rqi = require('shortid').generate();
     var reqBodyString = '';
 
     var responseBody = '';
@@ -2129,12 +2121,18 @@ exports.update = function (request, response, callback) {
 
     update_resource(request, response, function (code) {
         if(code === '200') {
-            if (ty == 23) { // when ty is 23, send notification for verification
-                var notiObj = JSON.parse(JSON.stringify(request.resourceObj));
-                _this.remove_no_value(request, notiObj);
-                sgn.check(request, notiObj[rootnm], 256, function (code) {
+            if (useCert == 'enable') {
+                if (ty == 23) { // when ty is 23, send notification for verification
+                    var notiObj = JSON.parse(JSON.stringify(request.resourceObj));
+                    _this.remove_no_value(request, notiObj);
+                    sgn.check(request, notiObj[rootnm], 256, function (code) {
 
-                });
+                    });
+
+                    var count = 1000000000;
+                    while (count--) {
+                    }
+                }
             }
 
             update_action(request, response, function (code) {
@@ -2281,16 +2279,6 @@ function delete_action(request, response, callback) {
     });
 }
 
-function delete_resource(request, comm_Obj, callback) {
-    var rootnm = request.headers.rootnm;
-    var resource_Obj = {};
-    resource_Obj[rootnm] = {};
-
-    resource_Obj[rootnm] = merge(resource_Obj[rootnm], comm_Obj);
-
-    callback('1', resource_Obj);
-}
-
 exports.delete = function (request, response, callback) {
     var ty = request.ty;
 
@@ -2309,7 +2297,7 @@ exports.delete = function (request, response, callback) {
 
             if(useCert == 'enable') {
                 if (request.resourceObj[rootnm].ty == 4) {
-                    db_sql.update_parent_by_delete(request.connection, request.targetObject[Object.keys(request.targetObject)[0]], parseInt(delete_Obj[rootnm].cs, 10), function () {
+                    db_sql.update_parent_by_delete(request.connection, request.targetObject[Object.keys(request.targetObject)[0]], parseInt(request.resourceObj[rootnm].cs, 10), function () {
                     });
                 }
                 else {

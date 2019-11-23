@@ -62,7 +62,7 @@ else {
 
 function init_TS(callback) {
     var ri = '/missingDataDetect';
-    var rqi = moment().utc().format('mmssSSS') + randomValueBase64(4);
+    var rqi = require('shortid').generate();
     //var reqBodyString = '';
     var jsonObj = {ts:{}};
     jsonObj.ts.ri = 'all';
@@ -126,7 +126,7 @@ function init_TS(callback) {
 
 function search_TS(request, response, callback) {
     var ri = '/' + usecsebase + '?fu=1&ty=29';
-    var rqi = moment().utc().format('mmssSSS') + randomValueBase64(4);
+    var rqi = require('shortid').generate();
     var responseBody = '';
 
     var options = {

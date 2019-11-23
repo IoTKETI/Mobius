@@ -25,17 +25,12 @@ var morgan = require('morgan');
 var util = require('util');
 var xml2js = require('xml2js');
 var url = require('url');
-var xmlbuilder = require('xmlbuilder');
 var ip = require('ip');
 var crypto = require('crypto');
 var fileStreamRotator = require('file-stream-rotator');
-var merge = require('merge');
 var https = require('https');
 var cbor = require('cbor');
 var moment = require('moment');
-
-var mqtt = require('mqtt');
-//global.noti_mqtt = null;
 
 global.NOPRINT = 'true';
 global.ONCE = 'true';
@@ -56,24 +51,7 @@ var app = express();
 
 global.usespid              = '//keti.re.kr';
 global.usesuperuser         = 'Superman';
-
 global.useobserver          = 'Sandwich';
-
-global.randomValueBase64 = function (len) {
-    return crypto.randomBytes(Math.ceil(len * 3 / 4))
-        .toString('base64')   // convert to base64 format
-        .slice(0, len)        // return required number of characters
-        .replace(/\+/g, '0')  // replace '+' with '0'
-        .replace(/\//g, '0'); // replace '/' with '0'
-};
-
-global.randomIntInc = function (low, high) {
-    return Math.floor(Math.random() * (high - low + 1) + low);
-};
-
-global.randomValue = function (qty) {
-    return crypto.randomBytes(qty).toString(2);
-};
 
 var logDirectory = __dirname + '/log';
 

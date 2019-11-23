@@ -1167,7 +1167,7 @@ function search_parents_lookup_action(connection, pi_list, count, result_ri, cal
         return;
     }
 
-    var sql = util.format("select ri, ty from lookup where pi = \'" + pi_list[count] + "\' and ty <> \'23\' and ty <> \'4\' and ty <> \'30\' and ty <> \'17\' limit 3000");
+    var sql = util.format("select ri, ty from lookup where pi = \'" + pi_list[count] + "\' and ty <> \'23\' and ty <> \'4\' and ty <> \'30\' and ty <> \'17\' limit 1000");
     db.getResult(sql, connection, function (err, result_lookup_ri) {
         if(!err) {
             if(result_lookup_ri.length === 0) {
@@ -2491,7 +2491,7 @@ exports.delete_lookup = function (connection, pi_list, pi_index, found_Obj, foun
 
 exports.delete_lookup_et = function (connection, et, callback) {
     var pi_list = [];
-    var sql = util.format("select ri from lookup where et < \'%s\'", et);
+    var sql = util.format("select ri from lookup where et < \'%s\' and ty <> \'2\' and ty <> \'3\' and ty <> \'5\'", et);
     db.getResult(sql, connection, function (err, delete_Obj) {
         if(!err) {
             for(var i = 0; i < delete_Obj.length; i++) {

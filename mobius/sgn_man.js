@@ -29,68 +29,10 @@ global.NOPRINT = 'true';
 
 var _this = this;
 
+var resp_timeout = 2500;
+
 var MAX_NUM_RETRY = 16;
 var ss_fail_count = {};
-
-// var sgn_app = express();
-//
-// var sgn_server = null;
-//
-// if(sgn_server == null) {
-//     if(use_secure === 'disable') {
-//         http.globalAgent.maxSockets = 10000;
-//         sgn_server = http.createServer(sgn_app);
-//     }
-//     else {
-//         var options = {
-//             key: fs.readFileSync('server-key.pem'),
-//             cert: fs.readFileSync('server-crt.pem'),
-//             ca: fs.readFileSync('ca-crt.pem')
-//         };
-//         https.globalAgent.maxSockets = 10000;
-//         sgn_server = https.createServer(options, sgn_app);
-//     }
-//
-//     sgn_server.listen({port: use_sgn_man_port, agent: false}, function () {
-//         console.log('sgn_man server (' + ip.address() + ') running at ' + use_sgn_man_port + ' port');
-//     });
-//
-//     sgn_server.on('connection', function (socket) {
-//         //console.log("A new connection was made by a client.");
-//         try {
-//             socket.setTimeout(3000, updateFailCount(), socket);
-//         }
-//         catch (e) {
-//             ss_fail_count[socket._httpMessage.req.headers.ri]++;
-//         }
-//     });
-// }
-//
-// function updateFailCount(socket) {
-//     try {
-//         if (socket.hasOwnProperty('_httpMessage')) {
-//             if(socket._httpMessage != null) {
-//                 if (socket._httpMessage.hasOwnProperty('req')) {
-//                     if (ss_fail_count.hasOwnProperty(socket._httpMessage.req.headers.ri)) {
-//                         ss_fail_count[socket._httpMessage.req.headers.ri]++;
-//                     }
-//
-//                     for (var i = 0; i < resp_mqtt_rqi_arr.length; i++) {
-//                         if (resp_mqtt_rqi_arr[i] == socket._httpMessage.req.headers['x-m2m-ri']) {
-//                             delete http_response_q[resp_mqtt_rqi_arr[i]];
-//                             resp_mqtt_rqi_arr.splice(i, 1);
-//                             break;
-//                         }
-//                     }
-//                 }
-//             }
-//             else {
-//             }
-//         }
-//     }
-//     catch (e) {
-//     }
-// }
 
 var sgn_mqtt_client = null;
 
@@ -302,7 +244,7 @@ function request_noti_http(nu, ri, bodyString, bodytype, xm2mri) {
 
     req.on('socket',function(socket) {
         console.log('<======= [request_noti_http] - socket event - ' + ri + ' - ' + xm2mri);
-        timerID[xm2mri] = setTimeout(checkResponse, 3000, ri, xm2mri, socket);
+        timerID[xm2mri] = setTimeout(checkResponse, resp_timeout, ri, xm2mri, socket);
     });
 
     console.log(bodyString);
@@ -379,7 +321,7 @@ function request_noti_coap(nu, ri, bodyString, bodytype, xm2mri) {
 
     req.on('socket',function(socket) {
         console.log('<======= [request_noti_coap] - socket event - ' + ri + ' - ' + xm2mri);
-        timerID[xm2mri] = setTimeout(checkResponse, 3000, ri, xm2mri, socket);
+        timerID[xm2mri] = setTimeout(checkResponse, resp_timeout, ri, xm2mri, socket);
     });
 
     console.log(bodyString);
@@ -401,7 +343,7 @@ function request_noti_mqtt(nu, ri, bodyString, bodytype, xm2mri) {
         var noti_topic = '/oneM2M/req/' + usecseid.replace('/', '') + '/' + aeid + '/' + bodytype;
         sgn_mqtt_client.publish(noti_topic, bodyString);
 
-        timerID[xm2mri] = setTimeout(checkResponseMqtt, 3000, ri, noti_resp_topic, xm2mri);
+        timerID[xm2mri] = setTimeout(checkResponseMqtt, resp_timeout, ri, noti_resp_topic, xm2mri);
 
         console.log('<======= [request_noti_mqtt - ' + ri + '] publish - ' + noti_topic);
         //console.log(bodyString);
@@ -460,7 +402,7 @@ function request_noti_ws(nu, ri, bodyString, bodytype, xm2mri) {
 
         ws_client.on('connect', function (conn) {
             console.log('<======= [request_noti_ws] - connection - ' + ri + ' - ' + xm2mri);
-            timerID[xm2mri] = setTimeout(checkResponse, 3000, ri, xm2mri, conn);
+            timerID[xm2mri] = setTimeout(checkResponse, resp_timeout, ri, xm2mri, conn);
 
             conn.sendUTF(bodyString);
 

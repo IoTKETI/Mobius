@@ -408,7 +408,7 @@ function ws_response(ws_conn, rsc, to, fr, rqi, inpc, bodytype) {
 }
 
 function http_retrieve_CSEBase(callback) {
-    var rqi = moment().utc().format('mmssSSS') + randomValueBase64(4);
+    var rqi = require('shortid').generate();
     var resourceid = '/' + usecsebase;
     var responseBody = '';
 
