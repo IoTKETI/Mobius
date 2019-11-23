@@ -419,7 +419,7 @@ global.make_json_arraytype = function (body_Obj) {
                         }
                     }
 
-                    if (attr == 'rqps') {
+                    else if (attr == 'rqps') {
                         var rqps_type = getType(body_Obj[prop][attr]);
                         if (rqps_type === 'array') {
 
@@ -434,15 +434,17 @@ global.make_json_arraytype = function (body_Obj) {
                         }
                     }
 
-                    if (attr == 'enc') {
+                    else if (attr == 'enc') {
                         if (body_Obj[prop][attr]) {
                             if (body_Obj[prop][attr].net) {
-                                body_Obj[prop][attr].net = body_Obj[prop][attr].net.split(' ');
+                                if(!Array.isArray(body_Obj[prop][attr].net)) {
+                                    body_Obj[prop][attr].net = body_Obj[prop][attr].net.split(' ');
+                                }
                             }
                         }
                     }
 
-                    if (attr == 'pv' || attr == 'pvs') {
+                    else if (attr == 'pv' || attr == 'pvs') {
                         if (body_Obj[prop][attr]) {
                             if (body_Obj[prop][attr].acr) {
                                 if (!Array.isArray(body_Obj[prop][attr].acr)) {

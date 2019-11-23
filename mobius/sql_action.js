@@ -2487,31 +2487,6 @@ exports.delete_lookup = function (connection, pi_list, pi_index, found_Obj, foun
             callback(code);
         }
     });
-/*
-    var sql = util.format("delete a.* from (select ri from lookup where pi in ("+JSON.stringify(cur_pi).replace('[','').replace(']','') + ")) b left join lookup as a on b.ri = a.ri");
-    db.getResult(sql, connection, function (err, search_Obj) {
-        if(!err) {
-            found_Cnt += search_Obj.affectedRows;
-            if(pi_index >= pi_list.length) {
-                sql = util.format("delete from lookup where ri = \'%s\'", ri);
-                db.getResult(sql, connection, function (err, search_Obj) {
-                    if(!err) {
-                        found_Cnt += search_Obj.affectedRows;
-                        console.log('deleted ' + found_Cnt + ' resource(s).');
-                        callback(err, found_Obj);
-                    }
-                    else {
-                        callback(err, search_Obj);
-                    }
-                });
-            }
-            else {
-                _this.delete_lookup(connection, pi_list, pi_index, found_Obj, found_Cnt, function (err, found_Obj) {
-                    callback(err, found_Obj);
-                });
-            }
-        }
-    });*/
 };
 
 exports.delete_lookup_et = function (connection, et, callback) {
