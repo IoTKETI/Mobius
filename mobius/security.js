@@ -15,7 +15,6 @@
  */
 
 var url = require('url');
-var util = require('util');
 var db_sql = require('./sql_action');
 var ip = require("ip");
 

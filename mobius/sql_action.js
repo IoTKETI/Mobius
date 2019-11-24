@@ -16,7 +16,6 @@ var responder = require('./responder');
 var moment = require('moment');
 var util = require('util');
 var merge = require('merge');
-var fs = require('fs');
 
 var db = require('./db_action');
 
@@ -313,7 +312,7 @@ exports.get_cni_count = function(connection, obj, callback) {
                     count = 1;
                 }
 
-                _this.delete_oldests(connection, obj, count, function (err, results_oldest) { // select oldest
+                delete_oldest(connection, obj, count, function (err, results_oldest) { // select oldest
                     if (results_oldest.affectedRows == count) {
                         _this.get_cni_count(connection, obj, function (cni, cbs, st) {
                             callback(cni, cbs, st);
@@ -983,114 +982,6 @@ exports.search_lookup_parents = function(connection, query, pi, cur_lim, count, 
         return;
     }
 
-    // if (query.la != null) {
-    //     build_search_query(query, function (query_where) {
-    //         if (query.la != null) {
-    //             cur_lim = parseInt(query.la, 10);
-    //
-    //             var before_ct = moment().subtract(Math.pow(3, count), 'minutes').utc().format('YYYYMMDDTHHmmss');
-    //
-    //             query_where += ' and ';
-    //             query_where += util.format(' (\'%s\' < ct) ', before_ct);
-    //         }
-    //
-    //         var sql = 'select * from (select * from lookup where (pi like \'' + pi + '%\' and ri like \'' + pi + '/%\')' + query_where + ') b join cin as a on b.ri = a.ri limit ' + cur_lim;
-    //         db.getResult(sql, connection, function (err, result_lookup_ri) {
-    //             if (!err) {
-    //                 if (result_lookup_ri.length > 0) {
-    //                     result_lookup_ri = result_lookup_ri.reverse();
-    //                     for (var idx in result_lookup_ri) {
-    //                         if (result_lookup_ri.hasOwnProperty(idx)) {
-    //                             if(Object.keys(found_Obj).length >= cur_lim) {
-    //                                 break;
-    //                             }
-    //                             found_Obj[result_lookup_ri[idx].ri] = result_lookup_ri[idx];
-    //                         }
-    //                     }
-    //
-    //                     if(Object.keys(found_Obj).length >= cur_lim) {
-    //                         _this.search_lookup_parents(connection, query, pi, cur_lim, Object.keys(responder.typeRsrc).length, found_Obj, function (rsc, found_Obj) {
-    //                             callback(rsc, found_Obj);
-    //                         });
-    //                     }
-    //                     else {
-    //                         _this.search_lookup_parents(connection, query, pi, cur_lim, ++count, found_Obj, function (rsc, found_Obj) {
-    //                             callback(rsc, found_Obj);
-    //                         });
-    //                     }
-    //                 }
-    //                 else {
-    //                     _this.search_lookup_parents(connection, query, pi, cur_lim, ++count, found_Obj, function (rsc, found_Obj) {
-    //                         callback(rsc, found_Obj);
-    //                     });
-    //                 }
-    //             }
-    //             else {
-    //                 callback('0');
-    //             }
-    //         });
-    //     });
-    // }
-    // else if (query.ty != null) {
-    //     if (query.ty.toString().split(',').length == 1) {
-    //         var temp_ty = query.ty;
-    //         query.ty = [];
-    //         query.ty.push(temp_ty);
-    //     }
-    //     var check = 0;
-    //     for (var i = 0; i < query.ty.length; i++) {
-    //         if(query.ty[i].toString() == Object.keys(responder.typeRsrc)[count]) {
-    //             check++;
-    //         }
-    //     }
-    //
-    //     if(check == 0) {
-    //         _this.search_lookup_parents(connection, query, pi, cur_lim, ++count, found_Obj, function (rsc, found_Obj) {
-    //             callback(rsc, found_Obj);
-    //         });
-    //     }
-    //     else {
-    //         build_search_query(query, function (query_where) {
-    //             var num = Object.keys(responder.typeRsrc)[count];
-    //             var sql = 'select * from (select * from lookup where (pi like \'' + pi + '%\' and ri like \'' + pi + '/%\')' + query_where + ') b join ' + responder.typeRsrc[num] + ' as a on b.ri = a.ri limit ' + cur_lim;
-    //             db.getResult(sql, connection, function (err, result_lookup_ri) {
-    //                 if (!err) {
-    //                     if (result_lookup_ri.length > 0) {
-    //                         result_lookup_ri = result_lookup_ri.reverse();
-    //                         for (var idx in result_lookup_ri) {
-    //                             if (result_lookup_ri.hasOwnProperty(idx)) {
-    //                                 if(Object.keys(found_Obj).length >= cur_lim) {
-    //                                     break;
-    //                                 }
-    //                                 found_Obj[result_lookup_ri[idx].ri] = result_lookup_ri[idx];
-    //                             }
-    //                         }
-    //
-    //                         if(Object.keys(found_Obj).length >= cur_lim) {
-    //                             _this.search_lookup_parents(connection, query, pi, cur_lim, Object.keys(responder.typeRsrc).length, found_Obj, function (rsc, found_Obj) {
-    //                                 callback(rsc, found_Obj);
-    //                             });
-    //                         }
-    //                         else {
-    //                             _this.search_lookup_parents(connection, query, pi, cur_lim, ++count, found_Obj, function (rsc, found_Obj) {
-    //                                 callback(rsc, found_Obj);
-    //                             });
-    //                         }
-    //                     }
-    //                     else {
-    //                         _this.search_lookup_parents(connection, query, pi, cur_lim, ++count, found_Obj, function (rsc, found_Obj) {
-    //                             callback(rsc, found_Obj);
-    //                         });
-    //                     }
-    //                 }
-    //                 else {
-    //                     callback('0');
-    //                 }
-    //             });
-    //         });
-    //     }
-    // }
-
     build_search_query(query, function (query_where) {
         var query_where_1 = '(pi like \'' + pi + '%\' and ri like \'' + pi + '/%\')';
 
@@ -1167,7 +1058,7 @@ function search_parents_lookup_action(connection, pi_list, count, result_ri, cal
         return;
     }
 
-    var sql = util.format("select ri, ty from lookup where pi = \'" + pi_list[count] + "\' and ty <> \'23\' and ty <> \'4\' and ty <> \'30\' and ty <> \'17\' limit 1000");
+    var sql = util.format("select ri, ty from lookup where pi = \'" + pi_list[count] + "\' and ty <> \'1\' and ty <> \'9\' and ty <> \'23\' and ty <> \'4\' and ty <> \'30\' and ty <> \'17\' limit 1000");
     db.getResult(sql, connection, function (err, result_lookup_ri) {
         if(!err) {
             if(result_lookup_ri.length === 0) {
@@ -1203,13 +1094,6 @@ function search_parents_lookup_action(connection, pi_list, count, result_ri, cal
 }
 
 exports.search_parents_lookup = function(connection, pi_list, result_ri, callback) {
-    // //var sql = util.format("select ri from lookup where (ri =\'%s\') or ((pi=\'%s\' or pi like \'%s/%%\') and ty != \'1\' and ty != \'4\' and ty != \'23\' and ty != \'30\' and ty != \'9\' and ty != \'17\')", ri, ri, ri);
-    // var sql = util.format("select ri from lookup where (ri =\'%s\') or (pi=\'%s\' or pi like \'%s/%%\')", ri, ri, ri);
-    // db.getResult(sql, connection, function (err, result_lookup_ri) {
-    //     console.timeEnd('search_parents_lookup ' + ri);
-    //     callback(err, result_lookup_ri);
-    // });
-
     var cur_result_ri = [];
     search_parents_lookup_action(connection, pi_list, 0, cur_result_ri, function (code) {
         if(code === '200') {
@@ -1570,64 +1454,49 @@ exports.search_lookup = function (connection, ri, query, cur_lim, pi_list, pi_in
     });
 };
 
-exports.select_latest_resource = function(connection, parentObj, loop_count, callback) {
-    var before_ct = moment().subtract(Math.pow(30, loop_count), 'minutes').utc().format('YYYYMMDDTHHmmss');
+exports.select_latest_resource = function(connection, parentObj, loop_count, latestObj, callback) {
+    if(loop_count > 8) {
+        callback('200');
+        return;
+    }
+
+    var before_ct = moment().subtract(Math.pow(5, loop_count), 'minutes').utc().format('YYYYMMDDTHHmmss');
     var query_where = ' and ';
-    query_where += util.format(' (\'%s\' < ct) ', before_ct);
+    query_where += util.format(' (\'%s\' < ct) order by ct desc limit 1', before_ct);
 
-    var sql = 'select * from (select * from lookup where (pi like \'' + parentObj.ri + '%\' and ri like \'' + parentObj.ri + '/%\') ' + query_where + ') b join ' + responder.typeRsrc[parseInt(parentObj.ty, 10) + 1] + ' as a on b.ri = a.ri';
-
-    // var before_ct = moment().subtract(Math.pow(20, ++loop_count), 'minutes').utc().format('YYYYMMDDTHHmmss');
-    //
-    // var sql = util.format('select * from (select * from lookup where (pi = \'%s\' and ct > \'%s\') and ty = \'%s\') b join %s as a on b.ri = a.ri', parentObj.ri, before_ct, parseInt(parentObj.ty, 10) + 1, responder.typeRsrc[parseInt(parentObj.ty, 10) + 1]);
+    var sql = 'select * from (select * from lookup where (pi = \'' + parentObj.ri + '\') ' + query_where + ')b join ' + responder.typeRsrc[parseInt(parentObj.ty, 10) + 1] + ' as a on b.ri = a.ri';
     db.getResult(sql, connection, function (err, results_latest) {
         if(!err) {
             if(results_latest.length > 0) {
-                var latest_cin = [];
-                latest_cin.push(results_latest[results_latest.length-1]);
-                callback(err, latest_cin);
+                latestObj.push(results_latest[results_latest.length-1]);
+                callback('200');
             }
             else {
-                if(loop_count >= 4) {
-                    latest_cin = [];
-                    callback(err, latest_cin);
-                }
-                else {
-                    _this.select_latest_resource(connection, parentObj, ++loop_count, function (err, resultObj) {
-                        callback(err, resultObj);
-                    });
-                }
+                _this.select_latest_resource(connection, parentObj, ++loop_count, latestObj, function (code) {
+                    callback(code);
+                });
             }
         }
         else {
-            callback(err, results_latest);
+            callback('500-1');
         }
     });
 };
 
-exports.select_oldest_resource = function(connection, ty, ri, callback) {
+exports.select_oldest_resource = function(connection, ty, ri, oldestObj, callback) {
     console.time('select_oldest ' + ri);
     //var sql = util.format('select a.* from (select ri from lookup where (pi = \'%s\') limit 100) b left join lookup as a on b.ri = a.ri where a.ty = \'4\' or a.ty = \'30\' limit 1', ri);
-    var sql = 'select * from lookup where pi = \'' + ri + '\' and ty = \'' + ty + '\'';
-    db.getResult(sql, connection, function (err, oldest_Comm) {
+    var sql = 'select * from (select * from lookup where pi = \'' + ri + '\' and ty = \'' + ty + '\' limit 1)b join ' + responder.typeRsrc[parseInt(ty, 10)] + ' as a on b.ri = a.ri';
+    db.getResult(sql, connection, function (err, results_oldest) {
+        console.timeEnd('select_oldest ' + ri);
         if(!err) {
-            if(oldest_Comm.length >= 1) {
-                sql = "select * from " + responder.typeRsrc[oldest_Comm[0].ty] + " where ri = \'" + oldest_Comm[0].ri + "\'";
-                db.getResult(sql, connection, function (err, oldest_Spec) {
-                    console.timeEnd('select_oldest ' + ri);
-                    var result_Obj = [];
-                    result_Obj.push(merge(oldest_Comm[0], oldest_Spec[0]));
-                    callback(err, result_Obj);
-                });
+            if(results_oldest.length >= 1) {
+                oldestObj.push(results_oldest[0]);
             }
-            else {
-                console.timeEnd('select_oldest ' + ri);
-                callback(err, oldest_Comm);
-            }
+            callback('200');
         }
         else {
-            console.timeEnd('select_oldest ' + ri);
-            callback(err, oldest_Comm);
+            callback('500-1');
         }
     });
 };
@@ -1787,22 +1656,15 @@ exports.select_st = function (connection, ri, callback) {
     });
 };
 
-exports.select_oldests = function (connection, obj, count, callback) {
-    var sql = util.format('select * from (select * from lookup where pi = \'%s\' and ty = \'%s\' limit %s) b join %s as a on b.ri = a.ri', obj.ri, parseInt(obj.ty, 10) + 1, count, responder.typeRsrc[parseInt(obj.ty, 10) + 1]);
-    db.getResult(sql, connection, function (err, results) {
-        callback(err, results);
-    });
-};
-
-exports.delete_oldests = function (connection, obj, count, callback) {
-    var del_id = 'delete_oldests (' + count + ') ' + obj.ri + ' - ' + require('shortid').generate() + '';
+function delete_oldest(connection, obj, count, callback) {
+    var del_id = 'delete_oldest (' + count + ') ' + obj.ri + ' - ' + require('shortid').generate() + '';
     console.time(del_id);
     var sql = util.format('delete from lookup where pi = \'%s\' and ty = \'%s\' limit %s', obj.ri, parseInt(obj.ty, 10) + 1, count);
     db.getResult(sql, connection, function (err, results) {
         console.timeEnd(del_id);
         callback(err, results);
     });
-};
+}
 
 exports.select_ts = function (connection, ri, callback) {
     var sql = util.format("select * from ts where ri = \'%s\'", ri);

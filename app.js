@@ -1155,129 +1155,77 @@ function lookup_delete(request, response, callback) {
     });
 }
 
-// var resource_cache = {};
 function get_resource_from_url(connection, ri, sri, option, callback) {
     var targetObject = {};
-    // if(resource_cache.hasOwnProperty(ri+option)) {
-    //     targetObject = JSON.parse(resource_cache[ri]);
-    //     callback(targetObject);
-    // }
-    // else {
-        db_sql.select_resource_from_url(connection, ri, sri, function (err, results) {
-            if (err) {
-                callback(null, 500);
+    db_sql.select_resource_from_url(connection, ri, sri, function (err, results) {
+        if (err) {
+            callback(null, 500);
+            return '0';
+        }
+        else {
+            if (results.length == 0) {
+                callback(null, 404);
                 return '0';
             }
-            else {
-                if (results.length == 0) {
-                    callback(null, 404);
-                    return '0';
-                }
 
-                var ty = results[0].ty;
-                targetObject[responder.typeRsrc[ty]] = results[0];
-                var rootnm = Object.keys(targetObject)[0];
-                makeObject(targetObject[rootnm]);
+            var ty = results[0].ty;
+            targetObject[responder.typeRsrc[ty]] = results[0];
+            var rootnm = Object.keys(targetObject)[0];
+            makeObject(targetObject[rootnm]);
 
-                if (option == '/latest') {
-                    // db_sql.get_cni_count(connection, targetObject[rootnm], function (cni, cbs, st) {
-                    //     targetObject[rootnm].cni = cni;
-                    //     targetObject[rootnm].cbs = cbs;
-                    //     targetObject[rootnm].st = st;
-                    //
-                    //     if (parseInt(targetObject[rootnm].cni, 10) != cni || parseInt(targetObject[rootnm].cbs, 10) != cbs || parseInt(targetObject[rootnm].st, 10) != st) {
-                    //         db_sql.update_cnt_cni(connection, targetObject[rootnm], function () {
-                    //         });
-                    //     }
-
-                        var la_id = 'select_latest_resource ' + targetObject[rootnm].ri + ' - ' + require('shortid').generate();
-                        console.time(la_id);
-                        db_sql.select_latest_resource(connection, targetObject[rootnm], 0, function (err, result_Obj) {
-                            if (!err) {
-                                console.timeEnd(la_id);
-                                if (result_Obj.length == 1) {
-                                    targetObject = {};
-                                    targetObject[responder.typeRsrc[result_Obj[0].ty]] = result_Obj[0];
-                                    makeObject(targetObject[Object.keys(targetObject)[0]]);
-                                    //ri = (result_Obj.length == 0) ? absolute_url : ((result_Obj[0].hasOwnProperty('ri')) ? absolute_url.replace('/' + absolute_url_arr[1], result_Obj[0].ri) : absolute_url);
-                                    callback(targetObject);
-                                }
-                                else {
-                                    callback(null, 404);
-                                    return '0';
-                                }
-                            }
-                            else {
-                                callback(null, 500);
-                                return '0';
-                            }
-                        });
-                    // });
-                }
-                else if (option == '/oldest') {
-                    db_sql.select_oldest_resource(connection, parseInt(ty, 10) + 1, ri, function (err, result_Obj) {
-                        if (!err) {
-                            if (result_Obj.length == 1) {
-                                targetObject = {};
-                                targetObject[responder.typeRsrc[result_Obj[0].ty]] = result_Obj[0];
-                                makeObject(targetObject[Object.keys(targetObject)[0]]);
-                                callback(targetObject);
-                            }
-                            else {
-                                callback(null, 404);
-                                return '0';
-                            }
+            if (option == '/latest') {
+                var la_id = 'select_latest_resource ' + targetObject[rootnm].ri + ' - ' + require('shortid').generate();
+                console.time(la_id);
+                var latestObj = [];
+                db_sql.select_latest_resource(connection, targetObject[rootnm], 0, latestObj, function (code) {
+                    console.timeEnd(la_id);
+                    if (code === '200') {
+                        if (latestObj.length == 1) {
+                            targetObject = {};
+                            targetObject[responder.typeRsrc[latestObj[0].ty]] = latestObj[0];
+                            makeObject(targetObject[Object.keys(targetObject)[0]]);
+                            callback(targetObject);
                         }
                         else {
-                            callback(null, 500);
+                            callback(null, 404);
                             return '0';
                         }
-                    });
-                }
-                else if (option == '/fopt') {
-                    //ri = (results.length == 0) ? absolute_url : ((results[0].hasOwnProperty('ri')) ? absolute_url.replace('/' + absolute_url_arr[1], results[0].ri) : absolute_url);
-                    callback(targetObject);
-                }
-                else {
-                    //ri = (results.length == 0) ? absolute_url : ((results[0].hasOwnProperty('ri')) ? absolute_url.replace('/' + absolute_url_arr[1], results[0].ri) : absolute_url);
-                    // resource_cache[targetObject[rootnm].ri] = JSON.stringify(targetObject);
-
-                    // if(targetObject[rootnm].ty == 3 || targetObject[rootnm].ty == 29) {
-                    //     db_sql.get_cni_count(connection, targetObject[rootnm], function (cni, cbs, st) {
-                    //         if (parseInt(targetObject[rootnm].cni, 10) != cni || parseInt(targetObject[rootnm].cbs, 10) != cbs || parseInt(targetObject[rootnm].st, 10) != st) {
-                    //             targetObject[rootnm].cni = cni;
-                    //             targetObject[rootnm].cbs = cbs;
-                    //             targetObject[rootnm].st = st;
-                    //             db_sql.update_cnt_cni(connection, targetObject[rootnm], function () {
-                    //             });
-                    //         }
-                    //     });
-                    // }
-
-                    // if(targetObject[rootnm].ty == 3 || targetObject[rootnm].ty == 29) {
-                    //     if(cbs_cache[targetObject[rootnm].ri] == null ||
-                    //         (parseInt(cbs_cache[targetObject[rootnm].ri].cni, 10) != targetObject[rootnm].cni || parseInt(cbs_cache[targetObject[rootnm].ri].cbs, 10) != targetObject[rootnm].cbs)) {
-                    //         db_sql.get_cni_count(connection, targetObject[rootnm], function (cni, cbs, st) {
-                    //             if (parseInt(targetObject[rootnm].cni, 10) != cni || parseInt(targetObject[rootnm].cbs, 10) != cbs || parseInt(targetObject[rootnm].st, 10) != st) {
-                    //                 targetObject[rootnm].cni = cni;
-                    //                 targetObject[rootnm].cbs = cbs;
-                    //                 targetObject[rootnm].st = st;
-                    //                 cbs_cache[targetObject[rootnm].ri] = {};
-                    //                 cbs_cache[targetObject[rootnm].ri].cni = cni;
-                    //                 cbs_cache[targetObject[rootnm].ri].cbs = cbs;
-                    //                 db_sql.update_cnt_cni(connection, targetObject[rootnm], function () {
-                    //                 });
-                    //             }
-                    //         });
-                    //     }
-                    //     else {
-                    //     }
-                    // }
-                    callback(targetObject);
-                }
+                    }
+                    else {
+                        callback(null, 500);
+                        return '0';
+                    }
+                });
             }
-        });
-    // }
+            else if (option == '/oldest') {
+                var oldestObj = [];
+                db_sql.select_oldest_resource(connection, parseInt(ty, 10) + 1, ri, oldestObj, function (code) {
+                    if (code === '200') {
+                        if (oldestObj.length == 1) {
+                            targetObject = {};
+                            targetObject[responder.typeRsrc[oldestObj[0].ty]] = oldestObj[0];
+                            makeObject(targetObject[Object.keys(targetObject)[0]]);
+                            callback(targetObject);
+                        }
+                        else {
+                            callback(null, 404);
+                            return '0';
+                        }
+                    }
+                    else {
+                        callback(null, 500);
+                        return '0';
+                    }
+                });
+            }
+            else if (option == '/fopt') {
+                callback(targetObject);
+            }
+            else {
+                callback(targetObject);
+            }
+        }
+    });
 }
 
 function extra_api_action(connection, url, callback) {

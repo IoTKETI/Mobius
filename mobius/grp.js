@@ -194,21 +194,6 @@ function check_mtv(request, response, resource_Obj, callback) {
             callback(code);
         }
     });
-/*
-    var sql = util.format("select ri from lookup where where ty = \'%s\' and ri in ("+JSON.stringify(mid).replace('[','').replace(']','')+")", mt);
-    db.getResult(sql, '', function (err, results_mid) {
-        if(!err) {
-            if (results_mid.length == mid.length) {
-                callback('1', results_mid);
-            }
-            else {
-                callback('0', results_mid);
-            }
-        }
-        else {
-            callback('2', results_mid);
-        }
-    });*/
 }
 
 global.remove_duplicated_mid = function(mid) {
