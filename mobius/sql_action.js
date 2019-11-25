@@ -1455,20 +1455,20 @@ exports.search_lookup = function (connection, ri, query, cur_lim, pi_list, pi_in
 };
 
 exports.select_latest_resource = function(connection, parentObj, loop_count, latestObj, callback) {
-    if(loop_count > 8) {
+    if(loop_count > 9) {
         callback('200');
         return;
     }
 
     var before_ct = moment().subtract(Math.pow(5, loop_count), 'minutes').utc().format('YYYYMMDDTHHmmss');
     var query_where = ' and ';
-    query_where += util.format(' (\'%s\' < ct) order by ct desc limit 1', before_ct);
+    query_where += util.format(' (\'%s\' < ct) order by ri desc limit 10', before_ct);
 
     var sql = 'select * from (select * from lookup where (pi = \'' + parentObj.ri + '\') ' + query_where + ')b join ' + responder.typeRsrc[parseInt(parentObj.ty, 10) + 1] + ' as a on b.ri = a.ri';
     db.getResult(sql, connection, function (err, results_latest) {
         if(!err) {
             if(results_latest.length > 0) {
-                latestObj.push(results_latest[results_latest.length-1]);
+                latestObj.push(results_latest[0]);
                 callback('200');
             }
             else {

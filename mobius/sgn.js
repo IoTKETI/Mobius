@@ -257,8 +257,9 @@ function sgn_action_send(nu_arr, req_count, sub_bodytype, node, short_flag, chec
             console.log('can not send notification since error of converting json to xml');
         }
         else {
-            var gap = parseInt(10 + Math.random() * 10);
-            setTimeout(sgn_man.post, gap, ss_ri, exc, nu, sub_bodytype, xm2mri, bodyString, parentObj);
+            setTimeout(function(ss_ri, exc, nu, sub_bodytype, xm2mri, bodyString, parentObj) {
+                sgn_man.post(ss_ri, exc, nu, sub_bodytype, xm2mri, bodyString, parentObj);
+            }, parseInt(1+Math.random() * 10), ss_ri, exc, nu, sub_bodytype, xm2mri, bodyString, parentObj);
         }
 
         sgn_action_send(nu_arr, ++req_count, sub_bodytype, node, short_flag, check_value, ss_cr, ss_ri, xm2mri, exc, parentObj, function (code) {
@@ -342,8 +343,8 @@ function sgn_action(connection, rootnm, check_value, subl, req_count, noti_Obj, 
 
     var nct = results_ss.nct;
     var enc_Obj = results_ss.enc;
-    var net_arr = enc_Obj.net;
-    var nu_arr = results_ss.nu;
+    var net_arr = JSON.parse(JSON.stringify(enc_Obj.net));
+    var nu_arr = JSON.parse(JSON.stringify(results_ss.nu));
 
     var xm2mri = require('shortid').generate();
     var short_flag = 0;
@@ -375,18 +376,14 @@ function sgn_action(connection, rootnm, check_value, subl, req_count, noti_Obj, 
             get_nu_arr(connection, nu_arr, 0, function (code) {
                 if(code == '200') {
                     if (nct == 2 || nct == 1) {
-                        //var gap = parseInt(10 + Math.random() * 20);
-                        //setTimeout(sgn_action_send, gap, nu, sub_nu, sub_bodytype, node, short_flag, check_value, results_ss.cr, results_ss.ri, xm2mri, results_ss.exc, parentObj);
-                        sgn_action_send(nu_arr, 0, sub_bodytype, node, short_flag, check_value, results_ss.cr, results_ss.ri, xm2mri, results_ss.exc, parentObj, function (code) {
-                            if(code === '200') {
-
-                            }
-                            else {
-
-                            }
-                            sgn_action(connection, rootnm, check_value, subl, ++req_count, noti_Obj, sub_bodytype, parentObj, function (code) {
-                                callback(code);
+                        setTimeout(function (nu_arr, count, sub_bodytype, node, short_flag, check_value, cr, ri, xm2mri, exc, parentObj) {
+                            sgn_action_send(nu_arr, count, sub_bodytype, node, short_flag, check_value, results_ss.cr, results_ss.ri, xm2mri, results_ss.exc, parentObj, function (code) {
+                                console.log('[sgn_action_send] - ' + code);
                             });
+                        }, parseInt(1+Math.random() * 10), nu_arr, 0, sub_bodytype, node, short_flag, check_value, results_ss.cr, results_ss.ri, xm2mri, results_ss.exc, parentObj);
+
+                        sgn_action(connection, rootnm, check_value, subl, ++req_count, noti_Obj, sub_bodytype, parentObj, function (code) {
+                            callback(code);
                         });
                     }
                     else {
@@ -398,77 +395,6 @@ function sgn_action(connection, rootnm, check_value, subl, req_count, noti_Obj, 
                 }
             });
             break;
-
-            // for (var k = 0; k < nu_arr.length; k++) {
-            //     var nu = nu_arr[k];
-            //     var sub_nu = url.parse(nu);
-            //
-            //     if(sub_nu.protocol == null) { // ID format
-            //         var absolute_url = nu;
-            //         absolute_url = absolute_url.replace(usespid + usecseid + '/', '/');
-            //         absolute_url = absolute_url.replace(usecseid + '/', '/');
-            //
-            //         if(absolute_url.charAt(0) != '/') {
-            //             absolute_url = '/' + absolute_url;
-            //         }
-            //
-            //         var absolute_url_arr = absolute_url.split('/');
-            //
-            //         db_sql.get_ri_sri(connection, absolute_url_arr[1].split('?')[0], function (err, results) {
-            //             if (err) {
-            //                 console.log('[sgn_action] database error (can not get resourceID from database)');
-            //             }
-            //             else {
-            //                 absolute_url = (results.length == 0) ? absolute_url : ((results[0].hasOwnProperty('ri')) ? absolute_url.replace('/' + absolute_url_arr[1], results[0].ri) : absolute_url);
-            //
-            //                 var sri = absolute_url_arr[1].split('?')[0];
-            //                 var ri = absolute_url.split('?')[0];
-            //                 db_sql.select_resource_from_url(connection, ri, sri, function (err, result_Obj) {
-            //                     if (!err) {
-            //                         if (result_Obj.length == 1) {
-            //                             if (result_Obj[0].poa != null || result_Obj[0].poa != '') {
-            //                                 var poa_arr = JSON.parse(result_Obj[0].poa);
-            //                                 for (var i = 0; i < poa_arr.length; i++) {
-            //                                     sub_nu = url.parse(poa_arr[i]);
-            //                                     if(sub_nu.protocol == null) {
-            //                                         nu_arr.push('http://localhost:7579' + absolute_url);
-            //                                         sub_nu = url.parse(nu);
-            //                                         if (nct == 2 || nct == 1) {
-            //                                             var gap = parseInt(10 + Math.random() * 20);
-            //                                             setTimeout(sgn_action_send, gap, nu, sub_nu, sub_bodytype, node, short_flag, check_value, results_ss.cr, results_ss.ri, xm2mri, results_ss.exc, parentObj);
-            //                                         }
-            //                                     }
-            //                                     else {
-            //                                         nu = poa_arr[i];
-            //                                         if (nct == 2 || nct == 1) {
-            //                                             gap = parseInt(10 + Math.random() * 20);
-            //                                             setTimeout(sgn_action_send, gap, nu, sub_nu, sub_bodytype, node, short_flag, check_value, results_ss.cr, results_ss.ri, xm2mri, results_ss.exc, parentObj);
-            //                                         }
-            //                                     }
-            //                                 }
-            //                             }
-            //                         }
-            //                     }
-            //                     else {
-            //                         console.log('[sgn_action] database error (nu resource)');
-            //                     }
-            //                 });
-            //             }
-            //         });
-            //     }
-            //     else { // url format
-            //         if (nct == 2 || nct == 1) {
-            //             var gap = parseInt(10 + Math.random() * 20);
-            //             //setTimeout(sgn_action_send, gap, nu, sub_nu, sub_bodytype, node, short_flag, check_value, results_ss.cr, results_ss.ri, xm2mri, results_ss.exc, parentObj);
-            //             sgn_action_send(nu_arr, 0, sub_bodytype, node, short_flag, check_value, results_ss.cr, results_ss.ri, xm2mri, results_ss.exc, parentObj, function (code) {
-            //                 callback(code);
-            //             });
-            //         }
-            //         else {
-            //             console.log('nct except 2 (All Attribute) do not support');
-            //         }
-            //     }
-            // }
         }
     }
 }
