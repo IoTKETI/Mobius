@@ -1584,6 +1584,37 @@ function store_to_req_resource(request, bodyString, rsc, cap, callback) {
 exports.response_result = function(request, response, status, rsc, cap, callback) {
     var body_Obj = request.resourceObj;
 
+    if(request.headers.hasOwnProperty('x-m2m-ri')) {
+        response.header('X-M2M-RI', request.headers['x-m2m-ri']);
+    }
+
+    if(request.headers.hasOwnProperty('x-m2m-rvi')) {
+        response.header('X-M2M-RVI', request.headers['x-m2m-rvi']);
+    }
+
+    if(request.headers.hasOwnProperty('accept')) {
+        response.header('Accept', request.headers['accept']);
+
+        if(request.headers['accept'].includes('xml')) {
+            request.usebodytype = 'xml';
+            response.header('Content-Type', 'application/xml');
+        }
+        else if(request.headers['accept'].includes('cbor')) {
+            request.usebodytype = 'cbor';
+            response.header('Content-Type', 'application/cbor');
+        }
+        else {
+            request.usebodytype = 'json';
+            response.header('Content-Type', 'application/json');
+        }
+    }
+
+    if(request.headers.hasOwnProperty('locale')) {
+        response.header('Locale', request.headers['locale']);
+    }
+
+    response.header('X-M2M-RSC', rsc);
+
     if (request.query.rcn == 0 && Object.keys(body_Obj)[0] != 'dbg') {
         if (request.query.rt == 3) {
             response.status(status).end('');

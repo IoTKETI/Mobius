@@ -69,7 +69,7 @@ if(sgn_mqtt_client == null) {
         sgn_mqtt_client = null;
     });
 }
-//
+
 exports.post = function(ri, exc, nu, bodytype, rqi, bodyString, parentObj) {
     try {
         if(ss_fail_count.hasOwnProperty(ri)) {
@@ -112,26 +112,6 @@ exports.post = function(ri, exc, nu, bodytype, rqi, bodyString, parentObj) {
         console.log('[sgn_man] post function exception - ' + e.message);
     }
 };
-//
-// function req_sub() {
-//     var req_topic = util.format('/oneM2M/req/+/%s/+', usecseid.replace('/', ''));
-//     sgn_mqtt_client.subscribe(req_topic);
-//     console.log('subscribe req_topic as ' + req_topic);
-//
-//     req_topic = util.format('/oneM2M/req/+/%s/+', usecsebase);
-//     sgn_mqtt_client.subscribe(req_topic);
-//     console.log('subscribe req_topic as ' + req_topic);
-// }
-//
-// function reg_req_sub() {
-//     var reg_req_topic = util.format('/oneM2M/reg_req/+/%s/+', usecseid.replace('/', ''));
-//     sgn_mqtt_client.subscribe(reg_req_topic);
-//     console.log('subscribe reg_req_topic as ' + reg_req_topic);
-//
-//     reg_req_topic = util.format('/oneM2M/reg_req/+/%s/+', usecsebase);
-//     sgn_mqtt_client.subscribe(reg_req_topic);
-//     console.log('subscribe reg_req_topic as ' + reg_req_topic);
-// }
 
 function sgn_mqtt_message_handler(topic, message) {
     var topic_arr = topic.split("/");
