@@ -1461,7 +1461,7 @@ exports.select_latest_resource = function(connection, parentObj, loop_count, lat
     }
 
     var before_ct = moment().subtract(Math.pow(5, loop_count), 'minutes').utc().format('YYYYMMDDTHHmmss');
-    var query_where = ' and ';
+    var query_where = ' and ty = \'' + (parseInt(parentObj.ty, 10) + 1).toString() + '\' and ';
     query_where += util.format(' (\'%s\' < ct) order by ri desc limit 10', before_ct);
 
     var sql = 'select * from (select * from lookup where (pi = \'' + parentObj.ri + '\') ' + query_where + ')b join ' + responder.typeRsrc[parseInt(parentObj.ty, 10) + 1] + ' as a on b.ri = a.ri';
