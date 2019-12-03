@@ -1130,10 +1130,9 @@ exports.create = function (request, response, callback) {
     });
 };
 
-function presearch_action(request, response, ri_list, found_Obj, callback) {
+function presearch_action(request, response, pi_list, callback) {
     var resource_Obj = request.resourceObj;
     var rootnm = Object.keys(resource_Obj)[0];
-    var pi_list = [];
     pi_list.push(resource_Obj[rootnm].ri);
     var found_parent_list = [];
 
@@ -1238,37 +1237,7 @@ function presearch_action(request, response, ri_list, found_Obj, callback) {
                 }
             }
 
-            var cur_d = moment().add(1, 'd').utc().format('YYYY-MM-DD HH:mm:ss');
-            db_sql.search_lookup(request.connection, resource_Obj[rootnm].ri, request.query, request.query.lim, pi_list, 0, found_Obj, 0, request.query.cni, cur_d, 0, function (code) {
-                if (code === '200') {
-                    if (Object.keys(found_Obj).length >= 1) {
-                        if (Object.keys(found_Obj).length >= max_lim) {
-                            response.header('X-M2M-CTS', 1);
-
-                            if (request.query.ofst != null) {
-                                response.header('X-M2M-CTO', parseInt(request.query.ofst, 10) + Object.keys(found_Obj).length);
-                            }
-                            else {
-                                response.header('X-M2M-CTO', Object.keys(found_Obj).length);
-                            }
-                        }
-
-                        for (var index in found_Obj) {
-                            if (found_Obj.hasOwnProperty(index)) {
-                                ri_list.push(found_Obj[index].ri);
-                            }
-                        }
-
-                        callback('200');
-                    }
-                    else {
-                        callback('200');
-                    }
-                }
-                else {
-                    callback(code);
-                }
-            });
+            callback(code);
         }
         else {
             callback(code);
@@ -1428,28 +1397,63 @@ exports.retrieve = function (request, response, callback) {
         request.headers.rootnm = 'agr';
 
         var ri_list = [];
+        var pi_list = [];
         var foundObj = {};
-        presearch_action(request, response, ri_list, foundObj, function (code) {
+        presearch_action(request, response, pi_list, function (code) {
             if (code == '200') {
-                if (request.query.fu == 1) {
-                    request.headers.rootnm = 'uril';
-                    make_cse_relative(ri_list);
-                    request.resourceObj = {};
-                    request.resourceObj.uril = {};
-                    request.resourceObj.uril = ri_list;
+                var cur_d = moment().add(1, 'd').utc().format('YYYY-MM-DD HH:mm:ss');
+                db_sql.search_lookup(request.connection, resource_Obj[rootnm].ri, request.query, request.query.lim, pi_list, 0, foundObj, 0, request.query.cni, cur_d, 0, function (code) {
+                    if (code === '200') {
+                        db_sql.select_spec_ri(request.connection, foundObj, 0, function (code) {
+                            if(code === '200') {
+                                if (Object.keys(foundObj).length >= 1) {
+                                    if (Object.keys(foundObj).length >= max_lim) {
+                                        response.header('X-M2M-CTS', 1);
 
-                    callback('200-1');
-                }
-                else if (request.query.rcn == 4 || request.query.rcn == 5 || request.query.rcn == 6) {
-                    request.headers.rootnm = 'rsp';
-                    request.resourceObj = JSON.parse(JSON.stringify(foundObj));
-                    _this.remove_no_value(request, request.resourceObj);
+                                        if (request.query.ofst != null) {
+                                            response.header('X-M2M-CTO', parseInt(request.query.ofst, 10) + Object.keys(foundObj).length);
+                                        }
+                                        else {
+                                            response.header('X-M2M-CTO', Object.keys(foundObj).length);
+                                        }
+                                    }
 
-                    callback('200-1');
-                }
-                else {
-                    callback('501-1');
-                }
+                                    for (var index in foundObj) {
+                                        if (foundObj.hasOwnProperty(index)) {
+                                            ri_list.push(foundObj[index].ri);
+                                        }
+                                    }
+                                }
+
+                                if (request.query.fu == 1) {
+                                    request.headers.rootnm = 'uril';
+                                    make_cse_relative(ri_list);
+                                    request.resourceObj = {};
+                                    request.resourceObj.uril = {};
+                                    request.resourceObj.uril = ri_list;
+
+                                    callback('200-1');
+                                }
+                                else if (request.query.rcn == 4 || request.query.rcn == 5 || request.query.rcn == 6) {
+                                    request.headers.rootnm = 'rsp';
+                                    request.resourceObj = JSON.parse(JSON.stringify(foundObj));
+                                    _this.remove_no_value(request, request.resourceObj);
+
+                                    callback('200-1');
+                                }
+                                else {
+                                    callback('400');
+                                }
+                            }
+                            else {
+                                callback(code);
+                            }
+                        });
+                    }
+                    else {
+                        callback(code);
+                    }
+                });
             }
             else {
                 callback(code);
