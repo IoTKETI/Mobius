@@ -1130,11 +1130,9 @@ exports.create = function (request, response, callback) {
     });
 };
 
-function presearch_action(request, response, pi_list, callback) {
+function presearch_action(request, response, pi_list, found_parent_list, callback) {
     var resource_Obj = request.resourceObj;
     var rootnm = Object.keys(resource_Obj)[0];
-    pi_list.push(resource_Obj[rootnm].ri);
-    var found_parent_list = [];
 
     console.time('search_parents_lookup ' + resource_Obj[rootnm].ri);
     db_sql.search_parents_lookup(request.connection, pi_list, found_parent_list, function (code) {
@@ -1219,21 +1217,6 @@ function presearch_action(request, response, pi_list, callback) {
                     else {
                         i++;
                     }
-                }
-            }
-
-            pi_list = [];
-            pi_list.push(resource_Obj[rootnm].ri);
-            var cur_lvl = parseInt((url.parse(request.url).pathname.split('/').length), 10) - 2;
-            for (i = 0; i < found_parent_list.length; i++) {
-                if (request.query.lvl != null) {
-                    var lvl = request.query.lvl;
-                    if ((found_parent_list[i].ri.split('/').length - 1) <= (cur_lvl + (parseInt(lvl, 10)))) {
-                        pi_list.push(found_parent_list[i].ri);
-                    }
-                }
-                else {
-                    pi_list.push(found_parent_list[i].ri);
                 }
             }
 
@@ -1396,11 +1379,30 @@ exports.retrieve = function (request, response, callback) {
     else {
         request.headers.rootnm = 'agr';
 
+
+        var found_parent_list = [];
         var ri_list = [];
         var pi_list = [];
+        pi_list.push(resource_Obj[rootnm].ri);
         var foundObj = {};
-        presearch_action(request, response, pi_list, function (code) {
+
+        presearch_action(request, response, pi_list, found_parent_list, function (code) {
             if (code == '200') {
+                pi_list = [];
+                pi_list.push(resource_Obj[rootnm].ri);
+                var cur_lvl = parseInt((url.parse(request.url).pathname.split('/').length), 10) - 2;
+                for (i = 0; i < found_parent_list.length; i++) {
+                    if (request.query.lvl != null) {
+                        var lvl = request.query.lvl;
+                        if ((found_parent_list[i].ri.split('/').length - 1) <= (cur_lvl + (parseInt(lvl, 10)))) {
+                            pi_list.push(found_parent_list[i].ri);
+                        }
+                    }
+                    else {
+                        pi_list.push(found_parent_list[i].ri);
+                    }
+                }
+
                 var cur_d = moment().add(1, 'd').utc().format('YYYY-MM-DD HH:mm:ss');
                 db_sql.search_lookup(request.connection, resource_Obj[rootnm].ri, request.query, request.query.lim, pi_list, 0, foundObj, 0, request.query.cni, cur_d, 0, function (code) {
                     if (code === '200') {
