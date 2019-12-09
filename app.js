@@ -1861,7 +1861,7 @@ app.post(onem2mParser, function (request, response) {
                                             }
                                         }
                                         else if(code === '301-1') {
-                                            check_csr(request, response, function () {
+                                            check_csr(request, response, function (code) {
                                                 if(code === '301-2') {
                                                     response.status(response.statusCode).end(response.body);
                                                     request = null;
@@ -2021,7 +2021,7 @@ app.get(onem2mParser, function (request, response) {
                                         }
                                     }
                                     else if(code === '301-1') {
-                                        check_csr(request, response, function () {
+                                        check_csr(request, response, function (code) {
                                             if(code === '301-2') {
                                                 response.status(response.statusCode).end(response.body);
                                                 request = null;
@@ -2205,7 +2205,7 @@ app.put(onem2mParser, function (request, response) {
                                             }
                                         }
                                         else if(code === '301-1') {
-                                            check_csr(request, response, function () {
+                                            check_csr(request, response, function (code) {
                                                 if(code === '301-2') {
                                                     response.status(response.statusCode).end(response.body);
                                                     request = null;
@@ -2367,7 +2367,7 @@ app.delete(onem2mParser, function (request, response) {
                                 }
                             }
                             else if (code === '301-1') {
-                                check_csr(request, response, function () {
+                                check_csr(request, response, function (code) {
                                     if(code === '301-2') {
                                         response.status(response.statusCode).end(response.body);
                                         request = null;
