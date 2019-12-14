@@ -121,6 +121,7 @@ if (use_clustering) {
             cluster.fork();
         });
 
+        console.log('trying to connect to DB on ' + usedbhost);
         db.connect(usedbhost, 3306, 'root', usedbpass, function (rsc) {
             if (rsc == '1') {
                 db.getConnection(function (code, connection) {
