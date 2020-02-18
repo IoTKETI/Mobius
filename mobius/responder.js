@@ -1755,7 +1755,9 @@ exports.response_result = function(request, response, status, rsc, cap, callback
 };
 
 
-exports.response_rcn3_result = function(request, response, status, body_Obj, rsc, ri, cap) {
+exports.response_rcn3_result = function(request, response, status, rsc, cap) {
+    var body_Obj = request.resourceObj;
+
     if (request.query.rt == 3) {
         var check_header = ['x-m2m-ri', 'x-m2m-rvi', 'locale', 'accept'];
 
@@ -1852,7 +1854,7 @@ exports.response_rcn3_result = function(request, response, status, body_Obj, rsc
 
         var rspObj = {};
         rspObj.rsc = rsc;
-        rspObj.ri = request.method + "-" + ri + "-" + JSON.stringify(request.query);
+        rspObj.ri = request.method + "-" + request.url + "-" + JSON.stringify(request.query);
         rspObj = cap;
         console.log(JSON.stringify(rspObj));
 

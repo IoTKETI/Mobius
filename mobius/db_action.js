@@ -72,6 +72,7 @@ exports.getConnection = function(callback) {
     if(mysql_pool == null) {
         console.error("mysql is not connected");
         callback(true, "mysql is not connected");
+        return '0';
     }
 
     mysql_pool.getConnection(function (err, connection) {
