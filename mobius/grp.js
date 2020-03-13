@@ -248,6 +248,9 @@ exports.build_grp = function(request, response, resource_Obj, body_Obj, callback
     }
     else {
         resource_Obj[rootnm].mtv = 'false';
+
+        request.resourceObj = JSON.parse(JSON.stringify(resource_Obj));
+
         callback('200');
     }
 };
