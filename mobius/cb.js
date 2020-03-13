@@ -36,7 +36,7 @@ function cb_create_action(connection, callback) {
     resource_Obj[rootnm].rn = usecsebase;
     resource_Obj[rootnm].pi = '';
     resource_Obj[rootnm].ri = resource_Obj[rootnm].pi + '/' + resource_Obj[rootnm].rn;
-    resource_Obj[rootnm].ct = moment().utc().format('YYYYMMDDThhmmss');
+    resource_Obj[rootnm].ct = moment().utc().format('YYYYMMDDTHHmmss');
     resource_Obj[rootnm].lt = resource_Obj[rootnm].ct;
     resource_Obj[rootnm].et = moment().utc().add(10, 'years').format('YYYYMMDDTHHmmss');
     resource_Obj[rootnm].acpi = [];
@@ -91,7 +91,7 @@ function cb_create_action(connection, callback) {
                     if (!err) {
                         resource_Obj[rootnm].spi = (results.length == 0) ? '' : results[0].sri;
                         //resource_Obj[rootnm].sri = require('shortid').generate();
-                        resource_Obj[rootnm].sri = '5-' + moment().utc().format('YYYYMMDDhhmmssSSS');
+                        resource_Obj[rootnm].sri = '5-' + moment().utc().format('YYYYMMDDHHmmssSSS');
                             db_sql.insert_cb(connection, resource_Obj[rootnm], function (err, results) {
                             if (!err) {
                                 rspObj.rsc = '2001';

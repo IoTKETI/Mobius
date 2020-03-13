@@ -838,7 +838,7 @@ function build_resource(request, response, callback) {
         return;
     }
 
-    resource_Obj[rootnm].rn = request.ty + '-' + moment().utc().format('YYYYMMDDhhmmssSSS');
+    resource_Obj[rootnm].rn = request.ty + '-' + moment().utc().format('YYYYMMDDHHmmssSSS');
     if (request.headers['x-m2m-nm'] != null && request.headers['x-m2m-nm'] != '') {
         resource_Obj[rootnm].rn = request.headers['x-m2m-nm'];
     }
@@ -849,7 +849,7 @@ function build_resource(request, response, callback) {
     resource_Obj[rootnm].ty = request.ty;
     resource_Obj[rootnm].pi = url.parse(request.url).pathname;
     resource_Obj[rootnm].ri = resource_Obj[rootnm].pi + '/' + resource_Obj[rootnm].rn;
-    resource_Obj[rootnm].ct = moment().utc().format('YYYYMMDDThhmmss');
+    resource_Obj[rootnm].ct = moment().utc().format('YYYYMMDDTHHmmss');
     resource_Obj[rootnm].lt = resource_Obj[rootnm].ct;
     resource_Obj[rootnm].st = 0;
     resource_Obj[rootnm].et = moment().utc().add(2, 'years').format('YYYYMMDDTHHmmss');
@@ -1035,7 +1035,7 @@ exports.create = function (request, response, callback) {
             var resource_Obj = request.resourceObj;
 
             resource_Obj[rootnm].spi = request.targetObject[Object.keys(request.targetObject)[0]].sri;
-            resource_Obj[rootnm].sri = request.ty + '-' + moment().utc().format('YYYYMMDDhhmmssSSS');
+            resource_Obj[rootnm].sri = request.ty + '-' + moment().utc().format('YYYYMMDDHHmmssSSS');
 
             if(resource_Obj[rootnm].ty == 2) {
                 resource_Obj[rootnm].sri = resource_Obj[rootnm].aei;
@@ -2088,7 +2088,7 @@ function update_resource(request, response, callback) {
                 update_body(rootnm, body_Obj, resource_Obj); // (attr == 'aa' || attr == 'poa' || attr == 'lbl' || attr == 'acpi' || attr == 'srt' || attr == 'nu' || attr == 'mid' || attr == 'macp')
 
                 resource_Obj[rootnm].st = (parseInt(resource_Obj[rootnm].st, 10) + 1).toString();
-                resource_Obj[rootnm].lt = moment().utc().format('YYYYMMDDThhmmss');
+                resource_Obj[rootnm].lt = moment().utc().format('YYYYMMDDTHHmmss');
 
                 if (body_Obj[rootnm].et == '') {
                     if (body_Obj[rootnm].et < resource_Obj[rootnm].ct) {
