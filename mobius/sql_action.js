@@ -21,10 +21,10 @@ var db = require('./db_action');
 
 var _this = this;
 
-global.max_lim = 5000;
+global.max_lim = 2000;
 
-const max_search_count = 1000;
-const max_parent_count = 1000;
+const max_search_count = 2000;
+const max_parent_count = 2000;
 
 exports.set_tuning = function(connection, callback) {
     var sql = util.format('set global max_connections = 2000');
@@ -1055,36 +1055,36 @@ exports.search_lookup_parents = function(connection, query, pi, cur_lim, count, 
     });
 };
 
-function search_parents_lookup_action(connection, pi_list, count, result_ri, callback) {
+function search_parents_lookup_action(connection, pi_list, count, cur_result_ri, result_ri, callback) {
     if(count >= pi_list.length) {
         callback('200');
         return;
     }
 
-    var sql = util.format("select ri, ty from lookup where pi = \'" + pi_list[count] + "\' and ty <> \'1\' and ty <> \'9\' and ty <> \'23\' and ty <> \'4\' and ty <> \'30\' and ty <> \'17\' limit 1000");
+    var sql = util.format("select ri, ty from lookup where pi = \'" + pi_list[count] + "\' and ty <> \'1\' and ty <> \'9\' and ty <> \'23\' and ty <> \'4\' and ty <> \'30\' and ty <> \'17\' limit 2000");
     db.getResult(sql, connection, function (err, result_lookup_ri) {
         if(!err) {
             if(result_lookup_ri.length === 0) {
-                search_parents_lookup_action(connection, pi_list, ++count, result_ri, function (code) {
+                search_parents_lookup_action(connection, pi_list, ++count, cur_result_ri, result_ri, function (code) {
                     callback(code);
                 });
             }
             else {
                 for(var idx in result_lookup_ri) {
                     if(result_lookup_ri.hasOwnProperty(idx)) {
-                        result_ri.push(result_lookup_ri[idx]);
-                        if(result_ri.length > max_parent_count) {
+                        cur_result_ri.push(result_lookup_ri[idx]);
+                        if(cur_result_ri.length > max_parent_count) {
                             break;
                         }
                     }
                 }
 
                 result_lookup_ri = null;
-                if(result_ri.length > max_parent_count) {
+                if(cur_result_ri.length > max_parent_count) {
                     callback('200');
                 }
                 else {
-                    search_parents_lookup_action(connection, pi_list, ++count, result_ri, function (code) {
+                    search_parents_lookup_action(connection, pi_list, ++count, cur_result_ri, result_ri, function (code) {
                         callback(code);
                     });
                 }
@@ -1096,9 +1096,9 @@ function search_parents_lookup_action(connection, pi_list, count, result_ri, cal
     });
 }
 
-exports.search_parents_lookup = function(connection, pi_list, result_ri, callback) {
-    var cur_result_ri = [];
-    search_parents_lookup_action(connection, pi_list, 0, cur_result_ri, function (code) {
+exports.search_parents_lookup = function(connection, pi_list, cur_result_ri, result_ri, callback) {
+    cur_result_ri = [];
+    search_parents_lookup_action(connection, pi_list, 0, cur_result_ri, result_ri, function (code) {
         if(code === '200') {
             if (cur_result_ri.length === 0) {
                 callback(code);
@@ -1116,7 +1116,7 @@ exports.search_parents_lookup = function(connection, pi_list, result_ri, callbac
                     callback(code);
                 }
                 else {
-                    _this.search_parents_lookup(connection, pi_list, cur_result_ri, function (code) {
+                    _this.search_parents_lookup(connection, pi_list, cur_result_ri, result_ri, function (code) {
                         callback(code);
                     });
                 }

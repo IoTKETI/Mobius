@@ -1667,6 +1667,23 @@ app.use(function (req, res, next) {
 //     res.send('Heapdump has been generated in '+filename);
 // });
 
+// var graphqlHTTP = require('express-graphql');
+// var { buildSchema } = require('graphql');
+//
+// var schema = buildSchema(`
+//     type Query {
+//         hello: String
+//     }
+// `);
+//
+// var root = { hello: () => 'Hello world!' };
+//
+// app.use('/' + usecsebase + '/discovery', graphqlHTTP({
+//     schema: schema,
+//     rootValue: root,
+//     graphiql: true,
+// }));
+
 // remoteCSE, ae, cnt
 app.post(onem2mParser, function (request, response) {
     var fullBody = '';
