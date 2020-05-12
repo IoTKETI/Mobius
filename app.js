@@ -1831,7 +1831,7 @@ app.post(onem2mParser, function (request, response) {
                                                             if(code === '1') {
                                                                 parse_body_format(request, response, function (code) {
                                                                     if (code === '200') {
-                                                                        fopt.check(request, response, result_grp, request.targetObject[Object.keys(request.targetObject)[0]].ty, body_Obj, function (code) {
+                                                                        fopt.check(request, response, result_grp, body_Obj, function (code) {
                                                                             if(code === '200') {
                                                                                 responder.response_result(request, response, '200', '2000', '', function () {
                                                                                     request = null;
@@ -1999,7 +1999,7 @@ app.get(onem2mParser, function (request, response) {
                                                     var body_Obj = {};
                                                     security.check(request, response, request.targetObject[Object.keys(request.targetObject)[0]].ty, result_grp.macp, access_value, result_grp.cr, function (code) {
                                                         if(code === '1') {
-                                                            fopt.check(request, response, result_grp, request.targetObject[Object.keys(request.targetObject)[0]].ty, body_Obj, function (code) {
+                                                            fopt.check(request, response, result_grp, body_Obj, function (code) {
                                                                 if(code === '200') {
                                                                     responder.response_result(request, response, '200', '2000', '', function () {
                                                                         request = null;
@@ -2175,7 +2175,7 @@ app.put(onem2mParser, function (request, response) {
                                                             if(code === '1') {
                                                                 parse_body_format(request, response, function (code) {
                                                                     if (code === '200') {
-                                                                        fopt.check(request, response, result_grp, request.targetObject[Object.keys(request.targetObject)[0]].ty, body_Obj, function (code) {
+                                                                        fopt.check(request, response, result_grp, body_Obj, function (code) {
                                                                             if(code === '200') {
                                                                                 responder.response_result(request, response, '200', '2000', '', function () {
                                                                                     request = null;
@@ -2345,7 +2345,7 @@ app.delete(onem2mParser, function (request, response) {
                                             var body_Obj = {};
                                             security.check(request, response, request.targetObject[Object.keys(request.targetObject)[0]].ty, result_grp.macp, access_value, result_grp.cr, function (code) {
                                                 if(code === '1') {
-                                                    fopt.check(request, response, result_grp, request.targetObject[Object.keys(request.targetObject)[0]].ty, body_Obj, function (code) {
+                                                    fopt.check(request, response, result_grp, body_Obj, function (code) {
                                                         if(code === '200') {
                                                             responder.response_result(request, response, '200', '2000', '', function () {
                                                                 request = null;

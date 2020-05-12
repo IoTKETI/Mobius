@@ -150,7 +150,7 @@ function fopt_member(request, response, req_count, mid, body_Obj, cse_poa, agr, 
                 else {
                     request_to_member(request, hostname, port, ri, agr, function (code) {
                         if(code === '200') {
-                            fopt_member(request, response, req_count, mid, body_Obj, cse_poa, agr, function (code) {
+                            fopt_member(request, response, ++req_count, mid, body_Obj, cse_poa, agr, function (code) {
                                 callback(code);
                             });
                         }
@@ -188,7 +188,7 @@ exports.check = function(request, response, grp, body_Obj, callback) {
                                 request.resourceObj = JSON.parse(JSON.stringify(retrieve_Obj));
                                 retrieve_Obj = null;
 
-                                callback('200)');
+                                callback('200');
                             }
                             else {
                                 callback('404-5');
