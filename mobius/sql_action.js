@@ -108,31 +108,29 @@ exports.set_hit_n = function(connection, _ct, _http, _mqtt, _coap, _ws, callback
     });
 };
 
-
-
-exports.get_sri_sri = function (connection, ri, callback) {
-    var sql = util.format('select sri from sri where ri = \'%s\'', ri);
-    db.getResult(sql, connection, function (err, results) {
-        callback(err, results);
-    });
-};
+// exports.get_sri_sri = function (connection, ri, callback) {
+//     var sql = util.format('select sri from lookup where ri = \'%s\'', ri);
+//     db.getResult(sql, connection, function (err, results) {
+//         callback(err, results);
+//     });
+// };
 
 exports.get_ri_sri = function (connection, sri, callback) {
     var tid = require('shortid').generate();
     console.time('get_ri_sri' + ' (' + tid + ')');
-    var sql = util.format('select ri from sri where sri = \'%s\'', sri);
+    var sql = util.format('select ri from lookup where sri = \'%s\'', sri);
     db.getResult(sql, connection, function (err, results) {
         console.timeEnd('get_ri_sri' + ' (' + tid + ')');
         callback(err, results);
     });
 };
 
-function set_sri_sri(connection, ri, sri, callback) {
-    var sql = util.format('insert into sri (ri, sri) value (\'%s\', \'%s\')', ri, sri);
-    db.getResult(sql, connection, function (err, results) {
-        callback(err, results);
-    });
-}
+// function set_sri_sri(connection, ri, sri, callback) {
+//     var sql = util.format('insert into sri (ri, sri) value (\'%s\', \'%s\')', ri, sri);
+//     db.getResult(sql, connection, function (err, results) {
+//         callback(err, results);
+//     });
+// }
 
 exports.insert_lookup = function(connection, obj, callback) {
     //console.time('insert_lookup ' + obj.ri);
@@ -142,10 +140,11 @@ exports.insert_lookup = function(connection, obj, callback) {
         obj.pi, obj.ri, obj.ty, obj.ct, obj.st, obj.rn, obj.lt, obj.et, JSON.stringify(obj.acpi), JSON.stringify(obj.lbl), JSON.stringify(obj.at), JSON.stringify(obj.aa), obj.sri, obj.spi, JSON.stringify(obj.subl));
     db.getResult(sql, connection, function (err, results) {
         if(!err) {
-            set_sri_sri(connection, obj.ri, obj.sri, function (err, results) {
-                //console.timeEnd('insert_lookup ' + obj.ri);
-                callback(err, results);
-            });
+            // set_sri_sri(connection, obj.ri, obj.sri, function (err, results) {
+            //     //console.timeEnd('insert_lookup ' + obj.ri);
+            //     callback(err, results);
+            // });
+            callback(err, results);
         }
         else {
             callback(err, results);
@@ -221,13 +220,9 @@ exports.insert_ae = function(connection, obj, callback) {
                 else {
                     sql = util.format("delete from lookup where ri = \'%s\'", obj.ri);
                     db.getResult(sql, connection, function () {
-                        sql = util.format("delete from sri where ri = \'%s\'", obj.ri);
-                        db.getResult(sql, connection, function () {
-                        });
+                        console.timeEnd('insert_ae ' + obj.ri);
+                        callback(err, results);
                     });
-
-                    console.timeEnd('insert_ae ' + obj.ri);
-                    callback(err, results);
                 }
             });
         }
@@ -807,7 +802,7 @@ exports.insert_tm = function(connection, obj, callback) {
 };
 
 exports.select_resource_from_url = function(connection, ri, sri, callback) {
-    var sql = util.format('select * from lookup where ri = \'%s\' or ri = (select ri from sri where sri = \'%s\')', ri, sri);
+    var sql = util.format('select * from lookup where (ri = \'%s\') or (sri = \'%s\')', ri, sri);
     db.getResult(sql, connection, function (err, comm_Obj) {
         if(!err) {
             if(comm_Obj.length == 0) {
@@ -978,7 +973,7 @@ function build_search_query(query, callback) {
 
     callback(query_where);
 }
-
+/*
 exports.search_lookup_parents = function(connection, query, pi, cur_lim, count, found_Obj, callback) {
     if(count >= Object.keys(responder.typeRsrc).length-1) {
         callback('1', found_Obj);
@@ -1054,6 +1049,7 @@ exports.search_lookup_parents = function(connection, query, pi, cur_lim, count, 
         });
     });
 };
+*/
 
 function search_parents_lookup_action(connection, pi_list, count, cur_result_ri, result_ri, callback) {
     if(count >= pi_list.length) {
@@ -1354,7 +1350,7 @@ function search_resource_action(connection, ri, query, cur_lim, pi_list, cni, lo
                 }
             }
 
-            if(query.la != null) {
+            if (query.la != null) {
                 if(Object.keys(seekObj).length >= cur_lim) {
                     callback(code);
                 }
@@ -1500,7 +1496,7 @@ exports.select_lookup = function(connection, ri, callback) {
 exports.select_ri_lookup = function(connection, ri, callback) {
     console.time('select_ri_lookup ' + ri);
     //var sql = util.format("select ri from lookup where ri = \'%s\'", ri);
-    var sql = "select ri from lookup where ri = \'" + ri + "\'";
+    var sql = "select ri, sri from lookup where ri = \'" + ri + "\'";
     db.getResult(sql, connection, function (err, ri_Obj) {
         console.timeEnd('select_ri_lookup ' + ri);
         callback(err, ri_Obj);

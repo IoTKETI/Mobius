@@ -87,9 +87,9 @@ function cb_create_action(connection, callback) {
                 });
             }
             else {
-                db_sql.get_sri_sri(connection, resource_Obj[rootnm].pi, function (err, results) {
-                    if (!err) {
-                        resource_Obj[rootnm].spi = (results.length == 0) ? '' : results[0].sri;
+                // db_sql.get_sri_sri(connection, resource_Obj[rootnm].pi, function (err, results) {
+                //     if (!err) {
+                        resource_Obj[rootnm].spi = '';
                         //resource_Obj[rootnm].sri = require('shortid').generate();
                         resource_Obj[rootnm].sri = '5-' + moment().utc().format('YYYYMMDDHHmmssSSS');
                             db_sql.insert_cb(connection, resource_Obj[rootnm], function (err, results) {
@@ -105,8 +105,8 @@ function cb_create_action(connection, callback) {
                             }
                             callback(rspObj);
                         });
-                    }
-                });
+                //     }
+                // });
             }
         }
         else {
