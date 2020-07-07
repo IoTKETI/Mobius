@@ -1630,7 +1630,6 @@ exports.response_result = function(request, response, status, rsc, cap, callback
             body_Obj = null;
             rspObj = null;
 
-            request.connection.release();
             callback();
         }
         else if (request.query.rt == 1) {
@@ -1650,7 +1649,6 @@ exports.response_result = function(request, response, status, rsc, cap, callback
                 body_Obj = null;
                 rspObj = null;
 
-                request.connection.release();
                 callback();
             });
         }
@@ -1739,7 +1737,6 @@ exports.response_result = function(request, response, status, rsc, cap, callback
             body_Obj = null;
             rspObj = null;
 
-            request.connection.release();
             callback();
         }
         else if (request.query.rt == 1 || (request.query.rt == 2 && request.headers['x-m2m-rtu'] != null && request.headers['x-m2m-rtu'] != '')) {
@@ -1747,7 +1744,6 @@ exports.response_result = function(request, response, status, rsc, cap, callback
                 body_Obj = null;
                 rspObj = null;
 
-                request.connection.release();
                 callback();
             });
         }
@@ -1755,7 +1751,7 @@ exports.response_result = function(request, response, status, rsc, cap, callback
 };
 
 
-exports.response_rcn3_result = function(request, response, status, rsc, cap) {
+exports.response_rcn3_result = function(request, response, status, rsc, cap, callback) {
     var body_Obj = request.resourceObj;
 
     if (request.query.rt == 3) {
@@ -1849,7 +1845,6 @@ exports.response_rcn3_result = function(request, response, status, rsc, cap) {
             bodyString = xml.end({pretty: false, indent: '  ', newline: '\n'}).toString();
         }
 
-        request.connection.release();
         response.status(status).end(bodyString);
 
         var rspObj = {};
@@ -1859,18 +1854,19 @@ exports.response_rcn3_result = function(request, response, status, rsc, cap) {
         console.log(JSON.stringify(rspObj));
 
         delete body_Obj;
-        delete request;
-        delete response;
         delete rspObj;
 
         body_Obj = null;
-        request = null;
-        response = null;
         rspObj = null;
+
+        callback();
     }
     else if (request.query.rt == 1 || (request.query.rt == 2 && request.headers['x-m2m-rtu'] != null && request.headers['x-m2m-rtu'] != '')) {
         store_to_req_resource(request, bodyString, rsc, cap, function () {
-            request.connection.release();
+            body_Obj = null;
+            rspObj = null;
+
+            callback();
         });
     }
 };
@@ -1958,7 +1954,6 @@ exports.search_result = function(request, response, status, rsc, cap, callback) 
             rspObj = cap;
             console.log(JSON.stringify(rspObj));
 
-            request.connection.release();
             callback();
         }
         else if (request.query.rt == 1) {
@@ -1980,6 +1975,8 @@ exports.search_result = function(request, response, status, rsc, cap, callback) 
 
                 body_Obj = null;
                 rspObj = null;
+
+                callback();
             });
         }
     }
@@ -2051,7 +2048,6 @@ exports.search_result = function(request, response, status, rsc, cap, callback) 
             body_Obj = null;
             rspObj = null;
 
-            request.connection.release();
             callback();
         }
         else if (request.query.rt == 1 || (request.query.rt == 2 && request.headers['x-m2m-rtu'] != null && request.headers['x-m2m-rtu'] != '')) {
@@ -2059,7 +2055,6 @@ exports.search_result = function(request, response, status, rsc, cap, callback) 
                 body_Obj = null;
                 rspObj = null;
 
-                request.connection.release();
                 callback();
             });
         }
@@ -2122,10 +2117,6 @@ exports.error_result = function(request, response, status, rsc, dbg_string, call
     rspObj.msg = dbg_string;
     console.log(JSON.stringify(rspObj));
     rspObj = null;
-
-    if(request.hasOwnProperty('connection')) {
-        request.connection.release();
-    }
 
     callback();
 };

@@ -384,7 +384,6 @@ ts_app.delete('/missingDataDetect', onem2mParser, function(request, response) {
         rsc.status = 2000;
         rsc.ri = request.url;
         console.log(rsc.status + ' - ' + rsc.ri);
-        request.connection.release();
         response.header('X-M2M-RSC', '2000');
         response.status(200).end(JSON.stringify(rsc));
     });
