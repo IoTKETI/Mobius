@@ -10,7 +10,6 @@
     "express": "^4.16.4",
     "file-stream-rotator": "0.4.1",
     "fs": "0.0.2",
-    "heapdump": "^0.3.15",
     "http": "0.0.0",
     "https": "^1.0.0",
     "ip": "^1.1.5",
