@@ -1057,7 +1057,7 @@ exports.create = function (request, response, callback) {
             var resource_Obj = request.resourceObj;
 
             resource_Obj[rootnm].spi = request.targetObject[Object.keys(request.targetObject)[0]].sri;
-            resource_Obj[rootnm].sri = request.ty + '-' + moment().utc().format('YYYYMMDDHHmmssSSS');
+            resource_Obj[rootnm].sri = request.ty + '-' + moment().utc().format('YYYYMMDDHHmmssSSS') + (Math.random() * 999).toFixed(0).padStart(3, '0');
 
             if(resource_Obj[rootnm].ty == 2) {
                 resource_Obj[rootnm].sri = resource_Obj[rootnm].aei;

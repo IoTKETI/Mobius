@@ -91,7 +91,7 @@ function cb_create_action(connection, callback) {
                 //     if (!err) {
                         resource_Obj[rootnm].spi = '';
                         //resource_Obj[rootnm].sri = require('shortid').generate();
-                        resource_Obj[rootnm].sri = '5-' + moment().utc().format('YYYYMMDDHHmmssSSS');
+                        resource_Obj[rootnm].sri = '5-' + moment().utc().format('YYYYMMDDHHmmssSSS') + (Math.random() * 999).toFixed(0).padStart(3, '0');
                             db_sql.insert_cb(connection, resource_Obj[rootnm], function (err, results) {
                             if (!err) {
                                 rspObj.rsc = '2001';
