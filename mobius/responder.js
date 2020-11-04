@@ -779,10 +779,19 @@ var typeRsrc = {
     "23": "sub",
     "24": "smd",
     "27": "mms",
+    "28": "fcnt",
     "29": "ts",
     "30": "tsi",
     "38": "tm",
     "39": "tr",
+    "91": "hd_brigs",
+    "92": "hd_color",
+    "93": "hd_colSn",
+    "94": "hd_fauDn",
+    "95": "hd_binSh",
+    "96": "hd_tempe",
+    "97": "hd_bat",
+    "98": "hd_dooLk",
     "99": "rsp"
 };
 
@@ -830,7 +839,8 @@ function typeCheckAction(index1, body_Obj) {
             else if (index2 == 'acp' || index2 == 'cst' || index2 == 'los' || index2 == 'mt' || index2 == 'csy' || index2 == 'nct' ||
                 index2 == 'cs' || index2 == 'st' || index2 == 'ty' || index2 == 'cbs' || index2 == 'cni' || index2 == 'mni' ||
                 index2 == 'cnm' || index2 == 'mia' || index2 == 'mbs' || index2 == 'mgd' || index2 == 'btl' || index2 == 'bts' ||
-                index2 == 'mdn' || index2 == 'mdc' || index2 == 'mdt' || index2 == 'pei' || index2 == 'mnm' || index2 == 'exc' || index2 == 'rs' || index2 == 'ors') {
+                index2 == 'mdn' || index2 == 'mdc' || index2 == 'mdt' || index2 == 'pei' || index2 == 'mnm' || index2 == 'exc' || index2 == 'rs' || index2 == 'ors' ||
+                index2 == 'lvl' || index2 == 'colSn' || index2 == 'red' || index2 == 'green' || index2 == 'blue' || index2 == 'brigs') {
 
                 if ((index1 == 'm2m:cb' || index1 == 'm2m:cin' || index1 == 'm2m:nod' || index1 == 'm2m:ae' || index1 == 'm2m:sub' || index1 == 'm2m:acp' ||
                         index1 == 'm2m:csr' || index1 == 'm2m:grp' || index1 == 'm2m:fwr' || index1 == 'm2m:bat' || index1 == 'm2m:dvi' || index1 == 'm2m:dvc' ||
@@ -923,7 +933,7 @@ function typeCheckAction(index1, body_Obj) {
                 }
             }
             else if (index2 == 'rr' || index2 == 'mtv' || index2 == 'ud' || index2 == 'att' || index2 == 'cus' || index2 == 'ena' || index2 == 'dis' || index2 == 'rbo' ||
-                index2 == 'far' || index2 == 'mdd' || index2 == 'disr') {
+                index2 == 'far' || index2 == 'mdd' || index2 == 'disr' || index2 == 'lock' || index2 == 'powerSe' || index2 == 'sus') {
                 body_Obj[index2] = ((body_Obj[index2] == 'true') || ((body_Obj[index2] == true)));
             }
             else if (index2 == 'sri') {
@@ -939,6 +949,10 @@ function typeCheckAction(index1, body_Obj) {
                     body_Obj[index2] = JSON.parse(body_Obj[index2]);
                 }
             }
+            else if (index2 == 'curT0') {
+                body_Obj[index2] = parseFloat(body_Obj[index2]);
+            }
+
         }
     }
 }
@@ -1696,6 +1710,10 @@ exports.response_result = function(request, response, status, rsc, cap, callback
 
         if(rootnm == 'mgo') {
             body_Obj['m2m:' + mgoType[body_Obj[rootnm].mgd]] = body_Obj[rootnm];
+            delete body_Obj[rootnm];
+        }
+        else if(rootnm.includes('hd_')) {
+            body_Obj['hd:' + rootnm.replace('hd_', '')] = body_Obj[rootnm];
             delete body_Obj[rootnm];
         }
         else {

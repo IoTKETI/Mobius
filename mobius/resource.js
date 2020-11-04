@@ -37,6 +37,7 @@ var grp = require('./grp');
 var req = require('./req');
 var nod = require('./nod');
 var mgo = require('./mgo');
+var fcnt = require('./fcnt');
 var tm = require('./tm');
 var tr = require('./tr');
 
@@ -46,9 +47,9 @@ var cnt_man = require('./cnt_man');
 
 var _this = this;
 
-global.ty_list = ['1', '2', '3', '4', '5', '9', '10', '13', '14', '16', '17', '23', '24', '27', '29', '30', '38', '39'];
+global.ty_list = ['1', '2', '3', '4', '5', '9', '10', '13', '14', '16', '17', '23', '24', '27', '28', '29', '30', '38', '39', '91', '92', '93', '94', '95', '96', '97', '98'];
 
-global.create_np_attr_list = {};
+var create_np_attr_list = {};
 create_np_attr_list.acp = ['ty', 'ri', 'pi', 'ct', 'lt', 'st'];
 create_np_attr_list.csr = ['ty', 'ri', 'pi', 'ct', 'lt', 'st'];
 create_np_attr_list.ae = ['ty', 'ri', 'pi', 'ct', 'lt', 'st', 'aei'];
@@ -71,6 +72,16 @@ create_np_attr_list.bat = ['ty', 'ri', 'pi', 'ct', 'lt', 'st'];
 create_np_attr_list.dvi = ['ty', 'ri', 'pi', 'ct', 'lt', 'st'];
 create_np_attr_list.dvc = ['ty', 'ri', 'pi', 'ct', 'lt', 'st'];
 create_np_attr_list.rbo = ['ty', 'ri', 'pi', 'ct', 'lt', 'st'];
+
+create_np_attr_list.fcnt = ['ty', 'ri', 'pi', 'ct', 'lt', 'st'];
+create_np_attr_list['hd_dooLk'] = ['ty', 'ri', 'pi', 'ct', 'lt', 'st'];
+create_np_attr_list['hd_bat'] = ['ty', 'ri', 'pi', 'ct', 'lt', 'st'];
+create_np_attr_list['hd_tempe'] = ['ty', 'ri', 'pi', 'ct', 'lt', 'st'];
+create_np_attr_list['hd_binSh'] = ['ty', 'ri', 'pi', 'ct', 'lt', 'st'];
+create_np_attr_list['hd_fauDn'] = ['ty', 'ri', 'pi', 'ct', 'lt', 'st'];
+create_np_attr_list['hd_colSn'] = ['ty', 'ri', 'pi', 'ct', 'lt', 'st'];
+create_np_attr_list['hd_color'] = ['ty', 'ri', 'pi', 'ct', 'lt', 'st'];
+create_np_attr_list['hd_brigs'] = ['ty', 'ri', 'pi', 'ct', 'lt', 'st'];
 
 global.create_m_attr_list = {};
 create_m_attr_list.acp = ['pv', 'pvs'];
@@ -96,6 +107,16 @@ create_m_attr_list.dvi = ['mgd', 'dlb', 'man', 'mod', 'dty', 'fwv', 'swv', 'hwv'
 create_m_attr_list.dvc = ['mgd', 'can', 'att', 'cas', 'cus'];
 create_m_attr_list.rbo = ['mgd'];
 
+create_m_attr_list.fcnt = ['cnd'];
+create_m_attr_list['hd_dooLk'] = ['cnd', 'lock'];
+create_m_attr_list['hd_bat'] = ['cnd', 'lvl'];
+create_m_attr_list['hd_tempe'] = ['cnd', 'curT0'];
+create_m_attr_list['hd_binSh'] = ['cnd', 'powerSe'];
+create_m_attr_list['hd_fauDn'] = ['cnd', 'sus'];
+create_m_attr_list['hd_colSn'] = ['cnd', 'colSn'];
+create_m_attr_list['hd_color'] = ['cnd', 'red', 'green', 'blue'];
+create_m_attr_list['hd_brigs'] = ['cnd', 'brigs'];
+
 global.create_opt_attr_list = {};
 create_opt_attr_list.acp = ['rn', 'et', 'lbl', 'aa', 'at'];
 create_opt_attr_list.csr = ['rn', 'acpi', 'et', 'lbl', 'aa', 'at', 'daci', 'cst', 'poa', 'mei', 'tri', 'nl', 'esi', 'srv'];
@@ -120,6 +141,15 @@ create_opt_attr_list.dvi = ['rn', 'acpi', 'et', 'lbl', 'daci', 'objs', 'obps', '
 create_opt_attr_list.dvc = ['rn', 'acpi', 'et', 'lbl', 'daci', 'objs', 'obps', 'dc', 'cmlk', 'ena', 'dis'];
 create_opt_attr_list.rbo = ['rn', 'acpi', 'et', 'lbl', 'daci', 'objs', 'obps', 'dc', 'cmlk', 'rbo', 'far'];
 
+create_opt_attr_list.fcnt = ['rn', 'acpi', 'et', 'lbl', 'aa', 'at', 'daci', 'cr'];
+create_opt_attr_list['hd_dooLk'] = ['rn', 'acpi', 'et', 'lbl', 'aa', 'at', 'daci', 'cr'];
+create_opt_attr_list['hd_bat'] = ['rn', 'acpi', 'et', 'lbl', 'aa', 'at', 'daci', 'cr'];
+create_opt_attr_list['hd_tempe'] = ['rn', 'acpi', 'et', 'lbl', 'aa', 'at', 'daci', 'cr'];
+create_opt_attr_list['hd_binSh'] = ['rn', 'acpi', 'et', 'lbl', 'aa', 'at', 'daci', 'cr'];
+create_opt_attr_list['hd_fauDn'] = ['rn', 'acpi', 'et', 'lbl', 'aa', 'at', 'daci', 'cr'];
+create_opt_attr_list['hd_colSn'] = ['rn', 'acpi', 'et', 'lbl', 'aa', 'at', 'daci', 'cr'];
+create_opt_attr_list['hd_color'] = ['rn', 'acpi', 'et', 'lbl', 'aa', 'at', 'daci', 'cr'];
+create_opt_attr_list['hd_brigs'] = ['rn', 'acpi', 'et', 'lbl', 'aa', 'at', 'daci', 'cr'];
 
 global.update_np_attr_list = {};
 update_np_attr_list.acp = ['rn', 'ty', 'ri', 'pi', 'ct', 'lt'];
@@ -142,6 +172,16 @@ update_np_attr_list.dvi = ['rn', 'ty', 'ri', 'pi', 'ct', 'lt', 'st', 'mgd', 'obj
 update_np_attr_list.dvc = ['rn', 'ty', 'ri', 'pi', 'ct', 'lt', 'st', 'mgd', 'objs', 'obps'];
 update_np_attr_list.rbo = ['rn', 'ty', 'ri', 'pi', 'ct', 'lt', 'st', 'mgd', 'objs', 'obps'];
 
+update_np_attr_list.fcnt = ['rn', 'ty', 'ri', 'pi', 'ct', 'lt', 'st', 'cnd'];
+update_np_attr_list['hd_dooLk'] = ['rn', 'ty', 'ri', 'pi', 'ct', 'lt', 'st', 'cnd'];
+update_np_attr_list['hd_bat'] = ['rn', 'ty', 'ri', 'pi', 'ct', 'lt', 'st', 'cnd'];
+update_np_attr_list['hd_tempe'] = ['rn', 'ty', 'ri', 'pi', 'ct', 'lt', 'st', 'cnd'];
+update_np_attr_list['hd_binSh'] = ['rn', 'ty', 'ri', 'pi', 'ct', 'lt', 'st', 'cnd'];
+update_np_attr_list['hd_fauDn'] = ['rn', 'ty', 'ri', 'pi', 'ct', 'lt', 'st', 'cnd'];
+update_np_attr_list['hd_colSn'] = ['rn', 'ty', 'ri', 'pi', 'ct', 'lt', 'st', 'cnd'];
+update_np_attr_list['hd_color'] = ['rn', 'ty', 'ri', 'pi', 'ct', 'lt', 'st', 'cnd'];
+update_np_attr_list['hd_brigs'] = ['rn', 'ty', 'ri', 'pi', 'ct', 'lt', 'st', 'cnd'];
+
 global.update_m_attr_list = {};
 update_m_attr_list.acp = [];
 update_m_attr_list.csr = [];
@@ -162,6 +202,16 @@ update_m_attr_list.bat = [];
 update_m_attr_list.dvi = [];
 update_m_attr_list.dvc = [];
 update_m_attr_list.rbo = [];
+
+update_m_attr_list.fcnt = [];
+update_m_attr_list['hd_dooLk'] = [];
+update_m_attr_list['hd_bat'] = [];
+update_m_attr_list['hd_tempe'] = [];
+update_m_attr_list['hd_binSh'] = [];
+update_m_attr_list['hd_fauDn'] = [];
+update_m_attr_list['hd_colSn'] = [];
+update_m_attr_list['hd_color'] = [];
+update_m_attr_list['hd_brigs'] = [];
 
 global.update_opt_attr_list = {};
 update_opt_attr_list.acp = ['et', 'lbl', 'aa', 'at', 'pv', 'pvs'];
@@ -184,6 +234,15 @@ update_opt_attr_list.dvi = ['acpi', 'et', 'lbl', 'daci', 'dc', 'cmlk', 'dlb', 'm
 update_opt_attr_list.dvc = ['acpi', 'et', 'lbl', 'daci', 'dc', 'cmlk', 'can', 'att', 'cas', 'cus', 'ena', 'dis'];
 update_opt_attr_list.rbo = ['acpi', 'et', 'lbl', 'daci', 'dc', 'cmlk', 'rbo', 'far'];
 
+update_opt_attr_list.fcnt = ['acpi', 'et', 'lbl'];
+update_opt_attr_list['hd_dooLk'] = ['acpi', 'et', 'lbl', 'lock'];
+update_opt_attr_list['hd_bat'] = ['acpi', 'et', 'lbl', 'lvl'];
+update_opt_attr_list['hd_tempe'] = ['acpi', 'et', 'lbl', 'curT0'];
+update_opt_attr_list['hd_binSh'] = ['acpi', 'et', 'lbl', 'powerSe'];
+update_opt_attr_list['hd_fauDn'] = ['acpi', 'et', 'lbl', 'sus'];
+update_opt_attr_list['hd_colSn'] = ['acpi', 'et', 'lbl', 'colSn'];
+update_opt_attr_list['hd_color'] = ['acpi', 'et', 'lbl', 'red', 'green', 'blue'];
+update_opt_attr_list['hd_brigs'] = ['acpi', 'et', 'lbl', 'brigs'];
 
 exports.t_isr = function (id, param1, param2, param3) {
     console.log(id, param1, param2, param3);
@@ -616,6 +675,155 @@ function create_action(request, response, callback) {
             return '0';
         }
     }
+    else if (ty == '28' || ty == '98' || ty == '97' || ty == '96' || ty == '95' || ty == '94' || ty == '93' || ty == '92' || ty == '91') {
+        if (rootnm == 'fcnt' && resource_Obj[rootnm].cnd.includes('org.onem2m.home.device.')) {
+            db_sql.insert_fcnt(request.connection, resource_Obj[rootnm], function (err, results) {
+                if (!err) {
+                    callback('200');
+                }
+                else {
+                    if (results.code == 'ER_DUP_ENTRY') {
+                        callback('409-5');
+                    }
+                    else {
+                        console.log('[create_action] create resource error ======== ' + results.code);
+                        callback('500-4');
+                    }
+                }
+            });
+        }
+        else if (rootnm == 'hd_dooLk' && resource_Obj[rootnm].cnd == 'org.onem2m.home.moduleclass.doorlock') {
+            db_sql.insert_hd_dooLK(request.connection, resource_Obj[rootnm], function (err, results) {
+                if (!err) {
+                    callback('200');
+                }
+                else {
+                    if (results.code == 'ER_DUP_ENTRY') {
+                        callback('409-5');
+                    }
+                    else {
+                        console.log('[create_action] create resource error ======== ' + results.code);
+                        callback('500-4');
+                    }
+                }
+            });
+        }
+        else if (rootnm == 'hd_bat' && resource_Obj[rootnm].cnd == 'org.onem2m.home.moduleclass.battery') {
+            db_sql.insert_hd_bat(request.connection, resource_Obj[rootnm], function (err, results) {
+                if (!err) {
+                    callback('200');
+                }
+                else {
+                    if (results.code == 'ER_DUP_ENTRY') {
+                        callback('409-5');
+                    }
+                    else {
+                        console.log('[create_action] create resource error ======== ' + results.code);
+                        callback('500-4');
+                    }
+                }
+            });
+        }
+        else if (rootnm == 'hd_tempe' && resource_Obj[rootnm].cnd == 'org.onem2m.home.moduleclass.temperature') {
+            db_sql.insert_hd_tempe(request.connection, resource_Obj[rootnm], function (err, results) {
+                if (!err) {
+                    callback('200');
+                }
+                else {
+                    if (results.code == 'ER_DUP_ENTRY') {
+                        callback('409-5');
+                    }
+                    else {
+                        console.log('[create_action] create resource error ======== ' + results.code);
+                        callback('500-4');
+                    }
+                }
+            });
+        }
+        else if (rootnm == 'hd_binSh' && resource_Obj[rootnm].cnd == 'org.onem2m.home.moduleclass.binarySwitch') {
+            db_sql.insert_hd_binSh(request.connection, resource_Obj[rootnm], function (err, results) {
+                if (!err) {
+                    callback('200');
+                }
+                else {
+                    if (results.code == 'ER_DUP_ENTRY') {
+                        callback('409-5');
+                    }
+                    else {
+                        console.log('[create_action] create resource error ======== ' + results.code);
+                        callback('500-4');
+                    }
+                }
+            });
+        }
+        else if (rootnm == 'hd_fauDn' && resource_Obj[rootnm].cnd == 'org.onem2m.home.moduleclass.faultDetection') {
+            db_sql.insert_hd_fauDn(request.connection, resource_Obj[rootnm], function (err, results) {
+                if (!err) {
+                    callback('200');
+                }
+                else {
+                    if (results.code == 'ER_DUP_ENTRY') {
+                        callback('409-5');
+                    }
+                    else {
+                        console.log('[create_action] create resource error ======== ' + results.code);
+                        callback('500-4');
+                    }
+                }
+            });
+        }
+        else if (rootnm == 'hd_colSn' && resource_Obj[rootnm].cnd == 'org.onem2m.home.moduleclass.colourSaturation') {
+            db_sql.insert_hd_colSn(request.connection, resource_Obj[rootnm], function (err, results) {
+                if (!err) {
+                    callback('200');
+                }
+                else {
+                    if (results.code == 'ER_DUP_ENTRY') {
+                        callback('409-5');
+                    }
+                    else {
+                        console.log('[create_action] create resource error ======== ' + results.code);
+                        callback('500-4');
+                    }
+                }
+            });
+        }
+        else if (rootnm == 'hd_brigs' && resource_Obj[rootnm].cnd == 'org.onem2m.home.moduleclass.brightness') {
+            db_sql.insert_hd_brigs(request.connection, resource_Obj[rootnm], function (err, results) {
+                if (!err) {
+                    callback('200');
+                }
+                else {
+                    if (results.code == 'ER_DUP_ENTRY') {
+                        callback('409-5');
+                    }
+                    else {
+                        console.log('[create_action] create resource error ======== ' + results.code);
+                        callback('500-4');
+                    }
+                }
+            });
+        }
+        else if (rootnm == 'hd_color' && resource_Obj[rootnm].cnd == 'org.onem2m.home.moduleclass.colour') {
+            db_sql.insert_hd_color(request.connection, resource_Obj[rootnm], function (err, results) {
+                if (!err) {
+                    callback('200');
+                }
+                else {
+                    if (results.code == 'ER_DUP_ENTRY') {
+                        callback('409-5');
+                    }
+                    else {
+                        console.log('[create_action] create resource error ======== ' + results.code);
+                        callback('500-4');
+                    }
+                }
+            });
+        }
+        else {
+            callback('409-4');
+        }
+    }
     else if (ty == '14') {
         db_sql.insert_nod(request.connection, resource_Obj[rootnm], function (err, results) {
             if (!err) {
@@ -868,7 +1076,12 @@ function build_resource(request, response, callback) {
         resource_Obj[rootnm].rn = body_Obj[rootnm]['rn'];
     }
 
-    resource_Obj[rootnm].ty = request.ty;
+    if(91 <= parseInt(request.ty, 10) && parseInt(request.ty, 10) <= 98) {
+        resource_Obj[rootnm].ty = '28';
+    }
+    else {
+        resource_Obj[rootnm].ty = request.ty;
+    }
     resource_Obj[rootnm].pi = url.parse(request.url).pathname;
     resource_Obj[rootnm].ri = resource_Obj[rootnm].pi + '/' + resource_Obj[rootnm].rn;
     resource_Obj[rootnm].ct = moment().utc().format('YYYYMMDDTHHmmss');
@@ -990,6 +1203,19 @@ function build_resource(request, response, callback) {
             break;
         case '13':
             mgo.build_mgo(request, response, resource_Obj, body_Obj, function (code) {
+                callback(code);
+            });
+            break;
+        case '98':
+        case '97':
+        case '96':
+        case '95':
+        case '94':
+        case '93':
+        case '92':
+        case '91':
+        case '28':
+            fcnt.build_fcnt(request, response, resource_Obj, body_Obj, function (code) {
                 callback(code);
             });
             break;
@@ -1648,6 +1874,102 @@ function update_action(request, response, callback) {
             callback('400-51');
         }
     }
+    else if (ty == '28' || ty == '98' || ty == '97' || ty == '96' || ty == '95' || ty == '94' || ty == '93' || ty == '92' || ty == '91') {
+        if (resource_Obj[rootnm].cnd.includes('org.onem2m.home.device.')) {
+            db_sql.update_fcnt(request.connection, resource_Obj[rootnm], function (err, results) {
+                if (!err) {
+                    callback('200');
+                }
+                else {
+                    callback('500-1');
+                }
+            });
+        }
+        else if (resource_Obj[rootnm].cnd == 'org.onem2m.home.moduleclass.doorlock') {
+            db_sql.update_hd_dooLk(request.connection, resource_Obj[rootnm], function (err, results) {
+                if (!err) {
+                    callback('200');
+                }
+                else {
+                    callback('500-1');
+                }
+            });
+        }
+        else if (resource_Obj[rootnm].cnd == 'org.onem2m.home.moduleclass.battery') {
+            db_sql.update_hd_bat(request.connection, resource_Obj[rootnm], function (err, results) {
+                if (!err) {
+                    callback('200');
+                }
+                else {
+                    callback('500-1');
+                }
+            });
+        }
+        else if (resource_Obj[rootnm].cnd == 'org.onem2m.home.moduleclass.temperature') {
+            db_sql.update_hd_tempe(request.connection, resource_Obj[rootnm], function (err, results) {
+                if (!err) {
+                    callback('200');
+                }
+                else {
+                    callback('500-1');
+                }
+            });
+        }
+        else if (resource_Obj[rootnm].cnd == 'org.onem2m.home.moduleclass.binarySwitch') {
+            db_sql.update_hd_binSh(request.connection, resource_Obj[rootnm], function (err, results) {
+                if (!err) {
+                    callback('200');
+                }
+                else {
+                    callback('500-1');
+                }
+            });
+        }
+        else if (resource_Obj[rootnm].cnd == 'org.onem2m.home.moduleclass.faultDetection') {
+            db_sql.update_hd_fauDn(request.connection, resource_Obj[rootnm], function (err, results) {
+                if (!err) {
+                    callback('200');
+                }
+                else {
+                    callback('500-1');
+                }
+            });
+        }
+        else if (resource_Obj[rootnm].cnd == 'org.onem2m.home.moduleclass.colourSaturation') {
+            db_sql.update_hd_colSn(request.connection, resource_Obj[rootnm], function (err, results) {
+                if (!err) {
+                    callback('200');
+                }
+                else {
+                    callback('500-1');
+                }
+            });
+        }
+        else if (resource_Obj[rootnm].cnd == 'org.onem2m.home.moduleclass.colour') {
+            db_sql.update_hd_color(request.connection, resource_Obj[rootnm], function (err, results) {
+                if (!err) {
+                    callback('200');
+                }
+                else {
+                    callback('500-1');
+                }
+            });
+        }
+        else if (resource_Obj[rootnm].cnd == 'org.onem2m.home.moduleclass.brightness') {
+            db_sql.update_hd_brigs(request.connection, resource_Obj[rootnm], function (err, results) {
+                if (!err) {
+                    callback('200');
+                }
+                else {
+                    callback('500-1');
+                }
+            });
+        }
+
+        else {
+            callback('400-53');
+        }
+    }
     else if (ty == '14') {
         db_sql.update_nod(request.connection, resource_Obj[rootnm], function (err, results) {
                 if (!err) {
@@ -2058,7 +2380,8 @@ function check_acp_update_acpi(request, response, acpi, cr, callback) {
 function update_resource(request, response, callback) {
     var rootnm = request.headers.rootnm;
     var body_Obj = request.bodyObj;
-    var resource_Obj = request.targetObject;
+    var resource_Obj = {};
+    resource_Obj[rootnm] = request.targetObject[Object.keys(request.targetObject)[0]];
 
     if (ty_list.includes(request.ty.toString())) {
         var mandatory_check_count = 0;
@@ -2139,7 +2462,7 @@ function update_resource(request, response, callback) {
 exports.update = function (request, response, callback) {
     var rootnm = request.headers.rootnm;
     var updateObj = request.targetObject;
-    var ty = updateObj[rootnm].ty;
+    var ty = updateObj[Object.keys(updateObj)[0]].ty;
 
     if(ty == 2) {
         updateObj[rootnm].cr = updateObj[rootnm].aei;

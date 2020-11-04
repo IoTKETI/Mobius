@@ -50,7 +50,7 @@ var db_sql = require('./mobius/sql_action');
 var app = express();
 
 global.usespid = '//keti.re.kr';
-global.usesuperuser = 'Superman';
+global.usesuperuser = 'Sponde'; //'Superman';
 global.useobserver = 'Sandwich';
 
 var logDirectory = __dirname + '/log';
@@ -311,7 +311,15 @@ function make_short_nametype(body_Obj) {
         delete body_Obj[Object.keys(body_Obj)[0]]['$'];
     }
 
-    var rootnm = Object.keys(body_Obj)[0].split(':')[1];
+    var arr_rootnm = Object.keys(body_Obj)[0].split(':');
+
+    if(arr_rootnm[0] === 'hd') {
+        var rootnm = Object.keys(body_Obj)[0].replace('hd:', 'hd_');
+    }
+    else {
+        rootnm = Object.keys(body_Obj)[0].replace('m2m:', '');
+    }
+
     body_Obj[rootnm] = body_Obj[Object.keys(body_Obj)[0]];
     delete body_Obj[Object.keys(body_Obj)[0]];
 
@@ -924,6 +932,10 @@ function lookup_create(request, response, callback) {
                     }
                     else if ((request.ty == 39) && (parentObj.ty == 5 || parentObj.ty == 16 || parentObj.ty == 2 || parentObj.ty == 3 || parentObj.ty == 24 || parentObj.ty == 29 || parentObj.ty == 9 || parentObj.ty == 1 || parentObj.ty == 27)) { // transaction
                     }
+                    else if ((request.ty == 28) && (parentObj.ty == 5 || parentObj.ty == 2 || parentObj.ty == 3 || parentObj.ty == 28)) { // flexcontainer
+                    }
+                    else if ((request.ty == 98 || request.ty == 97 || request.ty == 96 || request.ty == 95 || request.ty == 94 || request.ty == 93 || request.ty == 92 || request.ty == 91) && (parentObj.ty == 28)) { // flexcontainer
+                    }
                     else {
                         callback('403-2');
                         return;
@@ -1447,11 +1459,20 @@ function check_xm2m_headers(request, callback) {
 function check_resource_supported(request, response, callback) {
     make_json_obj(request.usebodytype, request.body, function (err, body) {
         try {
-            var rootnm = Object.keys(body)[0].replace('m2m:', '');
+            var arr_rootnm = Object.keys(body)[0].split(':');
+
+            if(arr_rootnm[0] === 'hd') {
+                var rootnm = Object.keys(body)[0].replace('hd:', 'hd_');
+            }
+            else {
+                rootnm = Object.keys(body)[0].replace('m2m:', '');
+            }
+
             var checkCount = 0;
             for (var key in responder.typeRsrc) {
                 if (responder.typeRsrc.hasOwnProperty(key)) {
                     if (responder.typeRsrc[key] == rootnm) {
+                        request.ty = key;
                         break;
                     }
                     checkCount++;

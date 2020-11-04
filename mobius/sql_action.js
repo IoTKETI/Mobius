@@ -410,6 +410,240 @@ exports.insert_lcp = function(connection, obj, callback) {
     });
 };
 
+exports.insert_fcnt = function(connection, obj, callback) {
+    console.time('insert_fcnt ' + obj.ri);
+    _this.insert_lookup(connection, obj, function (err, results) {
+        if(!err) {
+            var sql = util.format('insert into fcnt (ri, cnd, cr) ' +
+                'value (\'%s\', \'%s\', \'%s\')',
+                obj.ri, obj.cnd, obj.cr);
+            db.getResult(sql, connection, function (err, results) {
+                if(!err) {
+                    console.timeEnd('insert_fcnt ' + obj.ri);
+                    callback(err, results);
+                }
+                else {
+                    sql = util.format("delete from lookup where ri = \'%s\'", obj.ri);
+                    db.getResult(sql, connection, function () {
+                        callback(err, results);
+                    });
+                }
+            });
+        }
+        else {
+            callback(err, results);
+        }
+    });
+};
+
+exports.insert_hd_dooLK = function(connection, obj, callback) {
+    console.time('insert_hd_dooLK ' + obj.ri);
+    _this.insert_lookup(connection, obj, function (err, results) {
+        if(!err) {
+            var sql = util.format('insert into fcnt (ri, cnd, fcnt.lock, cr) ' +
+                'value (\'%s\', \'%s\', \'%s\', \'%s\')',
+                obj.ri, obj.cnd, obj.lock, obj.cr);
+            db.getResult(sql, connection, function (err, results) {
+                if(!err) {
+                    console.timeEnd('insert_hd_dooLK ' + obj.ri);
+                    callback(err, results);
+                }
+                else {
+                    sql = util.format("delete from lookup where ri = \'%s\'", obj.ri);
+                    db.getResult(sql, connection, function () {
+                        callback(err, results);
+                    });
+                }
+            });
+        }
+        else {
+            callback(err, results);
+        }
+    });
+};
+
+exports.insert_hd_bat = function(connection, obj, callback) {
+    console.time('insert_hd_bat ' + obj.ri);
+    _this.insert_lookup(connection, obj, function (err, results) {
+        if(!err) {
+            var sql = util.format('insert into fcnt (ri, cnd, fcnt.lvl, cr) ' +
+                'value (\'%s\', \'%s\', \'%s\', \'%s\')',
+                obj.ri, obj.cnd, obj.lvl, obj.cr);
+            db.getResult(sql, connection, function (err, results) {
+                if(!err) {
+                    console.timeEnd('insert_hd_bat ' + obj.ri);
+                    callback(err, results);
+                }
+                else {
+                    sql = util.format("delete from lookup where ri = \'%s\'", obj.ri);
+                    db.getResult(sql, connection, function () {
+                        callback(err, results);
+                    });
+                }
+            });
+        }
+        else {
+            callback(err, results);
+        }
+    });
+};
+
+exports.insert_hd_tempe = function(connection, obj, callback) {
+    console.time('insert_hd_tempe ' + obj.ri);
+    _this.insert_lookup(connection, obj, function (err, results) {
+        if(!err) {
+            var sql = util.format('insert into fcnt (ri, cnd, fcnt.curT0, cr) ' +
+                'value (\'%s\', \'%s\', \'%s\', \'%s\')',
+                obj.ri, obj.cnd, obj.curT0, obj.cr);
+            db.getResult(sql, connection, function (err, results) {
+                if(!err) {
+                    console.timeEnd('insert_hd_tempe ' + obj.ri);
+                    callback(err, results);
+                }
+                else {
+                    sql = util.format("delete from lookup where ri = \'%s\'", obj.ri);
+                    db.getResult(sql, connection, function () {
+                        callback(err, results);
+                    });
+                }
+            });
+        }
+        else {
+            callback(err, results);
+        }
+    });
+};
+
+exports.insert_hd_binSh = function(connection, obj, callback) {
+    console.time('insert_hd_binSh ' + obj.ri);
+    _this.insert_lookup(connection, obj, function (err, results) {
+        if(!err) {
+            var sql = util.format('insert into fcnt (ri, cnd, fcnt.powerSe, cr) ' +
+                'value (\'%s\', \'%s\', \'%s\', \'%s\')',
+                obj.ri, obj.cnd, obj.powerSe, obj.cr);
+            db.getResult(sql, connection, function (err, results) {
+                if(!err) {
+                    console.timeEnd('insert_hd_binSh ' + obj.ri);
+                    callback(err, results);
+                }
+                else {
+                    sql = util.format("delete from lookup where ri = \'%s\'", obj.ri);
+                    db.getResult(sql, connection, function () {
+                        callback(err, results);
+                    });
+                }
+            });
+        }
+        else {
+            callback(err, results);
+        }
+    });
+};
+
+exports.insert_hd_fauDn = function(connection, obj, callback) {
+    console.time('insert_hd_fauDn ' + obj.ri);
+    _this.insert_lookup(connection, obj, function (err, results) {
+        if(!err) {
+            var sql = util.format('insert into fcnt (ri, cnd, fcnt.sus, cr) ' +
+                'value (\'%s\', \'%s\', \'%s\', \'%s\')',
+                obj.ri, obj.cnd, obj.sus, obj.cr);
+            db.getResult(sql, connection, function (err, results) {
+                if(!err) {
+                    console.timeEnd('insert_hd_fauDn ' + obj.ri);
+                    callback(err, results);
+                }
+                else {
+                    sql = util.format("delete from lookup where ri = \'%s\'", obj.ri);
+                    db.getResult(sql, connection, function () {
+                        callback(err, results);
+                    });
+                }
+            });
+        }
+        else {
+            callback(err, results);
+        }
+    });
+};
+
+exports.insert_hd_colSn = function(connection, obj, callback) {
+    console.time('insert_hd_colSn ' + obj.ri);
+    _this.insert_lookup(connection, obj, function (err, results) {
+        if(!err) {
+            var sql = util.format('insert into fcnt (ri, cnd, fcnt.colSn, cr) ' +
+                'value (\'%s\', \'%s\', \'%s\', \'%s\')',
+                obj.ri, obj.cnd, obj.colSn, obj.cr);
+            db.getResult(sql, connection, function (err, results) {
+                if(!err) {
+                    console.timeEnd('insert_hd_colSn ' + obj.ri);
+                    callback(err, results);
+                }
+                else {
+                    sql = util.format("delete from lookup where ri = \'%s\'", obj.ri);
+                    db.getResult(sql, connection, function () {
+                        callback(err, results);
+                    });
+                }
+            });
+        }
+        else {
+            callback(err, results);
+        }
+    });
+};
+
+exports.insert_hd_brigs = function(connection, obj, callback) {
+    console.time('insert_hd_brigs ' + obj.ri);
+    _this.insert_lookup(connection, obj, function (err, results) {
+        if(!err) {
+            var sql = util.format('insert into fcnt (ri, cnd, fcnt.birgs, cr) ' +
+                'value (\'%s\', \'%s\', \'%s\', \'%s\')',
+                obj.ri, obj.cnd, obj.brigs, obj.cr);
+            db.getResult(sql, connection, function (err, results) {
+                if(!err) {
+                    console.timeEnd('insert_hd_brigs ' + obj.ri);
+                    callback(err, results);
+                }
+                else {
+                    sql = util.format("delete from lookup where ri = \'%s\'", obj.ri);
+                    db.getResult(sql, connection, function () {
+                        callback(err, results);
+                    });
+                }
+            });
+        }
+        else {
+            callback(err, results);
+        }
+    });
+};
+
+exports.insert_hd_color = function(connection, obj, callback) {
+    console.time('insert_hd_color ' + obj.ri);
+    _this.insert_lookup(connection, obj, function (err, results) {
+        if(!err) {
+            var sql = util.format('insert into fcnt (ri, cnd, fcnt.red, fcnt.green, fcnt.blue, cr) ' +
+                'value (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
+                obj.ri, obj.cnd, obj.red, obj.green, obj.blue, obj.cr);
+            db.getResult(sql, connection, function (err, results) {
+                if(!err) {
+                    console.timeEnd('insert_hd_color ' + obj.ri);
+                    callback(err, results);
+                }
+                else {
+                    sql = util.format("delete from lookup where ri = \'%s\'", obj.ri);
+                    db.getResult(sql, connection, function () {
+                        callback(err, results);
+                    });
+                }
+            });
+        }
+        else {
+            callback(err, results);
+        }
+    });
+};
+
 exports.insert_fwr = function(connection, obj, callback) {
     console.time('insert_fwr ' + obj.ri);
     _this.insert_lookup(connection, obj, function (err, results) {
@@ -1848,6 +2082,187 @@ exports.update_lcp = function (connection, obj, callback) {
             db.getResult(sql2, connection, function (err, results) {
                 if (!err) {
                     console.timeEnd('update_lcp ' + obj.ri);
+                    callback(err, results);
+                }
+                else {
+                    callback(err, results);
+                }
+            });
+        }
+        else {
+            callback(err, results);
+        }
+    });
+};
+
+exports.update_fcnt = function (connection, obj, callback) {
+    console.time('update_fcnt ' + obj.ri);
+    _this.update_lookup(connection, obj, function (err, results) {
+        if (!err) {
+            console.timeEnd('update_fcnt ' + obj.ri);
+            callback(err, results);
+        }
+        else {
+            callback(err, results);
+        }
+    });
+};
+
+exports.update_hd_dooLk = function (connection, obj, callback) {
+    console.time('update_hd_dooLk ' + obj.ri);
+    _this.update_lookup(connection, obj, function (err, results) {
+        if (!err) {
+            var sql2 = util.format('update fcnt set fcnt.lock = \'%s\'', obj.lock);
+            db.getResult(sql2, connection, function (err, results) {
+                if (!err) {
+                    console.timeEnd('update_hd_dooLk ' + obj.ri);
+                    callback(err, results);
+                }
+                else {
+                    callback(err, results);
+                }
+            });
+        }
+        else {
+            callback(err, results);
+        }
+    });
+};
+
+exports.update_hd_bat = function (connection, obj, callback) {
+    console.time('update_hd_bat ' + obj.ri);
+    _this.update_lookup(connection, obj, function (err, results) {
+        if (!err) {
+            var sql2 = util.format('update fcnt set lvl = \'%s\'', obj.lvl);
+            db.getResult(sql2, connection, function (err, results) {
+                if (!err) {
+                    console.timeEnd('update_hd_bat ' + obj.ri);
+                    callback(err, results);
+                }
+                else {
+                    callback(err, results);
+                }
+            });
+        }
+        else {
+            callback(err, results);
+        }
+    });
+};
+
+exports.update_hd_tempe = function (connection, obj, callback) {
+    console.time('update_hd_tempe ' + obj.ri);
+    _this.update_lookup(connection, obj, function (err, results) {
+        if (!err) {
+            var sql2 = util.format('update fcnt set curT0 = \'%s\'', obj.curT0);
+            db.getResult(sql2, connection, function (err, results) {
+                if (!err) {
+                    console.timeEnd('update_hd_tempe ' + obj.ri);
+                    callback(err, results);
+                }
+                else {
+                    callback(err, results);
+                }
+            });
+        }
+        else {
+            callback(err, results);
+        }
+    });
+};
+
+exports.update_hd_binSh = function (connection, obj, callback) {
+    console.time('update_hd_binSh ' + obj.ri);
+    _this.update_lookup(connection, obj, function (err, results) {
+        if (!err) {
+            var sql2 = util.format('update fcnt set powerSe = \'%s\'', obj.powerSe);
+            db.getResult(sql2, connection, function (err, results) {
+                if (!err) {
+                    console.timeEnd('update_hd_binSh ' + obj.ri);
+                    callback(err, results);
+                }
+                else {
+                    callback(err, results);
+                }
+            });
+        }
+        else {
+            callback(err, results);
+        }
+    });
+};
+
+exports.update_hd_fauDn = function (connection, obj, callback) {
+    console.time('update_hd_fauDn ' + obj.ri);
+    _this.update_lookup(connection, obj, function (err, results) {
+        if (!err) {
+            var sql2 = util.format('update fcnt set sus = \'%s\'', obj.sus);
+            db.getResult(sql2, connection, function (err, results) {
+                if (!err) {
+                    console.timeEnd('update_hd_fauDn ' + obj.ri);
+                    callback(err, results);
+                }
+                else {
+                    callback(err, results);
+                }
+            });
+        }
+        else {
+            callback(err, results);
+        }
+    });
+};
+
+exports.update_hd_colSn = function (connection, obj, callback) {
+    console.time('update_hd_colSn ' + obj.ri);
+    _this.update_lookup(connection, obj, function (err, results) {
+        if (!err) {
+            var sql2 = util.format('update fcnt set colSn = \'%s\'', obj.colSn);
+            db.getResult(sql2, connection, function (err, results) {
+                if (!err) {
+                    console.timeEnd('update_hd_colSn ' + obj.ri);
+                    callback(err, results);
+                }
+                else {
+                    callback(err, results);
+                }
+            });
+        }
+        else {
+            callback(err, results);
+        }
+    });
+};
+
+exports.update_hd_brigs = function (connection, obj, callback) {
+    console.time('update_hd_brigs ' + obj.ri);
+    _this.update_lookup(connection, obj, function (err, results) {
+        if (!err) {
+            var sql2 = util.format('update fcnt set brigs = \'%s\'', obj.brigs);
+            db.getResult(sql2, connection, function (err, results) {
+                if (!err) {
+                    console.timeEnd('update_hd_brigs ' + obj.ri);
+                    callback(err, results);
+                }
+                else {
+                    callback(err, results);
+                }
+            });
+        }
+        else {
+            callback(err, results);
+        }
+    });
+};
+
+exports.update_hd_color = function (connection, obj, callback) {
+    console.time('update_hd_color ' + obj.ri);
+    _this.update_lookup(connection, obj, function (err, results) {
+        if (!err) {
+            var sql2 = util.format('update fcnt set red = \'%s\', green = \'%s\', blue = \'%s\'', obj.red, obj.green, obj.blue);
+            db.getResult(sql2, connection, function (err, results) {
+                if (!err) {
+                    console.timeEnd('update_hd_color ' + obj.ri);
                     callback(err, results);
                 }
                 else {
