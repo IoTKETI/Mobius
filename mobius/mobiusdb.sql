@@ -1,15 +1,13 @@
-CREATE DATABASE  IF NOT EXISTS `mobiusdb` /*!40100 DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci */;
-USE `mobiusdb`;
--- MySQL dump 10.13  Distrib 8.0.12, for Win64 (x86_64)
+-- MySQL dump 10.13  Distrib 8.0.22, for Win64 (x86_64)
 --
 -- Host: localhost    Database: mobiusdb
 -- ------------------------------------------------------
--- Server version	8.0.12
+-- Server version	8.0.22
 
 /*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
 /*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
 /*!40101 SET @OLD_COLLATION_CONNECTION=@@COLLATION_CONNECTION */;
- SET NAMES utf8 ;
+/*!50503 SET NAMES utf8 */;
 /*!40103 SET @OLD_TIME_ZONE=@@TIME_ZONE */;
 /*!40103 SET TIME_ZONE='+00:00' */;
 /*!40014 SET @OLD_UNIQUE_CHECKS=@@UNIQUE_CHECKS, UNIQUE_CHECKS=0 */;
@@ -23,7 +21,7 @@ USE `mobiusdb`;
 
 DROP TABLE IF EXISTS `acp`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
- SET character_set_client = utf8mb4 ;
+/*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `acp` (
   `ri` varchar(200) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
   `pv` longtext NOT NULL,
@@ -40,7 +38,7 @@ CREATE TABLE `acp` (
 
 DROP TABLE IF EXISTS `ae`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
- SET character_set_client = utf8mb4 ;
+/*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `ae` (
   `ri` varchar(200) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
   `apn` varchar(45) NOT NULL,
@@ -65,7 +63,7 @@ CREATE TABLE `ae` (
 
 DROP TABLE IF EXISTS `cb`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
- SET character_set_client = utf8mb4 ;
+/*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `cb` (
   `ri` varchar(200) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
   `cst` varchar(45) NOT NULL,
@@ -87,11 +85,11 @@ CREATE TABLE `cb` (
 
 DROP TABLE IF EXISTS `cin`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
- SET character_set_client = utf8mb4 ;
+/*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `cin` (
   `pi` varchar(200) NOT NULL,
   `ri` varchar(200) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
-  `cs` int(11) NOT NULL,
+  `cs` int NOT NULL,
   `cr` varchar(45) NOT NULL,
   `cnf` varchar(45) NOT NULL,
   `or` varchar(45) NOT NULL,
@@ -109,15 +107,15 @@ CREATE TABLE `cin` (
 
 DROP TABLE IF EXISTS `cnt`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
- SET character_set_client = utf8mb4 ;
+/*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `cnt` (
   `ri` varchar(200) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
   `cr` varchar(45) NOT NULL,
-  `mni` int(10) unsigned NOT NULL,
-  `mbs` int(10) unsigned NOT NULL,
-  `mia` int(10) unsigned NOT NULL,
-  `cni` int(10) unsigned NOT NULL,
-  `cbs` int(10) unsigned NOT NULL,
+  `mni` int unsigned NOT NULL,
+  `mbs` int unsigned NOT NULL,
+  `mia` int unsigned NOT NULL,
+  `cni` int unsigned NOT NULL,
+  `cbs` int unsigned NOT NULL,
   `li` varchar(45) NOT NULL,
   `or` varchar(45) NOT NULL,
   `disr` varchar(45) DEFAULT NULL,
@@ -133,7 +131,7 @@ CREATE TABLE `cnt` (
 
 DROP TABLE IF EXISTS `csr`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
- SET character_set_client = utf8mb4 ;
+/*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `csr` (
   `ri` varchar(200) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
   `cst` varchar(45) NOT NULL,
@@ -159,7 +157,7 @@ CREATE TABLE `csr` (
 DROP TABLE IF EXISTS `cur_info`;
 /*!50001 DROP VIEW IF EXISTS `cur_info`*/;
 SET @saved_cs_client     = @@character_set_client;
-SET character_set_client = utf8mb4;
+/*!50503 SET character_set_client = utf8mb4 */;
 /*!50001 CREATE VIEW `cur_info` AS SELECT 
  1 AS `count(*)`,
  1 AS `sum(cs)`*/;
@@ -172,7 +170,7 @@ SET character_set_client = @saved_cs_client;
 DROP TABLE IF EXISTS `cur_info2`;
 /*!50001 DROP VIEW IF EXISTS `cur_info2`*/;
 SET @saved_cs_client     = @@character_set_client;
-SET character_set_client = utf8mb4;
+/*!50503 SET character_set_client = utf8mb4 */;
 /*!50001 CREATE VIEW `cur_info2` AS SELECT 
  1 AS `count(*)`,
  1 AS `sum(cs)`*/;
@@ -185,10 +183,36 @@ SET character_set_client = @saved_cs_client;
 DROP TABLE IF EXISTS `cur_info3`;
 /*!50001 DROP VIEW IF EXISTS `cur_info3`*/;
 SET @saved_cs_client     = @@character_set_client;
-SET character_set_client = utf8mb4;
+/*!50503 SET character_set_client = utf8mb4 */;
 /*!50001 CREATE VIEW `cur_info3` AS SELECT 
  1 AS `count(*)`*/;
 SET character_set_client = @saved_cs_client;
+
+--
+-- Table structure for table `fcnt`
+--
+
+DROP TABLE IF EXISTS `fcnt`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `fcnt` (
+  `ri` varchar(200) COLLATE utf8_bin NOT NULL,
+  `cnd` varchar(45) COLLATE utf8_bin DEFAULT NULL,
+  `lock` varchar(45) COLLATE utf8_bin DEFAULT NULL,
+  `lvl` varchar(45) COLLATE utf8_bin DEFAULT NULL,
+  `curT0` varchar(45) COLLATE utf8_bin DEFAULT NULL,
+  `powerSe` varchar(45) COLLATE utf8_bin DEFAULT NULL,
+  `sus` varchar(45) COLLATE utf8_bin DEFAULT NULL,
+  `red` varchar(45) COLLATE utf8_bin DEFAULT NULL,
+  `green` varchar(45) COLLATE utf8_bin DEFAULT NULL,
+  `blue` varchar(45) COLLATE utf8_bin DEFAULT NULL,
+  `brigs` varchar(45) COLLATE utf8_bin DEFAULT NULL,
+  `cr` varchar(45) COLLATE utf8_bin DEFAULT NULL,
+  PRIMARY KEY (`ri`),
+  UNIQUE KEY `ri_UNIQUE` (`ri`),
+  CONSTRAINT `fcnt_ri` FOREIGN KEY (`ri`) REFERENCES `lookup` (`ri`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_bin COMMENT='	';
+/*!40101 SET character_set_client = @saved_cs_client */;
 
 --
 -- Table structure for table `grp`
@@ -196,7 +220,7 @@ SET character_set_client = @saved_cs_client;
 
 DROP TABLE IF EXISTS `grp`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
- SET character_set_client = utf8mb4 ;
+/*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `grp` (
   `ri` varchar(200) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
   `cr` varchar(45) NOT NULL,
@@ -220,13 +244,13 @@ CREATE TABLE `grp` (
 
 DROP TABLE IF EXISTS `hit`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
- SET character_set_client = utf8mb4 ;
+/*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `hit` (
   `ct` varchar(15) NOT NULL,
-  `http` int(11) DEFAULT NULL,
-  `mqtt` int(11) DEFAULT NULL,
-  `coap` int(11) DEFAULT NULL,
-  `ws` int(11) DEFAULT NULL,
+  `http` int DEFAULT NULL,
+  `mqtt` int DEFAULT NULL,
+  `coap` int DEFAULT NULL,
+  `ws` int DEFAULT NULL,
   PRIMARY KEY (`ct`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
@@ -237,7 +261,7 @@ CREATE TABLE `hit` (
 
 DROP TABLE IF EXISTS `lcp`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
- SET character_set_client = utf8mb4 ;
+/*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `lcp` (
   `ri` varchar(200) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
   `los` varchar(45) NOT NULL,
@@ -260,13 +284,13 @@ CREATE TABLE `lcp` (
 
 DROP TABLE IF EXISTS `lookup`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
- SET character_set_client = utf8mb4 ;
+/*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `lookup` (
   `pi` varchar(200) NOT NULL,
   `ri` varchar(200) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
-  `ty` int(11) unsigned NOT NULL,
+  `ty` int unsigned NOT NULL,
   `ct` varchar(21) NOT NULL,
-  `st` int(11) unsigned NOT NULL,
+  `st` int unsigned NOT NULL,
   `rn` varchar(45) NOT NULL,
   `lt` varchar(45) NOT NULL,
   `et` varchar(45) NOT NULL,
@@ -292,7 +316,7 @@ CREATE TABLE `lookup` (
 
 DROP TABLE IF EXISTS `mgo`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
- SET character_set_client = utf8mb4 ;
+/*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `mgo` (
   `ri` varchar(200) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
   `mgd` varchar(45) DEFAULT NULL,
@@ -334,7 +358,7 @@ CREATE TABLE `mgo` (
 
 DROP TABLE IF EXISTS `mms`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
- SET character_set_client = utf8mb4 ;
+/*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `mms` (
   `ri` varchar(200) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
   `sid` varchar(45) DEFAULT NULL,
@@ -356,7 +380,7 @@ CREATE TABLE `mms` (
 
 DROP TABLE IF EXISTS `nod`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
- SET character_set_client = utf8mb4 ;
+/*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `nod` (
   `ri` varchar(200) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
   `ni` varchar(45) NOT NULL,
@@ -375,7 +399,7 @@ CREATE TABLE `nod` (
 
 DROP TABLE IF EXISTS `req`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
- SET character_set_client = utf8mb4 ;
+/*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `req` (
   `ri` varchar(200) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
   `op` varchar(45) NOT NULL,
@@ -399,7 +423,7 @@ CREATE TABLE `req` (
 
 DROP TABLE IF EXISTS `smd`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
- SET character_set_client = utf8mb4 ;
+/*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `smd` (
   `ri` varchar(200) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
   `cr` varchar(45) DEFAULT NULL,
@@ -420,7 +444,7 @@ CREATE TABLE `smd` (
 
 DROP TABLE IF EXISTS `sri`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
- SET character_set_client = utf8mb4 ;
+/*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `sri` (
   `ri` varchar(200) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
   `sri` varchar(45) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
@@ -437,7 +461,7 @@ CREATE TABLE `sri` (
 
 DROP TABLE IF EXISTS `sub`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
- SET character_set_client = utf8mb4 ;
+/*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `sub` (
   `ri` varchar(200) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
   `pi` varchar(400) DEFAULT NULL,
@@ -468,7 +492,7 @@ CREATE TABLE `sub` (
 
 DROP TABLE IF EXISTS `tm`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
- SET character_set_client = utf8mb4 ;
+/*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `tm` (
   `ri` varchar(200) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
   `tltm` varchar(45) DEFAULT NULL,
@@ -496,7 +520,7 @@ CREATE TABLE `tm` (
 
 DROP TABLE IF EXISTS `tr`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
- SET character_set_client = utf8mb4 ;
+/*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `tr` (
   `ri` varchar(200) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
   `cr` varchar(45) DEFAULT NULL,
@@ -521,7 +545,7 @@ CREATE TABLE `tr` (
 
 DROP TABLE IF EXISTS `ts`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
- SET character_set_client = utf8mb4 ;
+/*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `ts` (
   `ri` varchar(200) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
   `cr` varchar(45) DEFAULT NULL,
@@ -549,11 +573,11 @@ CREATE TABLE `ts` (
 
 DROP TABLE IF EXISTS `tsi`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
- SET character_set_client = utf8mb4 ;
+/*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `tsi` (
   `pi` varchar(200) NOT NULL,
   `ri` varchar(200) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
-  `cs` int(11) DEFAULT NULL,
+  `cs` int DEFAULT NULL,
   `dgt` varchar(45) DEFAULT NULL,
   `con` varchar(45) DEFAULT NULL,
   `sqn` varchar(45) DEFAULT NULL,
@@ -627,4 +651,4 @@ CREATE TABLE `tsi` (
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2020-07-07 20:48:00
+-- Dump completed on 2020-11-05  0:01:36
