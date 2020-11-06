@@ -1882,7 +1882,7 @@ app.post(onem2mParser, function (request, response) {
                                                     }
                                                 });
                                             }
-                                            else {
+                                            else { // if (request.option === '/fopt') {
                                                 check_grp(request, response, function (rsc, result_grp) { // check access right for fanoutpoint
                                                     if (rsc == '1') {
                                                         var access_value = '1';
@@ -1893,7 +1893,7 @@ app.post(onem2mParser, function (request, response) {
                                                                     if (code === '200') {
                                                                         fopt.check(request, response, result_grp, body_Obj, function (code) {
                                                                             if (code === '200') {
-                                                                                responder.response_result(request, response, '200', '2000', '', function () {
+                                                                                responder.search_result(request, response, '200', '2000', '', function () {
                                                                                     request.connection.release();
                                                                                     request = null;
                                                                                     response = null;
@@ -2082,7 +2082,7 @@ app.get(onem2mParser, function (request, response) {
                                                         if (code === '1') {
                                                             fopt.check(request, response, result_grp, body_Obj, function (code) {
                                                                 if (code === '200') {
-                                                                    responder.response_result(request, response, '200', '2000', '', function () {
+                                                                    responder.search_result(request, response, '200', '2000', '', function () {
                                                                         request.connection.release();
                                                                         request = null;
                                                                         response = null;
@@ -2266,7 +2266,7 @@ app.put(onem2mParser, function (request, response) {
                                                     }
                                                 });
                                             }
-                                            else {
+                                            else { // if (request.option === '/fopt') {
                                                 check_grp(request, response, function (rsc, result_grp) { // check access right for fanoutpoint
                                                     if (rsc == '1') {
                                                         var access_value = '4';
@@ -2277,7 +2277,7 @@ app.put(onem2mParser, function (request, response) {
                                                                     if (code === '200') {
                                                                         fopt.check(request, response, result_grp, body_Obj, function (code) {
                                                                             if (code === '200') {
-                                                                                responder.response_result(request, response, '200', '2000', '', function () {
+                                                                                responder.search_result(request, response, '200', '2000', '', function () {
                                                                                     request.connection.release();
                                                                                     request = null;
                                                                                     response = null;
@@ -2457,7 +2457,7 @@ app.delete(onem2mParser, function (request, response) {
                                         }
                                     });
                                 }
-                                else {
+                                else { // if (request.option === '/fopt') {
                                     check_grp(request, response, function (rsc, result_grp) { // check access right for fanoutpoint
                                         if (rsc == '1') {
                                             var access_value = '8';
@@ -2466,7 +2466,7 @@ app.delete(onem2mParser, function (request, response) {
                                                 if (code === '1') {
                                                     fopt.check(request, response, result_grp, body_Obj, function (code) {
                                                         if (code === '200') {
-                                                            responder.response_result(request, response, '200', '2000', '', function () {
+                                                            responder.search_result(request, response, '200', '2000', '', function () {
                                                                 request.connection.release();
                                                                 request = null;
                                                                 response = null;
