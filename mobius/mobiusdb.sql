@@ -201,6 +201,7 @@ CREATE TABLE `fcnt` (
   `lock` varchar(45) COLLATE utf8_bin DEFAULT NULL,
   `lvl` varchar(45) COLLATE utf8_bin DEFAULT NULL,
   `curT0` varchar(45) COLLATE utf8_bin DEFAULT NULL,
+  `colSn` varchar(45) COLLATE utf8_bin DEFAULT NULL,
   `powerSe` varchar(45) COLLATE utf8_bin DEFAULT NULL,
   `sus` varchar(45) COLLATE utf8_bin DEFAULT NULL,
   `red` varchar(45) COLLATE utf8_bin DEFAULT NULL,
