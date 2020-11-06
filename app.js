@@ -831,6 +831,7 @@ var resultStatusCode = {
     '400-51': ['400', '4000', "BAD REQUEST: mgmtObj requested is not match with content type of body"],
     '400-52': ['400', '4000', "BAD REQUEST: ty does not supported"],
     '400-53': ['400', '4000', "BAD REQUEST: this resource of mgmtObj is not supported"],
+    '400-54': ['400', '4000', "BAD REQUEST: cdn of flexCotainer is not match with fcnt resource"],
 
     '403-1': ['403', '4107', "OPERATION_NOT_ALLOWED: AE-ID is not allowed"],
     '403-2': ['403', '5203', "TARGET_NOT_SUBSCRIBABLE: request ty creating can not create under parent resource"],
@@ -1507,20 +1508,40 @@ function get_target_url(request, response, callback) {
 
     request.option = '';
     request.sri = absolute_url_arr[1].split('?')[0];
-    if (absolute_url_arr[absolute_url_arr.length - 1] == 'la' || absolute_url_arr[absolute_url_arr.length - 1] == 'latest') {
+    if (absolute_url_arr[absolute_url_arr.length - 1] == 'la') {
         if (request.method.toLowerCase() == 'get' || request.method.toLowerCase() == 'delete') {
-            request.ri = absolute_url.split('?')[0].replace('/latest', '');
-            request.ri = request.ri.replace('/la', '');
+            request.ri = absolute_url.split('?')[0];
+            request.ri = request.ri.substr(0, request.ri.length-3);
             request.option = '/latest';
         }
         else {
             callback('409-1');
         }
     }
-    else if (absolute_url_arr[absolute_url_arr.length - 1] == 'ol' || absolute_url_arr[absolute_url_arr.length - 1] == 'oldest') {
+    else if (absolute_url_arr[absolute_url_arr.length - 1] == 'latest') {
         if (request.method.toLowerCase() == 'get' || request.method.toLowerCase() == 'delete') {
-            request.ri = absolute_url.split('?')[0].replace('/oldest', '');
-            request.ri = request.ri.replace('/ol', '');
+            request.ri = absolute_url.split('?')[0];
+            request.ri = request.ri.substr(0, request.ri.length-7);
+            request.option = '/latest';
+        }
+        else {
+            callback('409-1');
+        }
+    }
+    else if (absolute_url_arr[absolute_url_arr.length - 1] == 'ol') {
+        if (request.method.toLowerCase() == 'get' || request.method.toLowerCase() == 'delete') {
+            request.ri = absolute_url.split('?')[0];
+            request.ri = request.ri.substr(0, request.ri.length-3);
+            request.option = '/oldest';
+        }
+        else {
+            callback('409-2')
+        }
+    }
+    else if (absolute_url_arr[absolute_url_arr.length - 1] == 'oldest') {
+        if (request.method.toLowerCase() == 'get' || request.method.toLowerCase() == 'delete') {
+            request.ri = absolute_url.split('?')[0];
+            request.ri = request.ri.substr(0, request.ri.length-7);
             request.option = '/oldest';
         }
         else {

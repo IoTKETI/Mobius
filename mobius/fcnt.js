@@ -58,7 +58,7 @@ exports.build_fcnt = function(request, response, resource_Obj, body_Obj, callbac
         resource_Obj[rootnm].brigs = body_Obj[rootnm].brigs;
     }
     else {
-        callback('400-35');
+        callback('400-54');
         return;
     }
 
