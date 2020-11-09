@@ -1965,7 +1965,6 @@ function update_action(request, response, callback) {
                 }
             });
         }
-
         else {
             callback('400-53');
         }

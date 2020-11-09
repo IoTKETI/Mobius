@@ -839,8 +839,7 @@ function typeCheckAction(index1, body_Obj) {
             else if (index2 == 'acp' || index2 == 'cst' || index2 == 'los' || index2 == 'mt' || index2 == 'csy' || index2 == 'nct' ||
                 index2 == 'cs' || index2 == 'st' || index2 == 'ty' || index2 == 'cbs' || index2 == 'cni' || index2 == 'mni' ||
                 index2 == 'cnm' || index2 == 'mia' || index2 == 'mbs' || index2 == 'mgd' || index2 == 'btl' || index2 == 'bts' ||
-                index2 == 'mdn' || index2 == 'mdc' || index2 == 'mdt' || index2 == 'pei' || index2 == 'mnm' || index2 == 'exc' || index2 == 'rs' || index2 == 'ors' ||
-                index2 == 'lvl' || index2 == 'colSn' || index2 == 'red' || index2 == 'green' || index2 == 'blue' || index2 == 'brigs') {
+                index2 == 'mdn' || index2 == 'mdc' || index2 == 'mdt' || index2 == 'pei' || index2 == 'mnm' || index2 == 'exc' || index2 == 'rs' || index2 == 'ors') {
 
                 if ((index1 == 'm2m:cb' || index1 == 'm2m:cin' || index1 == 'm2m:nod' || index1 == 'm2m:ae' || index1 == 'm2m:sub' || index1 == 'm2m:acp' ||
                         index1 == 'm2m:csr' || index1 == 'm2m:grp' || index1 == 'm2m:fwr' || index1 == 'm2m:bat' || index1 == 'm2m:dvi' || index1 == 'm2m:dvc' ||
@@ -859,6 +858,76 @@ function typeCheckAction(index1, body_Obj) {
                 }
                 else {
                     body_Obj[index2] = parseInt(body_Obj[index2]);
+                }
+            }
+            else if (index2 == 'lvl' || index2 == 'colSn' || index2 == 'red' || index2 == 'green' || index2 == 'blue' || index2 == 'brigs' ||
+                index2 == 'lock' || index2 == 'powerSe' || index2 == 'sus' || index2 == 'curT0') {
+                if(index1 == 'm2m:fcnt') {
+                    delete body_Obj[index2];
+                }
+                else if(index1 == 'hd:dooLk') {
+                    if(index2 == 'lock') {
+                        body_Obj[index2] = ((body_Obj[index2] == 'true') || ((body_Obj[index2] == true)));
+                    }
+                    else {
+                        delete body_Obj[index2];
+                    }
+                }
+                else if(index1 == 'hd:bat') {
+                    if(index2 == 'lvl') {
+                        body_Obj[index2] = parseInt(body_Obj[index2]);
+                    }
+                    else {
+                        delete body_Obj[index2];
+                    }
+                }
+                else if(index1 == 'hd:tempe') {
+                    if(index2 == 'curT0') {
+                        body_Obj[index2] = parseFloat(body_Obj[index2]);
+                    }
+                    else {
+                        delete body_Obj[index2];
+                    }
+                }
+                else if(index1 == 'hd:binSh') {
+                    if(index2 == 'powerSe') {
+                        body_Obj[index2] = ((body_Obj[index2] == 'true') || ((body_Obj[index2] == true)));
+                    }
+                    else {
+                        delete body_Obj[index2];
+                    }
+                }
+                else if(index1 == 'hd:fauDn') {
+                    if(index2 == 'sus') {
+                        body_Obj[index2] = ((body_Obj[index2] == 'true') || ((body_Obj[index2] == true)));
+                    }
+                    else {
+                        delete body_Obj[index2];
+                    }
+                }
+                else if(index1 == 'hd:colSn') {
+                    if(index2 == 'colSn') {
+                        body_Obj[index2] = parseInt(body_Obj[index2]);
+                    }
+                    else {
+                        delete body_Obj[index2];
+                    }
+                }
+                else if(index1 == 'hd:color') {
+                    if(index2 == 'red' || index2 == 'green' || index2 == 'blue') {
+                        body_Obj[index2] = parseInt(body_Obj[index2]);
+                    }
+                    else {
+                        delete body_Obj[index2];
+                    }
+                }
+                else if(index1 == 'hd:brigs') {
+                    if(index2 == 'brigs') {
+                        body_Obj[index2] = parseInt(body_Obj[index2]);
+                    }
+                    else {
+                        delete body_Obj[index2];
+                    }
                 }
             }
             else if (index2 == 'srv' || index2 == 'aa' || index2 == 'at' || index2 == 'poa' || index2 == 'lbl' || index2 == 'acpi' || index2 == 'srt' || index2 == 'nu' || index2 == 'mid' || index2 == 'macp') {
@@ -933,7 +1002,7 @@ function typeCheckAction(index1, body_Obj) {
                 }
             }
             else if (index2 == 'rr' || index2 == 'mtv' || index2 == 'ud' || index2 == 'att' || index2 == 'cus' || index2 == 'ena' || index2 == 'dis' || index2 == 'rbo' ||
-                index2 == 'far' || index2 == 'mdd' || index2 == 'disr' || index2 == 'lock' || index2 == 'powerSe' || index2 == 'sus') {
+                index2 == 'far' || index2 == 'mdd' || index2 == 'disr') {
                 body_Obj[index2] = ((body_Obj[index2] == 'true') || ((body_Obj[index2] == true)));
             }
             else if (index2 == 'sri') {
@@ -949,10 +1018,6 @@ function typeCheckAction(index1, body_Obj) {
                     body_Obj[index2] = JSON.parse(body_Obj[index2]);
                 }
             }
-            else if (index2 == 'curT0') {
-                body_Obj[index2] = parseFloat(body_Obj[index2]);
-            }
-
         }
     }
 }
@@ -1711,6 +1776,44 @@ exports.response_result = function(request, response, status, rsc, cap, callback
         if(rootnm == 'mgo') {
             body_Obj['m2m:' + mgoType[body_Obj[rootnm].mgd]] = body_Obj[rootnm];
             delete body_Obj[rootnm];
+        }
+        if(rootnm == 'fcnt') {
+            if (body_Obj[rootnm].cnd.includes('org.onem2m.home.device.')) {
+                body_Obj['m2m:' + rootnm] = body_Obj[rootnm];
+                delete body_Obj[rootnm];
+            }
+            else if (body_Obj[rootnm].cnd == 'org.onem2m.home.moduleclass.doorlock') {
+                body_Obj['hd:' + rootnm.replace('fcnt', 'dooLk')] = body_Obj[rootnm];
+                delete body_Obj[rootnm];
+            }
+            else if (body_Obj[rootnm].cnd == 'org.onem2m.home.moduleclass.battery') {
+                body_Obj['hd:' + rootnm.replace('fcnt', 'bat')] = body_Obj[rootnm];
+                delete body_Obj[rootnm];
+            }
+            else if (body_Obj[rootnm].cnd == 'org.onem2m.home.moduleclass.temperature') {
+                body_Obj['hd:' + rootnm.replace('fcnt', 'tempe')] = body_Obj[rootnm];
+                delete body_Obj[rootnm];
+            }
+            else if (body_Obj[rootnm].cnd == 'org.onem2m.home.moduleclass.binarySwitch') {
+                body_Obj['hd:' + rootnm.replace('fcnt', 'binSh')] = body_Obj[rootnm];
+                delete body_Obj[rootnm];
+            }
+            else if (body_Obj[rootnm].cnd == 'org.onem2m.home.moduleclass.faultDetection') {
+                body_Obj['hd:' + rootnm.replace('fcnt', 'fauDn')] = body_Obj[rootnm];
+                delete body_Obj[rootnm];
+            }
+            else if (body_Obj[rootnm].cnd == 'org.onem2m.home.moduleclass.colourSaturation') {
+                body_Obj['hd:' + rootnm.replace('fcnt', 'colSn')] = body_Obj[rootnm];
+                delete body_Obj[rootnm];
+            }
+            else if (body_Obj[rootnm].cnd == 'org.onem2m.home.moduleclass.colour') {
+                body_Obj['hd:' + rootnm.replace('fcnt', 'color')] = body_Obj[rootnm];
+                delete body_Obj[rootnm];
+            }
+            else if (body_Obj[rootnm].cnd == 'org.onem2m.home.moduleclass.brightness') {
+                body_Obj['hd:' + rootnm.replace('fcnt', 'brigs')] = body_Obj[rootnm];
+                delete body_Obj[rootnm];
+            }
         }
         else if(rootnm.includes('hd_')) {
             body_Obj['hd:' + rootnm.replace('hd_', '')] = body_Obj[rootnm];

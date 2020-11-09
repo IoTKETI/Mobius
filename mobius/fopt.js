@@ -63,7 +63,19 @@ function check_body(res, body_type, res_body, callback) {
         else {
             retrieve_Obj.fr = res.req.path;
         }
-        retrieve_Obj.rsc = res.headers['x-m2m-rsc'];
+
+        if(res.headers.hasOwnProperty('x-m2m-rsc')) {
+            retrieve_Obj.rsc = res.headers['x-m2m-rsc'];
+        }
+
+        if(res.headers.hasOwnProperty('x-m2m-ri')) {
+            retrieve_Obj.rqi = res.headers['x-m2m-ri'];
+        }
+
+        if(res.headers.hasOwnProperty('x-m2m-rvi')) {
+            retrieve_Obj.rvi = res.headers['x-m2m-rvi'];
+        }
+
         retrieve_Obj.pc = result;
         callback('1', retrieve_Obj);
         return '1';
