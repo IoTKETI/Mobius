@@ -596,7 +596,7 @@ exports.insert_hd_brigs = function(connection, obj, callback) {
     console.time('insert_hd_brigs ' + obj.ri);
     _this.insert_lookup(connection, obj, function (err, results) {
         if(!err) {
-            var sql = util.format('insert into fcnt (ri, cnd, fcnt.birgs, cr) ' +
+            var sql = util.format('insert into fcnt (ri, cnd, fcnt.brigs, cr) ' +
                 'value (\'%s\', \'%s\', \'%s\', \'%s\')',
                 obj.ri, obj.cnd, obj.brigs, obj.cr);
             db.getResult(sql, connection, function (err, results) {
