@@ -1777,7 +1777,7 @@ exports.response_result = function(request, response, status, rsc, cap, callback
             body_Obj['m2m:' + mgoType[body_Obj[rootnm].mgd]] = body_Obj[rootnm];
             delete body_Obj[rootnm];
         }
-        if(rootnm == 'fcnt') {
+        else if(rootnm == 'fcnt') {
             if (body_Obj[rootnm].cnd.includes('org.onem2m.home.device.')) {
                 body_Obj['m2m:' + rootnm] = body_Obj[rootnm];
                 delete body_Obj[rootnm];

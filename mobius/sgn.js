@@ -259,7 +259,7 @@ function sgn_action_send(nu_arr, req_count, sub_bodytype, node, short_flag, chec
         else {
             setTimeout(function(ss_ri, exc, nu, sub_bodytype, xm2mri, bodyString, parentObj) {
                 sgn_man.post(ss_ri, exc, nu, sub_bodytype, xm2mri, bodyString, parentObj);
-            }, parseInt(1+Math.random() * 10), ss_ri, exc, nu, sub_bodytype, xm2mri, bodyString, parentObj);
+            }, parseInt(1 + Math.random() * 10), ss_ri, exc, nu, sub_bodytype, xm2mri, bodyString, parentObj);
         }
 
         sgn_action_send(nu_arr, ++req_count, sub_bodytype, node, short_flag, check_value, ss_cr, ss_ri, xm2mri, exc, parentObj, function (code) {
@@ -365,13 +365,53 @@ function sgn_action(connection, rootnm, check_value, subl, req_count, noti_Obj, 
     node['m2m:sgn'].nev = {};
     node['m2m:sgn'].nev.rep = {};
 
+    if(rootnm == 'mgo') {
+        node['m2m:sgn'].nev.rep['m2m:' + responder.mgoType[notiObj.mgd]] = JSON.parse(JSON.stringify(notiObj));
+    }
+    else if(rootnm == 'fcnt') {
+        if (notiObj.cnd.includes('org.onem2m.home.device.')) {
+            node['m2m:sgn'].nev.rep['m2m:' + rootnm] = JSON.parse(JSON.stringify(notiObj));
+        }
+        else if (notiObj.cnd == 'org.onem2m.home.moduleclass.doorlock') {
+            node['m2m:sgn'].nev.rep['hd:' + rootnm.replace('fcnt', 'dooLk')] = JSON.parse(JSON.stringify(notiObj));
+        }
+        else if (notiObj.cnd == 'org.onem2m.home.moduleclass.battery') {
+            node['m2m:sgn'].nev.rep['hd:' + rootnm.replace('fcnt', 'bat')] = JSON.parse(JSON.stringify(notiObj));
+        }
+        else if (notiObj.cnd == 'org.onem2m.home.moduleclass.temperature') {
+            node['m2m:sgn'].nev.rep['hd:' + rootnm.replace('fcnt', 'tempe')] = JSON.parse(JSON.stringify(notiObj));
+        }
+        else if (notiObj.cnd == 'org.onem2m.home.moduleclass.binarySwitch') {
+            node['m2m:sgn'].nev.rep['hd:' + rootnm.replace('fcnt', 'binSh')] = JSON.parse(JSON.stringify(notiObj));
+        }
+        else if (notiObj.cnd == 'org.onem2m.home.moduleclass.faultDetection') {
+            node['m2m:sgn'].nev.rep['hd:' + rootnm.replace('fcnt', 'fauDn')] = JSON.parse(JSON.stringify(notiObj));
+        }
+        else if (notiObj.cnd == 'org.onem2m.home.moduleclass.colourSaturation') {
+            node['m2m:sgn'].nev.rep['hd:' + rootnm.replace('fcnt', 'colSn')] = JSON.parse(JSON.stringify(notiObj));
+        }
+        else if (notiObj.cnd == 'org.onem2m.home.moduleclass.colour') {
+            node['m2m:sgn'].nev.rep['hd:' + rootnm.replace('fcnt', 'color')] = JSON.parse(JSON.stringify(notiObj));
+            delete body_Obj[rootnm];
+        }
+        else if (notiObj.cnd == 'org.onem2m.home.moduleclass.brightness') {
+            node['m2m:sgn'].nev.rep['hd:' + rootnm.replace('fcnt', 'brigs')] = JSON.parse(JSON.stringify(notiObj));
+        }
+    }
+    else if(rootnm.includes('hd_')) {
+        node['m2m:sgn'].nev.rep['hd:' + rootnm.replace('hd_', '')] = JSON.parse(JSON.stringify(notiObj));
+    }
+    else {
+        node['m2m:sgn'].nev.rep['m2m:' + rootnm] = JSON.parse(JSON.stringify(notiObj));
+    }
+
     responder.typeCheckforJson(node['m2m:sgn'].nev.rep);
+
+    notiObj = null;
 
     for (var j = 0; j < net_arr.length; j++) {
         if (net_arr[j] == check_value || check_value == 256 || check_value == 128) { // 1 : Update_of_Subscribed_Resource, 3 : Create_of_Direct_Child_Resource, 4 : Delete_of_Direct_Child_Resource
             node['m2m:sgn'].nev.net = parseInt(net_arr[j].toString());
-            node['m2m:sgn'].nev.rep['m2m:' + rootnm] = JSON.parse(JSON.stringify(notiObj));
-            notiObj = null;
 
             get_nu_arr(connection, nu_arr, 0, function (code) {
                 if(code == '200') {
@@ -380,7 +420,7 @@ function sgn_action(connection, rootnm, check_value, subl, req_count, noti_Obj, 
                             sgn_action_send(nu_arr, count, sub_bodytype, node, short_flag, check_value, results_ss.cr, results_ss.ri, xm2mri, results_ss.exc, parentObj, function (code) {
                                 console.log('[sgn_action_send] - ' + code);
                             });
-                        }, parseInt(1+Math.random() * 10), nu_arr, 0, sub_bodytype, node, short_flag, check_value, results_ss.cr, results_ss.ri, xm2mri, results_ss.exc, parentObj);
+                        }, parseInt(1 + Math.random() * 10), nu_arr, 0, sub_bodytype, node, short_flag, check_value, results_ss.cr, results_ss.ri, xm2mri, results_ss.exc, parentObj);
 
                         sgn_action(connection, rootnm, check_value, subl, ++req_count, noti_Obj, sub_bodytype, parentObj, function (code) {
                             callback(code);
