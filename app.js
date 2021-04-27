@@ -32,6 +32,8 @@ var https = require('https');
 var cbor = require('cbor');
 var moment = require('moment');
 
+const cors = require('cors');
+
 global.NOPRINT = 'true';
 global.ONCE = 'true';
 
@@ -48,6 +50,8 @@ var db_sql = require('./mobius/sql_action');
 
 // ������ �����մϴ�.
 var app = express();
+
+app.use(cors());
 
 global.usespid = '//keti.re.kr';
 global.usesuperuser = 'Sponde'; //'Superman';
