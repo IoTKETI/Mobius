@@ -137,7 +137,7 @@ exports.insert_lookup = function(connection, obj, callback) {
     var sql = util.format('insert into lookup (' +
         'pi, ri, ty, ct, st, rn, lt, et, acpi, lbl, at, aa, sri, spi, subl) ' +
         'value (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
-        obj.pi, obj.ri, obj.ty, obj.ct, obj.st, obj.rn, obj.lt, obj.et, JSON.stringify(obj.acpi), JSON.stringify(obj.lbl), JSON.stringify(obj.at), JSON.stringify(obj.aa), obj.sri, obj.spi, JSON.stringify(obj.subl));
+        obj.pi, obj.ri, obj.ty, obj.ct, obj.st, obj.rn, obj.lt, obj.et, JSON.stringify(obj.acpi).replace(/\"/g, '\\"'), JSON.stringify(obj.lbl).replace(/\"/g, '\\"'), JSON.stringify(obj.at).replace(/\"/g, '\\"'), JSON.stringify(obj.aa).replace(/\"/g, '\\"'), obj.sri, obj.spi, JSON.stringify(obj.subl).replace(/\"/g, '\\"'));
     db.getResult(sql, connection, function (err, results) {
         if(!err) {
             // set_sri_sri(connection, obj.ri, obj.sri, function (err, results) {
@@ -159,7 +159,7 @@ exports.insert_cb = function(connection, obj, callback) {
             var sql = util.format('insert into cb (' +
                 'ri, cst, csi, srt, poa, nl, ncp, srv) ' +
                 'value (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
-                obj.ri, obj.cst, obj.csi, JSON.stringify(obj.srt), JSON.stringify(obj.poa), obj.nl, obj.ncp, JSON.stringify(obj.srv));
+                obj.ri, obj.cst, obj.csi, JSON.stringify(obj.srt).replace(/\"/g, '\\"'), JSON.stringify(obj.poa).replace(/\"/g, '\\"'), obj.nl, obj.ncp, JSON.stringify(obj.srv).replace(/\"/g, '\\"'));
             db.getResult(sql, connection, function (err, results) {
                 if(!err) {
                     console.timeEnd('insert_cb ' + obj.ri);
@@ -185,7 +185,7 @@ exports.insert_acp = function(connection, obj, callback) {
         if(!err) {
             var sql = util.format('insert into acp (ri, pv, pvs) ' +
                 'value (\'%s\', \'%s\', \'%s\')',
-                obj.ri, JSON.stringify(obj.pv), JSON.stringify(obj.pvs));
+                obj.ri, JSON.stringify(obj.pv).replace(/\"/g, '\\"'), JSON.stringify(obj.pvs).replace(/\"/g, '\\"'));
             db.getResult(sql, connection, function (err, results) {
                 if(!err) {
                     console.timeEnd('insert_acp ' + obj.ri);
@@ -211,7 +211,7 @@ exports.insert_ae = function(connection, obj, callback) {
         if(!err) {
             var sql = util.format('insert into ae (ri, apn, api, aei, poa, ae.or, nl, rr, csz, srv) ' +
                 'value (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
-                obj.ri, obj.apn, obj.api, obj.aei, JSON.stringify(obj.poa), obj.or, obj.nl, obj.rr, obj.csz, JSON.stringify(obj.srv));
+                obj.ri, obj.apn, obj.api, obj.aei, JSON.stringify(obj.poa).replace(/\"/g, '\\"'), obj.or, obj.nl, obj.rr, obj.csz, JSON.stringify(obj.srv).replace(/\"/g, '\\"'));
             db.getResult(sql, connection, function (err, results) {
                 if(!err) {
                     console.timeEnd('insert_ae ' + obj.ri);
@@ -344,7 +344,7 @@ exports.insert_cin = function(connection, obj, callback) {
 
             var sql = util.format('insert into cin (ri, pi, cr, cnf, cs, cin.or, con) ' +
                 'value (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
-                obj.ri, obj.pi, obj.cr, obj.cnf, obj.cs, obj.or, (con_type == 'string') ? obj.con.replace(/'/g, "\\'") : JSON.stringify(obj.con));
+                obj.ri, obj.pi, obj.cr, obj.cnf, obj.cs, obj.or, (con_type == 'string') ? obj.con.replace(/'/g, "\\'") : JSON.stringify(obj.con).replace(/\"/g, '\\"'));
             db.getResult(sql, connection, function (err, results) {
                 if (!err) {
                     console.timeEnd(cin_id);
@@ -364,7 +364,7 @@ exports.insert_grp = function(connection, obj, callback) {
         if(!err) {
             var sql = util.format('insert into grp (ri, cr, mt, cnm, mnm, mid, macp, mtv, csy, gn) ' +
                 'value (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
-                obj.ri, obj.cr, obj.mt, obj.cnm, obj.mnm, JSON.stringify(obj.mid), JSON.stringify(obj.macp), obj.mtv, obj.csy, obj.gn);
+                obj.ri, obj.cr, obj.mt, obj.cnm, obj.mnm, JSON.stringify(obj.mid).replace(/\"/g, '\\"'), JSON.stringify(obj.macp).replace(/\"/g, '\\"'), obj.mtv, obj.csy, obj.gn);
             db.getResult(sql, connection, function (err, results) {
                 if(!err) {
                     console.timeEnd('insert_grp ' + obj.ri);
@@ -650,7 +650,7 @@ exports.insert_fwr = function(connection, obj, callback) {
         if(!err) {
             var sql = util.format('insert into mgo (ri, mgd, objs, obps, dc, vr, fwnnam, url, ud, uds) ' +
                 'value (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
-                obj.ri, obj.mgd, obj.objs, obj.obps, obj.dc, obj.vr, obj.fwnnam, obj.url, obj.ud, JSON.stringify(obj.uds));
+                obj.ri, obj.mgd, obj.objs, obj.obps, obj.dc, obj.vr, obj.fwnnam, obj.url, obj.ud, JSON.stringify(obj.uds).replace(/\"/g, '\\"'));
             db.getResult(sql, connection, function (err, results) {
                 if(!err) {
                     console.timeEnd('insert_fwr ' + obj.ri);
@@ -728,7 +728,7 @@ exports.insert_dvc = function(connection, obj, callback) {
         if(!err) {
             var sql = util.format('insert into mgo (ri, mgd, objs, obps, dc, can, att, cas, cus, ena, dis) ' +
                 'value (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
-                obj.ri, obj.mgd, obj.objs, obj.obps, obj.dc, obj.can, obj.att, JSON.stringify(obj.cas), obj.cus, obj.ena, obj.dis);
+                obj.ri, obj.mgd, obj.objs, obj.obps, obj.dc, obj.can, obj.att, JSON.stringify(obj.cas).replace(/\"/g, '\\"'), obj.cus, obj.ena, obj.dis);
             db.getResult(sql, connection, function (err, results) {
                 if(!err) {
                     console.timeEnd('insert_dvc ' + obj.ri);
@@ -806,7 +806,7 @@ exports.insert_csr = function(connection, obj, callback) {
         if(!err) {
             var sql = util.format('insert into csr (ri, cst, poa, cb, csi, mei, tri, rr, nl, srv) ' +
                 'value (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
-                obj.ri, obj.cst, JSON.stringify(obj.poa), obj.cb, obj.csi, obj.mei, obj.tri, obj.rr, obj.nl, JSON.stringify(obj.srv));
+                obj.ri, obj.cst, JSON.stringify(obj.poa).replace(/\"/g, '\\"'), obj.cb, obj.csi, obj.mei, obj.tri, obj.rr, obj.nl, JSON.stringify(obj.srv).replace(/\"/g, '\\"'));
             db.getResult(sql, connection, function (err, results) {
                 if(!err) {
                     console.timeEnd('insert_csr ' + obj.ri);
@@ -858,7 +858,7 @@ exports.insert_sub = function(connection, obj, callback) {
         if(!err) {
             var sql = util.format('insert into sub (ri, pi, enc, exc, nu, gpi, nfu, bn, rl, psn, pn, nsp, ln, nct, nec, cr, su) ' +
                 'value (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
-                obj.ri, obj.pi, JSON.stringify(obj.enc), obj.exc, JSON.stringify(obj.nu), obj.gpi, obj.nfu, JSON.stringify(obj.bn), obj.rl, obj.psn, obj.pn, obj.nsp, obj.ln, obj.nct, obj.nec, obj.cr, obj.su);
+                obj.ri, obj.pi, JSON.stringify(obj.enc).replace(/\"/g, '\\"'), obj.exc, JSON.stringify(obj.nu).replace(/\"/g, '\\"'), obj.gpi, obj.nfu, JSON.stringify(obj.bn).replace(/\"/g, '\\"'), obj.rl, obj.psn, obj.pn, obj.nsp, obj.ln, obj.nct, obj.nec, obj.cr, obj.su);
             db.getResult(sql, connection, function (err, results) {
                 if(!err) {
                     console.timeEnd('insert_sub ' + obj.ri);
@@ -884,7 +884,7 @@ exports.insert_smd = function(connection, obj, callback) {
         if(!err) {
             var sql = util.format('insert into smd (ri, cr, dsp, dcrp, soe, rels, smd.or) ' +
                 'value (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
-                obj.ri, obj.cr, obj.dsp, obj.dcrp, obj.soe, JSON.stringify(obj.rels), obj.or);
+                obj.ri, obj.cr, obj.dsp, obj.dcrp, obj.soe, JSON.stringify(obj.rels).replace(/\"/g, '\\"'), obj.or);
             db.getResult(sql, connection, function (err, results) {
                 if(!err) {
                     console.timeEnd('insert_smd ' + obj.ri);
@@ -989,7 +989,7 @@ exports.insert_tr = function(connection, obj, callback) {
         if(!err) {
             var sql = util.format('insert into tr (ri, cr, tid, tctl, tst, tltm, text, tct, tltp, trqp, trsp) ' +
                 'value (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
-                obj.ri, obj.cr, obj.tid, obj.tctl, obj.tst, obj.tltm, obj.text, obj.tct, obj.tltp, JSON.stringify(obj.trqp), JSON.stringify(obj.trsp));
+                obj.ri, obj.cr, obj.tid, obj.tctl, obj.tst, obj.tltm, obj.text, obj.tct, obj.tltp, JSON.stringify(obj.trqp), JSON.stringify(obj.trsp).replace(/\"/g, '\\"'));
             db.getResult(sql, connection, function (err, results) {
                 if(!err) {
                     console.timeEnd('insert_tr ' + obj.ri);
@@ -1015,7 +1015,7 @@ exports.insert_tm = function(connection, obj, callback) {
         if(!err) {
             var sql = util.format('insert into tm (ri, tltm, text, tct, tept, tmd, tltp, tctl, tst, tmr, tmh, rqps, rsps, cr) ' +
                 'value (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
-                obj.ri, obj.tltm, obj.text, obj.tct, obj.tept, obj.tmd, obj.tltp, obj.tctl, obj.tst, obj.tmr, obj.tmh, JSON.stringify(obj.rqps), JSON.stringify(obj.rsps), obj.cr);
+                obj.ri, obj.tltm, obj.text, obj.tct, obj.tept, obj.tmd, obj.tltp, obj.tctl, obj.tst, obj.tmr, obj.tmh, JSON.stringify(obj.rqps).replace(/\"/g, '\\"'), JSON.stringify(obj.rsps).replace(/\"/g, '\\"'), obj.cr);
             db.getResult(sql, connection, function (err, results) {
                 if(!err) {
                     console.timeEnd('insert_tm ' + obj.ri);
