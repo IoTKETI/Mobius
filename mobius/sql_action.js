@@ -1977,7 +1977,7 @@ exports.update_st = function (connection, obj, callback) {
 exports.update_lookup = function (connection, obj, callback) {
     //console.time('update_lookup ' + ri);
     var sql1 = util.format('update lookup set lt = \'%s\', acpi = \'%s\', et = \'%s\', st = \'%s\', lbl = \'%s\', at = \'%s\', aa = \'%s\', subl = \'%s\' where ri = \'%s\'',
-        obj.lt, JSON.stringify(obj.acpi), obj.et, obj.st, JSON.stringify(obj.lbl), JSON.stringify(obj.at), JSON.stringify(obj.aa), JSON.stringify(obj.subl), obj.ri);
+        obj.lt, JSON.stringify(obj.acpi), obj.et, obj.st, JSON.stringify(obj.lbl).replace(/\"/g, '\\"'), JSON.stringify(obj.at), JSON.stringify(obj.aa), JSON.stringify(obj.subl), obj.ri);
     db.getResult(sql1, connection, function (err, results) {
         //console.timeEnd('update_lookup ' + ri);
         callback(err, results);
