@@ -1236,10 +1236,10 @@ function get_resource_from_url(connection, ri, sri, option, callback) {
                 });
             }
             else if (option == '/fopt') {
-                callback(targetObject);
+                callback(targetObject, 200);
             }
             else {
-                callback(targetObject);
+                callback(targetObject, 200);
             }
         }
     });
