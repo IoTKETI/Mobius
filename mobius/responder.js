@@ -1630,7 +1630,7 @@ function store_to_req_resource(request, bodyString, rsc, cap, callback) {
     mi.rvi = request.headers['x-m2m-rvi'];
     var rs = 1;
     var ors = rsc;
-    db_sql.update_req(request.connection, '/' + request.headers.tg, bodyString, op, JSON.stringify(mi), rs, ors, function () {
+    db_sql.update_req(request.db_connection, '/' + request.headers.tg, bodyString, op, JSON.stringify(mi), rs, ors, function () {
         var rspObj = {};
         rspObj.rsc = rsc;
         rspObj.ri = request.method + "-" + request.headers['x-m2m-ri'] + "-" + JSON.stringify(request.query);
@@ -1716,7 +1716,7 @@ exports.response_result = function(request, response, status, rsc, cap, callback
             if(request.headers.hasOwnProperty('x-m2m-rvi')) {
                 mi.rvi = request.headers['x-m2m-rvi'];
             }
-            db_sql.update_req(request.connection, '/'+request.headers.tg, '', operation[request.method], JSON.stringify(mi), 1, rsc, function () {
+            db_sql.update_req(request.db_connection, '/'+request.headers.tg, '', operation[request.method], JSON.stringify(mi), 1, rsc, function () {
                 var rspObj = {
                     rsc: rsc,
                     dbg: cap
@@ -2087,7 +2087,7 @@ exports.search_result = function(request, response, status, rsc, cap, callback) 
 
             var mi = {};
             mi.rvi = request.headers['x-m2m-rvi'];
-            db_sql.update_req(request.connection, '/'+request.headers.tg, bodyString, operation[request.method], JSON.stringify(mi), 1, rsc, function () {
+            db_sql.update_req(request.db_connection, '/'+request.headers.tg, bodyString, operation[request.method], JSON.stringify(mi), 1, rsc, function () {
                 rspObj = {};
                 rspObj.rsc = rsc;
                 rspObj.ri = request.method + "-" + request.url + "-" + JSON.stringify(request.query);

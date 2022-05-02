@@ -76,9 +76,9 @@ app.use(morgan('combined', {stream: accessLogStream}));
 //ts_app.use(morgan('short', {stream: accessLogStream}));
 
 function del_req_resource() {
-    db.getConnection(function (code, connection) {
+    db.getConnection((code, connection) => {
         if (code === '200') {
-            db_sql.delete_req(connection, function (err, delete_Obj) {
+            db_sql.delete_req(connection, (err, delete_Obj) => {
                 if (!err) {
                     console.log('deleted ' + delete_Obj.affectedRows + ' request resource(s).');
                 }
@@ -92,11 +92,11 @@ function del_req_resource() {
 }
 
 function del_expired_resource() {
-    db.getConnection(function (code, connection) {
+    db.getConnection((code, connection) => {
         if (code === '200') {
             // this routine is that delete resource expired time exceed et of resource
             var et = moment().utc().format('YYYYMMDDTHHmmss');
-            db_sql.delete_lookup_et(connection, et, function (err) {
+            db_sql.delete_lookup_et(connection, et, (err) => {
                 if (!err) {
                     console.log('---------------');
                     console.log('delete resources expired et');
@@ -121,16 +121,16 @@ var use_clustering = 1;
 var worker_init_count = 0;
 if (use_clustering) {
     if (cluster.isMaster) {
-        cluster.on('death', function (worker) {
+        cluster.on('death', (worker) => {
             console.log('worker' + worker.pid + ' died --> start again');
             cluster.fork();
         });
 
-        db.connect(usedbhost, 3306, 'root', usedbpass, function (rsc) {
+        db.connect(usedbhost, 3306, 'root', usedbpass, (rsc) => {
             if (rsc == '1') {
-                db.getConnection(function (code, connection) {
+                db.getConnection((code, connection) => {
                     if (code === '200') {
-                        db_sql.set_tuning(connection, function (err, results) {
+                        db_sql.set_tuning(connection, (err, results) => {
                             if (err) {
                                 console.log('[set_tuning] error');
                             }
@@ -140,7 +140,7 @@ if (use_clustering) {
                                 worker[i] = cluster.fork();
                             }
 
-                            cb.create(connection, function (rsp) {
+                            cb.create(connection, (rsp) => {
                                 console.log(JSON.stringify(rsp));
 
                                 setInterval(del_req_resource, (24) * (60) * (60) * (1000));
@@ -151,7 +151,7 @@ if (use_clustering) {
                                 require('./pxy_ws');
 
                                 if (usecsetype == 'mn' || usecsetype == 'asn') {
-                                    global.refreshIntervalId = setInterval(function () {
+                                    global.refreshIntervalId = setInterval(() => {
                                         csr_custom.emit('register_remoteCSE');
                                     }, 5000);
                                 }
@@ -168,15 +168,15 @@ if (use_clustering) {
         });
     }
     else {
-        db.connect(usedbhost, 3306, 'root', usedbpass, function (rsc) {
-            if (rsc == '1') {
-                db.getConnection(function (code, connection) {
+        db.connect(usedbhost, 3306, 'root', usedbpass, (rsc) => {
+            if (rsc === '1') {
+                db.getConnection((code, connection) => {
                     if (code === '200') {
                         if (use_secure === 'disable') {
                             http.globalAgent.maxSockets = 1000000;
-                            http.createServer(app).listen({port: usecsebaseport, agent: false}, function () {
+                            http.createServer(app).listen({port: usecsebaseport, agent: false}, () => {
                                 console.log('mobius server (' + ip.address() + ') running at ' + usecsebaseport + ' port');
-                                cb.create(connection, function (rsp) {
+                                cb.create(connection, (rsp) => {
                                     console.log(JSON.stringify(rsp));
                                     //noti_mqtt_begin();
 
@@ -191,9 +191,9 @@ if (use_clustering) {
                                 ca: fs.readFileSync('ca-crt.pem')
                             };
                             https.globalAgent.maxSockets = 1000000;
-                            https.createServer(options, app).listen({port: usecsebaseport, agent: false}, function () {
+                            https.createServer(options, app).listen({port: usecsebaseport, agent: false}, () => {
                                 console.log('mobius server (' + ip.address() + ') running at ' + usecsebaseport + ' port');
-                                cb.create(connection, function (rsp) {
+                                cb.create(connection, (rsp) => {
                                     console.log(JSON.stringify(rsp));
                                     //noti_mqtt_begin();
 
@@ -211,27 +211,25 @@ if (use_clustering) {
     }
 }
 else {
-    db.connect(usedbhost, 3306, 'root', usedbpass, function (rsc) {
+    db.connect(usedbhost, 3306, 'root', usedbpass, (rsc) => {
         if (rsc == '1') {
-            db.getConnection(function (code, connection) {
+            db.getConnection((code, connection) => {
                 if (code === '200') {
-                    cb.create(connection, function (rsp) {
+                    cb.create(connection, (rsp) => {
                         console.log(JSON.stringify(rsp));
 
                         if (use_secure === 'disable') {
                             http.globalAgent.maxSockets = 1000000;
-                            http.createServer(app).listen({port: usecsebaseport, agent: false}, function () {
+                            http.createServer(app).listen({port: usecsebaseport, agent: false}, () => {
                                 console.log('mobius server (' + ip.address() + ') running at ' + usecsebaseport + ' port');
                                 require('./pxy_mqtt');
                                 //noti_mqtt_begin();
 
                                 if (usecsetype === 'mn' || usecsetype === 'asn') {
-                                    global.refreshIntervalId = setInterval(function () {
+                                    global.refreshIntervalId = setInterval(() => {
                                         csr_custom.emit('register_remoteCSE');
                                     }, 5000);
                                 }
-
-                                connection.release();
                             });
                         }
                         else {
@@ -241,21 +239,21 @@ else {
                                 ca: fs.readFileSync('ca-crt.pem')
                             };
                             https.globalAgent.maxSockets = 1000000;
-                            https.createServer(options, app).listen({port: usecsebaseport, agent: false}, function () {
+                            https.createServer(options, app).listen({port: usecsebaseport, agent: false}, () => {
                                 console.log('mobius server (' + ip.address() + ') running at ' + usecsebaseport + ' port');
                                 require('./pxy_mqtt');
                                 //noti_mqtt_begin();
                                 //require('./mobius/ts_agent');
 
                                 if (usecsetype === 'mn' || usecsetype === 'asn') {
-                                    global.refreshIntervalId = setInterval(function () {
+                                    global.refreshIntervalId = setInterval(() => {
                                         csr_custom.emit('register_remoteCSE');
                                     }, 5000);
                                 }
-
-                                connection.release();
                             });
                         }
+
+                        connection.release();
                     });
                 }
                 else {
@@ -271,12 +269,12 @@ global.get_ri_list_sri = function (request, response, sri_list, ri_list, count, 
         callback('200');
     }
     else {
-        db_sql.get_ri_sri(request.connection, sri_list[count], function (err, results) {
+        db_sql.get_ri_sri(request.db_connection, sri_list[count], (err, results) => {
             if (!err) {
                 ri_list[count] = ((results.length == 0) ? sri_list[count] : results[0].ri);
                 results = null;
 
-                get_ri_list_sri(request, response, sri_list, ri_list, ++count, function (code) {
+                get_ri_list_sri(request, response, sri_list, ri_list, ++count, (code) => {
                     callback(code);
                 });
             }
@@ -288,7 +286,7 @@ global.get_ri_list_sri = function (request, response, sri_list, ri_list, count, 
 };
 
 global.update_route = function (connection, cse_poa, callback) {
-    db_sql.select_csr_like(connection, usecsebase, function (err, results_csr) {
+    db_sql.select_csr_like(connection, usecsebase, (err, results_csr) => {
         if (!err) {
             for (var i = 0; i < results_csr.length; i++) {
                 var poa_arr = JSON.parse(results_csr[i].poa);
@@ -348,7 +346,7 @@ global.make_json_obj = function (bodytype, str, callback) {
         if (bodytype === 'xml') {
             var message = str;
             var parser = new xml2js.Parser({explicitArray: false});
-            parser.parseString(message.toString(), function (err, result) {
+            parser.parseString(message.toString(), (err, result) => {
                 if (err) {
                     console.log('[mqtt make json obj] xml2js parser error]');
                     callback('0');
@@ -373,7 +371,7 @@ global.make_json_obj = function (bodytype, str, callback) {
             });
         }
         else if (bodytype === 'cbor') {
-            cbor.decodeFirst(str, function (err, result) {
+            cbor.decodeFirst(str, (err, result) => {
                 if (err) {
                     console.log('cbor parser error]');
                 }
@@ -502,7 +500,7 @@ function parse_to_json(request, response, callback) {
     if (request.usebodytype === 'xml') {
         try {
             var parser = new xml2js.Parser({explicitArray: false});
-            parser.parseString(request.body.toString(), function (err, result) {
+            parser.parseString(request.body.toString(), (err, result) => {
                 if (err) {
                     callback('400-5');
                 }
@@ -523,7 +521,7 @@ function parse_to_json(request, response, callback) {
     else if (request.usebodytype === 'cbor') {
         try {
             var encoded = request.body;
-            cbor.decodeFirst(encoded, function (err, result) {
+            cbor.decodeFirst(encoded, (err, result) => {
                 if (err) {
                     callback('400-6');
                 }
@@ -561,7 +559,7 @@ function parse_to_json(request, response, callback) {
 }
 
 function parse_body_format(request, response, callback) {
-    parse_to_json(request, response, function (code) {
+    parse_to_json(request, response, (code) => {
         if (code === '200') {
             var body_Obj = request.bodyObj;
             for (var prop in body_Obj) {
@@ -682,7 +680,7 @@ function check_resource(request, response, callback) {
     var chk_fopt = ri.split('/fopt');
     if (chk_fopt.length == 2) {
         ri = chk_fopt[0];
-        db_sql.select_grp_lookup(request.connection, ri, function (err, result_Obj) {
+        db_sql.select_grp_lookup(request.db_connection, ri, (err, result_Obj) => {
             if (!err) {
                 if (result_Obj.length == 1) {
                     result_Obj[0].acpi = JSON.parse(result_Obj[0].acpi);
@@ -737,7 +735,7 @@ function check_request_query_rt(request, response, callback) {
             request.bodyObj = rt_body_Obj;
             request.query.rt = 3;
 
-            resource.create(request, response, function (code) {
+            resource.create(request, response, (code) => {
                 if (code === '200') {
                     request.ty = temp_ty;
                     request.headers.rootnm = temp_rootnm;
@@ -888,18 +886,17 @@ var resultStatusCode = {
 };
 
 function response_error_result(request, response, code, callback) {
-    responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], function () {
+    responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
         callback();
     });
-
 }
 
 function lookup_create(request, response, callback) {
-    check_request_query_rt(request, response, function (code) {
+    check_request_query_rt(request, response, (code) => {
         if (code === '200') {
             var parentObj = request.targetObject[Object.keys(request.targetObject)[0]];
 
-            tr.check(request, function (code) {
+            tr.check(request, (code) => {
                 if (code === '200') {
                     if ((request.ty == 1) && (parentObj.ty == 5 || parentObj.ty == 16 || parentObj.ty == 2)) { // accessControlPolicy
                     }
@@ -987,10 +984,10 @@ function lookup_create(request, response, callback) {
 
                     var tid = 'security.check - ' + require('shortid').generate();
                     console.time(tid);
-                    security.check(request, response, parentObj.ty, parentObj.acpi, access_value, parentObj.cr, function (code) {
+                    security.check(request, response, parentObj.ty, parentObj.acpi, access_value, parentObj.cr, (code) => {
                         console.timeEnd(tid);
                         if (code === '1') {
-                            resource.create(request, response, function (code) {
+                            resource.create(request, response, (code) => {
                                 callback(code);
                             });
                         }
@@ -1015,11 +1012,11 @@ function lookup_create(request, response, callback) {
 }
 
 function lookup_retrieve(request, response, callback) {
-    check_request_query_rt(request, response, function (code) {
+    check_request_query_rt(request, response, (code) => {
         if (code === '200') {
             var resultObj = request.targetObject[Object.keys(request.targetObject)[0]];
 
-            tr.check(request, function (code) {
+            tr.check(request, (code) => {
                 if (code === '200') {
                     if (resultObj.ty == 2) {
                         resultObj.cr = resultObj.aei;
@@ -1029,9 +1026,9 @@ function lookup_retrieve(request, response, callback) {
                     }
 
                     if (request.query.fu == 1) {
-                        security.check(request, response, resultObj.ty, resultObj.acpi, '32', resultObj.cr, function (code) {
+                        security.check(request, response, resultObj.ty, resultObj.acpi, '32', resultObj.cr, (code) => {
                             if (code === '1') {
-                                resource.retrieve(request, response, function (code) {
+                                resource.retrieve(request, response, (code) => {
                                     callback(code);
                                 });
                             }
@@ -1044,9 +1041,9 @@ function lookup_retrieve(request, response, callback) {
                         });
                     }
                     else {
-                        security.check(request, response, resultObj.ty, resultObj.acpi, '2', resultObj.cr, function (code) {
+                        security.check(request, response, resultObj.ty, resultObj.acpi, '2', resultObj.cr, (code) => {
                             if (code === '1') {
-                                resource.retrieve(request, response, function (code) {
+                                resource.retrieve(request, response, (code) => {
                                     callback(code);
                                 });
                             }
@@ -1071,11 +1068,11 @@ function lookup_retrieve(request, response, callback) {
 }
 
 function lookup_update(request, response, callback) {
-    check_request_query_rt(request, response, function (code) {
+    check_request_query_rt(request, response, (code) => {
         if (code === '200') {
             var resultObj = request.targetObject[Object.keys(request.targetObject)[0]];
 
-            tr.check(request, function (code) {
+            tr.check(request, (code) => {
                 if (code === '200') {
                     if (resultObj.ty == 2) {
                         resultObj.cr = resultObj.aei;
@@ -1102,9 +1099,9 @@ function lookup_update(request, response, callback) {
                     }
 
                     if (other_check > 0) {
-                        security.check(request, response, resultObj.ty, resultObj.acpi, '4', resultObj.cr, function (code) {
+                        security.check(request, response, resultObj.ty, resultObj.acpi, '4', resultObj.cr, (code) => {
                             if (code === '1') {
-                                resource.update(request, response, function (code) {
+                                resource.update(request, response, (code) => {
                                     callback(code)
                                 });
                             }
@@ -1117,7 +1114,7 @@ function lookup_update(request, response, callback) {
                         });
                     }
                     else {
-                        resource.update(request, response, function (code) {
+                        resource.update(request, response, (code) => {
                             callback(code)
                         });
                     }
@@ -1134,11 +1131,11 @@ function lookup_update(request, response, callback) {
 }
 
 function lookup_delete(request, response, callback) {
-    check_request_query_rt(request, response, function (code) {
+    check_request_query_rt(request, response, (code) => {
         if (code === '200') {
             var resultObj = request.targetObject[Object.keys(request.targetObject)[0]];
 
-            tr.check(request, function (code) {
+            tr.check(request, (code) => {
                 if (code === '200') {
                     if (resultObj.ty == 2) {
                         resultObj.cr = resultObj.aei;
@@ -1147,9 +1144,9 @@ function lookup_delete(request, response, callback) {
                         resultObj.cr = resultObj.csi;
                     }
 
-                    security.check(request, response, resultObj.ty, resultObj.acpi, '8', resultObj.cr, function (code) {
+                    security.check(request, response, resultObj.ty, resultObj.acpi, '8', resultObj.cr, (code) => {
                         if (code === '1') {
-                            resource.delete(request, response, function (code) {
+                            resource.delete(request, response, (code) => {
                                 callback(code);
                             });
                         }
@@ -1174,7 +1171,7 @@ function lookup_delete(request, response, callback) {
 
 function get_resource_from_url(connection, ri, sri, option, callback) {
     var targetObject = {};
-    db_sql.select_resource_from_url(connection, ri, sri, function (err, results) {
+    db_sql.select_resource_from_url(connection, ri, sri, (err, results) => {
         if (err) {
             callback(null, 500);
             return '0';
@@ -1194,7 +1191,7 @@ function get_resource_from_url(connection, ri, sri, option, callback) {
                 var la_id = 'select_latest_resource ' + targetObject[rootnm].ri + ' - ' + require('shortid').generate();
                 console.time(la_id);
                 var latestObj = [];
-                db_sql.select_latest_resource(connection, targetObject[rootnm], 0, latestObj, function (code) {
+                db_sql.select_latest_resource(connection, targetObject[rootnm], 0, latestObj, (code) => {
                     console.timeEnd(la_id);
                     if (code === '200') {
                         if (latestObj.length == 1) {
@@ -1216,7 +1213,7 @@ function get_resource_from_url(connection, ri, sri, option, callback) {
             }
             else if (option == '/oldest') {
                 var oldestObj = [];
-                db_sql.select_oldest_resource(connection, parseInt(ty, 10) + 1, ri, oldestObj, function (code) {
+                db_sql.select_oldest_resource(connection, parseInt(ty, 10) + 1, ri, oldestObj, (code) => {
                     if (code === '200') {
                         if (oldestObj.length == 1) {
                             targetObject = {};
@@ -1280,7 +1277,7 @@ function extra_api_action(connection, url, callback) {
                                     }
                                 }
 
-                                db_sql.set_hit_n(connection, dd, _http, _mqtt, _coap, _ws, function (err, results) {
+                                db_sql.set_hit_n(connection, dd, _http, _mqtt, _coap, _ws, (err, results) => {
                                     results = null;
                                 });
                             }
@@ -1292,9 +1289,7 @@ function extra_api_action(connection, url, callback) {
 
         if (0) {
             var count = 0;
-            setTimeout(random_hit, 100, count);
-
-            function random_hit(count) {
+            setTimeout((count) => {
                 if (count > 250) {
                     return;
                 }
@@ -1304,15 +1299,15 @@ function extra_api_action(connection, url, callback) {
                 var _coap = 0;
                 var _ws = 0;
 
-                db_sql.set_hit_n(connection, dd, _http, _mqtt, _coap, _ws, function (err, results) {
+                db_sql.set_hit_n(connection, dd, _http, _mqtt, _coap, _ws, (err, results) => {
                     results = null;
                     console.log(count);
                     setTimeout(random_hit, 100, ++count);
                 });
-            }
+            }, 100, count);
         }
 
-        db_sql.get_hit_all(connection, function (err, result) {
+        db_sql.get_hit_all(connection, (err, result) => {
             if (err) {
                 callback('500-1');
             }
@@ -1462,7 +1457,7 @@ function check_xm2m_headers(request, callback) {
 }
 
 function check_resource_supported(request, response, callback) {
-    make_json_obj(request.usebodytype, request.body, function (err, body) {
+    make_json_obj(request.usebodytype, request.body, (err, body) => {
         try {
             var arr_rootnm = Object.keys(body)[0].split(':');
 
@@ -1565,7 +1560,7 @@ function get_target_url(request, response, callback) {
     absolute_url = null;
     var tid = require('shortid').generate();
     console.time('get_resource_from_url' + ' (' + tid + ') - ' + request.absolute_url);
-    get_resource_from_url(request.connection, request.ri, request.sri, request.option, function (targetObject, status) {
+    get_resource_from_url(request.db_connection, request.ri, request.sri, request.option, (targetObject, status) => {
         console.timeEnd('get_resource_from_url' + ' (' + tid + ') - ' + request.absolute_url);
         if (status == 404) {
             if (url.parse(request.absolute_url).pathname.split('/')[1] == usecsebase) {
@@ -1695,7 +1690,7 @@ var onem2mParser = bodyParser.text(
 //////// contribution code
 // Kevin Lee, Executive Director, Unibest INC, Owner of Howchip.com
 // Process for CORS problem
-app.use(function (req, res, next) {
+app.use((req, res, next) => {
     res.header('Access-Control-Allow-Origin', '*');
     res.header('Access-Control-Allow-Methods', 'GET, PUT, POST, DELETE, OPTIONS');
     res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, X-M2M-RI, X-M2M-RVI, X-M2M-RSC, Accept, X-M2M-Origin, Locale');
@@ -1728,77 +1723,77 @@ app.use(function (req, res, next) {
 // }));
 
 // remoteCSE, ae, cnt
-app.post(onem2mParser, function (request, response) {
+app.post(onem2mParser, (request, response) => {
     var fullBody = '';
-    request.on('data', function (chunk) {
+    request.on('data', (chunk) => {
         fullBody += chunk.toString();
     });
 
-    request.on('end', function () {
+    request.on('end', () => {
         request.body = fullBody;
 
-        db.getConnection(function (code, connection) {
+        db.getConnection((code, connection) => {
             if (code === '200') {
-                request.connection = connection;
+                request.db_connection = connection;
 
                 if (!request.headers.hasOwnProperty('binding')) {
                     request.headers['binding'] = 'H';
                 }
 
-                db_sql.set_hit(request.connection, request.headers['binding'], function (err, results) {
+                db_sql.set_hit(connection, request.headers['binding'], (err, results) => {
                     results = null;
                 });
 
-                check_xm2m_headers(request, function (code) {
+                check_xm2m_headers(request, (code) => {
                     if (code === '200') {
                         if (request.body !== "") {
-                            check_resource_supported(request, response, function (code) {
+                            check_resource_supported(request, response, (code) => {
                                 if (code === '200') {
-                                    get_target_url(request, response, function (code) {
+                                    get_target_url(request, response, (code) => {
                                         if (code === '200') {
                                             if (request.option !== '/fopt') {
-                                                parse_body_format(request, response, function (code) {
+                                                parse_body_format(request, response, (code) => {
                                                     if (code === '200') {
-                                                        check_allowed_app_ids(request, function (code) {
+                                                        check_allowed_app_ids(request, (code) => {
                                                             if (code === '200') {
                                                                 var rootnm = Object.keys(request.targetObject)[0];
                                                                 var absolute_url = request.targetObject[rootnm].ri;
-                                                                check_notification(request, response, function (code) {
+                                                                check_notification(request, response, (code) => {
                                                                     if (code === 'post') {
                                                                         request.url = absolute_url;
                                                                         if ((request.query.fu == 2) && (request.query.rcn == 0 || request.query.rcn == 1 || request.query.rcn == 2 || request.query.rcn == 3)) {
-                                                                            lookup_create(request, response, function (code) {
+                                                                            lookup_create(request, response, (code) => {
                                                                                 if (code === '201') {
-                                                                                    responder.response_result(request, response, '201', '2001', '', function () {
-                                                                                        request.connection.release();
+                                                                                    responder.response_result(request, response, '201', '2001', '', () => {
+                                                                                        connection.release();
                                                                                         request = null;
                                                                                         response = null;
                                                                                     });
                                                                                 }
                                                                                 else if (code === '201-3') {
-                                                                                    responder.response_rcn3_result(request, response, '201', '2001', '', function () {
-                                                                                        request.connection.release();
+                                                                                    responder.response_rcn3_result(request, response, '201', '2001', '', () => {
+                                                                                        connection.release();
                                                                                         request = null;
                                                                                         response = null;
                                                                                     });
                                                                                 }
                                                                                 else if (code === '202-1') {
-                                                                                    responder.response_result(request, response, '202', '1001', '', function () {
-                                                                                        request.connection.release();
+                                                                                    responder.response_result(request, response, '202', '1001', '', () => {
+                                                                                        connection.release();
                                                                                         request = null;
                                                                                         response = null;
                                                                                     });
                                                                                 }
                                                                                 else if (code === '202-2') {
-                                                                                    responder.response_result(request, response, '202', '1002', '', function () {
-                                                                                        request.connection.release();
+                                                                                    responder.response_result(request, response, '202', '1002', '', () => {
+                                                                                        connection.release();
                                                                                         request = null;
                                                                                         response = null;
                                                                                     });
                                                                                 }
                                                                                 else {
-                                                                                    responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], function () {
-                                                                                        request.connection.release();
+                                                                                    responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                                                                                        connection.release();
                                                                                         request = null;
                                                                                         response = null;
                                                                                     });
@@ -1807,16 +1802,18 @@ app.post(onem2mParser, function (request, response) {
                                                                         }
                                                                         else {
                                                                             code = '400-43';
-                                                                            responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], function () {
-                                                                                request.connection.release();
+                                                                            responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                                                                                connection.release();
                                                                                 request = null;
                                                                                 response = null;
                                                                             });
                                                                         }
                                                                     }
                                                                     else if (code === 'notify') {
-                                                                        check_ae_notify(request, response, function (code, res) {
+                                                                        check_ae_notify(request, response, (code, res) => {
                                                                             if (code === '200') {
+                                                                                connection.release();
+
                                                                                 if (res.headers['content-type']) {
                                                                                     response.header('Content-Type', res.headers['content-type']);
                                                                                 }
@@ -1841,8 +1838,8 @@ app.post(onem2mParser, function (request, response) {
                                                                                 response = null;
                                                                             }
                                                                             else {
-                                                                                responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], function () {
-                                                                                    request.connection.release();
+                                                                                responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                                                                                    connection.release();
                                                                                     request = null;
                                                                                     response = null;
                                                                                 });
@@ -1850,8 +1847,8 @@ app.post(onem2mParser, function (request, response) {
                                                                         });
                                                                     }
                                                                     else {
-                                                                        responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], function () {
-                                                                            request.connection.release();
+                                                                        responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                                                                            connection.release();
                                                                             request = null;
                                                                             response = null;
                                                                         });
@@ -1859,13 +1856,8 @@ app.post(onem2mParser, function (request, response) {
                                                                 });
                                                             }
                                                             else {
-                                                                // response_error_result(request, response, code, function () {
-                                                                //     request = null;
-                                                                //     response = null;
-                                                                // });
-
-                                                                responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], function () {
-                                                                    request.connection.release();
+                                                                responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                                                                    connection.release();
                                                                     request = null;
                                                                     response = null;
                                                                 });
@@ -1873,13 +1865,8 @@ app.post(onem2mParser, function (request, response) {
                                                         });
                                                     }
                                                     else {
-                                                        // response_error_result(request, response, code, function () {
-                                                        //     request = null;
-                                                        //     response = null;
-                                                        // });
-
-                                                        responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], function () {
-                                                            request.connection.release();
+                                                        responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                                                            connection.release();
                                                             request = null;
                                                             response = null;
                                                         });
@@ -1887,25 +1874,25 @@ app.post(onem2mParser, function (request, response) {
                                                 });
                                             }
                                             else { // if (request.option === '/fopt') {
-                                                check_grp(request, response, function (rsc, result_grp) { // check access right for fanoutpoint
+                                                check_grp(request, response, (rsc, result_grp) => { // check access right for fanoutpoint
                                                     if (rsc == '1') {
                                                         var access_value = '1';
                                                         var body_Obj = {};
-                                                        security.check(request, response, request.targetObject[Object.keys(request.targetObject)[0]].ty, result_grp.macp, access_value, result_grp.cr, function (code) {
+                                                        security.check(request, response, request.targetObject[Object.keys(request.targetObject)[0]].ty, result_grp.macp, access_value, result_grp.cr, (code) => {
                                                             if (code === '1') {
-                                                                parse_body_format(request, response, function (code) {
+                                                                parse_body_format(request, response, (code) => {
                                                                     if (code === '200') {
-                                                                        fopt.check(request, response, result_grp, body_Obj, function (code) {
+                                                                        fopt.check(request, response, result_grp, body_Obj, (code) => {
                                                                             if (code === '200') {
-                                                                                responder.search_result(request, response, '200', '2000', '', function () {
-                                                                                    request.connection.release();
+                                                                                responder.search_result(request, response, '200', '2000', '', () => {
+                                                                                    connection.release();
                                                                                     request = null;
                                                                                     response = null;
                                                                                 });
                                                                             }
                                                                             else {
-                                                                                responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], function () {
-                                                                                    request.connection.release();
+                                                                                responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                                                                                    connection.release();
                                                                                     request = null;
                                                                                     response = null;
                                                                                 });
@@ -1913,8 +1900,8 @@ app.post(onem2mParser, function (request, response) {
                                                                         });
                                                                     }
                                                                     else {
-                                                                        responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], function () {
-                                                                            request.connection.release();
+                                                                        responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                                                                            connection.release();
                                                                             request = null;
                                                                             response = null;
                                                                         });
@@ -1922,14 +1909,15 @@ app.post(onem2mParser, function (request, response) {
                                                                 });
                                                             }
                                                             else if (code === '0') {
-                                                                response_error_result(request, response, '403-5', function () {
+                                                                response_error_result(request, response, '403-5', () => {
+                                                                    connection.release();
                                                                     request = null;
                                                                     response = null;
                                                                 });
                                                             }
                                                             else {
-                                                                responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], function () {
-                                                                    request.connection.release();
+                                                                responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                                                                    connection.release();
                                                                     request = null;
                                                                     response = null;
                                                                 });
@@ -1938,16 +1926,16 @@ app.post(onem2mParser, function (request, response) {
                                                     }
                                                     else if (rsc == '2') {
                                                         code = '403-6';
-                                                        responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], function () {
-                                                            request.connection.release();
+                                                        responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                                                            connection.release();
                                                             request = null;
                                                             response = null;
                                                         });
                                                     }
                                                     else {
                                                         code = '404-4';
-                                                        responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], function () {
-                                                            request.connection.release();
+                                                        responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                                                            connection.release();
                                                             request = null;
                                                             response = null;
                                                         });
@@ -1956,15 +1944,16 @@ app.post(onem2mParser, function (request, response) {
                                             }
                                         }
                                         else if (code === '301-1') {
-                                            check_csr(request, response, function (code) {
+                                            check_csr(request, response, (code) => {
                                                 if (code === '301-2') {
                                                     response.status(response.statusCode).end(response.body);
+                                                    connection.release();
                                                     request = null;
                                                     response = null;
                                                 }
                                                 else {
-                                                    responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], function () {
-                                                        request.connection.release();
+                                                    responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                                                        connection.release();
                                                         request = null;
                                                         response = null;
                                                     });
@@ -1972,8 +1961,8 @@ app.post(onem2mParser, function (request, response) {
                                             });
                                         }
                                         else {
-                                            responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], function () {
-                                                request.connection.release();
+                                            responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                                                connection.release();
                                                 request = null;
                                                 response = null;
                                             });
@@ -1981,8 +1970,8 @@ app.post(onem2mParser, function (request, response) {
                                     });
                                 }
                                 else {
-                                    responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], function () {
-                                        request.connection.release();
+                                    responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                                        connection.release();
                                         request = null;
                                         response = null;
                                     });
@@ -1990,15 +1979,16 @@ app.post(onem2mParser, function (request, response) {
                             });
                         }
                         else {
-                            response_error_result(request, response, '400-40', function () {
+                            response_error_result(request, response, '400-40', () => {
+                                connection.release();
                                 request = null;
                                 response = null;
                             });
                         }
                     }
                     else {
-                        responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], function () {
-                            request.connection.release();
+                        responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                            connection.release();
                             request = null;
                             response = null;
                         });
@@ -2006,7 +1996,7 @@ app.post(onem2mParser, function (request, response) {
                 });
             }
             else {
-                responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], function () {
+                responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
                     request = null;
                     response = null;
                 });
@@ -2015,55 +2005,55 @@ app.post(onem2mParser, function (request, response) {
     });
 });
 
-app.get(onem2mParser, function (request, response) {
+app.get(onem2mParser, (request, response) => {
     var fullBody = '';
-    request.on('data', function (chunk) {
+    request.on('data', (chunk) => {
         fullBody += chunk.toString();
     });
 
-    request.on('end', function () {
+    request.on('end', () => {
         request.body = fullBody;
 
-        db.getConnection(function (code, connection) {
+        db.getConnection((code, connection) => {
             if (code === '200') {
-                request.connection = connection;
+                request.db_connection = connection;
 
-                extra_api_action(connection, request.url, function (code, result) {
+                extra_api_action(connection, request.url, (code, result) => {
                     if (code === '200') {
                         if (!request.headers.hasOwnProperty('binding')) {
                             request.headers['binding'] = 'H';
                         }
 
-                        db_sql.set_hit(request.connection, request.headers['binding'], function (err, results) {
+                        db_sql.set_hit(request.db_connection, request.headers['binding'], (err, results) => {
                             results = null;
                         });
 
-                        check_xm2m_headers(request, function (code) {
+                        check_xm2m_headers(request, (code) => {
                             if (code === '200') {
-                                get_target_url(request, response, function (code) {
+                                get_target_url(request, response, (code) => {
                                     if (code === '200') {
                                         if (request.option !== '/fopt') {
                                             var rootnm = Object.keys(request.targetObject)[0];
                                             request.url = request.targetObject[rootnm].ri;
                                             if ((request.query.fu == 1 || request.query.fu == 2) && (request.query.rcn == 1 || request.query.rcn == 4 || request.query.rcn == 5 || request.query.rcn == 6 || request.query.rcn == 7)) {
-                                                lookup_retrieve(request, response, function (code) {
+                                                lookup_retrieve(request, response, (code) => {
                                                     if (code === '200') {
-                                                        responder.response_result(request, response, '200', '2000', '', function () {
-                                                            request.connection.release();
+                                                        responder.response_result(request, response, '200', '2000', '', () => {
+                                                            connection.release();
                                                             request = null;
                                                             response = null;
                                                         });
                                                     }
                                                     else if (code === '200-1') {
-                                                        responder.search_result(request, response, '200', '2000', '', function () {
-                                                            request.connection.release();
+                                                        responder.search_result(request, response, '200', '2000', '', () => {
+                                                            connection.release();
                                                             request = null;
                                                             response = null;
                                                         });
                                                     }
                                                     else {
-                                                        responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], function () {
-                                                            request.connection.release();
+                                                        responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                                                            connection.release();
                                                             request = null;
                                                             response = null;
                                                         });
@@ -2071,30 +2061,31 @@ app.get(onem2mParser, function (request, response) {
                                                 });
                                             }
                                             else {
-                                                response_error_result(request, response, '400-44', function () {
+                                                response_error_result(request, response, '400-44', () => {
+                                                    connection.release();
                                                     request = null;
                                                     response = null;
                                                 });
                                             }
                                         }
                                         else { //if (request.option === '/fopt') {
-                                            check_grp(request, response, function (rsc, result_grp) { // check access right for fanoutpoint
+                                            check_grp(request, response, (rsc, result_grp) => { // check access right for fanoutpoint
                                                 if (rsc == '1') {
                                                     var access_value = (request.query.fu == 1) ? '32' : '2';
                                                     var body_Obj = {};
-                                                    security.check(request, response, request.targetObject[Object.keys(request.targetObject)[0]].ty, result_grp.macp, access_value, result_grp.cr, function (code) {
+                                                    security.check(request, response, request.targetObject[Object.keys(request.targetObject)[0]].ty, result_grp.macp, access_value, result_grp.cr, (code) => {
                                                         if (code === '1') {
-                                                            fopt.check(request, response, result_grp, body_Obj, function (code) {
+                                                            fopt.check(request, response, result_grp, body_Obj, (code) => {
                                                                 if (code === '200') {
-                                                                    responder.search_result(request, response, '200', '2000', '', function () {
-                                                                        request.connection.release();
+                                                                    responder.search_result(request, response, '200', '2000', '', () => {
+                                                                        connection.release();
                                                                         request = null;
                                                                         response = null;
                                                                     });
                                                                 }
                                                                 else {
-                                                                    responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], function () {
-                                                                        request.connection.release();
+                                                                    responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                                                                        connection.release();
                                                                         request = null;
                                                                         response = null;
                                                                     });
@@ -2102,14 +2093,15 @@ app.get(onem2mParser, function (request, response) {
                                                             });
                                                         }
                                                         else if (code === '0') {
-                                                            response_error_result(request, response, '403-5', function () {
+                                                            response_error_result(request, response, '403-5', () => {
+                                                                connection.release();
                                                                 request = null;
                                                                 response = null;
                                                             });
                                                         }
                                                         else {
-                                                            responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], function () {
-                                                                request.connection.release();
+                                                            responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                                                                connection.release();
                                                                 request = null;
                                                                 response = null;
                                                             });
@@ -2118,14 +2110,15 @@ app.get(onem2mParser, function (request, response) {
                                                 }
                                                 else if (rsc == '2') {
                                                     code = '403-6';
-                                                    responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], function () {
-                                                        request.connection.release();
+                                                    responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                                                        connection.release();
                                                         request = null;
                                                         response = null;
                                                     });
                                                 }
                                                 else {
-                                                    response_error_result(request, response, '404-4', function () {
+                                                    response_error_result(request, response, '404-4', () => {
+                                                        connection.release();
                                                         request = null;
                                                         response = null;
                                                     });
@@ -2134,15 +2127,16 @@ app.get(onem2mParser, function (request, response) {
                                         }
                                     }
                                     else if (code === '301-1') {
-                                        check_csr(request, response, function (code) {
+                                        check_csr(request, response, (code) => {
                                             if (code === '301-2') {
+                                                connection.release();
                                                 response.status(response.statusCode).end(response.body);
                                                 request = null;
                                                 response = null;
                                             }
                                             else {
-                                                responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], function () {
-                                                    request.connection.release();
+                                                responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                                                    connection.release();
                                                     request = null;
                                                     response = null;
                                                 });
@@ -2150,8 +2144,8 @@ app.get(onem2mParser, function (request, response) {
                                         });
                                     }
                                     else {
-                                        responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], function () {
-                                            request.connection.release();
+                                        responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                                            connection.release();
                                             request = null;
                                             response = null;
                                         });
@@ -2159,8 +2153,8 @@ app.get(onem2mParser, function (request, response) {
                                 });
                             }
                             else {
-                                responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], function () {
-                                    request.connection.release();
+                                responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                                    connection.release();
                                     request = null;
                                     response = null;
                                 });
@@ -2168,13 +2162,14 @@ app.get(onem2mParser, function (request, response) {
                         });
                     }
                     else if (code === '201') {
+                        connection.release();
                         response.header('Content-Type', 'application/json');
                         response.status(200).end(JSON.stringify(result, null, 4));
                         result = null;
                     }
                     else {
-                        responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], function () {
-                            request.connection.release();
+                        responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                            connection.release();
                             request = null;
                             response = null;
                         });
@@ -2182,7 +2177,7 @@ app.get(onem2mParser, function (request, response) {
                 });
             }
             else {
-                responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], function () {
+                responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
                     request = null;
                     response = null;
                 });
@@ -2192,53 +2187,53 @@ app.get(onem2mParser, function (request, response) {
 });
 
 
-app.put(onem2mParser, function (request, response) {
+app.put(onem2mParser, (request, response) => {
     var fullBody = '';
-    request.on('data', function (chunk) {
+    request.on('data', (chunk) => {
         fullBody += chunk.toString();
     });
 
-    request.on('end', function () {
+    request.on('end', () => {
         request.body = fullBody;
 
-        db.getConnection(function (code, connection) {
+        db.getConnection((code, connection) => {
             if (code === '200') {
-                request.connection = connection;
+                request.db_connection = connection;
 
                 if (!request.headers.hasOwnProperty('binding')) {
                     request.headers['binding'] = 'H';
                 }
 
-                db_sql.set_hit(request.connection, request.headers['binding'], function (err, results) {
+                db_sql.set_hit(request.db_connection, request.headers['binding'], (err, results) => {
                     results = null;
                 });
 
-                check_xm2m_headers(request, function (code) {
+                check_xm2m_headers(request, (code) => {
                     if (code === '200') {
                         if (request.body !== "") {
-                            check_resource_supported(request, response, function (code) {
+                            check_resource_supported(request, response, (code) => {
                                 if (code === '200') {
-                                    get_target_url(request, response, function (code) {
+                                    get_target_url(request, response, (code) => {
                                         if (code === '200') {
                                             if (request.option !== '/fopt') {
-                                                parse_body_format(request, response, function (code) {
+                                                parse_body_format(request, response, (code) => {
                                                     if (code === '200') {
-                                                        check_type_update_resource(request, function (code) {
+                                                        check_type_update_resource(request, (code) => {
                                                             if (code === '200') {
                                                                 var rootnm = Object.keys(request.targetObject)[0];
                                                                 request.url = request.targetObject[rootnm].ri;
                                                                 if ((request.query.fu == 2) && (request.query.rcn == 0 || request.query.rcn == 1)) {
-                                                                    lookup_update(request, response, function (code) {
+                                                                    lookup_update(request, response, (code) => {
                                                                         if (code === '200') {
-                                                                            responder.response_result(request, response, '200', '2004', '', function () {
-                                                                                request.connection.release();
+                                                                            responder.response_result(request, response, '200', '2004', '', () => {
+                                                                                connection.release();
                                                                                 request = null;
                                                                                 response = null;
                                                                             });
                                                                         }
                                                                         else {
-                                                                            responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], function () {
-                                                                                request.connection.release();
+                                                                            responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                                                                                connection.release();
                                                                                 request = null;
                                                                                 response = null;
                                                                             });
@@ -2246,15 +2241,16 @@ app.put(onem2mParser, function (request, response) {
                                                                     });
                                                                 }
                                                                 else {
-                                                                    response_error_result(request, response, '400-45', function () {
+                                                                    response_error_result(request, response, '400-45', () => {
+                                                                        connection.release();
                                                                         request = null;
                                                                         response = null;
                                                                     });
                                                                 }
                                                             }
                                                             else {
-                                                                responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], function () {
-                                                                    request.connection.release();
+                                                                responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                                                                    connection.release();
                                                                     request = null;
                                                                     response = null;
                                                                 });
@@ -2262,8 +2258,8 @@ app.put(onem2mParser, function (request, response) {
                                                         });
                                                     }
                                                     else {
-                                                        responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], function () {
-                                                            request.connection.release();
+                                                        responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                                                            connection.release();
                                                             request = null;
                                                             response = null;
                                                         });
@@ -2271,25 +2267,25 @@ app.put(onem2mParser, function (request, response) {
                                                 });
                                             }
                                             else { // if (request.option === '/fopt') {
-                                                check_grp(request, response, function (rsc, result_grp) { // check access right for fanoutpoint
+                                                check_grp(request, response, (rsc, result_grp) => { // check access right for fanoutpoint
                                                     if (rsc == '1') {
                                                         var access_value = '4';
                                                         var body_Obj = {};
-                                                        security.check(request, response, request.targetObject[Object.keys(request.targetObject)[0]].ty, result_grp.macp, access_value, result_grp.cr, function (code) {
+                                                        security.check(request, response, request.targetObject[Object.keys(request.targetObject)[0]].ty, result_grp.macp, access_value, result_grp.cr, (code) => {
                                                             if (code === '1') {
-                                                                parse_body_format(request, response, function (code) {
+                                                                parse_body_format(request, response, (code) => {
                                                                     if (code === '200') {
-                                                                        fopt.check(request, response, result_grp, body_Obj, function (code) {
+                                                                        fopt.check(request, response, result_grp, body_Obj, (code) => {
                                                                             if (code === '200') {
-                                                                                responder.search_result(request, response, '200', '2000', '', function () {
-                                                                                    request.connection.release();
+                                                                                responder.search_result(request, response, '200', '2000', '', () => {
+                                                                                    connection.release();
                                                                                     request = null;
                                                                                     response = null;
                                                                                 });
                                                                             }
                                                                             else {
-                                                                                responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], function () {
-                                                                                    request.connection.release();
+                                                                                responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                                                                                    connection.release();
                                                                                     request = null;
                                                                                     response = null;
                                                                                 });
@@ -2297,8 +2293,8 @@ app.put(onem2mParser, function (request, response) {
                                                                         });
                                                                     }
                                                                     else {
-                                                                        responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], function () {
-                                                                            request.connection.release();
+                                                                        responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                                                                            connection.release();
                                                                             request = null;
                                                                             response = null;
                                                                         });
@@ -2306,14 +2302,15 @@ app.put(onem2mParser, function (request, response) {
                                                                 });
                                                             }
                                                             else if (code === '0') {
-                                                                response_error_result(request, response, '403-5', function () {
+                                                                response_error_result(request, response, '403-5', () => {
+                                                                    connection.release();
                                                                     request = null;
                                                                     response = null;
                                                                 });
                                                             }
                                                             else {
-                                                                responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], function () {
-                                                                    request.connection.release();
+                                                                responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                                                                    connection.release();
                                                                     request = null;
                                                                     response = null;
                                                                 });
@@ -2322,14 +2319,15 @@ app.put(onem2mParser, function (request, response) {
                                                     }
                                                     else if (rsc == '2') {
                                                         code = '403-6';
-                                                        responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], function () {
-                                                            request.connection.release();
+                                                        responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                                                            connection.release();
                                                             request = null;
                                                             response = null;
                                                         });
                                                     }
                                                     else {
-                                                        response_error_result(request, response, '404-4', function () {
+                                                        response_error_result(request, response, '404-4', () => {
+                                                            connection.release();
                                                             request = null;
                                                             response = null;
                                                         });
@@ -2338,15 +2336,16 @@ app.put(onem2mParser, function (request, response) {
                                             }
                                         }
                                         else if (code === '301-1') {
-                                            check_csr(request, response, function (code) {
+                                            check_csr(request, response, (code) => {
                                                 if (code === '301-2') {
+                                                    connection.release();
                                                     response.status(response.statusCode).end(response.body);
                                                     request = null;
                                                     response = null;
                                                 }
                                                 else {
-                                                    responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], function () {
-                                                        request.connection.release();
+                                                    responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                                                        connection.release();
                                                         request = null;
                                                         response = null;
                                                     });
@@ -2354,8 +2353,8 @@ app.put(onem2mParser, function (request, response) {
                                             });
                                         }
                                         else {
-                                            responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], function () {
-                                                request.connection.release();
+                                            responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                                                connection.release();
                                                 request = null;
                                                 response = null;
                                             });
@@ -2363,8 +2362,8 @@ app.put(onem2mParser, function (request, response) {
                                     });
                                 }
                                 else {
-                                    responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], function () {
-                                        request.connection.release();
+                                    responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                                        connection.release();
                                         request = null;
                                         response = null;
                                     });
@@ -2372,15 +2371,16 @@ app.put(onem2mParser, function (request, response) {
                             });
                         }
                         else {
-                            response_error_result(request, response, '400-40', function () {
+                            response_error_result(request, response, '400-40', () => {
+                                connection.release();
                                 request = null;
                                 response = null;
                             });
                         }
                     }
                     else {
-                        responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], function () {
-                            request.connection.release();
+                        responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                            connection.release();
                             request = null;
                             response = null;
                         });
@@ -2388,7 +2388,7 @@ app.put(onem2mParser, function (request, response) {
                 });
             }
             else {
-                responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], function () {
+                responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
                     request = null;
                     response = null;
                 });
@@ -2397,48 +2397,48 @@ app.put(onem2mParser, function (request, response) {
     });
 });
 
-app.delete(onem2mParser, function (request, response) {
+app.delete(onem2mParser, (request, response) => {
     var fullBody = '';
-    request.on('data', function (chunk) {
+    request.on('data', (chunk) => {
         fullBody += chunk.toString();
     });
 
-    request.on('end', function () {
+    request.on('end', () => {
         request.body = fullBody;
 
-        db.getConnection(function (code, connection) {
+        db.getConnection((code, connection) => {
             if (code === '200') {
-                request.connection = connection;
+                request.db_connection = connection;
 
                 if (!request.headers.hasOwnProperty('binding')) {
                     request.headers['binding'] = 'H';
                 }
 
-                db_sql.set_hit(request.connection, request.headers['binding'], function (err, results) {
+                db_sql.set_hit(request.db_connection, request.headers['binding'], (err, results) => {
                     results = null;
                 });
 
-                check_xm2m_headers(request, function (code) {
+                check_xm2m_headers(request, (code) => {
                     if (code === '200') {
-                        get_target_url(request, response, function (code) {
+                        get_target_url(request, response, (code) => {
                             if (code === '200') {
                                 if (request.option !== '/fopt') {
-                                    check_type_delete_resource(request, function (code) {
+                                    check_type_delete_resource(request, (code) => {
                                         if (code === '200') {
                                             var rootnm = Object.keys(request.targetObject)[0];
                                             request.url = request.targetObject[rootnm].ri;
                                             if ((request.query.fu == 2) && (request.query.rcn == 0 || request.query.rcn == 1)) {
-                                                lookup_delete(request, response, function (code) {
+                                                lookup_delete(request, response, (code) => {
                                                     if (code === '200') {
-                                                        responder.response_result(request, response, '200', '2002', '', function () {
-                                                            request.connection.release();
+                                                        responder.response_result(request, response, '200', '2002', '', () => {
+                                                            connection.release();
                                                             request = null;
                                                             response = null;
                                                         });
                                                     }
                                                     else {
-                                                        responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], function () {
-                                                            request.connection.release();
+                                                        responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                                                            connection.release();
                                                             request = null;
                                                             response = null;
                                                         });
@@ -2446,15 +2446,16 @@ app.delete(onem2mParser, function (request, response) {
                                                 });
                                             }
                                             else {
-                                                response_error_result(request, response, '400-46', function () {
+                                                response_error_result(request, response, '400-46', () => {
+                                                    connection.release();
                                                     request = null;
                                                     response = null;
                                                 });
                                             }
                                         }
                                         else {
-                                            responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], function () {
-                                                request.connection.release();
+                                            responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                                                connection.release();
                                                 request = null;
                                                 response = null;
                                             });
@@ -2462,23 +2463,23 @@ app.delete(onem2mParser, function (request, response) {
                                     });
                                 }
                                 else { // if (request.option === '/fopt') {
-                                    check_grp(request, response, function (rsc, result_grp) { // check access right for fanoutpoint
+                                    check_grp(request, response, (rsc, result_grp) => { // check access right for fanoutpoint
                                         if (rsc == '1') {
                                             var access_value = '8';
                                             var body_Obj = {};
-                                            security.check(request, response, request.targetObject[Object.keys(request.targetObject)[0]].ty, result_grp.macp, access_value, result_grp.cr, function (code) {
+                                            security.check(request, response, request.targetObject[Object.keys(request.targetObject)[0]].ty, result_grp.macp, access_value, result_grp.cr, (code) => {
                                                 if (code === '1') {
-                                                    fopt.check(request, response, result_grp, body_Obj, function (code) {
+                                                    fopt.check(request, response, result_grp, body_Obj, (code) => {
                                                         if (code === '200') {
-                                                            responder.search_result(request, response, '200', '2000', '', function () {
-                                                                request.connection.release();
+                                                            responder.search_result(request, response, '200', '2000', '', () => {
+                                                                connection.release();
                                                                 request = null;
                                                                 response = null;
                                                             });
                                                         }
                                                         else {
-                                                            responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], function () {
-                                                                request.connection.release();
+                                                            responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                                                                connection.release();
                                                                 request = null;
                                                                 response = null;
                                                             });
@@ -2486,14 +2487,15 @@ app.delete(onem2mParser, function (request, response) {
                                                     });
                                                 }
                                                 else if (code === '0') {
-                                                    response_error_result(request, response, '403-5', function () {
+                                                    response_error_result(request, response, '403-5', () => {
+                                                        connection.release();
                                                         request = null;
                                                         response = null;
                                                     });
                                                 }
                                                 else {
-                                                    responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], function () {
-                                                        request.connection.release();
+                                                    responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                                                        connection.release();
                                                         request = null;
                                                         response = null;
                                                     });
@@ -2502,14 +2504,15 @@ app.delete(onem2mParser, function (request, response) {
                                         }
                                         else if (rsc == '2') {
                                             code = '403-6';
-                                            responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], function () {
-                                                request.connection.release();
+                                            responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                                                connection.release();
                                                 request = null;
                                                 response = null;
                                             });
                                         }
                                         else {
-                                            response_error_result(request, response, '404-4', function () {
+                                            response_error_result(request, response, '404-4', () => {
+                                                connection.release();
                                                 request = null;
                                                 response = null;
                                             });
@@ -2518,15 +2521,16 @@ app.delete(onem2mParser, function (request, response) {
                                 }
                             }
                             else if (code === '301-1') {
-                                check_csr(request, response, function (code) {
+                                check_csr(request, response, (code) => {
                                     if (code === '301-2') {
+                                        connection.release();
                                         response.status(response.statusCode).end(response.body);
                                         request = null;
                                         response = null;
                                     }
                                     else {
-                                        responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], function () {
-                                            request.connection.release();
+                                        responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                                            connection.release();
                                             request = null;
                                             response = null;
                                         });
@@ -2534,8 +2538,8 @@ app.delete(onem2mParser, function (request, response) {
                                 });
                             }
                             else {
-                                responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], function () {
-                                    request.connection.release();
+                                responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                                    connection.release();
                                     request = null;
                                     response = null;
                                 });
@@ -2543,8 +2547,8 @@ app.delete(onem2mParser, function (request, response) {
                         });
                     }
                     else {
-                        responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], function () {
-                            request.connection.release();
+                        responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                            connection.release();
                             request = null;
                             response = null;
                         });
@@ -2552,7 +2556,7 @@ app.delete(onem2mParser, function (request, response) {
                 });
             }
             else {
-                responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], function () {
+                responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
                     request = null;
                     response = null;
                 });
@@ -2583,7 +2587,7 @@ function check_notification(request, response, callback) {
 function check_ae_notify(request, response, callback) {
     var ri = request.targetObject[Object.keys(request.targetObject)[0]].ri;
     console.log('[check_ae_notify] : ' + ri);
-    db_sql.select_ae(ri, function (err, result_ae) {
+    db_sql.select_ae(ri, (err, result_ae) => {
         if (!err) {
             if (result_ae.length == 1) {
                 var point = {};
@@ -2592,7 +2596,7 @@ function check_ae_notify(request, response, callback) {
                     var poa = url.parse(poa_arr[i]);
                     if (poa.protocol == 'http:') {
                         console.log('send notification to ' + poa_arr[i]);
-                        notify_http(poa.hostname, poa.port, poa.path, request.method, request.headers, request.body, function (code, res) {
+                        notify_http(poa.hostname, poa.port, poa.path, request.method, request.headers, request.body, (code, res) => {
                             callback(code, res)
                         });
                     }
@@ -2625,7 +2629,7 @@ function check_ae_notify(request, response, callback) {
 function check_csr(request, response, callback) {
     var ri = util.format('/%s/%s', usecsebase, url.parse(request.absolute_url).pathname.split('/')[1]);
     console.log('[check_csr] : ' + ri);
-    db_sql.select_csr(request.connection, ri, function (err, result_csr) {
+    db_sql.select_csr(request.db_connection, ri, (err, result_csr) => {
         if (!err) {
             if (result_csr.length == 1) {
                 var point = {};
@@ -2639,7 +2643,7 @@ function check_csr(request, response, callback) {
 
                         console.log('csebase forwarding to ' + point.forwardcbname);
 
-                        forward_http(point.forwardcbhost, point.forwardcbport, request.url, request.method, request.headers, request.body, function (code, _res) {
+                        forward_http(point.forwardcbhost, point.forwardcbport, request.url, request.method, request.headers, request.body, (code, _res) => {
                             if (code === '200') {
                                 var res = JSON.parse(JSON.stringify(_res));
                                 _res = null;
@@ -2709,13 +2713,13 @@ function notify_http(hostname, port, path, method, headers, bodyString, callback
         headers: headers
     };
 
-    var req = http.request(options, function (res) {
+    var req = http.request(options, (res) => {
         var fullBody = '';
-        res.on('data', function (chunk) {
+        res.on('data', (chunk) => {
             fullBody += chunk.toString();
         });
 
-        res.on('end', function () {
+        res.on('end', () => {
             console.log('--------------------------------------------------------------------------');
             console.log(fullBody);
             console.log('[notify_http response : ' + res.statusCode + ']');
@@ -2724,7 +2728,7 @@ function notify_http(hostname, port, path, method, headers, bodyString, callback
         });
     });
 
-    req.on('error', function (e) {
+    req.on('error', (e) => {
         console.log('[forward_http] problem with request: ' + e.message);
 
         callback('404-7');
@@ -2752,14 +2756,14 @@ function forward_http(forwardcbhost, forwardcbport, f_url, f_method, f_headers, 
         headers: f_headers
     };
 
-    var req = http.request(options, function (res) {
+    var req = http.request(options, (res) => {
         var fullBody = '';
 
-        res.on('data', function (chunk) {
+        res.on('data', (chunk) => {
             fullBody += chunk.toString();
         });
 
-        res.on('end', function () {
+        res.on('end', () => {
             res.body = fullBody;
 
             console.log('--------------------------------------------------------------------------');
@@ -2772,7 +2776,7 @@ function forward_http(forwardcbhost, forwardcbport, f_url, f_method, f_headers, 
         });
     });
 
-    req.on('error', function (e) {
+    req.on('error', (e) => {
         console.log('[forward_http] problem with request: ' + e.message);
 
         callback('404-3');
@@ -2809,7 +2813,7 @@ function scheduleGc() {
     // tweak this based on your app's memory usage
     var nextMinutes = Math.random() * 30 + 15;
 
-    setTimeout(function () {
+    setTimeout(() => {
         global.gc();
         console.log('Manual gc', process.memoryUsage());
         scheduleGc();

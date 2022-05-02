@@ -131,7 +131,7 @@ function fopt_member(request, response, req_count, mid, body_Obj, cse_poa, agr, 
     else {
         var ri_prefix = request.url.split('/fopt')[1];
         var ri = mid[req_count];
-        db_sql.get_ri_sri(request.connection, ri, function (err, results) {
+        db_sql.get_ri_sri(request.db_connection, ri, function (err, results) {
             if(!err) {
                 ri = ((results.length == 0) ? ri : results[0].ri);
                 var target_cb = ri.split('/')[1];
@@ -185,7 +185,7 @@ function fopt_member(request, response, req_count, mid, body_Obj, cse_poa, agr, 
 exports.check = function(request, response, grp, body_Obj, callback) {
     request.headers.rootnm = 'agr';
     var cse_poa = {};
-    update_route(request.connection, cse_poa, function (code) {
+    update_route(request.db_connection, cse_poa, function (code) {
         if(code === '200') {
             var ri_list = [];
             get_ri_list_sri(request, response, grp.mid, ri_list, 0, function (code) {

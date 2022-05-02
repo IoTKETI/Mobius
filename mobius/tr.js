@@ -385,7 +385,7 @@ exports.check = function(request, callback) {
     var pi = request.targetObject[Object.keys(request.targetObject)[0]].ri;
 
     var state = tst_v.COMMITTED;
-    db_sql.select_tr(request.connection, pi, function (err, results_tr) {
+    db_sql.select_tr(request.db_connection, pi, function (err, results_tr) {
         if (!err) {
             for (var i = 0; i < results_tr.length; i++) {
                 if(request.query.tid == results_tr[i].tid) {

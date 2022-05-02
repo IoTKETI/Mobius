@@ -80,7 +80,7 @@ function check_member(request, response, req_count, cse_poa, callback) {
             absolute_ri = ri.replace(/\/\/[^\/]+\/?/, '\/');
             absolute_ri = absolute_ri.replace(/\/[^\/]+\/?/, '/');
         }
-        db_sql.get_ri_sri(request.connection, absolute_ri, function (err, results) {
+        db_sql.get_ri_sri(request.db_connection, absolute_ri, function (err, results) {
             ri = ((results.length == 0) ? ri : results[0].ri);
             var target_cb = ri.split('/')[1];
             if (target_cb != usecsebase) {
@@ -156,7 +156,7 @@ function check_member(request, response, req_count, cse_poa, callback) {
 
 function check_mtv(request, response, resource_Obj, callback) {
     var cse_poa = {};
-    update_route(request.connection, cse_poa, function (code) {
+    update_route(request.db_connection, cse_poa, function (code) {
         if(code === '200') {
             var req_count = 0;
             var rootnm = Object.keys(resource_Obj)[0];

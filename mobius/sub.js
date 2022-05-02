@@ -44,7 +44,7 @@ function verify_nu(request, response, body_Obj, req_count, callback) {
 
         var absolute_url_arr = absolute_url.split('/');
 
-        db_sql.get_ri_sri(request.connection, absolute_url_arr[1].split('?')[0], function (err, results) {
+        db_sql.get_ri_sri(request.db_connection, absolute_url_arr[1].split('?')[0], function (err, results) {
             if (err) {
                 callback('500-2');
             }
@@ -52,7 +52,7 @@ function verify_nu(request, response, body_Obj, req_count, callback) {
                 absolute_url = (results.length == 0) ? absolute_url : ((results[0].hasOwnProperty('ri')) ? absolute_url.replace('/' + absolute_url_arr[1], results[0].ri) : absolute_url);
 
                 results = null;
-                db_sql.select_ri_lookup(request.connection, absolute_url, function (err, results_ri) {
+                db_sql.select_ri_lookup(request.db_connection, absolute_url, function (err, results_ri) {
                     if (results_ri.length == 0) {
                         callback('500-2');
                         return;

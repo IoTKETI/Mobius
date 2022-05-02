@@ -458,7 +458,7 @@ exports.check = function(request, notiObj, check_value, callback) {
     var subl = request.targetObject[Object.keys(request.targetObject)[0]].subl;
 
     if(check_value == 256 || check_value == 128) { // verification
-        sgn_action(request.connection, rootnm, check_value, subl, 0, noti_Obj, request.usebodytype, parentObj, function (code) {
+        sgn_action(request.db_connection, rootnm, check_value, subl, 0, noti_Obj, request.usebodytype, parentObj, function (code) {
             callback(code);
         });
     }
@@ -469,7 +469,7 @@ exports.check = function(request, notiObj, check_value, callback) {
         noti_Obj.pi = noti_Obj.spi;
         delete noti_Obj.spi;
 
-        sgn_action(request.connection, rootnm, check_value, subl, 0, noti_Obj, request.usebodytype, parentObj, function (code) {
+        sgn_action(request.db_connection, rootnm, check_value, subl, 0, noti_Obj, request.usebodytype, parentObj, function (code) {
             callback(code);
         });
     }
