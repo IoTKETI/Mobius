@@ -59,14 +59,14 @@ exports.connect = function (host, port, user, password, callback) {
 //     });
 // }
 
-// function executeQuery(pool, query, connection, callback) {
-//     connection.query({sql:query, timeout:60000}, function (err, rows, fields) {
-//         if (err) {
-//             return callback(err, null);
-//         }
-//         return callback(null, rows);
-//     });
-// }
+function executeQuery(pool, query, connection, callback) {
+    connection.query({sql:query, timeout:60000}, function (err, rows, fields) {
+        if (err) {
+            return callback(err, null);
+        }
+        return callback(null, rows);
+    });
+}
 
 exports.getConnection = function(callback) {
     if(mysql_pool == null) {
@@ -96,11 +96,13 @@ exports.getResult = function(query, connection, callback) {
         return '0';
     }
 
-    connection.query({sql:query, timeout:60000}, (err, rows) => {
-        if (err) {
-            callback(err, null);
+    executeQuery(mysql_pool, query, connection, (err, rows) => {
+        if (!err) {
+            callback(null, rows);
         }
-        callback(null, rows);
+        else {
+            callback(true, err);
+        }
     });
 };
 

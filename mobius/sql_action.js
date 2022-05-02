@@ -255,7 +255,7 @@ exports.insert_cnt = function(connection, obj, callback) {
             });
         }
         else {
-            console.timeEnd('insert_cnt ' + obj.ri);
+            console.timeEnd('insert_cnt ' + obj.ri, ' - ', results);
             callback(err, results);
         }
     });

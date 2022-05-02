@@ -87,24 +87,36 @@ var db_sql = require('./sql_action');
 
 exports.put = function(connection, bodyString) {
     var resource_Obj = JSON.parse(bodyString);
-    setTimeout(updateAction, 0, connection, resource_Obj);
-    delete resource_Obj;
+    setTimeout((connection, resource_Obj) => {
+        var rootnm = Object.keys(resource_Obj)[0];
+        db_sql.get_cni_count(connection, resource_Obj[rootnm], (cni, cbs, st) => {
+            var resBody = {};
+            resBody[resource_Obj[rootnm].ri] = {
+                cni: cni,
+                cbs: cbs,
+                st: st
+            };
+            console.log(resBody);
+            resource_Obj = null;
+            resBody = null;
+        });
+    }, 0, connection, resource_Obj);
 };
-
-function updateAction(connection, resource_Obj) {
-    var rootnm = Object.keys(resource_Obj)[0];
-    db_sql.get_cni_count(connection, resource_Obj[rootnm], function (cni, cbs, st) {
-        var resBody = {};
-        resBody[resource_Obj[rootnm].ri] = {
-            cni: cni,
-            cbs: cbs,
-            st: st
-        };
-        console.log(resBody);
-        delete resource_Obj;
-        resource_Obj = null;
-        delete resBody;
-        resBody = null;
-    });
-
-}
+//
+// function updateAction(connection, resource_Obj) {
+//     var rootnm = Object.keys(resource_Obj)[0];
+//     db_sql.get_cni_count(connection, resource_Obj[rootnm], function (cni, cbs, st) {
+//         var resBody = {};
+//         resBody[resource_Obj[rootnm].ri] = {
+//             cni: cni,
+//             cbs: cbs,
+//             st: st
+//         };
+//         console.log(resBody);
+//         delete resource_Obj;
+//         resource_Obj = null;
+//         delete resBody;
+//         resBody = null;
+//     });
+//
+// }
