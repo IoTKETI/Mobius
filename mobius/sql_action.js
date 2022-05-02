@@ -207,7 +207,7 @@ exports.insert_acp = function(connection, obj, callback) {
 
 exports.insert_ae = function(connection, obj, callback) {
     console.time('insert_ae ' + obj.ri);
-    _this.insert_lookup(connection, obj, function (err, results) {
+    _this.insert_lookup(connection, obj, (err, results) => {
         if(!err) {
             var sql = util.format('insert into ae (ri, apn, api, aei, poa, ae.or, nl, rr, csz, srv) ' +
                 'value (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
@@ -227,7 +227,7 @@ exports.insert_ae = function(connection, obj, callback) {
             });
         }
         else {
-            console.timeEnd('insert_ae ' + obj.ri);
+            console.timeEnd('insert_ae ' + obj.ri, ' - ', results);
             callback(err, results);
         }
     });
