@@ -28,7 +28,7 @@ exports.build_cin = function(request, response, resource_Obj, body_Obj, callback
     var rootnm = request.headers.rootnm;
 
     // body
-    if(body_Obj[rootnm].con['$'] != null) {
+    if(body_Obj[rootnm].con.hasOwnProperty('$')) {
         resource_Obj[rootnm].con = body_Obj[rootnm].con['_'];
     }
     else {
