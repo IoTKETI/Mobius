@@ -1384,7 +1384,7 @@ function presearch_action(request, response, pi_list, found_parent_list, callbac
 
     console.time('search_parents_lookup ' + resource_Obj[rootnm].ri);
     var cur_found_parent_list = [];
-    db_sql.search_parents_lookup(request.db_connection, pi_list, cur_found_parent_list, found_parent_list, function (code) {
+    db_sql.search_parents_lookup(request.db_connection, pi_list, cur_found_parent_list, found_parent_list, (code) => {
         console.timeEnd('search_parents_lookup ' + resource_Obj[rootnm].ri);
         if(code === '200') {
             request.query.cni = '0';

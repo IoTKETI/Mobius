@@ -1292,10 +1292,11 @@ function search_parents_lookup_action(connection, pi_list, count, cur_result_ri,
     }
 
     var sql = util.format("select ri, ty from lookup where pi = \'" + pi_list[count] + "\' and ty <> \'1\' and ty <> \'9\' and ty <> \'23\' and ty <> \'4\' and ty <> \'30\' and ty <> \'17\' limit 2000");
+    //console.log('search_parents_lookup_action', sql);
     db.getResult(sql, connection, function (err, result_lookup_ri) {
         if(!err) {
             if(result_lookup_ri.length === 0) {
-                search_parents_lookup_action(connection, pi_list, ++count, cur_result_ri, result_ri, function (code) {
+                search_parents_lookup_action(connection, pi_list, ++count, cur_result_ri, result_ri, (code) => {
                     callback(code);
                 });
             }
@@ -1314,7 +1315,7 @@ function search_parents_lookup_action(connection, pi_list, count, cur_result_ri,
                     callback('200');
                 }
                 else {
-                    search_parents_lookup_action(connection, pi_list, ++count, cur_result_ri, result_ri, function (code) {
+                    search_parents_lookup_action(connection, pi_list, ++count, cur_result_ri, result_ri, (code) => {
                         callback(code);
                     });
                 }
@@ -1328,7 +1329,7 @@ function search_parents_lookup_action(connection, pi_list, count, cur_result_ri,
 
 exports.search_parents_lookup = function(connection, pi_list, cur_result_ri, result_ri, callback) {
     cur_result_ri = [];
-    search_parents_lookup_action(connection, pi_list, 0, cur_result_ri, result_ri, function (code) {
+    search_parents_lookup_action(connection, pi_list, 0, cur_result_ri, result_ri, (code) => {
         if(code === '200') {
             if (cur_result_ri.length === 0) {
                 callback(code);

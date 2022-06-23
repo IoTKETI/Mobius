@@ -51,6 +51,8 @@ var db_sql = require('./mobius/sql_action');
 // ������ �����մϴ�.
 var app = express();
 
+global.cache_resource_url = {};
+
 app.use(cors());
 
 global.usespid = '//keti.re.kr';
@@ -1169,21 +1171,35 @@ function lookup_delete(request, response, callback) {
     });
 }
 
+function check_resource_from_url(connection, ri, sri, callback) {
+    if(cache_resource_url.hasOwnProperty(ri)) {
+        callback(cache_resource_url[ri], 200);
+    }
+    else {
+        db_sql.select_resource_from_url(connection, ri, sri, (err, results) => {
+            if (err) {
+                callback(null, 500);
+            }
+            else {
+                if (results.length === 0) {
+                    callback(null, 404);
+                }
+                else {
+                    cache_resource_url[ri] = JSON.parse(JSON.stringify(results[0]));
+                    callback(results[0], 200);
+                }
+            }
+        });
+    }
+}
+
 function get_resource_from_url(connection, ri, sri, option, callback) {
     var targetObject = {};
-    db_sql.select_resource_from_url(connection, ri, sri, (err, results) => {
-        if (err) {
-            callback(null, 500);
-            return '0';
-        }
-        else {
-            if (results.length == 0) {
-                callback(null, 404);
-                return '0';
-            }
 
-            var ty = results[0].ty;
-            targetObject[responder.typeRsrc[ty]] = results[0];
+    check_resource_from_url(connection, ri, sri, (result, code) => {
+        if(code === 200) {
+            var ty = result.ty;
+            targetObject[responder.typeRsrc[ty]] = result;
             var rootnm = Object.keys(targetObject)[0];
             makeObject(targetObject[rootnm]);
 
@@ -1238,6 +1254,9 @@ function get_resource_from_url(connection, ri, sri, option, callback) {
             else {
                 callback(targetObject, 200);
             }
+        }
+        else {
+            callback(result, code);
         }
     });
 }
@@ -2430,6 +2449,10 @@ app.delete(onem2mParser, (request, response) => {
                                             if ((request.query.fu == 2) && (request.query.rcn == 0 || request.query.rcn == 1)) {
                                                 lookup_delete(request, response, (code) => {
                                                     if (code === '200') {
+                                                        if(cache_resource_url.hasOwnProperty(request.url)) {
+                                                            delete cache_resource_url[request.url];
+                                                        }
+
                                                         responder.response_result(request, response, '200', '2002', '', () => {
                                                             connection.release();
                                                             request = null;
