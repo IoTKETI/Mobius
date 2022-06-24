@@ -1204,28 +1204,41 @@ function get_resource_from_url(connection, ri, sri, option, callback) {
             makeObject(targetObject[rootnm]);
 
             if (option == '/latest') {
-                var la_id = 'select_latest_resource ' + targetObject[rootnm].ri + ' - ' + require('shortid').generate();
-                console.time(la_id);
-                var latestObj = [];
-                db_sql.select_latest_resource(connection, targetObject[rootnm], 0, latestObj, (code) => {
-                    console.timeEnd(la_id);
-                    if (code === '200') {
-                        if (latestObj.length == 1) {
-                            targetObject = {};
-                            targetObject[responder.typeRsrc[latestObj[0].ty]] = latestObj[0];
-                            makeObject(targetObject[Object.keys(targetObject)[0]]);
-                            callback(targetObject);
+                if(cache_resource_url.hasOwnProperty(ri + '/la')) {
+
+                    ty = cache_resource_url[ri + '/la'].ty;
+                    targetObject[responder.typeRsrc[ty]] = cache_resource_url[ri + '/la'];
+                    rootnm = Object.keys(targetObject)[0];
+                    makeObject(targetObject[rootnm]);
+
+                    callback(targetObject, 200);
+                }
+                else {
+                    var la_id = 'select_latest_resource ' + targetObject[rootnm].ri + ' - ' + require('shortid').generate();
+                    console.time(la_id);
+                    var latestObj = [];
+                    db_sql.select_latest_resource(connection, targetObject[rootnm], 0, latestObj, (code) => {
+                        console.timeEnd(la_id);
+                        if (code === '200') {
+                            if (latestObj.length == 1) {
+                                cache_resource_url[latestObj[0].pi + '/la'] = latestObj[0];
+
+                                targetObject = {};
+                                targetObject[responder.typeRsrc[latestObj[0].ty]] = latestObj[0];
+                                makeObject(targetObject[Object.keys(targetObject)[0]]);
+                                callback(targetObject);
+                            }
+                            else {
+                                callback(null, 404);
+                                return '0';
+                            }
                         }
                         else {
-                            callback(null, 404);
+                            callback(null, 500);
                             return '0';
                         }
-                    }
-                    else {
-                        callback(null, 500);
-                        return '0';
-                    }
-                });
+                    });
+                }
             }
             else if (option == '/oldest') {
                 var oldestObj = [];
@@ -2446,11 +2459,20 @@ app.delete(onem2mParser, (request, response) => {
                                         if (code === '200') {
                                             var rootnm = Object.keys(request.targetObject)[0];
                                             request.url = request.targetObject[rootnm].ri;
+                                            request.pi = request.targetObject[rootnm].pi;
                                             if ((request.query.fu == 2) && (request.query.rcn == 0 || request.query.rcn == 1)) {
                                                 lookup_delete(request, response, (code) => {
                                                     if (code === '200') {
                                                         if(cache_resource_url.hasOwnProperty(request.url)) {
                                                             delete cache_resource_url[request.url];
+                                                        }
+
+                                                        if(cache_resource_url.hasOwnProperty(request.url + '/la')) {
+                                                            delete cache_resource_url[request.url + '/la'];
+                                                        }
+
+                                                        if(cache_resource_url.hasOwnProperty(request.pi + '/la')) {
+                                                            delete cache_resource_url[request.pi + '/la'];
                                                         }
 
                                                         responder.response_result(request, response, '200', '2002', '', () => {

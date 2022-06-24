@@ -528,12 +528,14 @@ function create_action(request, response, callback) {
         // db_sql.update_st(request.db_connection, request.targetObject[parent_rootnm], function() {
         // });
 
-        db_sql.insert_cin(request.db_connection, resource_Obj[rootnm], function (err, results) {
+        db_sql.insert_cin(request.db_connection, resource_Obj[rootnm], (err, results) => {
             if (!err) {
                 var targetObject = JSON.parse(JSON.stringify(request.targetObject));
                 var cs = parseInt(resource_Obj[rootnm].cs);
 
-                db_sql.update_parent_by_insert(request.db_connection, targetObject[parent_rootnm], cs, function () {
+                cache_resource_url[resource_Obj[rootnm].pi + '/la'] = resource_Obj[rootnm];
+
+                db_sql.update_parent_by_insert(request.db_connection, targetObject[parent_rootnm], cs, () => {
                     //request_update_cnt(JSON.stringify(targetObject), cs);
 
                     cnt_man.put(request.db_connection, JSON.stringify(targetObject));
