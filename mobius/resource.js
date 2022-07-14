@@ -1554,7 +1554,10 @@ global.makeObject = function (obj) {
                     if (attr == 'aa' || attr == 'at' || attr == 'lbl' || attr == 'srt' || attr == 'nu' || attr == 'acpi' || attr == 'poa' || attr == 'enc'
                         || attr == 'bn' || attr == 'pv' || attr == 'pvs' || attr == 'mid' || attr == 'uds' || attr == 'cas' || attr == 'macp'
                         || attr == 'rels' || attr == 'rqps' || attr == 'rsps' || attr == 'srv' || attr == 'mi' || attr == 'subl') {
-                        obj[attr] = JSON.parse(obj[attr]);
+                        var obj_type = getType(obj[attr]);
+                        if (obj_type === 'string_object') {
+                            obj[attr] = JSON.parse(obj[attr]);
+                        }
                     }
                     else if (attr == 'trqp') {
                         var trqp_type = getType(obj.trqp);
