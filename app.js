@@ -1018,6 +1018,10 @@ function lookup_retrieve(request, response, callback) {
         if (code === '200') {
             var resultObj = request.targetObject[Object.keys(request.targetObject)[0]];
 
+            if(!resultObj.hasOwnProperty('acpi')) {
+                resultObj.acpi = [];
+            }
+
             tr.check(request, (code) => {
                 if (code === '200') {
                     if (resultObj.ty == 2) {
@@ -1207,9 +1211,12 @@ function get_resource_from_url(connection, ri, sri, option, callback) {
                 if(cache_resource_url.hasOwnProperty(ri + '/la')) {
 
                     ty = cache_resource_url[ri + '/la'].ty;
-                    targetObject[responder.typeRsrc[ty]] = cache_resource_url[ri + '/la'];
+                    targetObject = {};
+                    targetObject[responder.typeRsrc[ty]] = JSON.parse(JSON.stringify(cache_resource_url[ri + '/la']));
                     rootnm = Object.keys(targetObject)[0];
                     makeObject(targetObject[rootnm]);
+
+                    console.log(targetObject);
 
                     callback(targetObject, 200);
                 }
@@ -1221,11 +1228,21 @@ function get_resource_from_url(connection, ri, sri, option, callback) {
                         console.timeEnd(la_id);
                         if (code === '200') {
                             if (latestObj.length == 1) {
-                                cache_resource_url[latestObj[0].pi + '/la'] = latestObj[0];
+
+                                console.log(latestObj);
+
+                                let strLatestObj = JSON.stringify(latestObj[0]).replace('RowDataPacket ', '');
+
+                                latestObj[0] = JSON.parse(strLatestObj);
+                                console.log(latestObj);
 
                                 targetObject = {};
                                 targetObject[responder.typeRsrc[latestObj[0].ty]] = latestObj[0];
                                 makeObject(targetObject[Object.keys(targetObject)[0]]);
+
+                                cache_resource_url[latestObj[0].pi + '/la'] = targetObject[Object.keys(targetObject)[0]];
+                                console.log(cache_resource_url);
+
                                 callback(targetObject);
                             }
                             else {
