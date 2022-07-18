@@ -1208,19 +1208,19 @@ function get_resource_from_url(connection, ri, sri, option, callback) {
             makeObject(targetObject[rootnm]);
 
             if (option == '/latest') {
-                if(cache_resource_url.hasOwnProperty(ri + '/la')) {
-
-                    ty = cache_resource_url[ri + '/la'].ty;
-                    targetObject = {};
-                    targetObject[responder.typeRsrc[ty]] = JSON.parse(JSON.stringify(cache_resource_url[ri + '/la']));
-                    rootnm = Object.keys(targetObject)[0];
-                    makeObject(targetObject[rootnm]);
-
-                    console.log(targetObject);
-
-                    callback(targetObject, 200);
-                }
-                else {
+                // if(cache_resource_url.hasOwnProperty(ri + '/la')) {
+                //
+                //     ty = cache_resource_url[ri + '/la'].ty;
+                //     targetObject = {};
+                //     targetObject[responder.typeRsrc[ty]] = JSON.parse(JSON.stringify(cache_resource_url[ri + '/la']));
+                //     rootnm = Object.keys(targetObject)[0];
+                //     makeObject(targetObject[rootnm]);
+                //
+                //     console.log(targetObject);
+                //
+                //     callback(targetObject, 200);
+                // }
+                // else {
                     var la_id = 'select_latest_resource ' + targetObject[rootnm].ri + ' - ' + require('shortid').generate();
                     console.time(la_id);
                     var latestObj = [];
@@ -1255,7 +1255,7 @@ function get_resource_from_url(connection, ri, sri, option, callback) {
                             return '0';
                         }
                     });
-                }
+                // }
             }
             else if (option == '/oldest') {
                 var oldestObj = [];
