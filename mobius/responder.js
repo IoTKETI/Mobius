@@ -1723,7 +1723,7 @@ exports.response_result = function(request, response, status, rsc, cap, callback
                 };
                 rspObj.ri = request.method + "-" + request.url + "-" + JSON.stringify(request.query);
 
-                console.log(JSON.stringify(rspObj));
+                //console.log(JSON.stringify(rspObj));
 
                 body_Obj = null;
                 rspObj = null;

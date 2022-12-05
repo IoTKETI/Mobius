@@ -1240,8 +1240,8 @@ function get_resource_from_url(connection, ri, sri, option, callback) {
                                 targetObject[responder.typeRsrc[latestObj[0].ty]] = latestObj[0];
                                 makeObject(targetObject[Object.keys(targetObject)[0]]);
 
-                                cache_resource_url[latestObj[0].pi + '/la'] = targetObject[Object.keys(targetObject)[0]];
-                                console.log(cache_resource_url);
+                                //cache_resource_url[latestObj[0].pi + '/la'] = targetObject[Object.keys(targetObject)[0]];
+                                //console.log(cache_resource_url);
 
                                 callback(targetObject);
                             }
@@ -1783,15 +1783,21 @@ app.post(onem2mParser, (request, response) => {
 
         db.getConnection((code, connection) => {
             if (code === '200') {
-                request.db_connection = connection;
-
                 if (!request.headers.hasOwnProperty('binding')) {
                     request.headers['binding'] = 'H';
                 }
 
                 db_sql.set_hit(connection, request.headers['binding'], (err, results) => {
                     results = null;
+
+                    connection.release();
                 });
+            }
+        });
+
+        db.getConnection((code, connection) => {
+            if (code === '200') {
+                request.db_connection = connection;
 
                 check_xm2m_headers(request, (code) => {
                     if (code === '200') {
