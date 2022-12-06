@@ -2490,13 +2490,11 @@ app.delete(onem2mParser, (request, response) => {
                                                             delete cache_resource_url[request.url];
                                                         }
 
-                                                        if(cache_resource_url.hasOwnProperty(request.url + '/la')) {
-                                                            delete cache_resource_url[request.url + '/la'];
-                                                        }
-
-                                                        if(cache_resource_url.hasOwnProperty(request.pi + '/la')) {
-                                                            delete cache_resource_url[request.pi + '/la'];
-                                                        }
+                                                        Object.keys(cache_resource_url).forEach((_url) => {
+                                                            if(_url.includes(request.url+'/')) {
+                                                                delete cache_resource_url[_url];
+                                                            }
+                                                        });
 
                                                         responder.response_result(request, response, '200', '2002', '', () => {
                                                             connection.release();
