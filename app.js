@@ -838,7 +838,7 @@ var resultStatusCode = {
     '400-54': ['400', '4000', "BAD REQUEST: cdn of flexCotainer is not match with fcnt resource"],
 
     '403-1': ['403', '4107', "OPERATION_NOT_ALLOWED: AE-ID is not allowed"],
-    '403-2': ['403', '5203', "TARGET_NOT_SUBSCRIBABLE: request ty creating can not create under parent resource"],
+    '403-2': ['403', '4108', "TARGET_NOT_SUBSCRIBABLE: request ty creating can not create under parent resource"],
     '403-3': ['403', '4103', "ACCESS DENIED"],
     '403-4': ['403', '4107', "OPERATION_NOT_ALLOWED: APP-ID in AE is not allowed"],
     '403-5': ['403', '4107', "[app.use] ACCESS DENIED (fopt)"],
@@ -874,7 +874,7 @@ var resultStatusCode = {
     '409-3': ['409', '4005', "resource name can not use that is keyword"],
     '409-4': ['409', '4005', "resource requested is not supported"],
     '409-5': ['409', '4105', "resource is already exist"],
-    '409-6': ['409', '4005', "[create_action] aei is duplicated"],
+    '409-6': ['409', '4106', "[create_action] aei is duplicated"],
 
     '423-1': ['423', '4230', "LOCKED: this resource was occupied by others"],
 
@@ -2280,6 +2280,10 @@ app.put(onem2mParser, (request, response) => {
                                                                 if ((request.query.fu == 2) && (request.query.rcn == 0 || request.query.rcn == 1)) {
                                                                     lookup_update(request, response, (code) => {
                                                                         if (code === '200') {
+                                                                            if(cache_resource_url.hasOwnProperty(request.url)) {
+                                                                                delete cache_resource_url[request.url];
+                                                                            }
+
                                                                             responder.response_result(request, response, '200', '2004', '', () => {
                                                                                 connection.release();
                                                                                 request = null;
@@ -2488,6 +2492,10 @@ app.delete(onem2mParser, (request, response) => {
                                                     if (code === '200') {
                                                         if(cache_resource_url.hasOwnProperty(request.url)) {
                                                             delete cache_resource_url[request.url];
+                                                        }
+
+                                                        if(cache_resource_url.hasOwnProperty(request.pi + '/la')) {
+                                                            delete cache_resource_url[request.pi + '/la'];
                                                         }
 
                                                         Object.keys(cache_resource_url).forEach((_url) => {
