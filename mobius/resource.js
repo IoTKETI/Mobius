@@ -525,8 +525,12 @@ function create_action(request, response, callback) {
         var parent_rootnm = Object.keys(request.targetObject)[0];
         resource_Obj[rootnm].st = parseInt(request.targetObject[parent_rootnm].st, 10) + 1;
         request.targetObject[parent_rootnm].st = resource_Obj[rootnm].st;
-        // db_sql.update_st(request.db_connection, request.targetObject[parent_rootnm], function() {
-        // });
+
+        // 20230104 when certi, enable update stateTap
+        // if(useCert == 'enable') {
+        //     db_sql.update_st(request.db_connection, request.targetObject[parent_rootnm], function() {
+        //     });
+        // }
 
         db_sql.insert_cin(request.db_connection, resource_Obj[rootnm], (err, results) => {
             if (!err) {
@@ -541,6 +545,10 @@ function create_action(request, response, callback) {
                     cnt_man.put(request.db_connection, JSON.stringify(targetObject));
                     targetObject = null;
                 });
+
+                if(cache_resource_url.hasOwnProperty(targetObject[parent_rootnm].ri)) {
+                    delete cache_resource_url[targetObject[parent_rootnm].ri];
+                }
 
                 results = null;
                 callback('200');
@@ -875,13 +883,17 @@ function create_action(request, response, callback) {
         });
     }
     else if (ty == '23') {
-        db_sql.insert_sub(request.db_connection, resource_Obj[rootnm], function (err, results) {
+        db_sql.insert_sub(request.db_connection, resource_Obj[rootnm], (err, results) => {
             if (!err) {
                 var parent_rootnm = Object.keys(request.targetObject)[0];
                 var parentObj = request.targetObject;
                 parentObj[parent_rootnm].subl.push(resource_Obj[rootnm]);
 
-                db_sql.update_lookup(request.db_connection, parentObj[parent_rootnm], function (err, results) {
+                if(cache_resource_url.hasOwnProperty(parentObj[parent_rootnm].ri)) {
+                    delete cache_resource_url[parentObj[parent_rootnm].ri];
+                }
+
+                db_sql.update_lookup(request.db_connection, parentObj[parent_rootnm], (err, results) => {
                     if(!err) {
                         callback('200');
                     }
@@ -1298,13 +1310,15 @@ exports.create = function (request, response, callback) {
                 return;
             }
 
-            create_action(request, response, function (code) {
+            create_action(request, response, (code) => {
                 if(code === '200') {
                     _this.remove_no_value(request, request.resourceObj);
 
-                    sgn.check(request, request.resourceObj[rootnm], 3, function (code) {
+                    if(request.ty != 23) {
+                        sgn.check(request, request.resourceObj[rootnm], 3, function (code) {
 
-                    });
+                        });
+                    }
 
                     if (request.query.rt == 3) {
                         response.header('Content-Location', request.resourceObj[rootnm].ri.replace('/', ''));
@@ -2581,6 +2595,10 @@ function delete_action(request, response, callback) {
                                     var parent_rootnm = Object.keys(request.targetObject)[0];
                                     makeObject(request.targetObject[parent_rootnm]);
 
+                                    if(cache_resource_url.hasOwnProperty(request.targetObject[parent_rootnm].ri)) {
+                                        delete cache_resource_url[request.targetObject[parent_rootnm].ri];
+                                    }
+
                                     if (resource_Obj[rootnm].ty == '23') {
                                         if(resource_Obj[rootnm].hasOwnProperty('su')) {
                                             if(resource_Obj[rootnm].su != '') {
@@ -2614,6 +2632,7 @@ function delete_action(request, response, callback) {
                                     else if (resource_Obj[rootnm].ty == '4') {
                                         update_cnt_by_delete(request.db_connection, resource_Obj[rootnm].pi, function (rsc) {
                                         });
+
                                         callback('200');
                                     }
                                     else {

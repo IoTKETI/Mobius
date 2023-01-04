@@ -238,6 +238,9 @@ function sgn_action_send(nu_arr, req_count, sub_bodytype, node, short_flag, chec
         delete node['m2m:sgn'].nev;
     }
     else if(check_value == 256) {
+        if(!node['m2m:sgn'].hasOwnProperty('vrq')) {
+            node['m2m:sgn'].vrq = true;
+        }
         node['m2m:sgn'].vrq = true;
         var temp = node['m2m:sgn'].sur;
         delete node['m2m:sgn'].sur;
@@ -302,6 +305,7 @@ function get_nu_arr(connection, nu_arr, req_count, callback) {
                     if (!err) {
                         if (result_Obj.length == 1) {
                             if (result_Obj[0].poa != null || result_Obj[0].poa != '') {
+                                nu_arr.pop();
                                 var poa_arr = JSON.parse(result_Obj[0].poa);
                                 for (var i = 0; i < poa_arr.length; i++) {
                                     sub_nu = url.parse(poa_arr[i]);
@@ -309,6 +313,9 @@ function get_nu_arr(connection, nu_arr, req_count, callback) {
                                         nu_arr.push('http://localhost:7579' + absolute_url);
                                     }
                                     else {
+                                        if(poa_arr[i].charAt(poa_arr[i].length-1) == '/') {
+                                            poa_arr[i] = poa_arr[i].slice(0, -1);
+                                        }
                                         nu_arr.push(poa_arr[i]);
                                     }
                                 }
@@ -456,6 +463,10 @@ exports.check = function(request, notiObj, check_value, callback) {
 
     var parentObj = JSON.parse(JSON.stringify(request.targetObject))[Object.keys(request.targetObject)[0]];
     var subl = request.targetObject[Object.keys(request.targetObject)[0]].subl;
+
+
+    console.log('###########################################', parentObj.ri, subl);
+
 
     if(check_value == 256 || check_value == 128) { // verification
         sgn_action(request.db_connection, rootnm, check_value, subl, 0, noti_Obj, request.usebodytype, parentObj, function (code) {

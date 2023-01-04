@@ -155,6 +155,8 @@ function security_check_action_pv(request, response, acpiList, cr, access_value,
                                                     for (var acor_idx in pvObj.acr[index].acor) {
                                                         if (pvObj.acr[index].acor.hasOwnProperty(acor_idx)) {
                                                             if (pvObj.acr[index].acor[acor_idx].match(re) || pvObj.acr[index].acor[acor_idx] == 'all' || pvObj.acr[index].acor[acor_idx] == '*') {
+                                                                console.log('%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%', access_value);
+
                                                                 if ((pvObj.acr[index].acop.toString() & access_value) == access_value) {
                                                                     acor_permit = 1;
                                                                     break;
@@ -416,7 +418,7 @@ exports.check = function(request, response, ty, acpiList, access_value, cr, call
                 callback(code);
             });
         }
-        else if(ty == '33' || ty == '23' || ty == '4') { // cnt or sub --> check parents acpi to AE
+        else if(ty == '33' || ty == '23' || ty == '4' || ty == '3') { // cnt or sub --> check parents acpi to AE
             if (acpiList.length == 0) {
                 var targetUri = request.url.split('?')[0];
                 var targetUri_arr = targetUri.split('/');

@@ -838,7 +838,7 @@ var resultStatusCode = {
     '400-54': ['400', '4000', "BAD REQUEST: cdn of flexCotainer is not match with fcnt resource"],
 
     '403-1': ['403', '4107', "OPERATION_NOT_ALLOWED: AE-ID is not allowed"],
-    '403-2': ['403', '4108', "TARGET_NOT_SUBSCRIBABLE: request ty creating can not create under parent resource"],
+    '403-2': ['403', '5203', "TARGET_NOT_SUBSCRIBABLE: request ty creating can not create under parent resource"],
     '403-3': ['403', '4103', "ACCESS DENIED"],
     '403-4': ['403', '4107', "OPERATION_NOT_ALLOWED: APP-ID in AE is not allowed"],
     '403-5': ['403', '4107', "[app.use] ACCESS DENIED (fopt)"],
@@ -1453,14 +1453,26 @@ function check_xm2m_headers(request, callback) {
                 request.headers['x-m2m-origin'] = 'S';
             }
             else {
-                callback('400-2');
-                return;
+                // 20230104 when certi, fixed error
+                if(useCert == 'enable') {
+                    request.headers['x-m2m-origin'] = 'S';
+                }
+                else {
+                    callback('400-2');
+                    return;
+                }
             }
         }
     }
     else {
-        callback('400-2');
-        return;
+        // 20230104 when certi, fixed error
+        if(useCert == 'enable') {
+            request.headers['x-m2m-origin'] = 'S';
+        }
+        else {
+            callback('400-2');
+            return;
+        }
     }
 
     if (!request.query.hasOwnProperty('fu')) {

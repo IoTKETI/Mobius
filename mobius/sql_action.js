@@ -1682,10 +1682,17 @@ exports.select_latest_resource = function(connection, parentObj, loop_count, lat
     query_where += util.format(' (\'%s\' < ct) order by ri desc limit 10', before_ct);
 
     var sql = 'select * from (select * from lookup where (pi = \'' + parentObj.ri + '\') ' + query_where + ')b join ' + responder.typeRsrc[parseInt(parentObj.ty, 10) + 1] + ' as a on b.ri = a.ri';
-    db.getResult(sql, connection, function (err, results_latest) {
+    db.getResult(sql, connection, (err, results_latest) => {
         if(!err) {
             if(results_latest.length > 0) {
-                latestObj.push(results_latest[0]);
+                let latest_ri = results_latest[0].ri;
+                let latest_obj = {};
+                for(let i = 1; i < results_latest.length; i++) {
+                    if(results_latest[i].ri > latest_ri) {
+                        latest_obj = results_latest[i];
+                    }
+                }
+                latestObj.push(latest_obj);
                 callback('200');
             }
             else {
@@ -1968,8 +1975,8 @@ exports.update_cb_poa_csi = function (connection, poa, csi, srt, ri, callback) {
 exports.update_st = function (connection, obj, callback) {
     var st_id = 'update_st ' + obj.ri + ' - ' + require('shortid').generate();
     console.time(st_id);
-    var sql = util.format('update lookup set st = st+1 where ri=\'%s\'', obj.ri);
-    db.getResult(sql, connection, function (err, results) {
+    var sql = util.format('update lookup set st = \'%s\' where ri=\'%s\'', obj.st+1, obj.ri);
+    db.getResult(sql, connection, (err, results) => {
         console.timeEnd(st_id);
         callback(err, results);
     });
@@ -2624,8 +2631,10 @@ exports.update_parent_by_insert = function (connection, obj, cs, callback) {
     var tableName = responder.typeRsrc[parseInt(obj.ty, 10)];
     var cni_id = 'update_parent_by_insert ' + obj.ri + ' - ' + require('shortid').generate();
     console.time(cni_id);
+    console.log('$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$', obj.st, obj.cni, obj.cbs);
     var sql = util.format('update %s, lookup set %s.cni = %s.cni+1, %s.cbs = %s.cbs+%s, lookup.st = lookup.st+1 where lookup.ri = \'%s\' and %s.ri = \'%s\'', tableName, tableName, tableName, tableName, tableName, cs, obj.ri, tableName,  obj.ri);
-    db.getResult(sql, connection, function (err, results) {
+    //var sql = util.format('update %s, lookup set %s.cni = %s, %s.cbs = %s, lookup.st = %s where lookup.ri = \'%s\' and %s.ri = \'%s\'', tableName, tableName, obj.cni+1, tableName, obj.cbs+cs, obj.st, obj.ri, tableName,  obj.ri);
+    db.getResult(sql, connection, (err, results) => {
         if (!err) {
             console.timeEnd(cni_id);
             callback(err, results);
