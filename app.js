@@ -52,6 +52,7 @@ var db_sql = require('./mobius/sql_action');
 var app = express();
 
 global.cache_resource_url = {};
+global.cache_security_check = {};
 
 app.use(cors());
 
@@ -988,6 +989,11 @@ function lookup_create(request, response, callback) {
                     console.time(tid);
                     security.check(request, response, parentObj.ty, parentObj.acpi, access_value, parentObj.cr, (code) => {
                         console.timeEnd(tid);
+
+                        cache_security_check[request.headers['x-m2m-origin']] = {};
+                        cache_security_check[request.headers['x-m2m-origin']][parentObj.ri] = {}
+                        cache_security_check[request.headers['x-m2m-origin']][parentObj.ri][access_value] = code;
+
                         if (code === '1') {
                             resource.create(request, response, (code) => {
                                 callback(code);

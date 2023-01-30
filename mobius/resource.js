@@ -1569,7 +1569,7 @@ global.makeObject = function (obj) {
                         || attr == 'bn' || attr == 'pv' || attr == 'pvs' || attr == 'mid' || attr == 'uds' || attr == 'cas' || attr == 'macp'
                         || attr == 'rels' || attr == 'rqps' || attr == 'rsps' || attr == 'srv' || attr == 'mi' || attr == 'subl') {
                         try {
-                            console.log(attr);
+                            //console.log(attr);
                             if((obj[attr] == null) || (obj[attr] == '')) {
                                 obj[attr] = '[]';
                             }
