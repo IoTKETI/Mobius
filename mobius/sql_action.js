@@ -1687,8 +1687,8 @@ exports.select_latest_resource = function(connection, parentObj, loop_count, lat
             if(results_latest.length > 0) {
                 let latest_ri = results_latest[0].ri;
                 let latest_obj = {};
-                for(let i = 1; i < results_latest.length; i++) {
-                    if(results_latest[i].ri > latest_ri) {
+                for(let i = 0; i < results_latest.length; i++) {
+                    if(results_latest[i].ri >= latest_ri) {
                         latest_obj = results_latest[i];
                     }
                 }
