@@ -114,36 +114,46 @@ exports.ws_watchdog = function() {
                     return;
                 }
 
-                for (var index in request.requestedProtocols) {
-                    if(request.requestedProtocols.hasOwnProperty(index)) {
-                        if(request.requestedProtocols[index] === 'onem2m.r2.0.xml') {
-                            var connection = request.accept('onem2m.r2.0.xml', request.origin);
-                            console.log((new Date()) + ' Connection accepted. (xml)');
-                            connection.on('message', ws_message_handler);
-                            connection.on('close', function (reasonCode, description) {
-                                console.log((new Date()) + ' Peer ' + connection.remoteAddress + ' disconnected.');
-                            });
-                            break;
-                        }
-                        else if(request.requestedProtocols[index] === 'onem2m.r2.0.cbor') {
-                            var connection = request.accept('onem2m.r2.0.cbor', request.origin);
-                            console.log((new Date()) + ' Connection accepted. (cbor)');
-                            connection.on('message', ws_message_handler);
-                            connection.on('close', function (reasonCode, description) {
-                                console.log((new Date()) + ' Peer ' + connection.remoteAddress + ' disconnected.');
-                            });
-                            break;
-                        }
-                        else if(request.requestedProtocols[index] === 'onem2m.r2.0.json') {
-                            var connection = request.accept('onem2m.r2.0.json', request.origin);
-                            console.log((new Date()) + ' Connection accepted. (json)');
-                            connection.on('message', ws_message_handler);
-                            connection.on('close', function (reasonCode, description) {
-                                console.log((new Date()) + ' Peer ' + connection.remoteAddress + ' disconnected.');
-                            });
-                            break;
+                if(request.requestedProtocols.length) {
+                    for (var index in request.requestedProtocols) {
+                        if (request.requestedProtocols.hasOwnProperty(index)) {
+                            if (request.requestedProtocols[index] === 'onem2m.r2.0.xml') {
+                                let connection = request.accept('onem2m.r2.0.xml', request.origin);
+                                console.log((new Date()) + ' Connection accepted. (xml)');
+                                connection.on('message', ws_message_handler);
+                                connection.on('close', function (reasonCode, description) {
+                                    console.log((new Date()) + ' Peer ' + connection.remoteAddress + ' disconnected.');
+                                });
+                                break;
+                            }
+                            else if (request.requestedProtocols[index] === 'onem2m.r2.0.cbor') {
+                                let connection = request.accept('onem2m.r2.0.cbor', request.origin);
+                                console.log((new Date()) + ' Connection accepted. (cbor)');
+                                connection.on('message', ws_message_handler);
+                                connection.on('close', function (reasonCode, description) {
+                                    console.log((new Date()) + ' Peer ' + connection.remoteAddress + ' disconnected.');
+                                });
+                                break;
+                            }
+                            else if (request.requestedProtocols[index] === 'onem2m.r2.0.json') {
+                                let connection = request.accept('onem2m.r2.0.json', request.origin);
+                                console.log((new Date()) + ' Connection accepted. (json)');
+                                connection.on('message', ws_message_handler);
+                                connection.on('close', function (reasonCode, description) {
+                                    console.log((new Date()) + ' Peer ' + connection.remoteAddress + ' disconnected.');
+                                });
+                                break;
+                            }
+                            else {
+                                request.reject();
+                                console.log((new Date()) + ' requestedProtocols is not supported.');
+                            }
                         }
                     }
+                }
+                else {
+                    request.reject();
+                    console.log((new Date()) + ' requestedProtocols is empty.');
                 }
             });
         }
