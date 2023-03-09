@@ -117,7 +117,7 @@ exports.ws_watchdog = function() {
                 if(request.requestedProtocols.length) {
                     for (var index in request.requestedProtocols) {
                         if (request.requestedProtocols.hasOwnProperty(index)) {
-                            if (request.requestedProtocols[index] === 'onem2m.r2.0.xml') {
+                            if (request.requestedProtocols[index] === 'onem2m.r2.0.xml' || request.requestedProtocols[index] === 'onem2m.xml') {
                                 let connection = request.accept('onem2m.r2.0.xml', request.origin);
                                 console.log((new Date()) + ' Connection accepted. (xml)');
                                 connection.on('message', ws_message_handler);
@@ -126,7 +126,7 @@ exports.ws_watchdog = function() {
                                 });
                                 break;
                             }
-                            else if (request.requestedProtocols[index] === 'onem2m.r2.0.cbor') {
+                            else if (request.requestedProtocols[index] === 'onem2m.r2.0.cbor' || request.requestedProtocols[index] === 'onem2m.cbor') {
                                 let connection = request.accept('onem2m.r2.0.cbor', request.origin);
                                 console.log((new Date()) + ' Connection accepted. (cbor)');
                                 connection.on('message', ws_message_handler);
@@ -135,7 +135,7 @@ exports.ws_watchdog = function() {
                                 });
                                 break;
                             }
-                            else if (request.requestedProtocols[index] === 'onem2m.r2.0.json') {
+                            else if (request.requestedProtocols[index] === 'onem2m.r2.0.json' || request.requestedProtocols[index] === 'onem2m.json') {
                                 let connection = request.accept('onem2m.r2.0.json', request.origin);
                                 console.log((new Date()) + ' Connection accepted. (json)');
                                 connection.on('message', ws_message_handler);
