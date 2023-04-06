@@ -293,8 +293,10 @@ global.getType = function (p) {
 exports.get_cni_count = function(connection, obj, callback) {
     _this.select_count_ri(connection, parseInt(obj.ty, 10), obj.ri, function (err, results) {
         if (results.length == 1) {
-            var cni = results[0]['cni'];
-            var cbs = (results[0]['cbs'] == null) ? 0 : results[0]['cbs'];
+            // var cni = results[0]['cni'];
+            // var cbs = (results[0]['cbs'] == null) ? 0 : results[0]['sum(cin.cs)'];
+            var cni = results[0]['count(*)'];
+            var cbs = (results[0]['sum(cin.cs)'] == null) ? 0 : results[0]['sum(cin.cs)'];
             var st = (results[0]['st'] == null) ? 0 : results[0]['st'];
 
             if (cni > parseInt(obj.mni, 10) || cbs > parseInt(obj.mbs, 10)) {
@@ -1949,8 +1951,8 @@ exports.select_ts_in = function (connection, ri_list, callback) {
 };
 
 exports.select_count_ri = function (connection, ty, ri, callback) {
-    //var sql = util.format('select lookup.st, count(*), sum(%s.cs) FROM lookup, %s where lookup.ri = \'%s\' and cin.pi = \'%s\'', responder.typeRsrc[ty], responder.typeRsrc[ty], ri, ri);
-    var sql = util.format('select lookup.st, %s.cni, %s.cbs FROM lookup, %s where lookup.ri = \'%s\' and %s.ri = \'%s\'', responder.typeRsrc[ty], responder.typeRsrc[ty], responder.typeRsrc[ty], ri, responder.typeRsrc[ty], ri);
+    var sql = util.format('select lookup.st, count(*), sum(cin.cs) FROM lookup, cin where lookup.ri = \'%s\' and cin.pi = \'%s\'', ri, ri);
+    //var sql = util.format('select lookup.st, %s.cni, %s.cbs FROM lookup, %s where lookup.ri = \'%s\' and %s.ri = \'%s\'', responder.typeRsrc[ty], responder.typeRsrc[ty], responder.typeRsrc[ty], ri, responder.typeRsrc[ty], ri);
     db.getResult(sql, connection, function (err, results) {
         callback(err, results);
     });
@@ -2631,8 +2633,13 @@ exports.update_parent_by_insert = function (connection, obj, cs, callback) {
     var tableName = responder.typeRsrc[parseInt(obj.ty, 10)];
     var cni_id = 'update_parent_by_insert ' + obj.ri + ' - ' + require('shortid').generate();
     console.time(cni_id);
-    console.log('$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$', obj.st, obj.cni, obj.cbs);
-    var sql = util.format('update %s, lookup set %s.cni = %s.cni+1, %s.cbs = %s.cbs+%s, lookup.st = lookup.st+1 where lookup.ri = \'%s\' and %s.ri = \'%s\'', tableName, tableName, tableName, tableName, tableName, cs, obj.ri, tableName,  obj.ri);
+    console.log('$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$', obj.st, obj.cni, obj.cbs, obj.mni);
+    obj.cni += 1;
+    if(obj.cni > obj.mni) {
+        obj.cni = obj.mni;
+    }
+
+    var sql = util.format('update %s, lookup set %s.cni = %d, %s.cbs = %s.cbs+%s, lookup.st = lookup.st+1 where lookup.ri = \'%s\' and %s.ri = \'%s\'', tableName, tableName, obj.cni, tableName, tableName, cs, obj.ri, tableName,  obj.ri);
     //var sql = util.format('update %s, lookup set %s.cni = %s, %s.cbs = %s, lookup.st = %s where lookup.ri = \'%s\' and %s.ri = \'%s\'', tableName, tableName, obj.cni+1, tableName, obj.cbs+cs, obj.st, obj.ri, tableName,  obj.ri);
     db.getResult(sql, connection, (err, results) => {
         if (!err) {
