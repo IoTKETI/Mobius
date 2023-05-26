@@ -837,6 +837,9 @@ var resultStatusCode = {
     '400-52': ['400', '4000', "BAD REQUEST: ty does not supported"],
     '400-53': ['400', '4000', "BAD REQUEST: this resource of mgmtObj is not supported"],
     '400-54': ['400', '4000', "BAD REQUEST: cdn of flexCotainer is not match with fcnt resource"],
+    '400-61': ['400', '4000', "BAD REQUEST: loc - typ is illegal format"],
+    '400-62': ['400', '4000', "BAD REQUEST: loc - crd is illegal format"],
+    '400-63': ['400', '4000', "BAD REQUEST: loc - crd is not array"],
 
     '403-1': ['403', '4107', "OPERATION_NOT_ALLOWED: AE-ID is not allowed"],
     '403-2': ['403', '5203', "TARGET_NOT_SUBSCRIBABLE: request ty creating can not create under parent resource"],

@@ -33,6 +33,25 @@ exports.build_ae = function(request, response, resource_Obj, body_Obj, callback)
     resource_Obj[rootnm].csz = (body_Obj[rootnm].csz) ? body_Obj[rootnm].csz : '';
     resource_Obj[rootnm].srv = (body_Obj[rootnm].srv) ? body_Obj[rootnm].srv : '';
 
+    if(body_Obj[rootnm].hasOwnProperty('loc')) {
+        if(!body_Obj[rootnm].loc.hasOwnProperty('typ')) {
+            callback('400-61');
+            return;
+        }
+        if(!body_Obj[rootnm].loc.hasOwnProperty('crd')) {
+            callback('400-62');
+            return;
+        }
+        else {
+            if (!Array.isArray(body_Obj[rootnm].loc.crd)) {
+                callback('400-63');
+                return;
+            }
+        }
+
+        resource_Obj[rootnm].loc = JSON.parse(JSON.stringify(body_Obj[rootnm].loc));
+    }
+
     if( (request.headers['x-m2m-origin'] == 'S') ) {
         resource_Obj[rootnm].aei = 'S' + require('shortid').generate();
     }

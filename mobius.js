@@ -22,7 +22,7 @@ try {
 }
 catch (e) {
     conf.csebaseport = "7579";
-    conf.dbpass = "dksdlfduq2";
+    conf.dbpass = "111111";
     fs.writeFileSync('conf.json', JSON.stringify(conf, null, 4), 'utf8');
 }
 

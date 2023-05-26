@@ -1,8 +1,8 @@
--- MySQL dump 10.13  Distrib 8.0.22, for Win64 (x86_64)
+-- MySQL dump 10.13  Distrib 8.0.27, for Win64 (x86_64)
 --
 -- Host: localhost    Database: mobiusdb
 -- ------------------------------------------------------
--- Server version	8.0.22
+-- Server version	8.0.27
 
 /*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
 /*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
@@ -29,7 +29,7 @@ CREATE TABLE `acp` (
   PRIMARY KEY (`ri`),
   UNIQUE KEY `ri_UNIQUE` (`ri`),
   CONSTRAINT `acp_ri` FOREIGN KEY (`ri`) REFERENCES `lookup` (`ri`) ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -50,11 +50,13 @@ CREATE TABLE `ae` (
   `nl` varchar(45) NOT NULL,
   `csz` varchar(45) DEFAULT NULL,
   `srv` varchar(45) DEFAULT NULL,
+  `loc` point NOT NULL,
   PRIMARY KEY (`ri`),
   UNIQUE KEY `path_UNIQUE` (`ri`),
   UNIQUE KEY `aei_UNIQUE` (`aei`),
+  SPATIAL KEY `loc` (`loc`),
   CONSTRAINT `ae_ri` FOREIGN KEY (`ri`) REFERENCES `lookup` (`ri`) ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -73,10 +75,12 @@ CREATE TABLE `cb` (
   `nl` varchar(45) NOT NULL,
   `ncp` varchar(45) NOT NULL,
   `srv` varchar(45) DEFAULT NULL,
+  `loc` point NOT NULL,
   PRIMARY KEY (`ri`),
-  UNIQUE KEY `path_UNIQUE` (`ri`),
+  UNIQUE KEY `path_UNIQUE` (`ri`) /*!80000 INVISIBLE */,
+  SPATIAL KEY `loc_index` (`loc`),
   CONSTRAINT `cb_ri` FOREIGN KEY (`ri`) REFERENCES `lookup` (`ri`) ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -98,7 +102,7 @@ CREATE TABLE `cin` (
   UNIQUE KEY `ri_UNIQUE` (`ri`),
   KEY `cin_ri_idx` (`pi`,`ri`,`cs`),
   CONSTRAINT `cin_ri` FOREIGN KEY (`ri`) REFERENCES `lookup` (`ri`) ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -122,7 +126,7 @@ CREATE TABLE `cnt` (
   PRIMARY KEY (`ri`),
   UNIQUE KEY `resourceid_UNIQUE` (`ri`),
   CONSTRAINT `cnt_ri` FOREIGN KEY (`ri`) REFERENCES `lookup` (`ri`) ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -147,46 +151,8 @@ CREATE TABLE `csr` (
   UNIQUE KEY `ri_UNIQUE` (`ri`),
   KEY `csr_ri_idx` (`ri`),
   CONSTRAINT `csr_ri` FOREIGN KEY (`ri`) REFERENCES `lookup` (`ri`) ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3;
 /*!40101 SET character_set_client = @saved_cs_client */;
-
---
--- Temporary view structure for view `cur_info`
---
-
-DROP TABLE IF EXISTS `cur_info`;
-/*!50001 DROP VIEW IF EXISTS `cur_info`*/;
-SET @saved_cs_client     = @@character_set_client;
-/*!50503 SET character_set_client = utf8mb4 */;
-/*!50001 CREATE VIEW `cur_info` AS SELECT 
- 1 AS `count(*)`,
- 1 AS `sum(cs)`*/;
-SET character_set_client = @saved_cs_client;
-
---
--- Temporary view structure for view `cur_info2`
---
-
-DROP TABLE IF EXISTS `cur_info2`;
-/*!50001 DROP VIEW IF EXISTS `cur_info2`*/;
-SET @saved_cs_client     = @@character_set_client;
-/*!50503 SET character_set_client = utf8mb4 */;
-/*!50001 CREATE VIEW `cur_info2` AS SELECT 
- 1 AS `count(*)`,
- 1 AS `sum(cs)`*/;
-SET character_set_client = @saved_cs_client;
-
---
--- Temporary view structure for view `cur_info3`
---
-
-DROP TABLE IF EXISTS `cur_info3`;
-/*!50001 DROP VIEW IF EXISTS `cur_info3`*/;
-SET @saved_cs_client     = @@character_set_client;
-/*!50503 SET character_set_client = utf8mb4 */;
-/*!50001 CREATE VIEW `cur_info3` AS SELECT 
- 1 AS `count(*)`*/;
-SET character_set_client = @saved_cs_client;
 
 --
 -- Table structure for table `fcnt`
@@ -196,23 +162,23 @@ DROP TABLE IF EXISTS `fcnt`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `fcnt` (
-  `ri` varchar(200) COLLATE utf8_bin NOT NULL,
-  `cnd` varchar(45) COLLATE utf8_bin DEFAULT NULL,
-  `lock` varchar(45) COLLATE utf8_bin DEFAULT NULL,
-  `lvl` varchar(45) COLLATE utf8_bin DEFAULT NULL,
-  `curT0` varchar(45) COLLATE utf8_bin DEFAULT NULL,
-  `colSn` varchar(45) COLLATE utf8_bin DEFAULT NULL,
-  `powerSe` varchar(45) COLLATE utf8_bin DEFAULT NULL,
-  `sus` varchar(45) COLLATE utf8_bin DEFAULT NULL,
-  `red` varchar(45) COLLATE utf8_bin DEFAULT NULL,
-  `green` varchar(45) COLLATE utf8_bin DEFAULT NULL,
-  `blue` varchar(45) COLLATE utf8_bin DEFAULT NULL,
-  `brigs` varchar(45) COLLATE utf8_bin DEFAULT NULL,
-  `cr` varchar(45) COLLATE utf8_bin DEFAULT NULL,
+  `ri` varchar(200) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
+  `cnd` varchar(45) CHARACTER SET utf8 COLLATE utf8_bin DEFAULT NULL,
+  `lock` varchar(45) CHARACTER SET utf8 COLLATE utf8_bin DEFAULT NULL,
+  `lvl` varchar(45) CHARACTER SET utf8 COLLATE utf8_bin DEFAULT NULL,
+  `curT0` varchar(45) CHARACTER SET utf8 COLLATE utf8_bin DEFAULT NULL,
+  `colSn` varchar(45) CHARACTER SET utf8 COLLATE utf8_bin DEFAULT NULL,
+  `powerSe` varchar(45) CHARACTER SET utf8 COLLATE utf8_bin DEFAULT NULL,
+  `sus` varchar(45) CHARACTER SET utf8 COLLATE utf8_bin DEFAULT NULL,
+  `red` varchar(45) CHARACTER SET utf8 COLLATE utf8_bin DEFAULT NULL,
+  `green` varchar(45) CHARACTER SET utf8 COLLATE utf8_bin DEFAULT NULL,
+  `blue` varchar(45) CHARACTER SET utf8 COLLATE utf8_bin DEFAULT NULL,
+  `brigs` varchar(45) CHARACTER SET utf8 COLLATE utf8_bin DEFAULT NULL,
+  `cr` varchar(45) CHARACTER SET utf8 COLLATE utf8_bin DEFAULT NULL,
   PRIMARY KEY (`ri`),
   UNIQUE KEY `ri_UNIQUE` (`ri`),
   CONSTRAINT `fcnt_ri` FOREIGN KEY (`ri`) REFERENCES `lookup` (`ri`) ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_bin COMMENT='	';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8_bin COMMENT='	';
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -236,7 +202,7 @@ CREATE TABLE `grp` (
   PRIMARY KEY (`ri`),
   UNIQUE KEY `ri_UNIQUE` (`ri`),
   CONSTRAINT `grp_ri` FOREIGN KEY (`ri`) REFERENCES `lookup` (`ri`) ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -253,7 +219,7 @@ CREATE TABLE `hit` (
   `coap` int DEFAULT NULL,
   `ws` int DEFAULT NULL,
   PRIMARY KEY (`ct`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -276,7 +242,7 @@ CREATE TABLE `lcp` (
   PRIMARY KEY (`ri`),
   UNIQUE KEY `ri_UNIQUE` (`ri`),
   CONSTRAINT `lcp_ri` FOREIGN KEY (`ri`) REFERENCES `lookup` (`ri`) ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -296,7 +262,7 @@ CREATE TABLE `lookup` (
   `lt` varchar(45) NOT NULL,
   `et` varchar(45) NOT NULL,
   `acpi` varchar(200) NOT NULL,
-  `lbl` varchar(200) NOT NULL,
+  `lbl` mediumtext NOT NULL,
   `at` varchar(45) NOT NULL,
   `aa` varchar(45) NOT NULL,
   `sri` varchar(45) NOT NULL,
@@ -308,7 +274,7 @@ CREATE TABLE `lookup` (
   KEY `idx_lookup_pi` (`pi`) /*!80000 INVISIBLE */,
   KEY `idx_lookup_ct` (`ct`),
   KEY `idx_lookup_sri` (`sri`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -350,7 +316,7 @@ CREATE TABLE `mgo` (
   PRIMARY KEY (`ri`),
   UNIQUE KEY `ri_UNIQUE` (`ri`),
   CONSTRAINT `mgo_ri` FOREIGN KEY (`ri`) REFERENCES `lookup` (`ri`) ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -372,7 +338,7 @@ CREATE TABLE `mms` (
   PRIMARY KEY (`ri`),
   UNIQUE KEY `ri_UNIQUE` (`ri`),
   CONSTRAINT `mms_ri` FOREIGN KEY (`ri`) REFERENCES `lookup` (`ri`) ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -391,7 +357,7 @@ CREATE TABLE `nod` (
   PRIMARY KEY (`ri`),
   UNIQUE KEY `ri_UNIQUE` (`ri`),
   CONSTRAINT `nod_ri` FOREIGN KEY (`ri`) REFERENCES `lookup` (`ri`) ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -415,7 +381,7 @@ CREATE TABLE `req` (
   PRIMARY KEY (`ri`),
   UNIQUE KEY `ri_UNIQUE` (`ri`),
   CONSTRAINT `req_ri` FOREIGN KEY (`ri`) REFERENCES `lookup` (`ri`) ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -436,7 +402,7 @@ CREATE TABLE `smd` (
   PRIMARY KEY (`ri`),
   UNIQUE KEY `ri_UNIQUE` (`ri`),
   CONSTRAINT `sd_ri` FOREIGN KEY (`ri`) REFERENCES `lookup` (`ri`) ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -453,7 +419,7 @@ CREATE TABLE `sri` (
   UNIQUE KEY `ri_UNIQUE` (`ri`),
   KEY `idx_sri_sri` (`sri`),
   CONSTRAINT `sri_ri` FOREIGN KEY (`ri`) REFERENCES `lookup` (`ri`) ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -484,7 +450,7 @@ CREATE TABLE `sub` (
   PRIMARY KEY (`ri`),
   UNIQUE KEY `resourceid_UNIQUE` (`ri`),
   CONSTRAINT `sub_ri` FOREIGN KEY (`ri`) REFERENCES `lookup` (`ri`) ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -565,7 +531,7 @@ CREATE TABLE `ts` (
   PRIMARY KEY (`ri`),
   UNIQUE KEY `ri_UNIQUE` (`ri`),
   CONSTRAINT `ts_ri` FOREIGN KEY (`ri`) REFERENCES `lookup` (`ri`) ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -586,62 +552,8 @@ CREATE TABLE `tsi` (
   PRIMARY KEY (`pi`,`ri`),
   UNIQUE KEY `ri_UNIQUE` (`ri`),
   CONSTRAINT `tsi_ri` FOREIGN KEY (`ri`) REFERENCES `lookup` (`ri`) ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3;
 /*!40101 SET character_set_client = @saved_cs_client */;
-
---
--- Final view structure for view `cur_info`
---
-
-/*!50001 DROP VIEW IF EXISTS `cur_info`*/;
-/*!50001 SET @saved_cs_client          = @@character_set_client */;
-/*!50001 SET @saved_cs_results         = @@character_set_results */;
-/*!50001 SET @saved_col_connection     = @@collation_connection */;
-/*!50001 SET character_set_client      = utf8mb4 */;
-/*!50001 SET character_set_results     = utf8mb4 */;
-/*!50001 SET collation_connection      = utf8mb4_0900_ai_ci */;
-/*!50001 CREATE ALGORITHM=UNDEFINED */
-/*!50013 DEFINER=`root`@`localhost` SQL SECURITY DEFINER */
-/*!50001 VIEW `cur_info` AS select count(0) AS `count(*)`,sum(`cin`.`cs`) AS `sum(cs)` from `cin` where (`cin`.`pi` = '/Mobius/ae-edu1/cnt-co2') */;
-/*!50001 SET character_set_client      = @saved_cs_client */;
-/*!50001 SET character_set_results     = @saved_cs_results */;
-/*!50001 SET collation_connection      = @saved_col_connection */;
-
---
--- Final view structure for view `cur_info2`
---
-
-/*!50001 DROP VIEW IF EXISTS `cur_info2`*/;
-/*!50001 SET @saved_cs_client          = @@character_set_client */;
-/*!50001 SET @saved_cs_results         = @@character_set_results */;
-/*!50001 SET @saved_col_connection     = @@collation_connection */;
-/*!50001 SET character_set_client      = utf8mb4 */;
-/*!50001 SET character_set_results     = utf8mb4 */;
-/*!50001 SET collation_connection      = utf8mb4_0900_ai_ci */;
-/*!50001 CREATE ALGORITHM=UNDEFINED */
-/*!50013 DEFINER=`root`@`localhost` SQL SECURITY DEFINER */
-/*!50001 VIEW `cur_info2` AS select count(0) AS `count(*)`,sum(`cin`.`cs`) AS `sum(cs)` from `cin` where (`cin`.`pi` = '/Mobius/UTM_01/GCS_Data') */;
-/*!50001 SET character_set_client      = @saved_cs_client */;
-/*!50001 SET character_set_results     = @saved_cs_results */;
-/*!50001 SET collation_connection      = @saved_col_connection */;
-
---
--- Final view structure for view `cur_info3`
---
-
-/*!50001 DROP VIEW IF EXISTS `cur_info3`*/;
-/*!50001 SET @saved_cs_client          = @@character_set_client */;
-/*!50001 SET @saved_cs_results         = @@character_set_results */;
-/*!50001 SET @saved_col_connection     = @@collation_connection */;
-/*!50001 SET character_set_client      = utf8mb4 */;
-/*!50001 SET character_set_results     = utf8mb4 */;
-/*!50001 SET collation_connection      = utf8mb4_0900_ai_ci */;
-/*!50001 CREATE ALGORITHM=UNDEFINED */
-/*!50013 DEFINER=`root`@`localhost` SQL SECURITY DEFINER */
-/*!50001 VIEW `cur_info3` AS select count(0) AS `count(*)` from `lookup` */;
-/*!50001 SET character_set_client      = @saved_cs_client */;
-/*!50001 SET character_set_results     = @saved_cs_results */;
-/*!50001 SET collation_connection      = @saved_col_connection */;
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
 
 /*!40101 SET SQL_MODE=@OLD_SQL_MODE */;
@@ -652,4 +564,4 @@ CREATE TABLE `tsi` (
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2020-11-05  0:01:36
+-- Dump completed on 2023-05-26 16:42:07

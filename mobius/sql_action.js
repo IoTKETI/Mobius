@@ -134,11 +134,19 @@ exports.get_ri_sri = function (connection, sri, callback) {
 
 exports.insert_lookup = function(connection, obj, callback) {
     //console.time('insert_lookup ' + obj.ri);
-    var sql = util.format('insert into lookup (' +
+
+    var sql = util.format("insert into lookup (" +
         'pi, ri, ty, ct, st, rn, lt, et, acpi, lbl, at, aa, sri, spi, subl) ' +
         'value (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
-        obj.pi, obj.ri, obj.ty, obj.ct, obj.st, obj.rn, obj.lt, obj.et, JSON.stringify(obj.acpi).replace(/\"/g, '\\"').replace(/\'/g, '\\\''), JSON.stringify(obj.lbl, null, 4).replace(/\"/g, '\\"').replace(/\'/g, '\\\''), JSON.stringify(obj.at).replace(/\"/g, '\\"').replace(/\'/g, '\\\''), JSON.stringify(obj.aa).replace(/\"/g, '\\"').replace(/\'/g, '\\\''), obj.sri, obj.spi, JSON.stringify(obj.subl).replace(/\"/g, '\\"').replace(/\'/g, '\\\''));
-    db.getResult(sql, connection, function (err, results) {
+        obj.pi, obj.ri, obj.ty, obj.ct, obj.st, obj.rn, obj.lt, obj.et,
+        JSON.stringify(obj.acpi).replace(/\"/g, '\\"').replace(/\'/g, '\\\''),
+        JSON.stringify(obj.lbl, null, 4).replace(/\"/g, '\\"').replace(/\'/g, '\\\''),
+        JSON.stringify(obj.at).replace(/\"/g, '\\"').replace(/\'/g, '\\\''),
+        JSON.stringify(obj.aa).replace(/\"/g, '\\"').replace(/\'/g, '\\\''),
+        obj.sri,
+        obj.spi,
+        JSON.stringify(obj.subl).replace(/\"/g, '\\"').replace(/\'/g, '\\\''));
+    db.getResult(sql, connection, (err, results) => {
         if(!err) {
             // set_sri_sri(connection, obj.ri, obj.sri, function (err, results) {
             //     //console.timeEnd('insert_lookup ' + obj.ri);
@@ -154,12 +162,24 @@ exports.insert_lookup = function(connection, obj, callback) {
 
 exports.insert_cb = function(connection, obj, callback) {
     console.time('insert_cb ' + obj.ri);
-    _this.insert_lookup(connection, obj, function (err, results) {
+    _this.insert_lookup(connection, obj, (err, results) => {
         if(!err) {
+            if(!obj.hasOwnProperty('loc')) {
+                let locObj = {};
+                locObj.typ = 1;
+                locObj.crd = [0, 0];
+                obj.loc = locObj;
+            }
+
             var sql = util.format('insert into cb (' +
-                'ri, cst, csi, srt, poa, nl, ncp, srv) ' +
-                'value (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
-                obj.ri, obj.cst, obj.csi, JSON.stringify(obj.srt).replace(/\"/g, '\\"').replace(/\'/g, '\\\''), JSON.stringify(obj.poa).replace(/\"/g, '\\"').replace(/\'/g, '\\\''), obj.nl, obj.ncp, JSON.stringify(obj.srv).replace(/\"/g, '\\"').replace(/\'/g, '\\\''));
+                'ri, cst, csi, srt, poa, nl, ncp, srv, loc) ' +
+                'value (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', POINT(%s, %s))',
+                obj.ri, obj.cst, obj.csi,
+                JSON.stringify(obj.srt).replace(/\"/g, '\\"').replace(/\'/g, '\\\''),
+                JSON.stringify(obj.poa).replace(/\"/g, '\\"').replace(/\'/g, '\\\''),
+                obj.nl, obj.ncp,
+                JSON.stringify(obj.srv).replace(/\"/g, '\\"').replace(/\'/g, '\\\''),
+                obj.loc.crd[0], obj.loc.crd[1]);
             db.getResult(sql, connection, function (err, results) {
                 if(!err) {
                     console.timeEnd('insert_cb ' + obj.ri);
@@ -209,9 +229,21 @@ exports.insert_ae = function(connection, obj, callback) {
     console.time('insert_ae ' + obj.ri);
     _this.insert_lookup(connection, obj, (err, results) => {
         if(!err) {
-            var sql = util.format('insert into ae (ri, apn, api, aei, poa, ae.or, nl, rr, csz, srv) ' +
-                'value (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
-                obj.ri, obj.apn, obj.api, obj.aei, JSON.stringify(obj.poa).replace(/\"/g, '\\"').replace(/\'/g, '\\\''), obj.or, obj.nl, obj.rr, obj.csz, JSON.stringify(obj.srv).replace(/\"/g, '\\"').replace(/\'/g, '\\\''));
+            if(!obj.hasOwnProperty('loc')) {
+                let locObj = {};
+                locObj.typ = 1;
+                locObj.crd = [0, 0];
+                obj.loc = locObj;
+            }
+
+            var sql = util.format('insert into ae (ri, apn, api, aei, poa, ae.or, nl, rr, csz, srv, loc) ' +
+                'value (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', POINT(%s, %s))',
+                obj.ri, obj.apn, obj.api, obj.aei,
+                JSON.stringify(obj.poa).replace(/\"/g, '\\"').replace(/\'/g, '\\\''),
+                obj.or, obj.nl, obj.rr, obj.csz,
+                JSON.stringify(obj.srv).replace(/\"/g, '\\"').replace(/\'/g, '\\\''),
+                obj.loc.crd[0], obj.loc.crd[1]);
+
             db.getResult(sql, connection, function (err, results) {
                 if(!err) {
                     console.timeEnd('insert_ae ' + obj.ri);
@@ -1039,14 +1071,22 @@ exports.insert_tm = function(connection, obj, callback) {
 
 exports.select_resource_from_url = function(connection, ri, sri, callback) {
     var sql = util.format('select * from lookup where (ri = \'%s\') or (sri = \'%s\')', ri, sri);
-    db.getResult(sql, connection, function (err, comm_Obj) {
+    db.getResult(sql, connection, (err, comm_Obj) => {
         if(!err) {
             if(comm_Obj.length == 0) {
                 callback(err, comm_Obj);
             }
             else {
                 var sql = "select * from " + responder.typeRsrc[comm_Obj[0].ty] + " where ri = \'" + comm_Obj[0].ri + "\'";
-                db.getResult(sql, connection, function (err, spec_Obj) {
+                db.getResult(sql, connection, (err, spec_Obj) => {
+                    if(comm_Obj[0].ty == 2) {
+                        let locObj = {};
+                        locObj.typ = 1;
+                        locObj.crd = [spec_Obj[0].loc.x, spec_Obj[0].loc.y];
+
+                        spec_Obj[0].loc = {};
+                        spec_Obj[0].loc = JSON.parse(JSON.stringify(locObj));
+                    }
                     var resource_Obj = [];
                     resource_Obj.push(merge(comm_Obj[0], spec_Obj[0]));
                     comm_Obj = [];
