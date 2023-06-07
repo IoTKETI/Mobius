@@ -1485,6 +1485,18 @@ function presearch_action(request, response, pi_list, found_parent_list, callbac
                 }
             }
 
+            // remove pi be parent resource when loc
+            if (request.query.hasOwnProperty('gmty') || request.query.hasOwnProperty('gsf') || request.query.hasOwnProperty('geom')) {
+                for (i = 0; i < found_parent_list.length; i) {
+                    if (found_parent_list[i].ty != '2' && found_parent_list[i].ty != '3' && found_parent_list[i].ty != '5') {
+                        found_parent_list.splice(i, 1);
+                    }
+                    else {
+                        i++;
+                    }
+                }
+            }
+
             callback(code);
         }
         else {

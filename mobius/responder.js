@@ -810,6 +810,10 @@ exports.rsrcLname = rceLname;
 exports.attrLname = attrLname;
 exports.attrSname = attrSname;
 
+const isObject = obj => {
+    return Object.prototype.toString.call(obj) === '[object Object]'
+}
+
 function typeCheckAction(index1, body_Obj) {
     for (var index2 in body_Obj) {
         if(body_Obj.hasOwnProperty(index2)) {
@@ -1016,6 +1020,46 @@ function typeCheckAction(index1, body_Obj) {
             else if (index2 == 'pv' || index2 == 'pvs') {
                 if(getType(body_Obj[index2]) === 'string') {
                     body_Obj[index2] = JSON.parse(body_Obj[index2]);
+                }
+            }
+            else if (index2 == 'loc') {
+                if (index1 == 'm2m:cb' || index1 == 'm2m:ae' || index1 == 'm2m:cnt') {
+                    if (!body_Obj[index2].hasOwnProperty('typ')) {
+                        let locObj = {};
+                        locObj.crd = [];
+                        if (isObject(body_Obj[index2])) {
+                            locObj.crd.push(body_Obj[index2].x, body_Obj[index2].y);
+                            locObj.typ = 1; // 1: Point, 2: Line, 3: Polygon
+                        }
+                        else {
+                            for (let i in body_Obj[index2]) {
+                                if (body_Obj[index2].hasOwnProperty(i)) {
+                                    locObj.crd[i] = [];
+                                    if (isObject(body_Obj[index2][i])) {
+                                        locObj.typ = 2; // 1: Point, 2: Line, 3: Polygon
+                                        locObj.crd[i].push(body_Obj[index2][i].x, body_Obj[index2][i].y);
+                                    }
+                                    else {
+                                        for (let j in body_Obj[index2][i]) {
+                                            if (body_Obj[index2][i].hasOwnProperty(j)) {
+                                                locObj.crd[i][j] = [];
+                                                if (isObject(body_Obj[index2][i][j])) {
+                                                    locObj.typ = 3; // 1: Point, 2: Line, 3: Polygon
+                                                    locObj.crd[i][j].push(body_Obj[index2][i][j].x, body_Obj[index2][i][j].y);
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        body_Obj[index2] = [];
+                        body_Obj[index2] = JSON.parse(JSON.stringify(locObj));
+                    }
+                }
+                else {
+                    delete body_Obj[index2];
                 }
             }
         }
@@ -1610,7 +1654,33 @@ function typeCheckforJson2(body_Obj) {
         if(body_Obj.hasOwnProperty(index1)) {
             for (var index2 in body_Obj[index1]) {
                 if (body_Obj[index1].hasOwnProperty(index2)) {
-                    typeCheckAction(index1, body_Obj[index1][index2]);
+                    typeCheckAction(index2, body_Obj[index1][index2]);
+                    for (var index3 in body_Obj[index1][index2]) {
+                        if (body_Obj[index1][index2].hasOwnProperty(index3)) {
+                            typeCheckAction(index3, body_Obj[index1][index2][index3]);
+                            for (var index4 in body_Obj[index1][index2][index3]) {
+                                if (body_Obj[index1][index2][index3].hasOwnProperty(index4)) {
+                                    typeCheckAction(index4, body_Obj[index1][index2][index3][index4]);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+function typeCheckforJson3(body_Obj) {
+    for (var index1 in body_Obj) {
+        if(body_Obj.hasOwnProperty(index1)) {
+            for (var index2 in body_Obj[index1]) {
+                if (body_Obj[index1].hasOwnProperty(index2)) {
+                    for (var index3 in body_Obj[index1][index2]) {
+                        if (body_Obj[index1][index2].hasOwnProperty(index3)) {
+                            typeCheckAction(index1, body_Obj[index1][index2][index3]);
+                        }
+                    }
                 }
             }
         }

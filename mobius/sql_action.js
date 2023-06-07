@@ -26,6 +26,26 @@ global.max_lim = 2000;
 const max_search_count = 2000;
 const max_parent_count = 2000;
 
+const geoJsonTypeText = {
+    '1': 'Point',
+    '2': 'LineString',
+    '3': 'Polygon',
+    '4': 'MultiPoint',
+    '5': 'MultiLineString',
+    '6': 'MultiPolygon'
+};
+
+const geoJsonTypeNum = {
+     'Point': 1,
+     'LineString': 2,
+     'Polygon': 3,
+     'MultiPoint': 4,
+     'MultiLineString': 5,
+     'MultiPolygon': 6
+};
+
+
+
 exports.set_tuning = function(connection, callback) {
     var sql = util.format('set global max_connections = 2000');
     db.getResult(sql, connection, function (err, results) {
@@ -135,9 +155,40 @@ exports.get_ri_sri = function (connection, sri, callback) {
 exports.insert_lookup = function(connection, obj, callback) {
     //console.time('insert_lookup ' + obj.ri);
 
+    let locSql = '';
+    if(!obj.hasOwnProperty('loc')) {
+        let locObj = {};
+        // locObj.typ = 1; // 1: Point, 2: Line, 3: Polygon
+        // locObj.crd = [127.16296271344285, 37.4047969850232];
+        // locObj.typ = 2; // 1: Point, 2: Line, 3: Polygon
+        // locObj.crd = [[100.0, 0.0], [101.0, 0.0], [101.0, 1.0]];
+        locObj.typ = 3; // 1: Point, 2: Line, 3: Polygon
+        locObj.crd = [[[100.0, 0.0], [101.0, 0.0], [101.0, 1.0], [100.0, 1.0], [100.0, 0.0]]];
+        obj.loc = locObj;
+
+        let geoJsonObj = {};
+        geoJsonObj.type = geoJsonTypeText[locObj.typ]; // 1: Point, 2: Line, 3: Polygon
+        geoJsonObj.coordinates = JSON.parse(JSON.stringify(locObj.crd));
+
+        locSql = ', ';
+        locSql += 'ST_GeomFromGeoJSON(\'';
+        locSql += JSON.stringify(geoJsonObj);
+        locSql += '\')';
+    }
+    else {
+        let geoJsonObj = {};
+        geoJsonObj.type = geoJsonTypeText[obj.loc.typ]; // 1: Point, 2: Line, 3: Polygon
+        geoJsonObj.coordinates = JSON.parse(JSON.stringify(obj.loc.crd));
+
+        locSql = ', ';
+        locSql += 'ST_GeomFromGeoJSON(\'';
+        locSql += JSON.stringify(geoJsonObj);
+        locSql += '\')';
+    }
+
     var sql = util.format("insert into lookup (" +
-        'pi, ri, ty, ct, st, rn, lt, et, acpi, lbl, at, aa, sri, spi, subl) ' +
-        'value (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
+        'pi, ri, ty, ct, st, rn, lt, et, acpi, lbl, at, aa, sri, spi, subl, lvl, loc) ' +
+        'value (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\'' + locSql + ')',
         obj.pi, obj.ri, obj.ty, obj.ct, obj.st, obj.rn, obj.lt, obj.et,
         JSON.stringify(obj.acpi).replace(/\"/g, '\\"').replace(/\'/g, '\\\''),
         JSON.stringify(obj.lbl, null, 4).replace(/\"/g, '\\"').replace(/\'/g, '\\\''),
@@ -145,7 +196,8 @@ exports.insert_lookup = function(connection, obj, callback) {
         JSON.stringify(obj.aa).replace(/\"/g, '\\"').replace(/\'/g, '\\\''),
         obj.sri,
         obj.spi,
-        JSON.stringify(obj.subl).replace(/\"/g, '\\"').replace(/\'/g, '\\\''));
+        JSON.stringify(obj.subl).replace(/\"/g, '\\"').replace(/\'/g, '\\\''),
+        (obj.ri.split('/').length-1));
     db.getResult(sql, connection, (err, results) => {
         if(!err) {
             // set_sri_sri(connection, obj.ri, obj.sri, function (err, results) {
@@ -164,22 +216,14 @@ exports.insert_cb = function(connection, obj, callback) {
     console.time('insert_cb ' + obj.ri);
     _this.insert_lookup(connection, obj, (err, results) => {
         if(!err) {
-            if(!obj.hasOwnProperty('loc')) {
-                let locObj = {};
-                locObj.typ = 1;
-                locObj.crd = [0, 0];
-                obj.loc = locObj;
-            }
-
             var sql = util.format('insert into cb (' +
-                'ri, cst, csi, srt, poa, nl, ncp, srv, loc) ' +
-                'value (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', POINT(%s, %s))',
+                'ri, cst, csi, srt, poa, nl, ncp, srv) ' +
+                'value (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
                 obj.ri, obj.cst, obj.csi,
                 JSON.stringify(obj.srt).replace(/\"/g, '\\"').replace(/\'/g, '\\\''),
                 JSON.stringify(obj.poa).replace(/\"/g, '\\"').replace(/\'/g, '\\\''),
                 obj.nl, obj.ncp,
-                JSON.stringify(obj.srv).replace(/\"/g, '\\"').replace(/\'/g, '\\\''),
-                obj.loc.crd[0], obj.loc.crd[1]);
+                JSON.stringify(obj.srv).replace(/\"/g, '\\"').replace(/\'/g, '\\\''));
             db.getResult(sql, connection, function (err, results) {
                 if(!err) {
                     console.timeEnd('insert_cb ' + obj.ri);
@@ -229,20 +273,12 @@ exports.insert_ae = function(connection, obj, callback) {
     console.time('insert_ae ' + obj.ri);
     _this.insert_lookup(connection, obj, (err, results) => {
         if(!err) {
-            if(!obj.hasOwnProperty('loc')) {
-                let locObj = {};
-                locObj.typ = 1;
-                locObj.crd = [0, 0];
-                obj.loc = locObj;
-            }
-
-            var sql = util.format('insert into ae (ri, apn, api, aei, poa, ae.or, nl, rr, csz, srv, loc) ' +
-                'value (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', POINT(%s, %s))',
+            var sql = util.format('insert into ae (ri, apn, api, aei, poa, ae.or, nl, rr, csz, srv) ' +
+                'value (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
                 obj.ri, obj.apn, obj.api, obj.aei,
                 JSON.stringify(obj.poa).replace(/\"/g, '\\"').replace(/\'/g, '\\\''),
                 obj.or, obj.nl, obj.rr, obj.csz,
-                JSON.stringify(obj.srv).replace(/\"/g, '\\"').replace(/\'/g, '\\\''),
-                obj.loc.crd[0], obj.loc.crd[1]);
+                JSON.stringify(obj.srv).replace(/\"/g, '\\"').replace(/\'/g, '\\\''));
 
             db.getResult(sql, connection, function (err, results) {
                 if(!err) {
@@ -1077,16 +1113,10 @@ exports.select_resource_from_url = function(connection, ri, sri, callback) {
                 callback(err, comm_Obj);
             }
             else {
-                var sql = "select * from " + responder.typeRsrc[comm_Obj[0].ty] + " where ri = \'" + comm_Obj[0].ri + "\'";
+                let sql = "select * from " + responder.typeRsrc[comm_Obj[0].ty] + " where ri = \'" + comm_Obj[0].ri + "\'";
                 db.getResult(sql, connection, (err, spec_Obj) => {
-                    if(comm_Obj[0].ty == 2) {
-                        let locObj = {};
-                        locObj.typ = 1;
-                        locObj.crd = [spec_Obj[0].loc.x, spec_Obj[0].loc.y];
+                    delete comm_Obj[0].lvl;
 
-                        spec_Obj[0].loc = {};
-                        spec_Obj[0].loc = JSON.parse(JSON.stringify(locObj));
-                    }
                     var resource_Obj = [];
                     resource_Obj.push(merge(comm_Obj[0], spec_Obj[0]));
                     comm_Obj = [];
@@ -1596,6 +1626,32 @@ function search_resource_action(connection, ri, query, cur_lim, pi_list, cni, lo
         query_where += ' and ';
         query_where += util.format('cnf = \'%s\'', query.cty);
         query_count++;
+    }
+
+    if (query.hasOwnProperty('gmty') && query.hasOwnProperty('gsf') && query.hasOwnProperty('geom')) {
+        let geoJsonObj = {};
+        geoJsonObj.type = geoJsonTypeText[query.gmty]; // 1: Point, 2: Line, 3: Polygon
+        geoJsonObj.coordinates = JSON.parse(JSON.stringify(query.geom));
+
+        let locSql = 'ST_GeomFromGeoJSON(\'';
+        locSql += JSON.stringify(geoJsonObj);
+        locSql += '\')';
+
+        if(query.gsf == 1) {
+            query_where += ' and ';
+            query_where += util.format('ST_Within(loc, ' + locSql + ')');
+            query_count++;
+        }
+        else if(query.gsf == 2) {
+            query_where += ' and ';
+            query_where += util.format('ST_Contains(loc, ' + locSql + ')');
+            query_count++;
+        }
+        else if(query.gsf == 3) {
+            query_where += ' and ';
+            query_where += util.format('ST_Intersects(loc, ' + locSql + ')');
+            query_count++;
+        }
     }
 
     if (query.la != null) {
