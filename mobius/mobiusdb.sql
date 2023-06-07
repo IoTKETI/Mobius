@@ -50,11 +50,9 @@ CREATE TABLE `ae` (
   `nl` varchar(45) NOT NULL,
   `csz` varchar(45) DEFAULT NULL,
   `srv` varchar(45) DEFAULT NULL,
-  `loc` point NOT NULL,
   PRIMARY KEY (`ri`),
   UNIQUE KEY `path_UNIQUE` (`ri`),
   UNIQUE KEY `aei_UNIQUE` (`aei`),
-  SPATIAL KEY `loc` (`loc`),
   CONSTRAINT `ae_ri` FOREIGN KEY (`ri`) REFERENCES `lookup` (`ri`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3;
 /*!40101 SET character_set_client = @saved_cs_client */;
@@ -75,10 +73,8 @@ CREATE TABLE `cb` (
   `nl` varchar(45) NOT NULL,
   `ncp` varchar(45) NOT NULL,
   `srv` varchar(45) DEFAULT NULL,
-  `loc` point NOT NULL,
   PRIMARY KEY (`ri`),
   UNIQUE KEY `path_UNIQUE` (`ri`) /*!80000 INVISIBLE */,
-  SPATIAL KEY `loc_index` (`loc`),
   CONSTRAINT `cb_ri` FOREIGN KEY (`ri`) REFERENCES `lookup` (`ri`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3;
 /*!40101 SET character_set_client = @saved_cs_client */;
@@ -153,6 +149,44 @@ CREATE TABLE `csr` (
   CONSTRAINT `csr_ri` FOREIGN KEY (`ri`) REFERENCES `lookup` (`ri`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3;
 /*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Temporary view structure for view `cur_info`
+--
+
+DROP TABLE IF EXISTS `cur_info`;
+/*!50001 DROP VIEW IF EXISTS `cur_info`*/;
+SET @saved_cs_client     = @@character_set_client;
+/*!50503 SET character_set_client = utf8mb4 */;
+/*!50001 CREATE VIEW `cur_info` AS SELECT 
+ 1 AS `count(*)`,
+ 1 AS `sum(cs)`*/;
+SET character_set_client = @saved_cs_client;
+
+--
+-- Temporary view structure for view `cur_info2`
+--
+
+DROP TABLE IF EXISTS `cur_info2`;
+/*!50001 DROP VIEW IF EXISTS `cur_info2`*/;
+SET @saved_cs_client     = @@character_set_client;
+/*!50503 SET character_set_client = utf8mb4 */;
+/*!50001 CREATE VIEW `cur_info2` AS SELECT 
+ 1 AS `count(*)`,
+ 1 AS `sum(cs)`*/;
+SET character_set_client = @saved_cs_client;
+
+--
+-- Temporary view structure for view `cur_info3`
+--
+
+DROP TABLE IF EXISTS `cur_info3`;
+/*!50001 DROP VIEW IF EXISTS `cur_info3`*/;
+SET @saved_cs_client     = @@character_set_client;
+/*!50503 SET character_set_client = utf8mb4 */;
+/*!50001 CREATE VIEW `cur_info3` AS SELECT 
+ 1 AS `count(*)`*/;
+SET character_set_client = @saved_cs_client;
 
 --
 -- Table structure for table `fcnt`
@@ -268,12 +302,15 @@ CREATE TABLE `lookup` (
   `sri` varchar(45) NOT NULL,
   `spi` varchar(45) NOT NULL,
   `subl` mediumtext,
+  `lvl` int unsigned NOT NULL,
+  `loc` geometry NOT NULL,
   PRIMARY KEY (`pi`,`ri`,`ty`),
   UNIQUE KEY `ri_UNIQUE` (`ri`),
   KEY `idx_lookup_ty` (`ty`) USING BTREE,
   KEY `idx_lookup_pi` (`pi`) /*!80000 INVISIBLE */,
   KEY `idx_lookup_ct` (`ct`),
-  KEY `idx_lookup_sri` (`sri`)
+  KEY `idx_lookup_sri` (`sri`),
+  KEY `idx_lookup_lvl` (`lvl`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
@@ -554,6 +591,60 @@ CREATE TABLE `tsi` (
   CONSTRAINT `tsi_ri` FOREIGN KEY (`ri`) REFERENCES `lookup` (`ri`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3;
 /*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Final view structure for view `cur_info`
+--
+
+/*!50001 DROP VIEW IF EXISTS `cur_info`*/;
+/*!50001 SET @saved_cs_client          = @@character_set_client */;
+/*!50001 SET @saved_cs_results         = @@character_set_results */;
+/*!50001 SET @saved_col_connection     = @@collation_connection */;
+/*!50001 SET character_set_client      = utf8mb4 */;
+/*!50001 SET character_set_results     = utf8mb4 */;
+/*!50001 SET collation_connection      = utf8mb4_0900_ai_ci */;
+/*!50001 CREATE ALGORITHM=UNDEFINED */
+/*!50013 DEFINER=`root`@`localhost` SQL SECURITY DEFINER */
+/*!50001 VIEW `cur_info` AS select count(0) AS `count(*)`,sum(`cin`.`cs`) AS `sum(cs)` from `cin` where (`cin`.`pi` = '/Mobius/ae-edu1/cnt-co2') */;
+/*!50001 SET character_set_client      = @saved_cs_client */;
+/*!50001 SET character_set_results     = @saved_cs_results */;
+/*!50001 SET collation_connection      = @saved_col_connection */;
+
+--
+-- Final view structure for view `cur_info2`
+--
+
+/*!50001 DROP VIEW IF EXISTS `cur_info2`*/;
+/*!50001 SET @saved_cs_client          = @@character_set_client */;
+/*!50001 SET @saved_cs_results         = @@character_set_results */;
+/*!50001 SET @saved_col_connection     = @@collation_connection */;
+/*!50001 SET character_set_client      = utf8mb4 */;
+/*!50001 SET character_set_results     = utf8mb4 */;
+/*!50001 SET collation_connection      = utf8mb4_0900_ai_ci */;
+/*!50001 CREATE ALGORITHM=UNDEFINED */
+/*!50013 DEFINER=`root`@`localhost` SQL SECURITY DEFINER */
+/*!50001 VIEW `cur_info2` AS select count(0) AS `count(*)`,sum(`cin`.`cs`) AS `sum(cs)` from `cin` where (`cin`.`pi` = '/Mobius/UTM_01/GCS_Data') */;
+/*!50001 SET character_set_client      = @saved_cs_client */;
+/*!50001 SET character_set_results     = @saved_cs_results */;
+/*!50001 SET collation_connection      = @saved_col_connection */;
+
+--
+-- Final view structure for view `cur_info3`
+--
+
+/*!50001 DROP VIEW IF EXISTS `cur_info3`*/;
+/*!50001 SET @saved_cs_client          = @@character_set_client */;
+/*!50001 SET @saved_cs_results         = @@character_set_results */;
+/*!50001 SET @saved_col_connection     = @@collation_connection */;
+/*!50001 SET character_set_client      = utf8mb4 */;
+/*!50001 SET character_set_results     = utf8mb4 */;
+/*!50001 SET collation_connection      = utf8mb4_0900_ai_ci */;
+/*!50001 CREATE ALGORITHM=UNDEFINED */
+/*!50013 DEFINER=`root`@`localhost` SQL SECURITY DEFINER */
+/*!50001 VIEW `cur_info3` AS select count(0) AS `count(*)` from `lookup` */;
+/*!50001 SET character_set_client      = @saved_cs_client */;
+/*!50001 SET character_set_results     = @saved_cs_results */;
+/*!50001 SET collation_connection      = @saved_col_connection */;
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
 
 /*!40101 SET SQL_MODE=@OLD_SQL_MODE */;
@@ -564,4 +655,4 @@ CREATE TABLE `tsi` (
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2023-05-26 16:42:07
+-- Dump completed on 2023-06-07 20:11:11
