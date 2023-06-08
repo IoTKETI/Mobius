@@ -1637,6 +1637,8 @@ function search_resource_action(connection, ri, query, cur_lim, pi_list, cni, lo
         locSql += JSON.stringify(geoJsonObj);
         locSql += '\')';
 
+        query_where += ' and (ty=2 or ty=3 or ty=5)';
+
         if(query.gsf == 1) {
             query_where += ' and ';
             query_where += util.format('ST_Within(loc, ' + locSql + ')');

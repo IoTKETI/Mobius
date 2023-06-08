@@ -34,6 +34,25 @@ exports.build_cnt = function(request, response, resource_Obj, body_Obj, callback
     resource_Obj[rootnm].mbs = (body_Obj[rootnm].mbs) ? body_Obj[rootnm].mbs : '3153600000';
     resource_Obj[rootnm].mia = (body_Obj[rootnm].mia) ? body_Obj[rootnm].mia : '31536000';
 
+    if(body_Obj[rootnm].hasOwnProperty('loc')) {
+        if(!body_Obj[rootnm].loc.hasOwnProperty('typ')) {
+            callback('400-61');
+            return;
+        }
+        if(!body_Obj[rootnm].loc.hasOwnProperty('crd')) {
+            callback('400-62');
+            return;
+        }
+        else {
+            if (!Array.isArray(body_Obj[rootnm].loc.crd)) {
+                callback('400-63');
+                return;
+            }
+        }
+
+        resource_Obj[rootnm].loc = JSON.parse(JSON.stringify(body_Obj[rootnm].loc));
+    }
+
     if(parseInt(resource_Obj[rootnm].mni) < 0) { // clsase 7.4.6.2.1 TS-0004
         callback('400-29');
         return;
