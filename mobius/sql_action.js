@@ -1631,7 +1631,7 @@ function search_resource_action(connection, ri, query, cur_lim, pi_list, cni, lo
     if (query.hasOwnProperty('gmty') && query.hasOwnProperty('gsf') && query.hasOwnProperty('geom')) {
         let geoJsonObj = {};
         geoJsonObj.type = geoJsonTypeText[query.gmty]; // 1: Point, 2: Line, 3: Polygon
-        geoJsonObj.coordinates = JSON.parse(JSON.stringify(query.geom));
+        geoJsonObj.coordinates = JSON.parse(JSON.stringify(JSON.parse(query.geom)));
 
         let locSql = 'ST_GeomFromGeoJSON(\'';
         locSql += JSON.stringify(geoJsonObj);
