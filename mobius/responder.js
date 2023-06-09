@@ -1023,7 +1023,7 @@ function typeCheckAction(index1, body_Obj) {
                 }
             }
             else if (index2 == 'loc') {
-                if (index1 == 'm2m:cb' || index1 == 'm2m:ae' || index1 == 'm2m:cnt') {
+                if (index1 == 'm2m:cb' || index1 == 'm2m:ae' || index1 == 'm2m:cnt' || index1 == 'm2m:csr') {
                     if (!body_Obj[index2].hasOwnProperty('typ')) {
                         let locObj = {};
                         locObj.crd = [];
