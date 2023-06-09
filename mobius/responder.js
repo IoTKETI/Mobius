@@ -1654,17 +1654,17 @@ function typeCheckforJson2(body_Obj) {
         if(body_Obj.hasOwnProperty(index1)) {
             for (var index2 in body_Obj[index1]) {
                 if (body_Obj[index1].hasOwnProperty(index2)) {
-                    typeCheckAction(index2, body_Obj[index1][index2]);
-                    for (var index3 in body_Obj[index1][index2]) {
-                        if (body_Obj[index1][index2].hasOwnProperty(index3)) {
-                            typeCheckAction(index3, body_Obj[index1][index2][index3]);
-                            for (var index4 in body_Obj[index1][index2][index3]) {
-                                if (body_Obj[index1][index2][index3].hasOwnProperty(index4)) {
-                                    typeCheckAction(index4, body_Obj[index1][index2][index3][index4]);
-                                }
-                            }
-                        }
-                    }
+                    typeCheckAction(index1, body_Obj[index1][index2]);
+                    // for (var index3 in body_Obj[index1][index2]) {
+                    //     if (body_Obj[index1][index2].hasOwnProperty(index3)) {
+                    //         typeCheckAction(index3, body_Obj[index1][index2][index3]);
+                    //         for (var index4 in body_Obj[index1][index2][index3]) {
+                    //             if (body_Obj[index1][index2][index3].hasOwnProperty(index4)) {
+                    //                 typeCheckAction(index4, body_Obj[index1][index2][index3][index4]);
+                    //             }
+                    //         }
+                    //     }
+                    // }
                 }
             }
         }
