@@ -680,9 +680,20 @@ function parse_body_format(request, response, callback) {
 function check_resource(request, response, callback) {
     var ri = url.parse(request.url).pathname;
 
-    var chk_fopt = ri.split('/fopt');
-    if (chk_fopt.length == 2) {
-        ri = chk_fopt[0];
+    var arr_chk_fopt = ri.split('/');
+    let flag_fopt = 0;
+
+    for(let i in arr_chk_fopt) {
+        if(arr_chk_fopt.hasOwnProperty(i)) {
+            if(arr_chk_fopt[i] === 'fopt') {
+                flag_fopt = 1;
+                break;
+            }
+        }
+    }
+
+    if (flag_fopt === 1) {
+        ri = '/' + arr_chk_fopt.join('/').replace('/fopt', '');
         db_sql.select_grp_lookup(request.db_connection, ri, (err, result_Obj) => {
             if (!err) {
                 if (result_Obj.length == 1) {
@@ -1287,7 +1298,7 @@ function get_resource_from_url(connection, ri, sri, option, callback) {
                     }
                 });
             }
-            else if (option == '/fopt') {
+            else if (option.includes('/fopt')) {
                 callback(targetObject, 200);
             }
             else {
@@ -1577,53 +1588,67 @@ function get_target_url(request, response, callback) {
 
     request.option = '';
     request.sri = absolute_url_arr[1].split('?')[0];
-    if (absolute_url_arr[absolute_url_arr.length - 1] == 'la') {
-        if (request.method.toLowerCase() == 'get' || request.method.toLowerCase() == 'delete') {
-            request.ri = absolute_url.split('?')[0];
-            request.ri = request.ri.substr(0, request.ri.length-3);
-            request.option = '/latest';
-        }
-        else {
-            callback('409-1');
-        }
-    }
-    else if (absolute_url_arr[absolute_url_arr.length - 1] == 'latest') {
-        if (request.method.toLowerCase() == 'get' || request.method.toLowerCase() == 'delete') {
-            request.ri = absolute_url.split('?')[0];
-            request.ri = request.ri.substr(0, request.ri.length-7);
-            request.option = '/latest';
-        }
-        else {
-            callback('409-1');
+
+    let flag_fopt = 0;
+    let _absolute_url_arr = absolute_url_arr.slice(1);
+    for(let i in _absolute_url_arr) {
+        if(_absolute_url_arr.hasOwnProperty(i)) {
+            if(_absolute_url_arr[i] === 'fopt') {
+                flag_fopt = i;
+                break;
+            }
         }
     }
-    else if (absolute_url_arr[absolute_url_arr.length - 1] == 'ol') {
-        if (request.method.toLowerCase() == 'get' || request.method.toLowerCase() == 'delete') {
-            request.ri = absolute_url.split('?')[0];
-            request.ri = request.ri.substr(0, request.ri.length-3);
-            request.option = '/oldest';
-        }
-        else {
-            callback('409-2')
-        }
-    }
-    else if (absolute_url_arr[absolute_url_arr.length - 1] == 'oldest') {
-        if (request.method.toLowerCase() == 'get' || request.method.toLowerCase() == 'delete') {
-            request.ri = absolute_url.split('?')[0];
-            request.ri = request.ri.substr(0, request.ri.length-7);
-            request.option = '/oldest';
-        }
-        else {
-            callback('409-2')
-        }
-    }
-    else if (absolute_url_arr[absolute_url_arr.length - 1] == 'fopt') {
-        request.ri = absolute_url.split('?')[0].replace('/fopt', '');
-        request.option = '/fopt';
+
+    if (flag_fopt !== 0) {
+        request.ri = '/' + _absolute_url_arr.slice(0, flag_fopt).join('/').replace('/fopt', '');
+        request.option = '/' + _absolute_url_arr.slice(flag_fopt).join('/');
     }
     else {
-        request.ri = absolute_url.split('?')[0];
-        request.option = '';
+        if (absolute_url_arr[absolute_url_arr.length - 1] == 'la') {
+            if (request.method.toLowerCase() == 'get' || request.method.toLowerCase() == 'delete') {
+                request.ri = absolute_url.split('?')[0];
+                request.ri = request.ri.substr(0, request.ri.length - 3);
+                request.option = '/latest';
+            }
+            else {
+                callback('409-1');
+            }
+        }
+        else if (absolute_url_arr[absolute_url_arr.length - 1] == 'latest') {
+            if (request.method.toLowerCase() == 'get' || request.method.toLowerCase() == 'delete') {
+                request.ri = absolute_url.split('?')[0];
+                request.ri = request.ri.substr(0, request.ri.length - 7);
+                request.option = '/latest';
+            }
+            else {
+                callback('409-1');
+            }
+        }
+        else if (absolute_url_arr[absolute_url_arr.length - 1] == 'ol') {
+            if (request.method.toLowerCase() == 'get' || request.method.toLowerCase() == 'delete') {
+                request.ri = absolute_url.split('?')[0];
+                request.ri = request.ri.substr(0, request.ri.length - 3);
+                request.option = '/oldest';
+            }
+            else {
+                callback('409-2')
+            }
+        }
+        else if (absolute_url_arr[absolute_url_arr.length - 1] == 'oldest') {
+            if (request.method.toLowerCase() == 'get' || request.method.toLowerCase() == 'delete') {
+                request.ri = absolute_url.split('?')[0];
+                request.ri = request.ri.substr(0, request.ri.length - 7);
+                request.option = '/oldest';
+            }
+            else {
+                callback('409-2')
+            }
+        }
+        else {
+            request.ri = absolute_url.split('?')[0];
+            request.option = '';
+        }
     }
 
     request.absolute_url = absolute_url;
@@ -2108,7 +2133,8 @@ app.get(onem2mParser, (request, response) => {
                             if (code === '200') {
                                 get_target_url(request, response, (code) => {
                                     if (code === '200') {
-                                        if (request.option !== '/fopt') {
+                                        //if (request.option !== '/fopt') {
+                                        if(!request.option.includes('/fopt')) {
                                             var rootnm = Object.keys(request.targetObject)[0];
                                             request.url = request.targetObject[rootnm].ri;
                                             if ((request.query.fu == 1 || request.query.fu == 2) && (request.query.rcn == 1 || request.query.rcn == 4 || request.query.rcn == 5 || request.query.rcn == 6 || request.query.rcn == 7)) {
