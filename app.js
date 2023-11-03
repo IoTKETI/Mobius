@@ -1829,8 +1829,8 @@ app.post(onem2mParser, (request, response) => {
 
         db.getConnection((code, connection) => {
             if (code === '200') {
-                if (!request.hasOwnProperty('headers')) {
-                    request.headers = {};
+                if (request.headers == null) {
+                    request.rawHeaders = ["Accept","application/json"];
                 }
 
                 if (!request.headers.hasOwnProperty('binding')) {
@@ -2125,8 +2125,8 @@ app.get(onem2mParser, (request, response) => {
 
                 extra_api_action(connection, request.url, (code, result) => {
                     if (code === '200') {
-                        if (!request.hasOwnProperty('headers')) {
-                            request.headers = {};
+                        if (request.headers == null) {
+                            request.rawHeaders = ["Accept","application/json"];
                         }
 
                         if (!request.headers.hasOwnProperty('binding')) {
@@ -2310,8 +2310,8 @@ app.put(onem2mParser, (request, response) => {
             if (code === '200') {
                 request.db_connection = connection;
 
-                if (!request.hasOwnProperty('headers')) {
-                    request.headers = {};
+                if (request.headers == null) {
+                    request.rawHeaders = ["Accept","application/json"];
                 }
 
                 if (!request.headers.hasOwnProperty('binding')) {
@@ -2528,8 +2528,8 @@ app.delete(onem2mParser, (request, response) => {
             if (code === '200') {
                 request.db_connection = connection;
 
-                if (!request.hasOwnProperty('headers')) {
-                    request.headers = {};
+                if (request.headers == null) {
+                    request.rawHeaders = ["Accept","application/json"];
                 }
 
                 if (!request.headers.hasOwnProperty('binding')) {

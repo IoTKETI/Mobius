@@ -777,7 +777,7 @@ function http_retrieve_CSEBase(callback) {
                 responseBody += chunk;
             });
 
-            res.on('end', function () {
+            res.on('end', () => {
                 callback(res.headers['x-m2m-rsc'], responseBody);
             });
         });
