@@ -16,7 +16,7 @@
 
 var fs = require('fs');
 var http = require('http');
-var https = require('https');
+const https = require('https');
 var mqtt = require('mqtt');
 var url = require('url');
 
@@ -158,6 +158,17 @@ function sgn_mqtt_message_handler(topic, message) {
 
 function request_noti_http(nu, ri, bodyString, bodytype, xm2mri) {
     var bodyStr = '';
+    if (url.parse(nu).protocol == 'http:') {
+        if(url.parse(nu).port == null) {
+            url.parse(nu).port = 80;
+        }
+    }
+    else {
+        if(url.parse(nu).port == null) {
+            url.parse(nu).port = 443;
+        }
+    }
+
     var options = {
         hostname: url.parse(nu).hostname,
         port: url.parse(nu).port,
@@ -180,14 +191,6 @@ function request_noti_http(nu, ri, bodyString, bodytype, xm2mri) {
         });
 
         res.on('end', function () {
-            // if (res.statusCode == 200 || res.statusCode == 201) {
-            //     //console.log('----> [request_noti_http - ' + ss_fail_count[ri] + ']');
-            //     delete ss_fail_count[ri];
-            // }
-            // else {
-            //     console.log('----> [request_noti - wrong response - ' + res.statusCode + ']');
-            // }
-
             if(timerID.hasOwnProperty(xm2mri)) {
                 clearTimeout(timerID[xm2mri]);
                 delete timerID[xm2mri];
@@ -201,35 +204,82 @@ function request_noti_http(nu, ri, bodyString, bodytype, xm2mri) {
     }
 
     if (url.parse(nu).protocol == 'http:') {
-        var req = http.request(options, function (res) {
+        var req = http.request(options, (res) => {
             response_noti_http(res);
         });
+
+        req.on('error', function (e) {
+            //console.log('[request_noti_http - problem with request: ' + e.message + ']');
+            //console.log('[request_noti_http - no response - ' + ss_fail_count[ri] + ']');
+        });
+
+        req.on('close', function () {
+            //console.log('[request_noti_http] - close event - ' + ri + ' - ' + xm2mri);
+        });
+
+        req.on('socket',function(socket) {
+            console.log('<======= [request_noti_http] - socket event - ' + ri + ' - ' + xm2mri);
+            timerID[xm2mri] = setTimeout(checkResponse, resp_timeout, ri, xm2mri, socket);
+        });
+
+        console.log(bodyString);
+        req.write(bodyString);
+        req.end();
     }
     else {
-        options.ca = fs.readFileSync('ca-crt.pem');
 
-        req = https.request(options, function (res) {
-            response_noti_http(res);
-        });
+        function makeHttpPostRequest(options, bodyString) {
+
+            return new Promise((resolve, reject) => {
+                const req = https.request(options, (res) => {
+                    let body = '';
+                    res.on('data', (chunk) => {
+                        body += chunk;
+                    });
+
+                    res.on('end', () => {
+                        console.log(body)
+                        if (res.statusCode / 2 === 100 ) {
+                            console.log('success')
+                            resolve('Success');
+                        }
+                        else {
+                            console.log('failed')
+                            resolve('Failure');
+                        }
+                    });
+                    res.on('error', () => {
+                        console.log('error');
+                        reject(Error('HTTP call failed'));
+                    });
+                });
+                // The below 2 lines are most important part of the whole snippet.
+                req.write(bodyString);
+                req.end();
+            })
+        }
+
+        const options = {
+            protocol: 'https:',
+            hostname: url.parse(nu).hostname,
+            port: url.parse(nu).port,
+            method: 'POST',
+            path: url.parse(nu).path,
+            headers: {
+                'X-M2M-RI': xm2mri,
+                'Accept': 'application/json',
+                'X-M2M-Origin': usecseid,
+                'Content-Type': 'application/json',
+                'Content-Length' : bodyString.length //, for cert
+                //'X-M2M-RVI': uservi
+                //
+            }
+        };
+
+        makeHttpPostRequest(options, bodyString);
     }
 
-    req.on('error', function (e) {
-        //console.log('[request_noti_http - problem with request: ' + e.message + ']');
-        //console.log('[request_noti_http - no response - ' + ss_fail_count[ri] + ']');
-    });
 
-    req.on('close', function () {
-        //console.log('[request_noti_http] - close event - ' + ri + ' - ' + xm2mri);
-    });
-
-    req.on('socket',function(socket) {
-        console.log('<======= [request_noti_http] - socket event - ' + ri + ' - ' + xm2mri);
-        timerID[xm2mri] = setTimeout(checkResponse, resp_timeout, ri, xm2mri, socket);
-    });
-
-    console.log(bodyString);
-    req.write(bodyString);
-    req.end();
 }
 
 function checkResponse(ri, rqi, socket) {
