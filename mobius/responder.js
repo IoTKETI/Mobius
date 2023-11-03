@@ -2228,7 +2228,8 @@ exports.search_result = function(request, response, status, rsc, cap, callback) 
                 }
             }
 
-            response.status(status).end(bodyString);
+            let m2m_body_string = JSON.stringify(body_Obj['m2m:rsp']);
+            response.status(status).end(m2m_body_string);
 
             rspObj = {};
             rspObj.rsc = rsc;
