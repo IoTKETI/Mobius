@@ -2228,7 +2228,18 @@ exports.search_result = function(request, response, status, rsc, cap, callback) 
                 }
             }
 
-            let m2m_body_string = JSON.stringify(body_Obj['m2m:rsp']);
+            let root_name = Object.keys(request.targetObject);
+            let to_object = {};
+
+            if(request.query.rcn == "4") {
+                _this.typeCheckforJson(request.targetObject);
+                to_object['m2m:'+root_name] = Object.assign({}, body_Obj['m2m:rsp'], request.targetObject[root_name])
+            }
+            else if(request.query.rcn == "8") {
+                to_object['m2m:' + root_name] = JSON.parse(JSON.stringify(body_Obj['m2m:rsp']));
+            }
+
+            let m2m_body_string = JSON.stringify(to_object);
             response.status(status).end(m2m_body_string);
 
             rspObj = {};

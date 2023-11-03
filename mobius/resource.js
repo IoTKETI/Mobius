@@ -1723,7 +1723,7 @@ exports.retrieve = function (request, response, callback) {
 
                                     callback('200-1');
                                 }
-                                else if (request.query.rcn == 4 || request.query.rcn == 5 || request.query.rcn == 6) {
+                                else if (request.query.rcn == 4 || request.query.rcn == 5 || request.query.rcn == 8) {
                                     request.headers.rootnm = 'rsp';
                                     request.resourceObj = JSON.parse(JSON.stringify(foundObj));
                                     _this.remove_no_value(request, request.resourceObj);

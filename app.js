@@ -2145,7 +2145,7 @@ app.get(onem2mParser, (request, response) => {
                                         if(!request.option.includes('/fopt')) {
                                             var rootnm = Object.keys(request.targetObject)[0];
                                             request.url = request.targetObject[rootnm].ri;
-                                            if ((request.query.fu == 1 || request.query.fu == 2) && (request.query.rcn == 1 || request.query.rcn == 4 || request.query.rcn == 5 || request.query.rcn == 6 || request.query.rcn == 7)) {
+                                            if ((request.query.fu == 1 || request.query.fu == 2) && (request.query.rcn == 1 || request.query.rcn == 4 || request.query.rcn == 5 || request.query.rcn == 6 || request.query.rcn == 8)) {
                                                 lookup_retrieve(request, response, (code) => {
                                                     if (code === '200') {
                                                         responder.response_result(request, response, '200', '2000', '', () => {
