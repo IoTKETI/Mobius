@@ -1829,6 +1829,10 @@ app.post(onem2mParser, (request, response) => {
 
         db.getConnection((code, connection) => {
             if (code === '200') {
+                if (!request.hasOwnProperty('headers')) {
+                    request.headers = {};
+                }
+
                 if (!request.headers.hasOwnProperty('binding')) {
                     request.headers['binding'] = 'H';
                 }
@@ -2121,6 +2125,10 @@ app.get(onem2mParser, (request, response) => {
 
                 extra_api_action(connection, request.url, (code, result) => {
                     if (code === '200') {
+                        if (!request.hasOwnProperty('headers')) {
+                            request.headers = {};
+                        }
+
                         if (!request.headers.hasOwnProperty('binding')) {
                             request.headers['binding'] = 'H';
                         }
@@ -2301,6 +2309,10 @@ app.put(onem2mParser, (request, response) => {
         db.getConnection((code, connection) => {
             if (code === '200') {
                 request.db_connection = connection;
+
+                if (!request.hasOwnProperty('headers')) {
+                    request.headers = {};
+                }
 
                 if (!request.headers.hasOwnProperty('binding')) {
                     request.headers['binding'] = 'H';
@@ -2515,6 +2527,10 @@ app.delete(onem2mParser, (request, response) => {
         db.getConnection((code, connection) => {
             if (code === '200') {
                 request.db_connection = connection;
+
+                if (!request.hasOwnProperty('headers')) {
+                    request.headers = {};
+                }
 
                 if (!request.headers.hasOwnProperty('binding')) {
                     request.headers['binding'] = 'H';
