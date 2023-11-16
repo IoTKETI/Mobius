@@ -22,6 +22,7 @@ var url = require('url');
 
 var db = require('./db_action');
 var db_sql = require('./sql_action');
+const dns = require("dns");
 
 var resp_mqtt_rqi_arr = {};
 
@@ -70,6 +71,9 @@ if(sgn_mqtt_client == null) {
     });
 }
 
+let other_mqtt_client = {};
+let tid_other_mqtt = {};
+
 exports.post = function(ri, exc, nu, bodytype, rqi, bodyString, parentObj) {
     try {
         if(ss_fail_count.hasOwnProperty(ri)) {
@@ -103,7 +107,56 @@ exports.post = function(ri, exc, nu, bodytype, rqi, bodyString, parentObj) {
                 request_noti_ws(nu, ri, bodyString, bodytype, rqi);
             }
             else if (sub_nu.protocol == 'mqtt:') { // mqtt:
-                request_noti_mqtt(nu, ri, bodyString, bodytype, rqi);
+                try {
+                    dns.lookup(sub_nu.hostname, (err, address, family) => {
+                        if (err) {
+                            throw err;
+                        }
+
+                        console.log(MYIP, ' - ', address);
+
+                        if (MYIP === address) {
+                            //request_noti_mqtt(sub_nu.pathname, ri, bodyString, bodytype, rqi, sgn_mqtt_client);
+
+                            sgn_mqtt_client.publish(sub_nu.pathname, bodyString);
+                        }
+                        else {
+                            let request_noti_mqtt_action = () => {
+                                other_mqtt_client[sub_nu.hostname].publish(sub_nu.pathname, bodyString);
+
+                                tid_other_mqtt[sub_nu.hostname] = setTimeout((hostname) => {
+                                    other_mqtt_client[hostname].end();
+                                    delete other_mqtt_client[hostname];
+                                    delete tid_other_mqtt[hostname];
+                                }, 10000, sub_nu.hostname);
+                            };
+
+                            if(other_mqtt_client.hasOwnProperty(sub_nu.hostname)) {
+                                clearTimeout(tid_other_mqtt[sub_nu.hostname]);
+
+                                request_noti_mqtt_action();
+                            }
+                            else {
+                                other_mqtt_client[sub_nu.hostname] = mqtt.connect('mqtt://' + sub_nu.hostname + ':' + sub_nu.port);
+
+                                other_mqtt_client[sub_nu.hostname].on('connect', () => {
+                                    request_noti_mqtt_action();
+                                });
+
+                                other_mqtt_client[sub_nu.hostname].on('error', (error) => {
+                                    console.log("mqtt error is occurred!!", error);
+                                });
+
+                                other_mqtt_client[sub_nu.hostname].on('offline', (error) => {
+                                    console.log("notification mqtt broker of nu does not connect!!", error);
+                                });
+                            }
+                        }
+                    });
+                }
+                catch (e) {
+                    console.log(e.message);
+                }
             }
             nu = null;
         }
@@ -360,27 +413,27 @@ function request_noti_coap(nu, ri, bodyString, bodytype, xm2mri) {
 }
 
 var timerID = {};
-function request_noti_mqtt(nu, ri, bodyString, bodytype, xm2mri) {
+function request_noti_mqtt(hostname, ri, bodyString, bodytype, xm2mri, mqtt_client) {
     try {
         resp_mqtt_rqi_arr[xm2mri] = ri;
 
-        var aeid = url.parse(nu).pathname.replace('/', '').split('?')[0];
+        var aeid = url.parse(hostname).pathname.replace('/', '').split('?')[0];
         var noti_resp_topic = '/oneM2M/resp/' + usecseid.replace('/', '') + '/' + aeid + '/' + bodytype;
 
-        sgn_mqtt_client.subscribe(noti_resp_topic);
+        mqtt_client.subscribe(noti_resp_topic);
         console.log('subscribe noti_resp_topic as ' + noti_resp_topic);
 
         var noti_topic = '/oneM2M/req/' + usecseid.replace('/', '') + '/' + aeid + '/' + bodytype;
-        sgn_mqtt_client.publish(noti_topic, bodyString);
+        mqtt_client.publish(noti_topic, bodyString);
 
         timerID[xm2mri] = setTimeout(checkResponseMqtt, resp_timeout, ri, noti_resp_topic, xm2mri);
 
         console.log('<======= [request_noti_mqtt - ' + ri + '] publish - ' + noti_topic);
         //console.log(bodyString);
-    }
+   }
     catch (e) {
         console.log(e.message);
-        console.log('can not send notification to ' + nu);
+        console.log('can not send notification to ' + hostname);
     }
 }
 

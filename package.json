@@ -7,6 +7,7 @@
     "coap": "^0.22.0",
     "cors": "^2.8.5",
     "crypto": "1.0.1",
+    "dns": "^0.2.2",
     "events": "^3.0.0",
     "express": "^4.16.4",
     "file-stream-rotator": "0.4.1",
@@ -29,7 +30,6 @@
   },
   "description": "Mobius",
   "main": "mobius.js",
-  "devDependencies": {},
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },

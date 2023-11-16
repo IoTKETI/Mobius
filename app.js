@@ -37,6 +37,8 @@ const cors = require('cors');
 global.NOPRINT = 'true';
 global.ONCE = 'true';
 
+global.MYIP = ip.address();
+
 var cb = require('./mobius/cb');
 var responder = require('./mobius/responder');
 var resource = require('./mobius/resource');
