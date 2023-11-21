@@ -162,8 +162,8 @@ exports.insert_lookup = function(connection, obj, callback) {
         // locObj.crd = [127.16296271344285, 37.4047969850232];
         // locObj.typ = 2; // 1: Point, 2: Line, 3: Polygon
         // locObj.crd = [[100.0, 0.0], [101.0, 0.0], [101.0, 1.0]];
-        locObj.typ = 3; // 1: Point, 2: Line, 3: Polygon
-        locObj.crd = [[[100.0, 0.0], [101.0, 0.0], [101.0, 1.0], [100.0, 1.0], [100.0, 0.0]]];
+        // locObj.typ = 3; // 1: Point, 2: Line, 3: Polygon
+        // locObj.crd = [[[100.0, 0.0], [101.0, 0.0], [101.0, 1.0], [100.0, 1.0], [100.0, 0.0]]];
         obj.loc = locObj;
 
         let geoJsonObj = {};
