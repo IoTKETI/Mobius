@@ -158,6 +158,8 @@ exports.insert_lookup = function(connection, obj, callback) {
     let locSql = '';
     if(!obj.hasOwnProperty('loc')) {
         let locObj = {};
+        locObj.typ = 1; // 1: Point, 2: Line, 3: Polygon
+        locObj.crd = [127.1, 37.4];
         // locObj.typ = 1; // 1: Point, 2: Line, 3: Polygon
         // locObj.crd = [127.16296271344285, 37.4047969850232];
         // locObj.typ = 2; // 1: Point, 2: Line, 3: Polygon

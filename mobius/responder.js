@@ -827,6 +827,11 @@ function typeCheckAction(index1, body_Obj) {
                     delete body_Obj[index2];
                 }
             }
+            else if (index2 == 'loc') {
+                if((body_Obj[index2].typ == 1) && (body_Obj[index2].crd[0] == 127.1) && (body_Obj[index2].crd[1] == 37.4)) {
+                    body_Obj[index2] = {};
+                }
+            }
             else if (index2 == 'subl') {
                 delete body_Obj[index2];
             }
