@@ -125,8 +125,10 @@ exports.post = function(ri, exc, nu, bodytype, rqi, bodyString, parentObj) {
                                 other_mqtt_client[sub_nu.hostname].publish(sub_nu.pathname, bodyString);
 
                                 tid_other_mqtt[sub_nu.hostname] = setTimeout((hostname) => {
-                                    other_mqtt_client[hostname].end();
-                                    delete other_mqtt_client[hostname];
+                                    if(other_mqtt_client.hasOwnProperty(hostname)) {
+                                        other_mqtt_client[hostname].end();
+                                        delete other_mqtt_client[hostname];
+                                    }
                                     delete tid_other_mqtt[hostname];
                                 }, 10000, sub_nu.hostname);
                             };
