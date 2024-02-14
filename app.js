@@ -1831,19 +1831,19 @@ app.post(onem2mParser, (request, response) => {
 
         db.getConnection((code, connection) => {
             if (code === '200') {
-                if (request.headers == null) {
+                if(request.hasOwnProperty('headers')) {
+                    if(!request.hasOwnProperty('binding')) {
+                        request.headers['binding'] = 'H';
+                    }
+
+                    db_sql.set_hit(connection, request.headers['binding'], (err, results) => {
+                        results = null;
+
+                        connection.release();
+                    });
+                } else {
                     request.rawHeaders = ["Accept","application/json"];
                 }
-
-                if (!request.headers.hasOwnProperty('binding')) {
-                    request.headers['binding'] = 'H';
-                }
-
-                db_sql.set_hit(connection, request.headers['binding'], (err, results) => {
-                    results = null;
-
-                    connection.release();
-                });
             }
         });
 
