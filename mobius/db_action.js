@@ -77,15 +77,21 @@ exports.getConnection = function(callback) {
 
     mysql_pool.getConnection((err, connection) => {
         if (err) {
+            console.log(`Cant get connection from pool`);
             callback('500-5');
         }
         else {
-            if (connection) {
-                callback('200', connection);
+            const connectionIdleTimer = connection.__idleCloseTimer;
+            if (connectionIdleTimer) {
+                clearTimeout(connectionIdleTimer);
             }
-            else {
-                callback('500-5');
-            }
+
+            connection.__idleCloseTimer = setTimeout(() => {
+                console.log('close connection due inactivity');
+                mysql_pool._purgeConnection(connection);
+            }, 30 * 1000);
+
+            callback('200', connection);
         }
     });
 };
