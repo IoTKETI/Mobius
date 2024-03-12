@@ -482,7 +482,7 @@ function retrieve_CSEBase_mqtt(cseid, csebasename, callback) {
                     var parser = new xml2js.Parser({explicitArray: false});
                     parser.parseString(fullBody, function (err, result) {
                         if (err) {
-                            console.log('[retrieve_CSEBase_http] fail to set csetype to MN-CSE. csetype is IN-CSE');
+                            console.log('[retrieve_CSEBase_mqtt] fail to set csetype to MN-CSE. csetype is IN-CSE');
                         }
                         else {
                             result['m2m:cb'] = (result['m2m:cb'] == null) ? result['cb'] : result['m2m:cb'];
@@ -538,7 +538,7 @@ function retrieve_CSEBase_mqtt(cseid, csebasename, callback) {
                 delete jsonObj.csr.ct;
                 delete jsonObj.csr.lt;
                 delete jsonObj.csr.st;
-                delete jsonObj.csr.srv;
+                delete jsonObj.csr.srt;
 
                 jsonObj.csr.cst = '5';
                 jsonObj.csr.rr = 'true';
