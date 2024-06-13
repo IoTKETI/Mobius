@@ -206,8 +206,7 @@ function request_noti_http(nu, ri, bodyString, bodytype, xm2mri) {
         });
     }
     else {
-        options.ca = fs.readFileSync('ca-crt.pem');
-
+        options.rejectUnauthorized = false;
         req = https.request(options, function (res) {
             response_noti_http(res);
         });
