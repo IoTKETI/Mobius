@@ -206,8 +206,7 @@ function request_noti_http(nu, ri, bodyString, bodytype, xm2mri) {
         });
     }
     else {
-        process.env["NODE_TLS_REJECT_UNAUTHORIZED"] = 0;
-
+        options.rejectUnauthorized = false;
         req = https.request(options, function (res) {
             response_noti_http(res);
         });
