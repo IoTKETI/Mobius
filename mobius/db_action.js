@@ -12,30 +12,37 @@
  * @file
  * @copyright KETI Korea 2018, KETI
  * @author Il Yeup Ahn [iyahn@keti.re.kr]
+ * @revision 2024.06
  */
 
-var mysql = require('mysql');
+require('dotenv').config();
+const pg = require('pg');
 
-var mysql_pool = null;
+const pool = new pg.Pool({
+    user: process.env.DB_USER,
+    host: process.env.DB_HOST,
+    database: process.env.DB_DATABASE,
+    password: process.env.DB_PASSWORD,
+    port: process.env.DB_PORT,
+    max: 1000,
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 2000,
+});
 
-//var _this = this;
 
-
-exports.connect = function (host, port, user, password, callback) {
-    mysql_pool = mysql.createPool({
-        host: host,
-        port: port,
-        user: user,
-        password: password,
-        database: 'mobiusdb',
-        connectionLimit: 100,
-        waitForConnections: true,
-        debug: false,
-        acquireTimeout: 50000,
-        queueLimit: 0
-    });
-
-    callback('1');
+exports.connect = async (callback) => {
+    let client = null;
+    try {
+        client = await pool.connect();
+        if(client) {
+            client.release();
+        }
+        callback('1');
+    }
+    catch (e) {
+        console.error('pg error ', e);
+        callback('0');
+    }
 };
 
 
@@ -68,48 +75,69 @@ function executeQuery(pool, query, connection, callback) {
     });
 }
 
-exports.getConnection = function(callback) {
-    if(mysql_pool == null) {
-        console.error("mysql is not connected");
-        callback(true, "mysql is not connected");
-        return '0';
+exports.getConnection = async (callback) => {
+    let client = null;
+    try {
+        client = await pool.connect();
+        callback('200', client);
+    }
+    catch (e) {
+        console.error('pg error ', e);
+        callback('500-5');
     }
 
-    mysql_pool.getConnection((err, connection) => {
-        if (err) {
-            console.log(`Cant get connection from pool`);
-            callback('500-5');
-        }
-        else {
-            const connectionIdleTimer = connection.__idleCloseTimer;
-            if (connectionIdleTimer) {
-                clearTimeout(connectionIdleTimer);
-            }
-
-            connection.__idleCloseTimer = setTimeout(() => {
-                console.log('close connection due inactivity');
-                mysql_pool._purgeConnection(connection);
-            }, 30 * 1000);
-
-            callback('200', connection);
-        }
-    });
+    // if(mysql_pool == null) {
+    //     console.error("mysql is not connected");
+    //     callback(true, "mysql is not connected");
+    //     return '0';
+    // }
+    //
+    // mysql_pool.getConnection((err, connection) => {
+    //     if (err) {
+    //         console.log(`Cant get connection from pool`);
+    //         callback('500-5');
+    //     }
+    //     else {
+    //         const connectionIdleTimer = connection.__idleCloseTimer;
+    //         if (connectionIdleTimer) {
+    //             clearTimeout(connectionIdleTimer);
+    //         }
+    //
+    //         connection.__idleCloseTimer = setTimeout(() => {
+    //             console.log('close connection due inactivity');
+    //             mysql_pool._purgeConnection(connection);
+    //         }, 30 * 1000);
+    //
+    //         callback('200', connection);
+    //     }
+    // });
 };
 
-exports.getResult = function(query, connection, callback) {
-    if(mysql_pool == null) {
-        console.error("mysql is not connected");
-        return '0';
+exports.getResult = async (query, connection, callback) => {
+    let res = null;
+    try {
+        res = await connection.query(query);
+        // console.log(res.rows);
+        callback(null, res.rows);
+    }
+    catch (e) {
+        console.error('pg error ', e);
+        callback(true, e);
     }
 
-    executeQuery(mysql_pool, query, connection, (err, rows) => {
-        if (!err) {
-            callback(null, rows);
-        }
-        else {
-            callback(true, err);
-        }
-    });
+    // if(mysql_pool == null) {
+    //     console.error("mysql is not connected");
+    //     return '0';
+    // }
+    //
+    // executeQuery(mysql_pool, query, connection, (err, rows) => {
+    //     if (!err) {
+    //         callback(null, rows);
+    //     }
+    //     else {
+    //         callback(true, err);
+    //     }
+    // });
 };
 
 

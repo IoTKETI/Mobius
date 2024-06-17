@@ -50,6 +50,8 @@ var sgn = require('./mobius/sgn');
 var db = require('./mobius/db_action');
 var db_sql = require('./mobius/sql_action');
 
+require('dotenv').config();
+
 // ������ �����մϴ�.
 var app = express();
 
@@ -116,53 +118,51 @@ function del_expired_resource() {
     });
 }
 
-var cluster = require('cluster');
-var os = require('os');
-//var cpuCount = (os.cpus().length / 2);
-var cpuCount = os.cpus().length;
+let cluster = require('cluster');
+let os= require('os');
+let cpuCount = os.cpus().length;
 
 var worker = [];
 var use_clustering = 1;
 var worker_init_count = 0;
+
 if (use_clustering) {
     if (cluster.isMaster) {
-        cluster.on('death', (worker) => {
-            console.log('worker' + worker.pid + ' died --> start again');
+        // 워커가 종료되었을 때 새로운 워커 생성
+        cluster.on('exit', (worker, code, signal) => {
+            console.log(`Worker ${worker.process.pid} died`);
+            console.log('Creating a new worker...');
             cluster.fork();
         });
 
-        db.connect(usedbhost, 3306, 'root', usedbpass, (rsc) => {
-            if (rsc == '1') {
+        db.connect((rsc) => {
+            if (rsc === '1') {
                 db.getConnection((code, connection) => {
                     if (code === '200') {
-                        db_sql.set_tuning(connection, (err, results) => {
-                            if (err) {
-                                console.log('[set_tuning] error');
+                        cb.create(connection, (rsp) => {
+                            console.log(JSON.stringify(rsp));
+
+                            setInterval(del_req_resource, (24) * (60) * (60) * (1000));
+                            setInterval(del_expired_resource, (24) * (60) * (60) * (1000));
+
+                            require('./pxy_mqtt');
+                            require('./pxy_coap');
+                            require('./pxy_ws');
+
+                            if (usecsetype == 'mn' || usecsetype == 'asn') {
+                                global.refreshIntervalId = setInterval(() => {
+                                    csr_custom.emit('register_remoteCSE');
+                                }, 5000);
                             }
 
-                            console.log('CPU Count:', cpuCount);
-                            for (var i = 0; i < cpuCount; i++) {
-                                worker[i] = cluster.fork();
+                            connection.release();
+
+                            const numWorkers = os.cpus().length;
+                            console.log(`Master process is running with ${numWorkers} workers`);
+                            // 워커 프로세스 생성
+                            for (let i = 0; i < numWorkers; i++) {
+                                cluster.fork();
                             }
-
-                            cb.create(connection, (rsp) => {
-                                console.log(JSON.stringify(rsp));
-
-                                setInterval(del_req_resource, (24) * (60) * (60) * (1000));
-                                setInterval(del_expired_resource, (24) * (60) * (60) * (1000));
-
-                                require('./pxy_mqtt');
-                                require('./pxy_coap');
-                                require('./pxy_ws');
-
-                                if (usecsetype == 'mn' || usecsetype == 'asn') {
-                                    global.refreshIntervalId = setInterval(() => {
-                                        csr_custom.emit('register_remoteCSE');
-                                    }, 5000);
-                                }
-
-                                connection.release();
-                            });
                         });
                     }
                     else {
@@ -173,7 +173,7 @@ if (use_clustering) {
         });
     }
     else {
-        db.connect(usedbhost, 3306, 'root', usedbpass, (rsc) => {
+        db.connect((rsc) => {
             if (rsc === '1') {
                 db.getConnection((code, connection) => {
                     if (code === '200') {
@@ -1046,14 +1046,14 @@ function lookup_retrieve(request, response, callback) {
 
             tr.check(request, (code) => {
                 if (code === '200') {
-                    if (resultObj.ty == 2) {
+                    if (resultObj.ty === 2) {
                         resultObj.cr = resultObj.aei;
                     }
-                    else if (resultObj.ty == 16) {
+                    else if (resultObj.ty === 16) {
                         resultObj.cr = resultObj.csi;
                     }
 
-                    if (request.query.fu == 1) {
+                    if (request.query.fu === 1) {
                         security.check(request, response, resultObj.ty, resultObj.acpi, '32', resultObj.cr, (code) => {
                             if (code === '1') {
                                 resource.retrieve(request, response, (code) => {
@@ -1314,7 +1314,7 @@ function get_resource_from_url(connection, ri, sri, option, callback) {
 }
 
 function extra_api_action(connection, url, callback) {
-    if (url == '/hit') {
+    if (url === '/hit') {
         // for backup hit count
         if (0) {
             var _hit_old = JSON.parse(fs.readFileSync('hit.json', 'utf-8'));
@@ -1333,16 +1333,16 @@ function extra_api_action(connection, url, callback) {
                                         if (_hit_old[dd][ff][gg] == null) {
                                             _hit_old[dd][ff][gg] = 0;
                                         }
-                                        if (gg == 'H') {
+                                        if (gg === 'H') {
                                             _http = _hit_old[dd][ff][gg];
                                         }
-                                        else if (gg == 'M') {
+                                        else if (gg === 'M') {
                                             _mqtt = _hit_old[dd][ff][gg];
                                         }
-                                        else if (gg == 'C') {
+                                        else if (gg === 'C') {
                                             _coap = _hit_old[dd][ff][gg];
                                         }
-                                        else if (gg == 'W') {
+                                        else if (gg === 'W') {
                                             _ws = _hit_old[dd][ff][gg];
                                         }
                                     }
@@ -1387,7 +1387,7 @@ function extra_api_action(connection, url, callback) {
             }
         });
     }
-    else if (url == '/total_ae') {
+    else if (url === '/total_ae') {
         db_sql.select_sum_ae(connection, function (err, result) {
             if (err) {
                 callback('500-1');
@@ -1397,7 +1397,7 @@ function extra_api_action(connection, url, callback) {
             }
         });
     }
-    else if (url == '/total_cbs') {
+    else if (url === '/total_cbs') {
         db_sql.select_sum_cbs(connection, function (err, result) {
             if (err) {
                 callback('500-1');
@@ -1607,8 +1607,8 @@ function get_target_url(request, response, callback) {
         request.option = '/' + _absolute_url_arr.slice(flag_fopt).join('/');
     }
     else {
-        if (absolute_url_arr[absolute_url_arr.length - 1] == 'la') {
-            if (request.method.toLowerCase() == 'get' || request.method.toLowerCase() == 'delete') {
+        if (absolute_url_arr[absolute_url_arr.length - 1] === 'la') {
+            if (request.method.toLowerCase() === 'get' || request.method.toLowerCase() === 'delete') {
                 request.ri = absolute_url.split('?')[0];
                 request.ri = request.ri.substr(0, request.ri.length - 3);
                 request.option = '/latest';
@@ -1617,8 +1617,8 @@ function get_target_url(request, response, callback) {
                 callback('409-1');
             }
         }
-        else if (absolute_url_arr[absolute_url_arr.length - 1] == 'latest') {
-            if (request.method.toLowerCase() == 'get' || request.method.toLowerCase() == 'delete') {
+        else if (absolute_url_arr[absolute_url_arr.length - 1] === 'latest') {
+            if (request.method.toLowerCase() === 'get' || request.method.toLowerCase() === 'delete') {
                 request.ri = absolute_url.split('?')[0];
                 request.ri = request.ri.substr(0, request.ri.length - 7);
                 request.option = '/latest';
@@ -1627,8 +1627,8 @@ function get_target_url(request, response, callback) {
                 callback('409-1');
             }
         }
-        else if (absolute_url_arr[absolute_url_arr.length - 1] == 'ol') {
-            if (request.method.toLowerCase() == 'get' || request.method.toLowerCase() == 'delete') {
+        else if (absolute_url_arr[absolute_url_arr.length - 1] === 'ol') {
+            if (request.method.toLowerCase() === 'get' || request.method.toLowerCase() === 'delete') {
                 request.ri = absolute_url.split('?')[0];
                 request.ri = request.ri.substr(0, request.ri.length - 3);
                 request.option = '/oldest';
@@ -1637,8 +1637,8 @@ function get_target_url(request, response, callback) {
                 callback('409-2')
             }
         }
-        else if (absolute_url_arr[absolute_url_arr.length - 1] == 'oldest') {
-            if (request.method.toLowerCase() == 'get' || request.method.toLowerCase() == 'delete') {
+        else if (absolute_url_arr[absolute_url_arr.length - 1] === 'oldest') {
+            if (request.method.toLowerCase() === 'get' || request.method.toLowerCase() === 'delete') {
                 request.ri = absolute_url.split('?')[0];
                 request.ri = request.ri.substr(0, request.ri.length - 7);
                 request.option = '/oldest';

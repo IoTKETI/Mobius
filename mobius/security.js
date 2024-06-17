@@ -406,12 +406,12 @@ function security_default_check_action(request, response, cr, access_value, call
 }
 
 exports.check = function(request, response, ty, acpiList, access_value, cr, callback) {
-    if(request.headers['x-m2m-origin'] == usesuperuser || request.headers['x-m2m-origin'] == ('/'+usesuperuser)) {
+    if(request.headers['x-m2m-origin'] === usesuperuser || request.headers['x-m2m-origin'] === ('/'+usesuperuser)) {
         callback('1');
     }
     else {
         if (ty == '1') { // check selfPrevileges
-            if (acpiList.length == 0) {
+            if (acpiList.length === 0) {
                 acpiList = [url.parse(request.url).pathname.split('?')[0]];
             }
             security_check_action_pvs(request, response, acpiList, access_value, cr, function (code) {

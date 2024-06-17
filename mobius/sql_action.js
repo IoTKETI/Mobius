@@ -111,7 +111,7 @@ exports.set_hit = function(connection, binding, callback) {
         _ws = 1;
     }
 
-    var sql = util.format('INSERT INTO hit (ct, http, mqtt, coap, ws) VALUES (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\') ON DUPLICATE KEY UPDATE http=http+%s, mqtt=mqtt+%s, coap=coap+%s, ws=ws+%s;',
+    var sql = util.format('INSERT INTO hit (ct, http, mqtt, coap, ws) VALUES (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\') ON CONFLICT (ct) DO UPDATE SET http=hit.http+%s, mqtt=hit.mqtt+%s, coap=hit.coap+%s, ws=hit.ws+%s;',
         _ct, _http, _mqtt, _coap, _ws, _http, _mqtt, _coap, _ws);
 
     db.getResult(sql, connection, function (err, results) {
@@ -156,6 +156,7 @@ exports.insert_lookup = function(connection, obj, callback) {
     //console.time('insert_lookup ' + obj.ri);
 
     let locSql = '';
+    let geoJsonObj = {};
     if(!obj.hasOwnProperty('loc')) {
         let locObj = {};
         locObj.typ = 1; // 1: Point, 2: Line, 3: Polygon
@@ -168,7 +169,7 @@ exports.insert_lookup = function(connection, obj, callback) {
         // locObj.crd = [[[100.0, 0.0], [101.0, 0.0], [101.0, 1.0], [100.0, 1.0], [100.0, 0.0]]];
         obj.loc = locObj;
 
-        let geoJsonObj = {};
+        geoJsonObj = {};
         geoJsonObj.type = geoJsonTypeText[locObj.typ]; // 1: Point, 2: Line, 3: Polygon
         geoJsonObj.coordinates = JSON.parse(JSON.stringify(locObj.crd));
 
@@ -178,7 +179,7 @@ exports.insert_lookup = function(connection, obj, callback) {
         locSql += '\')';
     }
     else {
-        let geoJsonObj = {};
+        geoJsonObj = {};
         geoJsonObj.type = geoJsonTypeText[obj.loc.typ]; // 1: Point, 2: Line, 3: Polygon
         geoJsonObj.coordinates = JSON.parse(JSON.stringify(obj.loc.crd));
 
@@ -188,18 +189,19 @@ exports.insert_lookup = function(connection, obj, callback) {
         locSql += '\')';
     }
 
-    var sql = util.format("insert into lookup (" +
-        'pi, ri, ty, ct, st, rn, lt, et, acpi, lbl, at, aa, sri, spi, subl, lvl, loc) ' +
-        'value (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\'' + locSql + ')',
+    let sql = util.format("insert into lookup (" +
+        'pi, ri, ty, ct, st, rn, lt, et, acpi, lbl, at, aa, subl, pil, lvl, loc) ' +
+        'values (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
         obj.pi, obj.ri, obj.ty, obj.ct, obj.st, obj.rn, obj.lt, obj.et,
-        JSON.stringify(obj.acpi).replace(/\"/g, '\\"').replace(/\'/g, '\\\''),
-        JSON.stringify(obj.lbl, null, 4).replace(/\"/g, '\\"').replace(/\'/g, '\\\''),
-        JSON.stringify(obj.at).replace(/\"/g, '\\"').replace(/\'/g, '\\\''),
-        JSON.stringify(obj.aa).replace(/\"/g, '\\"').replace(/\'/g, '\\\''),
-        obj.sri,
-        obj.spi,
-        JSON.stringify(obj.subl).replace(/\"/g, '\\"').replace(/\'/g, '\\\''),
-        (obj.ri.split('/').length-1));
+        JSON.stringify(obj.acpi),
+        JSON.stringify(obj.lbl, null, 4),
+        JSON.stringify(obj.at),
+        JSON.stringify(obj.aa),
+        JSON.stringify(obj.subl),
+        JSON.stringify(obj.pil),
+        (obj.ri.split('/').length-1),
+        JSON.stringify(geoJsonObj)
+    );
     db.getResult(sql, connection, (err, results) => {
         if(!err) {
             // set_sri_sri(connection, obj.ri, obj.sri, function (err, results) {
@@ -220,12 +222,13 @@ exports.insert_cb = function(connection, obj, callback) {
         if(!err) {
             var sql = util.format('insert into cb (' +
                 'ri, cst, csi, srt, poa, nl, ncp, srv) ' +
-                'value (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
+                'values (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
                 obj.ri, obj.cst, obj.csi,
-                JSON.stringify(obj.srt).replace(/\"/g, '\\"').replace(/\'/g, '\\\''),
-                JSON.stringify(obj.poa).replace(/\"/g, '\\"').replace(/\'/g, '\\\''),
+                JSON.stringify(obj.srt),
+                JSON.stringify(obj.poa),
                 obj.nl, obj.ncp,
-                JSON.stringify(obj.srv).replace(/\"/g, '\\"').replace(/\'/g, '\\\''));
+                JSON.stringify(obj.srv)
+            );
             db.getResult(sql, connection, function (err, results) {
                 if(!err) {
                     console.timeEnd('insert_cb ' + obj.ri);
@@ -1108,7 +1111,7 @@ exports.insert_tm = function(connection, obj, callback) {
 };
 
 exports.select_resource_from_url = function(connection, ri, sri, callback) {
-    var sql = util.format('select * from lookup where (ri = \'%s\') or (sri = \'%s\')', ri, sri);
+    var sql = util.format('select * from lookup where (ri = \'%s\')', ri.replace(/\//g, '_'));
     db.getResult(sql, connection, (err, comm_Obj) => {
         if(!err) {
             if(comm_Obj.length == 0) {
@@ -1840,7 +1843,7 @@ exports.select_lookup = function(connection, ri, callback) {
 exports.select_ri_lookup = function(connection, ri, callback) {
     console.time('select_ri_lookup ' + ri);
     //var sql = util.format("select ri from lookup where ri = \'%s\'", ri);
-    var sql = "select ri, sri from lookup where ri = \'" + ri + "\'";
+    var sql = "select ri from lookup where ri = \'" + ri + "\'";
     db.getResult(sql, connection, function (err, ri_Obj) {
         console.timeEnd('select_ri_lookup ' + ri);
         callback(err, ri_Obj);

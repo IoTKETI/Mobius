@@ -14,6 +14,7 @@
  * @author Il Yeup Ahn [iyahn@keti.re.kr]
  */
 
+require('dotenv').config();
 var fs = require('fs');
 var http = require('http');
 var https = require('https');
@@ -151,17 +152,17 @@ wdt.set_wdt(mqtt_tid, 2, _this.mqtt_watchdog);
 
 
 function resp_sub() {
-    // var resp_topic = util.format('/oneM2M/resp/%s/#', usecseid.replace('/', ':'));
+    // var resp_topic = util.format('/oneM2M/resp/%s/#', process.env.CB_ID.replace('/', ':'));
     // pxymqtt_client.subscribe(resp_topic);
 
-    var resp_topic = util.format('/oneM2M/resp/%s/#', usecseid.replace('/', ''));
+    var resp_topic = util.format('/oneM2M/resp/%s/#', process.env.CB_ID.replace('/', ''));
     pxymqtt_client.subscribe(resp_topic);
 
     console.log('subscribe resp_topic as ' + resp_topic);
 }
 
 function req_sub() {
-    var req_topic = util.format('/oneM2M/req/+/%s/+', usecseid.replace('/', ''));
+    var req_topic = util.format('/oneM2M/req/+/%s/+', process.env.CB_ID.replace('/', ''));
     pxymqtt_client.subscribe(req_topic);
     console.log('subscribe req_topic as ' + req_topic);
 
@@ -171,7 +172,7 @@ function req_sub() {
 }
 
 function reg_req_sub() {
-    var reg_req_topic = util.format('/oneM2M/reg_req/+/%s/+', usecseid.replace('/', ''));
+    var reg_req_topic = util.format('/oneM2M/reg_req/+/%s/+', process.env.CB_ID.replace('/', ''));
     pxymqtt_client.subscribe(reg_req_topic);
     console.log('subscribe reg_req_topic as ' + reg_req_topic);
 
@@ -190,7 +191,7 @@ function mqtt_message_handler(topic, message) {
         topic_arr[5] = defaultbodytype;
     }
 
-    if((topic_arr[1] == 'oneM2M' && topic_arr[2] == 'resp' && ((topic_arr[3].replace(':', '/') == usecseid) || (topic_arr[3] == usecseid.replace('/', ''))))) {
+    if((topic_arr[1] == 'oneM2M' && topic_arr[2] == 'resp' && ((topic_arr[3].replace(':', '/') == usecseid) || (topic_arr[3] == process.env.CB_ID.replace('/', ''))))) {
         make_json_obj(bodytype, message.toString(), function(rsc, jsonObj) {
             if(rsc == '1') {
                 if(jsonObj['m2m:rsp'] == null) {
@@ -245,7 +246,7 @@ function mqtt_message_handler(topic, message) {
             }
         });
     }
-    else if(topic_arr[1] === 'oneM2M' && topic_arr[2] === 'req' && ((topic_arr[4].replace(':', '/') == usecseid) || (topic_arr[4] == usecseid.replace('/', '')) || (topic_arr[4] == usecsebase))) {
+    else if(topic_arr[1] === 'oneM2M' && topic_arr[2] === 'req' && ((topic_arr[4].replace(':', '/') == usecseid) || (topic_arr[4] == process.env.CB_ID.replace('/', '')) || (topic_arr[4] == usecsebase))) {
         NOPRINT==='true'?NOPRINT='true':console.log('----> [response_mqtt] - ' + topic);
         NOPRINT==='true'?NOPRINT='true':console.log(message.toString());
 
@@ -298,7 +299,7 @@ function mqtt_message_handler(topic, message) {
             }
         });
     }
-    else if(topic_arr[1] === 'oneM2M' && topic_arr[2] === 'reg_req' && ((topic_arr[4].replace(':', '/') == usecseid) || (topic_arr[4] == usecseid.replace('/', '')))) {
+    else if(topic_arr[1] === 'oneM2M' && topic_arr[2] === 'reg_req' && ((topic_arr[4].replace(':', '/') == usecseid) || (topic_arr[4] == process.env.CB_ID.replace('/', '')))) {
         make_json_obj(bodytype, message.toString(), function(rsc, result) {
             if(result['m2m:rqp'] == null) {
                 result['m2m:rqp'] = result;
@@ -615,7 +616,7 @@ mqtt_app.post('/notification', onem2mParser, function(request, response, next) {
             }
 
             if (mqtt_state == 'ready') {
-                var noti_topic = util.format('/oneM2M/req/%s/%s/%s', usecseid.replace('/', ''), aeid, request.headers.bodytype);
+                var noti_topic = util.format('/oneM2M/req/%s/%s/%s', process.env.CB_ID.replace('/', ''), aeid, request.headers.bodytype);
 
                 var rqi = request.headers['x-m2m-ri'];
                 resp_mqtt_rqi_arr.push(rqi);
@@ -655,7 +656,7 @@ mqtt_app.post('/register_csr', onem2mParser, function(request, response, next) {
         }
 
         if (mqtt_state == 'ready') {
-            var reg_req_topic = util.format('/oneM2M/reg_req/%s/%s/%s', usecseid.replace('/', ':'), cseid.replace('/', ':'), request.headers.bodytype);
+            var reg_req_topic = util.format('/oneM2M/reg_req/%s/%s/%s', process.env.CB_ID.replace('/', ':'), cseid.replace('/', ':'), request.headers.bodytype);
 
             var rqi = request.headers['x-m2m-ri'];
             resp_mqtt_rqi_arr.push(rqi);
@@ -711,7 +712,7 @@ mqtt_app.get('/get_cb', onem2mParser, function(request, response, next) {
         }
 
         if (mqtt_state == 'ready') {
-            var reg_req_topic = util.format('/oneM2M/reg_req/%s/%s/%s', usecseid.replace('/', ':'), cseid.replace('/', ':'), request.headers.bodytype);
+            var reg_req_topic = util.format('/oneM2M/reg_req/%s/%s/%s', process.env.CB_ID.replace('/', ':'), cseid.replace('/', ':'), request.headers.bodytype);
 
             var rqi = request.headers['x-m2m-ri'];
             resp_mqtt_rqi_arr.push(rqi);
@@ -825,7 +826,7 @@ function forward_mqtt(forward_cseid, op, to, fr, rqi, ty, nm, inpc) {
 
     var xmlString = js2xmlparser.parse("m2m:rqp", forward_message);
 
-    var forward_topic = util.format('/oneM2M/req/%s/%s', usecseid.replace('/', ':'), forward_cseid);
+    var forward_topic = util.format('/oneM2M/req/%s/%s', process.env.CB_ID.replace('/', ':'), forward_cseid);
 
     pxymqtt_client.publish(forward_topic, xmlString);
 }

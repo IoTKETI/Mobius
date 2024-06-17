@@ -14,6 +14,7 @@
  * @author Il Yeup Ahn [iyahn@keti.re.kr]
  */
 
+require('dotenv').config();
 var xml2js = require('xml2js');
 var xmlbuilder = require('xmlbuilder');
 var util = require('util');
@@ -32,40 +33,36 @@ function cb_create_action(connection, callback) {
 
     var cur_d = new Date();
 
-    resource_Obj[rootnm].ty = '5';
-    resource_Obj[rootnm].rn = usecsebase;
+    resource_Obj[rootnm].ty = 5;
+    resource_Obj[rootnm].rn = process.env.CB_NAME;
     resource_Obj[rootnm].pi = '';
-    resource_Obj[rootnm].ri = resource_Obj[rootnm].pi + '/' + resource_Obj[rootnm].rn;
+    resource_Obj[rootnm].ri = (resource_Obj[rootnm].pi + '/' + resource_Obj[rootnm].rn).replace(/\//g, '_');
     resource_Obj[rootnm].ct = moment().utc().format('YYYYMMDDTHHmmss');
     resource_Obj[rootnm].lt = resource_Obj[rootnm].ct;
     resource_Obj[rootnm].et = moment().utc().add(10, 'years').format('YYYYMMDDTHHmmss');
     resource_Obj[rootnm].acpi = [];
-    resource_Obj[rootnm].lbl = [];
-    resource_Obj[rootnm].lbl[0] = resource_Obj[rootnm].rn;
+    resource_Obj[rootnm].lbl = [resource_Obj[rootnm].rn];
     resource_Obj[rootnm].at = [];
     resource_Obj[rootnm].aa = [];
-    resource_Obj[rootnm].st = '0';
-    resource_Obj[rootnm].srv = [];
+    resource_Obj[rootnm].st = 0;
+    resource_Obj[rootnm].srv = ['1', '2', '2a'];
     resource_Obj[rootnm].subl = [];
+    resource_Obj[rootnm].pil = [];
 
-    resource_Obj[rootnm].srv.push('1');
-    resource_Obj[rootnm].srv.push('2');
-    resource_Obj[rootnm].srv.push('2a');
-
-    resource_Obj[rootnm].csi = usecseid;
+    resource_Obj[rootnm].csi = process.env.CB_ID;
 
     //resource_Obj[rootnm].srt = ty_list;
     resource_Obj[rootnm].srt = ['1', '2', '3', '4', '5', '9', '10', '13', '14', '16', '17', '23'];
 
     resource_Obj[rootnm].poa = [];
-    resource_Obj[rootnm].poa.push('http://' + ip.address() + ':' + usecsebaseport);
+    resource_Obj[rootnm].poa.push('http://' + ip.address() + ':' + process.env.CB_PORT);
 //    resource_Obj[rootnm].poa.push('mqtt://' + ip.address() + ':' + use_mqtt_port + '/' + resource_Obj[rootnm].csi.replace('/', ''));
 //    resource_Obj[rootnm].poa.push('coap://' + ip.address() + ':' + usecsebaseport);
 //    resource_Obj[rootnm].poa.push('ws://' + ip.address() + ':' + usepxywsport);
 
     resource_Obj[rootnm].nl = '';
     resource_Obj[rootnm].ncp = '';
-    resource_Obj[rootnm].cst = '1';
+    resource_Obj[rootnm].cst = 1;
 
     db_sql.select_ri_lookup(connection, resource_Obj[rootnm].ri, function (err, results_ri) {
         if(!err) {
@@ -89,9 +86,9 @@ function cb_create_action(connection, callback) {
             else {
                 // db_sql.get_sri_sri(connection, resource_Obj[rootnm].pi, function (err, results) {
                 //     if (!err) {
-                        resource_Obj[rootnm].spi = '';
+                        //resource_Obj[rootnm].spi = '';
                         //resource_Obj[rootnm].sri = require('shortid').generate();
-                        resource_Obj[rootnm].sri = '5-' + moment().utc().format('YYYYMMDDHHmmssSSS') + (Math.random() * 999).toFixed(0).padStart(3, '0');
+                        //resource_Obj[rootnm].sri = '5-' + moment().utc().format('YYYYMMDDHHmmssSSS') + (Math.random() * 999).toFixed(0).padStart(3, '0');
                             db_sql.insert_cb(connection, resource_Obj[rootnm], function (err, results) {
                             if (!err) {
                                 rspObj.rsc = '2001';
