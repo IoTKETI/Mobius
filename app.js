@@ -18,7 +18,7 @@ process.env.NODE_ENV = 'production';
 //process.env.NODE_ENV = 'development';
 
 var fs = require('fs');
-var http = require('http');
+var http = require('node:http');
 var express = require('express');
 var bodyParser = require('body-parser');
 var morgan = require('morgan');
@@ -26,9 +26,9 @@ var util = require('util');
 var xml2js = require('xml2js');
 var url = require('url');
 var ip = require('ip');
-var crypto = require('crypto');
+var crypto = require('node:crypto');
 var fileStreamRotator = require('file-stream-rotator');
-var https = require('https');
+var https = require('node:https');
 var cbor = require('cbor');
 var moment = require('moment');
 
