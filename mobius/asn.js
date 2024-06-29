@@ -109,7 +109,7 @@ function retrieve_CSEBase_http(cbname, cbhost, cbhostport, callback) {
                 delete jsonObj.csr.st;
                 delete jsonObj.csr.srt;
 
-                jsonObj.csr.cst = '5';
+                jsonObj.csr.cst = '3';
                 jsonObj.csr.rr = 'true';
                 jsonObj.csr.cb = jsonObj.csr.rn;
 
@@ -239,7 +239,7 @@ exports.build_asn = function(connection, ri, callback) {
                             delete rspObj.csr.lt;
                             delete rspObj.csr.st;
 
-                            rspObj.csr.cst = '5';
+                            rspObj.csr.cst = '3';
                             rspObj.csr.rr = 'true';
                             rspObj.csr.cb = rspObj.csr.rn;
 
@@ -532,7 +532,7 @@ function retrieve_CSEBase_mqtt(cseid, csebasename, callback) {
                 delete jsonObj.csr.lt;
                 delete jsonObj.csr.st;
 
-                jsonObj.csr.cst = '5';
+                jsonObj.csr.cst = '3';
                 jsonObj.csr.rr = 'true';
                 jsonObj.csr.cb = jsonObj.csr.rn;
 

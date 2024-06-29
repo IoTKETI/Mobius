@@ -22,21 +22,42 @@ try {
 }
 catch (e) {
     conf.csebaseport = "7579";
-    conf.dbpass = "dksdlfduq2";
+    conf.dbpass = "keti1231";
     fs.writeFileSync('conf.json', JSON.stringify(conf, null, 4), 'utf8');
 }
 
 global.defaultbodytype      = 'json';
 
 // my CSE information
-global.usecsetype           = 'in'; // select 'in' or 'mn' or asn'
+global.usecsetype           = 'mn'; // select 'in' or 'mn' or asn'
 global.usecsebase           = 'Mobius';
-global.usecseid             = '/Mobius2';
+global.usecseid             = '/Mobius1';
 global.usecsebaseport       = conf.csebaseport;
-
 global.usedbhost            = 'localhost';
 global.usedbpass            = conf.dbpass;
 
+// Registrar CSE information
+let mn_conf = {};
+const mn = require('./mobius/mn');
+const db = require('./mobius/db_action');
+
+if (usecsetype === 'mn') {
+    try {
+        mn_conf  = JSON.parse(fs.readFileSync('conf_mn.json', 'utf-8'));
+    }
+    catch (e) {
+        if (e.code === 'ENOENT') {
+            console.log('"conf_mn.json" file not found: currently this is working as MN-CSE.');
+        } 
+    }    
+}
+
+global.parent_cbname        = mn_conf.parent.cbname;
+global.parent_cbcseid       = mn_conf.parent.cbcseid;
+global.parent_cbhost        = mn_conf.parent.cbhost;
+global.parent_cbhostport    = mn_conf.parent.cbhostport;
+global.parent_cbprotocol    = mn_conf.parent.cbprotocol;       // select 'http' or 'mqtt' when register remoteCSE
+global.parent_mqttbroker    = mn_conf.parent.mqttbroker;
 
 global.usepxywsport         = '7577';
 global.usepxymqttport       = '7578';
@@ -74,3 +95,24 @@ global.useCert = 'disable';
 
 // CSE core
 require('./app');
+
+// action for MN-CSE or ASN-CSE
+if (usecsetype === 'mn') {
+    // get DB connection first
+    db.getConnection((code, connection) => {
+        if (code === '200') {
+            // call build_mn to register to the Registrar CSE
+            mn.build_mn(connection, '/' + usecsebase, (rsp) => {
+                if(rsp.rsc == '2001') {
+                    console.log('[mn-cse registration] MN-CSE registration success');
+                } else {
+                    console.log('register_remoteCSE again');
+                }
+                console.log('[mn-cse registration] ' + JSON.stringify(rsp));
+            })
+        } else {
+            console.log('[mn-cse registration] No DB Connection');
+        }
+    });
+
+}

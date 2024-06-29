@@ -109,7 +109,7 @@ function retrieve_CSEBase_http(cbname, cbhost, cbhostport, callback) {
                 delete jsonObj.csr.st;
                 delete jsonObj.csr.srt;
 
-                jsonObj.csr.cst = '5';
+                jsonObj.csr.cst = '2';
                 jsonObj.csr.rr = 'true';
                 jsonObj.csr.cb = jsonObj.csr.rn;
 
@@ -240,7 +240,7 @@ exports.build_mn = function(connection, ri, callback) {
                             delete rspObj.csr.sri;
                             delete rspObj.csr.srv;
 
-                            rspObj.csr.cst = '5';
+                            rspObj.csr.cst = '2'; // cstType value for MN-CSE
                             rspObj.csr.rr = 'true';
                             rspObj.csr.cb = rspObj.csr.rn;
 
@@ -270,23 +270,23 @@ exports.build_mn = function(connection, ri, callback) {
                                 create_remoteCSE_http(parent_cbname, parent_cbhost, parent_cbhostport, rspObj, function (res, body) {
                                     var rsc = res.statusCode;
                                     console.log(rsc + ' : ' + body);
-                                    if (rsc == 200 || rsc == 201 || rsc == 403 || rsc == 409) {
+                                    if (rsc == 201) {
                                         retrieve_CSEBase_http(parent_cbname, parent_cbhost, parent_cbhostport, function (rsc, jsonObj) {
-                                            if (rsc == 200 || rsc == 201 || rsc == 403 || rsc == 409) {
+                                            if (rsc == 200) {
                                                 create_remoteCSE_http(usecsebase, 'localhost', usecsebaseport, jsonObj, function (res, body) {
                                                     var rsc = res.statusCode;
                                                     console.log(rsc + ' : ' + body);
-                                                    if (rsc == 200 || rsc == 201 || rsc == 403 || rsc == 409) {
+                                                    if (rsc == 201) {
                                                         rspObj = {};
-                                                        rspObj.rsc = '2000';
+                                                        rspObj.rsc = '2001';
                                                         rspObj.ri = ri;
-                                                        rspObj.dbg = "mn-cse setting success";
+                                                        rspObj.dbg = "mn-cse registration success";
                                                         callback(rspObj);
                                                     }
                                                     else {
-                                                        rspObj.rsc = '5000';
+                                                        rspObj.rsc = '5000'; // to-do: fix the mapping
                                                         rspObj.ri = ri;
-                                                        rspObj.dbg = "mn-cse setting fail";
+                                                        rspObj.dbg = "mn-cse registration fail";
                                                         callback(rspObj);
                                                     }
                                                 });
@@ -540,7 +540,7 @@ function retrieve_CSEBase_mqtt(cseid, csebasename, callback) {
                 delete jsonObj.csr.st;
                 delete jsonObj.csr.srv;
 
-                jsonObj.csr.cst = '5';
+                jsonObj.csr.cst = '2';
                 jsonObj.csr.rr = 'true';
                 jsonObj.csr.cb = jsonObj.csr.rn;
 

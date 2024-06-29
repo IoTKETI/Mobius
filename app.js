@@ -153,11 +153,12 @@ if (use_clustering) {
                                 require('./pxy_coap');
                                 require('./pxy_ws');
 
-                                if (usecsetype == 'mn' || usecsetype == 'asn') {
-                                    global.refreshIntervalId = setInterval(() => {
-                                        csr_custom.emit('register_remoteCSE');
-                                    }, 5000);
-                                }
+                                // to-do: check and delete
+                                // if (usecsetype == 'mn' || usecsetype == 'asn') {
+                                //     global.refreshIntervalId = setInterval(() => {
+                                //         csr_custom.emit('register_remoteCSE');
+                                //     }, 5000);
+                                // }
 
                                 connection.release();
                             });
