@@ -199,7 +199,7 @@ exports.insert_lookup = function(connection, obj, callback) {
         JSON.stringify(obj.aa),
         JSON.stringify(obj.subl),
         JSON.stringify(obj.pil),
-        (obj.ri.split('/').length-1),
+        (obj.ri.split('_').length-2),
         JSON.stringify(geoJsonObj)
     );
     db.getResult(sql, connection, (err, results) => {

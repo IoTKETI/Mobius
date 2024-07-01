@@ -139,7 +139,7 @@ exports.mqtt_watchdog = function() {
                 //resp_sub();
                 mqtt_state = 'ready';
                 
-                require('./mobius/ts_agent');
+                // require('./mobius/ts_agent');
             });
 
             pxymqtt_client.on('message', mqtt_message_handler);
