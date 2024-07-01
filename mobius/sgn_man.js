@@ -527,7 +527,7 @@ function request_noti_ws(nu, ri, bodyString, bodytype, xm2mri) {
 
 
 function delete_sub(ri, xm2mri, parentObj) {
-    db.getConnection(function (code, connection) {
+    db.getConnection((code, connection) => {
         if(code === '200') {
             for (var idx in parentObj.subl) {
                 if (parentObj.subl.hasOwnProperty(idx)) {

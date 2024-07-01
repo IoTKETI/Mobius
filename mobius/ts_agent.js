@@ -278,7 +278,7 @@ ts_app.post('/missingDataDetect', onem2mParser, function(request, response) {
     request.on('end', function() {
         request.body = fullBody;
 
-        db.getConnection(function (code, connection) {
+        db.getConnection((code, connection) => {
             if(code === '200') {
                 request.db_connection = connection;
 
