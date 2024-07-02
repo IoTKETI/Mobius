@@ -382,7 +382,7 @@ function security_check_action_pvs(request, response, acpiList, access_value, cr
 }
 
 function security_default_check_action(request, response, cr, access_value, callback) {
-    if(useaccesscontrolpolicy == 'enable') {
+    if(useaccesscontrolpolicy === 'enable') {
         if (request.headers['x-m2m-origin'] == cr) {
             callback('1');
         }
@@ -391,7 +391,7 @@ function security_default_check_action(request, response, cr, access_value, call
         }
     }
     else {
-        if (request.headers['x-m2m-origin'] == cr) {
+        if (request.headers['x-m2m-origin'] === cr) {
             callback('1');
         }
         else {
@@ -411,8 +411,9 @@ exports.check = function(request, response, ty, acpiList, access_value, cr, call
     }
     else {
         if (ty == '1') { // check selfPrevileges
+            const t_url = new Url(request.url);
             if (acpiList.length === 0) {
-                acpiList = [url.parse(request.url).pathname.split('?')[0]];
+                acpiList = [t_url.pathname.split('?')[0]];
             }
             security_check_action_pvs(request, response, acpiList, access_value, cr, function (code) {
                 callback(code);
@@ -449,8 +450,8 @@ exports.check = function(request, response, ty, acpiList, access_value, cr, call
             }
         }
         else {
-            if (acpiList.length == 0) {
-                security_default_check_action(request, response, cr, access_value, function (code) {
+            if (acpiList.length === 0) {
+                security_default_check_action(request, response, cr, access_value, (code) => {
                     callback(code);
                 });
             }

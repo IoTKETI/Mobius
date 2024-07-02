@@ -133,15 +133,16 @@ function fopt_member(request, response, req_count, mid, body_Obj, cse_poa, agr, 
         var ri = mid[req_count];
         db_sql.get_ri_sri(request.db_connection, ri, function (err, results) {
             if(!err) {
-                ri = ((results.length == 0) ? ri : results[0].ri);
+                ri = ((results.length === 0) ? ri : results[0].ri);
                 var target_cb = ri.split('/')[1];
                 var hostname = 'localhost';
                 var port = usecsebaseport;
 
-                if (target_cb != usecsebase) {
+                if (target_cb !== usecsebase) {
                     if (cse_poa[target_cb]) {
-                        hostname = url.parse(cse_poa[target_cb]).hostname;
-                        port = url.parse(cse_poa[target_cb]).port;
+                        const t_url = new Url(cse_poa[target_cb]);
+                        hostname = t_url.hostname;
+                        port = t_url.port;
                         request_to_member(request, hostname, port, ri, agr, function (code) {
                             if(code === '200') {
                                 fopt_member(request, response, req_count, mid, body_Obj, cse_poa, agr, function (code) {

@@ -81,13 +81,14 @@ function check_member(request, response, req_count, cse_poa, callback) {
             absolute_ri = absolute_ri.replace(/\/[^\/]+\/?/, '/');
         }
         db_sql.get_ri_sri(request.db_connection, absolute_ri, function (err, results) {
-            ri = ((results.length == 0) ? ri : results[0].ri);
+            ri = ((results.length === 0) ? ri : results[0].ri);
             var target_cb = ri.split('/')[1];
-            if (target_cb != usecsebase) {
+            if (target_cb !== usecsebase) {
                 if (cse_poa[target_cb]) {
+                    const t_url = new Url(cse_poa[target_cb]);
                     var options = {
-                        hostname: url.parse(cse_poa[target_cb]).hostname,
-                        port: url.parse(cse_poa[target_cb]).port,
+                        hostname: t_url.hostname,
+                        port: t_url.port,
                         path: ri,
                         method: 'get',
                         headers: {

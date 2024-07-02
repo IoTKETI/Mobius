@@ -30,6 +30,7 @@ var op = {
 
 exports.build_req = function(request, response, resource_Obj, body_Obj, callback) {
     var rootnm = request.headers.rootnm;
+    const t_url = new Url(request.url);
 
     // body
     resource_Obj[rootnm].pi = '/' + usecsebase;
@@ -37,7 +38,7 @@ exports.build_req = function(request, response, resource_Obj, body_Obj, callback
 
     resource_Obj[rootnm].op = (body_Obj[rootnm].op) ? body_Obj[rootnm].op : op[request.method];
     //resource_Obj[rootnm].tg = (body_Obj[rootnm].tg) ? body_Obj[rootnm].tg : resource_Obj[rootnm].ri;
-    resource_Obj[rootnm].tg = (body_Obj[rootnm].tg) ? body_Obj[rootnm].tg : url.parse(request.url).pathname;
+    resource_Obj[rootnm].tg = (body_Obj[rootnm].tg) ? body_Obj[rootnm].tg : t_url.pathname;
     resource_Obj[rootnm].org = (body_Obj[rootnm].org) ? body_Obj[rootnm].org : request.headers['x-m2m-origin'];
     resource_Obj[rootnm].rid = (body_Obj[rootnm].rid) ? body_Obj[rootnm].rid : request.headers['x-m2m-ri'];
     resource_Obj[rootnm].mi = (body_Obj[rootnm].mi) ? body_Obj[rootnm].mi : '';
