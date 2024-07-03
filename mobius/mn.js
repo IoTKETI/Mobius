@@ -232,6 +232,7 @@ exports.build_mn = function(connection, ri, callback) {
                                 }
                             }
 
+                            delete rspObj.csr.rn; // resource name should be arbitrary given each time
                             delete rspObj.csr.ty;
                             delete rspObj.csr.ri;
                             delete rspObj.csr.ct;
@@ -260,11 +261,12 @@ exports.build_mn = function(connection, ri, callback) {
                                 rspObj.csr.srt = JSON.parse(rspObj.csr.srt);
                                 delete rspObj.csr.srt;
                             }
-
-                            if (rspObj.csr.subl) {
-                                rspObj.csr.subl = JSON.parse(rspObj.csr.subl);
-                                delete rspObj.csr.subl;
-                            }
+                            
+                            // this is internal feature, so do not create the attribute remotely
+                            // if (rspObj.csr.subl) {
+                            //     rspObj.csr.subl = JSON.parse(rspObj.csr.subl);
+                            //     delete rspObj.csr.subl;
+                            // }
 
                             if(parent_cbprotocol == 'http') {
                                 create_remoteCSE_http(parent_cbname, parent_cbhost, parent_cbhostport, rspObj, function (res, body) {
