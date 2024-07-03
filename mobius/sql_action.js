@@ -229,14 +229,14 @@ exports.insert_cb = function(connection, obj, callback) {
                 obj.nl, obj.ncp,
                 JSON.stringify(obj.srv)
             );
-            db.getResult(sql, connection, function (err, results) {
+            db.getResult(sql, connection, (err, results) => {
                 if(!err) {
                     console.timeEnd('insert_cb ' + obj.ri);
                     callback(err, results);
                 }
                 else {
                     sql = util.format("delete from lookup where ri = \'%s\'", obj.ri);
-                    db.getResult(sql, connection, function () {
+                    db.getResult(sql, connection, () => {
                         callback(err, results);
                     });
                 }
@@ -255,14 +255,14 @@ exports.insert_acp = function(connection, obj, callback) {
             var sql = util.format('insert into acp (ri, pv, pvs) ' +
                 'values (\'%s\', \'%s\', \'%s\')',
                 obj.ri, JSON.stringify(obj.pv).replace(/\"/g, '\\"').replace(/\'/g, '\\\''), JSON.stringify(obj.pvs).replace(/\"/g, '\\"').replace(/\'/g, '\\\''));
-            db.getResult(sql, connection, function (err, results) {
+            db.getResult(sql, connection, (err, results) => {
                 if(!err) {
                     console.timeEnd('insert_acp ' + obj.ri);
                     callback(err, results);
                 }
                 else {
                     sql = util.format("delete from lookup where ri = \'%s\'", obj.ri);
-                    db.getResult(sql, connection, function () {
+                    db.getResult(sql, connection, () => {
                         callback(err, results);
                     });
                 }
@@ -286,14 +286,14 @@ exports.insert_ae = function(connection, obj, callback) {
                 obj.or, obj.nl, obj.rr, obj.csz,
                 JSON.stringify(obj.srv));
 
-            db.getResult(sql, connection, function (err, results) {
+            db.getResult(sql, connection, (err, results) => {
                 if(!err) {
                     console.timeEnd('insert_ae ' + obj.ri);
                     callback(err, results);
                 }
                 else {
                     sql = util.format("delete from lookup where ri = \'%s\'", obj.ri);
-                    db.getResult(sql, connection, function () {
+                    db.getResult(sql, connection, () => {
                         console.timeEnd('insert_ae ' + obj.ri);
                         callback(err, results);
                     });
@@ -314,14 +314,14 @@ exports.insert_cnt = function(connection, obj, callback) {
             var sql = util.format('insert into cnt (ri, cr, mni, mbs, mia, cni, cbs, li, cnt.or, disr) ' +
                 'values (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
                 obj.ri, obj.cr, obj.mni, obj.mbs, obj.mia, obj.cni, obj.cbs, obj.li, obj.or, obj.disr);
-            db.getResult(sql, connection, function (err, results) {
+            db.getResult(sql, connection, (err, results) => {
                 if(!err) {
                     console.timeEnd('insert_cnt ' + obj.ri);
                     callback(err, results);
                 }
                 else {
                     sql = util.format("delete from lookup where ri = \'%s\'", obj.ri);
-                    db.getResult(sql, connection, function () {
+                    db.getResult(sql, connection, () => {
                         console.timeEnd('insert_cnt ' + obj.ri);
                         callback(err, results);
                     });
@@ -2828,7 +2828,7 @@ function delete_lookup_action(connection, pi_list, req_count, callback) {
     var sql = 'delete from lookup where pi = \'' + pi_list[req_count] + '\'';
     db.getResult(sql, connection, function (err, deleted_Obj) {
         if(!err) {
-            console.log('deleted ' + deleted_Obj.affectedRows + ' resource(s) of ' + pi_list[req_count]);
+            console.log('deleted resource(s) of ' + pi_list[req_count]);
 
             delete_lookup_action(connection, pi_list, ++req_count, function (code) {
                 callback(code);
