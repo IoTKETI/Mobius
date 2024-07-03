@@ -1073,8 +1073,8 @@ exports.select_csr_like = function(connection, cb, callback) {
     });
 };
 
-exports.select_csr = function(connection, ri, callback) {
-    var sql = util.format("select * from csr where ri = \'%s\'", ri);
+exports.select_csr = function(connection, csi, callback) {
+    var sql = util.format("select * from csr where csi = \'%s\'", csi);
     db.getResult(sql, connection, function (err, results_csr) {
         callback(err, results_csr);
     });

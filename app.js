@@ -1565,6 +1565,22 @@ function get_target_url(request, response, callback) {
     request.url = request.url.replace('%23', '#'); // convert '%23' to '#' of url
     request.hash = url.parse(request.url).hash;
 
+    const to = request.url.slice(1);
+    // check To param in SP-relative format
+    if (to[0] == '~' && to.startsWith('~' + usecseid) == false) {
+        // forward the request to one of the Registar CSEs
+        console.log('forwarding the request: To param is in SP-relative format');
+        callback('301-1');
+        return;
+    }
+    // check To param in absolute format
+    if (to[0] == '_' && to.replace('_', '/').startsWith(usespid + usecseid) == false) {
+        // forward the request to one of the Registar CSEs
+        console.log('forwarding the request: To param is in absolute format');
+        callback('301-1');
+        return;
+    }
+
     var absolute_url = request.url.replace('\/_\/', '\/\/').split('#')[0];
     absolute_url = absolute_url.replace(usespid, '/~');
     absolute_url = absolute_url.replace(/\/~\/[^\/]+\/?/, '/');
@@ -2720,9 +2736,15 @@ function check_ae_notify(request, response, callback) {
 }
 
 function check_csr(request, response, callback) {
-    var ri = util.format('/%s/%s', usecsebase, url.parse(request.absolute_url).pathname.split('/')[1]);
-    console.log('[check_csr] : ' + ri);
-    db_sql.select_csr(request.db_connection, ri, (err, result_csr) => {
+    let csi = '';
+    if (request.url.startsWith('/~')) {
+        csi = '/' + request.url.replace('/~', '').split('/')[1];
+    } else if (request.url.startsWith('/_')) {
+        csi = '/' + request.url.replace('/_', '/').replace(usespid, '').split('/')[1];
+    }
+    console.log('[check_csr] CSE-ID : ' + csi);
+
+    db_sql.select_csr(request.db_connection, csi, (err, result_csr) => {
         if (!err) {
             if (result_csr.length == 1) {
                 var point = {};
@@ -2734,12 +2756,12 @@ function check_csr(request, response, callback) {
                         point.forwardcbhost = poa.hostname;
                         point.forwardcbport = poa.port;
 
-                        console.log('csebase forwarding to ' + point.forwardcbname);
+                        console.log('request forwarding to ' + point.forwardcbhost + ':' + point.forwardcbport);
 
-                        forward_http(point.forwardcbhost, point.forwardcbport, request.url, request.method, request.headers, request.body, (code, _res) => {
+                        forward_http(point.forwardcbhost, point.forwardcbport, request.url, request.method, request.headers, request.body, (code, res) => {
                             if (code === '200') {
-                                var res = JSON.parse(JSON.stringify(_res));
-                                _res = null;
+                                // var res = JSON.parse(JSON.stringify(_res));
+                                // _res = null;
                                 if (res.headers.hasOwnProperty('content-type')) {
                                     response.setHeader('Content-Type', res.headers['content-type']);
                                 }
@@ -2849,6 +2871,10 @@ function forward_http(forwardcbhost, forwardcbport, f_url, f_method, f_headers, 
         headers: f_headers
     };
 
+    // just for testing
+    // options.hostname = 'localhost';
+    // options.port = '1880';
+
     var req = http.request(options, (res) => {
         var fullBody = '';
 
@@ -2870,7 +2896,7 @@ function forward_http(forwardcbhost, forwardcbport, f_url, f_method, f_headers, 
     });
 
     req.on('error', (e) => {
-        console.log('[forward_http] problem with request: ' + e.message);
+        console.log('[forward_http] problem with request: ' + e);
 
         callback('404-3');
     });

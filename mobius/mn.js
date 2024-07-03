@@ -273,6 +273,7 @@ exports.build_mn = function(connection, ri, callback) {
                                     if (rsc == 201) {
                                         retrieve_CSEBase_http(parent_cbname, parent_cbhost, parent_cbhostport, function (rsc, jsonObj) {
                                             if (rsc == 200) {
+                                                jsonObj.csr.rn = undefined;
                                                 create_remoteCSE_http(usecsebase, 'localhost', usecsebaseport, jsonObj, function (res, body) {
                                                     var rsc = res.statusCode;
                                                     console.log(rsc + ' : ' + body);
