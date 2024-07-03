@@ -1788,24 +1788,22 @@ app.post(onem2mParser, (request, response) => {
             request.rawHeaders = ["Accept","application/json"];
         }
 
-        db.getConnection((code, connection) => {
-            if (code === '200') {
-                request.db_connection = connection;
-
-                if (request.body === "") {
-                    response_error_result(request, response, '400-40', () => {
-                        connection.release();
-                        request = null;
-                        response = null;
-                    });
-                }
-                else {
-                    let rcode = check_xm2m_headers(request);
+        if (request.body === "") {
+            response_error_result(request, response, '400-40', () => {
+                request = null;
+                response = null;
+            });
+        }
+        else {
+            let rcode = check_xm2m_headers(request);
+            if (rcode === '200') {
+                let rcode = check_resource_supported(request);
+                if (rcode === '200') {
+                    let rcode = parse_body_format(request);
                     if (rcode === '200') {
-                        let rcode = check_resource_supported(request);
-                        if (rcode === '200') {
-                            let rcode = parse_body_format(request);
-                            if (rcode === '200') {
+                        db.getConnection((code, connection) => {
+                            if (code === '200') {
+                                request.db_connection = connection;
                                 get_target_url(request, response, (code) => {
                                     if (code === '200') {
                                         if (request.option !== '/fopt') {
@@ -2004,39 +2002,40 @@ app.post(onem2mParser, (request, response) => {
                                 });
                             }
                             else {
-                                responder.error_result(request, response, resultStatusCode[rcode][0], resultStatusCode[rcode][1], resultStatusCode[rcode][2], () => {
-                                    connection.release();
+                                responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
                                     request = null;
                                     response = null;
                                 });
                             }
-                        }
-                        else {
-                            responder.error_result(request, response, resultStatusCode[rcode][0], resultStatusCode[rcode][1], resultStatusCode[rcode][2], () => {
-                                connection.release();
-                                request = null;
-                                response = null;
-                            });
-                        }
+                        });
                     }
                     else {
                         responder.error_result(request, response, resultStatusCode[rcode][0], resultStatusCode[rcode][1], resultStatusCode[rcode][2], () => {
-                            connection.release();
                             request = null;
                             response = null;
                         });
                     }
                 }
+                else {
+                    responder.error_result(request, response, resultStatusCode[rcode][0], resultStatusCode[rcode][1], resultStatusCode[rcode][2], () => {
+                        request = null;
+                        response = null;
+                    });
+                }
             }
             else {
-                responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                responder.error_result(request, response, resultStatusCode[rcode][0], resultStatusCode[rcode][1], resultStatusCode[rcode][2], () => {
                     request = null;
                     response = null;
                 });
             }
-        });
+        }
     });
 });
+
+const extra_api_list = [
+    '/hit', '/total_ae', '/total_cbs'
+];
 
 app.get(onem2mParser, (request, response) => {
     var fullBody = '';
@@ -2047,43 +2046,125 @@ app.get(onem2mParser, (request, response) => {
     request.on('end', () => {
         request.body = fullBody;
 
-        db.getConnection((code, connection) => {
-            if (code === '200') {
-                request.db_connection = connection;
+        if(extra_api_list.includes(request.url)) {
+            db.getConnection((code, connection) => {
+                if (code === '200') {
+                    extra_api_action(connection, request.url, (code, result) => {
+                        if (code === '200') {
+                        }
+                        else if (code === '201') {
+                            connection.release();
+                            response.header('Content-Type', 'application/json');
+                            response.status(200).end(JSON.stringify(result, null, 4));
+                            result = null;
+                        }
+                        else {
+                            responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                                connection.release();
+                                request = null;
+                                response = null;
+                            });
+                        }
+                    });
+                }
+                else {
+                    responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                        request = null;
+                        response = null;
+                    });
+                }
+            });
+        }
+        else {
+            if(request.hasOwnProperty('headers')) {
+                if(!request.hasOwnProperty('binding')) {
+                    request.headers['binding'] = 'H';
+                }
 
-                extra_api_action(connection, request.url, (code, result) => {
+                db.getConnection((code, connection) => {
                     if (code === '200') {
-                        if (request.headers == null) {
-                            request.rawHeaders = ["Accept","application/json"];
-                        }
-
-                        if (!request.headers.hasOwnProperty('binding')) {
-                            request.headers['binding'] = 'H';
-                        }
-
-                        db_sql.set_hit(request.db_connection, request.headers['binding'], (err, results) => {
+                        db_sql.set_hit(connection, request.headers['binding'], (err, results) => {
                             results = null;
-                        });
 
-                        let rcode = check_xm2m_headers(request);
-                        if (rcode === '200') {
-                            get_target_url(request, response, (code) => {
-                                if (code === '200') {
-                                    //if (request.option !== '/fopt') {
-                                    if(!request.option.includes('/fopt')) {
-                                        var rootnm = Object.keys(request.targetObject)[0];
-                                        request.url = request.targetObject[rootnm].ri;
-                                        if ((request.query.fu == 1 || request.query.fu == 2) && (request.query.rcn == 1 || request.query.rcn == 4 || request.query.rcn == 5 || request.query.rcn == 6 || request.query.rcn == 8)) {
-                                            lookup_retrieve(request, response, (code) => {
-                                                if (code === '200') {
-                                                    responder.response_result(request, response, '200', '2000', '', () => {
-                                                        connection.release();
-                                                        request = null;
-                                                        response = null;
+                            connection.release();
+                        });
+                    }
+                });
+            }
+            else {
+                request.rawHeaders = ["Accept","application/json"];
+            }
+
+            let rcode = check_xm2m_headers(request);
+            if (rcode === '200') {
+                db.getConnection((code, connection) => {
+                    if (code === '200') {
+                        request.db_connection = connection;
+                        get_target_url(request, response, (code) => {
+                            if (code === '200') {
+                                //if (request.option !== '/fopt') {
+                                if (!request.option.includes('/fopt')) {
+                                    var rootnm = Object.keys(request.targetObject)[0];
+                                    request.url = request.targetObject[rootnm].ri.replace(/_/g, '\/');
+                                    if ((request.query.fu == 1 || request.query.fu == 2) && (request.query.rcn == 1 || request.query.rcn == 4 || request.query.rcn == 5 || request.query.rcn == 6 || request.query.rcn == 8)) {
+                                        lookup_retrieve(request, response, (code) => {
+                                            if (code === '200') {
+                                                responder.response_result(request, response, '200', '2000', '', () => {
+                                                    connection.release();
+                                                    request = null;
+                                                    response = null;
+                                                });
+                                            }
+                                            else if (code === '200-1') {
+                                                responder.search_result(request, response, '200', '2000', '', () => {
+                                                    connection.release();
+                                                    request = null;
+                                                    response = null;
+                                                });
+                                            }
+                                            else {
+                                                responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                                                    connection.release();
+                                                    request = null;
+                                                    response = null;
+                                                });
+                                            }
+                                        });
+                                    }
+                                    else {
+                                        response_error_result(request, response, '400-44', () => {
+                                            connection.release();
+                                            request = null;
+                                            response = null;
+                                        });
+                                    }
+                                }
+                                else { //if (request.option === '/fopt') {
+                                    check_grp(request, response, (rsc, result_grp) => { // check access right for fanoutpoint
+                                        if (rsc == '1') {
+                                            var access_value = (request.query.fu == 1) ? '32' : '2';
+                                            var body_Obj = {};
+                                            security.check(request, response, request.targetObject[Object.keys(request.targetObject)[0]].ty, result_grp.macp, access_value, result_grp.cr, (code) => {
+                                                if (code === '1') {
+                                                    fopt.check(request, response, result_grp, body_Obj, (code) => {
+                                                        if (code === '200') {
+                                                            responder.search_result(request, response, '200', '2000', '', () => {
+                                                                connection.release();
+                                                                request = null;
+                                                                response = null;
+                                                            });
+                                                        }
+                                                        else {
+                                                            responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                                                                connection.release();
+                                                                request = null;
+                                                                response = null;
+                                                            });
+                                                        }
                                                     });
                                                 }
-                                                else if (code === '200-1') {
-                                                    responder.search_result(request, response, '200', '2000', '', () => {
+                                                else if (code === '0') {
+                                                    response_error_result(request, response, '403-5', () => {
                                                         connection.release();
                                                         request = null;
                                                         response = null;
@@ -2098,115 +2179,52 @@ app.get(onem2mParser, (request, response) => {
                                                 }
                                             });
                                         }
-                                        else {
-                                            response_error_result(request, response, '400-44', () => {
-                                                connection.release();
-                                                request = null;
-                                                response = null;
-                                            });
-                                        }
-                                    }
-                                    else { //if (request.option === '/fopt') {
-                                        check_grp(request, response, (rsc, result_grp) => { // check access right for fanoutpoint
-                                            if (rsc == '1') {
-                                                var access_value = (request.query.fu == 1) ? '32' : '2';
-                                                var body_Obj = {};
-                                                security.check(request, response, request.targetObject[Object.keys(request.targetObject)[0]].ty, result_grp.macp, access_value, result_grp.cr, (code) => {
-                                                    if (code === '1') {
-                                                        fopt.check(request, response, result_grp, body_Obj, (code) => {
-                                                            if (code === '200') {
-                                                                responder.search_result(request, response, '200', '2000', '', () => {
-                                                                    connection.release();
-                                                                    request = null;
-                                                                    response = null;
-                                                                });
-                                                            }
-                                                            else {
-                                                                responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
-                                                                    connection.release();
-                                                                    request = null;
-                                                                    response = null;
-                                                                });
-                                                            }
-                                                        });
-                                                    }
-                                                    else if (code === '0') {
-                                                        response_error_result(request, response, '403-5', () => {
-                                                            connection.release();
-                                                            request = null;
-                                                            response = null;
-                                                        });
-                                                    }
-                                                    else {
-                                                        responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
-                                                            connection.release();
-                                                            request = null;
-                                                            response = null;
-                                                        });
-                                                    }
-                                                });
-                                            }
-                                            else if (rsc == '2') {
-                                                code = '403-6';
-                                                responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
-                                                    connection.release();
-                                                    request = null;
-                                                    response = null;
-                                                });
-                                            }
-                                            else {
-                                                response_error_result(request, response, '404-4', () => {
-                                                    connection.release();
-                                                    request = null;
-                                                    response = null;
-                                                });
-                                            }
-                                        });
-                                    }
-                                }
-                                else if (code === '301-1') {
-                                    check_csr(request, response, (code) => {
-                                        if (code === '301-2') {
-                                            connection.release();
-                                            response.status(response.statusCode).end(response.body);
-                                            request = null;
-                                            response = null;
-                                        }
-                                        else {
+                                        else if (rsc == '2') {
+                                            code = '403-6';
                                             responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
                                                 connection.release();
                                                 request = null;
                                                 response = null;
                                             });
                                         }
+                                        else {
+                                            response_error_result(request, response, '404-4', () => {
+                                                connection.release();
+                                                request = null;
+                                                response = null;
+                                            });
+                                        }
                                     });
                                 }
-                                else {
-                                    responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                            }
+                            else if (code === '301-1') {
+                                check_csr(request, response, (code) => {
+                                    if (code === '301-2') {
                                         connection.release();
+                                        response.status(response.statusCode).end(response.body);
                                         request = null;
                                         response = null;
-                                    });
-                                }
-                            });
-                        }
-                        else {
-                            responder.error_result(request, response, resultStatusCode[rcode][0], resultStatusCode[rcode][1], resultStatusCode[rcode][2], () => {
-                                connection.release();
-                                request = null;
-                                response = null;
-                            });
-                        }
-                    }
-                    else if (code === '201') {
-                        connection.release();
-                        response.header('Content-Type', 'application/json');
-                        response.status(200).end(JSON.stringify(result, null, 4));
-                        result = null;
+                                    }
+                                    else {
+                                        responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                                            connection.release();
+                                            request = null;
+                                            response = null;
+                                        });
+                                    }
+                                });
+                            }
+                            else {
+                                responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                                    connection.release();
+                                    request = null;
+                                    response = null;
+                                });
+                            }
+                        });
                     }
                     else {
                         responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
-                            connection.release();
                             request = null;
                             response = null;
                         });
@@ -2214,12 +2232,12 @@ app.get(onem2mParser, (request, response) => {
                 });
             }
             else {
-                responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                responder.error_result(request, response, resultStatusCode[rcode][0], resultStatusCode[rcode][1], resultStatusCode[rcode][2], () => {
                     request = null;
                     response = null;
                 });
             }
-        });
+        }
     });
 });
 

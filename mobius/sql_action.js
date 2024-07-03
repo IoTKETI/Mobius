@@ -281,9 +281,10 @@ exports.insert_ae = function(connection, obj, callback) {
             var sql = util.format('insert into ae (ri, apn, api, aei, poa, \"or\", nl, rr, csz, srv) ' +
                 'values (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
                 obj.ri, obj.apn, obj.api, obj.aei,
-                JSON.stringify(obj.poa).replace(/\"/g, '\\"').replace(/\'/g, '\\\''),
+                // JSON.stringify(obj.poa).replace(/\"/g, '\\"').replace(/\'/g, '\\\''),
+                JSON.stringify(obj.poa),
                 obj.or, obj.nl, obj.rr, obj.csz,
-                JSON.stringify(obj.srv).replace(/\"/g, '\\"').replace(/\'/g, '\\\''));
+                JSON.stringify(obj.srv));
 
             db.getResult(sql, connection, function (err, results) {
                 if(!err) {

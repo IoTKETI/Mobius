@@ -492,6 +492,9 @@ function create_action(request, response, callback) {
                         callback('409-5');
                     }
                 }
+                else if (results.code === '23505') {
+                    callback('409-5');
+                }
                 else {
                     console.log('[create_action] create resource error ======== ' + results.code);
                     callback('500-4');
