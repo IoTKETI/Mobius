@@ -1111,7 +1111,7 @@ exports.insert_tm = function(connection, obj, callback) {
     });
 };
 
-exports.select_resource_from_url = function(connection, ri, sri, callback) {
+exports.select_resource_from_url = function(connection, ri, callback) {
     var sql = util.format('select * from lookup where (ri = \'%s\')', ri.replace(/\//g, '_'));
     db.getResult(sql, connection, (err, comm_Obj) => {
         if(!err) {
@@ -2091,7 +2091,7 @@ exports.update_st = function (connection, obj, callback) {
 exports.update_lookup = function (connection, obj, callback) {
     //console.time('update_lookup ' + ri);
     var sql1 = util.format('update lookup set lt = \'%s\', acpi = \'%s\', et = \'%s\', st = \'%s\', lbl = \'%s\', at = \'%s\', aa = \'%s\', subl = \'%s\' where ri = \'%s\'',
-        obj.lt, JSON.stringify(obj.acpi), obj.et, obj.st, JSON.stringify(obj.lbl).replace(/\"/g, '\\"').replace(/\'/g, '\\\''), JSON.stringify(obj.at), JSON.stringify(obj.aa), JSON.stringify(obj.subl), obj.ri);
+        obj.lt, JSON.stringify(obj.acpi), obj.et, obj.st, JSON.stringify(obj.lbl), JSON.stringify(obj.at), JSON.stringify(obj.aa), JSON.stringify(obj.subl), obj.ri);
     db.getResult(sql1, connection, function (err, results) {
         //console.timeEnd('update_lookup ' + ri);
         callback(err, results);
@@ -2124,7 +2124,7 @@ exports.update_ae = function (connection, obj, callback) {
     console.time('update_ae ' + obj.ri);
     _this.update_lookup(connection, obj, function (err, results) {
         if (!err) {
-            var sql2 = util.format('update ae set apn = \'%s\', poa = \'%s\', ae.or = \'%s\', rr = \'%s\' where ri = \'%s\'',
+            var sql2 = util.format('update ae set apn = \'%s\', poa = \'%s\', \"or\" = \'%s\', rr = \'%s\' where ri = \'%s\'',
                 obj.apn, JSON.stringify(obj.poa), obj.or, obj.rr, obj.ri);
             db.getResult(sql2, connection, function (err, results) {
                 if (!err) {

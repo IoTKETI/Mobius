@@ -1151,12 +1151,12 @@ function lookup_delete(request, response, callback) {
     });
 }
 
-function check_resource_from_url(connection, ri, sri, callback) {
-    if(cache_resource_url.hasOwnProperty(ri)) {
-        callback(cache_resource_url[ri], 200);
+function check_resource_from_url(connection, ri, callback) {
+    if(cache_resource_url.hasOwnProperty(ri.replace(/_/g, '\/'))) {
+        callback(cache_resource_url[ri.replace(/_/g, '\/')], 200);
     }
     else {
-        db_sql.select_resource_from_url(connection, ri, sri, (err, results) => {
+        db_sql.select_resource_from_url(connection, ri, (err, results) => {
             if (err) {
                 callback(null, 500);
             }
@@ -1165,7 +1165,7 @@ function check_resource_from_url(connection, ri, sri, callback) {
                     callback(null, 404);
                 }
                 else {
-                    cache_resource_url[ri] = JSON.parse(JSON.stringify(results[0]));
+                    cache_resource_url[ri.replace(/_/g, '\/')] = JSON.parse(JSON.stringify(results[0]));
                     callback(results[0], 200);
                 }
             }
@@ -1173,9 +1173,9 @@ function check_resource_from_url(connection, ri, sri, callback) {
     }
 }
 
-function get_resource_from_url(connection, ri, sri, option, callback) {
+function get_resource_from_url(connection, ri, option, callback) {
     let targetObject = {};
-    check_resource_from_url(connection, ri, sri, (result, code) => {
+    check_resource_from_url(connection, ri, (result, code) => {
         if(code === 200) {
             var ty = result.ty;
             targetObject[responder.typeRsrc[ty]] = result;
@@ -1512,7 +1512,6 @@ let getAbsoluteUrl = (request, response) => {
     console.log('\n' + request.method + ' : ' + request.url);
 
     request.option = '';
-    request.sri = absolute_url_arr[1].split('?')[0];
 
     let flag_fopt = 0;
     let _absolute_url_arr = absolute_url_arr.slice(1);
@@ -1593,7 +1592,7 @@ let get_target_url = (request, response, callback) => {
     if (code === '200') {
         var tid = require('shortid').generate();
         console.time('get_resource_from_url' + ' (' + tid + ') - ' + request.absolute_url);
-        get_resource_from_url(request.db_connection, request.ri, request.sri, request.option, (targetObject, status) => {
+        get_resource_from_url(request.db_connection, request.ri, request.option, (targetObject, status) => {
             console.timeEnd('get_resource_from_url' + ' (' + tid + ') - ' + request.absolute_url);
             if (status === 404) {
                 if (url.parse(request.absolute_url).pathname.split('/')[1] === process.env.CB_NAME) {
@@ -1670,17 +1669,15 @@ function check_allowed_app_ids(request, callback) {
     callback('200');
 }
 
-function check_type_update_resource(request, callback) {
+function check_type_update_resource(request) {
     for (var ty_idx in responder.typeRsrc) {
         if (responder.typeRsrc.hasOwnProperty(ty_idx)) {
             if ((ty_idx == 4) && (responder.typeRsrc[ty_idx] == Object.keys(request.bodyObj)[0])) {
-                callback('405-7');
-                return;
+                return ('405-7');
             }
             else if ((ty_idx != 4) && (responder.typeRsrc[ty_idx] == Object.keys(request.bodyObj)[0])) {
                 if ((ty_idx == 17) && (responder.typeRsrc[ty_idx] == Object.keys(request.bodyObj)[0])) {
-                    callback('405-8');
-                    return;
+                    return ('405-8');
                 }
                 else {
                     request.ty = ty_idx;
@@ -1701,11 +1698,10 @@ function check_type_update_resource(request, callback) {
     }
 
     if (url.parse(request.targetObject[Object.keys(request.targetObject)[0]].ri).pathname == ('/' + usecsebase)) {
-        callback('405-9');
-        return;
+        return ('405-9');
     }
 
-    callback('200');
+    return ('200');
 }
 
 function check_type_delete_resource(request, callback) {
@@ -2251,74 +2247,79 @@ app.put(onem2mParser, (request, response) => {
     request.on('end', () => {
         request.body = fullBody;
 
-        db.getConnection((code, connection) => {
-            if (code === '200') {
-                request.db_connection = connection;
+        if(request.hasOwnProperty('headers')) {
+            if(!request.hasOwnProperty('binding')) {
+                request.headers['binding'] = 'H';
+            }
 
-                if (request.headers == null) {
-                    request.rawHeaders = ["Accept","application/json"];
+            db.getConnection((code, connection) => {
+                if (code === '200') {
+                    db_sql.set_hit(connection, request.headers['binding'], (err, results) => {
+                        results = null;
+
+                        connection.release();
+                    });
                 }
+            });
+        }
+        else {
+            request.rawHeaders = ["Accept","application/json"];
+        }
 
-                if (!request.headers.hasOwnProperty('binding')) {
-                    request.headers['binding'] = 'H';
-                }
-
-                db_sql.set_hit(request.db_connection, request.headers['binding'], (err, results) => {
-                    results = null;
-                });
-
-                let rcode = check_xm2m_headers(request);
+        let rcode = check_xm2m_headers(request);
+        if (rcode === '200') {
+            if (request.body !== "") {
+                let rcode = check_resource_supported(request);
                 if (rcode === '200') {
-                    if (request.body !== "") {
-                        let rcode = check_resource_supported(request);
-                        if (rcode === '200') {
-                            let rcode = parse_body_format(request);
-                            if (rcode === '200') {
+                    let rcode = parse_body_format(request);
+                    if (rcode === '200') {
+                        db.getConnection((code, connection) => {
+                            if (code === '200') {
+                                request.db_connection = connection;
                                 get_target_url(request, response, (code) => {
                                     if (code === '200') {
                                         if (request.option !== '/fopt') {
-                                            check_type_update_resource(request, (code) => {
-                                                if (code === '200') {
-                                                    var rootnm = Object.keys(request.targetObject)[0];
-                                                    request.url = request.targetObject[rootnm].ri;
-                                                    if ((request.query.fu == 2) && (request.query.rcn == 0 || request.query.rcn == 1)) {
-                                                        lookup_update(request, response, (code) => {
-                                                            if (code === '200') {
-                                                                if (cache_resource_url.hasOwnProperty(request.url)) {
-                                                                    delete cache_resource_url[request.url];
-                                                                }
+                                            rcode = check_type_update_resource(request);
+                                            if (rcode === '200') {
+                                                let rootnm = Object.keys(request.targetObject)[0];
+                                                request.url = request.targetObject[rootnm].ri.replace(/_/g, '\/');
+                                                if ((request.query.fu == 2) && (request.query.rcn == 0 || request.query.rcn == 1)) {
+                                                    lookup_update(request, response, (code) => {
+                                                        if (code === '200') {
+                                                            if (cache_resource_url.hasOwnProperty(request.url)) {
+                                                                delete cache_resource_url[request.url];
+                                                            }
 
-                                                                responder.response_result(request, response, '200', '2004', '', () => {
-                                                                    connection.release();
-                                                                    request = null;
-                                                                    response = null;
-                                                                });
-                                                            }
-                                                            else {
-                                                                responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
-                                                                    connection.release();
-                                                                    request = null;
-                                                                    response = null;
-                                                                });
-                                                            }
-                                                        });
-                                                    }
-                                                    else {
-                                                        response_error_result(request, response, '400-45', () => {
-                                                            connection.release();
-                                                            request = null;
-                                                            response = null;
-                                                        });
-                                                    }
+                                                            responder.response_result(request, response, '200', '2004', '', () => {
+                                                                connection.release();
+                                                                request = null;
+                                                                response = null;
+                                                            });
+                                                        }
+                                                        else {
+                                                            responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                                                                connection.release();
+                                                                request = null;
+                                                                response = null;
+                                                            });
+                                                        }
+                                                    });
                                                 }
                                                 else {
-                                                    responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                                                    response_error_result(request, response, '400-45', () => {
                                                         connection.release();
                                                         request = null;
                                                         response = null;
                                                     });
                                                 }
-                                            });
+                                            }
+                                            else {
+                                                responder.error_result(request, response, resultStatusCode[rcode][0], resultStatusCode[rcode][1], resultStatusCode[rcode][2], () => {
+                                                    connection.release();
+                                                    request = null;
+                                                    response = null;
+                                                });
+                                            }
                                         }
                                         else { // if (request.option === '/fopt') {
                                             check_grp(request, response, (rsc, result_grp) => { // check access right for fanoutpoint
@@ -2405,24 +2406,15 @@ app.put(onem2mParser, (request, response) => {
                                 });
                             }
                             else {
-                                responder.error_result(request, response, resultStatusCode[rcode][0], resultStatusCode[rcode][1], resultStatusCode[rcode][2], () => {
-                                    connection.release();
+                                responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
                                     request = null;
                                     response = null;
                                 });
                             }
-                        }
-                        else {
-                            responder.error_result(request, response, resultStatusCode[rcode][0], resultStatusCode[rcode][1], resultStatusCode[rcode][2], () => {
-                                connection.release();
-                                request = null;
-                                response = null;
-                            });
-                        }
+                        });
                     }
                     else {
-                        response_error_result(request, response, '400-40', () => {
-                            connection.release();
+                        responder.error_result(request, response, resultStatusCode[rcode][0], resultStatusCode[rcode][1], resultStatusCode[rcode][2], () => {
                             request = null;
                             response = null;
                         });
@@ -2430,19 +2422,26 @@ app.put(onem2mParser, (request, response) => {
                 }
                 else {
                     responder.error_result(request, response, resultStatusCode[rcode][0], resultStatusCode[rcode][1], resultStatusCode[rcode][2], () => {
-                        connection.release();
                         request = null;
                         response = null;
                     });
                 }
             }
             else {
-                responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                response_error_result(request, response, '400-40', () => {
                     request = null;
                     response = null;
                 });
             }
-        });
+        }
+        else {
+            responder.error_result(request, response, resultStatusCode[rcode][0], resultStatusCode[rcode][1], resultStatusCode[rcode][2], () => {
+                connection.release();
+                request = null;
+                response = null;
+            });
+        }
+
     });
 });
 
@@ -2479,7 +2478,7 @@ app.delete(onem2mParser, (request, response) => {
                                 check_type_delete_resource(request, (code) => {
                                     if (code === '200') {
                                         var rootnm = Object.keys(request.targetObject)[0];
-                                        request.url = request.targetObject[rootnm].ri;
+                                        request.url = request.targetObject[rootnm].ri.replace(/_/g, '\/');
                                         request.pi = request.targetObject[rootnm].pi;
                                         if ((request.query.fu == 2) && (request.query.rcn == 0 || request.query.rcn == 1)) {
                                             lookup_delete(request, response, (code) => {
@@ -2488,8 +2487,8 @@ app.delete(onem2mParser, (request, response) => {
                                                         delete cache_resource_url[request.url];
                                                     }
 
-                                                    if(cache_resource_url.hasOwnProperty(request.pi + '/la')) {
-                                                        delete cache_resource_url[request.pi + '/la'];
+                                                    if(cache_resource_url.hasOwnProperty(request.pi.replace(/_/g, '\/') + '/la')) {
+                                                        delete cache_resource_url[request.pi.replace(/_/g, '\/') + '/la'];
                                                     }
 
                                                     Object.keys(cache_resource_url).forEach((_url) => {

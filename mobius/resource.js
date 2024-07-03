@@ -539,7 +539,7 @@ function create_action(request, response, callback) {
                 var targetObject = JSON.parse(JSON.stringify(request.targetObject));
                 var cs = parseInt(resource_Obj[rootnm].cs);
 
-                cache_resource_url[resource_Obj[rootnm].pi + '/la'] = resource_Obj[rootnm];
+                cache_resource_url[resource_Obj[rootnm].pi.replace(/_/g, '\/') + '/la'] = resource_Obj[rootnm];
 
                 db_sql.update_parent_by_insert(request.db_connection, targetObject[parent_rootnm], cs, () => {
                     //request_update_cnt(JSON.stringify(targetObject), cs);
@@ -548,8 +548,8 @@ function create_action(request, response, callback) {
                     targetObject = null;
                 });
 
-                if(cache_resource_url.hasOwnProperty(targetObject[parent_rootnm].ri)) {
-                    delete cache_resource_url[targetObject[parent_rootnm].ri];
+                if(cache_resource_url.hasOwnProperty(targetObject[parent_rootnm].ri.replace(/_/g, '\/'))) {
+                    delete cache_resource_url[targetObject[parent_rootnm].ri.replace(/_/g, '\/')];
                 }
 
                 results = null;
@@ -891,8 +891,8 @@ function create_action(request, response, callback) {
                 var parentObj = request.targetObject;
                 parentObj[parent_rootnm].subl.push(resource_Obj[rootnm]);
 
-                if(cache_resource_url.hasOwnProperty(parentObj[parent_rootnm].ri)) {
-                    delete cache_resource_url[parentObj[parent_rootnm].ri];
+                if(cache_resource_url.hasOwnProperty(parentObj[parent_rootnm].ri.replace(/_/g, '\/'))) {
+                    delete cache_resource_url[parentObj[parent_rootnm].ri.replace(/_/g, '\/')];
                 }
 
                 db_sql.update_lookup(request.db_connection, parentObj[parent_rootnm], (err, results) => {
@@ -2602,8 +2602,8 @@ function delete_action(request, response, callback) {
                                     var parent_rootnm = Object.keys(request.targetObject)[0];
                                     makeObject(request.targetObject[parent_rootnm]);
 
-                                    if(cache_resource_url.hasOwnProperty(request.targetObject[parent_rootnm].ri)) {
-                                        delete cache_resource_url[request.targetObject[parent_rootnm].ri];
+                                    if(cache_resource_url.hasOwnProperty(request.targetObject[parent_rootnm].ri.replace(/_/g, '\/'))) {
+                                        delete cache_resource_url[request.targetObject[parent_rootnm].ri.replace(/_/g, '\/')];
                                     }
 
                                     if (resource_Obj[rootnm].ty == '23') {
