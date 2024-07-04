@@ -190,8 +190,8 @@ exports.insert_lookup = function(connection, obj, callback) {
     }
 
     let sql = util.format("insert into lookup (" +
-        'pi, ri, ty, ct, st, rn, lt, et, acpi, lbl, at, aa, subl, pil, lvl, loc) ' +
-        'values (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
+        'pi, ri, ty, ct, st, rn, lt, et, acpi, lbl, at, aa, subl, pil, lvl, loc, cr) ' +
+        'values (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
         obj.pi, obj.ri, obj.ty, obj.ct, obj.st, obj.rn, obj.lt, obj.et,
         JSON.stringify(obj.acpi),
         JSON.stringify(obj.lbl, null, 4),
@@ -200,7 +200,8 @@ exports.insert_lookup = function(connection, obj, callback) {
         JSON.stringify(obj.subl),
         JSON.stringify(obj.pil),
         (obj.ri.split('_').length-2),
-        JSON.stringify(geoJsonObj)
+        JSON.stringify(geoJsonObj),
+        obj.cr
     );
     db.getResult(sql, connection, (err, results) => {
         if(!err) {
@@ -256,11 +257,12 @@ exports.insert_acp = function(connection, obj, callback) {
                 'values (\'%s\', \'%s\', \'%s\')',
                 obj.ri, JSON.stringify(obj.pv).replace(/\"/g, '\\"').replace(/\'/g, '\\\''), JSON.stringify(obj.pvs).replace(/\"/g, '\\"').replace(/\'/g, '\\\''));
             db.getResult(sql, connection, (err, results) => {
+                console.timeEnd('insert_acp ' + obj.ri);
                 if(!err) {
-                    console.timeEnd('insert_acp ' + obj.ri);
                     callback(err, results);
                 }
                 else {
+                    console.error('error insert_acp ' + obj.ri);
                     sql = util.format("delete from lookup where ri = \'%s\'", obj.ri);
                     db.getResult(sql, connection, () => {
                         callback(err, results);
@@ -287,14 +289,14 @@ exports.insert_ae = function(connection, obj, callback) {
                 JSON.stringify(obj.srv));
 
             db.getResult(sql, connection, (err, results) => {
+                console.timeEnd('insert_ae ' + obj.ri);
                 if(!err) {
-                    console.timeEnd('insert_ae ' + obj.ri);
                     callback(err, results);
                 }
                 else {
+                    console.error('error insert_ae ' + obj.ri);
                     sql = util.format("delete from lookup where ri = \'%s\'", obj.ri);
                     db.getResult(sql, connection, () => {
-                        console.timeEnd('insert_ae ' + obj.ri);
                         callback(err, results);
                     });
                 }
@@ -311,18 +313,18 @@ exports.insert_cnt = function(connection, obj, callback) {
     console.time('insert_cnt ' + obj.ri);
     _this.insert_lookup(connection, obj, function (err, results) {
         if(!err) {
-            var sql = util.format('insert into cnt (ri, cr, mni, mbs, mia, cni, cbs, li, cnt.or, disr) ' +
-                'values (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
-                obj.ri, obj.cr, obj.mni, obj.mbs, obj.mia, obj.cni, obj.cbs, obj.li, obj.or, obj.disr);
+            var sql = util.format('insert into cnt (ri, mni, mbs, mia, cni, cbs, li, \"or\", disr) ' +
+                'values (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
+                obj.ri, obj.mni, obj.mbs, obj.mia, obj.cni, obj.cbs, obj.li, obj.or, obj.disr);
             db.getResult(sql, connection, (err, results) => {
+                console.timeEnd('insert_cnt ' + obj.ri);
                 if(!err) {
-                    console.timeEnd('insert_cnt ' + obj.ri);
                     callback(err, results);
                 }
                 else {
+                    console.error('error insert_cnt ' + obj.ri);
                     sql = util.format("delete from lookup where ri = \'%s\'", obj.ri);
                     db.getResult(sql, connection, () => {
-                        console.timeEnd('insert_cnt ' + obj.ri);
                         callback(err, results);
                     });
                 }
@@ -1881,13 +1883,13 @@ exports.select_acp_cnt = function(connection, loop, uri_arr, callback) {
         if (uri_arr.hasOwnProperty(idx)) {
             if (uri_arr[idx] != '') {
                 if (idx < uri_arr.length - (loop + 1)) {
-                    pi += '/' + uri_arr[idx];
+                    pi += '_' + uri_arr[idx];
                 }
             }
         }
     }
 
-    var sql = util.format("select acpi, ty from lookup where ri = \"%s\"", pi);
+    var sql = util.format("select acpi, ty from lookup where ri = \'%s\'", pi);
     db.getResult(sql, connection, function (err, results) {
         if (err) {
             callback(err, results.message);

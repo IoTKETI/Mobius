@@ -62,6 +62,7 @@ exports.build_ae = function(request, response, resource_Obj, body_Obj, callback)
         resource_Obj[rootnm].aei = request.headers['x-m2m-origin'];
     }
 
+    resource_Obj[rootnm].cr = resource_Obj[rootnm].aei
     resource_Obj[rootnm].nl = '';
 
     request.resourceObj = JSON.parse(JSON.stringify(resource_Obj));

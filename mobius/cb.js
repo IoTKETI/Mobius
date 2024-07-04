@@ -48,6 +48,7 @@ function cb_create_action(connection, callback) {
     resource_Obj[rootnm].srv = ['1', '2', '2a'];
     resource_Obj[rootnm].subl = [];
     resource_Obj[rootnm].pil = [];
+    resource_Obj[rootnm].cr = '';
 
     resource_Obj[rootnm].csi = process.env.CB_ID;
 

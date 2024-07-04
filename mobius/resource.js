@@ -456,6 +456,24 @@ function delete_TS(callback) {
     req.end();
 }
 
+const check_result_code_db_action = (rcode, rmessage='') => {
+    if (rcode === 'ER_DUP_ENTRY') {
+        if (rmessage.includes('aei_UNIQUE')) {
+            return ('409-6');
+        }
+        else {
+            return ('409-5');
+        }
+    }
+    else if (rcode === '23505') {
+        return ('409-5');
+    }
+    else {
+        console.log('[create_action] create resource error ======== ' + rcode);
+        return ('500-4');
+    }
+}
+
 function create_action(request, response, callback) {
     let rootnm = request.headers.rootnm;
     let ty = request.ty;
@@ -467,13 +485,7 @@ function create_action(request, response, callback) {
                 callback('200');
             }
             else {
-                if (results.code == 'ER_DUP_ENTRY') {
-                    callback('409-5');
-                }
-                else {
-                    console.log('[create_action] create resource error ======== ' + results.code);
-                    callback('500-4');
-                }
+                callback(check_result_code_db_action(results.code, results.message));
             }
         });
     }
@@ -484,21 +496,8 @@ function create_action(request, response, callback) {
                 callback('200');
             }
             else {
-                if (results.code == 'ER_DUP_ENTRY') {
-                    if(results.message.includes('aei_UNIQUE')) {
-                        callback('409-6');
-                    }
-                    else {
-                        callback('409-5');
-                    }
-                }
-                else if (results.code === '23505') {
-                    callback('409-5');
-                }
-                else {
-                    console.log('[create_action] create resource error ======== ' + results.code);
-                    callback('500-4');
-                }
+                callback(check_result_code_db_action(results.code, results.message));
+
             }
         });
     }
@@ -512,13 +511,7 @@ function create_action(request, response, callback) {
                 callback('200');
             }
             else {
-                if (results.code == 'ER_DUP_ENTRY') {
-                    callback('409-5');
-                }
-                else {
-                    console.log('[create_action] create resource error ======== ' + results.code);
-                    callback('500-4');
-                }
+                callback(check_result_code_db_action(results.code, results.message));
             }
         });
     }
@@ -556,13 +549,7 @@ function create_action(request, response, callback) {
                 callback('200');
             }
             else {
-                if (results.code == 'ER_DUP_ENTRY') {
-                    callback('409-5');
-                }
-                else {
-                    console.log('[create_action] create resource error ======== ' + results.code);
-                    callback('500-4');
-                }
+                callback(check_result_code_db_action(results.code, results.message));
             }
         });
     }
@@ -572,13 +559,7 @@ function create_action(request, response, callback) {
                 callback('200');
             }
             else {
-                if (results.code == 'ER_DUP_ENTRY') {
-                    callback('409-5');
-                }
-                else {
-                    console.log('[create_action] create resource error ======== ' + results.code);
-                    callback('500-4');
-                }
+                callback(check_result_code_db_action(results.code, results.message));
             }
         });
     }
@@ -588,13 +569,7 @@ function create_action(request, response, callback) {
                 callback('200');
             }
             else {
-                if (results.code == 'ER_DUP_ENTRY') {
-                    callback('409-5');
-                }
-                else {
-                    console.log('[create_action] create resource error ======== ' + results.code);
-                    callback('500-4');
-                }
+                callback(check_result_code_db_action(results.code, results.message));
             }
         });
     }
@@ -605,13 +580,7 @@ function create_action(request, response, callback) {
                     callback('200');
                 }
                 else {
-                    if (results.code == 'ER_DUP_ENTRY') {
-                        callback('409-5');
-                    }
-                    else {
-                        console.log('[create_action] create resource error ======== ' + results.code);
-                        callback('500-4');
-                    }
+                    callback(check_result_code_db_action(results.code, results.message));
                 }
             });
         }
@@ -621,13 +590,7 @@ function create_action(request, response, callback) {
                     callback('200');
                 }
                 else {
-                    if (results.code == 'ER_DUP_ENTRY') {
-                        callback('409-5');
-                    }
-                    else {
-                        console.log('[create_action] create resource error ======== ' + results.code);
-                        callback('500-4');
-                    }
+                    callback(check_result_code_db_action(results.code, results.message));
                 }
             });
         }
@@ -637,13 +600,7 @@ function create_action(request, response, callback) {
                     callback('200');
                 }
                 else {
-                    if (results.code == 'ER_DUP_ENTRY') {
-                        callback('409-5');
-                    }
-                    else {
-                        console.log('[create_action] create resource error ======== ' + results.code);
-                        callback('500-4');
-                    }
+                    callback(check_result_code_db_action(results.code, results.message));
                 }
             });
         }
@@ -653,13 +610,7 @@ function create_action(request, response, callback) {
                     callback('200');
                 }
                 else {
-                    if (results.code == 'ER_DUP_ENTRY') {
-                        callback('409-5');
-                    }
-                    else {
-                        console.log('[create_action] create resource error ======== ' + results.code);
-                        callback('500-4');
-                    }
+                    callback(check_result_code_db_action(results.code, results.message));
                 }
             });
         }
@@ -669,13 +620,7 @@ function create_action(request, response, callback) {
                     callback('200');
                 }
                 else {
-                    if (results.code == 'ER_DUP_ENTRY') {
-                        callback('409-5');
-                    }
-                    else {
-                        console.log('[create_action] create resource error ======== ' + results.code);
-                        callback('500-4');
-                    }
+                    callback(check_result_code_db_action(results.code, results.message));
                 }
             });
         }
@@ -694,13 +639,7 @@ function create_action(request, response, callback) {
                     callback('200');
                 }
                 else {
-                    if (results.code == 'ER_DUP_ENTRY') {
-                        callback('409-5');
-                    }
-                    else {
-                        console.log('[create_action] create resource error ======== ' + results.code);
-                        callback('500-4');
-                    }
+                    callback(check_result_code_db_action(results.code, results.message));
                 }
             });
         }
@@ -710,13 +649,7 @@ function create_action(request, response, callback) {
                     callback('200');
                 }
                 else {
-                    if (results.code == 'ER_DUP_ENTRY') {
-                        callback('409-5');
-                    }
-                    else {
-                        console.log('[create_action] create resource error ======== ' + results.code);
-                        callback('500-4');
-                    }
+                    callback(check_result_code_db_action(results.code, results.message));
                 }
             });
         }
@@ -726,13 +659,7 @@ function create_action(request, response, callback) {
                     callback('200');
                 }
                 else {
-                    if (results.code == 'ER_DUP_ENTRY') {
-                        callback('409-5');
-                    }
-                    else {
-                        console.log('[create_action] create resource error ======== ' + results.code);
-                        callback('500-4');
-                    }
+                    callback(check_result_code_db_action(results.code, results.message));
                 }
             });
         }
@@ -742,13 +669,7 @@ function create_action(request, response, callback) {
                     callback('200');
                 }
                 else {
-                    if (results.code == 'ER_DUP_ENTRY') {
-                        callback('409-5');
-                    }
-                    else {
-                        console.log('[create_action] create resource error ======== ' + results.code);
-                        callback('500-4');
-                    }
+                    callback(check_result_code_db_action(results.code, results.message));
                 }
             });
         }
@@ -758,13 +679,7 @@ function create_action(request, response, callback) {
                     callback('200');
                 }
                 else {
-                    if (results.code == 'ER_DUP_ENTRY') {
-                        callback('409-5');
-                    }
-                    else {
-                        console.log('[create_action] create resource error ======== ' + results.code);
-                        callback('500-4');
-                    }
+                    callback(check_result_code_db_action(results.code, results.message));
                 }
             });
         }
@@ -774,13 +689,7 @@ function create_action(request, response, callback) {
                     callback('200');
                 }
                 else {
-                    if (results.code == 'ER_DUP_ENTRY') {
-                        callback('409-5');
-                    }
-                    else {
-                        console.log('[create_action] create resource error ======== ' + results.code);
-                        callback('500-4');
-                    }
+                    callback(check_result_code_db_action(results.code, results.message));
                 }
             });
         }
@@ -790,13 +699,7 @@ function create_action(request, response, callback) {
                     callback('200');
                 }
                 else {
-                    if (results.code == 'ER_DUP_ENTRY') {
-                        callback('409-5');
-                    }
-                    else {
-                        console.log('[create_action] create resource error ======== ' + results.code);
-                        callback('500-4');
-                    }
+                    callback(check_result_code_db_action(results.code, results.message));
                 }
             });
         }
@@ -806,13 +709,7 @@ function create_action(request, response, callback) {
                     callback('200');
                 }
                 else {
-                    if (results.code == 'ER_DUP_ENTRY') {
-                        callback('409-5');
-                    }
-                    else {
-                        console.log('[create_action] create resource error ======== ' + results.code);
-                        callback('500-4');
-                    }
+                    callback(check_result_code_db_action(results.code, results.message));
                 }
             });
         }
@@ -822,13 +719,7 @@ function create_action(request, response, callback) {
                     callback('200');
                 }
                 else {
-                    if (results.code == 'ER_DUP_ENTRY') {
-                        callback('409-5');
-                    }
-                    else {
-                        console.log('[create_action] create resource error ======== ' + results.code);
-                        callback('500-4');
-                    }
+                    callback(check_result_code_db_action(results.code, results.message));
                 }
             });
         }
@@ -842,13 +733,7 @@ function create_action(request, response, callback) {
                 callback('200');
             }
             else {
-                if (results.code == 'ER_DUP_ENTRY') {
-                    callback('409-5');
-                }
-                else {
-                    console.log('[create_action] create resource error ======== ' + results.code);
-                    callback('500-4');
-                }
+                callback(check_result_code_db_action(results.code, results.message));
             }
         });
     }
@@ -858,13 +743,7 @@ function create_action(request, response, callback) {
                 callback('200');
             }
             else {
-                if (results.code == 'ER_DUP_ENTRY') {
-                    callback('409-5');
-                }
-                else {
-                    console.log('[create_action] create resource error ======== ' + results.code);
-                    callback('500-4');
-                }
+                callback(check_result_code_db_action(results.code, results.message));
             }
         });
     }
@@ -874,13 +753,7 @@ function create_action(request, response, callback) {
                 callback('200');
             }
             else {
-                if (results.code == 'ER_DUP_ENTRY') {
-                    callback('409-5');
-                }
-                else {
-                    console.log('[create_action] create resource error ======== ' + results.code);
-                    callback('500-4');
-                }
+                callback(check_result_code_db_action(results.code, results.message));
             }
         });
     }
@@ -902,13 +775,7 @@ function create_action(request, response, callback) {
                 });
             }
             else {
-                if (results.code == 'ER_DUP_ENTRY') {
-                    callback('409-5');
-                }
-                else {
-                    console.log('[create_action] create resource error ======== ' + results.code);
-                    callback('500-4');
-                }
+                callback(check_result_code_db_action(results.code, results.message));
             }
         });
     }
@@ -918,13 +785,7 @@ function create_action(request, response, callback) {
                 callback('200');
             }
             else {
-                if (results.code == 'ER_DUP_ENTRY') {
-                    callback('409-5');
-                }
-                else {
-                    console.log('[create_action] create resource error ======== ' + results.code);
-                    callback('500-4');
-                }
+                callback(check_result_code_db_action(results.code, results.message));
             }
         });
     }
@@ -936,13 +797,7 @@ function create_action(request, response, callback) {
                 callback('200');
             }
             else {
-                if (results.code == 'ER_DUP_ENTRY') {
-                    callback('409-5');
-                }
-                else {
-                    console.log('[create_action] create resource error ======== ' + results.code);
-                    callback('500-4');
-                }
+                callback(check_result_code_db_action(results.code, results.message));
             }
         });
     }
@@ -952,13 +807,7 @@ function create_action(request, response, callback) {
                 callback('200');
             }
             else {
-                if (results.code == 'ER_DUP_ENTRY') {
-                    callback('409-5');
-                }
-                else {
-                    console.log('[create_action] create resource error ======== ' + results.code);
-                    callback('500-4');
-                }
+                callback(check_result_code_db_action(results.code, results.message));
             }
         });
     }
@@ -968,13 +817,7 @@ function create_action(request, response, callback) {
                 callback('200');
             }
             else {
-                if (results.code == 'ER_DUP_ENTRY') {
-                    callback('409-5');
-                }
-                else {
-                    console.log('[create_action] create resource error ======== ' + results.code);
-                    callback('500-4');
-                }
+                callback(check_result_code_db_action(results.code, results.message));
             }
         });
     }
@@ -986,13 +829,7 @@ function create_action(request, response, callback) {
                     callback('200');
                 }
                 else {
-                    if (results.code == 'ER_DUP_ENTRY') {
-                        callback('409-5');
-                    }
-                    else {
-                        console.log('[create_action] create resource error ======== ' + results.code);
-                        callback('500-4');
-                    }
+                    callback(check_result_code_db_action(results.code, results.message));
                 }
             });
         }
@@ -1039,13 +876,7 @@ function create_action(request, response, callback) {
                         callback('200');
                     }
                     else {
-                        if (results.code == 'ER_DUP_ENTRY') {
-                            callback('409-5');
-                        }
-                        else {
-                            console.log('[create_action] create resource error ======== ' + results.code);
-                            callback('500-4');
-                        }
+                        callback(check_result_code_db_action(results.code, results.message));
                     }
                 });
             });
@@ -1057,13 +888,7 @@ function create_action(request, response, callback) {
                 callback('200');
             }
             else {
-                if (results.code == 'ER_DUP_ENTRY') {
-                    callback('409-5');
-                }
-                else {
-                    console.log('[create_action] create resource error ======== ' + results.code);
-                    callback('500-4');
-                }
+                callback(check_result_code_db_action(results.code, results.message));
             }
         });
     }
@@ -1178,6 +1003,7 @@ function build_resource(request, response, callback) {
     resource_Obj[rootnm].at = (body_Obj[rootnm].at) ? body_Obj[rootnm].at : [];
     resource_Obj[rootnm].aa = (body_Obj[rootnm].aa) ? body_Obj[rootnm].aa : [];
     resource_Obj[rootnm].subl = (body_Obj[rootnm].subl) ? body_Obj[rootnm].subl : [];
+    resource_Obj[rootnm].cr = (body_Obj[rootnm].cr) ? body_Obj[rootnm].cr : request.headers['x-m2m-origin'];
 
     if (body_Obj[rootnm].et == '') {
         if (body_Obj[rootnm].et < resource_Obj[rootnm].ct) {
