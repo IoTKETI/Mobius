@@ -2196,11 +2196,11 @@ exports.update_ae = function (connection, obj, callback) {
 };
 
 exports.update_cnt = function (connection, obj, callback) {
-    var cnt_id = 'update_cnt ' + obj.ri + ' - ' + require('shortid').generate();
+    let cnt_id = 'update_cnt ' + obj.ri + ' - ' + require('shortid').generate();
     console.time(cnt_id);
     _this.update_lookup(connection, obj, function (err, results) {
         if (!err) {
-            var sql2 = util.format('update cnt set mni = \'%s\', mbs = \'%s\', mia = \'%s\', li = \'%s\', cnt.or = \'%s\', cni = \'%s\', cbs = \'%s\' where ri = \'%s\'',
+            let sql2 = util.format('update cnt set mni = \'%s\', mbs = \'%s\', mia = \'%s\', li = \'%s\', \"or\" = \'%s\', cni = \'%s\', cbs = \'%s\' where ri = \'%s\'',
                 obj.mni, obj.mbs, obj.mia, obj.li, obj.or, obj.cni, obj.cbs, obj.ri);
             db.getResult(sql2, connection, function (err, results) {
                 if (!err) {

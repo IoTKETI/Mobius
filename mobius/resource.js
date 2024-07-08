@@ -1636,18 +1636,13 @@ function update_action(request, response, callback) {
         });
     }
     else if (ty == '3') {
-        db_sql.get_cni_count(request.db_connection, resource_Obj[rootnm], function (cni, cbs, st) {
-            resource_Obj[rootnm].cni = cni;
-            resource_Obj[rootnm].cbs = cbs;
-            resource_Obj[rootnm].st = st + 1;
-            db_sql.update_cnt(request.db_connection, resource_Obj[rootnm], function (err, results) {
-                if (!err) {
-                    callback('200');
-                }
-                else {
-                    callback('500-1');
-                }
-            });
+        db_sql.update_cnt(request.db_connection, resource_Obj[rootnm], function (err, results) {
+            if (!err) {
+                callback('200');
+            }
+            else {
+                callback('500-1');
+            }
         });
     }
     else if (ty == '9') {
