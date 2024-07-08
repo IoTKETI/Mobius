@@ -2370,7 +2370,7 @@ exports.update = function (request, response, callback) {
 
 */
 function update_cnt_by_delete(connection, pi, cs, callback) {
-    db_sql.select_resource_from_url(connection, pi, pi, function (err, results) {
+    db_sql.select_resource_from_url(connection, pi, function (err, results) {
         if (err) {
             callback(null, 500);
             return '0';

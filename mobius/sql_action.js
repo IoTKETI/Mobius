@@ -1113,25 +1113,65 @@ exports.insert_tm = function(connection, obj, callback) {
     });
 };
 
+
+var isEmpty = function(value){
+    return value === "" || value === null || value === undefined || (typeof value === "object" && !Object.keys(value).length);
+};
+
+let aggregate_cnt = (connection, ty, ri, callback) => {
+    if(responder.typeRsrc[ty] === 'cnt') {
+        select_count_ri(connection, ty, ri.replace(/\//g, '_'), (err, results) => {
+            if (!err) {
+                let cni = parseInt(results[0].count);
+                let cbs = 0;
+                if(isEmpty(results[0].sum)) {
+                    cbs = 0;
+                }
+                else {
+                    cbs = parseInt(results['sum(cs)']);
+                }
+                update_count_ri(connection, ri, cni, cbs, (err, results) => {
+                    if (!err) {
+                        callback('1');
+                    }
+                    else {
+                        callback('0');
+                    }
+                });
+            }
+            else {
+                callback('0');
+            }
+        });
+    }
+    else {
+        callback('1');
+    }
+};
+
 exports.select_resource_from_url = function(connection, ri, callback) {
     var sql = util.format('select * from lookup where (ri = \'%s\')', ri.replace(/\//g, '_'));
     db.getResult(sql, connection, (err, comm_Obj) => {
         if(!err) {
-            if(comm_Obj.length == 0) {
+            if(comm_Obj.length === 0) {
                 callback(err, comm_Obj);
             }
             else {
-                let sql = "select * from " + responder.typeRsrc[comm_Obj[0].ty] + " where ri = \'" + comm_Obj[0].ri + "\'";
-                db.getResult(sql, connection, (err, spec_Obj) => {
-                    delete comm_Obj[0].lvl;
+                aggregate_cnt(connection, comm_Obj[0].ty, ri, (code) => {
+                    if(code === '1') {
+                        let sql = "select * from " + responder.typeRsrc[comm_Obj[0].ty] + " where ri = \'" + comm_Obj[0].ri + "\'";
+                        db.getResult(sql, connection, (err, spec_Obj) => {
+                            delete comm_Obj[0].lvl;
 
-                    var resource_Obj = [];
-                    resource_Obj.push(merge(comm_Obj[0], spec_Obj[0]));
-                    comm_Obj = [];
-                    spec_Obj = [];
-                    comm_Obj = null;
-                    spec_Obj = null;
-                    callback(err, resource_Obj);
+                            var resource_Obj = [];
+                            resource_Obj.push(merge(comm_Obj[0], spec_Obj[0]));
+                            comm_Obj = [];
+                            spec_Obj = [];
+                            comm_Obj = null;
+                            spec_Obj = null;
+                            callback(err, resource_Obj);
+                        });
+                    }
                 });
             }
         }
@@ -2056,9 +2096,20 @@ exports.select_ts_in = function (connection, ri_list, callback) {
 
 };
 
-exports.select_count_ri = function (connection, ty, ri, callback) {
-    var sql = util.format('select lookup.st, count(*), sum(cin.cs) FROM lookup, cin where lookup.ri = \'%s\' and cin.pi = \'%s\'', ri, ri);
+let select_count_ri = (connection, ty, ri, callback) => {
+    var sql = util.format('select count(cs), sum(cs) ' +
+        'FROM lookup ' +
+        'where ty = 4 and pi = \'%s\'', ri);
     //var sql = util.format('select lookup.st, %s.cni, %s.cbs FROM lookup, %s where lookup.ri = \'%s\' and %s.ri = \'%s\'', responder.typeRsrc[ty], responder.typeRsrc[ty], responder.typeRsrc[ty], ri, responder.typeRsrc[ty], ri);
+    db.getResult(sql, connection, function (err, results) {
+        callback(err, results);
+    });
+};
+exports.select_count_ri = select_count_ri;
+
+let update_count_ri = (connection, ri, cni, cbs, callback) => {
+    var sql = util.format('update cnt set cni = \'%s\', cbs = \'%s\' where ri = \'%s\'', cni, cbs, ri);
+
     db.getResult(sql, connection, function (err, results) {
         callback(err, results);
     });

@@ -301,7 +301,7 @@ function get_nu_arr(connection, nu_arr, req_count, callback) {
 
                 var sri = absolute_url_arr[1].split('?')[0];
                 var ri = absolute_url.split('?')[0];
-                db_sql.select_resource_from_url(connection, ri, sri, function (err, result_Obj) {
+                db_sql.select_resource_from_url(connection, ri, function (err, result_Obj) {
                     if (!err) {
                         if (result_Obj.length == 1) {
                             if (result_Obj[0].poa != null || result_Obj[0].poa != '') {
