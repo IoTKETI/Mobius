@@ -534,13 +534,6 @@ function create_action(request, response, callback) {
 
                 cache_resource_url[resource_Obj[rootnm].pi.replace(/_/g, '\/') + '/la'] = resource_Obj[rootnm];
 
-                db_sql.update_parent_by_insert(request.db_connection, targetObject[parent_rootnm], cs, () => {
-                    //request_update_cnt(JSON.stringify(targetObject), cs);
-
-                    cnt_man.put(request.db_connection, JSON.stringify(targetObject));
-                    targetObject = null;
-                });
-
                 if(cache_resource_url.hasOwnProperty(targetObject[parent_rootnm].ri.replace(/_/g, '\/'))) {
                     delete cache_resource_url[targetObject[parent_rootnm].ri.replace(/_/g, '\/')];
                 }
@@ -929,6 +922,8 @@ function build_resource(request, response, callback) {
     resource_Obj[rootnm].lt = resource_Obj[rootnm].ct;
     resource_Obj[rootnm].st = 0;
     resource_Obj[rootnm].et = moment().utc().add(2, 'years').format('YYYYMMDDTHHmmss');
+    resource_Obj[rootnm].cs = '0';
+
     if (request.ty == '17') {
         resource_Obj[rootnm].et = moment().utc().add(1, 'days').format('YYYYMMDDTHHmmss');
     }
@@ -938,7 +933,6 @@ function build_resource(request, response, callback) {
     }
 
     if (request.ty == '4') {
-        resource_Obj[rootnm].cs = '0';
         resource_Obj[rootnm].cnf = '';
     }
 
@@ -1140,6 +1134,10 @@ exports.create = function (request, response, callback) {
 
                         });
                     }
+
+                    let parent_rootnm = Object.keys(request.targetObject)[0];
+                    cnt_man.update_parent_by_insert(request.targetObject[parent_rootnm], () => {
+                    });
 
                     if (request.query.rt == 3) {
                         response.header('Content-Location', request.resourceObj[rootnm].ri.replace('/', ''));
@@ -2344,7 +2342,11 @@ exports.update = function (request, response, callback) {
                 if (code == '200') {
                     _this.remove_no_value(request, request.resourceObj);
 
-                    sgn.check(request, request.resourceObj[rootnm], 1, function (code) {
+                    sgn.check(request, request.resourceObj[rootnm], 1, () => {
+
+                    });
+
+                    cnt_man.update_st_by_action(request.resourceObj[rootnm], () => {
 
                     });
 
@@ -2360,33 +2362,6 @@ exports.update = function (request, response, callback) {
         }
     });
 };
-
-/* 20180322 removed <-- update stateTag for every resources
-
-*/
-function update_cnt_by_delete(connection, pi, cs, callback) {
-    db_sql.select_resource_from_url(connection, pi, function (err, results) {
-        if (err) {
-            callback(null, 500);
-            return '0';
-        }
-        else {
-            if (results.length == 0) {
-                callback(null, 404);
-                return '0';
-            }
-
-            var targetObject = {};
-            var ty = results[0].ty;
-            targetObject[responder.typeRsrc[ty]] = results[0];
-            var rootnm = Object.keys(targetObject)[0];
-            makeObject(targetObject[rootnm]);
-
-            db_sql.update_parent_by_delete(connection, targetObject[rootnm], cs, function (err, results) {
-            });
-        }
-    });
-}
 
 function delete_action(request, response, callback) {
     var resource_Obj = request.resourceObj;
@@ -2457,12 +2432,6 @@ function delete_action(request, response, callback) {
                                         });
                                         callback('200');
                                     }
-                                    else if (resource_Obj[rootnm].ty == '4') {
-                                        update_cnt_by_delete(request.db_connection, resource_Obj[rootnm].pi, function (rsc) {
-                                        });
-
-                                        callback('200');
-                                    }
                                     else {
                                         callback('200');
                                     }
@@ -2506,20 +2475,10 @@ exports.delete = function (request, response, callback) {
 
             });
 
-            if(useCert == 'enable') {
-                if (request.resourceObj[rootnm].ty == 4) {
-                    db_sql.update_parent_by_delete(request.db_connection, request.targetObject[Object.keys(request.targetObject)[0]], parseInt(request.resourceObj[rootnm].cs, 10), function () {
-                    });
-                }
-                else {
-                    db_sql.update_parent_st(request.db_connection, request.targetObject[Object.keys(request.targetObject)[0]], function () {
-                    });
-                }
-                callback('200');
-            }
-            else {
-                callback('200');
-            }
+            cnt_man.update_parent_by_delete(request.targetObject[Object.keys(request.targetObject)[0]], () => {
+            });
+
+            callback('200');
         }
         else {
             callback(code);

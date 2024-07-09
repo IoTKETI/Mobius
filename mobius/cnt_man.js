@@ -22,7 +22,11 @@ var express = require('express');
 var bodyParser = require('body-parser');
 var ip = require("ip");
 
-var db_sql = require('./sql_action');
+const db_sql = require('./sql_action');
+const db = require("./db_action");
+const responder = require("./responder");
+const util = require("util");
+
 //
 // global.NOPRINT = 'true';
 //
@@ -84,6 +88,66 @@ var db_sql = require('./sql_action');
 //         response.status(200).end();
 //     });
 // });
+
+let update_st_by_action = (obj, callback) => {
+    db.getConnection((code, connection) => {
+        if (code === '200') {
+            let cni_id = 'update_st_by_action ' + obj.ri + ' - ' + require('shortid').generate();
+            console.time(cni_id);
+            let sql = util.format('update lookup set st = st+1 where ri = \'%s\'', obj.ri);    //var sql = util.format('update %s, lookup set %s.cni = %s, %s.cbs = %s, lookup.st = %s where lookup.ri = \'%s\' and %s.ri = \'%s\'', tableName, tableName, obj.cni+1, tableName, obj.cbs+cs, obj.st, obj.ri, tableName,  obj.ri);
+            db.getResult(sql, connection, (err, results) => {
+                console.timeEnd(cni_id);
+                if (!err) {
+                    callback(err, results);
+                }
+                else {
+                    callback(err, results);
+                }
+                connection.release();
+            });
+        }
+    });
+};
+
+let update_parent_by_action = (obj, callback) => {
+    update_st_by_action(obj, (err, results) => {
+        if (!err) {
+            if (parseInt(obj.ty) === 3) {
+                let tid = 'aggregate_cnt ' + obj.ri + ' - ' + require('shortid').generate();
+                console.time(tid);
+                db.getConnection((code, connection) => {
+                    if (code === '200') {
+                        db_sql.aggregate_cnt(connection, obj.ty, obj.ri, (code, cni, cbs) => {
+                            if (code === '1') {
+                                db_sql.delete_oldest_by_mni_mbs(connection, obj.ty, obj.ri, cni, cbs, obj.mni, obj.mbs, (code) => {
+                                    console.timeEnd(tid);
+                                    if (code === '0') {
+                                        db_sql.aggregate_cnt(connection, obj.ty, obj.ri, (code, cni, cbs) => {
+                                            connection.release();
+                                        });
+                                    }
+                                    else {
+                                        connection.release();
+                                    }
+                                });
+                            }
+                            else {
+                                connection.release();
+                            }
+                        });
+                    }
+                });
+            }
+        }
+        else {
+            connection.release();
+        }
+    });
+};
+
+exports.update_st_by_action = update_st_by_action;
+exports.update_parent_by_insert = update_parent_by_action;
+exports.update_parent_by_delete = update_parent_by_action;
 
 exports.put = function(connection, bodyString) {
     var resource_Obj = JSON.parse(bodyString);
