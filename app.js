@@ -1183,10 +1183,10 @@ function get_resource_from_url(connection, ri, option, callback) {
             makeObject(targetObject[rootnm]);
 
             if (option == '/latest') {
-                var la_id = 'select_latest_resource ' + targetObject[rootnm].ri + ' - ' + require('shortid').generate();
+                var la_id = 'select_latest_resources ' + targetObject[rootnm].ri + ' - ' + require('shortid').generate();
                 console.time(la_id);
                 var latestObj = [];
-                db_sql.select_latest_resource(connection, targetObject[rootnm], 0, latestObj, (code) => {
+                db_sql.select_latest_resources(connection, targetObject[rootnm], 1, latestObj, (code) => {
                     console.timeEnd(la_id);
                     if (code === '200') {
                         if (latestObj.length == 1) {

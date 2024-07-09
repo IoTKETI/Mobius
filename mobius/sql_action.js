@@ -424,7 +424,7 @@ exports.insert_cin = function(connection, obj, callback) {
 
             var sql = util.format('insert into cin (ri, cnf, \"or\", con) ' +
                 'values (\'%s\', \'%s\', \'%s\', \'%s\')',
-                obj.ri, obj.cnf, obj.or, (con_type == 'string') ? obj.con.replace(/'/g, "\\'") : JSON.stringify(obj.con).replace(/\"/g, '\\"').replace(/\'/g, '\\\''));
+                obj.ri, obj.cnf, obj.or, (con_type == 'string') ? obj.con.replace(/'/g, "\\'") : JSON.stringify(obj.con));
             db.getResult(sql, connection, (err, results) => {
                 console.timeEnd(cin_id);
                 if (!err) {
@@ -1823,6 +1823,37 @@ exports.search_lookup = function (connection, ri, query, cur_lim, pi_list, pi_in
         }
     });
 };
+
+let select_latest_resources = (connection, parentObj, count, latestObj, callback) => {
+    let tableName = responder.typeRsrc[parseInt(parentObj.ty, 10)+1];
+    let sql = util.format('select * from lookup inner join %s on lookup.ri = %s.ri where lookup.pi = \'%s\' order by lookup.ct desc limit %s',
+        tableName, tableName, parentObj.ri, count);
+    db.getResult(sql, connection, (err, results_latest) => {
+        if(!err) {
+            if(results_latest.length > 0) {
+                let latest_ri = results_latest[0].ri;
+                let latest_obj = {};
+                for(let i = 0; i < results_latest.length; i++) {
+                    if(results_latest[i].ri >= latest_ri) {
+                        latest_obj = results_latest[i];
+                    }
+                }
+                latestObj.push(latest_obj);
+                callback('200');
+            }
+            else {
+                _this.select_latest_resource(connection, parentObj, ++loop_count, latestObj, function (code) {
+                    callback(code);
+                });
+            }
+        }
+        else {
+            callback('500-1');
+        }
+    });
+};
+
+exports.select_latest_resources = select_latest_resources;
 
 exports.select_latest_resource = function(connection, parentObj, loop_count, latestObj, callback) {
     if(loop_count > 9) {
