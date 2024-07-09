@@ -1830,22 +1830,37 @@ let select_latest_resources = (connection, parentObj, count, latestObj, callback
         tableName, tableName, parentObj.ri, count);
     db.getResult(sql, connection, (err, results_latest) => {
         if(!err) {
-            if(results_latest.length > 0) {
-                let latest_ri = results_latest[0].ri;
-                let latest_obj = {};
-                for(let i = 0; i < results_latest.length; i++) {
-                    if(results_latest[i].ri >= latest_ri) {
-                        latest_obj = results_latest[i];
-                    }
+            let latest_ri = results_latest[0].ri;
+            let latest_obj = {};
+            for(let i = 0; i < results_latest.length; i++) {
+                if(results_latest[i].ri >= latest_ri) {
+                    latest_obj = results_latest[i];
                 }
-                latestObj.push(latest_obj);
-                callback('200');
             }
-            else {
-                _this.select_latest_resource(connection, parentObj, ++loop_count, latestObj, function (code) {
-                    callback(code);
-                });
+            latestObj.push(latest_obj);
+            callback('200');
+        }
+        else {
+            callback('500-1');
+        }
+    });
+};
+
+let select_oldest_resources = (connection, parentObj, count, oldestObj, callback) => {
+    let tableName = responder.typeRsrc[parseInt(parentObj.ty, 10)+1];
+    let sql = util.format('select * from lookup inner join %s on lookup.ri = %s.ri where lookup.pi = \'%s\' order by lookup.ct asc limit %s',
+        tableName, tableName, parentObj.ri, count);
+    db.getResult(sql, connection, (err, results_oldest) => {
+        if(!err) {
+            let latest_ri = results_oldest[0].ri;
+            let latest_obj = {};
+            for(let i = 0; i < results_oldest.length; i++) {
+                if(results_oldest[i].ri >= latest_ri) {
+                    latest_obj = results_oldest[i];
+                }
             }
+            oldestObj.push(latest_obj);
+            callback('200');
         }
         else {
             callback('500-1');
@@ -1854,42 +1869,7 @@ let select_latest_resources = (connection, parentObj, count, latestObj, callback
 };
 
 exports.select_latest_resources = select_latest_resources;
-
-exports.select_latest_resource = function(connection, parentObj, loop_count, latestObj, callback) {
-    if(loop_count > 9) {
-        callback('200');
-        return;
-    }
-
-    var before_ct = moment().subtract(Math.pow(5, loop_count), 'minutes').utc().format('YYYYMMDDTHHmmss');
-    var query_where = ' and ty = \'' + (parseInt(parentObj.ty, 10) + 1).toString() + '\' and ';
-    query_where += util.format(' (\'%s\' < ct) order by ri desc limit 10', before_ct);
-
-    var sql = 'select * from (select * from lookup where (pi = \'' + parentObj.ri + '\') ' + query_where + ')b join ' + responder.typeRsrc[parseInt(parentObj.ty, 10) + 1] + ' as a on b.ri = a.ri';
-    db.getResult(sql, connection, (err, results_latest) => {
-        if(!err) {
-            if(results_latest.length > 0) {
-                let latest_ri = results_latest[0].ri;
-                let latest_obj = {};
-                for(let i = 0; i < results_latest.length; i++) {
-                    if(results_latest[i].ri >= latest_ri) {
-                        latest_obj = results_latest[i];
-                    }
-                }
-                latestObj.push(latest_obj);
-                callback('200');
-            }
-            else {
-                _this.select_latest_resource(connection, parentObj, ++loop_count, latestObj, function (code) {
-                    callback(code);
-                });
-            }
-        }
-        else {
-            callback('500-1');
-        }
-    });
-};
+exports.select_oldest_resources = select_oldest_resources;
 
 exports.select_oldest_resource = function(connection, ty, ri, oldestObj, callback) {
     console.time('select_oldest ' + ri);

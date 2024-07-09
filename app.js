@@ -1190,20 +1190,12 @@ function get_resource_from_url(connection, ri, option, callback) {
                     console.timeEnd(la_id);
                     if (code === '200') {
                         if (latestObj.length == 1) {
-
-                            console.log(latestObj);
-
                             let strLatestObj = JSON.stringify(latestObj[0]).replace('RowDataPacket ', '');
-
                             latestObj[0] = JSON.parse(strLatestObj);
-                            console.log(latestObj);
 
                             targetObject = {};
                             targetObject[responder.typeRsrc[latestObj[0].ty]] = latestObj[0];
                             makeObject(targetObject[Object.keys(targetObject)[0]]);
-
-                            //cache_resource_url[latestObj[0].pi + '/la'] = targetObject[Object.keys(targetObject)[0]];
-                            //console.log(cache_resource_url);
 
                             callback(targetObject);
                         }
@@ -1219,10 +1211,16 @@ function get_resource_from_url(connection, ri, option, callback) {
                 });
             }
             else if (option == '/oldest') {
+                var ol_id = 'select_oldest_resources ' + targetObject[rootnm].ri + ' - ' + require('shortid').generate();
+                console.time(ol_id);
                 var oldestObj = [];
-                db_sql.select_oldest_resource(connection, parseInt(ty, 10) + 1, ri, oldestObj, (code) => {
+                db_sql.select_oldest_resources(connection, targetObject[rootnm], 1, oldestObj, (code) => {
+                    console.timeEnd(ol_id);
                     if (code === '200') {
                         if (oldestObj.length == 1) {
+                            let strOldestObj = JSON.stringify(oldestObj[0]).replace('RowDataPacket ', '');
+                            oldestObj[0] = JSON.parse(strOldestObj);
+
                             targetObject = {};
                             targetObject[responder.typeRsrc[oldestObj[0].ty]] = oldestObj[0];
                             makeObject(targetObject[Object.keys(targetObject)[0]]);
