@@ -93,7 +93,7 @@ exports.post = function(ri, exc, nu, bodytype, rqi, bodyString) {
                         throw err;
                     }
 
-                    console.log(MYIP, ' - ', address);
+                    // console.log(MYIP, ' - ', address);
                     if (MYIP === address) {
                         sgn_mqtt_client.publish(sub_nu.pathname, bodyString);
                     }
@@ -119,6 +119,7 @@ exports.post = function(ri, exc, nu, bodytype, rqi, bodyString) {
                             other_mqtt_client[sub_nu.hostname] = mqtt.connect('mqtt://' + sub_nu.hostname + ':' + sub_nu.port);
 
                             other_mqtt_client[sub_nu.hostname].on('connect', () => {
+                                console.log('[sgn_man]', sub_nu.hostname, 'connected');
                                 request_noti_mqtt_action();
                             });
 

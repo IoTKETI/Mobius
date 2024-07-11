@@ -761,11 +761,12 @@ function create_action(request, response, callback) {
                     delete cache_resource_url[parentObj[parent_rootnm].ri.replace(/_/g, '\/')];
                 }
 
-                db_sql.update_lookup(request.db_connection, parentObj[parent_rootnm], (err, results) => {
-                    if(!err) {
-                        callback('200');
-                    }
-                });
+                // db_sql.update_lookup(request.db_connection, parentObj[parent_rootnm], (err, results) => {
+                //     if(!err) {
+                //         callback('200');
+                //     }
+                // });
+                callback('200');
             }
             else {
                 callback(check_result_code_db_action(results.code, results.message));
@@ -1493,10 +1494,10 @@ exports.retrieve = function (request, response, callback) {
                 pi_list = [];
                 pi_list.push(resource_Obj[rootnm].ri);
                 var cur_lvl = parseInt((url.parse(request.url).pathname.split('/').length), 10) - 2;
-                for (i = 0; i < found_parent_list.length; i++) {
+                for (let i = 0; i < found_parent_list.length; i++) {
                     if (request.query.lvl != null) {
                         var lvl = request.query.lvl;
-                        if ((found_parent_list[i].ri.split('/').length - 1) <= (cur_lvl + (parseInt(lvl, 10)))) {
+                        if ((found_parent_list[i].ri.split('_').length - 1) <= (cur_lvl + (parseInt(lvl, 10)))) {
                             pi_list.push(found_parent_list[i].ri);
                         }
                     }
@@ -1852,11 +1853,12 @@ function update_action(request, response, callback) {
                                 }
                             }
                         }
-                        db_sql.update_lookup(request.db_connection, parentObj, function (err, results) {
-                            if (!err) {
-                                callback('200');
-                            }
-                        });
+                        // db_sql.update_lookup(request.db_connection, parentObj, function (err, results) {
+                        //     if (!err) {
+                        //         callback('200');
+                        //     }
+                        // });
+                        callback('200');
                     }
                 });
             }
@@ -2412,8 +2414,8 @@ function delete_action(request, response, callback) {
                                             }
                                         }
 
-                                        db_sql.update_lookup(request.db_connection, parentObj, function (err, results) {
-                                        });
+                                        // db_sql.update_lookup(request.db_connection, parentObj, function (err, results) {
+                                        // });
 
                                         callback('200');
                                     }

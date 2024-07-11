@@ -1484,11 +1484,17 @@ exports.search_parents_lookup = function(connection, pi_list, cur_result_ri, res
     });
 };
 
-
+let spec_tid = '';
 exports.select_spec_ri = function(connection, found_Obj, count, callback) {
     if(Object.keys(found_Obj).length <= count) {
+        console.timeEnd('select_spec (' + spec_tid + ')');
         callback('200');
         return;
+    }
+
+    if(count === 0) {
+        spec_tid = require('shortid').generate();
+        console.time('select_spec (' + spec_tid + ')');
     }
 
     var ri = Object.keys(found_Obj)[count];
@@ -1522,7 +1528,18 @@ function search_lookup_action(connection, pi_list, count, result_ri, query_where
         return;
     }
 
-    var sql = util.format("select * from lookup where pi = \'" + pi_list[count] + "\' " + query_where);
+    let pi_sql = util.format('pi in (');
+    for (let i in pi_list) {
+        if(pi_list.hasOwnProperty(i)) {
+            pi_sql += ('\'' + pi_list[i] + '\'');
+            if(i < pi_list.length-1) {
+                pi_sql += ', ';
+            }
+            count++;
+        }
+    }
+    pi_sql += ') ';
+    var sql = util.format('select * from lookup where ' + pi_sql + query_where);
     db.getResult(sql, connection, function (err, result_lookup_ri) {
         if(!err) {
             if(result_lookup_ri.length === 0) {
@@ -1540,7 +1557,7 @@ function search_lookup_action(connection, pi_list, count, result_ri, query_where
                     }
                 }
 
-                if(result_ri.length > max_search_count) {
+                if(result_ri.length >= max_search_count) {
                     callback('200');
                 }
                 else {
@@ -1759,7 +1776,7 @@ function search_resource_action(connection, ri, query, cur_lim, pi_list, cni, lo
     });
 }
 
-var search_tid = '';
+let search_tid = '';
 exports.search_lookup = function (connection, ri, query, cur_lim, pi_list, pi_index, found_Obj, found_Cnt, cni, cur_d, loop_cnt, callback) {
     if (pi_index >= pi_list.length) {
         console.timeEnd('search_lookup (' + search_tid + ')');
@@ -1774,7 +1791,7 @@ exports.search_lookup = function (connection, ri, query, cur_lim, pi_list, pi_in
         console.time('search_lookup (' + search_tid + ')');
     }
 
-    for(var idx = 0; idx < 32; idx++) {
+    for(let idx = 0; idx < 32; idx++) {
         if (pi_index < pi_list.length) {
             cur_pi.push(pi_list[pi_index++]);
         }
@@ -1802,6 +1819,7 @@ exports.search_lookup = function (connection, ri, query, cur_lim, pi_list, pi_in
                 }
 
                 if(Object.keys(found_Obj).length >= query.lim) {
+                    console.timeEnd('search_lookup (' + search_tid + ')');
                     callback('200');
                 }
                 else {
