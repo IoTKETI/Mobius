@@ -361,107 +361,139 @@ global.make_json_obj = function (bodytype, str, callback) {
     }
 };
 
-global.make_json_arraytype = function (body_Obj) {
-    for (var prop in body_Obj) {
-        if (body_Obj.hasOwnProperty(prop)) {
-            for (var attr in body_Obj[prop]) {
-                if (body_Obj[prop].hasOwnProperty(attr)) {
-                    if (attr == 'srv' || attr == 'aa' || attr == 'at' || attr == 'poa' || attr == 'lbl' || attr == 'acpi' || attr == 'srt' || attr == 'nu' || attr == 'mid' || attr == 'macp' || attr == 'rels') {
-                        if (body_Obj[prop][attr]) {
-                            body_Obj[prop][attr] = body_Obj[prop][attr].split(' ');
-                        }
-                        if (body_Obj[prop][attr] == '') {
-                            body_Obj[prop][attr] = [];
-                        }
-                        if (body_Obj[prop][attr] == '[]') {
-                            body_Obj[prop][attr] = [];
-                        }
+global.make_array_type = function (obj) {
+    for (var attr in obj) {
+        if (obj.hasOwnProperty(attr)) {
+            if (attr == 'srv' || attr == 'aa' || attr == 'at' || attr == 'poa' || attr == 'lbl' || attr == 'acpi' || attr == 'srt' ||
+                attr == 'nu' || attr == 'mid' || attr == 'macp' || attr == 'rels' || attr == 'subl' || attr === 'bn') {
+                if((typeof obj[attr]) === 'string') {
+                    try {
+                        obj[attr] = JSON.parse(obj[attr]);
                     }
-                    else if (attr == 'rqps') {
-                        var rqps_type = getType(body_Obj[prop][attr]);
-                        if (rqps_type === 'array') {
-
-                        }
-                        else if (rqps_type === 'object') {
-                            var temp = body_Obj[prop][attr];
-                            body_Obj[prop][attr] = [];
-                            body_Obj[prop][attr].push(temp);
-                        }
-                        else {
-
-                        }
+                    catch (e) {
+                        obj[attr] = obj[attr].split(' ');
                     }
-                    else if (attr == 'enc') {
-                        if (body_Obj[prop][attr]) {
-                            if (body_Obj[prop][attr].net) {
-                                if (!Array.isArray(body_Obj[prop][attr].net)) {
-                                    body_Obj[prop][attr].net = body_Obj[prop][attr].net.split(' ');
-                                }
+                    // if (obj[attr] === '') {
+                    //     obj[attr] = [];
+                    // }
+                    // if (obj[attr] === '[]') {
+                    //     obj[attr] = [];
+                    // }
+                }
+                // else {
+                //
+                // }
+                // if (obj[attr]) {
+                //     obj[attr] = obj[attr].split(' ');
+                // }
+                // if (obj[attr] == '') {
+                //     obj[attr] = [];
+                // }
+                // if (obj[attr] == '[]') {
+                //     obj[attr] = [];
+                // }
+            }
+            else if (attr == 'rqps') {
+                var rqps_type = getType(obj[attr]);
+                if (rqps_type === 'array') {
+
+                }
+                else if (rqps_type === 'object') {
+                    var temp = obj[attr];
+                    obj[attr] = [];
+                    obj[attr].push(temp);
+                }
+                else {
+
+                }
+            }
+            else if (attr == 'enc') {
+                if((typeof obj[attr]) === 'string') {
+                    try {
+                        obj[attr] = JSON.parse(obj[attr]);
+                    }
+                    catch (e) {
+                        obj[attr] = obj[attr].split(' ');
+                    }
+                }
+                else {
+                    if (obj[attr]) {
+                        if (obj[attr].net) {
+                            if (!Array.isArray(obj[attr].net)) {
+                                obj[attr].net = obj[attr].net.split(' ');
                             }
                         }
                     }
-                    else if (attr == 'pv' || attr == 'pvs') {
-                        if (body_Obj[prop][attr]) {
-                            if (body_Obj[prop][attr].acr) {
-                                if (!Array.isArray(body_Obj[prop][attr].acr)) {
-                                    temp = body_Obj[prop][attr].acr;
-                                    body_Obj[prop][attr].acr = [];
-                                    body_Obj[prop][attr].acr[0] = temp;
+                }
+            }
+            else if (attr == 'pv' || attr == 'pvs') {
+                if (obj[attr]) {
+                    if (obj[attr].acr) {
+                        if (!Array.isArray(obj[attr].acr)) {
+                            temp = obj[attr].acr;
+                            obj[attr].acr = [];
+                            obj[attr].acr[0] = temp;
+                        }
+
+                        for (var acr_idx in obj[attr].acr) {
+                            if (obj[attr].acr.hasOwnProperty(acr_idx)) {
+                                if (obj[attr].acr[acr_idx].acor) {
+                                    obj[attr].acr[acr_idx].acor = obj[attr].acr[acr_idx].acor.split(' ');
                                 }
 
-                                for (var acr_idx in body_Obj[prop][attr].acr) {
-                                    if (body_Obj[prop][attr].acr.hasOwnProperty(acr_idx)) {
-                                        if (body_Obj[prop][attr].acr[acr_idx].acor) {
-                                            body_Obj[prop][attr].acr[acr_idx].acor = body_Obj[prop][attr].acr[acr_idx].acor.split(' ');
-                                        }
+                                if (obj[attr].acr[acr_idx].hasOwnProperty('acco')) {
+                                    if (!Array.isArray(obj[attr].acr[acr_idx].acco)) {
+                                        temp = obj[attr].acr[acr_idx].acco;
+                                        obj[attr].acr[acr_idx].acco = [];
+                                        obj[attr].acr[acr_idx].acco[0] = temp;
+                                    }
 
-                                        if (body_Obj[prop][attr].acr[acr_idx].hasOwnProperty('acco')) {
-                                            if (!Array.isArray(body_Obj[prop][attr].acr[acr_idx].acco)) {
-                                                temp = body_Obj[prop][attr].acr[acr_idx].acco;
-                                                body_Obj[prop][attr].acr[acr_idx].acco = [];
-                                                body_Obj[prop][attr].acr[acr_idx].acco[0] = temp;
+                                    var acco = obj[attr].acr[acr_idx].acco;
+                                    for (var acco_idx in acco) {
+                                        if (acco.hasOwnProperty(acco_idx)) {
+                                            if (acco[acco_idx].hasOwnProperty('acip')) {
+                                                if (acco[acco_idx].acip.hasOwnProperty('ipv4')) {
+                                                    if (getType(acco[acco_idx].acip['ipv4']) == 'string') {
+                                                        acco[acco_idx].acip['ipv4'] = acco[acco_idx].acip.ipv4.split(' ');
+                                                    }
+                                                }
+                                                else if (acco[acco_idx].acip.hasOwnProperty('ipv6')) {
+                                                    if (getType(acco[acco_idx].acip['ipv6']) == 'string') {
+                                                        acco[acco_idx].acip['ipv6'] = acco[acco_idx].acip.ipv6.split(' ');
+                                                    }
+                                                }
                                             }
-
-                                            var acco = body_Obj[prop][attr].acr[acr_idx].acco;
-                                            for (var acco_idx in acco) {
-                                                if (acco.hasOwnProperty(acco_idx)) {
-                                                    if (acco[acco_idx].hasOwnProperty('acip')) {
-                                                        if (acco[acco_idx].acip.hasOwnProperty('ipv4')) {
-                                                            if (getType(acco[acco_idx].acip['ipv4']) == 'string') {
-                                                                acco[acco_idx].acip['ipv4'] = acco[acco_idx].acip.ipv4.split(' ');
-                                                            }
-                                                        }
-                                                        else if (acco[acco_idx].acip.hasOwnProperty('ipv6')) {
-                                                            if (getType(acco[acco_idx].acip['ipv6']) == 'string') {
-                                                                acco[acco_idx].acip['ipv6'] = acco[acco_idx].acip.ipv6.split(' ');
-                                                            }
-                                                        }
-                                                    }
-                                                    if (acco[acco_idx].hasOwnProperty('actw')) {
-                                                        if (getType(acco[acco_idx].actw) == 'string') {
-                                                            temp = acco[acco_idx].actw;
-                                                            acco[acco_idx]['actw'] = [];
-                                                            acco[acco_idx].actw[0] = temp;
-                                                        }
-                                                    }
+                                            if (acco[acco_idx].hasOwnProperty('actw')) {
+                                                if (getType(acco[acco_idx].actw) == 'string') {
+                                                    temp = acco[acco_idx].actw;
+                                                    acco[acco_idx]['actw'] = [];
+                                                    acco[acco_idx].actw[0] = temp;
                                                 }
                                             }
                                         }
                                     }
                                 }
                             }
-
-                            if (body_Obj[prop][attr].acr == '') {
-                                body_Obj[prop][attr].acr = [];
-                            }
-
-                            if (body_Obj[prop][attr].acr == '[]') {
-                                body_Obj[prop][attr].acr = [];
-                            }
                         }
+                    }
+
+                    if (obj[attr].acr == '') {
+                        obj[attr].acr = [];
+                    }
+
+                    if (obj[attr].acr == '[]') {
+                        obj[attr].acr = [];
                     }
                 }
             }
+        }
+    }
+};
+
+global.make_json_arraytype = function (body_Obj) {
+    for (var prop in body_Obj) {
+        if (body_Obj.hasOwnProperty(prop)) {
+            make_array_type(body_Obj[prop]);
         }
     }
 };
@@ -631,6 +663,28 @@ function parse_body_format(request) {
                     }
                 }
             }
+
+            if (responder.typeRsrc[request.ty] != Object.keys(request.bodyObj)[0]) {
+                if (responder.typeRsrc[request.ty] == 'mgo') {
+                    var support_mgo = 0;
+                    for (var prop in responder.mgoType) {
+                        if (responder.mgoType.hasOwnProperty(prop)) {
+                            if (responder.mgoType[prop] == Object.keys(request.bodyObj)[0]) {
+                                support_mgo = 1;
+                                break;
+                            }
+                        }
+                    }
+
+                    if (support_mgo == 0) {
+                        return ('400-42');
+                    }
+                }
+                else {
+                    return ('400-42');
+                }
+            }
+
             return ('200');
         }
     }
@@ -804,6 +858,7 @@ var resultStatusCode = {
     '400-62': ['400', '4000', "BAD REQUEST: loc - crd is illegal format"],
     '400-63': ['400', '4000', "BAD REQUEST: loc - crd is not array"],
     '400-64': ['400', '4000', "BAD REQUEST: doesn't support content type except json"],
+    '400-65': ['400', '4000', "BAD REQUEST: doesn't exist api on ae in body of request when checking allowed appid"],
 
     '403-1': ['403', '4107', "OPERATION_NOT_ALLOWED: AE-ID is not allowed"],
     '403-2': ['403', '5203', "TARGET_NOT_SUBSCRIBABLE: request ty creating can not create under parent resource"],
@@ -1379,24 +1434,56 @@ let check_xm2m_headers = (request) => {
 
     request.ty = '99';
     request.usebodytype = 'json';
-    if (request.headers.hasOwnProperty('content-type')) {
-        if (request.headers['content-type'].includes('json')) {
-            request.usebodytype = 'json';
-        }
-        else {
-            return ('400-64');
+
+    if (request.method === 'POST' || request.method === 'PUT') {
+        if (request.body === "") {
+            return ('400-40');
         }
 
-        var content_type = request.headers['content-type'].split(';');
-        for (var i in content_type) {
-            if (content_type.hasOwnProperty(i)) {
-                var ty_arr = content_type[i].replace(/ /g, '').split('=');
-                if (ty_arr[0].replace(/ /g, '') == 'ty') {
-                    request.ty = ty_arr[1].replace(' ', '');
-                    content_type = null;
-                    break;
+        if (request.headers.hasOwnProperty('content-type')) {
+            if (request.headers['content-type'].includes('json')) {
+                request.usebodytype = 'json';
+            }
+            else {
+                return ('400-64');
+            }
+
+            if (request.method === 'POST') {
+                if (!request.headers['content-type'].includes('ty')) {
+                    return ('400-19');
+                }
+
+                let content_type = request.headers['content-type'].split(';');
+                for (var i in content_type) {
+                    if (content_type.hasOwnProperty(i)) {
+                        var ty_arr = content_type[i].replace(/ /g, '').split('=');
+                        if (ty_arr[0].replace(/ /g, '') == 'ty') {
+                            request.ty = ty_arr[1].replace(' ', '');
+                            content_type = null;
+                            break;
+                        }
+                    }
                 }
             }
+
+            let rcode = check_resource_supported(request);
+            if (rcode === '200') {
+                rcode = parse_body_format(request);
+                if (rcode === '200') {
+                    if (request.headers.rootnm === 'sgn') {
+                        return ('notify');
+                    }
+                }
+                else {
+                    return rcode;
+                }
+            }
+            else {
+                return rcode;
+            }
+        }
+        else {
+            return ('400-20');
         }
     }
 
@@ -1408,30 +1495,26 @@ let check_xm2m_headers = (request) => {
         return ('405-2');
     }
 
-    // Check X-M2M-Origin Header
-    if (request.headers.hasOwnProperty('x-m2m-origin')) {
-        if (request.headers['x-m2m-origin'] === '') {
-            if (request.ty === '2' || request.ty === '16') {
-                request.headers['x-m2m-origin'] = 'S';
+    if (request.ty === '2') {
+        var allow = 1;
+        if (allowed_app_ids.length > 0) {
+            if(request.bodyObj.ae.hasOwnProperty('api')) {
+                allow = 0;
+                for (var idx in allowed_app_ids) {
+                    if (allowed_app_ids.hasOwnProperty(idx)) {
+                        if (allowed_app_ids[idx] == request.bodyObj.ae.api) {
+                            allow = 1;
+                            break;
+                        }
+                    }
+                }
+                if (allow == 0) {
+                    return ('403-4');
+                }
             }
             else {
-                // 20230104 when certi, fixed error
-                if(useCert === 'enable') {
-                    request.headers['x-m2m-origin'] = 'S';
-                }
-                else {
-                    return ('400-2');
-                }
+                return ('400-65');
             }
-        }
-    }
-    else {
-        // 20230104 when certi, fixed error
-        if(useCert === 'enable') {
-            request.headers['x-m2m-origin'] = 'S';
-        }
-        else {
-            return ('400-2');
         }
     }
 
@@ -1463,12 +1546,13 @@ let check_xm2m_headers = (request) => {
     return ('200');
 }
 
-function check_resource_supported(request) {
+const check_resource_supported = (request) => {
     try {
+        request.headers.rootnm = '';
         let body = JSON.parse(request.body);
         let arr_rootnm = Object.keys(body)[0].split(':');
         let rootnm = '';
-        if(arr_rootnm[0] === 'hd') {
+        if (arr_rootnm[0] === 'hd') {
             rootnm = Object.keys(body)[0].replace('hd:', 'hd_');
         }
         else {
@@ -1490,6 +1574,7 @@ function check_resource_supported(request) {
             return ('400-3');
         }
         else {
+            request.headers.rootnm = rootnm;
             return ('200');
         }
     }
@@ -1621,52 +1706,6 @@ let get_target_url = (request, response, callback) => {
     }
 }
 
-function check_allowed_app_ids(request, callback) {
-    if (responder.typeRsrc[request.ty] != Object.keys(request.bodyObj)[0]) {
-        if (responder.typeRsrc[request.ty] == 'mgo') {
-            var support_mgo = 0;
-            for (var prop in responder.mgoType) {
-                if (responder.mgoType.hasOwnProperty(prop)) {
-                    if (responder.mgoType[prop] == Object.keys(request.bodyObj)[0]) {
-                        support_mgo = 1;
-                        break;
-                    }
-                }
-            }
-
-            if (support_mgo == 0) {
-                callback('400-42');
-                return;
-            }
-        }
-        else {
-            callback('400-42');
-            return;
-        }
-    }
-
-    if (request.ty == '2') {
-        var allow = 1;
-        if (allowed_app_ids.length > 0) {
-            allow = 0;
-            for (var idx in allowed_app_ids) {
-                if (allowed_app_ids.hasOwnProperty(idx)) {
-                    if (allowed_app_ids[idx] == request.bodyObj.ae.api) {
-                        allow = 1;
-                        break;
-                    }
-                }
-            }
-            if (allow == 0) {
-                callback('403-4');
-                return;
-            }
-        }
-    }
-
-    callback('200');
-}
-
 function check_type_update_resource(request) {
     for (var ty_idx in responder.typeRsrc) {
         if (responder.typeRsrc.hasOwnProperty(ty_idx)) {
@@ -1729,6 +1768,83 @@ app.use((req, res, next) => {
     (req.method == 'OPTIONS') ? res.sendStatus(200) : next();
 });
 
+app.use((req, res, next) => {
+    var fullBody = '';
+    req.on('data', (chunk) => {
+        fullBody += chunk.toString();
+    });
+
+    req.on('end', () => {
+        req.body = fullBody;
+
+        if (req.hasOwnProperty('headers')) {
+            if (!req.hasOwnProperty('binding')) {
+                req.headers['binding'] = 'H';
+            }
+
+            db.getConnection((code, connection) => {
+                if (code === '200') {
+                    db_sql.set_hit(connection, request.headers['binding'], (err, results) => {
+                        results = null;
+
+                        connection.release();
+                    });
+                }
+            });
+        }
+        else {
+            req.rawHeaders = ["Accept", "application/json"];
+        }
+
+        let rcode = check_xm2m_headers(req);
+        if (rcode === '200') {
+            next();
+        }
+        else if(rcode === 'notify') {
+            // check_ae_notify(req, res, (code, res) => {
+            //     if (code === '200') {
+            //         connection.release();
+            //
+            //         if (res.headers['content-type']) {
+            //             response.header('Content-Type', res.headers['content-type']);
+            //         }
+            //         if (res.headers['x-m2m-ri']) {
+            //             response.header('X-M2M-RI', res.headers['x-m2m-ri']);
+            //         }
+            //         if (res.headers['x-m2m-rvi']) {
+            //             response.header('X-M2M-RVI', res.headers['x-m2m-rvi']);
+            //         }
+            //         if (res.headers['x-m2m-rsc']) {
+            //             response.header('X-M2M-RSC', res.headers['x-m2m-rsc']);
+            //         }
+            //         if (res.headers['content-location']) {
+            //             response.header('Content-Location', res.headers['content-location']);
+            //         }
+            //
+            //         response.statusCode = res.statusCode;
+            //         response.send(res.body);
+            //
+            //         res = null;
+            //         request = null;
+            //         response = null;
+            //     }
+            //     else {
+            //         responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+            //             connection.release();
+            //             request = null;
+            //             response = null;
+            //         });
+            //     }
+            // });
+        }
+        else {
+            responder.error_result(req, res, resultStatusCode[rcode][0], resultStatusCode[rcode][1], resultStatusCode[rcode][2], () => {
+                req = null;
+                res = null;
+            });
+        }
+    });
+});
 // var heapdump = require('heapdump');
 // app.use('/heapdump',function(req,res,next){
 //     var filename = Date.now() + '.heapsnapshot';
@@ -1755,361 +1871,72 @@ app.use((req, res, next) => {
 
 // remoteCSE, ae, cnt
 app.post(onem2mParser, (request, response) => {
-    var fullBody = '';
-    request.on('data', (chunk) => {
-        fullBody += chunk.toString();
-    });
-
-    request.on('end', () => {
-        request.body = fullBody;
-
-        if(request.hasOwnProperty('headers')) {
-            if(!request.hasOwnProperty('binding')) {
-                request.headers['binding'] = 'H';
-            }
-
-            db.getConnection((code, connection) => {
+    db.getConnection((code, connection) => {
+        if (code === '200') {
+            request.db_connection = connection;
+            get_target_url(request, response, (code) => {
                 if (code === '200') {
-                    db_sql.set_hit(connection, request.headers['binding'], (err, results) => {
-                        results = null;
-
-                        connection.release();
-                    });
-                }
-            });
-        }
-        else {
-            request.rawHeaders = ["Accept","application/json"];
-        }
-
-        if (request.body === "") {
-            response_error_result(request, response, '400-40', () => {
-                request = null;
-                response = null;
-            });
-        }
-        else {
-            let rcode = check_xm2m_headers(request);
-            if (rcode === '200') {
-                let rcode = check_resource_supported(request);
-                if (rcode === '200') {
-                    let rcode = parse_body_format(request);
-                    if (rcode === '200') {
-                        db.getConnection((code, connection) => {
-                            if (code === '200') {
-                                request.db_connection = connection;
-                                get_target_url(request, response, (code) => {
-                                    if (code === '200') {
-                                        if (request.option !== '/fopt') {
-                                            check_allowed_app_ids(request, (code) => {
-                                                if (code === '200') {
-                                                    var rootnm = Object.keys(request.targetObject)[0];
-                                                    var absolute_url = request.targetObject[rootnm].ri.replace(/_/g, '\/');
-                                                    const rcode = check_notification(request);
-                                                    if (rcode === 'post') {
-                                                        request.url = absolute_url;
-                                                        if ((request.query.fu == 2) && (request.query.rcn == 0 || request.query.rcn == 1 || request.query.rcn == 2 || request.query.rcn == 3)) {
-                                                            lookup_create(request, response, (code) => {
-                                                                if (code === '201') {
-                                                                    responder.response_result(request, response, '201', '2001', '', () => {
-                                                                        connection.release();
-                                                                        request = null;
-                                                                        response = null;
-                                                                    });
-                                                                }
-                                                                else if (code === '201-3') {
-                                                                    responder.response_rcn3_result(request, response, '201', '2001', '', () => {
-                                                                        connection.release();
-                                                                        request = null;
-                                                                        response = null;
-                                                                    });
-                                                                }
-                                                                else if (code === '202-1') {
-                                                                    responder.response_result(request, response, '202', '1001', '', () => {
-                                                                        connection.release();
-                                                                        request = null;
-                                                                        response = null;
-                                                                    });
-                                                                }
-                                                                else if (code === '202-2') {
-                                                                    responder.response_result(request, response, '202', '1002', '', () => {
-                                                                        connection.release();
-                                                                        request = null;
-                                                                        response = null;
-                                                                    });
-                                                                }
-                                                                else {
-                                                                    responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
-                                                                        connection.release();
-                                                                        request = null;
-                                                                        response = null;
-                                                                    });
-                                                                }
-                                                            });
-                                                        }
-                                                        else {
-                                                            let rcode = '400-43';
-                                                            responder.error_result(request, response, resultStatusCode[rcode][0], resultStatusCode[rcode][1], resultStatusCode[rcode][2], () => {
-                                                                connection.release();
-                                                                request = null;
-                                                                response = null;
-                                                            });
-                                                        }
-                                                    }
-                                                    else if (rcode === 'notify') {
-                                                        check_ae_notify(request, response, (code, res) => {
-                                                            if (code === '200') {
-                                                                connection.release();
-
-                                                                if (res.headers['content-type']) {
-                                                                    response.header('Content-Type', res.headers['content-type']);
-                                                                }
-                                                                if (res.headers['x-m2m-ri']) {
-                                                                    response.header('X-M2M-RI', res.headers['x-m2m-ri']);
-                                                                }
-                                                                if (res.headers['x-m2m-rvi']) {
-                                                                    response.header('X-M2M-RVI', res.headers['x-m2m-rvi']);
-                                                                }
-                                                                if (res.headers['x-m2m-rsc']) {
-                                                                    response.header('X-M2M-RSC', res.headers['x-m2m-rsc']);
-                                                                }
-                                                                if (res.headers['content-location']) {
-                                                                    response.header('Content-Location', res.headers['content-location']);
-                                                                }
-
-                                                                response.statusCode = res.statusCode;
-                                                                response.send(res.body);
-
-                                                                res = null;
-                                                                request = null;
-                                                                response = null;
-                                                            }
-                                                            else {
-                                                                responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
-                                                                    connection.release();
-                                                                    request = null;
-                                                                    response = null;
-                                                                });
-                                                            }
-                                                        });
-                                                    }
-                                                    else {
-                                                        responder.error_result(request, response, resultStatusCode[rcode][0], resultStatusCode[rcode][1], resultStatusCode[rcode][2], () => {
-                                                            connection.release();
-                                                            request = null;
-                                                            response = null;
-                                                        });
-                                                    }
-                                                }
-                                                else {
-                                                    responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
-                                                        connection.release();
-                                                        request = null;
-                                                        response = null;
-                                                    });
-                                                }
-                                            });
-                                        }
-                                        else { // if (request.option === '/fopt') {
-                                            check_grp(request, response, (rsc, result_grp) => { // check access right for fanoutpoint
-                                                if (rsc == '1') {
-                                                    var access_value = '1';
-                                                    var body_Obj = {};
-                                                    security.check(request, response, request.targetObject[Object.keys(request.targetObject)[0]].ty, result_grp.macp, access_value, result_grp.cr, (code) => {
-                                                        if (code === '1') {
-                                                            fopt.check(request, response, result_grp, body_Obj, (code) => {
-                                                                if (code === '200') {
-                                                                    responder.search_result(request, response, '200', '2000', '', () => {
-                                                                        connection.release();
-                                                                        request = null;
-                                                                        response = null;
-                                                                    });
-                                                                }
-                                                                else {
-                                                                    responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
-                                                                        connection.release();
-                                                                        request = null;
-                                                                        response = null;
-                                                                    });
-                                                                }
-                                                            });
-                                                        }
-                                                        else if (code === '0') {
-                                                            response_error_result(request, response, '403-5', () => {
-                                                                connection.release();
-                                                                request = null;
-                                                                response = null;
-                                                            });
-                                                        }
-                                                        else {
-                                                            responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
-                                                                connection.release();
-                                                                request = null;
-                                                                response = null;
-                                                            });
-                                                        }
-                                                    });
-                                                }
-                                                else if (rsc == '2') {
-                                                    code = '403-6';
-                                                    responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
-                                                        connection.release();
-                                                        request = null;
-                                                        response = null;
-                                                    });
-                                                }
-                                                else {
-                                                    code = '404-4';
-                                                    responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
-                                                        connection.release();
-                                                        request = null;
-                                                        response = null;
-                                                    });
-                                                }
-                                            });
-                                        }
-                                    }
-                                    else if (code === '301-1') {
-                                        check_csr(request, response, (code) => {
-                                            if (code === '301-2') {
-                                                response.status(response.statusCode).end(response.body);
-                                                connection.release();
-                                                request = null;
-                                                response = null;
-                                            }
-                                            else {
-                                                responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
-                                                    connection.release();
-                                                    request = null;
-                                                    response = null;
-                                                });
-                                            }
-                                        });
-                                    }
-                                    else {
-                                        responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
-                                            connection.release();
-                                            request = null;
-                                            response = null;
-                                        });
-                                    }
-                                });
-                            }
-                            else {
-                                responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
-                                    request = null;
-                                    response = null;
-                                });
-                            }
-                        });
-                    }
-                    else {
-                        responder.error_result(request, response, resultStatusCode[rcode][0], resultStatusCode[rcode][1], resultStatusCode[rcode][2], () => {
-                            request = null;
-                            response = null;
-                        });
-                    }
-                }
-                else {
-                    responder.error_result(request, response, resultStatusCode[rcode][0], resultStatusCode[rcode][1], resultStatusCode[rcode][2], () => {
-                        request = null;
-                        response = null;
-                    });
-                }
-            }
-            else {
-                responder.error_result(request, response, resultStatusCode[rcode][0], resultStatusCode[rcode][1], resultStatusCode[rcode][2], () => {
-                    request = null;
-                    response = null;
-                });
-            }
-        }
-    });
-});
-
-const extra_api_list = [
-    '/hit', '/total_ae', '/total_cbs'
-];
-
-app.get(onem2mParser, (request, response) => {
-    var fullBody = '';
-    request.on('data', (chunk) => {
-        fullBody += chunk.toString();
-    });
-
-    request.on('end', () => {
-        request.body = fullBody;
-
-        if(extra_api_list.includes(request.url)) {
-            db.getConnection((code, connection) => {
-                if (code === '200') {
-                    extra_api_action(connection, request.url, (code, result) => {
-                        if (code === '200') {
-                        }
-                        else if (code === '201') {
-                            connection.release();
-                            response.header('Content-Type', 'application/json');
-                            response.status(200).end(JSON.stringify(result, null, 4));
-                            result = null;
+                    if (request.option !== '/fopt') {
+                        var rootnm = Object.keys(request.targetObject)[0];
+                        var absolute_url = request.targetObject[rootnm].ri.replace(/_/g, '\/');
+                        request.url = absolute_url;
+                        if ((request.query.fu == 2) && (request.query.rcn == 0 || request.query.rcn == 1 || request.query.rcn == 2 || request.query.rcn == 3)) {
+                            lookup_create(request, response, (code) => {
+                                if (code === '201') {
+                                    responder.response_result(request, response, '201', '2001', '', () => {
+                                        connection.release();
+                                        request = null;
+                                        response = null;
+                                    });
+                                }
+                                else if (code === '201-3') {
+                                    responder.response_rcn3_result(request, response, '201', '2001', '', () => {
+                                        connection.release();
+                                        request = null;
+                                        response = null;
+                                    });
+                                }
+                                else if (code === '202-1') {
+                                    responder.response_result(request, response, '202', '1001', '', () => {
+                                        connection.release();
+                                        request = null;
+                                        response = null;
+                                    });
+                                }
+                                else if (code === '202-2') {
+                                    responder.response_result(request, response, '202', '1002', '', () => {
+                                        connection.release();
+                                        request = null;
+                                        response = null;
+                                    });
+                                }
+                                else {
+                                    responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                                        connection.release();
+                                        request = null;
+                                        response = null;
+                                    });
+                                }
+                            });
                         }
                         else {
-                            responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                            let rcode = '400-43';
+                            responder.error_result(request, response, resultStatusCode[rcode][0], resultStatusCode[rcode][1], resultStatusCode[rcode][2], () => {
                                 connection.release();
                                 request = null;
                                 response = null;
                             });
                         }
-                    });
-                }
-                else {
-                    responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
-                        request = null;
-                        response = null;
-                    });
-                }
-            });
-        }
-        else {
-            if(request.hasOwnProperty('headers')) {
-                if(!request.hasOwnProperty('binding')) {
-                    request.headers['binding'] = 'H';
-                }
-
-                db.getConnection((code, connection) => {
-                    if (code === '200') {
-                        db_sql.set_hit(connection, request.headers['binding'], (err, results) => {
-                            results = null;
-
-                            connection.release();
-                        });
                     }
-                });
-            }
-            else {
-                request.rawHeaders = ["Accept","application/json"];
-            }
-
-            let rcode = check_xm2m_headers(request);
-            if (rcode === '200') {
-                db.getConnection((code, connection) => {
-                    if (code === '200') {
-                        request.db_connection = connection;
-                        get_target_url(request, response, (code) => {
-                            if (code === '200') {
-                                //if (request.option !== '/fopt') {
-                                if (!request.option.includes('/fopt')) {
-                                    var rootnm = Object.keys(request.targetObject)[0];
-                                    request.url = request.targetObject[rootnm].ri.replace(/_/g, '\/');
-                                    if ((request.query.fu == 1 || request.query.fu == 2) && (request.query.rcn == 1 || request.query.rcn == 4 || request.query.rcn == 5 || request.query.rcn == 6 || request.query.rcn == 8)) {
-                                        lookup_retrieve(request, response, (code) => {
+                    else { // if (request.option === '/fopt') {
+                        check_grp(request, response, (rsc, result_grp) => { // check access right for fanoutpoint
+                            if (rsc == '1') {
+                                var access_value = '1';
+                                var body_Obj = {};
+                                security.check(request, response, request.targetObject[Object.keys(request.targetObject)[0]].ty, result_grp.macp, access_value, result_grp.cr, (code) => {
+                                    if (code === '1') {
+                                        fopt.check(request, response, result_grp, body_Obj, (code) => {
                                             if (code === '200') {
-                                                responder.response_result(request, response, '200', '2000', '', () => {
-                                                    connection.release();
-                                                    request = null;
-                                                    response = null;
-                                                });
-                                            }
-                                            else if (code === '200-1') {
                                                 responder.search_result(request, response, '200', '2000', '', () => {
                                                     connection.release();
                                                     request = null;
@@ -2125,79 +1952,12 @@ app.get(onem2mParser, (request, response) => {
                                             }
                                         });
                                     }
-                                    else {
-                                        response_error_result(request, response, '400-44', () => {
+                                    else if (code === '0') {
+                                        response_error_result(request, response, '403-5', () => {
                                             connection.release();
                                             request = null;
                                             response = null;
                                         });
-                                    }
-                                }
-                                else { //if (request.option === '/fopt') {
-                                    check_grp(request, response, (rsc, result_grp) => { // check access right for fanoutpoint
-                                        if (rsc == '1') {
-                                            var access_value = (request.query.fu == 1) ? '32' : '2';
-                                            var body_Obj = {};
-                                            security.check(request, response, request.targetObject[Object.keys(request.targetObject)[0]].ty, result_grp.macp, access_value, result_grp.cr, (code) => {
-                                                if (code === '1') {
-                                                    fopt.check(request, response, result_grp, body_Obj, (code) => {
-                                                        if (code === '200') {
-                                                            responder.search_result(request, response, '200', '2000', '', () => {
-                                                                connection.release();
-                                                                request = null;
-                                                                response = null;
-                                                            });
-                                                        }
-                                                        else {
-                                                            responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
-                                                                connection.release();
-                                                                request = null;
-                                                                response = null;
-                                                            });
-                                                        }
-                                                    });
-                                                }
-                                                else if (code === '0') {
-                                                    response_error_result(request, response, '403-5', () => {
-                                                        connection.release();
-                                                        request = null;
-                                                        response = null;
-                                                    });
-                                                }
-                                                else {
-                                                    responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
-                                                        connection.release();
-                                                        request = null;
-                                                        response = null;
-                                                    });
-                                                }
-                                            });
-                                        }
-                                        else if (rsc == '2') {
-                                            code = '403-6';
-                                            responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
-                                                connection.release();
-                                                request = null;
-                                                response = null;
-                                            });
-                                        }
-                                        else {
-                                            response_error_result(request, response, '404-4', () => {
-                                                connection.release();
-                                                request = null;
-                                                response = null;
-                                            });
-                                        }
-                                    });
-                                }
-                            }
-                            else if (code === '301-1') {
-                                check_csr(request, response, (code) => {
-                                    if (code === '301-2') {
-                                        connection.release();
-                                        response.status(response.statusCode).end(response.body);
-                                        request = null;
-                                        response = null;
                                     }
                                     else {
                                         responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
@@ -2208,7 +1968,16 @@ app.get(onem2mParser, (request, response) => {
                                     }
                                 });
                             }
+                            else if (rsc == '2') {
+                                code = '403-6';
+                                responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                                    connection.release();
+                                    request = null;
+                                    response = null;
+                                });
+                            }
                             else {
+                                code = '404-4';
                                 responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
                                     connection.release();
                                     request = null;
@@ -2217,395 +1986,14 @@ app.get(onem2mParser, (request, response) => {
                             }
                         });
                     }
-                    else {
-                        responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                }
+                else if (code === '301-1') {
+                    check_csr(request, response, (code) => {
+                        if (code === '301-2') {
+                            response.status(response.statusCode).end(response.body);
+                            connection.release();
                             request = null;
                             response = null;
-                        });
-                    }
-                });
-            }
-            else {
-                responder.error_result(request, response, resultStatusCode[rcode][0], resultStatusCode[rcode][1], resultStatusCode[rcode][2], () => {
-                    request = null;
-                    response = null;
-                });
-            }
-        }
-    });
-});
-
-
-app.put(onem2mParser, (request, response) => {
-    var fullBody = '';
-    request.on('data', (chunk) => {
-        fullBody += chunk.toString();
-    });
-
-    request.on('end', () => {
-        request.body = fullBody;
-
-        if(request.hasOwnProperty('headers')) {
-            if(!request.hasOwnProperty('binding')) {
-                request.headers['binding'] = 'H';
-            }
-
-            db.getConnection((code, connection) => {
-                if (code === '200') {
-                    db_sql.set_hit(connection, request.headers['binding'], (err, results) => {
-                        results = null;
-
-                        connection.release();
-                    });
-                }
-            });
-        }
-        else {
-            request.rawHeaders = ["Accept","application/json"];
-        }
-
-        let rcode = check_xm2m_headers(request);
-        if (rcode === '200') {
-            if (request.body !== "") {
-                let rcode = check_resource_supported(request);
-                if (rcode === '200') {
-                    let rcode = parse_body_format(request);
-                    if (rcode === '200') {
-                        db.getConnection((code, connection) => {
-                            if (code === '200') {
-                                request.db_connection = connection;
-                                get_target_url(request, response, (code) => {
-                                    if (code === '200') {
-                                        if (request.option !== '/fopt') {
-                                            rcode = check_type_update_resource(request);
-                                            if (rcode === '200') {
-                                                let rootnm = Object.keys(request.targetObject)[0];
-                                                request.url = request.targetObject[rootnm].ri.replace(/_/g, '\/');
-                                                if ((request.query.fu == 2) && (request.query.rcn == 0 || request.query.rcn == 1)) {
-                                                    lookup_update(request, response, (code) => {
-                                                        if (code === '200') {
-                                                            if (cache_resource_url.hasOwnProperty(request.url)) {
-                                                                delete cache_resource_url[request.url];
-                                                            }
-
-                                                            responder.response_result(request, response, '200', '2004', '', () => {
-                                                                connection.release();
-                                                                request = null;
-                                                                response = null;
-                                                            });
-                                                        }
-                                                        else {
-                                                            responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
-                                                                connection.release();
-                                                                request = null;
-                                                                response = null;
-                                                            });
-                                                        }
-                                                    });
-                                                }
-                                                else {
-                                                    response_error_result(request, response, '400-45', () => {
-                                                        connection.release();
-                                                        request = null;
-                                                        response = null;
-                                                    });
-                                                }
-                                            }
-                                            else {
-                                                responder.error_result(request, response, resultStatusCode[rcode][0], resultStatusCode[rcode][1], resultStatusCode[rcode][2], () => {
-                                                    connection.release();
-                                                    request = null;
-                                                    response = null;
-                                                });
-                                            }
-                                        }
-                                        else { // if (request.option === '/fopt') {
-                                            check_grp(request, response, (rsc, result_grp) => { // check access right for fanoutpoint
-                                                if (rsc == '1') {
-                                                    var access_value = '4';
-                                                    var body_Obj = {};
-                                                    security.check(request, response, request.targetObject[Object.keys(request.targetObject)[0]].ty, result_grp.macp, access_value, result_grp.cr, (code) => {
-                                                        if (code === '1') {
-                                                            fopt.check(request, response, result_grp, body_Obj, (code) => {
-                                                                if (code === '200') {
-                                                                    responder.search_result(request, response, '200', '2000', '', () => {
-                                                                        connection.release();
-                                                                        request = null;
-                                                                        response = null;
-                                                                    });
-                                                                }
-                                                                else {
-                                                                    responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
-                                                                        connection.release();
-                                                                        request = null;
-                                                                        response = null;
-                                                                    });
-                                                                }
-                                                            });
-                                                        }
-                                                        else if (code === '0') {
-                                                            response_error_result(request, response, '403-5', () => {
-                                                                connection.release();
-                                                                request = null;
-                                                                response = null;
-                                                            });
-                                                        }
-                                                        else {
-                                                            responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
-                                                                connection.release();
-                                                                request = null;
-                                                                response = null;
-                                                            });
-                                                        }
-                                                    });
-                                                }
-                                                else if (rsc == '2') {
-                                                    code = '403-6';
-                                                    responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
-                                                        connection.release();
-                                                        request = null;
-                                                        response = null;
-                                                    });
-                                                }
-                                                else {
-                                                    response_error_result(request, response, '404-4', () => {
-                                                        connection.release();
-                                                        request = null;
-                                                        response = null;
-                                                    });
-                                                }
-                                            });
-                                        }
-                                    }
-                                    else if (code === '301-1') {
-                                        check_csr(request, response, (code) => {
-                                            if (code === '301-2') {
-                                                connection.release();
-                                                response.status(response.statusCode).end(response.body);
-                                                request = null;
-                                                response = null;
-                                            }
-                                            else {
-                                                responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
-                                                    connection.release();
-                                                    request = null;
-                                                    response = null;
-                                                });
-                                            }
-                                        });
-                                    }
-                                    else {
-                                        responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
-                                            connection.release();
-                                            request = null;
-                                            response = null;
-                                        });
-                                    }
-                                });
-                            }
-                            else {
-                                responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
-                                    request = null;
-                                    response = null;
-                                });
-                            }
-                        });
-                    }
-                    else {
-                        responder.error_result(request, response, resultStatusCode[rcode][0], resultStatusCode[rcode][1], resultStatusCode[rcode][2], () => {
-                            request = null;
-                            response = null;
-                        });
-                    }
-                }
-                else {
-                    responder.error_result(request, response, resultStatusCode[rcode][0], resultStatusCode[rcode][1], resultStatusCode[rcode][2], () => {
-                        request = null;
-                        response = null;
-                    });
-                }
-            }
-            else {
-                response_error_result(request, response, '400-40', () => {
-                    request = null;
-                    response = null;
-                });
-            }
-        }
-        else {
-            responder.error_result(request, response, resultStatusCode[rcode][0], resultStatusCode[rcode][1], resultStatusCode[rcode][2], () => {
-                connection.release();
-                request = null;
-                response = null;
-            });
-        }
-
-    });
-});
-
-app.delete(onem2mParser, (request, response) => {
-    var fullBody = '';
-    request.on('data', (chunk) => {
-        fullBody += chunk.toString();
-    });
-
-    request.on('end', () => {
-        request.body = fullBody;
-
-        if(request.hasOwnProperty('headers')) {
-            if(!request.hasOwnProperty('binding')) {
-                request.headers['binding'] = 'H';
-            }
-
-            db.getConnection((code, connection) => {
-                if (code === '200') {
-                    db_sql.set_hit(connection, request.headers['binding'], (err, results) => {
-                        results = null;
-
-                        connection.release();
-                    });
-                }
-            });
-        }
-        else {
-            request.rawHeaders = ["Accept","application/json"];
-        }
-
-        let rcode = check_xm2m_headers(request);
-        if (rcode === '200') {
-            db.getConnection((code, connection) => {
-                if (code === '200') {
-                    request.db_connection = connection;
-                    get_target_url(request, response, (code) => {
-                        if (code === '200') {
-                            if (request.option !== '/fopt') {
-                                rcode = check_type_delete_resource(request);
-                                if (rcode === '200') {
-                                    var rootnm = Object.keys(request.targetObject)[0];
-                                    request.url = request.targetObject[rootnm].ri.replace(/_/g, '\/');
-                                    request.pi = request.targetObject[rootnm].pi;
-                                    if ((request.query.fu == 2) && (request.query.rcn == 0 || request.query.rcn == 1)) {
-                                        lookup_delete(request, response, (code) => {
-                                            if (code === '200') {
-                                                if(cache_resource_url.hasOwnProperty(request.url)) {
-                                                    delete cache_resource_url[request.url];
-                                                }
-
-                                                if(cache_resource_url.hasOwnProperty(request.pi.replace(/_/g, '\/') + '/la')) {
-                                                    delete cache_resource_url[request.pi.replace(/_/g, '\/') + '/la'];
-                                                }
-
-                                                Object.keys(cache_resource_url).forEach((_url) => {
-                                                    if(_url.includes(request.url+'/')) {
-                                                        delete cache_resource_url[_url];
-                                                    }
-                                                });
-
-                                                responder.response_result(request, response, '200', '2002', '', () => {
-                                                    connection.release();
-                                                    request = null;
-                                                    response = null;
-                                                });
-                                            }
-                                            else {
-                                                responder.error_result(request, response, resultStatusCode[rcode][0], resultStatusCode[rcode][1], resultStatusCode[rcode][2], () => {
-                                                    connection.release();
-                                                    request = null;
-                                                    response = null;
-                                                });
-                                            }
-                                        });
-                                    }
-                                    else {
-                                        response_error_result(request, response, '400-46', () => {
-                                            connection.release();
-                                            request = null;
-                                            response = null;
-                                        });
-                                    }
-                                }
-                                else {
-                                    responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
-                                        connection.release();
-                                        request = null;
-                                        response = null;
-                                    });
-                                }
-                            }
-                            else { // if (request.option === '/fopt') {
-                                check_grp(request, response, (rsc, result_grp) => { // check access right for fanoutpoint
-                                    if (rsc == '1') {
-                                        var access_value = '8';
-                                        var body_Obj = {};
-                                        security.check(request, response, request.targetObject[Object.keys(request.targetObject)[0]].ty, result_grp.macp, access_value, result_grp.cr, (code) => {
-                                            if (code === '1') {
-                                                fopt.check(request, response, result_grp, body_Obj, (code) => {
-                                                    if (code === '200') {
-                                                        responder.search_result(request, response, '200', '2000', '', () => {
-                                                            connection.release();
-                                                            request = null;
-                                                            response = null;
-                                                        });
-                                                    }
-                                                    else {
-                                                        responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
-                                                            connection.release();
-                                                            request = null;
-                                                            response = null;
-                                                        });
-                                                    }
-                                                });
-                                            }
-                                            else if (code === '0') {
-                                                response_error_result(request, response, '403-5', () => {
-                                                    connection.release();
-                                                    request = null;
-                                                    response = null;
-                                                });
-                                            }
-                                            else {
-                                                responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
-                                                    connection.release();
-                                                    request = null;
-                                                    response = null;
-                                                });
-                                            }
-                                        });
-                                    }
-                                    else if (rsc == '2') {
-                                        code = '403-6';
-                                        responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
-                                            connection.release();
-                                            request = null;
-                                            response = null;
-                                        });
-                                    }
-                                    else {
-                                        response_error_result(request, response, '404-4', () => {
-                                            connection.release();
-                                            request = null;
-                                            response = null;
-                                        });
-                                    }
-                                });
-                            }
-                        }
-                        else if (code === '301-1') {
-                            check_csr(request, response, (code) => {
-                                if (code === '301-2') {
-                                    connection.release();
-                                    response.status(response.statusCode).end(response.body);
-                                    request = null;
-                                    response = null;
-                                }
-                                else {
-                                    responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
-                                        connection.release();
-                                        request = null;
-                                        response = null;
-                                    });
-                                }
-                            });
                         }
                         else {
                             responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
@@ -2618,6 +2006,7 @@ app.delete(onem2mParser, (request, response) => {
                 }
                 else {
                     responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                        connection.release();
                         request = null;
                         response = null;
                     });
@@ -2625,7 +2014,474 @@ app.delete(onem2mParser, (request, response) => {
             });
         }
         else {
-            responder.error_result(request, response, resultStatusCode[rcode][0], resultStatusCode[rcode][1], resultStatusCode[rcode][2], () => {
+            responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                request = null;
+                response = null;
+            });
+        }
+    });
+});
+
+const extra_api_list = [
+    '/hit', '/total_ae', '/total_cbs'
+];
+
+app.get(onem2mParser, (request, response) => {
+    if(extra_api_list.includes(request.url)) {
+        db.getConnection((code, connection) => {
+            if (code === '200') {
+                extra_api_action(connection, request.url, (code, result) => {
+                    if (code === '200') {
+                    }
+                    else if (code === '201') {
+                        connection.release();
+                        response.header('Content-Type', 'application/json');
+                        response.status(200).end(JSON.stringify(result, null, 4));
+                        result = null;
+                    }
+                    else {
+                        responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                            connection.release();
+                            request = null;
+                            response = null;
+                        });
+                    }
+                });
+            }
+            else {
+                responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                    request = null;
+                    response = null;
+                });
+            }
+        });
+    }
+    else {
+        db.getConnection((code, connection) => {
+            if (code === '200') {
+                request.db_connection = connection;
+                get_target_url(request, response, (code) => {
+                    if (code === '200') {
+                        //if (request.option !== '/fopt') {
+                        if (!request.option.includes('/fopt')) {
+                            var rootnm = Object.keys(request.targetObject)[0];
+                            request.url = request.targetObject[rootnm].ri.replace(/_/g, '\/');
+                            if ((request.query.fu == 1 || request.query.fu == 2) && (request.query.rcn == 1 || request.query.rcn == 4 || request.query.rcn == 5 || request.query.rcn == 6 || request.query.rcn == 8)) {
+                                lookup_retrieve(request, response, (code) => {
+                                    if (code === '200') {
+                                        responder.response_result(request, response, '200', '2000', '', () => {
+                                            connection.release();
+                                            request = null;
+                                            response = null;
+                                        });
+                                    }
+                                    else if (code === '200-1') {
+                                        responder.search_result(request, response, '200', '2000', '', () => {
+                                            connection.release();
+                                            request = null;
+                                            response = null;
+                                        });
+                                    }
+                                    else {
+                                        responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                                            connection.release();
+                                            request = null;
+                                            response = null;
+                                        });
+                                    }
+                                });
+                            }
+                            else {
+                                response_error_result(request, response, '400-44', () => {
+                                    connection.release();
+                                    request = null;
+                                    response = null;
+                                });
+                            }
+                        }
+                        else { //if (request.option === '/fopt') {
+                            check_grp(request, response, (rsc, result_grp) => { // check access right for fanoutpoint
+                                if (rsc == '1') {
+                                    var access_value = (request.query.fu == 1) ? '32' : '2';
+                                    var body_Obj = {};
+                                    security.check(request, response, request.targetObject[Object.keys(request.targetObject)[0]].ty, result_grp.macp, access_value, result_grp.cr, (code) => {
+                                        if (code === '1') {
+                                            fopt.check(request, response, result_grp, body_Obj, (code) => {
+                                                if (code === '200') {
+                                                    responder.search_result(request, response, '200', '2000', '', () => {
+                                                        connection.release();
+                                                        request = null;
+                                                        response = null;
+                                                    });
+                                                }
+                                                else {
+                                                    responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                                                        connection.release();
+                                                        request = null;
+                                                        response = null;
+                                                    });
+                                                }
+                                            });
+                                        }
+                                        else if (code === '0') {
+                                            response_error_result(request, response, '403-5', () => {
+                                                connection.release();
+                                                request = null;
+                                                response = null;
+                                            });
+                                        }
+                                        else {
+                                            responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                                                connection.release();
+                                                request = null;
+                                                response = null;
+                                            });
+                                        }
+                                    });
+                                }
+                                else if (rsc == '2') {
+                                    code = '403-6';
+                                    responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                                        connection.release();
+                                        request = null;
+                                        response = null;
+                                    });
+                                }
+                                else {
+                                    response_error_result(request, response, '404-4', () => {
+                                        connection.release();
+                                        request = null;
+                                        response = null;
+                                    });
+                                }
+                            });
+                        }
+                    }
+                    else if (code === '301-1') {
+                        check_csr(request, response, (code) => {
+                            if (code === '301-2') {
+                                connection.release();
+                                response.status(response.statusCode).end(response.body);
+                                request = null;
+                                response = null;
+                            }
+                            else {
+                                responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                                    connection.release();
+                                    request = null;
+                                    response = null;
+                                });
+                            }
+                        });
+                    }
+                    else {
+                        responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                            connection.release();
+                            request = null;
+                            response = null;
+                        });
+                    }
+                });
+            }
+            else {
+                responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                    request = null;
+                    response = null;
+                });
+            }
+        });
+    }
+});
+
+
+app.put(onem2mParser, (request, response) => {
+    db.getConnection((code, connection) => {
+        if (code === '200') {
+            request.db_connection = connection;
+            get_target_url(request, response, (code) => {
+                if (code === '200') {
+                    if (request.option !== '/fopt') {
+                        rcode = check_type_update_resource(request);
+                        if (rcode === '200') {
+                            let rootnm = Object.keys(request.targetObject)[0];
+                            request.url = request.targetObject[rootnm].ri.replace(/_/g, '\/');
+                            if ((request.query.fu == 2) && (request.query.rcn == 0 || request.query.rcn == 1)) {
+                                lookup_update(request, response, (code) => {
+                                    if (code === '200') {
+                                        if (cache_resource_url.hasOwnProperty(request.url)) {
+                                            delete cache_resource_url[request.url];
+                                        }
+
+                                        responder.response_result(request, response, '200', '2004', '', () => {
+                                            connection.release();
+                                            request = null;
+                                            response = null;
+                                        });
+                                    }
+                                    else {
+                                        responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                                            connection.release();
+                                            request = null;
+                                            response = null;
+                                        });
+                                    }
+                                });
+                            }
+                            else {
+                                response_error_result(request, response, '400-45', () => {
+                                    connection.release();
+                                    request = null;
+                                    response = null;
+                                });
+                            }
+                        }
+                        else {
+                            responder.error_result(request, response, resultStatusCode[rcode][0], resultStatusCode[rcode][1], resultStatusCode[rcode][2], () => {
+                                connection.release();
+                                request = null;
+                                response = null;
+                            });
+                        }
+                    }
+                    else { // if (request.option === '/fopt') {
+                        check_grp(request, response, (rsc, result_grp) => { // check access right for fanoutpoint
+                            if (rsc == '1') {
+                                var access_value = '4';
+                                var body_Obj = {};
+                                security.check(request, response, request.targetObject[Object.keys(request.targetObject)[0]].ty, result_grp.macp, access_value, result_grp.cr, (code) => {
+                                    if (code === '1') {
+                                        fopt.check(request, response, result_grp, body_Obj, (code) => {
+                                            if (code === '200') {
+                                                responder.search_result(request, response, '200', '2000', '', () => {
+                                                    connection.release();
+                                                    request = null;
+                                                    response = null;
+                                                });
+                                            }
+                                            else {
+                                                responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                                                    connection.release();
+                                                    request = null;
+                                                    response = null;
+                                                });
+                                            }
+                                        });
+                                    }
+                                    else if (code === '0') {
+                                        response_error_result(request, response, '403-5', () => {
+                                            connection.release();
+                                            request = null;
+                                            response = null;
+                                        });
+                                    }
+                                    else {
+                                        responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                                            connection.release();
+                                            request = null;
+                                            response = null;
+                                        });
+                                    }
+                                });
+                            }
+                            else if (rsc == '2') {
+                                code = '403-6';
+                                responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                                    connection.release();
+                                    request = null;
+                                    response = null;
+                                });
+                            }
+                            else {
+                                response_error_result(request, response, '404-4', () => {
+                                    connection.release();
+                                    request = null;
+                                    response = null;
+                                });
+                            }
+                        });
+                    }
+                }
+                else if (code === '301-1') {
+                    check_csr(request, response, (code) => {
+                        if (code === '301-2') {
+                            connection.release();
+                            response.status(response.statusCode).end(response.body);
+                            request = null;
+                            response = null;
+                        }
+                        else {
+                            responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                                connection.release();
+                                request = null;
+                                response = null;
+                            });
+                        }
+                    });
+                }
+                else {
+                    responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                        connection.release();
+                        request = null;
+                        response = null;
+                    });
+                }
+            });
+        }
+        else {
+            responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                request = null;
+                response = null;
+            });
+        }
+    });
+});
+
+app.delete(onem2mParser, (request, response) => {
+    db.getConnection((code, connection) => {
+        if (code === '200') {
+            request.db_connection = connection;
+            get_target_url(request, response, (code) => {
+                if (code === '200') {
+                    if (request.option !== '/fopt') {
+                        rcode = check_type_delete_resource(request);
+                        if (rcode === '200') {
+                            var rootnm = Object.keys(request.targetObject)[0];
+                            request.url = request.targetObject[rootnm].ri.replace(/_/g, '\/');
+                            request.pi = request.targetObject[rootnm].pi;
+                            if ((request.query.fu == 2) && (request.query.rcn == 0 || request.query.rcn == 1)) {
+                                lookup_delete(request, response, (code) => {
+                                    if (code === '200') {
+                                        if(cache_resource_url.hasOwnProperty(request.url)) {
+                                            delete cache_resource_url[request.url];
+                                        }
+
+                                        if(cache_resource_url.hasOwnProperty(request.pi.replace(/_/g, '\/') + '/la')) {
+                                            delete cache_resource_url[request.pi.replace(/_/g, '\/') + '/la'];
+                                        }
+
+                                        Object.keys(cache_resource_url).forEach((_url) => {
+                                            if(_url.includes(request.url+'/')) {
+                                                delete cache_resource_url[_url];
+                                            }
+                                        });
+
+                                        responder.response_result(request, response, '200', '2002', '', () => {
+                                            connection.release();
+                                            request = null;
+                                            response = null;
+                                        });
+                                    }
+                                    else {
+                                        responder.error_result(request, response, resultStatusCode[rcode][0], resultStatusCode[rcode][1], resultStatusCode[rcode][2], () => {
+                                            connection.release();
+                                            request = null;
+                                            response = null;
+                                        });
+                                    }
+                                });
+                            }
+                            else {
+                                response_error_result(request, response, '400-46', () => {
+                                    connection.release();
+                                    request = null;
+                                    response = null;
+                                });
+                            }
+                        }
+                        else {
+                            responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                                connection.release();
+                                request = null;
+                                response = null;
+                            });
+                        }
+                    }
+                    else { // if (request.option === '/fopt') {
+                        check_grp(request, response, (rsc, result_grp) => { // check access right for fanoutpoint
+                            if (rsc == '1') {
+                                var access_value = '8';
+                                var body_Obj = {};
+                                security.check(request, response, request.targetObject[Object.keys(request.targetObject)[0]].ty, result_grp.macp, access_value, result_grp.cr, (code) => {
+                                    if (code === '1') {
+                                        fopt.check(request, response, result_grp, body_Obj, (code) => {
+                                            if (code === '200') {
+                                                responder.search_result(request, response, '200', '2000', '', () => {
+                                                    connection.release();
+                                                    request = null;
+                                                    response = null;
+                                                });
+                                            }
+                                            else {
+                                                responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                                                    connection.release();
+                                                    request = null;
+                                                    response = null;
+                                                });
+                                            }
+                                        });
+                                    }
+                                    else if (code === '0') {
+                                        response_error_result(request, response, '403-5', () => {
+                                            connection.release();
+                                            request = null;
+                                            response = null;
+                                        });
+                                    }
+                                    else {
+                                        responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                                            connection.release();
+                                            request = null;
+                                            response = null;
+                                        });
+                                    }
+                                });
+                            }
+                            else if (rsc == '2') {
+                                code = '403-6';
+                                responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                                    connection.release();
+                                    request = null;
+                                    response = null;
+                                });
+                            }
+                            else {
+                                response_error_result(request, response, '404-4', () => {
+                                    connection.release();
+                                    request = null;
+                                    response = null;
+                                });
+                            }
+                        });
+                    }
+                }
+                else if (code === '301-1') {
+                    check_csr(request, response, (code) => {
+                        if (code === '301-2') {
+                            connection.release();
+                            response.status(response.statusCode).end(response.body);
+                            request = null;
+                            response = null;
+                        }
+                        else {
+                            responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                                connection.release();
+                                request = null;
+                                response = null;
+                            });
+                        }
+                    });
+                }
+                else {
+                    responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                        connection.release();
+                        request = null;
+                        response = null;
+                    });
+                }
+            });
+        }
+        else {
+            responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
                 request = null;
                 response = null;
             });
@@ -2635,16 +2491,11 @@ app.delete(onem2mParser, (request, response) => {
 
 const check_notification = (request) => {
     if (request.headers.hasOwnProperty('content-type')) {
-        if (request.headers['content-type'].includes('ty')) { // post
-            return ('post');
+        if (request.headers.rootnm === 'sgn') {
+            return ('notify');
         }
         else {
-            if (request.headers.rootnm === 'sgn') {
-                return ('notify');
-            }
-            else {
-                return ('400-19');
-            }
+            return ('400-19');
         }
     }
     else {
@@ -2885,7 +2736,7 @@ function scheduleGc() {
         global.gc();
         console.log('Manual gc', process.memoryUsage());
         scheduleGc();
-    }, nextMinutes * 60 * 1000);
+    }, nextMinutes * 60 * 60 * 1000);
 }
 
 // call this in the startup script of your app (once per process)

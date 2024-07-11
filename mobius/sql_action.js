@@ -943,9 +943,9 @@ exports.insert_sub = function(connection, obj, callback) {
     console.time('insert_sub ' + obj.ri);
     _this.insert_lookup(connection, obj, function (err, results) {
         if(!err) {
-            var sql = util.format('insert into sub (ri, pi, enc, exc, nu, gpi, nfu, bn, rl, psn, pn, nsp, ln, nct, nec, cr, su) ' +
-                'values (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
-                obj.ri, obj.pi, JSON.stringify(obj.enc).replace(/\"/g, '\\"').replace(/\'/g, '\\\''), obj.exc, JSON.stringify(obj.nu).replace(/\"/g, '\\"').replace(/\'/g, '\\\''), obj.gpi, obj.nfu, JSON.stringify(obj.bn).replace(/\"/g, '\\"').replace(/\'/g, '\\\''), obj.rl, obj.psn, obj.pn, obj.nsp, obj.ln, obj.nct, obj.nec, obj.cr, obj.su);
+            var sql = util.format('insert into sub (ri, enc, exc, nu, gpi, nfu, bn, rl, psn, pn, nsp, ln, nct, nec, su) ' +
+                'values (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
+                obj.ri, JSON.stringify(obj.enc), obj.exc, JSON.stringify(obj.nu), obj.gpi, obj.nfu, JSON.stringify(obj.bn), obj.rl, obj.psn, obj.pn, obj.nsp, obj.ln, obj.nct, obj.nec, obj.su);
             db.getResult(sql, connection, function (err, results) {
                 if(!err) {
                     console.timeEnd('insert_sub ' + obj.ri);
@@ -1871,24 +1871,6 @@ let select_oldest_resources = (connection, parentObj, count, oldestObj, callback
 exports.select_latest_resources = select_latest_resources;
 exports.select_oldest_resources = select_oldest_resources;
 
-exports.select_oldest_resource = function(connection, ty, ri, oldestObj, callback) {
-    console.time('select_oldest ' + ri);
-    //var sql = util.format('select a.* from (select ri from lookup where (pi = \'%s\') limit 100) b left join lookup as a on b.ri = a.ri where a.ty = \'4\' or a.ty = \'30\' limit 1', ri);
-    var sql = 'select * from (select * from lookup where pi = \'' + ri + '\' and ty = \'' + ty + '\' limit 1)b join ' + responder.typeRsrc[parseInt(ty, 10)] + ' as a on b.ri = a.ri';
-    db.getResult(sql, connection, function (err, results_oldest) {
-        console.timeEnd('select_oldest ' + ri);
-        if(!err) {
-            if(results_oldest.length >= 1) {
-                oldestObj.push(results_oldest[0]);
-            }
-            callback('200');
-        }
-        else {
-            callback('500-1');
-        }
-    });
-};
-
 exports.select_lookup = function(connection, ri, callback) {
     //var tid = require('shortid').generate();
     //console.time('select_lookup ' + ri + ' (' + tid + ')');
@@ -1987,14 +1969,69 @@ exports.select_acp_in = function(connection, acpiList, callback) {
     });
 };
 
-exports.select_sub = function(connection, pi, callback) {
-    console.time('select_sub');
-    var sql = util.format('select * from sub where pi = \'%s\'', pi);
-    db.getResult(sql, connection, function (err, results_ss) {
-        console.timeEnd('select_sub');
-        callback(err, results_ss);
-    });
+const select_resource_of = async (ri) => {
+    const arr_code = await db.connection();
+    if(arr_code[0] === '200') {
+        const connection = arr_code[1];
+        console.time('select_resource_of');
+        let sql = util.format('select * from lookup where ri = \'%s\'', ri);
+        let res_code = await db.query(sql, connection);
+        if(!res_code[0]) {
+            let comm_obj = res_code[1];
+            let table_name = responder.typeRsrc[comm_obj[0].ty];
+            sql = "select * from " + table_name + " where ri = \'" + ri + "\'";
+            res_code = await db.query(sql, connection);
+            console.timeEnd('select_resource_of');
+
+            if(!res_code[0]) {
+                let spec_obj = res_code[1];
+                delete comm_obj[0].lvl;
+
+                let resource_obj = [];
+                resource_obj.push(merge(comm_obj[0], spec_obj[0]));
+
+                make_array_type(resource_obj[0]);
+
+                return [res_code[0], resource_obj];
+            }
+
+            connection.release();
+            return res_code;
+        }
+        else {
+            connection.release();
+            return res_code;
+        }
+    }
+
+    return arr_code;
 };
+
+const select_subs_under = async (ri) => {
+    const arr_code = await db.connection();
+    if(arr_code[0] === '200') {
+        const connection = arr_code[1];
+        console.time('select_subs_under');
+        let sql = util.format('select * from lookup inner join sub on lookup.ri = sub.ri where pi = \'%s\' and ty = \'23\'', ri);
+        let res_code = await db.query(sql, connection);
+        console.timeEnd('select_subs_under');
+        connection.release();
+
+        if(!res_code[0]) {
+            for(let i in res_code[1]) {
+                if(res_code[1].hasOwnProperty(i)) {
+                    make_array_type(res_code[1][i]);
+                }
+            }
+        }
+        return res_code;
+    }
+
+    return arr_code;
+};
+
+exports.select_subs_under = select_subs_under;
+exports.select_resource_of = select_resource_of;
 
 exports.select_tr = function(connection, pi, callback) {
     var sql = util.format('select * from lookup where pi = \'%s\' and ty = \'39\'', pi);

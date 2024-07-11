@@ -32,42 +32,33 @@ function verify_nu(request, response, body_Obj, req_count, callback) {
     }
 
     var nu = nu_arr[req_count];
-    var sub_nu = new Url(nu);
+    var sub_nu = url.parse(nu);
     if(sub_nu.protocol == null) { // ID format
+        let absolute_ri = '';
         if (nu.charAt(0) != '/') {
-            var absolute_url = '/' + nu;
+            absolute_ri = '/' + nu;
         }
         else {
-            absolute_url = nu.replace(/\/\/[^\/]+\/?/, '\/');
-            absolute_url = absolute_url.replace(/\/[^\/]+\/?/, '/');
+            absolute_ri = nu.replace(/\/\/[^\/]+\/?/, '\/');
+            absolute_ri = absolute_ri.replace(/\/[^\/]+\/?/, '/');
         }
 
-        var absolute_url_arr = absolute_url.split('/');
+        let absolute_url = absolute_ri.replace(/_/g, '\/');
 
-        db_sql.get_ri_sri(request.db_connection, absolute_url_arr[1].split('?')[0], function (err, results) {
-            if (err) {
+        db_sql.select_ri_lookup(request.db_connection, absolute_url, (err, results_ri) => {
+            if (results_ri.length == 0) {
                 callback('500-2');
+                return;
             }
-            else {
-                absolute_url = (results.length == 0) ? absolute_url : ((results[0].hasOwnProperty('ri')) ? absolute_url.replace('/' + absolute_url_arr[1], results[0].ri) : absolute_url);
 
-                results = null;
-                db_sql.select_ri_lookup(request.db_connection, absolute_url, function (err, results_ri) {
-                    if (results_ri.length == 0) {
-                        callback('500-2');
-                        return;
-                    }
-
-                    results_ri = null;
-                    verify_nu(request, response, body_Obj, ++req_count, function (code) {
-                        callback(code);
-                    });
-                });
-            }
+            results_ri = null;
+            verify_nu(request, response, body_Obj, ++req_count, (code) => {
+                callback(code);
+            });
         });
     }
     else {
-        verify_nu(request, response, body_Obj, ++req_count, function (code) {
+        verify_nu(request, response, body_Obj, ++req_count, (code) => {
             callback(code);
         });
     }

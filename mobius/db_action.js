@@ -75,7 +75,7 @@ function executeQuery(pool, query, connection, callback) {
     });
 }
 
-exports.getConnection = async (callback) => {
+const getConnection = async (callback) => {
     let client = null;
     try {
         client = await pool.connect();
@@ -85,35 +85,24 @@ exports.getConnection = async (callback) => {
         console.error('pg error ', e);
         callback('500-5');
     }
-
-    // if(mysql_pool == null) {
-    //     console.error("mysql is not connected");
-    //     callback(true, "mysql is not connected");
-    //     return '0';
-    // }
-    //
-    // mysql_pool.getConnection((err, connection) => {
-    //     if (err) {
-    //         console.log(`Cant get connection from pool`);
-    //         callback('500-5');
-    //     }
-    //     else {
-    //         const connectionIdleTimer = connection.__idleCloseTimer;
-    //         if (connectionIdleTimer) {
-    //             clearTimeout(connectionIdleTimer);
-    //         }
-    //
-    //         connection.__idleCloseTimer = setTimeout(() => {
-    //             console.log('close connection due inactivity');
-    //             mysql_pool._purgeConnection(connection);
-    //         }, 30 * 1000);
-    //
-    //         callback('200', connection);
-    //     }
-    // });
 };
 
-exports.getResult = async (query, connection, callback) => {
+const connection = async () => {
+    let client = null;
+    try {
+        client = await pool.connect();
+        return ['200', client];
+    }
+    catch (e) {
+        console.error('pg error ', e);
+        return ['500-5'];
+    }
+};
+
+exports.getConnection = getConnection;
+exports.connection = connection;
+
+const getResult = async (query, connection, callback) => {
     let res = null;
     try {
         res = await connection.query(query);
@@ -124,20 +113,20 @@ exports.getResult = async (query, connection, callback) => {
         console.error('pg error ', e);
         callback(true, e);
     }
-
-    // if(mysql_pool == null) {
-    //     console.error("mysql is not connected");
-    //     return '0';
-    // }
-    //
-    // executeQuery(mysql_pool, query, connection, (err, rows) => {
-    //     if (!err) {
-    //         callback(null, rows);
-    //     }
-    //     else {
-    //         callback(true, err);
-    //     }
-    // });
 };
 
+const query = async (sql, connection) => {
+    let res = null;
+    try {
+        res = await connection.query(sql);
+        return [null, res.rows];
+    }
+    catch (e) {
+        console.error('pg error ', e);
+        return [true];
+    }
+};
+
+exports.getResult = getResult;
+exports.query = query;
 

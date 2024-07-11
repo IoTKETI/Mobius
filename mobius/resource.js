@@ -1130,9 +1130,7 @@ exports.create = function (request, response, callback) {
                     _this.remove_no_value(request, request.resourceObj);
 
                     if(request.ty != 23) {
-                        sgn.check(request, request.resourceObj[rootnm], 3, function (code) {
-
-                        });
+                        sgn.check(request, request.resourceObj[rootnm], 3);
                     }
 
                     let parent_rootnm = Object.keys(request.targetObject)[0];
@@ -1167,9 +1165,7 @@ exports.create = function (request, response, callback) {
                             if (request.ty == 23) { // when ty is 23, send notification for verification
                                 var notiObj = JSON.parse(JSON.stringify(request.resourceObj));
                                 _this.remove_no_value(request, notiObj);
-                                sgn.check(request, notiObj[rootnm], 256, function (code) {
-
-                                });
+                                sgn.check(request, notiObj[rootnm], 256);
 
                                 var count = 1000000000;
                                 while (count--) {
@@ -2328,9 +2324,7 @@ exports.update = function (request, response, callback) {
                 if (ty == 23) { // when ty is 23, send notification for verification
                     var notiObj = JSON.parse(JSON.stringify(request.resourceObj));
                     _this.remove_no_value(request, notiObj);
-                    sgn.check(request, notiObj[rootnm], 256, function (code) {
-
-                    });
+                    sgn.check(request, notiObj[rootnm], 256);
 
                     var count = 1000000000;
                     while (count--) {
@@ -2342,9 +2336,7 @@ exports.update = function (request, response, callback) {
                 if (code == '200') {
                     _this.remove_no_value(request, request.resourceObj);
 
-                    sgn.check(request, request.resourceObj[rootnm], 1, () => {
-
-                    });
+                    sgn.check(request, request.resourceObj[rootnm], 1);
 
                     cnt_man.update_st_by_action(request.resourceObj[rootnm], () => {
 
@@ -2407,9 +2399,7 @@ function delete_action(request, response, callback) {
                                             if(resource_Obj[rootnm].su != '') {
                                                 var notiObj = JSON.parse(JSON.stringify(resource_Obj[rootnm]));
                                                 _this.remove_no_value(request, notiObj);
-                                                sgn.check(request, notiObj, 128, function (code) {
-
-                                                });
+                                                sgn.check(request, notiObj, 128);
                                             }
                                         }
 
@@ -2471,9 +2461,7 @@ exports.delete = function (request, response, callback) {
         if (code === '200') {
             _this.remove_no_value(request, request.resourceObj);
 
-            sgn.check(request, request.resourceObj[rootnm], 4, function (code) {
-
-            });
+            sgn.check(request, request.resourceObj[rootnm], 4);
 
             cnt_man.update_parent_by_delete(request.targetObject[Object.keys(request.targetObject)[0]], () => {
             });

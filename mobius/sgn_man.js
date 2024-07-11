@@ -74,93 +74,68 @@ if(sgn_mqtt_client == null) {
 let other_mqtt_client = {};
 let tid_other_mqtt = {};
 
-exports.post = function(ri, exc, nu, bodytype, rqi, bodyString, parentObj) {
+exports.post = function(ri, exc, nu, bodytype, rqi, bodyString) {
     try {
-        if(ss_fail_count.hasOwnProperty(ri)) {
-            if(exc != "" && ( exc == 0 || exc == '0')) {
-                ss_fail_count[ri] = 0;
-            }
+        var sub_nu = url.parse(nu);
+        if (sub_nu.protocol == 'http:' || sub_nu.protocol == 'https:') {
+            request_noti_http(nu, ri, bodyString, bodytype, rqi);
         }
-        else {
-            ss_fail_count[ri] = 0;
+        else if (sub_nu.protocol == 'coap:') {
+            request_noti_coap(nu, ri, bodyString, bodytype, rqi);
         }
-
-        if (ss_fail_count[ri] >= MAX_NUM_RETRY) {
-            var aeid = url.parse(nu).pathname.replace('/', '').split('?')[0];
-            var noti_resp_topic = '/oneM2M/resp/' + usecseid.replace('/', '') + '/' + aeid + '/' + bodytype;
-            sgn_mqtt_client.unsubscribe(noti_resp_topic);
-
-            delete ss_fail_count[ri];
-            delete_sub(ri, rqi, parentObj);
+        else if (sub_nu.protocol == 'ws:') {
+            request_noti_ws(nu, ri, bodyString, bodytype, rqi);
         }
-        else {
-            delete parentObj;
-            parentObj = null;
-            var sub_nu = url.parse(nu);
-            if (sub_nu.protocol == 'http:' || sub_nu.protocol == 'https:') {
-                request_noti_http(nu, ri, bodyString, bodytype, rqi);
-            }
-            else if (sub_nu.protocol == 'coap:') {
-                request_noti_coap(nu, ri, bodyString, bodytype, rqi);
-            }
-            else if (sub_nu.protocol == 'ws:') {
-                request_noti_ws(nu, ri, bodyString, bodytype, rqi);
-            }
-            else if (sub_nu.protocol == 'mqtt:') { // mqtt:
-                try {
-                    dns.lookup(sub_nu.hostname, (err, address, family) => {
-                        if (err) {
-                            throw err;
-                        }
+        else if (sub_nu.protocol == 'mqtt:') { // mqtt:
+            try {
+                dns.lookup(sub_nu.hostname, (err, address, family) => {
+                    if (err) {
+                        throw err;
+                    }
 
-                        console.log(MYIP, ' - ', address);
+                    console.log(MYIP, ' - ', address);
+                    if (MYIP === address) {
+                        sgn_mqtt_client.publish(sub_nu.pathname, bodyString);
+                    }
+                    else {
+                        let request_noti_mqtt_action = () => {
+                            other_mqtt_client[sub_nu.hostname].publish(sub_nu.pathname, bodyString);
 
-                        if (MYIP === address) {
-                            //request_noti_mqtt(sub_nu.pathname, ri, bodyString, bodytype, rqi, sgn_mqtt_client);
+                            tid_other_mqtt[sub_nu.hostname] = setTimeout((hostname) => {
+                                if(other_mqtt_client.hasOwnProperty(hostname)) {
+                                    other_mqtt_client[hostname].end();
+                                    delete other_mqtt_client[hostname];
+                                }
+                                delete tid_other_mqtt[hostname];
+                            }, 10000, sub_nu.hostname);
+                        };
 
-                            sgn_mqtt_client.publish(sub_nu.pathname, bodyString);
+                        if(other_mqtt_client.hasOwnProperty(sub_nu.hostname)) {
+                            clearTimeout(tid_other_mqtt[sub_nu.hostname]);
+
+                            request_noti_mqtt_action();
                         }
                         else {
-                            let request_noti_mqtt_action = () => {
-                                other_mqtt_client[sub_nu.hostname].publish(sub_nu.pathname, bodyString);
+                            other_mqtt_client[sub_nu.hostname] = mqtt.connect('mqtt://' + sub_nu.hostname + ':' + sub_nu.port);
 
-                                tid_other_mqtt[sub_nu.hostname] = setTimeout((hostname) => {
-                                    if(other_mqtt_client.hasOwnProperty(hostname)) {
-                                        other_mqtt_client[hostname].end();
-                                        delete other_mqtt_client[hostname];
-                                    }
-                                    delete tid_other_mqtt[hostname];
-                                }, 10000, sub_nu.hostname);
-                            };
-
-                            if(other_mqtt_client.hasOwnProperty(sub_nu.hostname)) {
-                                clearTimeout(tid_other_mqtt[sub_nu.hostname]);
-
+                            other_mqtt_client[sub_nu.hostname].on('connect', () => {
                                 request_noti_mqtt_action();
-                            }
-                            else {
-                                other_mqtt_client[sub_nu.hostname] = mqtt.connect('mqtt://' + sub_nu.hostname + ':' + sub_nu.port);
+                            });
 
-                                other_mqtt_client[sub_nu.hostname].on('connect', () => {
-                                    request_noti_mqtt_action();
-                                });
+                            other_mqtt_client[sub_nu.hostname].on('error', (error) => {
+                                console.log("mqtt error is occurred!!", error);
+                            });
 
-                                other_mqtt_client[sub_nu.hostname].on('error', (error) => {
-                                    console.log("mqtt error is occurred!!", error);
-                                });
-
-                                other_mqtt_client[sub_nu.hostname].on('offline', (error) => {
-                                    console.log("notification mqtt broker of nu does not connect!!", error);
-                                });
-                            }
+                            other_mqtt_client[sub_nu.hostname].on('offline', (error) => {
+                                console.log("notification mqtt broker of nu does not connect!!", error);
+                            });
                         }
-                    });
-                }
-                catch (e) {
-                    console.log(e.message);
-                }
+                    }
+                });
             }
-            nu = null;
+            catch (e) {
+                console.log(e.message);
+            }
         }
     }
     catch (e) {
