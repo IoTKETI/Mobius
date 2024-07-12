@@ -257,7 +257,7 @@ exports.insert_acp = function(connection, obj, callback) {
         if(!err) {
             var sql = util.format('insert into acp (ri, pv, pvs) ' +
                 'values (\'%s\', \'%s\', \'%s\')',
-                obj.ri, JSON.stringify(obj.pv).replace(/\"/g, '\\"').replace(/\'/g, '\\\''), JSON.stringify(obj.pvs).replace(/\"/g, '\\"').replace(/\'/g, '\\\''));
+                obj.ri, JSON.stringify(obj.pv), JSON.stringify(obj.pvs));
             db.getResult(sql, connection, (err, results) => {
                 console.timeEnd('insert_acp ' + obj.ri);
                 if(!err) {
@@ -1584,7 +1584,7 @@ function search_resource_action(connection, ri, query, cur_lim, pi_list, cni, lo
     if (query.lbl != null) {
         query_where = ' and ';
         if (query.lbl.toString().split(',')[1] == null) {
-            query_where += util.format(' lbl like \'[\"%%%s%%\"]\'', query.lbl);
+            query_where += util.format(' lbl like \'[%%\"%s\"%%]\'', query.lbl);
             //query_where += util.format(' lbl like \'%s\'', request.query.lbl);
         }
         else {
@@ -1729,10 +1729,13 @@ function search_resource_action(connection, ri, query, cur_lim, pi_list, cni, lo
     if (query.la != null) {
         cur_lim = parseInt(query.la, 10);
 
-        var before_ct = moment().subtract(Math.pow(2, loop_count*1), 'minutes').utc().format('YYYYMMDDTHHmmss');
+        // var before_ct = moment().subtract(Math.pow(2, loop_count*1), 'minutes').utc().format('YYYYMMDDTHHmmss');
+        //
+        // query_where += ' and ';
+        // query_where += util.format(' (\'%s\' < ct) ', before_ct);
+        // query_count++;
 
-        query_where += ' and ';
-        query_where += util.format(' (\'%s\' < ct) ', before_ct);
+        query_where += util.format(' order by lookup.ct desc limit %s', cur_lim);
         query_count++;
     }
     else {
@@ -1755,20 +1758,22 @@ function search_resource_action(connection, ri, query, cur_lim, pi_list, cni, lo
                 }
             }
 
-            if (query.la != null) {
-                if(Object.keys(seekObj).length >= cur_lim) {
-                    callback(code);
-                }
-                else {
-                    var foundCount = Object.keys(seekObj).length;
-                    search_resource_action(connection, ri, query, parseInt(cur_lim, 10) - foundCount, pi_list, cni, ++loop_count, seekObj, function (code) {
-                        callback(code);
-                    });
-                }
-            }
-            else {
-                callback(code);
-            }
+            callback(code);
+
+            // if (query.la != null) {
+            //     if(Object.keys(seekObj).length >= cur_lim) {
+            //         callback(code);
+            //     }
+            //     else {
+            //         var foundCount = Object.keys(seekObj).length;
+            //         search_resource_action(connection, ri, query, parseInt(cur_lim, 10) - foundCount, pi_list, cni, ++loop_count, seekObj, function (code) {
+            //             callback(code);
+            //         });
+            //     }
+            // }
+            // else {
+            //     callback(code);
+            // }
         }
         else {
             callback(code);
