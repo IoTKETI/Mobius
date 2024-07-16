@@ -212,171 +212,164 @@ function security_check_action_pv(request, response, acpiList, cr, access_value,
 function security_check_action_pvs(request, response, acpiList, access_value, cr, callback) {
     make_internal_ri(acpiList);
     var ri_list = [];
-    get_ri_list_sri(request, response, acpiList, ri_list, 0, function (code) {
-        if(code === '200') {
-            db_sql.select_acp_in(request.db_connection, ri_list, function (err, results_acp) {
-                if (!err) {
-                    if (results_acp.length == 0) {
-                        if (request.headers['x-m2m-origin'] == cr) {
-                            callback('1');
-                        }
-                        else {
-                            callback('0');
-                        }
-                    }
-                    else {
-                        for (var i = 0; i < results_acp.length; i++) {
-                            var pvsObj = JSON.parse(results_acp[i].pvs);
-                            var from = request.headers['x-m2m-origin'];
-                            for (var index in pvsObj.acr) {
-                                if (pvsObj.acr.hasOwnProperty(index)) {
-                                    try {
-                                        var acip_permit = 0;
-                                        var actw_permit = 0;
-                                        var acor_permit = 0;
-                                        if (pvsObj.acr[index].hasOwnProperty('acco')) {
-                                            var acco = pvsObj.acr[index].acco;
-                                            var acco_idx = 99;
-                                            for (acco_idx in acco) {
-                                                if (acco.hasOwnProperty(acco_idx)) {
-                                                    if (acco[acco_idx].hasOwnProperty('acip')) {
-                                                        if (acco[acco_idx].acip.hasOwnProperty('ipv4')) {
-                                                            var ipv4_idx = 99;
-                                                            for (ipv4_idx in acco[acco_idx].acip['ipv4']) {
-                                                                if (acco[acco_idx].acip['ipv4'].hasOwnProperty(ipv4_idx)) {
-                                                                    if (request.connection.remoteAddress == '::1') {
-                                                                        var client_ipv4 = ip.address();
-                                                                    }
-                                                                    else {
-                                                                        client_ipv4 = request.connection.remoteAddress.replace('::ffff:', '');
-                                                                    }
-                                                                    if (acco[acco_idx].acip['ipv4'][ipv4_idx] == client_ipv4) {
-                                                                        acip_permit = 1;
-                                                                        break;
-                                                                    }
-                                                                }
+    db_sql.select_acp_in(request.db_connection, acpiList, (err, results_acp) => {
+        if (!err) {
+            if (results_acp.length == 0) {
+                if (request.headers['x-m2m-origin'] == cr) {
+                    callback('1');
+                }
+                else {
+                    callback('0');
+                }
+            }
+            else {
+                for (var i = 0; i < results_acp.length; i++) {
+                    var pvsObj = JSON.parse(results_acp[i].pvs);
+                    var from = request.headers['x-m2m-origin'];
+                    for (var index in pvsObj.acr) {
+                        if (pvsObj.acr.hasOwnProperty(index)) {
+                            try {
+                                var acip_permit = 0;
+                                var actw_permit = 0;
+                                var acor_permit = 0;
+                                if (pvsObj.acr[index].hasOwnProperty('acco')) {
+                                    var acco = pvsObj.acr[index].acco;
+                                    var acco_idx = 99;
+                                    for (acco_idx in acco) {
+                                        if (acco.hasOwnProperty(acco_idx)) {
+                                            if (acco[acco_idx].hasOwnProperty('acip')) {
+                                                if (acco[acco_idx].acip.hasOwnProperty('ipv4')) {
+                                                    var ipv4_idx = 99;
+                                                    for (ipv4_idx in acco[acco_idx].acip['ipv4']) {
+                                                        if (acco[acco_idx].acip['ipv4'].hasOwnProperty(ipv4_idx)) {
+                                                            if (request.connection.remoteAddress == '::1') {
+                                                                var client_ipv4 = ip.address();
                                                             }
-
-                                                            if (ipv6_idx == 99) {
+                                                            else {
+                                                                client_ipv4 = request.connection.remoteAddress.replace('::ffff:', '');
+                                                            }
+                                                            if (acco[acco_idx].acip['ipv4'][ipv4_idx] == client_ipv4) {
                                                                 acip_permit = 1;
-                                                            }
-                                                        }
-                                                        else if (acco[acco_idx].acip.hasOwnProperty('ipv6')) {
-                                                            var ipv6_idx = 99;
-                                                            for (ipv6_idx in acco[acco_idx].acip['ipv6']) {
-                                                                if (acco[acco_idx].acip['ipv6'].hasOwnProperty(ipv6_idx)) {
-                                                                    if (acco[acco_idx].acip['ipv6'][ipv6_idx] == request.connection.remoteAddress) {
-                                                                        acip_permit = 1;
-                                                                        break;
-                                                                    }
-                                                                }
-                                                            }
-
-                                                            if (ipv6_idx == 99) {
-                                                                acip_permit = 1;
-                                                            }
-                                                        }
-                                                        else {
-                                                            acip_permit = 1;
-                                                        }
-                                                    }
-                                                    else {
-                                                        acip_permit = 1;
-                                                    }
-
-                                                    if (acco[acco_idx].hasOwnProperty('actw')) {
-                                                        var actw_cur = [];
-                                                        actw_cur[5] = moment().utc().day();
-                                                        actw_cur[4] = moment().utc().month() + 1;
-                                                        actw_cur[3] = moment().utc().date();
-                                                        actw_cur[2] = moment().utc().hour();
-                                                        actw_cur[1] = moment().utc().minute();
-                                                        actw_cur[0] = moment().utc().second();
-                                                        var actw_idx = 99;
-                                                        for (actw_idx in acco[acco_idx].actw) {
-                                                            if (acco[acco_idx].actw.hasOwnProperty(actw_idx)) {
-                                                                var actw_arr = acco[acco_idx].actw[actw_idx].split(' ');
-                                                                for (var d = 0; d < 6; d++) {
-                                                                    if (actw_arr[d] != '*' && actw_arr[d] == actw_cur[d].toString()) {
-                                                                        actw_permit = 1;
-                                                                        break;
-                                                                    }
-                                                                }
-
-                                                                if (actw_permit == 1) {
-                                                                    break;
-                                                                }
-                                                            }
-                                                        }
-
-                                                        if (actw_idx == 99) {
-                                                            actw_permit = 1;
-                                                        }
-                                                    }
-                                                    else {
-                                                        actw_permit = 1;
-                                                    }
-
-                                                    if (actw_permit == 1 && acip_permit == 1) {
-                                                        break;
-                                                    }
-                                                }
-                                            }
-
-                                            if (acco_idx == 99) {
-                                                acip_permit = 1;
-                                                actw_permit = 1;
-                                            }
-                                        }
-                                        else {
-                                            acip_permit = 1;
-                                            actw_permit = 1;
-                                        }
-
-                                        if (acip_permit == 1 && actw_permit == 1) {
-                                            if (pvsObj.acr[index].hasOwnProperty('acor')) {
-                                                var re = new RegExp('^' + from + '$');
-                                                for (var acor_idx in pvsObj.acr[index].acor) {
-                                                    if (pvsObj.acr[index].acor.hasOwnProperty(acor_idx)) {
-                                                        if (pvsObj.acr[index].acor[acor_idx].match(re) || pvsObj.acr[index].acor[acor_idx] == 'all' || pvsObj.acr[index].acor[acor_idx] == '*') {
-                                                            if ((pvsObj.acr[index].acop.toString() & access_value) == access_value) {
-                                                                acor_permit = 1;
                                                                 break;
                                                             }
                                                         }
                                                     }
+
+                                                    if (ipv6_idx == 99) {
+                                                        acip_permit = 1;
+                                                    }
+                                                }
+                                                else if (acco[acco_idx].acip.hasOwnProperty('ipv6')) {
+                                                    var ipv6_idx = 99;
+                                                    for (ipv6_idx in acco[acco_idx].acip['ipv6']) {
+                                                        if (acco[acco_idx].acip['ipv6'].hasOwnProperty(ipv6_idx)) {
+                                                            if (acco[acco_idx].acip['ipv6'][ipv6_idx] == request.connection.remoteAddress) {
+                                                                acip_permit = 1;
+                                                                break;
+                                                            }
+                                                        }
+                                                    }
+
+                                                    if (ipv6_idx == 99) {
+                                                        acip_permit = 1;
+                                                    }
+                                                }
+                                                else {
+                                                    acip_permit = 1;
                                                 }
                                             }
                                             else {
-                                                acor_permit = 1;
+                                                acip_permit = 1;
+                                            }
+
+                                            if (acco[acco_idx].hasOwnProperty('actw')) {
+                                                var actw_cur = [];
+                                                actw_cur[5] = moment().utc().day();
+                                                actw_cur[4] = moment().utc().month() + 1;
+                                                actw_cur[3] = moment().utc().date();
+                                                actw_cur[2] = moment().utc().hour();
+                                                actw_cur[1] = moment().utc().minute();
+                                                actw_cur[0] = moment().utc().second();
+                                                var actw_idx = 99;
+                                                for (actw_idx in acco[acco_idx].actw) {
+                                                    if (acco[acco_idx].actw.hasOwnProperty(actw_idx)) {
+                                                        var actw_arr = acco[acco_idx].actw[actw_idx].split(' ');
+                                                        for (var d = 0; d < 6; d++) {
+                                                            if (actw_arr[d] != '*' && actw_arr[d] == actw_cur[d].toString()) {
+                                                                actw_permit = 1;
+                                                                break;
+                                                            }
+                                                        }
+
+                                                        if (actw_permit == 1) {
+                                                            break;
+                                                        }
+                                                    }
+                                                }
+
+                                                if (actw_idx == 99) {
+                                                    actw_permit = 1;
+                                                }
+                                            }
+                                            else {
+                                                actw_permit = 1;
+                                            }
+
+                                            if (actw_permit == 1 && acip_permit == 1) {
+                                                break;
                                             }
                                         }
-
-                                        if (acip_permit == 1 && actw_permit == 1 && acor_permit == 1) {
-                                            results_acp = null;
-                                            callback('1');
-                                            return;
-                                        }
                                     }
-                                    catch (e) {
-                                        console.log('[security_check_action_pvs]' + e);
-                                        callback('500-1');
-                                        return;
+
+                                    if (acco_idx == 99) {
+                                        acip_permit = 1;
+                                        actw_permit = 1;
                                     }
                                 }
+                                else {
+                                    acip_permit = 1;
+                                    actw_permit = 1;
+                                }
+
+                                if (acip_permit == 1 && actw_permit == 1) {
+                                    if (pvsObj.acr[index].hasOwnProperty('acor')) {
+                                        var re = new RegExp('^' + from + '$');
+                                        for (var acor_idx in pvsObj.acr[index].acor) {
+                                            if (pvsObj.acr[index].acor.hasOwnProperty(acor_idx)) {
+                                                if (pvsObj.acr[index].acor[acor_idx].match(re) || pvsObj.acr[index].acor[acor_idx] == 'all' || pvsObj.acr[index].acor[acor_idx] == '*') {
+                                                    if ((pvsObj.acr[index].acop.toString() & access_value) == access_value) {
+                                                        acor_permit = 1;
+                                                        break;
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                    else {
+                                        acor_permit = 1;
+                                    }
+                                }
+
+                                if (acip_permit == 1 && actw_permit == 1 && acor_permit == 1) {
+                                    results_acp = null;
+                                    callback('1');
+                                    return;
+                                }
+                            }
+                            catch (e) {
+                                console.log('[security_check_action_pvs]' + e);
+                                callback('500-1');
+                                return;
                             }
                         }
-                        callback('0');
                     }
                 }
-                else {
-                    console.log('query error: ' + results_acp.message);
-                    callback('500-1');
-                }
-            });
+                callback('0');
+            }
         }
         else {
-            callback(code);
+            console.log('query error: ' + results_acp.message);
+            callback('500-1');
         }
     });
 }
@@ -411,9 +404,9 @@ exports.check = function(request, response, ty, acpiList, access_value, cr, call
     }
     else {
         if (ty == '1') { // check selfPrevileges
-            const t_url = new Url(request.url);
+            const t_url = url.parse(request.url);
             if (acpiList.length === 0) {
-                acpiList = [t_url.pathname.split('?')[0]];
+                acpiList = [t_url.pathname.split('?')[0].replace(/\//g, '_')];
             }
             security_check_action_pvs(request, response, acpiList, access_value, cr, function (code) {
                 callback(code);
@@ -425,7 +418,7 @@ exports.check = function(request, response, ty, acpiList, access_value, cr, call
                 var targetUri_arr = targetUri.split('/');
 
                 var loop_cnt = 0;
-                db_sql.select_acp_cnt(request.db_connection, loop_cnt, targetUri_arr, function (err, results_acpi) {
+                db_sql.select_acp_above(request.db_connection, loop_cnt, targetUri_arr, function (err, results_acpi) {
                     if (!err) {
                         if (results_acpi.length == 0) {
                             security_default_check_action(request, response, cr, access_value, function (code) {

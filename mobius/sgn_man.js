@@ -76,7 +76,7 @@ let tid_other_mqtt = {};
 
 exports.post = function(ri, exc, nu, bodytype, rqi, bodyString) {
     try {
-        var sub_nu = url.parse(nu);
+        var sub_nu = new URL(nu);
         if (sub_nu.protocol == 'http:' || sub_nu.protocol == 'https:') {
             request_noti_http(nu, ri, bodyString, bodytype, rqi);
         }
@@ -188,22 +188,23 @@ function sgn_mqtt_message_handler(topic, message) {
 }
 
 function request_noti_http(nu, ri, bodyString, bodytype, xm2mri) {
-    var bodyStr = '';
-    if (url.parse(nu).protocol == 'http:') {
-        if(url.parse(nu).port == null) {
-            url.parse(nu).port = 80;
+    let bodyStr = '';
+    let nu_url = new URL(nu);
+    if (nu_url.protocol == 'http:') {
+        if(nu_url.port == null) {
+            nu_url.port = 80;
         }
     }
     else {
-        if(url.parse(nu).port == null) {
-            url.parse(nu).port = 443;
+        if(nu_url.port == null) {
+            nu_url.port = 443;
         }
     }
 
     var options = {
-        hostname: url.parse(nu).hostname,
-        port: url.parse(nu).port,
-        path: url.parse(nu).path,
+        hostname: nu_url.hostname,
+        port: nu_url.port,
+        path: nu_url.pathname,
         method: 'POST',
         headers: {
             'X-M2M-RI': xm2mri,
@@ -234,7 +235,7 @@ function request_noti_http(nu, ri, bodyString, bodytype, xm2mri) {
         });
     }
 
-    if (url.parse(nu).protocol == 'http:') {
+    if (nu_url.protocol == 'http:') {
         var req = http.request(options, (res) => {
             response_noti_http(res);
         });
@@ -292,10 +293,10 @@ function request_noti_http(nu, ri, bodyString, bodytype, xm2mri) {
 
         const options = {
             protocol: 'https:',
-            hostname: url.parse(nu).hostname,
-            port: url.parse(nu).port,
+            hostname: nu_url.hostname,
+            port: nu_url.port,
             method: 'POST',
-            path: url.parse(nu).path,
+            path: nu_url.pathname,
             headers: {
                 'X-M2M-RI': xm2mri,
                 'Accept': 'application/json',
@@ -336,10 +337,11 @@ function checkResponse(ri, rqi, socket) {
 }
 
 function request_noti_coap(nu, ri, bodyString, bodytype, xm2mri) {
+    let nu_url = new URL(nu);
     var options = {
-        host: url.parse(nu).hostname,
-        port: url.parse(nu).port,
-        pathname: url.parse(nu).path,
+        host: nu_url.hostname,
+        port: nu_url.port,
+        pathname: nu_url.path,
         method: 'post',
         confirmable: 'false',
         options: {
@@ -395,7 +397,7 @@ function request_noti_mqtt(hostname, ri, bodyString, bodytype, xm2mri, mqtt_clie
     try {
         resp_mqtt_rqi_arr[xm2mri] = ri;
 
-        var aeid = url.parse(hostname).pathname.replace('/', '').split('?')[0];
+        var aeid = new URL(hostname).pathname.replace('/', '').split('?')[0];
         var noti_resp_topic = '/oneM2M/resp/' + usecseid.replace('/', '') + '/' + aeid + '/' + bodytype;
 
         mqtt_client.subscribe(noti_resp_topic);

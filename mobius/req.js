@@ -30,7 +30,7 @@ var op = {
 
 exports.build_req = function(request, response, resource_Obj, body_Obj, callback) {
     var rootnm = request.headers.rootnm;
-    const t_url = new Url(request.url);
+    const t_url = url.parse(request.url);
 
     // body
     resource_Obj[rootnm].pi = '/' + usecsebase;

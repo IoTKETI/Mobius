@@ -607,7 +607,7 @@ mqtt_app.post('/notification', onem2mParser, function(request, response, next) {
         request.body = fullBody;
 
         try {
-            var aeid = url.parse(request.headers.nu).pathname.replace('/', '').split('?')[0];
+            var aeid = new URL(request.headers.nu).pathname.replace('/', '').split('?')[0];
             NOPRINT==='true'?NOPRINT='true':console.log('[pxy_mqtt] - ' + aeid);
 
             if (aeid == '') {

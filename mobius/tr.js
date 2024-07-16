@@ -381,59 +381,56 @@ exports.request_commit = function(obj, callback) {
     req.end();
 };
 
-exports.check = function(request, callback) {
-    var pi = request.targetObject[Object.keys(request.targetObject)[0]].ri;
+exports.check = async (request) => {
+    let ri = request.targetObject[Object.keys(request.targetObject)[0]].ri;
 
-    var state = tst_v.COMMITTED;
-    db_sql.select_tr(request.db_connection, pi, function (err, results_tr) {
-        if (!err) {
-            for (var i = 0; i < results_tr.length; i++) {
-                if(request.query.tid == results_tr[i].tid) {
-                    results_tr = null;
-                    callback('200');
-                    return;
-                }
+    const res_code = await db_sql.select_trs_under(ri);
+    const err = res_code[0];
+    let results_tr = [];
+    if(!err) {
+        results_tr = res_code[1];
+    }
 
-                if (results_tr[i].hasOwnProperty('tltp')) {
-                    if(results_tr[i].tltp == tltp_v.BLOCK_ALL) {
-                        if (results_tr[i].hasOwnProperty('tst')) {
-                            if (results_tr[i].tst != tst_v.COMMITTED && results_tr[i].tst != tst_v.ABORTED) {
-                                state = results_tr[i].tst;
-                                break;
-                            }
-                        }
+    if(results_tr.length === 0) {
+        return ('200');
+    }
+
+    let state = tst_v.COMMITTED;
+    for (var i = 0; i < results_tr.length; i++) {
+        if(request.query.tid == results_tr[i].tid) {
+            return ('200');
+        }
+
+        if (results_tr[i].hasOwnProperty('tltp')) {
+            if(results_tr[i].tltp == tltp_v.BLOCK_ALL) {
+                if (results_tr[i].hasOwnProperty('tst')) {
+                    if (results_tr[i].tst != tst_v.COMMITTED && results_tr[i].tst != tst_v.ABORTED) {
+                        state = results_tr[i].tst;
+                        break;
                     }
-                    else if(results_tr[i].tltp == tltp_v.ALLOW_RETRIEVES) {
-                        if(request.method === 'GET') {
-                            state = tst_v.COMMITTED;
+                }
+            }
+            else if(results_tr[i].tltp == tltp_v.ALLOW_RETRIEVES) {
+                if(request.method === 'GET') {
+                    state = tst_v.COMMITTED;
+                    break;
+                }
+                else {
+                    if (results_tr[i].hasOwnProperty('tst')) {
+                        if (results_tr[i].tst != tst_v.COMMITTED && results_tr[i].tst != tst_v.ABORTED) {
+                            state = results_tr[i].tst;
                             break;
                         }
-                        else {
-                            if (results_tr[i].hasOwnProperty('tst')) {
-                                if (results_tr[i].tst != tst_v.COMMITTED && results_tr[i].tst != tst_v.ABORTED) {
-                                    state = results_tr[i].tst;
-                                    break;
-                                }
-                            }
-                        }
                     }
                 }
             }
-
-            if (state === tst_v.COMMITTED || state === tst_v.ABORTED) {
-                results_tr = null;
-                callback('200');
-            }
-            else {
-                results_tr = null;
-                callback('423-1');
-            }
         }
-        else {
-            console.log('query error: ' + results_tr.message);
-            results_tr = null;
-            callback('200');
-        }
-    });
+    }
 
+    if (state === tst_v.COMMITTED || state === tst_v.ABORTED) {
+        return ('200');
+    }
+    else {
+        return ('423-1');
+    }
 };

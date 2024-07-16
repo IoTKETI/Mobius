@@ -155,7 +155,7 @@ function sgn_action_send(nu_arr, req_count, sub_bodytype, node, short_flag, chec
     }
 
     var nu = nu_arr[req_count];
-    var sub_nu = url.parse(nu);
+    var sub_nu = new URL(nu);
 
     if (sub_nu.query != null) {
         var sub_nu_query_arr = sub_nu.query.split('&');
@@ -229,7 +229,7 @@ function get_nu_arr(connection, nu_arr, req_count, callback) {
     }
 
     var nu = nu_arr[req_count];
-    var sub_nu = url.parse(nu);
+    var sub_nu = new URL(nu);
 
     if(sub_nu.protocol == null) { // ID format
         let absolute_ri = '';
@@ -250,7 +250,7 @@ function get_nu_arr(connection, nu_arr, req_count, callback) {
                 nu_arr.pop();
                 var poa_arr = JSON.parse(res_obj[0].poa);
                 for (var i = 0; i < poa_arr.length; i++) {
-                    sub_nu = url.parse(poa_arr[i]);
+                    sub_nu = new URL(poa_arr[i]);
                     if (sub_nu.protocol == null) {
                         let absolute_url = absolute_ri.replace(/_/g, '\/');
                         nu_arr.push('http://localhost:7579' + absolute_url);

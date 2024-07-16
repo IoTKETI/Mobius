@@ -261,7 +261,8 @@ global.update_route = function (connection, cse_poa, callback) {
             for (var i = 0; i < results_csr.length; i++) {
                 var poa_arr = JSON.parse(results_csr[i].poa);
                 for (var j = 0; j < poa_arr.length; j++) {
-                    if (url.parse(poa_arr[j]).protocol == 'http:' || url.parse(poa_arr[j]).protocol == 'https:') {
+                    let poa_url = new URL(poa_arr[j]);
+                    if (poa_url.protocol == 'http:' || poa_url.protocol == 'https:') {
                         cse_poa[results_csr[i].ri.split('/')[2]] = poa_arr[j];
                     }
                 }
@@ -694,9 +695,10 @@ function parse_body_format(request) {
 }
 
 function check_resource(request, response, callback) {
-    var ri = url.parse(request.url).pathname;
+    let req_url = url.parse(request.url);
+    var ri = req_url.pathname.replace(/\//g, '_');
 
-    var arr_chk_fopt = ri.split('/');
+    var arr_chk_fopt = req_url.pathname.split('/');
     let flag_fopt = 0;
 
     for(let i in arr_chk_fopt) {
@@ -709,7 +711,8 @@ function check_resource(request, response, callback) {
     }
 
     if (flag_fopt === 1) {
-        ri = '/' + arr_chk_fopt.join('/').replace('/fopt', '');
+        let _url = '/' + arr_chk_fopt.join('/').replace('/fopt', '');
+        ri = _url.replace(/\//g, '_');
         db_sql.select_grp_lookup(request.db_connection, ri, (err, result_Obj) => {
             if (!err) {
                 if (result_Obj.length == 1) {
@@ -740,11 +743,11 @@ function check_resource(request, response, callback) {
 
 function check_request_query_rt(request, response, callback) {
     if (request.query.rt == 3) { // default, blocking
-        callback('200');
+        return ('200');
     }
     else if (request.query.rt == 1 || request.query.rt == 2) { // nonblocking
         if (request.query.rt == 2 && request.headers['x-m2m-rtu'] == null && request.headers['x-m2m-rtu'] == '') {
-            callback('400-21');
+            return ('400-21');
         }
         else {
             // first create request resource under CSEBase
@@ -765,12 +768,12 @@ function check_request_query_rt(request, response, callback) {
                     request.bodyObj = temp_body_Obj;
                     request.query.rt = 1;
                 }
-                callback(code);
+                return (code);
             });
         }
     }
     else {
-        callback('405-4');
+        return ('405-4');
     }
 }
 
@@ -916,182 +919,117 @@ function response_error_result(request, response, code, callback) {
     });
 }
 
-function lookup_create(request, response, callback) {
-    check_request_query_rt(request, response, (code) => {
-        if (code === '200') {
-            let parentObj = request.targetObject[Object.keys(request.targetObject)[0]];
+const lookup_create = async (request, response, callback) => {
+    let rcode = check_request_query_rt(request, response);
+    if (rcode === '200') {
+        let parentObj = request.targetObject[Object.keys(request.targetObject)[0]];
 
-            tr.check(request, (code) => {
-                if (code === '200') {
-                    if ((request.ty == 1) && (parentObj.ty == 5 || parentObj.ty == 16 || parentObj.ty == 2)) { // accessControlPolicy
-                    }
-                    else if ((request.ty == 9) && (parentObj.ty == 5 || parentObj.ty == 16 || parentObj.ty == 2)) { // group
-                    }
-                    else if ((request.ty == 16) && (parentObj.ty == 5)) { // remoteCSE
-                        if (usecsetype == 'asn' && request.headers.csr == null) {
-                            callback('400-28');
-                            return;
-                        }
-                    }
-                    else if ((request.ty == 10) && (parentObj.ty == 5)) { // locationPolicy
-                    }
-                    else if ((request.ty == 2) && (parentObj.ty == 5)) { // ae
-                    }
-                    else if ((request.ty == 3) && (parentObj.ty == 5 || parentObj.ty == 2 || parentObj.ty == 3)) { // container
-                    }
-                    else if ((request.ty == 23) && (parentObj.ty == 5 || parentObj.ty == 16 || parentObj.ty == 2 || parentObj.ty == 3 || parentObj.ty == 24 || parentObj.ty == 29 || parentObj.ty == 9 || parentObj.ty == 1 || parentObj.ty == 27 || parentObj.ty == 28)) { // sub
-                    }
-                    else if (((request.ty == 4) && (parentObj.ty == 3)) || ((request.ty == 30) && (parentObj.ty == 29))) { // contentInstance
-                        if (parseInt(parentObj.mni) == 0) {
-                            callback('406-1');
-                            return;
-                        }
-                        else if (parseInt(parentObj.mbs) == 0) {
-                            callback('406-2');
-                            return;
-                        }
-                        else if (parentObj.disr == true) {
-                            callback('405-6');
-                            return;
-                        }
-
-                        request.headers.mni = parentObj.mni;
-                        request.headers.mbs = parentObj.mbs;
-                        request.headers.cni = parentObj.cni;
-                        request.headers.cbs = parentObj.cbs;
-                        request.headers.st = parentObj.st;
-                    }
-                    else if ((request.ty == 24) && (parentObj.ty == 2 || parentObj.ty == 3 || parentObj.ty == 4 || parentObj.ty == 29)) { // semanticDescriptor
-                    }
-                    else if ((request.ty == 29) && (parentObj.ty == 5 || parentObj.ty == 16 || parentObj.ty == 2)) { // timeSeries
-                    }
-                    else if ((request.ty == 30) && (parentObj.ty == 29)) { // timeSeriesInstance
-                    }
-                    else if ((request.ty == 27) && (parentObj.ty == 2 || parentObj.ty == 16)) { // multimediaSession
-                    }
-                    else if ((request.ty == 14) && (parentObj.ty == 5)) { // node
-                    }
-                    else if ((request.ty == 13) && (parentObj.ty == 14)) { // mgmtObj
-                    }
-                    else if ((request.ty == 38) && (parentObj.ty == 5 || parentObj.ty == 16 || parentObj.ty == 2 || parentObj.ty == 3 || parentObj.ty == 24 || parentObj.ty == 29 || parentObj.ty == 9 || parentObj.ty == 1 || parentObj.ty == 27)) { // transaction
-                    }
-                    else if ((request.ty == 39) && (parentObj.ty == 5 || parentObj.ty == 16 || parentObj.ty == 2 || parentObj.ty == 3 || parentObj.ty == 24 || parentObj.ty == 29 || parentObj.ty == 9 || parentObj.ty == 1 || parentObj.ty == 27)) { // transaction
-                    }
-                    else if ((request.ty == 28) && (parentObj.ty == 5 || parentObj.ty == 2 || parentObj.ty == 3 || parentObj.ty == 28)) { // flexcontainer
-                    }
-                    else if ((request.ty == 98 || request.ty == 97 || request.ty == 96 || request.ty == 95 || request.ty == 94 || request.ty == 93 || request.ty == 92 || request.ty == 91) && (parentObj.ty == 28)) { // flexcontainer
-                    }
-                    else {
-                        callback('403-2');
-                        return;
-                    }
-
-                    if (parentObj.length == 0) {
-                        parentObj = {};
-                        parentObj.cr = '';
-                        console.log('no creator');
-                    }
-                    else {
-                        if (parentObj.ty == 2) {
-                            parentObj.cr = parentObj.aei;
-                        }
-                    }
-
-                    if (request.ty == 23) {
-                        var access_value = '3';
-                    }
-                    else {
-                        access_value = '1';
-                    }
-
-                    var tid = 'security.check - ' + require('shortid').generate();
-                    console.time(tid);
-                    security.check(request, response, parentObj.ty, parentObj.acpi, access_value, parentObj.cr, (code) => {
-                        console.timeEnd(tid);
-
-                        if (!cache_security_check.hasOwnProperty(request.headers['x-m2m-origin'])) {
-                            cache_security_check[request.headers['x-m2m-origin']] = {};
-                        }
-
-                        if (!cache_security_check[request.headers['x-m2m-origin']].hasOwnProperty(parentObj.ri)) {
-                            cache_security_check[request.headers['x-m2m-origin']][parentObj.ri] = {}
-                        }
-
-                        cache_security_check[request.headers['x-m2m-origin']][parentObj.ri][access_value] = code;
-
-                        if (code === '1') {
-                            resource.create(request, response, (code) => {
-                                callback(code);
-                            });
-                        }
-                        else if (code === '0') {
-                            callback('403-3');
-
-                        }
-                        else {
-                            callback(code);
-                        }
-                    });
+        rcode = await tr.check(request);
+        if (rcode === '200') {
+            if ((request.ty == 1) && (parentObj.ty == 5 || parentObj.ty == 16 || parentObj.ty == 2)) { // accessControlPolicy
+            }
+            else if ((request.ty == 9) && (parentObj.ty == 5 || parentObj.ty == 16 || parentObj.ty == 2)) { // group
+            }
+            else if ((request.ty == 16) && (parentObj.ty == 5)) { // remoteCSE
+                if (usecsetype == 'asn' && request.headers.csr == null) {
+                    callback('400-28');
+                    return;
                 }
-                else {
-                    callback(code);
+            }
+            else if ((request.ty == 10) && (parentObj.ty == 5)) { // locationPolicy
+            }
+            else if ((request.ty == 2) && (parentObj.ty == 5)) { // ae
+            }
+            else if ((request.ty == 3) && (parentObj.ty == 5 || parentObj.ty == 2 || parentObj.ty == 3)) { // container
+            }
+            else if ((request.ty == 23) && (parentObj.ty == 5 || parentObj.ty == 16 || parentObj.ty == 2 || parentObj.ty == 3 || parentObj.ty == 24 || parentObj.ty == 29 || parentObj.ty == 9 || parentObj.ty == 1 || parentObj.ty == 27 || parentObj.ty == 28)) { // sub
+            }
+            else if (((request.ty == 4) && (parentObj.ty == 3)) || ((request.ty == 30) && (parentObj.ty == 29))) { // contentInstance
+                if (parseInt(parentObj.mni) == 0) {
+                    callback('406-1');
+                    return;
                 }
-            });
-        }
-        else {
-            callback(code);
-        }
-    });
-}
+                else if (parseInt(parentObj.mbs) == 0) {
+                    callback('406-2');
+                    return;
+                }
+                else if (parentObj.disr == true) {
+                    callback('405-6');
+                    return;
+                }
 
-function lookup_retrieve(request, response, callback) {
-    check_request_query_rt(request, response, (code) => {
-        if (code === '200') {
-            var resultObj = request.targetObject[Object.keys(request.targetObject)[0]];
-
-            if(!resultObj.hasOwnProperty('acpi')) {
-                resultObj.acpi = [];
+                request.headers.mni = parentObj.mni;
+                request.headers.mbs = parentObj.mbs;
+                request.headers.cni = parentObj.cni;
+                request.headers.cbs = parentObj.cbs;
+                request.headers.st = parentObj.st;
+            }
+            else if ((request.ty == 24) && (parentObj.ty == 2 || parentObj.ty == 3 || parentObj.ty == 4 || parentObj.ty == 29)) { // semanticDescriptor
+            }
+            else if ((request.ty == 29) && (parentObj.ty == 5 || parentObj.ty == 16 || parentObj.ty == 2)) { // timeSeries
+            }
+            else if ((request.ty == 30) && (parentObj.ty == 29)) { // timeSeriesInstance
+            }
+            else if ((request.ty == 27) && (parentObj.ty == 2 || parentObj.ty == 16)) { // multimediaSession
+            }
+            else if ((request.ty == 14) && (parentObj.ty == 5)) { // node
+            }
+            else if ((request.ty == 13) && (parentObj.ty == 14)) { // mgmtObj
+            }
+            else if ((request.ty == 38) && (parentObj.ty == 5 || parentObj.ty == 16 || parentObj.ty == 2 || parentObj.ty == 3 || parentObj.ty == 24 || parentObj.ty == 29 || parentObj.ty == 9 || parentObj.ty == 1 || parentObj.ty == 27)) { // transaction
+            }
+            else if ((request.ty == 39) && (parentObj.ty == 5 || parentObj.ty == 16 || parentObj.ty == 2 || parentObj.ty == 3 || parentObj.ty == 24 || parentObj.ty == 29 || parentObj.ty == 9 || parentObj.ty == 1 || parentObj.ty == 27)) { // transaction
+            }
+            else if ((request.ty == 28) && (parentObj.ty == 5 || parentObj.ty == 2 || parentObj.ty == 3 || parentObj.ty == 28)) { // flexcontainer
+            }
+            else if ((request.ty == 98 || request.ty == 97 || request.ty == 96 || request.ty == 95 || request.ty == 94 || request.ty == 93 || request.ty == 92 || request.ty == 91) && (parentObj.ty == 28)) { // flexcontainer
+            }
+            else {
+                callback('403-2');
+                return;
             }
 
-            tr.check(request, (code) => {
-                if (code === '200') {
-                    if (resultObj.ty === 2) {
-                        resultObj.cr = resultObj.aei;
-                    }
-                    else if (resultObj.ty === 16) {
-                        resultObj.cr = resultObj.csi;
-                    }
+            if (parentObj.length == 0) {
+                parentObj = {};
+                parentObj.cr = '';
+                console.log('no creator');
+            }
+            else {
+                if (parentObj.ty == 2) {
+                    parentObj.cr = parentObj.aei;
+                }
+            }
 
-                    if (request.query.fu === 1) {
-                        security.check(request, response, resultObj.ty, resultObj.acpi, '32', resultObj.cr, (code) => {
-                            if (code === '1') {
-                                resource.retrieve(request, response, (code) => {
-                                    callback(code);
-                                });
-                            }
-                            else if (code === '0') {
-                                callback('403-3');
-                            }
-                            else {
-                                callback(code);
-                            }
-                        });
-                    }
-                    else {
-                        security.check(request, response, resultObj.ty, resultObj.acpi, '2', resultObj.cr, (code) => {
-                            if (code === '1') {
-                                resource.retrieve(request, response, (code) => {
-                                    callback(code);
-                                });
-                            }
-                            else if (code === '0') {
-                                callback('403-3');
-                            }
-                            else {
-                                callback(code);
-                            }
-                        });
-                    }
+            if (request.ty == 23) {
+                var access_value = '3';
+            }
+            else {
+                access_value = '1';
+            }
+
+            var tid = 'security.check - ' + require('shortid').generate();
+            console.time(tid);
+            security.check(request, response, parentObj.ty, parentObj.acpi, access_value, parentObj.cr, (code) => {
+                console.timeEnd(tid);
+
+                if (!cache_security_check.hasOwnProperty(request.headers['x-m2m-origin'])) {
+                    cache_security_check[request.headers['x-m2m-origin']] = {};
+                }
+
+                if (!cache_security_check[request.headers['x-m2m-origin']].hasOwnProperty(parentObj.ri)) {
+                    cache_security_check[request.headers['x-m2m-origin']][parentObj.ri] = {}
+                }
+
+                cache_security_check[request.headers['x-m2m-origin']][parentObj.ri][access_value] = code;
+
+                if (code === '1') {
+                    resource.create(request, response, (code) => {
+                        callback(code);
+                    });
+                }
+                else if (code === '0') {
+                    callback('403-3');
+
                 }
                 else {
                     callback(code);
@@ -1099,101 +1037,144 @@ function lookup_retrieve(request, response, callback) {
             });
         }
         else {
-            callback(code);
+            callback(rcode);
         }
-    });
+    }
+    else {
+        callback(rcode);
+    }
+
 }
 
-function lookup_update(request, response, callback) {
-    check_request_query_rt(request, response, (code) => {
-        if (code === '200') {
-            var resultObj = request.targetObject[Object.keys(request.targetObject)[0]];
+const lookup_retrieve = async (request, response, callback) => {
+    let rcode = check_request_query_rt(request, response);
+    if (rcode === '200') {
+        let resultObj = request.targetObject[Object.keys(request.targetObject)[0]];
 
-            tr.check(request, (code) => {
-                if (code === '200') {
-                    if (resultObj.ty == 2) {
-                        resultObj.cr = resultObj.aei;
-                    }
-                    else if (resultObj.ty == 16) {
-                        resultObj.cr = resultObj.csi;
-                    }
+        if(!resultObj.hasOwnProperty('acpi')) {
+            resultObj.acpi = [];
+        }
 
-                    var acpi_check = 0;
-                    var other_check = 0;
-                    for (var rootnm in request.bodyObj) {
-                        if (request.bodyObj.hasOwnProperty(rootnm)) {
-                            for (var attr in request.bodyObj[rootnm]) {
-                                if (request.bodyObj[rootnm].hasOwnProperty(attr)) {
-                                    if (attr == 'acpi') {
-                                        acpi_check++;
-                                    }
-                                    else {
-                                        other_check++;
-                                    }
-                                }
+        rcode = await tr.check(request);
+        if (rcode === '200') {
+            if (resultObj.ty === 2) {
+                resultObj.cr = resultObj.aei;
+            }
+            else if (resultObj.ty === 16) {
+                resultObj.cr = resultObj.csi;
+            }
+
+            let access_val = '2';
+            if (request.query.fu === 1) {
+                access_val = '32';
+            }
+
+            security.check(request, response, resultObj.ty, resultObj.acpi, access_val, resultObj.cr, (code) => {
+                if (code === '1') {
+                    resource.retrieve(request, response, (code) => {
+                        callback(code);
+                    });
+                }
+                else if (code === '0') {
+                    callback('403-3');
+                }
+                else {
+                    callback(code);
+                }
+            });
+        }
+        else {
+            callback(rcode);
+        }
+    }
+    else {
+        callback(rcode);
+    }
+}
+
+const lookup_update = async (request, response, callback) => {
+    let rcode = check_request_query_rt(request, response);
+    if (rcode === '200') {
+        var resultObj = request.targetObject[Object.keys(request.targetObject)[0]];
+
+        rcode = await tr.check(request);
+        if (rcode === '200') {
+            if (resultObj.ty == 2) {
+                resultObj.cr = resultObj.aei;
+            }
+            else if (resultObj.ty == 16) {
+                resultObj.cr = resultObj.csi;
+            }
+
+            var acpi_check = 0;
+            var other_check = 0;
+            for (var rootnm in request.bodyObj) {
+                if (request.bodyObj.hasOwnProperty(rootnm)) {
+                    for (var attr in request.bodyObj[rootnm]) {
+                        if (request.bodyObj[rootnm].hasOwnProperty(attr)) {
+                            if (attr == 'acpi') {
+                                acpi_check++;
+                            }
+                            else {
+                                other_check++;
                             }
                         }
                     }
+                }
+            }
 
-                    if (other_check > 0) {
-                        security.check(request, response, resultObj.ty, resultObj.acpi, '4', resultObj.cr, (code) => {
-                            if (code === '1') {
-                                resource.update(request, response, (code) => {
-                                    callback(code)
-                                });
-                            }
-                            else if (code === '0') {
-                                callback('403-3');
-                            }
-                            else {
-                                callback(code);
-                            }
-                        });
-                    }
-                    else {
+            if (other_check > 0) {
+                security.check(request, response, resultObj.ty, resultObj.acpi, '4', resultObj.cr, (code) => {
+                    if (code === '1') {
                         resource.update(request, response, (code) => {
                             callback(code)
                         });
                     }
-                }
-                else {
-                    callback(code);
-                }
-            });
+                    else if (code === '0') {
+                        callback('403-3');
+                    }
+                    else {
+                        callback(code);
+                    }
+                });
+            }
+            else {
+                resource.update(request, response, (code) => {
+                    callback(code)
+                });
+            }
         }
         else {
-            callback(code);
+            callback(rcode);
         }
-    });
+    }
+    else {
+        callback(rcode);
+    }
 }
 
-function lookup_delete(request, response, callback) {
-    check_request_query_rt(request, response, (code) => {
-        if (code === '200') {
-            var resultObj = request.targetObject[Object.keys(request.targetObject)[0]];
+const lookup_delete = async (request, response, callback) => {
+    let rcode = check_request_query_rt(request, response);
+    if (rcode === '200') {
+        var resultObj = request.targetObject[Object.keys(request.targetObject)[0]];
 
-            tr.check(request, (code) => {
-                if (code === '200') {
-                    if (resultObj.ty == 2) {
-                        resultObj.cr = resultObj.aei;
-                    }
-                    else if (resultObj.ty == 16) {
-                        resultObj.cr = resultObj.csi;
-                    }
+        rcode = await tr.check(request);
+        if (rcode === '200') {
+            if (resultObj.ty == 2) {
+                resultObj.cr = resultObj.aei;
+            }
+            else if (resultObj.ty == 16) {
+                resultObj.cr = resultObj.csi;
+            }
 
-                    security.check(request, response, resultObj.ty, resultObj.acpi, '8', resultObj.cr, (code) => {
-                        if (code === '1') {
-                            resource.delete(request, response, (code) => {
-                                callback(code);
-                            });
-                        }
-                        else if (code === '0') {
-                            callback('403-3');
-                        }
-                        else {
-                            callback(code);
-                        }
+            security.check(request, response, resultObj.ty, resultObj.acpi, '8', resultObj.cr, (code) => {
+                if (code === '1') {
+                    resource.delete(request, response, (code) => {
+                        callback(code);
                     });
+                }
+                else if (code === '0') {
+                    callback('403-3');
                 }
                 else {
                     callback(code);
@@ -1201,9 +1182,12 @@ function lookup_delete(request, response, callback) {
             });
         }
         else {
-            callback(code);
+            callback(rcode);
         }
-    });
+    }
+    else {
+        callback(rcode);
+    }
 }
 
 function check_resource_from_url(connection, ri, callback) {
@@ -1585,7 +1569,8 @@ const check_resource_supported = (request) => {
 
 let getAbsoluteUrl = (request, response) => {
     request.url = request.url.replace('%23', '#'); // convert '%23' to '#' of url
-    request.hash = url.parse(request.url).hash;
+    let req_url = url.parse(request.url);
+    request.hash = req_url.hash;
 
     let absolute_url = request.url.replace('\/_\/', '\/\/').split('#')[0];
     absolute_url = absolute_url.replace(usespid, '/~');
@@ -1678,7 +1663,8 @@ let get_target_url = (request, response, callback) => {
         get_resource_from_url(request.db_connection, request.ri, request.option, (targetObject, status) => {
             console.timeEnd('get_resource_from_url' + ' (' + tid + ') - ' + request.absolute_url);
             if (status === 404) {
-                if (url.parse(request.absolute_url).pathname.split('/')[1] === process.env.CB_NAME) {
+                let req_url = url.parse(request.absolute_url);
+                if (req_url.pathname.split('/')[1] === process.env.CB_NAME) {
                     callback('404-1');
                 }
                 else {
@@ -1734,7 +1720,8 @@ function check_type_update_resource(request) {
         }
     }
 
-    if (url.parse(request.targetObject[Object.keys(request.targetObject)[0]].ri).pathname == ('/' + usecsebase)) {
+    let _url = url.parse(request.targetObject[Object.keys(request.targetObject)[0]].ri.replace(/_/g, '\/'));
+    if (_url.pathname == ('/' + usecsebase)) {
         return ('405-9');
     }
 
@@ -1742,7 +1729,8 @@ function check_type_update_resource(request) {
 }
 
 function check_type_delete_resource(request) {
-    if (url.parse(request.targetObject[Object.keys(request.targetObject)[0]].ri).pathname == ('/' + usecsebase)) {
+    let _url = url.parse(request.targetObject[Object.keys(request.targetObject)[0]].ri.replace(/_/g, '\/'));
+    if (_url.pathname == ('/' + usecsebase)) {
         return ('405-9');
     }
     else {
@@ -2343,7 +2331,7 @@ app.delete(onem2mParser, (request, response) => {
             get_target_url(request, response, (code) => {
                 if (code === '200') {
                     if (request.option !== '/fopt') {
-                        rcode = check_type_delete_resource(request);
+                        let rcode = check_type_delete_resource(request);
                         if (rcode === '200') {
                             var rootnm = Object.keys(request.targetObject)[0];
                             request.url = request.targetObject[rootnm].ri.replace(/_/g, '\/');
@@ -2372,7 +2360,7 @@ app.delete(onem2mParser, (request, response) => {
                                         });
                                     }
                                     else {
-                                        responder.error_result(request, response, resultStatusCode[rcode][0], resultStatusCode[rcode][1], resultStatusCode[rcode][2], () => {
+                                        responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
                                             connection.release();
                                             request = null;
                                             response = null;
@@ -2512,7 +2500,7 @@ function check_ae_notify(request, response, callback) {
                 var point = {};
                 var poa_arr = JSON.parse(result_ae[0].poa);
                 for (var i = 0; i < poa_arr.length; i++) {
-                    var poa = url.parse(poa_arr[i]);
+                    var poa = new URL(poa_arr[i]);
                     if (poa.protocol == 'http:') {
                         console.log('send notification to ' + poa_arr[i]);
                         notify_http(poa.hostname, poa.port, poa.path, request.method, request.headers, request.body, (code, res) => {
@@ -2546,7 +2534,8 @@ function check_ae_notify(request, response, callback) {
 }
 
 function check_csr(request, response, callback) {
-    var ri = util.format('/%s/%s', usecsebase, url.parse(request.absolute_url).pathname.split('/')[1]);
+    let _url = url.parse(request.absolute_url);
+    var ri = util.format('_%s_%s', usecsebase, _url.pathname.split('/')[1]);
     console.log('[check_csr] : ' + ri);
     db_sql.select_csr(request.db_connection, ri, (err, result_csr) => {
         if (!err) {
@@ -2555,7 +2544,7 @@ function check_csr(request, response, callback) {
                 point.forwardcbname = result_csr[0].cb.replace('/', '');
                 var poa_arr = JSON.parse(result_csr[0].poa);
                 for (var i = 0; i < poa_arr.length; i++) {
-                    var poa = url.parse(poa_arr[i]);
+                    var poa = new URL(poa_arr[i]);
                     if (poa.protocol == 'http:') {
                         point.forwardcbhost = poa.hostname;
                         point.forwardcbport = poa.port;

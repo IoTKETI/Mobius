@@ -32,7 +32,7 @@ function verify_nu(request, response, body_Obj, req_count, callback) {
     }
 
     var nu = nu_arr[req_count];
-    var sub_nu = url.parse(nu);
+    var sub_nu = new URL(nu);
     if(sub_nu.protocol == null) { // ID format
         let absolute_ri = '';
         if (nu.charAt(0) != '/') {

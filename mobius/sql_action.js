@@ -1937,26 +1937,22 @@ exports.select_acp = function(connection, ri, callback) {
     });
 };
 
-exports.select_acp_cnt = function(connection, loop, uri_arr, callback) {
-    var pi = '';
-
+const select_acp_above = (connection, loop, uri_arr, callback) => {
+    let ri = '';
     for (var idx in uri_arr) {
         if (uri_arr.hasOwnProperty(idx)) {
             if (uri_arr[idx] != '') {
                 if (idx < uri_arr.length - (loop + 1)) {
-                    pi += '_' + uri_arr[idx];
+                    ri += '_' + uri_arr[idx];
                 }
             }
         }
     }
 
-    var sql = util.format("select acpi, ty from lookup where ri = \'%s\'", pi);
-    db.getResult(sql, connection, function (err, results) {
-        if (err) {
-            callback(err, results.message);
-        }
-        else {
-            if(results.length == 0) {
+    let sql = util.format("select acpi, ty from lookup where ri = \'%s\'", ri);
+    db.getResult(sql, connection, (err, results) => {
+        if (!err) {
+            if (results.length == 0) {
                 callback(err, results);
             }
             else {
@@ -1964,7 +1960,7 @@ exports.select_acp_cnt = function(connection, loop, uri_arr, callback) {
 
                 if (results[0].acpi.length == 0) {
                     if (results[0].ty == '3') {
-                        _this.select_acp_cnt(connection, ++loop, uri_arr, function (err, acpiList) {
+                        select_acp_above(connection, ++loop, uri_arr, (err, acpiList) => {
                             if (err) {
                                 callback(err, acpiList);
                             }
@@ -1982,11 +1978,16 @@ exports.select_acp_cnt = function(connection, loop, uri_arr, callback) {
                 }
             }
         }
+        else {
+            callback(err, results.message);
+        }
     });
 };
 
+exports.select_acp_above = select_acp_above;
+
 exports.select_acp_in = function(connection, acpiList, callback) {
-    var sql = util.format("select * from acp where ri in (" + JSON.stringify(acpiList).replace('[', '').replace(']', '') + ")");
+    var sql = util.format('select * from acp where ri in (' + JSON.stringify(acpiList).replace(/\"/g, '\'').replace('[', '').replace(']', '') + ")");
     db.getResult(sql, connection, function (err, results_acp) {
         callback(err, results_acp);
     });
@@ -2030,14 +2031,16 @@ const select_resource_of = async (ri) => {
     return arr_code;
 };
 
-const select_subs_under = async (ri) => {
+
+const select_resources_under_action = async (ri, ty) => {
     const arr_code = await db.connection();
     if(arr_code[0] === '200') {
         const connection = arr_code[1];
-        console.time('select_subs_under');
-        let sql = util.format('select * from lookup inner join sub on lookup.ri = sub.ri where pi = \'%s\' and ty = \'23\'', ri);
+        let table_name = responder.typeRsrc[ty];
+        console.time('select_resources_under_action');
+        let sql = util.format('select * from lookup inner join %s on lookup.ri = sub.ri where pi = \'%s\' and ty = \'%s\'', table_name, ri, ty);
         let res_code = await db.query(sql, connection);
-        console.timeEnd('select_subs_under');
+        console.timeEnd('select_resources_under_action');
         connection.release();
 
         if(!res_code[0]) {
@@ -2053,6 +2056,59 @@ const select_subs_under = async (ri) => {
     return arr_code;
 };
 
+const select_trs_under = async (ri) => {
+    const ty = '39';
+    const arr_code = await db.connection();
+    if(arr_code[0] === '200') {
+        const connection = arr_code[1];
+        let table_name = responder.typeRsrc[ty];
+        let _tid = 'select_trs_under ' + require('shortid').generate() + '';
+        console.time(_tid);
+        let sql = util.format('select * from lookup inner join %s on lookup.ri = %s.ri where pi = \'%s\' and ty = \'%s\'', table_name, table_name, ri, ty);
+        let res_code = await db.query(sql, connection);
+        console.timeEnd(_tid);
+        connection.release();
+
+        if(!res_code[0]) {
+            for(let i in res_code[1]) {
+                if(res_code[1].hasOwnProperty(i)) {
+                    make_array_type(res_code[1][i]);
+                }
+            }
+        }
+        return res_code;
+    }
+
+    return arr_code;
+};
+
+const select_subs_under = async (ri) => {
+    const ty = '23';
+    const arr_code = await db.connection();
+    if(arr_code[0] === '200') {
+        const connection = arr_code[1];
+        let table_name = responder.typeRsrc[ty];
+        let _tid = 'select_subs_under ' + require('shortid').generate() + '';
+        console.time(_tid);
+        let sql = util.format('select * from lookup inner join %s on lookup.ri = %s.ri where pi = \'%s\' and ty = \'%s\'', table_name, table_name, ri, ty);
+        let res_code = await db.query(sql, connection);
+        console.timeEnd(_tid);
+        connection.release();
+
+        if(!res_code[0]) {
+            for(let i in res_code[1]) {
+                if(res_code[1].hasOwnProperty(i)) {
+                    make_array_type(res_code[1][i]);
+                }
+            }
+        }
+        return res_code;
+    }
+
+    return arr_code;
+};
+
+exports.select_trs_under = select_trs_under;
 exports.select_subs_under = select_subs_under;
 exports.select_resource_of = select_resource_of;
 

@@ -1714,7 +1714,7 @@ function store_to_req_resource(request, bodyString, rsc, cap, callback) {
 
         if (request.headers['x-m2m-rtu'] != null && request.headers['x-m2m-rtu'] != '') {
             var nu = request.headers['x-m2m-rtu'];
-            var sub_nu = url.parse(nu);
+            var sub_nu = new URL(nu);
             var xm2mri = require('shortid').generate();
 
             if (sub_nu.protocol == 'http:') {
@@ -1749,18 +1749,21 @@ exports.response_result = function(request, response, status, rsc, cap, callback
     if(request.headers.hasOwnProperty('accept')) {
         response.header('Accept', request.headers['accept']);
 
-        if(request.headers['accept'].includes('xml')) {
-            request.usebodytype = 'xml';
-            response.header('Content-Type', 'application/xml');
-        }
-        else if(request.headers['accept'].includes('cbor')) {
-            request.usebodytype = 'cbor';
-            response.header('Content-Type', 'application/cbor');
-        }
-        else {
-            request.usebodytype = 'json';
-            response.header('Content-Type', 'application/json');
-        }
+        request.usebodytype = 'json';
+        response.header('Content-Type', 'application/json');
+
+        // if(request.headers['accept'].includes('xml')) {
+        //     request.usebodytype = 'xml';
+        //     response.header('Content-Type', 'application/xml');
+        // }
+        // else if(request.headers['accept'].includes('cbor')) {
+        //     request.usebodytype = 'cbor';
+        //     response.header('Content-Type', 'application/cbor');
+        // }
+        // else {
+        //     request.usebodytype = 'json';
+        //     response.header('Content-Type', 'application/json');
+        // }
     }
 
     if(request.headers.hasOwnProperty('locale')) {
@@ -1821,18 +1824,21 @@ exports.response_result = function(request, response, status, rsc, cap, callback
                             response.header(chk, request.headers[chk]);
                         }
                         else if (chk === 'accept') {
-                            if (request.headers[chk].includes('xml')) {
-                                request.usebodytype = 'xml';
-                                response.header('Content-Type', 'application/xml');
-                            }
-                            else if (request.headers[chk].includes('cbor')) {
-                                request.usebodytype = 'cbor';
-                                response.header('Content-Type', 'application/cbor');
-                            }
-                            else {
-                                request.usebodytype = 'json';
-                                response.header('Content-Type', 'application/json');
-                            }
+                            request.usebodytype = 'json';
+                            response.header('Content-Type', 'application/json');
+
+                            // if (request.headers[chk].includes('xml')) {
+                            //         request.usebodytype = 'xml';
+                            //         response.header('Content-Type', 'application/xml');
+                            //     }
+                            // else if (request.headers[chk].includes('cbor')) {
+                            //         request.usebodytype = 'cbor';
+                            //         response.header('Content-Type', 'application/cbor');
+                            //     }
+                            //     else {
+                            //         request.usebodytype = 'json';
+                            //         response.header('Content-Type', 'application/json');
+                            // }
                         }
                     }
                     else {
@@ -1963,18 +1969,21 @@ exports.response_rcn3_result = function(request, response, status, rsc, cap, cal
                     response.header(chk, request.headers[chk]);
                 }
                 else if(chk === 'accept') {
-                    if(request.headers[chk].includes('xml')) {
-                        request.usebodytype = 'xml';
-                        response.header('Content-Type', 'application/xml');
-                    }
-                    else if(request.headers[chk].includes('cbor')) {
-                        request.usebodytype = 'cbor';
-                        response.header('Content-Type', 'application/cbor');
-                    }
-                    else {
-                        request.usebodytype = 'json';
-                        response.header('Content-Type', 'application/json');
-                    }
+                    request.usebodytype = 'json';
+                    response.header('Content-Type', 'application/json');
+
+                    // if(request.headers[chk].includes('xml')) {
+                    //     request.usebodytype = 'xml';
+                    //     response.header('Content-Type', 'application/xml');
+                    // }
+                    // else if(request.headers[chk].includes('cbor')) {
+                    //     request.usebodytype = 'cbor';
+                    //     response.header('Content-Type', 'application/cbor');
+                    // }
+                    // else {
+                    //     request.usebodytype = 'json';
+                    //     response.header('Content-Type', 'application/json');
+                    // }
                 }
             }
             else {
@@ -2084,18 +2093,21 @@ exports.search_result = function(request, response, status, rsc, cap, callback) 
                     response.header(chk, request.headers[chk]);
                 }
                 else if(chk === 'accept') {
-                    if(request.headers[chk].includes('xml')) {
-                        request.usebodytype = 'xml';
-                        response.header('Content-Type', 'application/xml');
-                    }
-                    else if(request.headers[chk].includes('cbor')) {
-                        request.usebodytype = 'cbor';
-                        response.header('Content-Type', 'application/cbor');
-                    }
-                    else {
-                        request.usebodytype = 'json';
-                        response.header('Content-Type', 'application/json');
-                    }
+                    request.usebodytype = 'json';
+                    response.header('Content-Type', 'application/json');
+
+                    // if(request.headers[chk].includes('xml')) {
+                    //     request.usebodytype = 'xml';
+                    //     response.header('Content-Type', 'application/xml');
+                    // }
+                    // else if(request.headers[chk].includes('cbor')) {
+                    //     request.usebodytype = 'cbor';
+                    //     response.header('Content-Type', 'application/cbor');
+                    // }
+                    // else {
+                    //     request.usebodytype = 'json';
+                    //     response.header('Content-Type', 'application/json');
+                    // }
                 }
             }
             else {
@@ -2285,18 +2297,21 @@ exports.error_result = function(request, response, status, rsc, dbg_string, call
     if(request.headers.hasOwnProperty('accept')) {
         response.header('Accept', request.headers['accept']);
 
-        if(request.headers['accept'].includes('xml')) {
-            request.usebodytype = 'xml';
-            response.header('Content-Type', 'application/xml');
-        }
-        else if(request.headers['accept'].includes('cbor')) {
-            request.usebodytype = 'cbor';
-            response.header('Content-Type', 'application/cbor');
-        }
-        else {
-            request.usebodytype = 'json';
-            response.header('Content-Type', 'application/json');
-        }
+        request.usebodytype = 'json';
+        response.header('Content-Type', 'application/json');
+
+        // if(request.headers['accept'].includes('xml')) {
+        //     request.usebodytype = 'xml';
+        //     response.header('Content-Type', 'application/xml');
+        // }
+        // else if(request.headers['accept'].includes('cbor')) {
+        //     request.usebodytype = 'cbor';
+        //     response.header('Content-Type', 'application/cbor');
+        // }
+        // else {
+        //     request.usebodytype = 'json';
+        //     response.header('Content-Type', 'application/json');
+        // }
     }
 
     if(request.headers.hasOwnProperty('locale')) {
@@ -2330,10 +2345,11 @@ exports.error_result = function(request, response, status, rsc, dbg_string, call
 };
 
 function request_noti_http(nu, bodyString, bodytype, xm2mri) {
-    var options = {
-        hostname: url.parse(nu).hostname,
-        port: url.parse(nu).port,
-        path: url.parse(nu).path,
+    let nu_url = new URL(nu);
+    let options = {
+        hostname: nu_url.hostname,
+        port: nu_url.port,
+        path: nu_url.pathname,
         method: 'POST',
         headers: {
             'X-M2M-RI': xm2mri,
@@ -2372,10 +2388,11 @@ function request_noti_http(nu, bodyString, bodytype, xm2mri) {
 }
 
 function request_noti_coap(nu, bodyString, bodytype, xm2mri) {
+    let nu_url = new URL(nu);
     var options = {
-        host: url.parse(nu).hostname,
-        port: url.parse(nu).port,
-        pathname: url.parse(nu).path,
+        host: nu_url.hostname,
+        port: nu_url.port,
+        pathname: nu_url.pathname,
         method: 'post',
         confirmable: 'false',
         options: {
@@ -2489,7 +2506,8 @@ function request_noti_ws(nu, bodyString, bodytype, xm2mri) {
 }
 
 function request_noti_mqtt(nu, bodyString, bodytype, xm2mri) {
-    var aeid = url.parse(nu).pathname.replace('/', '').split('?')[0];
+    let nu_url = new URL(nu);
+    var aeid = nu_url.pathname.replace('/', '').split('?')[0];
     console.log('[nonblocking-async-mqtt] - ' + aeid);
 
     if (aeid == '') {
@@ -2498,7 +2516,7 @@ function request_noti_mqtt(nu, bodyString, bodytype, xm2mri) {
     }
 
     var mqtt = require('mqtt');
-    var _mqtt_client = mqtt.connect('mqtt://' + url.parse(nu).hostname + ':' + ((url.parse(nu).port != null) ? url.parse(nu).port : '1883'));
+    var _mqtt_client = mqtt.connect('mqtt://' + nu_url.hostname + ':' + ((nu_url.port != null) ? nu_url.port : '1883'));
 
     _mqtt_client.on('connect', function () {
         var resp_topic = util.format('/oneM2M/resp/%s/#', usecseid.replace('/', ''));
