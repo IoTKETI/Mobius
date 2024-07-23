@@ -893,7 +893,7 @@ exports.insert_csr = function(connection, obj, callback) {
         if(!err) {
             var sql = util.format('insert into csr (ri, cst, poa, cb, csi, mei, tri, rr, nl, srv) ' +
                 'values (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
-                obj.ri, obj.cst, JSON.stringify(obj.poa).replace(/\"/g, '\\"').replace(/\'/g, '\\\''), obj.cb, obj.csi, obj.mei, obj.tri, obj.rr, obj.nl, JSON.stringify(obj.srv).replace(/\"/g, '\\"').replace(/\'/g, '\\\''));
+                obj.ri, obj.cst, JSON.stringify(obj.poa), obj.cb, obj.csi, obj.mei, obj.tri, obj.rr, obj.nl, JSON.stringify(obj.srv));
             db.getResult(sql, connection, function (err, results) {
                 if(!err) {
                     console.timeEnd('insert_csr ' + obj.ri);

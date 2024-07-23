@@ -36,6 +36,8 @@ exports.build_csr = function(request, response, resource_Obj, body_Obj, callback
     resource_Obj[rootnm].nl = (body_Obj[rootnm].nl) ? body_Obj[rootnm].nl : '';
     resource_Obj[rootnm].srv = (body_Obj[rootnm].srv) ? body_Obj[rootnm].srv : [];
 
+    resource_Obj[rootnm].cr = resource_Obj[rootnm].csi
+
     request.resourceObj = JSON.parse(JSON.stringify(resource_Obj));
     resource_Obj = null;
 
