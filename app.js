@@ -120,10 +120,11 @@ var os = require('os');
 var cpuCount = os.cpus().length;
 
 var worker = [];
-var use_clustering = 1;
+var use_clustering = 0;
 var worker_init_count = 0;
 if (use_clustering) {
     if (cluster.isMaster) {
+console.log('\n\nIm the master');
         cluster.on('death', (worker) => {
             console.log('worker' + worker.pid + ' died --> start again');
             cluster.fork();
@@ -229,11 +230,11 @@ else {
                                 require('./pxy_mqtt');
                                 //noti_mqtt_begin();
 
-                                if (usecsetype === 'mn' || usecsetype === 'asn') {
-                                    global.refreshIntervalId = setInterval(() => {
-                                        csr_custom.emit('register_remoteCSE');
-                                    }, 5000);
-                                }
+                                // if (usecsetype === 'mn' || usecsetype === 'asn') {
+                                //     global.refreshIntervalId = setInterval(() => {
+                                //         csr_custom.emit('register_remoteCSE');
+                                //     }, 5000);
+                                // }
                             });
                         }
                         else {
@@ -249,11 +250,11 @@ else {
                                 //noti_mqtt_begin();
                                 //require('./mobius/ts_agent');
 
-                                if (usecsetype === 'mn' || usecsetype === 'asn') {
-                                    global.refreshIntervalId = setInterval(() => {
-                                        csr_custom.emit('register_remoteCSE');
-                                    }, 5000);
-                                }
+                                // if (usecsetype === 'mn' || usecsetype === 'asn') {
+                                //     global.refreshIntervalId = setInterval(() => {
+                                //         csr_custom.emit('register_remoteCSE');
+                                //     }, 5000);
+                                // }
                             });
                         }
 
@@ -267,6 +268,8 @@ else {
         }
     });
 }
+
+
 
 global.get_ri_list_sri = function (request, response, sri_list, ri_list, count, callback) {
     if (sri_list.length <= count) {
@@ -1569,7 +1572,7 @@ function get_target_url(request, response, callback) {
     // check To param in SP-relative format
     if (to[0] == '~' && to.startsWith('~' + usecseid) == false) {
         // forward the request to one of the Registar CSEs
-        console.log('forwarding the request: To param is in SP-relative format');
+        // console.log('forwarding the request: To param is in SP-relative format');
         callback('301-1');
         return;
     }
@@ -2742,11 +2745,11 @@ function check_csr(request, response, callback) {
     } else if (request.url.startsWith('/_')) {
         csi = '/' + request.url.replace('/_', '/').replace(usespid, '').split('/')[1];
     }
-    console.log('[check_csr] CSE-ID : ' + csi);
+    // console.log('[check_csr] CSE-ID : ' + csi);
 
     db_sql.select_csr(request.db_connection, csi, (err, result_csr) => {
         if (!err) {
-            if (result_csr.length == 1) {
+            if (result_csr.length >= 1) {
                 var point = {};
                 point.forwardcbname = result_csr[0].cb.replace('/', '');
                 var poa_arr = JSON.parse(result_csr[0].poa);
@@ -2756,7 +2759,7 @@ function check_csr(request, response, callback) {
                         point.forwardcbhost = poa.hostname;
                         point.forwardcbport = poa.port;
 
-                        console.log('request forwarding to ' + point.forwardcbhost + ':' + point.forwardcbport);
+                        console.log('\nrequest forwarding to ' + point.forwardcbhost + ':' + point.forwardcbport);
 
                         forward_http(point.forwardcbhost, point.forwardcbport, request.url, request.method, request.headers, request.body, (code, res) => {
                             if (code === '200') {
@@ -2871,10 +2874,6 @@ function forward_http(forwardcbhost, forwardcbport, f_url, f_method, f_headers, 
         headers: f_headers
     };
 
-    // just for testing
-    // options.hostname = 'localhost';
-    // options.port = '1880';
-
     var req = http.request(options, (res) => {
         var fullBody = '';
 
@@ -2885,11 +2884,11 @@ function forward_http(forwardcbhost, forwardcbport, f_url, f_method, f_headers, 
         res.on('end', () => {
             res.body = fullBody;
 
-            console.log('--------------------------------------------------------------------------');
+            // console.log('--------------------------------------------------------------------------');
+            console.log('\n[Forward response : ' + res.statusCode + ']');
             console.log(res.url);
-            console.log(res.headers);
+            // console.log(res.headers);
             console.log(res.body);
-            console.log('[Forward response : ' + res.statusCode + ']');
 
             callback('200', res);
         });
@@ -2902,7 +2901,7 @@ function forward_http(forwardcbhost, forwardcbport, f_url, f_method, f_headers, 
     });
 
     console.log(f_method + ' - ' + f_url);
-    console.log(f_headers);
+    // console.log(f_headers);
     console.log(f_body);
 
     // write data to request body

@@ -28,6 +28,7 @@ var db_sql = require('./sql_action');
 
 _this = this;
 
+
 function retrieve_CSEBase_http(cbname, cbhost, cbhostport, callback) {
     var ri = '/' + cbname;
     var rqi = require('shortid').generate();
@@ -138,7 +139,7 @@ function create_remoteCSE_http(cbname, cbhost, cbhostport, body_Obj, callback) {
     delete body_Obj[Object.keys(body_Obj)[0]];
 
     var bodyString = JSON.stringify(body_Obj);
-
+    
     if (defaultbodytype == 'xml') {
         var xml = xmlbuilder.create('m2m:' + rootnm, {version: '1.0', encoding: 'UTF-8', standalone: true},
             {pubID: null, sysID: null}, {allowSurrogateChars: false, skipNullAttributes: false, headless: false, ignoreDecorators: false, stringify: {}}
@@ -239,11 +240,16 @@ exports.build_mn = function(connection, ri, callback) {
                             delete rspObj.csr.lt;
                             delete rspObj.csr.st;
                             delete rspObj.csr.sri;
-                            delete rspObj.csr.srv;
+                            // delete rspObj.csr.srv; // srv is mandatory for <remoteCSE> create request
 
-                            rspObj.csr.cst = '2'; // cstType value for MN-CSE
+                            // mandatory attributes
                             rspObj.csr.rr = 'true';
-                            rspObj.csr.cb = rspObj.csr.rn;
+                            // rspObj.csr.cb = rspObj.csr.rn; // cb is address(URL) of local <CSEBase> resource, should be modified as URL
+                            rspObj.csr.cb = localcsebaseurl;
+                            rspObj.csr.srv = JSON.parse(rspObj.csr.srv);
+
+                            // optional attributes
+                            rspObj.csr.cst = 2; // cstType value for MN-CSE (type: integer)
 
                             if (rspObj.csr.poa) {
                                 rspObj.csr.poa = JSON.parse(rspObj.csr.poa);

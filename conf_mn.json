@@ -2,11 +2,11 @@
     "parent" : {
         "cbname": "Mobius",
         "cbcseid": "/Mobius2",
-        "cbhost": "203.253.128.164",
+        "cbhost": "192.168.0.31",
         "cbhostport": "7579",
         "cbprotocol": "http",
-        "mqttbroker": "203.253.128.164"
+        "mqttbroker": "192.168.0.31"
     },
     "csebaseport": "7579",
-    "dbpass": "keti1231"
+    "localcsebaseurl": "http://192.168.0.30:7579/Mobius"
 }

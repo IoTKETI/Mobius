@@ -44,6 +44,14 @@ const db = require('./mobius/db_action');
 if (usecsetype === 'mn') {
     try {
         mn_conf  = JSON.parse(fs.readFileSync('conf_mn.json', 'utf-8'));
+
+        global.parent_cbname        = mn_conf.parent.cbname;
+        global.parent_cbcseid       = mn_conf.parent.cbcseid;
+        global.parent_cbhost        = mn_conf.parent.cbhost;
+        global.parent_cbhostport    = mn_conf.parent.cbhostport;
+        global.parent_cbprotocol    = mn_conf.parent.cbprotocol;       // select 'http' or 'mqtt' when register remoteCSE
+        global.parent_mqttbroker    = mn_conf.parent.mqttbroker;
+        global.localcsebaseurl      = mn_conf.localcsebaseurl;
     }
     catch (e) {
         if (e.code === 'ENOENT') {
@@ -51,13 +59,6 @@ if (usecsetype === 'mn') {
         } 
     }    
 }
-
-global.parent_cbname        = mn_conf.parent.cbname;
-global.parent_cbcseid       = mn_conf.parent.cbcseid;
-global.parent_cbhost        = mn_conf.parent.cbhost;
-global.parent_cbhostport    = mn_conf.parent.cbhostport;
-global.parent_cbprotocol    = mn_conf.parent.cbprotocol;       // select 'http' or 'mqtt' when register remoteCSE
-global.parent_mqttbroker    = mn_conf.parent.mqttbroker;
 
 global.usepxywsport         = '7577';
 global.usepxymqttport       = '7578';
@@ -96,23 +97,25 @@ global.useCert = 'disable';
 // CSE core
 require('./app');
 
-// action for MN-CSE or ASN-CSE
-if (usecsetype === 'mn') {
-    // get DB connection first
-    db.getConnection((code, connection) => {
-        if (code === '200') {
-            // call build_mn to register to the Registrar CSE
-            mn.build_mn(connection, '/' + usecsebase, (rsp) => {
-                if(rsp.rsc == '2001') {
-                    console.log('[mn-cse registration] MN-CSE registration success');
-                } else {
-                    console.log('register_remoteCSE again');
-                }
-                console.log('[mn-cse registration] ' + JSON.stringify(rsp));
-            })
-        } else {
-            console.log('[mn-cse registration] No DB Connection');
-        }
-    });
+const cluster = require('cluster');
 
+if ((cluster.isMaster) || (!cluster.isMaster && !cluster.worker)) {
+    // action for MN-CSE or ASN-CSE
+    if (usecsetype === 'mn') {
+        // get DB connection first
+        db.getConnection((code, connection) => {
+            if (code === '200') {
+                // call build_mn to register to the Registrar CSE
+                mn.build_mn(connection, '/' + usecsebase, (rsp) => {
+                    if(rsp.rsc == '2001') {
+                        console.log('[mn-cse registration] MN-CSE registration success');
+                    } else {
+                        console.log('register_remoteCSE again');
+                    }
+                })
+            } else {
+                console.log('[mn-cse registration] No DB Connection');
+            }
+        });
+    }
 }

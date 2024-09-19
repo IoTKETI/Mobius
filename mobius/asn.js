@@ -133,7 +133,7 @@ function retrieve_CSEBase_http(cbname, cbhost, cbhostport, callback) {
 
 function create_remoteCSE_http(cbname, cbhost, cbhostport, body_Obj, callback) {
     var rootnm = 'csr';
-
+console.log('\n\n\n no way!!!');
     body_Obj['m2m:' + rootnm] = body_Obj[rootnm];
     delete body_Obj[Object.keys(body_Obj)[0]];
 
