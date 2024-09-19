@@ -1,12 +1,10 @@
 {
-    "parent" : {
+    "registrar" : {
         "cbname": "Mobius",
         "cbcseid": "/Mobius2",
         "cbhost": "192.168.0.31",
         "cbhostport": "7579",
         "cbprotocol": "http",
         "mqttbroker": "192.168.0.31"
-    },
-    "csebaseport": "7579",
-    "localcsebaseurl": "http://192.168.0.30:7579/Mobius"
+    }
 }

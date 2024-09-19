@@ -80,11 +80,31 @@ mosquitto -v
 ```
 npm install
 ```
-- Modify the configuration file "conf.json" per your setting
+- Modify the configuration file "mobius.js" per your setting
 ```
-{
-  "csebaseport": "7579", //Mobius HTTP hosting  port
-  "dbpass": "*******"    //MySQL root password
+
+conf.csebaseport    = "7579"  //Mobius HTTP hosting  port
+conf.dbpass         = "*******"    //MySQL root password
+
+```
+If you want to use Mobius as MN-CSE, change the following settings in the same file
+```
+
+global.usecsetype   = 'mn';          // MN (Middle Node)
+global.usecseid     = '/Mobius1';    // MN-CSE ID which is different from ID of your IN-CSE (e.g. '/Mobius2')
+
+```
+MN-CSE needs to register to IN-CSE, configurations for the CSE registration are in the 'conf_mn.json' file
+```json
+  {
+    "registrar" : {
+        "cbname": "Mobius",
+        "cbcseid": "/Mobius2",
+        "cbhost": "192.168.0.31",
+        "cbhostport": "7579",
+        "cbprotocol": "http",
+        "mqttbroker": "192.168.0.31"
+    }
 }
 ```
 

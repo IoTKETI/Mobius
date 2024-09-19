@@ -15,6 +15,7 @@
  */
 
 var fs = require('fs');
+const ip = require('ip');
 
 var conf = {};
 try {
@@ -22,7 +23,7 @@ try {
 }
 catch (e) {
     conf.csebaseport = "7579";
-    conf.dbpass = "keti1231";
+    conf.dbpass = "keti1234";
     fs.writeFileSync('conf.json', JSON.stringify(conf, null, 4), 'utf8');
 }
 
@@ -45,13 +46,13 @@ if (usecsetype === 'mn') {
     try {
         mn_conf  = JSON.parse(fs.readFileSync('conf_mn.json', 'utf-8'));
 
-        global.parent_cbname        = mn_conf.parent.cbname;
-        global.parent_cbcseid       = mn_conf.parent.cbcseid;
-        global.parent_cbhost        = mn_conf.parent.cbhost;
-        global.parent_cbhostport    = mn_conf.parent.cbhostport;
-        global.parent_cbprotocol    = mn_conf.parent.cbprotocol;       // select 'http' or 'mqtt' when register remoteCSE
-        global.parent_mqttbroker    = mn_conf.parent.mqttbroker;
-        global.localcsebaseurl      = mn_conf.localcsebaseurl;
+        global.registrar_cbname        = mn_conf.registrar.cbname;
+        global.registrar_cbcseid       = mn_conf.registrar.cbcseid;
+        global.registrar_cbhost        = mn_conf.registrar.cbhost;
+        global.registrar_cbhostport    = mn_conf.registrar.cbhostport;
+        global.registrar_cbprotocol    = mn_conf.registrar.cbprotocol;       // select 'http' or 'mqtt' when register remoteCSE
+        global.registrar_mqttbroker    = mn_conf.registrar.mqttbroker;
+        global.localcsebaseurl      = ip.address() + '/' + usecsebase;
     }
     catch (e) {
         if (e.code === 'ENOENT') {
