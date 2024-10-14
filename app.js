@@ -1908,62 +1908,55 @@ app.post(onem2mParser, (request, response) => {
                         }
                     }
                     else { // if (request.option === '/fopt') {
-                        check_grp(request, response, (rsc, result_grp) => { // check access right for fanoutpoint
-                            if (rsc == '1') {
-                                var access_value = '1';
-                                var body_Obj = {};
-                                security.check(request, response, request.targetObject[Object.keys(request.targetObject)[0]].ty, result_grp.macp, access_value, result_grp.cr, (code) => {
-                                    if (code === '1') {
-                                        fopt.check(request, response, result_grp, body_Obj, (code) => {
-                                            if (code === '200') {
-                                                responder.search_result(request, response, '200', '2000', '', () => {
-                                                    connection.release();
-                                                    request = null;
-                                                    response = null;
-                                                });
-                                            }
-                                            else {
-                                                responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
-                                                    connection.release();
-                                                    request = null;
-                                                    response = null;
-                                                });
-                                            }
-                                        });
-                                    }
-                                    else if (code === '0') {
-                                        response_error_result(request, response, '403-5', () => {
-                                            connection.release();
-                                            request = null;
-                                            response = null;
-                                        });
-                                    }
-                                    else {
-                                        responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
-                                            connection.release();
-                                            request = null;
-                                            response = null;
-                                        });
-                                    }
-                                });
-                            }
-                            else if (rsc == '2') {
-                                code = '403-6';
-                                responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
-                                    connection.release();
-                                    request = null;
-                                    response = null;
-                                });
-                            }
-                            else {
-                                code = '404-4';
-                                responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
-                                    connection.release();
-                                    request = null;
-                                    response = null;
-                                });
-                            }
-                        });
+                        let rcode = check_grp(request.targetObject);
+                        if (rcode == '200') {
+                            var access_value = '1';
+                            var body_Obj = {};
+                            let rootnm = Object.keys(request.targetObject)[0];
+                            let result_grp = request.targetObject[rootnm];
+                            security.check(request, response, result_grp.ty, result_grp.macp, access_value, result_grp.cr, (code) => {
+                                if (code === '1') {
+                                    fopt.check(request, response, result_grp, body_Obj, (code) => {
+                                        if (code === '200') {
+                                            responder.search_result(request, response, '200', '2000', '', () => {
+                                                connection.release();
+                                                request = null;
+                                                response = null;
+                                            });
+                                        }
+                                        else {
+                                            responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                                                connection.release();
+                                                request = null;
+                                                response = null;
+                                            });
+                                        }
+                                    });
+                                }
+                                else if (code === '0') {
+                                    code = '403-5';
+                                    responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                                        connection.release();
+                                        request = null;
+                                        response = null;
+                                    });
+                                }
+                                else {
+                                    responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                                        connection.release();
+                                        request = null;
+                                        response = null;
+                                    });
+                                }
+                            });
+                        }
+                        else {
+                            responder.error_result(request, response, resultStatusCode[rcode][0], resultStatusCode[rcode][1], resultStatusCode[rcode][2], () => {
+                                connection.release();
+                                request = null;
+                                response = null;
+                            });
+                        }
                     }
                 }
                 else if (code === '301-1') {
@@ -2217,61 +2210,55 @@ app.put(onem2mParser, (request, response) => {
                         }
                     }
                     else { // if (request.option === '/fopt') {
-                        check_grp(request, response, (rsc, result_grp) => { // check access right for fanoutpoint
-                            if (rsc == '1') {
-                                var access_value = '4';
-                                var body_Obj = {};
-                                security.check(request, response, request.targetObject[Object.keys(request.targetObject)[0]].ty, result_grp.macp, access_value, result_grp.cr, (code) => {
-                                    if (code === '1') {
-                                        fopt.check(request, response, result_grp, body_Obj, (code) => {
-                                            if (code === '200') {
-                                                responder.search_result(request, response, '200', '2000', '', () => {
-                                                    connection.release();
-                                                    request = null;
-                                                    response = null;
-                                                });
-                                            }
-                                            else {
-                                                responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
-                                                    connection.release();
-                                                    request = null;
-                                                    response = null;
-                                                });
-                                            }
-                                        });
-                                    }
-                                    else if (code === '0') {
-                                        response_error_result(request, response, '403-5', () => {
-                                            connection.release();
-                                            request = null;
-                                            response = null;
-                                        });
-                                    }
-                                    else {
-                                        responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
-                                            connection.release();
-                                            request = null;
-                                            response = null;
-                                        });
-                                    }
-                                });
-                            }
-                            else if (rsc == '2') {
-                                code = '403-6';
-                                responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
-                                    connection.release();
-                                    request = null;
-                                    response = null;
-                                });
-                            }
-                            else {
-                                response_error_result(request, response, '404-4', () => {
-                                    connection.release();
-                                    request = null;
-                                    response = null;
-                                });
-                            }
-                        });
+                        let rcode = check_grp(request.targetObject);
+                        if (rcode == '200') {
+                            var access_value = '4';
+                            var body_Obj = {};
+                            let rootnm = Object.keys(request.targetObject)[0];
+                            let result_grp = request.targetObject[rootnm];
+                            security.check(request, response, request.targetObject[Object.keys(request.targetObject)[0]].ty, result_grp.macp, access_value, result_grp.cr, (code) => {
+                                if (code === '1') {
+                                    fopt.check(request, response, result_grp, body_Obj, (code) => {
+                                        if (code === '200') {
+                                            responder.search_result(request, response, '200', '2000', '', () => {
+                                                connection.release();
+                                                request = null;
+                                                response = null;
+                                            });
+                                        }
+                                        else {
+                                            responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                                                connection.release();
+                                                request = null;
+                                                response = null;
+                                            });
+                                        }
+                                    });
+                                }
+                                else if (code === '0') {
+                                    code = '403-5';
+                                    responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                                        connection.release();
+                                        request = null;
+                                        response = null;
+                                    });
+                                }
+                                else {
+                                    responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                                        connection.release();
+                                        request = null;
+                                        response = null;
+                                    });
+                                }
+                            });
+                        }
+                        else {
+                            responder.error_result(request, response, resultStatusCode[rcode][0], resultStatusCode[rcode][1], resultStatusCode[rcode][2], () => {
+                                connection.release();
+                                request = null;
+                                response = null;
+                            });
+                        }
                     }
                 }
                 else if (code === '301-1') {

@@ -82,13 +82,11 @@ function check_body(res, body_type, res_body, callback) {
     }
 }
 
-function request_to_member(request, hostname, port, ri, agr, callback) {
-    var url_suffix = request.url.split('/fopt')[1];
-
+function request_to_member(request, hostname, port, t_url, callback) {
     var options = {
         hostname: hostname,
         port: port,
-        path: ri + url_suffix,
+        path: t_url,
         method: request.method,
         headers: request.headers
     };
@@ -103,7 +101,7 @@ function request_to_member(request, hostname, port, ri, agr, callback) {
         res.on('end', function () {
             check_body(res, request.usebodytype, responseBody, function (rsc, retrieve_Obj) {
                 if (rsc == '1') {
-                    agr[retrieve_Obj.fr] = JSON.parse(JSON.stringify(retrieve_Obj));
+                    fopt_agr[retrieve_Obj.fr] = JSON.parse(JSON.stringify(retrieve_Obj));
                     retrieve_Obj = null;
 
                     callback('200');
@@ -141,7 +139,7 @@ function fopt_member(request, response, req_count, mid, body_Obj, cse_poa, agr, 
                 const t_url = new Url(cse_poa[target_cb]);
                 hostname = t_url.hostname;
                 port = t_url.port;
-                request_to_member(request, hostname, port, ri, agr, function (code) {
+                request_to_member(request, hostname, port, m_url + url_suffix, agr, function (code) {
                     if(code === '200') {
                         fopt_member(request, response, req_count, mid, body_Obj, cse_poa, agr, function (code) {
                             callback(code);
@@ -159,7 +157,7 @@ function fopt_member(request, response, req_count, mid, body_Obj, cse_poa, agr, 
             }
         }
         else {
-            request_to_member(request, hostname, port, ri, agr, function (code) {
+            request_to_member(request, hostname, port, m_url + url_suffix, agr, function (code) {
                 if(code === '200') {
                     fopt_member(request, response, ++req_count, mid, body_Obj, cse_poa, agr, function (code) {
                         callback(code);
@@ -174,6 +172,57 @@ function fopt_member(request, response, req_count, mid, body_Obj, cse_poa, agr, 
 }
 
 
+let fopt_member_callback = null;
+
+function fopt_member_nonblock(request, response, mid, body_Obj, cse_poa, callback) {
+    let url_suffix = request.url.split('/fopt')[1];
+    let hostname = 'localhost';
+    let port = usecsebaseport;
+
+    let response_count = 0;
+    fopt_member_callback = callback;
+
+    let tid_fopt = setTimeout(() => {
+        tid_fopt = null;
+        fopt_member_callback('200');
+    }, 10000);
+
+    for(let idx = 0; idx < mid.length; idx++) {
+        let m_url = mid[idx].replace(/_/g, '\/');
+        let target_cb = m_url.split('/')[1];
+
+        if (target_cb !== usecsebase) {
+            if (cse_poa[target_cb]) {
+                const t_url = new Url(cse_poa[target_cb]);
+                hostname = t_url.hostname;
+                port = t_url.port;
+
+                request_to_member(request, hostname, port, t_url.path + url_suffix, (code) => {
+                    response_count++;
+                    if(response_count >= mid.length) {
+                        if(tid_fopt) {
+                            clearTimeout(tid_fopt);
+                            fopt_member_callback('200');
+                        }
+                    }
+                });
+            }
+        }
+        else {
+            request_to_member(request, hostname, port, m_url + url_suffix, (code) => {
+                response_count++;
+                if(response_count >= mid.length) {
+                    if(tid_fopt) {
+                        clearTimeout(tid_fopt);
+                        fopt_member_callback('200');
+                    }
+                }
+            });
+        }
+    }
+}
+
+let fopt_agr = {};
 exports.check = function(request, response, grp, body_Obj, callback) {
     request.headers.rootnm = 'agr';
     var cse_poa = {};
@@ -181,11 +230,11 @@ exports.check = function(request, response, grp, body_Obj, callback) {
         if(code === '200') {
             var ri_list = grp.mid;
             var req_count = 0;
-            var agr = {};
+            fopt_agr = {};
             make_internal_ri(ri_list);
-            fopt_member(request, response, req_count, ri_list, body_Obj, cse_poa, agr, function (code) {
+            fopt_member_nonblock(request, response, ri_list, body_Obj, cse_poa, function (code) {
                 if(code == '200') {
-                    var retrieve_Obj = agr;
+                    var retrieve_Obj = fopt_agr;
                     if (Object.keys(retrieve_Obj).length != 0) {
                         request.resourceObj = JSON.parse(JSON.stringify(retrieve_Obj));
                         retrieve_Obj = null;

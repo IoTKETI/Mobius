@@ -2255,6 +2255,9 @@ exports.search_result = function(request, response, status, rsc, cap, callback) 
             else if(request.query.rcn == "8") {
                 to_object['m2m:' + root_name] = JSON.parse(JSON.stringify(body_Obj['m2m:rsp']));
             }
+            else {
+                to_object = JSON.parse(JSON.stringify(body_Obj));
+            }
 
             let m2m_body_string = JSON.stringify(to_object);
             response.status(status).end(m2m_body_string);

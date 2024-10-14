@@ -309,6 +309,8 @@ global.make_internal_ri = (resource_Obj) => {
             else if (resource_Obj[index].split(usecsebase)[0] == '') { // cse relative
                 resource_Obj[index] = '/' + resource_Obj[index];
             }
+
+            resource_Obj[index] = resource_Obj[index].replace(/\//g, '_');
         }
     }
 };
