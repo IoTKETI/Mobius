@@ -297,7 +297,7 @@ global.make_cse_relative = function (resource_Obj) {
     }
 };
 
-global.make_internal_ri = function (resource_Obj) {
+global.make_internal_ri = (resource_Obj) => {
     for (var index in resource_Obj) {
         if (resource_Obj.hasOwnProperty(index)) {
             if (resource_Obj[index].split(usespid + usecseid + '/')[0] == '') { // absolute relative

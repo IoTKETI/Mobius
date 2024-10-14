@@ -83,12 +83,12 @@ function check_body(res, body_type, res_body, callback) {
 }
 
 function request_to_member(request, hostname, port, ri, agr, callback) {
-    var ri_prefix = request.url.split('/fopt')[1];
+    var url_suffix = request.url.split('/fopt')[1];
 
     var options = {
         hostname: hostname,
         port: port,
-        path: ri + ri_prefix,
+        path: ri + url_suffix,
         method: request.method,
         headers: request.headers
     };
@@ -129,56 +129,47 @@ function fopt_member(request, response, req_count, mid, body_Obj, cse_poa, agr, 
         callback('200');
     }
     else {
-        var ri_prefix = request.url.split('/fopt')[1];
-        var ri = mid[req_count];
-        db_sql.get_ri_sri(request.db_connection, ri, function (err, results) {
-            if(!err) {
-                ri = ((results.length === 0) ? ri : results[0].ri);
-                var target_cb = ri.split('/')[1];
-                var hostname = 'localhost';
-                var port = usecsebaseport;
+        var url_suffix = request.url.split('/fopt')[1];
+        var m_url = mid[req_count].replace(/_/g, '\/');
 
-                if (target_cb !== usecsebase) {
-                    if (cse_poa[target_cb]) {
-                        const t_url = new Url(cse_poa[target_cb]);
-                        hostname = t_url.hostname;
-                        port = t_url.port;
-                        request_to_member(request, hostname, port, ri, agr, function (code) {
-                            if(code === '200') {
-                                fopt_member(request, response, req_count, mid, body_Obj, cse_poa, agr, function (code) {
-                                    callback(code);
-                                });
-                            }
-                            else {
-                                callback(code);
-                            }
+        var target_cb = m_url.split('/')[1];
+        var hostname = 'localhost';
+        var port = usecsebaseport;
+
+        if (target_cb !== usecsebase) {
+            if (cse_poa[target_cb]) {
+                const t_url = new Url(cse_poa[target_cb]);
+                hostname = t_url.hostname;
+                port = t_url.port;
+                request_to_member(request, hostname, port, ri, agr, function (code) {
+                    if(code === '200') {
+                        fopt_member(request, response, req_count, mid, body_Obj, cse_poa, agr, function (code) {
+                            callback(code);
                         });
                     }
                     else {
-                        fopt_member(request, response, ++req_count, mid, body_Obj, cse_poa, agr, function (code) {
-                            callback(code);
-                        });
+                        callback(code);
                     }
-                }
-                else {
-                    request_to_member(request, hostname, port, ri, agr, function (code) {
-                        if(code === '200') {
-                            fopt_member(request, response, ++req_count, mid, body_Obj, cse_poa, agr, function (code) {
-                                callback(code);
-                            });
-                        }
-                        else {
-                            callback(code);
-                        }
-                    });
-                }
+                });
             }
             else {
                 fopt_member(request, response, ++req_count, mid, body_Obj, cse_poa, agr, function (code) {
                     callback(code);
                 });
             }
-        });
+        }
+        else {
+            request_to_member(request, hostname, port, ri, agr, function (code) {
+                if(code === '200') {
+                    fopt_member(request, response, ++req_count, mid, body_Obj, cse_poa, agr, function (code) {
+                        callback(code);
+                    });
+                }
+                else {
+                    callback(code);
+                }
+            });
+        }
     }
 }
 
@@ -188,29 +179,22 @@ exports.check = function(request, response, grp, body_Obj, callback) {
     var cse_poa = {};
     update_route(request.db_connection, cse_poa, function (code) {
         if(code === '200') {
-            var ri_list = [];
-            get_ri_list_sri(request, response, grp.mid, ri_list, 0, function (code) {
-                if(code === '200') {
-                    var req_count = 0;
-                    var agr = {};
-                    make_internal_ri(ri_list);
-                    fopt_member(request, response, req_count, ri_list, body_Obj, cse_poa, agr, function (code) {
-                        if(code == '200') {
-                            var retrieve_Obj = agr;
-                            if (Object.keys(retrieve_Obj).length != 0) {
-                                request.resourceObj = JSON.parse(JSON.stringify(retrieve_Obj));
-                                retrieve_Obj = null;
+            var ri_list = grp.mid;
+            var req_count = 0;
+            var agr = {};
+            make_internal_ri(ri_list);
+            fopt_member(request, response, req_count, ri_list, body_Obj, cse_poa, agr, function (code) {
+                if(code == '200') {
+                    var retrieve_Obj = agr;
+                    if (Object.keys(retrieve_Obj).length != 0) {
+                        request.resourceObj = JSON.parse(JSON.stringify(retrieve_Obj));
+                        retrieve_Obj = null;
 
-                                callback('200');
-                            }
-                            else {
-                                callback('404-5');
-                            }
-                        }
-                    });
-                }
-                else {
-                    callback(code);
+                        callback('200');
+                    }
+                    else {
+                        callback('404-5');
+                    }
                 }
             });
         }

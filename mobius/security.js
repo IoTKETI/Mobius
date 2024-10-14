@@ -374,25 +374,25 @@ function security_check_action_pvs(request, response, acpiList, access_value, cr
     });
 }
 
-function security_default_check_action(request, response, cr, access_value, callback) {
+let security_default_check_action = (origin, cr, access_value) => {
     if(useaccesscontrolpolicy === 'enable') {
-        if (request.headers['x-m2m-origin'] == cr) {
-            callback('1');
+        if (origin === cr) {
+            return ('1');
         }
         else {
-            callback('0');
+            return ('0');
         }
     }
     else {
-        if (request.headers['x-m2m-origin'] === cr) {
-            callback('1');
+        if (origin === cr) {
+            return ('1');
         }
         else {
             if (access_value & '1' || access_value & '2' || access_value & '32') {
-                callback('1');
+                return ('1');
             }
             else {
-                callback('0');
+                return ('0');
             }
         }
     }
@@ -421,9 +421,8 @@ exports.check = function(request, response, ty, acpiList, access_value, cr, call
                 db_sql.select_acp_above(request.db_connection, loop_cnt, targetUri_arr, function (err, results_acpi) {
                     if (!err) {
                         if (results_acpi.length == 0) {
-                            security_default_check_action(request, response, cr, access_value, function (code) {
-                                callback(code);
-                            });
+                            let rcode = security_default_check_action(request.headers['x-m2m-origin'], cr, access_value);
+                            callback(rcode);
                         }
                         else {
                             security_check_action_pv(request, response, results_acpi, cr, access_value, function (code) {
@@ -444,9 +443,8 @@ exports.check = function(request, response, ty, acpiList, access_value, cr, call
         }
         else {
             if (acpiList.length === 0) {
-                security_default_check_action(request, response, cr, access_value, (code) => {
-                    callback(code);
-                });
+                let rcode = security_default_check_action(request.headers['x-m2m-origin'], cr, access_value);
+                callback(rcode);
             }
             else {
                 security_check_action_pv(request, response, acpiList, cr, access_value, function (code) {

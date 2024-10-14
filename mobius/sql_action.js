@@ -449,9 +449,9 @@ exports.insert_grp = function(connection, obj, callback) {
     console.time('insert_grp ' + obj.ri);
     _this.insert_lookup(connection, obj, function (err, results) {
         if(!err) {
-            var sql = util.format('insert into grp (ri, cr, mt, cnm, mnm, mid, macp, mtv, csy, gn) ' +
-                'values (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
-                obj.ri, obj.cr, obj.mt, obj.cnm, obj.mnm, JSON.stringify(obj.mid).replace(/\"/g, '\\"').replace(/\'/g, '\\\''), JSON.stringify(obj.macp).replace(/\"/g, '\\"').replace(/\'/g, '\\\''), obj.mtv, obj.csy, obj.gn);
+            var sql = util.format('insert into grp (ri, mt, cnm, mnm, mid, macp, mtv, csy, gn) ' +
+                'values (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
+                obj.ri, obj.mt, obj.cnm, obj.mnm, JSON.stringify(obj.mid), JSON.stringify(obj.macp), obj.mtv, obj.csy, obj.gn);
             db.getResult(sql, connection, function (err, results) {
                 if(!err) {
                     console.timeEnd('insert_grp ' + obj.ri);
@@ -1187,11 +1187,8 @@ exports.select_resource_from_url = function(connection, ri, callback) {
 };
 
 exports.select_csr_like = function(connection, cb, callback) {
-    var sql = util.format("select * from csr where ri like \'/%s/%%\'", cb);
+    var sql = util.format("select * from csr where ri like \'_%s_%%\'", cb);
     db.getResult(sql, connection, function (err, results_csr) {
-        if (!Array.isArray(results_csr.poa)) {
-            results_csr.poa = [];
-        }
         callback(err, results_csr);
     });
 };
