@@ -14,51 +14,30 @@
  * @author Il Yeup Ahn [iyahn@keti.re.kr]
  */
 
-var fs = require('fs');
-
-var conf = {};
-try {
-    conf = JSON.parse(fs.readFileSync('conf.json', 'utf8'));
-}
-catch (e) {
-    conf.csebaseport = "7579";
-    conf.dbpass = "111111";
-    fs.writeFileSync('conf.json', JSON.stringify(conf, null, 4), 'utf8');
-}
+require('dotenv').config();
 
 global.defaultbodytype      = 'json';
 
+global.use_db_user          = process.env.DB_USER;
+global.use_db_host          = process.env.DB_HOST;
+global.use_db_database      = process.env.DB_DATABASE;
+global.use_db_password      = process.env.DB_PASSWORD;
+global.use_db_port          = process.env.DB_PORT;
+
 // my CSE information
-global.usecsetype           = 'in'; // select 'in' or 'mn' or asn'
-global.usecsebase           = 'Mobius';
-global.usecseid             = '/Mobius2';
-global.usecsebaseport       = conf.csebaseport;
+global.use_cb_type          = process.env.CB_TYPE;
+global.use_cb_name          = process.env.CB_NAME;
+global.use_cb_id            = process.env.CB_ID;
+global.use_cb_port          = process.env.CB_PORT;
 
-global.usedbhost            = 'localhost';
-global.usedbpass            = conf.dbpass;
+global.use_pxy_ws_port      = process.env.PXY_WS_PORT;
+global.use_pxy_mqtt_port    = process.env.PXY_MQTT_PORT;
 
-
-global.usepxywsport         = '7577';
-global.usepxymqttport       = '7578';
-
-global.use_sgn_man_port     = '7599';
-global.use_cnt_man_port     = '7583';
-global.use_hit_man_port     = '7594';
-
-global.usetsagentport       = '7582';
-
-global.use_mqtt_broker      = 'localhost'; // mqttbroker for mobius
-
-global.use_secure           = 'disable';
-global.use_mqtt_port        = '1883';
-if(use_secure === 'enable') {
-    use_mqtt_port           = '8883';
-}
+global.use_secure           = process.env.SECURE_MODE;
+global.use_mqtt_broker      = process.env.NOTI_MQTT_BROKER; // mqttbroker for mobius
+global.use_mqtt_port        = process.env.NOTI_MQTT_PORT;
 
 global.useaccesscontrolpolicy = 'disable';
-
-global.wdt = require('./wdt');
-
 
 global.allowed_ae_ids = [];
 //allowed_ae_ids.push('ryeubi');

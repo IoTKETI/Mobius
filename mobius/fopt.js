@@ -132,9 +132,9 @@ function fopt_member(request, response, req_count, mid, body_Obj, cse_poa, agr, 
 
         var target_cb = m_url.split('/')[1];
         var hostname = 'localhost';
-        var port = usecsebaseport;
+        var port = use_cb_port;
 
-        if (target_cb !== usecsebase) {
+        if (target_cb !== use_cb_name) {
             if (cse_poa[target_cb]) {
                 const t_url = new Url(cse_poa[target_cb]);
                 hostname = t_url.hostname;
@@ -177,7 +177,7 @@ let fopt_member_callback = null;
 function fopt_member_nonblock(request, response, mid, body_Obj, cse_poa, callback) {
     let url_suffix = request.url.split('/fopt')[1];
     let hostname = 'localhost';
-    let port = usecsebaseport;
+    let port = use_cb_port;
 
     let response_count = 0;
     fopt_member_callback = callback;
@@ -191,7 +191,7 @@ function fopt_member_nonblock(request, response, mid, body_Obj, cse_poa, callbac
         let m_url = mid[idx].replace(/_/g, '\/');
         let target_cb = m_url.split('/')[1];
 
-        if (target_cb !== usecsebase) {
+        if (target_cb !== use_cb_name) {
             if (cse_poa[target_cb]) {
                 const t_url = new Url(cse_poa[target_cb]);
                 hostname = t_url.hostname;

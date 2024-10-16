@@ -34,7 +34,7 @@ function cb_create_action(connection, callback) {
     var cur_d = new Date();
 
     resource_Obj[rootnm].ty = 5;
-    resource_Obj[rootnm].rn = process.env.CB_NAME;
+    resource_Obj[rootnm].rn = use_cb_name;
     resource_Obj[rootnm].pi = '';
     resource_Obj[rootnm].ri = (resource_Obj[rootnm].pi + '/' + resource_Obj[rootnm].rn).replace(/\//g, '_');
     resource_Obj[rootnm].ct = moment().utc().format('YYYYMMDDTHHmmss');
@@ -51,16 +51,16 @@ function cb_create_action(connection, callback) {
     resource_Obj[rootnm].cr = '';
     resource_Obj[rootnm].cs = 0;
 
-    resource_Obj[rootnm].csi = process.env.CB_ID;
+    resource_Obj[rootnm].csi = use_cb_id;
 
     //resource_Obj[rootnm].srt = ty_list;
     resource_Obj[rootnm].srt = ['1', '2', '3', '4', '5', '9', '10', '13', '14', '16', '17', '23'];
 
     resource_Obj[rootnm].poa = [];
-    resource_Obj[rootnm].poa.push('http://' + ip.address() + ':' + process.env.CB_PORT);
+    resource_Obj[rootnm].poa.push('http://' + ip.address() + ':' + use_cb_port);
 //    resource_Obj[rootnm].poa.push('mqtt://' + ip.address() + ':' + use_mqtt_port + '/' + resource_Obj[rootnm].csi.replace('/', ''));
-//    resource_Obj[rootnm].poa.push('coap://' + ip.address() + ':' + usecsebaseport);
-//    resource_Obj[rootnm].poa.push('ws://' + ip.address() + ':' + usepxywsport);
+//    resource_Obj[rootnm].poa.push('coap://' + ip.address() + ':' + use_cb_port);
+//    resource_Obj[rootnm].poa.push('ws://' + ip.address() + ':' + use_pxy_ws_port);
 
     resource_Obj[rootnm].nl = '';
     resource_Obj[rootnm].ncp = '';
@@ -71,7 +71,7 @@ function cb_create_action(connection, callback) {
             if(results_ri.length == 1) {
                 db_sql.update_cb_poa_csi(connection, JSON.stringify(resource_Obj[rootnm].poa), resource_Obj[rootnm].csi, JSON.stringify(resource_Obj[rootnm].srt), resource_Obj[rootnm].ri, function (err, results) {
                     if (!err) {
-                        usecseid = resource_Obj[rootnm].csi;
+                        use_cb_id = resource_Obj[rootnm].csi;
                         rspObj.rsc = '2004';
                         rspObj.ri = resource_Obj[rootnm].ri;
                         rspObj = '';

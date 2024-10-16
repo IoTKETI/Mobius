@@ -83,7 +83,7 @@ function check_member(request, response, req_count, cse_poa, callback) {
         db_sql.get_ri_sri(request.db_connection, absolute_ri, function (err, results) {
             ri = ((results.length === 0) ? ri : results[0].ri);
             var target_cb = ri.split('/')[1];
-            if (target_cb !== usecsebase) {
+            if (target_cb !== use_cb_name) {
                 if (cse_poa[target_cb]) {
                     const t_url = new Url(cse_poa[target_cb]);
                     var options = {

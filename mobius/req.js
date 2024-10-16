@@ -33,8 +33,8 @@ exports.build_req = function(request, response, resource_Obj, body_Obj, callback
     const t_url = url.parse(request.url);
 
     // body
-    resource_Obj[rootnm].pi = '/' + usecsebase;
-    resource_Obj[rootnm].ri = '/' + usecsebase + '/' + resource_Obj[rootnm].rn;
+    resource_Obj[rootnm].pi = '/' + use_cb_name;
+    resource_Obj[rootnm].ri = '/' + use_cb_name + '/' + resource_Obj[rootnm].rn;
 
     resource_Obj[rootnm].op = (body_Obj[rootnm].op) ? body_Obj[rootnm].op : op[request.method];
     //resource_Obj[rootnm].tg = (body_Obj[rootnm].tg) ? body_Obj[rootnm].tg : resource_Obj[rootnm].ri;

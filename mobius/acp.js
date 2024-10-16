@@ -85,12 +85,12 @@ exports.build_acp = function(request, response, resource_Obj, body_Obj, callback
 //     resource_Obj[rootnm].st = (parseInt(resource_Obj[rootnm].st, 10) + 1).toString();
 //
 //     if(body_Obj[rootnm].pv) {
-//         body_Obj[rootnm].pv.acr[body_Obj[rootnm].pv.acr.length] = {acor:[usecseid], acop:'63'};
+//         body_Obj[rootnm].pv.acr[body_Obj[rootnm].pv.acr.length] = {acor:[use_cb_id], acop:'63'};
 //         resource_Obj[rootnm].pv = body_Obj[rootnm].pv;
 //     }
 //
 //     if(body_Obj[rootnm].pvs) {
-//         body_Obj[rootnm].pvs.acr[body_Obj[rootnm].pvs.acr.length] = {acor:[usecseid], acop:'63'};
+//         body_Obj[rootnm].pvs.acr[body_Obj[rootnm].pvs.acr.length] = {acor:[use_cb_id], acop:'63'};
 //         resource_Obj[rootnm].pvs = body_Obj[rootnm].pvs;
 //     }
 //

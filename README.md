@@ -80,7 +80,7 @@ mosquitto -v
 ```
 npm install
 ```
-- Modify the configuration file "conf.json" per your setting
+- Modify the configuration file ".env" per your setting
 ```
 {
   "csebaseport": "7579", //Mobius HTTP hosting  port

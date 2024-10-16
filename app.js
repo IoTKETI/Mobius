@@ -39,6 +39,9 @@ global.ONCE = 'true';
 
 global.MYIP = ip.address();
 
+var db = require('./mobius/db_action');
+var db_sql = require('./mobius/sql_action');
+
 var cb = require('./mobius/cb');
 var responder = require('./mobius/responder');
 var resource = require('./mobius/resource');
@@ -46,11 +49,6 @@ var security = require('./mobius/security');
 var fopt = require('./mobius/fopt');
 var tr = require('./mobius/tr');
 var sgn = require('./mobius/sgn');
-
-var db = require('./mobius/db_action');
-var db_sql = require('./mobius/sql_action');
-
-require('dotenv').config();
 
 // ������ �����մϴ�.
 var app = express();
@@ -121,7 +119,7 @@ function del_expired_resource() {
 let createMobius = (callback) => {
     if (use_secure === 'disable') {
         http.globalAgent.maxSockets = 1000000;
-        http.createServer(app).listen({port: usecsebaseport, agent: false}, () => {
+        http.createServer(app).listen({port: use_cb_port, agent: false}, () => {
             callback();
         });
     }
@@ -132,7 +130,7 @@ let createMobius = (callback) => {
             ca: fs.readFileSync('ca-crt.pem')
         };
         https.globalAgent.maxSockets = 1000000;
-        https.createServer(options, app).listen({port: usecsebaseport, agent: false}, () => {
+        https.createServer(options, app).listen({port: use_cb_port, agent: false}, () => {
             callback();
         });
     }
@@ -169,7 +167,7 @@ if (use_clustering) {
                             require('./pxy_coap');
                             require('./pxy_ws');
 
-                            if (usecsetype == 'mn' || usecsetype == 'asn') {
+                            if (use_cb_type == 'mn' || use_cb_type == 'asn') {
                                 global.refreshIntervalId = setInterval(() => {
                                     csr_custom.emit('register_remoteCSE');
                                 }, 5000);
@@ -194,7 +192,7 @@ if (use_clustering) {
     }
     else {
         createMobius(()=>{
-            console.log('mobius server (' + ip.address() + ') running at ' + usecsebaseport + ' port');
+            console.log('mobius server (' + ip.address() + ') running at ' + use_cb_port + ' port');
         });
     }
 }
@@ -215,14 +213,14 @@ else {
                         require('./pxy_coap');
                         require('./pxy_ws');
 
-                        if (usecsetype === 'mn' || usecsetype === 'asn') {
+                        if (use_cb_type === 'mn' || use_cb_type === 'asn') {
                             global.refreshIntervalId = setInterval(() => {
                                 csr_custom.emit('register_remoteCSE');
                             }, 5000);
                         }
 
                         createMobius(()=>{
-                            console.log('mobius server (' + ip.address() + ') running at ' + usecsebaseport + ' port');
+                            console.log('mobius server (' + ip.address() + ') running at ' + use_cb_port + ' port');
                         });
                     });
                 }
@@ -256,7 +254,7 @@ global.get_ri_list_sri = function (request, response, sri_list, ri_list, count, 
 };
 
 global.update_route = function (connection, cse_poa, callback) {
-    db_sql.select_csr_like(connection, usecsebase, (err, results_csr) => {
+    db_sql.select_csr_like(connection, use_cb_name, (err, results_csr) => {
         if (!err) {
             for (let i = 0; i < results_csr.length; i++) {
                 makeObject(results_csr[i]);
@@ -922,7 +920,7 @@ const lookup_create = async (request, response, callback) => {
             else if ((request.ty == 9) && (parentObj.ty == 5 || parentObj.ty == 16 || parentObj.ty == 2)) { // group
             }
             else if ((request.ty == 16) && (parentObj.ty == 5)) { // remoteCSE
-                if (usecsetype == 'asn' && request.headers.csr == null) {
+                if (use_cb_type == 'asn' && request.headers.csr == null) {
                     callback('400-28');
                     return;
                 }
@@ -1495,7 +1493,7 @@ let check_xm2m_headers = (request) => {
 
     if (allowed_ae_ids.length > 0) {
         let allow = 0;
-        if (usecseid === request.headers['x-m2m-origin']) {
+        if (use_cb_id === request.headers['x-m2m-origin']) {
             allow = 1;
         }
         else {
@@ -1655,7 +1653,7 @@ let get_target_url = (request, response, callback) => {
             console.timeEnd('get_resource_from_url' + ' (' + tid + ') - ' + request.absolute_url);
             if (status === 404) {
                 let req_url = url.parse(request.absolute_url);
-                if (req_url.pathname.split('/')[1] === process.env.CB_NAME) {
+                if (req_url.pathname.split('/')[1] === use_cb_name) {
                     callback('404-1');
                 }
                 else {
@@ -1712,7 +1710,7 @@ function check_type_update_resource(request) {
     }
 
     let _url = url.parse(request.targetObject[Object.keys(request.targetObject)[0]].ri.replace(/_/g, '\/'));
-    if (_url.pathname == ('/' + usecsebase)) {
+    if (_url.pathname == ('/' + use_cb_name)) {
         return ('405-9');
     }
 
@@ -1721,7 +1719,7 @@ function check_type_update_resource(request) {
 
 function check_type_delete_resource(request) {
     let _url = url.parse(request.targetObject[Object.keys(request.targetObject)[0]].ri.replace(/_/g, '\/'));
-    if (_url.pathname == ('/' + usecsebase)) {
+    if (_url.pathname == ('/' + use_cb_name)) {
         return ('405-9');
     }
     else {
@@ -1842,7 +1840,7 @@ app.use((req, res, next) => {
 //
 // var root = { hello: () => 'Hello world!' };
 //
-// app.use('/' + usecsebase + '/discovery', graphqlHTTP({
+// app.use('/' + use_cb_name + '/discovery', graphqlHTTP({
 //     schema: schema,
 //     rootValue: root,
 //     graphiql: true,
@@ -2507,7 +2505,7 @@ function check_ae_notify(request, response, callback) {
 
 function check_csr(request, response, callback) {
     let _url = url.parse(request.absolute_url);
-    var ri = util.format('_%s_%s', usecsebase, _url.pathname.split('/')[1]);
+    var ri = util.format('_%s_%s', use_cb_name, _url.pathname.split('/')[1]);
     console.log('[check_csr] : ' + ri);
     db_sql.select_csr(request.db_connection, ri, (err, result_csr) => {
         if (!err) {

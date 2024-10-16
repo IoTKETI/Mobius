@@ -38,7 +38,7 @@ function make_xml_noti_message(pc, xm2mri, callback) {
         noti_message['m2m:rqp'].op = 5; // notification
         //noti_message['m2m:rqp'].net = pc['m2m:sgn'].net;
         //noti_message['m2m:rqp'].to = pc['m2m:sgn'].sur;
-        noti_message['m2m:rqp'].fr = usecseid;
+        noti_message['m2m:rqp'].fr = use_cb_id;
         noti_message['m2m:rqp'].rqi = xm2mri;
         noti_message['m2m:rqp'].pc = pc;
 
@@ -94,7 +94,7 @@ function make_cbor_noti_message(pc, xm2mri) {
         noti_message['m2m:rqp'].op = 5; // notification
         //noti_message['m2m:rqp'].net = pc['m2m:sgn'].net;
         //noti_message['m2m:rqp'].to = pc['m2m:sgn'].sur;
-        noti_message['m2m:rqp'].fr = usecseid;
+        noti_message['m2m:rqp'].fr = use_cb_id;
         noti_message['m2m:rqp'].rqi = xm2mri;
 
         noti_message['m2m:rqp'].pc = pc;
@@ -119,7 +119,7 @@ function make_json_noti_message(nu, pc, xm2mri, short_flag) {
         else {
             //noti_message['m2m:rqp'].net = pc['m2m:sgn'].net;
             noti_message['m2m:rqp'].to = nu;
-            noti_message['m2m:rqp'].fr = usecseid;
+            noti_message['m2m:rqp'].fr = use_cb_id;
         }
 
         noti_message['m2m:rqp'].pc = pc;
@@ -412,74 +412,3 @@ exports.check = async function(request, notiObj, check_value) {
         sgn_action(request.db_connection, rootnm, check_value, subl, 0, noti_Obj, request.usebodytype, targetObj);
     }
 };
-
-
-
-function request_noti(nu, ri, bodyString, bodytype, xm2mri, exc) {
-    var options = {
-        hostname: 'localhost',
-        port: use_sgn_man_port,
-        path: '/sgn',
-        method: 'POST',
-        headers: {
-            'X-M2M-RI': xm2mri,
-            'Accept': 'application/'+bodytype,
-            'X-M2M-Origin': usecseid,
-            'Content-Type': 'application/' + bodytype,
-            'Content-Length' : bodyString.length,
-            'X-M2M-RVI': uservi,
-            'nu': nu,
-            'bodytype': bodytype,
-            'ri': ri,
-            'exc': exc
-        }
-    };
-
-    var bodyStr = '';
-    if (use_secure == 'disable') {
-        var req = http.request(options, function (res) {
-            res.setEncoding('utf8');
-
-            res.on('data', function (chunk) {
-                bodyStr += chunk;
-            });
-
-            res.on('end', function () {
-                if(res.statusCode == 200 || res.statusCode == 201) {
-                    console.log('=======> [response_noti - ' + res.headers['x-m2m-rsc'] + '] - ' + ri);
-                }
-            });
-        });
-    }
-    else {
-        options.ca = fs.readFileSync('ca-crt.pem');
-
-        req = https.request(options, function (res) {
-            res.setEncoding('utf8');
-
-            res.on('data', function (chunk) {
-                bodyStr += chunk;
-            });
-
-            res.on('end', function () {
-                if(res.statusCode == 200 || res.statusCode == 201) {
-                    console.log('=======> [response_noti - ' + res.headers['x-m2m-rsc'] + '] - ' + ri);
-                }
-            });
-        });
-    }
-
-    req.on('error', function (e) {
-        if(e.message != 'read ECONNRESET') {
-            //console.log('--xxx--> [request_noti - problem with request: ' + e.message + ']');
-            console.log('--xxx--> [request_noti - no response - ' + ri + ']');
-        }
-    });
-
-    req.on('close', function () {
-        //console.log('--xxx--> [request_noti - close: no response for notification');
-    });
-
-    req.write(bodyString);
-    req.end();
-}

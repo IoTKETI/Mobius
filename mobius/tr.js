@@ -136,19 +136,19 @@ exports.request_execute = function(obj, callback) {
 
     var resBody = '';
 
-    if (obj.tr.trqp.to.split(usespid + usecseid + '/')[0] == '') { // absolute relative
-        obj.tr.trqp.to = obj.tr.trqp.to.replace(usespid + usecseid + '/', '/');
+    if (obj.tr.trqp.to.split(usespid + use_cb_id + '/')[0] == '') { // absolute relative
+        obj.tr.trqp.to = obj.tr.trqp.to.replace(usespid + use_cb_id + '/', '/');
     }
-    else if (obj.tr.trqp.to.split(usecseid + '/' + usecsebase + '/')[0] == '') { // sp relative
-        obj.tr.trqp.to = obj.tr.trqp.to.replace(usecseid + '/', '/');
+    else if (obj.tr.trqp.to.split(use_cb_id + '/' + use_cb_name + '/')[0] == '') { // sp relative
+        obj.tr.trqp.to = obj.tr.trqp.to.replace(use_cb_id + '/', '/');
     }
-    else if (obj.tr.trqp.to.split(usecsebase)[0] == '') { // cse relative
+    else if (obj.tr.trqp.to.split(use_cb_name)[0] == '') { // cse relative
         obj.tr.trqp.to = '/' + obj.tr.trqp.to;
     }
 
     var options = {
         hostname: 'localhost',
-        port: usecsebaseport,
+        port: use_cb_port,
         path: obj.tr.trqp.to + '?tctl=3&tid=' + obj.tr.tid,
         method: op,
         headers: {
@@ -313,19 +313,19 @@ exports.request_commit = function(obj, callback) {
 
     var resBody = '';
 
-    if (obj.tr.trqp.to.split(usespid + usecseid + '/')[0] == '') { // absolute relative
-        obj.tr.trqp.to = obj.tr.trqp.to.replace(usespid + usecseid + '/', '/');
+    if (obj.tr.trqp.to.split(usespid + use_cb_id + '/')[0] == '') { // absolute relative
+        obj.tr.trqp.to = obj.tr.trqp.to.replace(usespid + use_cb_id + '/', '/');
     }
-    else if (obj.tr.trqp.to.split(usecseid + '/' + usecsebase + '/')[0] == '') { // sp relative
-        obj.tr.trqp.to = obj.tr.trqp.to.replace(usecseid + '/', '/');
+    else if (obj.tr.trqp.to.split(use_cb_id + '/' + use_cb_name + '/')[0] == '') { // sp relative
+        obj.tr.trqp.to = obj.tr.trqp.to.replace(use_cb_id + '/', '/');
     }
-    else if (obj.tr.trqp.to.split(usecsebase)[0] == '') { // cse relative
+    else if (obj.tr.trqp.to.split(use_cb_name)[0] == '') { // cse relative
         obj.tr.trqp.to = '/' + obj.tr.trqp.to;
     }
 
     var options = {
         hostname: 'localhost',
-        port: usecsebaseport,
+        port: use_cb_port,
         path: obj.tr.trqp.to + '?tid=' + obj.tr.tid,
         method: op,
         headers: {

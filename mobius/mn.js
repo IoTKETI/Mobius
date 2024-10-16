@@ -39,7 +39,7 @@ function retrieve_CSEBase_http(cbname, cbhost, cbhostport, callback) {
         headers: {
             'X-M2M-RI': rqi,
             'Accept': 'application/'+defaultbodytype,
-            'X-M2M-Origin': usecseid,
+            'X-M2M-Origin': use_cb_id,
             'X-M2M-RVI': uservi
         }
     };
@@ -186,7 +186,7 @@ function create_remoteCSE_http(cbname, cbhost, cbhostport, body_Obj, callback) {
         headers: {
             'X-M2M-RI': rqi,
             'Accept': 'application/'+defaultbodytype,
-            'X-M2M-Origin': usecseid,
+            'X-M2M-Origin': use_cb_id,
             'Content-Type': 'application/'+defaultbodytype+';ty=16',
             'X-M2M-RVI': uservi
         }
@@ -273,7 +273,7 @@ exports.build_mn = function(connection, ri, callback) {
                                     if (rsc == 200 || rsc == 201 || rsc == 403 || rsc == 409) {
                                         retrieve_CSEBase_http(parent_cbname, parent_cbhost, parent_cbhostport, function (rsc, jsonObj) {
                                             if (rsc == 200 || rsc == 201 || rsc == 403 || rsc == 409) {
-                                                create_remoteCSE_http(usecsebase, 'localhost', usecsebaseport, jsonObj, function (res, body) {
+                                                create_remoteCSE_http(use_cb_name, 'localhost', use_cb_port, jsonObj, function (res, body) {
                                                     var rsc = res.statusCode;
                                                     console.log(rsc + ' : ' + body);
                                                     if (rsc == 200 || rsc == 201 || rsc == 403 || rsc == 409) {
@@ -308,7 +308,7 @@ exports.build_mn = function(connection, ri, callback) {
                                     if (rsc == 200 || rsc == 201 || rsc == 403 || rsc == 409) {
                                         retrieve_CSEBase_mqtt(parent_cbcseid, parent_cbname, function (rsc, jsonObj) {
                                             if (rsc == 200 || rsc == 201 || rsc == 403 || rsc == 409) {
-                                                create_remoteCSE_mqtt(usecseid, usecsebase, jsonObj, function (rsc) {
+                                                create_remoteCSE_mqtt(use_cb_id, use_cb_name, jsonObj, function (rsc) {
                                                     if (rsc == 200 || rsc == 201 || rsc == 403 || rsc == 409) {
                                                         rspObj = {};
                                                         rspObj.rsc = '2000';
@@ -414,13 +414,13 @@ function create_remoteCSE_mqtt(cseid, csebasename, body_Obj, callback) {
     var rqi = require('shortid').generate();
     var options = {
         hostname: 'localhost',
-        port: usepxymqttport,
+        port: use_pxy_mqtt_port,
         path: '/register_csr',
         method: 'POST',
         headers: {
             'X-M2M-RI': rqi,
             'Accept': 'application/'+defaultbodytype,
-            'X-M2M-Origin': usecseid,
+            'X-M2M-Origin': use_cb_id,
             'Content-Type': 'application/vnd.onem2m-res+'+defaultbodytype,
             'cseid': cseid,
             'csebasename': csebasename,
@@ -455,13 +455,13 @@ function retrieve_CSEBase_mqtt(cseid, csebasename, callback) {
     var rqi = require('shortid').generate();
     var options = {
         hostname: 'localhost',
-        port: usepxymqttport,
+        port: use_pxy_mqtt_port,
         path: '/get_cb',
         method: 'get',
         headers: {
             'X-M2M-RI': rqi,
             'Accept': 'application/'+defaultbodytype,
-            'X-M2M-Origin': usecseid,
+            'X-M2M-Origin': use_cb_id,
             'Content-Type': 'application/vnd.onem2m-res+'+defaultbodytype,
             'cseid': cseid,
             'csebasename': csebasename,

@@ -154,7 +154,7 @@ function sgn_mqtt_message_handler(topic, message) {
         topic_arr[5] = defaultbodytype;
     }
 
-    if((topic_arr[1] == 'oneM2M' && topic_arr[2] == 'resp' && ((topic_arr[3].replace(':', '/') == usecseid) || (topic_arr[3] == usecseid.replace('/', ''))))) {
+    if((topic_arr[1] == 'oneM2M' && topic_arr[2] == 'resp' && ((topic_arr[3].replace(':', '/') == use_cb_id) || (topic_arr[3] == use_cb_id.replace('/', ''))))) {
         make_json_obj(bodytype, message.toString(), function(rsc, jsonObj) {
             if(rsc == '1') {
                 if(jsonObj['m2m:rsp'] == null) {
@@ -209,7 +209,7 @@ function request_noti_http(nu, ri, bodyString, bodytype, xm2mri) {
         headers: {
             'X-M2M-RI': xm2mri,
             'Accept': 'application/' + bodytype,
-            'X-M2M-Origin': usecseid,
+            'X-M2M-Origin': use_cb_id,
             'Content-Type': 'application/' + bodytype,
             'Content-Length' : bodyString.length //, for cert
             //'X-M2M-RVI': uservi
@@ -300,7 +300,7 @@ function request_noti_http(nu, ri, bodyString, bodytype, xm2mri) {
             headers: {
                 'X-M2M-RI': xm2mri,
                 'Accept': 'application/json',
-                'X-M2M-Origin': usecseid,
+                'X-M2M-Origin': use_cb_id,
                 'Content-Type': 'application/json',
                 'Content-Length' : bodyString.length //, for cert
                 //'X-M2M-RVI': uservi
@@ -353,7 +353,7 @@ function request_noti_coap(nu, ri, bodyString, bodytype, xm2mri) {
 
     var responseBody = '';
     var req = coap.request(options);
-    req.setOption("256", new Buffer(usecseid));      // X-M2M-Origin
+    req.setOption("256", new Buffer(use_cb_id));      // X-M2M-Origin
     req.setOption("257", new Buffer(xm2mri));    // X-M2M-RI
     req.on('response', function (res) {
         res.on('data', function () {
@@ -398,12 +398,12 @@ function request_noti_mqtt(hostname, ri, bodyString, bodytype, xm2mri, mqtt_clie
         resp_mqtt_rqi_arr[xm2mri] = ri;
 
         var aeid = new URL(hostname).pathname.replace('/', '').split('?')[0];
-        var noti_resp_topic = '/oneM2M/resp/' + usecseid.replace('/', '') + '/' + aeid + '/' + bodytype;
+        var noti_resp_topic = '/oneM2M/resp/' + use_cb_id.replace('/', '') + '/' + aeid + '/' + bodytype;
 
         mqtt_client.subscribe(noti_resp_topic);
         console.log('subscribe noti_resp_topic as ' + noti_resp_topic);
 
-        var noti_topic = '/oneM2M/req/' + usecseid.replace('/', '') + '/' + aeid + '/' + bodytype;
+        var noti_topic = '/oneM2M/req/' + use_cb_id.replace('/', '') + '/' + aeid + '/' + bodytype;
         mqtt_client.publish(noti_topic, bodyString);
 
         timerID[xm2mri] = setTimeout(checkResponseMqtt, resp_timeout, ri, noti_resp_topic, xm2mri);

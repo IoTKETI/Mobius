@@ -57,8 +57,8 @@ exports.ws_watchdog = function() {
             http.globalAgent.maxSockets = 1000000;
             _server = http.createServer(ws_app);
 
-            _server.listen({port: usepxywsport, agent: false}, function () {
-                console.log('pxyws server (' + ip.address() + ') running at ' + usepxywsport + ' port');
+            _server.listen({port: use_pxy_ws_port, agent: false}, function () {
+                console.log('pxyws server (' + ip.address() + ') running at ' + use_pxy_ws_port + ' port');
 
                 ws_state = 'connect';
             });
@@ -72,18 +72,20 @@ exports.ws_watchdog = function() {
             https.globalAgent.maxSockets = 1000000;
             _server = https.createServer(options, ws_app);
 
-            _server.listen({port: usepxywsport, agent: false}, function () {
-                console.log('pxyws server (' + ip.address() + ') running at ' + usepxywsport + ' port');
+            _server.listen({port: use_pxy_ws_port, agent: false}, function () {
+                console.log('pxyws server (' + ip.address() + ') running at ' + use_pxy_ws_port + ' port');
 
                 ws_state = 'connect';
             });
         }
+
+        setTimeout(_this.ws_watchdog, 1000);
     }
     else if(ws_state === 'connect') {
         http_retrieve_CSEBase(function(status, res_body) {
             if (status == '2000') {
                 var jsonObj = JSON.parse(res_body);
-                usecseid = jsonObj['m2m:cb'].csi;
+                use_cb_id = jsonObj['m2m:cb'].csi;
 
                 ws_state = 'connecting';
             }
@@ -91,6 +93,8 @@ exports.ws_watchdog = function() {
                 console.log('Target CSE(' + usewscbhost + ') is not ready');
             }
         });
+
+        setTimeout(_this.ws_watchdog, 1000);
     }
     else if(ws_state === 'connecting') {
         if(pxy_ws_server == null) {
@@ -160,8 +164,7 @@ exports.ws_watchdog = function() {
     }
 };
 
-var ws_tid = require('shortid').generate();
-wdt.set_wdt(ws_tid, 2, _this.ws_watchdog);
+setTimeout(_this.ws_watchdog, 1000);
 
 function ws_message_handler(message) {
     var _this = this;
@@ -223,14 +226,14 @@ function ws_message_action(ws_conn, bodytype, jsonObj) {
         var res_body = {};
         res_body['m2m:dbg'] = 'm2m:rqp tag of ws message is removed';
 
-        ws_response(ws_conn, 4000, "", usecseid, "", JSON.parse(res_body), bodytype);
+        ws_response(ws_conn, 4000, "", use_cb_id, "", JSON.parse(res_body), bodytype);
     }
     else {
         var op = (jsonObj.op == null) ? '' : jsonObj.op;
         var to = (jsonObj.to == null) ? '' : jsonObj.to;
 
-        to = to.replace(usespid + usecseid + '/', '/');
-        to = to.replace(usecseid + '/', '/');
+        to = to.replace(usespid + use_cb_id + '/', '/');
+        to = to.replace(use_cb_id + '/', '/');
 
         if(to.charAt(0) != '/') {
             to = '/' + to;
@@ -261,21 +264,21 @@ function ws_message_action(ws_conn, bodytype, jsonObj) {
         }
 
         try {
-            //if (to.split('/')[1].split('?')[0] == usecsebase) {
+            //if (to.split('/')[1].split('?')[0] == use_cb_name) {
                 ws_binding(op, to, fr, rqi, ty, pc, bodytype, function (res, res_body) {
                     if (res_body == '') {
                         res_body = '{}';
                     }
-                    ws_response(ws_conn, res.headers['x-m2m-rsc'], to, usecseid, rqi, JSON.parse(res_body), bodytype);
+                    ws_response(ws_conn, res.headers['x-m2m-rsc'], to, use_cb_id, rqi, JSON.parse(res_body), bodytype);
                 });
             // }
             // else {
-            //     ws_response(ws_conn, 4004, fr, usecseid, rqi, 'this is not MN-CSE, csebase do not exist', bodytype);
+            //     ws_response(ws_conn, 4004, fr, use_cb_id, rqi, 'this is not MN-CSE, csebase do not exist', bodytype);
             // }
         }
         catch (e) {
             console.error(e);
-            ws_response(ws_conn, 5000, fr, usecseid, rqi, 'to parsing error', bodytype);
+            ws_response(ws_conn, 5000, fr, use_cb_id, rqi, 'to parsing error', bodytype);
         }
     }
 }
@@ -308,7 +311,7 @@ function ws_binding(op, to, fr, rqi, ty, pc, bodytype, callback) {
 
     var options = {
         hostname: usewscbhost,
-        port: usecsebaseport,
+        port: use_cb_port,
         path: to,
         method: op,
         headers: {
@@ -419,19 +422,19 @@ function ws_response(ws_conn, rsc, to, fr, rqi, inpc, bodytype) {
 
 function http_retrieve_CSEBase(callback) {
     var rqi = require('shortid').generate();
-    var resourceid = '/' + usecsebase;
+    var resourceid = '/' + use_cb_name;
     var responseBody = '';
 
     if(use_secure == 'disable') {
         var options = {
             hostname: usewscbhost,
-            port: usecsebaseport,
+            port: use_cb_port,
             path: resourceid,
             method: 'get',
             headers: {
                 'X-M2M-RI': rqi,
                 'Accept': 'application/json',
-                'X-M2M-Origin': usecseid,
+                'X-M2M-Origin': use_cb_id,
                 'X-M2M-RVI': uservi
             }
         };
@@ -450,13 +453,13 @@ function http_retrieve_CSEBase(callback) {
     else {
         options = {
             hostname: usewscbhost,
-            port: usecsebaseport,
+            port: use_cb_port,
             path: resourceid,
             method: 'get',
             headers: {
                 'X-M2M-RI': rqi,
                 'Accept': 'application/json',
-                'X-M2M-Origin': usecseid,
+                'X-M2M-Origin': use_cb_id,
                 'X-M2M-RVI': uservi
             },
             ca: fs.readFileSync('ca-crt.pem')

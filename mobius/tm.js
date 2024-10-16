@@ -137,19 +137,19 @@ exports.request_lock = function(obj, retry_count, callback) {
             var reqBodyString = JSON.stringify(rqps[idx].pc);
 
 
-            if (rqps[idx].to.split(usespid + usecseid + '/')[0] == '') { // absolute relative
-                rqps[idx].to = rqps[idx].to.replace(usespid + usecseid + '/', '/');
+            if (rqps[idx].to.split(usespid + use_cb_id + '/')[0] == '') { // absolute relative
+                rqps[idx].to = rqps[idx].to.replace(usespid + use_cb_id + '/', '/');
             }
-            else if (rqps[idx].to.split(usecseid + '/' + usecsebase + '/')[0] == '') { // sp relative
-                rqps[idx].to = rqps[idx].to.replace(usecseid + '/', '/');
+            else if (rqps[idx].to.split(use_cb_id + '/' + use_cb_name + '/')[0] == '') { // sp relative
+                rqps[idx].to = rqps[idx].to.replace(use_cb_id + '/', '/');
             }
-            else if (rqps[idx].to.split(usecsebase)[0] == '') { // cse relative
+            else if (rqps[idx].to.split(use_cb_name)[0] == '') { // cse relative
                 rqps[idx].to = '/' + rqps[idx].to;
             }
 
             var options = {
                 hostname: 'localhost',
-                port: usecsebaseport,
+                port: use_cb_port,
                 path: rqps[idx].to,
                 method: op,
                 headers: {
@@ -309,19 +309,19 @@ function request_tctl(obj, retry_count, tctl, callback) {
             rqps[idx].pc['m2m:tr'].tctl = tctl;
             var reqBodyString = JSON.stringify(rqps[idx].pc);
 
-            if (rqps[idx].to.split(usespid + usecseid + '/')[0] == '') { // absolute relative
-                rqps[idx].to = rqps[idx].to.replace(usespid + usecseid + '/', '/');
+            if (rqps[idx].to.split(usespid + use_cb_id + '/')[0] == '') { // absolute relative
+                rqps[idx].to = rqps[idx].to.replace(usespid + use_cb_id + '/', '/');
             }
-            else if (rqps[idx].to.split(usecseid + '/' + usecsebase + '/')[0] == '') { // sp relative
-                rqps[idx].to = rqps[idx].to.replace(usecseid + '/', '/');
+            else if (rqps[idx].to.split(use_cb_id + '/' + use_cb_name + '/')[0] == '') { // sp relative
+                rqps[idx].to = rqps[idx].to.replace(use_cb_id + '/', '/');
             }
-            else if (rqps[idx].to.split(usecsebase)[0] == '') { // cse relative
+            else if (rqps[idx].to.split(use_cb_name)[0] == '') { // cse relative
                 rqps[idx].to = '/' + rqps[idx].to;
             }
 
             var options = {
                 hostname: 'localhost',
-                port: usecsebaseport,
+                port: use_cb_port,
                 path: rqps[idx].to + '/' + rn,
                 method: op,
                 headers: {

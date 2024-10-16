@@ -25,11 +25,6 @@ var coap = require('coap');
 
 global.NOPRINT = 'true';
 
-var _this = this;
-
-var coap_state = 'init';
-
-//var custom = new process.EventEmitter();
 var events = require('events');
 var coap_custom = new events.EventEmitter();
 
@@ -74,72 +69,16 @@ var coap_rsc_code = {
     '6029': '4.00'
 };
 
-coap_state = 'init';
+var pxycoap_server = coap.createServer();
 
-//setInterval(function () {
-//    coap_custom.emit('coap_watchdog');
-//}, 2000);
+pxycoap_server.listen(use_cb_port, function() {
+});
 
-var pxycoap_server = null;
+pxycoap_server.on('request', coap_message_handler);
 
-//coap_custom.on('coap_watchdog', function() {
-exports.coap_watchdog = function () {
-    if(coap_state === 'init') {
-        coap_state = 'connect';
-    }
-    else if(coap_state === 'connect') {
-        if(pxycoap_server == null) {
-            pxycoap_server = coap.createServer();
-            pxycoap_server.listen(usecsebaseport, function() {
-                // var options = {
-                //     host: 'localhost',
-                //     port: usecsebaseport,
-                //     pathname: '/'+usecsebase,
-                //     method: 'get',
-                //     confirmable: 'false',
-                //     options: {
-                //         'Accept': 'application/json'
-                //     }
-                // };
-                //
-                // var bodyString = '';
-                // var responseBody = '';
-                // var req = coap.request(options);
-                // req.setOption("256", new Buffer(usecseid));      // X-M2M-Origin
-                // req.setOption("257", new Buffer('hello'));    // X-M2M-RI
-                // req.on('response', function (res) {
-                //     res.on('data', function () {
-                //         responseBody += res.payload.toString();
-                //     });
-                //
-                //     res.on('end', function () {
-                //         if(res.code == '2.05') {
-                //             coap_state = 'ready';
-                //             console.log('[pxy_coap] coap ready');
-                //         }
-                //     });
-                // });
-                // req.on('error', function (e) {
-                //     console.log(e);
-                // });
-                //
-                // req.write(bodyString);
-                // req.end();
-            });
-
-
-            pxycoap_server.on('request', coap_message_handler);
-
-            pxycoap_server.on('error', function (e) {
-                console.log(e);
-            });
-        }
-    }
-};
-
-
-var coap_tid = require('shortid').generate();
-wdt.set_wdt(coap_tid, 2, _this.coap_watchdog);
+pxycoap_server.on('error', function (e) {
+    console.log(e);
+});
 
 function coap_message_handler(request, response) {
 
@@ -188,7 +127,7 @@ function coap_message_handler(request, response) {
 
     var options = {
         hostname: usecoapcbhost,
-        port: usecsebaseport,
+        port: use_cb_port,
         path: request.url,
         method: request.method,
         headers: headers
