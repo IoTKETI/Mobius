@@ -102,36 +102,7 @@ exports.request_execute = function(obj, callback) {
 
     var reqBodyString = '';
     if( op === 'post' || op === 'put') {
-        if (bodytype === 'xml') {
-            obj.tr.trqp.pc[Object.keys(obj.tr.trqp.pc)[0]]['@'] = {
-                "xmlns:m2m": "http://www.onem2m.org/xml/protocols",
-                "xmlns:xsi": "http://www.w3.org/2001/XMLSchema-instance"
-            };
-
-            for (var prop in obj.tr.trqp.pc) {
-                if (obj.tr.trqp.pc.hasOwnProperty(prop)) {
-                    for (var prop2 in obj.tr.trqp.pc[prop]) {
-                        if (obj.tr.trqp.pc[prop].hasOwnProperty(prop2)) {
-                            if (prop2 == 'rn') {
-                                obj.tr.trqp.pc[prop]['@'] = {rn: obj.tr.trqp.pc[prop][prop2]};
-                                delete obj.tr.trqp.pc[prop][prop2];
-                                break;
-                            }
-                        }
-                    }
-                }
-            }
-
-            try {
-                reqBodyString = js2xmlparser.parse(Object.keys(obj.tr.trqp.pc)[0], obj.tr.trqp.pc[Object.keys(obj.tr.trqp.pc)[0]]);
-            }
-            catch (e) {
-                reqBodyString = "";
-            }
-        }
-        else { // json
-            reqBodyString = JSON.stringify(obj.tr.trqp.pc);
-        }
+        reqBodyString = JSON.stringify(obj.tr.trqp.pc);
     }
 
     var resBody = '';
@@ -156,7 +127,7 @@ exports.request_execute = function(obj, callback) {
             'Accept': 'application/json',
             'X-M2M-Origin': obj.tr.trqp.fr,
             'Content-Type': content_type,
-            'X-M2M-RVI': uservi
+            'X-M2M-RVI': use_rvi
         }
     };
 
@@ -213,44 +184,20 @@ function trsp_action(ri, bodytype, res, resBody, callback) {
         tst_value = tst_v.ABORTED;
     }
 
-    if (bodytype === 'xml') {
-        try {
-            var parser = new xml2js.Parser({explicitArray: false});
-            parser.parseString(resBody, function (err, body_Obj) {
-                var trsp_primitive = {};
-                trsp_primitive.rsc = parseInt(res.headers['x-m2m-rsc']); // convert to int
-                trsp_primitive.rqi = res.headers['x-m2m-ri'];
-                trsp_primitive.pc = JSON.parse(body_Obj.toString());
+    try {
+        var trsp_primitive = {};
+        trsp_primitive.rsc = parseInt(res.headers['x-m2m-rsc']); // convert to int
+        trsp_primitive.rqi = res.headers['x-m2m-ri'];
+        trsp_primitive.pc = JSON.parse(resBody.toString());
 
-                callback('1', tst_value, trsp_primitive);
-            });
-        }
-        catch (e) {
-            trsp_primitive = {};
-            trsp_primitive.rsc = parseInt(res.headers['x-m2m-rsc']); // convert to int
-            trsp_primitive.rqi = res.headers['x-m2m-ri'];
-            trsp_primitive.pc = JSON.parse(resBody.toString());
-            callback('1', tst_value, trsp_primitive);
-        }
+        callback('1', tst_value, trsp_primitive);
     }
-    else if (bodytype === 'cbor') {
-    }
-    else {
-        try {
-            var trsp_primitive = {};
-            trsp_primitive.rsc = parseInt(res.headers['x-m2m-rsc']); // convert to int
-            trsp_primitive.rqi = res.headers['x-m2m-ri'];
-            trsp_primitive.pc = JSON.parse(resBody.toString());
-
-            callback('1', tst_value, trsp_primitive);
-        }
-        catch (e) {
-            trsp_primitive = {};
-            trsp_primitive.rsc = parseInt(res.headers['x-m2m-rsc']); // convert to int
-            trsp_primitive.rqi = res.headers['x-m2m-ri'];
-            trsp_primitive.pc = JSON.parse(resBody.toString());
-            callback('1', tst_value, trsp_primitive);
-        }
+    catch (e) {
+        trsp_primitive = {};
+        trsp_primitive.rsc = parseInt(res.headers['x-m2m-rsc']); // convert to int
+        trsp_primitive.rqi = res.headers['x-m2m-ri'];
+        trsp_primitive.pc = JSON.parse(resBody.toString());
+        callback('1', tst_value, trsp_primitive);
     }
 }
 
@@ -279,36 +226,7 @@ exports.request_commit = function(obj, callback) {
 
     var reqBodyString = '';
     if( op === 'post' || op === 'put') {
-        if (bodytype === 'xml') {
-            obj.tr.trqp.pc[Object.keys(obj.tr.trqp.pc)[0]]['@'] = {
-                "xmlns:m2m": "http://www.onem2m.org/xml/protocols",
-                "xmlns:xsi": "http://www.w3.org/2001/XMLSchema-instance"
-            };
-
-            for (var prop in obj.tr.trqp.pc) {
-                if (obj.tr.trqp.pc.hasOwnProperty(prop)) {
-                    for (var prop2 in obj.tr.trqp.pc[prop]) {
-                        if (obj.tr.trqp.pc[prop].hasOwnProperty(prop2)) {
-                            if (prop2 == 'rn') {
-                                obj.tr.trqp.pc[prop]['@'] = {rn: obj.tr.trqp.pc[prop][prop2]};
-                                delete obj.tr.trqp.pc[prop][prop2];
-                                break;
-                            }
-                        }
-                    }
-                }
-            }
-
-            try {
-                reqBodyString = js2xmlparser.parse(Object.keys(obj.tr.trqp.pc)[0], obj.tr.trqp.pc[Object.keys(obj.tr.trqp.pc)[0]]);
-            }
-            catch (e) {
-                reqBodyString = "";
-            }
-        }
-        else { // json
-            reqBodyString = JSON.stringify(obj.tr.trqp.pc);
-        }
+        reqBodyString = JSON.stringify(obj.tr.trqp.pc);
     }
 
     var resBody = '';
@@ -333,7 +251,7 @@ exports.request_commit = function(obj, callback) {
             'Accept': 'application/json',
             'X-M2M-Origin': obj.tr.trqp.fr,
             'Content-Type': content_type,
-            'X-M2M-RVI': uservi
+            'X-M2M-RVI': use_rvi
         }
     };
 

@@ -14,7 +14,6 @@
  * @author Il Yeup Ahn [iyahn@keti.re.kr]
  */
 
-require('dotenv').config();
 var fs = require('fs');
 var http = require('http');
 var https = require('https');
@@ -189,7 +188,8 @@ function reg_req_sub() {
 function mqtt_message_handler(topic, message) {
     var topic_arr = topic.split("/");
     if(topic_arr[5] != null) {
-        var bodytype = (topic_arr[5] == 'xml') ? topic_arr[5] : ((topic_arr[5] == 'json') ? topic_arr[5] : ((topic_arr[5] == 'cbor') ? topic_arr[5] : 'json'));
+        var bodytype = defaultbodytype;
+        topic_arr[5] = defaultbodytype;
     }
     else {
         bodytype = defaultbodytype;
@@ -446,7 +446,7 @@ function mqtt_binding(op, to, fr, rqi, ty, pc, bodytype, callback) {
             'X-M2M-Origin': fr,
             'Content-Type': content_type,
             'binding': 'M',
-            'X-M2M-RVI': uservi
+            'X-M2M-RVI': use_rvi
         }
     };
 
@@ -505,87 +505,31 @@ function mqtt_response(resp_topic, rsc, op, to, fr, rqi, inpc, bodytype) {
 
     var cache_key = op.toString() + to.toString() + rqi.toString();
 
-    if (bodytype == 'xml') {
-        var bodyString = responder.convertXmlMqtt('rsp', rsp_message['m2m:rsp']);
-
-        /*rsp_message['m2m:rsp']['@'] = {
-            "xmlns:m2m": "http://www.onem2m.org/xml/protocols",
-            "xmlns:xsi": "http://www.w3.org/2001/XMLSchema-instance"
-        };
-
-        for(var prop in rsp_message['m2m:rsp'].pc) {
-            if (rsp_message['m2m:rsp'].pc.hasOwnProperty(prop)) {
-                for(var prop2 in rsp_message['m2m:rsp'].pc[prop]) {
-                    if (rsp_message['m2m:rsp'].pc[prop].hasOwnProperty(prop2)) {
-                        if(prop2 == 'rn') {
-                            rsp_message['m2m:rsp'].pc[prop]['@'] = {rn : rsp_message['m2m:rsp'].pc[prop][prop2]};
-                            delete rsp_message['m2m:rsp'].pc[prop][prop2];
-                        }
-                        for(var prop3 in rsp_message['m2m:rsp'].pc[prop][prop2]) {
-                            if (rsp_message['m2m:rsp'].pc[prop][prop2].hasOwnProperty(prop3)) {
-                                if(prop3 == 'rn') {
-                                    rsp_message['m2m:rsp'].pc[prop][prop2]['@'] = {rn : rsp_message['m2m:rsp'].pc[prop][prop2][prop3]};
-                                    delete rsp_message['m2m:rsp'].pc[prop][prop2][prop3];
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        var bodyString = js2xmlparser.parse("m2m:rsp", rsp_message['m2m:rsp']);
-*/
+    try {
         if(message_cache.hasOwnProperty(cache_key)) {
-            message_cache[cache_key].rsp = bodyString.toString();
+            message_cache[cache_key].rsp = JSON.stringify(rsp_message['m2m:rsp']);
         }
         else {
             message_cache[cache_key] = {};
-            message_cache[cache_key].rsp = bodyString.toString();
+            message_cache[cache_key].rsp = JSON.stringify(rsp_message['m2m:rsp']);
         }
 
-        pxymqtt_client.publish(resp_topic, bodyString.toString());
+        pxymqtt_client.publish(resp_topic, message_cache[cache_key].rsp);
     }
-    else if(bodytype === 'cbor') {
-        bodyString = cbor.encode(rsp_message['m2m:rsp']).toString('hex');
-
-        if(message_cache.hasOwnProperty(cache_key)) {
-            message_cache[cache_key].rsp = bodyString.toString();
-        }
-        else {
-            message_cache[cache_key] = {};
-            message_cache[cache_key].rsp = bodyString.toString();
-        }
-
-        pxymqtt_client.publish(resp_topic, bodyString);
-    }
-    else { // 'json'
-        try {
-            if(message_cache.hasOwnProperty(cache_key)) {
-                message_cache[cache_key].rsp = JSON.stringify(rsp_message['m2m:rsp']);
-            }
-            else {
-                message_cache[cache_key] = {};
-                message_cache[cache_key].rsp = JSON.stringify(rsp_message['m2m:rsp']);
-            }
-
-            pxymqtt_client.publish(resp_topic, message_cache[cache_key].rsp);
-        }
-        catch (e) {
-            console.log(e.message);
-            delete message_cache[cache_key];
-            var dbg = {};
-            dbg['m2m:dbg'] = '[mqtt_response]' + e.message;
-            pxymqtt_client.publish(resp_topic, JSON.stringify(dbg));
-        }
+    catch (e) {
+        console.log(e.message);
+        delete message_cache[cache_key];
+        var dbg = {};
+        dbg['m2m:dbg'] = '[mqtt_response]' + e.message;
+        pxymqtt_client.publish(resp_topic, JSON.stringify(dbg));
     }
 }
 
 // for notification
 var onem2mParser = bodyParser.text(
     {
-        limit: '1mb',
-        type: 'application/onem2m-resource+xml;application/xml;application/json;application/vnd.onem2m-res+xml;application/vnd.onem2m-res+json'
+        limit: '10mb',
+        type: 'application/onem2m-resource+json;application/json;application/vnd.onem2m-res+json;application/vnd.onem2m-res+json'
     }
 );
 
@@ -665,21 +609,8 @@ mqtt_app.post('/register_csr', onem2mParser, function(request, response, next) {
 
             req_message['m2m:rqp'].pc = pc;
 
-            if (request.headers.bodytype == 'xml') {
-                req_message['m2m:rqp']['@'] = {
-                    "xmlns:m2m": "http://www.onem2m.org/xml/protocols",
-                    "xmlns:xsi": "http://www.w3.org/2001/XMLSchema-instance"
-                };
-
-                var xmlString = js2xmlparser.parse("m2m:rqp", req_message['m2m:rqp']);
-
-                pxymqtt_client.publish(reg_req_topic, xmlString);
-                NOPRINT==='true'?NOPRINT='true':console.log('<---- ' + reg_req_topic);
-            }
-            else { // 'json'
-                pxymqtt_client.publish(reg_req_topic, JSON.stringify(req_message['m2m:rqp']));
-                NOPRINT==='true'?NOPRINT='true':console.log('<---- ' + reg_req_topic);
-            }
+            pxymqtt_client.publish(reg_req_topic, JSON.stringify(req_message['m2m:rqp']));
+            NOPRINT==='true'?NOPRINT='true':console.log('<---- ' + reg_req_topic);
         }
         else {
             NOPRINT==='true'?NOPRINT='true':console.log('pxymqtt is not ready');
@@ -721,21 +652,8 @@ mqtt_app.get('/get_cb', onem2mParser, function(request, response, next) {
 
             req_message['m2m:rqp'].pc = pc;
 
-            if (request.headers.bodytype == 'xml') {
-                req_message['m2m:rqp']['@'] = {
-                    "xmlns:m2m": "http://www.onem2m.org/xml/protocols",
-                    "xmlns:xsi": "http://www.w3.org/2001/XMLSchema-instance"
-                };
-
-                var xmlString = js2xmlparser.parse("m2m:rqp", req_message['m2m:rqp']);
-
-                pxymqtt_client.publish(reg_req_topic, xmlString);
-                NOPRINT==='true'?NOPRINT='true':console.log('<---- ' + reg_req_topic);
-            }
-            else { // 'json'
-                pxymqtt_client.publish(reg_req_topic, JSON.stringify(req_message['m2m:rqp']));
-                NOPRINT==='true'?NOPRINT='true':console.log('<---- ' + reg_req_topic);
-            }
+            pxymqtt_client.publish(reg_req_topic, JSON.stringify(req_message['m2m:rqp']));
+            NOPRINT==='true'?NOPRINT='true':console.log('<---- ' + reg_req_topic);
         }
         else {
             NOPRINT==='true'?NOPRINT='true':console.log('pxymqtt is not ready');
@@ -757,7 +675,7 @@ function http_retrieve_CSEBase(callback) {
             'X-M2M-RI': require('shortid').generate(),
             'Accept': 'application/json',
             'X-M2M-Origin': use_cb_id,
-            'X-M2M-RVI': uservi
+            'X-M2M-RVI': use_rvi
         },
         rejectUnauthorized: false
     };

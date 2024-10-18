@@ -14,7 +14,6 @@
  * @author Il Yeup Ahn [iyahn@keti.re.kr]
  */
 
-require('dotenv').config();
 var xml2js = require('xml2js');
 var xmlbuilder = require('xmlbuilder');
 var util = require('util');

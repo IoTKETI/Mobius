@@ -314,41 +314,12 @@ function make_short_nametype(body_Obj) {
 global.make_json_obj = function (bodytype, str, callback) {
     try {
         if (bodytype === 'xml') {
-            var message = str;
-            var parser = new xml2js.Parser({explicitArray: false});
-            parser.parseString(message.toString(), (err, result) => {
-                if (err) {
-                    console.log('[mqtt make json obj] xml2js parser error]');
-                    callback('0');
-                }
-                else {
-                    for (var prop in result) {
-                        if (result.hasOwnProperty(prop)) {
-                            for (var attr in result[prop]) {
-                                if (result[prop].hasOwnProperty(attr)) {
-                                    if (attr == '$') {
-                                        delete result[prop][attr];
-                                    }
-                                    else if (attr == 'pc') {
-                                        make_json_arraytype(result[prop][attr]);
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    callback('1', result);
-                }
-            });
+            console.error('do not support xml');
+            callback('0');
         }
         else if (bodytype === 'cbor') {
-            cbor.decodeFirst(str, (err, result) => {
-                if (err) {
-                    console.log('cbor parser error]');
-                }
-                else {
-                    callback('1', result);
-                }
-            });
+            console.error('do not support cbor');
+            callback('0');
         }
         else {
             var result = JSON.parse(str);
@@ -501,20 +472,8 @@ global.make_json_arraytype = function (body_Obj) {
 function parse_to_json(request, response, callback) {
     if (request.usebodytype === 'xml') {
         try {
-            var parser = new xml2js.Parser({explicitArray: false});
-            parser.parseString(request.body.toString(), (err, result) => {
-                if (err) {
-                    callback('400-5');
-                }
-                else {
-                    request.bodyObj = result;
-                    make_short_nametype(request.bodyObj);
-                    make_json_arraytype(request.bodyObj);
-
-                    request.headers.rootnm = Object.keys(request.bodyObj)[0];
-                    callback('200');
-                }
-            });
+            console.error('do not support xml');
+            callback('400-5');
         }
         catch (e) {
             callback('400-5');
@@ -522,20 +481,8 @@ function parse_to_json(request, response, callback) {
     }
     else if (request.usebodytype === 'cbor') {
         try {
-            var encoded = request.body;
-            cbor.decodeFirst(encoded, (err, result) => {
-                if (err) {
-                    callback('400-6');
-                }
-                else {
-                    request.bodyObj = result;
-                    make_short_nametype(request.bodyObj);
-                    //make_json_arraytype(request.bodyObj);
-
-                    request.headers.rootnm = Object.keys(request.bodyObj)[0];
-                    callback('200');
-                }
-            });
+            console.error('do not support cbor');
+            callback('400-6');
         }
         catch (e) {
             callback('400-6');
@@ -665,24 +612,7 @@ function parse_body_format(request) {
             }
 
             if (responder.typeRsrc[request.ty] != Object.keys(request.bodyObj)[0]) {
-                if (responder.typeRsrc[request.ty] == 'mgo') {
-                    var support_mgo = 0;
-                    for (var prop in responder.mgoType) {
-                        if (responder.mgoType.hasOwnProperty(prop)) {
-                            if (responder.mgoType[prop] == Object.keys(request.bodyObj)[0]) {
-                                support_mgo = 1;
-                                break;
-                            }
-                        }
-                    }
-
-                    if (support_mgo == 0) {
-                        return ('400-42');
-                    }
-                }
-                else {
-                    return ('400-42');
-                }
+                return ('400-42');
             }
 
             return ('200');
@@ -1392,7 +1322,7 @@ let check_xm2m_headers = (request) => {
 
     // Check X-M2M-RVI Header
     if (!request.headers.hasOwnProperty('x-m2m-rvi')) {
-        request.headers['x-m2m-rvi'] = uservi;
+        request.headers['x-m2m-rvi'] = use_rvi;
     }
 
     // Check X-M2M-RI Header
@@ -1696,16 +1626,6 @@ function check_type_update_resource(request) {
                     break;
                 }
             }
-            else if (ty_idx == 13) {
-                for (var mgo_idx in responder.mgoType) {
-                    if (responder.mgoType.hasOwnProperty(mgo_idx)) {
-                        if ((responder.mgoType[mgo_idx] == Object.keys(request.bodyObj)[0])) {
-                            request.ty = ty_idx;
-                            break;
-                        }
-                    }
-                }
-            }
         }
     }
 
@@ -1730,7 +1650,7 @@ function check_type_delete_resource(request) {
 var onem2mParser = bodyParser.text(
     {
         limit: '5mb',
-        type: 'application/onem2m-resource+xml;application/xml;application/json;application/vnd.onem2m-res+xml;application/vnd.onem2m-res+json'
+        type: 'application/onem2m-resource+json;application/json;application/vnd.onem2m-res+json;application/vnd.onem2m-res+json'
     }
 );
 

@@ -15,7 +15,6 @@
  * @revision 2024.06
  */
 
-require('dotenv').config();
 const pg = require('pg');
 
 const pool = new pg.Pool({

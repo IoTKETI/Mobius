@@ -40,7 +40,7 @@ function retrieve_CSEBase_http(cbname, cbhost, cbhostport, callback) {
             'X-M2M-RI': rqi,
             'Accept': 'application/'+defaultbodytype,
             'X-M2M-Origin': use_cb_id,
-            'X-M2M-RVI': uservi
+            'X-M2M-RVI': use_rvi
         }
     };
 
@@ -53,46 +53,9 @@ function retrieve_CSEBase_http(cbname, cbhost, cbhostport, callback) {
         res.on('end', function () {
             if (res.statusCode == 200) {
                 var jsonObj = {};
-                if (defaultbodytype == 'xml') {
-                    var parser = new xml2js.Parser({explicitArray: false});
-                    parser.parseString(fullBody, function (err, result) {
-                        if (err) {
-                            console.log('[retrieve_CSEBase_http] fail to set csetype to MN-CSE. csetype is IN-CSE');
-                        }
-                        else {
-                            result['m2m:cb'].rn = result['m2m:cb']['$'].rn;
-                            delete result['m2m:cb']['$'];
-
-                            if(result['m2m:cb'].poa) {
-                                result['m2m:cb'].poa = result['m2m:cb'].poa.split(' ');
-                            }
-
-                            if(result['m2m:cb'].srt) {
-                                result['m2m:cb'].srt = result['m2m:cb'].srt.split(' ');
-                            }
-
-                            if(result['m2m:cb'].lbl) {
-                                result['m2m:cb'].lbl = result['m2m:cb'].lbl.split(' ');
-                            }
-
-                            if(result['m2m:cb'].acpi) {
-                                result['m2m:cb'].acpi = result['m2m:cb'].acpi.split(' ');
-                            }
-
-                            if(result['m2m:cb'].subl) {
-                                result['m2m:cb'].subl = result['m2m:cb'].subl.split(' ');
-                            }
-
-                            jsonObj.csr = {};
-                            jsonObj.csr = result['m2m:cb'];
-                        }
-                    });
-                }
-                else { // json
-                    jsonObj = JSON.parse(fullBody);
-                    jsonObj.csr = jsonObj['m2m:cb'];
-                    delete jsonObj['m2m:cb'];
-                }
+                jsonObj = JSON.parse(fullBody);
+                jsonObj.csr = jsonObj['m2m:cb'];
+                delete jsonObj['m2m:cb'];
 
                 for(var idx in jsonObj.csr) {
                     if(jsonObj.csr.hasOwnProperty(idx)) {
@@ -139,43 +102,6 @@ function create_remoteCSE_http(cbname, cbhost, cbhostport, body_Obj, callback) {
 
     var bodyString = JSON.stringify(body_Obj);
 
-    if (defaultbodytype == 'xml') {
-        var xml = xmlbuilder.create('m2m:' + rootnm, {version: '1.0', encoding: 'UTF-8', standalone: true},
-            {pubID: null, sysID: null}, {allowSurrogateChars: false, skipNullAttributes: false, headless: false, ignoreDecorators: false, stringify: {}}
-        ).att('xmlns:m2m', 'http://www.onem2m.org/xml/protocols').att('xmlns:xsi', 'http://www.w3.org/2001/XMLSchema-instance');
-
-        for (var index in body_Obj) {
-            if(body_Obj.hasOwnProperty(index)) {
-                for (var attr in body_Obj[index]) {
-                    if(body_Obj[index].hasOwnProperty(attr)) {
-                        if (attr == 'rn') {
-                            xml.att(attr, body_Obj[index][attr]);
-                        }
-                        else if (attr == 'acpi') {
-                            xml.ele(attr, body_Obj[index][attr].toString().replace(/,/g, ' '));
-                        }
-                        else if (attr == 'lbl') {
-                            xml.ele(attr, body_Obj[index][attr].toString().replace(/,/g, ' '));
-                        }
-                        else if (attr == 'srt') {
-                            xml.ele(attr, body_Obj[index][attr].toString().replace(/,/g, ' '));
-                        }
-                        else if (attr == 'poa') {
-                            xml.ele(attr, body_Obj[index][attr].toString().replace(/,/g, ' '));
-                        }
-                        else if (attr == 'subl') {
-                            xml.ele(attr, body_Obj[index][attr].toString().replace(/,/g, ' '));
-                        }
-                        else {
-                            xml.ele(attr, body_Obj[index][attr]);
-                        }
-                    }
-                }
-            }
-        }
-        bodyString = xml.end({pretty: false, indent: '  ', newline: '\n'}).toString();
-    }
-
     var rqi = require('shortid').generate();
     var ri = '/' + cbname;
     var options = {
@@ -189,7 +115,7 @@ function create_remoteCSE_http(cbname, cbhost, cbhostport, body_Obj, callback) {
             'X-M2M-Origin': use_cb_id,
             'Content-Type': 'application/'+defaultbodytype+';ty=16',
             'csr': 'self',
-            'X-M2M-RVI': uservi
+            'X-M2M-RVI': use_rvi
         }
     };
 
@@ -368,43 +294,6 @@ function create_remoteCSE_mqtt(cseid, csebasename, body_Obj, callback) {
 
     var bodyString = JSON.stringify(body_Obj);
 
-    if (defaultbodytype == 'xml') {
-        var xml = xmlbuilder.create('m2m:' + rootnm, {version: '1.0', encoding: 'UTF-8', standalone: true},
-            {pubID: null, sysID: null}, {allowSurrogateChars: false, skipNullAttributes: false, headless: false, ignoreDecorators: false, stringify: {}}
-        ).att('xmlns:m2m', 'http://www.onem2m.org/xml/protocols').att('xmlns:xsi', 'http://www.w3.org/2001/XMLSchema-instance');
-
-        for (var index in body_Obj) {
-            if(body_Obj.hasOwnProperty(index)) {
-                for (var attr in body_Obj[index]) {
-                    if(body_Obj[index].hasOwnProperty(attr)) {
-                        if (attr == 'resourceName' || attr == 'rn') {
-                            xml.att(attr, body_Obj[index][attr]);
-                        }
-                        else if (attr == 'accessControlPolicyIDs' || attr == 'acpi') {
-                            xml.ele(attr, body_Obj[index][attr].toString().replace(/,/g, ' '));
-                        }
-                        else if (attr == 'labels' || attr == 'lbl') {
-                            xml.ele(attr, body_Obj[index][attr].toString().replace(/,/g, ' '));
-                        }
-                        else if (attr == 'supportedResourceType' || attr == 'srt') {
-                            xml.ele(attr, body_Obj[index][attr].toString().replace(/,/g, ' '));
-                        }
-                        else if (attr == 'pointOfAccess' || attr == 'poa') {
-                            xml.ele(attr, body_Obj[index][attr].toString().replace(/,/g, ' '));
-                        }
-                        else if (attr == 'subl') {
-                            xml.ele(attr, body_Obj[index][attr].toString().replace(/,/g, ' '));
-                        }
-                        else {
-                            xml.ele(attr, body_Obj[index][attr]);
-                        }
-                    }
-                }
-            }
-        }
-        bodyString = xml.end({pretty: false, indent: '  ', newline: '\n'}).toString();
-    }
-
     var rqi = require('shortid').generate();
     var options = {
         hostname: 'localhost',
@@ -419,7 +308,7 @@ function create_remoteCSE_mqtt(cseid, csebasename, body_Obj, callback) {
             'cseid': cseid,
             'csebasename': csebasename,
             'bodytype': defaultbodytype,
-            'X-M2M-RVI': uservi
+            'X-M2M-RVI': use_rvi
         }
     };
 
@@ -459,7 +348,7 @@ function retrieve_CSEBase_mqtt(cseid, csebasename, callback) {
             'cseid': cseid,
             'csebasename': csebasename,
             'bodytype': defaultbodytype,
-            'X-M2M-RVI': uservi
+            'X-M2M-RVI': use_rvi
         }
     };
 
@@ -471,52 +360,11 @@ function retrieve_CSEBase_mqtt(cseid, csebasename, callback) {
         res.on('end', function() {
             if (res.statusCode == 200) {
                 var jsonObj = {};
-                if (defaultbodytype == 'xml') {
-                    var parser = new xml2js.Parser({explicitArray: false});
-                    parser.parseString(fullBody, function (err, result) {
-                        if (err) {
-                            console.log('[retrieve_CSEBase_http] fail to set csetype to MN-CSE. csetype is IN-CSE');
-                        }
-                        else {
-                            result['m2m:cb'] = (result['m2m:cb'] == null) ? result['cb'] : result['m2m:cb'];
-                            if(result['cb']) {
-                                delete result['cb'];
-                            }
-                            result['m2m:cb'].rn = result['m2m:cb']['$'].rn;
-                            delete result['m2m:cb']['$'];
-
-                            if(result['m2m:cb'].poa) {
-                                result['m2m:cb'].poa = result['m2m:cb'].poa.split(' ');
-                            }
-
-                            if(result['m2m:cb'].srt) {
-                                result['m2m:cb'].srt = result['m2m:cb'].srt.split(' ');
-                            }
-
-                            if(result['m2m:cb'].lbl) {
-                                result['m2m:cb'].lbl = result['m2m:cb'].lbl.split(' ');
-                            }
-
-                            if(result['m2m:cb'].acpi) {
-                                result['m2m:cb'].acpi = result['m2m:cb'].acpi.split(' ');
-                            }
-
-                            if(result['m2m:cb'].subl) {
-                                result['m2m:cb'].subl = result['m2m:cb'].subl.split(' ');
-                            }
-
-                            jsonObj.csr = {};
-                            jsonObj.csr = result['m2m:cb'];
-                        }
-                    });
-                }
-                else { // json
-                    jsonObj = JSON.parse(fullBody);
-                    jsonObj.csr = {};
-                    jsonObj.csr = (jsonObj['m2m:cb'] == null) ? jsonObj['cb'] : jsonObj['m2m:cb'];
-                    delete jsonObj['m2m:cb'];
-                    delete jsonObj['cb'];
-                }
+                jsonObj = JSON.parse(fullBody);
+                jsonObj.csr = {};
+                jsonObj.csr = (jsonObj['m2m:cb'] == null) ? jsonObj['cb'] : jsonObj['m2m:cb'];
+                delete jsonObj['m2m:cb'];
+                delete jsonObj['cb'];
 
                 for(var idx in jsonObj.csr) {
                     if(jsonObj.csr.hasOwnProperty(idx)) {

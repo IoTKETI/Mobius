@@ -45,11 +45,7 @@ global.allowed_ae_ids = [];
 global.allowed_app_ids = [];
 //allowed_app_ids.push('APP01');
 
-global.usesemanticbroker    = '10.10.202.114';
-
-global.uservi = '2a';
-
-global.useCert = 'disable';
+global.use_rvi = '2a';
 
 // CSE core
 require('./app');

@@ -29,42 +29,18 @@ function check_mt(request, res_body, callback) {
     var body_type = request.usebodytype;
     var mt = request.mt;
 
-    if (body_type == 'xml') {
-        var parser = new xml2js.Parser({explicitArray: false});
-        parser.parseString(res_body, function (err, result) {
-            if (!err) {
-                for (var prop in result) {
-                    if(result.hasOwnProperty(prop)) {
-                        if (result[prop].ty == mt) {
-                            result = null;
-                            callback('1');
-                            return;
-                        }
-                    }
-                }
+    var result = JSON.parse(res_body);
+    for (var prop in result) {
+        if(result.hasOwnProperty(prop)) {
+            if (result[prop].ty == mt) {
                 result = null;
-                callback('0');
-            }
-            else {
-                result = null;
-                callback('0');
-            }
-        });
-    }
-    else { // json
-        var result = JSON.parse(res_body);
-        for (var prop in result) {
-            if(result.hasOwnProperty(prop)) {
-                if (result[prop].ty == mt) {
-                    result = null;
-                    callback('1');
-                    return;
-                }
+                callback('1');
+                return;
             }
         }
-        result = null;
-        callback('0');
     }
+    result = null;
+    callback('0');
 }
 
 function check_member(request, response, req_count, cse_poa, callback) {
@@ -95,7 +71,7 @@ function check_member(request, response, req_count, cse_poa, callback) {
                             'X-M2M-RI': require('shortid').generate(),
                             'Accept': 'application/' + request.usebodytype,
                             'X-M2M-Origin': request.headers['x-m2m-origin'],
-                            'X-M2M-RVI': uservi
+                            'X-M2M-RVI': use_rvi
                         }
                     };
 

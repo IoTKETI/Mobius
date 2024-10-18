@@ -27,15 +27,11 @@ var cnt = require('./cnt');
 var cin = require('./cin');
 var ae = require('./ae');
 var sub = require('./sub');
-var smd = require('./smd');
 var lcp = require('./lcp');
 var mms = require('./mms');
 var acp = require('./acp');
 var grp = require('./grp');
 var req = require('./req');
-var nod = require('./nod');
-var mgo = require('./mgo');
-var fcnt = require('./fcnt');
 var tm = require('./tm');
 var tr = require('./tr');
 
@@ -56,10 +52,6 @@ create_np_attr_list.cin = ['ty', 'ri', 'pi', 'ct', 'lt', 'st', 'cs'];
 create_np_attr_list.sub = ['ty', 'ri', 'pi', 'ct', 'lt', 'st'];
 create_np_attr_list.lcp = ['ty', 'ri', 'pi', 'ct', 'lt', 'st', 'loi', 'lost'];
 create_np_attr_list.grp = ['ty', 'ri', 'pi', 'ct', 'lt', 'st', 'cnm', 'mtv', 'ssi'];
-create_np_attr_list.nod = ['ty', 'ri', 'pi', 'ct', 'lt', 'st'];
-create_np_attr_list.smd = ['ty', 'ri', 'pi', 'ct', 'lt', 'st', 'soe'];
-create_np_attr_list.ts = ['ty', 'ri', 'pi', 'ct', 'lt', 'st', 'cni', 'cbs', 'mdlt', 'mdc'];
-create_np_attr_list.tsi = ['ty', 'ri', 'pi', 'ct', 'lt', 'st'];
 create_np_attr_list.mms = ['ty', 'ri', 'pi', 'ct', 'lt', 'st', 'sid'];
 create_np_attr_list.req = ['rn', 'ty', 'ri', 'et', 'pi', 'ct', 'lt', 'acpi', 'lbl', 'st', 'daci', 'op', 'tg', 'org', 'rid', 'mi', 'pc', 'rs', 'ors'];
 create_np_attr_list.tm = ['ty', 'ri', 'pi', 'ct', 'lt', 'st', 'tctl', 'tst', 'trsp'];
@@ -71,16 +63,6 @@ create_np_attr_list.dvi = ['ty', 'ri', 'pi', 'ct', 'lt', 'st'];
 create_np_attr_list.dvc = ['ty', 'ri', 'pi', 'ct', 'lt', 'st'];
 create_np_attr_list.rbo = ['ty', 'ri', 'pi', 'ct', 'lt', 'st'];
 
-create_np_attr_list.fcnt = ['ty', 'ri', 'pi', 'ct', 'lt', 'st'];
-create_np_attr_list['hd_dooLk'] = ['ty', 'ri', 'pi', 'ct', 'lt', 'st'];
-create_np_attr_list['hd_bat'] = ['ty', 'ri', 'pi', 'ct', 'lt', 'st'];
-create_np_attr_list['hd_tempe'] = ['ty', 'ri', 'pi', 'ct', 'lt', 'st'];
-create_np_attr_list['hd_binSh'] = ['ty', 'ri', 'pi', 'ct', 'lt', 'st'];
-create_np_attr_list['hd_fauDn'] = ['ty', 'ri', 'pi', 'ct', 'lt', 'st'];
-create_np_attr_list['hd_colSn'] = ['ty', 'ri', 'pi', 'ct', 'lt', 'st'];
-create_np_attr_list['hd_color'] = ['ty', 'ri', 'pi', 'ct', 'lt', 'st'];
-create_np_attr_list['hd_brigs'] = ['ty', 'ri', 'pi', 'ct', 'lt', 'st'];
-
 global.create_m_attr_list = {};
 create_m_attr_list.acp = ['pv', 'pvs'];
 create_m_attr_list.csr = ['cb', 'csi', 'rr'];
@@ -90,10 +72,6 @@ create_m_attr_list.cin = ['con'];
 create_m_attr_list.sub = ['nu'];
 create_m_attr_list.lcp = ['los'];
 create_m_attr_list.grp = ['mnm', 'mid'];
-create_m_attr_list.nod = ['ni'];
-create_m_attr_list.smd = ['dcrp', 'dsp'];
-create_m_attr_list.ts = [];
-create_m_attr_list.tsi = ['dgt', 'con'];
 create_m_attr_list.mms = ['soid', 'asd'];
 create_m_attr_list.req = [];
 create_m_attr_list.tm = ['rqps'];
@@ -105,16 +83,6 @@ create_m_attr_list.dvi = ['mgd', 'dlb', 'man', 'mod', 'dty', 'fwv', 'swv', 'hwv'
 create_m_attr_list.dvc = ['mgd', 'can', 'att', 'cas', 'cus'];
 create_m_attr_list.rbo = ['mgd'];
 
-create_m_attr_list.fcnt = ['cnd'];
-create_m_attr_list['hd_dooLk'] = ['cnd', 'lock'];
-create_m_attr_list['hd_bat'] = ['cnd', 'lvl'];
-create_m_attr_list['hd_tempe'] = ['cnd', 'curT0'];
-create_m_attr_list['hd_binSh'] = ['cnd', 'powerSe'];
-create_m_attr_list['hd_fauDn'] = ['cnd', 'sus'];
-create_m_attr_list['hd_colSn'] = ['cnd', 'colSn'];
-create_m_attr_list['hd_color'] = ['cnd', 'red', 'green', 'blue'];
-create_m_attr_list['hd_brigs'] = ['cnd', 'brigs'];
-
 global.create_opt_attr_list = {};
 create_opt_attr_list.acp = ['rn', 'et', 'lbl', 'aa', 'at'];
 create_opt_attr_list.csr = ['rn', 'acpi', 'et', 'lbl', 'aa', 'at', 'daci', 'cst', 'poa', 'mei', 'tri', 'nl', 'esi', 'srv', 'loc'];
@@ -124,10 +92,6 @@ create_opt_attr_list.cin = ['rn', 'et', 'lbl', 'aa', 'at', 'daci', 'cr', 'cnf', 
 create_opt_attr_list.sub = ['rn', 'acpi', 'et', 'lbl', 'daci', 'cr', 'enc', 'exc', 'gpi', 'nfu', 'bn', 'rl', 'psn', 'pn', 'nsp', 'ln', 'nct', 'nec', 'su'];
 create_opt_attr_list.lcp = ['rn', 'acpi', 'et', 'lbl', 'aa', 'at', 'daci', 'lou', 'lot', 'lor', 'lon'];
 create_opt_attr_list.grp = ['rn', 'acpi', 'et', 'lbl', 'aa', 'at', 'daci', 'mt', 'macp', 'csy', 'gn'];
-create_opt_attr_list.nod = ['rn', 'acpi', 'et', 'lbl', 'aa', 'at', 'daci', 'hcl', 'mgca'];
-create_opt_attr_list.smd = ['rn', 'acpi', 'et', 'lbl', 'aa', 'at', 'cr', 'or', 'rels'];
-create_opt_attr_list.ts = ['rn', 'acpi', 'et', 'lbl', 'aa', 'at', 'cr', 'mni', 'mbs', 'mia', 'pei', 'mdd', 'mdn', 'mdt', 'or'];
-create_opt_attr_list.tsi = ['rn', 'et', 'lbl', 'aa', 'at', 'sqn'];
 create_opt_attr_list.mms = ['rn', 'acpi', 'et', 'lbl', 'aa', 'at', 'stid', 'osd', 'sst'];
 create_opt_attr_list.req = [];
 create_opt_attr_list.tm = ['rn', 'acpi', 'et', 'lbl', 'daci', 'cr', 'tltm', 'text', 'tct', 'tept', 'tmd', 'tltp', 'tmr', 'tmh'];
@@ -139,16 +103,6 @@ create_opt_attr_list.dvi = ['rn', 'acpi', 'et', 'lbl', 'daci', 'objs', 'obps', '
 create_opt_attr_list.dvc = ['rn', 'acpi', 'et', 'lbl', 'daci', 'objs', 'obps', 'dc', 'cmlk', 'ena', 'dis'];
 create_opt_attr_list.rbo = ['rn', 'acpi', 'et', 'lbl', 'daci', 'objs', 'obps', 'dc', 'cmlk', 'rbo', 'far'];
 
-create_opt_attr_list.fcnt = ['rn', 'acpi', 'et', 'lbl', 'aa', 'at', 'daci', 'cr'];
-create_opt_attr_list['hd_dooLk'] = ['rn', 'acpi', 'et', 'lbl', 'aa', 'at', 'daci', 'cr'];
-create_opt_attr_list['hd_bat'] = ['rn', 'acpi', 'et', 'lbl', 'aa', 'at', 'daci', 'cr'];
-create_opt_attr_list['hd_tempe'] = ['rn', 'acpi', 'et', 'lbl', 'aa', 'at', 'daci', 'cr'];
-create_opt_attr_list['hd_binSh'] = ['rn', 'acpi', 'et', 'lbl', 'aa', 'at', 'daci', 'cr'];
-create_opt_attr_list['hd_fauDn'] = ['rn', 'acpi', 'et', 'lbl', 'aa', 'at', 'daci', 'cr'];
-create_opt_attr_list['hd_colSn'] = ['rn', 'acpi', 'et', 'lbl', 'aa', 'at', 'daci', 'cr'];
-create_opt_attr_list['hd_color'] = ['rn', 'acpi', 'et', 'lbl', 'aa', 'at', 'daci', 'cr'];
-create_opt_attr_list['hd_brigs'] = ['rn', 'acpi', 'et', 'lbl', 'aa', 'at', 'daci', 'cr'];
-
 global.update_np_attr_list = {};
 update_np_attr_list.acp = ['rn', 'ty', 'ri', 'pi', 'ct', 'lt'];
 update_np_attr_list.csr = ['rn', 'ty', 'ri', 'pi', 'ct', 'lt', 'st', 'cst', 'cb', 'csi'];
@@ -157,9 +111,6 @@ update_np_attr_list.cnt = ['rn', 'ty', 'ri', 'pi', 'ct', 'lt', 'st', 'cr', 'cni'
 update_np_attr_list.sub = ['rn', 'ty', 'ri', 'pi', 'ct', 'lt', 'st', 'cr', 'psn', 'su'];
 update_np_attr_list.lcp = ['rn', 'ty', 'ri', 'pi', 'ct', 'lt', 'st', 'los', 'lot', 'lor', 'loi', 'lon', 'lost'];
 update_np_attr_list.grp = ['rn', 'ty', 'ri', 'pi', 'ct', 'lt', 'st', 'cr', 'mt', 'cnm', 'mtv', 'csy', 'ssi'];
-update_np_attr_list.nod = ['rn', 'ty', 'ri', 'pi', 'ct', 'lt', 'st', 'hcl'];
-update_np_attr_list.smd = ['rn', 'ty', 'ri', 'pi', 'ct', 'lt', 'st', 'cr'];
-update_np_attr_list.ts = ['rn', 'ty', 'ri', 'pi', 'ct', 'lt', 'st', 'cr', 'cni', 'cbs', 'mdlt', 'mdc'];
 update_np_attr_list.mms = ['rn', 'ty', 'ri', 'pi', 'ct', 'lt', 'st', 'sid', 'soid'];
 update_np_attr_list.tm = ['rn', 'ty', 'ri', 'pi', 'ct', 'lt', 'st', 'cr', 'tltm', 'text', 'tct', 'tept', 'tmd', 'tltp', 'rqps', 'rsps'];
 update_np_attr_list.tr = ['rn', 'ty', 'ri', 'pi', 'ct', 'lt', 'st', 'daci', 'tid', 'tst', 'tltm', 'text', 'tct', 'tltp', 'trqp', 'trsp'];
@@ -170,16 +121,6 @@ update_np_attr_list.dvi = ['rn', 'ty', 'ri', 'pi', 'ct', 'lt', 'st', 'mgd', 'obj
 update_np_attr_list.dvc = ['rn', 'ty', 'ri', 'pi', 'ct', 'lt', 'st', 'mgd', 'objs', 'obps'];
 update_np_attr_list.rbo = ['rn', 'ty', 'ri', 'pi', 'ct', 'lt', 'st', 'mgd', 'objs', 'obps'];
 
-update_np_attr_list.fcnt = ['rn', 'ty', 'ri', 'pi', 'ct', 'lt', 'st', 'cnd'];
-update_np_attr_list['hd_dooLk'] = ['rn', 'ty', 'ri', 'pi', 'ct', 'lt', 'st', 'cnd'];
-update_np_attr_list['hd_bat'] = ['rn', 'ty', 'ri', 'pi', 'ct', 'lt', 'st', 'cnd'];
-update_np_attr_list['hd_tempe'] = ['rn', 'ty', 'ri', 'pi', 'ct', 'lt', 'st', 'cnd'];
-update_np_attr_list['hd_binSh'] = ['rn', 'ty', 'ri', 'pi', 'ct', 'lt', 'st', 'cnd'];
-update_np_attr_list['hd_fauDn'] = ['rn', 'ty', 'ri', 'pi', 'ct', 'lt', 'st', 'cnd'];
-update_np_attr_list['hd_colSn'] = ['rn', 'ty', 'ri', 'pi', 'ct', 'lt', 'st', 'cnd'];
-update_np_attr_list['hd_color'] = ['rn', 'ty', 'ri', 'pi', 'ct', 'lt', 'st', 'cnd'];
-update_np_attr_list['hd_brigs'] = ['rn', 'ty', 'ri', 'pi', 'ct', 'lt', 'st', 'cnd'];
-
 global.update_m_attr_list = {};
 update_m_attr_list.acp = [];
 update_m_attr_list.csr = [];
@@ -188,9 +129,6 @@ update_m_attr_list.cnt = [];
 update_m_attr_list.sub = [];
 update_m_attr_list.lcp = [];
 update_m_attr_list.grp = [];
-update_m_attr_list.nod = [];
-update_m_attr_list.smd = [];
-update_m_attr_list.ts = [];
 update_m_attr_list.mms = [];
 update_m_attr_list.tm = [];
 update_m_attr_list.tr = [];
@@ -201,16 +139,6 @@ update_m_attr_list.dvi = [];
 update_m_attr_list.dvc = [];
 update_m_attr_list.rbo = [];
 
-update_m_attr_list.fcnt = [];
-update_m_attr_list['hd_dooLk'] = [];
-update_m_attr_list['hd_bat'] = [];
-update_m_attr_list['hd_tempe'] = [];
-update_m_attr_list['hd_binSh'] = [];
-update_m_attr_list['hd_fauDn'] = [];
-update_m_attr_list['hd_colSn'] = [];
-update_m_attr_list['hd_color'] = [];
-update_m_attr_list['hd_brigs'] = [];
-
 global.update_opt_attr_list = {};
 update_opt_attr_list.acp = ['et', 'lbl', 'aa', 'at', 'pv', 'pvs'];
 update_opt_attr_list.csr = ['acpi', 'et', 'lbl', 'aa', 'at', 'daci', 'poa', 'mei', 'rr', 'nl', 'tri', 'esi', 'srv'];
@@ -219,9 +147,6 @@ update_opt_attr_list.cnt = ['acpi', 'et', 'lbl', 'aa', 'at', 'daci', 'mni', 'mbs
 update_opt_attr_list.sub = ['acpi', 'et', 'lbl', 'daci', 'enc', 'exc', 'nu', 'gpi', 'bn', 'rl', 'pn', 'nsp', 'ln', 'nct', 'nec'];
 update_opt_attr_list.lcp = ['acpi', 'et', 'lbl', 'aa', 'at', 'daci', 'lou'];
 update_opt_attr_list.grp = ['acpi', 'et', 'lbl', 'aa', 'at', 'daci', 'mnm', 'mid', 'macp', 'gn'];
-update_opt_attr_list.nod = ['acpi', 'et', 'lbl', 'aa', 'at', 'daci', 'ni', 'mgca'];
-update_opt_attr_list.smd = ['acpi', 'et', 'lbl', 'aa', 'at', 'dcrp', 'soe', 'dsp', 'or', 'rels'];
-update_opt_attr_list.ts = ['acpi', 'et', 'lbl', 'aa', 'at', 'mni', 'mbs', 'mia', 'pei', 'mdd', 'mdn', 'mdt', 'or'];
 update_opt_attr_list.mms = ['acpi', 'et', 'lbl', 'aa', 'at', 'stid', 'asd', 'osd', 'sst'];
 update_opt_attr_list.tm = ['acpi', 'et', 'lbl', 'daci', 'tctl', 'tmr', 'tmh'];
 update_opt_attr_list.tr = ['acpi', 'et', 'lbl', 'cr', 'tctl'];
@@ -231,16 +156,6 @@ update_opt_attr_list.bat = ['acpi', 'et', 'lbl', 'daci', 'dc', 'cmlk', 'btl', 'b
 update_opt_attr_list.dvi = ['acpi', 'et', 'lbl', 'daci', 'dc', 'cmlk', 'dlb', 'man', 'mod', 'dty', 'fwv', 'swv', 'hwv'];
 update_opt_attr_list.dvc = ['acpi', 'et', 'lbl', 'daci', 'dc', 'cmlk', 'can', 'att', 'cas', 'cus', 'ena', 'dis'];
 update_opt_attr_list.rbo = ['acpi', 'et', 'lbl', 'daci', 'dc', 'cmlk', 'rbo', 'far'];
-
-update_opt_attr_list.fcnt = ['acpi', 'et', 'lbl'];
-update_opt_attr_list['hd_dooLk'] = ['acpi', 'et', 'lbl', 'lock'];
-update_opt_attr_list['hd_bat'] = ['acpi', 'et', 'lbl', 'lvl'];
-update_opt_attr_list['hd_tempe'] = ['acpi', 'et', 'lbl', 'curT0'];
-update_opt_attr_list['hd_binSh'] = ['acpi', 'et', 'lbl', 'powerSe'];
-update_opt_attr_list['hd_fauDn'] = ['acpi', 'et', 'lbl', 'sus'];
-update_opt_attr_list['hd_colSn'] = ['acpi', 'et', 'lbl', 'colSn'];
-update_opt_attr_list['hd_color'] = ['acpi', 'et', 'lbl', 'red', 'green', 'blue'];
-update_opt_attr_list['hd_brigs'] = ['acpi', 'et', 'lbl', 'brigs'];
 
 exports.t_isr = function (id, param1, param2, param3) {
     console.log(id, param1, param2, param3);
@@ -361,10 +276,6 @@ function create_action(request, response, callback) {
     else if (ty == '3') {
         db_sql.insert_cnt(request.db_connection, resource_Obj[rootnm], function (err, results) {
             if (!err) {
-                if(useCert == 'enable') {
-                    db_sql.update_parent_st(request.db_connection, request.targetObject[Object.keys(request.targetObject)[0]], function () {
-                    });
-                }
                 callback('200');
             }
             else {
@@ -377,12 +288,6 @@ function create_action(request, response, callback) {
         var parent_rootnm = Object.keys(request.targetObject)[0];
         resource_Obj[rootnm].st = parseInt(request.targetObject[parent_rootnm].st, 10) + 1;
         request.targetObject[parent_rootnm].st = resource_Obj[rootnm].st;
-
-        // 20230104 when certi, enable update stateTap
-        // if(useCert == 'enable') {
-        //     db_sql.update_st(request.db_connection, request.targetObject[parent_rootnm], function() {
-        //     });
-        // }
 
         db_sql.insert_cin(request.db_connection, resource_Obj[rootnm], (err, results) => {
             if (!err) {
@@ -608,29 +513,6 @@ function build_resource(request, response, callback) {
                 callback(code);
             });
             break;
-        case '13':
-            mgo.build_mgo(request, response, resource_Obj, body_Obj, function (code) {
-                callback(code);
-            });
-            break;
-        case '98':
-        case '97':
-        case '96':
-        case '95':
-        case '94':
-        case '93':
-        case '92':
-        case '91':
-        case '28':
-            fcnt.build_fcnt(request, response, resource_Obj, body_Obj, function (code) {
-                callback(code);
-            });
-            break;
-        case '14':
-            nod.build_nod(request, response, resource_Obj, body_Obj, function (code) {
-                callback(code);
-            });
-            break;
         case '16':
             csr.build_csr(request, response, resource_Obj, body_Obj, function (code) {
                 callback(code);
@@ -643,11 +525,6 @@ function build_resource(request, response, callback) {
             break;
         case '23':
             sub.build_sub(request, response, resource_Obj, body_Obj, function (code) {
-                callback(code);
-            });
-            break;
-        case '24':
-            smd.build_smd(request, response, resource_Obj, body_Obj, function (code) {
                 callback(code);
             });
             break;
@@ -712,10 +589,6 @@ exports.create = function (request, response, callback) {
                         response.header('Content-Location', request.resourceObj[rootnm].ri.replace('/', ''));
                     }
 
-                    if (rootnm == 'smd') {
-                        smd.request_post(request.url, JSON.stringify(request.resourceObj));
-                    }
-
                     if (Object.keys(request.resourceObj)[0] == 'req') {
                         request.headers.tg = request.resourceObj[rootnm].ri.replace('/', '');
                         request.headers.rootnm = 'uri';
@@ -732,18 +605,6 @@ exports.create = function (request, response, callback) {
                         }
                     }
                     else {
-                        if (useCert == 'enable') {
-                            if (request.ty == 23) { // when ty is 23, send notification for verification
-                                var notiObj = JSON.parse(JSON.stringify(request.resourceObj));
-                                _this.remove_no_value(request, notiObj);
-                                sgn.check(request, notiObj[rootnm], 256);
-
-                                var count = 1000000000;
-                                while (count--) {
-                                }
-                            }
-                        }
-
                         if (request.query.rcn == 2) { // hierarchical address
                             request.headers.rootnm = 'uri';
                             resource_Obj = {};
@@ -1044,11 +905,6 @@ exports.retrieve = function (request, response, callback) {
 
         callback('200');
     }
-    else if (request.query.fu == 1 && (request.query.smf)) {
-        smd.request_get_discovery(request, response, function (code) {
-            callback(code);
-        });
-    }
     else {
         request.headers.rootnm = 'agr';
 
@@ -1229,164 +1085,6 @@ function update_action(request, response, callback) {
                 callback('500-1');
             }
         });
-    }
-    else if (ty == '13') {
-        if (responder.mgoType[resource_Obj[rootnm].mgd] == rootnm) {
-            if (resource_Obj[rootnm].mgd == 1001) {
-                db_sql.update_fwr(request.db_connection, resource_Obj[rootnm], function (err, results) {
-                    if (!err) {
-                        callback('200');
-                    }
-                    else {
-                        callback('500-1');
-                    }
-                });
-            }
-            else if (resource_Obj[rootnm].mgd == 1006) {
-                db_sql.update_bat(request.db_connection, resource_Obj[rootnm], function (err, results) {
-                    if (!err) {
-                        callback('200');
-                    }
-                    else {
-                        callback('500-1');
-                    }
-                });
-            }
-            else if (resource_Obj[rootnm].mgd == 1007) {
-                db_sql.update_dvi(request.db_connection, resource_Obj[rootnm], function (err, results) {
-                    if (!err) {
-                        callback('200');
-                    }
-                    else {
-                        callback('500-1');
-                    }
-                });
-            }
-            else if (resource_Obj[rootnm].mgd == 1008) {
-                db_sql.update_dvc(request.db_connection, resource_Obj[rootnm].lt, JSON.stringify(resource_Obj[rootnm].acpi), resource_Obj[rootnm].et, resource_Obj[rootnm].st, JSON.stringify(resource_Obj[rootnm].lbl),
-                    JSON.stringify(resource_Obj[rootnm].at), JSON.stringify(resource_Obj[rootnm].aa), resource_Obj[rootnm].ri,
-                    resource_Obj[rootnm].dc, resource_Obj[rootnm].can, resource_Obj[rootnm].att, JSON.stringify(resource_Obj[rootnm].cas), resource_Obj[rootnm].cus,
-                    resource_Obj[rootnm].ena, resource_Obj[rootnm].dis, function (err, results) {
-                        if (!err) {
-                            callback('200');
-                        }
-                        else {
-                            callback('500-1');
-                        }
-                    });
-            }
-            else if (resource_Obj[rootnm].mgd == 1009) {
-                db_sql.update_rbo(request.db_connection, resource_Obj[rootnm], function (err, results) {
-                    if (!err) {
-                        callback('200');
-                    }
-                    else {
-                        callback('500-1');
-                    }
-                });
-            }
-            else {
-                callback('400-53');
-            }
-        }
-        else {
-            callback('400-51');
-        }
-    }
-    else if (ty == '28' || ty == '98' || ty == '97' || ty == '96' || ty == '95' || ty == '94' || ty == '93' || ty == '92' || ty == '91') {
-        if (resource_Obj[rootnm].cnd.includes('org.onem2m.home.device.')) {
-            db_sql.update_fcnt(request.db_connection, resource_Obj[rootnm], function (err, results) {
-                if (!err) {
-                    callback('200');
-                }
-                else {
-                    callback('500-1');
-                }
-            });
-        }
-        else if (resource_Obj[rootnm].cnd == 'org.onem2m.home.moduleclass.doorlock') {
-            db_sql.update_hd_dooLk(request.db_connection, resource_Obj[rootnm], function (err, results) {
-                if (!err) {
-                    callback('200');
-                }
-                else {
-                    callback('500-1');
-                }
-            });
-        }
-        else if (resource_Obj[rootnm].cnd == 'org.onem2m.home.moduleclass.battery') {
-            db_sql.update_hd_bat(request.db_connection, resource_Obj[rootnm], function (err, results) {
-                if (!err) {
-                    callback('200');
-                }
-                else {
-                    callback('500-1');
-                }
-            });
-        }
-        else if (resource_Obj[rootnm].cnd == 'org.onem2m.home.moduleclass.temperature') {
-            db_sql.update_hd_tempe(request.db_connection, resource_Obj[rootnm], function (err, results) {
-                if (!err) {
-                    callback('200');
-                }
-                else {
-                    callback('500-1');
-                }
-            });
-        }
-        else if (resource_Obj[rootnm].cnd == 'org.onem2m.home.moduleclass.binarySwitch') {
-            db_sql.update_hd_binSh(request.db_connection, resource_Obj[rootnm], function (err, results) {
-                if (!err) {
-                    callback('200');
-                }
-                else {
-                    callback('500-1');
-                }
-            });
-        }
-        else if (resource_Obj[rootnm].cnd == 'org.onem2m.home.moduleclass.faultDetection') {
-            db_sql.update_hd_fauDn(request.db_connection, resource_Obj[rootnm], function (err, results) {
-                if (!err) {
-                    callback('200');
-                }
-                else {
-                    callback('500-1');
-                }
-            });
-        }
-        else if (resource_Obj[rootnm].cnd == 'org.onem2m.home.moduleclass.colourSaturation') {
-            db_sql.update_hd_colSn(request.db_connection, resource_Obj[rootnm], function (err, results) {
-                if (!err) {
-                    callback('200');
-                }
-                else {
-                    callback('500-1');
-                }
-            });
-        }
-        else if (resource_Obj[rootnm].cnd == 'org.onem2m.home.moduleclass.colour') {
-            db_sql.update_hd_color(request.db_connection, resource_Obj[rootnm], function (err, results) {
-                if (!err) {
-                    callback('200');
-                }
-                else {
-                    callback('500-1');
-                }
-            });
-        }
-        else if (resource_Obj[rootnm].cnd == 'org.onem2m.home.moduleclass.brightness') {
-            db_sql.update_hd_brigs(request.db_connection, resource_Obj[rootnm], function (err, results) {
-                if (!err) {
-                    callback('200');
-                }
-                else {
-                    callback('500-1');
-                }
-            });
-        }
-        else {
-            callback('400-53');
-        }
     }
     else if (ty == '14') {
         db_sql.update_nod(request.db_connection, resource_Obj[rootnm], function (err, results) {
@@ -1892,18 +1590,6 @@ exports.update = function (request, response, callback) {
 
     update_resource(request, response, function (code) {
         if(code === '200') {
-            if (useCert == 'enable') {
-                if (ty == 23) { // when ty is 23, send notification for verification
-                    var notiObj = JSON.parse(JSON.stringify(request.resourceObj));
-                    _this.remove_no_value(request, notiObj);
-                    sgn.check(request, notiObj[rootnm], 256);
-
-                    var count = 1000000000;
-                    while (count--) {
-                    }
-                }
-            }
-
             update_action(request, response, function (code) {
                 if (code == '200') {
                     _this.remove_no_value(request, request.resourceObj);

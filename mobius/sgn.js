@@ -31,81 +31,6 @@ var responder = require('./responder');
 var sgn_man = require('./sgn_man');
 const db = require("./db_action");
 
-function make_xml_noti_message(pc, xm2mri, callback) {
-    try {
-        var noti_message = {};
-        noti_message['m2m:rqp'] = {};
-        noti_message['m2m:rqp'].op = 5; // notification
-        //noti_message['m2m:rqp'].net = pc['m2m:sgn'].net;
-        //noti_message['m2m:rqp'].to = pc['m2m:sgn'].sur;
-        noti_message['m2m:rqp'].fr = use_cb_id;
-        noti_message['m2m:rqp'].rqi = xm2mri;
-        noti_message['m2m:rqp'].pc = pc;
-
-        if(noti_message['m2m:rqp'].pc.hasOwnProperty('m2m:sgn')) {
-            if(noti_message['m2m:rqp'].pc['m2m:sgn'].hasOwnProperty('nev')) {
-                for(var prop in noti_message['m2m:rqp'].pc['m2m:sgn'].nev.rep) {
-                    if (noti_message['m2m:rqp'].pc['m2m:sgn'].nev.rep.hasOwnProperty(prop)) {
-                        for(var prop2 in noti_message['m2m:rqp'].pc['m2m:sgn'].nev.rep[prop]) {
-                            if (noti_message['m2m:rqp'].pc['m2m:sgn'].nev.rep[prop].hasOwnProperty(prop2)) {
-                                if(prop2 == 'rn') {
-                                    noti_message['m2m:rqp'].pc['m2m:sgn'].nev.rep[prop]['@'] = {rn : noti_message['m2m:rqp'].pc['m2m:sgn'].nev.rep[prop][prop2]};
-                                    delete noti_message['m2m:rqp'].pc['m2m:sgn'].nev.rep[prop][prop2];
-                                    break;
-                                }
-                                else {
-                                    for (var prop3 in noti_message['m2m:rqp'].pc['m2m:sgn'].nev.rep[prop][prop2]) {
-                                        if (noti_message['m2m:rqp'].pc['m2m:sgn'].nev.rep[prop][prop2].hasOwnProperty(prop3)) {
-                                            if (prop3 == 'rn') {
-                                                noti_message['m2m:rqp'].pc['m2m:sgn'].nev.rep[prop][prop2]['@'] = {rn: noti_message['m2m:rqp'].pc['m2m:sgn'].nev.rep[prop][prop2][prop3]};
-                                                delete noti_message['m2m:rqp'].pc['m2m:sgn'].nev.rep[prop][prop2][prop3];
-                                                break;
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        noti_message['m2m:rqp']['@'] = {
-            "xmlns:m2m": "http://www.onem2m.org/xml/protocols",
-            "xmlns:xsi": "http://www.w3.org/2001/XMLSchema-instance"
-        };
-
-        var xmlString = js2xmlparser.parse("m2m:rqp", noti_message['m2m:rqp']);
-
-        callback(xmlString);
-    }
-    catch (e) {
-        console.log('[make_xml_noti_message] xml parsing error');
-        callback(e.message);
-        return "";
-    }
-}
-
-function make_cbor_noti_message(pc, xm2mri) {
-    try {
-        var noti_message = {};
-        noti_message['m2m:rqp'] = {};
-        noti_message['m2m:rqp'].op = 5; // notification
-        //noti_message['m2m:rqp'].net = pc['m2m:sgn'].net;
-        //noti_message['m2m:rqp'].to = pc['m2m:sgn'].sur;
-        noti_message['m2m:rqp'].fr = use_cb_id;
-        noti_message['m2m:rqp'].rqi = xm2mri;
-
-        noti_message['m2m:rqp'].pc = pc;
-
-        return cbor.encode(noti_message['m2m:rqp']).toString('hex');
-    }
-    catch (e) {
-        console.log('[make_cbor_noti_message] cbor parsing error');
-    }
-}
-
 function make_json_noti_message(nu, pc, xm2mri, short_flag) {
     try {
         var noti_message = {};
@@ -207,9 +132,7 @@ function sgn_action_send(nu_arr, req_count, sub_bodytype, node, short_flag, chec
         delete node['m2m:sgn'].nev;
     }
 
-    if(useCert !== 'enable') {
-        node['m2m:sgn'].rvi = uservi;
-    }
+    node['m2m:sgn'].rvi = use_rvi;
 
     let bodyString = make_body_string_for_noti(sub_nu.protocol, nu, node, sub_bodytype, xm2mri, short_flag);
     if (bodyString === '') { // parse error
@@ -307,46 +230,7 @@ function sgn_action(connection, rootnm, check_value, subl, req_count, noti_Obj, 
     }
     node['m2m:sgn'].nev = {};
     node['m2m:sgn'].nev.rep = {};
-
-    if(rootnm == 'mgo') {
-        node['m2m:sgn'].nev.rep['m2m:' + responder.mgoType[notiObj.mgd]] = JSON.parse(JSON.stringify(notiObj));
-    }
-    else if(rootnm == 'fcnt') {
-        if (notiObj.cnd.includes('org.onem2m.home.device.')) {
-            node['m2m:sgn'].nev.rep['m2m:' + rootnm] = JSON.parse(JSON.stringify(notiObj));
-        }
-        else if (notiObj.cnd == 'org.onem2m.home.moduleclass.doorlock') {
-            node['m2m:sgn'].nev.rep['hd:' + rootnm.replace('fcnt', 'dooLk')] = JSON.parse(JSON.stringify(notiObj));
-        }
-        else if (notiObj.cnd == 'org.onem2m.home.moduleclass.battery') {
-            node['m2m:sgn'].nev.rep['hd:' + rootnm.replace('fcnt', 'bat')] = JSON.parse(JSON.stringify(notiObj));
-        }
-        else if (notiObj.cnd == 'org.onem2m.home.moduleclass.temperature') {
-            node['m2m:sgn'].nev.rep['hd:' + rootnm.replace('fcnt', 'tempe')] = JSON.parse(JSON.stringify(notiObj));
-        }
-        else if (notiObj.cnd == 'org.onem2m.home.moduleclass.binarySwitch') {
-            node['m2m:sgn'].nev.rep['hd:' + rootnm.replace('fcnt', 'binSh')] = JSON.parse(JSON.stringify(notiObj));
-        }
-        else if (notiObj.cnd == 'org.onem2m.home.moduleclass.faultDetection') {
-            node['m2m:sgn'].nev.rep['hd:' + rootnm.replace('fcnt', 'fauDn')] = JSON.parse(JSON.stringify(notiObj));
-        }
-        else if (notiObj.cnd == 'org.onem2m.home.moduleclass.colourSaturation') {
-            node['m2m:sgn'].nev.rep['hd:' + rootnm.replace('fcnt', 'colSn')] = JSON.parse(JSON.stringify(notiObj));
-        }
-        else if (notiObj.cnd == 'org.onem2m.home.moduleclass.colour') {
-            node['m2m:sgn'].nev.rep['hd:' + rootnm.replace('fcnt', 'color')] = JSON.parse(JSON.stringify(notiObj));
-            delete body_Obj[rootnm];
-        }
-        else if (notiObj.cnd == 'org.onem2m.home.moduleclass.brightness') {
-            node['m2m:sgn'].nev.rep['hd:' + rootnm.replace('fcnt', 'brigs')] = JSON.parse(JSON.stringify(notiObj));
-        }
-    }
-    else if(rootnm.includes('hd_')) {
-        node['m2m:sgn'].nev.rep['hd:' + rootnm.replace('hd_', '')] = JSON.parse(JSON.stringify(notiObj));
-    }
-    else {
-        node['m2m:sgn'].nev.rep['m2m:' + rootnm] = JSON.parse(JSON.stringify(notiObj));
-    }
+    node['m2m:sgn'].nev.rep['m2m:' + rootnm] = JSON.parse(JSON.stringify(notiObj));
 
     responder.typeCheckforJson(node['m2m:sgn'].nev.rep);
 

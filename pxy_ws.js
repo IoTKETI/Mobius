@@ -121,25 +121,7 @@ exports.ws_watchdog = function() {
                 if(request.requestedProtocols.length) {
                     for (var index in request.requestedProtocols) {
                         if (request.requestedProtocols.hasOwnProperty(index)) {
-                            if (request.requestedProtocols[index] === 'onem2m.r2.0.xml' || request.requestedProtocols[index] === 'onem2m.xml') {
-                                let connection = request.accept('onem2m.r2.0.xml', request.origin);
-                                console.log((new Date()) + ' Connection accepted. (xml)');
-                                connection.on('message', ws_message_handler);
-                                connection.on('close', function (reasonCode, description) {
-                                    console.log((new Date()) + ' Peer ' + connection.remoteAddress + ' disconnected.');
-                                });
-                                break;
-                            }
-                            else if (request.requestedProtocols[index] === 'onem2m.r2.0.cbor' || request.requestedProtocols[index] === 'onem2m.cbor') {
-                                let connection = request.accept('onem2m.r2.0.cbor', request.origin);
-                                console.log((new Date()) + ' Connection accepted. (cbor)');
-                                connection.on('message', ws_message_handler);
-                                connection.on('close', function (reasonCode, description) {
-                                    console.log((new Date()) + ' Peer ' + connection.remoteAddress + ' disconnected.');
-                                });
-                                break;
-                            }
-                            else if (request.requestedProtocols[index] === 'onem2m.r2.0.json' || request.requestedProtocols[index] === 'onem2m.json') {
+                            if (request.requestedProtocols[index] === 'onem2m.r2.0.json' || request.requestedProtocols[index] === 'onem2m.json') {
                                 let connection = request.accept('onem2m.r2.0.json', request.origin);
                                 console.log((new Date()) + ' Connection accepted. (json)');
                                 connection.on('message', ws_message_handler);
@@ -320,7 +302,7 @@ function ws_binding(op, to, fr, rqi, ty, pc, bodytype, callback) {
             'X-M2M-Origin': fr,
             'Content-Type': content_type,
             'binding': 'W',
-            'X-M2M-RVI': uservi
+            'X-M2M-RVI': use_rvi
         },
         rejectUnauthorized: false
     };
@@ -376,48 +358,10 @@ function ws_response(ws_conn, rsc, to, fr, rqi, inpc, bodytype) {
     //rsp_message['m2m:rsp'].fr = fr;
 
     rsp_message['m2m:rsp'].rqi = rqi;
-    rsp_message['m2m:rsp'].rvi = uservi;
+    rsp_message['m2m:rsp'].rvi = use_rvi;
     rsp_message['m2m:rsp'].pc = inpc;
 
-    if (bodytype === 'xml') {
-        rsp_message['m2m:rsp']['@'] = {
-            "xmlns:m2m": "http://www.onem2m.org/xml/protocols",
-            "xmlns:xsi": "http://www.w3.org/2001/XMLSchema-instance"
-        };
-
-        for(var prop in rsp_message['m2m:rsp'].pc) {
-            if (rsp_message['m2m:rsp'].pc.hasOwnProperty(prop)) {
-                for(var prop2 in rsp_message['m2m:rsp'].pc[prop]) {
-                    if (rsp_message['m2m:rsp'].pc[prop].hasOwnProperty(prop2)) {
-                        if(prop2 == 'rn') {
-                            rsp_message['m2m:rsp'].pc[prop]['@'] = {rn : rsp_message['m2m:rsp'].pc[prop][prop2]};
-                            delete rsp_message['m2m:rsp'].pc[prop][prop2];
-                        }
-                        for(var prop3 in rsp_message['m2m:rsp'].pc[prop][prop2]) {
-                            if (rsp_message['m2m:rsp'].pc[prop][prop2].hasOwnProperty(prop3)) {
-                                if(prop3 == 'rn') {
-                                    rsp_message['m2m:rsp'].pc[prop][prop2]['@'] = {rn : rsp_message['m2m:rsp'].pc[prop][prop2][prop3]};
-                                    delete rsp_message['m2m:rsp'].pc[prop][prop2][prop3];
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        var bodyString = js2xmlparser.parse("m2m:rsp", rsp_message['m2m:rsp']);
-
-        ws_conn.sendUTF(bodyString.toString());
-    }
-    else if (bodytype === 'cbor') { // 'cbor'
-        bodyString = cbor.encode(rsp_message['m2m:rsp']).toString('hex');
-        var bytearray = Buffer.from(bodyString, 'hex');
-        ws_conn.send(bytearray);
-    }
-    else { // 'json'
-        ws_conn.sendUTF(JSON.stringify(rsp_message['m2m:rsp']));
-    }
+    ws_conn.sendUTF(JSON.stringify(rsp_message['m2m:rsp']));
 }
 
 function http_retrieve_CSEBase(callback) {
@@ -435,7 +379,7 @@ function http_retrieve_CSEBase(callback) {
                 'X-M2M-RI': rqi,
                 'Accept': 'application/json',
                 'X-M2M-Origin': use_cb_id,
-                'X-M2M-RVI': uservi
+                'X-M2M-RVI': use_rvi
             }
         };
 
@@ -460,7 +404,7 @@ function http_retrieve_CSEBase(callback) {
                 'X-M2M-RI': rqi,
                 'Accept': 'application/json',
                 'X-M2M-Origin': use_cb_id,
-                'X-M2M-RVI': uservi
+                'X-M2M-RVI': use_rvi
             },
             ca: fs.readFileSync('ca-crt.pem')
         };

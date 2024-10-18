@@ -147,7 +147,8 @@ exports.post = function(ri, exc, nu, bodytype, rqi, bodyString) {
 function sgn_mqtt_message_handler(topic, message) {
     var topic_arr = topic.split("/");
     if(topic_arr[5] != null) {
-        var bodytype = (topic_arr[5] == 'xml') ? topic_arr[5] : ((topic_arr[5] == 'json') ? topic_arr[5] : ((topic_arr[5] == 'cbor') ? topic_arr[5] : 'json'));
+        var bodytype = defaultbodytype;
+        topic_arr[5] = defaultbodytype;
     }
     else {
         bodytype = defaultbodytype;
@@ -212,7 +213,7 @@ function request_noti_http(nu, ri, bodyString, bodytype, xm2mri) {
             'X-M2M-Origin': use_cb_id,
             'Content-Type': 'application/' + bodytype,
             'Content-Length' : bodyString.length //, for cert
-            //'X-M2M-RVI': uservi
+            //'X-M2M-RVI': use_rvi
             //
         }
     };
@@ -303,7 +304,7 @@ function request_noti_http(nu, ri, bodyString, bodytype, xm2mri) {
                 'X-M2M-Origin': use_cb_id,
                 'Content-Type': 'application/json',
                 'Content-Length' : bodyString.length //, for cert
-                //'X-M2M-RVI': uservi
+                //'X-M2M-RVI': use_rvi
                 //
             }
         };
@@ -447,15 +448,7 @@ function request_noti_ws(nu, ri, bodyString, bodytype, xm2mri) {
         var WebSocketClient = require('websocket').client;
         var ws_client = new WebSocketClient();
 
-        if(bodytype == 'xml') {
-            ws_client.connect(nu, 'onem2m.r2.0.xml');
-        }
-        else if(bodytype == 'cbor') {
-            ws_client.connect(nu, 'onem2m.r2.0.cbor');
-        }
-        else {
-            ws_client.connect(nu, 'onem2m.r2.0.json');
-        }
+        ws_client.connect(nu, 'onem2m.r2.0.json');
 
         ws_client.on('connectFailed', function (error) {
             ss_fail_count[ri]++;
