@@ -332,7 +332,7 @@ function mqtt_message_action(topic_arr, bodytype, jsonObj) {
         var op = (jsonObj['m2m:rqp'].op == null) ? '' : jsonObj['m2m:rqp'].op;
         var to = (jsonObj['m2m:rqp'].to == null) ? '' : jsonObj['m2m:rqp'].to;
 
-        to = to.replace(usespid + use_cb_id + '/', '/');
+        to = to.replace(use_sp_id + use_cb_id + '/', '/');
         to = to.replace(use_cb_id + '/', '/');
 
         if(to.charAt(0) != '/') {

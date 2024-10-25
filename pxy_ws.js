@@ -214,7 +214,7 @@ function ws_message_action(ws_conn, bodytype, jsonObj) {
         var op = (jsonObj.op == null) ? '' : jsonObj.op;
         var to = (jsonObj.to == null) ? '' : jsonObj.to;
 
-        to = to.replace(usespid + use_cb_id + '/', '/');
+        to = to.replace(use_sp_id + use_cb_id + '/', '/');
         to = to.replace(use_cb_id + '/', '/');
 
         if(to.charAt(0) != '/') {

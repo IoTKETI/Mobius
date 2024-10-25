@@ -399,7 +399,7 @@ let security_default_check_action = (origin, cr, access_value) => {
 }
 
 exports.check = function(request, response, ty, acpiList, access_value, cr, callback) {
-    if(request.headers['x-m2m-origin'] === usesuperuser || request.headers['x-m2m-origin'] === ('/'+usesuperuser)) {
+    if(request.headers['x-m2m-origin'] === use_superuser || request.headers['x-m2m-origin'] === ('/'+use_superuser)) {
         callback('1');
     }
     else {

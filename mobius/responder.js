@@ -884,7 +884,7 @@ function typeCheckAction(index1, body_Obj) {
                     if(body_Obj[index2].length > 0) {
                         for(var idx in body_Obj[index2]) {
                             if(body_Obj[index2].hasOwnProperty(idx)) {
-                                body_Obj[index2][idx] = body_Obj[index2][idx].replace(usespid + use_cb_id + '/', '/'); // absolute
+                                body_Obj[index2][idx] = body_Obj[index2][idx].replace(use_sp_id + use_cb_id + '/', '/'); // absolute
                                 body_Obj[index2][idx] = body_Obj[index2][idx].replace(use_cb_id + '/', '/'); // SP
 
                                 // if(body_Obj[index2][idx].charAt(0) != '/') {

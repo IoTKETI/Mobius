@@ -181,8 +181,8 @@ global.make_cse_relative = function (resource_Obj) {
 global.make_internal_ri = (resource_Obj) => {
     for (var index in resource_Obj) {
         if (resource_Obj.hasOwnProperty(index)) {
-            if (resource_Obj[index].split(usespid + use_cb_id + '/')[0] == '') { // absolute relative
-                resource_Obj[index] = resource_Obj[index].replace(usespid + use_cb_id + '/', '/');
+            if (resource_Obj[index].split(use_sp_id + use_cb_id + '/')[0] == '') { // absolute relative
+                resource_Obj[index] = resource_Obj[index].replace(use_sp_id + use_cb_id + '/', '/');
             }
             else if (resource_Obj[index].split(use_cb_id + '/' + use_cb_name + '/')[0] == '') { // sp relative
                 resource_Obj[index] = resource_Obj[index].replace(use_cb_id + '/', '/');

@@ -23,13 +23,10 @@ var express = require('express');
 var bodyParser = require('body-parser');
 var morgan = require('morgan');
 var util = require('util');
-var xml2js = require('xml2js');
 var url = require('url');
 var ip = require('ip');
-var crypto = require('node:crypto');
 var fileStreamRotator = require('file-stream-rotator');
 var https = require('node:https');
-var cbor = require('cbor');
 var moment = require('moment');
 
 const cors = require('cors');
@@ -47,7 +44,6 @@ var responder = require('./mobius/responder');
 var resource = require('./mobius/resource');
 var security = require('./mobius/security');
 var fopt = require('./mobius/fopt');
-var sgn = require('./mobius/sgn');
 
 // ������ �����մϴ�.
 var app = express();
@@ -57,9 +53,9 @@ global.cache_security_check = {};
 
 app.use(cors());
 
-global.usespid = '//keti.re.kr';
-global.usesuperuser = 'Sponde'; //'Superman';
-global.useobserver = 'Sandwich';
+global.use_sp_id = '//keti.re.kr';
+global.use_superuser = 'Sponde'; //'Superman';
+global.use_observer = 'Sandwich';
 
 var logDirectory = __dirname + '/log';
 
@@ -1440,7 +1436,7 @@ let getAbsoluteUrl = (request, response) => {
     request.hash = req_url.hash;
 
     let absolute_url = request.url.replace('\/_\/', '\/\/').split('#')[0];
-    absolute_url = absolute_url.replace(usespid, '/~');
+    absolute_url = absolute_url.replace(use_sp_id, '/~');
     absolute_url = absolute_url.replace(/\/~\/[^\/]+\/?/, '/');
     let absolute_url_arr = absolute_url.split('/');
 
@@ -2561,7 +2557,7 @@ function scheduleGc() {
 
     setTimeout(() => {
         global.gc();
-        console.log('Manual gc', process.memoryUsage());
+        //console.log('Manual gc', process.memoryUsage());
         scheduleGc();
     }, nextMinutes * 60 * 60 * 1000);
 }
