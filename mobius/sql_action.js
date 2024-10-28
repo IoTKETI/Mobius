@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2018, KETI
+ * Copyright (c) 2024, KETI
  * All rights reserved.
  * Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
  * 1. Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
@@ -9,7 +9,9 @@
  */
 
 /**
- * Created by Il Yeup, Ahn in KETI on 2016-07-13.
+ * @file
+ * @copyright KETI Korea 2024, KETI
+ * @author Il Yeup Ahn [iyahn@keti.re.kr]
  */
 
 var responder = require('./responder');
