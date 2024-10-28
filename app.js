@@ -21,11 +21,17 @@ var fs = require('fs');
 var http = require('node:http');
 var express = require('express');
 var bodyParser = require('body-parser');
-var morgan = require('morgan');
+
+const logger = require('./mobius/winston');
+const morgan = require('morgan');
+const combined = ':remote-addr - :remote-user ":method :url HTTP/:http-version" :status :res[content-length] ":referrer" ":user-agent"'
+// 기존 combined 포멧에서 timestamp만 제거
+const morganFormat = process.env.NODE_ENV !== "production" ? "dev" : combined; // NOTE: morgan 출력 형태 server.env에서 NODE_ENV 설정 production : 배포 dev : 개발
+console.log(morganFormat);
+
 var util = require('util');
 var url = require('url');
 var ip = require('ip');
-var fileStreamRotator = require('file-stream-rotator');
 var https = require('node:https');
 var moment = require('moment');
 
@@ -57,23 +63,8 @@ global.use_sp_id = '//keti.re.kr';
 global.use_superuser = 'Sponde'; //'Superman';
 global.use_observer = 'Sandwich';
 
-var logDirectory = __dirname + '/log';
-
-// ensure log directory exists
-fs.existsSync(logDirectory) || fs.mkdirSync(logDirectory);
-
-// create a rotating write stream
-var accessLogStream = fileStreamRotator.getStream({
-    date_format: 'YYYYMMDD',
-    filename: logDirectory + '/access-%DATE%.log',
-    frequency: 'daily',
-    verbose: false
-});
-
 // setup the logger
-app.use(morgan('combined', {stream: accessLogStream}));
-
-//ts_app.use(morgan('short', {stream: accessLogStream}));
+app.use(morgan(morganFormat, {stream : logger.stream})); // morgan 로그 설정
 
 function del_req_resource() {
     db.getConnection((code, connection) => {

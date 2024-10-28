@@ -509,13 +509,6 @@ exports.create = function (request, response, callback) {
         if(code === '200') {
             var resource_Obj = request.resourceObj;
 
-            if (request.query.tctl == 3) { // for EXECUTE of transaction
-                _this.remove_no_value(request, request.resourceObj);
-
-                callback('201');
-                return;
-            }
-
             create_action(request, response, (code) => {
                 if(code === '200') {
                     _this.remove_no_value(request, request.resourceObj);
