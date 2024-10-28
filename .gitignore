@@ -3,6 +3,7 @@
 node_modules/
 .idea/
 log/
+logs/
 doc/
 hit.json
 cbs_cache.json
