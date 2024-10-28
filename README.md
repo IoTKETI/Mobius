@@ -69,7 +69,7 @@ We deploy Mobius as a Docker image using the virtualization open source tool Doc
 - Import SQL script<br/>
 After installation of MySQL server, you need the DB Schema for storing oneM2M resources in Mobius. You can find this file in the following Mobius source directory.
 ```
-[Mobius home]/mobius/mobiusdb.sql
+[Mobius home]/mobius/mobiusdb
 ```
 - Run Mosquitto MQTT broker<br/>
 ```
