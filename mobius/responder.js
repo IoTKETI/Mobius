@@ -15,12 +15,7 @@
  */
 
 var url = require('url');
-var xml2js = require('xml2js');
-var xmlbuilder = require('xmlbuilder');
 var util = require('util');
-var merge = require('merge');
-var js2xmlparser = require("js2xmlparser");
-var cbor = require("cbor");
 var coap = require('coap');
 
 var db_sql = require('./sql_action');
@@ -1089,7 +1084,8 @@ function store_to_req_resource(request, bodyString, rsc, cap, callback) {
     });
 }
 
-exports.response_result = function(request, response, status, rsc, cap, callback) {
+exports.response_result = function(request, response, _status, rsc, cap, callback) {
+    let status = parseInt(_status);
     var body_Obj = request.resourceObj;
 
     if(request.headers.hasOwnProperty('x-m2m-ri')) {
@@ -1246,7 +1242,8 @@ exports.response_result = function(request, response, status, rsc, cap, callback
 };
 
 
-exports.response_rcn3_result = function(request, response, status, rsc, cap, callback) {
+exports.response_rcn3_result = function(request, response, _status, rsc, cap, callback) {
+    let status = parseInt(_status);
     var body_Obj = request.resourceObj;
 
     if (request.query.rt == 3) {
@@ -1336,7 +1333,8 @@ exports.response_rcn3_result = function(request, response, status, rsc, cap, cal
 };
 
 
-exports.search_result = function(request, response, status, rsc, cap, callback) {
+exports.search_result = function(request, response, _status, rsc, cap, callback) {
+    let status = parseInt(_status);
     var body_Obj = request.resourceObj;
 
     if (request.query.rt == 3) {
@@ -1532,7 +1530,8 @@ exports.search_result = function(request, response, status, rsc, cap, callback) 
     }
 };
 
-exports.error_result = function(request, response, status, rsc, dbg_string, callback) {
+exports.error_result = function(request, response, _status, rsc, dbg_string, callback) {
+    let status = parseInt(_status);
     request.query.rt = 3;
     var body_Obj = {};
     body_Obj['m2m:dbg'] = dbg_string;
@@ -1712,45 +1711,16 @@ function request_noti_ws(nu, bodyString, bodytype, xm2mri) {
 
             var protocol_arr = this.protocol.split('.');
 
-            if(bodytype === 'xml') {
-                var xml2js = require('xml2js');
-                var parser = new xml2js.Parser({explicitArray: false});
-                parser.parseString(message.utf8Data.toString(), function (err, jsonObj) {
-                    if (err) {
-                        console.log('[nonblocking-async-ws] xml2js parser error');
-                    }
-                    else {
-                        console.log('----> [nonblocking-async-ws] response for notification through mqtt ' + res.headers['x-m2m-rsc']);
-                        connection.close();
-                    }
-                });
-            }
-            else if(bodytype === 'cbor') {
-                var encoded = message.utf8Data.toString();
-                cbor.decodeFirst(encoded, function(err, jsonObj) {
-                    if (err) {
-                        console.log('[nonblocking-async-ws] cbor parser error');
-                    }
-                    else {
-                        if (jsonObj.rsc == 2001 || jsonObj.rsc == 2000) {
-                            console.log('----> [nonblocking-async-ws] response for notification through ws ' + jsonObj.rsc);
-                            connection.close();
-                        }
-                    }
-                });
-            }
-            else { // 'json'
-                var jsonObj = JSON.parse(message.utf8Data.toString());
+            var jsonObj = JSON.parse(message.utf8Data.toString());
 
-                try {
-                    if (jsonObj.rsc == 2001 || jsonObj.rsc == 2000) {
-                        console.log('----> [nonblocking-async-ws] response for notification through ws ' + jsonObj.rsc + ' - ' + ri);
-                        connection.close();
-                    }
+            try {
+                if (jsonObj.rsc == 2001 || jsonObj.rsc == 2000) {
+                    console.log('----> [nonblocking-async-ws] response for notification through ws ' + jsonObj.rsc + ' - ' + ri);
+                    connection.close();
                 }
-                catch (e) {
-                    console.log('----> [nonblocking-async-ws] response for notification through ws  - ' + ri);
-                }
+            }
+            catch (e) {
+                console.log('----> [nonblocking-async-ws] response for notification through ws  - ' + ri);
             }
         });
     });

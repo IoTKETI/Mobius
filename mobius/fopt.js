@@ -17,8 +17,6 @@
 var util = require('util');
 var url = require('url');
 var http = require('http');
-var xml2js = require('xml2js');
-var xmlbuilder = require('xmlbuilder');
 var moment = require('moment');
 
 var responder = require('./responder');

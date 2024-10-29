@@ -20,14 +20,10 @@ var https = require('https');
 var express = require('express');
 var bodyParser = require('body-parser');
 var util = require('util');
-var xml2js = require('xml2js');
-var js2xmlparser = require('js2xmlparser');
 var url = require('url');
-var xmlbuilder = require('xmlbuilder');
 var moment = require('moment');
 var ip = require("ip");
 var events = require('events');
-var cbor = require('cbor');
 
 var WebSocketServer = require('websocket').server;
 

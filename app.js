@@ -1702,7 +1702,7 @@ app.use((req, res, next) => {
 // }));
 
 // remoteCSE, ae, cnt
-app.post(onem2mParser, (request, response) => {
+app.post('*', (request, response) => {
     db.getConnection((code, connection) => {
         if (code === '200') {
             request.db_connection = connection;
@@ -1851,7 +1851,7 @@ const extra_api_list = [
     '/hit', '/total_ae', '/total_cbs'
 ];
 
-app.get(onem2mParser, (request, response) => {
+app.get('*', (request, response) => {
     if(extra_api_list.includes(request.url)) {
         db.getConnection((code, connection) => {
             if (code === '200') {
@@ -2013,7 +2013,7 @@ app.get(onem2mParser, (request, response) => {
 });
 
 
-app.put(onem2mParser, (request, response) => {
+app.put('*', (request, response) => {
     db.getConnection((code, connection) => {
         if (code === '200') {
             request.db_connection = connection;
@@ -2149,7 +2149,7 @@ app.put(onem2mParser, (request, response) => {
     });
 });
 
-app.delete(onem2mParser, (request, response) => {
+app.delete('*', (request, response) => {
     db.getConnection((code, connection) => {
         if (code === '200') {
             request.db_connection = connection;

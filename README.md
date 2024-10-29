@@ -101,27 +101,25 @@ node mobius.js
 ## Library Dependencies
 This is the list of library dependencies for Mobius 
 - body-parser
-- cbor
 - coap
 - crypto
 - events
 - express
-- file-stream-rotator
 - fs
 - http
 - https
 - ip
-- js2xmlparser
 - merge
 - morgan
 - mqtt
-- mysql
 - shortid
 - url
 - util
 - websocket
-- xml2js
-- xmlbuilder
+- pg
+- winston
+- winston-daily-rotate-file
+
 
 ## Document
 If you want more details please download the full [installation guide document](https://github.com/IoTKETI/Mobius/raw/master/doc/Installation%20Guide_Mobius_v2.0.0_EN(170718).pdf).

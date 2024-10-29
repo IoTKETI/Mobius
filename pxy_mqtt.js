@@ -21,13 +21,9 @@ var express = require('express');
 var bodyParser = require('body-parser');
 var mqtt = require('mqtt');
 var util = require('util');
-var xml2js = require('xml2js');
-var js2xmlparser = require('js2xmlparser');
 var url = require('url');
-var xmlbuilder = require('xmlbuilder');
 var moment = require('moment');
 var ip = require("ip");
-var cbor = require('cbor');
 
 var responder = require('./mobius/responder');
 

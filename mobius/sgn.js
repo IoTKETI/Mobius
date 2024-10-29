@@ -19,11 +19,8 @@ var url = require('url');
 var http = require('http');
 var https = require('https');
 var coap = require('coap');
-var js2xmlparser = require('js2xmlparser');
-var xmlbuilder = require('xmlbuilder');
 var fs = require('fs');
 var db_sql = require('./sql_action');
-var cbor = require("cbor");
 var merge = require('merge');
 
 var responder = require('./responder');
