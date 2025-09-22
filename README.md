@@ -4,6 +4,8 @@ oneM2M IoT Server Platform
 ## Version
 2.5.x (2.5.13)
 
+The next version of Mobius is available on [Mobius4](https://github.com/iotketi/mobius4).
+
 ## Introduction
 Mobius is the open source IoT server platform based on the oneM2M (http://www.oneM2M.org) standard. As oneM2M specifies, Mobius provides common services functions (e.g. registration, data management, subscription/notification, security) as middleware to IoT applications of different service domains. Not just oneM2M devices, but also non-oneM2M devices (i.e. by oneM2M interworking specifications and KETI TAS) can connect to Mobius.
 
