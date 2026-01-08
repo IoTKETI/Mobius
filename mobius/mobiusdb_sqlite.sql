@@ -1,0 +1,77 @@
+CREATE TABLE IF NOT EXISTS hit (
+    ct TEXT PRIMARY KEY,
+    http INTEGER DEFAULT 0,
+    mqtt INTEGER DEFAULT 0,
+    coap INTEGER DEFAULT 0,
+    ws INTEGER DEFAULT 0
+);
+
+-- lookup (Base Resource Table)
+CREATE TABLE IF NOT EXISTS lookup (
+  pi TEXT NOT NULL,
+  ri TEXT PRIMARY KEY,
+  ty INTEGER NOT NULL,
+  ct TEXT NOT NULL,
+  st INTEGER NOT NULL,
+  rn TEXT NOT NULL,
+  lt TEXT NOT NULL,
+  et TEXT NOT NULL,
+  acpi TEXT,
+  lbl TEXT,
+  at TEXT,
+  aa TEXT,
+  sri TEXT,
+  spi TEXT,
+  subl TEXT
+);
+
+-- cb (CSEBase)
+CREATE TABLE IF NOT EXISTS cb (
+  ri TEXT PRIMARY KEY,
+  cst TEXT NOT NULL,
+  csi TEXT NOT NULL,
+  srt TEXT NOT NULL,
+  poa TEXT NOT NULL,
+  nl TEXT NOT NULL,
+  ncp TEXT NOT NULL,
+  srv TEXT,
+  FOREIGN KEY (ri) REFERENCES lookup(ri) ON DELETE CASCADE
+);
+
+-- ae (Application Entity)
+CREATE TABLE IF NOT EXISTS ae (
+  ri TEXT PRIMARY KEY,
+  apn TEXT NOT NULL,
+  api TEXT NOT NULL,
+  aei TEXT NOT NULL,
+  poa TEXT NOT NULL,
+  "or" TEXT NOT NULL,
+  rr TEXT NOT NULL,
+  nl TEXT NOT NULL,
+  csz TEXT DEFAULT NULL,
+  srv TEXT DEFAULT NULL,
+  FOREIGN KEY (ri) REFERENCES lookup(ri) ON DELETE CASCADE
+);
+
+-- acp (Access Control Policy)
+CREATE TABLE IF NOT EXISTS acp (
+  ri TEXT PRIMARY KEY,
+  pv TEXT NOT NULL,
+  pvs TEXT NOT NULL,
+  FOREIGN KEY (ri) REFERENCES lookup(ri) ON DELETE CASCADE
+);
+
+-- cnt (Container)
+CREATE TABLE IF NOT EXISTS cnt (
+  ri TEXT PRIMARY KEY,
+  cr TEXT NOT NULL,
+  mni TEXT NOT NULL,
+  mbs TEXT NOT NULL,
+  mia TEXT NOT NULL,
+  cni TEXT NOT NULL,
+  cbs TEXT NOT NULL,
+  li TEXT NOT NULL,
+  "or" TEXT NOT NULL,
+  disr TEXT NOT NULL,
+  FOREIGN KEY (ri) REFERENCES lookup(ri) ON DELETE CASCADE
+);

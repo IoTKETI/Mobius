@@ -15,6 +15,7 @@
  */
 
 var mysql = require('mysql');
+var sqlite = require('./db_sqlite');
 
 var mysql_pool = null;
 
@@ -34,6 +35,12 @@ exports.connect = function (host, port, user, password, callback) {
         acquireTimeout: 50000,
         queueLimit: 0
     });
+
+    if (global.usesqlite === 'true') {
+        sqlite.connect(function (code) {
+            console.log('sqlite connected: ' + code);
+        });
+    }
 
     callback('1');
 };
@@ -60,7 +67,7 @@ exports.connect = function (host, port, user, password, callback) {
 // }
 
 function executeQuery(pool, query, connection, callback) {
-    connection.query({sql:query, timeout:60000}, function (err, rows, fields) {
+    connection.query({ sql: query, timeout: 60000 }, function (err, rows, fields) {
         if (err) {
             return callback(err, null);
         }
@@ -68,8 +75,8 @@ function executeQuery(pool, query, connection, callback) {
     });
 }
 
-exports.getConnection = function(callback) {
-    if(mysql_pool == null) {
+exports.getConnection = function (callback) {
+    if (mysql_pool == null) {
         console.error("mysql is not connected");
         callback(true, "mysql is not connected");
         return '0';
@@ -90,8 +97,8 @@ exports.getConnection = function(callback) {
     });
 };
 
-exports.getResult = function(query, connection, callback) {
-    if(mysql_pool == null) {
+exports.getResult = function (query, connection, callback) {
+    if (mysql_pool == null) {
         console.error("mysql is not connected");
         return '0';
     }
