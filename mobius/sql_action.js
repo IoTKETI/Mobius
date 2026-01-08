@@ -484,15 +484,42 @@ exports.insert_cin = function (connection, obj, callback) {
                 }
             }
 
-            var sql = util.format('insert into cin (ri, pi, cr, cnf, cs, cin.or, con) ' +
-                'value (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
-                obj.ri, obj.pi, obj.cr, obj.cnf, obj.cs, obj.or, (con_type == 'string') ? obj.con.replace(/'/g, "\\'") : JSON.stringify(obj.con).replace(/\"/g, '\\"').replace(/\'/g, '\\\''));
-            db.getResult(sql, connection, function (err, results) {
-                if (!err) {
-                    console.timeEnd(cin_id);
-                    callback(err, results);
-                }
-            });
+            if (global.usesqlite === 'true') {
+                var sql = util.format('insert into cin (ri, pi, cr, cnf, cs, "or", con) ' +
+                    'values (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
+                    obj.ri, obj.pi, obj.cr, obj.cnf, obj.cs, obj.or, (con_type == 'string') ? obj.con.replace(/'/g, "''") : JSON.stringify(obj.con).replace(/'/g, "''"));
+                var sqlite = require('./db_sqlite');
+                sqlite.getResult(sql, connection, function (err, results) {
+                    if (!err) {
+                        console.timeEnd(cin_id);
+                        callback(err, results);
+                    }
+                    else {
+                        console.error('[DEBUG-SQLite] insert_cin error:', results);
+                        sql = util.format("delete from lookup where ri = \'%s\'", obj.ri);
+                        sqlite.getResult(sql, connection, function () {
+                            callback(err, results);
+                        });
+                    }
+                });
+            }
+            else {
+                var sql = util.format('insert into cin (ri, pi, cr, cnf, cs, cin.or, con) ' +
+                    'value (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
+                    obj.ri, obj.pi, obj.cr, obj.cnf, obj.cs, obj.or, (con_type == 'string') ? obj.con.replace(/'/g, "\\'") : JSON.stringify(obj.con).replace(/\"/g, '\\"').replace(/\'/g, '\\\''));
+                db.getResult(sql, connection, function (err, results) {
+                    if (!err) {
+                        console.timeEnd(cin_id);
+                        callback(err, results);
+                    }
+                    else {
+                        sql = util.format("delete from lookup where ri = \'%s\'", obj.ri);
+                        db.getResult(sql, connection, function () {
+                            callback(err, results);
+                        });
+                    }
+                });
+            }
         }
         else {
             callback(err, results);
@@ -1866,57 +1893,96 @@ exports.search_lookup = function (connection, ri, query, cur_lim, pi_list, pi_in
 };
 
 exports.select_latest_resource = function (connection, parentObj, loop_count, latestObj, callback) {
-    if (loop_count > 9) {
-        callback('200');
-        return;
-    }
+    if (global.usesqlite === 'true') {
+        var sqlite = require('./db_sqlite');
+        // Optimized SQLite query: select top 1 ordered by ct desc
+        var sql = 'select * from (select * from lookup where pi = \'' + parentObj.ri + '\' and ty = \'' + (parseInt(parentObj.ty, 10) + 1).toString() + '\' order by ct desc limit 1)b join ' + responder.typeRsrc[parseInt(parentObj.ty, 10) + 1] + ' as a on b.ri = a.ri';
 
-    var before_ct = moment().subtract(Math.pow(5, loop_count), 'minutes').utc().format('YYYYMMDDTHHmmss');
-    var query_where = ' and ty = \'' + (parseInt(parentObj.ty, 10) + 1).toString() + '\' and ';
-    query_where += util.format(' (\'%s\' < ct) order by ri desc limit 10', before_ct);
-
-    var sql = 'select * from (select * from lookup where (pi = \'' + parentObj.ri + '\') ' + query_where + ')b join ' + responder.typeRsrc[parseInt(parentObj.ty, 10) + 1] + ' as a on b.ri = a.ri';
-    db.getResult(sql, connection, (err, results_latest) => {
-        if (!err) {
-            if (results_latest.length > 0) {
-                let latest_ri = results_latest[0].ri;
-                let latest_obj = {};
-                for (let i = 0; i < results_latest.length; i++) {
-                    if (results_latest[i].ri >= latest_ri) {
-                        latest_obj = results_latest[i];
-                    }
+        sqlite.getResult(sql, connection, (err, results_latest) => {
+            if (!err) {
+                if (results_latest.length > 0) {
+                    latestObj.push(results_latest[0]);
                 }
-                latestObj.push(latest_obj);
                 callback('200');
             }
             else {
-                _this.select_latest_resource(connection, parentObj, ++loop_count, latestObj, function (code) {
-                    callback(code);
-                });
+                callback('500-1');
             }
+        });
+    }
+    else {
+        if (loop_count > 9) {
+            callback('200');
+            return;
         }
-        else {
-            callback('500-1');
-        }
-    });
+
+        var before_ct = moment().subtract(Math.pow(5, loop_count), 'minutes').utc().format('YYYYMMDDTHHmmss');
+        var query_where = ' and ty = \'' + (parseInt(parentObj.ty, 10) + 1).toString() + '\' and ';
+        query_where += util.format(' (\'%s\' < ct) order by ri desc limit 10', before_ct);
+
+        var sql = 'select * from (select * from lookup where (pi = \'' + parentObj.ri + '\') ' + query_where + ')b join ' + responder.typeRsrc[parseInt(parentObj.ty, 10) + 1] + ' as a on b.ri = a.ri';
+        db.getResult(sql, connection, (err, results_latest) => {
+            if (!err) {
+                if (results_latest.length > 0) {
+                    let latest_ri = results_latest[0].ri;
+                    let latest_obj = {};
+                    for (let i = 0; i < results_latest.length; i++) {
+                        if (results_latest[i].ri >= latest_ri) {
+                            latest_obj = results_latest[i];
+                        }
+                    }
+                    latestObj.push(latest_obj);
+                    callback('200');
+                }
+                else {
+                    _this.select_latest_resource(connection, parentObj, ++loop_count, latestObj, function (code) {
+                        callback(code);
+                    });
+                }
+            }
+            else {
+                callback('500-1');
+            }
+        });
+    }
 };
 
 exports.select_oldest_resource = function (connection, ty, ri, oldestObj, callback) {
     console.time('select_oldest ' + ri);
-    //var sql = util.format('select a.* from (select ri from lookup where (pi = \'%s\') limit 100) b left join lookup as a on b.ri = a.ri where a.ty = \'4\' or a.ty = \'30\' limit 1', ri);
-    var sql = 'select * from (select * from lookup where pi = \'' + ri + '\' and ty = \'' + ty + '\' limit 1)b join ' + responder.typeRsrc[parseInt(ty, 10)] + ' as a on b.ri = a.ri';
-    db.getResult(sql, connection, function (err, results_oldest) {
-        console.timeEnd('select_oldest ' + ri);
-        if (!err) {
-            if (results_oldest.length >= 1) {
-                oldestObj.push(results_oldest[0]);
+    if (global.usesqlite === 'true') {
+        var sqlite = require('./db_sqlite');
+        // Optimized SQLite query: select bottom 1 ordered by ct asc
+        var sql = 'select * from (select * from lookup where pi = \'' + ri + '\' and ty = \'' + ty + '\' order by ct asc limit 1)b join ' + responder.typeRsrc[parseInt(ty, 10)] + ' as a on b.ri = a.ri';
+
+        sqlite.getResult(sql, connection, function (err, results_oldest) {
+            console.timeEnd('select_oldest ' + ri);
+            if (!err) {
+                if (results_oldest.length >= 1) {
+                    oldestObj.push(results_oldest[0]);
+                }
+                callback('200');
             }
-            callback('200');
-        }
-        else {
-            callback('500-1');
-        }
-    });
+            else {
+                callback('500-1');
+            }
+        });
+    }
+    else {
+        //var sql = util.format('select a.* from (select ri from lookup where (pi = \'%s\') limit 100) b left join lookup as a on b.ri = a.ri where a.ty = \'4\' or a.ty = \'30\' limit 1', ri);
+        var sql = 'select * from (select * from lookup where pi = \'' + ri + '\' and ty = \'' + ty + '\' limit 1)b join ' + responder.typeRsrc[parseInt(ty, 10)] + ' as a on b.ri = a.ri';
+        db.getResult(sql, connection, function (err, results_oldest) {
+            console.timeEnd('select_oldest ' + ri);
+            if (!err) {
+                if (results_oldest.length >= 1) {
+                    oldestObj.push(results_oldest[0]);
+                }
+                callback('200');
+            }
+            else {
+                callback('500-1');
+            }
+        });
+    }
 };
 
 exports.select_lookup = function (connection, ri, callback) {
@@ -2825,16 +2891,43 @@ exports.update_tr_tst = function (connection, ri, tst, callback) {
 exports.update_cnt_cni = function (connection, obj, callback) {
     var cni_id = 'update_cnt_cni ' + obj.ri + ' - ' + require('shortid').generate();
     console.time(cni_id);
-    var sql = util.format('update cnt, lookup set cnt.cni = \'%s\', cnt.cbs = \'%s\', lookup.st = \'%s\' where lookup.ri = \'%s\' and cnt.ri = \'%s\'', obj.cni, obj.cbs, obj.st, obj.ri, obj.ri);
-    db.getResult(sql, connection, function (err, results) {
-        if (!err) {
-            console.timeEnd(cni_id);
-            callback(err, results);
-        }
-        else {
-            callback(err, results);
-        }
-    });
+    if (global.usesqlite === 'true') {
+        var sqlite = require('./db_sqlite');
+        var sql_calc = util.format("select count(*) as cni, sum(cs) as cbs from cin where pi = \'%s\'", obj.ri);
+        sqlite.getResult(sql_calc, connection, function (err, rows) {
+            if (!err) {
+                var new_cni = (rows.length > 0) ? rows[0].cni : 0;
+                var new_cbs = (rows.length > 0 && rows[0].cbs) ? rows[0].cbs : 0;
+
+                var sql_update_cnt = util.format("update cnt set cni = \'%s\', cbs = \'%s\' where ri = \'%s\'", new_cni, new_cbs, obj.ri);
+                sqlite.getResult(sql_update_cnt, connection, function (err) {
+                    if (!err) {
+                        var sql_update_lookup = util.format("update lookup set st = \'%s\' where ri = \'%s\'", obj.st, obj.ri);
+                        sqlite.getResult(sql_update_lookup, connection, function (err, results) {
+                            console.timeEnd(cni_id);
+                            callback(err, results);
+                        });
+                    } else {
+                        callback(err, null);
+                    }
+                });
+            } else {
+                callback(err, null);
+            }
+        });
+    }
+    else {
+        var sql = util.format('update cnt, lookup set cnt.cni = \'%s\', cnt.cbs = \'%s\', lookup.st = \'%s\' where lookup.ri = \'%s\' and cnt.ri = \'%s\'', obj.cni, obj.cbs, obj.st, obj.ri, obj.ri);
+        db.getResult(sql, connection, function (err, results) {
+            if (!err) {
+                console.timeEnd(cni_id);
+                callback(err, results);
+            }
+            else {
+                callback(err, results);
+            }
+        });
+    }
 };
 
 exports.update_parent_by_insert = function (connection, obj, cs, callback) {
@@ -2847,17 +2940,26 @@ exports.update_parent_by_insert = function (connection, obj, cs, callback) {
         obj.cni = obj.mni;
     }
 
-    var sql = util.format('update %s, lookup set %s.cni = %d, %s.cbs = %s.cbs+%s, lookup.st = lookup.st+1 where lookup.ri = \'%s\' and %s.ri = \'%s\'', tableName, tableName, obj.cni, tableName, tableName, cs, obj.ri, tableName, obj.ri);
-    //var sql = util.format('update %s, lookup set %s.cni = %s, %s.cbs = %s, lookup.st = %s where lookup.ri = \'%s\' and %s.ri = \'%s\'', tableName, tableName, obj.cni+1, tableName, obj.cbs+cs, obj.st, obj.ri, tableName,  obj.ri);
-    db.getResult(sql, connection, (err, results) => {
-        if (!err) {
+    if (global.usesqlite === 'true' && obj.ty == '3') {
+        obj.st = parseInt(obj.st, 10) + 1;
+        _this.update_cnt_cni(connection, obj, function (err, results) {
             console.timeEnd(cni_id);
             callback(err, results);
-        }
-        else {
-            callback(err, results);
-        }
-    });
+        });
+    }
+    else {
+        var sql = util.format('update %s, lookup set %s.cni = %d, %s.cbs = %s.cbs+%s, lookup.st = lookup.st+1 where lookup.ri = \'%s\' and %s.ri = \'%s\'', tableName, tableName, obj.cni, tableName, tableName, cs, obj.ri, tableName, obj.ri);
+        //var sql = util.format('update %s, lookup set %s.cni = %s, %s.cbs = %s, lookup.st = %s where lookup.ri = \'%s\' and %s.ri = \'%s\'', tableName, tableName, obj.cni+1, tableName, obj.cbs+cs, obj.st, obj.ri, tableName,  obj.ri);
+        db.getResult(sql, connection, (err, results) => {
+            if (!err) {
+                console.timeEnd(cni_id);
+                callback(err, results);
+            }
+            else {
+                callback(err, results);
+            }
+        });
+    }
 };
 
 exports.update_parent_by_delete = function (connection, obj, cs, callback) {
