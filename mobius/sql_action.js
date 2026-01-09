@@ -1568,7 +1568,75 @@ function search_parents_lookup_action(connection, pi_list, count, cur_result_ri,
     });
 }
 
+exports.search_parents_lookup_sqlite = function (connection, pi_list, cur_result_ri, result_ri, callback) {
+    var ri = pi_list[0]; // Assuming start with single root or handling list. 
+    // Usually pi_list starts with [root_ri].
+    // If pi_list has multiple, we should probably iterate or use IN.
+    // But logically presearch starts with root.
+
+    // Safety check
+    if (pi_list.length === 0) {
+        callback('200');
+        return;
+    }
+
+    // We will use the first item as anchor. 
+    // If there are multiple, this logic needs to be robust, but presearch usually passes [root].
+    // Let's assume recursion handles the rest, but we want to replace recursion.
+    // If we use CTE, we get ALL descendants.
+
+    // The original logic: search children of pi_list[i].
+    // Recursively called.
+
+    // If we want to replace the whole recursion:
+    // Anchor: pi in pi_list.
+    // But pi_list changes in recursion.
+    // If we are called FROM resource.js initially, pi_list = [root].
+
+    // Let's implement a CTE that finds all descendants of the RIs in pi_list.
+
+    var anchor_pi = pi_list.map(id => `'${id}'`).join(',');
+
+    var sql = `
+        WITH RECURSIVE hierarchy AS (
+            SELECT ri, ty, pi FROM lookup WHERE pi IN (${anchor_pi}) AND ty <> '1' AND ty <> '9' AND ty <> '23' AND ty <> '4' AND ty <> '30' AND ty <> '17'
+            UNION ALL
+            SELECT l.ri, l.ty, l.pi FROM lookup l JOIN hierarchy p ON l.pi = p.ri
+            WHERE l.ty <> '1' AND l.ty <> '9' AND l.ty <> '23' AND l.ty <> '4' AND l.ty <> '30' AND l.ty <> '17'
+        )
+        SELECT * FROM hierarchy
+    `;
+
+    // Note: The original logic filters ty IN THE QUERY.
+    // ty <> 1, 9, 23, 4, 30, 17.
+
+    var sqlite = require('./db_sqlite');
+    sqlite.getResult(sql, connection, function (err, rows) {
+        if (!err) {
+            // rows contains ALL descendants.
+            // result_ri needs to be populated logic in original is:
+            // cur_result_ri (children of current step) -> pushed to result_ri.
+            // recursion continues with cur_result_ri as new pi_list.
+
+            // So result_ri should end up containing ALL descendants.
+            // We can just push all rows to result_ri.
+
+            for (var i = 0; i < rows.length; i++) {
+                result_ri.push(rows[i]);
+            }
+            callback('200');
+        } else {
+            console.error('[search_parents_lookup_sqlite] Error:', err);
+            callback('500-1');
+        }
+    });
+};
+
 exports.search_parents_lookup = function (connection, pi_list, cur_result_ri, result_ri, callback) {
+    if (global.usesqlite === 'true') {
+        return _this.search_parents_lookup_sqlite(connection, pi_list, cur_result_ri, result_ri, callback);
+    }
+
     cur_result_ri = [];
     search_parents_lookup_action(connection, pi_list, 0, cur_result_ri, result_ri, (code) => {
         if (code === '200') {
@@ -1609,27 +1677,53 @@ exports.select_spec_ri = function (connection, found_Obj, count, callback) {
 
     var ri = Object.keys(found_Obj)[count];
     var sql = "select * from " + responder.typeRsrc[found_Obj[ri].ty] + " where ri = \'" + ri + "\'";
-    db.getResult(sql, connection, function (err, spec_Obj) {
-        if (err) {
-            callback('500-1');
-        }
-        else {
-            if (spec_Obj.length >= 1) {
-                makeObject(spec_Obj[0]);
-                found_Obj[ri] = merge(found_Obj[ri], spec_Obj[0]);
-
-                _this.select_spec_ri(connection, found_Obj, ++count, function (code) {
-                    callback(code);
-                });
+    if (global.usesqlite === 'true') {
+        var sqlite = require('./db_sqlite');
+        sqlite.getResult(sql, connection, function (err, spec_Obj) {
+            if (err) {
+                callback('500-1');
             }
             else {
-                delete found_Obj[ri];
-                _this.select_spec_ri(connection, found_Obj, count, function (code) {
-                    callback(code);
-                });
+                if (spec_Obj.length >= 1) {
+                    makeObject(spec_Obj[0]);
+                    found_Obj[ri] = merge(found_Obj[ri], spec_Obj[0]);
+
+                    _this.select_spec_ri(connection, found_Obj, ++count, function (code) {
+                        callback(code);
+                    });
+                }
+                else {
+                    delete found_Obj[ri];
+                    _this.select_spec_ri(connection, found_Obj, count, function (code) {
+                        callback(code);
+                    });
+                }
             }
-        }
-    });
+        });
+    }
+    else {
+        db.getResult(sql, connection, function (err, spec_Obj) {
+            if (err) {
+                callback('500-1');
+            }
+            else {
+                if (spec_Obj.length >= 1) {
+                    makeObject(spec_Obj[0]);
+                    found_Obj[ri] = merge(found_Obj[ri], spec_Obj[0]);
+
+                    _this.select_spec_ri(connection, found_Obj, ++count, function (code) {
+                        callback(code);
+                    });
+                }
+                else {
+                    delete found_Obj[ri];
+                    _this.select_spec_ri(connection, found_Obj, count, function (code) {
+                        callback(code);
+                    });
+                }
+            }
+        });
+    }
 };
 
 function search_lookup_action(connection, pi_list, count, result_ri, query_where, callback) {
@@ -1847,8 +1941,77 @@ function search_resource_action(connection, ri, query, cur_lim, pi_list, cni, lo
     });
 }
 
+exports.search_lookup_sqlite = function (connection, ri, query, cur_lim, pi_list, pi_index, found_Obj, found_Cnt, cni, cur_d, loop_cnt, callback) {
+    // 1. Build Filter Clause
+    build_search_query(query, function (query_where) {
+        // 2. Construct CTE Query
+        // Anchor: The root resource (ri)
+        // Recursive: Children (pi = parent.ri)
+        // Note: We exclude the root itself from result if typically desired, but discovery usually includes filtered results under root.
+        // Mobius logic usually starts discovery *under* the target.
+        // The original search_lookup starts with pi_list populated with the Target's RI.
+        // So we are looking for children of Target.
+        // We will start the anchor with children of the Target (pi = ri).
+
+        var anchor_sql = util.format("select * from lookup where pi = '%s'", ri);
+
+        // If we want the root included in search scope? usually discovery is "descendants".
+        // existing search_lookup uses 'select * from lookup where pi = ...' so it searches children.
+
+        var sql = `
+            WITH RECURSIVE hierarchy AS (
+                ${anchor_sql}
+                UNION ALL
+                SELECT l.* FROM lookup l JOIN hierarchy p ON l.pi = p.ri
+            )
+            SELECT * FROM hierarchy WHERE 1=1 ${query_where} 
+        `;
+
+        // Handle 'la' (Latest N) - implies ordering by creation time descending
+        if (query.la != null) {
+            sql += ` ORDER BY ct DESC LIMIT ${query.la}`;
+            if (query.ofst != null) {
+                sql += ` OFFSET ${query.ofst}`;
+            }
+        }
+        else {
+            // Standard limit logic
+            if (query.lim != null) {
+                sql += ` LIMIT ${cur_lim}`;
+            }
+            else {
+                sql += ` LIMIT 1000`; // Default safety limit
+            }
+
+            if (query.ofst != null) {
+                sql += ` OFFSET ${query.ofst}`;
+            }
+        }
+
+        var sqlite = require('./db_sqlite');
+        console.log('[DEBUG-S] Search SQL:', sql);
+        sqlite.getResult(sql, connection, function (err, rows) {
+            if (!err) {
+                console.log('[DEBUG-S] CTE Result Count:', rows.length);
+                for (var i = 0; i < rows.length; i++) {
+                    found_Obj[rows[i].ri] = rows[i];
+                }
+                callback('200');
+            }
+            else {
+                console.error('[search_lookup_sqlite] CTE Error:', err);
+                callback('500-1');
+            }
+        });
+    });
+};
+
 var search_tid = '';
 exports.search_lookup = function (connection, ri, query, cur_lim, pi_list, pi_index, found_Obj, found_Cnt, cni, cur_d, loop_cnt, callback) {
+    if (global.usesqlite === 'true') {
+        return _this.search_lookup_sqlite(connection, ri, query, cur_lim, pi_list, pi_index, found_Obj, found_Cnt, cni, cur_d, loop_cnt, callback);
+    }
+
     if (pi_index >= pi_list.length) {
         console.timeEnd('search_lookup (' + search_tid + ')');
         callback('200');

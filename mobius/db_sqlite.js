@@ -66,7 +66,7 @@ exports.getResult = function (query, connection, callback) {
     // We can try to guess from query string.
 
     var query_trim = query.trim().toUpperCase();
-    if (query_trim.startsWith('SELECT')) {
+    if (query_trim.startsWith('SELECT') || query_trim.startsWith('WITH')) {
         db.all(query, [], (err, rows) => {
             if (err) {
                 callback(true, err);
