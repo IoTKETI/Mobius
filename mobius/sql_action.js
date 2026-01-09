@@ -205,7 +205,7 @@ exports.insert_lookup = function (connection, obj, callback) {
             var sql = util.format('insert into lookup (' +
                 'pi, ri, ty, ct, st, rn, lt, et, acpi, lbl, at, aa, sri, spi, subl, acpl) ' +
                 'values (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
-                obj.pi, obj.ri, obj.ty, obj.ct, obj.st, obj.rn, obj.lt, obj.et, JSON.stringify(obj.acpi).replace(/'/g, "''"), JSON.stringify(obj.lbl, null, 4).replace(/'/g, "''"), JSON.stringify(obj.at).replace(/'/g, "''"), JSON.stringify(obj.aa).replace(/'/g, "''"), obj.sri, obj.spi, JSON.stringify(obj.subl).replace(/'/g, "''"), (obj.acpl ? JSON.stringify(obj.acpl).replace(/'/g, "''") : ''));
+                obj.pi, obj.ri, obj.ty, obj.ct, obj.st, obj.rn, obj.lt, obj.et, JSON.stringify(obj.acpi || []).replace(/'/g, "''"), JSON.stringify(obj.lbl || [], null, 4).replace(/'/g, "''"), JSON.stringify(obj.at || []).replace(/'/g, "''"), JSON.stringify(obj.aa || []).replace(/'/g, "''"), obj.sri, obj.spi, JSON.stringify(obj.subl || []).replace(/'/g, "''"), (obj.acpl ? JSON.stringify(obj.acpl || []).replace(/'/g, "''") : ''));
 
             var sqlite = require('./db_sqlite');
             sqlite.getResult(sql, null, function (err, results) {
@@ -459,43 +459,100 @@ global.getType = function (p) {
 };
 
 exports.get_cni_count = function (connection, obj, callback) {
-    _this.select_count_ri(connection, parseInt(obj.ty, 10), obj.ri, function (err, results) {
-        if (results.length == 1) {
-            // var cni = results[0]['cni'];
-            // var cbs = (results[0]['cbs'] == null) ? 0 : results[0]['sum(cin.cs)'];
-            var cni = results[0]['count(*)'];
-            var cbs = (results[0]['sum(cin.cs)'] == null) ? 0 : results[0]['sum(cin.cs)'];
-            var st = (results[0]['st'] == null) ? 0 : results[0]['st'];
+    if (global.usesqlite === 'true') {
+        var sql = util.format('select c.cni, c.cbs, c.mni, c.mbs, l.st from cnt c, lookup l where c.ri = l.ri and c.ri = \'%s\'', obj.ri);
+        var sqlite = require('./db_sqlite');
+        sqlite.getResult(sql, connection, function (err, results) {
+            if (!err && results.length == 1) {
+                var cni = parseInt(results[0].cni, 10);
+                var cbs = parseInt(results[0].cbs, 10);
+                var st = (results[0].st == null) ? 0 : parseInt(results[0].st, 10);
 
-            if (cni > parseInt(obj.mni, 10) || cbs > parseInt(obj.mbs, 10)) {
+                // Use DB stored limits to ensure latest config is used
+                var db_mni = parseInt(results[0].mni, 10);
+                var db_mbs = parseInt(results[0].mbs, 10);
 
-                if (cni > parseInt(obj.mni, 10)) {
-                    var count = (cni - parseInt(obj.mni, 10));
-                    if (count > 5000) {
-                        count = 5000;
-                    }
-                }
+                if (cni > db_mni || cbs > db_mbs) {
+                    // [Accuracy Path] Double-check with real count to fix potential stale read issues
+                    _this.select_count_ri(connection, parseInt(obj.ty, 10), obj.ri, function (err, real_results) {
+                        if (real_results.length == 1) {
+                            var real_cni = parseInt(real_results[0].cnt || 0, 10);
+                            var real_cbs = parseInt(real_results[0].size || 0, 10);
 
-                else if (cbs > parseInt(obj.mbs, 10)) {
-                    count = 1;
-                }
+                            var count = 0;
+                            if (real_cni > db_mni) {
+                                count = (real_cni - db_mni);
+                                if (count > 5000) count = 5000;
+                            }
+                            else if (real_cbs > db_mbs) {
+                                count = 1;
+                            }
 
-                delete_oldest(connection, obj, count, function (err, results_oldest) { // select oldest
-                    if (results_oldest.affectedRows == count) {
-                        _this.get_cni_count(connection, obj, function (cni, cbs, st) {
+                            if (count > 0) {
+                                delete_oldest(connection, obj, count, function (err, results_oldest) {
+                                    // Recursive check after delete
+                                    _this.get_cni_count(connection, obj, function (cni, cbs, st) {
+                                        callback(cni, cbs, st);
+                                    });
+                                });
+                            } else {
+                                callback(real_cni, real_cbs, st);
+                            }
+                        } else {
                             callback(cni, cbs, st);
-                        });
-                    }
-                    else {
-                        callback(cni, cbs, st);
-                    }
-                });
+                        }
+                    });
+                }
+                else {
+                    callback(cni, cbs, st);
+                }
             }
             else {
-                callback(cni, cbs, st);
+                callback(0, 0, 0);
             }
-        }
-    });
+        });
+    }
+    else {
+        _this.select_count_ri(connection, parseInt(obj.ty, 10), obj.ri, function (err, results) {
+            if (results.length == 1) {
+                // var cni = results[0]['cni'];
+                // var cbs = (results[0]['cbs'] == null) ? 0 : results[0]['sum(cin.cs)'];
+                var cni = results[0]['count(*)'];
+                var cbs = (results[0]['sum(cin.cs)'] == null) ? 0 : results[0]['sum(cin.cs)'];
+                var st = (results[0]['st'] == null) ? 0 : results[0]['st'];
+
+                if (cni > parseInt(obj.mni, 10) || cbs > parseInt(obj.mbs, 10)) {
+                    var count = 0;
+                    if (cni > parseInt(obj.mni, 10)) {
+                        count = (cni - parseInt(obj.mni, 10));
+                        if (count > 5000) {
+                            count = 5000;
+                        }
+                    }
+                    else if (cbs > parseInt(obj.mbs, 10)) {
+                        count = 1;
+                    }
+
+                    delete_oldest(connection, obj, count, function (err, results_oldest) {
+                        if (results_oldest.affectedRows == count) {
+                            _this.get_cni_count(connection, obj, function (cni, cbs, st) {
+                                callback(cni, cbs, st);
+                            });
+                        }
+                        else {
+                            callback(cni, cbs, st);
+                        }
+                    });
+                }
+                else {
+                    callback(cni, cbs, st);
+                }
+            }
+            else {
+                callback(0, 0, 0); // fallback
+            }
+        });
+    }
 };
 
 exports.insert_cin = function (connection, obj, callback) {
@@ -2427,11 +2484,48 @@ exports.select_st = function (connection, ri, callback) {
 function delete_oldest(connection, obj, count, callback) {
     var del_id = 'delete_oldest (' + count + ') ' + obj.ri + ' - ' + require('shortid').generate() + '';
     console.time(del_id);
-    var sql = util.format('delete from lookup where pi = \'%s\' and ty = \'%s\' limit %s', obj.ri, parseInt(obj.ty, 10) + 1, count);
-    db.getResult(sql, connection, function (err, results) {
-        console.timeEnd(del_id);
-        callback(err, results);
-    });
+    if (global.usesqlite === 'true') {
+        var pre_update_executor = function (cb_pre) {
+            if (obj.ty == '4' || parseInt(obj.ty, 10) == 4 || obj.ty == '3') {
+                var child_ty = parseInt(obj.ty, 10) + 1;
+                var find_sql = util.format("SELECT l.ri, c.cs FROM lookup l LEFT JOIN cin c ON l.ri = c.ri WHERE l.pi = '%s' AND l.ty = '%s' ORDER BY l.ct ASC LIMIT %s", obj.ri, child_ty, count);
+                var sqlite = require('./db_sqlite');
+                sqlite.getResult(find_sql, connection, function (err, rows) {
+                    if (!err && rows && rows.length > 0) {
+                        var total_cs = 0;
+                        var total_cnt = rows.length;
+                        for (var i = 0; i < rows.length; i++) {
+                            total_cs += parseInt(rows[i].cs || 0, 10);
+                        }
+                        var update_sql = util.format("UPDATE cnt SET cni = cni - %s, cbs = cbs - %s WHERE ri = '%s'", total_cnt, total_cs, obj.ri);
+                        sqlite.getResult(update_sql, connection, function (err2, res2) {
+                            cb_pre();
+                        });
+                    } else {
+                        cb_pre();
+                    }
+                });
+            } else {
+                cb_pre();
+            }
+        };
+
+        pre_update_executor(function () {
+            var sql = util.format('delete from lookup where ri in (select ri from lookup where pi = \'%s\' and ty = \'%s\' order by ct asc limit %s)', obj.ri, parseInt(obj.ty, 10) + 1, count);
+            var sqlite = require('./db_sqlite');
+            sqlite.getResult(sql, connection, function (err, results) {
+                console.timeEnd(del_id);
+                callback(err, results);
+            });
+        });
+    }
+    else {
+        var sql = util.format('delete from lookup where pi = \'%s\' and ty = \'%s\' limit %s', obj.ri, parseInt(obj.ty, 10) + 1, count);
+        db.getResult(sql, connection, function (err, results) {
+            console.timeEnd(del_id);
+            callback(err, results);
+        });
+    }
 }
 
 exports.select_ts = function (connection, ri, callback) {
@@ -2493,11 +2587,18 @@ exports.select_ts_in = function (connection, ri_list, callback) {
 };
 
 exports.select_count_ri = function (connection, ty, ri, callback) {
-    var sql = util.format('select lookup.st, count(*), sum(cin.cs) FROM lookup, cin where lookup.ri = \'%s\' and cin.pi = \'%s\'', ri, ri);
-    //var sql = util.format('select lookup.st, %s.cni, %s.cbs FROM lookup, %s where lookup.ri = \'%s\' and %s.ri = \'%s\'', responder.typeRsrc[ty], responder.typeRsrc[ty], responder.typeRsrc[ty], ri, responder.typeRsrc[ty], ri);
-    db.getResult(sql, connection, function (err, results) {
-        callback(err, results);
-    });
+    var sql = util.format('select lookup.st, count(*) as cnt, sum(cin.cs) as size FROM lookup, cin where lookup.ri = \'%s\' and cin.pi = \'%s\'', ri, ri);
+    if (global.usesqlite === 'true') {
+        var sqlite = require('./db_sqlite');
+        sqlite.getResult(sql, connection, function (err, results) {
+            callback(err, results);
+        });
+    }
+    else {
+        db.getResult(sql, connection, function (err, results) {
+            callback(err, results);
+        });
+    }
 };
 
 exports.update_ts_mdcn_mdl = function (connection, mdc, mdlt, ri, callback) {
@@ -2574,15 +2675,31 @@ exports.update_ae = function (connection, obj, callback) {
         if (!err) {
             var sql2 = util.format('update ae set apn = \'%s\', poa = \'%s\', ae.or = \'%s\', rr = \'%s\' where ri = \'%s\'',
                 obj.apn, JSON.stringify(obj.poa), obj.or, obj.rr, obj.ri);
-            db.getResult(sql2, connection, function (err, results) {
-                if (!err) {
-                    console.timeEnd('update_ae ' + obj.ri);
-                    callback(err, results);
-                }
-                else {
-                    callback(err, results);
-                }
-            });
+            if (global.usesqlite === 'true') {
+                var sql2_sqlite = util.format('update ae set apn = \'%s\', poa = \'%s\', "or" = \'%s\', rr = \'%s\' where ri = \'%s\'',
+                    obj.apn, JSON.stringify(obj.poa), obj.or, obj.rr, obj.ri);
+                var sqlite = require('./db_sqlite');
+                sqlite.getResult(sql2_sqlite, connection, function (err, results) {
+                    if (!err) {
+                        console.timeEnd('update_ae ' + obj.ri);
+                        callback(err, results);
+                    }
+                    else {
+                        callback(err, results);
+                    }
+                });
+            }
+            else {
+                db.getResult(sql2, connection, function (err, results) {
+                    if (!err) {
+                        console.timeEnd('update_ae ' + obj.ri);
+                        callback(err, results);
+                    }
+                    else {
+                        callback(err, results);
+                    }
+                });
+            }
         }
         else {
             callback(err, results);
@@ -2597,15 +2714,29 @@ exports.update_cnt = function (connection, obj, callback) {
         if (!err) {
             var sql2 = util.format('update cnt set mni = \'%s\', mbs = \'%s\', mia = \'%s\', li = \'%s\', cnt.or = \'%s\', cni = \'%s\', cbs = \'%s\' where ri = \'%s\'',
                 obj.mni, obj.mbs, obj.mia, obj.li, obj.or, obj.cni, obj.cbs, obj.ri);
-            db.getResult(sql2, connection, function (err, results) {
-                if (!err) {
-                    console.timeEnd(cnt_id);
-                    callback(err, results);
-                }
-                else {
-                    callback(err, results);
-                }
-            });
+            if (global.usesqlite === 'true') {
+                var sql2_sqlite = util.format('update cnt set mni = \'%s\', mbs = \'%s\', mia = \'%s\', li = \'%s\', "or" = \'%s\', cni = \'%s\', cbs = \'%s\' where ri = \'%s\'',
+                    obj.mni, obj.mbs, obj.mia, obj.li, obj.or, obj.cni, obj.cbs, obj.ri);
+                var sqlite = require('./db_sqlite');
+                sqlite.getResult(sql2_sqlite, connection, function (err, results) {
+                    if (!err) {
+                        console.timeEnd(cnt_id);
+                        callback(err, results);
+                    } else {
+                        callback(err, results);
+                    }
+                });
+            } else {
+                db.getResult(sql2, connection, function (err, results) {
+                    if (!err) {
+                        console.timeEnd(cnt_id);
+                        callback(err, results);
+                    }
+                    else {
+                        callback(err, results);
+                    }
+                });
+            }
         }
         else {
             callback(err, results);
@@ -2619,15 +2750,27 @@ exports.update_grp = function (connection, obj, callback) {
         if (!err) {
             var sql2 = util.format('update grp set mnm = \'%s\', mid = \'%s\', macp = \'%s\', gn = \'%s\' where ri = \'%s\'',
                 obj.mnm, JSON.stringify(obj.mid), JSON.stringify(obj.macp), obj.gn, obj.ri);
-            db.getResult(sql2, connection, function (err, results) {
-                if (!err) {
-                    console.timeEnd('update_grp ' + obj.ri);
-                    callback(err, results);
-                }
-                else {
-                    callback(err, results);
-                }
-            });
+            if (global.usesqlite === 'true') {
+                var sqlite = require('./db_sqlite');
+                sqlite.getResult(sql2, connection, function (err, results) {
+                    if (!err) {
+                        console.timeEnd('update_grp ' + obj.ri);
+                        callback(err, results);
+                    } else {
+                        callback(err, results);
+                    }
+                });
+            } else {
+                db.getResult(sql2, connection, function (err, results) {
+                    if (!err) {
+                        console.timeEnd('update_grp ' + obj.ri);
+                        callback(err, results);
+                    }
+                    else {
+                        callback(err, results);
+                    }
+                });
+            }
         }
         else {
             callback(err, results);
@@ -2641,15 +2784,27 @@ exports.update_lcp = function (connection, obj, callback) {
         if (!err) {
             var sql2 = util.format('update lcp set lou = \'%s\', lon = \'%s\' where ri = \'%s\'',
                 obj.lou, obj.lon, obj.ri);
-            db.getResult(sql2, connection, function (err, results) {
-                if (!err) {
-                    console.timeEnd('update_lcp ' + obj.ri);
-                    callback(err, results);
-                }
-                else {
-                    callback(err, results);
-                }
-            });
+            if (global.usesqlite === 'true') {
+                var sqlite = require('./db_sqlite');
+                sqlite.getResult(sql2, connection, function (err, results) {
+                    if (!err) {
+                        console.timeEnd('update_lcp ' + obj.ri);
+                        callback(err, results);
+                    } else {
+                        callback(err, results);
+                    }
+                });
+            } else {
+                db.getResult(sql2, connection, function (err, results) {
+                    if (!err) {
+                        console.timeEnd('update_lcp ' + obj.ri);
+                        callback(err, results);
+                    }
+                    else {
+                        callback(err, results);
+                    }
+                });
+            }
         }
         else {
             callback(err, results);
