@@ -1332,12 +1332,12 @@ function build_search_query(query, callback) {
     if (query.lbl != null) {
         query_where = ' and ';
         if (query.lbl.toString().split(',')[1] == null) {
-            query_where += util.format(' lbl like \'[\"%%%s%%\"]\'', query.lbl);
+            query_where += util.format(' lbl like \'%%\"%%%s%%\"%%\'', query.lbl);
             //query_where += util.format(' lbl like \'%s\'', request.query.lbl);
         }
         else {
             for (var i = 0; i < query.lbl.length; i++) {
-                query_where += util.format(' lbl like \'%%\"%s\"%%\'', query.lbl[i]);
+                query_where += util.format(' lbl like \'%%\"%%%s%%\"%%\'', query.lbl[i]);
                 //query_where += util.format(' lbl like \'%s\'', request.query.lbl[i]);
 
                 if (i < query.lbl.length - 1) {
