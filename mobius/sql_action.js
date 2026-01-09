@@ -1989,10 +1989,10 @@ exports.search_lookup_sqlite = function (connection, ri, query, cur_lim, pi_list
         }
 
         var sqlite = require('./db_sqlite');
-        console.log('[DEBUG-S] Search SQL:', sql);
+        // console.log('[DEBUG-S] Search SQL:', sql);
         sqlite.getResult(sql, connection, function (err, rows) {
             if (!err) {
-                console.log('[DEBUG-S] CTE Result Count:', rows.length);
+                // console.log('[DEBUG-S] CTE Result Count:', rows.length);
                 for (var i = 0; i < rows.length; i++) {
                     found_Obj[rows[i].ri] = rows[i];
                 }
