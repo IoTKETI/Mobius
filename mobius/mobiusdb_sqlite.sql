@@ -22,7 +22,16 @@ CREATE TABLE IF NOT EXISTS lookup (
   aa TEXT,
   sri TEXT,
   spi TEXT,
-  subl TEXT
+  subl TEXT,
+  acpl TEXT
+);
+
+-- acp (Access Control Policy)
+CREATE TABLE IF NOT EXISTS acp (
+  ri TEXT PRIMARY KEY,
+  pv TEXT NOT NULL,
+  pvs TEXT NOT NULL,
+  FOREIGN KEY (ri) REFERENCES lookup(ri) ON DELETE CASCADE
 );
 
 -- cb (CSEBase)

@@ -176,13 +176,41 @@ exports.get_ri_sri = function (connection, sri, callback) {
 exports.insert_lookup = function (connection, obj, callback) {
     //console.time('insert_lookup ' + obj.ri);
     if (global.usesqlite === 'true') {
-        var sql = util.format('insert into lookup (' +
-            'pi, ri, ty, ct, st, rn, lt, et, acpi, lbl, at, aa, sri, spi, subl) ' +
-            'values (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
-            obj.pi, obj.ri, obj.ty, obj.ct, obj.st, obj.rn, obj.lt, obj.et, JSON.stringify(obj.acpi).replace(/'/g, "''"), JSON.stringify(obj.lbl, null, 4).replace(/'/g, "''"), JSON.stringify(obj.at).replace(/'/g, "''"), JSON.stringify(obj.aa).replace(/'/g, "''"), obj.sri, obj.spi, JSON.stringify(obj.subl).replace(/'/g, "''"));
+        var pre_sql_executor = function (callback) {
+            if (obj.acpi && obj.acpi.length > 0) {
+                var acpi_list = obj.acpi;
+                var acp_in_sql = "'" + acpi_list.join("','") + "'";
+                var acp_sql = "SELECT pv FROM acp WHERE ri IN (" + acp_in_sql + ")";
+                var sqlite = require('./db_sqlite');
+                sqlite.getResult(acp_sql, connection, function (err, rows) {
+                    if (!err && rows.length > 0) {
+                        var acpl_arr = [];
+                        for (var i = 0; i < rows.length; i++) {
+                            try {
+                                acpl_arr.push(JSON.parse(rows[i].pv));
+                            } catch (e) {
+                                acpl_arr.push(rows[i].pv);
+                            }
+                        }
+                        obj.acpl = acpl_arr;
+                    }
+                    callback();
+                });
+            } else {
+                callback();
+            }
+        };
 
-        sqlite.getResult(sql, null, function (err, results) {
-            callback(err, results);
+        pre_sql_executor(function () {
+            var sql = util.format('insert into lookup (' +
+                'pi, ri, ty, ct, st, rn, lt, et, acpi, lbl, at, aa, sri, spi, subl, acpl) ' +
+                'values (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
+                obj.pi, obj.ri, obj.ty, obj.ct, obj.st, obj.rn, obj.lt, obj.et, JSON.stringify(obj.acpi).replace(/'/g, "''"), JSON.stringify(obj.lbl, null, 4).replace(/'/g, "''"), JSON.stringify(obj.at).replace(/'/g, "''"), JSON.stringify(obj.aa).replace(/'/g, "''"), obj.sri, obj.spi, JSON.stringify(obj.subl).replace(/'/g, "''"), (obj.acpl ? JSON.stringify(obj.acpl).replace(/'/g, "''") : ''));
+
+            var sqlite = require('./db_sqlite');
+            sqlite.getResult(sql, null, function (err, results) {
+                callback(err, results);
+            });
         });
     }
     else {
@@ -2222,9 +2250,17 @@ exports.select_grp = function (connection, ri, callback) {
 
 exports.select_acp = function (connection, ri, callback) {
     var sql = util.format("select * from acp where ri = \'%s\'", ri);
-    db.getResult(sql, connection, function (err, results_acp) {
-        callback(err, results_acp);
-    });
+    if (global.usesqlite === 'true') {
+        var sqlite = require('./db_sqlite');
+        sqlite.getResult(sql, connection, function (err, results_acp) {
+            callback(err, results_acp);
+        });
+    }
+    else {
+        db.getResult(sql, connection, function (err, results_acp) {
+            callback(err, results_acp);
+        });
+    }
 };
 
 exports.select_acp_cnt = function (connection, loop, uri_arr, callback) {
@@ -2241,45 +2277,94 @@ exports.select_acp_cnt = function (connection, loop, uri_arr, callback) {
     }
 
     var sql = util.format("select acpi, ty from lookup where ri = \"%s\"", pi);
-    db.getResult(sql, connection, function (err, results) {
-        if (err) {
-            callback(err, results.message);
-        }
-        else {
-            if (results.length == 0) {
-                callback(err, results);
+    if (global.usesqlite === 'true') {
+        var sqlite = require('./db_sqlite');
+        sqlite.getResult(sql, connection, function (err, results) {
+            if (err) {
+                callback(err, results.message);
             }
             else {
-                results[0].acpi = JSON.parse(results[0].acpi);
+                if (results.length == 0) {
+                    callback(err, results);
+                }
+                else {
+                    try {
+                        results[0].acpi = JSON.parse(results[0].acpi);
+                    } catch (e) {
+                        results[0].acpi = [];
+                    }
 
-                if (results[0].acpi.length == 0) {
-                    if (results[0].ty == '3') {
-                        _this.select_acp_cnt(connection, ++loop, uri_arr, function (err, acpiList) {
-                            if (err) {
-                                callback(err, acpiList);
-                            }
-                            else {
-                                callback(err, acpiList);
-                            }
-                        });
+                    if (results[0].acpi.length == 0) {
+                        if (results[0].ty == '3') {
+                            _this.select_acp_cnt(connection, ++loop, uri_arr, function (err, acpiList) {
+                                if (err) {
+                                    callback(err, acpiList);
+                                }
+                                else {
+                                    callback(err, acpiList);
+                                }
+                            });
+                        }
+                        else {
+                            callback(err, results[0].acpi);
+                        }
                     }
                     else {
                         callback(err, results[0].acpi);
                     }
                 }
+            }
+        });
+    }
+    else {
+        db.getResult(sql, connection, function (err, results) {
+            if (err) {
+                callback(err, results.message);
+            }
+            else {
+                if (results.length == 0) {
+                    callback(err, results);
+                }
                 else {
-                    callback(err, results[0].acpi);
+                    results[0].acpi = JSON.parse(results[0].acpi);
+
+                    if (results[0].acpi.length == 0) {
+                        if (results[0].ty == '3') {
+                            _this.select_acp_cnt(connection, ++loop, uri_arr, function (err, acpiList) {
+                                if (err) {
+                                    callback(err, acpiList);
+                                }
+                                else {
+                                    callback(err, acpiList);
+                                }
+                            });
+                        }
+                        else {
+                            callback(err, results[0].acpi);
+                        }
+                    }
+                    else {
+                        callback(err, results[0].acpi);
+                    }
                 }
             }
-        }
-    });
+        });
+    }
 };
 
 exports.select_acp_in = function (connection, acpiList, callback) {
     var sql = util.format("select * from acp where ri in (" + JSON.stringify(acpiList).replace('[', '').replace(']', '') + ")");
-    db.getResult(sql, connection, function (err, results_acp) {
-        callback(err, results_acp);
-    });
+    if (global.usesqlite === 'true') {
+        var sqlite = require('./db_sqlite');
+        sqlite.getResult(sql, connection, function (err, results_acp) {
+            callback(err, results_acp);
+        });
+    }
+    else {
+        db.getResult(sql, connection, function (err, results_acp) {
+            callback(err, results_acp);
+        });
+    }
 };
 
 exports.select_sub = function (connection, pi, callback) {
