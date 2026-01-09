@@ -1025,21 +1025,41 @@ exports.insert_sub = function (connection, obj, callback) {
     console.time('insert_sub ' + obj.ri);
     _this.insert_lookup(connection, obj, function (err, results) {
         if (!err) {
-            var sql = util.format('insert into sub (ri, pi, enc, exc, nu, gpi, nfu, bn, rl, psn, pn, nsp, ln, nct, nec, cr, su) ' +
-                'value (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
-                obj.ri, obj.pi, JSON.stringify(obj.enc).replace(/\"/g, '\\"').replace(/\'/g, '\\\''), obj.exc, JSON.stringify(obj.nu).replace(/\"/g, '\\"').replace(/\'/g, '\\\''), obj.gpi, obj.nfu, JSON.stringify(obj.bn).replace(/\"/g, '\\"').replace(/\'/g, '\\\''), obj.rl, obj.psn, obj.pn, obj.nsp, obj.ln, obj.nct, obj.nec, obj.cr, obj.su);
-            db.getResult(sql, connection, function (err, results) {
-                if (!err) {
-                    console.timeEnd('insert_sub ' + obj.ri);
-                    callback(err, results);
-                }
-                else {
-                    sql = util.format("delete from lookup where ri = \'%s\'", obj.ri);
-                    db.getResult(sql, connection, function () {
+            if (global.usesqlite === 'true') {
+                var sqlite = require('./db_sqlite');
+                var sql = util.format('insert into sub (ri, pi, enc, exc, nu, gpi, nfu, bn, rl, psn, pn, nsp, ln, nct, nec, cr, su) ' +
+                    'values (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
+                    obj.ri, obj.pi, JSON.stringify(obj.enc).replace(/'/g, "''"), obj.exc, JSON.stringify(obj.nu).replace(/'/g, "''"), obj.gpi, obj.nfu, JSON.stringify(obj.bn).replace(/'/g, "''"), obj.rl, obj.psn, obj.pn, obj.nsp, obj.ln, obj.nct, obj.nec, obj.cr, obj.su);
+                sqlite.getResult(sql, connection, function (err, results) {
+                    if (!err) {
+                        console.timeEnd('insert_sub ' + obj.ri);
                         callback(err, results);
-                    });
-                }
-            });
+                    }
+                    else {
+                        sql = util.format("delete from lookup where ri = \'%s\'", obj.ri);
+                        sqlite.getResult(sql, connection, function () {
+                            callback(err, results);
+                        });
+                    }
+                });
+            }
+            else {
+                var sql = util.format('insert into sub (ri, pi, enc, exc, nu, gpi, nfu, bn, rl, psn, pn, nsp, ln, nct, nec, cr, su) ' +
+                    'value (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
+                    obj.ri, obj.pi, JSON.stringify(obj.enc).replace(/\"/g, '\\"').replace(/\'/g, '\\\''), obj.exc, JSON.stringify(obj.nu).replace(/\"/g, '\\"').replace(/\'/g, '\\\''), obj.gpi, obj.nfu, JSON.stringify(obj.bn).replace(/\"/g, '\\"').replace(/\'/g, '\\\''), obj.rl, obj.psn, obj.pn, obj.nsp, obj.ln, obj.nct, obj.nec, obj.cr, obj.su);
+                db.getResult(sql, connection, function (err, results) {
+                    if (!err) {
+                        console.timeEnd('insert_sub ' + obj.ri);
+                        callback(err, results);
+                    }
+                    else {
+                        sql = util.format("delete from lookup where ri = \'%s\'", obj.ri);
+                        db.getResult(sql, connection, function () {
+                            callback(err, results);
+                        });
+                    }
+                });
+            }
         }
         else {
             callback(err, results);
@@ -2260,12 +2280,22 @@ exports.update_st = function (connection, obj, callback) {
 
 exports.update_lookup = function (connection, obj, callback) {
     //console.time('update_lookup ' + ri);
-    var sql1 = util.format('update lookup set lt = \'%s\', acpi = \'%s\', et = \'%s\', st = \'%s\', lbl = \'%s\', at = \'%s\', aa = \'%s\', subl = \'%s\' where ri = \'%s\'',
-        obj.lt, JSON.stringify(obj.acpi), obj.et, obj.st, JSON.stringify(obj.lbl).replace(/\"/g, '\\"').replace(/\'/g, '\\\''), JSON.stringify(obj.at), JSON.stringify(obj.aa), JSON.stringify(obj.subl), obj.ri);
-    db.getResult(sql1, connection, function (err, results) {
-        //console.timeEnd('update_lookup ' + ri);
-        callback(err, results);
-    });
+    if (global.usesqlite === 'true') {
+        var sqlite = require('./db_sqlite');
+        var sql1 = util.format('update lookup set lt = \'%s\', acpi = \'%s\', et = \'%s\', st = \'%s\', lbl = \'%s\', at = \'%s\', aa = \'%s\', subl = \'%s\' where ri = \'%s\'',
+            obj.lt, JSON.stringify(obj.acpi).replace(/'/g, "''"), obj.et, obj.st, JSON.stringify(obj.lbl).replace(/'/g, "''"), JSON.stringify(obj.at).replace(/'/g, "''"), JSON.stringify(obj.aa).replace(/'/g, "''"), JSON.stringify(obj.subl).replace(/'/g, "''"), obj.ri);
+        sqlite.getResult(sql1, connection, function (err, results) {
+            callback(err, results);
+        });
+    }
+    else {
+        var sql1 = util.format('update lookup set lt = \'%s\', acpi = \'%s\', et = \'%s\', st = \'%s\', lbl = \'%s\', at = \'%s\', aa = \'%s\', subl = \'%s\' where ri = \'%s\'',
+            obj.lt, JSON.stringify(obj.acpi), obj.et, obj.st, JSON.stringify(obj.lbl).replace(/\"/g, '\\"').replace(/\'/g, '\\\''), JSON.stringify(obj.at), JSON.stringify(obj.aa), JSON.stringify(obj.subl), obj.ri);
+        db.getResult(sql1, connection, function (err, results) {
+            //console.timeEnd('update_lookup ' + ri);
+            callback(err, results);
+        });
+    }
 };
 
 exports.update_acp = function (connection, obj, callback) {
