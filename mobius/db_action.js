@@ -113,4 +113,20 @@ exports.getResult = function (query, connection, callback) {
     });
 };
 
+exports.getPoolStats = function () {
+    if (mysql_pool == null) return null;
+    var all  = mysql_pool._allConnections.length;
+    var free = mysql_pool._freeConnections.length;
+    var acq  = mysql_pool._acquiringConnections.length;
+    var q    = mysql_pool._connectionQueue.length;
+    return {
+        all:      all,           // 풀이 생성한 커넥션 총합
+        free:     free,          // 반납되어 재사용 가능한 커넥션
+        inUse:    all - free,    // 현재 체크아웃되어 사용 중인 커넥션
+        acquiring: acq,          // getConnection() 호출 중 (아직 할당 전)
+        queued:   q,             // 풀 한도 초과로 대기 중인 요청
+        limit:    mysql_pool.config.connectionLimit
+    };
+};
+
 

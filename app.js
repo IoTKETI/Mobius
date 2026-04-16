@@ -1784,6 +1784,12 @@ app.use((req, res, next) => {
 //     graphiql: true,
 // }));
 
+// ── 풀 내부 통계 엔드포인트 (테스트/디버그용) ──────────────────────────────
+app.get('/_debug/pool-stats', (request, response) => {
+    var stats = db.getPoolStats();
+    response.json({ pid: process.pid, pool: stats });
+});
+
 // remoteCSE, ae, cnt
 app.post('*', onem2mParser, (request, response) => {
     var fullBody = '';
