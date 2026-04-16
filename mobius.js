@@ -55,8 +55,6 @@ global.use_sgn_man_port = '7599';
 global.use_cnt_man_port = '7583';
 global.use_hit_man_port = '7594';
 
-global.usetsagentport = '7582';
-
 global.use_mqtt_broker = 'localhost'; // mqttbroker for mobius
 
 global.use_secure = 'disable';

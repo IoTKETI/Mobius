@@ -1178,60 +1178,7 @@ exports.insert_smd = function (connection, obj, callback) {
     });
 };
 
-exports.insert_ts = function (connection, obj, callback) {
-    console.time('insert_ts ' + obj.ri);
-    _this.insert_lookup(connection, obj, function (err, results) {
-        if (!err) {
-            var sql = util.format('insert into ts (ri, cr, mni, mbs, mia, cni, cbs, ts.or, pei, mdd, mdn, mdlt, mdc, mdt) ' +
-                'value (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', ' +
-                '\'%s\', \'%s\', \'%s\', \'%s\')',
-                obj.ri, obj.cr, obj.mni, obj.mbs, obj.mia, obj.cni, obj.cbs, obj.or, obj.pei, obj.mdd, obj.mdn, obj.mdlt, obj.mdc, obj.mdt);
-            db.getResult(sql, connection, function (err, results) {
-                if (!err) {
-                    console.timeEnd('insert_ts ' + obj.ri);
-                    callback(err, results);
-                }
-                else {
-                    sql = util.format("delete from lookup where ri = \'%s\'", obj.ri);
-                    db.getResult(sql, connection, function () {
-                        callback(err, results);
-                    });
-                }
-            });
-        }
-        else {
-            callback(err, results);
-        }
-    });
-};
-
-exports.insert_tsi = function (connection, obj, callback) {
-    console.time('insert_tsi ' + obj.ri);
-    _this.insert_lookup(connection, obj, function (err, results) {
-        if (!err) {
-            var sql = util.format('insert into tsi (ri, pi, dgt, con, sqn, cs) ' +
-                'value (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
-                obj.ri, obj.pi, obj.dgt, obj.con, obj.sqn, obj.cs);
-            db.getResult(sql, connection, function (err, results) {
-                if (!err) {
-                    console.timeEnd('insert_tsi ' + obj.ri);
-                    callback(err, results);
-                }
-                else {
-                    sql = util.format("delete from lookup where ri = \'%s\'", obj.ri);
-                    db.getResult(sql, connection, function () {
-                        callback(err, results);
-                    });
-                }
-            });
-        }
-        else {
-            callback(err, results);
-        }
-    });
-};
-
-exports.insert_mms = function (connection, obj, callback) {
+exports.insert_mms =function (connection, obj, callback) {
     console.time('insert_mms ' + obj.ri);
     _this.insert_lookup(connection, obj, function (err, results) {
         if (!err) {
@@ -1617,7 +1564,7 @@ function search_parents_lookup_action(connection, pi_list, count, cur_result_ri,
         return;
     }
 
-    var sql = util.format("select ri, ty from lookup where pi = \'" + pi_list[count] + "\' and ty <> \'1\' and ty <> \'9\' and ty <> \'23\' and ty <> \'4\' and ty <> \'30\' and ty <> \'17\' limit 2000");
+    var sql = util.format("select ri, ty from lookup where pi = \'" + pi_list[count] + "\' and ty <> \'1\' and ty <> \'9\' and ty <> \'23\' and ty <> \'4\' and ty <> \'17\' limit 2000");
     //console.log('search_parents_lookup_action', sql);
     db.getResult(sql, connection, function (err, result_lookup_ri) {
         if (!err) {
@@ -1684,16 +1631,16 @@ exports.search_parents_lookup_sqlite = function (connection, pi_list, cur_result
 
     var sql = `
         WITH RECURSIVE hierarchy AS (
-            SELECT ri, ty, pi FROM lookup WHERE pi IN (${anchor_pi}) AND ty <> '1' AND ty <> '9' AND ty <> '23' AND ty <> '4' AND ty <> '30' AND ty <> '17'
+            SELECT ri, ty, pi FROM lookup WHERE pi IN (${anchor_pi}) AND ty <> '1' AND ty <> '9' AND ty <> '23' AND ty <> '4' AND ty <> '17'
             UNION ALL
             SELECT l.ri, l.ty, l.pi FROM lookup l JOIN hierarchy p ON l.pi = p.ri
-            WHERE l.ty <> '1' AND l.ty <> '9' AND l.ty <> '23' AND l.ty <> '4' AND l.ty <> '30' AND l.ty <> '17'
+            WHERE l.ty <> '1' AND l.ty <> '9' AND l.ty <> '23' AND l.ty <> '4' AND l.ty <> '17'
         )
         SELECT * FROM hierarchy
     `;
 
     // Note: The original logic filters ty IN THE QUERY.
-    // ty <> 1, 9, 23, 4, 30, 17.
+    // ty <> 1, 9, 23, 4, 17.
 
     var sqlite = require('./db_sqlite');
     sqlite.getResult(sql, connection, function (err, rows) {
@@ -2236,7 +2183,6 @@ exports.select_oldest_resource = function (connection, ty, ri, oldestObj, callba
         });
     }
     else {
-        //var sql = util.format('select a.* from (select ri from lookup where (pi = \'%s\') limit 100) b left join lookup as a on b.ri = a.ri where a.ty = \'4\' or a.ty = \'30\' limit 1', ri);
         var sql = 'select * from (select * from lookup where pi = \'' + ri + '\' and ty = \'' + ty + '\' limit 1)b join ' + responder.typeRsrc[parseInt(ty, 10)] + ' as a on b.ri = a.ri';
         db.getResult(sql, connection, function (err, results_oldest) {
             console.timeEnd('select_oldest ' + ri);
@@ -2461,12 +2407,7 @@ exports.select_cb = function (connection, ri, callback) {
 };
 
 exports.select_cni_parent = function (connection, ty, pi, callback) {
-    if (ty == '4') {
-        var sql = util.format("select cni, cbs, st, mni, mbs from cnt, lookup where cnt.ri = \'%s\' and lookup.ri = \'%s\'", pi, pi);
-    }
-    else {
-        sql = util.format("select cni, cbs, st, mni, mbs from ts, lookup where ts.ri = \'%s\' and lookup.ri = \'%s\'", pi, pi);
-    }
+    var sql = util.format("select cni, cbs, st, mni, mbs from cnt, lookup where cnt.ri = \'%s\' and lookup.ri = \'%s\'", pi, pi);
 
     db.getResult(sql, connection, function (err, results_cni) {
         callback(err, results_cni);
@@ -2528,12 +2469,6 @@ function delete_oldest(connection, obj, count, callback) {
     }
 }
 
-exports.select_ts = function (connection, ri, callback) {
-    var sql = util.format("select * from ts where ri = \'%s\'", ri);
-    db.getResult(sql, connection, function (err, ts_Obj) {
-        callback(err, ts_Obj);
-    });
-};
 
 exports.select_in_ri_list = function (connection, tbl, ri_list, ri_index, found_Obj, loop_cnt, callback) {
     var cur_ri = [];
@@ -2578,15 +2513,7 @@ exports.select_in_ri_list = function (connection, tbl, ri_list, ri_index, found_
 };
 
 
-exports.select_ts_in = function (connection, ri_list, callback) {
-    var sql = util.format("select * from ts where ri in (" + JSON.stringify(ri_list).replace('[', '').replace(']', '') + ")");
-    db.getResult(sql, connection, function (err, ts_Obj) {
-        callback(err, ts_Obj);
-    });
-
-};
-
-exports.select_count_ri = function (connection, ty, ri, callback) {
+exports.select_count_ri =function (connection, ty, ri, callback) {
     var sql = util.format('select lookup.st, count(*) as cnt, sum(cin.cs) as size FROM lookup, cin where lookup.ri = \'%s\' and cin.pi = \'%s\'', ri, ri);
     if (global.usesqlite === 'true') {
         var sqlite = require('./db_sqlite');
@@ -2601,14 +2528,7 @@ exports.select_count_ri = function (connection, ty, ri, callback) {
     }
 };
 
-exports.update_ts_mdcn_mdl = function (connection, mdc, mdlt, ri, callback) {
-    var sql = util.format("update ts set mdc = \'%s\', mdlt = \'%s\' where ri = \'%s\'", mdc, mdlt, ri);
-    db.getResult(sql, connection, function (err, results) {
-        callback(err, results);
-    });
-};
-
-exports.update_cb_poa_csi = function (connection, poa, csi, srt, ri, callback) {
+exports.update_cb_poa_csi =function (connection, poa, csi, srt, ri, callback) {
     console.time('update_cb_poa_csi ' + ri);
     var sql = util.format('update cb set poa = \'%s\', csi = \'%s\', srt = \'%s\' where ri=\'%s\'', poa, csi, srt, ri);
     db.getResult(sql, connection, function (err, results) {
@@ -3204,29 +3124,7 @@ exports.update_smd = function (connection, obj, callback) {
     });
 };
 
-exports.update_ts = function (connection, obj, callback) {
-    console.time('update_ts ' + obj.ri);
-    _this.update_lookup(connection, obj, function (err, results) {
-        if (!err) {
-            var sql2 = util.format('update ts set mni = \'%s\', mbs = \'%s\', mia = \'%s\', ts.or = \'%s\', mdn = \'%s\', mdt = \'%s\', mdlt = \'%s\', mdc = \'%s\'  where ri = \'%s\'',
-                obj.mni, obj.mbs, obj.mia, obj.or, obj.mdn, obj.mdt, obj.mdlt, obj.mdc, obj.ri);
-            db.getResult(sql2, connection, function (err, results) {
-                if (!err) {
-                    console.timeEnd('update_ts ' + obj.ri);
-                    callback(err, results);
-                }
-                else {
-                    callback(err, results);
-                }
-            });
-        }
-        else {
-            callback(err, results);
-        }
-    });
-};
-
-exports.update_mms = function (connection, obj, callback) {
+exports.update_mms =function (connection, obj, callback) {
     console.time('update_mms ' + obj.ri);
     _this.update_lookup(connection, obj, function (err, results) {
         if (!err) {

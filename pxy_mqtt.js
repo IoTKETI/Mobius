@@ -55,8 +55,6 @@ var usemqttcbhost = 'localhost'; // pxymqtt to mobius
 
 
 
-//require('./mobius/ts_agent');
-
 //var cache_limit = 64;
 var cache_ttl = 3; // count
 var cache_keep = 10; // sec
@@ -137,8 +135,6 @@ exports.mqtt_watchdog = function() {
                 reg_req_sub();
                 //resp_sub();
                 mqtt_state = 'ready';
-                
-                require('./mobius/ts_agent');
             });
 
             pxymqtt_client.on('message', mqtt_message_handler);

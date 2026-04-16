@@ -193,7 +193,7 @@ exports.request_execute = function(obj, callback) {
 
     req.on('error', function (e) {
         if (e.message != 'read ECONNRESET') {
-            console.log('[delete_TS] problem with request: ' + e.message);
+            console.log('[delete_TR] problem with request: ' + e.message);
         }
     });
 
@@ -372,7 +372,7 @@ exports.request_commit = function(obj, callback) {
 
     req.on('error', function (e) {
         if (e.message != 'read ECONNRESET') {
-            console.log('[delete_TS] problem with request: ' + e.message);
+            console.log('[delete_TR] problem with request: ' + e.message);
         }
     });
 
