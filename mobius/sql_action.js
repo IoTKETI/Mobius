@@ -459,53 +459,41 @@ global.getType = function (p) {
 };
 
 exports.get_cni_count = function (connection, obj, callback) {
+    // SQLite/MySQL 공통 헬퍼: select_count_ri 결과로 mni/mbs 초과 시 oldest 삭제
+    function checkAndPurge(connection, cni, cbs, st, obj, callback) {
+        var mni = parseInt(obj.mni, 10);
+        var mbs = parseInt(obj.mbs, 10);
+
+        if (cni > mni || cbs > mbs) {
+            var count = 0;
+            if (cni > mni) {
+                count = cni - mni;
+                if (count > 5000) count = 5000;
+            }
+            else if (cbs > mbs) {
+                count = 1;
+            }
+
+            delete_oldest(connection, obj, count, function (err) {
+                // 삭제 후 재조회로 정확한 최종값 반환
+                _this.get_cni_count(connection, obj, function (cni2, cbs2, st2) {
+                    callback(cni2, cbs2, st2);
+                });
+            });
+        }
+        else {
+            callback(cni, cbs, st);
+        }
+    }
+
     if (global.usesqlite === 'true') {
-        var sql = util.format('select c.cni, c.cbs, c.mni, c.mbs, l.st from cnt c, lookup l where c.ri = l.ri and c.ri = \'%s\'', obj.ri);
-        var sqlite = require('./db_sqlite');
-        sqlite.getResult(sql, connection, function (err, results) {
+        // SQLite: 저장된 cni 대신 실제 COUNT로 판단 (클러스터 환경에서 저장값 신뢰 불가)
+        _this.select_count_ri(connection, parseInt(obj.ty, 10), obj.ri, function (err, results) {
             if (!err && results.length == 1) {
-                var cni = parseInt(results[0].cni, 10);
-                var cbs = parseInt(results[0].cbs, 10);
-                var st = (results[0].st == null) ? 0 : parseInt(results[0].st, 10);
-
-                // Use DB stored limits to ensure latest config is used
-                var db_mni = parseInt(results[0].mni, 10);
-                var db_mbs = parseInt(results[0].mbs, 10);
-
-                if (cni > db_mni || cbs > db_mbs) {
-                    // [Accuracy Path] Double-check with real count to fix potential stale read issues
-                    _this.select_count_ri(connection, parseInt(obj.ty, 10), obj.ri, function (err, real_results) {
-                        if (real_results.length == 1) {
-                            var real_cni = parseInt(real_results[0].cnt || 0, 10);
-                            var real_cbs = parseInt(real_results[0].size || 0, 10);
-
-                            var count = 0;
-                            if (real_cni > db_mni) {
-                                count = (real_cni - db_mni);
-                                if (count > 5000) count = 5000;
-                            }
-                            else if (real_cbs > db_mbs) {
-                                count = 1;
-                            }
-
-                            if (count > 0) {
-                                delete_oldest(connection, obj, count, function (err, results_oldest) {
-                                    // Recursive check after delete
-                                    _this.get_cni_count(connection, obj, function (cni, cbs, st) {
-                                        callback(cni, cbs, st);
-                                    });
-                                });
-                            } else {
-                                callback(real_cni, real_cbs, st);
-                            }
-                        } else {
-                            callback(cni, cbs, st);
-                        }
-                    });
-                }
-                else {
-                    callback(cni, cbs, st);
-                }
+                var cni = parseInt(results[0].cnt  || 0, 10);
+                var cbs = parseInt(results[0].size || 0, 10);
+                var st  = (results[0].st == null) ? 0 : parseInt(results[0].st, 10);
+                checkAndPurge(connection, cni, cbs, st, obj, callback);
             }
             else {
                 callback(0, 0, 0);
@@ -513,40 +501,13 @@ exports.get_cni_count = function (connection, obj, callback) {
         });
     }
     else {
+        // MySQL: select_count_ri는 cnt/size 별칭으로 결과 반환
         _this.select_count_ri(connection, parseInt(obj.ty, 10), obj.ri, function (err, results) {
             if (results.length == 1) {
-                // var cni = results[0]['cni'];
-                // var cbs = (results[0]['cbs'] == null) ? 0 : results[0]['sum(cin.cs)'];
-                var cni = results[0]['count(*)'];
-                var cbs = (results[0]['sum(cin.cs)'] == null) ? 0 : results[0]['sum(cin.cs)'];
-                var st = (results[0]['st'] == null) ? 0 : results[0]['st'];
-
-                if (cni > parseInt(obj.mni, 10) || cbs > parseInt(obj.mbs, 10)) {
-                    var count = 0;
-                    if (cni > parseInt(obj.mni, 10)) {
-                        count = (cni - parseInt(obj.mni, 10));
-                        if (count > 5000) {
-                            count = 5000;
-                        }
-                    }
-                    else if (cbs > parseInt(obj.mbs, 10)) {
-                        count = 1;
-                    }
-
-                    delete_oldest(connection, obj, count, function (err, results_oldest) {
-                        if (results_oldest.affectedRows == count) {
-                            _this.get_cni_count(connection, obj, function (cni, cbs, st) {
-                                callback(cni, cbs, st);
-                            });
-                        }
-                        else {
-                            callback(cni, cbs, st);
-                        }
-                    });
-                }
-                else {
-                    callback(cni, cbs, st);
-                }
+                var cni = parseInt(results[0].cnt  || 0, 10);
+                var cbs = parseInt(results[0].size || 0, 10);
+                var st  = (results[0].st == null) ? 0 : parseInt(results[0].st, 10);
+                checkAndPurge(connection, cni, cbs, st, obj, callback);
             }
             else {
                 callback(0, 0, 0); // fallback

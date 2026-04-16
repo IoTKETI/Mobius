@@ -254,15 +254,13 @@ function sgn_action_send(nu_arr, req_count, sub_bodytype, node, short_flag, chec
     }
 
     make_body_string_for_noti(sub_nu.protocol, nu, node, sub_bodytype, xm2mri, short_flag, function (bodyString) {
-        delete node;
-        node = null;
-        if (bodyString == "") { // parse error
+        if (bodyString === '') { // parse error
             console.log('can not send notification since error of converting json to xml');
         }
         else {
-            setTimeout(function(ss_ri, exc, nu, sub_bodytype, xm2mri, bodyString, parentObj) {
-                sgn_man.post(ss_ri, exc, nu, sub_bodytype, xm2mri, bodyString, parentObj);
-            }, parseInt(1 + Math.random() * 10), ss_ri, exc, nu, sub_bodytype, xm2mri, bodyString, parentObj);
+            setTimeout(function (nu, sub_bodytype, xm2mri, bodyString) {
+                sgn_man.post(nu, sub_bodytype, xm2mri, bodyString);
+            }, parseInt(1 + Math.random() * 10), nu, sub_bodytype, xm2mri, bodyString);
         }
 
         sgn_action_send(nu_arr, ++req_count, sub_bodytype, node, short_flag, check_value, ss_cr, ss_ri, xm2mri, exc, parentObj, function (code) {
@@ -399,7 +397,6 @@ function sgn_action(connection, rootnm, check_value, subl, req_count, noti_Obj, 
         }
         else if (notiObj.cnd == 'org.onem2m.home.moduleclass.colour') {
             node['m2m:sgn'].nev.rep['hd:' + rootnm.replace('fcnt', 'color')] = JSON.parse(JSON.stringify(notiObj));
-            delete body_Obj[rootnm];
         }
         else if (notiObj.cnd == 'org.onem2m.home.moduleclass.brightness') {
             node['m2m:sgn'].nev.rep['hd:' + rootnm.replace('fcnt', 'brigs')] = JSON.parse(JSON.stringify(notiObj));
@@ -416,8 +413,10 @@ function sgn_action(connection, rootnm, check_value, subl, req_count, noti_Obj, 
 
     notiObj = null;
 
+    var matched = false;
     for (var j = 0; j < net_arr.length; j++) {
         if (net_arr[j] == check_value || check_value == 256 || check_value == 128) { // 1 : Update_of_Subscribed_Resource, 3 : Create_of_Direct_Child_Resource, 4 : Delete_of_Direct_Child_Resource
+            matched = true;
             node['m2m:sgn'].nev.net = parseInt(net_arr[j].toString());
 
             get_nu_arr(connection, nu_arr, 0, function (code) {
@@ -443,6 +442,13 @@ function sgn_action(connection, rootnm, check_value, subl, req_count, noti_Obj, 
             });
             break;
         }
+    }
+
+    // net_arr에 check_value가 없는 경우에도 다음 subl로 진행
+    if (!matched) {
+        sgn_action(connection, rootnm, check_value, subl, ++req_count, noti_Obj, sub_bodytype, parentObj, function (code) {
+            callback(code);
+        });
     }
 }
 
@@ -486,73 +492,3 @@ exports.check = function(request, notiObj, check_value, callback) {
     }
 };
 
-
-
-function request_noti(nu, ri, bodyString, bodytype, xm2mri, exc) {
-    var options = {
-        hostname: 'localhost',
-        port: use_sgn_man_port,
-        path: '/sgn',
-        method: 'POST',
-        headers: {
-            'X-M2M-RI': xm2mri,
-            'Accept': 'application/'+bodytype,
-            'X-M2M-Origin': usecseid,
-            'Content-Type': 'application/' + bodytype,
-            'Content-Length' : bodyString.length,
-            'X-M2M-RVI': uservi,
-            'nu': nu,
-            'bodytype': bodytype,
-            'ri': ri,
-            'exc': exc
-        }
-    };
-
-    var bodyStr = '';
-    if (use_secure == 'disable') {
-        var req = http.request(options, function (res) {
-            res.setEncoding('utf8');
-
-            res.on('data', function (chunk) {
-                bodyStr += chunk;
-            });
-
-            res.on('end', function () {
-                if(res.statusCode == 200 || res.statusCode == 201) {
-                    console.log('=======> [response_noti - ' + res.headers['x-m2m-rsc'] + '] - ' + ri);
-                }
-            });
-        });
-    }
-    else {
-        options.ca = fs.readFileSync('ca-crt.pem');
-
-        req = https.request(options, function (res) {
-            res.setEncoding('utf8');
-
-            res.on('data', function (chunk) {
-                bodyStr += chunk;
-            });
-
-            res.on('end', function () {
-                if(res.statusCode == 200 || res.statusCode == 201) {
-                    console.log('=======> [response_noti - ' + res.headers['x-m2m-rsc'] + '] - ' + ri);
-                }
-            });
-        });
-    }
-
-    req.on('error', function (e) {
-        if(e.message != 'read ECONNRESET') {
-            //console.log('--xxx--> [request_noti - problem with request: ' + e.message + ']');
-            console.log('--xxx--> [request_noti - no response - ' + ri + ']');
-        }
-    });
-
-    req.on('close', function () {
-        //console.log('--xxx--> [request_noti - close: no response for notification');
-    });
-
-    req.write(bodyString);
-    req.end();
-}

@@ -33,9 +33,9 @@ exports.schedule = function (parentObj, cs) {
         existing.timer = setTimeout(flush, DEBOUNCE_MS, pi);
     } else {
         var entry = {
-            cni: parseInt(parentObj.cni, 10) + 1,
-            cbs: parseInt(parentObj.cbs, 10) + cs,
-            st: parseInt(parentObj.st, 10) + 1,
+            cni: 1,   // 이 워커에서 발생한 delta (절대값 아님)
+            cbs: cs,  // 이 워커에서 발생한 delta
+            st: 1,    // 이 워커에서 발생한 delta
             parentObj: parentObj,
             timer: null
         };
@@ -80,7 +80,8 @@ function updateCntAndCheck(connection, pi, entry, done) {
 
     if (global.usesqlite === 'true') {
         var sqlite = require('./db_sqlite');
-        var sql_update_cnt = util.format("UPDATE cnt SET cni = '%s', cbs = '%s' WHERE ri = '%s'", entry.cni, entry.cbs, pi);
+        // 상대값(delta) 증분: 동시 다중 워커가 flush해도 경쟁 조건 없음
+        var sql_update_cnt = util.format("UPDATE cnt SET cni = cni + %d, cbs = cbs + %d WHERE ri = '%s'", entry.cni, entry.cbs, pi);
         sqlite.getResult(sql_update_cnt, connection, function (err) {
             if (err) {
                 console.error('[cnt_man] flush update cnt error:', pi, err);
@@ -88,7 +89,7 @@ function updateCntAndCheck(connection, pi, entry, done) {
                 done();
                 return;
             }
-            var sql_update_lookup = util.format("UPDATE lookup SET st = '%s' WHERE ri = '%s'", entry.st, pi);
+            var sql_update_lookup = util.format("UPDATE lookup SET st = st + %d WHERE ri = '%s'", entry.st, pi);
             sqlite.getResult(sql_update_lookup, connection, function (err) {
                 if (err) {
                     console.error('[cnt_man] flush update lookup error:', pi, err);
@@ -101,7 +102,8 @@ function updateCntAndCheck(connection, pi, entry, done) {
         });
     } else {
         var db = require('./db_action');
-        var sql = util.format("UPDATE cnt, lookup SET cnt.cni = '%s', cnt.cbs = '%s', lookup.st = '%s' WHERE cnt.ri = '%s' AND lookup.ri = '%s'", entry.cni, entry.cbs, entry.st, pi, pi);
+        // 상대값(delta) 증분: 동시 다중 워커가 flush해도 경쟁 조건 없음
+        var sql = util.format("UPDATE cnt, lookup SET cnt.cni = cnt.cni + %d, cnt.cbs = cnt.cbs + %d, lookup.st = lookup.st + %d WHERE cnt.ri = '%s' AND lookup.ri = '%s'", entry.cni, entry.cbs, entry.st, pi, pi);
         db.getResult(sql, connection, function (err) {
             if (err) {
                 console.error('[cnt_man] flush update error:', pi, err);
