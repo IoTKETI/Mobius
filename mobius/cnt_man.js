@@ -77,6 +77,7 @@ function flush(pi) {
 function updateCntAndCheck(connection, pi, entry, done) {
     var flush_id = 'cnt_man.flush ' + pi + ' - ' + require('shortid').generate();
     console.time(flush_id);
+    console.log('[cnt_man] flush: pi=' + pi + ' delta(cni=' + entry.cni + ' cbs=' + entry.cbs + ') parentObj.mni=' + entry.parentObj.mni + ' parentObj.ty=' + entry.parentObj.ty);
 
     if (global.usesqlite === 'true') {
         var sqlite = require('./db_sqlite');

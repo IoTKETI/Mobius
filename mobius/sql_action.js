@@ -464,6 +464,8 @@ exports.get_cni_count = function (connection, obj, callback) {
         var mni = parseInt(obj.mni, 10);
         var mbs = parseInt(obj.mbs, 10);
 
+        console.log('[checkAndPurge] ri=' + obj.ri + ' cni=' + cni + ' mni=' + mni + ' cbs=' + cbs + ' mbs=' + mbs + ' needPurge=' + (cni > mni || cbs > mbs));
+
         if (cni > mni || cbs > mbs) {
             var count = 0;
             if (cni > mni) {
@@ -474,6 +476,7 @@ exports.get_cni_count = function (connection, obj, callback) {
                 count = 1;
             }
 
+            console.log('[checkAndPurge] delete_oldest count=' + count);
             delete_oldest(connection, obj, count, function (err) {
                 // 삭제 후 재조회로 정확한 최종값 반환
                 _this.get_cni_count(connection, obj, function (cni2, cbs2, st2) {
@@ -2422,30 +2425,112 @@ function delete_oldest(connection, obj, count, callback) {
         });
     }
     else {
+        // MySQL: 트랜잭션 + FOR UPDATE로 클러스터 동시 실행 race condition 방지
         var child_ty = parseInt(obj.ty, 10) + 1;
-        var find_sql = util.format("SELECT l.ri, c.cs FROM lookup l LEFT JOIN cin c ON l.ri = c.ri WHERE l.pi = '%s' AND l.ty = '%s' ORDER BY l.ct ASC LIMIT %s", obj.ri, child_ty, count);
-        db.getResult(find_sql, connection, function (err, rows) {
-            if (!err && rows && rows.length > 0) {
-                var total_cs = 0;
-                var total_cnt = rows.length;
-                for (var i = 0; i < rows.length; i++) {
-                    total_cs += parseInt(rows[i].cs || 0, 10);
+        var mni = parseInt(obj.mni, 10);
+        var mbs = parseInt(obj.mbs, 10);
+
+        connection.beginTransaction(function (txErr) {
+            if (txErr) {
+                console.error('[delete_oldest] beginTransaction error:', txErr.message);
+                console.timeEnd(del_id);
+                callback(txErr);
+                return;
+            }
+
+            // cnt 행 잠금 (FOR UPDATE) → 다른 워커의 동시 delete_oldest 직렬화
+            var lock_sql = util.format("SELECT cni, cbs FROM cnt WHERE ri = '%s' FOR UPDATE", obj.ri);
+            db.getResult(lock_sql, connection, function (err, lockRows) {
+                if (err || !lockRows || lockRows.length === 0) {
+                    connection.rollback(function () {});
+                    console.timeEnd(del_id);
+                    callback(err || new Error('cnt row not found'));
+                    return;
                 }
-                var update_sql = util.format("UPDATE cnt SET cni = cni - %s, cbs = cbs - %s WHERE ri = '%s'", total_cnt, total_cs, obj.ri);
-                db.getResult(update_sql, connection, function (err2, res2) {
-                    var del_sql = util.format('delete from lookup where pi = \'%s\' and ty = \'%s\' limit %s', obj.ri, child_ty, count);
-                    db.getResult(del_sql, connection, function (err, results) {
+
+                // 실제 CIN 카운트 재조회 (잠금 후 최신값)
+                var recount_sql = util.format(
+                    "SELECT COUNT(*) AS n, IFNULL(SUM(c.cs),0) AS s FROM lookup l LEFT JOIN cin c ON l.ri = c.ri WHERE l.pi = '%s' AND l.ty = '%s'",
+                    obj.ri, child_ty);
+                db.getResult(recount_sql, connection, function (err2, rcRows) {
+                    if (err2 || !rcRows || rcRows.length === 0) {
+                        connection.rollback(function () {});
                         console.timeEnd(del_id);
-                        callback(err, results);
+                        callback(err2);
+                        return;
+                    }
+
+                    var actual_cni = parseInt(rcRows[0].n || 0, 10);
+                    var actual_cbs = parseInt(rcRows[0].s || 0, 10);
+
+                    if (actual_cni <= mni && actual_cbs <= mbs) {
+                        // 다른 워커가 이미 정리 완료 → 커밋 후 종료
+                        connection.commit(function () {
+                            console.log('[delete_oldest] already clean (actual_cni=' + actual_cni + ' <= mni=' + mni + '), skip');
+                            console.timeEnd(del_id);
+                            callback(null);
+                        });
+                        return;
+                    }
+
+                    var toDelete = 0;
+                    if (actual_cni > mni) {
+                        toDelete = actual_cni - mni;
+                        if (toDelete > 5000) toDelete = 5000;
+                    } else {
+                        toDelete = 1; // mbs 초과
+                    }
+
+                    console.log('[delete_oldest] tx delete: actual_cni=' + actual_cni + ' mni=' + mni + ' toDelete=' + toDelete);
+
+                    var find_sql = util.format(
+                        "SELECT l.ri, c.cs FROM lookup l LEFT JOIN cin c ON l.ri = c.ri WHERE l.pi = '%s' AND l.ty = '%s' ORDER BY l.ct ASC LIMIT %s",
+                        obj.ri, child_ty, toDelete);
+                    db.getResult(find_sql, connection, function (err3, rows) {
+                        if (err3 || !rows || rows.length === 0) {
+                            connection.rollback(function () {});
+                            console.timeEnd(del_id);
+                            callback(err3);
+                            return;
+                        }
+
+                        var total_cs = 0;
+                        var total_cnt = rows.length;
+                        for (var i = 0; i < rows.length; i++) {
+                            total_cs += parseInt(rows[i].cs || 0, 10);
+                        }
+
+                        var update_sql = util.format(
+                            "UPDATE cnt SET cni = cni - %s, cbs = cbs - %s WHERE ri = '%s'",
+                            total_cnt, total_cs, obj.ri);
+                        db.getResult(update_sql, connection, function (err4) {
+                            if (err4) {
+                                connection.rollback(function () {});
+                                console.timeEnd(del_id);
+                                callback(err4);
+                                return;
+                            }
+
+                            var del_sql = util.format(
+                                "DELETE FROM lookup WHERE pi = '%s' AND ty = '%s' LIMIT %s",
+                                obj.ri, child_ty, toDelete);
+                            db.getResult(del_sql, connection, function (err5, results) {
+                                if (err5) {
+                                    connection.rollback(function () {});
+                                    console.timeEnd(del_id);
+                                    callback(err5);
+                                    return;
+                                }
+                                connection.commit(function (commitErr) {
+                                    console.log('[delete_oldest] committed: deleted=' + (results ? results.affectedRows : 0));
+                                    console.timeEnd(del_id);
+                                    callback(commitErr);
+                                });
+                            });
+                        });
                     });
                 });
-            } else {
-                var del_sql = util.format('delete from lookup where pi = \'%s\' and ty = \'%s\' limit %s', obj.ri, child_ty, count);
-                db.getResult(del_sql, connection, function (err, results) {
-                    console.timeEnd(del_id);
-                    callback(err, results);
-                });
-            }
+            });
         });
     }
 }
