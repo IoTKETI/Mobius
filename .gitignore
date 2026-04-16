@@ -4,10 +4,14 @@ node_modules/
 .idea/
 log/
 doc/
+docs/
 hit.json
 cbs_cache.json
 package-lock.json
 ss_ri_cache.json
 conf.json
 Mobius ����.drawio
-mobius.db
+mobius.db*
+test_*
+.vscode/
+.claude/
