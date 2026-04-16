@@ -15,108 +15,101 @@
  * @date 2019.06.14
  */
 
-var fs = require('fs');
-var http = require('http');
-var https = require('https');
-var express = require('express');
-var bodyParser = require('body-parser');
-var ip = require("ip");
-
 var db_sql = require('./sql_action');
-//
-// global.NOPRINT = 'true';
-//
-// var cnt_app = express();
-//
-// var cnt_server = null;
-//
-// if(cnt_server == null) {
-//     if(use_secure === 'disable') {
-//         http.globalAgent.maxSockets = 10000;
-//         cnt_server = http.createServer(cnt_app);
-//     }
-//     else {
-//         var options = {
-//             key: fs.readFileSync('server-key.pem'),
-//             cert: fs.readFileSync('server-crt.pem'),
-//             ca: fs.readFileSync('ca-crt.pem')
-//         };
-//         https.globalAgent.maxSockets = 10000;
-//         cnt_server = https.createServer(options, cnt_app);
-//     }
-//
-//     cnt_server.listen({port: use_cnt_man_port, agent: false}, function () {
-//         console.log('cnt_man server (' + ip.address() + ') running at ' + use_cnt_man_port + ' port');
-//     });
-//
-//     cnt_server.on('connection', function (socket) {
-//         //console.log("A new connection was made by a client.");
-//         // socket.setTimeout(5000, function () {
-//         //     if(socket.hasOwnProperty('_httpMessage')) {
-//         //         if (socket._httpMessage.hasOwnProperty('req')) {
-//         //             if (ss_fail_count.hasOwnProperty(socket._httpMessage.req.headers.ri)) {
-//         //                 ss_fail_count[socket._httpMessage.req.headers.ri]++;
-//         //             }
-//         //         }
-//         //     }
-//         // });
-//     });
-// }
-//
-// // for updating container
-// var onem2mParser = bodyParser.text(
-//     {
-//         limit: '1mb',
-//         type: 'application/onem2m-resource+xml;application/xml;application/json;application/vnd.onem2m-res+xml;application/vnd.onem2m-res+json'
-//     }
-// );
-//
-// cnt_app.put('/cnt', onem2mParser, function(request, response, next) {
-//     var fullBody = '';
-//     request.on('data', function(chunk) {
-//         fullBody += chunk.toString();
-//     });
-//     request.on('end', function() {
-//         request.body = fullBody;
-//
-//         var resource_Obj = JSON.parse(request.body);
-//         setTimeout(updateAction, 0, resource_Obj);
-//         response.status(200).end();
-//     });
-// });
+var util = require('util');
 
-exports.put = function(connection, bodyString) {
-    var resource_Obj = JSON.parse(bodyString);
-    setTimeout((connection, resource_Obj) => {
-        var rootnm = Object.keys(resource_Obj)[0];
-        db_sql.get_cni_count(connection, resource_Obj[rootnm], (cni, cbs, st) => {
-            var resBody = {};
-            resBody[resource_Obj[rootnm].ri] = {
-                cni: cni,
-                cbs: cbs,
-                st: st
-            };
-            console.log(resBody);
-            resource_Obj = null;
-            resBody = null;
-        });
-    }, 0, connection, resource_Obj);
+var pendingUpdates = new Map();
+var DEBOUNCE_MS = 1000;
+
+exports.schedule = function (parentObj, cs) {
+    var pi = parentObj.ri;
+
+    if (pendingUpdates.has(pi)) {
+        var existing = pendingUpdates.get(pi);
+        clearTimeout(existing.timer);
+        existing.cni += 1;
+        existing.cbs += cs;
+        existing.st += 1;
+        existing.timer = setTimeout(flush, DEBOUNCE_MS, pi);
+    } else {
+        var entry = {
+            cni: parseInt(parentObj.cni, 10) + 1,
+            cbs: parseInt(parentObj.cbs, 10) + cs,
+            st: parseInt(parentObj.st, 10) + 1,
+            parentObj: parentObj,
+            timer: null
+        };
+        entry.timer = setTimeout(flush, DEBOUNCE_MS, pi);
+        pendingUpdates.set(pi, entry);
+    }
 };
-//
-// function updateAction(connection, resource_Obj) {
-//     var rootnm = Object.keys(resource_Obj)[0];
-//     db_sql.get_cni_count(connection, resource_Obj[rootnm], function (cni, cbs, st) {
-//         var resBody = {};
-//         resBody[resource_Obj[rootnm].ri] = {
-//             cni: cni,
-//             cbs: cbs,
-//             st: st
-//         };
-//         console.log(resBody);
-//         delete resource_Obj;
-//         resource_Obj = null;
-//         delete resBody;
-//         resBody = null;
-//     });
-//
-// }
+
+function flush(pi) {
+    var entry = pendingUpdates.get(pi);
+    if (!entry) return;
+    pendingUpdates.delete(pi);
+
+    if (global.usesqlite === 'true') {
+        var sqlite = require('./db_sqlite');
+        sqlite.getConnection(function (code, connection) {
+            if (code !== '200') {
+                console.error('[cnt_man] flush: sqlite connection error');
+                return;
+            }
+            updateCntAndCheck(connection, pi, entry, function () {
+                // sqlite는 싱글톤이므로 release 불필요
+            });
+        });
+    } else {
+        var db = require('./db_action');
+        db.getConnection(function (code, connection) {
+            if (code !== '200') {
+                console.error('[cnt_man] flush: mysql connection error');
+                return;
+            }
+            updateCntAndCheck(connection, pi, entry, function () {
+                connection.release();
+            });
+        });
+    }
+}
+
+function updateCntAndCheck(connection, pi, entry, done) {
+    var flush_id = 'cnt_man.flush ' + pi + ' - ' + require('shortid').generate();
+    console.time(flush_id);
+
+    if (global.usesqlite === 'true') {
+        var sqlite = require('./db_sqlite');
+        var sql_update_cnt = util.format("UPDATE cnt SET cni = '%s', cbs = '%s' WHERE ri = '%s'", entry.cni, entry.cbs, pi);
+        sqlite.getResult(sql_update_cnt, connection, function (err) {
+            if (err) {
+                console.error('[cnt_man] flush update cnt error:', pi, err);
+                console.timeEnd(flush_id);
+                done();
+                return;
+            }
+            var sql_update_lookup = util.format("UPDATE lookup SET st = '%s' WHERE ri = '%s'", entry.st, pi);
+            sqlite.getResult(sql_update_lookup, connection, function (err) {
+                if (err) {
+                    console.error('[cnt_man] flush update lookup error:', pi, err);
+                }
+                console.timeEnd(flush_id);
+                db_sql.get_cni_count(connection, entry.parentObj, function (cni, cbs, st) {
+                    done();
+                });
+            });
+        });
+    } else {
+        var db = require('./db_action');
+        var sql = util.format("UPDATE cnt, lookup SET cnt.cni = '%s', cnt.cbs = '%s', lookup.st = '%s' WHERE cnt.ri = '%s' AND lookup.ri = '%s'", entry.cni, entry.cbs, entry.st, pi, pi);
+        db.getResult(sql, connection, function (err) {
+            if (err) {
+                console.error('[cnt_man] flush update error:', pi, err);
+            }
+            console.timeEnd(flush_id);
+            db_sql.get_cni_count(connection, entry.parentObj, function (cni, cbs, st) {
+                done();
+            });
+        });
+    }
+}

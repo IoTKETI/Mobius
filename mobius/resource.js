@@ -385,16 +385,12 @@ function create_action(request, response, callback) {
 
                 cache_resource_url[resource_Obj[rootnm].pi + '/la'] = resource_Obj[rootnm];
 
-                db_sql.update_parent_by_insert(request.db_connection, targetObject[parent_rootnm], cs, () => {
-                    //request_update_cnt(JSON.stringify(targetObject), cs);
-
-                    cnt_man.put(request.db_connection, JSON.stringify(targetObject));
-                    targetObject = null;
-                });
+                cnt_man.schedule(targetObject[parent_rootnm], cs);
 
                 if(cache_resource_url.hasOwnProperty(targetObject[parent_rootnm].ri)) {
                     delete cache_resource_url[targetObject[parent_rootnm].ri];
                 }
+                targetObject = null;
 
                 results = null;
                 callback('200');

@@ -2461,10 +2461,30 @@ function delete_oldest(connection, obj, count, callback) {
         });
     }
     else {
-        var sql = util.format('delete from lookup where pi = \'%s\' and ty = \'%s\' limit %s', obj.ri, parseInt(obj.ty, 10) + 1, count);
-        db.getResult(sql, connection, function (err, results) {
-            console.timeEnd(del_id);
-            callback(err, results);
+        var child_ty = parseInt(obj.ty, 10) + 1;
+        var find_sql = util.format("SELECT l.ri, c.cs FROM lookup l LEFT JOIN cin c ON l.ri = c.ri WHERE l.pi = '%s' AND l.ty = '%s' ORDER BY l.ct ASC LIMIT %s", obj.ri, child_ty, count);
+        db.getResult(find_sql, connection, function (err, rows) {
+            if (!err && rows && rows.length > 0) {
+                var total_cs = 0;
+                var total_cnt = rows.length;
+                for (var i = 0; i < rows.length; i++) {
+                    total_cs += parseInt(rows[i].cs || 0, 10);
+                }
+                var update_sql = util.format("UPDATE cnt SET cni = cni - %s, cbs = cbs - %s WHERE ri = '%s'", total_cnt, total_cs, obj.ri);
+                db.getResult(update_sql, connection, function (err2, res2) {
+                    var del_sql = util.format('delete from lookup where pi = \'%s\' and ty = \'%s\' limit %s', obj.ri, child_ty, count);
+                    db.getResult(del_sql, connection, function (err, results) {
+                        console.timeEnd(del_id);
+                        callback(err, results);
+                    });
+                });
+            } else {
+                var del_sql = util.format('delete from lookup where pi = \'%s\' and ty = \'%s\' limit %s', obj.ri, child_ty, count);
+                db.getResult(del_sql, connection, function (err, results) {
+                    console.timeEnd(del_id);
+                    callback(err, results);
+                });
+            }
         });
     }
 }
