@@ -15,3 +15,7 @@ mobius.db*
 test_*
 .vscode/
 .claude/
+/doc
+/docs
+/.vscode
+/.claude
