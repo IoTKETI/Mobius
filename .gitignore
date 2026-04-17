@@ -10,12 +10,11 @@ cbs_cache.json
 package-lock.json
 ss_ri_cache.json
 conf.json
-Mobius ����.drawio
+*.drawio
 mobius.db*
 test_*
 .vscode/
+
+# Claude Code (개인 설정/메모리)
 .claude/
-/doc
-/docs
-/.vscode
-/.claude
+CLAUDE.md
