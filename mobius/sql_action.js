@@ -1322,6 +1322,54 @@ exports.select_ae = function (connection, ri, callback) {
     }
 };
 
+// --- SQL Injection 방어 (한국전자기술연구원 취약점 보고서, Mobius <=2.5.15) ---
+// discovery 필터 파라미터를 문자열 concat으로 WHERE 절에 넣기 전에 정규화한다.
+// - 숫자 컨텍스트(따옴표 없이 삽입)는 부호 없는 정수만 허용, 아니면 해당 필터를 무시(fail-safe)
+// - 문자열 컨텍스트(따옴표로 감싸 삽입)는 SQL 리터럴 이스케이프 (MySQL/SQLite 공통 안전)
+function esc_sql_str(v) {
+    return String(v).replace(/[\\'\x00\n\r\x1a]/g, function (c) {
+        switch (c) {
+            case '\\': return '\\\\';
+            case '\'': return '\'\'';
+            case '\x00': return '\\0';
+            case '\n': return '\\n';
+            case '\r': return '\\r';
+            case '\x1a': return '\\Z';
+        }
+    });
+}
+
+function sanitize_discovery_query(query) {
+    if (!query || typeof query !== 'object') {
+        return;
+    }
+    var isUint = function (v) { return /^[0-9]+$/.test(String(v)); };
+
+    // 숫자 컨텍스트: sza/szb/la/ofst/lvl 은 따옴표 없이 삽입되므로 정수만 허용
+    ['sza', 'szb', 'la', 'ofst', 'lvl'].forEach(function (k) {
+        if (query[k] != null && !isUint(query[k])) {
+            delete query[k];
+        }
+    });
+
+    // ty: 단일 정수 또는 정수 목록만 허용
+    if (query.ty != null) {
+        var tys = Array.isArray(query.ty) ? query.ty : String(query.ty).split(',');
+        if (!tys.every(isUint)) {
+            delete query.ty;
+        }
+    }
+
+    // 문자열 컨텍스트: 따옴표로 감싸 삽입되는 파라미터는 이스케이프
+    ['lbl', 'rn', 'cty', 'cra', 'crb', 'ms', 'us', 'exa', 'exb', 'sts', 'stb'].forEach(function (k) {
+        if (query[k] == null) {
+            return;
+        }
+        query[k] = Array.isArray(query[k]) ? query[k].map(esc_sql_str) : esc_sql_str(query[k]);
+    });
+}
+exports.sanitize_discovery_query = sanitize_discovery_query;
+
 function build_search_query(query, callback) {
     var query_where = '';
     var query_count = 0;
@@ -2004,6 +2052,7 @@ exports.search_lookup_sqlite = function (connection, ri, query, cur_lim, pi_list
 
 var search_tid = '';
 exports.search_lookup = function (connection, ri, query, cur_lim, pi_list, pi_index, found_Obj, found_Cnt, cni, cur_d, loop_cnt, callback) {
+    sanitize_discovery_query(query); // SQL Injection 방어: 두 backend(MySQL/SQLite) 진입점에서 한 번만 정규화
     if (global.usesqlite === 'true') {
         return _this.search_lookup_sqlite(connection, ri, query, cur_lim, pi_list, pi_index, found_Obj, found_Cnt, cni, cur_d, loop_cnt, callback);
     }
