@@ -27,6 +27,39 @@ global.max_lim = 2000;
 const max_search_count = 2000;
 const max_parent_count = 2000;
 
+// delete_oldest 1회 트랜잭션당 삭제 상한.
+// lookup 삭제는 FK(cin_ri ON DELETE CASCADE)로 cin 본문까지 연쇄 삭제하므로
+// 한 번에 크게 잡으면 컨테이너 행 락 점유가 길어진다. 초과분이 이보다 많으면
+// 다음 CIN 삽입의 flush에서 이어서 정리된다.
+const MAX_PURGE_PER_PASS = 500;
+
+// 이번 패스에서 얼마나 지워야 하는지 계산한다.
+//   need_cnt   개수 한도까지 지워야 할 건수
+//   need_cs    용량 한도까지 지워야 할 바이트
+//   candidates 조회할 후보 행 수. 용량 초과는 몇 건이 필요한지 미리 알 수 없어
+//              상한만큼 가져온 뒤 호출부에서 누적하며 자른다.
+//   est_count  실제 cs 를 볼 수 없는 경로(SQLite)용 평균 기반 추정 건수
+// 용량 초과 시 무조건 1건만 지우던 예전 동작은 초과량과 무관해 수렴하지 못했다.
+exports.purge_plan = function (cni, cbs, mni, mbs) {
+    var need_cnt = (cni > mni) ? (cni - mni) : 0;
+    var need_cs = (cbs > mbs) ? (cbs - mbs) : 0;
+
+    var est_count = need_cnt;
+    if (need_cs > 0) {
+        var avg_cs = (cni > 0) ? Math.ceil(cbs / cni) : 1;
+        var by_size = Math.ceil(need_cs / avg_cs);
+        if (by_size > est_count) est_count = by_size;
+    }
+    if (est_count > MAX_PURGE_PER_PASS) est_count = MAX_PURGE_PER_PASS;
+
+    return {
+        need_cnt: need_cnt,
+        need_cs: need_cs,
+        est_count: est_count,
+        candidates: (need_cs > 0) ? MAX_PURGE_PER_PASS : Math.min(need_cnt, MAX_PURGE_PER_PASS)
+    };
+};
+
 exports.set_tuning = function (connection, callback) {
     var sql = util.format('set global max_connections = 2000');
     db.getResult(sql, connection, function (err, results) {
@@ -467,14 +500,8 @@ exports.get_cni_count = function (connection, obj, callback) {
         console.log('[checkAndPurge] ri=' + obj.ri + ' cni=' + cni + ' mni=' + mni + ' cbs=' + cbs + ' mbs=' + mbs + ' needPurge=' + (cni > mni || cbs > mbs));
 
         if (cni > mni || cbs > mbs) {
-            var count = 0;
-            if (cni > mni) {
-                count = cni - mni;
-                if (count > 5000) count = 5000;
-            }
-            else if (cbs > mbs) {
-                count = 1;
-            }
+            var count = _this.purge_plan(cni, cbs, mni, mbs).est_count;
+            if (count < 1) count = 1;
 
             console.log('[checkAndPurge] delete_oldest count=' + count);
             delete_oldest(connection, obj, count, function (err) {
@@ -2498,9 +2525,15 @@ function delete_oldest(connection, obj, count, callback) {
                 }
 
                 // 실제 CIN 카운트 재조회 (잠금 후 최신값)
+                // cin_ri_idx(pi, ri, cs) 커버링 인덱스만 읽는다. 예전의
+                // lookup LEFT JOIN cin 형태는 결과가 같지만 자식 수만큼 cin 테이블에
+                // 랜덤 접근해서, 버퍼 풀에 없으면 락을 쥔 채 수십 초가 걸렸다.
+                // (114,627행 실측: LEFT JOIN 7.178s vs 아래 0.142s)
+                // cnt.cni/cnt.cbs 를 대신 쓰면 더 싸지만, 그 값은 실제와 최대 100%까지
+                // 어긋나 있어 삭제 판단 근거로 쓸 수 없다.
                 var recount_sql = util.format(
-                    "SELECT COUNT(*) AS n, IFNULL(SUM(c.cs),0) AS s FROM lookup l LEFT JOIN cin c ON l.ri = c.ri WHERE l.pi = '%s' AND l.ty = '%s'",
-                    obj.ri, child_ty);
+                    "SELECT COUNT(*) AS n, IFNULL(SUM(cs),0) AS s FROM cin WHERE pi = '%s'",
+                    obj.ri);
                 db.getResult(recount_sql, connection, function (err2, rcRows) {
                     if (err2 || !rcRows || rcRows.length === 0) {
                         connection.rollback(function () {});
@@ -2522,19 +2555,18 @@ function delete_oldest(connection, obj, count, callback) {
                         return;
                     }
 
-                    var toDelete = 0;
-                    if (actual_cni > mni) {
-                        toDelete = actual_cni - mni;
-                        if (toDelete > 5000) toDelete = 5000;
-                    } else {
-                        toDelete = 1; // mbs 초과
-                    }
+                    var plan = _this.purge_plan(actual_cni, actual_cbs, mni, mbs);
+                    var need_cnt = plan.need_cnt;
+                    var need_cs = plan.need_cs;
+                    var candidates = plan.candidates;
 
-                    console.log('[delete_oldest] tx delete: actual_cni=' + actual_cni + ' mni=' + mni + ' toDelete=' + toDelete);
+                    console.log('[delete_oldest] tx delete: actual_cni=' + actual_cni + ' mni=' + mni +
+                        ' actual_cbs=' + actual_cbs + ' mbs=' + mbs +
+                        ' need_cnt=' + need_cnt + ' need_cs=' + need_cs + ' candidates=' + candidates);
 
                     var find_sql = util.format(
                         "SELECT l.ri, c.cs FROM lookup l LEFT JOIN cin c ON l.ri = c.ri WHERE l.pi = '%s' AND l.ty = '%s' ORDER BY l.ct ASC LIMIT %s",
-                        obj.ri, child_ty, toDelete);
+                        obj.ri, child_ty, candidates);
                     db.getResult(find_sql, connection, function (err3, rows) {
                         if (err3 || !rows || rows.length === 0) {
                             connection.rollback(function () {});
@@ -2543,10 +2575,15 @@ function delete_oldest(connection, obj, count, callback) {
                             return;
                         }
 
+                        // 개수·용량 조건이 모두 충족되는 지점까지만 자른다.
                         var total_cs = 0;
-                        var total_cnt = rows.length;
+                        var total_cnt = 0;
+                        var del_ri = [];
                         for (var i = 0; i < rows.length; i++) {
                             total_cs += parseInt(rows[i].cs || 0, 10);
+                            total_cnt++;
+                            del_ri.push(connection.escape(rows[i].ri));
+                            if (total_cnt >= need_cnt && total_cs >= need_cs) break;
                         }
 
                         var update_sql = util.format(
@@ -2560,9 +2597,11 @@ function delete_oldest(connection, obj, count, callback) {
                                 return;
                             }
 
-                            var del_sql = util.format(
-                                "DELETE FROM lookup WHERE pi = '%s' AND ty = '%s' LIMIT %s",
-                                obj.ri, child_ty, toDelete);
+                            // 위에서 고른 바로 그 행들을 지운다.
+                            // 예전 "DELETE ... LIMIT n" 은 ORDER BY 가 없어 임의의 n건을
+                            // 지웠다. 집계한 집합과 지운 집합이 달라져 cnt 보정값이 틀어졌고,
+                            // 오래된 것 대신 최신 데이터가 지워질 수 있었다.
+                            var del_sql = "DELETE FROM lookup WHERE ri IN (" + del_ri.join(',') + ")";
                             db.getResult(del_sql, connection, function (err5, results) {
                                 if (err5) {
                                     connection.rollback(function () {});

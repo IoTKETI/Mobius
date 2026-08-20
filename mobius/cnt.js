@@ -20,18 +20,47 @@ var xmlbuilder = require('xmlbuilder');
 var util = require('util');
 var responder = require('./responder');
 
+// 컨테이너 경로별 기본 보관 정책.
+// 클라이언트가 CREATE 본문에 mni/mbs를 명시하면 그 값이 우선한다 (oneM2M 규격 유지).
+//
+//   KETI_Simul_*         시뮬레이터. sortie 포함 전부 최소 보관, oldest 삭제 허용
+//   */disarm             상시 누적 컨테이너. 순환 보관, oldest 삭제 허용
+//   */YYYY_MM_DD_T_HH_MM 소티. 삭제 없이 축적
+//
+// 판정 순서가 곧 우선순위다. KETI_Simul_11/disarm 과
+// KETI_Simul_11/2026_08_16_T_18_05 은 모두 시뮬레이터 규칙을 따른다.
+var SORTIE_RE = /\/\d{4}_\d{2}_\d{2}_T_\d{2}_\d{2}$/;
+var MNI_MAX = '3153600000';       // Mobius 개수 상한 = 사실상 무제한
+var MBS_UNLIMITED = '1099511627776'; // 1TiB = 사실상 무제한
+
+function retention_policy(ri) {
+    if (ri.indexOf('/KETI_Simul_') >= 0) {
+        return {mni: '10000', mbs: null};
+    }
+    if (SORTIE_RE.test(ri)) {
+        return {mni: MNI_MAX, mbs: MBS_UNLIMITED};
+    }
+    if (ri.slice(-7) === '/disarm') {
+        return {mni: '100000', mbs: null};
+    }
+    return null;
+}
+
+exports.retention_policy = retention_policy;
 
 exports.build_cnt = function(request, response, resource_Obj, body_Obj, callback) {
     var rootnm = request.headers.rootnm;
 
     // body
     resource_Obj[rootnm].disr = (body_Obj[rootnm].disr) ? body_Obj[rootnm].disr : '';
-    resource_Obj[rootnm].mni = (body_Obj[rootnm].mni) ? body_Obj[rootnm].mni : '3153600000';
+    var policy = retention_policy(resource_Obj[rootnm].ri || '') || {};
+
+    resource_Obj[rootnm].mni = (body_Obj[rootnm].mni) ? body_Obj[rootnm].mni : (policy.mni || '3153600000');
     if(parseInt(resource_Obj[rootnm].mni) >= 3153600000) {
         resource_Obj[rootnm].mni = '3153600000';
     }
 
-    resource_Obj[rootnm].mbs = (body_Obj[rootnm].mbs) ? body_Obj[rootnm].mbs : '3153600000';
+    resource_Obj[rootnm].mbs = (body_Obj[rootnm].mbs) ? body_Obj[rootnm].mbs : (policy.mbs || '3153600000');
     resource_Obj[rootnm].mia = (body_Obj[rootnm].mia) ? body_Obj[rootnm].mia : '31536000';
 
     if(parseInt(resource_Obj[rootnm].mni) < 0) { // clsase 7.4.6.2.1 TS-0004
