@@ -40,9 +40,9 @@ var p = purge_plan(128041, 3279862511, 3153600000, MBS_DEFAULT);
 assert.strictEqual(p.need_cnt, 0, '개수는 한도 이내');
 assert.strictEqual(p.need_cs, 3279862511 - MBS_DEFAULT);
 assert.ok(p.est_count > 1, '용량 초과인데 1건만 지우면 수렴하지 않는다');
-assert.strictEqual(p.candidates, 500, '용량 초과는 상한만큼 후보를 가져온다');
-// 초과 126MB / 평균 25.6KB ≈ 4,930건 → 패스 상한 500 으로 잘린다
-assert.strictEqual(p.est_count, 500);
+assert.strictEqual(p.candidates, 100, '용량 초과는 상한만큼 후보를 가져온다');
+// 초과 126MB / 평균 25.6KB ≈ 4,930건 → 패스 상한 100 으로 잘린다
+assert.strictEqual(p.est_count, 100);
 
 // 개수만 초과: 초과분만 지운다
 p = purge_plan(10050, 1000, 10000, MBS_DEFAULT);
@@ -54,7 +54,7 @@ assert.strictEqual(p.est_count, 50);
 // 개수 초과가 상한을 넘으면 잘리고, 나머지는 다음 패스에서 처리된다
 p = purge_plan(128041, 1000, 10000, MBS_DEFAULT);
 assert.strictEqual(p.need_cnt, 118041);
-assert.strictEqual(p.candidates, 500);
+assert.strictEqual(p.candidates, 100);
 
 // 한도 이내면 지울 것이 없다
 p = purge_plan(500, 1000, 10000, MBS_DEFAULT);
@@ -79,9 +79,9 @@ function trim(rows, need_cnt, need_cs) {
     return total_cnt;
 }
 var rows = [];
-for (var i = 0; i < 500; i++) rows.push(26000);
-// 용량만 130MB 초과 → 26KB 씩 5,000건이 필요하지만 후보 500건이 전부 쓰인다
-assert.strictEqual(trim(rows, 0, 130000000), 500);
+for (var i = 0; i < 100; i++) rows.push(26000);
+// 용량만 130MB 초과 → 26KB 씩 5,000건이 필요하지만 후보 100건이 전부 쓰인다
+assert.strictEqual(trim(rows, 0, 130000000), 100);
 // 용량 52KB 초과 → 2건이면 충분
 assert.strictEqual(trim(rows, 0, 52000), 2);
 // 개수 10건 초과, 용량은 이미 충족 → 10건

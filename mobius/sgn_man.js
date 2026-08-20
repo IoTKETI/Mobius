@@ -112,7 +112,7 @@ function request_noti_http(nu, bodyString, bodytype, xm2mri) {
     });
 
     console.log('<======= [request_noti_http] ' + nu);
-    console.log(bodyString);
+    // console.log(bodyString); // 알림 바디 전체 덤프 - 로그 폭주 원인이라 비활성
     req.write(bodyString);
     req.end();
 }
@@ -142,7 +142,7 @@ function request_noti_coap(nu, bodyString, bodytype, xm2mri) {
     });
 
     console.log('<======= [request_noti_coap] ' + nu);
-    console.log(bodyString);
+    // console.log(bodyString); // 알림 바디 전체 덤프 - 로그 폭주 원인이라 비활성
     req.write(bodyString);
     req.end();
 }

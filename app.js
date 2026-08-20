@@ -1230,12 +1230,9 @@ function get_resource_from_url(connection, ri, sri, option, callback) {
                         if (code === '200') {
                             if (latestObj.length == 1) {
 
-                                console.log(latestObj);
-
                                 let strLatestObj = JSON.stringify(latestObj[0]).replace('RowDataPacket ', '');
 
                                 latestObj[0] = JSON.parse(strLatestObj);
-                                console.log(latestObj);
 
                                 targetObject = {};
                                 targetObject[responder.typeRsrc[latestObj[0].ty]] = latestObj[0];
@@ -1800,19 +1797,28 @@ app.post('*', onem2mParser, (request, response) => {
     request.on('end', () => {
         request.body = fullBody;
 
+        var binding = request.headers['binding'] || 'H';   // request 참조를 동기 시점으로 이동
         db.getConnection((code, connection) => {
             if (code === '200') {
-                if (!request.headers.hasOwnProperty('binding')) {
-                    request.headers['binding'] = 'H';
-                }
-
-                db_sql.set_hit(connection, request.headers['binding'], (err, results) => {
+                db_sql.set_hit(connection, binding, (err, results) => {
                     results = null;
-
                     connection.release();
                 });
             }
         });
+        // db.getConnection((code, connection) => {
+        //     if (code === '200') {
+        //         if (!request.headers.hasOwnProperty('binding')) {
+        //             request.headers['binding'] = 'H';
+        //         }
+
+        //         db_sql.set_hit(connection, request.headers['binding'], (err, results) => {
+        //             results = null;
+
+        //             connection.release();
+        //         });
+        //     }
+        // });
 
         db.getConnection((code, connection) => {
             if (code === '200') {

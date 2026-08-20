@@ -28,10 +28,12 @@ const max_search_count = 2000;
 const max_parent_count = 2000;
 
 // delete_oldest 1회 트랜잭션당 삭제 상한.
-// lookup 삭제는 FK(cin_ri ON DELETE CASCADE)로 cin 본문까지 연쇄 삭제하므로
-// 한 번에 크게 잡으면 컨테이너 행 락 점유가 길어진다. 초과분이 이보다 많으면
-// 다음 CIN 삽입의 flush에서 이어서 정리된다.
-const MAX_PURGE_PER_PASS = 500;
+// lookup 삭제는 FK(cin_ri ON DELETE CASCADE)로 cin 본문까지 연쇄 삭제하며,
+// 265GB cin 테이블에서 행당 인덱스 3개 랜덤 I/O ≈ 40ms 가 든다 (실측:
+// 500건 패스가 락을 쥔 채 20초). 100이면 패스당 ~4초로 묶이고, 초과분은
+// 다음 CIN 삽입의 flush에서 이어서 정리된다. 배출량은 어차피 삭제 I/O가
+// 상한이라 패스를 키워도 총 시간은 같고 락 점유만 길어진다.
+const MAX_PURGE_PER_PASS = 100;
 
 // 이번 패스에서 얼마나 지워야 하는지 계산한다.
 //   need_cnt   개수 한도까지 지워야 할 건수
@@ -497,9 +499,10 @@ exports.get_cni_count = function (connection, obj, callback) {
         var mni = parseInt(obj.mni, 10);
         var mbs = parseInt(obj.mbs, 10);
 
-        console.log('[checkAndPurge] ri=' + obj.ri + ' cni=' + cni + ' mni=' + mni + ' cbs=' + cbs + ' mbs=' + mbs + ' needPurge=' + (cni > mni || cbs > mbs));
-
         if (cni > mni || cbs > mbs) {
+            // 정리할 때만 로그를 남긴다. 매 flush 마다 찍으면 로그가 폭주해
+            // pm2-logrotate 보관분(20분)이 다 밀려나 장애 분석이 불가능해진다.
+            console.log('[checkAndPurge] ri=' + obj.ri + ' cni=' + cni + ' mni=' + mni + ' cbs=' + cbs + ' mbs=' + mbs);
             var count = _this.purge_plan(cni, cbs, mni, mbs).est_count;
             if (count < 1) count = 1;
 
@@ -1252,23 +1255,23 @@ exports.select_resource_from_url = function (connection, ri, sri, callback) {
 
     if (global.usesqlite === 'true') {
         var sqlite = require('./db_sqlite');
-        console.log("[DEBUG-SQLite] select_resource_from_url query:", sql);
+        // 요청당 SQL·결과 로그 - 로그 폭주 원인이라 비활성
         sqlite.getResult(sql, null, function (err, comm_Obj) {
             if (!err) {
-                console.log("[DEBUG-SQLite] select_resource_from_url lookup result length:", comm_Obj.length);
+                // 요청당 SQL·결과 로그 - 로그 폭주 원인이라 비활성
                 if (comm_Obj.length == 0) {
                     callback(err, comm_Obj);
                 }
                 else {
                     var sql = "select * from " + responder.typeRsrc[comm_Obj[0].ty] + " where ri = \'" + comm_Obj[0].ri + "\'";
-                    console.log("[DEBUG-SQLite] select_resource_from_url detail query:", sql);
+                    // 요청당 SQL·결과 로그 - 로그 폭주 원인이라 비활성
                     sqlite.getResult(sql, null, function (err, spec_Obj) {
                         var resource_Obj = [];
                         if (spec_Obj.length > 0) {
-                            console.log("[DEBUG-SQLite] select_resource_from_url detail result found");
+                            // 요청당 SQL·결과 로그 - 로그 폭주 원인이라 비활성
                             resource_Obj.push(merge(comm_Obj[0], spec_Obj[0]));
                         } else {
-                            console.log("[DEBUG-SQLite] select_resource_from_url detail result NOT found");
+                            // 요청당 SQL·결과 로그 - 로그 폭주 원인이라 비활성
                             resource_Obj.push(comm_Obj[0]);
                         }
                         // console.log("[DEBUG-SQLite] select_resource_from_url merged result:", resource_Obj);
@@ -1287,19 +1290,19 @@ exports.select_resource_from_url = function (connection, ri, sri, callback) {
         });
     }
     else {
-        console.log("[DEBUG-MySQL] select_resource_from_url query:", sql);
+        // 요청당 SQL·결과 로그 - 로그 폭주 원인이라 비활성
         db.getResult(sql, connection, function (err, comm_Obj) {
             if (!err) {
-                console.log("[DEBUG-MySQL] select_resource_from_url lookup result length:", comm_Obj.length);
+                // 요청당 SQL·결과 로그 - 로그 폭주 원인이라 비활성
                 if (comm_Obj.length == 0) {
                     callback(err, comm_Obj);
                 }
                 else {
                     var sql = "select * from " + responder.typeRsrc[comm_Obj[0].ty] + " where ri = \'" + comm_Obj[0].ri + "\'";
-                    console.log("[DEBUG-MySQL] select_resource_from_url detail query:", sql);
+                    // 요청당 SQL·결과 로그 - 로그 폭주 원인이라 비활성
                     db.getResult(sql, connection, function (err, spec_Obj) {
                         var resource_Obj = [];
-                        console.log("[DEBUG-MySQL] select_resource_from_url detail result length:", spec_Obj ? spec_Obj.length : 'null');
+                        // 요청당 SQL·결과 로그 - 로그 폭주 원인이라 비활성
                         resource_Obj.push(merge(comm_Obj[0], spec_Obj[0]));
                         comm_Obj = [];
                         spec_Obj = [];
@@ -3419,7 +3422,7 @@ exports.update_parent_by_insert = function (connection, obj, cs, callback) {
     var tableName = responder.typeRsrc[parseInt(obj.ty, 10)];
     var cni_id = 'update_parent_by_insert ' + obj.ri + ' - ' + require('shortid').generate();
     console.time(cni_id);
-    console.log('$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$', obj.st, obj.cni, obj.cbs, obj.mni);
+    // console.log('$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$', obj.st, obj.cni, obj.cbs, obj.mni);
     obj.cni += 1;
     if (obj.cni > obj.mni) {
         obj.cni = obj.mni;

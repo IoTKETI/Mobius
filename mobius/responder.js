@@ -1584,7 +1584,7 @@ function store_to_req_resource(request, bodyString, rsc, cap, callback) {
         rspObj.rsc = rsc;
         rspObj.ri = request.method + "-" + request.headers['x-m2m-ri'] + "-" + JSON.stringify(request.query);
         rspObj = cap;
-        console.log(JSON.stringify(rspObj));
+        // console.log(JSON.stringify(rspObj)); // 응답 바디 전체 덤프 - 로그 폭주 원인이라 비활성
 
         if (request.headers['x-m2m-rtu'] != null && request.headers['x-m2m-rtu'] != '') {
             var nu = request.headers['x-m2m-rtu'];
@@ -1653,7 +1653,7 @@ exports.response_result = function(request, response, status, rsc, cap, callback
             };
             rspObj.ri = request.method + "-" + request.url + "-" + JSON.stringify(request.query);
 
-            console.log(JSON.stringify(rspObj));
+            // console.log(JSON.stringify(rspObj)); // 응답 바디 전체 덤프 - 로그 폭주 원인이라 비활성
 
             body_Obj = null;
             rspObj = null;
@@ -1784,7 +1784,7 @@ exports.response_result = function(request, response, status, rsc, cap, callback
 
         var bodyString = JSON.stringify(body_Obj);
 
-        console.log(bodyString);
+        // console.log(bodyString); // 응답 바디 전체 덤프 - 로그 폭주 원인이라 비활성
 
         if (request.query.rt == 3 || (request.query.rt == 2 && request.headers['x-m2m-rtu'] == null && request.headers['x-m2m-rtu'] == '')) {
             if (request.usebodytype == 'json') {
@@ -1802,7 +1802,7 @@ exports.response_result = function(request, response, status, rsc, cap, callback
             rspObj.rsc = rsc;
             rspObj.ri = request.method + "-" + request.url + "-" + JSON.stringify(request.query);
             rspObj = cap;
-            console.log(JSON.stringify(rspObj));
+            // console.log(JSON.stringify(rspObj)); // 응답 바디 전체 덤프 - 로그 폭주 원인이라 비활성
 
             body_Obj = null;
             rspObj = null;
@@ -1921,7 +1921,7 @@ exports.response_rcn3_result = function(request, response, status, rsc, cap, cal
         rspObj.rsc = rsc;
         rspObj.ri = request.method + "-" + request.url + "-" + JSON.stringify(request.query);
         rspObj = cap;
-        console.log(JSON.stringify(rspObj));
+        // console.log(JSON.stringify(rspObj)); // 응답 바디 전체 덤프 - 로그 폭주 원인이라 비활성
 
         delete body_Obj;
         delete rspObj;
@@ -2022,7 +2022,7 @@ exports.search_result = function(request, response, status, rsc, cap, callback) 
             rspObj.rsc = rsc;
             rspObj.ri = request.method + "-" + request.url + "-" + JSON.stringify(request.query);
             rspObj = cap;
-            console.log(JSON.stringify(rspObj));
+            // console.log(JSON.stringify(rspObj)); // 응답 바디 전체 덤프 - 로그 폭주 원인이라 비활성
 
             callback();
         }
@@ -2041,7 +2041,7 @@ exports.search_result = function(request, response, status, rsc, cap, callback) 
                 rspObj.rsc = rsc;
                 rspObj.ri = request.method + "-" + request.url + "-" + JSON.stringify(request.query);
                 rspObj = cap;
-                console.log(JSON.stringify(rspObj));
+                // console.log(JSON.stringify(rspObj)); // 응답 바디 전체 덤프 - 로그 폭주 원인이라 비활성
 
                 body_Obj = null;
                 rspObj = null;
@@ -2113,7 +2113,7 @@ exports.search_result = function(request, response, status, rsc, cap, callback) 
             rspObj.rsc = rsc;
             rspObj.ri = request.method + "-" + request.url + "-" + JSON.stringify(request.query);
             rspObj = cap;
-            console.log(JSON.stringify(rspObj));
+            // console.log(JSON.stringify(rspObj)); // 응답 바디 전체 덤프 - 로그 폭주 원인이라 비활성
 
             body_Obj = null;
             rspObj = null;
@@ -2185,7 +2185,7 @@ exports.error_result = function(request, response, status, rsc, dbg_string, call
     rspObj.rsc = rsc;
     rspObj.ri = request.method + "-" + request.url + "-" + JSON.stringify(request.query);
     rspObj.msg = dbg_string;
-    console.log(JSON.stringify(rspObj));
+    // console.log(JSON.stringify(rspObj)); // 응답 바디 전체 덤프 - 로그 폭주 원인이라 비활성
     rspObj = null;
 
     callback();
@@ -2290,7 +2290,7 @@ function request_noti_ws(nu, bodyString, bodytype, xm2mri) {
 
     ws_client.on('connect', function (connection) {
         console.log('<---- [nonblocking-async-ws] ' + nu);
-        console.log(bodyString);
+        // console.log(bodyString); // 응답 바디 전체 덤프 - 로그 폭주 원인이라 비활성
         connection.sendUTF(bodyString);
 
         connection.on('error', function (error) {

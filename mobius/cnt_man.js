@@ -20,23 +20,31 @@ var util = require('util');
 
 var pendingUpdates = new Map();
 var DEBOUNCE_MS = 1000;
+// 지속 유입 시 debounce 가 타이머를 계속 리셋해 flush 가 무한 연기되는 것을
+// 막는 상한. 유입 간격이 DEBOUNCE_MS 미만으로 이어지면 (드론 텔레메트리가
+// 정확히 그렇다) 이 상한이 없을 때 cnt 반영과 한도 검사가 세션 끝까지 밀린다.
+var MAX_WAIT_MS = 10000;
 
 exports.schedule = function (parentObj, cs) {
     var pi = parentObj.ri;
 
     if (pendingUpdates.has(pi)) {
         var existing = pendingUpdates.get(pi);
-        clearTimeout(existing.timer);
         existing.cni += 1;
         existing.cbs += cs;
         existing.st += 1;
-        existing.timer = setTimeout(flush, DEBOUNCE_MS, pi);
+        // 상한 안에서만 debounce 리셋. 넘었으면 걸려 있는 타이머가 그대로 발화한다.
+        if (Date.now() - existing.firstAt < MAX_WAIT_MS) {
+            clearTimeout(existing.timer);
+            existing.timer = setTimeout(flush, DEBOUNCE_MS, pi);
+        }
     } else {
         var entry = {
             cni: 1,   // 이 워커에서 발생한 delta (절대값 아님)
             cbs: cs,  // 이 워커에서 발생한 delta
             st: 1,    // 이 워커에서 발생한 delta
             parentObj: parentObj,
+            firstAt: Date.now(),
             timer: null
         };
         entry.timer = setTimeout(flush, DEBOUNCE_MS, pi);
@@ -77,7 +85,8 @@ function flush(pi) {
 function updateCntAndCheck(connection, pi, entry, done) {
     var flush_id = 'cnt_man.flush ' + pi + ' - ' + require('shortid').generate();
     console.time(flush_id);
-    console.log('[cnt_man] flush: pi=' + pi + ' delta(cni=' + entry.cni + ' cbs=' + entry.cbs + ') parentObj.mni=' + entry.parentObj.mni + ' parentObj.ty=' + entry.parentObj.ty);
+    // 매 flush 1줄이지만 활성 컨테이너당 초단위로 쌓인다 - 필요 시만 활성
+    // console.log('[cnt_man] flush: pi=' + pi + ' delta(cni=' + entry.cni + ' cbs=' + entry.cbs + ') parentObj.mni=' + entry.parentObj.mni + ' parentObj.ty=' + entry.parentObj.ty);
 
     if (global.usesqlite === 'true') {
         var sqlite = require('./db_sqlite');
