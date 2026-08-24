@@ -883,7 +883,8 @@ var resultStatusCode = {
     '500-4': ['500', '5000', "[create_action] create resource error"],
     '500-5': ['500', '5000', "DB Error : No Connection Pool"],
 
-    '501-1': ['501', '5001', "response with hierarchical resource structure mentioned in onem2m spec is not supported instead all the requested resources will be returned !"]
+    '501-1': ['501', '5001', "response with hierarchical resource structure mentioned in onem2m spec is not supported instead all the requested resources will be returned !"],
+    '501-2': ['501', '5001', "NOT_IMPLEMENTED: this resource type is not supported by the SQLite backend"]
 
 };
 

@@ -302,11 +302,35 @@ global.make_internal_ri = function (resource_Obj) {
     }
 };
 
+// SQLite 백엔드가 실제로 다룰 수 있는 리소스 타입.
+// mobius/mobiusdb_sqlite.sql 의 테이블과 sql_action.js 의 usesqlite 분기가 함께
+// 존재하는 타입만 들어간다. 새 타입을 SQLite 로 지원하려면 스키마에 테이블을 추가하고
+// 해당 insert_/select_/update_/delete_ 함수에 분기를 넣은 뒤 여기에 등록한다.
+//
+//   1=acp  2=ae  3=cnt  4=cin  5=cb  23=sub
+var SQLITE_SUPPORTED_TY = ['1', '2', '3', '4', '5', '23'];
+
+// 지원하지 않는 타입은 여기서 막아야 한다. create_action 아래의 insert_* 는
+// 내부에서 insert_lookup 을 먼저 실행하므로, 그대로 흘려보내면 lookup 행만 남고
+// 본문 insert 가 실패해 고아 행이 생긴다. 그 고아 행은 이후 discovery 를 깨뜨린다.
+function check_db_support(ty) {
+    if (global.usesqlite !== 'true') {
+        return true;
+    }
+    return SQLITE_SUPPORTED_TY.indexOf(String(ty)) >= 0;
+}
+
 function create_action(request, response, callback) {
     var rootnm = request.headers.rootnm;
     var ty = request.ty;
     var resource_Obj = request.resourceObj;
     var body_Obj = {};
+
+    if (!check_db_support(ty)) {
+        console.log('[create_action] ty=' + ty + ' is not supported by the sqlite backend');
+        callback('501-2');
+        return;
+    }
 
     if (ty == '1') {
         db_sql.insert_acp(request.db_connection, resource_Obj[rootnm], function (err, results) {

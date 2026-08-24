@@ -11,7 +11,7 @@ The next version of Mobius is available on [Mobius4](https://github.com/iotketi/
 ### SQLite Support
 Mobius now runs on SQLite as well as MySQL. SQLite requires no separate database server and creates its schema automatically at startup, which makes it suitable for embedded gateways, development and small deployments. Select the backend at launch (`node mobius.js sqlite`) or through the `usesqlite` option in `conf.json`. See [Configuration](#configuration).
 
-Note that the SQLite backend currently covers CSEBase, AE, accessControlPolicy, container, contentInstance and subscription. Other resource types remain MySQL only.
+The SQLite backend currently covers six resource types — CSEBase, AE, accessControlPolicy, container, contentInstance and subscription. Creating any other type while running on SQLite is rejected with `501 Not Implemented` (`X-M2M-RSC: 5001`) instead of being attempted, so the resource tree is never left in a partial state. Deployments that need group, flexContainer, node, remoteCSE, mgmtObj, semanticDescriptor or the transaction resources should run on MySQL.
 
 ### Security Fix: Discovery Parameter SQL Injection
 oneM2M discovery query parameters were embedded into the WHERE clause by string concatenation, allowing SQL injection (reported by KETI, affects Mobius 2.5.15 and earlier). All discovery parameters are now normalised at a single entry point on both the MySQL and SQLite paths. Numeric parameters accept unsigned integers only, and string parameters are escaped. **Upgrading is strongly recommended.**
