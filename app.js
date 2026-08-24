@@ -246,7 +246,6 @@ else {
                                 console.log('mobius server (' + ip.address() + ') running at ' + usecsebaseport + ' port');
                                 require('./pxy_mqtt');
                                 //noti_mqtt_begin();
-                                //require('./mobius/ts_agent');
 
                                 if (usecsetype === 'mn' || usecsetype === 'asn') {
                                     global.refreshIntervalId = setInterval(() => {
@@ -917,15 +916,11 @@ function lookup_create(request, response, callback) {
                     }
                     else if ((request.ty == 3) && (parentObj.ty == 5 || parentObj.ty == 2 || parentObj.ty == 3)) { // container
                     }
-                    else if ((request.ty == 23) && (parentObj.ty == 5 || parentObj.ty == 16 || parentObj.ty == 2 || parentObj.ty == 3 || parentObj.ty == 24 || parentObj.ty == 29 || parentObj.ty == 9 || parentObj.ty == 1 || parentObj.ty == 27 || parentObj.ty == 28)) { // sub
+                    else if ((request.ty == 23) && (parentObj.ty == 5 || parentObj.ty == 16 || parentObj.ty == 2 || parentObj.ty == 3 || parentObj.ty == 24 || parentObj.ty == 9 || parentObj.ty == 1 || parentObj.ty == 27 || parentObj.ty == 28)) { // sub
                     }
                     else if ((request.ty == 4) && (parentObj.ty == 3)) { // contentInstance
                     }
-                    else if ((request.ty == 24) && (parentObj.ty == 2 || parentObj.ty == 3 || parentObj.ty == 4 || parentObj.ty == 29)) { // semanticDescriptor
-                    }
-                    else if ((request.ty == 29) && (parentObj.ty == 5 || parentObj.ty == 16 || parentObj.ty == 2)) { // timeSeries
-                    }
-                    else if ((request.ty == 30) && (parentObj.ty == 29)) { // timeSeriesInstance
+                    else if ((request.ty == 24) && (parentObj.ty == 2 || parentObj.ty == 3 || parentObj.ty == 4)) { // semanticDescriptor
                     }
                     else if ((request.ty == 27) && (parentObj.ty == 2 || parentObj.ty == 16)) { // multimediaSession
                     }
@@ -933,9 +928,9 @@ function lookup_create(request, response, callback) {
                     }
                     else if ((request.ty == 13) && (parentObj.ty == 14)) { // mgmtObj
                     }
-                    else if ((request.ty == 38) && (parentObj.ty == 5 || parentObj.ty == 16 || parentObj.ty == 2 || parentObj.ty == 3 || parentObj.ty == 24 || parentObj.ty == 29 || parentObj.ty == 9 || parentObj.ty == 1 || parentObj.ty == 27)) { // transaction
+                    else if ((request.ty == 38) && (parentObj.ty == 5 || parentObj.ty == 16 || parentObj.ty == 2 || parentObj.ty == 3 || parentObj.ty == 24 || parentObj.ty == 9 || parentObj.ty == 1 || parentObj.ty == 27)) { // transaction
                     }
-                    else if ((request.ty == 39) && (parentObj.ty == 5 || parentObj.ty == 16 || parentObj.ty == 2 || parentObj.ty == 3 || parentObj.ty == 24 || parentObj.ty == 29 || parentObj.ty == 9 || parentObj.ty == 1 || parentObj.ty == 27)) { // transaction
+                    else if ((request.ty == 39) && (parentObj.ty == 5 || parentObj.ty == 16 || parentObj.ty == 2 || parentObj.ty == 3 || parentObj.ty == 24 || parentObj.ty == 9 || parentObj.ty == 1 || parentObj.ty == 27)) { // transaction
                     }
                     else if ((request.ty == 28) && (parentObj.ty == 5 || parentObj.ty == 2 || parentObj.ty == 3 || parentObj.ty == 28)) { // flexcontainer
                     }
@@ -946,7 +941,7 @@ function lookup_create(request, response, callback) {
                         return;
                     }
 
-                    if (((request.ty == 4) && (parentObj.ty == 3)) || ((request.ty == 30) && (parentObj.ty == 29))) { // contentInstance
+                    if ((request.ty == 4) && (parentObj.ty == 3)) { // contentInstance
                         if (parseInt(parentObj.mni) == 0) {
                             callback('406-1');
                             return;
@@ -1235,12 +1230,9 @@ function get_resource_from_url(connection, ri, sri, option, callback) {
                         if (code === '200') {
                             if (latestObj.length == 1) {
 
-                                console.log(latestObj);
-
                                 let strLatestObj = JSON.stringify(latestObj[0]).replace('RowDataPacket ', '');
 
                                 latestObj[0] = JSON.parse(strLatestObj);
-                                console.log(latestObj);
 
                                 targetObject = {};
                                 targetObject[responder.typeRsrc[latestObj[0].ty]] = latestObj[0];
@@ -1789,6 +1781,12 @@ app.use((req, res, next) => {
 //     graphiql: true,
 // }));
 
+// ── 풀 내부 통계 엔드포인트 (테스트/디버그용) ──────────────────────────────
+app.get('/_debug/pool-stats', (request, response) => {
+    var stats = db.getPoolStats();
+    response.json({ pid: process.pid, pool: stats });
+});
+
 // remoteCSE, ae, cnt
 app.post('*', onem2mParser, (request, response) => {
     var fullBody = '';
@@ -1799,19 +1797,28 @@ app.post('*', onem2mParser, (request, response) => {
     request.on('end', () => {
         request.body = fullBody;
 
+        var binding = request.headers['binding'] || 'H';   // request 참조를 동기 시점으로 이동
         db.getConnection((code, connection) => {
             if (code === '200') {
-                if (!request.headers.hasOwnProperty('binding')) {
-                    request.headers['binding'] = 'H';
-                }
-
-                db_sql.set_hit(connection, request.headers['binding'], (err, results) => {
+                db_sql.set_hit(connection, binding, (err, results) => {
                     results = null;
-
                     connection.release();
                 });
             }
         });
+        // db.getConnection((code, connection) => {
+        //     if (code === '200') {
+        //         if (!request.headers.hasOwnProperty('binding')) {
+        //             request.headers['binding'] = 'H';
+        //         }
+
+        //         db_sql.set_hit(connection, request.headers['binding'], (err, results) => {
+        //             results = null;
+
+        //             connection.release();
+        //         });
+        //     }
+        // });
 
         db.getConnection((code, connection) => {
             if (code === '200') {

@@ -264,7 +264,7 @@ exports.request_lock = function(obj, retry_count, callback) {
 
             req.on('error', function (e) {
                 if (e.message != 'read ECONNRESET') {
-                    console.log('[delete_TS] problem with request: ' + e.message);
+                    console.log('[delete_TM] problem with request: ' + e.message);
                 }
 
                 request_count++;
@@ -435,7 +435,7 @@ function request_tctl(obj, retry_count, tctl, callback) {
 
             req.on('error', function (e) {
                 if (e.message != 'read ECONNRESET') {
-                    console.log('[delete_TS] problem with request: ' + e.message);
+                    console.log('[delete_TM] problem with request: ' + e.message);
                 }
 
                 request_count++;

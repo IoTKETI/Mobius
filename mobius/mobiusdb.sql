@@ -111,11 +111,11 @@ DROP TABLE IF EXISTS `cnt`;
 CREATE TABLE `cnt` (
   `ri` varchar(200) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
   `cr` varchar(45) NOT NULL,
-  `mni` int unsigned NOT NULL,
-  `mbs` int unsigned NOT NULL,
+  `mni` bigint unsigned NOT NULL,
+  `mbs` bigint unsigned NOT NULL,
   `mia` int unsigned NOT NULL,
-  `cni` int unsigned NOT NULL,
-  `cbs` int unsigned NOT NULL,
+  `cni` bigint unsigned NOT NULL,
+  `cbs` bigint unsigned NOT NULL,
   `li` varchar(45) NOT NULL,
   `or` varchar(45) NOT NULL,
   `disr` varchar(45) DEFAULT NULL,
@@ -538,55 +538,6 @@ CREATE TABLE `tr` (
   UNIQUE KEY `ri_UNIQUE` (`ri`),
   CONSTRAINT `tr_ri` FOREIGN KEY (`ri`) REFERENCES `lookup` (`ri`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1;
-/*!40101 SET character_set_client = @saved_cs_client */;
-
---
--- Table structure for table `ts`
---
-
-DROP TABLE IF EXISTS `ts`;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!50503 SET character_set_client = utf8mb4 */;
-CREATE TABLE `ts` (
-  `ri` varchar(200) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
-  `cr` varchar(45) DEFAULT NULL,
-  `mni` varchar(45) DEFAULT NULL,
-  `mbs` varchar(45) DEFAULT NULL,
-  `mia` varchar(45) DEFAULT NULL,
-  `cni` varchar(45) DEFAULT NULL,
-  `cbs` varchar(45) DEFAULT NULL,
-  `or` varchar(45) DEFAULT NULL,
-  `pei` varchar(45) DEFAULT NULL,
-  `mdd` varchar(45) DEFAULT NULL,
-  `mdn` varchar(45) DEFAULT NULL,
-  `mdl` longtext,
-  `mdc` varchar(45) DEFAULT NULL,
-  `mdt` varchar(45) DEFAULT NULL,
-  PRIMARY KEY (`ri`),
-  UNIQUE KEY `ri_UNIQUE` (`ri`),
-  CONSTRAINT `ts_ri` FOREIGN KEY (`ri`) REFERENCES `lookup` (`ri`) ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8;
-/*!40101 SET character_set_client = @saved_cs_client */;
-
---
--- Table structure for table `tsi`
---
-
-DROP TABLE IF EXISTS `tsi`;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!50503 SET character_set_client = utf8mb4 */;
-CREATE TABLE `tsi` (
-  `pi` varchar(200) NOT NULL,
-  `ri` varchar(200) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
-  `cs` int DEFAULT NULL,
-  `dgt` varchar(45) DEFAULT NULL,
-  `con` varchar(45) DEFAULT NULL,
-  `sqn` varchar(45) DEFAULT NULL,
-  `cr` varchar(45) DEFAULT NULL,
-  PRIMARY KEY (`pi`,`ri`),
-  UNIQUE KEY `ri_UNIQUE` (`ri`),
-  CONSTRAINT `tsi_ri` FOREIGN KEY (`ri`) REFERENCES `lookup` (`ri`) ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --

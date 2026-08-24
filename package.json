@@ -1,5 +1,5 @@
 {
-  "name": "Mobius",
+  "name": "mobius",
   "version": "2.4.36",
   "dependencies": {
     "body-parser": "^1.18.3",
@@ -25,12 +25,14 @@
     "util": "^0.11.1",
     "websocket": "^1.0.28",
     "xml2js": "^0.4.19",
-    "xmlbuilder": "^10.1.1"
+    "xmlbuilder": "^10.1.1",
+    "sqlite3": "^5.1.7"
   },
   "description": "Mobius",
   "main": "mobius.js",
   "devDependencies": {},
   "scripts": {
+    "start": "node mobius.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "Il Yeup Ahn, IoT Platform Center, KETI",

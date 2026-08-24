@@ -15,6 +15,7 @@
  */
 
 var mysql = require('mysql');
+var sqlite = require('./db_sqlite');
 
 var mysql_pool = null;
 
@@ -34,6 +35,12 @@ exports.connect = function (host, port, user, password, callback) {
         acquireTimeout: 50000,
         queueLimit: 0
     });
+
+    if (global.usesqlite === 'true') {
+        sqlite.connect(function (code) {
+            console.log('sqlite connected: ' + code);
+        });
+    }
 
     callback('1');
 };
@@ -60,7 +67,7 @@ exports.connect = function (host, port, user, password, callback) {
 // }
 
 function executeQuery(pool, query, connection, callback) {
-    connection.query({sql:query, timeout:60000}, function (err, rows, fields) {
+    connection.query({ sql: query, timeout: 60000 }, function (err, rows, fields) {
         if (err) {
             return callback(err, null);
         }
@@ -68,8 +75,8 @@ function executeQuery(pool, query, connection, callback) {
     });
 }
 
-exports.getConnection = function(callback) {
-    if(mysql_pool == null) {
+exports.getConnection = function (callback) {
+    if (mysql_pool == null) {
         console.error("mysql is not connected");
         callback(true, "mysql is not connected");
         return '0';
@@ -90,8 +97,8 @@ exports.getConnection = function(callback) {
     });
 };
 
-exports.getResult = function(query, connection, callback) {
-    if(mysql_pool == null) {
+exports.getResult = function (query, connection, callback) {
+    if (mysql_pool == null) {
         console.error("mysql is not connected");
         return '0';
     }
@@ -104,6 +111,22 @@ exports.getResult = function(query, connection, callback) {
             callback(true, err);
         }
     });
+};
+
+exports.getPoolStats = function () {
+    if (mysql_pool == null) return null;
+    var all  = mysql_pool._allConnections.length;
+    var free = mysql_pool._freeConnections.length;
+    var acq  = mysql_pool._acquiringConnections.length;
+    var q    = mysql_pool._connectionQueue.length;
+    return {
+        all:      all,           // 풀이 생성한 커넥션 총합
+        free:     free,          // 반납되어 재사용 가능한 커넥션
+        inUse:    all - free,    // 현재 체크아웃되어 사용 중인 커넥션
+        acquiring: acq,          // getConnection() 호출 중 (아직 할당 전)
+        queued:   q,             // 풀 한도 초과로 대기 중인 요청
+        limit:    mysql_pool.config.connectionLimit
+    };
 };
 
 

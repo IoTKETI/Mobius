@@ -224,14 +224,6 @@ var attrLname = {
     "dcrp": "descriptorRepresenation",
     "soe": "semanticOpExec",
     "rels": "relatedSemantics",
-    "pei":"periodicInterval",
-    "mdd":"missingDataDetect",
-    "mdn":"missingDataMaxNr",
-    "mdlt":"missingDataList",
-    "mdc":"missingDataCurrentNr",
-    "mdt":"missingDataDetectTimer",
-    "dgt":"dataGenerationTime",
-    "sqn":"sequenceNr",
     "sid":"sessionID",
     "soid":"sessionOriginatorID",
     "stid":"SessionTargetID",
@@ -516,14 +508,6 @@ var attrSname = {
     "descriptorRepresenation": "dcrp",
     "semanticOpExec": "soe",
     "relatedSemantics": "rels",
-    "periodicInterval":"pei",
-    "missingDataDetect":"mdd",
-    "missingDataMaxNr":"mdn",
-    "missingDataList":"mdlt",
-    "missingDataCurrentNr":"mdc",
-    "missingDataDetectTimer":"mdt",
-    "dataGenerationTime":"dgt",
-    "sequenceNr":"sqn",
     "sessionID":"sid",
     "sessionOriginatorID":"soid",
     "SessionTargetID":"stid",
@@ -614,8 +598,6 @@ var rceLname = {
     "cnt": "container",
     "cin": "contentInstance",
     "sub": "subscription",
-    "ts" : "timeSeries",
-    "tsi": "timeSeriesInstance",
     "uril" :"URIList",
     "smd":"semanticDescriptor",
     "rsp": "responsePrimitive",
@@ -693,8 +675,6 @@ var rceSname = {
     "container"         : "cnt",
     "contentInstance"   : "cin",
     "subscription"      : "sub",
-    "timeSeries"        : "ts",
-    "timeSeriesInstance": "tsi",
     "URIList"            :"uril",
     "semanticDescriptor":"smd",
     "responsePrimitive":"rsp",
@@ -780,8 +760,6 @@ var typeRsrc = {
     "24": "smd",
     "27": "mms",
     "28": "fcnt",
-    "29": "ts",
-    "30": "tsi",
     "38": "tm",
     "39": "tr",
     "91": "hd_brigs",
@@ -839,7 +817,7 @@ function typeCheckAction(index1, body_Obj) {
             else if (index2 == 'acp' || index2 == 'cst' || index2 == 'los' || index2 == 'mt' || index2 == 'csy' || index2 == 'nct' ||
                 index2 == 'cs' || index2 == 'st' || index2 == 'ty' || index2 == 'cbs' || index2 == 'cni' || index2 == 'mni' ||
                 index2 == 'cnm' || index2 == 'mia' || index2 == 'mbs' || index2 == 'mgd' || index2 == 'btl' || index2 == 'bts' ||
-                index2 == 'mdn' || index2 == 'mdc' || index2 == 'mdt' || index2 == 'pei' || index2 == 'mnm' || index2 == 'exc' || index2 == 'rs' || index2 == 'ors') {
+                index2 == 'mnm' || index2 == 'exc' || index2 == 'rs' || index2 == 'ors') {
 
                 if ((index1 == 'm2m:cb' || index1 == 'm2m:cin' || index1 == 'm2m:nod' || index1 == 'm2m:ae' || index1 == 'm2m:sub' || index1 == 'm2m:acp' ||
                         index1 == 'm2m:csr' || index1 == 'm2m:grp' || index1 == 'm2m:fwr' || index1 == 'm2m:bat' || index1 == 'm2m:dvi' || index1 == 'm2m:dvc' ||
@@ -1002,7 +980,7 @@ function typeCheckAction(index1, body_Obj) {
                 }
             }
             else if (index2 == 'rr' || index2 == 'mtv' || index2 == 'ud' || index2 == 'att' || index2 == 'cus' || index2 == 'ena' || index2 == 'dis' || index2 == 'rbo' ||
-                index2 == 'far' || index2 == 'mdd' || index2 == 'disr') {
+                index2 == 'far' || index2 == 'disr') {
                 body_Obj[index2] = ((body_Obj[index2] == 'true') || ((body_Obj[index2] == true)));
             }
             else if (index2 == 'sri') {
@@ -1235,31 +1213,6 @@ function xmlAction(xml, body_Obj) {
             xmlInsert(xml, body_Obj, 'csi');
         }
 
-        else if (xml.name === 'm2m:ts') {
-            xmlInsert(xml, body_Obj, 'daci', 'et');
-            xmlInsert(xml, body_Obj, 'st');
-            xmlInsert(xml, body_Obj, 'cr');
-            xmlInsert(xml, body_Obj, 'mni');
-            xmlInsert(xml, body_Obj, 'mbs');
-            xmlInsert(xml, body_Obj, 'mia');
-            xmlInsert(xml, body_Obj, 'cni');
-            xmlInsert(xml, body_Obj, 'cbs');
-            xmlInsert(xml, body_Obj, 'pei');
-            xmlInsert(xml, body_Obj, 'mdd');
-            xmlInsert(xml, body_Obj, 'mdn');
-            xmlInsertList(xml, body_Obj, 'mdlt');
-            xmlInsert(xml, body_Obj, 'mdc');
-            xmlInsert(xml, body_Obj, 'mdt');
-            xmlInsert(xml, body_Obj, 'or');
-        }
-
-        else if (xml.name === 'm2m:tsi') {
-            xmlInsert(xml, body_Obj, 'dgt');
-            xmlInsert(xml, body_Obj, 'con');
-            xmlInsert(xml, body_Obj, 'snr');
-            xmlInsert(xml, body_Obj, 'cs');
-        }
-
         else if (xml.name === 'm2m:acp') {
             for (attr in body_Obj) {
                 if (body_Obj.hasOwnProperty(attr)) {
@@ -1403,10 +1356,6 @@ function xmlAction(xml, body_Obj) {
             else if (attr == 'membersAccessControlPolicyIDs' || attr == 'macp') {
                 xml.ele(attr, body_Obj[attr].toString().replace(/,/g, ' '));
             }
-            else if (attr == 'mdlt') {
-                xml.ele(attr, body_Obj[attr].toString().replace(/,/g, ' '));
-            }
-
             else if (attr == 'pc') {
                 xml2 = xml.ele(attr, '');
                 for (var sub_attr in body_Obj[attr]) {
@@ -1635,7 +1584,7 @@ function store_to_req_resource(request, bodyString, rsc, cap, callback) {
         rspObj.rsc = rsc;
         rspObj.ri = request.method + "-" + request.headers['x-m2m-ri'] + "-" + JSON.stringify(request.query);
         rspObj = cap;
-        console.log(JSON.stringify(rspObj));
+        // console.log(JSON.stringify(rspObj)); // 응답 바디 전체 덤프 - 로그 폭주 원인이라 비활성
 
         if (request.headers['x-m2m-rtu'] != null && request.headers['x-m2m-rtu'] != '') {
             var nu = request.headers['x-m2m-rtu'];
@@ -1704,7 +1653,7 @@ exports.response_result = function(request, response, status, rsc, cap, callback
             };
             rspObj.ri = request.method + "-" + request.url + "-" + JSON.stringify(request.query);
 
-            console.log(JSON.stringify(rspObj));
+            // console.log(JSON.stringify(rspObj)); // 응답 바디 전체 덤프 - 로그 폭주 원인이라 비활성
 
             body_Obj = null;
             rspObj = null;
@@ -1835,7 +1784,7 @@ exports.response_result = function(request, response, status, rsc, cap, callback
 
         var bodyString = JSON.stringify(body_Obj);
 
-        console.log(bodyString);
+        // console.log(bodyString); // 응답 바디 전체 덤프 - 로그 폭주 원인이라 비활성
 
         if (request.query.rt == 3 || (request.query.rt == 2 && request.headers['x-m2m-rtu'] == null && request.headers['x-m2m-rtu'] == '')) {
             if (request.usebodytype == 'json') {
@@ -1853,7 +1802,7 @@ exports.response_result = function(request, response, status, rsc, cap, callback
             rspObj.rsc = rsc;
             rspObj.ri = request.method + "-" + request.url + "-" + JSON.stringify(request.query);
             rspObj = cap;
-            console.log(JSON.stringify(rspObj));
+            // console.log(JSON.stringify(rspObj)); // 응답 바디 전체 덤프 - 로그 폭주 원인이라 비활성
 
             body_Obj = null;
             rspObj = null;
@@ -1972,7 +1921,7 @@ exports.response_rcn3_result = function(request, response, status, rsc, cap, cal
         rspObj.rsc = rsc;
         rspObj.ri = request.method + "-" + request.url + "-" + JSON.stringify(request.query);
         rspObj = cap;
-        console.log(JSON.stringify(rspObj));
+        // console.log(JSON.stringify(rspObj)); // 응답 바디 전체 덤프 - 로그 폭주 원인이라 비활성
 
         delete body_Obj;
         delete rspObj;
@@ -2073,7 +2022,7 @@ exports.search_result = function(request, response, status, rsc, cap, callback) 
             rspObj.rsc = rsc;
             rspObj.ri = request.method + "-" + request.url + "-" + JSON.stringify(request.query);
             rspObj = cap;
-            console.log(JSON.stringify(rspObj));
+            // console.log(JSON.stringify(rspObj)); // 응답 바디 전체 덤프 - 로그 폭주 원인이라 비활성
 
             callback();
         }
@@ -2092,7 +2041,7 @@ exports.search_result = function(request, response, status, rsc, cap, callback) 
                 rspObj.rsc = rsc;
                 rspObj.ri = request.method + "-" + request.url + "-" + JSON.stringify(request.query);
                 rspObj = cap;
-                console.log(JSON.stringify(rspObj));
+                // console.log(JSON.stringify(rspObj)); // 응답 바디 전체 덤프 - 로그 폭주 원인이라 비활성
 
                 body_Obj = null;
                 rspObj = null;
@@ -2164,7 +2113,7 @@ exports.search_result = function(request, response, status, rsc, cap, callback) 
             rspObj.rsc = rsc;
             rspObj.ri = request.method + "-" + request.url + "-" + JSON.stringify(request.query);
             rspObj = cap;
-            console.log(JSON.stringify(rspObj));
+            // console.log(JSON.stringify(rspObj)); // 응답 바디 전체 덤프 - 로그 폭주 원인이라 비활성
 
             body_Obj = null;
             rspObj = null;
@@ -2236,7 +2185,7 @@ exports.error_result = function(request, response, status, rsc, dbg_string, call
     rspObj.rsc = rsc;
     rspObj.ri = request.method + "-" + request.url + "-" + JSON.stringify(request.query);
     rspObj.msg = dbg_string;
-    console.log(JSON.stringify(rspObj));
+    // console.log(JSON.stringify(rspObj)); // 응답 바디 전체 덤프 - 로그 폭주 원인이라 비활성
     rspObj = null;
 
     callback();
@@ -2341,7 +2290,7 @@ function request_noti_ws(nu, bodyString, bodytype, xm2mri) {
 
     ws_client.on('connect', function (connection) {
         console.log('<---- [nonblocking-async-ws] ' + nu);
-        console.log(bodyString);
+        // console.log(bodyString); // 응답 바디 전체 덤프 - 로그 폭주 원인이라 비활성
         connection.sendUTF(bodyString);
 
         connection.on('error', function (error) {

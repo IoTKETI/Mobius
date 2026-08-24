@@ -15,108 +15,113 @@
  * @date 2019.06.14
  */
 
-var fs = require('fs');
-var http = require('http');
-var https = require('https');
-var express = require('express');
-var bodyParser = require('body-parser');
-var ip = require("ip");
-
 var db_sql = require('./sql_action');
-//
-// global.NOPRINT = 'true';
-//
-// var cnt_app = express();
-//
-// var cnt_server = null;
-//
-// if(cnt_server == null) {
-//     if(use_secure === 'disable') {
-//         http.globalAgent.maxSockets = 10000;
-//         cnt_server = http.createServer(cnt_app);
-//     }
-//     else {
-//         var options = {
-//             key: fs.readFileSync('server-key.pem'),
-//             cert: fs.readFileSync('server-crt.pem'),
-//             ca: fs.readFileSync('ca-crt.pem')
-//         };
-//         https.globalAgent.maxSockets = 10000;
-//         cnt_server = https.createServer(options, cnt_app);
-//     }
-//
-//     cnt_server.listen({port: use_cnt_man_port, agent: false}, function () {
-//         console.log('cnt_man server (' + ip.address() + ') running at ' + use_cnt_man_port + ' port');
-//     });
-//
-//     cnt_server.on('connection', function (socket) {
-//         //console.log("A new connection was made by a client.");
-//         // socket.setTimeout(5000, function () {
-//         //     if(socket.hasOwnProperty('_httpMessage')) {
-//         //         if (socket._httpMessage.hasOwnProperty('req')) {
-//         //             if (ss_fail_count.hasOwnProperty(socket._httpMessage.req.headers.ri)) {
-//         //                 ss_fail_count[socket._httpMessage.req.headers.ri]++;
-//         //             }
-//         //         }
-//         //     }
-//         // });
-//     });
-// }
-//
-// // for updating container
-// var onem2mParser = bodyParser.text(
-//     {
-//         limit: '1mb',
-//         type: 'application/onem2m-resource+xml;application/xml;application/json;application/vnd.onem2m-res+xml;application/vnd.onem2m-res+json'
-//     }
-// );
-//
-// cnt_app.put('/cnt', onem2mParser, function(request, response, next) {
-//     var fullBody = '';
-//     request.on('data', function(chunk) {
-//         fullBody += chunk.toString();
-//     });
-//     request.on('end', function() {
-//         request.body = fullBody;
-//
-//         var resource_Obj = JSON.parse(request.body);
-//         setTimeout(updateAction, 0, resource_Obj);
-//         response.status(200).end();
-//     });
-// });
+var util = require('util');
 
-exports.put = function(connection, bodyString) {
-    var resource_Obj = JSON.parse(bodyString);
-    setTimeout((connection, resource_Obj) => {
-        var rootnm = Object.keys(resource_Obj)[0];
-        db_sql.get_cni_count(connection, resource_Obj[rootnm], (cni, cbs, st) => {
-            var resBody = {};
-            resBody[resource_Obj[rootnm].ri] = {
-                cni: cni,
-                cbs: cbs,
-                st: st
-            };
-            console.log(resBody);
-            resource_Obj = null;
-            resBody = null;
-        });
-    }, 0, connection, resource_Obj);
+var pendingUpdates = new Map();
+var DEBOUNCE_MS = 1000;
+// 지속 유입 시 debounce 가 타이머를 계속 리셋해 flush 가 무한 연기되는 것을
+// 막는 상한. 유입 간격이 DEBOUNCE_MS 미만으로 이어지면 (드론 텔레메트리가
+// 정확히 그렇다) 이 상한이 없을 때 cnt 반영과 한도 검사가 세션 끝까지 밀린다.
+var MAX_WAIT_MS = 10000;
+
+exports.schedule = function (parentObj, cs) {
+    var pi = parentObj.ri;
+
+    if (pendingUpdates.has(pi)) {
+        var existing = pendingUpdates.get(pi);
+        existing.cni += 1;
+        existing.cbs += cs;
+        existing.st += 1;
+        // 상한 안에서만 debounce 리셋. 넘었으면 걸려 있는 타이머가 그대로 발화한다.
+        if (Date.now() - existing.firstAt < MAX_WAIT_MS) {
+            clearTimeout(existing.timer);
+            existing.timer = setTimeout(flush, DEBOUNCE_MS, pi);
+        }
+    } else {
+        var entry = {
+            cni: 1,   // 이 워커에서 발생한 delta (절대값 아님)
+            cbs: cs,  // 이 워커에서 발생한 delta
+            st: 1,    // 이 워커에서 발생한 delta
+            parentObj: parentObj,
+            firstAt: Date.now(),
+            timer: null
+        };
+        entry.timer = setTimeout(flush, DEBOUNCE_MS, pi);
+        pendingUpdates.set(pi, entry);
+    }
 };
-//
-// function updateAction(connection, resource_Obj) {
-//     var rootnm = Object.keys(resource_Obj)[0];
-//     db_sql.get_cni_count(connection, resource_Obj[rootnm], function (cni, cbs, st) {
-//         var resBody = {};
-//         resBody[resource_Obj[rootnm].ri] = {
-//             cni: cni,
-//             cbs: cbs,
-//             st: st
-//         };
-//         console.log(resBody);
-//         delete resource_Obj;
-//         resource_Obj = null;
-//         delete resBody;
-//         resBody = null;
-//     });
-//
-// }
+
+function flush(pi) {
+    var entry = pendingUpdates.get(pi);
+    if (!entry) return;
+    pendingUpdates.delete(pi);
+
+    if (global.usesqlite === 'true') {
+        var sqlite = require('./db_sqlite');
+        sqlite.getConnection(function (code, connection) {
+            if (code !== '200') {
+                console.error('[cnt_man] flush: sqlite connection error');
+                return;
+            }
+            updateCntAndCheck(connection, pi, entry, function () {
+                // sqlite는 싱글톤이므로 release 불필요
+            });
+        });
+    } else {
+        var db = require('./db_action');
+        db.getConnection(function (code, connection) {
+            if (code !== '200') {
+                console.error('[cnt_man] flush: mysql connection error');
+                return;
+            }
+            updateCntAndCheck(connection, pi, entry, function () {
+                connection.release();
+            });
+        });
+    }
+}
+
+function updateCntAndCheck(connection, pi, entry, done) {
+    var flush_id = 'cnt_man.flush ' + pi + ' - ' + require('shortid').generate();
+    console.time(flush_id);
+    // 매 flush 1줄이지만 활성 컨테이너당 초단위로 쌓인다 - 필요 시만 활성
+    // console.log('[cnt_man] flush: pi=' + pi + ' delta(cni=' + entry.cni + ' cbs=' + entry.cbs + ') parentObj.mni=' + entry.parentObj.mni + ' parentObj.ty=' + entry.parentObj.ty);
+
+    if (global.usesqlite === 'true') {
+        var sqlite = require('./db_sqlite');
+        // 상대값(delta) 증분: 동시 다중 워커가 flush해도 경쟁 조건 없음
+        var sql_update_cnt = util.format("UPDATE cnt SET cni = cni + %d, cbs = cbs + %d WHERE ri = '%s'", entry.cni, entry.cbs, pi);
+        sqlite.getResult(sql_update_cnt, connection, function (err) {
+            if (err) {
+                console.error('[cnt_man] flush update cnt error:', pi, err);
+                console.timeEnd(flush_id);
+                done();
+                return;
+            }
+            var sql_update_lookup = util.format("UPDATE lookup SET st = st + %d WHERE ri = '%s'", entry.st, pi);
+            sqlite.getResult(sql_update_lookup, connection, function (err) {
+                if (err) {
+                    console.error('[cnt_man] flush update lookup error:', pi, err);
+                }
+                console.timeEnd(flush_id);
+                db_sql.get_cni_count(connection, entry.parentObj, function (cni, cbs, st) {
+                    done();
+                });
+            });
+        });
+    } else {
+        var db = require('./db_action');
+        // 상대값(delta) 증분: 동시 다중 워커가 flush해도 경쟁 조건 없음
+        var sql = util.format("UPDATE cnt, lookup SET cnt.cni = cnt.cni + %d, cnt.cbs = cnt.cbs + %d, lookup.st = lookup.st + %d WHERE cnt.ri = '%s' AND lookup.ri = '%s'", entry.cni, entry.cbs, entry.st, pi, pi);
+        db.getResult(sql, connection, function (err) {
+            if (err) {
+                console.error('[cnt_man] flush update error:', pi, err);
+            }
+            console.timeEnd(flush_id);
+            db_sql.get_cni_count(connection, entry.parentObj, function (cni, cbs, st) {
+                done();
+            });
+        });
+    }
+}

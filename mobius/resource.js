@@ -28,8 +28,6 @@ var cin = require('./cin');
 var ae = require('./ae');
 var sub = require('./sub');
 var smd = require('./smd');
-var ts = require('./ts');
-var tsi = require('./tsi');
 var lcp = require('./lcp');
 var mms = require('./mms');
 var acp = require('./acp');
@@ -47,7 +45,7 @@ var cnt_man = require('./cnt_man');
 
 var _this = this;
 
-global.ty_list = ['1', '2', '3', '4', '5', '9', '10', '13', '14', '16', '17', '23', '24', '27', '28', '29', '30', '38', '39', '91', '92', '93', '94', '95', '96', '97', '98'];
+global.ty_list = ['1', '2', '3', '4', '5', '9', '10', '13', '14', '16', '17', '23', '24', '27', '28', '38', '39', '91', '92', '93', '94', '95', '96', '97', '98'];
 
 var create_np_attr_list = {};
 create_np_attr_list.acp = ['ty', 'ri', 'pi', 'ct', 'lt', 'st'];
@@ -60,9 +58,7 @@ create_np_attr_list.lcp = ['ty', 'ri', 'pi', 'ct', 'lt', 'st', 'loi', 'lost'];
 create_np_attr_list.grp = ['ty', 'ri', 'pi', 'ct', 'lt', 'st', 'cnm', 'mtv', 'ssi'];
 create_np_attr_list.nod = ['ty', 'ri', 'pi', 'ct', 'lt', 'st'];
 create_np_attr_list.smd = ['ty', 'ri', 'pi', 'ct', 'lt', 'st', 'soe'];
-create_np_attr_list.ts = ['ty', 'ri', 'pi', 'ct', 'lt', 'st', 'cni', 'cbs', 'mdlt', 'mdc'];
-create_np_attr_list.tsi = ['ty', 'ri', 'pi', 'ct', 'lt', 'st'];
-create_np_attr_list.mms = ['ty', 'ri', 'pi', 'ct', 'lt', 'st', 'sid'];
+create_np_attr_list.mms =['ty', 'ri', 'pi', 'ct', 'lt', 'st', 'sid'];
 create_np_attr_list.req = ['rn', 'ty', 'ri', 'et', 'pi', 'ct', 'lt', 'acpi', 'lbl', 'st', 'daci', 'op', 'tg', 'org', 'rid', 'mi', 'pc', 'rs', 'ors'];
 create_np_attr_list.tm = ['ty', 'ri', 'pi', 'ct', 'lt', 'st', 'tctl', 'tst', 'trsp'];
 create_np_attr_list.tr = ['ty', 'ri', 'pi', 'ct', 'lt', 'st', 'tctl', 'tst', 'trsp'];
@@ -94,9 +90,7 @@ create_m_attr_list.lcp = ['los'];
 create_m_attr_list.grp = ['mnm', 'mid'];
 create_m_attr_list.nod = ['ni'];
 create_m_attr_list.smd = ['dcrp', 'dsp'];
-create_m_attr_list.ts = [];
-create_m_attr_list.tsi = ['dgt', 'con'];
-create_m_attr_list.mms = ['soid', 'asd'];
+create_m_attr_list.mms =['soid', 'asd'];
 create_m_attr_list.req = [];
 create_m_attr_list.tm = ['rqps'];
 create_m_attr_list.tr = ['tid', 'trqp'];
@@ -128,9 +122,7 @@ create_opt_attr_list.lcp = ['rn', 'acpi', 'et', 'lbl', 'aa', 'at', 'daci', 'lou'
 create_opt_attr_list.grp = ['rn', 'acpi', 'et', 'lbl', 'aa', 'at', 'daci', 'mt', 'macp', 'csy', 'gn'];
 create_opt_attr_list.nod = ['rn', 'acpi', 'et', 'lbl', 'aa', 'at', 'daci', 'hcl', 'mgca'];
 create_opt_attr_list.smd = ['rn', 'acpi', 'et', 'lbl', 'aa', 'at', 'cr', 'or', 'rels'];
-create_opt_attr_list.ts = ['rn', 'acpi', 'et', 'lbl', 'aa', 'at', 'cr', 'mni', 'mbs', 'mia', 'pei', 'mdd', 'mdn', 'mdt', 'or'];
-create_opt_attr_list.tsi = ['rn', 'et', 'lbl', 'aa', 'at', 'sqn'];
-create_opt_attr_list.mms = ['rn', 'acpi', 'et', 'lbl', 'aa', 'at', 'stid', 'osd', 'sst'];
+create_opt_attr_list.mms =['rn', 'acpi', 'et', 'lbl', 'aa', 'at', 'stid', 'osd', 'sst'];
 create_opt_attr_list.req = [];
 create_opt_attr_list.tm = ['rn', 'acpi', 'et', 'lbl', 'daci', 'cr', 'tltm', 'text', 'tct', 'tept', 'tmd', 'tltp', 'tmr', 'tmh'];
 create_opt_attr_list.tr = ['rn', 'acpi', 'et', 'lbl', 'daci', 'cr', 'tltm', 'text', 'tct', 'tltp'];
@@ -161,8 +153,7 @@ update_np_attr_list.lcp = ['rn', 'ty', 'ri', 'pi', 'ct', 'lt', 'st', 'los', 'lot
 update_np_attr_list.grp = ['rn', 'ty', 'ri', 'pi', 'ct', 'lt', 'st', 'cr', 'mt', 'cnm', 'mtv', 'csy', 'ssi'];
 update_np_attr_list.nod = ['rn', 'ty', 'ri', 'pi', 'ct', 'lt', 'st', 'hcl'];
 update_np_attr_list.smd = ['rn', 'ty', 'ri', 'pi', 'ct', 'lt', 'st', 'cr'];
-update_np_attr_list.ts = ['rn', 'ty', 'ri', 'pi', 'ct', 'lt', 'st', 'cr', 'cni', 'cbs', 'mdlt', 'mdc'];
-update_np_attr_list.mms = ['rn', 'ty', 'ri', 'pi', 'ct', 'lt', 'st', 'sid', 'soid'];
+update_np_attr_list.mms =['rn', 'ty', 'ri', 'pi', 'ct', 'lt', 'st', 'sid', 'soid'];
 update_np_attr_list.tm = ['rn', 'ty', 'ri', 'pi', 'ct', 'lt', 'st', 'cr', 'tltm', 'text', 'tct', 'tept', 'tmd', 'tltp', 'rqps', 'rsps'];
 update_np_attr_list.tr = ['rn', 'ty', 'ri', 'pi', 'ct', 'lt', 'st', 'daci', 'tid', 'tst', 'tltm', 'text', 'tct', 'tltp', 'trqp', 'trsp'];
 
@@ -192,7 +183,6 @@ update_m_attr_list.lcp = [];
 update_m_attr_list.grp = [];
 update_m_attr_list.nod = [];
 update_m_attr_list.smd = [];
-update_m_attr_list.ts = [];
 update_m_attr_list.mms = [];
 update_m_attr_list.tm = [];
 update_m_attr_list.tr = [];
@@ -223,8 +213,7 @@ update_opt_attr_list.lcp = ['acpi', 'et', 'lbl', 'aa', 'at', 'daci', 'lou'];
 update_opt_attr_list.grp = ['acpi', 'et', 'lbl', 'aa', 'at', 'daci', 'mnm', 'mid', 'macp', 'gn'];
 update_opt_attr_list.nod = ['acpi', 'et', 'lbl', 'aa', 'at', 'daci', 'ni', 'mgca'];
 update_opt_attr_list.smd = ['acpi', 'et', 'lbl', 'aa', 'at', 'dcrp', 'soe', 'dsp', 'or', 'rels'];
-update_opt_attr_list.ts = ['acpi', 'et', 'lbl', 'aa', 'at', 'mni', 'mbs', 'mia', 'pei', 'mdd', 'mdn', 'mdt', 'or'];
-update_opt_attr_list.mms = ['acpi', 'et', 'lbl', 'aa', 'at', 'stid', 'asd', 'osd', 'sst'];
+update_opt_attr_list.mms =['acpi', 'et', 'lbl', 'aa', 'at', 'stid', 'asd', 'osd', 'sst'];
 update_opt_attr_list.tm = ['acpi', 'et', 'lbl', 'daci', 'tctl', 'tmr', 'tmh'];
 update_opt_attr_list.tr = ['acpi', 'et', 'lbl', 'cr', 'tctl'];
 
@@ -313,149 +302,6 @@ global.make_internal_ri = function (resource_Obj) {
     }
 };
 
-function check_TS(ri, callback) {
-    var rqi = require('shortid').generate();
-    var jsonObj = {};
-    jsonObj.ts = {};
-    jsonObj.ts.ri = ri;
-    var reqBodyString = JSON.stringify(jsonObj);
-
-    var responseBody = '';
-
-    if (use_secure == 'disable') {
-        var options = {
-            hostname: 'localhost',
-            port: usetsagentport,
-            path: '/missingDataDetect',
-            method: 'post',
-            headers: {
-                'X-M2M-RI': rqi,
-                'Accept': 'application/json',
-                'X-M2M-Origin': usecseid,
-                'Content-Type': 'application/vnd.onem2m-res+json',
-                'X-M2M-RVI': uservi
-            }
-        };
-
-        var req = http.request(options, function (res) {
-            //res.setEncoding('utf8');
-            res.on('data', function (chunk) {
-                responseBody += chunk;
-            });
-
-            res.on('end', function () {
-                callback(res.headers['x-m2m-rsc'], responseBody);
-            });
-        });
-    }
-    else {
-        options = {
-            hostname: 'localhost',
-            port: usetsagentport,
-            path: '/missingDataDetect',
-            method: 'post',
-            headers: {
-                'X-M2M-RI': rqi,
-                'Accept': 'application/json',
-                'X-M2M-Origin': usecseid,
-                'Content-Type': 'application/vnd.onem2m-res+json',
-                'X-M2M-RVI': uservi
-            },
-            ca: fs.readFileSync('ca-crt.pem')
-        };
-
-        req = https.request(options, function (res) {
-            //res.setEncoding('utf8');
-            res.on('data', function (chunk) {
-                responseBody += chunk;
-            });
-
-            res.on('end', function () {
-                callback(res.headers['x-m2m-rsc'], responseBody);
-            });
-        });
-    }
-
-    req.on('error', function (e) {
-        if (e.message != 'read ECONNRESET') {
-            console.log('[check_TS] problem with request: ' + e.message);
-        }
-    });
-
-    // write data to request body
-    req.write(reqBodyString);
-    req.end();
-}
-
-function delete_TS(callback) {
-    var rqi = require('shortid').generate();
-    var reqBodyString = '';
-
-    var responseBody = '';
-
-    if (use_secure == 'disable') {
-        var options = {
-            hostname: 'localhost',
-            port: usetsagentport,
-            path: '/missingDataDetect',
-            method: 'delete',
-            headers: {
-                'X-M2M-RI': rqi,
-                'Accept': 'application/json',
-                'X-M2M-Origin': usecseid,
-                'X-M2M-RVI': uservi
-            }
-        };
-
-        var req = http.request(options, function (res) {
-            //res.setEncoding('utf8');
-            res.on('data', function (chunk) {
-                responseBody += chunk;
-            });
-
-            res.on('end', function () {
-                callback(res.headers['x-m2m-rsc'], responseBody);
-            });
-        });
-    }
-    else {
-        options = {
-            hostname: 'localhost',
-            port: usetsagentport,
-            path: '/missingDataDetect',
-            method: 'delete',
-            headers: {
-                'X-M2M-RI': rqi,
-                'Accept': 'application/json',
-                'X-M2M-Origin': usecseid,
-                'X-M2M-RVI': uservi
-            },
-            ca: fs.readFileSync('ca-crt.pem')
-        };
-
-        req = https.request(options, function (res) {
-            //res.setEncoding('utf8');
-            res.on('data', function (chunk) {
-                responseBody += chunk;
-            });
-
-            res.on('end', function () {
-                callback(res.headers['x-m2m-rsc'], responseBody);
-            });
-        });
-    }
-
-    req.on('error', function (e) {
-        if (e.message != 'read ECONNRESET') {
-            console.log('[delete_TS] problem with request: ' + e.message);
-        }
-    });
-
-    // write data to request body
-    req.write(reqBodyString);
-    req.end();
-}
-
 function create_action(request, response, callback) {
     var rootnm = request.headers.rootnm;
     var ty = request.ty;
@@ -539,16 +385,12 @@ function create_action(request, response, callback) {
 
                 cache_resource_url[resource_Obj[rootnm].pi + '/la'] = resource_Obj[rootnm];
 
-                db_sql.update_parent_by_insert(request.db_connection, targetObject[parent_rootnm], cs, () => {
-                    //request_update_cnt(JSON.stringify(targetObject), cs);
-
-                    cnt_man.put(request.db_connection, JSON.stringify(targetObject));
-                    targetObject = null;
-                });
+                cnt_man.schedule(targetObject[parent_rootnm], cs);
 
                 if(cache_resource_url.hasOwnProperty(targetObject[parent_rootnm].ri)) {
                     delete cache_resource_url[targetObject[parent_rootnm].ri];
                 }
+                targetObject = null;
 
                 results = null;
                 callback('200');
@@ -926,40 +768,6 @@ function create_action(request, response, callback) {
             }
         });
     }
-    else if (ty == '29') {
-        db_sql.insert_ts(request.db_connection, resource_Obj[rootnm], function (err, results) {
-            if (!err) {
-                check_TS(resource_Obj[rootnm].ri, function (rsc, res_Obj) {
-                });
-                callback('200');
-            }
-            else {
-                if (results.code == 'ER_DUP_ENTRY') {
-                    callback('409-5');
-                }
-                else {
-                    console.log('[create_action] create resource error ======== ' + results.code);
-                    callback('500-4');
-                }
-            }
-        });
-    }
-    else if (ty == '30') {
-        db_sql.insert_tsi(request.db_connection, resource_Obj[rootnm], function (err, results) {
-            if (!err) {
-                callback('200');
-            }
-            else {
-                if (results.code == 'ER_DUP_ENTRY') {
-                    callback('409-5');
-                }
-                else {
-                    console.log('[create_action] create resource error ======== ' + results.code);
-                    callback('500-4');
-                }
-            }
-        });
-    }
     else if (ty == '27') {
         db_sql.insert_mms(request.db_connection, resource_Obj[rootnm], function (err, results) {
             if (!err) {
@@ -1106,7 +914,7 @@ function build_resource(request, response, callback) {
         resource_Obj[rootnm].et = moment().utc().add(1, 'days').format('YYYYMMDDTHHmmss');
     }
 
-    if (request.ty == '3' || request.ty == '29') {
+    if (request.ty == '3') {
         resource_Obj[rootnm].mni = '3153600000';
     }
 
@@ -1260,16 +1068,6 @@ function build_resource(request, response, callback) {
             break;
         case '27':
             mms.build_mms(request, response, resource_Obj, body_Obj, function (code) {
-                callback(code);
-            });
-            break;
-        case '29':
-            ts.build_ts(request, response, resource_Obj, body_Obj, function (code) {
-                callback(code);
-            });
-            break;
-        case '30':
-            tsi.build_tsi(request, response, resource_Obj, body_Obj, function (code) {
                 callback(code);
             });
             break;
@@ -1456,27 +1254,7 @@ function presearch_action(request, response, pi_list, found_parent_list, callbac
             }
             else if (request.query.ty == '1') {
                 for (i = 0; i < found_parent_list.length; i) {
-                    if (found_parent_list[i].ty != '2' && found_parent_list[i].ty != '3' && found_parent_list[i].ty != '5' && found_parent_list[i].ty != '29') {
-                        found_parent_list.splice(i, 1);
-                    }
-                    else {
-                        i++;
-                    }
-                }
-            }
-            else if (request.query.ty == '29') {
-                for (i = 0; i < found_parent_list.length; i) {
-                    if (found_parent_list[i].ty != '2' && found_parent_list[i].ty != '29' && found_parent_list[i].ty != '5') {
-                        found_parent_list.splice(i, 1);
-                    }
-                    else {
-                        i++;
-                    }
-                }
-            }
-            else if (request.query.ty == '30') {
-                for (i = 0; i < found_parent_list.length; i) {
-                    if (found_parent_list[i].ty != '29') {
+                    if (found_parent_list[i].ty != '2' && found_parent_list[i].ty != '3' && found_parent_list[i].ty != '5') {
                         found_parent_list.splice(i, 1);
                     }
                     else {
@@ -2053,18 +1831,6 @@ function update_action(request, response, callback) {
             }
         });
     }
-    else if (ty == '29') {
-        db_sql.update_ts(request.db_connection, resource_Obj[rootnm], function (err, results) {
-            if (!err) {
-                check_TS(resource_Obj[rootnm].ri, function (rsc, res_Obj) {
-                });
-                callback('200');
-            }
-            else {
-                callback('500-1');
-            }
-        });
-    }
     else if (ty == '27') {
         db_sql.update_mms(request.db_connection, resource_Obj[rootnm], function (err, results) {
             if (!err) {
@@ -2622,11 +2388,6 @@ function delete_action(request, response, callback) {
                                         db_sql.update_lookup(request.db_connection, parentObj, function (err, results) {
                                         });
 
-                                        callback('200');
-                                    }
-                                    else if (resource_Obj[rootnm].ty == '29') {
-                                        delete_TS(function (rsc, res_Obj) {
-                                        });
                                         callback('200');
                                     }
                                     else if (resource_Obj[rootnm].ty == '4') {
