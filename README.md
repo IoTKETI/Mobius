@@ -129,6 +129,26 @@ npm install
 }
 ```
 
+### Default Retention Policies (optional)
+By default a container created without `mni` / `mbs` uses the Mobius defaults. If a deployment needs different defaults for particular container paths, they can be declared in `conf.json` as `retentionPolicies`. Omit the key to disable the feature entirely.
+
+```
+{
+  "retentionPolicies": [
+    {"match": "contains", "value": "/Simul_", "mni": "10000"},
+    {"match": "regex", "value": "/\\d{4}_\\d{2}_\\d{2}_T_\\d{2}_\\d{2}$",
+     "mni": "3153600000", "mbs": "1099511627776"},
+    {"match": "suffix", "value": "/archive", "mni": "100000"}
+  ]
+}
+```
+
+- `match` — `contains` (default), `prefix`, `suffix` or `regex`, compared against the container resource identifier
+- `value` — the string or JavaScript regular expression source to compare with
+- `mni` / `mbs` — either may be omitted, in which case the Mobius default applies
+
+The first matching rule wins, so array order is priority order. A rule that is malformed is reported on the console and skipped rather than blocking container creation. A value explicitly supplied by the client in the CREATE request always takes precedence over these defaults, as required by oneM2M.
+
 ## Run
 Use node.js application execution command as below
 ```

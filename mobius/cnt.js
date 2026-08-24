@@ -20,29 +20,95 @@ var xmlbuilder = require('xmlbuilder');
 var util = require('util');
 var responder = require('./responder');
 
-// 컨테이너 경로별 기본 보관 정책.
-// 클라이언트가 CREATE 본문에 mni/mbs를 명시하면 그 값이 우선한다 (oneM2M 규격 유지).
+// 컨테이너 경로(ri)별 기본 보관 정책. 선택 기능이며 기본은 비활성이다.
+// conf.json 의 "retentionPolicies" 배열로 정의한다. 정의하지 않으면 어떤 규칙도
+// 적용되지 않고 Mobius 기본값(mni/mbs = 3153600000)이 그대로 쓰인다.
 //
-//   KETI_Simul_*         시뮬레이터. sortie 포함 전부 최소 보관, oldest 삭제 허용
-//   */disarm             상시 누적 컨테이너. 순환 보관, oldest 삭제 허용
-//   */YYYY_MM_DD_T_HH_MM 소티. 삭제 없이 축적
+// 클라이언트가 CREATE 본문에 mni/mbs 를 명시하면 언제나 그 값이 우선한다
+// (oneM2M 규격 유지). 이 정책은 명시하지 않았을 때의 기본값만 바꾼다.
 //
-// 판정 순서가 곧 우선순위다. KETI_Simul_11/disarm 과
-// KETI_Simul_11/2026_08_16_T_18_05 은 모두 시뮬레이터 규칙을 따른다.
-var SORTIE_RE = /\/\d{4}_\d{2}_\d{2}_T_\d{2}_\d{2}$/;
-var MNI_MAX = '3153600000';       // Mobius 개수 상한 = 사실상 무제한
-var MBS_UNLIMITED = '1099511627776'; // 1TiB = 사실상 무제한
+//   "retentionPolicies": [
+//     {"match": "contains", "value": "/Simul_", "mni": "10000"},
+//     {"match": "regex", "value": "/\\d{4}_\\d{2}_\\d{2}_T_\\d{2}_\\d{2}$",
+//      "mni": "3153600000", "mbs": "1099511627776"},
+//     {"match": "suffix", "value": "/archive", "mni": "100000"}
+//   ]
+//
+//   match : "contains"(기본) | "prefix" | "suffix" | "regex"
+//   value : 비교 문자열. regex 는 JS 정규식 소스이며 JSON 이므로 역슬래시를 이스케이프한다
+//   mni   : 생략하면 Mobius 기본값을 쓴다
+//   mbs   : 생략하면 Mobius 기본값을 쓴다
+//
+// 배열 순서가 곧 우선순위다. 처음 일치하는 규칙 하나만 적용된다.
+var RETENTION_RULES = null;
+
+function build_matcher(match, value) {
+    if (match === 'regex') {
+        var re = new RegExp(value);
+        return function (ri) { return re.test(ri); };
+    }
+    if (match === 'prefix') {
+        return function (ri) { return ri.indexOf(value) === 0; };
+    }
+    if (match === 'suffix') {
+        return function (ri) { return ri.length >= value.length && ri.slice(-value.length) === value; };
+    }
+    return function (ri) { return ri.indexOf(value) >= 0; };
+}
+
+// 잘못된 규칙 하나 때문에 컨테이너 생성 전체가 막히면 안 되므로,
+// 문제가 있는 항목은 로그를 남기고 건너뛴다.
+function compile_retention_rules() {
+    var raw = global.retention_policies;
+    var rules = [];
+
+    if (!Array.isArray(raw)) {
+        return rules;
+    }
+
+    for (var i = 0; i < raw.length; i++) {
+        var rule = raw[i];
+
+        if (!rule || typeof rule.value !== 'string' || rule.value === '') {
+            console.error('[retention_policy] rule ' + i + ' skipped: "value" is required');
+            continue;
+        }
+
+        var match = rule.match || 'contains';
+        if (['contains', 'prefix', 'suffix', 'regex'].indexOf(match) < 0) {
+            console.error('[retention_policy] rule ' + i + ' skipped: unknown match "' + match + '"');
+            continue;
+        }
+
+        try {
+            rules.push({
+                test: build_matcher(match, rule.value),
+                mni: (rule.mni == null) ? null : String(rule.mni),
+                mbs: (rule.mbs == null) ? null : String(rule.mbs)
+            });
+        }
+        catch (e) {
+            console.error('[retention_policy] rule ' + i + ' skipped: ' + e.message);
+        }
+    }
+
+    return rules;
+}
 
 function retention_policy(ri) {
-    if (ri.indexOf('/KETI_Simul_') >= 0) {
-        return {mni: '10000', mbs: null};
+    if (RETENTION_RULES === null) {
+        RETENTION_RULES = compile_retention_rules();
+        if (RETENTION_RULES.length > 0) {
+            console.log('[retention_policy] ' + RETENTION_RULES.length + ' rule(s) loaded');
+        }
     }
-    if (SORTIE_RE.test(ri)) {
-        return {mni: MNI_MAX, mbs: MBS_UNLIMITED};
+
+    for (var i = 0; i < RETENTION_RULES.length; i++) {
+        if (RETENTION_RULES[i].test(ri)) {
+            return {mni: RETENTION_RULES[i].mni, mbs: RETENTION_RULES[i].mbs};
+        }
     }
-    if (ri.slice(-7) === '/disarm') {
-        return {mni: '100000', mbs: null};
-    }
+
     return null;
 }
 

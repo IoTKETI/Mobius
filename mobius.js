@@ -48,6 +48,10 @@ else {
     global.usesqlite = conf.usesqlite;
 }
 
+// 컨테이너 경로별 기본 보관 정책 (선택). 형식은 mobius/cnt.js 상단 주석 참조.
+// 정의하지 않으면 규칙 없이 Mobius 기본값이 쓰인다.
+global.retention_policies = Array.isArray(conf.retentionPolicies) ? conf.retentionPolicies : [];
+
 global.usepxywsport = '7577';
 global.usepxymqttport = '7578';
 
