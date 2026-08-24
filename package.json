@@ -1,6 +1,6 @@
 {
   "name": "mobius",
-  "version": "2.4.36",
+  "version": "2.6.0",
   "dependencies": {
     "body-parser": "^1.18.3",
     "cbor": "^4.1.3",

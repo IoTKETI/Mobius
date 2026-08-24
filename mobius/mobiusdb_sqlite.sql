@@ -62,14 +62,6 @@ CREATE TABLE IF NOT EXISTS ae (
   FOREIGN KEY (ri) REFERENCES lookup(ri) ON DELETE CASCADE
 );
 
--- acp (Access Control Policy)
-CREATE TABLE IF NOT EXISTS acp (
-  ri TEXT PRIMARY KEY,
-  pv TEXT NOT NULL,
-  pvs TEXT NOT NULL,
-  FOREIGN KEY (ri) REFERENCES lookup(ri) ON DELETE CASCADE
-);
-
 -- cnt (Container)
 CREATE TABLE IF NOT EXISTS cnt (
   ri TEXT PRIMARY KEY,
