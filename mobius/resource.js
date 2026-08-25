@@ -2383,6 +2383,12 @@ function delete_action(request, response, callback) {
                             // for sgn
                             db_sql.select_lookup(request.db_connection, resource_Obj[rootnm].pi, function (err, results) {
                                 if (!err) {
+                                    if (results.length === 0) {
+                                        // 부모 행이 이미 없음(고아 리소스 삭제 또는 동시 subtree 삭제 경쟁).
+                                        // 리소스 자체는 지워졌으므로 부모 갱신만 생략하고 성공 처리.
+                                        callback('200');
+                                        return;
+                                    }
                                     var ty = results[0].ty;
                                     request.targetObject = {};
                                     request.targetObject[responder.typeRsrc[ty]] = results[0];

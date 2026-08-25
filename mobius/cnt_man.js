@@ -92,17 +92,17 @@ function updateCntAndCheck(connection, pi, entry, done) {
         var sqlite = require('./db_sqlite');
         // 상대값(delta) 증분: 동시 다중 워커가 flush해도 경쟁 조건 없음
         var sql_update_cnt = util.format("UPDATE cnt SET cni = cni + %d, cbs = cbs + %d WHERE ri = '%s'", entry.cni, entry.cbs, pi);
-        sqlite.getResult(sql_update_cnt, connection, function (err) {
+        sqlite.getResult(sql_update_cnt, connection, function (err, result) {
             if (err) {
-                console.error('[cnt_man] flush update cnt error:', pi, err);
+                console.error('[cnt_man] flush update cnt error:', pi, result);
                 console.timeEnd(flush_id);
                 done();
                 return;
             }
             var sql_update_lookup = util.format("UPDATE lookup SET st = st + %d WHERE ri = '%s'", entry.st, pi);
-            sqlite.getResult(sql_update_lookup, connection, function (err) {
+            sqlite.getResult(sql_update_lookup, connection, function (err, result) {
                 if (err) {
-                    console.error('[cnt_man] flush update lookup error:', pi, err);
+                    console.error('[cnt_man] flush update lookup error:', pi, result);
                 }
                 console.timeEnd(flush_id);
                 db_sql.get_cni_count(connection, entry.parentObj, function (cni, cbs, st) {
@@ -114,9 +114,9 @@ function updateCntAndCheck(connection, pi, entry, done) {
         var db = require('./db_action');
         // 상대값(delta) 증분: 동시 다중 워커가 flush해도 경쟁 조건 없음
         var sql = util.format("UPDATE cnt, lookup SET cnt.cni = cnt.cni + %d, cnt.cbs = cnt.cbs + %d, lookup.st = lookup.st + %d WHERE cnt.ri = '%s' AND lookup.ri = '%s'", entry.cni, entry.cbs, entry.st, pi, pi);
-        db.getResult(sql, connection, function (err) {
+        db.getResult(sql, connection, function (err, result) {
             if (err) {
-                console.error('[cnt_man] flush update error:', pi, err);
+                console.error('[cnt_man] flush update error:', pi, result);
             }
             console.timeEnd(flush_id);
             db_sql.get_cni_count(connection, entry.parentObj, function (cni, cbs, st) {

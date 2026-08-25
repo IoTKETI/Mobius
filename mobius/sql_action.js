@@ -3503,27 +3503,35 @@ exports.delete_lookup_et = function (connection, et, callback) {
 };
 
 
-// 부모(pi)가 lookup에 없는 고아 행을 레벨 단위로 반복 삭제.
+// 부모(pi)가 lookup에 없는 고아 행을 배치 단위로 반복 삭제.
 // 비동기 subtree 삭제 중 프로세스가 죽었을 때의 잔여물 정리용.
+// SELECT(무락 consistent read)로 1000건씩 모은 뒤 PK로 지워서
+// 라이브 트래픽 중인 대형 테이블에서도 락 시간이 짧다.
+// 다단계 고아(자식의 자식)는 다음 루프의 SELECT가 잡는다.
 exports.delete_orphan_lookup = function (connection, callback) {
-    var sql = (global.usesqlite === 'true')
-        ? "DELETE FROM lookup WHERE pi <> '' AND pi NOT IN (SELECT ri FROM lookup)"
-        : "DELETE l FROM lookup l LEFT JOIN lookup p ON l.pi = p.ri WHERE p.ri IS NULL AND l.pi <> ''";
-
+    var sel = "SELECT l.ri FROM lookup l LEFT JOIN lookup p ON l.pi = p.ri WHERE p.ri IS NULL AND l.pi <> '' LIMIT 1000";
     var exec = (global.usesqlite === 'true') ? require('./db_sqlite').getResult : db.getResult;
-    exec(sql, connection, function (err, result) {
+    exec(sel, connection, function (err, rows) {
         if (err) {
-            callback(err);
+            console.error('[delete_orphan_lookup] select error:', rows);
+            callback(rows);
             return;
         }
-        var n = (result.affectedRows || result.changes || 0);
-        if (n > 0) {
+        if (rows.length === 0) {
+            callback(null);
+            return;
+        }
+        var in_list = rows.map(r => `'${r.ri}'`).join(',');
+        exec("DELETE FROM lookup WHERE ri IN (" + in_list + ")", connection, function (err2, result) {
+            if (err2) {
+                console.error('[delete_orphan_lookup] delete error:', result);
+                callback(result);
+                return;
+            }
+            var n = (result.affectedRows || result.changes || 0);
             console.log('[delete_orphan_lookup] deleted ' + n + ' orphan row(s)');
             _this.delete_orphan_lookup(connection, callback);
-        }
-        else {
-            callback(null);
-        }
+        });
     });
 };
 
