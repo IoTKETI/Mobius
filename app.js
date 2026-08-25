@@ -114,6 +114,23 @@ function del_expired_resource() {
     });
 }
 
+// 비동기 subtree 삭제 도중 프로세스가 죽어 남은 고아 행 정리 (기동 시 + 일 1회)
+function del_orphan_resource() {
+    db.getConnection((code, connection) => {
+        if (code === '200') {
+            db_sql.delete_orphan_lookup(connection, (err) => {
+                if (err) {
+                    console.log('[del_orphan_resource] error', err);
+                }
+                connection.release();
+            });
+        }
+        else {
+            console.log('[del_orphan_resource] No Connection');
+        }
+    });
+}
+
 var cluster = require('cluster');
 var os = require('os');
 //var cpuCount = (os.cpus().length / 2);
@@ -148,6 +165,9 @@ if (use_clustering) {
 
                                 setInterval(del_req_resource, (24) * (60) * (60) * (1000));
                                 setInterval(del_expired_resource, (24) * (60) * (60) * (1000));
+
+                                del_orphan_resource();
+                                setInterval(del_orphan_resource, (24) * (60) * (60) * (1000));
 
                                 require('./pxy_mqtt');
                                 require('./pxy_coap');

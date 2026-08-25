@@ -25,7 +25,6 @@ var _this = this;
 global.max_lim = 2000;
 
 const max_search_count = 2000;
-const max_parent_count = 2000;
 
 // delete_oldest 1회 트랜잭션당 삭제 상한.
 // lookup 삭제는 FK(cin_ri ON DELETE CASCADE)로 cin 본문까지 연쇄 삭제하며,
@@ -1600,74 +1599,12 @@ exports.search_lookup_parents = function(connection, query, pi, cur_lim, count, 
 };
 */
 
-function search_parents_lookup_action(connection, pi_list, count, cur_result_ri, result_ri, callback) {
-    if (count >= pi_list.length) {
-        callback('200');
-        return;
-    }
-
-    var sql = util.format("select ri, ty from lookup where pi = \'" + pi_list[count] + "\' and ty <> \'1\' and ty <> \'9\' and ty <> \'23\' and ty <> \'4\' and ty <> \'17\' limit 2000");
-    //console.log('search_parents_lookup_action', sql);
-    db.getResult(sql, connection, function (err, result_lookup_ri) {
-        if (!err) {
-            if (result_lookup_ri.length === 0) {
-                search_parents_lookup_action(connection, pi_list, ++count, cur_result_ri, result_ri, (code) => {
-                    callback(code);
-                });
-            }
-            else {
-                for (var idx in result_lookup_ri) {
-                    if (result_lookup_ri.hasOwnProperty(idx)) {
-                        cur_result_ri.push(result_lookup_ri[idx]);
-                        if (cur_result_ri.length > max_parent_count) {
-                            break;
-                        }
-                    }
-                }
-
-                result_lookup_ri = null;
-                if (cur_result_ri.length > max_parent_count) {
-                    callback('200');
-                }
-                else {
-                    search_parents_lookup_action(connection, pi_list, ++count, cur_result_ri, result_ri, (code) => {
-                        callback(code);
-                    });
-                }
-            }
-        }
-        else {
-            callback('500-1');
-        }
-    });
-}
-
-exports.search_parents_lookup_sqlite = function (connection, pi_list, cur_result_ri, result_ri, callback) {
-    var ri = pi_list[0]; // Assuming start with single root or handling list. 
-    // Usually pi_list starts with [root_ri].
-    // If pi_list has multiple, we should probably iterate or use IN.
-    // But logically presearch starts with root.
-
-    // Safety check
+// 하위(비-리프 타입) 자손 전체를 재귀 CTE 한 번으로 수집. MySQL/SQLite 공용.
+exports.search_parents_lookup = function (connection, pi_list, cur_result_ri, result_ri, callback) {
     if (pi_list.length === 0) {
         callback('200');
         return;
     }
-
-    // We will use the first item as anchor. 
-    // If there are multiple, this logic needs to be robust, but presearch usually passes [root].
-    // Let's assume recursion handles the rest, but we want to replace recursion.
-    // If we use CTE, we get ALL descendants.
-
-    // The original logic: search children of pi_list[i].
-    // Recursively called.
-
-    // If we want to replace the whole recursion:
-    // Anchor: pi in pi_list.
-    // But pi_list changes in recursion.
-    // If we are called FROM resource.js initially, pi_list = [root].
-
-    // Let's implement a CTE that finds all descendants of the RIs in pi_list.
 
     var anchor_pi = pi_list.map(id => `'${id}'`).join(',');
 
@@ -1681,63 +1618,16 @@ exports.search_parents_lookup_sqlite = function (connection, pi_list, cur_result
         SELECT * FROM hierarchy
     `;
 
-    // Note: The original logic filters ty IN THE QUERY.
-    // ty <> 1, 9, 23, 4, 17.
-
-    var sqlite = require('./db_sqlite');
-    sqlite.getResult(sql, connection, function (err, rows) {
+    var exec = (global.usesqlite === 'true') ? require('./db_sqlite').getResult : db.getResult;
+    exec(sql, connection, function (err, rows) {
         if (!err) {
-            // rows contains ALL descendants.
-            // result_ri needs to be populated logic in original is:
-            // cur_result_ri (children of current step) -> pushed to result_ri.
-            // recursion continues with cur_result_ri as new pi_list.
-
-            // So result_ri should end up containing ALL descendants.
-            // We can just push all rows to result_ri.
-
             for (var i = 0; i < rows.length; i++) {
                 result_ri.push(rows[i]);
             }
             callback('200');
         } else {
-            console.error('[search_parents_lookup_sqlite] Error:', err);
+            console.error('[search_parents_lookup] Error:', err);
             callback('500-1');
-        }
-    });
-};
-
-exports.search_parents_lookup = function (connection, pi_list, cur_result_ri, result_ri, callback) {
-    if (global.usesqlite === 'true') {
-        return _this.search_parents_lookup_sqlite(connection, pi_list, cur_result_ri, result_ri, callback);
-    }
-
-    cur_result_ri = [];
-    search_parents_lookup_action(connection, pi_list, 0, cur_result_ri, result_ri, (code) => {
-        if (code === '200') {
-            if (cur_result_ri.length === 0) {
-                callback(code);
-            }
-            else {
-                var pi_list = [];
-                for (var idx in cur_result_ri) {
-                    if (cur_result_ri.hasOwnProperty(idx)) {
-                        pi_list.push(cur_result_ri[idx].ri);
-                        result_ri.push(cur_result_ri[idx]);
-                    }
-                }
-
-                if (pi_list.length === 0) {
-                    callback(code);
-                }
-                else {
-                    _this.search_parents_lookup(connection, pi_list, cur_result_ri, result_ri, function (code) {
-                        callback(code);
-                    });
-                }
-            }
-        }
-        else {
-            callback(code);
         }
     });
 };
@@ -3608,6 +3498,31 @@ exports.delete_lookup_et = function (connection, et, callback) {
             _this.delete_lookup(connection, pi_list, 0, finding_Obj, 0, function (err, search_Obj) {
                 callback(err, search_Obj);
             });
+        }
+    });
+};
+
+
+// 부모(pi)가 lookup에 없는 고아 행을 레벨 단위로 반복 삭제.
+// 비동기 subtree 삭제 중 프로세스가 죽었을 때의 잔여물 정리용.
+exports.delete_orphan_lookup = function (connection, callback) {
+    var sql = (global.usesqlite === 'true')
+        ? "DELETE FROM lookup WHERE pi <> '' AND pi NOT IN (SELECT ri FROM lookup)"
+        : "DELETE l FROM lookup l LEFT JOIN lookup p ON l.pi = p.ri WHERE p.ri IS NULL AND l.pi <> ''";
+
+    var exec = (global.usesqlite === 'true') ? require('./db_sqlite').getResult : db.getResult;
+    exec(sql, connection, function (err, result) {
+        if (err) {
+            callback(err);
+            return;
+        }
+        var n = (result.affectedRows || result.changes || 0);
+        if (n > 0) {
+            console.log('[delete_orphan_lookup] deleted ' + n + ' orphan row(s)');
+            _this.delete_orphan_lookup(connection, callback);
+        }
+        else {
+            callback(null);
         }
     });
 };
