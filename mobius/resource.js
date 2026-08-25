@@ -2352,7 +2352,7 @@ function delete_descendants_background(root_ri) {
         var pi_list = [root_ri];
         var result_ri = [];
         console.time('delete_descendants ' + root_ri);
-        db_sql.search_parents_lookup(connection, pi_list, [], result_ri, function (code) {
+        db_sql.search_parents_lookup_all(connection, pi_list, [], result_ri, function (code) {
             if (code !== '200') {
                 console.timeEnd('delete_descendants ' + root_ri);
                 if (connection) connection.release();

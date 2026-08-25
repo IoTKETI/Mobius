@@ -1599,8 +1599,86 @@ exports.search_lookup_parents = function(connection, query, pi, cur_lim, count, 
 };
 */
 
-// 하위(비-리프 타입) 자손 전체를 재귀 CTE 한 번으로 수집. MySQL/SQLite 공용.
+const max_parent_count = 2000;
+
+function search_parents_lookup_action(connection, pi_list, count, cur_result_ri, result_ri, callback) {
+    if (count >= pi_list.length) {
+        callback('200');
+        return;
+    }
+
+    var sql = util.format("select ri, ty from lookup where pi = \'" + pi_list[count] + "\' and ty <> \'1\' and ty <> \'9\' and ty <> \'23\' and ty <> \'4\' and ty <> \'17\' limit 2000");
+    db.getResult(sql, connection, function (err, result_lookup_ri) {
+        if (!err) {
+            if (result_lookup_ri.length === 0) {
+                search_parents_lookup_action(connection, pi_list, ++count, cur_result_ri, result_ri, (code) => {
+                    callback(code);
+                });
+            }
+            else {
+                for (var idx in result_lookup_ri) {
+                    if (result_lookup_ri.hasOwnProperty(idx)) {
+                        cur_result_ri.push(result_lookup_ri[idx]);
+                        if (cur_result_ri.length > max_parent_count) {
+                            break;
+                        }
+                    }
+                }
+
+                result_lookup_ri = null;
+                if (cur_result_ri.length > max_parent_count) {
+                    callback('200');
+                }
+                else {
+                    search_parents_lookup_action(connection, pi_list, ++count, cur_result_ri, result_ri, (code) => {
+                        callback(code);
+                    });
+                }
+            }
+        }
+        else {
+            callback('500-1');
+        }
+    });
+}
+
+// 읽기(presearch) 경로: 레벨 단위 재귀 + 2000개 상한 (구버전 복원).
+// 무제한 CTE는 초대형 lookup에서 루트 디스커버리가 분 단위로 걸리는 회귀가
+// 있었다. 삭제/고아정리 등 전체 수집이 필요한 곳은 search_parents_lookup_all 사용.
 exports.search_parents_lookup = function (connection, pi_list, cur_result_ri, result_ri, callback) {
+    if (global.usesqlite === 'true') {
+        return _this.search_parents_lookup_all(connection, pi_list, cur_result_ri, result_ri, callback);
+    }
+
+    cur_result_ri = [];
+    search_parents_lookup_action(connection, pi_list, 0, cur_result_ri, result_ri, (code) => {
+        if (code === '200') {
+            if (cur_result_ri.length === 0) {
+                callback(code);
+            }
+            else {
+                var next_pi_list = [];
+                for (var idx in cur_result_ri) {
+                    if (cur_result_ri.hasOwnProperty(idx)) {
+                        next_pi_list.push(cur_result_ri[idx].ri);
+                        result_ri.push(cur_result_ri[idx]);
+                    }
+                }
+
+                _this.search_parents_lookup(connection, next_pi_list, cur_result_ri, result_ri, function (code) {
+                    callback(code);
+                });
+            }
+        }
+        else {
+            callback(code);
+        }
+    });
+};
+
+// 하위(비-리프 타입) 자손 전체를 재귀 CTE 한 번으로 수집 (무상한).
+// background subtree 삭제 전용 — 응답 경로에서 쓰면 대형 트리에서 분 단위가 걸린다.
+exports.search_parents_lookup_all = function (connection, pi_list, cur_result_ri, result_ri, callback) {
     if (pi_list.length === 0) {
         callback('200');
         return;
