@@ -2487,13 +2487,30 @@ function delete_oldest(connection, obj, count, callback) {
                 return;
             }
 
-            // cnt 행 잠금 (FOR UPDATE) → 다른 워커의 동시 delete_oldest 직렬화
-            var lock_sql = util.format("SELECT cni, cbs FROM cnt WHERE ri = '%s' FOR UPDATE", obj.ri);
+            // cnt 행 잠금 (FOR UPDATE NOWAIT).
+            // 락이 잡혀 있다 = 다른 워커가 같은 컨테이너를 purge 중이라는 뜻이고,
+            // 그 패스가 실측 재카운트로 초과분 전체를 지우므로 여기서는 즉시 스킵한다.
+            // 예전 FOR UPDATE(대기)는 mni 정상상태에서 매 insert마다 워커들이
+            // 줄을 서서 락 컨보이를 만들었고, 대기가 50초를 넘으면 같은 행을 쓰는
+            // cnt_man flush가 ER_LOCK_WAIT_TIMEOUT으로 죽었다 (2026-08-25 실측 390건).
+            var lock_sql = util.format("SELECT cni, cbs FROM cnt WHERE ri = '%s' FOR UPDATE NOWAIT", obj.ri);
             db.getResult(lock_sql, connection, function (err, lockRows) {
-                if (err || !lockRows || lockRows.length === 0) {
+                if (err) {
                     connection.rollback(function () {});
                     console.timeEnd(del_id);
-                    callback(err || new Error('cnt row not found'));
+                    if (lockRows && (lockRows.code === 'ER_LOCK_NOWAIT' || lockRows.errno === 3572)) {
+                        console.log('[delete_oldest] busy (other worker purging), skip');
+                        callback(null);
+                    }
+                    else {
+                        callback(lockRows);
+                    }
+                    return;
+                }
+                if (!lockRows || lockRows.length === 0) {
+                    connection.rollback(function () {});
+                    console.timeEnd(del_id);
+                    callback(new Error('cnt row not found'));
                     return;
                 }
 
