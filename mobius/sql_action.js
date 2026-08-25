@@ -2080,25 +2080,25 @@ exports.search_lookup_sqlite = function (connection, ri, query, cur_lim, pi_list
     });
 };
 
-var search_tid = '';
-exports.search_lookup = function (connection, ri, query, cur_lim, pi_list, pi_index, found_Obj, found_Cnt, cni, cur_d, loop_cnt, callback) {
+exports.search_lookup = function (connection, ri, query, cur_lim, pi_list, pi_index, found_Obj, found_Cnt, cni, cur_d, loop_cnt, callback, search_tid) {
     sanitize_discovery_query(query); // SQL Injection 방어: 두 backend(MySQL/SQLite) 진입점에서 한 번만 정규화
     if (global.usesqlite === 'true') {
         return _this.search_lookup_sqlite(connection, ri, query, cur_lim, pi_list, pi_index, found_Obj, found_Cnt, cni, cur_d, loop_cnt, callback);
     }
 
+    // 타이머 라벨을 모듈 전역이 아닌 호출 체인 지역으로 유지 (동시 검색 시 race로 'No such label' 경고 발생하던 문제)
+    if (!search_tid) {
+        search_tid = 'search_lookup (' + require('shortid').generate() + ')';
+        console.time(search_tid);
+    }
+
     if (pi_index >= pi_list.length) {
-        console.timeEnd('search_lookup (' + search_tid + ')');
+        console.timeEnd(search_tid);
         callback('200');
         return;
     }
 
     var cur_pi = [];
-
-    if (loop_cnt == 0) {
-        search_tid = require('shortid').generate();
-        console.time('search_lookup (' + search_tid + ')');
-    }
 
     for (var idx = 0; idx < 32; idx++) {
         if (pi_index < pi_list.length) {
@@ -2128,23 +2128,25 @@ exports.search_lookup = function (connection, ri, query, cur_lim, pi_list, pi_in
                 }
 
                 if (Object.keys(found_Obj).length >= query.lim) {
+                    console.timeEnd(search_tid);
                     callback('200');
                 }
                 else {
                     cur_lim = parseInt(query.lim) - Object.keys(found_Obj).length;
                     _this.search_lookup(connection, ri, query, cur_lim, pi_list, pi_index, found_Obj, found_Cnt, cni, cur_d, ++loop_cnt, function (code) {
                         callback(code);
-                    });
+                    }, search_tid);
                 }
             }
             else {
                 cur_lim = parseInt(query.lim) - Object.keys(found_Obj).length;
                 _this.search_lookup(connection, ri, query, cur_lim, pi_list, pi_index, found_Obj, found_Cnt, cni, cur_d, ++loop_cnt, function (code) {
                     callback(code);
-                });
+                }, search_tid);
             }
         }
         else {
+            console.timeEnd(search_tid);
             callback(code);
         }
     });
@@ -2627,12 +2629,13 @@ function delete_oldest(connection, obj, count, callback) {
 }
 
 
-exports.select_in_ri_list = function (connection, tbl, ri_list, ri_index, found_Obj, loop_cnt, callback) {
+exports.select_in_ri_list = function (connection, tbl, ri_list, ri_index, found_Obj, loop_cnt, callback, search_tid) {
     var cur_ri = [];
 
-    if (loop_cnt == 0) {
-        search_tid = require('shortid').generate();
-        console.time('select_in_ri_list (' + search_tid + ')');
+    // 재귀 시 loop_cnt가 증가하지 않아 배치마다 타이머가 새로 생성/누수되던 문제 — tid를 인자로 전달
+    if (!search_tid) {
+        search_tid = 'select_in_ri_list (' + require('shortid').generate() + ')';
+        console.time(search_tid);
     }
 
     for (var idx = 0; idx < 8; idx++) {
@@ -2652,18 +2655,19 @@ exports.select_in_ri_list = function (connection, tbl, ri_list, ri_index, found_
             }
 
             if (ri_index >= ri_list.length) {
-                console.timeEnd('select_in_ri_list (' + search_tid + ')');
+                console.timeEnd(search_tid);
                 callback(err, found_Obj);
             }
             else {
                 setTimeout(function () {
                     _this.select_in_ri_list(connection, tbl, ri_list, ri_index, found_Obj, loop_cnt, function (err, found_Obj) {
                         callback(err, found_Obj);
-                    });
+                    }, search_tid);
                 }, 0);
             }
         }
         else {
+            console.timeEnd(search_tid);
             callback(err, search_Obj);
         }
     });
