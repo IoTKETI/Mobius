@@ -3424,19 +3424,28 @@ exports.update_parent_by_insert = function (connection, obj, cs, callback) {
     }
 };
 
+// 이전에는 MySQL 전용 다중 테이블 UPDATE(`update cnt, lookup set ...`)를
+// db.getResult 로 보냈다. db_action.getResult 는 usesqlite 와 무관하게 항상
+// MySQL 풀로 가므로, SQLite 모드에서는 MySQL 의 0개 행에 적용되고 에러 없이
+// 성공 처리됐다 — st 증가가 조용히 유실됐다.
+//
+// tableName 은 SET 절이 아니라 조건절에만 쓰였다. "해당 ri 가 그 타입
+// 테이블에 존재할 때만 올린다"는 의미이므로, EXISTS 서브쿼리로 그대로 옮긴다.
 exports.update_parent_st = function (connection, obj, callback) {
     var tableName = responder.typeRsrc[parseInt(obj.ty, 10)];
     var st_id = 'update_parent_st ' + obj.ri + ' - ' + require('shortid').generate();
     console.time(st_id);
-    var sql = util.format('update %s, lookup set lookup.st = lookup.st+1 where lookup.ri = \'%s\' and %s.ri = \'%s\'', tableName, obj.ri, tableName, obj.ri);
-    db.getResult(sql, connection, function (err, results) {
+
+    var qb = facade.k('lookup')
+        .update({ st: facade.raw('st + 1') })
+        .where({ ri: obj.ri })
+        .whereExists(facade.k(tableName).select('*').whereRaw('??.?? = ?', [tableName, 'ri', obj.ri]));
+
+    facade.run(qb, connection, function (err, results) {
         if (!err) {
             console.timeEnd(st_id);
-            callback(err, results);
         }
-        else {
-            callback(err, results);
-        }
+        callback(err, results);
     });
 };
 
