@@ -3449,19 +3449,44 @@ exports.update_parent_st = function (connection, obj, callback) {
     });
 };
 
+// 이전에는 MySQL 전용 다중 테이블 UPDATE 를 db.getResult 로 보냈다.
+// SQLite 모드에서는 MySQL 의 0개 행에 적용돼 cni/cbs 감소가 조용히 유실됐다
+// (실측: cin 은 지워지는데 cnt.cni 는 그대로).
+//
+// 한 문장을 두 문장으로 쪼개면 원자성을 잃으므로 transaction 으로 감싼다.
+// MySQL 은 실제 BEGIN/COMMIT 이 돌고, SQLite 는 능력이 없어 본문만 돈다
+// (기존 SQLite 경로도 이미 비원자적이었으므로 회귀는 아니다).
+//
+// console.time 라벨이 'update_parent_by_insert' 였던 것은 복사 실수다.
 exports.update_parent_by_delete = function (connection, obj, cs, callback) {
     var tableName = responder.typeRsrc[parseInt(obj.ty, 10)];
-    var cni_id = 'update_parent_by_insert ' + obj.ri + ' - ' + require('shortid').generate();
+    var cni_id = 'update_parent_by_delete ' + obj.ri + ' - ' + require('shortid').generate();
     console.time(cni_id);
-    var sql = util.format('update %s, lookup set %s.cni = %s.cni-1, %s.cbs = %s.cbs-%s, lookup.st = lookup.st+1 where lookup.ri = \'%s\' and %s.ri = \'%s\'', tableName, tableName, tableName, tableName, tableName, cs, obj.ri, tableName, obj.ri);
-    db.getResult(sql, connection, function (err, results) {
+
+    facade.transaction(connection, function (conn, finish) {
+        var q1 = facade.k(tableName)
+            .update({
+                cni: facade.raw('cni - 1'),
+                cbs: facade.raw('cbs - ?', [cs])
+            })
+            .where({ ri: obj.ri });
+
+        facade.run(q1, conn, function (err1, r1) {
+            if (err1) { return finish(err1, r1); }
+
+            var q2 = facade.k('lookup')
+                .update({ st: facade.raw('st + 1') })
+                .where({ ri: obj.ri });
+
+            facade.run(q2, conn, function (err2, r2) {
+                finish(err2, err2 ? r2 : r1);
+            });
+        });
+    }, function (err, results) {
         if (!err) {
             console.timeEnd(cni_id);
-            callback(err, results);
         }
-        else {
-            callback(err, results);
-        }
+        callback(err, results);
     });
 };
 

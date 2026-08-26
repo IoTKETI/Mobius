@@ -100,3 +100,40 @@ test('update_parent_st: 타입 테이블 존재 조건을 유지한다', functio
         done();
     });
 });
+
+test('update_parent_by_delete: SQLite 에서 두 UPDATE 가 파사드로 나간다', function (t, done) {
+    const { sql_action, seen } = tapAdapter(true);
+    sql_action.update_parent_by_delete({}, { ri: '/M/c1', ty: '3' }, 4, function (err) {
+        assert.ok(!err, '실패하면 안 된다: ' + JSON.stringify(err));
+        assertNoLegacy(seen);
+        const updates = seen.filter(function (s) { return /^update/i.test(s.sql); });
+        assert.strictEqual(updates.length, 2, 'cnt 와 lookup 각각 1개씩이어야 한다');
+        assert.match(updates[0].sql, /update `cnt` set/i);
+        assert.match(updates[0].sql, /`cni`[\s\S]*`cbs`|`cbs`[\s\S]*`cni`/i);
+        assert.match(updates[1].sql, /update `lookup` set `st`/i);
+        // cs 는 바인딩으로 나가야 한다.
+        assert.ok(updates[0].bindings.indexOf(4) !== -1, 'cs 는 바인딩이어야 한다');
+        done();
+    });
+});
+
+test('update_parent_by_delete: SQLite 는 트랜잭션 없이 본문만 돈다', function (t, done) {
+    const { sql_action, seen } = tapAdapter(true);
+    sql_action.update_parent_by_delete({}, { ri: '/M/c1', ty: '3' }, 4, function () {
+        assert.strictEqual(seen.filter(function (s) { return s.sql === 'BEGIN'; }).length, 0,
+            'SQLite 는 transaction 능력이 없다');
+        done();
+    });
+});
+
+test('update_parent_by_delete: MySQL 은 BEGIN/COMMIT 으로 감싼다', function (t, done) {
+    const { sql_action, seen } = tapAdapter(false);
+    sql_action.update_parent_by_delete({}, { ri: '/M/c1', ty: '3' }, 4, function (err) {
+        assert.ok(!err, '실패하면 안 된다: ' + JSON.stringify(err));
+        assertNoLegacy(seen);
+        const order = seen.map(function (s) { return /^update/i.test(s.sql) ? 'UPDATE' : s.sql; });
+        assert.deepStrictEqual(order, ['BEGIN', 'UPDATE', 'UPDATE', 'COMMIT'],
+            '두 UPDATE 가 한 트랜잭션 안에 있어야 한다');
+        done();
+    });
+});
