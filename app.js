@@ -2756,7 +2756,10 @@ function check_notification(request, response, callback) {
 function check_ae_notify(request, response, callback) {
     var ri = request.targetObject[Object.keys(request.targetObject)[0]].ri;
     console.log('[check_ae_notify] : ' + ri);
-    db_sql.select_ae(ri, (err, result_ae) => {
+    // select_ae 의 시그니처는 (connection, ri, callback) 이다. connection 을 빠뜨려
+    // 인자가 한 칸씩 밀리면서 callback 이 undefined 가 되어, 이 경로는 호출 즉시
+    // TypeError 로 죽었다.
+    db_sql.select_ae(request.db_connection, ri, (err, result_ae) => {
         if (!err) {
             if (result_ae.length == 1) {
                 var point = {};
