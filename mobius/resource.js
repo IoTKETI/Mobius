@@ -40,6 +40,7 @@ var tm = require('./tm');
 var tr = require('./tr');
 
 var security = require('./security');
+var db = require('./db_action');
 var db_sql = require('./sql_action');
 var cnt_man = require('./cnt_man');
 
@@ -2350,35 +2351,68 @@ function update_cnt_by_delete(connection, pi, cs, callback) {
     });
 }
 
+// 리프 타입(하위 리소스를 가질 수 없는 ty)은 background subtree 삭제가 필요 없다.
+var leaf_ty_list = ['1', '4', '9', '17', '23'];
+
+// R4 방식 비동기 subtree 삭제: 응답은 루트 행 삭제 직후 나가고,
+// 자손은 별도 커넥션으로 백그라운드 삭제한다. 도중에 프로세스가 죽어
+// 고아 행이 남으면 delete_orphan_lookup(기동 시/일 1회)이 정리한다.
+function delete_descendants_background(root_ri) {
+    if (global.usesqlite === 'true') {
+        run(null);
+    }
+    else {
+        db.getConnection(function (code, connection) {
+            if (code === '200') {
+                run(connection);
+            }
+            else {
+                setTimeout(delete_descendants_background, 5000, root_ri);
+            }
+        });
+    }
+
+    function run(connection) {
+        var pi_list = [root_ri];
+        var result_ri = [];
+        console.time('delete_descendants ' + root_ri);
+        db_sql.search_parents_lookup_all(connection, pi_list, [], result_ri, function (code) {
+            if (code !== '200') {
+                console.timeEnd('delete_descendants ' + root_ri);
+                if (connection) connection.release();
+                return;
+            }
+            for (var i = 0; i < result_ri.length; i++) {
+                pi_list.push(result_ri[i].ri);
+            }
+            pi_list.reverse();
+            db_sql.delete_lookup(connection, pi_list, 0, [], 0, function (code) {
+                console.timeEnd('delete_descendants ' + root_ri);
+                if (connection) connection.release();
+            });
+        });
+    }
+}
+
 function delete_action(request, response, callback) {
     var resource_Obj = request.resourceObj;
     var rootnm = Object.keys(request.resourceObj)[0];
 
-    var pi_list = [];
-    var result_ri = [];
-    pi_list.push(resource_Obj[rootnm].ri);
-    console.time('search_parents_lookup ' + resource_Obj[rootnm].ri);
-    var cur_result_ri = [];
-    db_sql.search_parents_lookup(request.db_connection, pi_list, cur_result_ri, result_ri, function (code) {
-        console.timeEnd('search_parents_lookup ' + resource_Obj[rootnm].ri);
-        if(code === '200') {
-            for (var i = 0; i < result_ri.length; i++) {
-                pi_list.push(result_ri[i].ri);
+    db_sql.delete_ri_lookup(request.db_connection, resource_Obj[rootnm].ri, function (err) {
+        if(!err) {
+            if (leaf_ty_list.indexOf(String(resource_Obj[rootnm].ty)) < 0) {
+                setImmediate(delete_descendants_background, resource_Obj[rootnm].ri);
             }
-            result_ri = null;
-
-            pi_list.reverse();
-            var finding_Obj = [];
-            console.time('delete_lookup ' + resource_Obj[rootnm].ri);
-            db_sql.delete_lookup(request.db_connection, pi_list, 0, finding_Obj, 0, function (code) {
-                if (code === '200') {
-                    db_sql.delete_ri_lookup(request.db_connection, resource_Obj[rootnm].ri, function (err) {
-                        if(!err) {
-                            console.timeEnd('delete_lookup ' + resource_Obj[rootnm].ri);
 
                             // for sgn
                             db_sql.select_lookup(request.db_connection, resource_Obj[rootnm].pi, function (err, results) {
                                 if (!err) {
+                                    if (results.length === 0) {
+                                        // 부모 행이 이미 없음(고아 리소스 삭제 또는 동시 subtree 삭제 경쟁).
+                                        // 리소스 자체는 지워졌으므로 부모 갱신만 생략하고 성공 처리.
+                                        callback('200');
+                                        return;
+                                    }
                                     var ty = results[0].ty;
                                     request.targetObject = {};
                                     request.targetObject[responder.typeRsrc[ty]] = results[0];
@@ -2428,21 +2462,9 @@ function delete_action(request, response, callback) {
                                     callback('500-1');
                                 }
                             });
-                        }
-                        else {
-                            console.timeEnd('delete_lookup ' + resource_Obj[rootnm].ri);
-                            callback('500-1');
-                        }
-                    });
-                }
-                else {
-                    console.timeEnd('delete_lookup ' + resource_Obj[rootnm].ri);
-                    callback(code);
-                }
-            });
         }
         else {
-            callback(code);
+            callback('500-1');
         }
     });
 }

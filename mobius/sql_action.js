@@ -25,7 +25,6 @@ var _this = this;
 global.max_lim = 2000;
 
 const max_search_count = 2000;
-const max_parent_count = 2000;
 
 // delete_oldest 1회 트랜잭션당 삭제 상한.
 // lookup 삭제는 FK(cin_ri ON DELETE CASCADE)로 cin 본문까지 연쇄 삭제하며,
@@ -1600,6 +1599,8 @@ exports.search_lookup_parents = function(connection, query, pi, cur_lim, count, 
 };
 */
 
+const max_parent_count = 2000;
+
 function search_parents_lookup_action(connection, pi_list, count, cur_result_ri, result_ri, callback) {
     if (count >= pi_list.length) {
         callback('200');
@@ -1607,7 +1608,6 @@ function search_parents_lookup_action(connection, pi_list, count, cur_result_ri,
     }
 
     var sql = util.format("select ri, ty from lookup where pi = \'" + pi_list[count] + "\' and ty <> \'1\' and ty <> \'9\' and ty <> \'23\' and ty <> \'4\' and ty <> \'17\' limit 2000");
-    //console.log('search_parents_lookup_action', sql);
     db.getResult(sql, connection, function (err, result_lookup_ri) {
         if (!err) {
             if (result_lookup_ri.length === 0) {
@@ -1642,32 +1642,47 @@ function search_parents_lookup_action(connection, pi_list, count, cur_result_ri,
     });
 }
 
-exports.search_parents_lookup_sqlite = function (connection, pi_list, cur_result_ri, result_ri, callback) {
-    var ri = pi_list[0]; // Assuming start with single root or handling list. 
-    // Usually pi_list starts with [root_ri].
-    // If pi_list has multiple, we should probably iterate or use IN.
-    // But logically presearch starts with root.
+// 읽기(presearch) 경로: 레벨 단위 재귀 + 2000개 상한 (구버전 복원).
+// 무제한 CTE는 초대형 lookup에서 루트 디스커버리가 분 단위로 걸리는 회귀가
+// 있었다. 삭제/고아정리 등 전체 수집이 필요한 곳은 search_parents_lookup_all 사용.
+exports.search_parents_lookup = function (connection, pi_list, cur_result_ri, result_ri, callback) {
+    if (global.usesqlite === 'true') {
+        return _this.search_parents_lookup_all(connection, pi_list, cur_result_ri, result_ri, callback);
+    }
 
-    // Safety check
+    cur_result_ri = [];
+    search_parents_lookup_action(connection, pi_list, 0, cur_result_ri, result_ri, (code) => {
+        if (code === '200') {
+            if (cur_result_ri.length === 0) {
+                callback(code);
+            }
+            else {
+                var next_pi_list = [];
+                for (var idx in cur_result_ri) {
+                    if (cur_result_ri.hasOwnProperty(idx)) {
+                        next_pi_list.push(cur_result_ri[idx].ri);
+                        result_ri.push(cur_result_ri[idx]);
+                    }
+                }
+
+                _this.search_parents_lookup(connection, next_pi_list, cur_result_ri, result_ri, function (code) {
+                    callback(code);
+                });
+            }
+        }
+        else {
+            callback(code);
+        }
+    });
+};
+
+// 하위(비-리프 타입) 자손 전체를 재귀 CTE 한 번으로 수집 (무상한).
+// background subtree 삭제 전용 — 응답 경로에서 쓰면 대형 트리에서 분 단위가 걸린다.
+exports.search_parents_lookup_all = function (connection, pi_list, cur_result_ri, result_ri, callback) {
     if (pi_list.length === 0) {
         callback('200');
         return;
     }
-
-    // We will use the first item as anchor. 
-    // If there are multiple, this logic needs to be robust, but presearch usually passes [root].
-    // Let's assume recursion handles the rest, but we want to replace recursion.
-    // If we use CTE, we get ALL descendants.
-
-    // The original logic: search children of pi_list[i].
-    // Recursively called.
-
-    // If we want to replace the whole recursion:
-    // Anchor: pi in pi_list.
-    // But pi_list changes in recursion.
-    // If we are called FROM resource.js initially, pi_list = [root].
-
-    // Let's implement a CTE that finds all descendants of the RIs in pi_list.
 
     var anchor_pi = pi_list.map(id => `'${id}'`).join(',');
 
@@ -1681,63 +1696,16 @@ exports.search_parents_lookup_sqlite = function (connection, pi_list, cur_result
         SELECT * FROM hierarchy
     `;
 
-    // Note: The original logic filters ty IN THE QUERY.
-    // ty <> 1, 9, 23, 4, 17.
-
-    var sqlite = require('./db_sqlite');
-    sqlite.getResult(sql, connection, function (err, rows) {
+    var exec = (global.usesqlite === 'true') ? require('./db_sqlite').getResult : db.getResult;
+    exec(sql, connection, function (err, rows) {
         if (!err) {
-            // rows contains ALL descendants.
-            // result_ri needs to be populated logic in original is:
-            // cur_result_ri (children of current step) -> pushed to result_ri.
-            // recursion continues with cur_result_ri as new pi_list.
-
-            // So result_ri should end up containing ALL descendants.
-            // We can just push all rows to result_ri.
-
             for (var i = 0; i < rows.length; i++) {
                 result_ri.push(rows[i]);
             }
             callback('200');
         } else {
-            console.error('[search_parents_lookup_sqlite] Error:', err);
+            console.error('[search_parents_lookup] Error:', err);
             callback('500-1');
-        }
-    });
-};
-
-exports.search_parents_lookup = function (connection, pi_list, cur_result_ri, result_ri, callback) {
-    if (global.usesqlite === 'true') {
-        return _this.search_parents_lookup_sqlite(connection, pi_list, cur_result_ri, result_ri, callback);
-    }
-
-    cur_result_ri = [];
-    search_parents_lookup_action(connection, pi_list, 0, cur_result_ri, result_ri, (code) => {
-        if (code === '200') {
-            if (cur_result_ri.length === 0) {
-                callback(code);
-            }
-            else {
-                var pi_list = [];
-                for (var idx in cur_result_ri) {
-                    if (cur_result_ri.hasOwnProperty(idx)) {
-                        pi_list.push(cur_result_ri[idx].ri);
-                        result_ri.push(cur_result_ri[idx]);
-                    }
-                }
-
-                if (pi_list.length === 0) {
-                    callback(code);
-                }
-                else {
-                    _this.search_parents_lookup(connection, pi_list, cur_result_ri, result_ri, function (code) {
-                        callback(code);
-                    });
-                }
-            }
-        }
-        else {
-            callback(code);
         }
     });
 };
@@ -2080,25 +2048,25 @@ exports.search_lookup_sqlite = function (connection, ri, query, cur_lim, pi_list
     });
 };
 
-var search_tid = '';
-exports.search_lookup = function (connection, ri, query, cur_lim, pi_list, pi_index, found_Obj, found_Cnt, cni, cur_d, loop_cnt, callback) {
+exports.search_lookup = function (connection, ri, query, cur_lim, pi_list, pi_index, found_Obj, found_Cnt, cni, cur_d, loop_cnt, callback, search_tid) {
     sanitize_discovery_query(query); // SQL Injection 방어: 두 backend(MySQL/SQLite) 진입점에서 한 번만 정규화
     if (global.usesqlite === 'true') {
         return _this.search_lookup_sqlite(connection, ri, query, cur_lim, pi_list, pi_index, found_Obj, found_Cnt, cni, cur_d, loop_cnt, callback);
     }
 
+    // 타이머 라벨을 모듈 전역이 아닌 호출 체인 지역으로 유지 (동시 검색 시 race로 'No such label' 경고 발생하던 문제)
+    if (!search_tid) {
+        search_tid = 'search_lookup (' + require('shortid').generate() + ')';
+        console.time(search_tid);
+    }
+
     if (pi_index >= pi_list.length) {
-        console.timeEnd('search_lookup (' + search_tid + ')');
+        console.timeEnd(search_tid);
         callback('200');
         return;
     }
 
     var cur_pi = [];
-
-    if (loop_cnt == 0) {
-        search_tid = require('shortid').generate();
-        console.time('search_lookup (' + search_tid + ')');
-    }
 
     for (var idx = 0; idx < 32; idx++) {
         if (pi_index < pi_list.length) {
@@ -2128,23 +2096,25 @@ exports.search_lookup = function (connection, ri, query, cur_lim, pi_list, pi_in
                 }
 
                 if (Object.keys(found_Obj).length >= query.lim) {
+                    console.timeEnd(search_tid);
                     callback('200');
                 }
                 else {
                     cur_lim = parseInt(query.lim) - Object.keys(found_Obj).length;
                     _this.search_lookup(connection, ri, query, cur_lim, pi_list, pi_index, found_Obj, found_Cnt, cni, cur_d, ++loop_cnt, function (code) {
                         callback(code);
-                    });
+                    }, search_tid);
                 }
             }
             else {
                 cur_lim = parseInt(query.lim) - Object.keys(found_Obj).length;
                 _this.search_lookup(connection, ri, query, cur_lim, pi_list, pi_index, found_Obj, found_Cnt, cni, cur_d, ++loop_cnt, function (code) {
                     callback(code);
-                });
+                }, search_tid);
             }
         }
         else {
+            console.timeEnd(search_tid);
             callback(code);
         }
     });
@@ -2517,13 +2487,30 @@ function delete_oldest(connection, obj, count, callback) {
                 return;
             }
 
-            // cnt 행 잠금 (FOR UPDATE) → 다른 워커의 동시 delete_oldest 직렬화
-            var lock_sql = util.format("SELECT cni, cbs FROM cnt WHERE ri = '%s' FOR UPDATE", obj.ri);
+            // cnt 행 잠금 (FOR UPDATE NOWAIT).
+            // 락이 잡혀 있다 = 다른 워커가 같은 컨테이너를 purge 중이라는 뜻이고,
+            // 그 패스가 실측 재카운트로 초과분 전체를 지우므로 여기서는 즉시 스킵한다.
+            // 예전 FOR UPDATE(대기)는 mni 정상상태에서 매 insert마다 워커들이
+            // 줄을 서서 락 컨보이를 만들었고, 대기가 50초를 넘으면 같은 행을 쓰는
+            // cnt_man flush가 ER_LOCK_WAIT_TIMEOUT으로 죽었다 (2026-08-25 실측 390건).
+            var lock_sql = util.format("SELECT cni, cbs FROM cnt WHERE ri = '%s' FOR UPDATE NOWAIT", obj.ri);
             db.getResult(lock_sql, connection, function (err, lockRows) {
-                if (err || !lockRows || lockRows.length === 0) {
+                if (err) {
                     connection.rollback(function () {});
                     console.timeEnd(del_id);
-                    callback(err || new Error('cnt row not found'));
+                    if (lockRows && (lockRows.code === 'ER_LOCK_NOWAIT' || lockRows.errno === 3572)) {
+                        console.log('[delete_oldest] busy (other worker purging), skip');
+                        callback(null);
+                    }
+                    else {
+                        callback(lockRows);
+                    }
+                    return;
+                }
+                if (!lockRows || lockRows.length === 0) {
+                    connection.rollback(function () {});
+                    console.timeEnd(del_id);
+                    callback(new Error('cnt row not found'));
                     return;
                 }
 
@@ -2627,12 +2614,13 @@ function delete_oldest(connection, obj, count, callback) {
 }
 
 
-exports.select_in_ri_list = function (connection, tbl, ri_list, ri_index, found_Obj, loop_cnt, callback) {
+exports.select_in_ri_list = function (connection, tbl, ri_list, ri_index, found_Obj, loop_cnt, callback, search_tid) {
     var cur_ri = [];
 
-    if (loop_cnt == 0) {
-        search_tid = require('shortid').generate();
-        console.time('select_in_ri_list (' + search_tid + ')');
+    // 재귀 시 loop_cnt가 증가하지 않아 배치마다 타이머가 새로 생성/누수되던 문제 — tid를 인자로 전달
+    if (!search_tid) {
+        search_tid = 'select_in_ri_list (' + require('shortid').generate() + ')';
+        console.time(search_tid);
     }
 
     for (var idx = 0; idx < 8; idx++) {
@@ -2652,18 +2640,19 @@ exports.select_in_ri_list = function (connection, tbl, ri_list, ri_index, found_
             }
 
             if (ri_index >= ri_list.length) {
-                console.timeEnd('select_in_ri_list (' + search_tid + ')');
+                console.timeEnd(search_tid);
                 callback(err, found_Obj);
             }
             else {
                 setTimeout(function () {
                     _this.select_in_ri_list(connection, tbl, ri_list, ri_index, found_Obj, loop_cnt, function (err, found_Obj) {
                         callback(err, found_Obj);
-                    });
+                    }, search_tid);
                 }, 0);
             }
         }
         else {
+            console.timeEnd(search_tid);
             callback(err, search_Obj);
         }
     });
@@ -3605,6 +3594,39 @@ exports.delete_lookup_et = function (connection, et, callback) {
                 callback(err, search_Obj);
             });
         }
+    });
+};
+
+
+// 부모(pi)가 lookup에 없는 고아 행을 배치 단위로 반복 삭제.
+// 비동기 subtree 삭제 중 프로세스가 죽었을 때의 잔여물 정리용.
+// SELECT(무락 consistent read)로 1000건씩 모은 뒤 PK로 지워서
+// 라이브 트래픽 중인 대형 테이블에서도 락 시간이 짧다.
+// 다단계 고아(자식의 자식)는 다음 루프의 SELECT가 잡는다.
+exports.delete_orphan_lookup = function (connection, callback) {
+    var sel = "SELECT l.ri FROM lookup l LEFT JOIN lookup p ON l.pi = p.ri WHERE p.ri IS NULL AND l.pi <> '' LIMIT 1000";
+    var exec = (global.usesqlite === 'true') ? require('./db_sqlite').getResult : db.getResult;
+    exec(sel, connection, function (err, rows) {
+        if (err) {
+            console.error('[delete_orphan_lookup] select error:', rows);
+            callback(rows);
+            return;
+        }
+        if (rows.length === 0) {
+            callback(null);
+            return;
+        }
+        var in_list = rows.map(r => `'${r.ri}'`).join(',');
+        exec("DELETE FROM lookup WHERE ri IN (" + in_list + ")", connection, function (err2, result) {
+            if (err2) {
+                console.error('[delete_orphan_lookup] delete error:', result);
+                callback(result);
+                return;
+            }
+            var n = (result.affectedRows || result.changes || 0);
+            console.log('[delete_orphan_lookup] deleted ' + n + ' orphan row(s)');
+            _this.delete_orphan_lookup(connection, callback);
+        });
     });
 };
 
