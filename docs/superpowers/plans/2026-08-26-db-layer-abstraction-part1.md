@@ -1856,14 +1856,76 @@ MERGE 판정 함수는 이 순서로 바꾼다.
 2. `util.format` + `.replace()` 이스케이프를 `facade.k(table)` 빌더 호출로 바꾼다
 3. `db.getResult(sql, connection, cb)` / `sqlite.getResult(sql, null, cb)` 를
    `facade.run(qb, connection, cb)` 로 바꾼다
-4. 콜백 안의 분기(`if (!err) … else …`)와 보상 로직은 **그대로 둔다**
+4. 콜백 안의 **분기 구조는 가드 절로 정리해도 되지만, 조건과 보상 로직의 의미는
+   그대로 둔다.** 중첩 콜백에서 `err`/`results` 가 바깥을 섀도잉하고 있으면
+   `err2`/`results2` 로 풀어 쓴다 (참조 구현이 그렇게 했다).
 5. `console.time` / `console.timeEnd` 라벨도 그대로 둔다
 6. 행 잠금이 있으면 `if (facade.can('rowLock')) { qb = qb.forUpdate().noWait(); }` 로 감싼다
+7. **에러 어휘가 바뀐다 — 같은 커밋에서 호출부를 함께 고친다.**
+
+   파사드는 실패 시 `err.code` 를 중립 코드로 덮어쓴다:
+   `DUPLICATE_KEY` / `FK_VIOLATION` / `NOT_NULL` / `LOCK_CONFLICT` / `LOCK_TIMEOUT` / `UNKNOWN`.
+   원본 드라이버 코드는 `err.driverCode`, 제약 이름 힌트는 `err.constraint` 에 있다
+   (`constraint` 는 **부분 문자열 비교용**이다 — 동등 비교하면 백엔드/버전에 따라 빗나간다).
+
+   `mobius/resource.js` 에는 `results.code == 'ER_DUP_ENTRY'` 검사가 29곳 있다.
+   전환한 함수의 에러가 그중 하나에 닿으면 조건이 빗나가 `409-5`/`409-6` 대신
+   `500-4` 가 나간다.
+
+   **따라서 함수를 전환할 때, 그 함수의 에러를 받는 `resource.js` 검사를 같은
+   커밋에서 함께 고친다.** 전환을 다 끝낸 뒤 일괄로 미루면 그 사이 기간 내내
+   응답 코드가 틀린다.
+
+   예 — `insert_ae` 전환 시 `resource.js:359` 를 이렇게 바꿔야 한다:
+
+       // 전환 전
+       if (results.code == 'ER_DUP_ENTRY') {
+           if (results.message.includes('aei_UNIQUE')) { callback('409-6'); }
+           else { callback('409-5'); }
+       }
+
+       // 전환 후
+       if (results.code == 'DUPLICATE_KEY') {
+           // constraint 는 부분 문자열로 비교한다 (MySQL "aei_UNIQUE" / SQLite "aei")
+           if (results.constraint && results.constraint.indexOf('aei') >= 0) { callback('409-6'); }
+           else { callback('409-5'); }
+       }
+
+   주의: `insert_acp` 는 이 문제를 겪지 않았다. `insert_lookup`(미전환)이 `lookup.ri`
+   PK 로 중복을 먼저 잡아 구경로 에러 코드를 돌려주기 때문이다. 즉 **참조 구현이
+   안전했던 것은 우연이며, 다음 함수부터는 그렇지 않다.**
+
+### 검증 — 실패 경로를 반드시 한 번은 밟는다
+
+동등성 스냅샷은 성공 경로만 밟는다. 전환에서 손으로 다시 쓰는 부분은
+대개 **실패 경로(보상 로직, 에러 분기)** 이므로, 그것만으로는 부족하다.
+(`insert_acp` 자체가 그 사례다 — 보상 블록은 이번 태스크 어떤 시나리오
+단계로도 실행된 적이 없다. 아래에서 실패 경로를 최소 1회 밟도록 요구하는
+이유다.)
+
+전환한 함수마다 실패 경로를 최소 1회 실제로 밟아야 한다. 방법 둘 중 하나:
+
+- 시나리오에 실패 단계를 추가한다 (중복 생성 등)
+- 일회성으로 실패를 주입해 보상 로직이 도는지 확인하고, 그 출력을 리포트에 남긴다
+
+현재 `tools/equivalence/run-scenarios.js` 에서 에러 경로를 밟는 단계는
+`ae-create-duplicate` **하나뿐이다.** 나머지 27단계는 전부 성공 경로다.
 
 검증은 매번 SQLite + MySQL 양쪽으로 동등성 스냅샷을 비교한다(실서버 기동 →
 `run-scenarios.js` → `compare.js`). 유닛테스트(`test/db-facade.test.js`)만으로는
 부족하다 — 그 테스트들은 각자 `db.connect()` 를 직접 부르므로 위 선행 조건이
 빠져 있어도 통과한다.
+
+**알려진 흔들림:** `cin-latest` 단계는 알려진 흔들림이 있다 (`ct` 가 초 단위라
+같은 초에 들어간 CIN 사이에서 "latest" 판정이 모호하다). **차이가 이 단계
+하나뿐이면 재실행으로 확인한다.** 다른 단계가 함께 틀렸다면 진짜 회귀다.
+
+**SQLite 의 `connection` 인자는 무시된다:** `facade.run(qb, connection, cb)` 를
+SQLite 백엔드로 부를 때 `connection` 인자는 실제로 안 쓰인다 —
+`mobius/db/sqlite.js` 의 `execute()` 는 넘어온 handle 을 버리고 모듈이 소유한
+`db` 핸들만 쓴다(`app.js` 가 usesqlite 값과 무관하게 항상 MySQL 풀 커넥션을
+넘기기 때문 — 위 "선행 조건" 참조). MySQL 백엔드에서는 `connection` 이 실제로
+쓰인다.
 ```
 
 ```bash
@@ -1883,12 +1945,20 @@ git commit -m "docs: 전환 패턴 기록 (참조 구현 insert_acp)"
 
 | 단계 | 내용 |
 |---|---|
-| 2 | `insert_*` 나머지 전환 |
+| 2 | `insert_*` 나머지 전환 — **각 함수의 에러를 받는 resource.js 검사를 같은 커밋에서 함께 중립 코드로 전환** |
 | 3 | `select_*` 전환 |
 | 4 | `update_*` / `delete_*` 전환 |
 | 5 | `REVIEW` 판정 함수 개별 처리 (`insert_lookup`, `search_lookup`, `delete_oldest` 등) |
-| 6 | 에러 어휘 중립화 — `resource.js` 29곳 |
+| 6 | 남은 `ER_DUP_ENTRY` 검사 정리 및 누락 확인 |
 | 7 | `asn.js`·`mn.js`·`cnt_man.js` 직접 require 정리 |
 | 8 | `db_action.js`·`db_sqlite.js` 삭제, 완료 판정 |
+
+**순서 결함 수정 (사후 반영, 2026-08-26):** 최초 버전은 "에러 어휘 중립화 —
+`resource.js` 29곳"을 별도 Step 6 으로 두어 전환 Step 2~4 **뒤에** 놓았다.
+이러면 전환이 끝난 시점부터 Step 6 이 끝날 때까지 응답 코드가 계속 틀린
+채로 배포된다(예: `insert_ae` 전환 직후 AE 중복 생성이 `409-6` 대신
+`500-4` 를 낸다). 위 표가 이미 반영한 대로, 에러 어휘 전환은 **별도
+단계가 아니라 각 전환 단계(Step 2~4)에 동반되는 작업**이다 — 전환 패턴
+7번(위) 참조. Step 6 은 일괄 전환이 아니라 누락 확인용으로 남긴다.
 
 Task 1이 끝나면 그 문서를 근거로 2차 계획을 작성한다.
