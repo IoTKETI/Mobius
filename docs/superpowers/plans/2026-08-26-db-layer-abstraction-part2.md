@@ -48,7 +48,7 @@ SQLite는 이 문법을 지원하지 않으므로 순차 문장으로 쪼개야 
 - `update_acp`의 `sql2`가 `db.getResult`를 **무조건** 호출한다 → SQLite 모드에서 `update_lookup`은 SQLite에 쓰는데 `acp` 본문은 MySQL로 간다. `select_acp`는 SQLite에서 읽으므로 **ACP 정책 갱신이 조용히 유실된다**
 
 **Files:**
-- Modify: `mobius/sql_action.js` (`update_lookup` L2679-2696, `update_acp` L2671-2690 근처)
+- Modify: `mobius/sql_action.js` (`update_lookup` L2679, `update_acp` L2699 — 각 함수 전체를 교체)
 - Test: `test/sqli-regression.test.js` (신규)
 
 **Interfaces:**
