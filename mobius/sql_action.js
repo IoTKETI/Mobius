@@ -3207,22 +3207,31 @@ exports.update_req = function (connection, ri, pc, op, mi, rs, ors, callback) {
 exports.update_sub = function (connection, obj, callback) {
     console.time('update_sub ' + obj.ri);
     _this.update_lookup(connection, obj, function (err, results) {
-        if (!err) {
-            var sql2 = util.format('update sub set enc = \'%s\', exc = \'%s\', nu = \'%s\', gpi = \'%s\', nfu = \'%s\', bn = \'%s\', rl = \'%s\', pn = \'%s\', nsp = \'%s\', ln = \'%s\', nct = \'%s\', nec = \'%s\' where ri = \'%s\'',
-                JSON.stringify(obj.enc), obj.exc, JSON.stringify(obj.nu), obj.gpi, obj.nfu, JSON.stringify(obj.bn), obj.rl, obj.pn, obj.nsp, obj.ln, obj.nct, obj.nec, obj.ri);
-            db.getResult(sql2, connection, function (err, results) {
-                if (!err) {
-                    console.timeEnd('update_sub ' + obj.ri);
-                    callback(err, results);
-                }
-                else {
-                    callback(err, results);
-                }
-            });
-        }
-        else {
+        if (err) {
             callback(err, results);
+            return;
         }
+
+        // 이전에는 db.getResult 를 무조건 호출해 SQLite 모드에서 구독 갱신이 유실됐다.
+        facade.run(facade.k('sub').update({
+            enc: JSON.stringify(obj.enc),
+            exc: obj.exc,
+            nu: JSON.stringify(obj.nu),
+            gpi: obj.gpi,
+            nfu: obj.nfu,
+            bn: JSON.stringify(obj.bn),
+            rl: obj.rl,
+            pn: obj.pn,
+            nsp: obj.nsp,
+            ln: obj.ln,
+            nct: obj.nct,
+            nec: obj.nec
+        }).where({ ri: obj.ri }), connection, function (err2, results2) {
+            if (!err2) {
+                console.timeEnd('update_sub ' + obj.ri);
+            }
+            callback(err2, results2);
+        });
     });
 };
 
