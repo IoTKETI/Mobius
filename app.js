@@ -48,6 +48,10 @@ var sgn = require('./mobius/sgn');
 var db = require('./mobius/db_action');
 var db_sql = require('./mobius/sql_action');
 
+// 전환된 sql_action 함수들이 쓰는 새 DB 파사드.
+// 전환이 끝나면(구 db_action/db_sqlite 삭제 시) 위 db 를 이것으로 대체한다.
+var db_facade = require('./mobius/db');
+
 // ������ �����մϴ�.
 var app = express();
 
@@ -148,6 +152,9 @@ if (use_clustering) {
 
         db.connect(usedbhost, 3306, 'root', usedbpass, (rsc) => {
             if (rsc == '1') {
+                // 전환된 함수들이 쓰는 파사드도 같은 설정으로 연결한다.
+                // 전환 기간 동안 구/신 두 경로가 공존한다.
+                db_facade.connect(usedbhost, 3306, 'root', usedbpass, () => {});
                 db.getConnection((code, connection) => {
                     if (code === '200') {
                         db_sql.set_tuning(connection, (err, results) => {
@@ -193,6 +200,9 @@ if (use_clustering) {
     else {
         db.connect(usedbhost, 3306, 'root', usedbpass, (rsc) => {
             if (rsc === '1') {
+                // 전환된 함수들이 쓰는 파사드도 같은 설정으로 연결한다.
+                // 전환 기간 동안 구/신 두 경로가 공존한다.
+                db_facade.connect(usedbhost, 3306, 'root', usedbpass, () => {});
                 db.getConnection((code, connection) => {
                     if (code === '200') {
                         if (use_secure === 'disable') {
@@ -236,6 +246,9 @@ if (use_clustering) {
 else {
     db.connect(usedbhost, 3306, 'root', usedbpass, (rsc) => {
         if (rsc == '1') {
+            // 전환된 함수들이 쓰는 파사드도 같은 설정으로 연결한다.
+            // 전환 기간 동안 구/신 두 경로가 공존한다.
+            db_facade.connect(usedbhost, 3306, 'root', usedbpass, () => {});
             db.getConnection((code, connection) => {
                 if (code === '200') {
                     cb.create(connection, (rsp) => {

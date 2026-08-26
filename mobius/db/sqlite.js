@@ -85,7 +85,14 @@ function isRowReturning(sql) {
 }
 
 exports.execute = function (handle, sql, bindings, callback) {
-    var h = handle || db;
+    // 이 어댑터는 넘어온 handle 을 쓰지 않고 모듈이 소유한 db 핸들만 쓴다.
+    //
+    // 이유: app.js 는 usesqlite 와 무관하게 항상 MySQL 풀 커넥션을 sql_action 에
+    // 넘긴다. 그 핸들은 truthy 이므로 `handle || db` 로는 MySQL 커넥션이 선택되어
+    // h.all()/h.run() 이 깨진다. 기존 db_sqlite.getResult 도 connection 인자를
+    // 무시하고 모듈 핸들만 쓴다 — 여기서 그 동작을 그대로 따른다.
+    // (SQLite 는 풀이 없고 워커당 핸들 하나를 공유한다.)
+    var h = db;
 
     if (isRowReturning(sql)) {
         h.all(sql, bindings, function (err, rows) {

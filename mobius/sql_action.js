@@ -20,6 +20,9 @@ var merge = require('merge');
 var db = require('./db_action');
 var sqlite = require('./db_sqlite');
 
+// 전환된 함수는 이 파사드를 쓴다. 전환이 끝나면 위 두 줄은 삭제한다.
+var facade = require('./db');
+
 var _this = this;
 
 global.max_lim = 2000;
@@ -320,47 +323,27 @@ exports.insert_cb = function (connection, obj, callback) {
 exports.insert_acp = function (connection, obj, callback) {
     console.time('insert_acp ' + obj.ri);
     _this.insert_lookup(connection, obj, function (err, results) {
-        if (!err) {
-            if (global.usesqlite === 'true') {
-                var sql = util.format('insert into acp (ri, pv, pvs) ' +
-                    'values (\'%s\', \'%s\', \'%s\')',
-                    obj.ri, JSON.stringify(obj.pv).replace(/'/g, "''"), JSON.stringify(obj.pvs).replace(/'/g, "''"));
-
-                sqlite.getResult(sql, null, function (err, results) {
-                    if (!err) {
-                        console.timeEnd('insert_acp ' + obj.ri);
-                        callback(err, results);
-                    }
-                    else {
-                        sql = util.format("delete from lookup where ri = \'%s\'", obj.ri);
-                        sqlite.getResult(sql, null, function () {
-                            callback(err, results);
-                        });
-                    }
-                });
-            }
-            else {
-                var sql = util.format('insert into acp (ri, pv, pvs) ' +
-                    'values (\'%s\', \'%s\', \'%s\')',
-                    obj.ri, JSON.stringify(obj.pv).replace(/\"/g, '\\"').replace(/\'/g, '\\\''), JSON.stringify(obj.pvs).replace(/\"/g, '\\"').replace(/\'/g, '\\\''));
-
-                db.getResult(sql, connection, function (err, results) {
-                    if (!err) {
-                        console.timeEnd('insert_acp ' + obj.ri);
-                        callback(err, results);
-                    }
-                    else {
-                        sql = util.format("delete from lookup where ri = \'%s\'", obj.ri);
-                        db.getResult(sql, connection, function () {
-                            callback(err, results);
-                        });
-                    }
-                });
-            }
-        }
-        else {
+        if (err) {
             callback(err, results);
+            return;
         }
+
+        facade.run(facade.k('acp').insert({
+            ri: obj.ri,
+            pv: JSON.stringify(obj.pv),
+            pvs: JSON.stringify(obj.pvs)
+        }), connection, function (err2, results2) {
+            if (!err2) {
+                console.timeEnd('insert_acp ' + obj.ri);
+                callback(err2, results2);
+                return;
+            }
+
+            // 본문 insert 가 실패하면 lookup 행이 고아로 남는다. 되돌린다.
+            facade.run(facade.k('lookup').where({ ri: obj.ri }).del(), connection, function () {
+                callback(err2, results2);
+            });
+        });
     });
 };
 
