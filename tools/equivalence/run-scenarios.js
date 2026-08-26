@@ -156,6 +156,13 @@ async function main() {
         body: { 'm2m:sub': { rn: 's1', nu: ['http://127.0.0.1:59999'], nct: 2 } }
     }));
 
+    // 구독 갱신 — 같은 계열 버그의 회귀 방지.
+    await step('sub-update', () => call('PUT', '/' + CSE + '/' + AE + '/c1/s1', {
+        headers: { 'Content-Type': 'application/vnd.onem2m-res+json' },
+        body: { 'm2m:sub': { nu: ['http://127.0.0.1:59998'] } }
+    }));
+    await step('sub-after-update', () => call('GET', '/' + CSE + '/' + AE + '/c1/s1'));
+
     await step('acp-create', () => call('POST', '/' + CSE, {
         headers: { 'Content-Type': CT_ACP },
         body: {
@@ -166,6 +173,13 @@ async function main() {
             }
         }
     }));
+
+    // ACP 정책 갱신 — SQLite 모드에서 조용히 유실되던 버그의 회귀 방지.
+    await step('acp-update', () => call('PUT', '/' + CSE + '/eqv_acp', {
+        headers: { 'Content-Type': 'application/vnd.onem2m-res+json' },
+        body: { 'm2m:acp': { pv: { acr: [{ acor: [ORIGIN], acop: 51 }] } } }
+    }));
+    await step('acp-after-update', () => call('GET', '/' + CSE + '/eqv_acp'));
 
     // SQLite 미지원 타입 — 501 이어야 한다
     await step('grp-create-unsupported', () => call('POST', '/' + CSE + '/' + AE, {
