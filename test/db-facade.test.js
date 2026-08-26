@@ -256,3 +256,65 @@ test('transaction: finish 를 두 번 불러도 한 번만 정산한다 (양쪽 
         });
     }, 20);
 });
+
+// --- 미연결 상태 방어 --------------------------------------------------------
+// 호출부는 facade.run(facade.k('t')..., conn, cb) 형태다. k() 는 인자로 먼저
+// 평가되므로 run() 의 try 밖에서 실행된다. 여기서 동기 throw 가 나면 예외가
+// sql_action -> resource 로 올라가 워커를 죽인다. 콜백 에러가 되어야 한다.
+
+test('미연결: k() 는 던지지 않고 빌더를 준다', function () {
+    const db = freshDb(false);
+    assert.doesNotThrow(function () {
+        const n = db.k('lookup').select('ri').where('sri', 'x').toSQL().toNative();
+        assert.match(n.sql, /^select `ri` from `lookup`/);
+    });
+});
+
+test('미연결: raw() 도 던지지 않는다', function () {
+    const db = freshDb(true);
+    assert.doesNotThrow(function () { db.raw('select 1'); });
+});
+
+test('미연결: run() 은 던지지 않고 콜백으로 실패를 알린다', function (t, done) {
+    const db = freshDb(false);
+    let threw = false;
+    try {
+        db.run(db.k('lookup').select('ri'), {}, function (err, res) {
+            assert.strictEqual(err, true);
+            assert.ok(res);
+            assert.match(String(res.message), /connect\(\) has not been called/);
+            assert.strictEqual(threw, false);
+            done();
+        });
+    } catch (e) {
+        threw = true;
+        done(e);
+    }
+});
+
+test('미연결이어도 방언은 usesqlite 를 따른다', function () {
+    let db = freshDb(false);
+    db.k('t');   // 지연 초기화를 깨운다
+    assert.strictEqual(db._adapterName(), 'mysql');
+
+    db = freshDb(true);
+    db.k('t');
+    assert.strictEqual(db._adapterName(), 'sqlite');
+});
+
+test('연결 후에는 run() 이 정상 동작한다 (회귀 방지)', function (t, done) {
+    const db = freshDb(true);
+    db.connect('localhost', 3306, 'root', 'x', function (rsc) {
+        assert.strictEqual(rsc, '1');
+        db.getConnection(function (code, conn) {
+            assert.strictEqual(code, '200');
+            db.run(db.raw('select 1 as one'), conn, function (err, rows) {
+                assert.strictEqual(err, null);
+                assert.ok(Array.isArray(rows));
+                assert.strictEqual(rows[0].one, 1);
+                db.release(conn);
+                done();
+            });
+        });
+    });
+});

@@ -153,13 +153,18 @@ if (use_clustering) {
         db.connect(usedbhost, 3306, 'root', usedbpass, (rsc) => {
             if (rsc == '1') {
                 // 파사드 연결 실패가 서버 기동 자체를 막으면 안 된다.
-                // 전환 안 된 함수들은 구 경로로 계속 동작한다.
+                // 전환 안 된 함수들은 구 경로로 계속 동작하고, 전환된 함수는
+                // db.run() 이 콜백으로 에러를 돌려준다(워커는 죽지 않는다).
                 try {
                     db_facade.connect(usedbhost, 3306, 'root', usedbpass, (rsc2) => {
-                        if (rsc2 !== '1') { console.error('[db_facade] connect failed: ' + rsc2); }
+                        if (rsc2 !== '1') {
+                            console.error('[db_facade] connect failed (' + rsc2 +
+                                ') — 전환된 DB 함수는 전부 실패한다');
+                        }
                     });
                 } catch (e) {
-                    console.error('[db_facade] connect threw: ' + (e.message || e));
+                    console.error('[db_facade] connect threw (' + (e.message || e) +
+                        ') — 전환된 DB 함수는 전부 실패한다');
                 }
                 db.getConnection((code, connection) => {
                     if (code === '200') {
@@ -207,13 +212,18 @@ if (use_clustering) {
         db.connect(usedbhost, 3306, 'root', usedbpass, (rsc) => {
             if (rsc === '1') {
                 // 파사드 연결 실패가 서버 기동 자체를 막으면 안 된다.
-                // 전환 안 된 함수들은 구 경로로 계속 동작한다.
+                // 전환 안 된 함수들은 구 경로로 계속 동작하고, 전환된 함수는
+                // db.run() 이 콜백으로 에러를 돌려준다(워커는 죽지 않는다).
                 try {
                     db_facade.connect(usedbhost, 3306, 'root', usedbpass, (rsc2) => {
-                        if (rsc2 !== '1') { console.error('[db_facade] connect failed: ' + rsc2); }
+                        if (rsc2 !== '1') {
+                            console.error('[db_facade] connect failed (' + rsc2 +
+                                ') — 전환된 DB 함수는 전부 실패한다');
+                        }
                     });
                 } catch (e) {
-                    console.error('[db_facade] connect threw: ' + (e.message || e));
+                    console.error('[db_facade] connect threw (' + (e.message || e) +
+                        ') — 전환된 DB 함수는 전부 실패한다');
                 }
                 db.getConnection((code, connection) => {
                     if (code === '200') {
@@ -259,13 +269,18 @@ else {
     db.connect(usedbhost, 3306, 'root', usedbpass, (rsc) => {
         if (rsc == '1') {
             // 파사드 연결 실패가 서버 기동 자체를 막으면 안 된다.
-            // 전환 안 된 함수들은 구 경로로 계속 동작한다.
+            // 전환 안 된 함수들은 구 경로로 계속 동작하고, 전환된 함수는
+            // db.run() 이 콜백으로 에러를 돌려준다(워커는 죽지 않는다).
             try {
                 db_facade.connect(usedbhost, 3306, 'root', usedbpass, (rsc2) => {
-                    if (rsc2 !== '1') { console.error('[db_facade] connect failed: ' + rsc2); }
+                    if (rsc2 !== '1') {
+                        console.error('[db_facade] connect failed (' + rsc2 +
+                            ') — 전환된 DB 함수는 전부 실패한다');
+                    }
                 });
             } catch (e) {
-                console.error('[db_facade] connect threw: ' + (e.message || e));
+                console.error('[db_facade] connect threw (' + (e.message || e) +
+                    ') — 전환된 DB 함수는 전부 실패한다');
             }
             db.getConnection((code, connection) => {
                 if (code === '200') {

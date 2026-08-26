@@ -18,20 +18,38 @@ var ADAPTERS = {
 
 var adapter = null;
 var knexInstance = null;
+var connectCalled = false;
 
 function pick() {
     return global.usesqlite === 'true' ? ADAPTERS.sqlite : ADAPTERS.mysql;
 }
 
+// Knex 는 순수 SQL 생성기다 — knexFactory() 는 DB 에 접속하지 않는다.
+// 빌더에 필요한 건 방언 이름뿐이고, 방언은 pick() 만으로 정해진다.
+// 그래서 connect() 전에도 빌더는 만들 수 있다. 이렇게 해야 k()/raw() 가
+// 동기 throw 를 내지 않는다 — 호출부가 facade.run(facade.k(...), ...) 형태라
+// k() 의 예외는 run() 의 try 를 우회해 워커를 죽인다.
+function builder() {
+    if (!knexInstance) {
+        adapter = adapter || pick();
+        knexInstance = knexFactory({ client: adapter.knexClient, useNullAsDefault: true });
+    }
+    return knexInstance;
+}
+
+// 실제 연결이 필요한 지점에서만 쓴다. builder() 가 adapter 를 채울 수 있으므로
+// adapter 존재 여부로는 판단할 수 없다 — connect() 호출 자체를 기록한다.
 function assertReady() {
-    if (!adapter || !knexInstance) {
+    if (!connectCalled) {
         throw new Error('[db] connect() has not been called');
     }
 }
 
 exports.connect = function (host, port, user, password, callback) {
     adapter = pick();
-    knexInstance = knexFactory({ client: adapter.knexClient, useNullAsDefault: true });
+    knexInstance = null;   // 백엔드가 바뀌었을 수 있으니 빌더를 다시 만든다
+    builder();
+    connectCalled = true;
 
     if (!adapter.capabilities.transaction) {
         console.log('[db] backend "' + adapter.name + '" does not support transactions; ' +
@@ -52,24 +70,25 @@ exports.release = function (handle) {
 };
 
 // 빌더 진입점. sql_action.js 는 db.k('table')... 로 쿼리를 만든다.
+// assertReady() 를 부르지 않는다 — builder() 의 주석 참고. 연결 검사는 run() 이 한다.
 exports.k = function (table) {
-    assertReady();
-    return knexInstance(table);
+    return builder()(table);
 };
 
 exports.raw = function (sql, bindings) {
-    assertReady();
-    return bindings === undefined ? knexInstance.raw(sql) : knexInstance.raw(sql, bindings);
+    var kx = builder();
+    return bindings === undefined ? kx.raw(sql) : kx.raw(sql, bindings);
 };
 
 exports.run = function (qb, conn, callback) {
-    assertReady();
-
     var native;
     try {
+        assertReady();
         native = qb.toSQL().toNative();
     } catch (e) {
-        return callback(true, adapter.normalizeError(e));
+        // adapter 가 없을 수도 있다(connect() 전 + k() 도 안 불린 경우).
+        return callback(true, adapter ? adapter.normalizeError(e)
+                                      : { code: 'UNKNOWN', message: e.message });
     }
 
     adapter.execute(conn, native.sql, native.bindings, function (err, raw) {
