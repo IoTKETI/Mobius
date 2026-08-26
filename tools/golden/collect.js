@@ -13,13 +13,14 @@ if (!OUT) {
     process.exit(1);
 }
 
-// 값 자리를 통일해 "SQL 의 형태"만 남긴다.
+// 값 자리는 형태가 무엇이든(문자열 리터럴 / ? 바인딩 / 맨숫자) 같은 토큰으로 만든다.
+// 그래야 파라미터 바인딩 전환 전후의 SQL 이 같은 형태로 비교된다.
 function shape(sql) {
     return sql
-        .replace(/'(?:[^'\\]|\\.)*'/g, "'V'")      // 문자열 리터럴
-        .replace(/\b\d+\b/g, 'N')                   // 숫자
-        .replace(/\?/g, 'V')                        // 바인딩 자리
-        .replace(/`/g, '')                          // 식별자 인용
+        .replace(/'(?:[^'\\]|\\.)*'/g, 'V')   // 문자열 리터럴
+        .replace(/\?/g, 'V')                   // 바인딩 자리
+        .replace(/\b\d+\b/g, 'V')              // 숫자 리터럴
+        .replace(/`/g, '')                     // 식별자 인용
         .replace(/"/g, '')
         .replace(/\s+/g, ' ')
         .trim()

@@ -29,6 +29,29 @@ function install() {
     wrap(require('../../mobius/db_action'), 'mysql');
     wrap(require('../../mobius/db_sqlite'), 'sqlite');
 
+    // 전환된 함수는 db.run -> mobius/db/<backend>.execute 로 간다.
+    // 이 경로도 잡아야 전환 전후를 같은 기준으로 비교할 수 있다.
+    function wrapExecute(mod, backend) {
+        if (!mod || typeof mod.execute !== 'function' || mod.__tapped_execute) { return; }
+        const orig = mod.execute;
+        mod.execute = function (handle, sql, bindings, callback) {
+            try {
+                stream.write(JSON.stringify({ backend: backend, sql: String(sql) }) + '\n');
+            } catch (e) { /* 기록 실패가 요청을 막으면 안 된다 */ }
+            return orig.call(mod, handle, sql, bindings, callback);
+        };
+        mod.__tapped_execute = true;
+    }
+
+    // 파사드 어댑터는 Task 4 이후에만 존재한다. 아직 없으면 조용히 건너뛴다.
+    ['mysql', 'sqlite'].forEach(function (name) {
+        try {
+            wrapExecute(require('../../mobius/db/' + name), name);
+        } catch (e) {
+            // 아직 파사드가 없음 — 정상
+        }
+    });
+
     console.log('[sql-tap] 기록 시작 -> ' + file);
 }
 

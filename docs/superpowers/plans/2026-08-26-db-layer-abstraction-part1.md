@@ -544,6 +544,29 @@ function install() {
     wrap(require('../../mobius/db_action'), 'mysql');
     wrap(require('../../mobius/db_sqlite'), 'sqlite');
 
+    // 전환된 함수는 db.run -> mobius/db/<backend>.execute 로 간다.
+    // 이 경로도 잡아야 전환 전후를 같은 기준으로 비교할 수 있다.
+    function wrapExecute(mod, backend) {
+        if (!mod || typeof mod.execute !== 'function' || mod.__tapped_execute) { return; }
+        const orig = mod.execute;
+        mod.execute = function (handle, sql, bindings, callback) {
+            try {
+                stream.write(JSON.stringify({ backend: backend, sql: String(sql) }) + '\n');
+            } catch (e) { /* 기록 실패가 요청을 막으면 안 된다 */ }
+            return orig.call(mod, handle, sql, bindings, callback);
+        };
+        mod.__tapped_execute = true;
+    }
+
+    // 파사드 어댑터는 Task 4 이후에만 존재한다. 아직 없으면 조용히 건너뛴다.
+    ['mysql', 'sqlite'].forEach(function (name) {
+        try {
+            wrapExecute(require('../../mobius/db/' + name), name);
+        } catch (e) {
+            // 아직 파사드가 없음 — 정상
+        }
+    });
+
     console.log('[sql-tap] 기록 시작 -> ' + file);
 }
 
@@ -589,13 +612,14 @@ if (!OUT) {
     process.exit(1);
 }
 
-// 값 자리를 통일해 "SQL 의 형태"만 남긴다.
+// 값 자리는 형태가 무엇이든(문자열 리터럴 / ? 바인딩 / 맨숫자) 같은 토큰으로 만든다.
+// 그래야 파라미터 바인딩 전환 전후의 SQL 이 같은 형태로 비교된다.
 function shape(sql) {
     return sql
-        .replace(/'(?:[^'\\]|\\.)*'/g, "'V'")      // 문자열 리터럴
-        .replace(/\b\d+\b/g, 'N')                   // 숫자
-        .replace(/\?/g, 'V')                        // 바인딩 자리
-        .replace(/`/g, '')                          // 식별자 인용
+        .replace(/'(?:[^'\\]|\\.)*'/g, 'V')   // 문자열 리터럴
+        .replace(/\?/g, 'V')                   // 바인딩 자리
+        .replace(/\b\d+\b/g, 'V')              // 숫자 리터럴
+        .replace(/`/g, '')                     // 식별자 인용
         .replace(/"/g, '')
         .replace(/\s+/g, ' ')
         .trim()
