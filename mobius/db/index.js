@@ -83,41 +83,61 @@ exports.run = function (qb, conn, callback) {
 //
 // 콜백 규약은 이 레이어의 나머지와 같다: 성공 cb(null, result), 실패 cb(true, err).
 // 본문은 finish(err, result) 로 2인자를 넘겨야 에러 객체가 보존된다.
+// finish 는 몇 번 불러도 한 번만 정산된다 — 두 경로 모두 그렇다.
 exports.transaction = function (conn, body, callback) {
     assertReady();
 
-    if (!adapter.capabilities.transaction) {
+    var capable = adapter.capabilities.transaction;
+    var settled = false;
+
+    function settle(err, result) {
+        if (settled) { return false; }
+        settled = true;
+        callback(err || null, result);
+        return true;
+    }
+
+    // 본문이 이미 정산한 뒤 던진 예외는 콜백으로 갈 곳이 없다.
+    // 조용히 삼키면 원인 불명이 되므로 로그로 남긴다.
+    function reportLate(e) {
+        console.error('[db] transaction body threw after settling: ' + ((e && e.message) || e));
+    }
+
+    if (!capable) {
         try {
-            body(conn, function (err, result) { callback(err || null, result); });
+            body(conn, function (err, result) { settle(err, result); });
         } catch (e) {
-            callback(true, adapter.normalizeError(e));
+            if (!settle(true, adapter.normalizeError(e))) { reportLate(e); }
         }
         return;
     }
 
     adapter.begin(conn, function (beginErr) {
-        if (beginErr) { return callback(true, adapter.normalizeError(beginErr)); }
+        if (beginErr) { return settle(true, adapter.normalizeError(beginErr)); }
 
-        var settled = false;
+        var finishing = false;
 
         function finish(err, result) {
-            if (settled) { return; }   // 본문이 두 번 정산해도 트랜잭션은 한 번만 끝난다
-            settled = true;
+            if (finishing || settled) { return false; }
+            finishing = true;
 
             if (err) {
-                return adapter.rollback(conn, function (rbErr) {
-                    if (rbErr) { console.error('[db] rollback failed: ' + (rbErr.message || rbErr)); }
-                    callback(err, result);
+                adapter.rollback(conn, function (rbErr) {
+                    if (rbErr) { console.error('[db] rollback failed: ' + ((rbErr.message) || rbErr)); }
+                    settle(err, result);
                 });
+                return true;
             }
 
             adapter.commit(conn, function (commitErr) {
-                if (!commitErr) { return callback(null, result); }
+                if (!commitErr) { return settle(null, result); }
                 // commit 실패 시에도 커넥션을 깨끗한 상태로 돌려놓아야 한다.
-                adapter.rollback(conn, function () {
-                    callback(true, adapter.normalizeError(commitErr));
+                adapter.rollback(conn, function (rbErr) {
+                    if (rbErr) { console.error('[db] rollback after failed commit also failed: ' + ((rbErr.message) || rbErr)); }
+                    settle(true, adapter.normalizeError(commitErr));
                 });
             });
+            return true;
         }
 
         // 본문이 동기 throw 하면 rollback 없이 빠져나가 커넥션이 열린 트랜잭션
@@ -125,7 +145,7 @@ exports.transaction = function (conn, body, callback) {
         try {
             body(conn, finish);
         } catch (e) {
-            finish(true, adapter.normalizeError(e));
+            if (!finish(true, adapter.normalizeError(e))) { reportLate(e); }
         }
     });
 };

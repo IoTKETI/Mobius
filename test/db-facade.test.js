@@ -154,3 +154,102 @@ test('transaction: 본문의 동기 예외를 잡아 콜백으로 넘긴다', fu
         });
     });
 });
+
+// capable 경로(트랜잭션 지원 백엔드)는 실제 MySQL 서버 없이도 검증할 수 있다.
+// 어댑터의 begin/commit/rollback 을 스텁으로 갈아끼우면 파사드가 그것들을
+// 어떤 순서로 부르고 콜백을 몇 번 정산하는지 그대로 드러난다.
+function capableDb(stubs) {
+    const db = freshDb(false);                       // mysql 어댑터 선택
+    const mysql = require(path.join(DB, 'mysql.js'));
+    const ops = [];
+
+    mysql.capabilities = { transaction: true, rowLock: true };
+    mysql.begin = function (h, cb) { ops.push('begin'); cb(stubs.beginErr || null); };
+    mysql.commit = function (h, cb) { ops.push('commit'); cb(stubs.commitErr || null); };
+    mysql.rollback = function (h, cb) { ops.push('rollback'); cb(stubs.rollbackErr || null); };
+
+    db.connect('h', 1, 'u', 'p', function () {});
+    return { db: db, ops: ops };
+}
+
+test('transaction(capable): 성공하면 begin -> commit, 정산 1회', function (t, done) {
+    const { db, ops } = capableDb({});
+    let calls = 0;
+    db.transaction({}, function (conn, finish) { finish(null, 'r'); }, function (err, result) {
+        calls++;
+        assert.strictEqual(err, null);
+        assert.strictEqual(result, 'r');
+        assert.deepStrictEqual(ops, ['begin', 'commit']);
+        setTimeout(function () { assert.strictEqual(calls, 1); done(); }, 10);
+    });
+});
+
+test('transaction(capable): 본문 실패하면 rollback 하고 에러를 보존한다', function (t, done) {
+    const { db, ops } = capableDb({});
+    const boom = { code: 'DUPLICATE_KEY' };
+    db.transaction({}, function (conn, finish) { finish(true, boom); }, function (err, result) {
+        assert.strictEqual(err, true);
+        assert.strictEqual(result, boom);
+        assert.deepStrictEqual(ops, ['begin', 'rollback']);
+        done();
+    });
+});
+
+test('transaction(capable): 본문 동기 예외도 rollback 한다', function (t, done) {
+    const { db, ops } = capableDb({});
+    db.transaction({}, function () { throw new Error('sync boom'); }, function (err, e) {
+        assert.strictEqual(err, true);
+        assert.match(e.message, /sync boom/);
+        assert.deepStrictEqual(ops, ['begin', 'rollback']);
+        done();
+    });
+});
+
+test('transaction(capable): commit 실패하면 rollback 까지 간다', function (t, done) {
+    const { db, ops } = capableDb({ commitErr: new Error('commit-fail') });
+    db.transaction({}, function (conn, finish) { finish(null, 'r'); }, function (err, e) {
+        assert.strictEqual(err, true);
+        assert.match(e.message, /commit-fail/);
+        assert.deepStrictEqual(ops, ['begin', 'commit', 'rollback']);
+        done();
+    });
+});
+
+test('transaction(capable): begin 실패하면 본문을 실행하지 않는다', function (t, done) {
+    const { db, ops } = capableDb({ beginErr: new Error('begin-fail') });
+    let ran = false;
+    db.transaction({}, function () { ran = true; }, function (err, e) {
+        assert.strictEqual(err, true);
+        assert.match(e.message, /begin-fail/);
+        assert.strictEqual(ran, false);
+        assert.deepStrictEqual(ops, ['begin']);
+        done();
+    });
+});
+
+test('transaction: finish 를 두 번 불러도 한 번만 정산한다 (양쪽 경로)', function (t, done) {
+    const { db, ops } = capableDb({});
+    let capableCalls = 0;
+    db.transaction({}, function (conn, finish) { finish(null, 'a'); finish(null, 'b'); }, function () {
+        capableCalls++;
+    });
+
+    setTimeout(function () {
+        assert.strictEqual(capableCalls, 1, 'capable 경로 정산은 1회여야 한다');
+        assert.deepStrictEqual(ops, ['begin', 'commit'], 'commit 도 1회여야 한다');
+
+        const sdb = freshDb(true);                    // sqlite = 무능력 경로
+        sdb.connect('localhost', 3306, 'root', 'x', function () {
+            let n = 0;
+            sdb.transaction(null, function (conn, finish) {
+                finish(null, 'a');
+                finish(null, 'b');
+                throw new Error('late throw');        // 정산 후 예외도 재정산하면 안 된다
+            }, function () { n++; });
+            setTimeout(function () {
+                assert.strictEqual(n, 1, '무능력 경로 정산도 1회여야 한다');
+                done();
+            }, 10);
+        });
+    }, 20);
+});

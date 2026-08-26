@@ -76,7 +76,11 @@ function isRowReturning(sql) {
     } while (s !== prev);
 
     if (/^(select|with|pragma|explain|values)\b/i.test(s)) { return true; }
-    if (/\breturning\b/i.test(s)) { return true; }   // INSERT ... RETURNING 등
+
+    // RETURNING 검사 전에 문자열 리터럴을 지운다.
+    // 안 그러면 values ('returning home') 같은 데이터가 걸려 쓰기가 읽기로 오분류된다.
+    var withoutLiterals = s.replace(/'(?:[^'\\]|\\.)*'/g, "''");
+    if (/\breturning\b/i.test(withoutLiterals)) { return true; }
     return false;
 }
 
