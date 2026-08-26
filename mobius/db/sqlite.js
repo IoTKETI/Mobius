@@ -60,12 +60,30 @@ exports.getConnection = function (callback) {
 // 풀이 없으므로 반납할 것이 없다.
 exports.release = function () { };
 
+// 행을 돌려주는 문장인지 판별한다.
+// sqlite3 는 db.all(행 반환)과 db.run(변경 건수)을 호출자가 골라야 하는데,
+// 잘못 고르면 에러 없이 조용히 틀린 형태를 돌려준다(직전 문장의 changes 가 섞인다).
+function isRowReturning(sql) {
+    var s = String(sql);
+
+    // 선행 공백과 주석을 걷어낸다
+    var prev;
+    do {
+        prev = s;
+        s = s.replace(/^\s+/, '')
+             .replace(/^--[^\n]*\n?/, '')
+             .replace(/^\/\*[\s\S]*?\*\//, '');
+    } while (s !== prev);
+
+    if (/^(select|with|pragma|explain|values)\b/i.test(s)) { return true; }
+    if (/\breturning\b/i.test(s)) { return true; }   // INSERT ... RETURNING 등
+    return false;
+}
+
 exports.execute = function (handle, sql, bindings, callback) {
     var h = handle || db;
-    var head = sql.trim().slice(0, 6).toUpperCase();
-    var isRead = head === 'SELECT' || sql.trim().slice(0, 4).toUpperCase() === 'WITH';
 
-    if (isRead) {
+    if (isRowReturning(sql)) {
         h.all(sql, bindings, function (err, rows) {
             if (err) { return callback(err, null); }
             callback(null, rows);
@@ -88,11 +106,19 @@ exports.normalizeResult = function (raw) {
 
 exports.normalizeError = function (err) {
     if (!err) { return { code: 'UNKNOWN' }; }
+
+    var driverCode = err.code;
     var raw = err.code || '';
     var msg = err.message || '';
     var code = 'UNKNOWN';
 
-    if (raw === 'SQLITE_CONSTRAINT_FOREIGNKEY' || /FOREIGN KEY constraint/i.test(msg)) {
+    // node-sqlite3 5.1.7 은 확장 코드(SQLITE_CONSTRAINT_*)를 내보내지 않는다 —
+    // err.code 는 'SQLITE_CONSTRAINT'까지만 준다. 아래 SQLITE_CONSTRAINT_* 분기는
+    // 실측으로는 도달하지 않으며(메시지 정규식이 실제 판별을 담당한다) 상위
+    // 드라이버 버전이 확장 코드를 채워주기 시작할 때를 대비해 남겨둔다.
+    if (raw === 'SQLITE_BUSY' || raw === 'SQLITE_LOCKED') {
+        code = 'LOCK_CONFLICT';
+    } else if (raw === 'SQLITE_CONSTRAINT_FOREIGNKEY' || /FOREIGN KEY constraint/i.test(msg)) {
         code = 'FK_VIOLATION';
     } else if (raw === 'SQLITE_CONSTRAINT_NOTNULL' || /NOT NULL constraint/i.test(msg)) {
         code = 'NOT_NULL';
@@ -101,11 +127,12 @@ exports.normalizeError = function (err) {
         code = 'DUPLICATE_KEY';
     }
 
-    // "UNIQUE constraint failed: ae.aei" -> "ae.aei"
+    // 부분 문자열 비교용 힌트. "UNIQUE constraint failed: ae.aei" -> "aei"
     var constraint = null;
-    var m = /constraint failed:\s*([^\s]+)/i.exec(msg);
-    if (m) { constraint = m[1]; }
+    var m = /constraint failed:\s*([^\s,]+)/i.exec(msg);
+    if (m) { constraint = m[1].replace(/^.*\./, ''); }
 
+    err.driverCode = driverCode;
     err.code = code;
     err.constraint = constraint;
     return err;

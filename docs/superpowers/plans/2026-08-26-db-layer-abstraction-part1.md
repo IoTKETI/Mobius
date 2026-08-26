@@ -929,6 +929,49 @@ test('제약 위반 에러가 중립 코드로 정규화된다', function (t, do
         });
     });
 });
+
+test('transaction: 능력이 없으면 트랜잭션 없이 본문을 실행한다', function (t, done) {
+    const db = freshDb(true);
+    db.connect('localhost', 3306, 'root', 'x', function () {
+        let ran = false;
+        db.transaction(null, function (conn, finish) {
+            ran = true;
+            finish(null, 'ok');
+        }, function (err, result) {
+            assert.strictEqual(err, null);
+            assert.strictEqual(result, 'ok');
+            assert.strictEqual(ran, true);
+            done();
+        });
+    });
+});
+
+test('transaction: 본문의 에러 객체가 보존된다', function (t, done) {
+    const db = freshDb(true);
+    db.connect('localhost', 3306, 'root', 'x', function () {
+        const boom = { code: 'DUPLICATE_KEY', message: 'boom' };
+        db.transaction(null, function (conn, finish) {
+            finish(true, boom);
+        }, function (err, result) {
+            assert.strictEqual(err, true, '실패 시 첫 인자는 true');
+            assert.strictEqual(result, boom, '에러 객체가 소멸하면 안 된다');
+            done();
+        });
+    });
+});
+
+test('transaction: 본문의 동기 예외를 잡아 콜백으로 넘긴다', function (t, done) {
+    const db = freshDb(true);
+    db.connect('localhost', 3306, 'root', 'x', function () {
+        db.transaction(null, function () {
+            throw new Error('sync boom');
+        }, function (err, e) {
+            assert.strictEqual(err, true);
+            assert.match(e.message, /sync boom/);
+            done();
+        });
+    });
+});
 ```
 
 - [ ] **Step 3: 테스트가 실패하는지 확인한다**
@@ -1012,16 +1055,27 @@ exports.normalizeResult = function (raw) {
 
 exports.normalizeError = function (err) {
     if (!err) { return { code: 'UNKNOWN' }; }
+
+    // 원본 드라이버 코드를 보존한다. 중립 코드로 덮어쓰면 백엔드 고유
+    // 조건(락 충돌 등)을 상위에서 복구할 방법이 사라진다.
+    var driverCode = err.code;
+
     var code = 'UNKNOWN';
     if (err.code === 'ER_DUP_ENTRY') { code = 'DUPLICATE_KEY'; }
     else if (err.code === 'ER_NO_REFERENCED_ROW_2' || err.code === 'ER_ROW_IS_REFERENCED_2') { code = 'FK_VIOLATION'; }
     else if (err.code === 'ER_BAD_NULL_ERROR') { code = 'NOT_NULL'; }
+    else if (err.code === 'ER_LOCK_NOWAIT' || err.errno === 3572) { code = 'LOCK_CONFLICT'; }
+    else if (err.code === 'ER_LOCK_DEADLOCK' || err.errno === 1213) { code = 'LOCK_CONFLICT'; }
+    else if (err.code === 'ER_LOCK_WAIT_TIMEOUT' || err.errno === 1205) { code = 'LOCK_TIMEOUT'; }
 
-    // 409-6(aei 중복)처럼 제약 이름으로 갈리는 곳이 있어 이름을 실어 보낸다.
+    // err.constraint 는 부분 문자열 비교용 힌트다. 동등 비교하면 안 된다 —
+    // MySQL 5.7 은 "aei_UNIQUE", MySQL 8 은 "ae.aei_UNIQUE", SQLite 는 "aei" 를 준다.
+    // 테이블 접두사를 떼어 최소한의 공통 형태로 맞춘다.
     var constraint = null;
     var m = /key '([^']+)'/i.exec(err.sqlMessage || err.message || '');
-    if (m) { constraint = m[1]; }
+    if (m) { constraint = m[1].replace(/^.*\./, ''); }
 
+    err.driverCode = driverCode;
     err.code = code;
     err.constraint = constraint;
     return err;
@@ -1099,12 +1153,30 @@ exports.getConnection = function (callback) {
 // 풀이 없으므로 반납할 것이 없다.
 exports.release = function () { };
 
+// 행을 돌려주는 문장인지 판별한다.
+// sqlite3 는 db.all(행 반환)과 db.run(변경 건수)을 호출자가 골라야 하는데,
+// 잘못 고르면 에러 없이 조용히 틀린 형태를 돌려준다(직전 문장의 changes 가 섞인다).
+function isRowReturning(sql) {
+    var s = String(sql);
+
+    // 선행 공백과 주석을 걷어낸다
+    var prev;
+    do {
+        prev = s;
+        s = s.replace(/^\s+/, '')
+             .replace(/^--[^\n]*\n?/, '')
+             .replace(/^\/\*[\s\S]*?\*\//, '');
+    } while (s !== prev);
+
+    if (/^(select|with|pragma|explain|values)\b/i.test(s)) { return true; }
+    if (/\breturning\b/i.test(s)) { return true; }   // INSERT ... RETURNING 등
+    return false;
+}
+
 exports.execute = function (handle, sql, bindings, callback) {
     var h = handle || db;
-    var head = sql.trim().slice(0, 6).toUpperCase();
-    var isRead = head === 'SELECT' || sql.trim().slice(0, 4).toUpperCase() === 'WITH';
 
-    if (isRead) {
+    if (isRowReturning(sql)) {
         h.all(sql, bindings, function (err, rows) {
             if (err) { return callback(err, null); }
             callback(null, rows);
@@ -1127,11 +1199,19 @@ exports.normalizeResult = function (raw) {
 
 exports.normalizeError = function (err) {
     if (!err) { return { code: 'UNKNOWN' }; }
+
+    var driverCode = err.code;
     var raw = err.code || '';
     var msg = err.message || '';
     var code = 'UNKNOWN';
 
-    if (raw === 'SQLITE_CONSTRAINT_FOREIGNKEY' || /FOREIGN KEY constraint/i.test(msg)) {
+    // node-sqlite3 5.1.7 은 확장 코드(SQLITE_CONSTRAINT_*)를 내보내지 않는다 —
+    // err.code 는 'SQLITE_CONSTRAINT'까지만 준다. 아래 SQLITE_CONSTRAINT_* 분기는
+    // 실측으로는 도달하지 않으며(메시지 정규식이 실제 판별을 담당한다) 상위
+    // 드라이버 버전이 확장 코드를 채워주기 시작할 때를 대비해 남겨둔다.
+    if (raw === 'SQLITE_BUSY' || raw === 'SQLITE_LOCKED') {
+        code = 'LOCK_CONFLICT';
+    } else if (raw === 'SQLITE_CONSTRAINT_FOREIGNKEY' || /FOREIGN KEY constraint/i.test(msg)) {
         code = 'FK_VIOLATION';
     } else if (raw === 'SQLITE_CONSTRAINT_NOTNULL' || /NOT NULL constraint/i.test(msg)) {
         code = 'NOT_NULL';
@@ -1140,11 +1220,12 @@ exports.normalizeError = function (err) {
         code = 'DUPLICATE_KEY';
     }
 
-    // "UNIQUE constraint failed: ae.aei" -> "ae.aei"
+    // 부분 문자열 비교용 힌트. "UNIQUE constraint failed: ae.aei" -> "aei"
     var constraint = null;
-    var m = /constraint failed:\s*([^\s]+)/i.exec(msg);
-    if (m) { constraint = m[1]; }
+    var m = /constraint failed:\s*([^\s,]+)/i.exec(msg);
+    if (m) { constraint = m[1].replace(/^.*\./, ''); }
 
+    err.driverCode = driverCode;
     err.code = code;
     err.constraint = constraint;
     return err;
@@ -1245,23 +1326,55 @@ exports.run = function (qb, conn, callback) {
     });
 };
 
-// 능력이 없으면 트랜잭션 없이 본문을 실행한다. 조용한 no-op 이 아니라
-// connect() 에서 이미 경고를 남겼다.
+// 트랜잭션 본문을 실행한다. 능력이 없는 백엔드에서는 트랜잭션 없이 본문만 돈다
+// (조용한 no-op 이 아니라 connect() 에서 이미 경고를 남겼다).
+//
+// 콜백 규약은 이 레이어의 나머지와 같다: 성공 cb(null, result), 실패 cb(true, err).
+// 본문은 finish(err, result) 로 2인자를 넘겨야 에러 객체가 보존된다.
 exports.transaction = function (conn, body, callback) {
     assertReady();
 
     if (!adapter.capabilities.transaction) {
-        return body(conn, function (err) { callback(err); });
+        try {
+            body(conn, function (err, result) { callback(err || null, result); });
+        } catch (e) {
+            callback(true, adapter.normalizeError(e));
+        }
+        return;
     }
 
     adapter.begin(conn, function (beginErr) {
-        if (beginErr) { return callback(beginErr); }
-        body(conn, function (bodyErr) {
-            if (bodyErr) {
-                return adapter.rollback(conn, function () { callback(bodyErr); });
+        if (beginErr) { return callback(true, adapter.normalizeError(beginErr)); }
+
+        var settled = false;
+
+        function finish(err, result) {
+            if (settled) { return; }   // 본문이 두 번 정산해도 트랜잭션은 한 번만 끝난다
+            settled = true;
+
+            if (err) {
+                return adapter.rollback(conn, function (rbErr) {
+                    if (rbErr) { console.error('[db] rollback failed: ' + (rbErr.message || rbErr)); }
+                    callback(err, result);
+                });
             }
-            adapter.commit(conn, function (commitErr) { callback(commitErr || null); });
-        });
+
+            adapter.commit(conn, function (commitErr) {
+                if (!commitErr) { return callback(null, result); }
+                // commit 실패 시에도 커넥션을 깨끗한 상태로 돌려놓아야 한다.
+                adapter.rollback(conn, function () {
+                    callback(true, adapter.normalizeError(commitErr));
+                });
+            });
+        }
+
+        // 본문이 동기 throw 하면 rollback 없이 빠져나가 커넥션이 열린 트랜잭션
+        // 상태로 풀에 반납된다. 다음 요청이 남의 트랜잭션 안에서 돌게 된다.
+        try {
+            body(conn, finish);
+        } catch (e) {
+            finish(true, adapter.normalizeError(e));
+        }
     });
 };
 
@@ -1282,7 +1395,7 @@ exports._adapterName = function () {
 node --test test/db-facade.test.js
 ```
 
-기대: 6개 테스트 모두 PASS
+기대: 9개 테스트 모두 PASS
 
 실패하면 실패 메시지를 읽고 고친다. 특히 `bindings` 순서는 knex가 컬럼을 알파벳순으로 정렬하므로 `{ri, pv}` → `['p', 'x']`가 맞다.
 

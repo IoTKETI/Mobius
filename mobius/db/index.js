@@ -78,23 +78,55 @@ exports.run = function (qb, conn, callback) {
     });
 };
 
-// 능력이 없으면 트랜잭션 없이 본문을 실행한다. 조용한 no-op 이 아니라
-// connect() 에서 이미 경고를 남겼다.
+// 트랜잭션 본문을 실행한다. 능력이 없는 백엔드에서는 트랜잭션 없이 본문만 돈다
+// (조용한 no-op 이 아니라 connect() 에서 이미 경고를 남겼다).
+//
+// 콜백 규약은 이 레이어의 나머지와 같다: 성공 cb(null, result), 실패 cb(true, err).
+// 본문은 finish(err, result) 로 2인자를 넘겨야 에러 객체가 보존된다.
 exports.transaction = function (conn, body, callback) {
     assertReady();
 
     if (!adapter.capabilities.transaction) {
-        return body(conn, function (err) { callback(err); });
+        try {
+            body(conn, function (err, result) { callback(err || null, result); });
+        } catch (e) {
+            callback(true, adapter.normalizeError(e));
+        }
+        return;
     }
 
     adapter.begin(conn, function (beginErr) {
-        if (beginErr) { return callback(beginErr); }
-        body(conn, function (bodyErr) {
-            if (bodyErr) {
-                return adapter.rollback(conn, function () { callback(bodyErr); });
+        if (beginErr) { return callback(true, adapter.normalizeError(beginErr)); }
+
+        var settled = false;
+
+        function finish(err, result) {
+            if (settled) { return; }   // 본문이 두 번 정산해도 트랜잭션은 한 번만 끝난다
+            settled = true;
+
+            if (err) {
+                return adapter.rollback(conn, function (rbErr) {
+                    if (rbErr) { console.error('[db] rollback failed: ' + (rbErr.message || rbErr)); }
+                    callback(err, result);
+                });
             }
-            adapter.commit(conn, function (commitErr) { callback(commitErr || null); });
-        });
+
+            adapter.commit(conn, function (commitErr) {
+                if (!commitErr) { return callback(null, result); }
+                // commit 실패 시에도 커넥션을 깨끗한 상태로 돌려놓아야 한다.
+                adapter.rollback(conn, function () {
+                    callback(true, adapter.normalizeError(commitErr));
+                });
+            });
+        }
+
+        // 본문이 동기 throw 하면 rollback 없이 빠져나가 커넥션이 열린 트랜잭션
+        // 상태로 풀에 반납된다. 다음 요청이 남의 트랜잭션 안에서 돌게 된다.
+        try {
+            body(conn, finish);
+        } catch (e) {
+            finish(true, adapter.normalizeError(e));
+        }
     });
 };
 

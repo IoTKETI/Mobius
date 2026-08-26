@@ -111,3 +111,46 @@ test('제약 위반 에러가 중립 코드로 정규화된다', function (t, do
         });
     });
 });
+
+test('transaction: 능력이 없으면 트랜잭션 없이 본문을 실행한다', function (t, done) {
+    const db = freshDb(true);
+    db.connect('localhost', 3306, 'root', 'x', function () {
+        let ran = false;
+        db.transaction(null, function (conn, finish) {
+            ran = true;
+            finish(null, 'ok');
+        }, function (err, result) {
+            assert.strictEqual(err, null);
+            assert.strictEqual(result, 'ok');
+            assert.strictEqual(ran, true);
+            done();
+        });
+    });
+});
+
+test('transaction: 본문의 에러 객체가 보존된다', function (t, done) {
+    const db = freshDb(true);
+    db.connect('localhost', 3306, 'root', 'x', function () {
+        const boom = { code: 'DUPLICATE_KEY', message: 'boom' };
+        db.transaction(null, function (conn, finish) {
+            finish(true, boom);
+        }, function (err, result) {
+            assert.strictEqual(err, true, '실패 시 첫 인자는 true');
+            assert.strictEqual(result, boom, '에러 객체가 소멸하면 안 된다');
+            done();
+        });
+    });
+});
+
+test('transaction: 본문의 동기 예외를 잡아 콜백으로 넘긴다', function (t, done) {
+    const db = freshDb(true);
+    db.connect('localhost', 3306, 'root', 'x', function () {
+        db.transaction(null, function () {
+            throw new Error('sync boom');
+        }, function (err, e) {
+            assert.strictEqual(err, true);
+            assert.match(e.message, /sync boom/);
+            done();
+        });
+    });
+});

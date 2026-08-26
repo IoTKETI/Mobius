@@ -66,16 +66,27 @@ exports.normalizeResult = function (raw) {
 
 exports.normalizeError = function (err) {
     if (!err) { return { code: 'UNKNOWN' }; }
+
+    // 원본 드라이버 코드를 보존한다. 중립 코드로 덮어쓰면 백엔드 고유
+    // 조건(락 충돌 등)을 상위에서 복구할 방법이 사라진다.
+    var driverCode = err.code;
+
     var code = 'UNKNOWN';
     if (err.code === 'ER_DUP_ENTRY') { code = 'DUPLICATE_KEY'; }
     else if (err.code === 'ER_NO_REFERENCED_ROW_2' || err.code === 'ER_ROW_IS_REFERENCED_2') { code = 'FK_VIOLATION'; }
     else if (err.code === 'ER_BAD_NULL_ERROR') { code = 'NOT_NULL'; }
+    else if (err.code === 'ER_LOCK_NOWAIT' || err.errno === 3572) { code = 'LOCK_CONFLICT'; }
+    else if (err.code === 'ER_LOCK_DEADLOCK' || err.errno === 1213) { code = 'LOCK_CONFLICT'; }
+    else if (err.code === 'ER_LOCK_WAIT_TIMEOUT' || err.errno === 1205) { code = 'LOCK_TIMEOUT'; }
 
-    // 409-6(aei 중복)처럼 제약 이름으로 갈리는 곳이 있어 이름을 실어 보낸다.
+    // err.constraint 는 부분 문자열 비교용 힌트다. 동등 비교하면 안 된다 —
+    // MySQL 5.7 은 "aei_UNIQUE", MySQL 8 은 "ae.aei_UNIQUE", SQLite 는 "aei" 를 준다.
+    // 테이블 접두사를 떼어 최소한의 공통 형태로 맞춘다.
     var constraint = null;
     var m = /key '([^']+)'/i.exec(err.sqlMessage || err.message || '');
-    if (m) { constraint = m[1]; }
+    if (m) { constraint = m[1].replace(/^.*\./, ''); }
 
+    err.driverCode = driverCode;
     err.code = code;
     err.constraint = constraint;
     return err;
