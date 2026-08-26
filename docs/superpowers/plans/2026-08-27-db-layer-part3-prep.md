@@ -779,9 +779,11 @@ Expected: PASS, 실패 0
 
 - [ ] **Step 2: SQLite 모드로 서버를 띄운다**
 
+SQLite 모드는 환경변수가 아니라 **`mobius.js` 의 첫 인자**로 켠다 (`mobius.js:41`).
+
 Run (백그라운드):
 ```bash
-MOBIUS_USE_SQLITE=true MOBIUS_SQLITE_PATH=./prep3-verify.db node mobius.js
+MOBIUS_SQLITE_PATH=./prep3-verify.db node mobius.js sqlite
 ```
 
 30초 안에 `http://127.0.0.1:7579/Mobius` 가 응답해야 한다. 확인:
@@ -867,6 +869,29 @@ echo "--- global.usesqlite 는 여전히 index.js 에서만 ---"
 grep -rn "global.usesqlite" mobius/db/
 ```
 Expected: `1.` 은 `0`, `2.` 는 `0`, `3.` 의 본문에 `assertReady` 가 없다, 마지막은 `mobius/db/index.js` 한 파일만 나온다.
+
+---
+
+## 검증 중 발견 — SQLite 스키마에 `aei` UNIQUE 제약이 없다
+
+Task 4 Step 4 를 실측하다 **기존 스키마 분기**를 찾았다. 이 계획의 범위 밖이지만
+기록해 둔다.
+
+| 스키마 | `ae.aei` 제약 |
+|--------|---------------|
+| `mobius/mobiusdb.sql:55` | `UNIQUE KEY aei_UNIQUE (aei)` |
+| `mobius/mobiusdb_sqlite.sql:55` | `aei TEXT NOT NULL` — **UNIQUE 없음** |
+
+실측: SQLite 모드에서 같은 `X-M2M-Origin` 으로 AE 를 두 번 만들면 **둘 다 201** 이고
+`ae` 테이블에 `aei='Sprep3aei'` 행이 2개 공존한다. MySQL 모드라면 409 다.
+
+즉 **SQLite 모드에서는 409-6 경로 자체가 도달 불가능**하다. Task 1 의
+`isAeiDuplicate` 수정이 틀린 게 아니라, SQLite 에서는 제약이 없어 에러가
+애초에 발생하지 않는다. 그래서 Step 4 는 MySQL 모드에서 검증한다.
+
+**고치지 않은 이유**: UNIQUE 인덱스 추가는 스키마 마이그레이션이다. 이미 중복
+`aei` 행을 갖고 있는 기존 SQLite DB 에서는 인덱스 생성이 실패한다. 선행 정비의
+범위를 넘고, 별도 판단이 필요하다.
 
 ---
 
