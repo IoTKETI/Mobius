@@ -4,7 +4,10 @@ node_modules/
 .idea/
 log/
 doc/
-docs/
+# docs/ 는 배포본 PDF 등을 막기 위한 것이다. 다만 설계 문서(스펙)는 저장소에 남긴다.
+# 디렉터리 자체를 제외하면 하위를 되살릴 수 없으므로 docs/* 로 내용만 제외한다.
+docs/*
+!docs/superpowers/
 hit.json
 cbs_cache.json
 package-lock.json
