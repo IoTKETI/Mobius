@@ -137,3 +137,35 @@ test('update_parent_by_delete: MySQL 은 BEGIN/COMMIT 으로 감싼다', functio
         done();
     });
 });
+
+test('update_cnt_cni: 두 백엔드가 같은 값을 쓴다 (재계산 안 함)', function (t, done) {
+    const { sql_action, seen } = tapAdapter(true);
+    sql_action.update_cnt_cni({}, { ri: '/M/c1', cni: 7, cbs: 28, st: 5 }, function (err) {
+        assert.ok(!err, '실패하면 안 된다: ' + JSON.stringify(err));
+        assertNoLegacy(seen);
+        // 기존 SQLite 분기는 select count(*) from cin 으로 다시 계산했다.
+        // 이제는 호출자가 넘긴 값을 그대로 쓴다.
+        const selects = seen.filter(function (s) { return /^select/i.test(s.sql); });
+        assert.strictEqual(selects.length, 0, 'cni 를 재계산하면 안 된다');
+
+        const updates = seen.filter(function (s) { return /^update/i.test(s.sql); });
+        assert.strictEqual(updates.length, 2);
+        assert.match(updates[0].sql, /update `cnt` set/i);
+        assert.ok(updates[0].bindings.indexOf(7) !== -1, 'cni 는 넘겨받은 7 이어야 한다');
+        assert.ok(updates[0].bindings.indexOf(28) !== -1, 'cbs 는 넘겨받은 28 이어야 한다');
+        assert.match(updates[1].sql, /update `lookup` set `st`/i);
+        assert.ok(updates[1].bindings.indexOf(5) !== -1, 'st 는 넘겨받은 5 이어야 한다');
+        done();
+    });
+});
+
+test('update_cnt_cni: MySQL 도 같은 두 UPDATE 를 낸다', function (t, done) {
+    const { sql_action, seen } = tapAdapter(false);
+    sql_action.update_cnt_cni({}, { ri: '/M/c1', cni: 7, cbs: 28, st: 5 }, function (err) {
+        assert.ok(!err);
+        assertNoLegacy(seen);
+        const order = seen.map(function (s) { return /^update/i.test(s.sql) ? 'UPDATE' : s.sql; });
+        assert.deepStrictEqual(order, ['BEGIN', 'UPDATE', 'UPDATE', 'COMMIT']);
+        done();
+    });
+});

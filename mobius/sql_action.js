@@ -3350,46 +3350,37 @@ exports.update_tr_tst = function (connection, ri, tst, callback) {
     });
 };
 
+// 이전에는 백엔드마다 의미가 달랐다. MySQL 은 호출자가 넘긴 obj.cni/obj.cbs 를
+// 썼고, SQLite 분기는 select count(*), sum(cs) from cin 으로 다시 계산했다.
+// 재계산은 (a) CIN 이 많은 컨테이너에서 매번 풀스캔이고, (b) 두 백엔드의
+// 동작을 비교 불가능하게 만들며, (c) update_parent_by_insert 가 mni 상한으로
+// 이미 조정해 넘긴 값을 무시한다. 넘겨받은 값으로 통일한다.
 exports.update_cnt_cni = function (connection, obj, callback) {
     var cni_id = 'update_cnt_cni ' + obj.ri + ' - ' + require('shortid').generate();
     console.time(cni_id);
-    if (global.usesqlite === 'true') {
-        var sqlite = require('./db_sqlite');
-        var sql_calc = util.format("select count(*) as cni, sum(cs) as cbs from cin where pi = \'%s\'", obj.ri);
-        sqlite.getResult(sql_calc, connection, function (err, rows) {
-            if (!err) {
-                var new_cni = (rows.length > 0) ? rows[0].cni : 0;
-                var new_cbs = (rows.length > 0 && rows[0].cbs) ? rows[0].cbs : 0;
 
-                var sql_update_cnt = util.format("update cnt set cni = \'%s\', cbs = \'%s\' where ri = \'%s\'", new_cni, new_cbs, obj.ri);
-                sqlite.getResult(sql_update_cnt, connection, function (err) {
-                    if (!err) {
-                        var sql_update_lookup = util.format("update lookup set st = \'%s\' where ri = \'%s\'", obj.st, obj.ri);
-                        sqlite.getResult(sql_update_lookup, connection, function (err, results) {
-                            console.timeEnd(cni_id);
-                            callback(err, results);
-                        });
-                    } else {
-                        callback(err, null);
-                    }
-                });
-            } else {
-                callback(err, null);
-            }
+    facade.transaction(connection, function (conn, finish) {
+        var q1 = facade.k('cnt')
+            .update({ cni: obj.cni, cbs: obj.cbs })
+            .where({ ri: obj.ri });
+
+        facade.run(q1, conn, function (err1, r1) {
+            if (err1) { return finish(err1, r1); }
+
+            var q2 = facade.k('lookup')
+                .update({ st: obj.st })
+                .where({ ri: obj.ri });
+
+            facade.run(q2, conn, function (err2, r2) {
+                finish(err2, err2 ? r2 : r1);
+            });
         });
-    }
-    else {
-        var sql = util.format('update cnt, lookup set cnt.cni = \'%s\', cnt.cbs = \'%s\', lookup.st = \'%s\' where lookup.ri = \'%s\' and cnt.ri = \'%s\'', obj.cni, obj.cbs, obj.st, obj.ri, obj.ri);
-        db.getResult(sql, connection, function (err, results) {
-            if (!err) {
-                console.timeEnd(cni_id);
-                callback(err, results);
-            }
-            else {
-                callback(err, results);
-            }
-        });
-    }
+    }, function (err, results) {
+        if (!err) {
+            console.timeEnd(cni_id);
+        }
+        callback(err, results);
+    });
 };
 
 exports.update_parent_by_insert = function (connection, obj, cs, callback) {
