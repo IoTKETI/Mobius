@@ -1,0 +1,121 @@
+'use strict';
+// SQLite 어댑터. 풀이 없고 워커당 핸들 하나를 공유한다.
+//
+// capabilities.transaction 이 false 인 이유:
+//   핸들이 하나뿐이라 비동기 호출이 겹치면 서로 다른 논리적 트랜잭션이
+//   같은 핸들에서 뒤섞인다. 현재 코드도 SQLite 경로에서는 트랜잭션을
+//   쓰지 않으므로 false 선언이 곧 기존 동작 보존이다.
+//   제대로 지원하려면 핸들 풀이나 직렬화 큐가 필요하다 — 후속 작업.
+//
+// capabilities.rowLock 이 false 인 이유:
+//   SQLite 는 파일 단위 단일 라이터라 행 잠금 개념이 없다.
+//   knex 는 forUpdate() 를 자동 생략하지만 noWait() 은 예외를 던지므로
+//   호출부가 db.can('rowLock') 으로 검사해야 한다.
+
+var sqlite3 = require('sqlite3').verbose();
+var fs = require('fs');
+var path = require('path');
+
+var db = null;
+
+exports.name = 'sqlite';
+exports.knexClient = 'sqlite3';
+exports.schemaFile = 'mobiusdb_sqlite.sql';
+
+exports.capabilities = {
+    transaction: false,
+    rowLock: false
+};
+
+exports.connect = function (conf, callback) {
+    db = new sqlite3.Database('./mobius.db', function (err) {
+        if (err) {
+            console.error('[db/sqlite] ' + err.message);
+            callback('0');
+            return;
+        }
+        console.log('[db/sqlite] connected');
+        db.configure('busyTimeout', 50000);
+        db.run('PRAGMA foreign_keys = ON');
+
+        try {
+            var schema = fs.readFileSync(path.join(__dirname, '..', exports.schemaFile), 'utf8');
+            db.exec(schema, function (e) {
+                if (e) { console.error('[db/sqlite] schema init error: ' + e.message); }
+                else { console.log('[db/sqlite] schema initialized'); }
+                callback('1');
+            });
+        } catch (e) {
+            console.error('[db/sqlite] cannot read schema: ' + e.message);
+            callback('1');
+        }
+    });
+};
+
+exports.getConnection = function (callback) {
+    if (db) { callback('200', db); }
+    else { callback('500-5'); }
+};
+
+// 풀이 없으므로 반납할 것이 없다.
+exports.release = function () { };
+
+exports.execute = function (handle, sql, bindings, callback) {
+    var h = handle || db;
+    var head = sql.trim().slice(0, 6).toUpperCase();
+    var isRead = head === 'SELECT' || sql.trim().slice(0, 4).toUpperCase() === 'WITH';
+
+    if (isRead) {
+        h.all(sql, bindings, function (err, rows) {
+            if (err) { return callback(err, null); }
+            callback(null, rows);
+        });
+    } else {
+        h.run(sql, bindings, function (err) {
+            if (err) { return callback(err, null); }
+            callback(null, { affectedRows: this.changes, insertId: this.lastID });
+        });
+    }
+};
+
+exports.normalizeResult = function (raw) {
+    if (Array.isArray(raw)) { return raw; }
+    return {
+        affectedRows: raw && raw.affectedRows !== undefined ? raw.affectedRows : 0,
+        insertId: raw ? raw.insertId : undefined
+    };
+};
+
+exports.normalizeError = function (err) {
+    if (!err) { return { code: 'UNKNOWN' }; }
+    var raw = err.code || '';
+    var msg = err.message || '';
+    var code = 'UNKNOWN';
+
+    if (raw === 'SQLITE_CONSTRAINT_FOREIGNKEY' || /FOREIGN KEY constraint/i.test(msg)) {
+        code = 'FK_VIOLATION';
+    } else if (raw === 'SQLITE_CONSTRAINT_NOTNULL' || /NOT NULL constraint/i.test(msg)) {
+        code = 'NOT_NULL';
+    } else if (raw === 'SQLITE_CONSTRAINT' || raw === 'SQLITE_CONSTRAINT_PRIMARYKEY' ||
+               raw === 'SQLITE_CONSTRAINT_UNIQUE' || /UNIQUE constraint/i.test(msg)) {
+        code = 'DUPLICATE_KEY';
+    }
+
+    // "UNIQUE constraint failed: ae.aei" -> "ae.aei"
+    var constraint = null;
+    var m = /constraint failed:\s*([^\s]+)/i.exec(msg);
+    if (m) { constraint = m[1]; }
+
+    err.code = code;
+    err.constraint = constraint;
+    return err;
+};
+
+// capabilities.transaction 이 false 이므로 파사드가 이 함수들을 부르지 않는다.
+// 계약을 채우기 위해 두되, 실수로 호출되면 즉시 드러나도록 에러를 넘긴다.
+function unsupported(handle, callback) {
+    callback(new Error('[db/sqlite] transactions are not supported on this backend'));
+}
+exports.begin = unsupported;
+exports.commit = unsupported;
+exports.rollback = unsupported;

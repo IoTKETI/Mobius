@@ -15,22 +15,22 @@
     "https": "^1.0.0",
     "ip": "^1.1.5",
     "js2xmlparser": "^3.0.0",
+    "knex": "^3.3.0",
     "merge": "^1.2.1",
     "moment": "^2.22.2",
     "morgan": "^1.9.1",
     "mqtt": "^2.18.8",
     "mysql": "^2.16.0",
     "shortid": "^2.2.14",
+    "sqlite3": "^5.1.7",
     "url": "^0.11.0",
     "util": "^0.11.1",
     "websocket": "^1.0.28",
     "xml2js": "^0.4.19",
-    "xmlbuilder": "^10.1.1",
-    "sqlite3": "^5.1.7"
+    "xmlbuilder": "^10.1.1"
   },
   "description": "Mobius",
   "main": "mobius.js",
-  "devDependencies": {},
   "scripts": {
     "start": "node mobius.js",
     "test": "echo \"Error: no test specified\" && exit 1"
