@@ -123,3 +123,32 @@ test('exports.update_lookup 이 acpi/at/aa/subl 을 바인딩으로 넘긴다', 
         done();
     });
 });
+
+// obj 는 update_sub 가 실제로 받는 형태를 흉내낸다.
+function subObj(evil) {
+    return {
+        ri: '/Mobius/sub1', lt: '20260826T000000', et: '20280826T000000', st: 1,
+        acpi: [], lbl: [], at: [], aa: [], subl: [],
+        enc: { net: [1] }, exc: 10, nu: [evil], gpi: 'g1', nfu: 'nfu1',
+        bn: 1, rl: 1, pn: 1, nsp: 1, ln: 1, nct: 2, nec: 1
+    };
+}
+
+// 전환 전에는 update_lookup 은 분기하지만 sub 본문 UPDATE 는 db.getResult 를
+// 무조건 호출해 MySQL 드라이버로 나갔다 — SQLite 모드에서 구독 갱신이 조용히 유실됐다.
+// 이 테스트는 SQLite 모드에서 sub UPDATE 가 실제로 SQLite 드라이버에 도달하는지,
+// 그리고 값이 바인딩으로 나가는지를 함께 확인한다.
+test('exports.update_sub 이 드라이버에 값을 바인딩으로 넘긴다 (SQLite)', function (t, done) {
+    const { sql_action, calls } = tapAdapter(true);
+    sql_action.update_sub(null, subObj("d'); drop table sub; --"), function (err) {
+        assert.ok(!err, '실패하면 안 된다: ' + JSON.stringify(err));
+        assert.ok(calls.length >= 2, 'lookup 과 sub 두 번 실행되어야 한다, 실제: ' + calls.length);
+        calls.forEach(function (c, i) {
+            assert.ok(c.sql.indexOf('drop table') < 0,
+                i + '번째 SQL 본문에 값이 박혔다: ' + c.sql);
+        });
+        const bound = calls.map(function (c) { return JSON.stringify(c.bindings); }).join(' ');
+        assert.ok(bound.indexOf('drop table') >= 0, '값이 바인딩으로 가야 한다');
+        done();
+    });
+});
