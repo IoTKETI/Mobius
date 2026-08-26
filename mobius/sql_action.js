@@ -3567,12 +3567,8 @@ exports.delete_lookup = function (connection, pi_list, pi_index, found_Obj, foun
 
 exports.delete_lookup_et = function (connection, et, callback) {
     var pi_list = [];
-    facade.run(facade.k('lookup')
-        .select('ri')
-        .where('et', '<', et)
-        .andWhere('ty', '<>', '2')
-        .andWhere('ty', '<>', '3')
-        .andWhere('ty', '<>', '5'), connection, function (err, delete_Obj) {
+    var sql = util.format("select ri from lookup where et < \'%s\' and ty <> \'2\' and ty <> \'3\' and ty <> \'5\'", et);
+    db.getResult(sql, connection, function (err, delete_Obj) {
         if (!err) {
             for (var i = 0; i < delete_Obj.length; i++) {
                 pi_list.push(delete_Obj[i].ri);

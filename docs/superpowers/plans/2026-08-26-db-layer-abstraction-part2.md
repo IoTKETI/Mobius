@@ -36,6 +36,18 @@ update cnt, lookup set cnt.cni = cnt.cni-1, ... where lookup.ri = '...' and cnt.
 
 SQLite는 이 문법을 지원하지 않으므로 순차 문장으로 쪼개야 하고, 그건 **원자성 변경**이다. 같은 성격의 `update_cnt_cni`(REVIEW)와 함께 별도 계획에서 설계한다.
 
+`delete_lookup_et`(L3568)는 이 계획에서 전환했다가 최종 리뷰에서 **되돌렸다(revert)**. 이유:
+
+1. **SELECT 에 상한이 없다.** 형제 `delete_orphan_lookup`(L3595)은 `LIMIT 1000`을 쓰고 "라이브 트래픽 중 락 시간이 짧다"는 주석을 남겼는데, `delete_lookup_et`는 그 규율 없이 만료 행 전체를 SELECT한다.
+2. **전환이 휴면 중이던 파괴적 경로를 깨운다.** 전환 전에는 SELECT가 무조건 MySQL로 나가 SQLite 배포에서 사실상 아무 것도 하지 않았다. 전환하면 SQLite에서 실제 만료 행을 가져오고, **미전환** 상태인 `delete_lookup`이 그 행들을 실제로 지운다 — 상한 없는 SELECT + 무제한 삭제 조합이 그대로 라이브에 나간다.
+3. **행마다 순차 DELETE + `console.log`.** `delete_lookup`은 행 단위로 DELETE 1건과 로그 1줄을 순차 실행하므로, 단일 SQLite 쓰기 핸들에서 락 스톰을 일으킬 수 있다.
+4. **작업 집합이 줄지 않는다.** `delete_lookup`은 만료된 lookup 행의 *자식*만 지우고 만료 행 자체는 지우지 않으므로, 다음 `setInterval` 주기에도 같은 SELECT가 같은(혹은 더 많은) 행을 다시 퍼올린다.
+5. **SELECT 실패 시 콜백이 아예 호출되지 않는다.** `if (!err) { ... }`에 `else`가 없다. `app.js:112`의 `connection.release()`가 콜백 안에서만 실행되므로 SELECT 에러 시 커넥션이 샌다.
+6. **성공 신호가 왜곡돼 있다.** `delete_lookup`이 성공을 `callback('200')`으로 알리는데 `'200'`은 truthy라 `app.js:107`의 `if (!err)`가 항상 거짓으로 평가된다.
+7. **관측 창이 24시간이다.** 이 경로는 `setInterval` 24시간 주기로 돌아 **배포 24시간 뒤 마스터에서만** 처음 발화한다. 동등성 하네스나 수동 curl 검증 어느 것도 이 경로를 24시간 안에 건드리지 않으므로, 상한·`else`·`'200'` 정규화 없이 전환만 하면 문제가 있어도 드러나지 않는다.
+
+상한(`LIMIT`) 추가, `else` 분기, `'200'` truthy 문제 정규화는 그 자체로 설계가 필요한 별도 수정이며 이 전환 작업에 끼워 넣을 것이 아니다. 3차 계획에서 `delete_orphan_lookup`과 같은 규율(배치 상한 + 에러 시 콜백 보장)로 다시 설계한다.
+
 ---
 
 ## Task 1: `update_lookup` + `update_acp` — SQL Injection 2건 + Critical 버그
