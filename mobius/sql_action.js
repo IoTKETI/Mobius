@@ -3383,36 +3383,47 @@ exports.update_cnt_cni = function (connection, obj, callback) {
     });
 };
 
+// 이전에는 usesqlite && ty=='3' 일 때만 update_cnt_cni 로 우회하고, 나머지는
+// MySQL 전용 다중 테이블 UPDATE 로 갔다. 그 경로는 SQLite 모드에서 MySQL 의
+// 0개 행에 적용돼 조용히 유실됐다.
+//
+// cbs 와 st 는 대입이 아니라 증분이다 — 동시 삽입이 서로를 덮어쓰지 않게
+// 하려면 증분이어야 한다. (절대값 정정은 update_cnt_cni 가 담당한다.)
 exports.update_parent_by_insert = function (connection, obj, cs, callback) {
     var tableName = responder.typeRsrc[parseInt(obj.ty, 10)];
     var cni_id = 'update_parent_by_insert ' + obj.ri + ' - ' + require('shortid').generate();
     console.time(cni_id);
-    // console.log('$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$', obj.st, obj.cni, obj.cbs, obj.mni);
+
     obj.cni += 1;
     if (obj.cni > obj.mni) {
         obj.cni = obj.mni;
     }
 
-    if (global.usesqlite === 'true' && obj.ty == '3') {
-        obj.st = parseInt(obj.st, 10) + 1;
-        _this.update_cnt_cni(connection, obj, function (err, results) {
+    facade.transaction(connection, function (conn, finish) {
+        var q1 = facade.k(tableName)
+            .update({
+                cni: obj.cni,
+                cbs: facade.raw('cbs + ?', [cs])
+            })
+            .where({ ri: obj.ri });
+
+        facade.run(q1, conn, function (err1, r1) {
+            if (err1) { return finish(err1, r1); }
+
+            var q2 = facade.k('lookup')
+                .update({ st: facade.raw('st + 1') })
+                .where({ ri: obj.ri });
+
+            facade.run(q2, conn, function (err2, r2) {
+                finish(err2, err2 ? r2 : r1);
+            });
+        });
+    }, function (err, results) {
+        if (!err) {
             console.timeEnd(cni_id);
-            callback(err, results);
-        });
-    }
-    else {
-        var sql = util.format('update %s, lookup set %s.cni = %d, %s.cbs = %s.cbs+%s, lookup.st = lookup.st+1 where lookup.ri = \'%s\' and %s.ri = \'%s\'', tableName, tableName, obj.cni, tableName, tableName, cs, obj.ri, tableName, obj.ri);
-        //var sql = util.format('update %s, lookup set %s.cni = %s, %s.cbs = %s, lookup.st = %s where lookup.ri = \'%s\' and %s.ri = \'%s\'', tableName, tableName, obj.cni+1, tableName, obj.cbs+cs, obj.st, obj.ri, tableName,  obj.ri);
-        db.getResult(sql, connection, (err, results) => {
-            if (!err) {
-                console.timeEnd(cni_id);
-                callback(err, results);
-            }
-            else {
-                callback(err, results);
-            }
-        });
-    }
+        }
+        callback(err, results);
+    });
 };
 
 // 이전에는 MySQL 전용 다중 테이블 UPDATE(`update cnt, lookup set ...`)를

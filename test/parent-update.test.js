@@ -62,9 +62,20 @@ function assertNoLegacy(seen) {
         '구 경로(db_action/db_sqlite)로 샌 쿼리가 있다');
 }
 
+// facade.transaction 은 "정산 후 본문에서 던진 예외" 를 잡아 로그만 남긴다
+// (설계대로 — 콜백으로 보낼 곳이 없으니까). 그래서 콜백 안에서 assert 가
+// 던지면 예외가 삼켜지고 done 이 안 불려 테스트가 멈춘다. 예외를 잡아
+// done(e) 로 넘겨 실패로 드러나게 한다.
+function guard(done, fn) {
+    return function () {
+        try { fn.apply(null, arguments); }
+        catch (e) { done(e); }
+    };
+}
+
 test('update_parent_st: SQLite 에서도 파사드를 거친다', function (t, done) {
     const { sql_action, seen } = tapAdapter(true);
-    sql_action.update_parent_st({}, { ri: '/M/c1', ty: '3' }, function (err) {
+    sql_action.update_parent_st({}, { ri: '/M/c1', ty: '3' }, guard(done, function (err) {
         assert.ok(!err, '실패하면 안 된다: ' + JSON.stringify(err));
         assertNoLegacy(seen);
         const updates = seen.filter(function (s) { return /^update/i.test(s.sql); });
@@ -74,36 +85,36 @@ test('update_parent_st: SQLite 에서도 파사드를 거친다', function (t, d
         assert.ok(updates[0].sql.indexOf('/M/c1') === -1, 'ri 가 SQL 에 인라인되면 안 된다');
         assert.ok(updates[0].bindings.indexOf('/M/c1') !== -1, 'ri 는 바인딩으로 나가야 한다');
         done();
-    });
+    }));
 });
 
 test('update_parent_st: MySQL 에서도 같은 형태로 나간다', function (t, done) {
     const { sql_action, seen } = tapAdapter(false);
-    sql_action.update_parent_st({}, { ri: '/M/c1', ty: '3' }, function (err) {
+    sql_action.update_parent_st({}, { ri: '/M/c1', ty: '3' }, guard(done, function (err) {
         assert.ok(!err, '실패하면 안 된다: ' + JSON.stringify(err));
         const updates = seen.filter(function (s) { return /^update/i.test(s.sql); });
         assert.strictEqual(updates.length, 1);
         assert.match(updates[0].sql, /update `lookup` set `st`/i);
         assert.ok(updates[0].bindings.indexOf('/M/c1') !== -1);
         done();
-    });
+    }));
 });
 
 test('update_parent_st: 타입 테이블 존재 조건을 유지한다', function (t, done) {
     const { sql_action, seen } = tapAdapter(true);
-    sql_action.update_parent_st({}, { ri: '/M/c1', ty: '3' }, function () {
+    sql_action.update_parent_st({}, { ri: '/M/c1', ty: '3' }, guard(done, function () {
         const upd = seen.filter(function (s) { return /^update/i.test(s.sql); })[0];
         // 기존 MySQL SQL 은 "and cnt.ri = ?" 로 해당 타입 테이블에 행이 있을 때만
         // st 를 올렸다. 그 조건이 사라지면 고아 lookup 행의 st 까지 올라간다.
         assert.match(upd.sql, /select \* from `cnt`|exists/i,
             '타입 테이블 존재 조건이 사라졌다');
         done();
-    });
+    }));
 });
 
 test('update_parent_by_delete: SQLite 에서 두 UPDATE 가 파사드로 나간다', function (t, done) {
     const { sql_action, seen } = tapAdapter(true);
-    sql_action.update_parent_by_delete({}, { ri: '/M/c1', ty: '3' }, 4, function (err) {
+    sql_action.update_parent_by_delete({}, { ri: '/M/c1', ty: '3' }, 4, guard(done, function (err) {
         assert.ok(!err, '실패하면 안 된다: ' + JSON.stringify(err));
         assertNoLegacy(seen);
         const updates = seen.filter(function (s) { return /^update/i.test(s.sql); });
@@ -114,33 +125,33 @@ test('update_parent_by_delete: SQLite 에서 두 UPDATE 가 파사드로 나간�
         // cs 는 바인딩으로 나가야 한다.
         assert.ok(updates[0].bindings.indexOf(4) !== -1, 'cs 는 바인딩이어야 한다');
         done();
-    });
+    }));
 });
 
 test('update_parent_by_delete: SQLite 는 트랜잭션 없이 본문만 돈다', function (t, done) {
     const { sql_action, seen } = tapAdapter(true);
-    sql_action.update_parent_by_delete({}, { ri: '/M/c1', ty: '3' }, 4, function () {
+    sql_action.update_parent_by_delete({}, { ri: '/M/c1', ty: '3' }, 4, guard(done, function () {
         assert.strictEqual(seen.filter(function (s) { return s.sql === 'BEGIN'; }).length, 0,
             'SQLite 는 transaction 능력이 없다');
         done();
-    });
+    }));
 });
 
 test('update_parent_by_delete: MySQL 은 BEGIN/COMMIT 으로 감싼다', function (t, done) {
     const { sql_action, seen } = tapAdapter(false);
-    sql_action.update_parent_by_delete({}, { ri: '/M/c1', ty: '3' }, 4, function (err) {
+    sql_action.update_parent_by_delete({}, { ri: '/M/c1', ty: '3' }, 4, guard(done, function (err) {
         assert.ok(!err, '실패하면 안 된다: ' + JSON.stringify(err));
         assertNoLegacy(seen);
         const order = seen.map(function (s) { return /^update/i.test(s.sql) ? 'UPDATE' : s.sql; });
         assert.deepStrictEqual(order, ['BEGIN', 'UPDATE', 'UPDATE', 'COMMIT'],
             '두 UPDATE 가 한 트랜잭션 안에 있어야 한다');
         done();
-    });
+    }));
 });
 
 test('update_cnt_cni: 두 백엔드가 같은 값을 쓴다 (재계산 안 함)', function (t, done) {
     const { sql_action, seen } = tapAdapter(true);
-    sql_action.update_cnt_cni({}, { ri: '/M/c1', cni: 7, cbs: 28, st: 5 }, function (err) {
+    sql_action.update_cnt_cni({}, { ri: '/M/c1', cni: 7, cbs: 28, st: 5 }, guard(done, function (err) {
         assert.ok(!err, '실패하면 안 된다: ' + JSON.stringify(err));
         assertNoLegacy(seen);
         // 기존 SQLite 분기는 select count(*) from cin 으로 다시 계산했다.
@@ -156,16 +167,58 @@ test('update_cnt_cni: 두 백엔드가 같은 값을 쓴다 (재계산 안 함)'
         assert.match(updates[1].sql, /update `lookup` set `st`/i);
         assert.ok(updates[1].bindings.indexOf(5) !== -1, 'st 는 넘겨받은 5 이어야 한다');
         done();
-    });
+    }));
 });
 
 test('update_cnt_cni: MySQL 도 같은 두 UPDATE 를 낸다', function (t, done) {
     const { sql_action, seen } = tapAdapter(false);
-    sql_action.update_cnt_cni({}, { ri: '/M/c1', cni: 7, cbs: 28, st: 5 }, function (err) {
+    sql_action.update_cnt_cni({}, { ri: '/M/c1', cni: 7, cbs: 28, st: 5 }, guard(done, function (err) {
         assert.ok(!err);
         assertNoLegacy(seen);
         const order = seen.map(function (s) { return /^update/i.test(s.sql) ? 'UPDATE' : s.sql; });
         assert.deepStrictEqual(order, ['BEGIN', 'UPDATE', 'UPDATE', 'COMMIT']);
         done();
-    });
+    }));
+});
+
+test('update_parent_by_insert: SQLite 에서도 파사드로 나간다 (ty=3)', function (t, done) {
+    const { sql_action, seen } = tapAdapter(true);
+    sql_action.update_parent_by_insert({}, { ri: '/M/c1', ty: '3', cni: 2, mni: 10, cbs: 8, st: 4 }, 4, guard(done, function (err) {
+        assert.ok(!err, '실패하면 안 된다: ' + JSON.stringify(err));
+        assertNoLegacy(seen);
+        const updates = seen.filter(function (s) { return /^update/i.test(s.sql); });
+        assert.strictEqual(updates.length, 2);
+        assert.match(updates[0].sql, /update `cnt` set/i);
+        assert.match(updates[1].sql, /update `lookup` set `st`/i);
+        done();
+    }));
+});
+
+test('update_parent_by_insert: cbs 와 st 는 증분이다', function (t, done) {
+    const { sql_action, seen } = tapAdapter(true);
+    sql_action.update_parent_by_insert({}, { ri: '/M/c1', ty: '3', cni: 2, mni: 10, cbs: 8, st: 4 }, 4, guard(done, function () {
+        const updates = seen.filter(function (s) { return /^update/i.test(s.sql); });
+        assert.match(updates[0].sql, /`cbs`\s*=\s*cbs \+/i, 'cbs 는 증분이어야 한다');
+        assert.match(updates[1].sql, /`st`\s*=\s*st \+ 1/i, 'st 는 증분이어야 한다');
+        done();
+    }));
+});
+
+test('update_parent_by_insert: cni 는 mni 상한을 넘지 않는다', function (t, done) {
+    const { sql_action, seen } = tapAdapter(true);
+    // cni=9 에서 1 늘면 10, mni=10 이므로 그대로 10.
+    sql_action.update_parent_by_insert({}, { ri: '/M/c1', ty: '3', cni: 9, mni: 10, cbs: 8, st: 4 }, 4, guard(done, function () {
+        const upd = seen.filter(function (s) { return /^update/i.test(s.sql); })[0];
+        assert.ok(upd.bindings.indexOf(10) !== -1, 'cni 는 10 으로 묶여야 한다');
+        done();
+    }));
+});
+
+test('update_parent_by_insert: usesqlite 분기가 사라졌다', function () {
+    const fs = require('node:fs');
+    const src = fs.readFileSync(path.join(__dirname, '..', 'mobius', 'sql_action.js'), 'utf8');
+    const body = src.slice(src.indexOf('exports.update_parent_by_insert'));
+    const end = body.indexOf('\nexports.');
+    assert.strictEqual(body.slice(0, end).indexOf('global.usesqlite'), -1,
+        'update_parent_by_insert 안에 usesqlite 분기가 남아 있다');
 });
