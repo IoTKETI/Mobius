@@ -1277,7 +1277,14 @@ function isRowReturning(sql) {
 }
 
 exports.execute = function (handle, sql, bindings, callback) {
-    var h = handle || db;
+    // 이 어댑터는 넘어온 handle 을 쓰지 않고 모듈이 소유한 db 핸들만 쓴다.
+    //
+    // 이유: app.js 는 usesqlite 와 무관하게 항상 MySQL 풀 커넥션을 sql_action 에
+    // 넘긴다. 그 핸들은 truthy 이므로 `handle || db` 로는 MySQL 커넥션이 선택되어
+    // h.all()/h.run() 이 깨진다. 기존 db_sqlite.getResult 도 connection 인자를
+    // 무시하고 모듈 핸들만 쓴다 — 여기서 그 동작을 그대로 따른다.
+    // (SQLite 는 풀이 없고 워커당 핸들 하나를 공유한다.)
+    var h = db;
 
     if (isRowReturning(sql)) {
         h.all(sql, bindings, function (err, rows) {
@@ -1299,6 +1306,13 @@ exports.normalizeResult = function (raw) {
         insertId: raw ? raw.insertId : undefined
     };
 };
+
+// (Task 5 사후 수정, 2026-08-26) 최초 구현은 `handle || db` 였다. 하지만
+// app.js 는 usesqlite 값과 무관하게 항상 db_action.js 의 MySQL 풀 커넥션을
+// sql_action 함수에 넘긴다 — 그 객체는 truthy 라서 `handle || db` 로는 항상
+// MySQL 커넥션이 선택돼 h.all()/h.run() 호출이 깨진다. Task 5 에서 insert_acp
+// 를 실서버(SQLite 모드)로 검증하다 이 결함이 드러났다. handle 파라미터는
+// Task 3 SQL 탭이 이 시그니처를 감싸므로 유지하되, 실제로는 쓰지 않는다.
 
 exports.normalizeError = function (err) {
     if (!err) { return { code: 'UNKNOWN' }; }
@@ -1579,10 +1593,18 @@ knex 3.3.0 을 빌더로만 사용한다. 파사드가 global.usesqlite 를 읽�
 
 **Files:**
 - Modify: `mobius/sql_action.js` (`insert_acp` 함수만)
+- Modify: `app.js` (파사드 `connect()` 배선 — 아래 Step 2a. 실서버 검증에서 드러난 Task 4 잔여 결함을 메운다)
+- Modify: `mobius/db/sqlite.js` (`execute()` 의 핸들 선택 — 아래 Step 2b. 같은 이유)
 
 **Interfaces:**
 - Consumes: Task 4의 `db.k`, `db.run`
 - Produces: `exports.insert_acp(connection, obj, callback)` — 시그니처 불변. 전환 패턴의 참조 구현.
+
+**주의 (사후 반영, 2026-08-26):** 최초 버전의 이 태스크는 `sql_action.js` 한 파일만
+건드리는 것으로 범위를 잡았다. 실제로 전환을 실서버(SQLite/MySQL)로 검증하는
+과정에서 두 가지 통합 결함이 드러났고, 둘 다 이 태스크 범위로 끌어와 함께
+고쳤다 — 아래 Step 2a/2b. 원인은 Task 4 를 "아무도 실서버에서 안 쓴다"는
+전제로 설계해 놓고, 이 태스크(첫 실사용자)에 배선 단계를 넣지 않은 것이다.
 
 - [ ] **Step 1: 전환 전 SQL 기준선을 확인한다**
 
@@ -1607,6 +1629,81 @@ var sqlite = require('./db_sqlite');
 // 전환된 함수는 이 파사드를 쓴다. 전환이 끝나면 위 두 줄은 삭제한다.
 var facade = require('./db');
 ```
+
+- [ ] **Step 2a: `app.js` 에 파사드 `connect()` 를 배선한다 (필수 선행 조건)**
+
+**Task 4 의 신파사드(`mobius/db/index.js`)는 `connect()` 를 부르기 전까지 `db.k()`
+호출 시 무조건 예외를 던진다.** 그런데 실서버 기동 경로(`app.js`)는 구파사드
+(`db_action.js`)의 `connect()` 만 부른다 — 신파사드는 `test/db-facade.test.js`
+안에서만 연결됐다. 이 배선 없이 Step 3 을 실서버로 검증하면 `insert_acp` 가
+처음 불리는 순간 워커가 **100% 크래시**한다 (클러스터가 자동으로 워커를
+재기동하므로 서버 자체는 안 죽지만, `acp` 생성은 항상 실패한다).
+
+`app.js` 상단, 기존 `var db = require('./mobius/db_action');` 아래에 추가한다:
+
+```js
+// 전환된 sql_action 함수들이 쓰는 새 DB 파사드.
+// 전환이 끝나면(구 db_action/db_sqlite 삭제 시) 위 db 를 이것으로 대체한다.
+var db_facade = require('./mobius/db');
+```
+
+서버 기동 경로는 세 갈래다(클러스터 마스터, 클러스터 워커, 비클러스터). 세 곳
+모두 `db.connect(usedbhost, 3306, 'root', usedbpass, (rsc) => { if (rsc == '1') { ... } })`
+형태인데, 그 `if (rsc == '1') {` 블록 **맨 앞**에 파사드도 같은 설정으로 연결한다:
+
+```js
+db.connect(usedbhost, 3306, 'root', usedbpass, (rsc) => {
+    if (rsc == '1') {
+        // 전환된 함수들이 쓰는 파사드도 같은 설정으로 연결한다.
+        // 전환 기간 동안 구/신 두 경로가 공존한다.
+        db_facade.connect(usedbhost, 3306, 'root', usedbpass, () => {});
+        db.getConnection((code, connection) => {
+            ...
+```
+
+파사드의 `connect()` 는 동기적으로 knex 인스턴스를 만들고 어댑터 연결만
+시작하므로(`mobius/db/index.js` 의 `assertReady()` 는 knex 인스턴스 존재
+여부만 본다), 콜백을 기다리지 않아도 이후 `db.k()` 호출은 즉시 안전하다.
+
+**주의:** SQLite 모드에서는 워커당 `mobius.db` 핸들이 2개가 된다(구파사드 1개
++ 신파사드 1개). SQLite 는 다중 커넥션을 지원하고 양쪽에 `busyTimeout 50s` 가
+걸려 있어 전환 기간 동안은 감당 가능하다. 전환이 끝나 구 모듈(`db_action.js`/
+`db_sqlite.js`)을 지우면 다시 1개로 돌아간다(Plan 2 Step 8 참조).
+
+- [ ] **Step 2b: SQLite 어댑터의 커넥션 핸들 선택을 고친다 (필수 선행 조건)**
+
+`mobius/db/sqlite.js` 의 `execute(handle, sql, bindings, callback)` 최초 구현은
+`var h = handle || db;` 였다. 문제는 `app.js` 가 `usesqlite` 값과 **무관하게**
+항상 구파사드(`db_action.js`)의 MySQL 풀 커넥션을 `sql_action.js` 함수들에
+넘긴다는 점이다(`db_action.js` 의 `connect()` 가 `usesqlite` 와 무관하게 매번
+`mysql.createPool(...)` 을 만들고, `getConnection` 도 항상 그 풀에서 커넥션을
+꺼낸다). 그 커넥션 객체는 truthy 이므로 `handle || db` 로는 SQLite 자신의
+핸들로 폴백하지 않고 MySQL 커넥션이 선택돼 `h.all()`/`h.run()` 호출이 깨진다
+(MySQL 커넥션엔 `.query()` 만 있다).
+
+기존(전환 전) `db_sqlite.js` 의 `getResult` 는 이 사실을 이미 알고 있었다 —
+`connection` 인자를 아예 무시하고 모듈 자신의 `db` 핸들만 썼다. 새 어댑터는
+그 동작을 그대로 따라야 한다:
+
+```js
+exports.execute = function (handle, sql, bindings, callback) {
+    // 이 어댑터는 넘어온 handle 을 쓰지 않고 모듈이 소유한 db 핸들만 쓴다.
+    //
+    // 이유: app.js 는 usesqlite 와 무관하게 항상 MySQL 풀 커넥션을 sql_action 에
+    // 넘긴다. 그 핸들은 truthy 이므로 `handle || db` 로는 MySQL 커넥션이 선택되어
+    // h.all()/h.run() 이 깨진다. 기존 db_sqlite.getResult 도 connection 인자를
+    // 무시하고 모듈 핸들만 쓴다 — 여기서 그 동작을 그대로 따른다.
+    // (SQLite 는 풀이 없고 워커당 핸들 하나를 공유한다.)
+    var h = db;
+
+    if (isRowReturning(sql)) {
+        ...
+```
+
+`handle` 파라미터는 시그니처 계약(Task 3 SQL 탭이 이 시그니처를 감싼다) 때문에
+남기되, 실제로는 쓰지 않는다. MySQL 어댑터(`mobius/db/mysql.js`)는 이 문제가
+없다 — 구파사드와 신파사드 둘 다 같은 `mysql` 패키지의 풀 커넥션을 쓰므로
+타입이 맞는다.
 
 - [ ] **Step 3: `insert_acp` 를 전환한다**
 
@@ -1743,6 +1840,16 @@ SQLite/MySQL 양쪽에서 동등성 스냅샷 28단계 일치 확인."
 ```markdown
 ## 전환 패턴 (참조 구현: `insert_acp`)
 
+**선행 조건 (한 번만, Task 5 에서 이미 완료됨):** 파사드(`mobius/db/index.js`)의
+`connect()` 가 `app.js` 의 세 기동 경로 모두에 배선돼 있어야 하고, SQLite
+어댑터(`mobius/db/sqlite.js`)의 `execute()` 는 넘어온 `handle` 을 무시하고
+모듈 자신의 `db` 핸들만 써야 한다(`app.js` 가 usesqlite 값과 무관하게 항상
+MySQL 풀 커넥션을 넘기기 때문). 둘 다 이미 되어 있다면 아래 패턴만 반복하면
+된다 — 함수마다 다시 배선할 필요는 없다. **아직 안 돼 있는 상태에서 전환한
+함수를 실서버로 검증하면, SQLite 모드에서는 100% 재현되는 크래시 또는 잘못된
+핸들 호출로 막힌다.** (Task 5 최초 시도가 이 함정에 걸렸다 — 자세한 경위는
+`.superpowers/sdd/2026-08-26-db-layer-abstraction-part1/task-5-report.md` 참조.)
+
 MERGE 판정 함수는 이 순서로 바꾼다.
 
 1. `if (global.usesqlite === 'true') { … } else { … }` 를 지우고 한 갈래로 만든다
@@ -1753,7 +1860,10 @@ MERGE 판정 함수는 이 순서로 바꾼다.
 5. `console.time` / `console.timeEnd` 라벨도 그대로 둔다
 6. 행 잠금이 있으면 `if (facade.can('rowLock')) { qb = qb.forUpdate().noWait(); }` 로 감싼다
 
-검증은 매번 SQLite + MySQL 양쪽으로 동등성 스냅샷을 비교한다.
+검증은 매번 SQLite + MySQL 양쪽으로 동등성 스냅샷을 비교한다(실서버 기동 →
+`run-scenarios.js` → `compare.js`). 유닛테스트(`test/db-facade.test.js`)만으로는
+부족하다 — 그 테스트들은 각자 `db.connect()` 를 직접 부르므로 위 선행 조건이
+빠져 있어도 통과한다.
 ```
 
 ```bash

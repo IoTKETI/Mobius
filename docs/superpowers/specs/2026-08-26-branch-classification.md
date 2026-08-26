@@ -85,3 +85,30 @@
 - **L1699** (`search_parents_lookup_all` 내부): `var exec = (global.usesqlite === 'true') ? require('./db_sqlite').getResult : db.getResult;` 삼항 연산자. SQL은 위에서 공통 생성, 순수 실행자 선택뿐이라 있었다면 MERGE.
 - **L3608** (`delete_orphan_lookup` 내부): 위와 동일한 삼항 실행자 선택 패턴. MERGE.
 - **L3420** (`update_parent_by_insert` 내부): `if (global.usesqlite === 'true' && obj.ty == '3') {` — `usesqlite`와 `obj.ty=='3'` 복합 조건이라 도구의 정확한 패턴 매칭에서 빠졌다. SQLite+ty=='3' 조합일 때만 `update_cnt_cni`(REVIEW 대상, L3371)로 위임하고, 그 외 모든 경우(MySQL 전체, 또는 SQLite의 ty!=3)는 공통 `update %s, lookup set ...cni=cni+1...` 문을 쓴다. `update_cnt_cni` 자체가 REVIEW이므로 이 위임 분기도 같은 보존 요구사항을 물려받는다.
+
+## 전환 패턴 (참조 구현: `insert_acp`)
+
+**선행 조건 (한 번만, Task 5 에서 이미 완료됨):** 파사드(`mobius/db/index.js`)의
+`connect()` 가 `app.js` 의 세 기동 경로 모두에 배선돼 있어야 하고, SQLite
+어댑터(`mobius/db/sqlite.js`)의 `execute()` 는 넘어온 `handle` 을 무시하고
+모듈 자신의 `db` 핸들만 써야 한다(`app.js` 가 usesqlite 값과 무관하게 항상
+MySQL 풀 커넥션을 넘기기 때문). 둘 다 이미 되어 있다면 아래 패턴만 반복하면
+된다 — 함수마다 다시 배선할 필요는 없다. **아직 안 돼 있는 상태에서 전환한
+함수를 실서버로 검증하면, SQLite 모드에서는 100% 재현되는 크래시 또는 잘못된
+핸들 호출로 막힌다.** (Task 5 최초 시도가 이 함정에 걸렸다 — 자세한 경위는
+`.superpowers/sdd/2026-08-26-db-layer-abstraction-part1/task-5-report.md` 참조.)
+
+MERGE 판정 함수는 이 순서로 바꾼다.
+
+1. `if (global.usesqlite === 'true') { … } else { … }` 를 지우고 한 갈래로 만든다
+2. `util.format` + `.replace()` 이스케이프를 `facade.k(table)` 빌더 호출로 바꾼다
+3. `db.getResult(sql, connection, cb)` / `sqlite.getResult(sql, null, cb)` 를
+   `facade.run(qb, connection, cb)` 로 바꾼다
+4. 콜백 안의 분기(`if (!err) … else …`)와 보상 로직은 **그대로 둔다**
+5. `console.time` / `console.timeEnd` 라벨도 그대로 둔다
+6. 행 잠금이 있으면 `if (facade.can('rowLock')) { qb = qb.forUpdate().noWait(); }` 로 감싼다
+
+검증은 매번 SQLite + MySQL 양쪽으로 동등성 스냅샷을 비교한다(실서버 기동 →
+`run-scenarios.js` → `compare.js`). 유닛테스트(`test/db-facade.test.js`)만으로는
+부족하다 — 그 테스트들은 각자 `db.connect()` 를 직접 부르므로 위 선행 조건이
+빠져 있어도 통과한다.
