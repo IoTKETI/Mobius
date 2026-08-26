@@ -60,6 +60,13 @@ function tapAdapter(useSqlite) {
         callback(null, { affectedRows: 1, insertId: 0 });
     };
 
+    // update_acp / update_sub 는 이제 db.transaction() 안에서 돈다. MySQL 어댑터의
+    // begin/commit 은 실제 핸들의 메서드를 부르는데, 이 테스트는 connection 으로
+    // null 을 넘기므로 스텁이 필요하다. (운영에서는 request.db_connection 이 온다.)
+    adapter.begin = function (handle, callback) { callback(null); };
+    adapter.commit = function (handle, callback) { callback(null); };
+    adapter.rollback = function (handle, callback) { callback(null); };
+
     db.connect('h', 1, 'u', 'p', function () {});
 
     // sql_action 이 파사드를 재사용하도록 캐시에서 지운 뒤 다시 로드한다.

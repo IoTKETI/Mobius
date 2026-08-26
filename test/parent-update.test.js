@@ -222,3 +222,34 @@ test('update_parent_by_insert: usesqlite 분기가 사라졌다', function () {
     assert.strictEqual(body.slice(0, end).indexOf('global.usesqlite'), -1,
         'update_parent_by_insert 안에 usesqlite 분기가 남아 있다');
 });
+
+test('update_acp: MySQL 에서 lookup 과 acp 가 한 트랜잭션이다', function (t, done) {
+    const { sql_action, seen } = tapAdapter(false);
+    sql_action.update_acp({}, {
+        ri: '/M/a1', lbl: [], acpi: [], at: [], aa: [], subl: [],
+        et: '20280101T000000', st: 1, pv: { acr: [] }, pvs: { acr: [] }
+    }, guard(done, function (err) {
+        assert.ok(!err, '실패하면 안 된다: ' + JSON.stringify(err));
+        assertNoLegacy(seen);
+        const order = seen.map(function (s) { return /^update/i.test(s.sql) ? 'UPDATE' : s.sql; });
+        assert.strictEqual(order[0], 'BEGIN', '트랜잭션으로 감싸야 한다');
+        assert.strictEqual(order[order.length - 1], 'COMMIT');
+        assert.strictEqual(order.filter(function (o) { return o === 'UPDATE'; }).length, 2);
+        done();
+    }));
+});
+
+test('update_sub: MySQL 에서 lookup 과 sub 가 한 트랜잭션이다', function (t, done) {
+    const { sql_action, seen } = tapAdapter(false);
+    sql_action.update_sub({}, {
+        ri: '/M/s1', lbl: [], acpi: [], at: [], aa: [], subl: [],
+        et: '20280101T000000', st: 1, enc: {}, nu: [], nct: 1, pn: 1, exc: 0
+    }, guard(done, function (err) {
+        assert.ok(!err, '실패하면 안 된다: ' + JSON.stringify(err));
+        assertNoLegacy(seen);
+        const order = seen.map(function (s) { return /^update/i.test(s.sql) ? 'UPDATE' : s.sql; });
+        assert.strictEqual(order[0], 'BEGIN');
+        assert.strictEqual(order[order.length - 1], 'COMMIT');
+        done();
+    }));
+});

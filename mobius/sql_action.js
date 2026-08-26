@@ -2689,25 +2689,28 @@ exports.update_lookup = function (connection, obj, callback) {
     });
 };
 
+// 이전에는 db.getResult 를 무조건 호출해 SQLite 모드에서도 MySQL 로 나갔다.
+// select_acp 는 SQLite 에서 읽으므로 정책 갱신이 조용히 유실됐다(2차에서 수정).
+// 여기서는 lookup 과 acp 두 문장을 한 트랜잭션으로 묶는다 — 반쪽만 반영되면
+// 리소스 메타데이터와 접근 정책이 어긋난다.
 exports.update_acp = function (connection, obj, callback) {
     console.time('update_acp ' + obj.ri);
-    _this.update_lookup(connection, obj, function (err, results) {
-        if (err) {
-            callback(err, results);
-            return;
-        }
+    facade.transaction(connection, function (conn, finish) {
+        _this.update_lookup(conn, obj, function (err, results) {
+            if (err) { return finish(err, results); }
 
-        // 이전에는 db.getResult 를 무조건 호출해 SQLite 모드에서도 MySQL 로 나갔다.
-        // select_acp 는 SQLite 에서 읽으므로 정책 갱신이 조용히 유실됐다.
-        facade.run(facade.k('acp').update({
-            pv: JSON.stringify(obj.pv),
-            pvs: JSON.stringify(obj.pvs)
-        }).where({ ri: obj.ri }), connection, function (err2, results2) {
-            if (!err2) {
-                console.timeEnd('update_acp ' + obj.ri);
-            }
-            callback(err2, results2);
+            facade.run(facade.k('acp').update({
+                pv: JSON.stringify(obj.pv),
+                pvs: JSON.stringify(obj.pvs)
+            }).where({ ri: obj.ri }), conn, function (err2, results2) {
+                finish(err2, err2 ? results2 : results);
+            });
         });
+    }, function (err, results) {
+        if (!err) {
+            console.timeEnd('update_acp ' + obj.ri);
+        }
+        callback(err, results);
     });
 };
 
@@ -3202,34 +3205,37 @@ exports.update_req = function (connection, ri, pc, op, mi, rs, ors, callback) {
     });
 };
 
+// 이전에는 db.getResult 를 무조건 호출해 SQLite 모드에서 구독 갱신이 유실됐다
+// (2차에서 수정). 여기서는 lookup 과 sub 두 문장을 한 트랜잭션으로 묶는다 —
+// 반쪽만 반영되면 리소스 메타데이터와 알림 설정이 어긋난다.
 exports.update_sub = function (connection, obj, callback) {
     console.time('update_sub ' + obj.ri);
-    _this.update_lookup(connection, obj, function (err, results) {
-        if (err) {
-            callback(err, results);
-            return;
-        }
+    facade.transaction(connection, function (conn, finish) {
+        _this.update_lookup(conn, obj, function (err, results) {
+            if (err) { return finish(err, results); }
 
-        // 이전에는 db.getResult 를 무조건 호출해 SQLite 모드에서 구독 갱신이 유실됐다.
-        facade.run(facade.k('sub').update({
-            enc: JSON.stringify(obj.enc),
-            exc: obj.exc,
-            nu: JSON.stringify(obj.nu),
-            gpi: obj.gpi,
-            nfu: obj.nfu,
-            bn: JSON.stringify(obj.bn),
-            rl: obj.rl,
-            pn: obj.pn,
-            nsp: obj.nsp,
-            ln: obj.ln,
-            nct: obj.nct,
-            nec: obj.nec
-        }).where({ ri: obj.ri }), connection, function (err2, results2) {
-            if (!err2) {
-                console.timeEnd('update_sub ' + obj.ri);
-            }
-            callback(err2, results2);
+            facade.run(facade.k('sub').update({
+                enc: JSON.stringify(obj.enc),
+                exc: obj.exc,
+                nu: JSON.stringify(obj.nu),
+                gpi: obj.gpi,
+                nfu: obj.nfu,
+                bn: JSON.stringify(obj.bn),
+                rl: obj.rl,
+                pn: obj.pn,
+                nsp: obj.nsp,
+                ln: obj.ln,
+                nct: obj.nct,
+                nec: obj.nec
+            }).where({ ri: obj.ri }), conn, function (err2, results2) {
+                finish(err2, err2 ? results2 : results);
+            });
         });
+    }, function (err, results) {
+        if (!err) {
+            console.timeEnd('update_sub ' + obj.ri);
+        }
+        callback(err, results);
     });
 };
 
