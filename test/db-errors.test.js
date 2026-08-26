@@ -61,3 +61,24 @@ test('isAeiDuplicate: null/undefined/빈 객체에 안 터진다', function () {
     assert.strictEqual(errors.isAeiDuplicate(undefined), false);
     assert.strictEqual(errors.isAeiDuplicate({}), false);
 });
+
+// --- SQLite 파일 경로 일원화 -------------------------------------------------
+// 파사드와 구 경로가 서로 다른 .db 파일을 열면, 전환된 함수와 안 된 함수가
+// 다른 DB 를 보게 된다. 두 모듈이 같은 규칙으로 경로를 정해야 한다.
+const fs = require('node:fs');
+const pathmod = require('node:path');
+
+test('구 경로와 파사드가 같은 규칙으로 SQLite 경로를 정한다', function () {
+    const facadeSrc = fs.readFileSync(
+        pathmod.join(__dirname, '..', 'mobius', 'db', 'sqlite.js'), 'utf8');
+    const legacySrc = fs.readFileSync(
+        pathmod.join(__dirname, '..', 'mobius', 'db_sqlite.js'), 'utf8');
+
+    const RULE = /process\.env\.MOBIUS_SQLITE_PATH\s*\|\|\s*'\.\/mobius\.db'/;
+
+    assert.match(facadeSrc, RULE, 'mobius/db/sqlite.js 가 규칙을 벗어났다');
+    assert.match(legacySrc, RULE, 'mobius/db_sqlite.js 가 경로를 하드코딩하고 있다');
+
+    // 하드코딩된 './mobius.db' 리터럴은 위 규칙 안에서만 나와야 한다.
+    assert.strictEqual((legacySrc.match(/'\.\/mobius\.db'/g) || []).length, 1);
+});

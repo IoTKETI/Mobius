@@ -16,10 +16,14 @@
 
 var sqlite3 = require('sqlite3').verbose();
 
+// 파사드(mobius/db/sqlite.js)와 반드시 같은 규칙으로 경로를 정해야 한다.
+// 서로 다른 파일을 열면 전환된 함수와 안 된 함수가 다른 DB 를 보게 된다.
+var DB_PATH = process.env.MOBIUS_SQLITE_PATH || './mobius.db';
+
 var db = null;
 
 exports.connect = function (callback) {
-    db = new sqlite3.Database('./mobius.db', (err) => {
+    db = new sqlite3.Database(DB_PATH, (err) => {
         if (err) {
             console.error(err.message);
         }
