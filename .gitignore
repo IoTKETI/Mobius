@@ -11,6 +11,8 @@ docs/*
 # 동등성 스냅샷은 로컬 산출물이다 (.gitkeep 은 남긴다)
 tools/equivalence/out/*
 !tools/equivalence/out/.gitkeep
+tools/golden/out/*
+!tools/golden/out/.gitkeep
 hit.json
 cbs_cache.json
 package-lock.json
