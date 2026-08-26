@@ -144,7 +144,10 @@ function fopt_member(request, response, req_count, mid, body_Obj, cse_poa, agr, 
                         port = url.parse(cse_poa[target_cb]).port;
                         request_to_member(request, hostname, port, ri, agr, function (code) {
                             if(code === '200') {
-                                fopt_member(request, response, req_count, mid, body_Obj, cse_poa, agr, function (code) {
+                                // 원격 CSE 멤버도 다음 멤버로 넘어가야 한다. 여기만 req_count 를
+                                // 올리지 않아, 원격 멤버가 있는 그룹의 fanOutPoint 요청이 같은
+                                // 멤버를 무한히 호출했다. 나머지 재귀 3곳과 동일하게 맞춘다.
+                                fopt_member(request, response, ++req_count, mid, body_Obj, cse_poa, agr, function (code) {
                                     callback(code);
                                 });
                             }
