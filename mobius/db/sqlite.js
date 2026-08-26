@@ -18,6 +18,9 @@ var path = require('path');
 
 var db = null;
 
+// 테스트가 실제 개발 DB 를 건드리지 않도록 경로를 열어 둔다.
+var DB_PATH = process.env.MOBIUS_SQLITE_PATH || './mobius.db';
+
 exports.name = 'sqlite';
 exports.knexClient = 'sqlite3';
 exports.schemaFile = 'mobiusdb_sqlite.sql';
@@ -28,7 +31,7 @@ exports.capabilities = {
 };
 
 exports.connect = function (conf, callback) {
-    db = new sqlite3.Database('./mobius.db', function (err) {
+    db = new sqlite3.Database(DB_PATH, function (err) {
         if (err) {
             console.error('[db/sqlite] ' + err.message);
             callback('0');
@@ -92,6 +95,13 @@ exports.execute = function (handle, sql, bindings, callback) {
     // h.all()/h.run() 이 깨진다. 기존 db_sqlite.getResult 도 connection 인자를
     // 무시하고 모듈 핸들만 쓴다 — 여기서 그 동작을 그대로 따른다.
     // (SQLite 는 풀이 없고 워커당 핸들 하나를 공유한다.)
+
+    // db 가 null 이면(연결 실패) 여기서 잡아야 한다. 안 그러면 TypeError 가
+    // index.js 의 try 바깥에서 터져 워커가 죽는다. 구 db_sqlite.getResult 도
+    // 같은 검사를 했다.
+    if (db == null) {
+        return callback(new Error('[db/sqlite] not connected'), null);
+    }
     var h = db;
 
     if (isRowReturning(sql)) {

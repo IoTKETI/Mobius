@@ -152,9 +152,15 @@ if (use_clustering) {
 
         db.connect(usedbhost, 3306, 'root', usedbpass, (rsc) => {
             if (rsc == '1') {
-                // 전환된 함수들이 쓰는 파사드도 같은 설정으로 연결한다.
-                // 전환 기간 동안 구/신 두 경로가 공존한다.
-                db_facade.connect(usedbhost, 3306, 'root', usedbpass, () => {});
+                // 파사드 연결 실패가 서버 기동 자체를 막으면 안 된다.
+                // 전환 안 된 함수들은 구 경로로 계속 동작한다.
+                try {
+                    db_facade.connect(usedbhost, 3306, 'root', usedbpass, (rsc2) => {
+                        if (rsc2 !== '1') { console.error('[db_facade] connect failed: ' + rsc2); }
+                    });
+                } catch (e) {
+                    console.error('[db_facade] connect threw: ' + (e.message || e));
+                }
                 db.getConnection((code, connection) => {
                     if (code === '200') {
                         db_sql.set_tuning(connection, (err, results) => {
@@ -200,9 +206,15 @@ if (use_clustering) {
     else {
         db.connect(usedbhost, 3306, 'root', usedbpass, (rsc) => {
             if (rsc === '1') {
-                // 전환된 함수들이 쓰는 파사드도 같은 설정으로 연결한다.
-                // 전환 기간 동안 구/신 두 경로가 공존한다.
-                db_facade.connect(usedbhost, 3306, 'root', usedbpass, () => {});
+                // 파사드 연결 실패가 서버 기동 자체를 막으면 안 된다.
+                // 전환 안 된 함수들은 구 경로로 계속 동작한다.
+                try {
+                    db_facade.connect(usedbhost, 3306, 'root', usedbpass, (rsc2) => {
+                        if (rsc2 !== '1') { console.error('[db_facade] connect failed: ' + rsc2); }
+                    });
+                } catch (e) {
+                    console.error('[db_facade] connect threw: ' + (e.message || e));
+                }
                 db.getConnection((code, connection) => {
                     if (code === '200') {
                         if (use_secure === 'disable') {
@@ -246,9 +258,15 @@ if (use_clustering) {
 else {
     db.connect(usedbhost, 3306, 'root', usedbpass, (rsc) => {
         if (rsc == '1') {
-            // 전환된 함수들이 쓰는 파사드도 같은 설정으로 연결한다.
-            // 전환 기간 동안 구/신 두 경로가 공존한다.
-            db_facade.connect(usedbhost, 3306, 'root', usedbpass, () => {});
+            // 파사드 연결 실패가 서버 기동 자체를 막으면 안 된다.
+            // 전환 안 된 함수들은 구 경로로 계속 동작한다.
+            try {
+                db_facade.connect(usedbhost, 3306, 'root', usedbpass, (rsc2) => {
+                    if (rsc2 !== '1') { console.error('[db_facade] connect failed: ' + rsc2); }
+                });
+            } catch (e) {
+                console.error('[db_facade] connect threw: ' + (e.message || e));
+            }
             db.getConnection((code, connection) => {
                 if (code === '200') {
                     cb.create(connection, (rsp) => {

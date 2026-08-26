@@ -3,6 +3,9 @@ const test = require('node:test');
 const assert = require('node:assert');
 const path = require('path');
 
+// 실제 개발 DB 를 건드리지 않는다.
+process.env.MOBIUS_SQLITE_PATH = path.join(require('node:os').tmpdir(), 'mobius-facade-test.db');
+
 const DB = path.join(__dirname, '..', 'mobius', 'db');
 
 function freshDb(useSqlite) {

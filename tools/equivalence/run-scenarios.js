@@ -84,7 +84,29 @@ const CT_SUB = 'application/vnd.onem2m-res+json;ty=23';
 const CT_ACP = 'application/vnd.onem2m-res+json;ty=1';
 const CT_GRP = 'application/vnd.onem2m-res+json;ty=9';
 
+// 서버가 실제로 응답하는지 먼저 확인한다. 이걸 안 하면 서버가 죽어 있을 때
+// 모든 단계가 똑같은 fetch 실패 객체를 기록하고, 두 스냅샷이 "일치"해버린다.
+async function waitReady(timeoutMs) {
+    const deadline = Date.now() + timeoutMs;
+    let lastErr = null;
+    while (Date.now() < deadline) {
+        try {
+            const res = await fetch(BASE + '/' + CSE, { method: 'GET', headers: headers() });
+            if (res.status >= 200 && res.status < 500) { return true; }
+            lastErr = 'HTTP ' + res.status;
+        } catch (e) {
+            lastErr = e.message;
+        }
+        await new Promise(function (r) { setTimeout(r, 1000); });
+    }
+    console.error('서버가 응답하지 않는다 (' + Math.round(timeoutMs / 1000) + 's 대기): ' + lastErr);
+    console.error('  BASE=' + BASE + '  서버를 먼저 띄우세요: node mobius.js sqlite');
+    process.exit(1);
+}
+
 async function main() {
+    await waitReady(60000);
+
     const snap = [];
     const step = async function (name, fn) { snap.push({ step: name, result: await fn() }); };
 
@@ -170,6 +192,15 @@ async function main() {
 
     await step('ae-delete', () => call('DELETE', '/' + CSE + '/' + AE));
     await step('acp-delete', () => call('DELETE', '/' + CSE + '/eqv_acp'));
+
+    // 시나리오 도중 서버가 죽었을 수도 있다. status 0 은 fetch 자체가 실패한 것이므로
+    // 그런 단계가 하나라도 있으면 스냅샷은 신뢰할 수 없다 — 쓰지 않는다.
+    const dead = snap.filter(function (s) { return s.result && s.result.status === 0; });
+    if (dead.length > 0) {
+        console.error('연결 실패 단계 ' + dead.length + '개 — 스냅샷을 쓰지 않는다:');
+        dead.forEach(function (s) { console.error('  ' + s.step); });
+        process.exit(1);
+    }
 
     require('fs').writeFileSync(OUT, JSON.stringify(snap, null, 2), 'utf8');
     console.log('스냅샷 ' + snap.length + '단계 -> ' + OUT);
