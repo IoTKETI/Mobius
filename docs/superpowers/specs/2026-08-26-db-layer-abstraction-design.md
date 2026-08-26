@@ -47,7 +47,8 @@ MySQL이 없으면 `getConnection`이 `'500-5'`를 반환하고, `app.js`의 요
 |---|---:|
 | `mobius/sql_action.js` 줄수 | 3,662 |
 | `exports` 개수 | 109 |
-| `usesqlite` 분기 | 36 |
+| `usesqlite` 언급 | 36 |
+| `if (global.usesqlite === 'true')` 분기 블록 | 33 |
 | `sql_action.js` 의존 모듈 | 14 |
 | `resource.js`의 `ER_DUP_ENTRY` | 29 |
 
@@ -60,7 +61,38 @@ MySQL이 없으면 `getConnection`이 `'500-5'`를 반환하고, `app.js`의 요
 | `beginTransaction` | 2 | MySQL 경로에만 존재 |
 | `WITH RECURSIVE` | 2 | MySQL 8.0.45·SQLite 3.44.2 모두 지원 — 방언 차이 아님 |
 
-나머지 분기는 이스케이프와 실행자만 다른 **가짜 분기**다.
+### 분기 분류 — 대부분은 합칠 수 있으나 전부는 아니다
+
+33개 분기를 정적 분석으로 훑은 결과다. **이 수치는 확정이 아니라 출발점이다.** 도구가 휴리스틱이라 양방향 오차가 있음을 아래에 근거와 함께 적는다.
+
+| 분류 | 개수 | 뜻 |
+|---|---:|---|
+| `executor-only` | 16 | SQL 은 분기 밖에서 만들고, 분기는 `sqlite.getResult` / `db.getResult` 만 고른다 |
+| `fake` | 3 | 분기 안 SQL 이 동일하고 이스케이프만 다르다 |
+| `dialect` | 2 | `ON CONFLICT` ↔ `ON DUPLICATE KEY` — knex 가 흡수한다 |
+| `real` | 9 | SQL 자체가 다르다 |
+| `sqlite-only` | 2 | `else` 가 없다 (`search_lookup`, `search_parents_lookup`) |
+| `unparsed` | 1 | 도구가 판정하지 못했다 (`get_cni_count`) |
+
+**진짜 차이가 존재한다는 근거** — `insert_lookup`은 두 경로가 구조적으로 다르다.
+
+| | SQLite 경로 | MySQL 경로 |
+|---|---|---|
+| 선행 쿼리 | `select pv from acp where ri in (...)` **있음** | 없음 |
+| `insert into lookup` 컬럼 | 16개 (`acpl` 포함) | 15개 (`acpl` 없음) |
+
+SQLite 경로만 ACP 를 `lookup.acpl` 에 비정규화해 넣는다. 모르고 합치면 동작이 조용히 바뀐다.
+
+**`real` 9개는 과다 계상이다** — `update_ae` 를 확인한 결과 실제 차이는 예약어 `or` 의 인용 방식뿐이었다.
+
+```
+MySQL : update ae set ..., ae.or = '%s', ...
+SQLite: update ae set ..., "or"  = '%s', ...
+```
+
+식별자 인용이므로 knex 가 흡수한다. 같은 성격의 오탐이 `real` 안에 더 있을 수 있다.
+
+**따라서 분류 확정은 구현 전 첫 작업으로 둔다.** 33개 분기를 하나씩 읽어 `합칠 수 있음 / 개별 처리 필요` 로 판정하고, 판정 결과를 근거와 함께 기록한 뒤에야 기계적 변환을 시작한다. 이 표는 그 작업의 시작점이지 결론이 아니다.
 
 ## 접근 방법
 
@@ -279,7 +311,8 @@ SQLite `:memory:`와 MySQL 임시 스키마에 대해 대표 시나리오를 리
 
 | 단계 | 내용 | 되돌리기 |
 |---|---|---|
-| 0 | 골든 기준선 캡처 + 2층 테스트 작성 | 코드 변경 없음 |
+| 0a | **33개 분기 정밀 분류.** 하나씩 읽어 `합칠 수 있음 / 개별 처리 필요` 판정, 근거 기록 | 코드 변경 없음 |
+| 0b | 골든 기준선 캡처 + 2층 테스트 작성 | 코드 변경 없음 |
 | 1 | `mobius/db/` 뼈대(파사드·어댑터 2종). 아무도 안 씀 | 파일 삭제 |
 | 2 | `insert_*` 전환 | 함수 단위 revert |
 | 3 | `select_*` 전환 | 〃 |
@@ -320,6 +353,7 @@ grep -rn "global.usesqlite" --include="*.js" . | grep -v node_modules
 
 | 위험 | 완화 |
 |---|---|
+| **분기 분류 오판으로 동작이 조용히 바뀜** | 정적 분석 도구는 양방향 오차가 있다(`insert_lookup` 은 진짜 차이, `update_ae` 는 오탐). 0a 단계에서 33개를 사람이 직접 판정하고 근거를 남긴다 |
 | 109개 함수 전환 중 회귀 | 3층 검증 + 함수 단위 전환 + 매 단계 배포 가능 |
 | 골든 테스트 커버리지 부족 | 커버리지를 매 단계 보고, 미커버 함수는 2·3층에 의존 |
 | 동시 작업과의 충돌 | `sql_action.js`는 활발히 수정되는 파일이다. 착수 전 다른 작업 일정 확인 필요 |
