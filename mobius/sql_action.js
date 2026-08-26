@@ -2677,44 +2677,39 @@ exports.update_st = function (connection, obj, callback) {
 };
 
 exports.update_lookup = function (connection, obj, callback) {
-    //console.time('update_lookup ' + ri);
-    if (global.usesqlite === 'true') {
-        var sqlite = require('./db_sqlite');
-        var sql1 = util.format('update lookup set lt = \'%s\', acpi = \'%s\', et = \'%s\', st = \'%s\', lbl = \'%s\', at = \'%s\', aa = \'%s\', subl = \'%s\' where ri = \'%s\'',
-            obj.lt, JSON.stringify(obj.acpi).replace(/'/g, "''"), obj.et, obj.st, JSON.stringify(obj.lbl).replace(/'/g, "''"), JSON.stringify(obj.at).replace(/'/g, "''"), JSON.stringify(obj.aa).replace(/'/g, "''"), JSON.stringify(obj.subl).replace(/'/g, "''"), obj.ri);
-        sqlite.getResult(sql1, connection, function (err, results) {
-            callback(err, results);
-        });
-    }
-    else {
-        var sql1 = util.format('update lookup set lt = \'%s\', acpi = \'%s\', et = \'%s\', st = \'%s\', lbl = \'%s\', at = \'%s\', aa = \'%s\', subl = \'%s\' where ri = \'%s\'',
-            obj.lt, JSON.stringify(obj.acpi), obj.et, obj.st, JSON.stringify(obj.lbl).replace(/\"/g, '\\"').replace(/\'/g, '\\\''), JSON.stringify(obj.at), JSON.stringify(obj.aa), JSON.stringify(obj.subl), obj.ri);
-        db.getResult(sql1, connection, function (err, results) {
-            //console.timeEnd('update_lookup ' + ri);
-            callback(err, results);
-        });
-    }
+    facade.run(facade.k('lookup').update({
+        lt: obj.lt,
+        acpi: JSON.stringify(obj.acpi),
+        et: obj.et,
+        st: obj.st,
+        lbl: JSON.stringify(obj.lbl),
+        at: JSON.stringify(obj.at),
+        aa: JSON.stringify(obj.aa),
+        subl: JSON.stringify(obj.subl)
+    }).where({ ri: obj.ri }), connection, function (err, results) {
+        callback(err, results);
+    });
 };
 
 exports.update_acp = function (connection, obj, callback) {
     console.time('update_acp ' + obj.ri);
     _this.update_lookup(connection, obj, function (err, results) {
-        if (!err) {
-            var sql2 = util.format('update acp set pv = \'%s\', pvs = \'%s\' where ri = \'%s\'',
-                JSON.stringify(obj.pv), JSON.stringify(obj.pvs), obj.ri);
-            db.getResult(sql2, connection, function (err, results) {
-                if (!err) {
-                    console.timeEnd('update_acp ' + obj.ri);
-                    callback(err, results);
-                }
-                else {
-                    callback(err, results);
-                }
-            });
-        }
-        else {
+        if (err) {
             callback(err, results);
+            return;
         }
+
+        // 이전에는 db.getResult 를 무조건 호출해 SQLite 모드에서도 MySQL 로 나갔다.
+        // select_acp 는 SQLite 에서 읽으므로 정책 갱신이 조용히 유실됐다.
+        facade.run(facade.k('acp').update({
+            pv: JSON.stringify(obj.pv),
+            pvs: JSON.stringify(obj.pvs)
+        }).where({ ri: obj.ri }), connection, function (err2, results2) {
+            if (!err2) {
+                console.timeEnd('update_acp ' + obj.ri);
+            }
+            callback(err2, results2);
+        });
     });
 };
 
