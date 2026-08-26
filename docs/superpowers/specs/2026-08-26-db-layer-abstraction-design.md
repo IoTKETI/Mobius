@@ -200,7 +200,7 @@ module.exports = {
     release(handle),
     execute(handle, sql, bindings, cb),
 
-    normalizeResult(raw),             // SELECT -> {rows} / 그 외 -> {affectedRows, insertId}
+    normalizeResult(raw),             // SELECT -> rows[] 배열 그대로 / 그 외 -> {affectedRows, insertId}
     normalizeError(err),              // -> {code, constraint}
 
     begin(handle, cb), commit(handle, cb), rollback(handle, cb),
@@ -232,7 +232,7 @@ module.exports = {
 
 ```js
 db.run(qb, conn, cb)
-  // 성공: cb(null, { rows })  또는  cb(null, { affectedRows, insertId })
+  // 성공: cb(null, rows[])  또는  cb(null, { affectedRows, insertId })
   // 실패: cb(true, err)       err.code 는 중립 어휘
 ```
 
@@ -249,11 +249,25 @@ db.run(qb, conn, cb)
 
 ### 결과 형태 정규화
 
-| | MySQL | SQLite | 정규화 |
+| | MySQL 원본 | SQLite 원본 | 정규화 결과 |
 |---|---|---|---|
-| SELECT | `rows[]` | `rows[]` | `{ rows }` |
-| INSERT | `insertId` | `lastID` | `{ insertId }` |
-| UPDATE/DELETE | `affectedRows` | `changes` | `{ affectedRows }` |
+| SELECT | `rows[]` | `rows[]` | **`rows[]` — 배열 그대로** |
+| INSERT | `{insertId, affectedRows}` | `{lastID, changes}` | `{ insertId, affectedRows }` |
+| UPDATE/DELETE | `{affectedRows}` | `{changes}` | `{ affectedRows }` |
+
+**SELECT 결과를 객체로 감싸면 안 된다.** 호출부가 배열로 직접 다룬다.
+
+```js
+// mobius/resource.js
+db_sql.select_lookup(conn, pi, function (err, results_comm) {
+    makeObject(results_comm[0]);          // ← 배열 인덱싱
+// mobius/security.js
+db_sql.select_acp_in(conn, ri_list, function (err, results_acp) {
+    if (results_acp.length == 0) { ... }  // ← 배열 length
+    ... results_acp[i].pv ...
+```
+
+즉 정규화의 기준은 **MySQL 드라이버가 원래 돌려주던 형태**이고, 다른 백엔드가 거기에 맞춘다. `db_sqlite.js` 가 이미 하고 있는 흉내내기를 어댑터의 명시적 의무로 승격시키는 것이다. 이는 에러 어휘 중립화와 방향이 반대로 보이지만, 결과 형태는 **호출부 109곳이 의존하는 기존 계약**이라 보존이 우선이다.
 
 ### 능력 선언
 
