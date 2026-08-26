@@ -21,3 +21,4 @@ test_*
 # Claude Code (개인 설정/메모리)
 .claude/
 CLAUDE.md
+.superpowers/
