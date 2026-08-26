@@ -1108,6 +1108,85 @@ grep -rn "global.usesqlite" mobius/db/
 
 ---
 
+---
+
+## 정정 — 실행 중 밝혀진 것 (계획의 전제가 틀렸다)
+
+Task 7 검증에서 착수 전 실측을 재현했더니 **증상이 그대로였다** (`cni` 가 여전히 2).
+원인을 추적한 결과, **이 계획의 배경 절이 증상의 원인을 잘못 짚었다.**
+
+### 실제 원인
+
+증상(CIN 삭제 후 `cnt.cni`/`cbs` 가 안 줄어듦)은 사실이지만, 다중 테이블 UPDATE 가
+MySQL 로 새기 때문이 **아니다.** 부모 갱신 호출 자체가 **일어나지 않는다.**
+
+```js
+// mobius.js:85
+global.useCert = 'disable';        // 하드코딩
+
+// mobius/resource.js:2555
+if (useCert == 'enable') {          // 절대 참이 되지 않는다
+    if (request.resourceObj[rootnm].ty == 4) {
+        db_sql.update_parent_by_delete(...);   // 도달 불가
+    } else {
+        db_sql.update_parent_st(...);          // 도달 불가
+    }
+}
+```
+
+서버 로그로도 확인했다 — CIN 삭제 시 `delete_ri_lookup` 만 찍히고 부모 갱신은 없다.
+
+### 네 함수의 실제 도달 가능성
+
+| 함수 | 호출부 | 도달 가능? |
+|------|--------|-----------|
+| `update_parent_st` | `resource.js:379`, `:2561` — 둘 다 `useCert` 뒤 | **불가** |
+| `update_parent_by_delete` | `resource.js:2557` — `useCert` 뒤 / `:2415` — `update_cnt_by_delete` 안 | **사실상 불가** |
+| `update_parent_by_insert` | **없음** | **불가** |
+| `update_cnt_cni` | **없음** (Task 5 가 유일한 호출부를 제거) | **불가** |
+
+살아 있는 카운터 유지 경로는 따로 있다:
+- **삽입**: `mobius/cnt_man.js:94` (SQLite) / `:116` (MySQL) 가 배치로 `cni = cni + delta` 를 적용한다.
+- **삭제**: **없다.** 감소시키는 주체가 아무도 없다.
+- **판정 보정**: `sql_action.js:504` 의 `get_cni_count` 가 SQLite 에서 저장된 `cni` 대신
+  실제 `COUNT(*)` 로 purge 를 판단한다. 그래서 `mni` 강제는 깨지지 않고, 저장된 `cni` 는
+  **조회 시 보이는 값만** 틀린다.
+
+### 남아 있는 진짜 버그 (이번 회차에서 안 고침)
+
+CIN 을 지워도 `cnt.cni`/`cbs` 가 줄지 않는다. **두 백엔드 모두** 그렇다 — 실측:
+
+| 모드 | 실제 CIN | 조회된 `cni` | 조회된 `cbs` |
+|------|---------|------------|------------|
+| SQLite | 1 | **2** | **8** |
+| MySQL | 1 | **2** | **4** |
+
+`RETRIEVE /Mobius/<ae>/<cnt>` 응답에 그대로 나가므로 사용자에게 보이는 값이 틀린다.
+
+고치려면 `useCert` 게이팅을 손봐야 하는데, 그건 DB 레이어 추상화가 아니라 **리소스
+계층의 동작 변경**이다. 별도 판단이 필요해 이번 회차에서는 건드리지 않았다.
+곁들여 `update_cnt_by_delete`(`resource.js:2397`)는 4개 파라미터인데 `:2519` 에서
+**3개 인자로** 호출된다 — `cs` 자리에 콜백 함수가 들어간다.
+
+### 그럼 Task 1~6 은 무의미했나
+
+아니다. 다만 **얻은 것이 계획이 주장한 것과 다르다:**
+
+| 얻은 것 | 근거 |
+|---------|------|
+| `usesqlite` 분기 2개 제거 (34 → 32) | `grep -c` |
+| MySQL 전용 다중 테이블 UPDATE 4곳 제거 | 백엔드 무관 코드가 됨 |
+| `util.format` 문자열 보간 → 전부 바인딩 | `test/parent-update.test.js` |
+| 중복 정의 1개 제거 | `grep -c "^exports.update_parent_by_delete"` → 1 |
+| `update_acp`/`update_sub` 원자성 확보 | 이 둘은 **살아 있는 코드다** |
+| 회귀 없음 | 등가성 32/32 일치 (SQLite·MySQL 양쪽) |
+
+즉 **`update_acp`/`update_sub`(Task 6)만 라이브 경로**이고, Task 2~5 는 죽은 코드를
+정리한 셈이다. 죽은 코드라도 전환해 두면 나중에 `useCert` 게이팅을 풀 때 그 경로가
+SQLite 에서 곧바로 동작한다.
+
+---
+
 ## 이번 범위에서 제외한 것
 
 | 항목 | 이유 |
