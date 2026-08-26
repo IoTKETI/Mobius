@@ -196,8 +196,7 @@ exports.set_hit_n = function (connection, _ct, _http, _mqtt, _coap, _ws, callbac
 exports.get_ri_sri = function (connection, sri, callback) {
     var tid = require('shortid').generate();
     console.time('get_ri_sri' + ' (' + tid + ')');
-    var sql = util.format('select ri from lookup where sri = \'%s\'', sri);
-    db.getResult(sql, connection, function (err, results) {
+    facade.run(facade.k('lookup').select('ri').where({ sri: sri }), connection, function (err, results) {
         console.timeEnd('get_ri_sri' + ' (' + tid + ')');
         callback(err, results);
     });
@@ -2396,8 +2395,7 @@ exports.select_tr = function (connection, pi, callback) {
 };
 
 exports.select_cb = function (connection, ri, callback) {
-    var sql = util.format("select * from cb where ri = \'%s\'", ri);
-    db.getResult(sql, connection, function (err, results_cb) {
+    facade.run(facade.k('cb').select('*').where({ ri: ri }), connection, function (err, results_cb) {
         callback(err, results_cb);
     });
 };
@@ -2657,13 +2655,13 @@ exports.select_count_ri =function (connection, ty, ri, callback) {
     }
 };
 
-exports.update_cb_poa_csi =function (connection, poa, csi, srt, ri, callback) {
+exports.update_cb_poa_csi = function (connection, poa, csi, srt, ri, callback) {
     console.time('update_cb_poa_csi ' + ri);
-    var sql = util.format('update cb set poa = \'%s\', csi = \'%s\', srt = \'%s\' where ri=\'%s\'', poa, csi, srt, ri);
-    db.getResult(sql, connection, function (err, results) {
-        console.timeEnd('update_cb_poa_csi ' + ri);
-        callback(err, results);
-    });
+    facade.run(facade.k('cb').update({ poa: poa, csi: csi, srt: srt }).where({ ri: ri }),
+        connection, function (err, results) {
+            console.timeEnd('update_cb_poa_csi ' + ri);
+            callback(err, results);
+        });
 };
 
 exports.update_st = function (connection, obj, callback) {
@@ -3569,8 +3567,12 @@ exports.delete_lookup = function (connection, pi_list, pi_index, found_Obj, foun
 
 exports.delete_lookup_et = function (connection, et, callback) {
     var pi_list = [];
-    var sql = util.format("select ri from lookup where et < \'%s\' and ty <> \'2\' and ty <> \'3\' and ty <> \'5\'", et);
-    db.getResult(sql, connection, function (err, delete_Obj) {
+    facade.run(facade.k('lookup')
+        .select('ri')
+        .where('et', '<', et)
+        .andWhere('ty', '<>', '2')
+        .andWhere('ty', '<>', '3')
+        .andWhere('ty', '<>', '5'), connection, function (err, delete_Obj) {
         if (!err) {
             for (var i = 0; i < delete_Obj.length; i++) {
                 pi_list.push(delete_Obj[i].ri);
@@ -3631,8 +3633,8 @@ exports.delete_req = function (connection, callback) {
 exports.select_sum_cbs = function (connection, callback) {
     var tid = require('shortid').generate();
     console.time('select_sum_cbs ' + tid);
-    var sql = util.format('select sum(cbs) from cnt');
-    db.getResult(sql, connection, function (err, result_Obj) {
+    // 집계 컬럼 이름(sum(cbs))이 응답에 그대로 나가므로 빌더 대신 raw 로 SQL 을 유지한다.
+    facade.run(facade.raw('select sum(cbs) from cnt'), connection, function (err, result_Obj) {
         console.timeEnd('select_sum_cbs ' + tid);
         callback(err, result_Obj);
     });
@@ -3641,8 +3643,8 @@ exports.select_sum_cbs = function (connection, callback) {
 exports.select_sum_ae = function (connection, callback) {
     var tid = require('shortid').generate();
     console.time('select_sum_ae ' + tid);
-    var sql = util.format('select count(*) from ae');
-    db.getResult(sql, connection, function (err, result_Obj) {
+    // 집계 컬럼 이름(count(*))이 응답에 그대로 나가므로 빌더 대신 raw 로 SQL 을 유지한다.
+    facade.run(facade.raw('select count(*) from ae'), connection, function (err, result_Obj) {
         console.timeEnd('select_sum_ae ' + tid);
         callback(err, result_Obj);
     });
