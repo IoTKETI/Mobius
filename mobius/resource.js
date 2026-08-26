@@ -1591,6 +1591,8 @@ function update_action(request, response, callback) {
                 callback('200');
             }
             else {
+                console.log('[update_action] ty=' + ty + ' error: ' +
+                            (results.driverCode || results.code) + ' / ' + results.message);
                 callback('500-1');
             }
         });
@@ -1601,6 +1603,8 @@ function update_action(request, response, callback) {
                 callback('200');
             }
             else {
+                console.log('[update_action] ty=' + ty + ' error: ' +
+                            (results.driverCode || results.code) + ' / ' + results.message);
                 callback('500-1');
             }
         });
@@ -1615,6 +1619,8 @@ function update_action(request, response, callback) {
                     callback('200');
                 }
                 else {
+                    console.log('[update_action] ty=' + ty + ' error: ' +
+                                (results.driverCode || results.code) + ' / ' + results.message);
                     callback('500-1');
                 }
             });
@@ -1626,6 +1632,8 @@ function update_action(request, response, callback) {
                 callback('200');
             }
             else {
+                console.log('[update_action] ty=' + ty + ' error: ' +
+                            (results.driverCode || results.code) + ' / ' + results.message);
                 callback('500-1');
             }
         });
@@ -1636,6 +1644,8 @@ function update_action(request, response, callback) {
                 callback('200');
             }
             else {
+                console.log('[update_action] ty=' + ty + ' error: ' +
+                            (results.driverCode || results.code) + ' / ' + results.message);
                 callback('500-1');
             }
         });
@@ -1648,6 +1658,8 @@ function update_action(request, response, callback) {
                         callback('200');
                     }
                     else {
+                        console.log('[update_action] ty=' + ty + ' error: ' +
+                                    (results.driverCode || results.code) + ' / ' + results.message);
                         callback('500-1');
                     }
                 });
@@ -1658,6 +1670,8 @@ function update_action(request, response, callback) {
                         callback('200');
                     }
                     else {
+                        console.log('[update_action] ty=' + ty + ' error: ' +
+                                    (results.driverCode || results.code) + ' / ' + results.message);
                         callback('500-1');
                     }
                 });
@@ -1668,6 +1682,8 @@ function update_action(request, response, callback) {
                         callback('200');
                     }
                     else {
+                        console.log('[update_action] ty=' + ty + ' error: ' +
+                                    (results.driverCode || results.code) + ' / ' + results.message);
                         callback('500-1');
                     }
                 });
@@ -1681,6 +1697,8 @@ function update_action(request, response, callback) {
                             callback('200');
                         }
                         else {
+                            console.log('[update_action] ty=' + ty + ' error: ' +
+                                        (results.driverCode || results.code) + ' / ' + results.message);
                             callback('500-1');
                         }
                     });
@@ -1691,6 +1709,8 @@ function update_action(request, response, callback) {
                         callback('200');
                     }
                     else {
+                        console.log('[update_action] ty=' + ty + ' error: ' +
+                                    (results.driverCode || results.code) + ' / ' + results.message);
                         callback('500-1');
                     }
                 });
@@ -1710,6 +1730,8 @@ function update_action(request, response, callback) {
                     callback('200');
                 }
                 else {
+                    console.log('[update_action] ty=' + ty + ' error: ' +
+                                (results.driverCode || results.code) + ' / ' + results.message);
                     callback('500-1');
                 }
             });
@@ -1720,6 +1742,8 @@ function update_action(request, response, callback) {
                     callback('200');
                 }
                 else {
+                    console.log('[update_action] ty=' + ty + ' error: ' +
+                                (results.driverCode || results.code) + ' / ' + results.message);
                     callback('500-1');
                 }
             });
@@ -1730,6 +1754,8 @@ function update_action(request, response, callback) {
                     callback('200');
                 }
                 else {
+                    console.log('[update_action] ty=' + ty + ' error: ' +
+                                (results.driverCode || results.code) + ' / ' + results.message);
                     callback('500-1');
                 }
             });
@@ -1740,6 +1766,8 @@ function update_action(request, response, callback) {
                     callback('200');
                 }
                 else {
+                    console.log('[update_action] ty=' + ty + ' error: ' +
+                                (results.driverCode || results.code) + ' / ' + results.message);
                     callback('500-1');
                 }
             });
@@ -1750,6 +1778,8 @@ function update_action(request, response, callback) {
                     callback('200');
                 }
                 else {
+                    console.log('[update_action] ty=' + ty + ' error: ' +
+                                (results.driverCode || results.code) + ' / ' + results.message);
                     callback('500-1');
                 }
             });
@@ -1760,6 +1790,8 @@ function update_action(request, response, callback) {
                     callback('200');
                 }
                 else {
+                    console.log('[update_action] ty=' + ty + ' error: ' +
+                                (results.driverCode || results.code) + ' / ' + results.message);
                     callback('500-1');
                 }
             });
@@ -1770,6 +1802,8 @@ function update_action(request, response, callback) {
                     callback('200');
                 }
                 else {
+                    console.log('[update_action] ty=' + ty + ' error: ' +
+                                (results.driverCode || results.code) + ' / ' + results.message);
                     callback('500-1');
                 }
             });
@@ -1780,6 +1814,8 @@ function update_action(request, response, callback) {
                     callback('200');
                 }
                 else {
+                    console.log('[update_action] ty=' + ty + ' error: ' +
+                                (results.driverCode || results.code) + ' / ' + results.message);
                     callback('500-1');
                 }
             });
@@ -1790,6 +1826,8 @@ function update_action(request, response, callback) {
                     callback('200');
                 }
                 else {
+                    console.log('[update_action] ty=' + ty + ' error: ' +
+                                (results.driverCode || results.code) + ' / ' + results.message);
                     callback('500-1');
                 }
             });
@@ -1804,6 +1842,8 @@ function update_action(request, response, callback) {
                 callback('200');
             }
             else {
+                console.log('[update_action] ty=' + ty + ' error: ' +
+                            (results.driverCode || results.code) + ' / ' + results.message);
                 callback('500-1');
             }
         });
@@ -1814,6 +1854,8 @@ function update_action(request, response, callback) {
                 callback('200');
             }
             else {
+                console.log('[update_action] ty=' + ty + ' error: ' +
+                            (results.driverCode || results.code) + ' / ' + results.message);
                 callback('500-1');
             }
         });
@@ -1842,6 +1884,8 @@ function update_action(request, response, callback) {
                 });
             }
             else {
+                console.log('[update_action] ty=' + ty + ' error: ' +
+                            (results.driverCode || results.code) + ' / ' + results.message);
                 callback('500-1');
             }
         });
@@ -1852,6 +1896,8 @@ function update_action(request, response, callback) {
                 callback('200');
             }
             else {
+                console.log('[update_action] ty=' + ty + ' error: ' +
+                            (results.driverCode || results.code) + ' / ' + results.message);
                 callback('500-1');
             }
         });
@@ -1862,6 +1908,8 @@ function update_action(request, response, callback) {
                 callback('200');
             }
             else {
+                console.log('[update_action] ty=' + ty + ' error: ' +
+                            (results.driverCode || results.code) + ' / ' + results.message);
                 callback('500-1');
             }
         });
@@ -1913,6 +1961,8 @@ function update_action(request, response, callback) {
                         callback('200');
                     }
                     else {
+                        console.log('[update_action] ty=' + ty + ' error: ' +
+                                    (results.driverCode || results.code) + ' / ' + results.message);
                         callback('500-1');
                     }
                 });
@@ -1958,6 +2008,8 @@ function update_action(request, response, callback) {
                         callback('200');
                     }
                     else {
+                        console.log('[update_action] ty=' + ty + ' error: ' +
+                                    (results.driverCode || results.code) + ' / ' + results.message);
                         callback('500-1');
                     }
                 });
@@ -2003,6 +2055,8 @@ function update_action(request, response, callback) {
                         callback('200');
                     }
                     else {
+                        console.log('[update_action] ty=' + ty + ' error: ' +
+                                    (results.driverCode || results.code) + ' / ' + results.message);
                         callback('500-1');
                     }
                 });
@@ -2048,6 +2102,8 @@ function update_action(request, response, callback) {
                         callback('200');
                     }
                     else {
+                        console.log('[update_action] ty=' + ty + ' error: ' +
+                                    (results.driverCode || results.code) + ' / ' + results.message);
                         callback('500-1');
                     }
                 });
@@ -2062,6 +2118,8 @@ function update_action(request, response, callback) {
                     callback('200');
                 }
                 else {
+                    console.log('[update_action] ty=' + ty + ' error: ' +
+                                (results.driverCode || results.code) + ' / ' + results.message);
                     callback('500-1');
                 }
             });
@@ -2079,6 +2137,8 @@ function update_action(request, response, callback) {
                     callback('200');
                 }
                 else {
+                    console.log('[update_action] ty=' + ty + ' error: ' +
+                                (results.driverCode || results.code) + ' / ' + results.message);
                     callback('500-1');
                 }
             });
@@ -2090,6 +2150,8 @@ function update_action(request, response, callback) {
                         callback('200');
                     }
                     else {
+                        console.log('[update_action] ty=' + ty + ' error: ' +
+                                    (results.driverCode || results.code) + ' / ' + results.message);
                         callback('500-1');
                     }
                 });
@@ -2102,6 +2164,8 @@ function update_action(request, response, callback) {
                         callback('200');
                     }
                     else {
+                        console.log('[update_action] ty=' + ty + ' error: ' +
+                                    (results.driverCode || results.code) + ' / ' + results.message);
                         callback('500-1');
                     }
                 });
@@ -2114,6 +2178,8 @@ function update_action(request, response, callback) {
                     callback('200');
                 }
                 else {
+                    console.log('[update_action] ty=' + ty + ' error: ' +
+                                (results.driverCode || results.code) + ' / ' + results.message);
                     callback('500-1');
                 }
             });
