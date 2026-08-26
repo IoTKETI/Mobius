@@ -23,6 +23,7 @@
 - **최종 목표:** `grep -rn "global.usesqlite" --include="*.js" .`가 `mobius/db/index.js` 한 줄만 반환.
 - **작업 브랜치:** `worktree-db-layer-abstraction` (worktree `.claude/worktrees/db-layer-abstraction`). 다른 세션이 메인 체크아웃을 쓰므로 이 디렉터리를 벗어나지 않는다.
 - **테스트 프레임워크 없음.** `npm test`는 `exit 1` 스텁이다. 새 테스트는 `node --test`로 직접 돌린다.
+- **`knex` 버전은 캐럿 없이 정확히 고정한다(`"knex": "3.3.0"`).** 빌더가 만드는 SQL(컬럼 순서, upsert 형태, 식별자 인용)이 곧 전환되는 108개 함수의 계약이다. `package-lock.json`이 gitignore 대상이라 캐럿 범위(`^3.3.0`)로 두면 미래의 `npm install`이 코드 변경 없이 생성 SQL을 바꿀 수 있다.
 
 ---
 
@@ -1946,8 +1947,8 @@ git commit -m "docs: 전환 패턴 기록 (참조 구현 insert_acp)"
 | 단계 | 내용 |
 |---|---|
 | 2 | `insert_*` 나머지 전환 — **각 함수의 에러를 받는 resource.js 검사를 같은 커밋에서 함께 중립 코드로 전환** |
-| 3 | `select_*` 전환 |
-| 4 | `update_*` / `delete_*` 전환 |
+| 3 | `select_*` 전환 — **각 함수의 에러를 받는 resource.js 검사를 같은 커밋에서 함께 중립 코드로 전환** |
+| 4 | `update_*` / `delete_*` 전환 — **각 함수의 에러를 받는 resource.js 검사를 같은 커밋에서 함께 중립 코드로 전환** |
 | 5 | `REVIEW` 판정 함수 개별 처리 (`insert_lookup`, `search_lookup`, `delete_oldest` 등) |
 | 6 | 남은 `ER_DUP_ENTRY` 검사 정리 및 누락 확인 |
 | 7 | `asn.js`·`mn.js`·`cnt_man.js` 직접 require 정리 |

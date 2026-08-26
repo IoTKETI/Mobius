@@ -86,6 +86,176 @@
 - **L3608** (`delete_orphan_lookup` 내부): 위와 동일한 삼항 실행자 선택 패턴. MERGE.
 - **L3420** (`update_parent_by_insert` 내부): `if (global.usesqlite === 'true' && obj.ty == '3') {` — `usesqlite`와 `obj.ty=='3'` 복합 조건이라 도구의 정확한 패턴 매칭에서 빠졌다. SQLite+ty=='3' 조합일 때만 `update_cnt_cni`(REVIEW 대상, L3371)로 위임하고, 그 외 모든 경우(MySQL 전체, 또는 SQLite의 ty!=3)는 공통 `update %s, lookup set ...cni=cni+1...` 문을 쓴다. `update_cnt_cni` 자체가 REVIEW이므로 이 위임 분기도 같은 보존 요구사항을 물려받는다.
 
+## 분기 없이 MySQL 로만 나가는 export (68개)
+
+Task 1 은 `if (global.usesqlite === 'true')` 블록 33개만 분류했다. 그러나
+`sql_action.js` 의 export 108개 중 68개는 **분기 자체가 없이** `db.getResult` 를
+호출한다 — SQLite 모드에서도 MySQL 로 나간다.
+
+이들의 전환은 "동작 보존"이 아니라 **동작 변경**이다. Plan 2 는 이 사실을 알고
+착수해야 한다.
+
+추출 명령 (기준 커밋 이 리포트 작성 시점 HEAD):
+
+```bash
+node -e "
+const fs=require('fs');
+const src=fs.readFileSync('mobius/sql_action.js','utf8');
+const lines=src.split('\n');
+const fns=[];
+lines.forEach((l,i)=>{ const m=l.match(/^exports\.([A-Za-z0-9_]+)\s*=/); if(m) fns.push({name:m[1],line:i}); });
+fns.forEach((f,idx)=>{
+  const end = idx+1<fns.length ? fns[idx+1].line : lines.length;
+  const body = lines.slice(f.line,end).join('\n');
+  const hasBranch = /global\.usesqlite/.test(body);
+  const usesMysql = /\bdb\.getResult\s*\(/.test(body);
+  const usesSqlite = /sqlite\.getResult\s*\(/.test(body);
+  if(!hasBranch && usesMysql && !usesSqlite) console.log((f.line+1)+'\t'+f.name);
+});
+" > .superpowers/sdd/2026-08-26-db-layer-abstraction-part1/no-branch.txt
+```
+
+68줄이 나온다.
+
+**주의 — 이 스크립트는 함수 경계를 텍스트로만 자른다.** 다음 `exports.` 줄까지를
+"본문"으로 보기 때문에, export 사이에 낀 비-export 헬퍼 함수(예: `delete_oldest`,
+`update_parent_by_insert`)의 분기·`sqlite.getResult` 호출이 **앞선 export 의
+본문으로 잘못 합산**될 수 있다. 예: `select_st`(L2413)는 분기가 전혀 없는
+3줄짜리 함수인데도, 다음 export(`select_in_ri_list`, L2600)까지의 구간에
+`delete_oldest`(분기 있음, SQLite 실행자 사용)가 끼어 있어 68개 목록에서
+누락됐다. 또한 정규식은 `/* ... */` 주석을 인식하지 못한다 — 아래 표의
+`search_lookup_parents` 항목 참조. 따라서 68개는 **하한이 아니라 근사치**이며,
+아래 표의 판정은 스크립트 출력이 아니라 각 함수 본문을 직접 읽고 내렸다.
+
+판정 기준: **"SQLite 모드에서 이 함수가 실제로 호출되는가? 호출된다면 MySQL 로
+나가는 것이 관측 가능한 오동작인가?"** 이를 위해 각 함수의 SQL 이 어느 테이블을
+건드리는지, 그리고 저장소 전체에서 실제 호출부가 있는지(`grep`)를 확인했다.
+
+- **`SQLITE-DEAD`** — SQLite 가 지원하는 리소스 타입(acp/ae/cnt/cin/cb/sub, 또는
+  타입 무관 `lookup` 조작이 그 타입들에도 적용됨)을 다루며 **실제로 라이브
+  호출부가 있다.** SQLite 모드에서 실제로 깨져 있다. 전환은 동작 변경이자
+  **버그 수정**이다.
+- **`MYSQL-ONLY`** — SQLite 미지원 타입(grp/fcnt/nod/csr/req/smd/mms/tm/tr/mgo 등,
+  `SQLITE_SUPPORTED_TY = ['1','2','3','4','5','23']` 밖)만 다룬다.
+  `resource.js` 의 `check_db_support()` 가 생성 자체를 막으므로(`501-2`) 그
+  타입의 행이 SQLite DB 에 존재할 수 없고, 따라서 이 함수도 SQLite 모드에서
+  도달 불가하다. 전환해도 관측 동작이 안 바뀐다. 일부는 호출부 자체가
+  저장소 전체에 없는 완전한 사문(死文)이기도 하다 — 근거 열에 표기했다.
+- **`SHARED`** — 백엔드 무관한 공용 테이블(`lookup`, `hit`)만 다루거나 리소스
+  타입과 무관하다. 판단 근거를 적어라.
+
+**중요 — 브리프가 예시로 든 함수 중 4개는 실제로 호출부가 없는 사문(死文)이다.**
+`select_sub`, `select_cni_parent`, `update_st` 는 `sql_action.js` 밖에서
+호출하는 곳이 저장소 전체에 **하나도 없다**(`update_st` 는 `resource.js:402`
+의 주석 처리된 줄이 유일한 흔적). `search_lookup_parents` 는 함수 전체가
+`/* ... */` 주석 블록(L1507-1583) 안에 있어 애초에 `exports` 에 정의되지도
+않는다. 넷 다 아래 표에서 `판정 보류` 로 남기고 근거에 이유를 적었다 —
+"핫패스"라는 브리프의 표현과 실측이 다르므로 추측 대신 그대로 보고한다.
+나머지 10개(update_acp, select_cb, update_cb_poa_csi, update_sub,
+update_parent_by_delete, update_parent_st, delete_lookup_et, select_sum_cbs,
+select_sum_ae, get_ri_sri)는 라이브 호출부를 확인했고 `SQLITE-DEAD` 로 판정했다.
+
+| 행 | 함수 | 판정 | 근거 |
+|---:|---|---|---|
+| 67 | `set_tuning` | SHARED | `set global max_connections/innodb_flush_log_at_trx_commit/sync_binlog/transaction_isolation` — MySQL 세션 튜닝 전용, 리소스 타입/데이터와 무관. `app.js` 의 두 마스터 부팅 경로에서 usesqlite 무관하게 호출되지만, `db_action.js` 는 usesqlite 와 무관하게 항상 `mysql_pool` 을 생성한다(이 브랜치와 무관한 기존 아키텍처) — 대상 커넥션이 SQLite 모드에서도 실존하므로 MySQL 로 나가는 것이 맞는 동작이다. SQLite 에는 대응 개념 자체가 없다. |
+| 196 | `get_ri_sri` | SQLITE-DEAD | `select ri from lookup where sri = ?` — 타입 무관 `lookup` 조회. `app.js`(`get_ri_list_sri`), `fopt.js`, `grp.js`, `sgn.js`, `sub.js` 에서 라이브 호출되며 AE/CNT/CIN 등 SQLite 지원 타입의 sri 경로 해석에도 쓰인다. SQLite 모드에서 sri 기반 주소 해석이 깨진다(SQLite 쪽 lookup 에는 있어도 MySQL 쪽엔 없어 결과 0건). |
+| 591 | `insert_grp` | MYSQL-ONLY | grp, ty=9. `SQLITE_SUPPORTED_TY` 밖 — `check_db_support` 가 생성을 막는다(`resource.js:434`). |
+| 617 | `insert_lcp` | MYSQL-ONLY | lcp(locationPolicy), ty=10. 미지원 타입. |
+| 643 | `insert_fcnt` | MYSQL-ONLY | flexContainer, ty=28/9x 계열. 미지원 타입. |
+| 669 | `insert_hd_dooLK` | MYSQL-ONLY | mgmtObj 홈디바이스 특수화(도어락), ty=28/9x 계열. 미지원 타입. |
+| 695 | `insert_hd_bat` | MYSQL-ONLY | 홈디바이스 배터리 모듈. 미지원 타입. |
+| 721 | `insert_hd_tempe` | MYSQL-ONLY | 홈디바이스 온도 모듈. 미지원 타입. |
+| 747 | `insert_hd_binSh` | MYSQL-ONLY | 홈디바이스 바이너리 스위치 모듈. 미지원 타입. |
+| 773 | `insert_hd_fauDn` | MYSQL-ONLY | 홈디바이스 결함감지 모듈. 미지원 타입. |
+| 799 | `insert_hd_colSn` | MYSQL-ONLY | 홈디바이스 색채도 모듈. 미지원 타입. |
+| 825 | `insert_hd_brigs` | MYSQL-ONLY | 홈디바이스 밝기 모듈. 미지원 타입. |
+| 851 | `insert_hd_color` | MYSQL-ONLY | 홈디바이스 색상 모듈. 미지원 타입. |
+| 877 | `insert_fwr` | MYSQL-ONLY | mgmtObj, ty=13/mgd=1001(firmware). 미지원 타입. |
+| 903 | `insert_bat` | MYSQL-ONLY | mgmtObj, ty=13/mgd=1006(battery). 미지원 타입. |
+| 929 | `insert_dvi` | MYSQL-ONLY | mgmtObj, ty=13/mgd=1007(deviceInfo). 미지원 타입. |
+| 955 | `insert_dvc` | MYSQL-ONLY | mgmtObj, ty=13/mgd=1008(deviceCapability). 미지원 타입. |
+| 981 | `insert_rbo` | MYSQL-ONLY | mgmtObj, ty=13/mgd=1009(reboot). 미지원 타입. |
+| 1007 | `insert_nod` | MYSQL-ONLY | node, ty=14. 미지원 타입. |
+| 1033 | `insert_csr` | MYSQL-ONLY | remoteCSE, ty=16. 미지원 타입. |
+| 1059 | `insert_req` | MYSQL-ONLY | request, ty=17. 미지원 타입. |
+| 1131 | `insert_smd` | MYSQL-ONLY | semanticDescriptor, ty=24. 미지원 타입. |
+| 1157 | `insert_mms` | MYSQL-ONLY | mms, ty=27. 미지원 타입. |
+| 1183 | `insert_tr` | MYSQL-ONLY | transaction, ty=39. 미지원 타입. |
+| 1209 | `insert_tm` | MYSQL-ONLY | transactionMgmt, ty=38. 미지원 타입. |
+| 1305 | `select_csr_like` | MYSQL-ONLY | csr, ty=16. `app.js:342` 에서 라이브 호출되나 csr 자체가 SQLite 에 존재 불가. |
+| 1315 | `select_csr` | MYSQL-ONLY | csr, ty=16. `app.js:2777` 에서 라이브 호출되나 동일 이유로 불가. |
+| 1508 | `search_lookup_parents` | 판정 보류 — 사문(死文) | 함수 전체가 `/* ... */` 주석 블록(L1507-1583) 안에 있다. `exports.search_lookup_parents` 는 런타임에 정의되지 않는다(주석이므로). 저장소 전체에 외부 호출부가 없다(자기 재귀 호출도 주석 안). 기계적 스크립트가 주석을 인식 못 해 오탐했다. 실제 활성 함수는 이름이 비슷한 `search_parents_lookup`(L1649, Task1 문서에서 REVIEW 로 이미 분류됨) — 혼동 주의. |
+| 2234 | `select_grp_lookup` | MYSQL-ONLY | grp, ty=9. `app.js:736` 에서 라이브 호출되나 grp 자체가 SQLite 에 존재 불가. |
+| 2243 | `select_grp` | MYSQL-ONLY | grp, ty=9, 미지원 타입. 추가로 저장소 전체에서 호출부가 전혀 없는 사문이기도 하다(`select_grp_lookup` 과 이름이 비슷한 별개 함수이니 혼동 주의). |
+| 2369 | `select_sub` | 판정 보류 — 사문(死文) | sub 테이블(ty=23, SQLite 지원)이라 브리프가 "핫패스"로 지목했으나, 저장소 전체에서 `select_sub(` 호출부가 전혀 없다(정의만 존재). SUB 조회는 범용 함수(`select_resource_from_url`, Task1 문서 MERGE) 경로로 이뤄지는 것으로 보인다. 호출부가 없으므로 SQLite 모드에서 관측 가능한 오동작이 없다 — 다만 브리프의 지목과 실측이 다르므로 추측하지 않고 보류로 남긴다. |
+| 2378 | `select_tr` | MYSQL-ONLY | tr, ty=39. `mobius/tr.js:388` 에서 라이브 호출되나 tr 자체가 SQLite 에 존재 불가. |
+| 2398 | `select_cb` | SQLITE-DEAD | cb 테이블(ty=5, SQLite 지원). `mobius/asn.js:222`, `mobius/mn.js:221` 에서 라이브 호출(등록 CSE 에 등록하는 MN/ASN CSE 타입 기동 시). SQLite 모드에서 CB 조회가 MySQL 의 데이터를 반환한다. |
+| 2405 | `select_cni_parent` | 판정 보류 — 사문(死文) | `cnt, lookup` 조인(ty=3, SQLite 지원)이라 브리프가 지목했으나, 저장소 전체에서 호출부가 전혀 없다(정의만 존재). |
+| 2600 | `select_in_ri_list` | MYSQL-ONLY(사실상 사문) | 유일한 외부 호출부(`resource.js:1317`, `search_action` 내부)가 `search_resource`/`get_resource` 를 통해서만 도달 가능한데, 이 두 함수 자체가 저장소 전체에서 호출부가 없다(정의만 존재, dead code 체인). 실제 discovery 는 `search_lookup`(L2053, 분기 있음, Task1 REVIEW)이 담당한다. 전환해도 관측 가능한 차이 없음. |
+| 2660 | `update_cb_poa_csi` | SQLITE-DEAD | cb 테이블(ty=5). `mobius/cb.js:73` 에서 **서버 기동마다**(csetype 무관, CB 가 이미 존재하면 매번) 호출된다. 재기동 시 poa/csi/srt 갱신이 MySQL 의 cb 행에만 적용되고 SQLite 의 cb 행은 갱신되지 않는다. |
+| 2669 | `update_st` | 판정 보류 — 사문(死文) | `lookup.st` 갱신, 타입 무관이라 브리프가 지목했으나 저장소 전체에서 유일한 참조가 `resource.js:402` 의 **주석 처리된** 줄뿐이다(실제 호출 없음). |
+| 2699 | `update_acp` | SQLITE-DEAD (Critical) | 이미 확인된 버그(FIX 1 문서 참조). `update_lookup` 은 분기해 SQLite 에 쓰지만, 이어지는 `acp.pv`/`pvs` UPDATE(`sql2`)는 항상 MySQL 로 나간다. `select_acp`(L2269, MERGE)는 SQLite 에서 읽으므로 ACP 정책 갱신이 조용히 유실된다. |
+| 2877 | `update_hd_dooLk` | MYSQL-ONLY | 홈디바이스 도어락 모듈. `insert_hd_dooLK` 와 동일 이유로 미지원. |
+| 2898 | `update_hd_bat` | MYSQL-ONLY | 홈디바이스 배터리 모듈. 미지원 타입. |
+| 2919 | `update_hd_tempe` | MYSQL-ONLY | 홈디바이스 온도 모듈. 미지원 타입. |
+| 2940 | `update_hd_binSh` | MYSQL-ONLY | 홈디바이스 바이너리 스위치 모듈. 미지원 타입. |
+| 2961 | `update_hd_fauDn` | MYSQL-ONLY | 홈디바이스 결함감지 모듈. 미지원 타입. |
+| 2982 | `update_hd_colSn` | MYSQL-ONLY | 홈디바이스 색채도 모듈. 미지원 타입. |
+| 3003 | `update_hd_brigs` | MYSQL-ONLY | 홈디바이스 밝기 모듈. 미지원 타입. |
+| 3024 | `update_hd_color` | MYSQL-ONLY | 홈디바이스 색상 모듈. 미지원 타입. |
+| 3045 | `update_fwr` | MYSQL-ONLY | mgmtObj mgd=1001. 미지원 타입. |
+| 3067 | `update_bat` | MYSQL-ONLY | mgmtObj mgd=1006. 미지원 타입. |
+| 3088 | `update_dvi` | MYSQL-ONLY | mgmtObj mgd=1007. 미지원 타입. |
+| 3110 | `update_dvc` | MYSQL-ONLY | mgmtObj mgd=1008. 미지원 타입. |
+| 3132 | `update_rbo` | MYSQL-ONLY | mgmtObj mgd=1009. 미지원 타입. |
+| 3154 | `update_nod` | MYSQL-ONLY | node, ty=14. 미지원 타입. |
+| 3175 | `update_csr` | MYSQL-ONLY | remoteCSE, ty=16. 미지원 타입. |
+| 3197 | `update_req` | MYSQL-ONLY | request, ty=17. 미지원 타입. |
+| 3212 | `update_sub` | SQLITE-DEAD | sub 테이블(ty=23). `resource.js:1822` 에서 라이브 호출(구독 갱신, update_action 경로). `update_lookup` 은 분기하나 `sql2`(enc/exc/nu/... UPDATE)는 항상 MySQL. `update_acp` 와 동일한 패턴의 버그 — SQLite 모드에서 구독 갱신이 조용히 유실된다. |
+| 3234 | `update_smd` | MYSQL-ONLY | semanticDescriptor, ty=24. 미지원 타입. |
+| 3256 | `update_mms` | MYSQL-ONLY | mms, ty=27. 미지원 타입. |
+| 3278 | `update_tm` | MYSQL-ONLY | transactionMgmt, ty=38. 미지원 타입. |
+| 3301 | `update_tr` | MYSQL-ONLY | transaction, ty=39. 미지원 타입. |
+| 3323 | `update_tr_trsp` | MYSQL-ONLY | transaction, ty=39. 미지원 타입. |
+| 3337 | `update_tr_tst` | MYSQL-ONLY | transaction, ty=39. 미지원 타입. |
+| 3425 | `update_parent_by_delete` | SQLITE-DEAD | 동적 `tableName = responder.typeRsrc[obj.ty]` 로 부모의 `cni`/`cbs` 감소 + `lookup.st` 증가. `resource.js:2348`, `resource.js:2490` 에서 자식 삭제 시 호출되며 부모가 cnt(ty3)/ae(ty2) 등 SQLite 지원 타입일 때도 실행된다. 부모 카운터가 SQLite 에서 갱신되지 않는다. **중복 정의 주의**: 이 이름의 export 가 소스에 **완전히 동일한 본문으로 L3457 에 다시 정의**되어 있다(아래 참조) — JS 재대입 규칙상 L3457 이 최종 유효본이고 이 L3425 정의는 죽은 코드다. 전환 시 중복 제거가 함께 필요하다. |
+| 3441 | `update_parent_st` | SQLITE-DEAD | 동적 `tableName`, `lookup.st` 만 증가. `resource.js:378`(cnt 생성 시 useCert 분기), `resource.js:2494`(자식 삭제 후)에서 호출. 부모가 SQLite 지원 타입일 때 상태 태그 증가가 유실된다. |
+| 3457 | `update_parent_by_delete` | SQLITE-DEAD | L3425 와 완전히 동일한 본문의 **중복 정의**(같은 함수명으로 두 번째 `exports.update_parent_by_delete = ...`). JS 는 재대입이므로 이 정의가 실제로 쓰이는 유효본이다. 판정/근거는 L3425 항목과 동일. |
+| 3566 | `delete_lookup_et` | SQLITE-DEAD | `select ri from lookup where et < ? and ty<>'2' and ty<>'3' and ty<>'5'` — ae/cnt/cb 는 제외하지만 acp(1)/cin(4)/sub(23) 는 포함되며 셋 다 SQLite 지원 타입이다. `app.js` 의 `del_expired_resource()` 가 24시간마다 usesqlite 무관하게 호출한다. SQLite 모드에서 만료된 ACP/CIN/SUB 가 정리되지 않는다. |
+| 3617 | `delete_req` | MYSQL-ONLY | req, ty=17. `app.js:88` 에서 매일 호출되나 req 자체가 SQLite 에 존재 불가. |
+| 3627 | `select_sum_cbs` | SQLITE-DEAD | `select sum(cbs) from cnt`(ty=3, SQLite 지원). `app.js` 의 `/total_cbs` HTTP 엔드포인트에서 usesqlite 무관하게 라우팅된다. SQLite 모드에서 실제 컨테이너 총 바이트 수 대신 MySQL 의 값을 반환한다. |
+| 3637 | `select_sum_ae` | SQLITE-DEAD | `select count(*) from ae`(ty=2, SQLite 지원). `/total_ae` 엔드포인트, 위와 동일한 문제. |
+
+## 요약 (68개 no-branch export)
+
+| 판정 | 개수 |
+|---|---:|
+| SQLITE-DEAD | 11 |
+| MYSQL-ONLY | 52 |
+| SHARED | 1 |
+| 판정 보류(사문) | 4 |
+
+### Plan 2 에 주는 함의
+
+- `SQLITE-DEAD` 함수의 전환은 동등성 스냅샷에 **차이로 나타난다.** 그것이 정상이다 —
+  깨져 있던 것이 고쳐지는 것이므로. 전환 전에 "무엇이 어떻게 바뀔지"를 먼저 적고
+  차이를 대조하라. 차이가 없으면 오히려 의심하라.
+- `MYSQL-ONLY` 함수는 SQLite 모드 동등성에 영향이 없어야 한다. 차이가 나면 판정이
+  틀린 것이다.
+- Global Constraint "기존 동작을 보존한다"는 `SQLITE-DEAD` 함수에는 적용되지 않는다.
+  그 함수들의 기존 동작은 **버그**다.
+- `update_parent_by_delete` 의 중복 정의(L3425/L3457)는 이 브랜치가 만든 문제가
+  아니라 기존 코드의 결함이다. 전환 작업(Step 4) 중 자연스럽게 하나로 합쳐지므로
+  별도 태스크로 뺄 필요는 없지만, 합칠 때 "두 정의가 완전히 동일했다"는 사실을
+  커밋 메시지에 남겨 향후 git blame 조사에서 헷갈리지 않게 하라.
+- `판정 보류(사문)` 4개(`search_lookup_parents`, `select_sub`, `select_cni_parent`,
+  `update_st`)는 전환 우선순위에서 제외해도 된다 — 호출부가 없으므로 전환의
+  이익이 없다. 다만 정말 죽은 코드인지 Plan 2 시작 시점에 한 번 더 확인하라
+  (다른 브랜치가 그사이 호출부를 추가했을 수 있다).
+- 위 판정은 정적 분석(grep)에 기반한다. 동적으로 조립되는 함수명(문자열 결합 후
+  `db_sql[name]()` 같은 호출)이 있다면 이 표에서 놓쳤을 수 있다 — 그런 패턴은
+  이 코드베이스에서 발견되지 않았다.
+
 ## 전환 패턴 (참조 구현: `insert_acp`)
 
 **선행 조건 (한 번만, Task 5 에서 이미 완료됨):** 파사드(`mobius/db/index.js`)의
@@ -142,6 +312,33 @@ MERGE 판정 함수는 이 순서로 바꾼다.
    주의: `insert_acp` 는 이 문제를 겪지 않았다. `insert_lookup`(미전환)이 `lookup.ri`
    PK 로 중복을 먼저 잡아 구경로 에러 코드를 돌려주기 때문이다. 즉 **참조 구현이
    안전했던 것은 우연이며, 다음 함수부터는 그렇지 않다.**
+
+   **로그도 함께 고친다.** `resource.js` 의 에러 로그가 `results.code` 만 찍으면
+   중립화 후에는 대부분 `UNKNOWN` 이 된다. 원본 코드와 메시지를 함께 남겨라:
+
+       console.log('[create_action] create resource error ======== ' +
+                   (results.driverCode || results.code) + ' / ' + results.message);
+
+   특히 knex 빌더 실수(`Undefined binding(s) detected when compiling …`)가
+   `UNKNOWN` 으로만 찍히면 원인 추적이 불가능하다. 이게 전환 중 가장 흔한 실패다.
+
+8. **`undefined` 값의 저장 결과가 바뀐다 — 검증 3층 전부가 못 잡는다.**
+
+   구 코드의 `util.format('%s', undefined)` 는 문자열 `'undefined'` 를 저장했다.
+   knex 는 `useNullAsDefault: true` 라 `undefined` 바인딩을 `NULL` 로 컴파일한다.
+   즉 선택적 컬럼(`lbl`, `acpi`, `at`, `aa`, `subl`, `daci`)에서
+   `'undefined'` -> `NULL` 로 **저장 값이 바뀐다.** NOT NULL 컬럼이면 조용한
+   손상이 `NOT_NULL` 에러로 바뀐다. downstream 의 `JSON.parse(results[0].acpi)` 가
+   각각 다르게 동작한다.
+
+   **검증 3층이 전부 이걸 못 본다:**
+   - 골든 SQL(`collect.js`)은 모든 값을 `V` 로 지운다. `tap.js` 는 bindings 를
+     기록하지도 않는다.
+   - 동등성 시나리오는 항상 필드를 채워 보낸다.
+
+   따라서 선택적 필드를 **생략한** 요청을 시나리오에 추가해야 이 변화가 드러난다
+   (예: `lbl` 없는 AE, `acpi` 없는 CNT). 전환하는 함수가 선택적 컬럼을 쓰면
+   그 단계를 먼저 추가하라.
 
 ### 검증 — 실패 경로를 반드시 한 번은 밟는다
 
