@@ -293,9 +293,13 @@ Run:
 ```bash
 grep -n "ER_DUP_ENTRY\|aei_UNIQUE" mobius/resource.js
 grep -c "db_errors.isDuplicateKey(results)" mobius/resource.js
-node -e "require('./mobius/resource.js'); console.log('load ok')"
+node --check mobius/resource.js && echo "syntax OK"
 ```
-Expected: 첫 명령은 **아무것도 출력하지 않는다**. 두 번째는 `29`. 세 번째는 `load ok`.
+Expected: 첫 명령은 **아무것도 출력하지 않는다**. 두 번째는 `29`. 세 번째는 `syntax OK`.
+
+`require('./mobius/resource.js')` 로 로드를 시도하면 안 된다 — `resource.js` 는
+`use_secure` / `use_mqtt_broker` 등 `app.js` 가 부팅 시 세팅하는 전역에 의존해서
+단독 require 는 기존부터 실패한다. 구문 검사가 올바른 등가물이다.
 
 - [ ] **Step 12: 전체 테스트를 돌린다**
 

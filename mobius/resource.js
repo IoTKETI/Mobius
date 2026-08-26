@@ -43,6 +43,7 @@ var security = require('./security');
 var db = require('./db_action');
 var db_sql = require('./sql_action');
 var cnt_man = require('./cnt_man');
+var db_errors = require('./db/errors');
 
 var _this = this;
 
@@ -339,7 +340,7 @@ function create_action(request, response, callback) {
                 callback('200');
             }
             else {
-                if (results.code == 'ER_DUP_ENTRY') {
+                if (db_errors.isDuplicateKey(results)) {
                     callback('409-5');
                 }
                 else {
@@ -356,8 +357,8 @@ function create_action(request, response, callback) {
                 callback('200');
             }
             else {
-                if (results.code == 'ER_DUP_ENTRY') {
-                    if(results.message.includes('aei_UNIQUE')) {
+                if (db_errors.isDuplicateKey(results)) {
+                    if(db_errors.isAeiDuplicate(results)) {
                         callback('409-6');
                     }
                     else {
@@ -381,7 +382,7 @@ function create_action(request, response, callback) {
                 callback('200');
             }
             else {
-                if (results.code == 'ER_DUP_ENTRY') {
+                if (db_errors.isDuplicateKey(results)) {
                     callback('409-5');
                 }
                 else {
@@ -421,7 +422,7 @@ function create_action(request, response, callback) {
                 callback('200');
             }
             else {
-                if (results.code == 'ER_DUP_ENTRY') {
+                if (db_errors.isDuplicateKey(results)) {
                     callback('409-5');
                 }
                 else {
@@ -437,7 +438,7 @@ function create_action(request, response, callback) {
                 callback('200');
             }
             else {
-                if (results.code == 'ER_DUP_ENTRY') {
+                if (db_errors.isDuplicateKey(results)) {
                     callback('409-5');
                 }
                 else {
@@ -453,7 +454,7 @@ function create_action(request, response, callback) {
                 callback('200');
             }
             else {
-                if (results.code == 'ER_DUP_ENTRY') {
+                if (db_errors.isDuplicateKey(results)) {
                     callback('409-5');
                 }
                 else {
@@ -470,7 +471,7 @@ function create_action(request, response, callback) {
                     callback('200');
                 }
                 else {
-                    if (results.code == 'ER_DUP_ENTRY') {
+                    if (db_errors.isDuplicateKey(results)) {
                         callback('409-5');
                     }
                     else {
@@ -486,7 +487,7 @@ function create_action(request, response, callback) {
                     callback('200');
                 }
                 else {
-                    if (results.code == 'ER_DUP_ENTRY') {
+                    if (db_errors.isDuplicateKey(results)) {
                         callback('409-5');
                     }
                     else {
@@ -502,7 +503,7 @@ function create_action(request, response, callback) {
                     callback('200');
                 }
                 else {
-                    if (results.code == 'ER_DUP_ENTRY') {
+                    if (db_errors.isDuplicateKey(results)) {
                         callback('409-5');
                     }
                     else {
@@ -518,7 +519,7 @@ function create_action(request, response, callback) {
                     callback('200');
                 }
                 else {
-                    if (results.code == 'ER_DUP_ENTRY') {
+                    if (db_errors.isDuplicateKey(results)) {
                         callback('409-5');
                     }
                     else {
@@ -534,7 +535,7 @@ function create_action(request, response, callback) {
                     callback('200');
                 }
                 else {
-                    if (results.code == 'ER_DUP_ENTRY') {
+                    if (db_errors.isDuplicateKey(results)) {
                         callback('409-5');
                     }
                     else {
@@ -559,7 +560,7 @@ function create_action(request, response, callback) {
                     callback('200');
                 }
                 else {
-                    if (results.code == 'ER_DUP_ENTRY') {
+                    if (db_errors.isDuplicateKey(results)) {
                         callback('409-5');
                     }
                     else {
@@ -575,7 +576,7 @@ function create_action(request, response, callback) {
                     callback('200');
                 }
                 else {
-                    if (results.code == 'ER_DUP_ENTRY') {
+                    if (db_errors.isDuplicateKey(results)) {
                         callback('409-5');
                     }
                     else {
@@ -591,7 +592,7 @@ function create_action(request, response, callback) {
                     callback('200');
                 }
                 else {
-                    if (results.code == 'ER_DUP_ENTRY') {
+                    if (db_errors.isDuplicateKey(results)) {
                         callback('409-5');
                     }
                     else {
@@ -607,7 +608,7 @@ function create_action(request, response, callback) {
                     callback('200');
                 }
                 else {
-                    if (results.code == 'ER_DUP_ENTRY') {
+                    if (db_errors.isDuplicateKey(results)) {
                         callback('409-5');
                     }
                     else {
@@ -623,7 +624,7 @@ function create_action(request, response, callback) {
                     callback('200');
                 }
                 else {
-                    if (results.code == 'ER_DUP_ENTRY') {
+                    if (db_errors.isDuplicateKey(results)) {
                         callback('409-5');
                     }
                     else {
@@ -639,7 +640,7 @@ function create_action(request, response, callback) {
                     callback('200');
                 }
                 else {
-                    if (results.code == 'ER_DUP_ENTRY') {
+                    if (db_errors.isDuplicateKey(results)) {
                         callback('409-5');
                     }
                     else {
@@ -655,7 +656,7 @@ function create_action(request, response, callback) {
                     callback('200');
                 }
                 else {
-                    if (results.code == 'ER_DUP_ENTRY') {
+                    if (db_errors.isDuplicateKey(results)) {
                         callback('409-5');
                     }
                     else {
@@ -671,7 +672,7 @@ function create_action(request, response, callback) {
                     callback('200');
                 }
                 else {
-                    if (results.code == 'ER_DUP_ENTRY') {
+                    if (db_errors.isDuplicateKey(results)) {
                         callback('409-5');
                     }
                     else {
@@ -687,7 +688,7 @@ function create_action(request, response, callback) {
                     callback('200');
                 }
                 else {
-                    if (results.code == 'ER_DUP_ENTRY') {
+                    if (db_errors.isDuplicateKey(results)) {
                         callback('409-5');
                     }
                     else {
@@ -707,7 +708,7 @@ function create_action(request, response, callback) {
                 callback('200');
             }
             else {
-                if (results.code == 'ER_DUP_ENTRY') {
+                if (db_errors.isDuplicateKey(results)) {
                     callback('409-5');
                 }
                 else {
@@ -723,7 +724,7 @@ function create_action(request, response, callback) {
                 callback('200');
             }
             else {
-                if (results.code == 'ER_DUP_ENTRY') {
+                if (db_errors.isDuplicateKey(results)) {
                     callback('409-5');
                 }
                 else {
@@ -739,7 +740,7 @@ function create_action(request, response, callback) {
                 callback('200');
             }
             else {
-                if (results.code == 'ER_DUP_ENTRY') {
+                if (db_errors.isDuplicateKey(results)) {
                     callback('409-5');
                 }
                 else {
@@ -767,7 +768,7 @@ function create_action(request, response, callback) {
                 });
             }
             else {
-                if (results.code == 'ER_DUP_ENTRY') {
+                if (db_errors.isDuplicateKey(results)) {
                     callback('409-5');
                 }
                 else {
@@ -783,7 +784,7 @@ function create_action(request, response, callback) {
                 callback('200');
             }
             else {
-                if (results.code == 'ER_DUP_ENTRY') {
+                if (db_errors.isDuplicateKey(results)) {
                     callback('409-5');
                 }
                 else {
@@ -799,7 +800,7 @@ function create_action(request, response, callback) {
                 callback('200');
             }
             else {
-                if (results.code == 'ER_DUP_ENTRY') {
+                if (db_errors.isDuplicateKey(results)) {
                     callback('409-5');
                 }
                 else {
@@ -817,7 +818,7 @@ function create_action(request, response, callback) {
                     callback('200');
                 }
                 else {
-                    if (results.code == 'ER_DUP_ENTRY') {
+                    if (db_errors.isDuplicateKey(results)) {
                         callback('409-5');
                     }
                     else {
@@ -870,7 +871,7 @@ function create_action(request, response, callback) {
                         callback('200');
                     }
                     else {
-                        if (results.code == 'ER_DUP_ENTRY') {
+                        if (db_errors.isDuplicateKey(results)) {
                             callback('409-5');
                         }
                         else {
@@ -888,7 +889,7 @@ function create_action(request, response, callback) {
                 callback('200');
             }
             else {
-                if (results.code == 'ER_DUP_ENTRY') {
+                if (db_errors.isDuplicateKey(results)) {
                     callback('409-5');
                 }
                 else {
