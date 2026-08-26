@@ -15,7 +15,7 @@
     "https": "^1.0.0",
     "ip": "^1.1.5",
     "js2xmlparser": "^3.0.0",
-    "knex": "^3.3.0",
+    "knex": "3.3.0",
     "merge": "^1.2.1",
     "moment": "^2.22.2",
     "morgan": "^1.9.1",
@@ -33,7 +33,7 @@
   "main": "mobius.js",
   "scripts": {
     "start": "node mobius.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "node --test test/*.test.js"
   },
   "author": "Il Yeup Ahn, IoT Platform Center, KETI",
   "license": "BSD-3-Clause"
