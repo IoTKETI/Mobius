@@ -3383,36 +3383,98 @@ exports.update_tr_tst = function (connection, ri, tst, callback) {
     });
 };
 
-// 이전에는 백엔드마다 의미가 달랐다. MySQL 은 호출자가 넘긴 obj.cni/obj.cbs 를
-// 썼고, SQLite 분기는 select count(*), sum(cs) from cin 으로 다시 계산했다.
-// 재계산은 (a) CIN 이 많은 컨테이너에서 매번 풀스캔이고, (b) 두 백엔드의
-// 동작을 비교 불가능하게 만들며, (c) update_parent_by_insert 가 mni 상한으로
-// 이미 조정해 넘긴 값을 무시한다. 넘겨받은 값으로 통일한다.
+// 컨테이너의 cni/cbs 를 절대값으로 고쳐 쓴다. 정합 맞추기(reconcile_cnt_counters)
+// 전용이다 — 평상시 카운터 유지는 전부 증분(cnt_man / delete_oldest /
+// update_parent_by_delete)이 담당한다.
+//
+// lookup.st 는 일부러 건드리지 않는다. st 는 변경 카운터라 실제 데이터에서
+// 다시 계산할 수 없고, 정합 맞추기가 올리면 없던 구독 알림이 나간다.
+// (예전에는 다중 테이블 UPDATE 를 그대로 옮기느라 st 까지 대입했다.)
 exports.update_cnt_cni = function (connection, obj, callback) {
     var cni_id = 'update_cnt_cni ' + obj.ri + ' - ' + require('shortid').generate();
     console.time(cni_id);
 
-    facade.transaction(connection, function (conn, finish) {
-        var q1 = facade.k('cnt')
-            .update({ cni: obj.cni, cbs: obj.cbs })
-            .where({ ri: obj.ri });
+    var qb = facade.k('cnt')
+        .update({ cni: obj.cni, cbs: obj.cbs })
+        .where({ ri: obj.ri });
 
-        facade.run(q1, conn, function (err1, r1) {
-            if (err1) { return finish(err1, r1); }
-
-            var q2 = facade.k('lookup')
-                .update({ st: obj.st })
-                .where({ ri: obj.ri });
-
-            facade.run(q2, conn, function (err2, r2) {
-                finish(err2, err2 ? r2 : r1);
-            });
-        });
-    }, function (err, results) {
+    facade.run(qb, connection, function (err, results) {
         if (!err) {
             console.timeEnd(cni_id);
         }
         callback(err, results);
+    });
+};
+
+// 저장된 cni/cbs 를 실제 cin 집계와 맞춘다.
+//
+// get_cni_count 가 저장값을 읽게 되면서 "매번 재집계" 라는 안전망이 사라졌다.
+// 아직 감산하지 않는 경로가 남아 있어 드리프트가 생길 수 있다:
+//   - delete_descendants_background (subtree 배경 삭제)
+//   - delete_lookup_et (만료 스윕)
+//   - 프로세스 중단, 직접 DB 조작
+//
+// 한 번에 limit 건씩만 본다. 컨테이너가 많아도 한 패스가 길어지지 않게 하려는 것이다.
+// 하위 질의는 cin_ri_idx(pi, ri, cs) 커버링 인덱스만 읽는다.
+exports.reconcile_cnt_counters = function (connection, limit, callback) {
+    var rec_id = 'reconcile_cnt_counters - ' + require('shortid').generate();
+    console.time(rec_id);
+
+    var qb = facade.k('cnt')
+        .select('cnt.ri', 'cnt.cni', 'cnt.cbs')
+        .select(facade.raw(
+            '(select count(*) from cin where cin.pi = cnt.ri) as real_cni'))
+        .select(facade.raw(
+            '(select coalesce(sum(cs), 0) from cin where cin.pi = cnt.ri) as real_cbs'))
+        .limit(limit);
+
+    facade.run(qb, connection, function (err, rows) {
+        if (err) {
+            console.timeEnd(rec_id);
+            callback(err, rows);
+            return;
+        }
+
+        rows = rows || [];
+        var drifted = rows.filter(function (r) {
+            return parseInt(r.cni, 10) !== parseInt(r.real_cni, 10) ||
+                   parseInt(r.cbs, 10) !== parseInt(r.real_cbs, 10);
+        });
+
+        var idx = 0;
+        var fixed = 0;
+
+        (function next() {
+            if (idx >= drifted.length) {
+                console.timeEnd(rec_id);
+                if (fixed > 0) {
+                    console.log('[reconcile_cnt_counters] ' + rows.length + '건 확인, ' +
+                                fixed + '건 교정');
+                }
+                callback(null, { checked: rows.length, fixed: fixed });
+                return;
+            }
+
+            var r = drifted[idx++];
+            console.log('[reconcile_cnt_counters] drift ri=' + r.ri +
+                        ' cni ' + r.cni + '->' + r.real_cni +
+                        ' cbs ' + r.cbs + '->' + r.real_cbs);
+
+            _this.update_cnt_cni(connection, {
+                ri: r.ri,
+                cni: parseInt(r.real_cni, 10),
+                cbs: parseInt(r.real_cbs, 10)
+            }, function (uerr, ures) {
+                if (uerr) {
+                    console.error('[reconcile_cnt_counters] 교정 실패 ri=' + r.ri + ': ' +
+                                  ((ures && (ures.driverCode || ures.code)) || ures));
+                }
+                else {
+                    fixed++;
+                }
+                next();
+            });
+        })();
     });
 };
 

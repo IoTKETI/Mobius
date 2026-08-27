@@ -118,6 +118,31 @@ function del_expired_resource() {
     });
 }
 
+// 저장된 cnt.cni/cbs 를 실제 cin 집계와 맞춘다 (기동 시 + 일 1회).
+//
+// get_cni_count 가 매번 재집계하던 것을 저장값 읽기로 바꾸면서(O(n) -> O(1))
+// 그 안전망이 사라졌다. 아직 감산하지 않는 경로(subtree 배경 삭제, 만료 스윕)가
+// 남아 있으므로 주기적으로 맞춰 준다.
+function reconcile_counters() {
+    db.getConnection((code, connection) => {
+        if (code === '200') {
+            db_sql.reconcile_cnt_counters(connection, 1000, (err, report) => {
+                if (err) {
+                    console.log('[reconcile_counters] error', report);
+                }
+                else if (report && report.fixed > 0) {
+                    console.log('[reconcile_counters] ' + report.checked + '건 확인, ' +
+                                report.fixed + '건 교정');
+                }
+                connection.release();
+            });
+        }
+        else {
+            console.log('[reconcile_counters] No Connection');
+        }
+    });
+}
+
 // 비동기 subtree 삭제 도중 프로세스가 죽어 남은 고아 행 정리 (기동 시 + 일 1회)
 function del_orphan_resource() {
     db.getConnection((code, connection) => {
@@ -186,6 +211,9 @@ if (use_clustering) {
 
                                 del_orphan_resource();
                                 setInterval(del_orphan_resource, (24) * (60) * (60) * (1000));
+
+                                reconcile_counters();
+                                setInterval(reconcile_counters, (24) * (60) * (60) * (1000));
 
                                 require('./pxy_mqtt');
                                 require('./pxy_coap');
