@@ -82,7 +82,6 @@ global.usesemanticbroker = '10.10.202.114';
 
 global.uservi = '2a';
 
-global.useCert = 'disable';
 
 // CSE core
 require('./app');

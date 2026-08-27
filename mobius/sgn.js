@@ -249,9 +249,7 @@ function sgn_action_send(nu_arr, req_count, sub_bodytype, node, short_flag, chec
         delete node['m2m:sgn'].nev;
     }
 
-    if(useCert !== 'enable') {
-        node['m2m:sgn'].rvi = uservi;
-    }
+    node['m2m:sgn'].rvi = uservi;
 
     make_body_string_for_noti(sub_nu.protocol, nu, node, sub_bodytype, xm2mri, short_flag, function (bodyString) {
         if (bodyString === '') { // parse error

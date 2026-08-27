@@ -375,10 +375,10 @@ function create_action(request, response, callback) {
     else if (ty == '3') {
         db_sql.insert_cnt(request.db_connection, resource_Obj[rootnm], function (err, results) {
             if (!err) {
-                if(useCert == 'enable') {
-                    db_sql.update_parent_st(request.db_connection, request.targetObject[Object.keys(request.targetObject)[0]], function () {
-                    });
-                }
+                // useCert 플래그 제거(2026-08-27). 여기 있던 update_parent_st 호출은
+                // 인증서 모드에서만 돌았으므로 실측상 한 번도 실행되지 않았다.
+                // 컨테이너 생성 시 부모 st 를 올리는 동작 자체는 oneM2M 상 필요하다 —
+                // 복원 방안은 docs/superpowers/specs/2026-08-27-counter-maintenance-review.md 참조.
                 callback('200');
             }
             else {
@@ -397,12 +397,6 @@ function create_action(request, response, callback) {
         var parent_rootnm = Object.keys(request.targetObject)[0];
         resource_Obj[rootnm].st = parseInt(request.targetObject[parent_rootnm].st, 10) + 1;
         request.targetObject[parent_rootnm].st = resource_Obj[rootnm].st;
-
-        // 20230104 when certi, enable update stateTap
-        // if(useCert == 'enable') {
-        //     db_sql.update_st(request.db_connection, request.targetObject[parent_rootnm], function() {
-        //     });
-        // }
 
         db_sql.insert_cin(request.db_connection, resource_Obj[rootnm], (err, results) => {
             if (!err) {
@@ -1168,20 +1162,6 @@ exports.create = function (request, response, callback) {
                         }
                     }
                     else {
-                        if (useCert == 'enable') {
-                            if (request.ty == 23) { // when ty is 23, send notification for verification
-                                var notiObj = JSON.parse(JSON.stringify(request.resourceObj));
-                                _this.remove_no_value(request, notiObj);
-                                sgn.check(request, notiObj[rootnm], 256, function (code) {
-
-                                });
-
-                                var count = 1000000000;
-                                while (count--) {
-                                }
-                            }
-                        }
-
                         if (request.query.rcn == 2) { // hierarchical address
                             request.headers.rootnm = 'uri';
                             resource_Obj = {};
@@ -2356,20 +2336,6 @@ exports.update = function (request, response, callback) {
 
     update_resource(request, response, function (code) {
         if(code === '200') {
-            if (useCert == 'enable') {
-                if (ty == 23) { // when ty is 23, send notification for verification
-                    var notiObj = JSON.parse(JSON.stringify(request.resourceObj));
-                    _this.remove_no_value(request, notiObj);
-                    sgn.check(request, notiObj[rootnm], 256, function (code) {
-
-                    });
-
-                    var count = 1000000000;
-                    while (count--) {
-                    }
-                }
-            }
-
             update_action(request, response, function (code) {
                 if (code == '200') {
                     _this.remove_no_value(request, request.resourceObj);
@@ -2552,20 +2518,15 @@ exports.delete = function (request, response, callback) {
 
             });
 
-            if(useCert == 'enable') {
-                if (request.resourceObj[rootnm].ty == 4) {
-                    db_sql.update_parent_by_delete(request.db_connection, request.targetObject[Object.keys(request.targetObject)[0]], parseInt(request.resourceObj[rootnm].cs, 10), function () {
-                    });
-                }
-                else {
-                    db_sql.update_parent_st(request.db_connection, request.targetObject[Object.keys(request.targetObject)[0]], function () {
-                    });
-                }
-                callback('200');
-            }
-            else {
-                callback('200');
-            }
+            // useCert 플래그 제거(2026-08-27). 여기 있던 부모 갱신 호출은 인증서
+            // 모드에서만 돌았으므로 실측상 한 번도 실행되지 않았고, 실행됐다면
+            // 깨졌을 코드다 — targetObject 는 삭제 대상 자신이지 부모가 아니라서
+            // ty=4 이면 `update cin set cni = ...` 이 되고 cin 에는 그 컬럼이 없다.
+            //
+            // 그래서 지금 CIN 을 지워도 부모 cnt 의 cni/cbs 가 줄지 않는다.
+            // 올바른 복원 방안은
+            // docs/superpowers/specs/2026-08-27-counter-maintenance-review.md 참조.
+            callback('200');
         }
         else {
             callback(code);

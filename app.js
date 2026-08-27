@@ -1518,26 +1518,14 @@ function check_xm2m_headers(request, callback) {
                 request.headers['x-m2m-origin'] = 'S';
             }
             else {
-                // 20230104 when certi, fixed error
-                if(useCert == 'enable') {
-                    request.headers['x-m2m-origin'] = 'S';
-                }
-                else {
-                    callback('400-2');
-                    return;
-                }
+                callback('400-2');
+                return;
             }
         }
     }
     else {
-        // 20230104 when certi, fixed error
-        if(useCert == 'enable') {
-            request.headers['x-m2m-origin'] = 'S';
-        }
-        else {
-            callback('400-2');
-            return;
-        }
+        callback('400-2');
+        return;
     }
 
     if (!request.query.hasOwnProperty('fu')) {
