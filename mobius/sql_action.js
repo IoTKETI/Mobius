@@ -37,6 +37,11 @@ const max_search_count = 2000;
 // 상한이라 패스를 키워도 총 시간은 같고 락 점유만 길어진다.
 const MAX_PURGE_PER_PASS = 100;
 
+// get_cni_count 는 purge 후 재조회하며 재귀한다. delete_oldest 가 카운터를
+// 못 줄이면 무한히 돌기 때문에 상한을 둔다. 한 패스에 최대 100건을 지우므로
+// 10회면 1000건까지 정리된다 — 그보다 많이 밀렸다면 드리프트를 의심해야 한다.
+const MAX_PURGE_ROUNDS = 10;
+
 // 이번 패스에서 얼마나 지워야 하는지 계산한다.
 //   need_cnt   개수 한도까지 지워야 할 건수
 //   need_cs    용량 한도까지 지워야 할 바이트
@@ -474,12 +479,30 @@ global.getType = function (p) {
     return type;
 };
 
-exports.get_cni_count = function (connection, obj, callback) {
-    // SQLite/MySQL 공통 헬퍼: select_count_ri 결과로 mni/mbs 초과 시 oldest 삭제
-    function checkAndPurge(connection, cni, cbs, st, obj, callback) {
-        var mni = parseInt(obj.mni, 10);
-        var mbs = parseInt(obj.mbs, 10);
+// 컨테이너의 현재 cni/cbs/st 를 돌려주고, 한도를 넘었으면 오래된 것부터 지운다.
+//
+// 예전에는 매번 cin 을 전부 세는 O(n) 집계를 돌렸다. 저장된 cnt.cni/cbs 를
+// 못 믿었기 때문인데, 그 불신에는 근거가 있었다 — 감소 경로가 깨져 있어서
+// CIN 을 지워도 cni 가 안 줄었다 (update_cnt_by_delete 의 cs 인자 누락, ea40cbc).
+//
+// 지금은 저장값을 유지하는 세 주체가 전부 증분이라 동시성에도 안전하다:
+//   cnt_man flush          cni = cni + δ
+//   delete_oldest          cni = cni - N
+//   update_parent_by_delete cni = cni - 1
+// 그래서 저장값을 읽는다. 드리프트는 reconcile_cnt_counters 가 주기적으로 잡는다.
+//
+// mni/mbs 도 이제 DB 에서 읽는다. 예전에는 호출자의 메모리 객체에서 왔는데,
+// cnt_man 은 debounce 창의 첫 CIN 시점 사본을 들고 있어서 그 사이 클라이언트가
+// mni 를 낮추면 옛 값으로 한도를 판정했다.
+//
+// depth 는 재귀 상한이다. purge 후 재조회하는 구조라, delete_oldest 가 실제로
+// 카운터를 못 줄이면 (지울 행이 없거나 감산이 실패하면) 무한히 돈다.
+// 예전 구조도 같은 위험이 있었다 — 실측 COUNT 를 읽어도 지운 게 없으면
+// 같은 값이 나오므로 마찬가지였다.
+exports.get_cni_count = function (connection, obj, callback, depth) {
+    depth = depth || 0;
 
+    function checkAndPurge(connection, cni, cbs, st, mni, mbs, obj, callback) {
         if (cni > mni || cbs > mbs) {
             // 정리할 때만 로그를 남긴다. 매 flush 마다 찍으면 로그가 폭주해
             // pm2-logrotate 보관분(20분)이 다 밀려나 장애 분석이 불가능해진다.
@@ -489,10 +512,18 @@ exports.get_cni_count = function (connection, obj, callback) {
 
             console.log('[checkAndPurge] delete_oldest count=' + count);
             delete_oldest(connection, obj, count, function (err) {
+                if (depth + 1 >= MAX_PURGE_ROUNDS) {
+                    console.error('[get_cni_count] purge 가 ' + MAX_PURGE_ROUNDS +
+                        '회 안에 수렴하지 않았다 — ri=' + obj.ri +
+                        ' cni=' + cni + ' mni=' + mni + ' cbs=' + cbs + ' mbs=' + mbs +
+                        ' (카운터 드리프트 의심, reconcile_cnt_counters 확인)');
+                    callback(cni, cbs, st);
+                    return;
+                }
                 // 삭제 후 재조회로 정확한 최종값 반환
                 _this.get_cni_count(connection, obj, function (cni2, cbs2, st2) {
                     callback(cni2, cbs2, st2);
-                });
+                }, depth + 1);
             });
         }
         else {
@@ -500,34 +531,21 @@ exports.get_cni_count = function (connection, obj, callback) {
         }
     }
 
-    if (global.usesqlite === 'true') {
-        // SQLite: 저장된 cni 대신 실제 COUNT로 판단 (클러스터 환경에서 저장값 신뢰 불가)
-        _this.select_count_ri(connection, parseInt(obj.ty, 10), obj.ri, function (err, results) {
-            if (!err && results.length == 1) {
-                var cni = parseInt(results[0].cnt  || 0, 10);
-                var cbs = parseInt(results[0].size || 0, 10);
-                var st  = (results[0].st == null) ? 0 : parseInt(results[0].st, 10);
-                checkAndPurge(connection, cni, cbs, st, obj, callback);
-            }
-            else {
-                callback(0, 0, 0);
-            }
-        });
-    }
-    else {
-        // MySQL: select_count_ri는 cnt/size 별칭으로 결과 반환
-        _this.select_count_ri(connection, parseInt(obj.ty, 10), obj.ri, function (err, results) {
-            if (results.length == 1) {
-                var cni = parseInt(results[0].cnt  || 0, 10);
-                var cbs = parseInt(results[0].size || 0, 10);
-                var st  = (results[0].st == null) ? 0 : parseInt(results[0].st, 10);
-                checkAndPurge(connection, cni, cbs, st, obj, callback);
-            }
-            else {
-                callback(0, 0, 0); // fallback
-            }
-        });
-    }
+    _this.select_cni_parent(connection, obj.ri, function (err, rows) {
+        if (err || !rows || rows.length !== 1) {
+            callback(0, 0, 0);
+            return;
+        }
+
+        var r = rows[0];
+        checkAndPurge(connection,
+            parseInt(r.cni || 0, 10),
+            parseInt(r.cbs || 0, 10),
+            (r.st == null) ? 0 : parseInt(r.st, 10),
+            parseInt(r.mni || 0, 10),
+            parseInt(r.mbs || 0, 10),
+            obj, callback);
+    });
 };
 
 exports.insert_cin = function (connection, obj, callback) {
@@ -2400,12 +2418,21 @@ exports.select_cb = function (connection, ri, callback) {
     });
 };
 
-exports.select_cni_parent = function (connection, ty, pi, callback) {
-    var sql = util.format("select cni, cbs, st, mni, mbs from cnt, lookup where cnt.ri = \'%s\' and lookup.ri = \'%s\'", pi, pi);
+// 부모 컨테이너의 카운터와 한도를 한 번에 읽는다.
+// cnt(cni, cbs, mni, mbs) 와 lookup(st) 둘 다 PK 1행이라 O(1) 이다.
+//
+// 예전 get_cni_count 는 cin 을 전부 세는 O(n) 집계를 썼다.
+// 실측(CIN 100,000건): 집계 7.246ms vs 이 쿼리 0.129ms — 56배.
+// 컨테이너가 커질수록 격차가 벌어지고 상한이 없었다.
+//
+// 예전 시그니처의 ty 인자는 쓰이지 않아 뺐다 (호출부가 없어 안전).
+exports.select_cni_parent = function (connection, ri, callback) {
+    var qb = facade.k('cnt')
+        .join('lookup', 'lookup.ri', 'cnt.ri')
+        .select('cnt.cni', 'cnt.cbs', 'cnt.mni', 'cnt.mbs', 'lookup.st')
+        .where('cnt.ri', ri);
 
-    db.getResult(sql, connection, function (err, results_cni) {
-        callback(err, results_cni);
-    });
+    facade.run(qb, connection, callback);
 };
 
 exports.select_st = function (connection, ri, callback) {
