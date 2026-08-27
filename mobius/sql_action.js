@@ -3637,36 +3637,75 @@ exports.delete_lookup_et = function (connection, et, callback) {
 };
 
 
-// 부모(pi)가 lookup에 없는 고아 행을 배치 단위로 반복 삭제.
-// 비동기 subtree 삭제 중 프로세스가 죽었을 때의 잔여물 정리용.
-// SELECT(무락 consistent read)로 1000건씩 모은 뒤 PK로 지워서
-// 라이브 트래픽 중인 대형 테이블에서도 락 시간이 짧다.
-// 다단계 고아(자식의 자식)는 다음 루프의 SELECT가 잡는다.
+// 부모(pi)가 lookup에 없는 고아 행 정리 (비동기 subtree 삭제 중 크래시 잔여물).
+// ri 키셋으로 5000행씩 훑으며 각 배치의 부모 존재를 PK IN 조회로 확인하는
+// 증분 스캔. 예전의 풀테이블 LEFT JOIN 안티조인은 수백만 행 테이블(ketigcs)
+// 에서 60초 쿼리 타임아웃으로 매 부팅 실패했다 — 고아가 0건일 때(평상시)가
+// 오히려 최악 케이스였다. 지금은 쿼리 하나하나가 인덱스 범위 조회라 짧고,
+// 사이사이 이벤트 루프를 놓아 라이브 트래픽을 막지 않는다.
+// 다단계 고아: 같은 패스에서 부모가 지워진 자식은 다음 패스가 잡는다.
+// 패스는 삭제가 있었던 동안만 반복한다 (평상시 1패스로 끝).
 exports.delete_orphan_lookup = function (connection, callback) {
-    var sel = "SELECT l.ri FROM lookup l LEFT JOIN lookup p ON l.pi = p.ri WHERE p.ri IS NULL AND l.pi <> '' LIMIT 1000";
     var exec = (global.usesqlite === 'true') ? require('./db_sqlite').getResult : db.getResult;
-    exec(sel, connection, function (err, rows) {
-        if (err) {
-            console.error('[delete_orphan_lookup] select error:', rows);
-            callback(rows);
-            return;
-        }
-        if (rows.length === 0) {
-            callback(null);
-            return;
-        }
-        var in_list = rows.map(r => `'${r.ri}'`).join(',');
-        exec("DELETE FROM lookup WHERE ri IN (" + in_list + ")", connection, function (err2, result) {
-            if (err2) {
-                console.error('[delete_orphan_lookup] delete error:', result);
-                callback(result);
+    var BATCH = 5000;
+    var esc = function (s) { return String(s).replace(/\\/g, '\\\\').replace(/'/g, "\\'"); };
+    var grand_total = 0;
+
+    function run_pass(pass_deleted, last_ri, pass_done) {
+        var sel = "SELECT ri, pi FROM lookup WHERE ri > '" + esc(last_ri) + "' AND pi <> '' ORDER BY ri LIMIT " + BATCH;
+        exec(sel, connection, function (err, rows) {
+            if (err) {
+                console.error('[delete_orphan_lookup] scan error:', rows);
+                callback(rows);
                 return;
             }
-            var n = (result.affectedRows || result.changes || 0);
-            console.log('[delete_orphan_lookup] deleted ' + n + ' orphan row(s)');
-            _this.delete_orphan_lookup(connection, callback);
+            if (!rows.length) {
+                pass_done(pass_deleted);
+                return;
+            }
+            var next_ri = rows[rows.length - 1].ri;
+            var pi_set = {};
+            for (var i = 0; i < rows.length; i++) pi_set[rows[i].pi] = 1;
+            var in_list = Object.keys(pi_set).map(function (p) { return "'" + esc(p) + "'"; }).join(',');
+            exec("SELECT ri FROM lookup WHERE ri IN (" + in_list + ")", connection, function (err2, prows) {
+                if (err2) {
+                    console.error('[delete_orphan_lookup] parent check error:', prows);
+                    callback(prows);
+                    return;
+                }
+                var exists = {};
+                for (var j = 0; j < prows.length; j++) exists[prows[j].ri] = 1;
+                var orphans = rows.filter(function (r) { return !exists[r.pi]; }).map(function (r) { return "'" + esc(r.ri) + "'"; });
+                if (!orphans.length) {
+                    setImmediate(run_pass, pass_deleted, next_ri, pass_done);
+                    return;
+                }
+                exec("DELETE FROM lookup WHERE ri IN (" + orphans.join(',') + ")", connection, function (err3, dres) {
+                    if (err3) {
+                        console.error('[delete_orphan_lookup] delete error:', dres);
+                        callback(dres);
+                        return;
+                    }
+                    var n = (dres.affectedRows || dres.changes || 0);
+                    grand_total += n;
+                    console.log('[delete_orphan_lookup] deleted ' + n + ' orphan row(s)');
+                    setImmediate(run_pass, pass_deleted + n, next_ri, pass_done);
+                });
+            });
         });
-    });
+    }
+
+    (function next_pass() {
+        run_pass(0, '', function (deleted_in_pass) {
+            if (deleted_in_pass > 0) {
+                next_pass();
+            }
+            else {
+                if (grand_total > 0) console.log('[delete_orphan_lookup] done, total ' + grand_total + ' row(s)');
+                callback(null);
+            }
+        });
+    })();
 };
 
 
