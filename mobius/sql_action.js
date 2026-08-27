@@ -2517,12 +2517,30 @@ function delete_oldest(connection, obj, count, callback) {
                     var actual_cbs = parseInt(rcRows[0].s || 0, 10);
 
                     if (actual_cni <= mni && actual_cbs <= mbs) {
-                        // 다른 워커가 이미 정리 완료 → 커밋 후 종료
-                        connection.commit(function () {
-                            console.log('[delete_oldest] already clean (actual_cni=' + actual_cni + ' <= mni=' + mni + '), skip');
-                            console.timeEnd(del_id);
-                            callback(null);
-                        });
+                        // 다른 워커가 이미 정리 완료. 저장값이 실측과 어긋나 있으면
+                        // (재시작으로 유실된 디바운스 델타, 과거 flush 실패 누적)
+                        // 락을 쥔 김에 실측값으로 보정하고 종료 — 드리프트 자가 치유.
+                        var stored_cni = parseInt(lockRows[0].cni, 10);
+                        var stored_cbs = parseInt(lockRows[0].cbs, 10);
+                        var finish_clean = function () {
+                            connection.commit(function () {
+                                console.log('[delete_oldest] already clean (actual_cni=' + actual_cni + ' <= mni=' + mni + '), skip');
+                                console.timeEnd(del_id);
+                                callback(null);
+                            });
+                        };
+                        if (stored_cni !== actual_cni || stored_cbs !== actual_cbs) {
+                            var heal_sql = util.format(
+                                "UPDATE cnt SET cni = %s, cbs = %s WHERE ri = '%s'",
+                                actual_cni, actual_cbs, obj.ri);
+                            db.getResult(heal_sql, connection, function () {
+                                console.log('[delete_oldest] healed drift: cni ' + stored_cni + '->' + actual_cni + ' cbs ' + stored_cbs + '->' + actual_cbs);
+                                finish_clean();
+                            });
+                        }
+                        else {
+                            finish_clean();
+                        }
                         return;
                     }
 
@@ -2557,9 +2575,13 @@ function delete_oldest(connection, obj, count, callback) {
                             if (total_cnt >= need_cnt && total_cs >= need_cs) break;
                         }
 
+                        // 상대 감산(cni = cni - n) 대신 실측 기반 절대값을 쓴다.
+                        // 어차피 이 트랜잭션이 실측 재카운트를 이미 했으므로 공짜이고,
+                        // 재시작·과거 flush 실패로 누적된 드리프트가 매 purge마다 자가 치유된다.
+                        // (커밋 후 도착하는 디바운스 델타만큼의 오차는 남지만 ~1초분으로 유계)
                         var update_sql = util.format(
-                            "UPDATE cnt SET cni = cni - %s, cbs = cbs - %s WHERE ri = '%s'",
-                            total_cnt, total_cs, obj.ri);
+                            "UPDATE cnt SET cni = %s, cbs = %s WHERE ri = '%s'",
+                            actual_cni - total_cnt, actual_cbs - total_cs, obj.ri);
                         db.getResult(update_sql, connection, function (err4) {
                             if (err4) {
                                 connection.rollback(function () {});
