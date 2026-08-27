@@ -488,7 +488,22 @@ exports.get_cni_count = function (connection, obj, callback) {
             if (count < 1) count = 1;
 
             console.log('[checkAndPurge] delete_oldest count=' + count);
-            delete_oldest(connection, obj, count, function (err) {
+            delete_oldest(connection, obj, count, function (err, deleted) {
+                // 실제로 지운 게 있을 때만 재조회·재귀한다. delete_oldest 는
+                // NOWAIT 스킵 / 이미 정리됨 / 후보 0건 세 경로에서 진행 없이
+                // 성공처럼 반환하는데, 예전에는 그걸 구분하지 않고 무조건
+                // 재귀해서 cni 가 그대로인 채 같은 사이클을 초당 474회 돌았다.
+                // 워커 26개가 같은 cnt 행을 두고 NOWAIT 경합을 하니 대부분
+                // 스킵으로 떨어져 라이브락이 됐고, 한 바퀴마다 10만행
+                // COUNT+SUM 이 돌아 mysqld 가 21코어를 먹었다.
+                // (2026-08-27 실측: load 1085, 동시 쿼리 1243건, 그중 99%가
+                //  MUL3/disarm 집계. 같은 cnt 행을 기다리던 cnt_man flush 는
+                //  ER_LOCK_WAIT_TIMEOUT 3330건.)
+                // 지운 건수가 있으면 cni 는 반드시 줄어드므로 재귀는 종료한다.
+                if (!deleted) {
+                    callback(cni, cbs, st);
+                    return;
+                }
                 // 삭제 후 재조회로 정확한 최종값 반환
                 _this.get_cni_count(connection, obj, function (cni2, cbs2, st2) {
                     callback(cni2, cbs2, st2);
@@ -2450,7 +2465,11 @@ function delete_oldest(connection, obj, count, callback) {
             var sqlite = require('./db_sqlite');
             sqlite.getResult(sql, connection, function (err, results) {
                 console.timeEnd(del_id);
-                callback(err, results);
+                // MySQL 경로와 같은 규약: 두 번째 인자는 실제 삭제 건수.
+                // 객체를 그대로 넘기면 0건 삭제여도 truthy 라 호출자가 재귀한다.
+                var deleted = 0;
+                if (!err && results) deleted = results.changes || results.affectedRows || 0;
+                callback(err, deleted);
             });
         });
     }
@@ -2603,9 +2622,12 @@ function delete_oldest(connection, obj, count, callback) {
                                     return;
                                 }
                                 connection.commit(function (commitErr) {
-                                    console.log('[delete_oldest] committed: deleted=' + (results ? results.affectedRows : 0));
+                                    var deleted = (results && results.affectedRows) ? results.affectedRows : 0;
+                                    console.log('[delete_oldest] committed: deleted=' + deleted);
                                     console.timeEnd(del_id);
-                                    callback(commitErr);
+                                    // 두 번째 인자가 호출자의 재귀 여부를 정한다.
+                                    // 진행 없이 반환하는 다른 경로들은 undefined 를 넘긴다.
+                                    callback(commitErr, commitErr ? 0 : deleted);
                                 });
                             });
                         });
