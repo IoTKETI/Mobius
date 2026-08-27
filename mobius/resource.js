@@ -376,12 +376,21 @@ function create_action(request, response, callback) {
     else if (ty == '3') {
         db_sql.insert_cnt(request.db_connection, resource_Obj[rootnm], function (err, results) {
             if (!err) {
+                var cnt_parent_rootnm = Object.keys(request.targetObject)[0];
+
                 // 자식이 생겼으니 부모 stateTag 를 올린다.
                 // 이 호출은 원래 useCert=='enable' 뒤에 있어 한 번도 실행되지 않았다
                 // (mobius.js 가 'disable' 로 하드코딩). 플래그를 걷어내며 되살렸다.
                 db_sql.update_parent_st(request.db_connection,
-                    request.targetObject[Object.keys(request.targetObject)[0]], function () {
+                    request.targetObject[cnt_parent_rootnm], function () {
                     });
+
+                // st 가 바뀌었으니 부모의 캐시된 응답을 버려야 한다. 안 그러면
+                // 조회는 옛 st 를 계속 돌려준다 (CIN/SUB 분기는 이미 이렇게 한다).
+                if (cache_resource_url.hasOwnProperty(request.targetObject[cnt_parent_rootnm].ri)) {
+                    delete cache_resource_url[request.targetObject[cnt_parent_rootnm].ri];
+                }
+
                 callback('200');
             }
             else {
