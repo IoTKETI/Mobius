@@ -154,47 +154,9 @@ test('update_parent_by_delete: MySQL 은 BEGIN/COMMIT 으로 감싼다', functio
 // 지금은 정합 맞추기 전용이라 cnt 하나만 쓴다. st 는 실제 데이터에서 재계산할 수
 // 없고, 정합 맞추기가 올리면 없던 구독 알림이 나가므로 일부러 건드리지 않는다.
 
-test('update_parent_by_insert: SQLite 에서도 파사드로 나간다 (ty=3)', function (t, done) {
-    const { sql_action, seen } = tapAdapter(true);
-    sql_action.update_parent_by_insert({}, { ri: '/M/c1', ty: '3', cni: 2, mni: 10, cbs: 8, st: 4 }, 4, guard(done, function (err) {
-        assert.ok(!err, '실패하면 안 된다: ' + JSON.stringify(err));
-        assertNoLegacy(seen);
-        const updates = seen.filter(function (s) { return /^update/i.test(s.sql); });
-        assert.strictEqual(updates.length, 2);
-        assert.match(updates[0].sql, /update `cnt` set/i);
-        assert.match(updates[1].sql, /update `lookup` set `st`/i);
-        done();
-    }));
-});
-
-test('update_parent_by_insert: cbs 와 st 는 증분이다', function (t, done) {
-    const { sql_action, seen } = tapAdapter(true);
-    sql_action.update_parent_by_insert({}, { ri: '/M/c1', ty: '3', cni: 2, mni: 10, cbs: 8, st: 4 }, 4, guard(done, function () {
-        const updates = seen.filter(function (s) { return /^update/i.test(s.sql); });
-        assert.match(updates[0].sql, /`cbs`\s*=\s*cbs \+/i, 'cbs 는 증분이어야 한다');
-        assert.match(updates[1].sql, /`st`\s*=\s*st \+ 1/i, 'st 는 증분이어야 한다');
-        done();
-    }));
-});
-
-test('update_parent_by_insert: cni 는 mni 상한을 넘지 않는다', function (t, done) {
-    const { sql_action, seen } = tapAdapter(true);
-    // cni=9 에서 1 늘면 10, mni=10 이므로 그대로 10.
-    sql_action.update_parent_by_insert({}, { ri: '/M/c1', ty: '3', cni: 9, mni: 10, cbs: 8, st: 4 }, 4, guard(done, function () {
-        const upd = seen.filter(function (s) { return /^update/i.test(s.sql); })[0];
-        assert.ok(upd.bindings.indexOf(10) !== -1, 'cni 는 10 으로 묶여야 한다');
-        done();
-    }));
-});
-
-test('update_parent_by_insert: usesqlite 분기가 사라졌다', function () {
-    const fs = require('node:fs');
-    const src = fs.readFileSync(path.join(__dirname, '..', 'mobius', 'sql_action.js'), 'utf8');
-    const body = src.slice(src.indexOf('exports.update_parent_by_insert'));
-    const end = body.indexOf('\nexports.');
-    assert.strictEqual(body.slice(0, end).indexOf('global.usesqlite'), -1,
-        'update_parent_by_insert 안에 usesqlite 분기가 남아 있다');
-});
+// update_parent_by_insert 테스트는 여기 있었으나 함수와 함께 제거했다.
+// 호출부가 하나도 없는 죽은 코드였다 — CIN 삽입 시 부모 카운터는
+// cnt_man 이 debounce 배치로 올린다.
 
 test('update_acp: MySQL 에서 lookup 과 acp 가 한 트랜잭션이다', function (t, done) {
     const { sql_action, seen } = tapAdapter(false);

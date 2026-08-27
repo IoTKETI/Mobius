@@ -2461,7 +2461,13 @@ function delete_oldest(connection, obj, count, callback) {
                         }
                         var update_sql = util.format("UPDATE cnt SET cni = cni - %s, cbs = cbs - %s WHERE ri = '%s'", total_cnt, total_cs, obj.ri);
                         sqlite.getResult(update_sql, connection, function (err2, res2) {
-                            cb_pre();
+                            // 자식(CIN)이 지워졌으니 부모 stateTag 도 올라가야 한다.
+                            // CIN 생성(cnt_man)과 단건 삭제(update_parent_by_delete)는
+                            // 이미 올리는데 보존 정책 purge 만 빠져 있었다.
+                            var st_sql = util.format("UPDATE lookup SET st = st + 1 WHERE ri = '%s'", obj.ri);
+                            sqlite.getResult(st_sql, connection, function () {
+                                cb_pre();
+                            });
                         });
                     } else {
                         cb_pre();
@@ -2584,9 +2590,15 @@ function delete_oldest(connection, obj, count, callback) {
                             if (total_cnt >= need_cnt && total_cs >= need_cs) break;
                         }
 
+                        // 자식(CIN)이 지워졌으니 부모 stateTag 도 올라가야 한다.
+                        // CIN 생성(cnt_man)과 단건 삭제(update_parent_by_delete)는
+                        // 이미 올리는데 보존 정책 purge 만 빠져 있었다.
+                        // MySQL 은 다중 테이블 UPDATE 를 쓸 수 있어 왕복이 늘지 않는다
+                        // (cnt_man.js 의 MySQL 경로와 같은 형태).
                         var update_sql = util.format(
-                            "UPDATE cnt SET cni = cni - %s, cbs = cbs - %s WHERE ri = '%s'",
-                            total_cnt, total_cs, obj.ri);
+                            "UPDATE cnt, lookup SET cnt.cni = cnt.cni - %s, cnt.cbs = cnt.cbs - %s, " +
+                            "lookup.st = lookup.st + 1 WHERE cnt.ri = '%s' AND lookup.ri = '%s'",
+                            total_cnt, total_cs, obj.ri, obj.ri);
                         db.getResult(update_sql, connection, function (err4) {
                             if (err4) {
                                 connection.rollback(function () {});
@@ -2691,15 +2703,9 @@ exports.update_cb_poa_csi = function (connection, poa, csi, srt, ri, callback) {
         });
 };
 
-exports.update_st = function (connection, obj, callback) {
-    var st_id = 'update_st ' + obj.ri + ' - ' + require('shortid').generate();
-    console.time(st_id);
-    var sql = util.format('update lookup set st = \'%s\' where ri=\'%s\'', obj.st + 1, obj.ri);
-    db.getResult(sql, connection, (err, results) => {
-        console.timeEnd(st_id);
-        callback(err, results);
-    });
-};
+// update_st 는 여기 있었다. 호출부가 하나도 없었고, `set st = <값>` 대입식이라
+// 동시에 두 워커가 부르면 하나가 다른 하나를 덮는다. stateTag 를 올리는 일은
+// update_parent_st(증분식)가 맡는다.
 
 exports.update_lookup = function (connection, obj, callback) {
     facade.run(facade.k('lookup').update({
@@ -3478,48 +3484,9 @@ exports.reconcile_cnt_counters = function (connection, limit, callback) {
     });
 };
 
-// 이전에는 usesqlite && ty=='3' 일 때만 update_cnt_cni 로 우회하고, 나머지는
-// MySQL 전용 다중 테이블 UPDATE 로 갔다. 그 경로는 SQLite 모드에서 MySQL 의
-// 0개 행에 적용돼 조용히 유실됐다.
-//
-// cbs 와 st 는 대입이 아니라 증분이다 — 동시 삽입이 서로를 덮어쓰지 않게
-// 하려면 증분이어야 한다. (절대값 정정은 update_cnt_cni 가 담당한다.)
-exports.update_parent_by_insert = function (connection, obj, cs, callback) {
-    var tableName = responder.typeRsrc[parseInt(obj.ty, 10)];
-    var cni_id = 'update_parent_by_insert ' + obj.ri + ' - ' + require('shortid').generate();
-    console.time(cni_id);
-
-    obj.cni += 1;
-    if (obj.cni > obj.mni) {
-        obj.cni = obj.mni;
-    }
-
-    facade.transaction(connection, function (conn, finish) {
-        var q1 = facade.k(tableName)
-            .update({
-                cni: obj.cni,
-                cbs: facade.raw('cbs + ?', [cs])
-            })
-            .where({ ri: obj.ri });
-
-        facade.run(q1, conn, function (err1, r1) {
-            if (err1) { return finish(err1, r1); }
-
-            var q2 = facade.k('lookup')
-                .update({ st: facade.raw('st + 1') })
-                .where({ ri: obj.ri });
-
-            facade.run(q2, conn, function (err2, r2) {
-                finish(err2, err2 ? r2 : r1);
-            });
-        });
-    }, function (err, results) {
-        if (!err) {
-            console.timeEnd(cni_id);
-        }
-        callback(err, results);
-    });
-};
+// update_parent_by_insert 는 여기 있었다. 호출부가 하나도 없었다 —
+// CIN 삽입 시 부모 카운터를 올리는 일은 cnt_man 이 debounce 배치로 완전히
+// 대체했다 (resource.js 의 cnt_man.schedule 이 유일한 경로다).
 
 // 이전에는 MySQL 전용 다중 테이블 UPDATE(`update cnt, lookup set ...`)를
 // db.getResult 로 보냈다. db_action.getResult 는 usesqlite 와 무관하게 항상

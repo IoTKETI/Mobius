@@ -376,10 +376,12 @@ function create_action(request, response, callback) {
     else if (ty == '3') {
         db_sql.insert_cnt(request.db_connection, resource_Obj[rootnm], function (err, results) {
             if (!err) {
-                // useCert 플래그 제거(2026-08-27). 여기 있던 update_parent_st 호출은
-                // 인증서 모드에서만 돌았으므로 실측상 한 번도 실행되지 않았다.
-                // 컨테이너 생성 시 부모 st 를 올리는 동작 자체는 oneM2M 상 필요하다 —
-                // 복원 방안은 docs/superpowers/specs/2026-08-27-counter-maintenance-review.md 참조.
+                // 자식이 생겼으니 부모 stateTag 를 올린다.
+                // 이 호출은 원래 useCert=='enable' 뒤에 있어 한 번도 실행되지 않았다
+                // (mobius.js 가 'disable' 로 하드코딩). 플래그를 걷어내며 되살렸다.
+                db_sql.update_parent_st(request.db_connection,
+                    request.targetObject[Object.keys(request.targetObject)[0]], function () {
+                    });
                 callback('200');
             }
             else {
@@ -2362,46 +2364,10 @@ exports.update = function (request, response, callback) {
     });
 };
 
-/* 20180322 removed <-- update stateTag for every resources
-
-*/
-// CIN 을 지운 뒤 부모 컨테이너의 cni/cbs 를 줄인다.
-// 부모는 pi 로 찾아야 한다 — 삭제 경로의 targetObject 는 삭제 대상 자신이다.
-//
-// cs 는 지워진 CIN 의 contentSize 다. 호출부가 이 인자를 빠뜨리고 있어서
-// (정의는 4개, 호출은 3개) cs 자리에 콜백 함수가 들어갔고, 그 결과
-// update_parent_by_delete 가 매번 실패했다. 그래서 CIN 을 지워도 부모의
-// cni/cbs 가 줄지 않았다.
-function update_cnt_by_delete(connection, pi, cs, callback) {
-    callback = callback || function () {};
-
-    db_sql.select_resource_from_url(connection, pi, pi, function (err, results) {
-        if (err) {
-            callback(true, results);
-            return;
-        }
-
-        if (results.length == 0) {
-            console.log('[update_cnt_by_delete] parent not found: ' + pi);
-            callback(true, null);
-            return;
-        }
-
-        var targetObject = {};
-        var ty = results[0].ty;
-        targetObject[responder.typeRsrc[ty]] = results[0];
-        var rootnm = Object.keys(targetObject)[0];
-        makeObject(targetObject[rootnm]);
-
-        db_sql.update_parent_by_delete(connection, targetObject[rootnm], cs, function (err2, results2) {
-            if (err2) {
-                console.log('[update_cnt_by_delete] update_parent_by_delete failed: ' +
-                            ((results2 && (results2.driverCode || results2.code)) || results2));
-            }
-            callback(err2, results2);
-        });
-    });
-}
+// update_cnt_by_delete 는 여기 있었다. pi 로 부모를 조회한 뒤
+// update_parent_by_delete 를 부르는 래퍼였는데, 삭제 경로가 바로 위 select_lookup
+// 으로 이미 부모를 들고 있어서 같은 행을 두 번 읽고 있었다. 호출부에서 직접
+// update_parent_by_delete 를 부르도록 바꾸고 제거했다.
 
 // 리프 타입(하위 리소스를 가질 수 없는 ty)은 background subtree 삭제가 필요 없다.
 var leaf_ty_list = ['1', '4', '9', '17', '23'];
@@ -2498,13 +2464,23 @@ function delete_action(request, response, callback) {
                                         db_sql.update_lookup(request.db_connection, parentObj, function (err, results) {
                                         });
 
+                                        // update_lookup 은 st 를 obj.st 그대로 다시 쓴다(대입).
+                                        // 자식이 지워졌으니 부모 stateTag 는 올라가야 한다.
+                                        db_sql.update_parent_st(request.db_connection,
+                                            request.targetObject[parent_rootnm], function () {
+                                            });
+
                                         callback('200');
                                     }
                                     else if (resource_Obj[rootnm].ty == '4') {
+                                        // 부모는 위 select_lookup 으로 이미 조회했다.
+                                        // 예전에는 update_cnt_by_delete 가 pi 로 한 번 더 찾았다 —
+                                        // 같은 행을 두 번 읽던 것이라 직접 부른다.
+                                        //
                                         // cs(지워진 CIN 의 contentSize)를 빠뜨리면 부모 cbs 가
                                         // 엉뚱한 값으로 줄거나 쿼리가 통째로 실패한다.
-                                        update_cnt_by_delete(request.db_connection,
-                                            resource_Obj[rootnm].pi,
+                                        db_sql.update_parent_by_delete(request.db_connection,
+                                            request.targetObject[parent_rootnm],
                                             parseInt(resource_Obj[rootnm].cs, 10) || 0,
                                             function () {
                                             });
@@ -2512,6 +2488,11 @@ function delete_action(request, response, callback) {
                                         callback('200');
                                     }
                                     else {
+                                        // CIN 외의 자식이 지워져도 부모 stateTag 는 올라가야 한다.
+                                        db_sql.update_parent_st(request.db_connection,
+                                            request.targetObject[parent_rootnm], function () {
+                                            });
+
                                         callback('200');
                                     }
                                 }
@@ -2559,66 +2540,6 @@ exports.delete = function (request, response, callback) {
 };
 
 
-function request_update_cnt(bodyString, cs) {
-    var options = {
-        hostname: 'localhost',
-        port: use_cnt_man_port,
-        path: '/cnt',
-        method: 'PUT',
-        headers: {
-            'Accept': 'application/json',
-            'Content-Type': 'application/json',
-            'Content-Length': bodyString.length,
-            'cs': cs
-        }
-    };
-
-    var bodyStr = '';
-    if (use_secure == 'disable') {
-        var req = http.request(options, function (res) {
-            res.setEncoding('utf8');
-
-            res.on('data', function (chunk) {
-                bodyStr += chunk;
-            });
-
-            res.on('end', function () {
-                if(res.statusCode == 200 || res.statusCode == 201) {
-                    console.log('-------> [response_update_cnt] - ' + bodyStr);
-                }
-            });
-        });
-    }
-    else {
-        options.ca = fs.readFileSync('ca-crt.pem');
-
-        req = https.request(options, function (res) {
-            res.setEncoding('utf8');
-
-            res.on('data', function (chunk) {
-                bodyStr += chunk;
-            });
-
-            res.on('end', function () {
-                if(res.statusCode == 200 || res.statusCode == 201) {
-                    console.log('-------> [response_update_cnt] - ' + bodyStr);
-                }
-            });
-        });
-    }
-
-    req.on('error', function (e) {
-        if(e.message != 'read ECONNRESET') {
-            //console.log('--xxx--> [request_noti - problem with request: ' + e.message + ']');
-            console.log('--xxx--> [request_update_cnt]');
-        }
-    });
-
-    req.on('close', function () {
-        //console.log('--xxx--> [request_noti - close: no response for notification');
-    });
-
-    console.log('<------- [request_update_cnt]');
-    req.write(bodyString);
-    req.end();
-}
+// request_update_cnt 는 여기 있었다. use_cnt_man_port 로 자기 자신에게 HTTP PUT /cnt
+// 을 보내 부모 카운터를 갱신하던 옛 구조의 흔적으로, 호출부가 하나도 없었다.
+// 지금은 cnt_man 이 같은 프로세스 안에서 배치로 처리한다.
