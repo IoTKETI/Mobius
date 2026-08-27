@@ -44,6 +44,7 @@ var db = require('./db_action');
 var db_sql = require('./sql_action');
 var cnt_man = require('./cnt_man');
 var db_errors = require('./db/errors');
+var defaults = require('./defaults');
 
 var _this = this;
 
@@ -929,8 +930,12 @@ function build_resource(request, response, callback) {
     resource_Obj[rootnm].ct = moment().utc().format('YYYYMMDDTHHmmss');
     resource_Obj[rootnm].lt = resource_Obj[rootnm].ct;
     resource_Obj[rootnm].st = 0;
-    resource_Obj[rootnm].et = moment().utc().add(2, 'years').format('YYYYMMDDTHHmmss');
+    // et 를 명시하지 않으면 사실상 만료하지 않는다 (mobius/defaults.js 주석 참조).
+    resource_Obj[rootnm].et = defaults.DEFAULT_ET;
     if (request.ty == '17') {
+        // <request> 는 논블로킹 요청의 임시 기록이라 짧게 만료시킨다.
+        // 이 값은 별도 정리기(app.js del_req_resource -> delete_req)와 짝을 이루므로
+        // 위의 기본값을 따르지 않는다.
         resource_Obj[rootnm].et = moment().utc().add(1, 'days').format('YYYYMMDDTHHmmss');
     }
 

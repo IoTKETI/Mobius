@@ -23,6 +23,7 @@ var merge = require('merge');
 var moment = require('moment');
 
 var db_sql = require('./sql_action');
+var defaults = require('./defaults');
 
 function cb_create_action(connection, callback) {
     var rootnm = 'cb';
@@ -38,7 +39,7 @@ function cb_create_action(connection, callback) {
     resource_Obj[rootnm].ri = resource_Obj[rootnm].pi + '/' + resource_Obj[rootnm].rn;
     resource_Obj[rootnm].ct = moment().utc().format('YYYYMMDDTHHmmss');
     resource_Obj[rootnm].lt = resource_Obj[rootnm].ct;
-    resource_Obj[rootnm].et = moment().utc().add(10, 'years').format('YYYYMMDDTHHmmss');
+    resource_Obj[rootnm].et = defaults.DEFAULT_ET;
     resource_Obj[rootnm].acpi = [];
     resource_Obj[rootnm].lbl = [];
     resource_Obj[rootnm].lbl[0] = resource_Obj[rootnm].rn;
