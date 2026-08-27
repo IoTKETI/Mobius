@@ -2365,27 +2365,41 @@ exports.update = function (request, response, callback) {
 /* 20180322 removed <-- update stateTag for every resources
 
 */
+// CIN 을 지운 뒤 부모 컨테이너의 cni/cbs 를 줄인다.
+// 부모는 pi 로 찾아야 한다 — 삭제 경로의 targetObject 는 삭제 대상 자신이다.
+//
+// cs 는 지워진 CIN 의 contentSize 다. 호출부가 이 인자를 빠뜨리고 있어서
+// (정의는 4개, 호출은 3개) cs 자리에 콜백 함수가 들어갔고, 그 결과
+// update_parent_by_delete 가 매번 실패했다. 그래서 CIN 을 지워도 부모의
+// cni/cbs 가 줄지 않았다.
 function update_cnt_by_delete(connection, pi, cs, callback) {
+    callback = callback || function () {};
+
     db_sql.select_resource_from_url(connection, pi, pi, function (err, results) {
         if (err) {
-            callback(null, 500);
-            return '0';
+            callback(true, results);
+            return;
         }
-        else {
-            if (results.length == 0) {
-                callback(null, 404);
-                return '0';
+
+        if (results.length == 0) {
+            console.log('[update_cnt_by_delete] parent not found: ' + pi);
+            callback(true, null);
+            return;
+        }
+
+        var targetObject = {};
+        var ty = results[0].ty;
+        targetObject[responder.typeRsrc[ty]] = results[0];
+        var rootnm = Object.keys(targetObject)[0];
+        makeObject(targetObject[rootnm]);
+
+        db_sql.update_parent_by_delete(connection, targetObject[rootnm], cs, function (err2, results2) {
+            if (err2) {
+                console.log('[update_cnt_by_delete] update_parent_by_delete failed: ' +
+                            ((results2 && (results2.driverCode || results2.code)) || results2));
             }
-
-            var targetObject = {};
-            var ty = results[0].ty;
-            targetObject[responder.typeRsrc[ty]] = results[0];
-            var rootnm = Object.keys(targetObject)[0];
-            makeObject(targetObject[rootnm]);
-
-            db_sql.update_parent_by_delete(connection, targetObject[rootnm], cs, function (err, results) {
-            });
-        }
+            callback(err2, results2);
+        });
     });
 }
 
@@ -2487,8 +2501,13 @@ function delete_action(request, response, callback) {
                                         callback('200');
                                     }
                                     else if (resource_Obj[rootnm].ty == '4') {
-                                        update_cnt_by_delete(request.db_connection, resource_Obj[rootnm].pi, function (rsc) {
-                                        });
+                                        // cs(지워진 CIN 의 contentSize)를 빠뜨리면 부모 cbs 가
+                                        // 엉뚱한 값으로 줄거나 쿼리가 통째로 실패한다.
+                                        update_cnt_by_delete(request.db_connection,
+                                            resource_Obj[rootnm].pi,
+                                            parseInt(resource_Obj[rootnm].cs, 10) || 0,
+                                            function () {
+                                            });
 
                                         callback('200');
                                     }
