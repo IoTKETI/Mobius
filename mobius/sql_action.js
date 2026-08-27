@@ -511,7 +511,17 @@ exports.get_cni_count = function (connection, obj, callback) {
             });
         }
         else {
-            callback(cni, cbs, st);
+            // purge가 필요 없는 구간의 드리프트 보정. 여기의 cni/cbs는 방금
+            // select_count_ri가 계산한 실측값이므로, 저장값이 어긋나 있으면
+            // (버스트 후 트래픽이 멎어 purge 경로의 자가 치유가 안 도는 경우)
+            // 이 시점에 절대값으로 수렴시킨다. 일치하면 WHERE가 걸러 no-op.
+            var heal_sql = util.format(
+                "UPDATE cnt SET cni = %s, cbs = %s WHERE ri = '%s' AND (cni <> %s OR cbs <> %s)",
+                cni, cbs, obj.ri, cni, cbs);
+            var exec = (global.usesqlite === 'true') ? require('./db_sqlite').getResult : db.getResult;
+            exec(heal_sql, connection, function () {
+                callback(cni, cbs, st);
+            });
         }
     }
 
