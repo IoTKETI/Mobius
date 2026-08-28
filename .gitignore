@@ -27,3 +27,13 @@ test_*
 .claude/
 CLAUDE.md
 .superpowers/
+
+# SSH 키 — 절대 커밋되면 안 된다.
+# (*.pem 은 넣지 않는다. ca-crt.pem / server-crt.pem / server-key.pem 은
+#  이미 추적 중이라 넣어 봐야 적용되지 않고, 나중에 지웠다 되돌릴 때
+#  조용히 무시되는 함정만 만든다.)
+id_ed25519
+id_ed25519.pub
+id_rsa
+id_rsa.pub
+*.ppk
