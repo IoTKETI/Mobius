@@ -27,7 +27,7 @@ CREATE INDEX idx_lookup_pi_sri ON lookup(pi, sri);
 
 ```sql
 CREATE TABLE IF NOT EXISTS hit_ri (
-  ri   varchar(200) NOT NULL,
+  ri   varchar(200) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
   ct   varchar(8)   NOT NULL,
   http int NOT NULL DEFAULT 0,
   mqtt int NOT NULL DEFAULT 0,

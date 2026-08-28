@@ -265,7 +265,7 @@ DROP TABLE IF EXISTS `hit_ri`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `hit_ri` (
-  `ri` varchar(200) NOT NULL,
+  `ri` varchar(200) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
   `ct` varchar(8) NOT NULL,
   `http` int NOT NULL DEFAULT 0,
   `mqtt` int NOT NULL DEFAULT 0,
