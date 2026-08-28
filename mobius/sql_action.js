@@ -3262,19 +3262,47 @@ exports.update_cnt_cni = function (connection, obj, callback) {
 //
 // 한 번에 limit 건씩만 본다. 컨테이너가 많아도 한 패스가 길어지지 않게 하려는 것이다.
 // 하위 질의는 cin_ri_idx(pi, ri, cs) 커버링 인덱스만 읽는다.
-exports.reconcile_cnt_counters = function (connection, limit, callback) {
+// 저장된 cni/cbs 를 실제 cin 집계와 맞춘다.
+//
+// get_cni_count 가 저장값을 읽게 되면서 "매번 재집계" 라는 안전망이 사라졌다.
+// 아직 감산하지 않는 경로(subtree 배경 삭제, 만료 스윕, 프로세스 중단)가
+// 남아 있어 드리프트가 생길 수 있다.
+//
+// ── 운영 규모를 견디도록 설계했다 ──────────────────────────────────────
+// 배포 환경: 컨테이너 30,279개, CIN 1억 4558만 행, 그중 593만 건짜리 컨테이너 존재.
+//
+// 1. 커서로 진행한다. 예전 구현은 ORDER BY 없이 `limit N` 만 걸어서 늘 같은
+//    N개만 봤다 — 나머지 컨테이너는 영원히 검사되지 않았다.
+// 2. 조인을 쓰지 않는다. 운영 스키마는 ri 가 utf8mb3_bin, pi 가
+//    utf8mb3_general_ci 라 부모↔자식 조인이 인덱스를 못 쓴다
+//    (실측: LEFT JOIN 형태는 컨테이너 50개에 20초 상한 초과).
+//    리터럴 비교는 정상적으로 인덱스를 탄다 (type: ref, Using index).
+// 3. 시간 예산을 둔다. 큰 컨테이너 하나가 20초를 먹을 수 있으므로,
+//    한 번 호출이 무한정 길어지지 않게 하고 남은 몫은 커서로 넘긴다.
+//
+// opts: { limit, cursor, budgetMs }
+// 콜백: (err, { checked, fixed, nextCursor, done })
+//   done=false 면 nextCursor 로 다시 부르면 이어서 돈다.
+exports.reconcile_cnt_counters = function (connection, opts, callback) {
+    // 예전 시그니처 (connection, limit, callback) 도 받아 준다.
+    if (typeof opts === 'number') { opts = { limit: opts }; }
+    opts = opts || {};
+
+    var limit = opts.limit || 200;
+    var cursor = opts.cursor || '';
+    var budgetMs = (opts.budgetMs === undefined) ? 30000 : opts.budgetMs;
+
     var rec_id = 'reconcile_cnt_counters - ' + require('shortid').generate();
     console.time(rec_id);
+    var started = Date.now();
 
-    var qb = facade.k('cnt')
-        .select('cnt.ri', 'cnt.cni', 'cnt.cbs')
-        .select(facade.raw(
-            '(select count(*) from cin where cin.pi = cnt.ri) as real_cni'))
-        .select(facade.raw(
-            '(select coalesce(sum(cs), 0) from cin where cin.pi = cnt.ri) as real_cbs'))
+    var batch = facade.k('cnt')
+        .select('ri', 'cni', 'cbs')
+        .where('ri', '>', cursor)
+        .orderBy('ri', 'asc')
         .limit(limit);
 
-    facade.run(qb, connection, function (err, rows) {
+    facade.run(batch, connection, function (err, rows) {
         if (err) {
             console.timeEnd(rec_id);
             callback(err, rows);
@@ -3282,43 +3310,69 @@ exports.reconcile_cnt_counters = function (connection, limit, callback) {
         }
 
         rows = rows || [];
-        var drifted = rows.filter(function (r) {
-            return parseInt(r.cni, 10) !== parseInt(r.real_cni, 10) ||
-                   parseInt(r.cbs, 10) !== parseInt(r.real_cbs, 10);
-        });
-
         var idx = 0;
         var fixed = 0;
+        var lastRi = cursor;
+
+        function finish(outOfBudget) {
+            console.timeEnd(rec_id);
+            if (fixed > 0) {
+                console.log('[reconcile_cnt_counters] ' + idx + '건 확인, ' + fixed + '건 교정');
+            }
+            callback(null, {
+                checked: idx,
+                fixed: fixed,
+                nextCursor: lastRi,
+                // 배치를 다 채웠거나 예산이 끊겼으면 아직 남았다.
+                done: !outOfBudget && rows.length < limit
+            });
+        }
 
         (function next() {
-            if (idx >= drifted.length) {
-                console.timeEnd(rec_id);
-                if (fixed > 0) {
-                    console.log('[reconcile_cnt_counters] ' + rows.length + '건 확인, ' +
-                                fixed + '건 교정');
-                }
-                callback(null, { checked: rows.length, fixed: fixed });
-                return;
-            }
+            if (idx >= rows.length) { return finish(false); }
+            if (Date.now() - started >= budgetMs) { return finish(true); }
 
-            var r = drifted[idx++];
-            console.log('[reconcile_cnt_counters] drift ri=' + r.ri +
-                        ' cni ' + r.cni + '->' + r.real_cni +
-                        ' cbs ' + r.cbs + '->' + r.real_cbs);
+            var row = rows[idx++];
+            lastRi = row.ri;
 
-            _this.update_cnt_cni(connection, {
-                ri: r.ri,
-                cni: parseInt(r.real_cni, 10),
-                cbs: parseInt(r.real_cbs, 10)
-            }, function (uerr, ures) {
-                if (uerr) {
-                    console.error('[reconcile_cnt_counters] 교정 실패 ri=' + r.ri + ': ' +
-                                  ((ures && (ures.driverCode || ures.code)) || ures));
+            // 리터럴 pi 로 집계한다 — cin_ri_idx(pi, ri, cs) 커버링 인덱스만 읽는다.
+            var agg = facade.k('cin')
+                .count('* as n')
+                .sum('cs as s')
+                .where({ pi: row.ri });
+
+            facade.run(agg, connection, function (aerr, ares) {
+                if (aerr) {
+                    console.error('[reconcile_cnt_counters] 집계 실패 ri=' + row.ri + ': ' +
+                                  ((ares && (ares.driverCode || ares.code)) || ares));
+                    return next();
                 }
-                else {
-                    fixed++;
+
+                var a = (ares && ares[0]) || {};
+                var real_cni = parseInt(a.n || 0, 10);
+                var real_cbs = parseInt(a.s || 0, 10);
+
+                if (parseInt(row.cni, 10) === real_cni &&
+                    parseInt(row.cbs, 10) === real_cbs) {
+                    return next();
                 }
-                next();
+
+                console.log('[reconcile_cnt_counters] drift ri=' + row.ri +
+                            ' cni ' + row.cni + '->' + real_cni +
+                            ' cbs ' + row.cbs + '->' + real_cbs);
+
+                _this.update_cnt_cni(connection,
+                    { ri: row.ri, cni: real_cni, cbs: real_cbs },
+                    function (uerr, ures) {
+                        if (uerr) {
+                            console.error('[reconcile_cnt_counters] 교정 실패 ri=' + row.ri + ': ' +
+                                          ((ures && (ures.driverCode || ures.code)) || ures));
+                        }
+                        else {
+                            fixed++;
+                        }
+                        next();
+                    });
             });
         })();
     });

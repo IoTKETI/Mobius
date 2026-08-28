@@ -115,23 +115,37 @@ function del_req_resource() {
 // get_cni_count 가 매번 재집계하던 것을 저장값 읽기로 바꾸면서(O(n) -> O(1))
 // 그 안전망이 사라졌다. 아직 감산하지 않는 경로(subtree 배경 삭제, 만료 스윕)가
 // 남아 있으므로 주기적으로 맞춰 준다.
+//
+// 커서를 프로세스 안에 들고 이어서 돈다. 컨테이너가 3만 개대이고 그중 몇 개는
+// CIN 이 수백만 건이라 한 번에 다 돌 수 없다 — 시간 예산만큼만 일하고
+// 다음 호출이 멈춘 자리에서 계속한다. 한 바퀴를 다 돌면 처음으로 되감는다.
+var reconcile_cursor = '';
+
 function reconcile_counters() {
     db.getConnection((code, connection) => {
-        if (code === '200') {
-            db_sql.reconcile_cnt_counters(connection, 1000, (err, report) => {
+        if (code !== '200') {
+            console.log('[reconcile_counters] No Connection');
+            return;
+        }
+
+        db_sql.reconcile_cnt_counters(connection,
+            // limit 은 한 번에 읽어 둘 컨테이너 수이고, 실질 상한은 budgetMs 다.
+            // cnt 는 3만 행대라 2000행을 읽는 것 자체는 싸다.
+            { limit: 2000, cursor: reconcile_cursor, budgetMs: 30000 },
+            (err, report) => {
                 if (err) {
                     console.log('[reconcile_counters] error', report);
                 }
-                else if (report && report.fixed > 0) {
-                    console.log('[reconcile_counters] ' + report.checked + '건 확인, ' +
-                                report.fixed + '건 교정');
+                else {
+                    if (report.fixed > 0) {
+                        console.log('[reconcile_counters] ' + report.checked + '건 확인, ' +
+                                    report.fixed + '건 교정');
+                    }
+                    // 한 바퀴 끝났으면 되감고, 아니면 이어서 돌 자리를 기억한다.
+                    reconcile_cursor = report.done ? '' : report.nextCursor;
                 }
                 connection.release();
             });
-        }
-        else {
-            console.log('[reconcile_counters] No Connection');
-        }
     });
 }
 

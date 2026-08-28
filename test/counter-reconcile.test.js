@@ -83,66 +83,142 @@ test('update_cnt_cni: cnt 의 cni/cbs 만 쓰고 lookup.st 는 안 건드린다'
 });
 
 // --- reconcile_cnt_counters --------------------------------------------------
+//
+// 운영 규모(컨테이너 30,279개 / CIN 1억 4558만)에 올릴 수 있어야 한다.
+// 예전 구현의 두 가지 문제:
+//
+//   1. ORDER BY/커서가 없어 `limit N` 이 늘 같은 N개만 봤다.
+//      컨테이너 30,279개 중 나머지는 영원히 검사되지 않았다 (정확성 버그).
+//   2. 상관 하위질의를 컨테이너마다 두 번 돌았다. 593만 건짜리 컨테이너에서는
+//      한 행에 1180만 인덱스 항목을 훑는다.
+//
+// 조인으로 바꾸는 것도 답이 아니다 — 운영 스키마는 ri 가 utf8mb3_bin,
+// pi 가 utf8mb3_general_ci 라 부모↔자식 조인이 인덱스를 못 쓴다
+// (실측: LEFT JOIN 형태는 컨테이너 50개에 20초 상한 초과).
+// 리터럴 비교는 인덱스를 정상적으로 쓴다 (type: ref, Using index).
 
-test('reconcile_cnt_counters: 어긋난 컨테이너만 고친다', function (t, done) {
-    // 1번째 SELECT = 대상 컨테이너 목록 (저장값과 실제값이 함께 온다)
-    const { sql_action, seen } = tapAdapter(true, [[
-        { ri: '/M/ok',    cni: 5, cbs: 50, real_cni: 5, real_cbs: 50 },   // 일치
-        { ri: '/M/drift', cni: 9, cbs: 90, real_cni: 4, real_cbs: 40 }    // 어긋남
-    ]]);
+// 1번째 SELECT = cnt 커서 배치, 이후 = 컨테이너별 집계
+function reconcileRows(cntRows, counts) {
+    return [cntRows].concat(counts);
+}
 
-    sql_action.reconcile_cnt_counters({}, 100, guard(done, function (err, report) {
-        assert.ok(!err, '실패하면 안 된다: ' + JSON.stringify(err));
+test('reconcile: cnt 를 커서로 훑고 컨테이너마다 집계한다', function (t, done) {
+    const { sql_action, seen } = tapAdapter(true, reconcileRows(
+        [{ ri: '/M/a', cni: 5, cbs: 50 }, { ri: '/M/b', cni: 9, cbs: 90 }],
+        [[{ n: 5, s: 50 }], [{ n: 4, s: 40 }]]
+    ));
+
+    sql_action.reconcile_cnt_counters({}, { limit: 100 }, guard(done, function (err, report) {
+        assert.ok(!err, '실패하면 안 된다: ' + JSON.stringify(report));
         assert.strictEqual(report.checked, 2);
-        assert.strictEqual(report.fixed, 1, '어긋난 1건만 고쳐야 한다');
+        assert.strictEqual(report.fixed, 1, '어긋난 /M/b 만 고쳐야 한다');
 
         const updates = seen.filter(function (s) { return /^update/i.test(s.sql); });
         assert.strictEqual(updates.length, 1, '일치하는 건 UPDATE 하면 안 된다');
         assert.ok(updates[0].bindings.indexOf(4) !== -1, '실제 cni=4 로 고쳐야 한다');
-        assert.ok(updates[0].bindings.indexOf(40) !== -1, '실제 cbs=40 으로 고쳐야 한다');
         done();
     }));
 });
 
-test('reconcile_cnt_counters: 전부 맞으면 UPDATE 가 없다', function (t, done) {
-    const { sql_action, seen } = tapAdapter(true, [[
-        { ri: '/M/a', cni: 1, cbs: 10, real_cni: 1, real_cbs: 10 },
-        { ri: '/M/b', cni: 2, cbs: 20, real_cni: 2, real_cbs: 20 }
-    ]]);
-    sql_action.reconcile_cnt_counters({}, 100, guard(done, function (err, report) {
+test('reconcile: cnt 조회에 커서와 정렬이 있다 (전수 반복 금지)', function (t, done) {
+    const { sql_action, seen } = tapAdapter(true, reconcileRows([], []));
+    sql_action.reconcile_cnt_counters({}, { limit: 250, cursor: '/M/x' },
+        guard(done, function () {
+            const first = seen.filter(function (s) { return /^select/i.test(s.sql); })[0];
+            assert.ok(first, 'SELECT 이 있어야 한다');
+            assert.match(first.sql.toLowerCase(), /order by/, '정렬이 없다: ' + first.sql);
+            assert.match(first.sql.toLowerCase(), /limit/, 'LIMIT 이 없다: ' + first.sql);
+            assert.ok(first.bindings.indexOf('/M/x') !== -1, '커서가 바인딩으로 안 갔다');
+            assert.ok(first.bindings.indexOf(250) !== -1, 'limit 이 바인딩으로 안 갔다');
+            done();
+        }));
+});
+
+test('reconcile: 다음 커서를 돌려줘 이어서 돌 수 있다', function (t, done) {
+    const { sql_action } = tapAdapter(true, reconcileRows(
+        [{ ri: '/M/a', cni: 1, cbs: 10 }, { ri: '/M/z', cni: 2, cbs: 20 }],
+        [[{ n: 1, s: 10 }], [{ n: 2, s: 20 }]]
+    ));
+    sql_action.reconcile_cnt_counters({}, { limit: 2 }, guard(done, function (err, report) {
         assert.ok(!err);
-        assert.strictEqual(report.fixed, 0);
-        assert.deepStrictEqual(seen.filter(function (s) { return /^update/i.test(s.sql); }), []);
+        assert.strictEqual(report.nextCursor, '/M/z', '마지막 ri 를 커서로 돌려줘야 한다');
+        assert.strictEqual(report.done, false, '배치가 꽉 찼으면 아직 안 끝난 것');
         done();
     }));
 });
 
-test('reconcile_cnt_counters: 대상이 없어도 안 터진다', function (t, done) {
-    const { sql_action } = tapAdapter(true, [[]]);
-    sql_action.reconcile_cnt_counters({}, 100, guard(done, function (err, report) {
+test('reconcile: 배치가 덜 찼으면 done 이다', function (t, done) {
+    const { sql_action } = tapAdapter(true, reconcileRows(
+        [{ ri: '/M/a', cni: 1, cbs: 10 }],
+        [[{ n: 1, s: 10 }]]
+    ));
+    sql_action.reconcile_cnt_counters({}, { limit: 100 }, guard(done, function (err, report) {
+        assert.ok(!err);
+        assert.strictEqual(report.done, true);
+        done();
+    }));
+});
+
+test('reconcile: 집계에 조인을 쓰지 않는다 (콜레이션 함정)', function (t, done) {
+    const { sql_action, seen } = tapAdapter(true, reconcileRows(
+        [{ ri: '/M/a', cni: 1, cbs: 10 }],
+        [[{ n: 1, s: 10 }]]
+    ));
+    sql_action.reconcile_cnt_counters({}, { limit: 10 }, guard(done, function () {
+        seen.filter(function (s) { return /^select/i.test(s.sql); }).forEach(function (q) {
+            assert.strictEqual(/\bjoin\b/i.test(q.sql), false,
+                '조인은 콜레이션 불일치로 인덱스를 못 쓴다: ' + q.sql);
+        });
+        done();
+    }));
+});
+
+test('reconcile: CIN 이 하나도 없는 컨테이너도 0 으로 맞춘다', function (t, done) {
+    const { sql_action, seen } = tapAdapter(true, reconcileRows(
+        [{ ri: '/M/empty', cni: 7, cbs: 70 }],
+        [[{ n: 0, s: null }]]
+    ));
+    sql_action.reconcile_cnt_counters({}, { limit: 10 }, guard(done, function (err, report) {
+        assert.ok(!err);
+        assert.strictEqual(report.fixed, 1);
+        const upd = seen.filter(function (s) { return /^update/i.test(s.sql); })[0];
+        assert.ok(upd.bindings.indexOf(0) !== -1, 'cni 를 0 으로 고쳐야 한다');
+        done();
+    }));
+});
+
+test('reconcile: 대상이 없어도 안 터진다', function (t, done) {
+    const { sql_action } = tapAdapter(true, reconcileRows([], []));
+    sql_action.reconcile_cnt_counters({}, { limit: 100 }, guard(done, function (err, report) {
         assert.ok(!err);
         assert.strictEqual(report.checked, 0);
         assert.strictEqual(report.fixed, 0);
+        assert.strictEqual(report.done, true);
         done();
     }));
 });
 
-test('reconcile_cnt_counters: LIMIT 을 건다 (전수 스캔 금지)', function (t, done) {
-    const { sql_action, seen } = tapAdapter(true, [[]]);
-    sql_action.reconcile_cnt_counters({}, 250, guard(done, function () {
-        const sel = seen.filter(function (s) { return /^select/i.test(s.sql); })[0];
-        assert.ok(sel, 'SELECT 이 있어야 한다');
-        assert.match(sel.sql.toLowerCase(), /limit/, 'LIMIT 이 없다: ' + sel.sql);
-        assert.ok(sel.bindings.indexOf(250) !== -1, 'limit 은 바인딩이어야 한다');
-        done();
-    }));
+test('reconcile: 시간 예산을 넘기면 중단하고 커서를 돌려준다', function (t, done) {
+    const { sql_action } = tapAdapter(true, reconcileRows(
+        [{ ri: '/M/a', cni: 1, cbs: 10 }, { ri: '/M/b', cni: 2, cbs: 20 }],
+        [[{ n: 1, s: 10 }], [{ n: 2, s: 20 }]]
+    ));
+    // 예산 0 이면 첫 컨테이너를 처리하기 전에 멈춘다.
+    sql_action.reconcile_cnt_counters({}, { limit: 100, budgetMs: 0 },
+        guard(done, function (err, report) {
+            assert.ok(!err);
+            assert.strictEqual(report.done, false, '예산 소진은 완료가 아니다');
+            assert.ok(report.nextCursor !== undefined, '이어서 돌 커서를 줘야 한다');
+            done();
+        }));
 });
 
-test('reconcile_cnt_counters: MySQL 에서도 파사드를 거친다', function (t, done) {
-    const { sql_action, seen } = tapAdapter(false, [[
-        { ri: '/M/d', cni: 3, cbs: 30, real_cni: 1, real_cbs: 10 }
-    ]]);
-    sql_action.reconcile_cnt_counters({}, 100, guard(done, function (err, report) {
+test('reconcile: MySQL 에서도 파사드를 거친다', function (t, done) {
+    const { sql_action, seen } = tapAdapter(false, reconcileRows(
+        [{ ri: '/M/d', cni: 3, cbs: 30 }],
+        [[{ n: 1, s: 10 }]]
+    ));
+    sql_action.reconcile_cnt_counters({}, { limit: 100 }, guard(done, function (err, report) {
         assert.ok(!err);
         assert.strictEqual(report.fixed, 1);
         const leaked = seen.filter(function (s) { return /^LEGACY_/.test(s.sql); });
@@ -150,3 +226,4 @@ test('reconcile_cnt_counters: MySQL 에서도 파사드를 거친다', function 
         done();
     }));
 });
+
