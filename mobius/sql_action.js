@@ -2011,7 +2011,8 @@ exports.search_lookup_sqlite = function (connection, ri, query, cur_lim, pi_list
 
         // Handle 'la' (Latest N) - implies ordering by creation time descending
         if (query.la != null) {
-            sql += ` ORDER BY ct DESC LIMIT ${query.la}`;
+            // ct 는 초 단위라 동점이 흔하다. ri 로 가려야 최신 N건이 안정적이다.
+            sql += ` ORDER BY ct DESC, ri DESC LIMIT ${query.la}`;
             if (query.ofst != null) {
                 sql += ` OFFSET ${query.ofst}`;
             }
@@ -2124,7 +2125,13 @@ exports.select_latest_resource = function (connection, parentObj, loop_count, la
     if (global.usesqlite === 'true') {
         var sqlite = require('./db_sqlite');
         // Optimized SQLite query: select top 1 ordered by ct desc
-        var sql = 'select * from (select * from lookup where pi = \'' + parentObj.ri + '\' and ty = \'' + (parseInt(parentObj.ty, 10) + 1).toString() + '\' order by ct desc limit 1)b join ' + responder.typeRsrc[parseInt(parentObj.ty, 10) + 1] + ' as a on b.ri = a.ri';
+        // ct 는 초 단위라 같은 초에 만들어진 형제들 사이에서 순서를 못 가린다.
+        // 실측(2026-08-28): CIN 22건에 서로 다른 ct 가 2개뿐이었고, la 가 진짜
+        // 최신 대신 다른 건을 10회 모두 돌려줬다.
+        // ri 를 타이브레이커로 쓴다 — 자동 생성 rn 은 폭이 고정이라 사전순이
+        // 곧 생성순이다(mobius/rid.js). 클라이언트가 rn 을 직접 준 경우에는
+        // 순서가 임의이지만, 그때도 ct 가 먼저 결정하므로 초 단위까지는 정확하다.
+        var sql = 'select * from (select * from lookup where pi = \'' + parentObj.ri + '\' and ty = \'' + (parseInt(parentObj.ty, 10) + 1).toString() + '\' order by ct desc, ri desc limit 1)b join ' + responder.typeRsrc[parseInt(parentObj.ty, 10) + 1] + ' as a on b.ri = a.ri';
 
         sqlite.getResult(sql, connection, (err, results_latest) => {
             if (!err) {
@@ -2146,17 +2153,24 @@ exports.select_latest_resource = function (connection, parentObj, loop_count, la
 
         var before_ct = moment().subtract(Math.pow(5, loop_count), 'minutes').utc().format('YYYYMMDDTHHmmss');
         var query_where = ' and ty = \'' + (parseInt(parentObj.ty, 10) + 1).toString() + '\' and ';
-        query_where += util.format(' (\'%s\' < ct) order by ri desc limit 10', before_ct);
+        // ct 를 먼저 본다. ri 만으로 정렬하면 클라이언트가 rn 을 직접 준 리소스가
+        // 생성 시각과 무관한 자리에 온다.
+        query_where += util.format(' (\'%s\' < ct) order by ct desc, ri desc limit 10', before_ct);
 
         var sql = 'select * from (select * from lookup where (pi = \'' + parentObj.ri + '\') ' + query_where + ')b join ' + responder.typeRsrc[parseInt(parentObj.ty, 10) + 1] + ' as a on b.ri = a.ri';
         db.getResult(sql, connection, (err, results_latest) => {
             if (!err) {
                 if (results_latest.length > 0) {
-                    let latest_ri = results_latest[0].ri;
-                    let latest_obj = {};
-                    for (let i = 0; i < results_latest.length; i++) {
-                        if (results_latest[i].ri >= latest_ri) {
-                            latest_obj = results_latest[i];
+                    // 바깥 JOIN 이 서브쿼리의 정렬을 보존한다는 보장이 없어
+                    // 여기서 다시 고른다. 정렬 키는 SQL 과 같아야 한다 —
+                    // ct 를 먼저 보고, 같으면 ri 로 가린다. 예전에는 ri 만 봐서
+                    // 클라이언트가 rn 을 직접 준 리소스가 엉뚱하게 최신이 됐다.
+                    let latest_obj = results_latest[0];
+                    for (let i = 1; i < results_latest.length; i++) {
+                        let c = results_latest[i];
+                        if (c.ct > latest_obj.ct ||
+                            (c.ct === latest_obj.ct && c.ri > latest_obj.ri)) {
+                            latest_obj = c;
                         }
                     }
                     latestObj.push(latest_obj);
@@ -2180,7 +2194,8 @@ exports.select_oldest_resource = function (connection, ty, ri, oldestObj, callba
     if (global.usesqlite === 'true') {
         var sqlite = require('./db_sqlite');
         // Optimized SQLite query: select bottom 1 ordered by ct asc
-        var sql = 'select * from (select * from lookup where pi = \'' + ri + '\' and ty = \'' + ty + '\' order by ct asc limit 1)b join ' + responder.typeRsrc[parseInt(ty, 10)] + ' as a on b.ri = a.ri';
+        // ct 는 초 단위라 동점이 흔하다. ri 로 가린다 (select_latest_resource 주석 참고).
+        var sql = 'select * from (select * from lookup where pi = \'' + ri + '\' and ty = \'' + ty + '\' order by ct asc, ri asc limit 1)b join ' + responder.typeRsrc[parseInt(ty, 10)] + ' as a on b.ri = a.ri';
 
         sqlite.getResult(sql, connection, function (err, results_oldest) {
             console.timeEnd('select_oldest ' + ri);
@@ -2196,7 +2211,9 @@ exports.select_oldest_resource = function (connection, ty, ri, oldestObj, callba
         });
     }
     else {
-        var sql = 'select * from (select * from lookup where pi = \'' + ri + '\' and ty = \'' + ty + '\' limit 1)b join ' + responder.typeRsrc[parseInt(ty, 10)] + ' as a on b.ri = a.ri';
+        // 예전에는 ORDER BY 가 아예 없어 limit 1 이 임의의 행을 골랐다 —
+        // "가장 오래된 것"이라는 의미가 성립하지 않았다.
+        var sql = 'select * from (select * from lookup where pi = \'' + ri + '\' and ty = \'' + ty + '\' order by ct asc, ri asc limit 1)b join ' + responder.typeRsrc[parseInt(ty, 10)] + ' as a on b.ri = a.ri';
         db.getResult(sql, connection, function (err, results_oldest) {
             console.timeEnd('select_oldest ' + ri);
             if (!err) {
@@ -2450,7 +2467,7 @@ function delete_oldest(connection, obj, count, callback) {
         var pre_update_executor = function (cb_pre) {
             if (obj.ty == '4' || parseInt(obj.ty, 10) == 4 || obj.ty == '3') {
                 var child_ty = parseInt(obj.ty, 10) + 1;
-                var find_sql = util.format("SELECT l.ri, c.cs FROM lookup l LEFT JOIN cin c ON l.ri = c.ri WHERE l.pi = '%s' AND l.ty = '%s' ORDER BY l.ct ASC LIMIT %s", obj.ri, child_ty, count);
+                var find_sql = util.format("SELECT l.ri, c.cs FROM lookup l LEFT JOIN cin c ON l.ri = c.ri WHERE l.pi = '%s' AND l.ty = '%s' ORDER BY l.ct ASC, l.ri ASC LIMIT %s", obj.ri, child_ty, count);
                 var sqlite = require('./db_sqlite');
                 sqlite.getResult(find_sql, connection, function (err, rows) {
                     if (!err && rows && rows.length > 0) {
@@ -2479,7 +2496,7 @@ function delete_oldest(connection, obj, count, callback) {
         };
 
         pre_update_executor(function () {
-            var sql = util.format('delete from lookup where ri in (select ri from lookup where pi = \'%s\' and ty = \'%s\' order by ct asc limit %s)', obj.ri, parseInt(obj.ty, 10) + 1, count);
+            var sql = util.format('delete from lookup where ri in (select ri from lookup where pi = \'%s\' and ty = \'%s\' order by ct asc, ri asc limit %s)', obj.ri, parseInt(obj.ty, 10) + 1, count);
             var sqlite = require('./db_sqlite');
             sqlite.getResult(sql, connection, function (err, results) {
                 console.timeEnd(del_id);
@@ -2569,7 +2586,7 @@ function delete_oldest(connection, obj, count, callback) {
                         ' need_cnt=' + need_cnt + ' need_cs=' + need_cs + ' candidates=' + candidates);
 
                     var find_sql = util.format(
-                        "SELECT l.ri, c.cs FROM lookup l LEFT JOIN cin c ON l.ri = c.ri WHERE l.pi = '%s' AND l.ty = '%s' ORDER BY l.ct ASC LIMIT %s",
+                        "SELECT l.ri, c.cs FROM lookup l LEFT JOIN cin c ON l.ri = c.ri WHERE l.pi = '%s' AND l.ty = '%s' ORDER BY l.ct ASC, l.ri ASC LIMIT %s",
                         obj.ri, child_ty, candidates);
                     db.getResult(find_sql, connection, function (err3, rows) {
                         if (err3 || !rows || rows.length === 0) {

@@ -45,6 +45,7 @@ var db_sql = require('./sql_action');
 var cnt_man = require('./cnt_man');
 var db_errors = require('./db/errors');
 var defaults = require('./defaults');
+var rid = require('./rid');
 
 var _this = this;
 
@@ -922,7 +923,10 @@ function build_resource(request, response, callback) {
         return;
     }
 
-    resource_Obj[rootnm].rn = request.ty + '-' + moment().utc().format('YYYYMMDDHHmmssSSS');
+    // 타임스탬프만으로 만들면 같은 밀리초에 들어온 두 건이 같은 rn 을 갖고,
+    // rn 은 그대로 ri(PK)가 되므로 뒤엣것이 409 로 실패한다.
+    // 실측: CIN 40건 동시 POST 중 23건 유실. mobius/rid.js 주석 참고.
+    resource_Obj[rootnm].rn = rid.next_rn(request.ty);
     if (request.headers['x-m2m-nm'] != null && request.headers['x-m2m-nm'] != '') {
         resource_Obj[rootnm].rn = request.headers['x-m2m-nm'];
     }

@@ -104,10 +104,10 @@ async function main() {
     // --- 케이스 1: CIN 생성이 cni/cbs 를 올린다 ------------------------------
     console.log('[1] CIN 생성 -> cni/cbs 증가');
     await makeCnt('c1');
-    // 두 CIN 사이에 간격을 둔다. ct 가 같은 초에 걸리면 la(최신) 가 어느 쪽을
-    // 가리킬지 모호해져서, 뒤의 삭제 검증이 엉뚱한 건을 지운다.
+    // 간격을 두지 않는다. rn 이 워커별 단조 순번을 갖고(mobius/rid.js),
+    // la 정렬이 ct 다음 ri 를 보므로 같은 초에 만들어도 순서가 정확하다.
+    // 예전에는 여기에 1.1초 지연이 필요했다.
     await makeCin('c1', 'aaaa');      // 4 bytes
-    await settle(1100);
     await makeCin('c1', 'bbbbbb');    // 6 bytes
     await settle();
     check('생성 2건 후 cni/cbs', await readCnt('c1'), { cni: 2, cbs: 10, st: (await readCnt('c1')).st });
