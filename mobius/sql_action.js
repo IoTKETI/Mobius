@@ -3647,20 +3647,67 @@ exports.delete_lookup = function (connection, pi_list, pi_index, found_Obj, foun
     });
 };
 
-exports.delete_lookup_et = function (connection, et, callback) {
-    var pi_list = [];
-    var sql = util.format("select ri from lookup where et < \'%s\' and ty <> \'2\' and ty <> \'3\' and ty <> \'5\'", et);
-    db.getResult(sql, connection, function (err, delete_Obj) {
-        if (!err) {
-            for (var i = 0; i < delete_Obj.length; i++) {
-                pi_list.push(delete_Obj[i].ri);
-            }
+// et 가 지난 리소스를 조회한다. 읽기만 한다 — 관리자 UI 가 목록을 보여 주고
+// 무엇을 지울지, 무엇의 et 를 늘릴지 고르게 하는 용도다.
+//
+// AE(2)·CNT(3)·CSEBase(5) 는 제외한다. 이들을 자동으로 지우면 그 아래 데이터가
+// 통째로 사라진다. (제외 정책을 바꿀지는 별도 판단 사항이다.)
+exports.select_expired_resources = function (connection, et, limit, callback) {
+    var qb = facade.k('lookup')
+        .select('ri', 'ty', 'rn', 'pi', 'et')
+        .where('et', '<', et)
+        .whereNotIn('ty', [2, 3, 5])
+        .orderBy('et', 'asc')
+        .limit(limit);
 
-            var finding_Obj = [];
-            _this.delete_lookup(connection, pi_list, 0, finding_Obj, 0, function (err, search_Obj) {
-                callback(err, search_Obj);
-            });
+    facade.run(qb, connection, callback);
+};
+
+// 만료된 리소스를 지운다. **자동 실행하지 않는다** — app.js 에 주기 등록이 없다.
+// 관리자가 select_expired_resources 로 확인한 뒤 호출하는 용도다.
+//
+// 예전 구현의 문제:
+//   1. 만료된 ri 를 pi 자리에 넣어 "만료 리소스의 자식"을 지웠다. 정작 만료
+//      리소스 자신은 남았다 (실측 확인). 선택되는 타입이 대부분 자식 없는
+//      리프라 사실상 아무 것도 안 지우는 no-op 이었다.
+//   2. LIMIT 이 없어 만료 행이 많으면 한 번에 전부 읽었다.
+//   3. if (!err) 만 있고 else 가 없어, 조회 실패 시 콜백이 안 불렸다 —
+//      호출부가 콜백 안에서 connection.release() 를 하므로 커넥션이 샜다.
+//   4. 조회가 db.getResult(MySQL 고정)라 SQLite 모드에서는 MySQL 을 읽고
+//      SQLite 를 지우는 스플릿브레인이었다.
+//
+// lookup 행을 지우면 하위 테이블(ae/cnt/cin ...)은 FK ON DELETE CASCADE 로
+// 함께 지워지고, 남는 자손은 delete_orphan_lookup 이 걷는다.
+exports.delete_lookup_et = function (connection, et, limit, callback) {
+    var del_id = 'delete_lookup_et - ' + require('shortid').generate();
+    console.time(del_id);
+
+    _this.select_expired_resources(connection, et, limit, function (err, rows) {
+        if (err) {
+            console.timeEnd(del_id);
+            callback(err, rows);
+            return;
         }
+
+        rows = rows || [];
+        if (rows.length === 0) {
+            console.timeEnd(del_id);
+            callback(null, { deleted: 0, rows: [] });
+            return;
+        }
+
+        var ri_list = rows.map(function (r) { return r.ri; });
+
+        facade.run(facade.k('lookup').whereIn('ri', ri_list).del(), connection,
+            function (derr, dres) {
+                console.timeEnd(del_id);
+                if (derr) {
+                    callback(derr, dres);
+                    return;
+                }
+                console.log('[delete_lookup_et] ' + rows.length + '건 삭제');
+                callback(null, { deleted: rows.length, rows: rows });
+            });
     });
 };
 

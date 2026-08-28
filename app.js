@@ -98,25 +98,17 @@ function del_req_resource() {
     });
 }
 
-function del_expired_resource() {
-    db.getConnection((code, connection) => {
-        if (code === '200') {
-            // this routine is that delete resource expired time exceed et of resource
-            var et = moment().utc().format('YYYYMMDDTHHmmss');
-            db_sql.delete_lookup_et(connection, et, (err) => {
-                if (!err) {
-                    console.log('---------------');
-                    console.log('delete resources expired et');
-                    console.log('---------------');
-                }
-                connection.release();
-            });
-        }
-        else {
-            console.log('[del_expired_resource] No Connection');
-        }
-    });
-}
+// 만료 리소스는 **자동으로 지우지 않는다.**
+//
+// 예전에는 del_expired_resource 를 24시간마다 돌렸는데, 그 구현이 만료된 ri 를
+// pi 자리에 넣어 "만료 리소스의 자식"을 지우고 정작 대상은 남기는 no-op 이었다.
+// 고쳐서 제대로 지우게 만드는 순간, 지금까지 한 번도 안 지워진 만료 리소스가
+// 한꺼번에 사라진다. 그건 관리자가 확인하고 결정할 일이다.
+//
+// 그래서 기능만 남기고 주기 실행은 걸지 않는다. 관리자 UI 가 쓸 함수:
+//   db_sql.select_expired_resources(conn, et, limit, cb)  목록 조회 (읽기 전용)
+//   db_sql.delete_lookup_et(conn, et, limit, cb)          선택 후 삭제
+// et 를 늘리는 것은 일반 oneM2M UPDATE 로 하면 된다.
 
 // 저장된 cnt.cni/cbs 를 실제 cin 집계와 맞춘다 (기동 시 + 일 1회).
 //
@@ -207,7 +199,8 @@ if (use_clustering) {
                                 console.log(JSON.stringify(rsp));
 
                                 setInterval(del_req_resource, (24) * (60) * (60) * (1000));
-                                setInterval(del_expired_resource, (24) * (60) * (60) * (1000));
+                                // 만료 스윕(del_expired_resource)의 주기 실행은 뺐다.
+                                // 이유는 위 주석 참고 — 관리자 UI 가 확인 후 호출한다.
 
                                 del_orphan_resource();
                                 setInterval(del_orphan_resource, (24) * (60) * (60) * (1000));
