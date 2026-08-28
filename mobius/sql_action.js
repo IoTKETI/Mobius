@@ -3296,9 +3296,12 @@ exports.update_cnt_cni = function (connection, obj, callback) {
 //    미룬 컨테이너는 어차피 매 스윕 상한에 걸릴 뿐이라, 빼는 편이
 //    나머지 3만 개를 실제로 검사하게 한다.
 //
-//    주의: timeoutMs 는 MySQL 어댑터만 본다. SQLite 어댑터의 execute 는
-//    opts 를 받지 않는다(임베디드 규모라 문제가 안 된다). maxCni 는
-//    양쪽 백엔드에서 똑같이 동작한다.
+//    aggTimeoutMs 는 **서버 측** 상한이다(db.statementTimeoutHint).
+//    드라이버 타임아웃으로 걸면 안 된다 — 걸리는 순간 커넥션이 죽어서
+//    남은 컨테이너가 전부 PROTOCOL_ENQUEUE_AFTER_FATAL_ERROR 로 연쇄
+//    실패한다(로컬 MySQL 실측). 서버 힌트는 그 문장만 중단한다.
+//    SQLite 에는 해당 힌트가 없어 상한이 안 걸린다 — 임베디드 규모라
+//    문제가 안 된다. maxCni 는 양쪽 백엔드에서 똑같이 동작한다.
 //
 // opts: { limit, cursor, budgetMs, aggTimeoutMs, maxCni }
 // 콜백: (err, { checked, fixed, failed, failedRis, deferred, deferredRis,
@@ -3398,10 +3401,18 @@ exports.reconcile_cnt_counters = function (connection, opts, callback) {
 
             // 집계 상한은 남은 예산보다 클 수 없다. 안 그러면 마지막 컨테이너
             // 하나가 예산을 넘겨 버린다.
-            var aggOpts;
+            //
+            // 상한은 **서버 측** 힌트로 건다. 드라이버 타임아웃(run 의
+            // opts.timeoutMs)을 쓰면 안 된다 — 한 번 걸리는 순간 커넥션이
+            // 죽어서 남은 컨테이너가 전부 PROTOCOL_ENQUEUE_AFTER_FATAL_ERROR
+            // 로 연쇄 실패한다. 로컬 MySQL 실측으로 확인했다: 첫 건이
+            // PROTOCOL_SEQUENCE_TIMEOUT 으로 죽자 뒤의 4건이 그대로 무너졌다.
+            // 서버 힌트는 그 문장만 중단하고 커넥션을 살려 둔다.
             if (aggTimeoutMs) {
                 var remain = hasBudget ? (budgetMs - (Date.now() - started)) : 0;
-                aggOpts = { timeoutMs: (remain > 0 && remain < aggTimeoutMs) ? remain : aggTimeoutMs };
+                var capMs = (remain > 0 && remain < aggTimeoutMs) ? remain : aggTimeoutMs;
+                var hint = facade.statementTimeoutHint(capMs);
+                if (hint) { agg = agg.hintComment(hint); }
             }
 
             facade.run(agg, connection, function (aerr, ares) {
@@ -3437,7 +3448,7 @@ exports.reconcile_cnt_counters = function (connection, opts, callback) {
                         }
                         next();
                     });
-            }, aggOpts);
+            });
         })();
     });
 };

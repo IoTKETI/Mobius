@@ -17,13 +17,13 @@ process.env.MOBIUS_SQLITE_PATH =
     path.join(require('node:os').tmpdir(), 'mobius-reconcile-bounds-test.db');
 
 // steps: SELECT 에 순서대로 돌려줄 것들. 배열이면 행, {error} 면 실패.
-function tapAdapter(steps) {
+function tapAdapter(steps, useSqlite) {
     delete require.cache[require.resolve(DB)];
     delete require.cache[require.resolve(path.join(DB, 'mysql.js'))];
     delete require.cache[require.resolve(path.join(DB, 'sqlite.js'))];
-    global.usesqlite = 'false';
+    global.usesqlite = useSqlite ? 'true' : 'false';
     const db = require(DB);
-    const adapter = require(path.join(DB, 'mysql.js'));
+    const adapter = require(path.join(DB, useSqlite ? 'sqlite.js' : 'mysql.js'));
 
     const seen = [];
     let sel = 0;
@@ -131,15 +131,36 @@ test('집계가 실패하면 failedRis 에 담기고 스윕은 계속 돈다', f
 });
 
 // --- 집계마다 시간 상한을 건다 -----------------------------------------------
+//
+// 상한은 반드시 **서버 측**이어야 한다. 드라이버 타임아웃(run 의 opts.timeoutMs)
+// 으로 걸면 걸리는 순간 커넥션이 죽어서, 남은 컨테이너가 전부
+// PROTOCOL_ENQUEUE_AFTER_FATAL_ERROR 로 연쇄 실패한다 (로컬 MySQL 실측:
+// 첫 건이 PROTOCOL_SEQUENCE_TIMEOUT 으로 죽자 뒤의 4건이 그대로 무너졌다).
 
-test('집계에는 aggTimeoutMs 가 걸린다 (기본 5초)', function (t, done) {
+const hintMs = (sql) => {
+    const m = /MAX_EXECUTION_TIME\((\d+)\)/.exec(sql || '');
+    return m ? Number(m[1]) : null;
+};
+
+test('집계에는 서버 측 상한이 걸린다 (기본 5초)', function (t, done) {
     const tap = tapAdapter([[{ ri: '/a', cni: 1, cbs: 10 }], [{ n: 1, s: 10 }]]);
 
     tap.sql_action.reconcile_cnt_counters(null, { limit: 10 },
         guard(done, function () {
             const agg = aggregates(tap.seen)[0];
-            assert.ok(agg.opts, '집계에 opts 가 안 넘어갔다');
-            assert.strictEqual(agg.opts.timeoutMs, 5000);
+            assert.strictEqual(hintMs(agg.sql), 5000, '힌트가 없거나 값이 다르다: ' + agg.sql);
+            done();
+        }));
+});
+
+test('집계에 드라이버 타임아웃을 걸지 않는다 (커넥션이 죽는다)', function (t, done) {
+    const tap = tapAdapter([[{ ri: '/a', cni: 1, cbs: 10 }], [{ n: 1, s: 10 }]]);
+
+    tap.sql_action.reconcile_cnt_counters(null, { limit: 10 },
+        guard(done, function () {
+            const agg = aggregates(tap.seen)[0];
+            assert.ok(!agg.opts || agg.opts.timeoutMs === undefined,
+                '드라이버 타임아웃이 걸렸다 — 한 번 걸리면 남은 스윕이 통째로 무너진다');
             done();
         }));
 });
@@ -151,10 +172,9 @@ test('남은 예산이 aggTimeoutMs 보다 작으면 남은 예산으로 조인�
     tap.sql_action.reconcile_cnt_counters(null,
         { limit: 10, budgetMs: 1000, aggTimeoutMs: 5000 },
         guard(done, function () {
-            const agg = aggregates(tap.seen)[0];
-            assert.ok(agg.opts.timeoutMs <= 1000,
-                '남은 예산(1000ms)보다 큰 상한이 걸렸다: ' + agg.opts.timeoutMs);
-            assert.ok(agg.opts.timeoutMs > 0);
+            const ms = hintMs(aggregates(tap.seen)[0].sql);
+            assert.ok(ms !== null && ms <= 1000, '남은 예산보다 큰 상한이 걸렸다: ' + ms);
+            assert.ok(ms > 0);
             done();
         }));
 });
@@ -164,7 +184,19 @@ test('aggTimeoutMs: 0 이면 상한을 걸지 않는다', function (t, done) {
 
     tap.sql_action.reconcile_cnt_counters(null, { limit: 10, aggTimeoutMs: 0 },
         guard(done, function () {
-            assert.strictEqual(aggregates(tap.seen)[0].opts, undefined);
+            assert.strictEqual(hintMs(aggregates(tap.seen)[0].sql), null);
+            done();
+        }));
+});
+
+test('SQLite 에는 힌트를 붙이지 않는다 (지원 안 함)', function (t, done) {
+    const tap = tapAdapter([[{ ri: '/a', cni: 1, cbs: 10 }], [{ n: 1, s: 10 }]], true);
+
+    tap.sql_action.reconcile_cnt_counters(null, { limit: 10 },
+        guard(done, function () {
+            const agg = aggregates(tap.seen)[0];
+            assert.strictEqual(hintMs(agg.sql), null,
+                'SQLite 인데 MySQL 힌트가 붙었다: ' + agg.sql);
             done();
         }));
 });

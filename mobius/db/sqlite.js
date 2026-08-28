@@ -27,8 +27,15 @@ exports.schemaFile = 'mobiusdb_sqlite.sql';
 
 exports.capabilities = {
     transaction: false,
-    rowLock: false
+    rowLock: false,
+
+    // SQLite 에는 문장 단위 시간 상한을 거는 힌트가 없다.
+    // (sqlite3_progress_handler 로 중단시킬 수는 있으나 node-sqlite3 가
+    //  노출하지 않고, 임베디드 규모라 필요하지도 않다.)
+    statementTimeout: false
 };
+
+exports.statementTimeoutHint = function () { return null; };
 
 exports.connect = function (conf, callback) {
     db = new sqlite3.Database(DB_PATH, function (err) {

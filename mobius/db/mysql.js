@@ -12,7 +12,25 @@ exports.schemaFile = 'mobiusdb.sql';
 
 exports.capabilities = {
     transaction: true,
-    rowLock: true          // SELECT ... FOR UPDATE [NOWAIT]
+    rowLock: true,         // SELECT ... FOR UPDATE [NOWAIT]
+
+    // 서버가 SELECT 하나를 시간으로 끊어 줄 수 있는가.
+    // MySQL 은 MAX_EXECUTION_TIME 힌트로 된다 — 서버가 그 문장만 중단하고
+    // ER_MAX_EXECUTION_TIME_EXCEEDED(3024) 를 돌려주며 커넥션은 살아 있다.
+    //
+    // 드라이버 타임아웃(execute 의 opts.timeoutMs)과 헷갈리면 안 된다. 그쪽은
+    // 커넥션을 죽인다 — 한 번 걸리면 뒤이은 질의가 전부
+    // PROTOCOL_ENQUEUE_AFTER_FATAL_ERROR 로 연쇄 실패한다(로컬 실측).
+    // 그래서 "한 문장만 끊고 계속 일한다" 는 용도에는 이 힌트를 쓴다.
+    statementTimeout: true
+};
+
+// 문장 단위 시간 상한을 거는 힌트를 만든다. 능력이 없으면 null 을 준다.
+// knex 의 .hintComment() 에 넣는다.
+exports.statementTimeoutHint = function (ms) {
+    var n = parseInt(ms, 10);
+    if (!(n > 0)) { return null; }
+    return 'MAX_EXECUTION_TIME(' + n + ')';
 };
 
 exports.connect = function (conf, callback) {

@@ -30,6 +30,18 @@
 
 var INDEX = 'idx_lookup_pi';
 
+// ── 잠금 전략 ────────────────────────────────────────────────────────────
+// DROP 자체는 순식간이다 (로컬 실측 21ms, 요청 지연 p99 7ms / 1초 초과 0건).
+// 비싼 것은 배타 MDL 을 잡는 일이고, 그건 그 순간 lookup 을 붙잡고 있는
+// 것이 무엇이냐에 달렸다 — 같은 로컬에서 어떤 때는 34.8초를 기다렸다.
+//
+// 그래서 한 번의 대기를 짧게 끊고(LOCK_WAIT_SEC) 여러 번 시도한다.
+// 배타 MDL 요청이 대기 중이면 새 질의가 그 뒤에 줄을 서므로, 한 번 대기가
+// 길수록 lookup 이 멈추는 시간이 길어진다. 5초면 최악에도 5초짜리 정체다.
+var LOCK_WAIT_SEC = 5;
+var MAX_ATTEMPTS = 20;
+var RETRY_WAIT_MS = 15000;
+
 function hasIndex(ctx, cb) {
     ctx.db.run(
         ctx.db.raw(
@@ -65,9 +77,11 @@ module.exports = {
                     ' (select is_visible from information_schema.statistics ' +
                     '   where table_schema = database() and table_name = ? ' +
                     '     and index_name = ? limit 1) as visible, ' +
+                    // 별칭을 reads 로 쓰면 안 된다 — MySQL 8 예약어라
+                    // ER_PARSE_ERROR 가 난다 (로컬 실행에서 확인).
                     ' (select count_read from performance_schema.table_io_waits_summary_by_index_usage ' +
                     '   where object_schema = database() and object_name = ? ' +
-                    '     and index_name = ?) as reads',
+                    '     and index_name = ?) as read_count',
                     ['lookup', INDEX, 'size', 'lookup', INDEX, 'lookup', INDEX]),
                 ctx.conn,
                 function (err2, rows) {
@@ -75,7 +89,8 @@ module.exports = {
                     var r = (rows && rows[0]) || {};
                     cb(null, '있음 — ' + (r.gb === null || r.gb === undefined ? '?' : r.gb) + 'GB, ' +
                         'visible=' + (r.visible || '?') + ', ' +
-                        '읽기 ' + (r.reads === null || r.reads === undefined ? '?' : r.reads) + '회' +
+                        '읽기 ' + (r.read_count === null || r.read_count === undefined
+                                    ? '?' : r.read_count) + '회' +
                         ' (읽기는 MySQL 기동 이후 누적이다. 0 이 아니면 멈추고 확인할 것)');
                 });
         });
@@ -90,9 +105,44 @@ module.exports = {
             }
             // 보조 인덱스 DROP 은 INPLACE/LOCK=NONE 을 지원한다. 다만 시작할 때
             // 배타 MDL 을 잠깐 잡으므로, 대기가 길어지면 lookup 에 들어오는
-            // 신규 질의가 그 뒤에 줄을 선다. 짧게 끊고 사람이 재시도하게 한다.
-            ctx.db.run(ctx.db.raw('SET SESSION lock_wait_timeout = 5'), ctx.conn, function (serr, sres) {
-                if (serr) { return cb(serr, sres); }
+            // 신규 질의가 그 뒤에 줄을 선다. 그래서 짧게 끊는다.
+            //
+            // 대신 재시도한다. 트래픽이 상시로 흐르는 서버에서는 한 번에
+            // 잡히지 않는 게 정상이다 — 로컬에서도 Mobius 를 띄운 채로 돌리니
+            // 바로 ER_LOCK_WAIT_TIMEOUT 이 났다. 실패는 깨끗하다(인덱스도
+            // 이력도 그대로)이므로 여러 번 시도해도 안전하다.
+            ctx.db.run(ctx.db.raw('SET SESSION lock_wait_timeout = ' + LOCK_WAIT_SEC),
+                ctx.conn, function (serr, sres) {
+                    if (serr) { return cb(serr, sres); }
+                    attempt(1);
+                });
+
+            // 끝내 못 잡았을 때, 무엇이 붙잡고 있는지 보여 준다.
+            // 눈감고 재시도하는 것보다 사람이 판단할 근거를 주는 게 낫다.
+            function reportHolders(done) {
+                ctx.db.run(
+                    ctx.db.raw(
+                        'select ml.lock_type, ml.lock_status, t.processlist_id as pid, ' +
+                        ' t.processlist_command as cmd, t.processlist_time as secs, ' +
+                        " left(coalesce(t.processlist_info, ''), 60) as info " +
+                        'from performance_schema.metadata_locks ml ' +
+                        'left join performance_schema.threads t on t.thread_id = ml.owner_thread_id ' +
+                        'where ml.object_schema = database() and ml.object_name = ?', ['lookup']),
+                    ctx.conn,
+                    function (herr, rows) {
+                        if (!herr && rows && rows.length) {
+                            console.log('    lookup 을 붙잡고 있는 것:');
+                            rows.forEach(function (h) {
+                                console.log('      ' + h.lock_type + '/' + h.lock_status +
+                                            ' pid=' + h.pid + ' cmd=' + h.cmd +
+                                            ' ' + h.secs + 's ' + (h.info || ''));
+                            });
+                        }
+                        done();
+                    });
+            }
+
+            function attempt(n) {
                 // 인덱스 이름은 리터럴로 쓴다. test/schema-drift.test.js 가
                 // 마이그레이션 소스에서 DROP INDEX 대상을 정규식으로 읽어
                 // mobiusdb.sql 과 대조하는데, 변수로 쓰면 그 대조가 조용히
@@ -100,8 +150,24 @@ module.exports = {
                 ctx.db.run(
                     ctx.db.raw('ALTER TABLE lookup DROP INDEX idx_lookup_pi' +
                                ', ALGORITHM=INPLACE, LOCK=NONE'),
-                    ctx.conn, cb, { timeoutMs: 0 });
-            });
+                    ctx.conn,
+                    function (derr, dres) {
+                        if (!derr) { return cb(null, dres); }
+
+                        var lockBusy = dres &&
+                            (dres.driverCode === 'ER_LOCK_WAIT_TIMEOUT' || dres.errno === 1205);
+                        if (!lockBusy) { return cb(derr, dres); }
+                        if (n >= MAX_ATTEMPTS) {
+                            console.log('    (' + MAX_ATTEMPTS + '번 모두 잠금 대기로 실패했다. ' +
+                                        '아무것도 바뀌지 않았으니 다시 돌려도 된다)');
+                            return reportHolders(function () { cb(derr, dres); });
+                        }
+                        console.log('    (잠금 대기 ' + n + '/' + MAX_ATTEMPTS + ' — ' +
+                                    (RETRY_WAIT_MS / 1000) + '초 뒤 재시도)');
+                        setTimeout(function () { attempt(n + 1); }, RETRY_WAIT_MS);
+                    },
+                    { timeoutMs: 0 });
+            }
         });
     }
 };

@@ -177,6 +177,22 @@ exports.can = function (name) {
     return adapter.capabilities[name] === true;
 };
 
+// 문장 하나에 시간 상한을 거는 힌트를 돌려준다. 능력이 없는 백엔드에서는 null.
+// 쓰는 쪽은 knex 의 .hintComment() 에 넣고, null 이면 그냥 붙이지 않는다.
+//
+//   var hint = db.statementTimeoutHint(5000);
+//   var qb = db.k('cin').count('* as n');
+//   if (hint) { qb = qb.hintComment(hint); }
+//
+// run() 의 opts.timeoutMs 와 용도가 다르다. 그쪽은 **드라이버**가 기다리다
+// 포기하면서 커넥션을 죽이므로, 뒤이은 질의가 전부 실패한다. 한 문장만 끊고
+// 계속 일해야 하면 이 힌트를 써야 한다.
+exports.statementTimeoutHint = function (ms) {
+    assertReady();
+    if (!adapter.capabilities.statementTimeout) { return null; }
+    return adapter.statementTimeoutHint(ms);
+};
+
 // 테스트용. 운영 코드는 어느 백엔드인지 알 필요가 없다.
 exports._adapterName = function () {
     return adapter ? adapter.name : null;

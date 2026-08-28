@@ -318,3 +318,49 @@ test('연결 후에는 run() 이 정상 동작한다 (회귀 방지)', function 
         });
     });
 });
+
+// --- 문장 단위 시간 상한 ------------------------------------------------------
+//
+// run() 의 opts.timeoutMs 와 반드시 구분해야 한다. 로컬 MySQL 실측:
+//   MAX_EXECUTION_TIME(300)  -> ER_QUERY_TIMEOUT(3024), 커넥션 생존
+//   opts.timeoutMs = 300     -> PROTOCOL_SEQUENCE_TIMEOUT, 커넥션 사망
+//                               (이후 질의는 PROTOCOL_ENQUEUE_AFTER_FATAL_ERROR)
+// 그래서 "한 문장만 끊고 계속 일한다" 는 용도에는 힌트를 써야 한다.
+
+test('MySQL 은 문장 단위 상한을 힌트로 제공한다', function () {
+    const db = freshDb(false);
+    db.connect('localhost', 3306, 'root', 'x', function () {});
+
+    assert.strictEqual(db.can('statementTimeout'), true);
+    assert.strictEqual(db.statementTimeoutHint(5000), 'MAX_EXECUTION_TIME(5000)');
+});
+
+test('SQLite 는 문장 단위 상한이 없다 — null 을 준다', function () {
+    const db = freshDb(true);
+    db.connect('localhost', 3306, 'root', 'x', function () {});
+
+    assert.strictEqual(db.can('statementTimeout'), false);
+    assert.strictEqual(db.statementTimeoutHint(5000), null);
+});
+
+test('상한이 0 이하이거나 숫자가 아니면 힌트를 안 만든다', function () {
+    const db = freshDb(false);
+    db.connect('localhost', 3306, 'root', 'x', function () {});
+
+    [0, -1, null, undefined, 'x'].forEach(function (v) {
+        assert.strictEqual(db.statementTimeoutHint(v), null, '입력 ' + v);
+    });
+});
+
+test('힌트를 붙이면 SELECT 바로 뒤에 들어간다', function () {
+    const db = freshDb(false);
+    db.connect('localhost', 3306, 'root', 'x', function () {});
+
+    const sql = db.k('cin').count('* as n')
+        .where({ pi: '/x' })
+        .hintComment(db.statementTimeoutHint(5000))
+        .toSQL().toNative().sql;
+
+    assert.match(sql, /^select \/\*\+ MAX_EXECUTION_TIME\(5000\) \*\//,
+        '힌트는 select 바로 뒤에 와야 옵티마이저가 읽는다: ' + sql);
+});
