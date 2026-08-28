@@ -22,8 +22,11 @@ CREATE TABLE IF NOT EXISTS lookup (
   aa TEXT,
   sri TEXT,
   spi TEXT,
-  subl TEXT,
-  acpl TEXT
+  subl TEXT
+  -- acpl 은 여기 있었다. SQLite 에만 있던 컬럼인데 저장소 어디서도 읽지
+  -- 않았고, 그 값을 채우려고 리소스를 만들 때마다 acp 를 한 번 더 조회했다.
+  -- MySQL 에는 애초에 없다. 기존 SQLite DB 에는 컬럼이 남아 있지만
+  -- nullable 이라 삽입에 지장이 없다 (마이그레이션 불필요).
 );
 
 -- acp (Access Control Policy)

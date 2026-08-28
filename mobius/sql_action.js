@@ -185,65 +185,44 @@ exports.get_ri_sri = function (connection, sri, callback) {
 //     });
 // }
 
+// 모든 리소스 생성이 맨 먼저 거치는 공통 진입점이다 (insert_cb / insert_acp /
+// insert_ae / insert_cnt / insert_cin / insert_sub / ... 20여 곳).
+//
+// 두 백엔드의 진짜 차이는 두 가지뿐이었다.
+//
+// 1. 수동 이스케이프 방식 — SQLite 는 ' -> '', MySQL 은 \" 와 \' 였다.
+//    둘 다 값을 SQL 문자열에 직접 끼워 넣느라 필요했던 것이고,
+//    빠뜨리면 그대로 주입 통로가 된다. 바인딩을 쓰면 아예 없어진다.
+//
+// 2. acpl 컬럼 — SQLite 스키마에만 있었고, 그 값을 채우려고 삽입 때마다
+//    acp 를 한 번 더 조회했다. 그런데 저장소 전체에서 acpl 을 **읽는 곳이
+//    하나도 없다**. MySQL 에는 컬럼 자체가 없다. 컬럼과 사전 조회를 함께
+//    걷어냈다 (mobius/mobiusdb_sqlite.sql 에서도 뺐다 — nullable 이라
+//    기존 SQLite DB 에 그대로 남아 있어도 삽입에 지장이 없다).
+//
+// 겸사겸사 MySQL 갈래의 잠재 크래시도 없앴다. 예전에는 obj.acpi 가 undefined
+// 면 JSON.stringify 가 undefined 를 돌려주고 그 뒤 .replace 에서 TypeError 로
+// 워커가 죽었다. SQLite 갈래는 `|| []` 로 막고 있었다 — 그쪽에 맞췄다.
 exports.insert_lookup = function (connection, obj, callback) {
-    //console.time('insert_lookup ' + obj.ri);
-    if (global.usesqlite === 'true') {
-        var pre_sql_executor = function (callback) {
-            if (obj.acpi && obj.acpi.length > 0) {
-                var acpi_list = obj.acpi;
-                var acp_in_sql = "'" + acpi_list.join("','") + "'";
-                var acp_sql = "SELECT pv FROM acp WHERE ri IN (" + acp_in_sql + ")";
-                var sqlite = require('./db_sqlite');
-                sqlite.getResult(acp_sql, connection, function (err, rows) {
-                    if (!err && rows.length > 0) {
-                        var acpl_arr = [];
-                        for (var i = 0; i < rows.length; i++) {
-                            try {
-                                acpl_arr.push(JSON.parse(rows[i].pv));
-                            } catch (e) {
-                                acpl_arr.push(rows[i].pv);
-                            }
-                        }
-                        obj.acpl = acpl_arr;
-                    }
-                    callback();
-                });
-            } else {
-                callback();
-            }
-        };
-
-        pre_sql_executor(function () {
-            var sql = util.format('insert into lookup (' +
-                'pi, ri, ty, ct, st, rn, lt, et, acpi, lbl, at, aa, sri, spi, subl, acpl) ' +
-                'values (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
-                obj.pi, obj.ri, obj.ty, obj.ct, obj.st, obj.rn, obj.lt, obj.et, JSON.stringify(obj.acpi || []).replace(/'/g, "''"), JSON.stringify(obj.lbl || [], null, 4).replace(/'/g, "''"), JSON.stringify(obj.at || []).replace(/'/g, "''"), JSON.stringify(obj.aa || []).replace(/'/g, "''"), obj.sri, obj.spi, JSON.stringify(obj.subl || []).replace(/'/g, "''"), (obj.acpl ? JSON.stringify(obj.acpl || []).replace(/'/g, "''") : ''));
-
-            var sqlite = require('./db_sqlite');
-            sqlite.getResult(sql, null, function (err, results) {
-                callback(err, results);
-            });
-        });
-    }
-    else {
-        var sql = util.format('insert into lookup (' +
-            'pi, ri, ty, ct, st, rn, lt, et, acpi, lbl, at, aa, sri, spi, subl) ' +
-            'values (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
-            obj.pi, obj.ri, obj.ty, obj.ct, obj.st, obj.rn, obj.lt, obj.et, JSON.stringify(obj.acpi).replace(/\"/g, '\\"').replace(/\'/g, '\\\''), JSON.stringify(obj.lbl, null, 4).replace(/\"/g, '\\"').replace(/\'/g, '\\\''), JSON.stringify(obj.at).replace(/\"/g, '\\"').replace(/\'/g, '\\\''), JSON.stringify(obj.aa).replace(/\"/g, '\\"').replace(/\'/g, '\\\''), obj.sri, obj.spi, JSON.stringify(obj.subl).replace(/\"/g, '\\"').replace(/\'/g, '\\\''));
-
-        db.getResult(sql, connection, function (err, results) {
-            if (!err) {
-                // set_sri_sri(connection, obj.ri, obj.sri, function (err, results) {
-                //     //console.timeEnd('insert_lookup ' + obj.ri);
-                //     callback(err, results);
-                // });
-                callback(err, results);
-            }
-            else {
-                callback(err, results);
-            }
-        });
-    }
+    facade.run(facade.k('lookup').insert({
+        pi: obj.pi,
+        ri: obj.ri,
+        ty: obj.ty,
+        ct: obj.ct,
+        st: obj.st,
+        rn: obj.rn,
+        lt: obj.lt,
+        et: obj.et,
+        acpi: JSON.stringify(obj.acpi || []),
+        // lbl 만 들여쓰기 4칸으로 저장해 왔다. 읽는 쪽은 JSON.parse 라 형태와
+        // 무관하지만, 저장 값이 달라지면 기존 행과 모양이 어긋난다.
+        lbl: JSON.stringify(obj.lbl || [], null, 4),
+        at: JSON.stringify(obj.at || []),
+        aa: JSON.stringify(obj.aa || []),
+        sri: obj.sri,
+        spi: obj.spi,
+        subl: JSON.stringify(obj.subl || [])
+    }), connection, callback);
 };
 
 exports.insert_cb = function (connection, obj, callback) {
@@ -313,43 +292,33 @@ exports.insert_ae = function (connection, obj, callback) {
     console.time('insert_ae ' + obj.ri);
     _this.insert_lookup(connection, obj, (err, results) => {
         if (!err) {
-            if (global.usesqlite === 'true') {
-                var sql = util.format('insert into ae (ri, apn, api, aei, poa, "or", nl, rr, csz, srv) ' +
-                    'values (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
-                    obj.ri, obj.apn, obj.api, obj.aei, JSON.stringify(obj.poa).replace(/'/g, "''"), obj.or, obj.nl, obj.rr, obj.csz, JSON.stringify(obj.srv).replace(/'/g, "''"));
-
-                sqlite.getResult(sql, null, function (err, results) {
-                    if (!err) {
+            // 두 갈래의 차이는 예약어 or 의 인용(SQLite `"or"` vs MySQL `ae.or`)과
+            // 비표준 키워드(`value` vs `values`), 그리고 수동 이스케이프뿐이었다.
+            // 빌더가 방언별로 식별자를 인용하므로 셋 다 사라진다.
+            facade.run(facade.k('ae').insert({
+                ri: obj.ri,
+                apn: obj.apn,
+                api: obj.api,
+                aei: obj.aei,
+                poa: JSON.stringify(obj.poa || []),
+                or: obj.or,
+                nl: obj.nl,
+                rr: obj.rr,
+                csz: obj.csz,
+                srv: JSON.stringify(obj.srv || [])
+            }), connection, function (aerr, ares) {
+                if (!aerr) {
+                    console.timeEnd('insert_ae ' + obj.ri);
+                    callback(aerr, ares);
+                    return;
+                }
+                // ae 삽입이 실패하면 앞서 넣은 lookup 행을 되돌린다.
+                facade.run(facade.k('lookup').where({ ri: obj.ri }).del(), connection,
+                    function () {
                         console.timeEnd('insert_ae ' + obj.ri);
-                        callback(err, results);
-                    }
-                    else {
-                        sql = util.format("delete from lookup where ri = \'%s\'", obj.ri);
-                        sqlite.getResult(sql, null, function () {
-                            console.timeEnd('insert_ae ' + obj.ri);
-                            callback(err, results);
-                        });
-                    }
-                });
-            }
-            else {
-                var sql = util.format('insert into ae (ri, apn, api, aei, poa, ae.or, nl, rr, csz, srv) ' +
-                    'value (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
-                    obj.ri, obj.apn, obj.api, obj.aei, JSON.stringify(obj.poa).replace(/\"/g, '\\"').replace(/\'/g, '\\\''), obj.or, obj.nl, obj.rr, obj.csz, JSON.stringify(obj.srv).replace(/\"/g, '\\"').replace(/\'/g, '\\\''));
-
-                db.getResult(sql, connection, function (err, results) {
-                    if (!err) {
-                        console.timeEnd('insert_ae ' + obj.ri);
-                        callback(err, results);
-                    }
-                    else {
-                        sql = util.format("delete from lookup where ri = \'%s\'", obj.ri);
-                        db.getResult(sql, connection, function () {
-                            callback(err, results);
-                        });
-                    }
-                });
-            }
+                        callback(aerr, ares);
+                    });
+            });
         }
         else {
             callback(err, results);
@@ -361,45 +330,32 @@ exports.insert_cnt = function (connection, obj, callback) {
     console.time('insert_cnt ' + obj.ri);
     _this.insert_lookup(connection, obj, function (err, results) {
         if (!err) {
-            if (global.usesqlite === 'true') {
-                var sql = util.format('insert into cnt (ri, cr, mni, mbs, mia, cni, cbs, li, "or", disr) ' +
-                    'values (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
-                    obj.ri, obj.cr, obj.mni, obj.mbs, obj.mia, obj.cni, obj.cbs, obj.li, obj.or, obj.disr);
-                var sqlite = require('./db_sqlite');
-                // console.log('[DEBUG-SQLite] insert_cnt query:', sql); 
-                sqlite.getResult(sql, connection, function (err, results) {
-                    if (!err) {
+            // insert_ae 와 같은 이유로 갈렸다 — `"or"` vs `cnt.or`, `values` vs
+            // `value`. 값 목록은 양쪽이 문자 그대로 같았다.
+            facade.run(facade.k('cnt').insert({
+                ri: obj.ri,
+                cr: obj.cr,
+                mni: obj.mni,
+                mbs: obj.mbs,
+                mia: obj.mia,
+                cni: obj.cni,
+                cbs: obj.cbs,
+                li: obj.li,
+                or: obj.or,
+                disr: obj.disr
+            }), connection, function (cerr, cres) {
+                if (!cerr) {
+                    console.timeEnd('insert_cnt ' + obj.ri);
+                    callback(cerr, cres);
+                    return;
+                }
+                // cnt 삽입이 실패하면 앞서 넣은 lookup 행을 되돌린다.
+                facade.run(facade.k('lookup').where({ ri: obj.ri }).del(), connection,
+                    function () {
                         console.timeEnd('insert_cnt ' + obj.ri);
-                        callback(err, results);
-                    }
-                    else {
-                        console.error('[DEBUG-SQLite] insert_cnt error:', results); // Log 'results' which contains the error object
-                        sql = util.format("delete from lookup where ri = \'%s\'", obj.ri);
-                        sqlite.getResult(sql, connection, function () {
-                            console.timeEnd('insert_cnt ' + obj.ri);
-                            callback(err, results);
-                        });
-                    }
-                });
-            }
-            else {
-                var sql = util.format('insert into cnt (ri, cr, mni, mbs, mia, cni, cbs, li, cnt.or, disr) ' +
-                    'value (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
-                    obj.ri, obj.cr, obj.mni, obj.mbs, obj.mia, obj.cni, obj.cbs, obj.li, obj.or, obj.disr);
-                db.getResult(sql, connection, function (err, results) {
-                    if (!err) {
-                        console.timeEnd('insert_cnt ' + obj.ri);
-                        callback(err, results);
-                    }
-                    else {
-                        sql = util.format("delete from lookup where ri = \'%s\'", obj.ri);
-                        db.getResult(sql, connection, function () {
-                            console.timeEnd('insert_cnt ' + obj.ri);
-                            callback(err, results);
-                        });
-                    }
-                });
-            }
+                        callback(cerr, cres);
+                    });
+            });
         }
         else {
             console.timeEnd('insert_cnt ' + obj.ri, ' - ', results);
@@ -554,42 +510,33 @@ exports.insert_cin = function (connection, obj, callback) {
                 }
             }
 
-            if (global.usesqlite === 'true') {
-                var sql = util.format('insert into cin (ri, pi, cr, cnf, cs, "or", con) ' +
-                    'values (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
-                    obj.ri, obj.pi, obj.cr, obj.cnf, obj.cs, obj.or, (con_type == 'string') ? obj.con.replace(/'/g, "''") : JSON.stringify(obj.con).replace(/'/g, "''"));
-                var sqlite = require('./db_sqlite');
-                sqlite.getResult(sql, connection, function (err, results) {
-                    if (!err) {
+            // 예약어 or 의 인용(`"or"` vs `cin.or`)과 `values`/`value`,
+            // con 의 이스케이프만 달랐다. con 의 문자열/객체 판별은 위에서
+            // 이미 끝나 있어 양쪽이 같은 값을 쓴다.
+            //
+            // cin 은 1억 4천만 행짜리 테이블이라 삽입 경로가 가장 비싸다.
+            // 바인딩 전환 뒤 배포 서버에서 insert_cin 타이머로 확인할 것.
+            facade.run(facade.k('cin').insert({
+                ri: obj.ri,
+                pi: obj.pi,
+                cr: obj.cr,
+                cnf: obj.cnf,
+                cs: obj.cs,
+                or: obj.or,
+                con: (con_type == 'string') ? obj.con : JSON.stringify(obj.con)
+            }), connection, function (ierr, ires) {
+                if (!ierr) {
+                    console.timeEnd(cin_id);
+                    callback(ierr, ires);
+                    return;
+                }
+                // cin 삽입이 실패하면 앞서 넣은 lookup 행을 되돌린다.
+                facade.run(facade.k('lookup').where({ ri: obj.ri }).del(), connection,
+                    function () {
                         console.timeEnd(cin_id);
-                        callback(err, results);
-                    }
-                    else {
-                        console.error('[DEBUG-SQLite] insert_cin error:', results);
-                        sql = util.format("delete from lookup where ri = \'%s\'", obj.ri);
-                        sqlite.getResult(sql, connection, function () {
-                            callback(err, results);
-                        });
-                    }
-                });
-            }
-            else {
-                var sql = util.format('insert into cin (ri, pi, cr, cnf, cs, cin.or, con) ' +
-                    'value (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
-                    obj.ri, obj.pi, obj.cr, obj.cnf, obj.cs, obj.or, (con_type == 'string') ? obj.con.replace(/'/g, "\\'") : JSON.stringify(obj.con).replace(/\"/g, '\\"').replace(/\'/g, '\\\''));
-                db.getResult(sql, connection, function (err, results) {
-                    if (!err) {
-                        console.timeEnd(cin_id);
-                        callback(err, results);
-                    }
-                    else {
-                        sql = util.format("delete from lookup where ri = \'%s\'", obj.ri);
-                        db.getResult(sql, connection, function () {
-                            callback(err, results);
-                        });
-                    }
-                });
-            }
+                        callback(ierr, ires);
+                    });
+            });
         }
         else {
             callback(err, results);
@@ -1095,41 +1042,39 @@ exports.insert_sub = function (connection, obj, callback) {
     console.time('insert_sub ' + obj.ri);
     _this.insert_lookup(connection, obj, function (err, results) {
         if (!err) {
-            if (global.usesqlite === 'true') {
-                var sqlite = require('./db_sqlite');
-                var sql = util.format('insert into sub (ri, pi, enc, exc, nu, gpi, nfu, bn, rl, psn, pn, nsp, ln, nct, nec, cr, su) ' +
-                    'values (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
-                    obj.ri, obj.pi, JSON.stringify(obj.enc).replace(/'/g, "''"), obj.exc, JSON.stringify(obj.nu).replace(/'/g, "''"), obj.gpi, obj.nfu, JSON.stringify(obj.bn).replace(/'/g, "''"), obj.rl, obj.psn, obj.pn, obj.nsp, obj.ln, obj.nct, obj.nec, obj.cr, obj.su);
-                sqlite.getResult(sql, connection, function (err, results) {
-                    if (!err) {
+            // 가장 순수한 가짜 분기였다 — 예약어도 없고 컬럼 17개가 그대로
+            // 같았다. `values` vs `value` 와 이스케이프 스킴만 달랐다.
+            facade.run(facade.k('sub').insert({
+                ri: obj.ri,
+                pi: obj.pi,
+                enc: JSON.stringify(obj.enc || {}),
+                exc: obj.exc,
+                nu: JSON.stringify(obj.nu || []),
+                gpi: obj.gpi,
+                nfu: obj.nfu,
+                bn: JSON.stringify(obj.bn || {}),
+                rl: obj.rl,
+                psn: obj.psn,
+                pn: obj.pn,
+                nsp: obj.nsp,
+                ln: obj.ln,
+                nct: obj.nct,
+                nec: obj.nec,
+                cr: obj.cr,
+                su: obj.su
+            }), connection, function (serr, sres) {
+                if (!serr) {
+                    console.timeEnd('insert_sub ' + obj.ri);
+                    callback(serr, sres);
+                    return;
+                }
+                // sub 삽입이 실패하면 앞서 넣은 lookup 행을 되돌린다.
+                facade.run(facade.k('lookup').where({ ri: obj.ri }).del(), connection,
+                    function () {
                         console.timeEnd('insert_sub ' + obj.ri);
-                        callback(err, results);
-                    }
-                    else {
-                        sql = util.format("delete from lookup where ri = \'%s\'", obj.ri);
-                        sqlite.getResult(sql, connection, function () {
-                            callback(err, results);
-                        });
-                    }
-                });
-            }
-            else {
-                var sql = util.format('insert into sub (ri, pi, enc, exc, nu, gpi, nfu, bn, rl, psn, pn, nsp, ln, nct, nec, cr, su) ' +
-                    'value (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
-                    obj.ri, obj.pi, JSON.stringify(obj.enc).replace(/\"/g, '\\"').replace(/\'/g, '\\\''), obj.exc, JSON.stringify(obj.nu).replace(/\"/g, '\\"').replace(/\'/g, '\\\''), obj.gpi, obj.nfu, JSON.stringify(obj.bn).replace(/\"/g, '\\"').replace(/\'/g, '\\\''), obj.rl, obj.psn, obj.pn, obj.nsp, obj.ln, obj.nct, obj.nec, obj.cr, obj.su);
-                db.getResult(sql, connection, function (err, results) {
-                    if (!err) {
-                        console.timeEnd('insert_sub ' + obj.ri);
-                        callback(err, results);
-                    }
-                    else {
-                        sql = util.format("delete from lookup where ri = \'%s\'", obj.ri);
-                        db.getResult(sql, connection, function () {
-                            callback(err, results);
-                        });
-                    }
-                });
-            }
+                        callback(serr, sres);
+                    });
+            });
         }
         else {
             callback(err, results);
