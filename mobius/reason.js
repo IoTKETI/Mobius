@@ -22,6 +22,10 @@ var RSC = require('./rsc').RSC;
 var REASON = {
     '301-3': { code: RSC.OPERATION_NOT_ALLOWED, msg: "forwarding with mqtt is not supported" },
     '301-4': { code: RSC.OPERATION_NOT_ALLOWED, msg: "protocol in poa of csr is not supported" },
+    // poa 가 비어 있는 경우. 예전에는 이 상황에서 콜백이 아예 불리지 않아
+    // 요청이 매달렸다. 301-4 로 뭉뚱그리면 "프로토콜이 뭐길래" 를 찾게 되므로
+    // 사유를 따로 둔다. poa 는 미지정 시 [] 가 기본값이라 드물지 않다.
+    '301-5': { code: RSC.OPERATION_NOT_ALLOWED, msg: "remoteCSE has no point of access" },
 
     '400-1': { code: RSC.BAD_REQUEST, msg: "X-M2M-RI is none" },
     '400-2': { code: RSC.BAD_REQUEST, msg: "X-M2M-Origin header is Mandatory" },
@@ -88,6 +92,9 @@ var REASON = {
     '404-5': { code: RSC.NOT_FOUND, msg: "response did not come from fanOutPoint" },
     '404-6': { code: RSC.NOT_FOUND, msg: "AE for notification was not found" },
     '404-7': { code: RSC.NOT_FOUND, msg: "AE for notification does not exist" },
+    // AE 는 찾았는데 poa 가 비어 알림을 보낼 곳이 없는 경우.
+    // 404-6 은 "AE 를 못 찾았다" 라서 원인을 반대로 짚게 한다.
+    '404-8': { code: RSC.NOT_FOUND, msg: "AE for notification has no point of access" },
 
     '405-1': { code: RSC.OPERATION_NOT_ALLOWED, msg: "CSEBase can not be created by others" },
     '405-2': { code: RSC.OPERATION_NOT_ALLOWED, msg: "req is not supported when post request" },

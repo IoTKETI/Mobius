@@ -26,6 +26,7 @@ var js2xmlparser = require('js2xmlparser');
 var url = require('url');
 var xmlbuilder = require('xmlbuilder');
 var moment = require('moment');
+var RSC = require('./mobius/rsc').RSC;
 var ip = require("ip");
 var cbor = require('cbor');
 
@@ -296,10 +297,15 @@ function mqtt_message_handler(topic, message) {
     }
     else if(topic_arr[1] === 'oneM2M' && topic_arr[2] === 'reg_req' && ((topic_arr[4].replace(':', '/') == usecseid) || (topic_arr[4] == usecseid.replace('/', '')))) {
         make_json_obj(bodytype, message.toString(), function(rsc, result) {
-            if(result['m2m:rqp'] == null) {
-                result['m2m:rqp'] = result;
-            }
+            // 파싱에 실패하면 make_json_obj 는 callback('0') 만 부르므로 result 가
+            // undefined 다. 예전에는 rsc 를 보기 전에 result['m2m:rqp'] 를 읽어,
+            // 잘못된 MQTT 메시지 한 줄로 pxy_mqtt 를 require 한 cluster 마스터가
+            // 죽었다. 마스터가 죽으면 워커 재시작 로직도 함께 사라진다.
+            // 바로 위 req 분기에는 있던 가드가 여기만 빠져 있었다.
             if(rsc == '1') {
+                if(result && result['m2m:rqp'] == null) {
+                    result['m2m:rqp'] = result;
+                }
                 mqtt_message_action(topic_arr, bodytype, result);
             }
             else {
@@ -329,6 +335,7 @@ function cache_ttl_manager() {
 }
 
 var cache_tid = require('shortid').generate();
+var outbound = require('./mobius/outbound');
 wdt.set_wdt(cache_tid, cache_keep, cache_ttl_manager);
 
 function mqtt_message_action(topic_arr, bodytype, jsonObj) {
@@ -383,8 +390,23 @@ function mqtt_message_action(topic_arr, bodytype, jsonObj) {
                     if (res_body == '') {
                         res_body = '{}';
                     }
-                    mqtt_response(resp_topic_rel1, res.headers['x-m2m-rsc'], op, to, usecseid, rqi, JSON.parse(res_body), bodytype);
-                    mqtt_response(resp_topic, res.headers['x-m2m-rsc'], op, to, usecseid, rqi, JSON.parse(res_body), bodytype);
+                    // 바깥 try/catch 는 이 콜백을 감싸지 못한다. 콜백은 mqtt_binding 의
+                    // res.on('end') 안에서 나중에 도는데, 그때 try 는 이미 빠져나간
+                    // 뒤다. 여기서 던지면 pxy_mqtt 를 require 한 cluster 마스터가
+                    // 죽고, 워커 재시작 로직까지 함께 사라진다.
+                    var pc_obj;
+                    try {
+                        pc_obj = JSON.parse(res_body);
+                    }
+                    catch (e) {
+                        console.error('[pxy_mqtt] 응답 본문이 JSON 이 아니다 (' + to + '): ' + e.message);
+                        pc_obj = { 'm2m:dbg': 'response body is not valid JSON' };
+                        mqtt_response(resp_topic_rel1, RSC.INTERNAL_SERVER_ERROR.rsc, op, to, usecseid, rqi, pc_obj, bodytype);
+                        mqtt_response(resp_topic, RSC.INTERNAL_SERVER_ERROR.rsc, op, to, usecseid, rqi, pc_obj, bodytype);
+                        return;
+                    }
+                    mqtt_response(resp_topic_rel1, res.headers['x-m2m-rsc'], op, to, usecseid, rqi, pc_obj, bodytype);
+                    mqtt_response(resp_topic, res.headers['x-m2m-rsc'], op, to, usecseid, rqi, pc_obj, bodytype);
                 });
             //}
             ////else {
@@ -483,6 +505,8 @@ function mqtt_binding(op, to, fr, rqi, ty, pc, bodytype, callback) {
         });
     }
 
+    // 응답이 오지 않으면 요청을 끊는다. 파기하면 아래 error 핸들러가 뒷정리를 한다.
+    outbound.arm(req, 'pxy_mqtt -> mobius');
     req.on('error', function (e) {
         //console.log('[pxymqtt-mqtt_binding] problem with request: ' + e.message);
     });
@@ -654,10 +678,26 @@ mqtt_app.post('/register_csr', onem2mParser, function(request, response, next) {
             var reg_req_topic = util.format('/oneM2M/reg_req/%s/%s/%s', usecseid.replace('/', ':'), cseid.replace('/', ':'), request.headers.bodytype);
 
             var rqi = request.headers['x-m2m-ri'];
+
+            // 요청 본문은 바깥에서 온 것이라 JSON 이 아닐 수 있다. 여기는
+            // request.on('end') 안이라 던지면 잡을 곳이 없고, pxy_mqtt 를
+            // require 한 cluster 마스터가 죽어 워커 재시작 로직까지 사라진다.
+            // 같은 파일의 /notification 핸들러는 이미 try 로 감싸고 있다.
+            var pc;
+            try {
+                pc = JSON.parse(request.body);
+            }
+            catch (e) {
+                console.error('[pxy_mqtt /register_csr] 요청 본문이 JSON 이 아니다: ' + e.message);
+                response.header('X-M2M-RSC', RSC.BAD_REQUEST.rsc);
+                response.status(RSC.BAD_REQUEST.http).end(JSON.stringify({ 'm2m:dbg': 'request body is not valid JSON' }));
+                return;
+            }
+
+            // 파싱에 성공한 뒤에야 응답을 대기 목록에 넣는다. 실패 경로에서
+            // 넣어두면 응답이 영영 오지 않아 목록에 쌓인다.
             resp_mqtt_rqi_arr.push(rqi);
             http_response_q[rqi] = response;
-
-            var pc = JSON.parse(request.body);
 
             var req_message = {};
             req_message['m2m:rqp'] = {};
@@ -793,6 +833,8 @@ function http_retrieve_CSEBase(callback) {
         });
     }
 
+    // 응답이 오지 않으면 요청을 끊는다. 파기하면 아래 error 핸들러가 뒷정리를 한다.
+    outbound.arm(req, 'pxy_mqtt -> mobius');
     req.on('error', function (e) {
         if(e.message != 'read ECONNRESET') {
             //console.log('[pxymqtt - http_retrieve_CSEBase] problem with request: ' + e.message);

@@ -165,6 +165,7 @@ exports.ws_watchdog = function() {
 };
 
 var ws_tid = require('shortid').generate();
+var outbound = require('./mobius/outbound');
 wdt.set_wdt(ws_tid, 2, _this.ws_watchdog);
 
 function ws_message_handler(message) {
@@ -227,7 +228,12 @@ function ws_message_action(ws_conn, bodytype, jsonObj) {
         var res_body = {};
         res_body['m2m:dbg'] = 'm2m:rqp tag of ws message is removed';
 
-        ws_response(ws_conn, RSC.BAD_REQUEST.rsc, "", usecseid, "", JSON.parse(res_body), bodytype);
+        // 예전에는 JSON.parse(res_body) 였다. res_body 는 바로 위에서 만든
+        // 객체라 String() 이 '[object Object]' 가 되어 *언제나* SyntaxError 였다.
+        // 이 오류 응답은 한 번도 나간 적이 없고, 대신 예외가 그대로 올라가
+        // pxy_ws 를 require 한 cluster 마스터를 죽였다.
+        // ws_response 의 inpc 인자는 객체로 쓰이므로 그대로 넘긴다.
+        ws_response(ws_conn, RSC.BAD_REQUEST.rsc, "", usecseid, "", res_body, bodytype);
     }
     else {
         var op = (jsonObj.op == null) ? '' : jsonObj.op;
@@ -270,7 +276,21 @@ function ws_message_action(ws_conn, bodytype, jsonObj) {
                     if (res_body == '') {
                         res_body = '{}';
                     }
-                    ws_response(ws_conn, res.headers['x-m2m-rsc'], to, usecseid, rqi, JSON.parse(res_body), bodytype);
+                    // 아래 try/catch 는 이 콜백을 감싸지 못한다. 콜백은 ws_binding 의
+                    // res.on('end') 안에서 나중에 도는데, 그때 바깥 try 는 이미
+                    // 빠져나간 뒤다. 여기서 던지면 pxy_ws 를 require 한 cluster
+                    // 마스터가 죽고, 워커 재시작 로직까지 함께 사라진다.
+                    var pc_obj;
+                    try {
+                        pc_obj = JSON.parse(res_body);
+                    }
+                    catch (e) {
+                        console.error('[pxy_ws] 응답 본문이 JSON 이 아니다 (' + to + '): ' + e.message);
+                        ws_response(ws_conn, RSC.INTERNAL_SERVER_ERROR.rsc, to, usecseid, rqi,
+                                    { 'm2m:dbg': 'response body is not valid JSON' }, bodytype);
+                        return;
+                    }
+                    ws_response(ws_conn, res.headers['x-m2m-rsc'], to, usecseid, rqi, pc_obj, bodytype);
                 });
             // }
             // else {
@@ -355,6 +375,8 @@ function ws_binding(op, to, fr, rqi, ty, pc, bodytype, callback) {
         });
     }
 
+    // 응답이 오지 않으면 요청을 끊는다. 파기하면 아래 error 핸들러가 뒷정리를 한다.
+    outbound.arm(req, 'pxy_ws -> mobius');
     req.on('error', function (e) {
         console.log('[pxyws_binding] problem with request: ' + e.message);
     });
@@ -478,6 +500,8 @@ function http_retrieve_CSEBase(callback) {
         });
     }
 
+    // 응답이 오지 않으면 요청을 끊는다. 파기하면 아래 error 핸들러가 뒷정리를 한다.
+    outbound.arm(req, 'pxy_ws -> mobius');
     req.on('error', function (e) {
         if(e.message != 'read ECONNRESET') {
             //console.log('[pxyws - http_retrieve_CSEBase] problem with request: ' + e.message);

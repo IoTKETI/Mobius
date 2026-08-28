@@ -20,6 +20,7 @@ var https = require('https');
 var mqtt = require('mqtt');
 var coap = require('coap');
 var url  = require('url');
+var outbound = require('./outbound');
 
 global.NOPRINT = 'true';
 
@@ -107,6 +108,8 @@ function request_noti_http(nu, bodyString, bodytype, xm2mri) {
         req = https.request(options);
     }
 
+    // 응답이 오지 않으면 요청을 끊는다. 파기하면 아래 error 핸들러가 뒷정리를 한다.
+    outbound.arm(req, 'notify http');
     req.on('error', function (e) {
         console.log('[request_noti_http] error: ' + e.message);
     });
@@ -137,6 +140,8 @@ function request_noti_coap(nu, bodyString, bodytype, xm2mri) {
     req.setOption('256', Buffer.from(usecseid));   // X-M2M-Origin
     req.setOption('257', Buffer.from(xm2mri));     // X-M2M-RI
 
+    // 응답이 오지 않으면 요청을 끊는다. 파기하면 아래 error 핸들러가 뒷정리를 한다.
+    outbound.arm(req, 'notify coap');
     req.on('error', function (e) {
         console.log('[request_noti_coap] error: ' + e.message);
     });

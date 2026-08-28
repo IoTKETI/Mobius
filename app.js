@@ -55,6 +55,15 @@ var sgn = require('./mobius/sgn');
 var reason = require('./mobius/reason');
 var RSC = require('./mobius/rsc').RSC;
 
+// 아웃바운드 요청 타임아웃 (D16)
+var outbound = require('./mobius/outbound');
+
+// 응답·커넥션 반납을 하는 콜백을 한 번만 통과시킨다
+var once = require('./mobius/once');
+
+// DB 의 poa 컬럼을 안전하게 배열로 읽는다
+var poa_util = require('./mobius/poa');
+
 var db = require('./mobius/db_action');
 var db_sql = require('./mobius/sql_action');
 
@@ -2749,6 +2758,9 @@ function check_notification(request, response, callback) {
 }
 
 function check_ae_notify(request, response, callback) {
+    // 이 콜백은 응답 전송과 커넥션 반납을 함께 한다. 두 번 불리면 워커가 죽는다.
+    callback = once(callback, 'check_ae_notify');
+
     var ri = request.targetObject[Object.keys(request.targetObject)[0]].ri;
     console.log('[check_ae_notify] : ' + ri);
     // select_ae 의 시그니처는 (connection, ri, callback) 이다. connection 을 빠뜨려
@@ -2757,36 +2769,55 @@ function check_ae_notify(request, response, callback) {
     db_sql.select_ae(request.db_connection, ri, (err, result_ae) => {
         if (!err) {
             if (result_ae.length == 1) {
-                var point = {};
-                var poa_arr = JSON.parse(result_ae[0].poa);
+                var poa_arr = poa_util.parse(result_ae[0].poa, '[check_ae_notify] ' + ri);
+                if (poa_arr === null) {
+                    callback('500-1');
+                    return;
+                }
+
+                // poa 는 접속점 후보 목록이다. 예전에는 전부 순회하며 매번 콜백을
+                // 불러, 2개 이상이면 두 번째 호출이 null 이 된 response 를 만졌다.
+                // 이제 알림을 보낼 수 있는 첫 http poa 하나만 고른다.
+                var chosen = null;
+                var fallback = null;      // http 가 없을 때 돌려줄 사유
                 for (var i = 0; i < poa_arr.length; i++) {
                     var poa = url.parse(poa_arr[i]);
                     if (poa.protocol == 'http:') {
-                        console.log('send notification to ' + poa_arr[i]);
-                        notify_http(poa.hostname, poa.port, poa.path, request.method, request.headers, request.body, (code, res) => {
-                            callback(code, res)
-                        });
+                        chosen = poa;
+                        break;
                     }
-                    else if (poa.protocol == 'coap:') {
-                        console.log('send notification to ' + poa_arr[i]);
-                        callback('405-12');
-                    }
-                    else if (poa.protocol == 'mqtt:') {
-                        callback('405-10');
-                    }
-                    else if (poa.protocol == 'ws:') {
-                        callback('405-11');
-                    }
-                    else {
-                        callback('400-47');
+                    if (fallback === null) {
+                        if (poa.protocol == 'coap:')      { fallback = '405-12'; }
+                        else if (poa.protocol == 'mqtt:') { fallback = '405-10'; }
+                        else if (poa.protocol == 'ws:')   { fallback = '405-11'; }
+                        else                              { fallback = '400-47'; }
                     }
                 }
+
+                if (chosen === null) {
+                    // poa 가 비어 있으면 예전에는 루프가 0회 돌아 콜백이 아예
+                    // 불리지 않았다 — 요청이 매달리고 커넥션도 반납되지 않았다.
+                    if (poa_arr.length === 0) {
+                        console.log('[check_ae_notify] poa 가 비어 있어 알림을 보낼 곳이 없다: ' + ri);
+                        callback('404-8');
+                    }
+                    else {
+                        callback(fallback);
+                    }
+                    return;
+                }
+
+                console.log('send notification to ' + chosen.href);
+                notify_http(chosen.hostname, chosen.port, chosen.path, request.method, request.headers, request.body, (code, res) => {
+                    callback(code, res);
+                });
             }
             else {
                 callback('404-6');
             }
         }
         else {
+            // db 계층은 에러일 때 callback(true, err) 로 부른다 — 에러 객체는 두 번째다
             console.log('[check_ae_notify] query error: ' + result_ae.message);
             callback('500-1');
         }
@@ -2794,6 +2825,11 @@ function check_ae_notify(request, response, callback) {
 }
 
 function check_csr(request, response, callback) {
+    // 이 콜백은 응답 전송과 커넥션 반납을 함께 하고, 그 뒤 request/response 를
+    // null 로 비운다. 두 번 불리면 워커가 죽는다. 원인은 아래에서 없앴지만,
+    // 다시 생겨도 워커까지 가지 않게 한 번만 통과시킨다.
+    callback = once(callback, 'check_csr');
+
     var ri = util.format('/%s/%s', usecsebase, url.parse(request.absolute_url).pathname.split('/')[1]);
     console.log('[check_csr] : ' + ri);
     db_sql.select_csr(request.db_connection, ri, (err, result_csr) => {
@@ -2801,62 +2837,106 @@ function check_csr(request, response, callback) {
             if (result_csr.length == 1) {
                 var point = {};
                 point.forwardcbname = result_csr[0].cb.replace('/', '');
-                var poa_arr = JSON.parse(result_csr[0].poa);
+
+                // poa 는 DB 에 저장된 값이다. 깨져 있으면 여기서 던져 워커가 죽었다.
+                var poa_arr = poa_util.parse(result_csr[0].poa, '[check_csr] ' + ri);
+                if (poa_arr === null) {
+                    result_csr = null;
+                    callback('500-1');
+                    return;
+                }
+
+                // poa 는 접속점 후보 목록이다. 예전에는 전부 순회하며 매번 콜백을
+                // 불러, 2개 이상이면 두 번째 호출이 null 이 된 response 를 만졌다.
+                // 이제 쓸 수 있는 첫 http poa 하나만 고른다.
+                var chosen = null;
+                var saw_mqtt = false;
                 for (var i = 0; i < poa_arr.length; i++) {
                     var poa = url.parse(poa_arr[i]);
                     if (poa.protocol == 'http:') {
-                        point.forwardcbhost = poa.hostname;
-                        point.forwardcbport = poa.port;
-
-                        console.log('csebase forwarding to ' + point.forwardcbname);
-
-                        forward_http(point.forwardcbhost, point.forwardcbport, request.url, request.method, request.headers, request.body, (code, _res) => {
-                            if (code === '200') {
-                                var res = JSON.parse(JSON.stringify(_res));
-                                _res = null;
-                                if (res.headers.hasOwnProperty('content-type')) {
-                                    response.setHeader('Content-Type', res.headers['content-type']);
-                                }
-
-                                if (res.headers.hasOwnProperty('x-m2m-ri')) {
-                                    response.setHeader('X-M2M-RI', res.headers['x-m2m-ri']);
-                                }
-
-                                if (res.headers.hasOwnProperty('x-m2m-rvi')) {
-                                    response.setHeader('X-M2M-RVI', res.headers['x-m2m-rvi']);
-                                }
-
-                                if (res.headers.hasOwnProperty('x-m2m-rsc')) {
-                                    response.setHeader('X-M2M-RSC', res.headers['x-m2m-rsc']);
-                                }
-
-                                if (res.headers.hasOwnProperty('content-location')) {
-                                    response.setHeader('Content-Location', res.headers['content-location']);
-                                }
-
-                                response.body = res.body;
-                                response.statusCode = res.statusCode;
-
-                                callback('301-2');
-                            }
-                            else {
-                                callback(code);
-                            }
-                        });
+                        chosen = poa;
+                        break;
                     }
                     else if (poa.protocol == 'mqtt:') {
-                        point.forwardcbmqtt = poa.hostname;
-                        console.log('forwarding with mqtt is not supported');
+                        saw_mqtt = true;
+                    }
+                }
 
-                        callback('301-3');
+                if (chosen === null) {
+                    // poa 가 비어 있으면 예전에는 루프가 0회 돌아 콜백이 아예
+                    // 불리지 않았다 — 요청이 매달리고 커넥션도 반납되지 않았다.
+                    // poa 는 미지정 시 [] 가 기본값이라 드문 상황이 아니었다.
+                    var why;
+                    if (poa_arr.length === 0) {
+                        console.log('[check_csr] poa 가 비어 있어 포워딩할 곳이 없다: ' + ri);
+                        why = '301-5';
+                    }
+                    else if (saw_mqtt) {
+                        console.log('forwarding with mqtt is not supported');
+                        why = '301-3';
                     }
                     else {
                         console.log('protocol in poa of csr is not supported');
-
-                        callback('301-4');
+                        why = '301-4';
                     }
+                    result_csr = null;
+                    callback(why);
+                    return;
                 }
+
+                point.forwardcbhost = chosen.hostname;
+                point.forwardcbport = chosen.port;
                 result_csr = null;
+
+                console.log('csebase forwarding to ' + point.forwardcbname);
+
+                forward_http(point.forwardcbhost, point.forwardcbport, request.url, request.method, request.headers, request.body, (code, _res) => {
+                    if (code === '200') {
+                        // 예전에는 JSON.parse(JSON.stringify(_res)) 였다. _res 는
+                        // http.IncomingMessage 이고 socket -> _httpMessage -> agent 로
+                        // 자기 자신에게 돌아오는 순환 참조를 갖는다. 그래서 stringify 가
+                        // *언제나* TypeError 를 던졌고, 원격이 정상 응답할 때마다
+                        // 워커가 죽었다 — 포워딩 성공 경로는 한 번도 동작한 적이 없다.
+                        //
+                        //   TypeError: Converting circular structure to JSON
+                        //       --> starting at object with constructor 'Socket'
+                        //
+                        // 쓰는 것은 헤더 몇 개와 body, statusCode 뿐이라 그것만 옮긴다.
+                        var res = {
+                            headers: _res.headers || {},
+                            body: _res.body,
+                            statusCode: _res.statusCode
+                        };
+                        _res = null;
+                        if (res.headers.hasOwnProperty('content-type')) {
+                            response.setHeader('Content-Type', res.headers['content-type']);
+                        }
+
+                        if (res.headers.hasOwnProperty('x-m2m-ri')) {
+                            response.setHeader('X-M2M-RI', res.headers['x-m2m-ri']);
+                        }
+
+                        if (res.headers.hasOwnProperty('x-m2m-rvi')) {
+                            response.setHeader('X-M2M-RVI', res.headers['x-m2m-rvi']);
+                        }
+
+                        if (res.headers.hasOwnProperty('x-m2m-rsc')) {
+                            response.setHeader('X-M2M-RSC', res.headers['x-m2m-rsc']);
+                        }
+
+                        if (res.headers.hasOwnProperty('content-location')) {
+                            response.setHeader('Content-Location', res.headers['content-location']);
+                        }
+
+                        response.body = res.body;
+                        response.statusCode = res.statusCode;
+
+                        callback('301-2');
+                    }
+                    else {
+                        callback(code);
+                    }
+                });
             }
             else {
                 result_csr = null;
@@ -2864,6 +2944,8 @@ function check_csr(request, response, callback) {
             }
         }
         else {
+            // db_action.getResult 는 에러일 때 callback(true, err) 로 부른다.
+            // 즉 에러 객체는 두 번째 인자에 온다. 시그니처를 그대로 둔다.
             console.log('[check_csr] query error: ' + result_csr.message);
             callback('404-3');
         }
@@ -2895,6 +2977,8 @@ function notify_http(hostname, port, path, method, headers, bodyString, callback
         });
     });
 
+    // 응답이 오지 않으면 요청을 끊는다. 파기하면 아래 error 핸들러가 뒷정리를 한다.
+    outbound.arm(req, 'ae notify');
     req.on('error', (e) => {
         console.log('[forward_http] problem with request: ' + e.message);
 
@@ -2943,6 +3027,8 @@ function forward_http(forwardcbhost, forwardcbport, f_url, f_method, f_headers, 
         });
     });
 
+    // 응답이 오지 않으면 요청을 끊는다. 파기하면 아래 error 핸들러가 뒷정리를 한다.
+    outbound.arm(req, 'csr forward');
     req.on('error', (e) => {
         console.log('[forward_http] problem with request: ' + e.message);
 
