@@ -28,8 +28,8 @@ function tapCtx(useSqlite, selectRows) {
     const seen = [];
     let sel = 0;
 
-    adapter.execute = function (conn, sql, bindings, cb) {
-        seen.push({ sql: sql, bindings: bindings });
+    adapter.execute = function (conn, sql, bindings, cb, opts) {
+        seen.push({ sql: sql, bindings: bindings, opts: opts });
         if (/^select/i.test(sql)) {
             const rows = (selectRows && selectRows[sel] !== undefined) ? selectRows[sel] : [];
             sel++;
@@ -231,4 +231,55 @@ test('001: inspect 는 읽기만 한다', function (t, done) {
             done();
         } catch (e) { done(e); }
     });
+});
+
+// 2026-08-28 배포 서버 실측: 기본 60초 타임아웃 때문에 드라이버가 커넥션을
+// 먼저 끊었는데 MySQL 은 DDL 을 계속 진행했다. 러너는 실패로 보고하고 이력도
+// 안 남기는데 인덱스는 만들어지는 어긋난 상태가 된다.
+test('001: DDL 은 드라이버 타임아웃 없이 실행한다', function (t, done) {
+    const { ctx, seen } = tapCtx(false, [[{ n: 0 }]]);
+    const m = migrate.loadMigrations().filter(function (x) {
+        return x.id === '001-lookup-pi-ty-ct-index';
+    })[0];
+
+    m.up(ctx, function (err) {
+        try {
+            assert.ok(!err, JSON.stringify(err));
+            const ddl = seen.filter(function (s) { return /alter table/i.test(s.sql); })[0];
+            assert.ok(ddl, 'ALTER 가 안 나갔다');
+            assert.ok(ddl.opts && ddl.opts.timeoutMs === 0,
+                'DDL 에 timeoutMs: 0 이 안 붙었다: ' + JSON.stringify(ddl.opts));
+            done();
+        } catch (e) { done(e); }
+    });
+});
+
+// MySQL 에는 CREATE INDEX IF NOT EXISTS 가 없다. 위 상황(타임아웃 후 서버는 완료)
+// 뒤 재실행이 "Duplicate key name" 으로 막히면 안 된다.
+test('001: 인덱스가 이미 있으면 만들지 않는다', function (t, done) {
+    const { ctx, seen } = tapCtx(false, [[{ n: 1 }]]);
+    const m = migrate.loadMigrations().filter(function (x) {
+        return x.id === '001-lookup-pi-ty-ct-index';
+    })[0];
+
+    m.up(ctx, function (err) {
+        try {
+            assert.ok(!err, JSON.stringify(err));
+            const ddl = seen.filter(function (s) { return /alter table/i.test(s.sql); });
+            assert.deepStrictEqual(ddl, [], '이미 있는데 ALTER 를 또 쳤다');
+            done();
+        } catch (e) { done(e); }
+    });
+});
+
+// 파사드가 opts 를 어댑터까지 그대로 넘겨야 위 두 가지가 성립한다.
+test('facade.run 이 opts 를 어댑터에 전달한다', function (t, done) {
+    const { ctx, seen } = tapCtx(false);
+    ctx.db.run(ctx.db.raw('select 1'), ctx.conn, function () {
+        try {
+            assert.ok(seen[0].opts && seen[0].opts.timeoutMs === 0,
+                'opts 가 전달되지 않았다: ' + JSON.stringify(seen[0].opts));
+            done();
+        } catch (e) { done(e); }
+    }, { timeoutMs: 0 });
 });

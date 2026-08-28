@@ -47,8 +47,22 @@ exports.release = function (handle) {
     if (handle && typeof handle.release === 'function') { handle.release(); }
 };
 
-exports.execute = function (handle, sql, bindings, callback) {
-    handle.query({ sql: sql, values: bindings, timeout: 60000 }, function (err, rows) {
+// 요청 처리용 기본 타임아웃. 한 요청이 커넥션을 무한정 붙잡지 못하게 한다.
+var DEFAULT_TIMEOUT_MS = 60000;
+
+exports.execute = function (handle, sql, bindings, callback, opts) {
+    var q = { sql: sql, values: bindings };
+
+    // opts.timeoutMs === 0 이면 타임아웃을 걸지 않는다.
+    // 스키마 마이그레이션(ALTER TABLE ADD INDEX)이 그런 경우다 — 5740만 행
+    // 테이블에서는 수십 분이 걸리는데, 60초에 드라이버가 커넥션을 끊어도
+    // MySQL 은 DDL 을 계속 진행한다. 그러면 러너는 실패로 보고하고 이력도
+    // 안 남기는데 인덱스는 만들어지는, 최악의 어긋난 상태가 된다.
+    // (2026-08-28 배포 서버에서 실제로 발생)
+    var t = (opts && opts.timeoutMs !== undefined) ? opts.timeoutMs : DEFAULT_TIMEOUT_MS;
+    if (t) { q.timeout = t; }
+
+    handle.query(q, function (err, rows) {
         if (err) { return callback(err, null); }
         callback(null, rows);
     });

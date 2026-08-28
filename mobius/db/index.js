@@ -80,7 +80,10 @@ exports.raw = function (sql, bindings) {
     return bindings === undefined ? kx.raw(sql) : kx.raw(sql, bindings);
 };
 
-exports.run = function (qb, conn, callback) {
+// opts 는 선택이다. 지금은 { timeoutMs } 하나만 쓴다 —
+// 0 을 주면 드라이버 타임아웃을 걸지 않는다. 스키마 마이그레이션처럼
+// 수십 분 걸리는 문장에만 쓴다 (mobius/db/mysql.js 의 execute 주석 참고).
+exports.run = function (qb, conn, callback, opts) {
     var native;
     try {
         assertReady();
@@ -94,7 +97,7 @@ exports.run = function (qb, conn, callback) {
     adapter.execute(conn, native.sql, native.bindings, function (err, raw) {
         if (err) { return callback(true, adapter.normalizeError(err)); }
         callback(null, adapter.normalizeResult(raw));
-    });
+    }, opts);
 };
 
 // 트랜잭션 본문을 실행한다. 능력이 없는 백엔드에서는 트랜잭션 없이 본문만 돈다
