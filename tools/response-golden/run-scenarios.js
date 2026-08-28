@@ -155,4 +155,20 @@ function waitForListen(logFile, timeoutMs) {
     if (failed) { console.error(String(failed.message)); process.exit(1); }
 
     require('./collect').collect(OUT);
+
+    // 워커 크래시 검출. 클러스터 마스터가 죽은 워커를 되살리므로 요청은 성공한 것처럼
+    // 보인다. 로그를 봐야만 드러난다 — 조용한 크래시를 놓치지 않으려고 여기서 본다.
+    const log = fs.readFileSync(logFile, 'utf8');
+    const crashes = log.split('\n').filter(function (l) {
+        return /^(TypeError|ReferenceError|RangeError|SyntaxError):/.test(l.trim())
+            || /Rethrow non-MySQL errors/.test(l);
+    });
+    if (crashes.length) {
+        console.error('');
+        console.error('!! 워커 크래시 ' + crashes.length + '건 (로그: ' + logFile + ')');
+        crashes.slice(0, 5).forEach(function (l) { console.error('   ' + l.trim()); });
+        process.exitCode = 3;
+    } else {
+        console.error('워커 크래시 없음');
+    }
 })();
