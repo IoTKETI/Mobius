@@ -1,0 +1,77 @@
+'use strict';
+// pid 별 jsonl 조각을 모아 케이스 기준으로 정규화한다.
+//   node tools/response-golden/collect.js tools/response-golden/out/runtime-before.json
+//
+// 정규화 규칙
+//   - 라벨 없는 항목('(unlabeled)')은 버린다. 정리용 호출이라 실행마다 개수가 다르다
+//   - 케이스별 항목을 정렬한다. 클러스터라 워커 처리 순서가 실행마다 달라지므로
+//     정렬하지 않으면 내용이 같아도 diff 가 흔들린다
+
+const fs = require('fs');
+const path = require('path');
+
+const OUT_DIR = path.join(__dirname, 'out');
+
+function sortKey(e) {
+    // 구분자로 제어문자를 쓰면 git 이 파일을 바이너리로 인식한다. JSON 직렬화로 대신한다.
+    return JSON.stringify([e.fn, e.status, e.rsc, e.dbg, e.method]);
+}
+
+function collect(outPath) {
+    const rows = [];
+    fs.readdirSync(OUT_DIR)
+        .filter(function (f) { return /^resp-\d+\.jsonl$/.test(f); })
+        .forEach(function (f) {
+            fs.readFileSync(path.join(OUT_DIR, f), 'utf8')
+                .split('\n')
+                .filter(Boolean)
+                .forEach(function (line) {
+                    try { rows.push(JSON.parse(line)); } catch (e) { /* 잘린 줄 무시 */ }
+                });
+        });
+
+    const byCase = {};
+    rows.forEach(function (r) {
+        if (r.case === '(unlabeled)') { return; }
+        if (!byCase[r.case]) { byCase[r.case] = []; }
+        byCase[r.case].push({
+            fn: r.fn,
+            status: r.status,
+            rsc: r.rsc,
+            dbg: (r.arg5 === undefined) ? null : r.arg5,
+            method: r.method
+        });
+    });
+
+    const snapshot = {};
+    Object.keys(byCase).sort().forEach(function (c) {
+        snapshot[c] = byCase[c].sort(function (a, b) {
+            const ka = sortKey(a), kb = sortKey(b);
+            return ka < kb ? -1 : (ka > kb ? 1 : 0);
+        });
+    });
+
+    const json = JSON.stringify(snapshot, null, 2) + '\n';
+    if (outPath) {
+        fs.mkdirSync(path.dirname(outPath), { recursive: true });
+        fs.writeFileSync(outPath, json);
+    } else {
+        process.stdout.write(json);
+    }
+
+    const combos = new Set();
+    Object.keys(snapshot).forEach(function (c) {
+        snapshot[c].forEach(function (e) { combos.add(e.status + '/' + e.rsc); });
+    });
+    console.error('케이스 ' + Object.keys(snapshot).length
+        + '개, 서로 다른 (status,rsc) 조합 ' + combos.size + '종'
+        + (outPath ? ' -> ' + outPath : ''));
+    console.error('  조합: ' + Array.from(combos).sort().join(', '));
+    return snapshot;
+}
+
+module.exports = { collect: collect };
+
+if (require.main === module) {
+    collect(process.argv[2]);
+}
