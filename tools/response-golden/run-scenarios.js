@@ -95,8 +95,19 @@ const CASES = [
     { case: 'mni-zero-cin',   method: 'POST',   path: CB + '/' + AE + '/c0', ct: 'application/json;ty=4',
       body: JSON.stringify({ 'm2m:cin': { con: 'x' } }) },
 
+    // check_grp 의 다른 분기: 그룹이지만 mid 가 비었다 -> 호출부가 403-6 으로 응답
+    // (AE 를 지우기 전에 와야 한다)
+    { case: 'create-grp-empty', method: 'POST', path: CB + '/' + AE, ct: 'application/json;ty=9',
+      body: JSON.stringify({ 'm2m:grp': { rn: 'g0', mt: 3, mnm: 10, mid: [] } }) },
+    { case: 'fopt-empty-grp',   method: 'GET',  path: CB + '/' + AE + '/g0/fopt' },
+
     // --- 정리 ---
     { case: 'delete-ae',      method: 'DELETE', path: CB + '/' + AE },
+
+    // D22: 그룹이 아닌 리소스에 /fopt — check_grp 가 응답을 직접 보내는데 인자가
+    // 밀려 있고 request.resourceObj 도 없어 워커가 죽었다. 호출부가 이미 404-4 로
+    // 응답하므로 check_grp 의 응답 자체가 중복이었다.
+    { case: 'fopt-non-group', method: 'GET', path: CB + '/fopt' },
 
     // --- 워커를 죽이는 케이스는 반드시 맨 뒤 ---
     // D21: get_target_url 의 la/ol 분기가 callback() 후 return 하지 않아 콜백이 두 번

@@ -901,15 +901,29 @@ function check_request_query_rt(request, response, callback) {
     }
 }
 
+// fanOutPoint 요청의 대상이 그룹인지, 멤버가 있는지 판정만 한다.
+//
+// 응답은 보내지 않는다. 호출부 4곳이 이미 결과 코드로 응답한다.
+//   '1' -> 그룹이고 멤버가 있다. 두 번째 인자로 그룹 리소스를 넘긴다
+//   '2' -> 그룹이지만 mid 가 비었다   -> 호출부가 403-6 으로 응답
+//   '0' -> 그룹이 아니다              -> 호출부가 404-4 로 응답
+//
+// 예전에는 여기서도 responder.response_result 를 직접 불렀다. 그런데 인자가
+// 밀려 있었다 — 시그니처는 (request, response, status, rsc, cap, callback) 인데
+// rsc 자리에 객체를, callback 자리에 request.url 을 넘겼다. 게다가
+// response_result 는 request.resourceObj 를 읽는데 여기서는 그걸 세팅하지 않아
+// Object.keys(undefined) 로 워커가 죽었다.
+//
+//   재현: GET /Mobius/fopt  (CSEBase 는 ty=5 라 그룹이 아니다)
+//
+// 호출부가 이미 응답하므로 이 호출 자체가 중복이었다. 문구도 카탈로그의
+// 403-6 / 404-4 와 같은 내용이라 잃는 것이 없다.
 function check_grp(request, response, callback) {
     var result_Obj = request.targetObject;
     var rootnm = Object.keys(result_Obj)[0];
 
     if (result_Obj[rootnm].ty == 9) {
         if (result_Obj[rootnm].mid.length == 0) {
-            result_Obj = {};
-            result_Obj['dbg'] = 'NO_MEMBERS: memberID in parent group is empty';
-            responder.response_result(request, response, '403', result_Obj, '4109', request.url, result_Obj['dbg']);
             callback('2');
             return '0';
         }
@@ -919,9 +933,6 @@ function check_grp(request, response, callback) {
         }
     }
     else {
-        result_Obj = {};
-        result_Obj['dbg'] = '[check_grp] resource does not exist';
-        responder.response_result(request, response, '404', result_Obj, '4004', request.url, result_Obj['dbg']);
         callback('0');
         return '0';
     }
