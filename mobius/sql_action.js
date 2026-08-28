@@ -108,19 +108,8 @@ exports.set_tuning = function (connection, callback) {
 exports.get_hit_all = function (connection, callback) {
     var until = moment().utc().subtract(1, 'year').format('YYYYMMDD');
 
-    var sql = util.format('select * from hit where ct > \'' + until + '\' limit 1000');
-
-    if (global.usesqlite === 'true') {
-        var sqlite = require('./db_sqlite');
-        sqlite.getResult(sql, null, function (err, results) {
-            callback(err, results);
-        });
-    }
-    else {
-        db.getResult(sql, connection, function (err, results) {
-            callback(err, results);
-        });
-    }
+    facade.run(facade.k('hit').select('*').where('ct', '>', until).limit(1000),
+        connection, callback);
 };
 
 // SQLite helper to read schema file and init
@@ -1249,74 +1238,43 @@ exports.insert_tm = function (connection, obj, callback) {
     });
 };
 
+// 공통 속성(lookup) 한 행과 타입별 테이블 한 행을 합쳐 돌려준다.
+//
+// 두 분기를 합치면서 SQLite 쪽의 가드를 채택했다. MySQL 분기는
+// merge(comm_Obj[0], spec_Obj[0]) 를 무조건 불렀는데, 타입별 행이 없으면
+// spec_Obj[0] 이 undefined 라 결과가 깨졌다. lookup 행만 있고 타입 행이 없는
+// 상태는 subtree 삭제 도중에 실제로 생긴다.
 exports.select_resource_from_url = function (connection, ri, sri, callback) {
-    var sql = util.format('select * from lookup where (ri = \'%s\') or (sri = \'%s\')', ri, sri);
+    var qb = facade.k('lookup').select('*')
+        .where({ ri: ri })
+        .orWhere({ sri: sri });
 
-    if (global.usesqlite === 'true') {
-        var sqlite = require('./db_sqlite');
-        // 요청당 SQL·결과 로그 - 로그 폭주 원인이라 비활성
-        sqlite.getResult(sql, null, function (err, comm_Obj) {
-            if (!err) {
-                // 요청당 SQL·결과 로그 - 로그 폭주 원인이라 비활성
-                if (comm_Obj.length == 0) {
-                    callback(err, comm_Obj);
-                }
-                else {
-                    var sql = "select * from " + responder.typeRsrc[comm_Obj[0].ty] + " where ri = \'" + comm_Obj[0].ri + "\'";
-                    // 요청당 SQL·결과 로그 - 로그 폭주 원인이라 비활성
-                    sqlite.getResult(sql, null, function (err, spec_Obj) {
-                        var resource_Obj = [];
-                        if (spec_Obj.length > 0) {
-                            // 요청당 SQL·결과 로그 - 로그 폭주 원인이라 비활성
-                            resource_Obj.push(merge(comm_Obj[0], spec_Obj[0]));
-                        } else {
-                            // 요청당 SQL·결과 로그 - 로그 폭주 원인이라 비활성
-                            resource_Obj.push(comm_Obj[0]);
-                        }
-                        // console.log("[DEBUG-SQLite] select_resource_from_url merged result:", resource_Obj);
+    facade.run(qb, connection, function (err, comm_Obj) {
+        if (err) {
+            callback(err, comm_Obj);
+            return;
+        }
 
-                        comm_Obj = [];
-                        spec_Obj = [];
-                        comm_Obj = null;
-                        spec_Obj = null;
-                        callback(err, resource_Obj);
-                    });
+        if (comm_Obj.length === 0) {
+            callback(err, comm_Obj);
+            return;
+        }
+
+        var table = responder.typeRsrc[comm_Obj[0].ty];
+
+        facade.run(facade.k(table).select('*').where({ ri: comm_Obj[0].ri }), connection,
+            function (err2, spec_Obj) {
+                if (err2) {
+                    callback(err2, spec_Obj);
+                    return;
                 }
-            }
-            else {
-                callback(err, comm_Obj);
-            }
-        });
-    }
-    else {
-        // 요청당 SQL·결과 로그 - 로그 폭주 원인이라 비활성
-        db.getResult(sql, connection, function (err, comm_Obj) {
-            if (!err) {
-                // 요청당 SQL·결과 로그 - 로그 폭주 원인이라 비활성
-                if (comm_Obj.length == 0) {
-                    callback(err, comm_Obj);
-                }
-                else {
-                    var sql = "select * from " + responder.typeRsrc[comm_Obj[0].ty] + " where ri = \'" + comm_Obj[0].ri + "\'";
-                    // 요청당 SQL·결과 로그 - 로그 폭주 원인이라 비활성
-                    db.getResult(sql, connection, function (err, spec_Obj) {
-                        var resource_Obj = [];
-                        // 요청당 SQL·결과 로그 - 로그 폭주 원인이라 비활성
-                        resource_Obj.push(merge(comm_Obj[0], spec_Obj[0]));
-                        comm_Obj = [];
-                        spec_Obj = [];
-                        comm_Obj = null;
-                        spec_Obj = null;
-                        callback(err, resource_Obj);
-                    });
-                }
-            }
-            else {
-                console.error("[DEBUG-MySQL] select_resource_from_url error:", err);
-                callback(err, comm_Obj);
-            }
-        });
-    }
+                var resource_Obj = [];
+                resource_Obj.push(spec_Obj.length > 0
+                    ? merge(comm_Obj[0], spec_Obj[0])
+                    : comm_Obj[0]);
+                callback(null, resource_Obj);
+            });
+    });
 };
 
 exports.select_csr_like = function (connection, cb, callback) {
@@ -1337,18 +1295,7 @@ exports.select_csr = function (connection, ri, callback) {
 };
 
 exports.select_ae = function (connection, ri, callback) {
-    var sql = util.format("select * from ae where ri = \'%s\'", ri);
-    if (global.usesqlite === 'true') {
-        var sqlite = require('./db_sqlite');
-        sqlite.getResult(sql, null, function (err, results_ae) {
-            callback(err, results_ae);
-        });
-    }
-    else {
-        db.getResult(sql, connection, function (err, results_ae) {
-            callback(err, results_ae);
-        });
-    }
+    facade.run(facade.k('ae').select('*').where({ ri: ri }), connection, callback);
 };
 
 // --- SQL Injection 방어 (한국전자기술연구원 취약점 보고서, Mobius <=2.5.15) ---
@@ -1718,54 +1665,25 @@ exports.select_spec_ri = function (connection, found_Obj, count, callback) {
     }
 
     var ri = Object.keys(found_Obj)[count];
-    var sql = "select * from " + responder.typeRsrc[found_Obj[ri].ty] + " where ri = \'" + ri + "\'";
-    if (global.usesqlite === 'true') {
-        var sqlite = require('./db_sqlite');
-        sqlite.getResult(sql, connection, function (err, spec_Obj) {
+    var table = responder.typeRsrc[found_Obj[ri].ty];
+
+    facade.run(facade.k(table).select('*').where({ ri: ri }), connection,
+        function (err, spec_Obj) {
             if (err) {
                 callback('500-1');
+                return;
+            }
+
+            if (spec_Obj.length >= 1) {
+                makeObject(spec_Obj[0]);
+                found_Obj[ri] = merge(found_Obj[ri], spec_Obj[0]);
+                _this.select_spec_ri(connection, found_Obj, ++count, callback);
             }
             else {
-                if (spec_Obj.length >= 1) {
-                    makeObject(spec_Obj[0]);
-                    found_Obj[ri] = merge(found_Obj[ri], spec_Obj[0]);
-
-                    _this.select_spec_ri(connection, found_Obj, ++count, function (code) {
-                        callback(code);
-                    });
-                }
-                else {
-                    delete found_Obj[ri];
-                    _this.select_spec_ri(connection, found_Obj, count, function (code) {
-                        callback(code);
-                    });
-                }
+                delete found_Obj[ri];
+                _this.select_spec_ri(connection, found_Obj, count, callback);
             }
         });
-    }
-    else {
-        db.getResult(sql, connection, function (err, spec_Obj) {
-            if (err) {
-                callback('500-1');
-            }
-            else {
-                if (spec_Obj.length >= 1) {
-                    makeObject(spec_Obj[0]);
-                    found_Obj[ri] = merge(found_Obj[ri], spec_Obj[0]);
-
-                    _this.select_spec_ri(connection, found_Obj, ++count, function (code) {
-                        callback(code);
-                    });
-                }
-                else {
-                    delete found_Obj[ri];
-                    _this.select_spec_ri(connection, found_Obj, count, function (code) {
-                        callback(code);
-                    });
-                }
-            }
-        });
-    }
 };
 
 function search_lookup_action(connection, pi_list, count, result_ri, query_where, callback) {
@@ -2230,39 +2148,16 @@ exports.select_oldest_resource = function (connection, ty, ri, oldestObj, callba
 };
 
 exports.select_lookup = function (connection, ri, callback) {
-    //var tid = require('shortid').generate();
-    //console.time('select_lookup ' + ri + ' (' + tid + ')');
-    var sql = util.format("select * from lookup where ri = \'%s\'", ri);
-    if (global.usesqlite === 'true') {
-        var sqlite = require('./db_sqlite');
-        sqlite.getResult(sql, connection, function (err, direct_Obj) {
-            callback(err, direct_Obj);
-        });
-    }
-    else {
-        db.getResult(sql, connection, function (err, direct_Obj) {
-            //console.timeEnd('select_lookup ' + ri + ' (' + tid + ')');
-            callback(err, direct_Obj);
-        });
-    }
+    facade.run(facade.k('lookup').select('*').where({ ri: ri }), connection, callback);
 };
 
 exports.select_ri_lookup = function (connection, ri, callback) {
     console.time('select_ri_lookup ' + ri);
-    //var sql = util.format("select ri from lookup where ri = \'%s\'", ri);
-    var sql = "select ri, sri from lookup where ri = \'" + ri + "\'";
-    if (global.usesqlite === 'true') {
-        sqlite.getResult(sql, null, function (err, ri_Obj) {
+    facade.run(facade.k('lookup').select('ri', 'sri').where({ ri: ri }), connection,
+        function (err, results) {
             console.timeEnd('select_ri_lookup ' + ri);
-            callback(err, ri_Obj);
+            callback(err, results);
         });
-    }
-    else {
-        db.getResult(sql, connection, function (err, ri_Obj) {
-            console.timeEnd('select_ri_lookup ' + ri);
-            callback(err, ri_Obj);
-        });
-    }
 };
 
 exports.select_grp_lookup = function (connection, ri, callback) {
@@ -2282,18 +2177,7 @@ exports.select_grp = function (connection, ri, callback) {
 };
 
 exports.select_acp = function (connection, ri, callback) {
-    var sql = util.format("select * from acp where ri = \'%s\'", ri);
-    if (global.usesqlite === 'true') {
-        var sqlite = require('./db_sqlite');
-        sqlite.getResult(sql, connection, function (err, results_acp) {
-            callback(err, results_acp);
-        });
-    }
-    else {
-        db.getResult(sql, connection, function (err, results_acp) {
-            callback(err, results_acp);
-        });
-    }
+    facade.run(facade.k('acp').select('*').where({ ri: ri }), connection, callback);
 };
 
 exports.select_acp_cnt = function (connection, loop, uri_arr, callback) {
@@ -2309,95 +2193,40 @@ exports.select_acp_cnt = function (connection, loop, uri_arr, callback) {
         }
     }
 
-    var sql = util.format("select acpi, ty from lookup where ri = \"%s\"", pi);
-    if (global.usesqlite === 'true') {
-        var sqlite = require('./db_sqlite');
-        sqlite.getResult(sql, connection, function (err, results) {
+    // 두 분기를 합치면서 SQLite 쪽의 try/catch 를 채택했다. MySQL 분기는
+    // JSON.parse 를 그대로 불러, acpi 가 깨진 행 하나에 요청 전체가 죽었다.
+    facade.run(facade.k('lookup').select('acpi', 'ty').where({ ri: pi }), connection,
+        function (err, results) {
             if (err) {
-                callback(err, results.message);
+                callback(err, results && results.message);
+                return;
             }
-            else {
-                if (results.length == 0) {
-                    callback(err, results);
-                }
-                else {
-                    try {
-                        results[0].acpi = JSON.parse(results[0].acpi);
-                    } catch (e) {
-                        results[0].acpi = [];
-                    }
 
-                    if (results[0].acpi.length == 0) {
-                        if (results[0].ty == '3') {
-                            _this.select_acp_cnt(connection, ++loop, uri_arr, function (err, acpiList) {
-                                if (err) {
-                                    callback(err, acpiList);
-                                }
-                                else {
-                                    callback(err, acpiList);
-                                }
-                            });
-                        }
-                        else {
-                            callback(err, results[0].acpi);
-                        }
-                    }
-                    else {
-                        callback(err, results[0].acpi);
-                    }
-                }
+            if (results.length === 0) {
+                callback(err, results);
+                return;
             }
-        });
-    }
-    else {
-        db.getResult(sql, connection, function (err, results) {
-            if (err) {
-                callback(err, results.message);
-            }
-            else {
-                if (results.length == 0) {
-                    callback(err, results);
-                }
-                else {
-                    results[0].acpi = JSON.parse(results[0].acpi);
 
-                    if (results[0].acpi.length == 0) {
-                        if (results[0].ty == '3') {
-                            _this.select_acp_cnt(connection, ++loop, uri_arr, function (err, acpiList) {
-                                if (err) {
-                                    callback(err, acpiList);
-                                }
-                                else {
-                                    callback(err, acpiList);
-                                }
-                            });
-                        }
-                        else {
-                            callback(err, results[0].acpi);
-                        }
-                    }
-                    else {
-                        callback(err, results[0].acpi);
-                    }
-                }
+            try {
+                results[0].acpi = JSON.parse(results[0].acpi);
+            } catch (e) {
+                results[0].acpi = [];
             }
+
+            if (results[0].acpi.length === 0 && results[0].ty == '3') {
+                _this.select_acp_cnt(connection, ++loop, uri_arr, callback);
+                return;
+            }
+
+            callback(err, results[0].acpi);
         });
-    }
 };
 
+// 예전에는 IN 목록을 JSON.stringify 한 뒤 대괄호만 떼어 SQL 에 붙였다.
+// acpi 는 클라이언트가 주는 값이라 따옴표가 섞이면 SQL 구조가 깨진다.
+// whereIn 은 원소마다 바인딩을 만든다.
 exports.select_acp_in = function (connection, acpiList, callback) {
-    var sql = util.format("select * from acp where ri in (" + JSON.stringify(acpiList).replace('[', '').replace(']', '') + ")");
-    if (global.usesqlite === 'true') {
-        var sqlite = require('./db_sqlite');
-        sqlite.getResult(sql, connection, function (err, results_acp) {
-            callback(err, results_acp);
-        });
-    }
-    else {
-        db.getResult(sql, connection, function (err, results_acp) {
-            callback(err, results_acp);
-        });
-    }
+    facade.run(facade.k('acp').select('*').whereIn('ri', acpiList || []), connection, callback);
 };
 
 exports.select_sub = function (connection, pi, callback) {
@@ -2696,20 +2525,9 @@ exports.select_in_ri_list = function (connection, tbl, ri_list, ri_index, found_
 };
 
 
-exports.select_count_ri =function (connection, ty, ri, callback) {
-    var sql = util.format('select lookup.st, count(*) as cnt, sum(cin.cs) as size FROM lookup, cin where lookup.ri = \'%s\' and cin.pi = \'%s\'', ri, ri);
-    if (global.usesqlite === 'true') {
-        var sqlite = require('./db_sqlite');
-        sqlite.getResult(sql, connection, function (err, results) {
-            callback(err, results);
-        });
-    }
-    else {
-        db.getResult(sql, connection, function (err, results) {
-            callback(err, results);
-        });
-    }
-};
+// select_count_ri 는 여기 있었다. cin 을 전부 세는 O(n) 집계였고,
+// get_cni_count 가 저장값(select_cni_parent)을 읽게 되면서 호출부가 없어졌다.
+// 실제 값이 필요한 곳은 reconcile_cnt_counters 하나뿐이고 거기서 직접 만든다.
 
 exports.update_cb_poa_csi = function (connection, poa, csi, srt, ri, callback) {
     console.time('update_cb_poa_csi ' + ri);
@@ -2843,29 +2661,17 @@ exports.update_grp = function (connection, obj, callback) {
     console.time('update_grp ' + obj.ri);
     _this.update_lookup(connection, obj, function (err, results) {
         if (!err) {
-            var sql2 = util.format('update grp set mnm = \'%s\', mid = \'%s\', macp = \'%s\', gn = \'%s\' where ri = \'%s\'',
-                obj.mnm, JSON.stringify(obj.mid), JSON.stringify(obj.macp), obj.gn, obj.ri);
-            if (global.usesqlite === 'true') {
-                var sqlite = require('./db_sqlite');
-                sqlite.getResult(sql2, connection, function (err, results) {
-                    if (!err) {
-                        console.timeEnd('update_grp ' + obj.ri);
-                        callback(err, results);
-                    } else {
-                        callback(err, results);
-                    }
-                });
-            } else {
-                db.getResult(sql2, connection, function (err, results) {
-                    if (!err) {
-                        console.timeEnd('update_grp ' + obj.ri);
-                        callback(err, results);
-                    }
-                    else {
-                        callback(err, results);
-                    }
-                });
-            }
+            facade.run(facade.k('grp').update({
+                mnm: obj.mnm,
+                mid: JSON.stringify(obj.mid),
+                macp: JSON.stringify(obj.macp),
+                gn: obj.gn
+            }).where({ ri: obj.ri }), connection, function (err2, results2) {
+                if (!err2) {
+                    console.timeEnd('update_grp ' + obj.ri);
+                }
+                callback(err2, results2);
+            });
         }
         else {
             callback(err, results);
@@ -2877,29 +2683,13 @@ exports.update_lcp = function (connection, obj, callback) {
     console.time('update_lcp ' + obj.ri);
     _this.update_lookup(connection, obj, function (err, results) {
         if (!err) {
-            var sql2 = util.format('update lcp set lou = \'%s\', lon = \'%s\' where ri = \'%s\'',
-                obj.lou, obj.lon, obj.ri);
-            if (global.usesqlite === 'true') {
-                var sqlite = require('./db_sqlite');
-                sqlite.getResult(sql2, connection, function (err, results) {
-                    if (!err) {
-                        console.timeEnd('update_lcp ' + obj.ri);
-                        callback(err, results);
-                    } else {
-                        callback(err, results);
-                    }
-                });
-            } else {
-                db.getResult(sql2, connection, function (err, results) {
-                    if (!err) {
-                        console.timeEnd('update_lcp ' + obj.ri);
-                        callback(err, results);
-                    }
-                    else {
-                        callback(err, results);
-                    }
-                });
-            }
+            facade.run(facade.k('lcp').update({ lou: obj.lou, lon: obj.lon })
+                .where({ ri: obj.ri }), connection, function (err2, results2) {
+                if (!err2) {
+                    console.timeEnd('update_lcp ' + obj.ri);
+                }
+                callback(err2, results2);
+            });
         }
         else {
             callback(err, results);
@@ -3572,32 +3362,11 @@ exports.update_parent_by_delete = function (connection, obj, cs, callback) {
 };
 
 exports.delete_ri_lookup = function (connection, ri, callback) {
-    //console.time('delete_ri_lookup ' + ri);
-    var sql = util.format("delete from lookup where ri = \'%s\'", ri);
-    if (global.usesqlite === 'true') {
-        console.log('[DEBUG-SQLite] delete_ri_lookup query:', sql);
-        var sqlite = require('./db_sqlite');
-        sqlite.getResult(sql, null, function (err, delete_Obj) {
-            console.log('[DEBUG-SQLite] delete_ri_lookup result:', err, delete_Obj);
-            //console.timeEnd('delete_ri_lookup ' + ri);
-            callback(err, delete_Obj);
-        });
-    }
-    else {
-        db.getResult(sql, connection, function (err, delete_Obj) {
-            //console.timeEnd('delete_ri_lookup ' + ri);
-            callback(err, delete_Obj);
-        });
-    }
+    facade.run(facade.k('lookup').where({ ri: ri }).del(), connection, callback);
 };
 
-exports.delete_ri_lookup_in = function (connection, ty, ri, offset, callback) {
-    var sql = util.format("DELETE FROM lookup WHERE pi = \'%s\' and ty = \'%s\' LIMIT %d", ri, ty, offset);
-    //console.log(sql);
-    db.getResult(sql, connection, function (err, results) {
-        callback(err, results);
-    });
-};
+// delete_ri_lookup_in 은 여기 있었다. 호출부가 하나도 없었고,
+// `DELETE ... LIMIT` 은 MySQL 전용이라 SQLite 에서는 애초에 못 쓰는 문장이었다.
 
 function delete_lookup_action(connection, pi_list, req_count, callback) {
     if (pi_list.length <= req_count) {
@@ -3605,34 +3374,19 @@ function delete_lookup_action(connection, pi_list, req_count, callback) {
         return;
     }
 
-    var sql = 'delete from lookup where pi = \'' + pi_list[req_count] + '\'';
-    if (global.usesqlite === 'true') {
-        var sqlite = require('./db_sqlite');
-        sqlite.getResult(sql, connection, function (err, deleted_Obj) {
-            if (!err) {
-                console.log('deleted ' + (deleted_Obj.changes || deleted_Obj.affectedRows) + ' resource(s) of ' + pi_list[req_count]);
-                delete_lookup_action(connection, pi_list, ++req_count, function (code) {
-                    callback(code);
-                });
-            }
-            else {
+    var pi = pi_list[req_count];
+
+    // 파사드가 결과를 {affectedRows} 로 정규화하므로 예전의
+    // (changes || affectedRows) 백엔드별 분기가 필요 없다.
+    facade.run(facade.k('lookup').where({ pi: pi }).del(), connection,
+        function (err, deleted_Obj) {
+            if (err) {
                 callback('500-1');
+                return;
             }
+            console.log('deleted ' + deleted_Obj.affectedRows + ' resource(s) of ' + pi);
+            delete_lookup_action(connection, pi_list, ++req_count, callback);
         });
-    }
-    else {
-        db.getResult(sql, connection, function (err, deleted_Obj) {
-            if (!err) {
-                console.log('deleted ' + deleted_Obj.affectedRows + ' resource(s) of ' + pi_list[req_count]);
-                delete_lookup_action(connection, pi_list, ++req_count, function (code) {
-                    callback(code);
-                });
-            }
-            else {
-                callback('500-1');
-            }
-        });
-    }
 }
 
 exports.delete_lookup = function (connection, pi_list, pi_index, found_Obj, found_Cnt, callback) {

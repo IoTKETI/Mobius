@@ -1,0 +1,165 @@
+'use strict';
+// usesqlite 분기가 "실행자만 다른" 함수들의 전환 검증.
+//
+// 이 함수들은 SQL 을 분기 밖에서 한 번 만들고, 분기 안에서는 sqlite.getResult /
+// db.getResult 중 어느 쪽으로 보낼지만 골랐다. 파사드가 그 선택을 대신하므로
+// 분기가 통째로 사라진다.
+//
+// 함께 확인하는 것:
+//   - 값이 전부 바인딩으로 나가는가 (기존 SQL 은 util.format 문자열 보간이었다)
+//   - 구 경로(db_action/db_sqlite)로 새지 않는가
+//   - 두 백엔드가 같은 형태를 내는가
+const test = require('node:test');
+const assert = require('node:assert');
+const path = require('path');
+
+const DB = path.join(__dirname, '..', 'mobius', 'db');
+process.env.MOBIUS_SQLITE_PATH = path.join(require('node:os').tmpdir(), 'mobius-merged-test.db');
+
+function freshDb(useSqlite) {
+    delete require.cache[require.resolve(DB)];
+    delete require.cache[require.resolve(path.join(DB, 'mysql.js'))];
+    delete require.cache[require.resolve(path.join(DB, 'sqlite.js'))];
+    global.usesqlite = useSqlite ? 'true' : 'false';
+    return require(DB);
+}
+
+function tapAdapter(useSqlite, selectRows) {
+    const db = freshDb(useSqlite);
+    const adapter = require(path.join(DB, useSqlite ? 'sqlite.js' : 'mysql.js'));
+    const seen = [];
+    let sel = 0;
+
+    adapter.execute = function (conn, sql, bindings, cb) {
+        seen.push({ sql: sql, bindings: bindings });
+        if (/^select/i.test(sql)) {
+            const rows = (selectRows && selectRows[sel] !== undefined) ? selectRows[sel] : [];
+            sel++;
+            return cb(null, rows);
+        }
+        cb(null, { affectedRows: 1, insertId: 0 });
+    };
+    adapter.begin = function (h, cb) { seen.push({ sql: 'BEGIN' }); cb(null); };
+    adapter.commit = function (h, cb) { seen.push({ sql: 'COMMIT' }); cb(null); };
+    adapter.rollback = function (h, cb) { seen.push({ sql: 'ROLLBACK' }); cb(null); };
+
+    db.connect('h', 1, 'u', 'p', function () {});
+
+    const legacyMysql = require(path.join(__dirname, '..', 'mobius', 'db_action.js'));
+    legacyMysql.getResult = function (sql, conn, cb) {
+        seen.push({ sql: 'LEGACY_MYSQL', legacySql: sql });
+        cb(null, []);
+    };
+    const legacySqlite = require(path.join(__dirname, '..', 'mobius', 'db_sqlite.js'));
+    legacySqlite.getResult = function (sql, conn, cb) {
+        seen.push({ sql: 'LEGACY_SQLITE', legacySql: sql });
+        cb(null, []);
+    };
+
+    delete require.cache[require.resolve(path.join(__dirname, '..', 'mobius', 'sql_action.js'))];
+    return { sql_action: require(path.join(__dirname, '..', 'mobius', 'sql_action.js')), seen: seen };
+}
+
+function assertNoLegacy(seen) {
+    const leaked = seen.filter(function (s) { return /^LEGACY_/.test(s.sql); });
+    assert.deepStrictEqual(leaked.map(function (s) { return s.legacySql; }), [],
+        '구 경로로 샌 쿼리가 있다');
+}
+
+function guard(done, fn) {
+    return function () {
+        try { fn.apply(null, arguments); }
+        catch (e) { done(e); }
+    };
+}
+
+const EVIL = "x'); drop table lookup; --";
+
+// 두 백엔드에서 같은 함수를 돌려, 파사드를 거치고 값을 바인딩하는지 본다.
+function bothBackends(name, run) {
+    [true, false].forEach(function (useSqlite) {
+        const label = useSqlite ? 'SQLite' : 'MySQL';
+        test(name + ' (' + label + ')', function (t, done) {
+            const ctx = tapAdapter(useSqlite, run.rows);
+            run.call(ctx, ctx.sql_action, guard(done, function () {
+                assertNoLegacy(ctx.seen);
+                assert.ok(ctx.seen.length > 0, 'SQL 이 하나도 안 나갔다');
+                ctx.seen.forEach(function (q, i) {
+                    assert.strictEqual(q.sql.indexOf('drop table'), -1,
+                        i + '번째 SQL 본문에 값이 박혔다: ' + q.sql);
+                });
+                done();
+            }));
+        });
+    });
+}
+
+bothBackends('select_lookup', function (sa, cb) {
+    sa.select_lookup({}, EVIL, cb);
+});
+
+bothBackends('select_ri_lookup', function (sa, cb) {
+    sa.select_ri_lookup({}, EVIL, cb);
+});
+
+bothBackends('select_ae', function (sa, cb) {
+    sa.select_ae({}, EVIL, cb);
+});
+
+bothBackends('select_acp', function (sa, cb) {
+    sa.select_acp({}, EVIL, cb);
+});
+
+bothBackends('select_acp_in', function (sa, cb) {
+    sa.select_acp_in({}, [EVIL, 'other'], cb);
+});
+
+bothBackends('get_hit_all', function (sa, cb) {
+    sa.get_hit_all({}, cb);
+});
+
+bothBackends('delete_ri_lookup', function (sa, cb) {
+    sa.delete_ri_lookup({}, EVIL, cb);
+});
+
+bothBackends('update_grp', function (sa, cb) {
+    sa.update_grp({}, {
+        ri: EVIL, lt: 'L', acpi: [], et: 'E', st: 1, lbl: [], at: [], aa: [], subl: [],
+        mnm: 10, mid: [], macp: [], gn: 'g'
+    }, cb);
+});
+
+bothBackends('update_lcp', function (sa, cb) {
+    sa.update_lcp({}, {
+        ri: EVIL, lt: 'L', acpi: [], et: 'E', st: 1, lbl: [], at: [], aa: [], subl: [],
+        lou: 'u', lon: 'n'
+    }, cb);
+});
+
+// --- 분기가 실제로 사라졌는지 ------------------------------------------------
+
+test('전환한 함수들에 usesqlite 분기가 남아 있지 않다', function () {
+    const fs = require('node:fs');
+    const src = fs.readFileSync(path.join(__dirname, '..', 'mobius', 'sql_action.js'), 'utf8');
+    const names = ['select_lookup', 'select_ri_lookup', 'select_ae', 'select_acp',
+        'select_acp_in', 'get_hit_all', 'delete_ri_lookup', 'update_grp', 'update_lcp',
+        'select_spec_ri', 'select_resource_from_url', 'select_acp_cnt'];
+
+    names.forEach(function (n) {
+        const i = src.indexOf('exports.' + n + ' = function');
+        assert.ok(i >= 0, n + ' 를 못 찾았다');
+        const body = src.slice(i);
+        const end = body.indexOf('\nexports.');
+        assert.strictEqual(body.slice(0, end).indexOf('global.usesqlite'), -1,
+            n + ' 안에 usesqlite 분기가 남아 있다');
+    });
+});
+
+test('호출부 없는 함수 2개가 제거되었다', function () {
+    const fs = require('node:fs');
+    const src = fs.readFileSync(path.join(__dirname, '..', 'mobius', 'sql_action.js'), 'utf8');
+    assert.strictEqual(/^exports\.select_count_ri\s*=/m.test(src), false,
+        'select_count_ri 가 남아 있다 (호출부 0)');
+    assert.strictEqual(/^exports\.delete_ri_lookup_in\s*=/m.test(src), false,
+        'delete_ri_lookup_in 이 남아 있다 (호출부 0, MySQL 전용 DELETE ... LIMIT)');
+});
