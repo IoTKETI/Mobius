@@ -239,6 +239,59 @@ exports.delete_hit_ri_old = function (connection, before_ct, callback) {
     });
 };
 
+// 삭제된 리소스가 남긴 hit_ri 행을 지운다 (스펙 §3 P0-2 "리소스 삭제 시 해당 ri 의
+// 행도 정리한다").
+//
+// 나이 기준 정리(delete_hit_ri_old)만으로는 부족하다. 리소스를 지워도 그 사용
+// 이력은 보관 기간(기본 120일) 동안 남고, 같은 rn 으로 재생성하면 이전 생애의
+// 카운터가 되살아나 합쳐진다 — 어제 만든 리소스가 "3개월 전부터 사용 중"으로
+// 보이게 되고, 그게 콘솔의 삭제 판정이 읽는 바로 그 신호다.
+//
+// delete_orphan_lookup 과 같은 배치 반복 형태다: LEFT JOIN 안티조인으로 1000개씩
+// 모아 PK 로 지운다. 전체를 한 문장으로 지우면 대형 테이블에서 락 시간이 길어진다.
+var HIT_RI_ORPHAN_BATCH = 1000;
+
+exports.delete_hit_ri_orphan = function (connection, callback) {
+    var sel = facade.k('hit_ri as h')
+        .distinct('h.ri as ri')
+        .leftJoin('lookup as l', 'h.ri', 'l.ri')
+        .whereNull('l.ri')
+        .limit(HIT_RI_ORPHAN_BATCH);
+
+    facade.run(sel, connection, function (err, rows) {
+        if (err) {
+            callback(err, rows);
+            return;
+        }
+        if (!rows || rows.length === 0) {
+            callback(null, { affectedRows: 0 });
+            return;
+        }
+
+        var ri_list = rows.map(function (r) { return r.ri; });
+        var del = facade.k('hit_ri').whereIn('ri', ri_list).del();
+
+        facade.run(del, connection, function (err2, result) {
+            if (err2) {
+                callback(err2, result);
+                return;
+            }
+            var n = (result && result.affectedRows) || 0;
+
+            // 한 배치를 꽉 채웠으면 더 남아 있을 수 있다. 방금 지운 행은 다음
+            // SELECT 에 안 잡히므로 무한 반복이 되지 않는다.
+            if (ri_list.length < HIT_RI_ORPHAN_BATCH) {
+                callback(null, { affectedRows: n });
+                return;
+            }
+            _this.delete_hit_ri_orphan(connection, function (err3, more) {
+                if (err3) { callback(err3, more); return; }
+                callback(null, { affectedRows: n + ((more && more.affectedRows) || 0) });
+            });
+        });
+    });
+};
+
 // exports.get_sri_sri = function (connection, ri, callback) {
 //     var sql = util.format('select sri from lookup where ri = \'%s\'', ri);
 //     db.getResult(sql, connection, function (err, results) {

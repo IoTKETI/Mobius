@@ -171,3 +171,95 @@ test('delete_hit_ri_old 는 ct 기준으로 지운다', function (t, done) {
         done();
     });
 });
+
+// 스펙 §3 P0-2 "리소스 삭제 시 해당 ri 의 행도 정리한다".
+// 나이 기준 정리만으로는 삭제된 리소스의 이력이 보관 기간 내내 남고, 같은 rn 으로
+// 재생성하면 이전 생애의 카운터가 되살아나 합쳐진다.
+test('delete_hit_ri_orphan 은 lookup 에 없는 ri 를 안티조인으로 고른다', function (t, done) {
+    const { sql_action, calls } = tapAdapter(false);
+    sql_action.delete_hit_ri_orphan(null, function () {
+        assert.match(calls[0].sql, /left join `lookup`/i, 'LEFT JOIN 안티조인이어야 한다');
+        assert.match(calls[0].sql, /`l`\.`ri` is null/i);
+        assert.match(calls[0].sql, /limit/i, '한 번에 다 지우면 락 시간이 길어진다');
+        done();
+    });
+});
+
+test('delete_hit_ri_orphan 은 고아가 없으면 DELETE 를 날리지 않는다', function (t, done) {
+    // tapAdapter 의 execute 스텁은 SELECT 에 빈 배열을 돌려준다.
+    const { sql_action, calls } = tapAdapter(false);
+    sql_action.delete_hit_ri_orphan(null, function (err, result) {
+        assert.strictEqual(err, null);
+        assert.strictEqual(result.affectedRows, 0);
+        assert.strictEqual(calls.length, 1, 'SELECT 한 번뿐이어야 한다');
+        done();
+    });
+});
+
+// 안티조인은 SQL 텍스트만 봐서는 맞는지 알 수 없다 — 조인 방향이 뒤집혀도
+// 문법은 통과한다. 실제 드라이버로 왕복시켜 "고아만" 지워지는지 확인한다.
+test('SQLite 실엔진 왕복: delete_hit_ri_orphan 이 고아만 지우고 살아있는 행은 남긴다', function (t, done) {
+    const fs = require('node:fs');
+    const os = require('node:os');
+    const REAL_DB = path.join(os.tmpdir(), 'mobius-orphan-roundtrip-' + process.pid + '.db');
+    try { fs.unlinkSync(REAL_DB); } catch (e) { /* 없으면 그만 */ }
+
+    const prevPath = process.env.MOBIUS_SQLITE_PATH;
+    process.env.MOBIUS_SQLITE_PATH = REAL_DB;
+
+    const db = freshDb(true);
+    const SA = path.join(__dirname, '..', 'mobius', 'sql_action.js');
+    delete require.cache[require.resolve(SA)];
+    const sql_action = require(SA);
+
+    function cleanup() {
+        process.env.MOBIUS_SQLITE_PATH = prevPath;
+        try { fs.unlinkSync(REAL_DB); } catch (e) { /* 열려 있으면 다음 실행이 지운다 */ }
+    }
+
+    const alive = '/Mobius/alive_ae';
+    const orphan = '/Mobius/deleted_ae';
+
+    db.connect('h', 1, 'u', 'p', function (rsc) {
+        assert.strictEqual(rsc, '1');
+        db.getConnection(function (code, conn) {
+            assert.strictEqual(code, '200');
+
+            // alive 만 lookup 에 넣는다. orphan 은 넣지 않는다 = 삭제된 리소스.
+            const insLookup = db.k('lookup').insert({
+                pi: '/Mobius', ri: alive, ty: 2, ct: '20260828T000000', st: 0,
+                rn: 'alive_ae', lt: '20260828T000000', et: '20280828T000000'
+            });
+            db.run(insLookup, conn, function (e0) {
+                assert.strictEqual(e0, null, 'lookup 행 삽입이 되어야 한다');
+
+                sql_action.upsert_hit_ri_batch(conn, [
+                    { ri: alive, ct: '20260828', http: 1, mqtt: 0, coap: 0, ws: 0 },
+                    { ri: orphan, ct: '20260828', http: 1, mqtt: 0, coap: 0, ws: 0 },
+                    { ri: orphan, ct: '20260827', http: 1, mqtt: 0, coap: 0, ws: 0 }
+                ], function (e1) {
+                    assert.strictEqual(e1, null);
+
+                    sql_action.delete_hit_ri_orphan(conn, function (e2, result) {
+                        assert.strictEqual(e2, null);
+                        assert.strictEqual(result.affectedRows, 2,
+                            '고아 ri 하나가 가진 두 날짜 행이 지워져야 한다');
+
+                        sql_action.select_hit_ri(conn, orphan, '20260101', function (e3, gone) {
+                            assert.strictEqual(e3, null);
+                            assert.strictEqual(gone.length, 0, '고아 행은 전부 사라져야 한다');
+
+                            sql_action.select_hit_ri(conn, alive, '20260101', function (e4, kept) {
+                                assert.strictEqual(e4, null);
+                                assert.strictEqual(kept.length, 1,
+                                    '살아있는 리소스의 행은 남아야 한다 — 조인 방향이 뒤집히면 여기서 깨진다');
+                                cleanup();
+                                done();
+                            });
+                        });
+                    });
+                });
+            });
+        });
+    });
+});

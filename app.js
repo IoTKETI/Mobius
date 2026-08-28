@@ -196,11 +196,25 @@ function del_old_hit_ri() {
                         // hit_ri 테이블이 없는 기존 MySQL 설치에서 실제로 그랬다.
                         console.error('[del_old_hit_ri] error: ' +
                                       ((result && (result.message || result.code)) || err));
+                        db_facade.release(connection);
+                        return;
                     }
-                    else {
-                        console.log('deleted ' + (result.affectedRows || 0) + ' old hit_ri row(s)');
-                    }
-                    db_facade.release(connection);
+
+                    console.log('deleted ' + (result.affectedRows || 0) + ' old hit_ri row(s)');
+
+                    // 나이 기준 정리에 이어 고아 행(삭제된 리소스가 남긴 행)도 지운다.
+                    // 커넥션을 재사용하고, 여기서 한 번만 반납한다.
+                    db_sql.delete_hit_ri_orphan(connection, (err2, result2) => {
+                        if (err2) {
+                            console.error('[del_old_hit_ri] orphan error: ' +
+                                          ((result2 && (result2.message || result2.code)) || err2));
+                        }
+                        else {
+                            console.log('deleted ' + ((result2 && result2.affectedRows) || 0) +
+                                        ' orphan hit_ri row(s)');
+                        }
+                        db_facade.release(connection);
+                    });
                 });
             }
             else {
