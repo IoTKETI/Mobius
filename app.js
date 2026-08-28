@@ -108,6 +108,11 @@ function del_expired_resource() {
                     console.log('---------------');
                     console.log('delete resources expired et');
                     console.log('---------------');
+                    // 마스터에서 지운다. 몇 개가 지워졌는지, 어떤 워커가 그
+                    // ri 들을 캐싱해 뒀는지 알 수 없고(개별 ri 브로드캐스트는
+                    // 수천 건일 수 있다) 워커 전용 store 에는 애초에 아무
+                    // 영향이 없으므로 전체 비우기를 브로드캐스트한다.
+                    cache_man.invalidate_all();
                 }
                 connection.release();
             });
@@ -125,6 +130,10 @@ function del_orphan_resource() {
             db_sql.delete_orphan_lookup(connection, (err) => {
                 if (err) {
                     console.log('[del_orphan_resource] error', err);
+                }
+                else {
+                    // del_expired_resource 와 같은 이유로 전체 비우기.
+                    cache_man.invalidate_all();
                 }
                 connection.release();
             });
@@ -1236,6 +1245,12 @@ function check_resource_from_url(connection, ri, sri, callback) {
         callback(cached, 200);
     }
     else {
+        // 조회 시작 시점의 세대를 들고 있다가, DB 콜백이 돌아왔을 때 그 사이
+        // 어디선가(로컬 invalidate 또는 IPC 로 받은 무효화) 이 리소스가
+        // 지워졌으면 방금 읽은(이미 stale 할 수 있는) 행을 캐시에 넣지
+        // 않는다. 넣으면 그 뒤로는 아무것도 이 항목을 다시 무효화하지
+        // 않으므로 영구히 stale 캐시가 남는다.
+        var gen = cache_man.generation();
         db_sql.select_resource_from_url(connection, ri, sri, (err, results) => {
             if (err) {
                 callback(null, 500);
@@ -1245,7 +1260,9 @@ function check_resource_from_url(connection, ri, sri, callback) {
                     callback(null, 404);
                 }
                 else {
-                    cache_man.set(ri, JSON.parse(JSON.stringify(results[0])));
+                    if (cache_man.generation() === gen) {
+                        cache_man.set(ri, JSON.parse(JSON.stringify(results[0])));
+                    }
                     callback(results[0], 200);
                 }
             }

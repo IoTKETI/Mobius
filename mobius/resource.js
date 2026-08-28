@@ -409,11 +409,16 @@ function create_action(request, response, callback) {
                 var targetObject = JSON.parse(JSON.stringify(request.targetObject));
                 var cs = parseInt(resource_Obj[rootnm].cs);
 
-                cache_man.set(resource_Obj[rootnm].pi + '/la', resource_Obj[rootnm]);
-
                 cnt_man.schedule(targetObject[parent_rootnm], cs);
 
+                // 먼저 무효화(부모 자신 + 그 아래 캐싱된 모든 자손, 예전
+                // /la 값 포함)한 다음 최신 /la 값을 채운다. 순서를
+                // 뒤집으면 invalidate 의 자손 스윕이 방금 넣은 /la 를
+                // 바로 지워버린다 -- keys_for(parent_ri) 가
+                // 'parent_ri/' 로 시작하는 모든 키를 훑는데
+                // parent_ri + '/la' 가 정확히 거기 걸린다.
                 cache_man.invalidate(targetObject[parent_rootnm].ri);
+                cache_man.set(resource_Obj[rootnm].pi + '/la', resource_Obj[rootnm]);
                 targetObject = null;
 
                 results = null;
@@ -2451,6 +2456,15 @@ function delete_descendants_background(root_ri) {
             pi_list.reverse();
             db_sql.delete_lookup(connection, pi_list, 0, [], 0, function (code) {
                 console.timeEnd('delete_descendants ' + root_ri);
+                // delete_action 이 delete 요청 응답 직후에 부르는 최초
+                // cache_man.invalidate(root_ri) 는 그 시점에 캐싱돼 있던
+                // 자손만 훑는다(keys_for 가 그때의 store 스냅샷을 본다).
+                // 이 캐스케이드는 별도 커넥션으로 비동기 진행되므로, 그
+                // 사이(자손이 DB 에서는 아직 안 지워졌는데 캐시엔 아직
+                // 없던 시점) 어떤 워커가 자손을 읽어 새로 캐싱했을 수
+                // 있다. 캐스케이드가 실제로 끝난 지금, 같은 prefix 를
+                // 다시 한 번 훑어 그런 항목까지 걷어낸다.
+                cache_man.invalidate(root_ri);
                 if (connection) connection.release();
             });
         });
