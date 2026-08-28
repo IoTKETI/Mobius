@@ -3277,11 +3277,32 @@ exports.update_cnt_cni = function (connection, obj, callback) {
 //    utf8mb3_general_ci 라 부모↔자식 조인이 인덱스를 못 쓴다
 //    (실측: LEFT JOIN 형태는 컨테이너 50개에 20초 상한 초과).
 //    리터럴 비교는 정상적으로 인덱스를 탄다 (type: ref, Using index).
-// 3. 시간 예산을 둔다. 큰 컨테이너 하나가 20초를 먹을 수 있으므로,
-//    한 번 호출이 무한정 길어지지 않게 하고 남은 몫은 커서로 넘긴다.
+// 3. 시간 예산을 둔다. 한 번 호출이 무한정 길어지지 않게 하고 남은 몫은
+//    커서로 넘긴다.
+// 4. 컨테이너 하나에도 상한을 건다. 예산 검사만으로는 부족했다 — 검사는
+//    컨테이너 *사이*에서만 하므로, 집계 하나가 예산보다 오래 걸리면 그
+//    컨테이너가 스윕 전체를 삼킨다. 게다가 예전 판은 집계가 실패하면
+//    로그만 찍고 조용히 다음으로 넘어가서, 호출자는 무슨 일이 있었는지
+//    알 수 없었다.
 //
-// opts: { limit, cursor, budgetMs }
-// 콜백: (err, { checked, fixed, nextCursor, done })
+//    배포 서버 실측 (2026-08-28): 가장 큰 컨테이너
+//    /Mobius/KETI_MUV/.../SBUS/disarm (cni 5,930,795) 의 집계는
+//    커버링 인덱스를 쓰고도(type: ref, Using index, rows 11,372,914)
+//    20초 상한에 걸려 강제 종료됐다.
+//
+//    그래서 (a) 집계마다 aggTimeoutMs 를 걸고 남은 예산으로 더 조이며,
+//    (b) maxCni 를 넘는 컨테이너는 아예 집계하지 않고 미루고,
+//    (c) 실패·유예를 보고에 담아 관리자 UI 가 따로 처리할 수 있게 한다.
+//    미룬 컨테이너는 어차피 매 스윕 상한에 걸릴 뿐이라, 빼는 편이
+//    나머지 3만 개를 실제로 검사하게 한다.
+//
+//    주의: timeoutMs 는 MySQL 어댑터만 본다. SQLite 어댑터의 execute 는
+//    opts 를 받지 않는다(임베디드 규모라 문제가 안 된다). maxCni 는
+//    양쪽 백엔드에서 똑같이 동작한다.
+//
+// opts: { limit, cursor, budgetMs, aggTimeoutMs, maxCni }
+// 콜백: (err, { checked, fixed, failed, failedRis, deferred, deferredRis,
+//               nextCursor, done })
 //   done=false 면 nextCursor 로 다시 부르면 이어서 돈다.
 exports.reconcile_cnt_counters = function (connection, opts, callback) {
     // 예전 시그니처 (connection, limit, callback) 도 받아 준다.
@@ -3291,6 +3312,10 @@ exports.reconcile_cnt_counters = function (connection, opts, callback) {
     var limit = opts.limit || 200;
     var cursor = opts.cursor || '';
     var budgetMs = (opts.budgetMs === undefined) ? 30000 : opts.budgetMs;
+    // 컨테이너 하나의 집계에 허용할 시간. 0 이면 상한을 걸지 않는다.
+    var aggTimeoutMs = (opts.aggTimeoutMs === undefined) ? 5000 : opts.aggTimeoutMs;
+    // 저장된 cni 가 이보다 크면 집계하지 않고 미룬다. 0 이면 전부 집계한다.
+    var maxCni = (opts.maxCni === undefined) ? 1000000 : opts.maxCni;
 
     var rec_id = 'reconcile_cnt_counters - ' + require('shortid').generate();
     console.time(rec_id);
@@ -3312,28 +3337,58 @@ exports.reconcile_cnt_counters = function (connection, opts, callback) {
         rows = rows || [];
         var idx = 0;
         var fixed = 0;
+        var failed = [];      // 집계가 실패한 컨테이너 (타임아웃 등)
+        var deferred = [];    // maxCni 를 넘어 집계를 건너뛴 컨테이너
         var lastRi = cursor;
 
         function finish(outOfBudget) {
             console.timeEnd(rec_id);
-            if (fixed > 0) {
-                console.log('[reconcile_cnt_counters] ' + idx + '건 확인, ' + fixed + '건 교정');
+            if (fixed > 0 || failed.length > 0 || deferred.length > 0) {
+                console.log('[reconcile_cnt_counters] ' + idx + '건 확인, ' + fixed + '건 교정' +
+                            (failed.length ? ', ' + failed.length + '건 실패' : '') +
+                            (deferred.length ? ', ' + deferred.length + '건 유예(대형)' : ''));
             }
             callback(null, {
                 checked: idx,
                 fixed: fixed,
+                failed: failed.length,
+                failedRis: failed,
+                deferred: deferred.length,
+                deferredRis: deferred,
                 nextCursor: lastRi,
                 // 배치를 다 채웠거나 예산이 끊겼으면 아직 남았다.
                 done: !outOfBudget && rows.length < limit
             });
         }
 
+        // 예산이 한 건을 볼 만큼 남지 않았으면 시작하지 않는다. 남은 예산이
+        // 몇 ms 뿐인데 집계를 걸면 그 컨테이너가 '실패' 로 기록되는데,
+        // 실제로는 느린 게 아니라 그냥 시간이 없었을 뿐이다 — 관리자 UI 에
+        // 가짜 후보를 올리게 된다.
+        var MIN_SLICE_MS = 200;
+        // budgetMs: 0 은 "예산 없음" 이 아니라 "시간이 없다" 는 뜻이다
+        // (첫 컨테이너를 보기 전에 멈춘다). null 을 줘야 예산을 안 건다.
+        var hasBudget = (budgetMs !== null && budgetMs !== undefined);
+
         (function next() {
             if (idx >= rows.length) { return finish(false); }
-            if (Date.now() - started >= budgetMs) { return finish(true); }
+            if (hasBudget && (Date.now() - started) >= Math.max(0, budgetMs - MIN_SLICE_MS)) {
+                return finish(true);
+            }
 
             var row = rows[idx++];
             lastRi = row.ri;
+
+            // 너무 큰 컨테이너는 집계 자체가 예산을 넘긴다. 건너뛰고 보고에 남긴다.
+            // 게이트는 저장된 cni 로 하는데, 그 값이야말로 지금 의심하는 값이다.
+            // 저장값이 실제보다 작게 어긋나 있으면 여기를 통과해 집계를 시도하고
+            // 그때는 aggTimeoutMs 가 받아 낸다 — 두 겹으로 막힌다.
+            if (maxCni && (parseInt(row.cni, 10) || 0) > maxCni) {
+                deferred.push(row.ri);
+                // 이 갈래는 비동기 호출이 없어 그대로 재귀하면 스택이 쌓인다
+                // (limit 이 2000 이다). 이벤트 루프를 놓아 트래픽도 막지 않는다.
+                return setImmediate(next);
+            }
 
             // 리터럴 pi 로 집계한다 — cin_ri_idx(pi, ri, cs) 커버링 인덱스만 읽는다.
             var agg = facade.k('cin')
@@ -3341,8 +3396,17 @@ exports.reconcile_cnt_counters = function (connection, opts, callback) {
                 .sum('cs as s')
                 .where({ pi: row.ri });
 
+            // 집계 상한은 남은 예산보다 클 수 없다. 안 그러면 마지막 컨테이너
+            // 하나가 예산을 넘겨 버린다.
+            var aggOpts;
+            if (aggTimeoutMs) {
+                var remain = hasBudget ? (budgetMs - (Date.now() - started)) : 0;
+                aggOpts = { timeoutMs: (remain > 0 && remain < aggTimeoutMs) ? remain : aggTimeoutMs };
+            }
+
             facade.run(agg, connection, function (aerr, ares) {
                 if (aerr) {
+                    failed.push(row.ri);
                     console.error('[reconcile_cnt_counters] 집계 실패 ri=' + row.ri + ': ' +
                                   ((ares && (ares.driverCode || ares.code)) || ares));
                     return next();
@@ -3373,7 +3437,7 @@ exports.reconcile_cnt_counters = function (connection, opts, callback) {
                         }
                         next();
                     });
-            });
+            }, aggOpts);
         })();
     });
 };

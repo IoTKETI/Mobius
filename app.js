@@ -120,11 +120,31 @@ function del_req_resource() {
 // CIN 이 수백만 건이라 한 번에 다 돌 수 없다 — 시간 예산만큼만 일하고
 // 다음 호출이 멈춘 자리에서 계속한다. 한 바퀴를 다 돌면 처음으로 되감는다.
 var reconcile_cursor = '';
+var reconcile_running = false;
+// 한 바퀴 동안 집계를 못 한 컨테이너를 모았다가 바퀴 끝에 한 번만 보고한다.
+// 매 조각마다 찍으면 같은 대형 컨테이너가 계속 로그를 채운다.
+var reconcile_deferred = [];
+var reconcile_failed = [];
 
-function reconcile_counters() {
+// 한 바퀴가 끝나기 전까지는 24시간을 기다리지 않고 곧바로 이어서 돈다.
+//
+// 커서는 "다음 호출이 멈춘 자리에서 계속한다" 를 전제로 만들었는데, 그
+// 다음 호출이 24시간 뒤였다. 배포 환경 기준 컨테이너 30,220개를 조각당
+// 2000개씩 나누면 한 바퀴에 16일이 걸린다 — 드리프트 교정이 사실상
+// 동작하지 않았다. 조각 사이를 1분으로 두면 한 바퀴가 20분 안에 끝난다.
+var RECONCILE_GAP_MS = 60 * 1000;
+
+// is_continuation 은 이어 돌기가 스스로 부를 때만 true 다.
+// 24시간 타이머는 한 바퀴가 도는 중이면 그냥 넘어간다 — 안 그러면 두 흐름이
+// 같은 reconcile_cursor 를 각자 전진시켜 컨테이너를 건너뛴다.
+function reconcile_counters(is_continuation) {
+    if (reconcile_running && !is_continuation) { return; }
+    reconcile_running = true;
+
     db.getConnection((code, connection) => {
         if (code !== '200') {
             console.log('[reconcile_counters] No Connection');
+            reconcile_running = false;
             return;
         }
 
@@ -133,18 +153,42 @@ function reconcile_counters() {
             // cnt 는 3만 행대라 2000행을 읽는 것 자체는 싸다.
             { limit: 2000, cursor: reconcile_cursor, budgetMs: 30000 },
             (err, report) => {
+                connection.release();
+
                 if (err) {
                     console.log('[reconcile_counters] error', report);
+                    reconcile_running = false;
+                    return;
+                }
+
+                if (report.fixed > 0) {
+                    console.log('[reconcile_counters] ' + report.checked + '건 확인, ' +
+                                report.fixed + '건 교정');
+                }
+                reconcile_deferred = reconcile_deferred.concat(report.deferredRis || []);
+                reconcile_failed = reconcile_failed.concat(report.failedRis || []);
+
+                if (report.done) {
+                    // 한 바퀴 완료. 손대지 못한 것들을 한 번만 알리고 되감는다.
+                    var stuck = reconcile_deferred.concat(reconcile_failed);
+                    if (stuck.length > 0) {
+                        console.log('[reconcile_counters] 한 바퀴 완료 — 유예(대형) ' +
+                                    reconcile_deferred.length + '건, 실패 ' +
+                                    reconcile_failed.length + '건. 관리자 UI 에서 개별 처리 필요: ' +
+                                    stuck.slice(0, 10).join(', ') +
+                                    (stuck.length > 10 ? ' 외 ' + (stuck.length - 10) + '건' : ''));
+                    }
+                    reconcile_cursor = '';
+                    reconcile_deferred = [];
+                    reconcile_failed = [];
+                    reconcile_running = false;   // 한 바퀴 끝. 다음 24시간 틱을 받는다.
                 }
                 else {
-                    if (report.fixed > 0) {
-                        console.log('[reconcile_counters] ' + report.checked + '건 확인, ' +
-                                    report.fixed + '건 교정');
-                    }
-                    // 한 바퀴 끝났으면 되감고, 아니면 이어서 돌 자리를 기억한다.
-                    reconcile_cursor = report.done ? '' : report.nextCursor;
+                    // 아직 도는 중이다. reconcile_running 을 켠 채로 두어
+                    // 24시간 틱이 끼어들지 못하게 한다.
+                    reconcile_cursor = report.nextCursor;
+                    setTimeout(function () { reconcile_counters(true); }, RECONCILE_GAP_MS);
                 }
-                connection.release();
             });
     });
 }
