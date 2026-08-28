@@ -12,6 +12,7 @@
 
 var moment = require('moment');
 var db_sql = require('./sql_action');
+var facade = require('./db');
 
 var DEFAULT_FLUSH_SEC = 10;
 var WDT_ID = 'hit_ri_flush';
@@ -20,15 +21,22 @@ var buffer = {};   // key = ri + '|' + ct
 var flushing = false;
 
 // 기본 writer 는 실제 DB 로 간다. 테스트가 _set_writer 로 갈아끼운다.
+//
+// db_action(레거시 MySQL 풀)이 아니라 db 파사드로 커넥션을 얻는다. usesqlite
+// 일 때 db_action.getConnection 은 여전히 MySQL 풀을 호출하므로, hit_ri 저장이
+// 실제로 쓰는 백엔드와 무관하게 MySQL 가용성에 묶여 버린다. upsert_hit_ri_batch
+// 는 이미 파사드를 거쳐 실행되니(mobius/sql_action.js) 커넥션 출처도 같은
+// 파사드로 맞춘다. release 도 handle.release() 가 아니라 facade.release(handle)
+// 이다 — SQLite 어댑터는 이걸 no-op 으로 둔다(mobius/db/sqlite.js).
 var writer = function (rows, callback) {
-    var db = require('./db_action');
-    db.getConnection(function (code, connection) {
+    facade.getConnection(function (code, connection) {
         if (code !== '200') {
             callback(new Error('[hit_man] no connection: ' + code));
             return;
         }
         db_sql.upsert_hit_ri_batch(connection, rows, function (err) {
-            connection.release();
+            // 성공/실패 어느 쪽이든 반드시 반납한다 — 안 그러면 flush 주기마다 샌다.
+            facade.release(connection);
             callback(err || null);
         });
     });
@@ -43,6 +51,15 @@ exports.attribute = function (ri, ty) {
     if (!ri) { return null; }
 
     // 가상 자식(/la, /ol, /latest, /oldest)은 컨테이너의 접근이다.
+    //
+    // 알려진 한계(의도적, 고치지 않음): 컨테이너 자신의 실제 이름이 정확히
+    // "la"/"ol"/"latest"/"oldest" 인 경우(예: 실제 컨테이너 ri 가
+    // /Mobius/ae1/la) 이 접미사 규칙에 걸려 부모(ae1)로 잘못 귀속된다.
+    // oneM2M 에서 <container>/la 는 애초에 그 컨테이너의 가상 latest
+    // 리소스를 가리키는 경로이고, Mobius 자신도 이 경로를 그렇게 해석한다
+    // (mobius/cnt.js 의 la/ol 처리 참고) — 즉 attribute() 가 서버의 경로
+    // 해석과 다르게 굴면 그게 더 큰 문제다. 이 모호성을 없애려면 서버 쪽
+    // 라우팅 규칙 자체를 바꿔야 하는데 그건 이 태스크의 범위가 아니다.
     var virtual = ['/la', '/ol', '/latest', '/oldest'];
     for (var i = 0; i < virtual.length; i++) {
         if (ri.length > virtual[i].length &&
@@ -86,6 +103,9 @@ exports.record = function (ri, ty, binding, originator) {
     else { buffer[key].http++; }
 };
 
+// 테스트 전용 조회. 스냅샷 복사가 아니라 살아있는 buffer 참조를 그대로
+// 돌려준다 — 유일한 호출자는 테스트이고 아무도 이 값을 변형하지 않으므로
+// 지금은 문제가 없지만, 새 호출자를 추가할 때는 이 사실을 기억할 것.
 exports.pending = function () {
     return buffer;
 };
