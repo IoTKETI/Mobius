@@ -2085,112 +2085,80 @@ exports.search_lookup = function (connection, ri, query, cur_lim, pi_list, pi_in
     });
 };
 
-exports.select_latest_resource = function (connection, parentObj, loop_count, latestObj, callback) {
-    if (global.usesqlite === 'true') {
-        var sqlite = require('./db_sqlite');
-        // Optimized SQLite query: select top 1 ordered by ct desc
-        // ct 는 초 단위라 같은 초에 만들어진 형제들 사이에서 순서를 못 가린다.
-        // 실측(2026-08-28): CIN 22건에 서로 다른 ct 가 2개뿐이었고, la 가 진짜
-        // 최신 대신 다른 건을 10회 모두 돌려줬다.
-        // ri 를 타이브레이커로 쓴다 — 자동 생성 rn 은 폭이 고정이라 사전순이
-        // 곧 생성순이다(mobius/rid.js). 클라이언트가 rn 을 직접 준 경우에는
-        // 순서가 임의이지만, 그때도 ct 가 먼저 결정하므로 초 단위까지는 정확하다.
-        var sql = 'select * from (select * from lookup where pi = \'' + parentObj.ri + '\' and ty = \'' + (parseInt(parentObj.ty, 10) + 1).toString() + '\' order by ct desc, ri desc limit 1)b join ' + responder.typeRsrc[parseInt(parentObj.ty, 10) + 1] + ' as a on b.ri = a.ri';
-
-        sqlite.getResult(sql, connection, (err, results_latest) => {
-            if (!err) {
-                if (results_latest.length > 0) {
-                    latestObj.push(results_latest[0]);
-                }
-                callback('200');
-            }
-            else {
-                callback('500-1');
-            }
-        });
+// 부모 아래에서 타입으로 거른 뒤 생성순 양 끝 하나를 고른다. la / ol 이 쓴다.
+//
+// 정렬 키는 (ct, ri) 다. ct 는 초 단위라 같은 초에 만들어진 형제들 사이에서
+// 순서를 못 가린다 — 실측(2026-08-28)으로 CIN 22건에 서로 다른 ct 가 2개뿐이라
+// la 가 10회 모두 진짜 최신이 아닌 건을 돌려줬다. ri 를 타이브레이커로 쓴다:
+// 자동 생성 rn 은 폭이 고정이라 사전순이 곧 생성순이다(mobius/rid.js).
+// 클라이언트가 rn 을 직접 준 경우 그 안에서는 임의이지만, ct 가 먼저
+// 결정하므로 초 단위까지는 정확하다.
+//
+// ── MySQL 의 시간창 우회를 걷어냈다 ─────────────────────────────────────
+// 예전 MySQL 갈래는 5^n 분짜리 창을 넓혀 가며 최대 10회 재귀했다.
+// (pi, ty, ct) 복합 인덱스가 없어서 그냥 정렬하면 ct 인덱스를 역스캔하며
+// 수백만 행을 훑었기 때문이다. 그래서 조용해진 큰 컨테이너의 la 는
+// 창 안에 아무것도 없어 사실상 응답하지 못했다.
+//
+// 이제 그 인덱스가 양쪽 백엔드에 있다 (migrations/001, mobiusdb_sqlite.sql).
+// InnoDB 가 PK 를 뒤에 붙여 실제 구성이 (pi, ty, ct, ri) 이므로
+// `order by ct desc, ri desc limit 1` 이 인덱스 끝에서 한 항목만 읽는다.
+// 우회가 필요 없어졌고, 질의도 최대 10회에서 1회가 된다.
+function select_edge_resource(connection, parent_ri, child_ty, direction, outObj, callback) {
+    var table = responder.typeRsrc[child_ty];
+    if (!table) {
+        // 알 수 없는 타입이면 조회할 테이블이 없다. 빈 결과로 다룬다.
+        callback('200');
+        return;
     }
-    else {
-        if (loop_count > 9) {
-            callback('200');
+
+    // ty 는 MySQL 에서 int, SQLite 에서 INTEGER 다. 예전 코드가 문자열로
+    // 넘겼고 양쪽 다 컬럼 타입으로 변환해 왔으므로 그대로 둔다.
+    var inner = facade.k('lookup')
+        .select('*')
+        .where({ pi: parent_ri, ty: String(child_ty) })
+        .orderBy([{ column: 'ct', order: direction }, { column: 'ri', order: direction }])
+        .limit(1);
+
+    var qb = facade.k(inner.as('b'))
+        .select('*')
+        .join(table + ' as a', 'b.ri', 'a.ri');
+
+    facade.run(qb, connection, function (err, rows) {
+        if (err) {
+            callback('500-1');
             return;
         }
+        if (rows && rows.length > 0) {
+            outObj.push(rows[0]);
+        }
+        callback('200');
+    });
+}
 
-        var before_ct = moment().subtract(Math.pow(5, loop_count), 'minutes').utc().format('YYYYMMDDTHHmmss');
-        var query_where = ' and ty = \'' + (parseInt(parentObj.ty, 10) + 1).toString() + '\' and ';
-        // ct 를 먼저 본다. ri 만으로 정렬하면 클라이언트가 rn 을 직접 준 리소스가
-        // 생성 시각과 무관한 자리에 온다.
-        query_where += util.format(' (\'%s\' < ct) order by ct desc, ri desc limit 10', before_ct);
-
-        var sql = 'select * from (select * from lookup where (pi = \'' + parentObj.ri + '\') ' + query_where + ')b join ' + responder.typeRsrc[parseInt(parentObj.ty, 10) + 1] + ' as a on b.ri = a.ri';
-        db.getResult(sql, connection, (err, results_latest) => {
-            if (!err) {
-                if (results_latest.length > 0) {
-                    // 바깥 JOIN 이 서브쿼리의 정렬을 보존한다는 보장이 없어
-                    // 여기서 다시 고른다. 정렬 키는 SQL 과 같아야 한다 —
-                    // ct 를 먼저 보고, 같으면 ri 로 가린다. 예전에는 ri 만 봐서
-                    // 클라이언트가 rn 을 직접 준 리소스가 엉뚱하게 최신이 됐다.
-                    let latest_obj = results_latest[0];
-                    for (let i = 1; i < results_latest.length; i++) {
-                        let c = results_latest[i];
-                        if (c.ct > latest_obj.ct ||
-                            (c.ct === latest_obj.ct && c.ri > latest_obj.ri)) {
-                            latest_obj = c;
-                        }
-                    }
-                    latestObj.push(latest_obj);
-                    callback('200');
-                }
-                else {
-                    _this.select_latest_resource(connection, parentObj, ++loop_count, latestObj, function (code) {
-                        callback(code);
-                    });
-                }
-            }
-            else {
-                callback('500-1');
-            }
+// loop_count 는 더 쓰지 않는다. 시간창 재귀가 사라져서다 —
+// 호출부(app.js)가 아직 0 을 넘기므로 인자는 남겨 둔다.
+exports.select_latest_resource = function (connection, parentObj, loop_count, latestObj, callback) {
+    var child_ty = parseInt(parentObj.ty, 10) + 1;
+    console.time('select_latest ' + parentObj.ri);
+    select_edge_resource(connection, parentObj.ri, child_ty, 'desc', latestObj,
+        function (code) {
+            console.timeEnd('select_latest ' + parentObj.ri);
+            callback(code);
         });
-    }
 };
 
+// select_latest_resource 와 정렬 방향만 다른 쌍둥이다.
+// 두 갈래의 SQL 은 이미 바이트 단위로 같았고 실행자만 갈라져 있었다.
+// (예전에는 MySQL 쪽에 ORDER BY 가 아예 없어 limit 1 이 임의의 행을 골랐다 —
+//  "가장 오래된 것"이라는 의미가 성립하지 않았다. 그건 앞서 고쳤다.)
 exports.select_oldest_resource = function (connection, ty, ri, oldestObj, callback) {
     console.time('select_oldest ' + ri);
-    if (global.usesqlite === 'true') {
-        var sqlite = require('./db_sqlite');
-        // Optimized SQLite query: select bottom 1 ordered by ct asc
-        // ct 는 초 단위라 동점이 흔하다. ri 로 가린다 (select_latest_resource 주석 참고).
-        var sql = 'select * from (select * from lookup where pi = \'' + ri + '\' and ty = \'' + ty + '\' order by ct asc, ri asc limit 1)b join ' + responder.typeRsrc[parseInt(ty, 10)] + ' as a on b.ri = a.ri';
-
-        sqlite.getResult(sql, connection, function (err, results_oldest) {
+    select_edge_resource(connection, ri, parseInt(ty, 10), 'asc', oldestObj,
+        function (code) {
             console.timeEnd('select_oldest ' + ri);
-            if (!err) {
-                if (results_oldest.length >= 1) {
-                    oldestObj.push(results_oldest[0]);
-                }
-                callback('200');
-            }
-            else {
-                callback('500-1');
-            }
+            callback(code);
         });
-    }
-    else {
-        // 예전에는 ORDER BY 가 아예 없어 limit 1 이 임의의 행을 골랐다 —
-        // "가장 오래된 것"이라는 의미가 성립하지 않았다.
-        var sql = 'select * from (select * from lookup where pi = \'' + ri + '\' and ty = \'' + ty + '\' order by ct asc, ri asc limit 1)b join ' + responder.typeRsrc[parseInt(ty, 10)] + ' as a on b.ri = a.ri';
-        db.getResult(sql, connection, function (err, results_oldest) {
-            console.timeEnd('select_oldest ' + ri);
-            if (!err) {
-                if (results_oldest.length >= 1) {
-                    oldestObj.push(results_oldest[0]);
-                }
-                callback('200');
-            }
-            else {
-                callback('500-1');
-            }
-        });
-    }
 };
 
 exports.select_lookup = function (connection, ri, callback) {
@@ -2662,33 +2630,17 @@ exports.update_ae = function (connection, obj, callback) {
     console.time('update_ae ' + obj.ri);
     _this.update_lookup(connection, obj, function (err, results) {
         if (!err) {
-            var sql2 = util.format('update ae set apn = \'%s\', poa = \'%s\', ae.or = \'%s\', rr = \'%s\' where ri = \'%s\'',
-                obj.apn, JSON.stringify(obj.poa), obj.or, obj.rr, obj.ri);
-            if (global.usesqlite === 'true') {
-                var sql2_sqlite = util.format('update ae set apn = \'%s\', poa = \'%s\', "or" = \'%s\', rr = \'%s\' where ri = \'%s\'',
-                    obj.apn, JSON.stringify(obj.poa), obj.or, obj.rr, obj.ri);
-                var sqlite = require('./db_sqlite');
-                sqlite.getResult(sql2_sqlite, connection, function (err, results) {
-                    if (!err) {
-                        console.timeEnd('update_ae ' + obj.ri);
-                        callback(err, results);
-                    }
-                    else {
-                        callback(err, results);
-                    }
-                });
-            }
-            else {
-                db.getResult(sql2, connection, function (err, results) {
-                    if (!err) {
-                        console.timeEnd('update_ae ' + obj.ri);
-                        callback(err, results);
-                    }
-                    else {
-                        callback(err, results);
-                    }
-                });
-            }
+            // 두 갈래의 차이는 예약어 or 의 인용뿐이었다 (`ae.or` vs `"or"`).
+            // 빌더가 방언별로 인용하므로 사라진다.
+            facade.run(facade.k('ae').where({ ri: obj.ri }).update({
+                apn: obj.apn,
+                poa: JSON.stringify(obj.poa || []),
+                or: obj.or,
+                rr: obj.rr
+            }), connection, function (uerr, ures) {
+                console.timeEnd('update_ae ' + obj.ri);
+                callback(uerr, ures);
+            });
         }
         else {
             callback(err, results);
@@ -2701,31 +2653,19 @@ exports.update_cnt = function (connection, obj, callback) {
     console.time(cnt_id);
     _this.update_lookup(connection, obj, function (err, results) {
         if (!err) {
-            var sql2 = util.format('update cnt set mni = \'%s\', mbs = \'%s\', mia = \'%s\', li = \'%s\', cnt.or = \'%s\', cni = \'%s\', cbs = \'%s\' where ri = \'%s\'',
-                obj.mni, obj.mbs, obj.mia, obj.li, obj.or, obj.cni, obj.cbs, obj.ri);
-            if (global.usesqlite === 'true') {
-                var sql2_sqlite = util.format('update cnt set mni = \'%s\', mbs = \'%s\', mia = \'%s\', li = \'%s\', "or" = \'%s\', cni = \'%s\', cbs = \'%s\' where ri = \'%s\'',
-                    obj.mni, obj.mbs, obj.mia, obj.li, obj.or, obj.cni, obj.cbs, obj.ri);
-                var sqlite = require('./db_sqlite');
-                sqlite.getResult(sql2_sqlite, connection, function (err, results) {
-                    if (!err) {
-                        console.timeEnd(cnt_id);
-                        callback(err, results);
-                    } else {
-                        callback(err, results);
-                    }
-                });
-            } else {
-                db.getResult(sql2, connection, function (err, results) {
-                    if (!err) {
-                        console.timeEnd(cnt_id);
-                        callback(err, results);
-                    }
-                    else {
-                        callback(err, results);
-                    }
-                });
-            }
+            // update_ae 와 같은 이유로 갈렸다 — `cnt.or` vs `"or"`.
+            facade.run(facade.k('cnt').where({ ri: obj.ri }).update({
+                mni: obj.mni,
+                mbs: obj.mbs,
+                mia: obj.mia,
+                li: obj.li,
+                or: obj.or,
+                cni: obj.cni,
+                cbs: obj.cbs
+            }), connection, function (uerr, ures) {
+                console.timeEnd(cnt_id);
+                callback(uerr, ures);
+            });
         }
         else {
             callback(err, results);
