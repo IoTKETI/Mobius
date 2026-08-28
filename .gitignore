@@ -4,10 +4,9 @@ node_modules/
 .idea/
 log/
 doc/
-# docs/ 는 배포본 PDF 등을 막기 위한 것이다. 다만 설계 문서(스펙)는 저장소에 남긴다.
-# 디렉터리 자체를 제외하면 하위를 되살릴 수 없으므로 docs/* 로 내용만 제외한다.
-docs/*
-!docs/superpowers/
+# 가이드/설계 문서는 저장소가 아니라 별도로 배포한다. superpowers 산출물도 여기 쌓이므로
+# 디렉터리 전체를 제외한다. 파일은 워킹 트리에 그대로 남는다.
+docs/
 # 동등성 스냅샷은 로컬 산출물이다 (.gitkeep 은 남긴다)
 tools/equivalence/out/*
 !tools/equivalence/out/.gitkeep
@@ -27,3 +26,9 @@ test_*
 .claude/
 CLAUDE.md
 .superpowers/
+
+# 자격증명 — 저장소에 들어가면 안 된다
+id_ed25519*
+id_rsa*
+*.pem
+*.key
