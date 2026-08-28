@@ -20,6 +20,37 @@ var ip = require("ip");
 
 var moment = require('moment');
 
+/**
+ * acp 행의 pv / pvs 를 권한 규칙 객체로 읽는다. 절대 던지지 않는다.
+ *
+ * 호출부가 전부 DB 콜백 안이라 여기서 던지면 잡을 곳이 없어 워커가 죽고,
+ * 깨진 acp 행 하나가 그 ACP 를 참조하는 모든 요청을 죽이는 크래시 루프가 된다.
+ *
+ * @returns {Object|null} 규칙 객체. 읽을 수 없으면 null — 호출부는 그 행을
+ *                        건너뛴다. 판단할 수 없는 규칙을 통과시키지 않는다.
+ */
+function parse_acp_rule(raw, attr, ri) {
+    var obj = raw;
+    if (typeof raw === 'string') {
+        try {
+            obj = JSON.parse(raw);
+        }
+        catch (e) {
+            console.error('[security] ' + attr + ' 를 읽을 수 없어 이 acp 를 건너뛴다 (' + ri + '): ' + e.message);
+            return null;
+        }
+    }
+    // JSON.parse('null') 은 던지지 않고 null 을 준다. 배열도 규칙 객체가 아니다.
+    if (obj === null || typeof obj !== 'object' || Array.isArray(obj)) {
+        console.error('[security] ' + attr + ' 가 권한 규칙 객체가 아니어서 이 acp 를 건너뛴다 (' + ri + ')');
+        return null;
+    }
+    return obj;
+}
+
+// 테스트에서 직접 부를 수 있게 내보낸다. 공개 진입점은 exports.check 하나다.
+exports._parse_acp_rule = parse_acp_rule;
+
 function security_check_action_pv(request, response, acpiList, cr, access_value, callback) {
     make_internal_ri(acpiList);
     var ri_list = [];
@@ -37,7 +68,20 @@ function security_check_action_pv(request, response, acpiList, cr, access_value,
                     }
                     else {
                         for (var i = 0; i < results_acp.length; i++) {
-                            var pvObj = JSON.parse(results_acp[i].pv);
+                            // 아래 try 는 :45 에서야 열리므로 이 파싱과 hasOwnProperty 는
+                            // 보호 밖이었다. 여기는 DB 콜백 안이라 던지면 잡을 곳이 없고,
+                            // 깨진 acp 행 하나가 그 ACP 를 참조하는 모든 요청을 죽인다.
+                            // JSON.parse('null') 은 던지지 않고 null 을 돌려주므로
+                            // 다음 줄 hasOwnProperty 에서 터지는 쪽이 더 찾기 어렵다.
+                            //
+                            // 정상 생성 경로는 JSON.stringify 로 넣지만, pv 는 생성 시
+                            // 타입 검사를 전혀 하지 않는다(pvs 만 acr 를 확인한다).
+                            // 읽을 수 없는 권한은 "권한 없음"으로 다룬다 — 판단할 수
+                            // 없는 규칙을 통과시키면 안 된다.
+                            var pvObj = parse_acp_rule(results_acp[i].pv, 'pv', results_acp[i].ri);
+                            if (pvObj === null) {
+                                continue;
+                            }
                             var from = request.headers['x-m2m-origin'];
                             if (pvObj.hasOwnProperty('acr')) {
                                 for (var index in pvObj.acr) {
@@ -226,7 +270,13 @@ function security_check_action_pvs(request, response, acpiList, access_value, cr
                     }
                     else {
                         for (var i = 0; i < results_acp.length; i++) {
-                            var pvsObj = JSON.parse(results_acp[i].pvs);
+                            // pv 쪽과 같은 이유로 보호한다. pvs 는 생성 시 acr 존재를
+                            // 확인하므로 pv 보다는 안전하지만, 마이그레이션이나 수동
+                            // 편집으로 들어온 행까지 막아주지는 않는다.
+                            var pvsObj = parse_acp_rule(results_acp[i].pvs, 'pvs', results_acp[i].ri);
+                            if (pvsObj === null) {
+                                continue;
+                            }
                             var from = request.headers['x-m2m-origin'];
                             for (var index in pvsObj.acr) {
                                 if (pvsObj.acr.hasOwnProperty(index)) {

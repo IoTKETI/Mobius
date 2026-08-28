@@ -789,6 +789,37 @@ exports.rsrcLname = rceLname;
 exports.attrLname = attrLname;
 exports.attrSname = attrSname;
 
+/**
+ * 배열이어야 하는 컬럼 값을 배열로 읽는다. 절대 던지지 않는다.
+ *
+ * 응답을 만드는 도중이라 여기서 예외가 나면 응답 전송도 커넥션 반납도 못 한다.
+ * 깨진 행 하나가 그 리소스를 읽는 모든 요청을 죽이는 크래시 루프가 된다.
+ *
+ * 읽을 수 없으면 빈 배열로 둔다 — resource.js 의 makeObject 가 null/'' 을
+ * '[]' 로 채우는 것과 같은 방침이다.
+ */
+function parse_db_array(raw, attr) {
+    if (Array.isArray(raw)) {
+        return raw;
+    }
+    if (raw == null || raw === '') {
+        return [];
+    }
+    var parsed;
+    try {
+        parsed = JSON.parse(raw);
+    }
+    catch (e) {
+        console.error('[typeCheckAction] ' + attr + ' 를 배열로 읽을 수 없다: ' + e.message);
+        return [];
+    }
+    if (!Array.isArray(parsed)) {
+        console.error('[typeCheckAction] ' + attr + ' 가 배열이 아니다');
+        return parsed == null ? [] : [].concat(parsed);
+    }
+    return parsed;
+}
+
 function typeCheckAction(index1, body_Obj) {
     for (var index2 in body_Obj) {
         if(body_Obj.hasOwnProperty(index2)) {
@@ -911,7 +942,15 @@ function typeCheckAction(index1, body_Obj) {
             }
             else if (index2 == 'srv' || index2 == 'aa' || index2 == 'at' || index2 == 'poa' || index2 == 'lbl' || index2 == 'acpi' || index2 == 'srt' || index2 == 'nu' || index2 == 'mid' || index2 == 'macp') {
                 if (!Array.isArray(body_Obj[index2])) {
-                    body_Obj[index2] = JSON.parse(body_Obj[index2]);
+                    // 여기 오는 값은 이미 한 번 파싱에 실패한 것이다.
+                    // resource.js 의 makeObject 가 같은 컬럼을 try/catch 로 파싱하는데,
+                    // 실패하면 로그만 찍고 깨진 원본 문자열을 그대로 남긴다.
+                    // 그래서 이 두 번째 파싱은 "성공할 값은 안 오고 던질 값만 오는" 자리다.
+                    //
+                    // 응답 직렬화 도중이라 여기서 던지면 응답도 커넥션 반납도 못 하고
+                    // 워커가 죽는다. 깨진 행 하나가 그 리소스를 읽는 모든 요청을
+                    // 죽이는 크래시 루프가 된다.
+                    body_Obj[index2] = parse_db_array(body_Obj[index2], index2);
                 }
 
                 if (index2 == 'srt') {
@@ -993,8 +1032,21 @@ function typeCheckAction(index1, body_Obj) {
                 delete body_Obj[index2];
             }
             else if (index2 == 'pv' || index2 == 'pvs') {
-                if(getType(body_Obj[index2]) === 'string') {
+                // 가드가 뒤집혀 있었다. getType 은 문자열이 객체로 파싱되면
+                // 'string_object' 를, *파싱에 실패하면* 'string' 을 돌려준다.
+                // 그래서 === 'string' 조건은 정상적으로 저장된 pv 를 걸러내고
+                // (원래 의도한 파싱은 영영 일어나지 않았다) 파싱 불가능한 값만
+                // JSON.parse 로 넘겼다 — 반드시 던지는 자리였다.
+                //
+                // makeObject 가 이미 pv/pvs 를 파싱하므로 정상 값은 여기 오면
+                // 객체다. 문자열로 남아 있다는 것은 그때 실패했다는 뜻이다.
+                // 빈 객체로 바꿔치면 없는 권한을 지어내는 셈이라, 원본을 그대로
+                // 두고 로그만 남긴다 — 운영자가 깨진 행을 알아볼 수 있어야 한다.
+                if (getType(body_Obj[index2]) === 'string_object') {
                     body_Obj[index2] = JSON.parse(body_Obj[index2]);
+                }
+                else if (typeof body_Obj[index2] === 'string') {
+                    console.error('[typeCheckAction] ' + index2 + ' 를 읽을 수 없어 원본 그대로 내보낸다');
                 }
             }
         }
@@ -1780,9 +1832,37 @@ exports.response_result = function(request, response, status, rsc, cap, callback
         _this.typeCheckforJson(body_Obj);
 
         if(rootnm === 'req') {
-            body_Obj['m2m:' + rootnm].pc = JSON.parse(body_Obj['m2m:' + rootnm].pc);
-            if(Object.keys(body_Obj['m2m:' + rootnm].pc)[0] === 'm2m:uril') {
-                body_Obj['m2m:' + rootnm].pc['m2m:uril'] = body_Obj['m2m:' + rootnm].pc['m2m:uril'].split(' ');
+            // req 의 pc 는 그 요청의 결과다. 아직 결과가 없으면 비어 있는데,
+            // 예전에는 방어 없이 JSON.parse 를 불러 String(undefined) 가
+            // '"undefined" is not valid JSON' 으로 터졌다 — 응답 전송과 커넥션
+            // 반납 전이라 워커가 죽고 커넥션이 샜다.
+            //
+            // 논블로킹 POST 가 만든 req 를 조회하면 정확히 이 상태다. 즉 평범한
+            // 요청 두 번으로 워커를 죽일 수 있었다.
+            var req_obj = body_Obj['m2m:' + rootnm];
+            var pc_parsed = null;
+            if (typeof req_obj.pc === 'string' && req_obj.pc !== '') {
+                try {
+                    pc_parsed = JSON.parse(req_obj.pc);
+                }
+                catch (e) {
+                    console.error('[response_result] req 의 pc 를 읽을 수 없다: ' + e.message);
+                }
+            }
+            else if (req_obj.pc != null && typeof req_obj.pc === 'object') {
+                pc_parsed = req_obj.pc;
+            }
+
+            if (pc_parsed == null) {
+                // 결과가 아직 없다. pc 는 선택 속성이므로 빼고 내보낸다 —
+                // 빈 객체를 넣으면 "결과가 비어 있다" 는 뜻이 되어 거짓말이 된다.
+                delete req_obj.pc;
+            }
+            else {
+                req_obj.pc = pc_parsed;
+                if(Object.keys(req_obj.pc)[0] === 'm2m:uril') {
+                    req_obj.pc['m2m:uril'] = req_obj.pc['m2m:uril'].split(' ');
+                }
             }
         }
 
@@ -1790,7 +1870,11 @@ exports.response_result = function(request, response, status, rsc, cap, callback
 
         // console.log(bodyString); // 응답 바디 전체 덤프 - 로그 폭주 원인이라 비활성
 
-        if (request.query.rt == 3 || (request.query.rt == 2 && request.headers['x-m2m-rtu'] == null && request.headers['x-m2m-rtu'] == '')) {
+        // rt 가 1/2/3 이 아니거나 rt==2 인데 x-m2m-rtu 가 없으면, 예전에는 두 조건이
+        // 모두 거짓이 되어 콜백이 사라졌다 — 응답도 connection.release() 도 없이
+        // 요청이 매달렸다. 크래시가 아니라 워커 재시작도 안 걸리는 조용한 고갈이다.
+        // 이제 논블로킹만 명시적으로 잡고 나머지는 기본(블로킹)으로 보낸다.
+        if (!(request.query.rt == 1 || (request.query.rt == 2 && request.headers['x-m2m-rtu'] != null && request.headers['x-m2m-rtu'] != ''))) {
             if (request.usebodytype == 'json') {
             }
             else if (request.usebodytype == 'cbor') {
@@ -1813,7 +1897,7 @@ exports.response_result = function(request, response, status, rsc, cap, callback
 
             callback();
         }
-        else if (request.query.rt == 1 || (request.query.rt == 2 && request.headers['x-m2m-rtu'] != null && request.headers['x-m2m-rtu'] != '')) {
+        else {
             store_to_req_resource(request, bodyString, rsc, cap, function () {
                 body_Obj = null;
                 rspObj = null;
@@ -1884,7 +1968,11 @@ exports.response_rcn3_result = function(request, response, status, rsc, cap, cal
 
     var bodyString = JSON.stringify(body_Obj);
 
-    if (request.query.rt == 3 || (request.query.rt == 2 && request.headers['x-m2m-rtu'] == null && request.headers['x-m2m-rtu'] == '')) {
+    // rt 가 1/2/3 이 아니거나 rt==2 인데 x-m2m-rtu 가 없으면, 예전에는 두 조건이
+    // 모두 거짓이 되어 콜백이 사라졌다 — 응답도 connection.release() 도 없이
+    // 요청이 매달렸다. 크래시가 아니라 워커 재시작도 안 걸리는 조용한 고갈이다.
+    // 이제 논블로킹만 명시적으로 잡고 나머지는 기본(블로킹)으로 보낸다.
+    if (!(request.query.rt == 1 || (request.query.rt == 2 && request.headers['x-m2m-rtu'] != null && request.headers['x-m2m-rtu'] != ''))) {
         if (request.usebodytype == 'json') {
         }
         else if (request.usebodytype == 'cbor') {
@@ -1935,7 +2023,7 @@ exports.response_rcn3_result = function(request, response, status, rsc, cap, cal
 
         callback();
     }
-    else if (request.query.rt == 1 || (request.query.rt == 2 && request.headers['x-m2m-rtu'] != null && request.headers['x-m2m-rtu'] != '')) {
+    else {
         store_to_req_resource(request, bodyString, rsc, cap, function () {
             body_Obj = null;
             rspObj = null;
@@ -1994,7 +2082,11 @@ exports.search_result = function(request, response, status, rsc, cap, callback) 
     if (request.headers.rootnm == 'uril') {
         var rootnm = request.headers.rootnm;
 
-        if (request.query.rt == 3) {
+        // rt 가 1/2/3 이 아니거나 rt==2 인데 x-m2m-rtu 가 없으면, 예전에는 두 조건이
+        // 모두 거짓이 되어 콜백이 사라졌다 — 응답도 connection.release() 도 없이
+        // 요청이 매달렸다. 크래시가 아니라 워커 재시작도 안 걸리는 조용한 고갈이다.
+        // 이제 논블로킹만 명시적으로 잡고 나머지는 기본(블로킹)으로 보낸다.
+        if (!(request.query.rt == 1)) {
             body_Obj['m2m:' + rootnm] = body_Obj[rootnm];
             delete body_Obj[rootnm];
 
@@ -2030,7 +2122,7 @@ exports.search_result = function(request, response, status, rsc, cap, callback) 
 
             callback();
         }
-        else if (request.query.rt == 1) {
+        else {
             body_Obj[rootnm] = body_Obj[rootnm].toString().replace(/,/g, ' ');
 
             body_Obj['m2m:' + rootnm] = body_Obj[rootnm];
@@ -2096,7 +2188,11 @@ exports.search_result = function(request, response, status, rsc, cap, callback) 
 
         bodyString = JSON.stringify(body_Obj);
 
-        if (request.query.rt == 3 || (request.query.rt == 2 && request.headers['x-m2m-rtu'] == null && request.headers['x-m2m-rtu'] == '')) {
+        // rt 가 1/2/3 이 아니거나 rt==2 인데 x-m2m-rtu 가 없으면, 예전에는 두 조건이
+        // 모두 거짓이 되어 콜백이 사라졌다 — 응답도 connection.release() 도 없이
+        // 요청이 매달렸다. 크래시가 아니라 워커 재시작도 안 걸리는 조용한 고갈이다.
+        // 이제 논블로킹만 명시적으로 잡고 나머지는 기본(블로킹)으로 보낸다.
+        if (!(request.query.rt == 1 || (request.query.rt == 2 && request.headers['x-m2m-rtu'] != null && request.headers['x-m2m-rtu'] != ''))) {
             if (request.usebodytype == 'json') {
             }
             else if (request.usebodytype == 'cbor') {
@@ -2124,7 +2220,7 @@ exports.search_result = function(request, response, status, rsc, cap, callback) 
 
             callback();
         }
-        else if (request.query.rt == 1 || (request.query.rt == 2 && request.headers['x-m2m-rtu'] != null && request.headers['x-m2m-rtu'] != '')) {
+        else {
             store_to_req_resource(request, bodyString, rsc, cap, function () {
                 body_Obj = null;
                 rspObj = null;

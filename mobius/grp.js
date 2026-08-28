@@ -53,7 +53,23 @@ function check_mt(request, res_body, callback) {
         });
     }
     else { // json
-        var result = JSON.parse(res_body);
+        // 원격 CSE 가 준 응답 본문이라 JSON 이 아닐 수 있다 — 앞단 프록시의 HTML
+        // 오류 페이지, 잘린 응답, Accept 를 무시한 XML 등. 게다가 이 분기는
+        // cbor 요청도 함께 삼키는데, check_member 는 Accept: application/cbor 로
+        // GET 하므로 그때는 확정적으로 던진다.
+        //
+        // 여기는 res.on('end') 안이라 던지면 잡을 곳이 없어 워커가 죽는다.
+        // 멤버 타입을 확인하지 못한 것이므로 '0'(불일치)으로 다룬다.
+        var result;
+        try {
+            result = JSON.parse(res_body);
+        }
+        catch (e) {
+            console.error('[grp check_mt] 멤버 응답이 JSON 이 아니다: ' + e.message);
+            callback('0');
+            return;
+        }
+
         for (var prop in result) {
             if(result.hasOwnProperty(prop)) {
                 if (result[prop].ty == mt) {
@@ -82,7 +98,16 @@ function check_member(request, response, req_count, cse_poa, callback) {
             absolute_ri = absolute_ri.replace(/\/[^\/]+\/?/, '/');
         }
         db_sql.get_ri_sri(request.db_connection, absolute_ri, function (err, results) {
-            ri = ((results.length == 0) ? ri : results[0].ri);
+            // err 를 보지 않았다. db 계층은 실패할 때 callback(true, err) 로 부르므로
+            // results 가 에러 객체다 — results.length 가 undefined 라 `undefined == 0`
+            // 이 false 가 되고, 곧바로 results[0].ri 에서 워커가 죽었다.
+            // 같은 호출을 하는 fopt.js 는 if(!err) 로 감싸고 있다.
+            //
+            // 조회에 실패하면 원래 값을 그대로 쓴다 — results.length == 0 일 때와 같다.
+            if (err) {
+                console.error('[grp check_member] get_ri_sri 실패, 입력한 ri 를 그대로 쓴다: ' + absolute_ri);
+            }
+            ri = ((err || results.length == 0) ? ri : results[0].ri);
             var target_cb = ri.split('/')[1];
             if (target_cb != usecsebase) {
                 if (cse_poa[target_cb]) {
