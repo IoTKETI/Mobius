@@ -1649,7 +1649,11 @@ function get_target_url(request, response, callback) {
             request.option = '/latest';
         }
         else {
+            // return 이 없으면 아래 get_resource_from_url 까지 실행이 흘러 콜백이 두 번
+            // 불린다. 첫 호출이 409 를 보내고 핸들러가 request = null 로 지운 뒤라
+            // 두 번째 호출은 error_result 에서 request.query 를 읽다 워커를 죽였다.
             callback('409-1');
+            return;
         }
     }
     else if (absolute_url_arr[absolute_url_arr.length - 1] == 'latest') {
@@ -1659,7 +1663,11 @@ function get_target_url(request, response, callback) {
             request.option = '/latest';
         }
         else {
+            // return 이 없으면 아래 get_resource_from_url 까지 실행이 흘러 콜백이 두 번
+            // 불린다. 첫 호출이 409 를 보내고 핸들러가 request = null 로 지운 뒤라
+            // 두 번째 호출은 error_result 에서 request.query 를 읽다 워커를 죽였다.
             callback('409-1');
+            return;
         }
     }
     else if (absolute_url_arr[absolute_url_arr.length - 1] == 'ol') {
@@ -1669,7 +1677,9 @@ function get_target_url(request, response, callback) {
             request.option = '/oldest';
         }
         else {
-            callback('409-2')
+            // 위와 같은 이유로 return 이 필요하다 (콜백 중복 호출 -> 워커 크래시)
+            callback('409-2');
+            return;
         }
     }
     else if (absolute_url_arr[absolute_url_arr.length - 1] == 'oldest') {
@@ -1679,7 +1689,9 @@ function get_target_url(request, response, callback) {
             request.option = '/oldest';
         }
         else {
-            callback('409-2')
+            // 위와 같은 이유로 return 이 필요하다 (콜백 중복 호출 -> 워커 크래시)
+            callback('409-2');
+            return;
         }
     }
     else if (absolute_url_arr[absolute_url_arr.length - 1] == 'fopt') {
