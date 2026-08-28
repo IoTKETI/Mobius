@@ -1645,7 +1645,10 @@ exports.response_result = function(request, response, status, rsc, cap, callback
 
     if (request.query.rcn == 0 && Object.keys(body_Obj)[0] != 'dbg') {
         if (request.query.rt == 3) {
-            response.status(status).end('');
+            // parseInt: status 는 resultStatusCode 테이블에서 '400' 같은 문자열로
+            // 온다. Express 는 문자열 상태코드를 deprecated 로 경고하는데, 그게 모든
+            // 응답마다 찍혀 에러 로그를 덮어써서 진짜 에러가 묻혔다.
+            response.status(parseInt(status, 10)).end('');
 
             var rspObj = {
                 rsc: rsc,
@@ -1796,7 +1799,7 @@ exports.response_result = function(request, response, status, rsc, cap, callback
                 bodyString = _this.convertXml(rootnm, body_Obj);
             }
 
-            response.status(status).end(bodyString);
+            response.status(parseInt(status, 10)).end(bodyString);
 
             rspObj = {};
             rspObj.rsc = rsc;
@@ -1915,7 +1918,7 @@ exports.response_rcn3_result = function(request, response, status, rsc, cap, cal
             bodyString = xml.end({pretty: false, indent: '  ', newline: '\n'}).toString();
         }
 
-        response.status(status).end(bodyString);
+        response.status(parseInt(status, 10)).end(bodyString);
 
         var rspObj = {};
         rspObj.rsc = rsc;
@@ -2016,7 +2019,7 @@ exports.search_result = function(request, response, status, rsc, cap, callback) 
                 bodyString = xml.end({pretty: false, indent: '  ', newline: '\n'}).toString();
             }
 
-            response.status(status).end(bodyString);
+            response.status(parseInt(status, 10)).end(bodyString);
 
             var rspObj = {};
             rspObj.rsc = rsc;
@@ -2107,7 +2110,7 @@ exports.search_result = function(request, response, status, rsc, cap, callback) 
                 }
             }
 
-            response.status(status).end(bodyString);
+            response.status(parseInt(status, 10)).end(bodyString);
 
             rspObj = {};
             rspObj.rsc = rsc;
@@ -2179,7 +2182,7 @@ exports.error_result = function(request, response, status, rsc, dbg_string, call
 
     body_Obj = null;
 
-    response.status(status).end(bodyString);
+    response.status(parseInt(status, 10)).end(bodyString);
 
     var rspObj = {};
     rspObj.rsc = rsc;

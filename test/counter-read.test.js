@@ -154,25 +154,41 @@ test('get_cni_count: cnt 행이 없으면 0 을 돌려준다', function (t, done
 // 낮추면 옛 값으로 한도를 판정했다. 이제 DB 최신값을 쓴다.
 test('get_cni_count: mni/mbs 를 DB 최신값으로 판정한다', function (t, done) {
     // DB 는 mni=5 인데 호출자 객체는 낡은 mni=100 을 들고 있다.
-    // purge 가 실제로 줄이는 상황을 흉내내려고 두 번째 조회부터는 cni=5 를 준다.
+    // cni(7) > mni(5) 이므로 purge 가 시도돼야 한다. obj.mni=100 을 썼다면 안 돈다.
+    //
+    // delete_oldest 는 아직 구 경로(legacy)라 파사드 tap 에는 안 잡힌다.
+    // 그래서 LEGACY_ 기록으로 판정한다.
     const { sql_action, seen } = tapAdapter(true, [{ cni: 7, cbs: 70, st: 3, mni: 5, mbs: 1000 }]);
-    const adapter = require(path.join(DB, 'sqlite.js'));
-    const inner = adapter.execute;
-    let selects = 0;
-    adapter.execute = function (conn, sql, bindings, cb) {
-        if (/^select .*`cni`/i.test(sql) && ++selects > 1) {
-            seen.push({ sql: sql, bindings: bindings });
-            return cb(null, [{ cni: 5, cbs: 50, st: 3, mni: 5, mbs: 1000 }]);
-        }
-        return inner(conn, sql, bindings, cb);
-    };
 
     sql_action.get_cni_count({}, { ri: '/M/c1', ty: '3', mni: 100, mbs: 1000 },
-        guard(done, function (cni) {
-            // cni(7) > mni(5) 이므로 purge 가 돌아야 한다. obj.mni=100 을 썼다면 안 돈다.
-            const purgeLogged = seen.some(function (s) { return /^delete|^select .*`cin`/i.test(s.sql); });
-            assert.ok(purgeLogged || selects > 1, 'DB 의 mni=5 를 썼다면 purge 가 돌아야 한다');
-            assert.strictEqual(cni, 5, 'purge 후 값을 돌려줘야 한다');
+        guard(done, function (cni, cbs, st) {
+            const purgeTried = seen.some(function (s) {
+                return /^LEGACY_/.test(s.sql) && /cin|lookup/i.test(s.legacySql || '');
+            });
+            assert.ok(purgeTried, 'DB 의 mni=5 를 썼다면 purge 가 시도돼야 한다: ' +
+                JSON.stringify(seen.map(function (s) { return s.sql; })));
+
+            // delete_oldest 가 아무것도 못 지웠으면(스텁이 후보 0건) 재조회 없이
+            // 방금 읽은 값을 그대로 돌려준다 — 배포본의 라이브락 수정(204f7a4).
+            assert.strictEqual(cni, 7, '지운 게 없으면 읽은 값을 그대로 돌려준다');
+            assert.strictEqual(cbs, 70);
+            assert.strictEqual(st, 3);
+            done();
+        }));
+});
+
+// 배포본 204f7a4 의 핵심: delete_oldest 가 진행 없이 성공처럼 반환하는 경로
+// (NOWAIT 스킵 / 이미 정리됨 / 후보 0건)에서 재귀하면 라이브락이 된다.
+// 실측 장애: load 1085, 동시 쿼리 1243건, 락 타임아웃 3330건.
+test('get_cni_count: 지운 게 없으면 재조회하지 않는다 (라이브락 방지)', function (t, done) {
+    const { sql_action, seen } = tapAdapter(true, [{ cni: 99, cbs: 990, st: 1, mni: 5, mbs: 50 }]);
+
+    sql_action.get_cni_count({}, { ri: '/M/c1', ty: '3', mni: 5, mbs: 50 },
+        guard(done, function () {
+            // 저장값 조회(select_cni_parent)는 딱 한 번이어야 한다.
+            const reads = seen.filter(function (s) { return /^select .*`cni`/i.test(s.sql); });
+            assert.strictEqual(reads.length, 1,
+                '지운 게 없는데 재조회했다 (' + reads.length + '회)');
             done();
         }));
 });

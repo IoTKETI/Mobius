@@ -469,7 +469,26 @@ exports.get_cni_count = function (connection, obj, callback, depth) {
             if (count < 1) count = 1;
 
             console.log('[checkAndPurge] delete_oldest count=' + count);
-            delete_oldest(connection, obj, count, function (err) {
+            delete_oldest(connection, obj, count, function (err, deleted) {
+                // 실제로 지운 게 있을 때만 재조회·재귀한다. delete_oldest 는
+                // NOWAIT 스킵 / 이미 정리됨 / 후보 0건 세 경로에서 진행 없이
+                // 성공처럼 반환하는데, 예전에는 그걸 구분하지 않고 무조건
+                // 재귀해서 cni 가 그대로인 채 같은 사이클을 초당 474회 돌았다.
+                // 워커 26개가 같은 cnt 행을 두고 NOWAIT 경합을 하니 대부분
+                // 스킵으로 떨어져 라이브락이 됐고, 한 바퀴마다 10만행
+                // COUNT+SUM 이 돌아 mysqld 가 21코어를 먹었다.
+                // (2026-08-27 실측: load 1085, 동시 쿼리 1243건, 그중 99%가
+                //  MUL3/disarm 집계. 같은 cnt 행을 기다리던 cnt_man flush 는
+                //  ER_LOCK_WAIT_TIMEOUT 3330건.)
+                // 지운 건수가 있으면 cni 는 반드시 줄어드므로 재귀는 종료한다.
+                if (!deleted) {
+                    callback(cni, cbs, st);
+                    return;
+                }
+
+                // 위의 !deleted 가 정상 종료 조건이고, 이건 그래도 안 줄어드는
+                // 경우의 최후 방어다. 지웠다고 보고했는데 카운터가 안 줄면
+                // (드리프트, 다른 워커와의 경합) 무한히 돌 수 있다.
                 if (depth + 1 >= MAX_PURGE_ROUNDS) {
                     console.error('[get_cni_count] purge 가 ' + MAX_PURGE_ROUNDS +
                         '회 안에 수렴하지 않았다 — ri=' + obj.ri +
@@ -485,6 +504,21 @@ exports.get_cni_count = function (connection, obj, callback, depth) {
             });
         }
         else {
+            // 여기 있던 드리프트 보정(UPDATE cnt SET cni=<실측> WHERE cni<>...)은
+            // 뺐다. 그 코드는 cni/cbs 가 select_count_ri 의 **실측값**이라는 전제로
+            // 쓰였는데, 이제 select_cni_parent 가 읽는 **저장값**이다. 같은 값을
+            // 같은 값과 비교하므로 WHERE 가 절대 맞지 않아 영구 no-op 이면서
+            // flush 마다 쿼리를 한 번 더 쓰는 코드가 된다.
+            //
+            // 실측 재집계를 없앤 이유는 O(n) 이기 때문이다 — CIN 100k 기준
+            // 7.2ms, 그리고 이 저장소의 운영 배포에는 CIN 이 593만 건인 컨테이너가
+            // 있다. 그 집계가 매 flush 마다 도는 것이 2026-08-27 장애의 직접 원인이었다.
+            //
+            // 드리프트는 두 곳이 잡는다:
+            //   delete_oldest        purge 트랜잭션 안에서 실측 재카운트로 절대 보정
+            //   reconcile_cnt_counters  기동 시 + 일 1회 전수 보정
+            // 남는 구멍은 "버스트로 어긋난 뒤 조용해진 컨테이너"이고,
+            // 다음 reconcile 까지 최대 하루 어긋난 채로 있는다.
             callback(cni, cbs, st);
         }
     }
@@ -2298,7 +2332,11 @@ function delete_oldest(connection, obj, count, callback) {
             var sqlite = require('./db_sqlite');
             sqlite.getResult(sql, connection, function (err, results) {
                 console.timeEnd(del_id);
-                callback(err, results);
+                // MySQL 경로와 같은 규약: 두 번째 인자는 실제 삭제 건수.
+                // 객체를 그대로 넘기면 0건 삭제여도 truthy 라 호출자가 재귀한다.
+                var deleted = 0;
+                if (!err && results) deleted = results.changes || results.affectedRows || 0;
+                callback(err, deleted);
             });
         });
     }
@@ -2365,12 +2403,30 @@ function delete_oldest(connection, obj, count, callback) {
                     var actual_cbs = parseInt(rcRows[0].s || 0, 10);
 
                     if (actual_cni <= mni && actual_cbs <= mbs) {
-                        // 다른 워커가 이미 정리 완료 → 커밋 후 종료
-                        connection.commit(function () {
-                            console.log('[delete_oldest] already clean (actual_cni=' + actual_cni + ' <= mni=' + mni + '), skip');
-                            console.timeEnd(del_id);
-                            callback(null);
-                        });
+                        // 다른 워커가 이미 정리 완료. 저장값이 실측과 어긋나 있으면
+                        // (재시작으로 유실된 디바운스 델타, 과거 flush 실패 누적)
+                        // 락을 쥔 김에 실측값으로 보정하고 종료 — 드리프트 자가 치유.
+                        var stored_cni = parseInt(lockRows[0].cni, 10);
+                        var stored_cbs = parseInt(lockRows[0].cbs, 10);
+                        var finish_clean = function () {
+                            connection.commit(function () {
+                                console.log('[delete_oldest] already clean (actual_cni=' + actual_cni + ' <= mni=' + mni + '), skip');
+                                console.timeEnd(del_id);
+                                callback(null);
+                            });
+                        };
+                        if (stored_cni !== actual_cni || stored_cbs !== actual_cbs) {
+                            var heal_sql = util.format(
+                                "UPDATE cnt SET cni = %s, cbs = %s WHERE ri = '%s'",
+                                actual_cni, actual_cbs, obj.ri);
+                            db.getResult(heal_sql, connection, function () {
+                                console.log('[delete_oldest] healed drift: cni ' + stored_cni + '->' + actual_cni + ' cbs ' + stored_cbs + '->' + actual_cbs);
+                                finish_clean();
+                            });
+                        }
+                        else {
+                            finish_clean();
+                        }
                         return;
                     }
 
@@ -2405,15 +2461,20 @@ function delete_oldest(connection, obj, count, callback) {
                             if (total_cnt >= need_cnt && total_cs >= need_cs) break;
                         }
 
-                        // 자식(CIN)이 지워졌으니 부모 stateTag 도 올라가야 한다.
-                        // CIN 생성(cnt_man)과 단건 삭제(update_parent_by_delete)는
-                        // 이미 올리는데 보존 정책 purge 만 빠져 있었다.
-                        // MySQL 은 다중 테이블 UPDATE 를 쓸 수 있어 왕복이 늘지 않는다
-                        // (cnt_man.js 의 MySQL 경로와 같은 형태).
+                        // cni/cbs 는 상대 감산(cni = cni - n)이 아니라 실측 기반
+                        // 절대값을 쓴다. 어차피 이 트랜잭션이 실측 재카운트를 이미
+                        // 했으므로 공짜이고, 재시작·과거 flush 실패로 누적된 드리프트가
+                        // 매 purge마다 자가 치유된다.
+                        // (커밋 후 도착하는 디바운스 델타만큼의 오차는 남지만 ~1초분으로 유계)
+                        //
+                        // lookup.st 는 증분이다. 자식(CIN)이 지워졌으니 부모 stateTag 가
+                        // 올라가야 하는데 보존 정책 purge 만 빠져 있었다. st 는 변경
+                        // 카운터라 실측값이 없으므로 절대값으로 쓸 수 없다.
+                        // MySQL 은 다중 테이블 UPDATE 를 쓸 수 있어 왕복이 늘지 않는다.
                         var update_sql = util.format(
-                            "UPDATE cnt, lookup SET cnt.cni = cnt.cni - %s, cnt.cbs = cnt.cbs - %s, " +
+                            "UPDATE cnt, lookup SET cnt.cni = %s, cnt.cbs = %s, " +
                             "lookup.st = lookup.st + 1 WHERE cnt.ri = '%s' AND lookup.ri = '%s'",
-                            total_cnt, total_cs, obj.ri, obj.ri);
+                            actual_cni - total_cnt, actual_cbs - total_cs, obj.ri, obj.ri);
                         db.getResult(update_sql, connection, function (err4) {
                             if (err4) {
                                 connection.rollback(function () {});
@@ -2435,9 +2496,12 @@ function delete_oldest(connection, obj, count, callback) {
                                     return;
                                 }
                                 connection.commit(function (commitErr) {
-                                    console.log('[delete_oldest] committed: deleted=' + (results ? results.affectedRows : 0));
+                                    var deleted = (results && results.affectedRows) ? results.affectedRows : 0;
+                                    console.log('[delete_oldest] committed: deleted=' + deleted);
                                     console.timeEnd(del_id);
-                                    callback(commitErr);
+                                    // 두 번째 인자가 호출자의 재귀 여부를 정한다.
+                                    // 진행 없이 반환하는 다른 경로들은 undefined 를 넘긴다.
+                                    callback(commitErr, commitErr ? 0 : deleted);
                                 });
                             });
                         });
@@ -3452,36 +3516,75 @@ exports.delete_lookup_et = function (connection, et, limit, callback) {
 };
 
 
-// 부모(pi)가 lookup에 없는 고아 행을 배치 단위로 반복 삭제.
-// 비동기 subtree 삭제 중 프로세스가 죽었을 때의 잔여물 정리용.
-// SELECT(무락 consistent read)로 1000건씩 모은 뒤 PK로 지워서
-// 라이브 트래픽 중인 대형 테이블에서도 락 시간이 짧다.
-// 다단계 고아(자식의 자식)는 다음 루프의 SELECT가 잡는다.
+// 부모(pi)가 lookup에 없는 고아 행 정리 (비동기 subtree 삭제 중 크래시 잔여물).
+// ri 키셋으로 5000행씩 훑으며 각 배치의 부모 존재를 PK IN 조회로 확인하는
+// 증분 스캔. 예전의 풀테이블 LEFT JOIN 안티조인은 수백만 행 테이블(ketigcs)
+// 에서 60초 쿼리 타임아웃으로 매 부팅 실패했다 — 고아가 0건일 때(평상시)가
+// 오히려 최악 케이스였다. 지금은 쿼리 하나하나가 인덱스 범위 조회라 짧고,
+// 사이사이 이벤트 루프를 놓아 라이브 트래픽을 막지 않는다.
+// 다단계 고아: 같은 패스에서 부모가 지워진 자식은 다음 패스가 잡는다.
+// 패스는 삭제가 있었던 동안만 반복한다 (평상시 1패스로 끝).
 exports.delete_orphan_lookup = function (connection, callback) {
-    var sel = "SELECT l.ri FROM lookup l LEFT JOIN lookup p ON l.pi = p.ri WHERE p.ri IS NULL AND l.pi <> '' LIMIT 1000";
     var exec = (global.usesqlite === 'true') ? require('./db_sqlite').getResult : db.getResult;
-    exec(sel, connection, function (err, rows) {
-        if (err) {
-            console.error('[delete_orphan_lookup] select error:', rows);
-            callback(rows);
-            return;
-        }
-        if (rows.length === 0) {
-            callback(null);
-            return;
-        }
-        var in_list = rows.map(r => `'${r.ri}'`).join(',');
-        exec("DELETE FROM lookup WHERE ri IN (" + in_list + ")", connection, function (err2, result) {
-            if (err2) {
-                console.error('[delete_orphan_lookup] delete error:', result);
-                callback(result);
+    var BATCH = 5000;
+    var esc = function (s) { return String(s).replace(/\\/g, '\\\\').replace(/'/g, "\\'"); };
+    var grand_total = 0;
+
+    function run_pass(pass_deleted, last_ri, pass_done) {
+        var sel = "SELECT ri, pi FROM lookup WHERE ri > '" + esc(last_ri) + "' AND pi <> '' ORDER BY ri LIMIT " + BATCH;
+        exec(sel, connection, function (err, rows) {
+            if (err) {
+                console.error('[delete_orphan_lookup] scan error:', rows);
+                callback(rows);
                 return;
             }
-            var n = (result.affectedRows || result.changes || 0);
-            console.log('[delete_orphan_lookup] deleted ' + n + ' orphan row(s)');
-            _this.delete_orphan_lookup(connection, callback);
+            if (!rows.length) {
+                pass_done(pass_deleted);
+                return;
+            }
+            var next_ri = rows[rows.length - 1].ri;
+            var pi_set = {};
+            for (var i = 0; i < rows.length; i++) pi_set[rows[i].pi] = 1;
+            var in_list = Object.keys(pi_set).map(function (p) { return "'" + esc(p) + "'"; }).join(',');
+            exec("SELECT ri FROM lookup WHERE ri IN (" + in_list + ")", connection, function (err2, prows) {
+                if (err2) {
+                    console.error('[delete_orphan_lookup] parent check error:', prows);
+                    callback(prows);
+                    return;
+                }
+                var exists = {};
+                for (var j = 0; j < prows.length; j++) exists[prows[j].ri] = 1;
+                var orphans = rows.filter(function (r) { return !exists[r.pi]; }).map(function (r) { return "'" + esc(r.ri) + "'"; });
+                if (!orphans.length) {
+                    setImmediate(run_pass, pass_deleted, next_ri, pass_done);
+                    return;
+                }
+                exec("DELETE FROM lookup WHERE ri IN (" + orphans.join(',') + ")", connection, function (err3, dres) {
+                    if (err3) {
+                        console.error('[delete_orphan_lookup] delete error:', dres);
+                        callback(dres);
+                        return;
+                    }
+                    var n = (dres.affectedRows || dres.changes || 0);
+                    grand_total += n;
+                    console.log('[delete_orphan_lookup] deleted ' + n + ' orphan row(s)');
+                    setImmediate(run_pass, pass_deleted + n, next_ri, pass_done);
+                });
+            });
         });
-    });
+    }
+
+    (function next_pass() {
+        run_pass(0, '', function (deleted_in_pass) {
+            if (deleted_in_pass > 0) {
+                next_pass();
+            }
+            else {
+                if (grand_total > 0) console.log('[delete_orphan_lookup] done, total ' + grand_total + ' row(s)');
+                callback(null);
+            }
+        });
+    })();
 };
 
 
