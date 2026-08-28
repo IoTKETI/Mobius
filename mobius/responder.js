@@ -2134,7 +2134,13 @@ exports.search_result = function(request, response, status, rsc, cap, callback) 
     }
 };
 
-exports.error_result = function(request, response, status, rsc, dbg_string, callback) {
+// 에러 응답 본체. 아래 respond() 와 error_result() 가 공유한다.
+//
+// httpStatus 는 number 로 와도 되고 문자열로 와도 된다. 카탈로그(mobius/rsc.js)는
+// number 를 주지만, 옛 시그니처를 쓰는 호출부는 '400' 처럼 문자열을 준다.
+// Express 는 문자열 상태코드에 deprecated 경고를 찍는데 그게 모든 응답마다 나와
+// 에러 로그를 덮어써서 진짜 에러가 묻혔다. 여기서 한 번에 숫자로 만든다.
+function sendError(request, response, httpStatus, rsc, dbg_string, callback) {
     request.query.rt = 3;
     var body_Obj = {};
     body_Obj['m2m:dbg'] = dbg_string;
@@ -2182,7 +2188,7 @@ exports.error_result = function(request, response, status, rsc, dbg_string, call
 
     body_Obj = null;
 
-    response.status(parseInt(status, 10)).end(bodyString);
+    response.status(Number(httpStatus)).end(bodyString);
 
     var rspObj = {};
     rspObj.rsc = rsc;
@@ -2192,6 +2198,34 @@ exports.error_result = function(request, response, status, rsc, dbg_string, call
     rspObj = null;
 
     callback();
+}
+
+// 단일 응답 진입점.
+//
+//   result = {
+//     code:   mobius/rsc.js 의 카탈로그 항목 (http·rsc·coap 을 들고 있다)
+//     dbg:    클라이언트 응답 본문(m2m:dbg)에 실릴 문구
+//     detail: 로그에만 남길 상세 (드라이버 에러 원문, 내부 함수명 등)
+//   }
+//
+// dbg 와 detail 을 나눈 이유: 지금은 내부 함수명과 DB 드라이버 에러 원문이
+// m2m:dbg 로 클라이언트에 그대로 나간다. 문구 정리 단계에서 detail 로 옮기면
+// 응답에는 안 나가고 로그에만 남는다.
+//
+// 성공 응답은 아직 response_result / search_result / response_rcn3_result 를
+// 거친다. 그쪽 통합은 뒤 단계다.
+exports.respond = function (request, response, result, callback) {
+    var code = result.code;
+    if (result.detail) {
+        console.error('[' + (code && code.name ? code.name : '?') + '] ' + result.detail);
+    }
+    sendError(request, response, code.http, code.rsc, result.dbg, callback);
+};
+
+// 옛 시그니처 어댑터. status 가 '400' 같은 문자열로 들어온다.
+// 새 코드는 respond() 를 쓴다.
+exports.error_result = function (request, response, status, rsc, dbg_string, callback) {
+    sendError(request, response, status, rsc, dbg_string, callback);
 };
 
 function request_noti_http(nu, bodyString, bodytype, xm2mri) {

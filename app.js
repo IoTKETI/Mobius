@@ -887,12 +887,35 @@ function check_grp(request, response, callback) {
 // 예전과 같아서 아래 호출부들이 그대로 동작한다.
 //   결과 코드·바인딩 매핑 -> mobius/rsc.js
 //   사유별 문구          -> mobius/reason.js
-var resultStatusCode = require('./mobius/reason').toLegacyTable();
+// 결과 코드와 사유는 카탈로그가 들고 있다.
+//   mobius/rsc.js     결과 코드 + 바인딩 매핑(http/coap)
+//   mobius/reason.js  사유별 문구
+//
+// 에러 응답은 전부 아래 response_error_result(request, response, code, cb) 를 거친다.
+// 예전의 { key: [status, rsc, msg] } 호환 표는 읽는 곳이 없어져 걷어냈다.
+// (reason.toLegacyTable() 은 골든 하네스와 테스트가 아직 쓴다)
+var reason = require('./mobius/reason');
+var RSC = require('./mobius/rsc').RSC;
 
+// 에러 응답의 단일 통로. 코드 키('400-8')만 넘기면 나머지는 카탈로그가 채운다.
+//
+// 예전에는 호출부마다 resultStatusCode[code][0], [1], [2] 를 직접 펼쳐 넘겼다.
+// 표의 3원소 배열 구조가 47곳에 새어 나가 있어서, 표에 필드를 하나 더하려면
+// 그 47곳을 전부 봐야 했다.
 function response_error_result(request, response, code, callback) {
-    responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
-        callback();
-    });
+    var r = reason.get(code);
+    if (!r) {
+        // 표에 없는 코드. 예전에는 resultStatusCode[code][0] 에서 TypeError 가 나
+        // 워커가 죽었다. 500 으로 응답하고 로그에 남긴다.
+        console.error('[response_error_result] 정의되지 않은 코드: ' + code);
+        responder.respond(request, response, {
+            code: RSC.INTERNAL_SERVER_ERROR,
+            dbg: 'internal error',
+            detail: 'unknown result code: ' + code
+        }, callback);
+        return;
+    }
+    responder.respond(request, response, { code: r.code, dbg: r.msg }, callback);
 }
 
 function lookup_create(request, response, callback) {
@@ -1868,7 +1891,7 @@ app.post('*', onem2mParser, (request, response) => {
                                                                                     });
                                                                                 }
                                                                                 else {
-                                                                                    responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                                                                                    response_error_result(request, response, code, () => {
                                                                                         connection.release();
                                                                                         request = null;
                                                                                         response = null;
@@ -1878,7 +1901,7 @@ app.post('*', onem2mParser, (request, response) => {
                                                                         }
                                                                         else {
                                                                             code = '400-43';
-                                                                            responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                                                                            response_error_result(request, response, code, () => {
                                                                                 connection.release();
                                                                                 request = null;
                                                                                 response = null;
@@ -1914,7 +1937,7 @@ app.post('*', onem2mParser, (request, response) => {
                                                                                 response = null;
                                                                             }
                                                                             else {
-                                                                                responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                                                                                response_error_result(request, response, code, () => {
                                                                                     connection.release();
                                                                                     request = null;
                                                                                     response = null;
@@ -1923,7 +1946,7 @@ app.post('*', onem2mParser, (request, response) => {
                                                                         });
                                                                     }
                                                                     else {
-                                                                        responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                                                                        response_error_result(request, response, code, () => {
                                                                             connection.release();
                                                                             request = null;
                                                                             response = null;
@@ -1932,7 +1955,7 @@ app.post('*', onem2mParser, (request, response) => {
                                                                 });
                                                             }
                                                             else {
-                                                                responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                                                                response_error_result(request, response, code, () => {
                                                                     connection.release();
                                                                     request = null;
                                                                     response = null;
@@ -1941,7 +1964,7 @@ app.post('*', onem2mParser, (request, response) => {
                                                         });
                                                     }
                                                     else {
-                                                        responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                                                        response_error_result(request, response, code, () => {
                                                             connection.release();
                                                             request = null;
                                                             response = null;
@@ -1967,7 +1990,7 @@ app.post('*', onem2mParser, (request, response) => {
                                                                                 });
                                                                             }
                                                                             else {
-                                                                                responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                                                                                response_error_result(request, response, code, () => {
                                                                                     connection.release();
                                                                                     request = null;
                                                                                     response = null;
@@ -1976,7 +1999,7 @@ app.post('*', onem2mParser, (request, response) => {
                                                                         });
                                                                     }
                                                                     else {
-                                                                        responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                                                                        response_error_result(request, response, code, () => {
                                                                             connection.release();
                                                                             request = null;
                                                                             response = null;
@@ -1992,7 +2015,7 @@ app.post('*', onem2mParser, (request, response) => {
                                                                 });
                                                             }
                                                             else {
-                                                                responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                                                                response_error_result(request, response, code, () => {
                                                                     connection.release();
                                                                     request = null;
                                                                     response = null;
@@ -2002,7 +2025,7 @@ app.post('*', onem2mParser, (request, response) => {
                                                     }
                                                     else if (rsc == '2') {
                                                         code = '403-6';
-                                                        responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                                                        response_error_result(request, response, code, () => {
                                                             connection.release();
                                                             request = null;
                                                             response = null;
@@ -2010,7 +2033,7 @@ app.post('*', onem2mParser, (request, response) => {
                                                     }
                                                     else {
                                                         code = '404-4';
-                                                        responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                                                        response_error_result(request, response, code, () => {
                                                             connection.release();
                                                             request = null;
                                                             response = null;
@@ -2028,7 +2051,7 @@ app.post('*', onem2mParser, (request, response) => {
                                                     response = null;
                                                 }
                                                 else {
-                                                    responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                                                    response_error_result(request, response, code, () => {
                                                         connection.release();
                                                         request = null;
                                                         response = null;
@@ -2037,7 +2060,7 @@ app.post('*', onem2mParser, (request, response) => {
                                             });
                                         }
                                         else {
-                                            responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                                            response_error_result(request, response, code, () => {
                                                 connection.release();
                                                 request = null;
                                                 response = null;
@@ -2046,7 +2069,7 @@ app.post('*', onem2mParser, (request, response) => {
                                     });
                                 }
                                 else {
-                                    responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                                    response_error_result(request, response, code, () => {
                                         connection.release();
                                         request = null;
                                         response = null;
@@ -2063,7 +2086,7 @@ app.post('*', onem2mParser, (request, response) => {
                         }
                     }
                     else {
-                        responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                        response_error_result(request, response, code, () => {
                             connection.release();
                             request = null;
                             response = null;
@@ -2072,7 +2095,7 @@ app.post('*', onem2mParser, (request, response) => {
                 });
             }
             else {
-                responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                response_error_result(request, response, code, () => {
                     request = null;
                     response = null;
                 });
@@ -2128,7 +2151,7 @@ app.get('*', onem2mParser, (request, response) => {
                                                         });
                                                     }
                                                     else {
-                                                        responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                                                        response_error_result(request, response, code, () => {
                                                             connection.release();
                                                             request = null;
                                                             response = null;
@@ -2160,7 +2183,7 @@ app.get('*', onem2mParser, (request, response) => {
                                                                     });
                                                                 }
                                                                 else {
-                                                                    responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                                                                    response_error_result(request, response, code, () => {
                                                                         connection.release();
                                                                         request = null;
                                                                         response = null;
@@ -2176,7 +2199,7 @@ app.get('*', onem2mParser, (request, response) => {
                                                             });
                                                         }
                                                         else {
-                                                            responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                                                            response_error_result(request, response, code, () => {
                                                                 connection.release();
                                                                 request = null;
                                                                 response = null;
@@ -2186,7 +2209,7 @@ app.get('*', onem2mParser, (request, response) => {
                                                 }
                                                 else if (rsc == '2') {
                                                     code = '403-6';
-                                                    responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                                                    response_error_result(request, response, code, () => {
                                                         connection.release();
                                                         request = null;
                                                         response = null;
@@ -2211,7 +2234,7 @@ app.get('*', onem2mParser, (request, response) => {
                                                 response = null;
                                             }
                                             else {
-                                                responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                                                response_error_result(request, response, code, () => {
                                                     connection.release();
                                                     request = null;
                                                     response = null;
@@ -2220,7 +2243,7 @@ app.get('*', onem2mParser, (request, response) => {
                                         });
                                     }
                                     else {
-                                        responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                                        response_error_result(request, response, code, () => {
                                             connection.release();
                                             request = null;
                                             response = null;
@@ -2229,7 +2252,7 @@ app.get('*', onem2mParser, (request, response) => {
                                 });
                             }
                             else {
-                                responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                                response_error_result(request, response, code, () => {
                                     connection.release();
                                     request = null;
                                     response = null;
@@ -2244,7 +2267,7 @@ app.get('*', onem2mParser, (request, response) => {
                         result = null;
                     }
                     else {
-                        responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                        response_error_result(request, response, code, () => {
                             connection.release();
                             request = null;
                             response = null;
@@ -2253,7 +2276,7 @@ app.get('*', onem2mParser, (request, response) => {
                 });
             }
             else {
-                responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                response_error_result(request, response, code, () => {
                     request = null;
                     response = null;
                 });
@@ -2312,7 +2335,7 @@ app.put('*', onem2mParser, (request, response) => {
                                                                             });
                                                                         }
                                                                         else {
-                                                                            responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                                                                            response_error_result(request, response, code, () => {
                                                                                 connection.release();
                                                                                 request = null;
                                                                                 response = null;
@@ -2329,7 +2352,7 @@ app.put('*', onem2mParser, (request, response) => {
                                                                 }
                                                             }
                                                             else {
-                                                                responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                                                                response_error_result(request, response, code, () => {
                                                                     connection.release();
                                                                     request = null;
                                                                     response = null;
@@ -2338,7 +2361,7 @@ app.put('*', onem2mParser, (request, response) => {
                                                         });
                                                     }
                                                     else {
-                                                        responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                                                        response_error_result(request, response, code, () => {
                                                             connection.release();
                                                             request = null;
                                                             response = null;
@@ -2364,7 +2387,7 @@ app.put('*', onem2mParser, (request, response) => {
                                                                                 });
                                                                             }
                                                                             else {
-                                                                                responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                                                                                response_error_result(request, response, code, () => {
                                                                                     connection.release();
                                                                                     request = null;
                                                                                     response = null;
@@ -2373,7 +2396,7 @@ app.put('*', onem2mParser, (request, response) => {
                                                                         });
                                                                     }
                                                                     else {
-                                                                        responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                                                                        response_error_result(request, response, code, () => {
                                                                             connection.release();
                                                                             request = null;
                                                                             response = null;
@@ -2389,7 +2412,7 @@ app.put('*', onem2mParser, (request, response) => {
                                                                 });
                                                             }
                                                             else {
-                                                                responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                                                                response_error_result(request, response, code, () => {
                                                                     connection.release();
                                                                     request = null;
                                                                     response = null;
@@ -2399,7 +2422,7 @@ app.put('*', onem2mParser, (request, response) => {
                                                     }
                                                     else if (rsc == '2') {
                                                         code = '403-6';
-                                                        responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                                                        response_error_result(request, response, code, () => {
                                                             connection.release();
                                                             request = null;
                                                             response = null;
@@ -2424,7 +2447,7 @@ app.put('*', onem2mParser, (request, response) => {
                                                     response = null;
                                                 }
                                                 else {
-                                                    responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                                                    response_error_result(request, response, code, () => {
                                                         connection.release();
                                                         request = null;
                                                         response = null;
@@ -2433,7 +2456,7 @@ app.put('*', onem2mParser, (request, response) => {
                                             });
                                         }
                                         else {
-                                            responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                                            response_error_result(request, response, code, () => {
                                                 connection.release();
                                                 request = null;
                                                 response = null;
@@ -2442,7 +2465,7 @@ app.put('*', onem2mParser, (request, response) => {
                                     });
                                 }
                                 else {
-                                    responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                                    response_error_result(request, response, code, () => {
                                         connection.release();
                                         request = null;
                                         response = null;
@@ -2459,7 +2482,7 @@ app.put('*', onem2mParser, (request, response) => {
                         }
                     }
                     else {
-                        responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                        response_error_result(request, response, code, () => {
                             connection.release();
                             request = null;
                             response = null;
@@ -2468,7 +2491,7 @@ app.put('*', onem2mParser, (request, response) => {
                 });
             }
             else {
-                responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                response_error_result(request, response, code, () => {
                     request = null;
                     response = null;
                 });
@@ -2532,7 +2555,7 @@ app.delete('*', onem2mParser, (request, response) => {
                                                         });
                                                     }
                                                     else {
-                                                        responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                                                        response_error_result(request, response, code, () => {
                                                             connection.release();
                                                             request = null;
                                                             response = null;
@@ -2549,7 +2572,7 @@ app.delete('*', onem2mParser, (request, response) => {
                                             }
                                         }
                                         else {
-                                            responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                                            response_error_result(request, response, code, () => {
                                                 connection.release();
                                                 request = null;
                                                 response = null;
@@ -2573,7 +2596,7 @@ app.delete('*', onem2mParser, (request, response) => {
                                                             });
                                                         }
                                                         else {
-                                                            responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                                                            response_error_result(request, response, code, () => {
                                                                 connection.release();
                                                                 request = null;
                                                                 response = null;
@@ -2589,7 +2612,7 @@ app.delete('*', onem2mParser, (request, response) => {
                                                     });
                                                 }
                                                 else {
-                                                    responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                                                    response_error_result(request, response, code, () => {
                                                         connection.release();
                                                         request = null;
                                                         response = null;
@@ -2599,7 +2622,7 @@ app.delete('*', onem2mParser, (request, response) => {
                                         }
                                         else if (rsc == '2') {
                                             code = '403-6';
-                                            responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                                            response_error_result(request, response, code, () => {
                                                 connection.release();
                                                 request = null;
                                                 response = null;
@@ -2624,7 +2647,7 @@ app.delete('*', onem2mParser, (request, response) => {
                                         response = null;
                                     }
                                     else {
-                                        responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                                        response_error_result(request, response, code, () => {
                                             connection.release();
                                             request = null;
                                             response = null;
@@ -2633,7 +2656,7 @@ app.delete('*', onem2mParser, (request, response) => {
                                 });
                             }
                             else {
-                                responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                                response_error_result(request, response, code, () => {
                                     connection.release();
                                     request = null;
                                     response = null;
@@ -2642,7 +2665,7 @@ app.delete('*', onem2mParser, (request, response) => {
                         });
                     }
                     else {
-                        responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                        response_error_result(request, response, code, () => {
                             connection.release();
                             request = null;
                             response = null;
@@ -2651,7 +2674,7 @@ app.delete('*', onem2mParser, (request, response) => {
                 });
             }
             else {
-                responder.error_result(request, response, resultStatusCode[code][0], resultStatusCode[code][1], resultStatusCode[code][2], () => {
+                response_error_result(request, response, code, () => {
                     request = null;
                     response = null;
                 });
