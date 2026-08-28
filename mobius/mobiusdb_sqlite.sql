@@ -112,9 +112,21 @@ CREATE TABLE IF NOT EXISTS sub (
   CONSTRAINT sub_ri FOREIGN KEY (ri) REFERENCES lookup(ri) ON DELETE CASCADE
 );
 
+-- hit_ri (리소스별 × 날짜별 프로토콜 접근 횟수)
+CREATE TABLE IF NOT EXISTS hit_ri (
+  ri   TEXT NOT NULL,
+  ct   TEXT NOT NULL,
+  http INTEGER NOT NULL DEFAULT 0,
+  mqtt INTEGER NOT NULL DEFAULT 0,
+  coap INTEGER NOT NULL DEFAULT 0,
+  ws   INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (ri, ct)
+);
+
 -- 인덱스 (2.7). CREATE TABLE 과 달리 CREATE INDEX 는 기존 DB 에도 적용된다.
 -- 근거는 docs/superpowers/specs/2026-08-28-admin-console-design.md §1.2, §5.2
 CREATE INDEX IF NOT EXISTS idx_lookup_pi     ON lookup(pi);
 CREATE INDEX IF NOT EXISTS idx_lookup_ty_et  ON lookup(ty, et);
 CREATE INDEX IF NOT EXISTS idx_lookup_pi_sri ON lookup(pi, sri);
 CREATE INDEX IF NOT EXISTS idx_cin_pi        ON cin(pi);
+CREATE INDEX IF NOT EXISTS idx_hit_ri_ct     ON hit_ri(ct);

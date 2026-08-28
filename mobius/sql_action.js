@@ -186,6 +186,57 @@ exports.set_hit_n = function (connection, _ct, _http, _mqtt, _coap, _ws, callbac
     }
 };
 
+// --- hit_ri (리소스별 사용 이력) ---
+//
+// 기존 set_hit 과 달리 요청마다 호출되지 않는다. hit_man 이 워커 메모리에
+// 모았다가 주기적으로 이 함수를 한 번 부른다.
+//
+// 증분 표현식은 백엔드별로 다르다: MySQL 은 INSERT 행 값을 values(col) 로
+// 참조하고, SQLite 는 excluded.col 로 참조한다. knex 의 onConflict().merge()
+// 에 컬럼 배열을 넘기면 이 참조를 자동으로 만들어 주지만 그건 "덮어쓰기"
+// (col = values(col))다. 여기 필요한 건 "누적"(col = hit_ri.col + values(col))
+// 이라 merge() 에 백엔드별 raw 식을 직접 넘긴다.
+exports.upsert_hit_ri_batch = function (connection, rows, callback) {
+    if (!rows || rows.length === 0) {
+        callback(null, { affectedRows: 0 });
+        return;
+    }
+
+    var incoming = global.usesqlite === 'true' ?
+        { http: 'excluded.http', mqtt: 'excluded.mqtt', coap: 'excluded.coap', ws: 'excluded.ws' } :
+        { http: 'values(http)', mqtt: 'values(mqtt)', coap: 'values(coap)', ws: 'values(ws)' };
+
+    var qb = facade.k('hit_ri').insert(rows).onConflict(['ri', 'ct']).merge({
+        http: facade.raw('hit_ri.http + ' + incoming.http),
+        mqtt: facade.raw('hit_ri.mqtt + ' + incoming.mqtt),
+        coap: facade.raw('hit_ri.coap + ' + incoming.coap),
+        ws:   facade.raw('hit_ri.ws + ' + incoming.ws)
+    });
+
+    facade.run(qb, connection, function (err, result) {
+        callback(err, result);
+    });
+};
+
+exports.select_hit_ri = function (connection, ri, since_ct, callback) {
+    var qb = facade.k('hit_ri')
+        .select('ri', 'ct', 'http', 'mqtt', 'coap', 'ws')
+        .where('ri', ri)
+        .andWhere('ct', '>=', since_ct)
+        .orderBy('ct', 'asc');
+
+    facade.run(qb, connection, function (err, rows) {
+        callback(err, rows);
+    });
+};
+
+exports.delete_hit_ri_old = function (connection, before_ct, callback) {
+    var qb = facade.k('hit_ri').where('ct', '<', before_ct).del();
+    facade.run(qb, connection, function (err, result) {
+        callback(err, result);
+    });
+};
+
 // exports.get_sri_sri = function (connection, ri, callback) {
 //     var sql = util.format('select sri from lookup where ri = \'%s\'', ri);
 //     db.getResult(sql, connection, function (err, results) {
