@@ -22,10 +22,23 @@ var moment = require('moment');
 var acp_eval = require('./acp_eval');
 
 // 원본이 acip 검사 안에서 하던 IP 추출을 그대로 옮겼다.
+// _pv (security_check_action_pv) 전용: 원본(91a3f40:security.js:59-61)은
+// remoteaddress 헤더가 있으면 그 값으로 클라이언트 IP 를 덮어썼다. _pvs 는
+// 이 오버라이드가 없었다(client_ip_of_pvs 참고) — 리뷰에서 지적된 대로, 이 둘을
+// 하나로 합치면 헤더로 _pvs 의 acip 제약을 우회할 수 있게 되는 회귀가 생긴다.
 function client_ip_of(request) {
     if (request.headers.hasOwnProperty('remoteaddress')) {
         return request.headers.remoteaddress;
     }
+    if (request.connection.remoteAddress === '::1') {
+        return ip.address();
+    }
+    return request.connection.remoteAddress.replace('::ffff:', '');
+}
+
+// _pvs (security_check_action_pvs) 전용: 원본(91a3f40:security.js:247-252)은
+// remoteaddress 헤더를 전혀 보지 않는다. client_ip_of 와 절대 합치지 말 것.
+function client_ip_of_pvs(request) {
     if (request.connection.remoteAddress === '::1') {
         return ip.address();
     }
@@ -37,6 +50,16 @@ function ctx_of(request, access_value, cr) {
         originator: request.headers['x-m2m-origin'],
         acop: parseInt(access_value, 10),
         clientIp: client_ip_of(request),
+        now: new Date(),
+        creator: cr
+    };
+}
+
+function ctx_of_pvs(request, access_value, cr) {
+    return {
+        originator: request.headers['x-m2m-origin'],
+        acop: parseInt(access_value, 10),
+        clientIp: client_ip_of_pvs(request),
         now: new Date(),
         creator: cr
     };
@@ -64,15 +87,39 @@ function security_check_action_pv(request, response, acpiList, cr, access_value,
                 return;
             }
 
+            // KNOWN BEHAVIOR (원본 91a3f40:security.js:42, :186-194): pv 행에 acr 키가
+            // 없으면 원본은 그 자리에서 creator 검사로 즉시 응답하고 이후 행은 절대
+            // 보지 않는다. evaluatePrivileges 는 privList 전체를 한 번에 평가해야만
+            // ipv6_idx leak 을 재현할 수 있으므로(행 단위 호출 불가), 이 "행 단위 즉시
+            // 중단"은 별도로 흉내낸다: acr 없는 첫 행 앞까지만 잘라 평가하고, 매치가
+            // 없으면 그 행에서 원본과 동일하게 즉시 응답한다. _pvs 는 이 분기가
+            // 원본에도 없었으므로 건드리지 않는다.
             var privList = [];
             for (var i = 0; i < results_acp.length; i++) {
+                var parsedPv;
                 try {
-                    privList.push(JSON.parse(results_acp[i].pv));
+                    // ACCEPTED DIVERGENCE: 원본(91a3f40:security.js:40,45)은 이
+                    // JSON.parse 를 try 밖에 두어, pv 가 깨진 JSON 이면 예외가 DB
+                    // 콜백 안에서 잡히지 않고 워커를 크래시시켰다. 여기서는 의도적으로
+                    // 그 크래시를 재현하지 않고 fail-closed 로 '500-1' 을 반환한다 —
+                    // 더 안전하며, pv 는 서버 자신이 JSON.stringify 로만 쓰므로 정상
+                    // 운영에서는 도달하지 않는 경로다.
+                    parsedPv = JSON.parse(results_acp[i].pv);
                 } catch (e) {
                     console.log('[security_check_action_pv] bad pv json: ' + (e.message || e));
                     callback('500-1');
                     return;
                 }
+
+                if (!parsedPv || !parsedPv.hasOwnProperty('acr')) {
+                    if (acp_eval.evaluatePrivileges(privList, ctx).allowed) {
+                        callback('1');
+                    } else {
+                        callback(acp_eval.evaluateBrokenAcpi(ctx).allowed ? '1' : '0');
+                    }
+                    return;
+                }
+                privList.push(parsedPv);
             }
 
             callback(acp_eval.evaluatePrivileges(privList, ctx).allowed ? '1' : '0');
@@ -95,7 +142,7 @@ function security_check_action_pvs(request, response, acpiList, access_value, cr
                 return;
             }
 
-            var ctx = ctx_of(request, access_value, cr);
+            var ctx = ctx_of_pvs(request, access_value, cr);
 
             if (results_acp.length === 0) {
                 callback(acp_eval.evaluateBrokenAcpi(ctx).allowed ? '1' : '0');
@@ -105,6 +152,12 @@ function security_check_action_pvs(request, response, acpiList, access_value, cr
             var privList = [];
             for (var i = 0; i < results_acp.length; i++) {
                 try {
+                    // ACCEPTED DIVERGENCE: 원본(91a3f40:security.js:229,233)은 이
+                    // JSON.parse 를 try 밖에 두어, pvs 가 깨진 JSON 이면 예외가 DB
+                    // 콜백 안에서 잡히지 않고 워커를 크래시시켰다. 여기서는 의도적으로
+                    // 그 크래시를 재현하지 않고 fail-closed 로 '500-1' 을 반환한다 —
+                    // 더 안전하며, pvs 는 서버 자신이 JSON.stringify 로만 쓰므로
+                    // 정상 운영에서는 도달하지 않는 경로다.
                     privList.push(JSON.parse(results_acp[i].pvs));
                 } catch (e) {
                     console.log('[security_check_action_pvs] bad pvs json: ' + (e.message || e));
