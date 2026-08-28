@@ -8,6 +8,16 @@ The next version of Mobius is available on [Mobius4](https://github.com/iotketi/
 
 ## What's New
 
+### Admin Console Prerequisites
+
+Groundwork for the resource management console, each item useful on its own:
+
+- **Cross-worker cache invalidation.** Deleting a resource previously cleared only the handling worker's cache, so other workers kept serving it with `200`. Invalidation is now broadcast to every worker over cluster IPC, and the cache has an LRU bound (`cacheLimit`, default 50000).
+- **Per-resource usage history.** A new `hit_ri` table records access counts per resource per day per protocol. Collection is buffered in worker memory and flushed periodically, so the request path performs no extra database write. contentInstance accesses are attributed to the parent container.
+- **Indexes.** `lookup(pi)`, `lookup(ty, et)`, `lookup(pi, sri)` and `cin(pi)`. Tree expansion, expiry filtering and container paging were full scans on SQLite and partly on MySQL, where `idx_lookup_pi` was declared `INVISIBLE`. MySQL users must apply [docs/mysql-migration-2.7.md](docs/mysql-migration-2.7.md).
+- **Shared ACP evaluation.** Access decision logic moved to `mobius/acp_eval.js` as pure functions, so the console reports exactly what the server enforces. Behaviour is unchanged.
+- **Configurable superuser.** `usesuperuser` moved from a hardcoded value in `app.js` to `conf.json` (`superuser`), alongside a separate `adminOrigin` for the console.
+
 ### SQLite Support
 Mobius now runs on SQLite as well as MySQL. SQLite requires no separate database server and creates its schema automatically at startup, which makes it suitable for embedded gateways, development and small deployments. Select the backend at launch (`node mobius.js sqlite`) or through the `usesqlite` option in `conf.json`. See [Configuration](#configuration).
 
