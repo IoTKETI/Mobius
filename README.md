@@ -39,6 +39,7 @@ ALTER TABLE cnt
 ```
 - Applications relying on `timeSeries` / `timeSeriesInstance` must migrate to `container` / `contentInstance`.
 - Applications relying on notification retry or on subscriptions being removed automatically after repeated delivery failures must handle delivery reliability on the application side.
+- **2.7 마이그레이션.** 관리 콘솔 선행 작업으로 인덱스와 `hit_ri` 테이블이 추가되었다. MySQL 사용자는 [docs/mysql-migration-2.7.md](docs/mysql-migration-2.7.md) 를 적용한다. SQLite 는 기동 시 자동 적용된다.
 
 ## Introduction
 Mobius is the open source IoT server platform based on the oneM2M (http://www.oneM2M.org) standard. As oneM2M specifies, Mobius provides common services functions (e.g. registration, data management, subscription/notification, security) as middleware to IoT applications of different service domains. Not just oneM2M devices, but also non-oneM2M devices (i.e. by oneM2M interworking specifications and KETI TAS) can connect to Mobius.

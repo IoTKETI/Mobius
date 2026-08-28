@@ -8,6 +8,7 @@ doc/
 # 디렉터리 자체를 제외하면 하위를 되살릴 수 없으므로 docs/* 로 내용만 제외한다.
 docs/*
 !docs/superpowers/
+!docs/mysql-migration-2.7.md
 # 동등성 스냅샷은 로컬 산출물이다 (.gitkeep 은 남긴다)
 tools/equivalence/out/*
 !tools/equivalence/out/.gitkeep

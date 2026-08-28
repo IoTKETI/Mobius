@@ -111,3 +111,10 @@ CREATE TABLE IF NOT EXISTS sub (
   PRIMARY KEY (ri),
   CONSTRAINT sub_ri FOREIGN KEY (ri) REFERENCES lookup(ri) ON DELETE CASCADE
 );
+
+-- 인덱스 (2.7). CREATE TABLE 과 달리 CREATE INDEX 는 기존 DB 에도 적용된다.
+-- 근거는 docs/superpowers/specs/2026-08-28-admin-console-design.md §1.2, §5.2
+CREATE INDEX IF NOT EXISTS idx_lookup_pi     ON lookup(pi);
+CREATE INDEX IF NOT EXISTS idx_lookup_ty_et  ON lookup(ty, et);
+CREATE INDEX IF NOT EXISTS idx_lookup_pi_sri ON lookup(pi, sri);
+CREATE INDEX IF NOT EXISTS idx_cin_pi        ON cin(pi);
