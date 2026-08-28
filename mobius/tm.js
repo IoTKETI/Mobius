@@ -24,6 +24,7 @@ var https = require('https');
 var fs = require('fs');
 
 var db_sql = require('./sql_action');
+var outbound = require('./outbound');
 
 var _this = this;
 
@@ -262,6 +263,8 @@ exports.request_lock = function(obj, retry_count, callback) {
                 });
             }
 
+            // 응답이 오지 않으면 요청을 끊는다. 파기하면 아래 error 핸들러가 뒷정리를 한다.
+            outbound.arm(req, 'tm notify');
             req.on('error', function (e) {
                 if (e.message != 'read ECONNRESET') {
                     console.log('[delete_TM] problem with request: ' + e.message);
@@ -433,6 +436,8 @@ function request_tctl(obj, retry_count, tctl, callback) {
                 });
             }
 
+            // 응답이 오지 않으면 요청을 끊는다. 파기하면 아래 error 핸들러가 뒷정리를 한다.
+            outbound.arm(req, 'tm notify');
             req.on('error', function (e) {
                 if (e.message != 'read ECONNRESET') {
                     console.log('[delete_TM] problem with request: ' + e.message);

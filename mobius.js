@@ -52,6 +52,12 @@ else {
 // 정의하지 않으면 규칙 없이 Mobius 기본값이 쓰인다.
 global.retention_policies = Array.isArray(conf.retentionPolicies) ? conf.retentionPolicies : [];
 
+// 서버가 내보내는 요청(팬아웃·CSR 포워딩·알림 등)의 응답 대기 한도(ms).
+// 지정하지 않으면 mobius/outbound.js 의 기본값(10초)을 쓴다.
+// 이 값이 없으면 느린 상대 하나가 DB 풀 커넥션을 영구 점유한다.
+global.outbound_timeout_ms = (typeof conf.outboundTimeoutMs === 'number' && conf.outboundTimeoutMs > 0)
+    ? conf.outboundTimeoutMs : 0;
+
 global.usepxywsport = '7577';
 global.usepxymqttport = '7578';
 

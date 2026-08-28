@@ -118,6 +118,7 @@ exports.coap_watchdog = function () {
 
 
 var coap_tid = require('shortid').generate();
+var outbound = require('./mobius/outbound');
 wdt.set_wdt(coap_tid, 2, _this.coap_watchdog);
 
 function coap_message_handler(request, response) {
@@ -236,6 +237,8 @@ function coap_message_handler(request, response) {
 
     }
 
+    // 응답이 오지 않으면 요청을 끊는다. 파기하면 아래 error 핸들러가 뒷정리를 한다.
+    outbound.arm(req, 'pxy_coap -> mobius');
     req.on('error', function (e) {
         if (e.message != 'read ECONNRESET') {
             console.log('[pxycoap - http_retrieve_CSEBase] problem with request: ' + e.message);

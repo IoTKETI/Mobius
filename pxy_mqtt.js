@@ -329,6 +329,7 @@ function cache_ttl_manager() {
 }
 
 var cache_tid = require('shortid').generate();
+var outbound = require('./mobius/outbound');
 wdt.set_wdt(cache_tid, cache_keep, cache_ttl_manager);
 
 function mqtt_message_action(topic_arr, bodytype, jsonObj) {
@@ -483,6 +484,8 @@ function mqtt_binding(op, to, fr, rqi, ty, pc, bodytype, callback) {
         });
     }
 
+    // 응답이 오지 않으면 요청을 끊는다. 파기하면 아래 error 핸들러가 뒷정리를 한다.
+    outbound.arm(req, 'pxy_mqtt -> mobius');
     req.on('error', function (e) {
         //console.log('[pxymqtt-mqtt_binding] problem with request: ' + e.message);
     });
@@ -793,6 +796,8 @@ function http_retrieve_CSEBase(callback) {
         });
     }
 
+    // 응답이 오지 않으면 요청을 끊는다. 파기하면 아래 error 핸들러가 뒷정리를 한다.
+    outbound.arm(req, 'pxy_mqtt -> mobius');
     req.on('error', function (e) {
         if(e.message != 'read ECONNRESET') {
             //console.log('[pxymqtt - http_retrieve_CSEBase] problem with request: ' + e.message);

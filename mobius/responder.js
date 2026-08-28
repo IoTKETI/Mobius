@@ -24,6 +24,7 @@ var cbor = require("cbor");
 var coap = require('coap');
 
 var db_sql = require('./sql_action');
+var outbound = require('./outbound');
 
 
 var _this = this;
@@ -2255,6 +2256,8 @@ function request_noti_http(nu, bodyString, bodytype, xm2mri) {
         });
     });
 
+    // 응답이 오지 않으면 요청을 끊는다. 파기하면 아래 error 핸들러가 뒷정리를 한다.
+    outbound.arm(req, 'rtu notify http');
     req.on('error', function (e) {
         if(e.message != 'read ECONNRESET') {
             console.log('[nonblocking-async-http] problem with request: ' + e.message);

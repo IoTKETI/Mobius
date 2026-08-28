@@ -24,6 +24,7 @@ var moment = require('moment');
 var responder = require('./responder');
 
 var db_sql = require('./sql_action');
+var outbound = require('./outbound');
 
 function check_mt(request, res_body, callback) {
     var body_type = request.usebodytype;
@@ -125,6 +126,8 @@ function check_member(request, response, req_count, cse_poa, callback) {
                         });
                     });
 
+                    // 응답이 오지 않으면 요청을 끊는다. 파기하면 아래 error 핸들러가 뒷정리를 한다.
+                    outbound.arm(req, 'grp member check');
                     req.on('error', function (e) {
                         if (e.message != 'read ECONNRESET') {
                             console.log('[check_member] problem with request: ' + e.message);

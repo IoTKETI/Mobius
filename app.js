@@ -55,6 +55,9 @@ var sgn = require('./mobius/sgn');
 var reason = require('./mobius/reason');
 var RSC = require('./mobius/rsc').RSC;
 
+// 아웃바운드 요청 타임아웃 (D16)
+var outbound = require('./mobius/outbound');
+
 var db = require('./mobius/db_action');
 var db_sql = require('./mobius/sql_action');
 
@@ -2874,6 +2877,8 @@ function notify_http(hostname, port, path, method, headers, bodyString, callback
         });
     });
 
+    // 응답이 오지 않으면 요청을 끊는다. 파기하면 아래 error 핸들러가 뒷정리를 한다.
+    outbound.arm(req, 'ae notify');
     req.on('error', (e) => {
         console.log('[forward_http] problem with request: ' + e.message);
 
@@ -2922,6 +2927,8 @@ function forward_http(forwardcbhost, forwardcbport, f_url, f_method, f_headers, 
         });
     });
 
+    // 응답이 오지 않으면 요청을 끊는다. 파기하면 아래 error 핸들러가 뒷정리를 한다.
+    outbound.arm(req, 'csr forward');
     req.on('error', (e) => {
         console.log('[forward_http] problem with request: ' + e.message);
 

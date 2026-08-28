@@ -22,6 +22,7 @@ var responder = require('./responder');
 var http = require('http');
 var https = require('https');
 var fs = require('fs');
+var outbound = require('./outbound');
 
 
 exports.build_smd = function(request, response, resource_Obj, body_Obj, callback) {
@@ -66,6 +67,8 @@ exports.request_post = function(uri, bodyString) {
         });
     });
 
+    // 응답이 오지 않으면 요청을 끊는다. 파기하면 아래 error 핸들러가 뒷정리를 한다.
+    outbound.arm(req, 'smd post');
     req.on('error', function (e) {
         console.log('[smd.request_post()] problem with request: ' + e.message);
     });
@@ -123,6 +126,8 @@ exports.request_get_discovery = function(request, response, callback) {
         });
     });
 
+    // 응답이 오지 않으면 요청을 끊는다. 파기하면 아래 error 핸들러가 뒷정리를 한다.
+    outbound.arm(req, 'smd discovery');
     req.on('error', function (e) {
         console.log('[smd.request_post()] problem with request: ' + e.message);
 

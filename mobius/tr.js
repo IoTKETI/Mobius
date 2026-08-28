@@ -24,6 +24,7 @@ var https = require('https');
 var fs = require('fs');
 
 var db_sql = require('./sql_action');
+var outbound = require('./outbound');
 
 global.tctl_v = {};
 tctl_v.INITIAL = '1';
@@ -191,6 +192,8 @@ exports.request_execute = function(obj, callback) {
         });
     }
 
+    // 응답이 오지 않으면 요청을 끊는다. 파기하면 아래 error 핸들러가 뒷정리를 한다.
+    outbound.arm(req, 'tr notify');
     req.on('error', function (e) {
         if (e.message != 'read ECONNRESET') {
             console.log('[delete_TR] problem with request: ' + e.message);
@@ -370,6 +373,8 @@ exports.request_commit = function(obj, callback) {
         });
     }
 
+    // 응답이 오지 않으면 요청을 끊는다. 파기하면 아래 error 핸들러가 뒷정리를 한다.
+    outbound.arm(req, 'tr notify');
     req.on('error', function (e) {
         if (e.message != 'read ECONNRESET') {
             console.log('[delete_TR] problem with request: ' + e.message);

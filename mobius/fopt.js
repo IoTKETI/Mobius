@@ -25,6 +25,7 @@ var responder = require('./responder');
 var resource = require('./resource');
 
 var db_sql = require('./sql_action');
+var outbound = require('./outbound');
 
 function check_body(res, body_type, res_body, callback) {
     var retrieve_Obj = {};
@@ -112,6 +113,8 @@ function request_to_member(request, hostname, port, ri, agr, callback) {
         });
     });
 
+    // 응답이 오지 않으면 요청을 끊는다. 파기하면 아래 error 핸들러가 뒷정리를 한다.
+    outbound.arm(req, 'fopt member');
     req.on('error', function (e) {
         if (e.message != 'read ECONNRESET') {
             console.log('[fopt_member] problem with request: ' + e.message);
