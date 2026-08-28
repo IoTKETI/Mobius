@@ -821,40 +821,6 @@ function parse_body_format(request, response, callback) {
     });
 }
 
-function check_resource(request, response, callback) {
-    var ri = url.parse(request.url).pathname;
-
-    var chk_fopt = ri.split('/fopt');
-    if (chk_fopt.length == 2) {
-        ri = chk_fopt[0];
-        db_sql.select_grp_lookup(request.db_connection, ri, (err, result_Obj) => {
-            if (!err) {
-                if (result_Obj.length == 1) {
-                    result_Obj[0].acpi = JSON.parse(result_Obj[0].acpi);
-                    result_Obj[0].lbl = JSON.parse(result_Obj[0].lbl);
-                    result_Obj[0].aa = JSON.parse(result_Obj[0].aa);
-                    result_Obj[0].at = JSON.parse(result_Obj[0].at);
-
-                    request.targetObj = JSON.parse(JSON.stringify(result_Obj[0]));
-                    result_Obj = null;
-
-                    callback('200');
-                }
-                else {
-                    callback('404-4');
-                }
-            }
-            else {
-                callback('500-3');
-            }
-        });
-    }
-    else {
-        console.log('X-M2M-Origin: ' + request.headers['x-m2m-origin']);
-        callback('200');
-    }
-}
-
 function check_request_query_rt(request, response, callback) {
     //var ri = url.parse(request.url).pathname;
 
