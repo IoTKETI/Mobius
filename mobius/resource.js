@@ -1224,6 +1224,23 @@ function presearch_action(request, response, pi_list, found_parent_list, callbac
 
     console.time('search_parents_lookup ' + resource_Obj[rootnm].ri);
     var cur_found_parent_list = [];
+
+    // lvl 을 탐색 단계로 내려보낸다.
+    //
+    // 아래에서 어차피 depth(ri) <= cur_lvl + lvl 인 것만 남기는데, 그동안
+    // 트리는 끝까지 훑고 있었다. 탐색 레벨 k 의 노드는 depth >= cur_lvl+1+k
+    // 이므로 남는 것은 반드시 k <= lvl-1 이다 — lvl-1 레벨까지만 훑으면 된다.
+    //
+    // ty=2 는 아래(1231행)에서 lvl='1' 을 강제한다. 그 판정이 탐색 뒤에
+    // 일어나므로 여기서 같은 조건을 미리 본다. lvl=1 이면 0 레벨 —
+    // 부모 탐색 질의를 한 번도 안 던진다.
+    var eff_lvl = (request.query.ty == '2') ? '1' : request.query.lvl;
+    var max_levels;
+    if (eff_lvl != null) {
+        var parsed_lvl = parseInt(eff_lvl, 10);
+        if (!isNaN(parsed_lvl)) { max_levels = Math.max(0, parsed_lvl - 1); }
+    }
+
     db_sql.search_parents_lookup(request.db_connection, pi_list, cur_found_parent_list, found_parent_list, (code) => {
         console.timeEnd('search_parents_lookup ' + resource_Obj[rootnm].ri);
         if(code === '200') {
@@ -1294,7 +1311,7 @@ function presearch_action(request, response, pi_list, found_parent_list, callbac
         else {
             callback(code);
         }
-    });
+    }, max_levels);
 }
 
 function search_action(request, response, seq, resource_Obj, ri_list, strObj, presearch_Obj, callback) {

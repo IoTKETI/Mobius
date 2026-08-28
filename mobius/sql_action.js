@@ -1639,9 +1639,35 @@ function search_parents_lookup_action(connection, pi_list, count, cur_result_ri,
 // 읽기(presearch) 경로: 레벨 단위 재귀 + 2000개 상한 (구버전 복원).
 // 무제한 CTE는 초대형 lookup에서 루트 디스커버리가 분 단위로 걸리는 회귀가
 // 있었다. 삭제/고아정리 등 전체 수집이 필요한 곳은 search_parents_lookup_all 사용.
-exports.search_parents_lookup = function (connection, pi_list, cur_result_ri, result_ri, callback) {
+// max_levels 는 선택이다. 주면 그만큼의 레벨만 내려간다.
+//
+// ── 왜 필요한가 ─────────────────────────────────────────────────────────
+// 호출부(resource.js)는 lvl 질의 파라미터가 있으면 **훑고 나서** 깊이로
+// 걸러낸다. 즉 버릴 것을 다 읽고 있었다. 배포 서버 실측:
+//
+//   /Mobius?fu=1&ty=3&lim=100          -> 부모질의 25회 / 626ms
+//   /Mobius?fu=1&ty=3&lim=100&lvl=1    -> 부모질의 25회 / 665ms  (결과는 3건)
+//   /Mobius?fu=1&ty=2&lim=100          -> 부모질의 25회 / 659ms  (lvl=1 강제)
+//
+// lvl 을 줘도 훑는 양이 그대로다. ty=2(AE 조회)는 CSEBase 의 직계 자식만
+// 필요한데 3만 개 컨테이너 트리를 전부 훑고 있었다.
+//
+// ── 왜 결과가 같은가 ────────────────────────────────────────────────────
+// 호출부의 필터는 depth(ri) <= cur_lvl + lvl 인 것만 남긴다.
+// 탐색 레벨 k 의 노드는 depth >= cur_lvl + 1 + k 다 (등호는 rn 에 '/' 가
+// 없을 때. 배포 데이터에 rn='P1/test' 같은 예외가 실제로 하나 있다).
+// 따라서 필터가 남기는 노드는 반드시 k <= lvl - 1 이다.
+// lvl-1 레벨까지만 훑으면 남길 것은 하나도 안 잃는다.
+exports.search_parents_lookup = function (connection, pi_list, cur_result_ri, result_ri, callback, max_levels) {
     if (global.usesqlite === 'true') {
-        return _this.search_parents_lookup_all(connection, pi_list, cur_result_ri, result_ri, callback);
+        return _this.search_parents_lookup_all(connection, pi_list, cur_result_ri, result_ri,
+            callback, max_levels);
+    }
+
+    // 더 내려갈 레벨이 없으면 질의 자체를 안 한다 (lvl=1 이면 0 레벨).
+    if (max_levels !== undefined && max_levels !== null && max_levels <= 0) {
+        callback('200');
+        return;
     }
 
     cur_result_ri = [];
@@ -1659,9 +1685,11 @@ exports.search_parents_lookup = function (connection, pi_list, cur_result_ri, re
                     }
                 }
 
-                _this.search_parents_lookup(connection, next_pi_list, cur_result_ri, result_ri, function (code) {
-                    callback(code);
-                });
+                _this.search_parents_lookup(connection, next_pi_list, cur_result_ri, result_ri,
+                    function (code) {
+                        callback(code);
+                    },
+                    (max_levels === undefined || max_levels === null) ? max_levels : max_levels - 1);
             }
         }
         else {
@@ -1670,37 +1698,63 @@ exports.search_parents_lookup = function (connection, pi_list, cur_result_ri, re
     });
 };
 
-// 하위(비-리프 타입) 자손 전체를 재귀 CTE 한 번으로 수집 (무상한).
-// background subtree 삭제 전용 — 응답 경로에서 쓰면 대형 트리에서 분 단위가 걸린다.
-exports.search_parents_lookup_all = function (connection, pi_list, cur_result_ri, result_ri, callback) {
+// 하위(비-리프 타입) 자손을 재귀 CTE 한 번으로 수집.
+//
+// max_levels 를 주면 그 깊이까지만 내려간다. 안 주면 무상한이다 —
+// background subtree 삭제(resource.js 의 delete_descendants_background)가
+// 그렇게 쓴다. 응답 경로에서 무상한으로 쓰면 대형 트리에서 분 단위가 걸린다.
+exports.search_parents_lookup_all = function (connection, pi_list, cur_result_ri, result_ri,
+                                              callback, max_levels) {
     if (pi_list.length === 0) {
         callback('200');
         return;
     }
 
-    var anchor_pi = pi_list.map(id => `'${id}'`).join(',');
+    var bounded = (max_levels !== undefined && max_levels !== null);
+    if (bounded && max_levels <= 0) {
+        callback('200');
+        return;
+    }
 
-    var sql = `
-        WITH RECURSIVE hierarchy AS (
-            SELECT ri, ty, pi FROM lookup WHERE pi IN (${anchor_pi}) AND ty <> '1' AND ty <> '9' AND ty <> '23' AND ty <> '4' AND ty <> '17'
-            UNION ALL
-            SELECT l.ri, l.ty, l.pi FROM lookup l JOIN hierarchy p ON l.pi = p.ri
-            WHERE l.ty <> '1' AND l.ty <> '9' AND l.ty <> '23' AND l.ty <> '4' AND l.ty <> '17'
-        )
-        SELECT * FROM hierarchy
-    `;
+    // 예전에는 pi 를 `'${id}'` 로 SQL 에 그대로 끼워 넣었다. pi 는 DB 에서 읽은
+    // ri 이고 그 ri 는 클라이언트가 정한 rn 을 담으므로 2차 주입 통로였다.
+    var anchor_marks = pi_list.map(function () { return '?'; }).join(',');
+    var bindings = pi_list.slice();
 
-    var exec = (global.usesqlite === 'true') ? require('./db_sqlite').getResult : db.getResult;
-    exec(sql, connection, function (err, rows) {
-        if (!err) {
-            for (var i = 0; i < rows.length; i++) {
-                result_ri.push(rows[i]);
-            }
-            callback('200');
-        } else {
-            console.error('[search_parents_lookup] Error:', err);
+    // ty 제외 목록도 바인딩으로 넘긴다. 앵커와 재귀 항에 각각 한 벌씩 필요하다.
+    var ty_marks = PRESEARCH_SKIP_TY.map(function () { return '?'; }).join(',');
+    bindings = bindings.concat(PRESEARCH_SKIP_TY);
+
+    var depth_sel = bounded ? ', 1 AS depth' : '';
+    var depth_rec = bounded ? ', p.depth + 1' : '';
+    var depth_lim = '';
+    if (bounded) {
+        depth_lim = ' AND p.depth < ?';
+    }
+
+    var sql =
+        'WITH RECURSIVE hierarchy AS (' +
+        '  SELECT ri, ty, pi' + depth_sel + ' FROM lookup' +
+        '   WHERE pi IN (' + anchor_marks + ') AND ty NOT IN (' + ty_marks + ')' +
+        '  UNION ALL' +
+        '  SELECT l.ri, l.ty, l.pi' + depth_rec + ' FROM lookup l JOIN hierarchy p ON l.pi = p.ri' +
+        '   WHERE l.ty NOT IN (' + ty_marks + ')' + depth_lim +
+        ') SELECT ri, ty, pi FROM hierarchy';
+
+    bindings = bindings.concat(PRESEARCH_SKIP_TY);
+    if (bounded) { bindings.push(max_levels); }
+
+    facade.run(facade.raw(sql, bindings), connection, function (err, rows) {
+        if (err) {
+            console.error('[search_parents_lookup] Error:', rows);
             callback('500-1');
+            return;
         }
+        rows = rows || [];
+        for (var i = 0; i < rows.length; i++) {
+            result_ri.push(rows[i]);
+        }
+        callback('200');
     });
 };
 
