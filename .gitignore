@@ -4,10 +4,9 @@ node_modules/
 .idea/
 log/
 doc/
-# docs/ 는 배포본 PDF 등을 막기 위한 것이다. 다만 설계 문서(스펙)는 저장소에 남긴다.
-# 디렉터리 자체를 제외하면 하위를 되살릴 수 없으므로 docs/* 로 내용만 제외한다.
-docs/*
-!docs/superpowers/
+# 가이드/설계 문서는 저장소가 아니라 별도로 배포한다. superpowers 산출물도 여기 쌓이므로
+# 디렉터리 전체를 제외한다. 파일은 워킹 트리에 그대로 남는다.
+docs/
 # 동등성 스냅샷은 로컬 산출물이다 (.gitkeep 은 남긴다)
 tools/equivalence/out/*
 !tools/equivalence/out/.gitkeep
@@ -28,12 +27,14 @@ test_*
 CLAUDE.md
 .superpowers/
 
-# SSH 키 — 절대 커밋되면 안 된다.
-# (*.pem 은 넣지 않는다. ca-crt.pem / server-crt.pem / server-key.pem 은
-#  이미 추적 중이라 넣어 봐야 적용되지 않고, 나중에 지웠다 되돌릴 때
-#  조용히 무시되는 함정만 만든다.)
-id_ed25519
-id_ed25519.pub
-id_rsa
-id_rsa.pub
+# 자격증명 — 저장소에 들어가면 안 된다
+#
+# 주의: ca-crt.pem / server-crt.pem / server-key.pem 은 이미 추적 중이라
+# 아래 *.pem 규칙이 적용되지 않는다 (gitignore 는 추적되지 않는 파일에만 걸린다).
+# 특히 server-key.pem 은 개인키인데 저장소에 들어가 있다 — 의도한 것인지
+# 확인이 필요하다. 빼려면 git rm --cached 로 추적을 먼저 끊어야 한다.
+id_ed25519*
+id_rsa*
+*.pem
+*.key
 *.ppk
