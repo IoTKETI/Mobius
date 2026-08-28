@@ -2892,7 +2892,21 @@ function check_csr(request, response, callback) {
 
                 forward_http(point.forwardcbhost, point.forwardcbport, request.url, request.method, request.headers, request.body, (code, _res) => {
                     if (code === '200') {
-                        var res = JSON.parse(JSON.stringify(_res));
+                        // 예전에는 JSON.parse(JSON.stringify(_res)) 였다. _res 는
+                        // http.IncomingMessage 이고 socket -> _httpMessage -> agent 로
+                        // 자기 자신에게 돌아오는 순환 참조를 갖는다. 그래서 stringify 가
+                        // *언제나* TypeError 를 던졌고, 원격이 정상 응답할 때마다
+                        // 워커가 죽었다 — 포워딩 성공 경로는 한 번도 동작한 적이 없다.
+                        //
+                        //   TypeError: Converting circular structure to JSON
+                        //       --> starting at object with constructor 'Socket'
+                        //
+                        // 쓰는 것은 헤더 몇 개와 body, statusCode 뿐이라 그것만 옮긴다.
+                        var res = {
+                            headers: _res.headers || {},
+                            body: _res.body,
+                            statusCode: _res.statusCode
+                        };
                         _res = null;
                         if (res.headers.hasOwnProperty('content-type')) {
                             response.setHeader('Content-Type', res.headers['content-type']);
