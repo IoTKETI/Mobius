@@ -1551,44 +1551,88 @@ exports.search_lookup_parents = function(connection, query, pi, cur_lim, count, 
 
 const max_parent_count = 2000;
 
+// 한 번에 물어볼 부모 수.
+//
+// 예전에는 부모 하나당 질의를 하나씩 던졌다. 그런데 부모 하나가 가진
+// 자식은 몇 개뿐이라, 비용의 대부분이 왕복 그 자체였다.
+//
+// 배포 서버 실측 (2026-08-28):
+//   루트 discovery 1건 -> 부모별 조회 4,080회 / 검사행 13,437 (쿼리당 3.3행)
+//                        DB 시간 1,235ms, 응답 1,984ms
+//   누적으로는 초당 103.7회 / 회당 0.43ms 로 남은 최대 비용이었다.
+//
+// 200개씩 묶으면 왕복이 4,080회 -> 21회가 된다. 읽는 행 수는 그대로다.
+// EXPLAIN 상 두 형태 모두 PRIMARY(pi, ri, ty) 커버링 인덱스를 쓴다
+// (단건은 type: ref, 묶음은 type: range).
+const PARENT_BATCH = 200;
+
+// presearch 가 훑지 않는 타입. 리프(4=cin, 23=sub, 17=req)와
+// 별도 경로로 다루는 것(1=acp, 9=grp)이다.
+const PRESEARCH_SKIP_TY = ['1', '9', '23', '4', '17'];
+
 function search_parents_lookup_action(connection, pi_list, count, cur_result_ri, result_ri, callback) {
     if (count >= pi_list.length) {
         callback('200');
         return;
     }
 
-    var sql = util.format("select ri, ty from lookup where pi = \'" + pi_list[count] + "\' and ty <> \'1\' and ty <> \'9\' and ty <> \'23\' and ty <> \'4\' and ty <> \'17\' limit 2000");
-    db.getResult(sql, connection, function (err, result_lookup_ri) {
-        if (!err) {
-            if (result_lookup_ri.length === 0) {
-                search_parents_lookup_action(connection, pi_list, ++count, cur_result_ri, result_ri, (code) => {
-                    callback(code);
-                });
-            }
-            else {
-                for (var idx in result_lookup_ri) {
-                    if (result_lookup_ri.hasOwnProperty(idx)) {
-                        cur_result_ri.push(result_lookup_ri[idx]);
-                        if (cur_result_ri.length > max_parent_count) {
-                            break;
-                        }
-                    }
-                }
+    // 이 레벨에서 더 담을 수 있는 만큼만 가져온다. 상한을 넘기면 어차피 멈추므로
+    // 그 이상 읽어 오는 것은 낭비이고, 한 묶음이 돌려주는 행 수의 상한이기도 하다.
+    var room = max_parent_count - cur_result_ri.length + 1;
+    if (room <= 0) {
+        callback('200');
+        return;
+    }
 
-                result_lookup_ri = null;
-                if (cur_result_ri.length > max_parent_count) {
-                    callback('200');
-                }
-                else {
-                    search_parents_lookup_action(connection, pi_list, ++count, cur_result_ri, result_ri, (code) => {
-                        callback(code);
-                    });
-                }
+    var batch = pi_list.slice(count, count + PARENT_BATCH);
+
+    // 예전에는 pi 를 SQL 문자열에 그대로 끼워 넣었다. pi 는 DB 에서 읽은 ri 이고
+    // 그 ri 는 클라이언트가 정한 rn 을 담으므로, 2차 주입 통로였다.
+    var qb = facade.k('lookup')
+        .select('pi', 'ri', 'ty')
+        .whereIn('pi', batch)
+        .whereNotIn('ty', PRESEARCH_SKIP_TY)
+        .limit(room);
+
+    facade.run(qb, connection, function (err, rows) {
+        if (err) {
+            callback('500-1');
+            return;
+        }
+
+        rows = rows || [];
+
+        // IN 은 인덱스 순서(pi 오름차순)로 돌려준다. 예전 구현은 pi_list 순서로
+        // 부모를 하나씩 훑었으므로, 결과 순서를 그대로 두려면 여기서 다시 묶는다.
+        // 이 순서가 곧 discovery 응답의 순서가 된다 (resource.js 가
+        // found_parent_list 를 그 순서대로 pi_list 로 옮긴다).
+        var byPi = Object.create(null);
+        for (var i = 0; i < rows.length; i++) {
+            var r = rows[i];
+            if (byPi[r.pi] === undefined) { byPi[r.pi] = []; }
+            // 호출부는 ri 와 ty 만 쓴다. pi 는 묶는 데만 쓰고 넘기지 않는다.
+            byPi[r.pi].push({ ri: r.ri, ty: r.ty });
+        }
+
+        var full = false;
+        for (var b = 0; b < batch.length && !full; b++) {
+            var kids = byPi[batch[b]];
+            if (kids === undefined) { continue; }
+            for (var k = 0; k < kids.length; k++) {
+                cur_result_ri.push(kids[k]);
+                if (cur_result_ri.length > max_parent_count) { full = true; break; }
             }
         }
-        else {
-            callback('500-1');
+
+        if (full) {
+            callback('200');
+            return;
         }
+
+        search_parents_lookup_action(connection, pi_list, count + PARENT_BATCH,
+            cur_result_ri, result_ri, function (code) {
+                callback(code);
+            });
     });
 }
 
