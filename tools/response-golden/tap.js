@@ -12,9 +12,17 @@ const path = require('path');
 
 const OUT_DIR = path.join(__dirname, 'out');
 
-// (request, response, status, rsc, <5번째>, callback)
-// error_result 만 5번째가 dbg_string 이고 나머지는 cap 이다.
-const TARGETS = ['response_result', 'response_rcn3_result', 'search_result', 'error_result'];
+// 어떤 함수를 거쳤는지가 아니라 "어떤 채널로 나갔는지"를 기록한다.
+// 함수 이름을 그대로 쓰면 내부 구현을 바꿀 때마다 골든이 깨진다. 실제로 에러
+// 경로가 error_result 에서 respond 로 옮겨가자 24케이스 중 13이 사라졌다.
+// 우리가 지키려는 것은 클라이언트가 받는 (status, rsc, dbg) 이지 함수 이름이 아니다.
+const CHANNEL = {
+    response_result:      'result',
+    response_rcn3_result: 'rcn3',
+    search_result:        'search',
+    error_result:         'error',   // 옛 시그니처 어댑터
+    respond:              'error'    // 새 진입점 — 같은 채널로 본다
+};
 
 function install() {
     try { fs.mkdirSync(OUT_DIR, { recursive: true }); } catch (e) { /* 이미 있음 */ }
@@ -26,23 +34,40 @@ function install() {
     const stream = fs.createWriteStream(
         path.join(OUT_DIR, 'resp-' + process.pid + '.jsonl'), { flags: 'a' });
 
-    TARGETS.forEach(function (name) {
+    let installed = 0;
+    Object.keys(CHANNEL).forEach(function (name) {
         const orig = responder[name];
         if (typeof orig !== 'function') {
-            console.error('[resp-tap] ' + name + ' 이 함수가 아니다 — 건너뛴다');
+            // respond 는 아직 없을 수 있다(단일 진입점 도입 전). 조용히 넘어간다.
             return;
         }
-        responder[name] = function (request, response, status, rsc, arg5) {
+        installed++;
+        responder[name] = function (request, response, a3, a4) {
             try {
                 const h = (request && request.headers) || {};
-                stream.write(JSON.stringify({
-                    case: h['x-golden-case'] || '(unlabeled)',
-                    fn: name,
-                    status: String(status),
-                    rsc: String(rsc),
+                let status, rsc, dbg;
+
+                if (name === 'respond') {
+                    // respond(request, response, result, callback)
+                    const code = (a3 && a3.code) || {};
+                    status = code.http;
+                    rsc = code.rsc;
+                    dbg = a3 ? a3.dbg : null;
+                } else {
+                    // (request, response, status, rsc, dbg|cap, callback)
+                    status = a3;
+                    rsc = a4;
                     // error_result 의 dbg 만 응답 본문에 실린다. cap 은 형태가 제각각이라
                     // 문자열일 때만 남긴다 (객체를 통째로 남기면 diff 가 흔들린다).
-                    arg5: (typeof arg5 === 'string') ? arg5 : null,
+                    dbg = (typeof arguments[4] === 'string') ? arguments[4] : null;
+                }
+
+                stream.write(JSON.stringify({
+                    case: h['x-golden-case'] || '(unlabeled)',
+                    fn: CHANNEL[name],
+                    status: String(status),
+                    rsc: String(rsc),
+                    arg5: (typeof dbg === 'string') ? dbg : null,
                     method: String((request && request.method) || '')
                 }) + '\n');
             } catch (e) {
@@ -53,7 +78,7 @@ function install() {
         };
     });
 
-    console.error('[resp-tap] installed (' + TARGETS.length + ' fns, pid ' + process.pid + ')');
+    console.error('[resp-tap] installed (' + installed + ' fns, pid ' + process.pid + ')');
 }
 
 module.exports = { install: install, OUT_DIR: OUT_DIR };

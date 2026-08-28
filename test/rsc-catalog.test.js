@@ -140,26 +140,35 @@ test('http 는 number 이고 rsc 는 문자열이다', function () {
     });
 });
 
-test('app.js 는 더 이상 코드 표를 직접 들고 있지 않다', function () {
-    // Task 3 에서 리터럴 93행을 걷어내고 reason.js 생성물로 바꿨다.
+test('app.js 는 코드 표도 호환 표도 들고 있지 않다', function () {
+    // 리터럴 93행은 사유 카탈로그로 옮겼고, 호환 표(toLegacyTable)도 읽는 곳이
+    // 없어져 걷어냈다. app.js 는 이제 카탈로그를 참조만 한다.
     const app = read('app.js');
     assert.ok(app.indexOf('var resultStatusCode = {') < 0,
-        'app.js 에 resultStatusCode 리터럴이 남아 있다');
-    assert.ok(/require\(['"]\.\/mobius\/reason['"]\)\.toLegacyTable\(\)/.test(app),
-        'app.js 가 reason.toLegacyTable() 로 표를 받아야 한다');
+        'resultStatusCode 리터럴이 남아 있다');
+    assert.ok(app.indexOf('var resultStatusCode = reason.toLegacyTable()') < 0,
+        '호환 표가 남아 있다 — 읽는 곳이 없으면 걷어내야 한다');
+    assert.ok(/require\(['"]\.\/mobius\/reason['"]\)/.test(app), 'reason 을 참조해야 한다');
+    assert.ok(/require\(['"]\.\/mobius\/rsc['"]\)/.test(app), 'rsc 를 참조해야 한다');
 });
 
-test('카탈로그를 쓰는 곳은 아직 reason.js 뿐이다 (Task 4 전)', function () {
-    // 응답 진입점 교체(Task 4)와 바인딩 통합(Task 5)은 아직이다.
-    // pxy_coap.js 는 여전히 자체 표를 쓰고 있어야 한다.
-    const files = ['app.js', 'pxy_coap.js', 'pxy_ws.js', 'pxy_mqtt.js']
-        .concat(fs.readdirSync(path.join(ROOT, 'mobius'))
-            .filter(function (f) { return f.endsWith('.js') && f !== 'rsc.js' && f !== 'reason.js'; })
-            .map(function (f) { return 'mobius/' + f; }));
-    const users = files.filter(function (f) {
-        let s;
-        try { s = read(f); } catch (e) { return false; }
-        return /require\(['"][^'"]*\/rsc['"]\)/.test(s);
+test('에러 응답이 표를 직접 인덱싱하지 않는다', function () {
+    // 예전에는 호출부 47곳이 resultStatusCode[code][0], [1], [2] 를 직접 펼쳤다.
+    // 표의 3원소 배열 구조가 그만큼 새어 나가 있었다.
+    const app = read('app.js');
+    const lines = app.split('\n').filter(function (l) {
+        return l.indexOf('resultStatusCode[') >= 0 && l.trim().indexOf('//') !== 0;
     });
-    assert.deepStrictEqual(users, [], '아직 rsc.js 를 직접 참조하면 안 된다: ' + users.join(', '));
+    assert.deepStrictEqual(lines, [], '직접 인덱싱이 남아 있다:\n' + lines.join('\n'));
+
+    // 옛 시그니처 직접 호출도 없어야 한다
+    assert.ok(app.indexOf('responder.error_result(') < 0,
+        'responder.error_result 직접 호출이 남아 있다 — response_error_result 를 쓴다');
+});
+
+test('바인딩 통합은 아직이다 (Task 5 전)', function () {
+    // pxy_coap.js 는 여전히 자체 매핑 표를 쓰고 있어야 한다.
+    const coap = read('pxy_coap.js');
+    assert.ok(coap.indexOf('var coap_rsc_code') >= 0, 'pxy_coap 자체 표가 이미 사라졌다');
+    assert.ok(!/require\(['"][^'"]*rsc['"]\)/.test(coap), 'pxy_coap 이 벌써 카탈로그를 쓴다');
 });
