@@ -16,8 +16,8 @@ const reason = require('../mobius/reason');
 const rsc = require('../mobius/rsc');
 const ROOT = path.join(__dirname, '..');
 
-test('사유 94개가 있다', function () {
-    assert.strictEqual(Object.keys(reason.REASON).length, 94);   // 501-1 은 걷어내고, 301-5 / 404-8 을 더했다
+test('사유 95개가 있다', function () {
+    assert.strictEqual(Object.keys(reason.REASON).length, 95);   // 501-1 은 걷어내고, 301-5 / 404-8 을 더했다
 });
 
 test('모든 사유의 code 가 RSC 카탈로그의 실제 항목이다', function () {
@@ -33,7 +33,7 @@ test('모든 사유의 code 가 RSC 카탈로그의 실제 항목이다', functi
 
 test('toLegacyTable 이 app.js 가 쓰던 형태를 만든다', function () {
     const t = reason.toLegacyTable();
-    assert.strictEqual(Object.keys(t).length, 94);
+    assert.strictEqual(Object.keys(t).length, 95);
 
     Object.keys(t).forEach(function (k) {
         const row = t[k];

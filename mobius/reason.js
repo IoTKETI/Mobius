@@ -77,6 +77,9 @@ var REASON = {
     '400-52': { code: RSC.BAD_REQUEST, msg: "resource type is not supported for update" },
     '400-53': { code: RSC.BAD_REQUEST, msg: "this resource of mgmtObj is not supported" },
     '400-54': { code: RSC.BAD_REQUEST, msg: "cdn of flexContainer does not match the fcnt resource" },
+    // Content-Type: application/json;ty 처럼 ty 에 값이 없는 경우.
+    // 예전에는 ty_arr[1] 이 undefined 인 채 .replace 를 불러 워커가 죽었다.
+    '400-55': { code: RSC.BAD_REQUEST, msg: "ty parameter of Content-Type has no value" },
 
     '403-1': { code: RSC.AE_NOT_ALLOWED, msg: "AE-ID is not allowed" },
     '403-2': { code: RSC.TARGET_NOT_SUBSCRIBABLE, msg: "this resource type cannot be created under the parent resource" },

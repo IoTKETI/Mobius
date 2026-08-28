@@ -574,7 +574,12 @@ global.make_json_obj = function (bodytype, str, callback) {
         else if (bodytype === 'cbor') {
             cbor.decodeFirst(str, (err, result) => {
                 if (err) {
-                    console.log('cbor parser error]');
+                    // 예전에는 로그만 찍고 콜백을 부르지 않았다. 그러면 요청이
+                    // 영원히 매달리고 커넥션도 반납되지 않는다 — 크래시가 아니라
+                    // cluster 재시작도 안 걸리는 조용한 고갈이다.
+                    // xml/json 분기는 실패를 '0' 으로 알린다. 여기만 빠져 있었다.
+                    console.error('[make_json_obj] cbor 를 읽을 수 없다: ' + err.message);
+                    callback('0');
                 }
                 else {
                     callback('1', result);
@@ -886,6 +891,20 @@ function check_request_query_rt(request, response, callback) {
         callback('200');
     }
     else if (request.query.rt == 1 || request.query.rt == 2) { // nonblocking
+        // 논블로킹은 POST 에서만 끝까지 이어진다. 결과 코드 '202-1'/'202-2' 를
+        // 받아 202 로 응답하는 분기가 app.post 에만 있고, GET/PUT/DELETE 에는 없다.
+        // 그래서 그 세 경로에서는 '202-1' 이 사유 표에 없는 코드로 흘러가
+        // 500 이 나갔다(Task 8 이전에는 표를 인덱싱하다 워커가 죽었다).
+        //
+        // req 리소스를 만들어 놓고 202 를 돌려주면, 클라이언트는 영영 채워지지
+        // 않을 결과를 기다리게 된다. 지원하지 않는다고 정직하게 답한다.
+        if (request.method.toLowerCase() !== 'post') {
+            console.log('[check_request_query_rt] 논블로킹(rt=' + request.query.rt + ')은 ' +
+                        request.method + ' 에서 지원하지 않는다');
+            callback('405-4');
+            return;
+        }
+
         if (request.query.rt == 2 && request.headers['x-m2m-rtu'] == null && request.headers['x-m2m-rtu'] == '') {
             callback('400-21');
         }
@@ -1502,6 +1521,18 @@ function check_xm2m_headers(request, callback) {
             if (content_type.hasOwnProperty(i)) {
                 var ty_arr = content_type[i].replace(/ /g, '').split('=');
                 if (ty_arr[0].replace(/ /g, '') == 'ty') {
+                    // 'ty' 에 값이 없으면(Content-Type: application/json;ty)
+                    // ty_arr[1] 이 undefined 다. 예전에는 곧바로 .replace 를 불러
+                    // TypeError 로 워커가 죽었다 — 이 코드는 db.getConnection 콜백
+                    // 안이라 빌린 커넥션도 반납되지 않았다.
+                    // 헤더 한 줄로 워커를 죽일 수 있었다.
+                    if (ty_arr[1] == null || ty_arr[1] === '') {
+                        console.log('[check_xm2m_headers] Content-Type 의 ty 에 값이 없다: ' +
+                                    request.headers['content-type']);
+                        content_type = null;
+                        callback('400-55');
+                        return;
+                    }
                     request.ty = ty_arr[1].replace(' ', '');
                     content_type = null;
                     break;

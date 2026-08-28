@@ -16,6 +16,7 @@
 
 var mysql = require('mysql');
 var sqlite = require('./db_sqlite');
+var lease = require('./lease');
 
 var mysql_pool = null;
 
@@ -88,7 +89,10 @@ exports.getConnection = function (callback) {
         }
         else {
             if (connection) {
-                callback('200', connection);
+                // 임대 장부에 올린다. 반납되지 않는 커넥션을 드러내기 위한 것으로,
+                // 동작은 바꾸지 않는다 — release 를 감싸 장부만 지우고 원래
+                // release 를 그대로 부른다. mobius/lease.js 주석 참고.
+                callback('200', lease.track(connection));
             }
             else {
                 callback('500-5');

@@ -1832,9 +1832,37 @@ exports.response_result = function(request, response, status, rsc, cap, callback
         _this.typeCheckforJson(body_Obj);
 
         if(rootnm === 'req') {
-            body_Obj['m2m:' + rootnm].pc = JSON.parse(body_Obj['m2m:' + rootnm].pc);
-            if(Object.keys(body_Obj['m2m:' + rootnm].pc)[0] === 'm2m:uril') {
-                body_Obj['m2m:' + rootnm].pc['m2m:uril'] = body_Obj['m2m:' + rootnm].pc['m2m:uril'].split(' ');
+            // req 의 pc 는 그 요청의 결과다. 아직 결과가 없으면 비어 있는데,
+            // 예전에는 방어 없이 JSON.parse 를 불러 String(undefined) 가
+            // '"undefined" is not valid JSON' 으로 터졌다 — 응답 전송과 커넥션
+            // 반납 전이라 워커가 죽고 커넥션이 샜다.
+            //
+            // 논블로킹 POST 가 만든 req 를 조회하면 정확히 이 상태다. 즉 평범한
+            // 요청 두 번으로 워커를 죽일 수 있었다.
+            var req_obj = body_Obj['m2m:' + rootnm];
+            var pc_parsed = null;
+            if (typeof req_obj.pc === 'string' && req_obj.pc !== '') {
+                try {
+                    pc_parsed = JSON.parse(req_obj.pc);
+                }
+                catch (e) {
+                    console.error('[response_result] req 의 pc 를 읽을 수 없다: ' + e.message);
+                }
+            }
+            else if (req_obj.pc != null && typeof req_obj.pc === 'object') {
+                pc_parsed = req_obj.pc;
+            }
+
+            if (pc_parsed == null) {
+                // 결과가 아직 없다. pc 는 선택 속성이므로 빼고 내보낸다 —
+                // 빈 객체를 넣으면 "결과가 비어 있다" 는 뜻이 되어 거짓말이 된다.
+                delete req_obj.pc;
+            }
+            else {
+                req_obj.pc = pc_parsed;
+                if(Object.keys(req_obj.pc)[0] === 'm2m:uril') {
+                    req_obj.pc['m2m:uril'] = req_obj.pc['m2m:uril'].split(' ');
+                }
             }
         }
 
@@ -1842,7 +1870,11 @@ exports.response_result = function(request, response, status, rsc, cap, callback
 
         // console.log(bodyString); // 응답 바디 전체 덤프 - 로그 폭주 원인이라 비활성
 
-        if (request.query.rt == 3 || (request.query.rt == 2 && request.headers['x-m2m-rtu'] == null && request.headers['x-m2m-rtu'] == '')) {
+        // rt 가 1/2/3 이 아니거나 rt==2 인데 x-m2m-rtu 가 없으면, 예전에는 두 조건이
+        // 모두 거짓이 되어 콜백이 사라졌다 — 응답도 connection.release() 도 없이
+        // 요청이 매달렸다. 크래시가 아니라 워커 재시작도 안 걸리는 조용한 고갈이다.
+        // 이제 논블로킹만 명시적으로 잡고 나머지는 기본(블로킹)으로 보낸다.
+        if (!(request.query.rt == 1 || (request.query.rt == 2 && request.headers['x-m2m-rtu'] != null && request.headers['x-m2m-rtu'] != ''))) {
             if (request.usebodytype == 'json') {
             }
             else if (request.usebodytype == 'cbor') {
@@ -1865,7 +1897,7 @@ exports.response_result = function(request, response, status, rsc, cap, callback
 
             callback();
         }
-        else if (request.query.rt == 1 || (request.query.rt == 2 && request.headers['x-m2m-rtu'] != null && request.headers['x-m2m-rtu'] != '')) {
+        else {
             store_to_req_resource(request, bodyString, rsc, cap, function () {
                 body_Obj = null;
                 rspObj = null;
@@ -1936,7 +1968,11 @@ exports.response_rcn3_result = function(request, response, status, rsc, cap, cal
 
     var bodyString = JSON.stringify(body_Obj);
 
-    if (request.query.rt == 3 || (request.query.rt == 2 && request.headers['x-m2m-rtu'] == null && request.headers['x-m2m-rtu'] == '')) {
+    // rt 가 1/2/3 이 아니거나 rt==2 인데 x-m2m-rtu 가 없으면, 예전에는 두 조건이
+    // 모두 거짓이 되어 콜백이 사라졌다 — 응답도 connection.release() 도 없이
+    // 요청이 매달렸다. 크래시가 아니라 워커 재시작도 안 걸리는 조용한 고갈이다.
+    // 이제 논블로킹만 명시적으로 잡고 나머지는 기본(블로킹)으로 보낸다.
+    if (!(request.query.rt == 1 || (request.query.rt == 2 && request.headers['x-m2m-rtu'] != null && request.headers['x-m2m-rtu'] != ''))) {
         if (request.usebodytype == 'json') {
         }
         else if (request.usebodytype == 'cbor') {
@@ -1987,7 +2023,7 @@ exports.response_rcn3_result = function(request, response, status, rsc, cap, cal
 
         callback();
     }
-    else if (request.query.rt == 1 || (request.query.rt == 2 && request.headers['x-m2m-rtu'] != null && request.headers['x-m2m-rtu'] != '')) {
+    else {
         store_to_req_resource(request, bodyString, rsc, cap, function () {
             body_Obj = null;
             rspObj = null;
@@ -2046,7 +2082,11 @@ exports.search_result = function(request, response, status, rsc, cap, callback) 
     if (request.headers.rootnm == 'uril') {
         var rootnm = request.headers.rootnm;
 
-        if (request.query.rt == 3) {
+        // rt 가 1/2/3 이 아니거나 rt==2 인데 x-m2m-rtu 가 없으면, 예전에는 두 조건이
+        // 모두 거짓이 되어 콜백이 사라졌다 — 응답도 connection.release() 도 없이
+        // 요청이 매달렸다. 크래시가 아니라 워커 재시작도 안 걸리는 조용한 고갈이다.
+        // 이제 논블로킹만 명시적으로 잡고 나머지는 기본(블로킹)으로 보낸다.
+        if (!(request.query.rt == 1)) {
             body_Obj['m2m:' + rootnm] = body_Obj[rootnm];
             delete body_Obj[rootnm];
 
@@ -2082,7 +2122,7 @@ exports.search_result = function(request, response, status, rsc, cap, callback) 
 
             callback();
         }
-        else if (request.query.rt == 1) {
+        else {
             body_Obj[rootnm] = body_Obj[rootnm].toString().replace(/,/g, ' ');
 
             body_Obj['m2m:' + rootnm] = body_Obj[rootnm];
@@ -2148,7 +2188,11 @@ exports.search_result = function(request, response, status, rsc, cap, callback) 
 
         bodyString = JSON.stringify(body_Obj);
 
-        if (request.query.rt == 3 || (request.query.rt == 2 && request.headers['x-m2m-rtu'] == null && request.headers['x-m2m-rtu'] == '')) {
+        // rt 가 1/2/3 이 아니거나 rt==2 인데 x-m2m-rtu 가 없으면, 예전에는 두 조건이
+        // 모두 거짓이 되어 콜백이 사라졌다 — 응답도 connection.release() 도 없이
+        // 요청이 매달렸다. 크래시가 아니라 워커 재시작도 안 걸리는 조용한 고갈이다.
+        // 이제 논블로킹만 명시적으로 잡고 나머지는 기본(블로킹)으로 보낸다.
+        if (!(request.query.rt == 1 || (request.query.rt == 2 && request.headers['x-m2m-rtu'] != null && request.headers['x-m2m-rtu'] != ''))) {
             if (request.usebodytype == 'json') {
             }
             else if (request.usebodytype == 'cbor') {
@@ -2176,7 +2220,7 @@ exports.search_result = function(request, response, status, rsc, cap, callback) 
 
             callback();
         }
-        else if (request.query.rt == 1 || (request.query.rt == 2 && request.headers['x-m2m-rtu'] != null && request.headers['x-m2m-rtu'] != '')) {
+        else {
             store_to_req_resource(request, bodyString, rsc, cap, function () {
                 body_Obj = null;
                 rspObj = null;
