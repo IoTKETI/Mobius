@@ -65,14 +65,20 @@ function checkAcip(acco_entry, clientIp, ipv6_idx_ref) {
         return false;
     }
     if (acip.hasOwnProperty('ipv6')) {
-        var ipv6_idx_local = 99;
-        for (var j in acip['ipv6']) {
-            ipv6_idx_local = j;
-            if (acip['ipv6'].hasOwnProperty(j) && acip['ipv6'][j] === clientIp) { return true; }
+        // 원본 line 81: var ipv6_idx = 99; -- 이 분기에 들어올 때마다 매번 리셋된다.
+        ipv6_idx_ref.value = 99;
+        var list6 = acip['ipv6'];
+        for (var j in list6) {
+            // 원본의 for (ipv6_idx in list) 는 매 반복마다 -- 매치 여부와 무관하게 --
+            // 인덱스를 즉시 대입한다(호이스트된 변수라 이 대입이 다음 acco 엔트리로 leak 된다).
+            // 그래서 "매치되는" 반복이라도 sentinel 은 먼저 갱신되고 나서 break 한다.
+            // 매치를 찾자마자 대입 전에 return 해버리면 이 leak-clearing 효과가 사라진다 —
+            // 이전에 반복(round)에서 이 실수를 했었다.
+            ipv6_idx_ref.value = j;
+            if (list6.hasOwnProperty(j) && list6[j] === clientIp) { return true; }
         }
-        // ipv6_idx 를 호출자에게 반환 (다음 acco 엔트리에 영향을 미치도록)
-        ipv6_idx_ref.value = ipv6_idx_local;
-        if (ipv6_idx_local === 99) {
+        // 원본 line 91: 루프가 끝난 뒤(매치 없이 끝났거나 리스트가 비어 있었던 경우)에만 검사한다.
+        if (ipv6_idx_ref.value === 99) {
             return true;
         }
         return false;
@@ -90,14 +96,24 @@ function checkActw(acco_entry, now) {
 
     // KNOWN QUIRK: 원본(security.js)은 6개 필드 중 하나라도 일치하면 허용한다.
     // 정상적인 시간창 의미(모든 필드가 맞아야 함)가 아니지만 동작을 보존한다.
+    //
+    // KNOWN BUG: 원본 line 111 의 var actw_idx = 99; 는 이 분기(actw 필드가 있는 경우)에
+    // 들어올 때마다 매번 리셋된다. 이어지는 for (actw_idx in actw) 가 한 번도 안 돌면
+    // (= actw 배열이 비어 있으면) actw_idx 는 99 로 남고, line 128 의 if (actw_idx == 99)
+    // 가 actw_permit=1 로 자동 허용한다 — actw 필드가 아예 없는 경우(else 분기)와 결과가
+    // 같다. 이 리셋과 그 유일한 읽기 지점(line 128)은 같은 분기 실행 안에 있어서, 다른
+    // acco 엔트리나 다른 acr 에서 넘어온 값이 여기 영향을 주는 leak 은 아니다
+    // (ipv6_idx 의 line 76 처럼 다른 분기에서 읽는 경우와 다르다 — 직접 시뮬레이션으로 확인함).
+    var sawEntry = false;
     for (var idx in acco_entry.actw) {
         if (!acco_entry.actw.hasOwnProperty(idx)) { continue; }
+        sawEntry = true;
         var parts = String(acco_entry.actw[idx]).split(' ');
         for (var d = 0; d < 6; d++) {
             if (parts[d] !== '*' && parts[d] === cur[d].toString()) { return true; }
         }
     }
-    return false;
+    return !sawEntry;
 }
 
 // acco 배열을 검사한다. acipPermit 와 actwPermit 는 sticky latch: OR-누적되며 절대 리셋되지 않는다.
@@ -129,7 +145,16 @@ function checkAcco(acr, ctx, acipPermit, actwPermit, ipv6_idx_ref) {
             return true;
         }
     }
-    // 엔트리가 없으면 (acco 배열이 비어 있으면) 원본 line 142-145 로 디폴트 허용
+    // 엔트리가 없으면 (acco 배열이 비어 있으면) 원본 line 142-145 로 디폴트 허용.
+    //
+    // sawEntry 는 원본의 acco_idx 센티널(line 51, 142)을 대신한다: var acco_idx = 99; 는
+    // acr 에 acco 필드가 있을 때마다 매번 리셋되고, 유일한 읽기(line 142)도 같은 분기
+    // 실행 안에서 그 직후에 일어난다 -- ipv6_idx 의 line 76 처럼 "다른" 분기에서 읽는
+    // 구조가 아니다. 그래서 acco_idx 는 acr 을 건너 leak 되지 않는다: 실제로 원본 로직을
+    // 그대로 옮겨 직접 시뮬레이션해서 확인했다 -- 앞선 acr 의 acco 루프가 (99 가 아닌)
+    // 실제 인덱스로 끝나도, 다음 acr 이 자신의 acco_idx 를 99 로 다시 리셋하므로 그 acr
+    // 자신의 빈 배열 여부만으로 결과가 정해진다. sawEntry 는 이 자기완결적(self-contained)
+    // 동작을 정확히 재현하며, acr 간에 상태를 끌고 다닐 필요가 없다.
     if (!sawEntry) {
         acipPermit.v = 1;
         actwPermit.v = 1;
@@ -154,8 +179,11 @@ exports.evaluatePrivileges = function (privList, ctx) {
             if (!priv.acr.hasOwnProperty(index)) { continue; }
             var acr = priv.acr[index];
 
-            // KNOWN BUG: acip_permit/actw_permit 는 loop 밖에서 선언되고 여러 acr 을 거치며 누적된다.
-            // 각 acr 마다 새로 초기화하지 않으므로 이전 acr 의 값이 영향을 미친다.
+            // 원본 line 46-48: var acip_permit = 0; var actw_permit = 0; 은 acr 루프 안,
+            // try 블록의 맨 앞에서 매 acr 마다 다시 실행된다 -- 즉 acr 마다 새로 0 으로
+            // 리셋된다(누적되지 않는다). 여기서도 매 acr 마다 새 { v: 0 } 객체를 만들어
+            // 같은 리셋을 재현한다. acco 배열 "안"의 여러 엔트리를 거치며 OR-누적(sticky
+            // latch, checkAcco 참고)되는 것과는 다른 스코프이니 혼동하지 말 것.
             var acipPermit = { v: 0 };
             var actwPermit = { v: 0 };
 

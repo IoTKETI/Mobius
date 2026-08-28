@@ -104,65 +104,23 @@ test('evaluateBrokenAcpi: ACP 를 못 찾으면 생성자만 허용', function (
 });
 
 // KNOWN BUG: Critical #1 - sticky latch bug 보존 확인.
-// 첫 엔트리가 acip_permit=1 을 설정하면 두 번째 엔트리는 그 값을 유지한 채 자신의 acip 검사를 생략할 수 있다.
+// 첫 엔트리: acip 필드 없음 → acip_permit=1. actw 있지만 매칭 실패(hour!=99) → actw_permit=0.
+// 두 번째 엔트리: acip 있지만 매칭 실패(10.0.0.9 != clientIp) → 원본은 acip_permit 을 리셋하지
+// 않으므로 1 로 유지된다(sticky latch). actw 필드 없음 → actw_permit=1.
+// 결과: acip_permit==1 && actw_permit==1 → 허용. 각 엔트리가 독립적으로 평가되어야 정상이지만
+// 플래그가 sticky 하므로 이전 엔트리의 영향을 받는다.
 test('KNOWN BUG: acco 의 여러 엔트리에 걸친 sticky latch 현상', function () {
     const pv = [{
         acr: [{
             acor: ['CAdmin'],
             acop: 63,
             acco: [
-                { actw: ['* * 99 * * *'] },  // actw 는 매칭 실패 (hour != 99), acip 없으므로 acip_permit=1
-                { acip: { ipv4: ['10.0.0.9'] } }  // ipv4 는 non-matching (10.0.0.9 != 10.0.0.5)
-            ]
-        }]
-    }];
-    // 두 엔트리 모두 실패했지만, 첫 엔트리가 설정한 acip_permit=1 이 유지되고,
-    // 두 번째 엔트리도 acip_permit=1 을 갖고 있다 (sticky latch). actw_permit 는 여전히 0 이지만,
-    // 첫 엔트리가 actw_permit=1 을 남긴다면... 아니다. 다시 읽어보자.
-    // 첫 엔트리: acip 없으므로 acip_permit=1, actw 있지만 매칭 실패이므로 actw_permit=0
-    // 두 엔트리 모두 acip_permit==1 && actw_permit==1 을 만족하지 못하므로 continue
-    // 루프 끝까지 도달. 이건 거부되어야 한다.
-    // 아, 원본을 다시 보니 acip 필드가 없으면 acip_permit=1, actw 필드가 없으면 actw_permit=1 이다.
-    // 그래서 수정된 테스트:
-    const pv2 = [{
-        acr: [{
-            acor: ['CAdmin'],
-            acop: 63,
-            acco: [
-                { actw: ['* * 99 * * *'] },  // actw 있지만 매칭 실패 (hour != 99), 다른 필드도 모두 안 맞음. acip 없으므로 acip_permit=1
-                { acip: { ipv4: ['10.0.0.9'] } }  // acip 있지만 매칭 실패, actw 없으므로 actw_permit=1
-            ]
-        }]
-    }];
-    // 첫 엔트리: acip_permit=1 (no acip field), actw_permit=0 (no match)
-    // 브레이크하지 않음 (둘 다 1이 아니므로)
-    // 두 엔트리: acip_permit=0 (ipv4 no match), but wait... acip_permit 는 sticky이므로 여전히 1?
-    // 아니다. 원본을 다시 읽어야 한다.
-    // 원본 line 136-138: if (actw_permit == 1 && acip_permit == 1) { break; }
-    // 즉, 두 플래그가 모두 1 이면 루프를 탈출한다.
-    // 아, 내가 잘못 이해했다. sticky latch 는 "한 번 1 이 되면 리셋되지 않는다"는 뜻이다.
-    // 따라서:
-    // 첫 엔트리: acip_permit 1 (no acip), actw_permit 0 (no match in actw)
-    // 두 번째 엔트리: acip_permit 는 이미 1 이므로 리셋 안 됨, acip 검사 실패해도 1 유지. actw_permit 1 (no actw)
-    // 결과: acip_permit==1 && actw_permit==1 → 허용!
-    // 이게 버그다. 각 엔트리가 독립적으로 평가되어야 하는데, 플래그가 sticky 하므로 이전 엔트리의 영향을 받는다.
-    const pv3 = [{
-        acr: [{
-            acor: ['CAdmin'],
-            acop: 63,
-            acco: [
-                // 첫 엔트리: acip 없음 → acip_permit=1, actw 있지만 매칭 실패 → actw_permit=0
                 { actw: ['* * 99 * * *'] },
-                // 두 엔트리: acip 있지만 매칭 실패, actw 없음 → actw_permit=1 로 설정
-                // 하지만 acip_permit 는 이미 1 로 설정되었고 리셋 안 됨
                 { acip: { ipv4: ['10.0.0.9'] } }
             ]
         }]
     }];
-    // 첫 엔트리 후: acip_permit=1, actw_permit=0
-    // 두 엔트리 후: acip_permit=1 (유지), actw_permit=1 (설정)
-    // 결과: 허용
-    assert.strictEqual(acp.evaluatePrivileges(pv3, ctx()).allowed, true,
+    assert.strictEqual(acp.evaluatePrivileges(pv, ctx()).allowed, true,
         '원본은 sticky latch 로 인해 복수 acco 규칙의 제약을 우회한다');
 });
 
@@ -199,4 +157,66 @@ test('KNOWN BUG: ipv6_idx 변수 누수로 인한 acip 검사 우회', function 
     const r = acp.evaluatePrivileges(pv, ctx());
     assert.strictEqual(r.allowed, true,
         '원본은 ipv6_idx leak 으로 인해 두 번째 엔트리의 ipv4 검사가 우회된다');
+});
+
+// KNOWN BUG: ipv6_idx leak 은 "매치되면 사라진다" -- 원본의 for (ipv6_idx in list) 는
+// 매치되는 반복에서도 매치 여부와 무관하게 sentinel 을 먼저 갱신하고 나서 break 하기
+// 때문이다. acr 을 3개로 나눠서 이 순서를 드러낸다 (acor 를 일부러 안 맞춰서 acip/actw
+// 판정만으로는 다음 acr 로 넘어가게 만든다):
+//   ACR0: acco.acip.ipv6 = [] (빈 리스트) → 루프 0회 → sentinel 99 유지 (leak 발생)
+//   ACR1: acco.acip.ipv6 = ['10.0.0.5'] (clientIp 와 매치) → sentinel 이 매치된 인덱스로
+//         갱신되어 leak 이 해소된다
+//   ACR2: acor 매치, acco.acip.ipv4 = ['10.0.0.9'] (non-match) → ACR1 이 leak 을 지웠으므로
+//         line 76 의 (leak) 자동 허용이 발동하지 않아 거부되어야 한다
+// 현재 코드는 ipv6 분기에서 매치 시 ipv6_idx_ref 갱신 전에 return 해버려 ACR1 이 leak 을
+// 지우지 못하고, ACR2 가 (mobius/acp_eval.js 의 checkAcip ipv4 분기, "if (ipv6_idx_ref.value
+// === 99)") 잘못 허용된다 -- allowed:true, matchedIndex:2 로 나온다 (직접 확인함).
+// 원본을 그대로 옮긴 시뮬레이션(scratchpad/trace_sim.js Test C)은 allowed:false 를 낸다.
+test('KNOWN BUG: ipv6_idx leak 은 뒤따르는 acr 의 ipv6 매치로 해소된다 (3-ACR 시퀀스)', function () {
+    const pv = [{
+        acr: [
+            { acor: ['Nobody0'], acop: 63, acco: [{ acip: { ipv6: [] } }] },
+            { acor: ['Nobody1'], acop: 63, acco: [{ acip: { ipv6: ['10.0.0.5'] } }] },
+            { acor: ['CAdmin'], acop: 63, acco: [{ acip: { ipv4: ['10.0.0.9'] } }] }
+        ]
+    }];
+    const r = acp.evaluatePrivileges(pv, ctx());
+    assert.strictEqual(r.allowed, false,
+        'ACR1 의 ipv6 매치가 leak 을 지우므로 ACR2 는 ipv4 불일치로 거부되어야 한다');
+});
+
+// KNOWN BUG: actw_idx 의 유일한 읽기(원본 security.js:128)는 실제로는 "leak" 이 아니라
+// (원본 line 111 의 var actw_idx = 99; 가 이 분기에 들어올 때마다 매번 리셋하고, 그 직후
+// 같은 분기 안에서 바로 읽으므로) 자기완결적인 "빈 actw 배열은 자동 허용" 규칙이다.
+// 이 규칙 자체는 checkActw 가 빠뜨리고 있었다 (빈 배열이면 무조건 false 를 반환했다).
+test('KNOWN BUG: acco 엔트리의 actw 가 빈 배열이면 시간창 제약 없이 허용', function () {
+    const pv = [{ acr: [{ acor: ['CAdmin'], acop: 63, acco: [{ actw: [] }] }] }];
+    assert.strictEqual(acp.evaluatePrivileges(pv, ctx()).allowed, true,
+        '원본은 actw 배열이 비어 있으면 actw_idx 가 99 로 남아 자동 허용한다');
+});
+
+// 확인 테스트 (버그 아님): acco_idx(원본 security.js:51, 142)는 ipv6_idx 와 달리 leak 되지
+// 않는다. var acco_idx = 99; 는 acr 에 acco 필드가 있을 때마다 매번 리셋되고, 유일한 읽기
+// (line 142)도 같은 분기 실행 안에서 바로 이어진다 -- ipv6_idx 의 line 76 처럼 "다른"
+// 분기에서 읽는 구조가 아니다. 원본을 그대로 옮겨 직접 시뮬레이션해서 확인했다
+// (scratchpad/trace_sim.js Test B): 앞선 acr 의 (비어 있지 않은) acco 루프가 실제 인덱스로
+// 끝나도, 다음 acr 은 자신의 acco_idx 를 99 로 다시 리셋하므로 자신의 빈 배열 여부만으로
+// 결과가 정해진다. mobius/acp_eval.js 의 sawEntry 는 acr 마다 새로 만들어지므로 이미
+// 이 동작과 일치한다 -- 아래 테스트는 그 사실을 고정한다. acco_idx 를 "누수시키는" 방향으로
+// (예: ipv6_idx_ref 처럼 evaluatePrivileges 전체 수명의 참조로) "고치면" 오히려 원본과
+// 어긋나게 되므로, 이 테스트가 그런 회귀를 잡아준다.
+test('acco_idx 는 acr 을 건너 leak 되지 않는다 -- 앞선 acr 의 실제 인덱스가 남아도 뒤 acr 의 빈 acco 는 그대로 자동 허용', function () {
+    const pv = [{
+        acr: [
+            {
+                acor: ['Nobody'], acop: 63,
+                acco: [{ acip: { ipv4: ['10.0.0.9'] }, actw: ['1 2 3 4 5 6'] }]
+            },
+            { acor: ['CAdmin'], acop: 63, acco: [] }
+        ]
+    }];
+    const r = acp.evaluatePrivileges(pv, ctx());
+    assert.strictEqual(r.allowed, true);
+    assert.strictEqual(r.matchedIndex, 1,
+        '두 번째 acr 의 빈 acco 가 앞선 acr 의 acco_idx 잔여값과 무관하게 자동 허용되어야 한다');
 });
