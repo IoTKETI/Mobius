@@ -27,6 +27,7 @@ var cbor = require("cbor");
 var merge = require('merge');
 
 var responder = require('./responder');
+var poa_util = require('./poa');
 
 var sgn_man = require('./sgn_man');
 
@@ -299,28 +300,48 @@ function get_nu_arr(connection, nu_arr, req_count, callback) {
                 var ri = absolute_url.split('?')[0];
                 db_sql.select_resource_from_url(connection, ri, sri, function (err, result_Obj) {
                     if (!err) {
-                        if (result_Obj.length == 1) {
-                            if (result_Obj[0].poa != null || result_Obj[0].poa != '') {
-                                nu_arr.pop();
-                                var poa_arr = JSON.parse(result_Obj[0].poa);
-                                for (var i = 0; i < poa_arr.length; i++) {
-                                    sub_nu = url.parse(poa_arr[i]);
-                                    if(sub_nu.protocol == null) {
-                                        nu_arr.push('http://localhost:7579' + absolute_url);
-                                    }
-                                    else {
-                                        if(poa_arr[i].charAt(poa_arr[i].length-1) == '/') {
-                                            poa_arr[i] = poa_arr[i].slice(0, -1);
-                                        }
-                                        nu_arr.push(poa_arr[i]);
-                                    }
-                                }
+                        // 예전에는 이 두 조건에 else 가 없어, 리소스를 못 찾거나
+                        // poa 가 비면 콜백이 사라졌다. 알림 사슬이 그대로 멈췄다.
+                        // 못 풀면 그 항목은 그대로 두고 순회만 이어 간다 —
+                        // 아래 DB 오류 분기와 같은 방침이다.
+                        if (result_Obj.length != 1) {
+                            console.log('[sgn_action] nu 리소스를 찾지 못했다: ' + ri);
+                            callback('200');
+                            return;
+                        }
 
-                                get_nu_arr(connection, nu_arr, ++req_count, function (code) {
-                                    callback(code);
-                                });
+                        // 원래는 (poa != null || poa != '') 였다. 둘 중 하나는 항상
+                        // 참이라 이 조건은 언제나 통과했고, poa 가 null 이면 아래
+                        // JSON.parse(null) 이 null 을 돌려줘 .length 에서 워커가 죽었다.
+                        var poa_arr = poa_util.parse(result_Obj[0].poa, '[sgn_action] ' + ri);
+                        if (poa_arr === null || poa_arr.length === 0) {
+                            console.log('[sgn_action] nu 리소스에 poa 가 없다: ' + ri);
+                            callback('200');
+                            return;
+                        }
+
+                        // 이 자리의 ID 형식 항목을 풀어낸 URL 들로 갈아 끼운다.
+                        // 예전에는 pop() 이라 배열의 *마지막* 항목을 지웠다 —
+                        // nu 가 2개 이상이면 엉뚱한 항목이 통째로 사라졌다.
+                        var resolved = [];
+                        for (var i = 0; i < poa_arr.length; i++) {
+                            sub_nu = url.parse(poa_arr[i]);
+                            if(sub_nu.protocol == null) {
+                                resolved.push('http://localhost:7579' + absolute_url);
+                            }
+                            else {
+                                if(poa_arr[i].charAt(poa_arr[i].length-1) == '/') {
+                                    poa_arr[i] = poa_arr[i].slice(0, -1);
+                                }
+                                resolved.push(poa_arr[i]);
                             }
                         }
+                        Array.prototype.splice.apply(nu_arr, [req_count, 1].concat(resolved));
+
+                        // 갈아 끼운 만큼 건너뛴다. 새로 넣은 것들은 이미 URL 이다.
+                        get_nu_arr(connection, nu_arr, req_count + resolved.length, function (code) {
+                            callback(code);
+                        });
                     }
                     else {
                         console.log('[sgn_action] database error (nu resource)');
@@ -331,7 +352,13 @@ function get_nu_arr(connection, nu_arr, req_count, callback) {
         });
     }
     else {
-        callback('200');
+        // 이미 URL 형식이라 풀 것이 없다. 예전에는 여기서 callback('200') 으로
+        // 순회를 끝내버려, URL 이 하나라도 앞에 있으면 그 뒤의 ID 형식 nu 는
+        // 영영 풀리지 않았다. nu 가 하나뿐이면 결과는 같다 — 다음이 없으니
+        // 바로 위 종료 조건에 걸린다.
+        get_nu_arr(connection, nu_arr, req_count + 1, function (code) {
+            callback(code);
+        });
     }
 }
 

@@ -26,6 +26,7 @@ var resource = require('./resource');
 
 var db_sql = require('./sql_action');
 var outbound = require('./outbound');
+var once = require('./once');
 
 function check_body(res, body_type, res_body, callback) {
     var retrieve_Obj = {};
@@ -57,7 +58,19 @@ function check_body(res, body_type, res_body, callback) {
         });
     }
     else { // json
-        var result = JSON.parse(res_body);
+        // 멤버가 준 응답 본문이다. JSON 이 아닐 수 있다 — 앞단 프록시의 HTML
+        // 오류 페이지, 빈 본문, 잘린 응답 등. 여기는 res.on('end') 안이라
+        // 던지면 잡을 곳이 없어 uncaught exception 이 되고 워커가 죽는다.
+        var result;
+        try {
+            result = JSON.parse(res_body);
+        }
+        catch (e) {
+            console.error('[fopt check_body] 멤버 응답이 JSON 이 아니다 (' + res.req.path + '): ' + e.message);
+            callback('0');
+            return '0';
+        }
+
         if(res.req.path.charAt(0) == '/') {
             retrieve_Obj.fr = res.req.path.replace('/', '');
         }
@@ -84,6 +97,11 @@ function check_body(res, body_type, res_body, callback) {
 }
 
 function request_to_member(request, hostname, port, ri, agr, callback) {
+    // 이 콜백은 응답 경로(res.on('end'))와 에러 경로(req.on('error')) 양쪽에서
+    // 불릴 수 있다. 두 번 불리면 팬아웃 재귀가 두 갈래로 갈라져 최종 응답이
+    // 두 번 나가고 워커가 죽는다.
+    callback = once(callback, 'fopt request_to_member ' + ri);
+
     var ri_prefix = request.url.split('/fopt')[1];
 
     var options = {
@@ -106,9 +124,16 @@ function request_to_member(request, hostname, port, ri, agr, callback) {
                 if (rsc == '1') {
                     agr[retrieve_Obj.fr] = JSON.parse(JSON.stringify(retrieve_Obj));
                     retrieve_Obj = null;
-
-                    callback('200');
                 }
+                else {
+                    // 예전에는 else 가 없었다. 멤버 응답을 파싱하지 못하면
+                    // 콜백이 사라져 팬아웃 사슬 전체가 멈추고, 요청은 매달린 채
+                    // DB 커넥션도 반납되지 않았다.
+                    // 이 멤버의 결과만 빼고 나머지 멤버로 계속 간다 — 에러 핸들러와
+                    // 같은 방침이다(멤버 하나의 실패가 그룹 전체를 막지 않는다).
+                    console.error('[fopt_member] 멤버 응답을 읽지 못해 결과에서 제외한다: ' + ri);
+                }
+                callback('200');
             });
         });
     });
@@ -189,6 +214,9 @@ function fopt_member(request, response, req_count, mid, body_Obj, cse_poa, agr, 
 
 
 exports.check = function(request, response, grp, body_Obj, callback) {
+    // 팬아웃의 최상위 콜백이다. 응답 전송과 커넥션 반납으로 이어진다.
+    callback = once(callback, 'fopt.check');
+
     request.headers.rootnm = 'agr';
     var cse_poa = {};
     update_route(request.db_connection, cse_poa, function (code) {
@@ -211,6 +239,13 @@ exports.check = function(request, response, grp, body_Obj, callback) {
                             else {
                                 callback('404-5');
                             }
+                        }
+                        else {
+                            // 예전에는 else 가 없었다. fopt_member 가 '200' 이 아닌
+                            // 코드를 주면 콜백이 사라져 요청이 매달렸다.
+                            // 지금 사슬은 항상 '200' 을 주지만, 한 곳만 바뀌어도
+                            // 다시 매달리게 되므로 받아서 그대로 올린다.
+                            callback(code);
                         }
                     });
                 }
