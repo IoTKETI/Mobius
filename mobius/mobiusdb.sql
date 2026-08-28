@@ -307,7 +307,8 @@ CREATE TABLE `lookup` (
   KEY `idx_lookup_ty` (`ty`) USING BTREE,
   KEY `idx_lookup_pi` (`pi`) /*!80000 INVISIBLE */,
   KEY `idx_lookup_ct` (`ct`),
-  KEY `idx_lookup_sri` (`sri`)
+  KEY `idx_lookup_sri` (`sri`),
+  KEY `idx_lookup_pi_ty_ct` (`pi`,`ty`,`ct`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
