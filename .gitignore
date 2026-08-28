@@ -12,6 +12,8 @@ tools/equivalence/out/*
 !tools/equivalence/out/.gitkeep
 tools/golden/out/*
 !tools/golden/out/.gitkeep
+tools/response-golden/out/*
+!tools/response-golden/out/.gitkeep
 hit.json
 cbs_cache.json
 package-lock.json
