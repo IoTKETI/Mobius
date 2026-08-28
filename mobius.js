@@ -24,6 +24,8 @@ catch (e) {
     conf.csebaseport = "7579";
     conf.dbpass = "dksdlfduq2";
     conf.usesqlite = "false";
+    conf.superuser = "Sponde";
+    conf.adminOrigin = "";
     fs.writeFileSync('conf.json', JSON.stringify(conf, null, 4), 'utf8');
 }
 
@@ -51,6 +53,14 @@ else {
 // 컨테이너 경로별 기본 보관 정책 (선택). 형식은 mobius/cnt.js 상단 주석 참조.
 // 정의하지 않으면 규칙 없이 Mobius 기본값이 쓰인다.
 global.retention_policies = Array.isArray(conf.retentionPolicies) ? conf.retentionPolicies : [];
+
+// 슈퍼유저 origin. 이 origin 은 모든 ACP 검사를 우회한다.
+// 미설정 시 기존 기본값을 유지해 업그레이드가 동작을 바꾸지 않게 한다.
+global.usesuperuser = conf.superuser || 'Sponde';
+
+// 관리 콘솔 전용 origin. 감사 로그에서 콘솔 작업과 사람 작업을 구분한다.
+// 빈 문자열이면 비활성.
+global.useadminorigin = conf.adminOrigin || '';
 
 // 리소스 경로 캐시 상한 (항목 수). 미설정 시 cache_man 의 기본값 50000.
 global.cache_limit = conf.cacheLimit || 50000;

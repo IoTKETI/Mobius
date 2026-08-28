@@ -38,6 +38,7 @@ function freshSecurity(acpRows) {
         callback('200');
     };
     global.usesuperuser = 'CNeverMatchesSuperuser';
+    global.useadminorigin = ''; // 비활성: 실제 부팅(mobius.js)에서 항상 설정되는 값을 재현
     global.useaccesscontrolpolicy = 'disable';
 
     return require(SECURITY_PATH);

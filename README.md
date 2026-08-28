@@ -126,7 +126,9 @@ npm install
 {
   "csebaseport": "7579", //Mobius HTTP hosting  port
   "dbpass": "*******",   //MySQL root password
-  "usesqlite": "false"   //"true" to use SQLite instead of MySQL
+  "usesqlite": "false",  //"true" to use SQLite instead of MySQL
+  "superuser": "Sponde", //origin that bypasses all ACP checks
+  "adminOrigin": ""      //origin used by the admin console (empty = disabled)
 }
 ```
 

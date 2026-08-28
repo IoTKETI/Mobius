@@ -177,7 +177,12 @@ function security_default_check_action(request, response, cr, access_value, call
 }
 
 exports.check = function(request, response, ty, acpiList, access_value, cr, callback) {
-    if(request.headers['x-m2m-origin'] == usesuperuser || request.headers['x-m2m-origin'] == ('/'+usesuperuser)) {
+    var from = request.headers['x-m2m-origin'];
+    var is_super = (from == usesuperuser || from == ('/' + usesuperuser));
+    var is_admin = (useadminorigin !== '' &&
+                    (from == useadminorigin || from == ('/' + useadminorigin)));
+
+    if (is_super || is_admin) {
         callback('1');
     }
     else {

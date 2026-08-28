@@ -61,7 +61,10 @@ global.cache_security_check = {};
 app.use(cors());
 
 global.usespid = '//keti.re.kr';
-global.usesuperuser = 'Sponde'; //'Superman';
+// usesuperuser / useadminorigin 은 mobius.js 가 conf.json 에서 설정한다.
+// app.js 를 직접 실행하는 경로(테스트 등)를 위해 기본값만 채운다.
+if (typeof global.usesuperuser === 'undefined') { global.usesuperuser = 'Sponde'; }
+if (typeof global.useadminorigin === 'undefined') { global.useadminorigin = ''; }
 global.useobserver = 'Sandwich';
 
 var logDirectory = __dirname + '/log';
