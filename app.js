@@ -88,6 +88,9 @@ function del_req_resource() {
             db_sql.delete_req(connection, (err, delete_Obj) => {
                 if (!err) {
                     console.log('deleted ' + delete_Obj.affectedRows + ' request resource(s).');
+                    // del_expired_resource/del_orphan_resource 와 같은 이유:
+                    // lookup 을 대량으로, 개별 ri 없이 지운다.
+                    cache_man.invalidate_all();
                 }
                 connection.release();
             });

@@ -163,6 +163,22 @@ test('generation: set() 은 세대를 올리지 않는다 (무효화가 아니�
     assert.strictEqual(cm.generation(), g0);
 });
 
+// keys_for/invalidate 가 호출 시점의 store 스냅샷을 다시 훑는다는 성질을
+// 직접 고정한다. delete_descendants_background 의 캐스케이드 완료 후
+// 재훑기(mobius/resource.js)가 기대는 성질이 바로 이것 -- 첫 invalidate
+// 이후에 캐싱된 자손도 같은 prefix 로 두 번째 invalidate 를 부르면
+// 걷힌다는 것. keys_for 가 언젠가 (첫 호출 시점의) 스냅샷을 기억해두는
+// 식으로 바뀌면 이 테스트가 깨져서 캐스케이드용 재훑기가 조용히 무력화되는
+// 것을 막아준다.
+test('invalidate 는 호출될 때마다 그 시점의 store 를 다시 훑는다 (스냅샷을 기억하지 않는다)', function () {
+    const cm = fresh(100);
+    cm.invalidate('/Mobius/root');                 // 아직 자손 없음
+    cm.set('/Mobius/root/child', {});               // 첫 invalidate 이후에 캐싱됨
+    cm.invalidate('/Mobius/root');                  // 같은 prefix 로 다시 무효화
+    assert.strictEqual(cm.get('/Mobius/root/child'), undefined,
+        '두 번째 invalidate 는 그 사이 캐싱된 자손도 지금 store 를 다시 훑어 걷어내야 한다');
+});
+
 // --- 리뷰 MUST FIX 5: 대량 삭제용 전체 비우기 ---
 
 test('invalidate_all: 로컬 스토어를 비우고 세대를 올리고 all:true 를 브로드캐스트한다', function () {

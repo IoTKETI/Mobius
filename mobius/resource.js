@@ -411,14 +411,15 @@ function create_action(request, response, callback) {
 
                 cnt_man.schedule(targetObject[parent_rootnm], cs);
 
-                // 먼저 무효화(부모 자신 + 그 아래 캐싱된 모든 자손, 예전
-                // /la 값 포함)한 다음 최신 /la 값을 채운다. 순서를
-                // 뒤집으면 invalidate 의 자손 스윕이 방금 넣은 /la 를
-                // 바로 지워버린다 -- keys_for(parent_ri) 가
-                // 'parent_ri/' 로 시작하는 모든 키를 훑는데
-                // parent_ri + '/la' 가 정확히 거기 걸린다.
+                // '<pi>/la' 를 캐싱했던 적이 있었으나, request.ri 는 GET
+                // .../la 나 .../latest 요청에서 그 접미어가 항상 먼저
+                // 벗겨진 뒤 check_resource_from_url 로 들어간다
+                // (app.js 의 request.ri = ...substr(0, ...-3/-7)). 즉
+                // '<ri>/la' 형태의 키를 실제로 조회하는 코드가 어디에도
+                // 없다 -- cache_man.get 의 유일한 호출자인
+                // app.js:check_resource_from_url 도 마찬가지. 그래서
+                // 여기서는 부모만 무효화한다.
                 cache_man.invalidate(targetObject[parent_rootnm].ri);
-                cache_man.set(resource_Obj[rootnm].pi + '/la', resource_Obj[rootnm]);
                 targetObject = null;
 
                 results = null;
@@ -2447,6 +2448,11 @@ function delete_descendants_background(root_ri) {
         db_sql.search_parents_lookup_all(connection, pi_list, [], result_ri, function (code) {
             if (code !== '200') {
                 console.timeEnd('delete_descendants ' + root_ri);
+                // 여기서 재시도 없이 그냥 끝난다(위 getConnection 실패
+                // 분기와 달리) -- 자손은 DB 에 고아로 남고
+                // del_orphan_resource 가 나중에 정리한다. 그때까지 캐시에
+                // 남아있을 자손 항목도 지금 걷어낸다.
+                cache_man.invalidate(root_ri);
                 if (connection) connection.release();
                 return;
             }
