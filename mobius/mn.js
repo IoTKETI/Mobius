@@ -298,7 +298,9 @@ exports.build_mn = function(connection, ri, callback) {
                                         rspObj = {};
                                         rspObj.rsc = '5000';
                                         rspObj.ri = ri;
-                                        rspObj.dbg = results_cb.message;
+                                        // 드라이버 에러 원문은 응답에 싣지 않는다 (SQL 조각·테이블명이 새어 나간다)
+                                        console.error('[mn] ' + ((results_cb && results_cb.message) || results_cb));
+                                        rspObj.dbg = 'internal error';
                                         callback(rspObj);
                                     }
                                 });
@@ -331,7 +333,9 @@ exports.build_mn = function(connection, ri, callback) {
                                         rspObj = {};
                                         rspObj.rsc = '5000';
                                         rspObj.ri = ri;
-                                        rspObj.dbg = results_cb.message;
+                                        // 드라이버 에러 원문은 응답에 싣지 않는다 (SQL 조각·테이블명이 새어 나간다)
+                                        console.error('[mn] ' + ((results_cb && results_cb.message) || results_cb));
+                                        rspObj.dbg = 'internal error';
                                         callback(rspObj);
                                     }
                                 });
@@ -342,7 +346,9 @@ exports.build_mn = function(connection, ri, callback) {
                         rspObj = {};
                         rspObj.rsc = '5000';
                         rspObj.ri = ri;
-                        rspObj.dbg = results_cb.message;
+                        // 드라이버 에러 원문은 응답에 싣지 않는다 (SQL 조각·테이블명이 새어 나간다)
+                        console.error('[mn] ' + ((results_cb && results_cb.message) || results_cb));
+                        rspObj.dbg = 'internal error';
                         callback(rspObj);
                     }
                 });
@@ -359,7 +365,9 @@ exports.build_mn = function(connection, ri, callback) {
             rspObj = {};
             rspObj.rsc = '5000';
             rspObj.ri = ri;
-            rspObj.dbg = results_comm.message;
+            // 드라이버 에러 원문은 응답에 싣지 않는다 (SQL 조각·테이블명이 새어 나간다)
+            console.error('[mn] ' + ((results_comm && results_comm.message) || results_comm));
+            rspObj.dbg = 'internal error';
             callback(rspObj);
         }
     });

@@ -18,6 +18,14 @@
  * @author Il Yeup Ahn [iyahn@keti.re.kr]
  */
 
+// ─────────────────────────────────────────────────────────────────────────
+// CoAP 바인딩은 삭제 예정이다.
+//
+// 프로토콜 지원용으로 만들어 뒀으나 쓰는 배포가 없고 검증 수단도 없다.
+// 이 파일에 새로 투자하지 말 것 — 결과 코드 매핑도 규격 대조 없이
+// 카탈로그의 폴백에 기대고 있다.
+// ─────────────────────────────────────────────────────────────────────────
+
 var fs = require('fs');
 var http = require('http');
 var https = require('https');
@@ -35,44 +43,15 @@ var coap_custom = new events.EventEmitter();
 
 var usecoapcbhost = 'localhost'; // pxycoap to mobius
 
-var coap_rsc_code = {
-    '2000': '2.05',
-    '2001': '2.01',
-    '2002': '2.02',
-    '2004': '2.04',
-    '4000': '4.00',
-    '4004': '4.04',
-    '4005': '4.05',
-    '4008': '4.04',
-    '4101': '4.03',
-    '4102': '4.00',
-    '4103': '4.03',
-    '4104': '4.00',
-    '4105': '4.03',
-    '5000': '5.00',
-    '5001': '5.01',
-    '5103': '4.04',
-    '5105': '4.03',
-    '5106': '5.06',
-    '5203': '4.03',
-    '5204': '5.00',
-    '5205': '4.03',
-    '5206': '5.00',
-    '5207': '4.06',
-    '6003': '4.04',
-    '6005': '4.04',
-    '6010': '4.00',
-    '6011': '4.00',
-    '6020': '5.00',
-    '6021': '5.00',
-    '6022': '4.00',
-    '6023': '4.00',
-    '6024': '4.00',
-    '6025': '5.00',
-    '6026': '5.00',
-    '6028': '4.00',
-    '6029': '4.00'
-};
+// rsc -> CoAP 응답 코드는 mobius/rsc.js 카탈로그가 들고 있다.
+//
+// 예전에는 여기에 자체 표가 있었는데, app.js 의 결과 코드 표와 서로를 몰라서
+// 매핑이 어긋나 있었다. 실제로 6종(1001 1002 4106 4107 4109 4230)이 이 표에
+// 없어서 response.code 에 undefined 가 들어갔다.
+//
+// toCoapCode() 는 매핑이 없으면 rsc 첫 자리로 정한 값을 준다 — undefined 는
+// 절대 나가지 않는다.
+var toCoapCode = require('./mobius/rsc').toCoapCode;
 
 coap_state = 'init';
 
@@ -220,7 +199,7 @@ function coap_message_handler(request, response) {
                 //     var rvi = Buffer.from(res.headers['x-m2m-rvi'], 'utf-8');
                 //     response.setOption("268", rvi);    // X-M2M-RVI
                 // }
-                response.code = coap_rsc_code[res.headers['x-m2m-rsc']];
+                response.code = toCoapCode(res.headers['x-m2m-rsc']);
                 response.end(responseBody);
             });
         });
@@ -250,7 +229,7 @@ function coap_message_handler(request, response) {
                 // if(res.headers.hasOwnProperty('x-m2m-rvi')) {
                 //     response.setOption("X-M2M-RVI", res.headers['x-m2m-rvi']);
                 // }
-                response.code = coap_rsc_code[res.headers['x-m2m-rsc']];
+                response.code = toCoapCode(res.headers['x-m2m-rsc']);
                 response.end(responseBody);
             });
         });

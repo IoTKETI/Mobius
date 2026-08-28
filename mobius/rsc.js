@@ -133,9 +133,33 @@ function assertComplete() {
     return problems;
 }
 
-// CoAP 매핑이 없는 항목 — D19 의 대상. Task 5 가 폴백을 붙일 목록이다.
+// CoAP 매핑이 없는 항목. 아래 toCoapCode 의 폴백이 걸리는 대상이다.
 function missingCoap() {
     return Object.keys(RSC).filter(function (k) { return RSC[k].coap === null; });
+}
+
+// rsc -> CoAP 응답 코드. 절대 undefined 를 돌려주지 않는다.
+//
+// 예전에는 pxy_coap.js 가 자체 표를 조회해 매핑이 없으면 response.code 에
+// undefined 를 넣었다. 카탈로그에 매핑이 있으면 그 값을, 없으면 rsc 첫 자리로
+// 정한다.
+//
+// 폴백은 "이 코드의 규격상 CoAP 매핑이 이것이다" 라는 주장이 아니라, 클래스
+// 단위의 거친 근사다. 규격 대조 없이 세부 매핑을 지어내지 않으려는 것이다.
+// CoAP 바인딩은 쓰는 배포가 없고 삭제 예정이라 여기에 더 투자하지 않는다.
+function toCoapCode(rsc) {
+    var known = coapFor(rsc);
+    if (known) { return known; }
+
+    switch (String(rsc).charAt(0)) {
+        case '1':  // 1xxx 는 논블로킹 접수 — oneM2M 에서 성공 계열이다
+        case '2':
+            return '2.05';
+        case '4':
+            return '4.00';
+        default:   // 5xxx, 6xxx, 그 외
+            return '5.00';
+    }
 }
 
 module.exports = {
@@ -143,6 +167,7 @@ module.exports = {
     COAP_ONLY: COAP_ONLY,
     byPair: byPair,
     coapFor: coapFor,
+    toCoapCode: toCoapCode,
     assertComplete: assertComplete,
     missingCoap: missingCoap
 };
