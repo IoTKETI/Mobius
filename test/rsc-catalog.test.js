@@ -15,19 +15,17 @@ const ROOT = path.join(__dirname, '..');
 
 function read(f) { return fs.readFileSync(path.join(ROOT, f), 'utf8'); }
 
-// ── 현재 소스에서 (http, rsc) 쌍을 뽑는다 ────────────────────────────────
+// ── 현재 쓰이는 (http, rsc) 쌍을 뽑는다 ──────────────────────────────────
+// 표는 이제 app.js 리터럴이 아니라 mobius/reason.js 가 만든다.
 function livePairs() {
-    const app = read('app.js');
-    const s = app.indexOf('var resultStatusCode');
-    const tbl = app.slice(s, app.indexOf('function response_error_result', s));
-    const ROW = /'(\d{3}-\d+)'\s*:\s*\[\s*'([^']*)'\s*,\s*'([^']*)'\s*,\s*"((?:[^"\\]|\\.)*)"\s*\]/g;
+    const table = require('../mobius/reason').toLegacyTable();
     const pairs = new Map();
-    let m;
-    while ((m = ROW.exec(tbl)) !== null) {
-        const key = m[2] + '|' + m[3];
-        if (!pairs.has(key)) { pairs.set(key, []); }
-        pairs.get(key).push(m[1]);
-    }
+    Object.keys(table).forEach(function (key) {
+        const row = table[key];
+        const k = row[0] + '|' + row[1];
+        if (!pairs.has(k)) { pairs.set(k, []); }
+        pairs.get(k).push(key);
+    });
     return pairs;
 }
 
@@ -142,16 +140,26 @@ test('http 는 number 이고 rsc 는 문자열이다', function () {
     });
 });
 
-test('아직 아무도 카탈로그를 쓰지 않는다 (Task 2 범위)', function () {
-    // Task 2 는 카탈로그만 세운다. 실제 배선은 Task 3·4 에서 한다.
-    const files = ['app.js', 'pxy_coap.js', 'pxy_ws.js']
+test('app.js 는 더 이상 코드 표를 직접 들고 있지 않다', function () {
+    // Task 3 에서 리터럴 93행을 걷어내고 reason.js 생성물로 바꿨다.
+    const app = read('app.js');
+    assert.ok(app.indexOf('var resultStatusCode = {') < 0,
+        'app.js 에 resultStatusCode 리터럴이 남아 있다');
+    assert.ok(/require\(['"]\.\/mobius\/reason['"]\)\.toLegacyTable\(\)/.test(app),
+        'app.js 가 reason.toLegacyTable() 로 표를 받아야 한다');
+});
+
+test('카탈로그를 쓰는 곳은 아직 reason.js 뿐이다 (Task 4 전)', function () {
+    // 응답 진입점 교체(Task 4)와 바인딩 통합(Task 5)은 아직이다.
+    // pxy_coap.js 는 여전히 자체 표를 쓰고 있어야 한다.
+    const files = ['app.js', 'pxy_coap.js', 'pxy_ws.js', 'pxy_mqtt.js']
         .concat(fs.readdirSync(path.join(ROOT, 'mobius'))
-            .filter(function (f) { return f.endsWith('.js') && f !== 'rsc.js'; })
+            .filter(function (f) { return f.endsWith('.js') && f !== 'rsc.js' && f !== 'reason.js'; })
             .map(function (f) { return 'mobius/' + f; }));
     const users = files.filter(function (f) {
         let s;
         try { s = read(f); } catch (e) { return false; }
-        return /require\(['"]\.{1,2}\/(mobius\/)?rsc['"]\)/.test(s);
+        return /require\(['"][^'"]*\/rsc['"]\)/.test(s);
     });
-    assert.deepStrictEqual(users, [], '아직 참조하면 안 된다: ' + users.join(', '));
+    assert.deepStrictEqual(users, [], '아직 rsc.js 를 직접 참조하면 안 된다: ' + users.join(', '));
 });
