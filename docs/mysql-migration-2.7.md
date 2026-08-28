@@ -2,6 +2,10 @@
 
 기존 MySQL 설치에 아래를 적용한다. SQLite 는 기동 시 자동 적용되므로 불필요하다.
 
+**새로 설치하는 경우에는 이 문서가 필요 없다** — `mobius/mobiusdb.sql` 에 아래
+내용이 모두 반영돼 있다(`hit_ri` 테이블, `idx_lookup_ty_et`, `idx_lookup_pi_sri`,
+그리고 `idx_lookup_pi` 의 `INVISIBLE` 제거). 이 문서는 **기존 설치 전용** 경로다.
+
 ## 1. 인덱스
 
 `idx_lookup_pi` 는 스키마에 이미 있으나 `INVISIBLE` 로 선언되어 옵티마이저가 무시한다.

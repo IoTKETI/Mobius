@@ -92,6 +92,24 @@ test('attribute: ty 를 몰라도 경로로 CIN 을 판별한다', function () {
     assert.strictEqual(hm.attribute('/Mobius/ae1/4things', null), '/Mobius/ae1/4things');
 });
 
+// --- 리뷰 I5: 집계 키는 정규화된 경로여야 한다 ---
+//
+// app.js 는 이제 get_target_url 이 성공한 뒤에 record 를 부르고, 해석된
+// 구조 ri 와 ty 를 함께 넘긴다(app.js 의 record_hit). 아래 두 테스트는 그
+// 배선을 옮긴 이유를 고정한다.
+test('attribute: 비구조 CIN 주소를 그대로 받으면 CSEBase 로 잘못 귀속된다 (배선을 옮긴 이유)', function () {
+    const hm = fresh();
+    // 라우터 진입 시점의 원본 경로. oneM2M 비구조 주소지정이다.
+    assert.strictEqual(hm.attribute('/Mobius/4-20260828010203456', null), '/Mobius',
+        "'4-\\d' 경로 규칙이 CIN 으로 보고 부모(=CSEBase)로 올려버린다");
+});
+
+test('attribute: get_target_url 이 해석한 구조 ri 를 받으면 올바른 부모 CNT 로 귀속된다', function () {
+    const hm = fresh();
+    assert.strictEqual(hm.attribute('/Mobius/ae1/cnt1/4-20260828010203456', 4),
+        '/Mobius/ae1/cnt1');
+});
+
 test('record: 프로토콜별로 누적된다', function () {
     const hm = fresh();
     hm.record('/Mobius/ae1', 2, 'H', 'CSomeone');
@@ -181,6 +199,103 @@ test('flush 실패 시 되돌린 값과 write 진행 중 새로 기록된 값이
     // 놓은 새 객체이므로, 여기 기록은 되돌아올 1건과 별개로 쌓인다.
     hm.record('/Mobius/ae1', 2, 'H', 'x');
     hm.record('/Mobius/ae1', 2, 'H', 'x');
+});
+
+// --- 리뷰 I4: hit_ri 쓰기가 계속 실패할 때의 동작 ---
+
+test('flush 실패가 반복돼도 버퍼가 상한을 넘지 않고, 오래된 ct 부터 버린다', function (t, done) {
+    const hm = fresh();
+    hm._set_max_buffer_keys(3);
+    hm._set_writer(function (rows, cb) {
+        setImmediate(function () { cb(new Error('db down')); });
+    });
+
+    // ct 를 직접 만들 수는 없으므로(record 는 오늘 날짜를 쓴다) 버퍼를 직접
+    // 구성한다. pending() 은 살아있는 buffer 참조를 돌려준다.
+    const buf = hm.pending();
+    buf['/a|20260101'] = { ri: '/a', ct: '20260101', http: 1, mqtt: 0, coap: 0, ws: 0 };
+    buf['/b|20260102'] = { ri: '/b', ct: '20260102', http: 1, mqtt: 0, coap: 0, ws: 0 };
+    buf['/c|20260103'] = { ri: '/c', ct: '20260103', http: 1, mqtt: 0, coap: 0, ws: 0 };
+    buf['/d|20260104'] = { ri: '/d', ct: '20260104', http: 1, mqtt: 0, coap: 0, ws: 0 };
+    buf['/e|20260105'] = { ri: '/e', ct: '20260105', http: 1, mqtt: 0, coap: 0, ws: 0 };
+
+    hm.flush(function (err) {
+        assert.ok(err);
+        const p = hm.pending();
+        const keys = Object.keys(p);
+        assert.strictEqual(keys.length, 3, '상한(3)을 넘어 자라면 안 된다');
+        assert.ok(!p['/a|20260101'], '가장 오래된 ct 부터 버려야 한다');
+        assert.ok(!p['/b|20260102']);
+        assert.ok(p['/e|20260105'], '최근 ct 는 남아야 한다');
+        done();
+    });
+});
+
+test('flush 실패 로그에 파사드의 (true, err) 규약이 아니라 진짜 에러 메시지가 실린다', function (t, done) {
+    const ctx = tapDefaultWriter(true);
+    ctx.setFail(true);
+    ctx.hm.record('/Mobius/ae1', 2, 'H', 'CDevice');
+    ctx.hm.flush(function (err) {
+        // 고치기 전에는 여기 err === true 가 와서 로그가
+        // "[hit_man] flush failed, will retry: true" 였다.
+        assert.notStrictEqual(err, true, "파사드의 err===true 를 그대로 흘리면 안 된다");
+        assert.ok(err && typeof err.message === 'string' && err.message.length > 0,
+            '진단 가능한 메시지가 있어야 한다');
+        assert.match(err.message, /boom/, '드라이버가 준 원래 메시지가 보존되어야 한다');
+        done();
+    });
+});
+
+test('flush 실패 로그는 매 주기마다 찍지 않는다 (연속 실패 스로틀)', function (t, done) {
+    const hm = fresh();
+    hm._set_writer(function (rows, cb) {
+        setImmediate(function () { cb(new Error('db down')); });
+    });
+
+    const lines = [];
+    const orig = console.error;
+    console.error = function (msg) { lines.push(String(msg)); };
+
+    var round = 0;
+    function next() {
+        if (round === 20) {
+            console.error = orig;
+            const failLines = lines.filter(function (l) { return l.indexOf('flush failed') >= 0; });
+            assert.strictEqual(failLines.length, 1,
+                '20회 연속 실패에 실패 로그는 1줄이어야 한다 (8워커 x 10초면 하루 7만 줄이 된다)');
+            done();
+            return;
+        }
+        round++;
+        hm.record('/Mobius/ae1', 2, 'H', 'x');
+        hm.flush(function () { next(); });
+    }
+    next();
+});
+
+test('flush 가 복구되면 한 줄 남기고 실패 카운터를 리셋한다', function (t, done) {
+    const hm = fresh();
+    var fail = true;
+    hm._set_writer(function (rows, cb) {
+        setImmediate(function () { cb(fail ? new Error('db down') : null); });
+    });
+
+    const lines = [];
+    const orig = console.log;
+    console.log = function (msg) { lines.push(String(msg)); };
+
+    hm.record('/Mobius/ae1', 2, 'H', 'x');
+    hm.flush(function () {
+        fail = false;
+        hm.record('/Mobius/ae1', 2, 'H', 'x');
+        hm.flush(function (err) {
+            console.log = orig;
+            assert.strictEqual(err, null);
+            const rec = lines.filter(function (l) { return l.indexOf('recovered after') >= 0; });
+            assert.strictEqual(rec.length, 1);
+            done();
+        });
+    });
 });
 
 // Task 6 의 upsert_hit_ri_batch 는 같은 (ri, ct) 가 한 배치 안에 두 번

@@ -257,6 +257,26 @@ CREATE TABLE `hit` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
+-- Table structure for table `hit_ri` (2.7)
+-- 리소스별 x 날짜별 프로토콜 접근 횟수. mobius/hit_man.js 가 버퍼링해 기록한다.
+--
+
+DROP TABLE IF EXISTS `hit_ri`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `hit_ri` (
+  `ri` varchar(200) NOT NULL,
+  `ct` varchar(8) NOT NULL,
+  `http` int NOT NULL DEFAULT 0,
+  `mqtt` int NOT NULL DEFAULT 0,
+  `coap` int NOT NULL DEFAULT 0,
+  `ws` int NOT NULL DEFAULT 0,
+  PRIMARY KEY (`ri`,`ct`),
+  KEY `idx_hit_ri_ct` (`ct`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
 -- Table structure for table `lcp`
 --
 
@@ -305,9 +325,13 @@ CREATE TABLE `lookup` (
   PRIMARY KEY (`pi`,`ri`,`ty`),
   UNIQUE KEY `ri_UNIQUE` (`ri`),
   KEY `idx_lookup_ty` (`ty`) USING BTREE,
-  KEY `idx_lookup_pi` (`pi`) /*!80000 INVISIBLE */,
+  -- 2.7: INVISIBLE 을 뗐다. 선언만 되어 있고 옵티마이저가 무시하던 인덱스다.
+  KEY `idx_lookup_pi` (`pi`),
   KEY `idx_lookup_ct` (`ct`),
-  KEY `idx_lookup_sri` (`sri`)
+  KEY `idx_lookup_sri` (`sri`),
+  -- 2.7 추가. 근거는 docs/superpowers/specs/2026-08-28-admin-console-design.md §1.2, §5.2
+  KEY `idx_lookup_ty_et` (`ty`,`et`),
+  KEY `idx_lookup_pi_sri` (`pi`,`sri`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
 

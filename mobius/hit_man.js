@@ -17,8 +17,19 @@ var facade = require('./db');
 var DEFAULT_FLUSH_SEC = 10;
 var WDT_ID = 'hit_ri_flush';
 
+// 실패한 flush 를 되돌릴 때의 버퍼 상한(키 개수). 키는 ri|ct 이므로 쓰기가
+// 계속 실패하면 하루가 지날 때마다 리소스 수만큼 키가 더 쌓인다 — 상한이
+// 없으면 워커마다 메모리가 무한정 자란다. 상한을 넘으면 가장 오래된 ct 부터
+// 버린다(최근 접근 신호가 삭제 판정에 더 중요하다).
+var MAX_BUFFER_KEYS = 50000;
+
+// 같은 실패를 10초마다 영원히 찍지 않기 위한 주기(연속 실패 횟수 기준).
+// 10초 주기 x 360 = 약 1시간에 한 줄.
+var FAIL_LOG_EVERY = 360;
+
 var buffer = {};   // key = ri + '|' + ct
 var flushing = false;
+var consecutive_failures = 0;
 
 // 기본 writer 는 실제 DB 로 간다. 테스트가 _set_writer 로 갈아끼운다.
 //
@@ -28,16 +39,28 @@ var flushing = false;
 // 는 이미 파사드를 거쳐 실행되니(mobius/sql_action.js) 커넥션 출처도 같은
 // 파사드로 맞춘다. release 도 handle.release() 가 아니라 facade.release(handle)
 // 이다 — SQLite 어댑터는 이걸 no-op 으로 둔다(mobius/db/sqlite.js).
+// 파사드의 (true, err) 규약과 일반 (err) 규약을 모두 받아 진단 가능한 에러
+// 하나로 만든다. 주입된 테스트 writer 는 그냥 Error 를 넘길 수도 있다.
+function to_error(err, second) {
+    if (second && (second.message || second.code)) { return second; }
+    if (err && err !== true) { return err; }
+    return new Error('unknown write failure');
+}
+
 var writer = function (rows, callback) {
     facade.getConnection(function (code, connection) {
         if (code !== '200') {
             callback(new Error('[hit_man] no connection: ' + code));
             return;
         }
-        db_sql.upsert_hit_ri_batch(connection, rows, function (err) {
+        db_sql.upsert_hit_ri_batch(connection, rows, function (err, result) {
             // 성공/실패 어느 쪽이든 반드시 반납한다 — 안 그러면 flush 주기마다 샌다.
             facade.release(connection);
-            callback(err || null);
+            if (!err) { callback(null); return; }
+            // 파사드 규약은 실패 시 cb(true, err) 다 (mobius/db/index.js exports.run).
+            // err 를 그대로 흘리면 로그가 "flush failed: true" 가 되어 아무 진단
+            // 가치가 없다 — 진짜 에러는 두 번째 인자에 들어 있다.
+            callback(to_error(err, result));
         });
     });
 };
@@ -113,6 +136,28 @@ exports.pending = function () {
     return buffer;
 };
 
+// 버퍼가 상한을 넘으면 가장 오래된 ct 부터 버린다. ct 는 'YYYYMMDD' 라
+// 문자열 정렬이 그대로 시간 순이다. 버린 개수를 돌려준다.
+function trim_buffer() {
+    var keys = Object.keys(buffer);
+    if (keys.length <= MAX_BUFFER_KEYS) { return 0; }
+
+    keys.sort(function (a, b) {
+        var ca = buffer[a].ct;
+        var cb = buffer[b].ct;
+        if (ca < cb) { return -1; }
+        if (ca > cb) { return 1; }
+        return 0;
+    });
+
+    var drop = keys.length - MAX_BUFFER_KEYS;
+    for (var i = 0; i < drop; i++) { delete buffer[keys[i]]; }
+    return drop;
+}
+
+// 테스트 전용: 상한을 낮춰 버림 동작을 현실적인 시간 안에 검증한다.
+exports._set_max_buffer_keys = function (n) { MAX_BUFFER_KEYS = n; };
+
 exports.flush = function (callback) {
     callback = callback || function () {};
 
@@ -141,9 +186,29 @@ exports.flush = function (callback) {
                     buffer[k].ws   += rows[j].ws;
                 }
             }
-            console.error('[hit_man] flush failed, will retry: ' + (err.message || err));
+
+            consecutive_failures++;
+            var dropped = trim_buffer();
+
+            // 로그 폭주 방지: 첫 실패에 한 번, 그 뒤로는 FAIL_LOG_EVERY 주기마다
+            // 한 번만 남긴다. 8워커 x 10초 주기로 영원히 찍으면 하루 7만 줄이다.
+            if (consecutive_failures === 1 || (consecutive_failures % FAIL_LOG_EVERY) === 0) {
+                console.error('[hit_man] flush failed (연속 ' + consecutive_failures +
+                              '회), will retry: ' + (err.message || err));
+            }
+            // 버림은 데이터 유실이므로 발생한 주기에만 한 줄 남긴다.
+            if (dropped > 0) {
+                console.error('[hit_man] buffer over ' + MAX_BUFFER_KEYS +
+                              ' keys — dropped ' + dropped + ' oldest-ct entrie(s)');
+            }
+
             callback(err);
             return;
+        }
+
+        if (consecutive_failures > 0) {
+            console.log('[hit_man] flush recovered after ' + consecutive_failures + ' failure(s)');
+            consecutive_failures = 0;
         }
         callback(null);
     });

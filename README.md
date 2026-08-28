@@ -134,13 +134,25 @@ npm install
 - Modify the configuration file "conf.json" per your setting
 ```
 {
-  "csebaseport": "7579", //Mobius HTTP hosting  port
-  "dbpass": "*******",   //MySQL root password
-  "usesqlite": "false",  //"true" to use SQLite instead of MySQL
-  "superuser": "Sponde", //origin that bypasses all ACP checks
-  "adminOrigin": ""      //origin used by the admin console (empty = disabled)
+  "csebaseport": "7579",     //Mobius HTTP hosting  port
+  "dbpass": "*******",       //MySQL root password
+  "usesqlite": "false",      //"true" to use SQLite instead of MySQL
+  "superuser": "Sponde",     //origin that bypasses all ACP checks
+  "adminOrigin": "",         //origin used by the admin console (empty = disabled)
+  "cacheLimit": 50000,       //max entries in the resource path cache, per worker
+  "hitRiFlushSec": 10,       //how often buffered per-resource hit counters are written
+  "hitRiRetentionDays": 120  //how long per-resource hit counters are kept
 }
 ```
+
+`cacheLimit` bounds the in-memory resource path cache of **each** cluster worker, so
+the total is roughly `cacheLimit x CPU cores`. `hitRiFlushSec` and
+`hitRiRetentionDays` control the per-resource usage counters (`hit_ri`): counters are
+accumulated in worker memory and written in one batched statement every
+`hitRiFlushSec` seconds, and rows older than `hitRiRetentionDays` days are removed once
+a day by the master process. Retention should stay comfortably longer than the longest
+"unused for N days" window you intend to judge a resource by. All three keys are
+optional and fall back to the defaults shown above.
 
 ### Default Retention Policies (optional)
 By default a container created without `mni` / `mbs` uses the Mobius defaults. If a deployment needs different defaults for particular container paths, they can be declared in `conf.json` as `retentionPolicies`. Omit the key to disable the feature entirely.

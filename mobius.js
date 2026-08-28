@@ -26,6 +26,9 @@ catch (e) {
     conf.usesqlite = "false";
     conf.superuser = "Sponde";
     conf.adminOrigin = "";
+    conf.cacheLimit = 50000;
+    conf.hitRiFlushSec = 10;
+    conf.hitRiRetentionDays = 120;
     fs.writeFileSync('conf.json', JSON.stringify(conf, null, 4), 'utf8');
 }
 

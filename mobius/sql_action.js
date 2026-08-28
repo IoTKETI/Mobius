@@ -206,12 +206,14 @@ exports.upsert_hit_ri_batch = function (connection, rows, callback) {
         return;
     }
 
-    var merge = {};
+    // 이름은 mergeExpr 다 — 모듈 상단의 var merge = require('merge') (18행,
+    // 다른 네 함수가 쓴다) 를 가리면 안 된다.
+    var mergeExpr = {};
     HIT_RI_COUNTER_COLS.forEach(function (col) {
-        merge[col] = facade.raw('hit_ri.' + col + ' + ' + facade.conflictRef(col));
+        mergeExpr[col] = facade.raw('hit_ri.' + col + ' + ' + facade.conflictRef(col));
     });
 
-    var qb = facade.k('hit_ri').insert(rows).onConflict(['ri', 'ct']).merge(merge);
+    var qb = facade.k('hit_ri').insert(rows).onConflict(['ri', 'ct']).merge(mergeExpr);
 
     facade.run(qb, connection, function (err, result) {
         callback(err, result);
@@ -3690,9 +3692,15 @@ exports.delete_orphan_lookup = function (connection, callback) {
 exports.delete_req = function (connection, callback) {
     var sql = util.format("delete from lookup where ty = \'17\'");
     db.getResult(sql, connection, function (err, delete_Obj) {
-        if (!err) {
+        // else 가 없으면 쿼리 실패 시 콜백이 아예 불리지 않아 호출자의
+        // connection.release() 와 캐시 비우기가 통째로 건너뛰어진다
+        // (delete_lookup_et 이 받았던 것과 같은 수정).
+        if (err) {
+            console.error('[delete_req] query error:', (delete_Obj && delete_Obj.message) || err);
             callback(err, delete_Obj);
+            return;
         }
+        callback(err, delete_Obj);
     });
 };
 
