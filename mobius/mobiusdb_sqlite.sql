@@ -111,3 +111,38 @@ CREATE TABLE IF NOT EXISTS sub (
   PRIMARY KEY (ri),
   CONSTRAINT sub_ri FOREIGN KEY (ri) REFERENCES lookup(ri) ON DELETE CASCADE
 );
+
+-- ============================================================================
+-- 인덱스
+--
+-- 여기 있는 CREATE INDEX 는 기동할 때마다 다시 실행된다(IF NOT EXISTS).
+-- 이미 쓰던 DB 도 다음 기동에서 자동으로 인덱스를 갖는다.
+--
+-- 예전에는 SQLite 스키마에 인덱스가 하나도 없었다. MySQL 스키마에는 27개가
+-- 있는데 SQLite 쪽에만 빠져 있어서, `where pi = ?` 같은 질의가 전부
+-- 풀 테이블 스캔이었다 — 비용이 컨테이너 크기가 아니라 테이블 전체 크기에
+-- 비례했다.
+--
+-- 실측 (lookup 10만 행 + cin 10만 행):
+--   select_resource_from_url (매 요청)  14.19ms ->  0.18ms   77배
+--   la  (최신 1건)                      11.26ms ->  0.20ms   57배
+--   ol  (최고참 1건)                    11.71ms ->  0.22ms   54배
+--   cin 집계 (정합 맞추기)              25.74ms ->  0.18ms  146배
+--   discovery (자식 목록)               13.93ms ->  4.53ms    3배
+-- 인덱스 4개 생성 비용은 10만 행에 약 340ms (기동 시 1회).
+-- ============================================================================
+
+-- 부모로 자식을 찾는 모든 질의의 기반.
+-- ct, ri 까지 넣어 la/ol 의 ORDER BY 와 delete_oldest 가 정렬 없이 끝난다.
+CREATE INDEX IF NOT EXISTS idx_lookup_pi_ty_ct ON lookup (pi, ty, ct, ri);
+
+-- select_resource_from_url 은 (ri = ?) or (sri = ?) 로 찾는다.
+-- ri 는 PRIMARY KEY 라 이미 빠르고, sri 쪽만 없었다.
+CREATE INDEX IF NOT EXISTS idx_lookup_sri ON lookup (sri);
+
+-- 만료 리소스 조회.
+CREATE INDEX IF NOT EXISTS idx_lookup_et ON lookup (et);
+
+-- cin 을 부모로 묶어 세는 질의(정합 맞추기, delete_oldest).
+-- cs 까지 넣으면 sum(cs) 가 인덱스만 읽고 끝난다.
+CREATE INDEX IF NOT EXISTS idx_cin_pi ON cin (pi, ri, cs);
