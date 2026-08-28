@@ -22,6 +22,10 @@ var bodyParser = require('body-parser');
 var util = require('util');
 var xml2js = require('xml2js');
 var js2xmlparser = require('js2xmlparser');
+// 결과 코드는 카탈로그에서 가져온다 — 여기에 숫자를 직접 적지 않는다.
+// (ws_response 가 parseInt 로 정규화하므로 예전 숫자 리터럴도 동작은 했다.
+//  값이 흩어져 있던 것이 문제였지 버그는 아니었다.)
+var RSC = require('./mobius/rsc').RSC;
 var url = require('url');
 var xmlbuilder = require('xmlbuilder');
 var moment = require('moment');
@@ -176,7 +180,7 @@ function ws_message_handler(message) {
                 ws_message_action(_this, bodytype, result);
             }
             else {
-                ws_response(_this, 4000, '', '', '', 'to parsing error', bodytype);
+                ws_response(_this, RSC.BAD_REQUEST.rsc, '', '', '', 'to parsing error', bodytype);
             }
         });
     }
@@ -198,7 +202,7 @@ function ws_message_handler(message) {
                 ws_message_action(_this, bodytype, result);
             }
             else {
-                ws_response(_this, 4000, '', '', '', 'to parsing error', bodytype);
+                ws_response(_this, RSC.BAD_REQUEST.rsc, '', '', '', 'to parsing error', bodytype);
             }
         });
 
@@ -223,7 +227,7 @@ function ws_message_action(ws_conn, bodytype, jsonObj) {
         var res_body = {};
         res_body['m2m:dbg'] = 'm2m:rqp tag of ws message is removed';
 
-        ws_response(ws_conn, 4000, "", usecseid, "", JSON.parse(res_body), bodytype);
+        ws_response(ws_conn, RSC.BAD_REQUEST.rsc, "", usecseid, "", JSON.parse(res_body), bodytype);
     }
     else {
         var op = (jsonObj.op == null) ? '' : jsonObj.op;
@@ -275,7 +279,7 @@ function ws_message_action(ws_conn, bodytype, jsonObj) {
         }
         catch (e) {
             console.error(e);
-            ws_response(ws_conn, 5000, fr, usecseid, rqi, 'to parsing error', bodytype);
+            ws_response(ws_conn, RSC.INTERNAL_SERVER_ERROR.rsc, fr, usecseid, rqi, 'to parsing error', bodytype);
         }
     }
 }
