@@ -155,6 +155,15 @@ exports.can = function (name) {
     return adapter.capabilities[name] === true;
 };
 
+// UPSERT 절에서 "이번에 들어온 값"을 가리키는 방언 조각을 돌려준다
+// (MySQL: values(col), SQLite: excluded.col). 호출부는 global.usesqlite 를
+// 몰라도 된다 — 이 파사드가 global.usesqlite 를 읽는 유일한 지점이라는
+// 불변식을 유지한다.
+exports.conflictRef = function (col) {
+    assertReady();
+    return adapter.conflictRef(col);
+};
+
 // 테스트용. 운영 코드는 어느 백엔드인지 알 필요가 없다.
 exports._adapterName = function () {
     return adapter ? adapter.name : null;

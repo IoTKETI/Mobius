@@ -30,6 +30,12 @@ exports.capabilities = {
     rowLock: false
 };
 
+// UPSERT 시 "이번에 들어온 값"을 가리키는 방언. ON CONFLICT ... DO UPDATE 절에서
+// 원본 컬럼(hit_ri.col)과 조합해 절대값 대입이 아닌 누적을 만드는 데 쓴다.
+exports.conflictRef = function (col) {
+    return 'excluded.' + col;
+};
+
 exports.connect = function (conf, callback) {
     db = new sqlite3.Database(DB_PATH, function (err) {
         if (err) {

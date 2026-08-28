@@ -55,6 +55,20 @@ test('upsert 가 백엔드별로 갈린다', function () {
     assert.match(sql, /on conflict/i);
 });
 
+// conflictRef 는 UPSERT 절에서 "이번에 들어온 값"을 가리키는 방언 조각을
+// 돌려준다. hit_ri 의 증분 UPSERT(mobius/sql_action.js)가 이걸로 절대값
+// 대입이 아닌 누적 식(hit_ri.col + conflictRef(col))을 만든다 — 어댑터가
+// 갈리는 지점을 여기 하나로 고정해 둔다.
+test('conflictRef 가 백엔드별로 다른 방언 조각을 돌려준다', function () {
+    let db = freshDb(false);
+    db.connect('h', 1, 'u', 'p', function () {});
+    assert.strictEqual(db.conflictRef('http'), 'values(http)');
+
+    db = freshDb(true);
+    db.connect('h', 1, 'u', 'p', function () {});
+    assert.strictEqual(db.conflictRef('http'), 'excluded.http');
+});
+
 test('rowLock 능력이 백엔드별로 다르다', function () {
     let db = freshDb(false);
     db.connect('h', 1, 'u', 'p', function () {});

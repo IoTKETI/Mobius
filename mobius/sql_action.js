@@ -195,23 +195,23 @@ exports.set_hit_n = function (connection, _ct, _http, _mqtt, _coap, _ws, callbac
 // 참조하고, SQLite 는 excluded.col 로 참조한다. knex 의 onConflict().merge()
 // 에 컬럼 배열을 넘기면 이 참조를 자동으로 만들어 주지만 그건 "덮어쓰기"
 // (col = values(col))다. 여기 필요한 건 "누적"(col = hit_ri.col + values(col))
-// 이라 merge() 에 백엔드별 raw 식을 직접 넘긴다.
+// 이라 merge() 에 raw 식을 직접 넘긴다. 방언 조각(values(col) / excluded.col)
+// 은 facade.conflictRef() 가 준다 — global.usesqlite 를 읽는 지점은 파사드
+// 하나로 유지한다 (mobius/db/index.js 참고).
+var HIT_RI_COUNTER_COLS = ['http', 'mqtt', 'coap', 'ws'];
+
 exports.upsert_hit_ri_batch = function (connection, rows, callback) {
     if (!rows || rows.length === 0) {
         callback(null, { affectedRows: 0 });
         return;
     }
 
-    var incoming = global.usesqlite === 'true' ?
-        { http: 'excluded.http', mqtt: 'excluded.mqtt', coap: 'excluded.coap', ws: 'excluded.ws' } :
-        { http: 'values(http)', mqtt: 'values(mqtt)', coap: 'values(coap)', ws: 'values(ws)' };
-
-    var qb = facade.k('hit_ri').insert(rows).onConflict(['ri', 'ct']).merge({
-        http: facade.raw('hit_ri.http + ' + incoming.http),
-        mqtt: facade.raw('hit_ri.mqtt + ' + incoming.mqtt),
-        coap: facade.raw('hit_ri.coap + ' + incoming.coap),
-        ws:   facade.raw('hit_ri.ws + ' + incoming.ws)
+    var merge = {};
+    HIT_RI_COUNTER_COLS.forEach(function (col) {
+        merge[col] = facade.raw('hit_ri.' + col + ' + ' + facade.conflictRef(col));
     });
+
+    var qb = facade.k('hit_ri').insert(rows).onConflict(['ri', 'ct']).merge(merge);
 
     facade.run(qb, connection, function (err, result) {
         callback(err, result);

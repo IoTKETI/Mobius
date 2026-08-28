@@ -15,6 +15,12 @@ exports.capabilities = {
     rowLock: true          // SELECT ... FOR UPDATE [NOWAIT]
 };
 
+// UPSERT 시 "이번에 들어온 값"을 가리키는 방언. ON DUPLICATE KEY UPDATE 절에서
+// 원본 컬럼(hit_ri.col)과 조합해 절대값 대입이 아닌 누적을 만드는 데 쓴다.
+exports.conflictRef = function (col) {
+    return 'values(' + col + ')';
+};
+
 exports.connect = function (conf, callback) {
     pool = mysql.createPool({
         host: conf.host,
