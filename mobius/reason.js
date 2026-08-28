@@ -14,7 +14,14 @@
 // 문구도 아직 손대지 않는다. 접두어('BAD REQUEST: ' 등)가 msg 에 그대로
 // 들어 있고, 오타와 이스케이프 잔재도 원본 그대로다. 값 보존이 우선이다.
 //
-// 이 파일은 생성물이다:  node tools/response-golden/gen-reason.js > mobius/reason.js
+// 처음에는 app.js 의 resultStatusCode 리터럴에서 기계로 만들었다
+// (tools/response-golden/gen-reason.js). 그 리터럴은 이제 없으므로 생성기는
+// 더 이상 돌지 않는다 — 이 파일이 원본이고, 손으로 유지한다.
+// 생성기는 값이 어디서 왔는지 남기는 근거로만 남겨 둔다.
+//
+// detail 은 "코드만 봐서는 어디서 났는지 모를 때" 만 붙인다. 응답 본문에는
+// 나가지 않고 responder.respond 가 console.error 로 찍는다. 흔한 사유에 붙이면
+// 정상 트래픽이 에러 로그를 채운다 — 404-1 이 실제로 그랬다.
 // ─────────────────────────────────────────────────────────────────────────
 
 var RSC = require('./rsc').RSC;
@@ -88,7 +95,11 @@ var REASON = {
     '403-5': { code: RSC.AE_NOT_ALLOWED, msg: "ACCESS DENIED (fanOutPoint)", detail: 'fopt: access check failed' },
     '403-6': { code: RSC.NO_MEMBERS, msg: "memberID in parent group is empty" },
 
-    '404-1': { code: RSC.NOT_FOUND, msg: "resource does not exist", detail: 'get_target_url' },
+    // detail 을 일부러 두지 않는다. 이 사유는 정상 운영에서 가장 흔한 404 이고,
+    // responder.respond 가 detail 이 있으면 console.error 를 찍기 때문에
+    // 평범한 404 마다 에러 로그가 쌓였다. 어느 함수가 냈는지는 코드를 보면
+    // 바로 알 수 있어(get_target_url 한 곳뿐) 진단에 detail 이 필요 없다.
+    '404-1': { code: RSC.NOT_FOUND, msg: "resource does not exist" },
     '404-2': { code: RSC.NOT_FOUND, msg: "RESOURCE DOES NOT FOUND" },
     '404-3': { code: RSC.NOT_FOUND, msg: "CSEBase was not found" },
     '404-4': { code: RSC.NOT_FOUND, msg: "group resource does not exist" },
