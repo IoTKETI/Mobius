@@ -52,6 +52,9 @@ else {
 // 정의하지 않으면 규칙 없이 Mobius 기본값이 쓰인다.
 global.retention_policies = Array.isArray(conf.retentionPolicies) ? conf.retentionPolicies : [];
 
+// 리소스 경로 캐시 상한 (항목 수). 미설정 시 cache_man 의 기본값 50000.
+global.cache_limit = conf.cacheLimit || 50000;
+
 global.usepxywsport = '7577';
 global.usepxymqttport = '7578';
 

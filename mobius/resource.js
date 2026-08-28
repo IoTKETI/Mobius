@@ -43,6 +43,7 @@ var security = require('./security');
 var db = require('./db_action');
 var db_sql = require('./sql_action');
 var cnt_man = require('./cnt_man');
+var cache_man = require('./cache_man');
 
 var _this = this;
 
@@ -408,13 +409,11 @@ function create_action(request, response, callback) {
                 var targetObject = JSON.parse(JSON.stringify(request.targetObject));
                 var cs = parseInt(resource_Obj[rootnm].cs);
 
-                cache_resource_url[resource_Obj[rootnm].pi + '/la'] = resource_Obj[rootnm];
+                cache_man.set(resource_Obj[rootnm].pi + '/la', resource_Obj[rootnm]);
 
                 cnt_man.schedule(targetObject[parent_rootnm], cs);
 
-                if(cache_resource_url.hasOwnProperty(targetObject[parent_rootnm].ri)) {
-                    delete cache_resource_url[targetObject[parent_rootnm].ri];
-                }
+                cache_man.invalidate(targetObject[parent_rootnm].ri);
                 targetObject = null;
 
                 results = null;
@@ -756,9 +755,7 @@ function create_action(request, response, callback) {
                 var parentObj = request.targetObject;
                 parentObj[parent_rootnm].subl.push(resource_Obj[rootnm]);
 
-                if(cache_resource_url.hasOwnProperty(parentObj[parent_rootnm].ri)) {
-                    delete cache_resource_url[parentObj[parent_rootnm].ri];
-                }
+                cache_man.invalidate(parentObj[parent_rootnm].ri);
 
                 db_sql.update_lookup(request.db_connection, parentObj[parent_rootnm], (err, results) => {
                     if(!err) {
@@ -2485,9 +2482,7 @@ function delete_action(request, response, callback) {
                                     var parent_rootnm = Object.keys(request.targetObject)[0];
                                     makeObject(request.targetObject[parent_rootnm]);
 
-                                    if(cache_resource_url.hasOwnProperty(request.targetObject[parent_rootnm].ri)) {
-                                        delete cache_resource_url[request.targetObject[parent_rootnm].ri];
-                                    }
+                                    cache_man.invalidate(request.targetObject[parent_rootnm].ri);
 
                                     if (resource_Obj[rootnm].ty == '23') {
                                         if(resource_Obj[rootnm].hasOwnProperty('su')) {

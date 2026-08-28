@@ -55,7 +55,7 @@ var db_facade = require('./mobius/db');
 // ������ �����մϴ�.
 var app = express();
 
-global.cache_resource_url = {};
+global.cache_man = require('./mobius/cache_man');
 global.cache_security_check = {};
 
 app.use(cors());
@@ -145,6 +145,7 @@ var use_clustering = 1;
 var worker_init_count = 0;
 if (use_clustering) {
     if (cluster.isMaster) {
+        require('./mobius/cache_man').install_master(cluster);
         cluster.on('death', (worker) => {
             console.log('worker' + worker.pid + ' died --> start again');
             cluster.fork();
@@ -204,6 +205,7 @@ if (use_clustering) {
         });
     }
     else {
+        require('./mobius/cache_man').install_worker();
         db.connect(usedbhost, 3306, 'root', usedbpass, (rsc) => {
             if (rsc === '1') {
                 // 파사드 연결 실패가 서버 기동 자체를 막으면 안 된다.
@@ -1229,8 +1231,9 @@ function lookup_delete(request, response, callback) {
 }
 
 function check_resource_from_url(connection, ri, sri, callback) {
-    if(cache_resource_url.hasOwnProperty(ri)) {
-        callback(cache_resource_url[ri], 200);
+    var cached = cache_man.get(ri);
+    if (cached !== undefined) {
+        callback(cached, 200);
     }
     else {
         db_sql.select_resource_from_url(connection, ri, sri, (err, results) => {
@@ -1242,7 +1245,7 @@ function check_resource_from_url(connection, ri, sri, callback) {
                     callback(null, 404);
                 }
                 else {
-                    cache_resource_url[ri] = JSON.parse(JSON.stringify(results[0]));
+                    cache_man.set(ri, JSON.parse(JSON.stringify(results[0])));
                     callback(results[0], 200);
                 }
             }
@@ -2351,9 +2354,7 @@ app.put('*', onem2mParser, (request, response) => {
                                                                 if ((request.query.fu == 2) && (request.query.rcn == 0 || request.query.rcn == 1)) {
                                                                     lookup_update(request, response, (code) => {
                                                                         if (code === '200') {
-                                                                            if(cache_resource_url.hasOwnProperty(request.url)) {
-                                                                                delete cache_resource_url[request.url];
-                                                                            }
+                                                                            cache_man.invalidate(request.url);
 
                                                                             responder.response_result(request, response, '200', '2004', '', () => {
                                                                                 connection.release();
@@ -2561,19 +2562,7 @@ app.delete('*', onem2mParser, (request, response) => {
                                             if ((request.query.fu == 2) && (request.query.rcn == 0 || request.query.rcn == 1)) {
                                                 lookup_delete(request, response, (code) => {
                                                     if (code === '200') {
-                                                        if(cache_resource_url.hasOwnProperty(request.url)) {
-                                                            delete cache_resource_url[request.url];
-                                                        }
-
-                                                        if(cache_resource_url.hasOwnProperty(request.pi + '/la')) {
-                                                            delete cache_resource_url[request.pi + '/la'];
-                                                        }
-
-                                                        Object.keys(cache_resource_url).forEach((_url) => {
-                                                            if(_url.includes(request.url+'/')) {
-                                                                delete cache_resource_url[_url];
-                                                            }
-                                                        });
+                                                        cache_man.invalidate(request.url);
 
                                                         responder.response_result(request, response, '200', '2002', '', () => {
                                                             connection.release();
