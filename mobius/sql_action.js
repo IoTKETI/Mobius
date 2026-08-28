@@ -3616,20 +3616,40 @@ exports.delete_lookup = function (connection, pi_list, pi_index, found_Obj, foun
     });
 };
 
+// 주의: 이 함수는 ty 2(AE) / 3(CNT) / 5(CSEBase) 를 의도적으로 제외한다.
+// 만료된 AE·컨테이너는 관리 콘솔에서 사람이 확인하고 지운다.
+// 또한 MySQL 전용이다 — SQLite 배포에서는 만료 자동 정리가 동작하지 않는다.
+// 두 제약 모두 의도된 것이며 근거는
+// docs/superpowers/specs/2026-08-28-admin-console-design.md §배경, §13 을 참조.
 exports.delete_lookup_et = function (connection, et, callback) {
     var pi_list = [];
     var sql = util.format("select ri from lookup where et < \'%s\' and ty <> \'2\' and ty <> \'3\' and ty <> \'5\'", et);
     db.getResult(sql, connection, function (err, delete_Obj) {
-        if (!err) {
-            for (var i = 0; i < delete_Obj.length; i++) {
-                pi_list.push(delete_Obj[i].ri);
-            }
-
-            var finding_Obj = [];
-            _this.delete_lookup(connection, pi_list, 0, finding_Obj, 0, function (err, search_Obj) {
-                callback(err, search_Obj);
-            });
+        if (err) {
+            console.error('[delete_lookup_et] select failed: ' +
+                          ((delete_Obj && delete_Obj.message) || delete_Obj));
+            callback(err, delete_Obj);
+            return;
         }
+
+        for (var i = 0; i < delete_Obj.length; i++) {
+            pi_list.push(delete_Obj[i].ri);
+        }
+
+        if (pi_list.length === 0) {
+            callback(null, []);
+            return;
+        }
+
+        console.log('[delete_lookup_et] ' + pi_list.length + ' expired resource(s) to delete');
+
+        var finding_Obj = [];
+        _this.delete_lookup(connection, pi_list, 0, finding_Obj, 0, function (err2, search_Obj) {
+            if (err2 && err2 !== '200') {
+                console.error('[delete_lookup_et] delete failed: ' + err2);
+            }
+            callback(err2, search_Obj);
+        });
     });
 };
 

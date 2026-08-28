@@ -106,15 +106,23 @@ function del_req_resource() {
 }
 
 function del_expired_resource() {
+    // SQLite 배포에서는 delete_lookup_et 이 MySQL 전용이라 동작하지 않는다.
+    // 만료 정리는 관리 콘솔이 담당한다.
+    if (global.usesqlite === 'true') {
+        console.log('[del_expired_resource] skipped — SQLite backend, use the admin console');
+        return;
+    }
+
     db.getConnection((code, connection) => {
         if (code === '200') {
             // this routine is that delete resource expired time exceed et of resource
             var et = moment().utc().format('YYYYMMDDTHHmmss');
             db_sql.delete_lookup_et(connection, et, (err) => {
-                if (!err) {
-                    console.log('---------------');
-                    console.log('delete resources expired et');
-                    console.log('---------------');
+                if (err && err !== '200') {
+                    console.error('[del_expired_resource] failed:', err);
+                }
+                else {
+                    console.log('[del_expired_resource] done (AE/CNT/CSEBase are excluded by design)');
                     // 마스터에서 지운다. 몇 개가 지워졌는지, 어떤 워커가 그
                     // ri 들을 캐싱해 뒀는지 알 수 없고(개별 ri 브로드캐스트는
                     // 수천 건일 수 있다) 워커 전용 store 에는 애초에 아무
