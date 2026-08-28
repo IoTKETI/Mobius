@@ -47,15 +47,12 @@ function liveSuccess() {
     return out;
 }
 
+// pxy_coap.js 의 자체 표를 걷어냈다(Task 5). 그 표가 카탈로그 값의 검증
+// 기준이었으므로, 걷어내기 직전(6914182)의 내용을 픽스처로 고정해 계속 대조한다.
+// 이 대조가 없으면 카탈로그의 coap 값이 바뀌어도 아무도 모른다.
+//   생성: git show 6914182:pxy_coap.js 에서 기계 추출
 function liveCoap() {
-    const src = read('pxy_coap.js');
-    const s = src.indexOf('var coap_rsc_code');
-    const tbl = src.slice(s, src.indexOf('}', s));
-    const ROW = /'(\d{4})'\s*:\s*'([^']*)'/g;
-    const out = {};
-    let m;
-    while ((m = ROW.exec(tbl)) !== null) { out[m[1]] = m[2]; }
-    return out;
+    return JSON.parse(read('test/fixtures/coap-table-original.json'));
 }
 
 // ── 검증 ────────────────────────────────────────────────────────────────
@@ -90,20 +87,20 @@ test('성공 코드의 (http, rsc) 쌍이 모두 카탈로그에 있다', functi
     assert.deepStrictEqual(missing, [], '카탈로그에 없는 성공 코드:\n  ' + missing.join('\n  '));
 });
 
-test('카탈로그의 CoAP 값이 pxy_coap.js 의 현재 표와 일치한다', function () {
+test('카탈로그의 CoAP 값이 원본 표(픽스처)와 일치한다', function () {
     const live = liveCoap();
     const mismatched = [];
     Object.keys(rsc.RSC).forEach(function (k) {
         const e = rsc.RSC[k];
         const expected = Object.prototype.hasOwnProperty.call(live, e.rsc) ? live[e.rsc] : null;
         if (e.coap !== expected) {
-            mismatched.push(k + ' (rsc ' + e.rsc + '): 카탈로그 ' + e.coap + ' vs pxy_coap ' + expected);
+            mismatched.push(k + ' (rsc ' + e.rsc + '): 카탈로그 ' + e.coap + ' vs 원본 ' + expected);
         }
     });
     assert.deepStrictEqual(mismatched, [], mismatched.join('\n'));
 });
 
-test('COAP_ONLY 가 pxy_coap.js 의 나머지 항목을 그대로 보존한다', function () {
+test('COAP_ONLY 가 원본 표의 나머지 항목을 그대로 보존한다', function () {
     const live = liveCoap();
     const used = new Set(Object.keys(rsc.RSC).map(function (k) { return rsc.RSC[k].rsc; }));
     const expected = {};
@@ -166,9 +163,57 @@ test('에러 응답이 표를 직접 인덱싱하지 않는다', function () {
         'responder.error_result 직접 호출이 남아 있다 — response_error_result 를 쓴다');
 });
 
-test('바인딩 통합은 아직이다 (Task 5 전)', function () {
-    // pxy_coap.js 는 여전히 자체 매핑 표를 쓰고 있어야 한다.
+test('바인딩별 결과 코드 정의가 카탈로그 한 곳에만 있다', function () {
+    // 예전에는 app.js 의 결과 코드 표와 pxy_coap.js 의 CoAP 표가 서로를 몰랐다.
+    // 그 결과 6종이 CoAP 매핑 없이 undefined 로 나갔다(D19).
     const coap = read('pxy_coap.js');
-    assert.ok(coap.indexOf('var coap_rsc_code') >= 0, 'pxy_coap 자체 표가 이미 사라졌다');
-    assert.ok(!/require\(['"][^'"]*rsc['"]\)/.test(coap), 'pxy_coap 이 벌써 카탈로그를 쓴다');
+    const ws = read('pxy_ws.js');
+    assert.ok(coap.indexOf('var coap_rsc_code') < 0, 'pxy_coap 에 자체 표가 남아 있다');
+    assert.ok(/require\(['"]\.\/mobius\/rsc['"]\)/.test(coap), 'pxy_coap 이 카탈로그를 써야 한다');
+    assert.ok(/require\(['"]\.\/mobius\/rsc['"]\)/.test(ws), 'pxy_ws 가 카탈로그를 써야 한다');
+});
+
+// ── Task 5: 바인딩 통합 ──────────────────────────────────────────────────
+
+test('toCoapCode 는 어떤 rsc 에도 undefined 를 돌려주지 않는다 (D19)', function () {
+    // 예전에는 pxy_coap.js 가 자체 표를 조회해 매핑이 없으면 response.code 에
+    // undefined 를 넣었다. 6종(1001 1002 4106 4107 4109 4230)이 그랬다.
+    const all = Object.keys(rsc.RSC).map(function (k) { return rsc.RSC[k].rsc; })
+        .concat(Object.keys(rsc.COAP_ONLY))
+        .concat(['9999', '1234']);                 // 카탈로그에 없는 코드
+    const bad = all.filter(function (r) {
+        const c = rsc.toCoapCode(r);
+        return typeof c !== 'string' || !/^\d\.\d\d$/.test(c);
+    });
+    assert.deepStrictEqual(bad, [], 'CoAP 코드를 못 만든 rsc: ' + bad.join(', '));
+});
+
+test('매핑이 있는 rsc 는 폴백이 아니라 그 값을 쓴다', function () {
+    assert.strictEqual(rsc.toCoapCode('4000'), '4.00');   // 카탈로그
+    assert.strictEqual(rsc.toCoapCode('5001'), '5.01');   // 카탈로그
+    assert.strictEqual(rsc.toCoapCode('6029'), '4.00');   // COAP_ONLY
+    assert.strictEqual(rsc.toCoapCode('5106'), '5.06');   // COAP_ONLY (폴백이면 5.00 이 됐을 것)
+});
+
+test('매핑이 없으면 rsc 첫 자리로 폴백한다', function () {
+    // 값을 지어내지 않는다 — 클래스 단위의 거친 근사다.
+    assert.strictEqual(rsc.toCoapCode('1001'), '2.05');   // 논블로킹 접수 = 성공 계열
+    assert.strictEqual(rsc.toCoapCode('4230'), '4.00');   // LOCKED
+    assert.strictEqual(rsc.toCoapCode('4107'), '4.00');   // AE_NOT_ALLOWED
+    assert.strictEqual(rsc.toCoapCode('9999'), '5.00');   // 모르는 코드
+});
+
+test('pxy_coap.js 가 자체 매핑 표를 들고 있지 않다', function () {
+    const s = read('pxy_coap.js');
+    assert.ok(s.indexOf('var coap_rsc_code') < 0, '자체 표가 남아 있다');
+    assert.ok(/require\(['"]\.\/mobius\/rsc['"]\)/.test(s), '카탈로그를 참조해야 한다');
+    assert.ok(s.indexOf('CoAP 바인딩은 삭제 예정') >= 0, '삭제 예정 표시가 있어야 한다');
+});
+
+test('pxy_ws.js 가 결과 코드를 숫자로 직접 적지 않는다', function () {
+    const s = read('pxy_ws.js');
+    const literals = s.split('\n').filter(function (l) {
+        return !l.trim().startsWith('//') && /ws_response\([^,]+,\s*\d{4}\s*,/.test(l);
+    });
+    assert.deepStrictEqual(literals, [], '숫자 리터럴이 남아 있다:\n' + literals.join('\n'));
 });
