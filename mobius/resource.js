@@ -419,7 +419,13 @@ function create_action(request, response, callback) {
                 // 없다 -- cache_man.get 의 유일한 호출자인
                 // app.js:check_resource_from_url 도 마찬가지. 그래서
                 // 여기서는 부모만 무효화한다.
-                cache_man.invalidate(targetObject[parent_rootnm].ri);
+                //
+                // invalidate 가 아니라 invalidate_self 다. CIN 삽입으로
+                // 바뀌는 것은 부모 컨테이너 행의 st/cni/cbs 뿐이고 그 자손은
+                // 하나도 바뀌지 않는다. invalidate 의 자손 스윕은 store 전체를
+                // 훑고, 그 비용을 브로드캐스트를 받는 모든 워커가 또 한 번씩
+                // 치른다 -- 워커를 늘려도 CIN 처리량이 늘지 않는 원인이었다.
+                cache_man.invalidate_self(targetObject[parent_rootnm].ri);
                 targetObject = null;
 
                 results = null;

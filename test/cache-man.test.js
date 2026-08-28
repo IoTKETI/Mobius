@@ -179,6 +179,124 @@ test('invalidate 는 호출될 때마다 그 시점의 store 를 다시 훑는�
         '두 번째 invalidate 는 그 사이 캐싱된 자손도 지금 store 를 다시 훑어 걷어내야 한다');
 });
 
+// --- 리뷰 Critical 1(a): CIN 삽입은 자손 스윕을 하지 않는다 ---
+
+test('invalidate_self 는 자기 자신만 지우고 자손을 축출하지 않는다', function () {
+    const cm = fresh(100);
+    cm.set('/Mobius/ae1/cnt1', {});
+    cm.set('/Mobius/ae1/cnt1/4-20260828000000001', {});
+    cm.set('/Mobius/ae1/cnt1/sub1', {});
+    cm.set('/Mobius/ae1', {});
+
+    const removed = cm.invalidate_self('/Mobius/ae1/cnt1');
+
+    assert.strictEqual(removed, 1);
+    assert.strictEqual(cm.get('/Mobius/ae1/cnt1'), undefined, '대상 자신은 지워져야 한다');
+    assert.notStrictEqual(cm.get('/Mobius/ae1/cnt1/4-20260828000000001'), undefined,
+        'CIN 삽입은 형제 CIN 행을 바꾸지 않는다 — 축출하면 안 된다');
+    assert.notStrictEqual(cm.get('/Mobius/ae1/cnt1/sub1'), undefined,
+        '자손 sub 도 바뀌지 않았으므로 남아 있어야 한다');
+    assert.notStrictEqual(cm.get('/Mobius/ae1'), undefined, '조상도 건드리지 않는다');
+});
+
+test('invalidate_self 는 self:true 를 브로드캐스트하고, 받는 쪽도 자손을 남긴다', function () {
+    const cm = fresh(100);
+    const sent = [];
+    cm._set_sender(function (msg) { sent.push(msg); });
+
+    cm.invalidate_self('/Mobius/ae1/cnt1');
+    assert.deepStrictEqual(sent, [
+        { __mobius_cache_inv: true, ri: '/Mobius/ae1/cnt1', self: true }
+    ]);
+
+    // 수신 측(다른 워커)에서도 자손 스윕이 일어나면 안 된다.
+    const rx = fresh(100);
+    rx.set('/Mobius/ae1/cnt1', {});
+    rx.set('/Mobius/ae1/cnt1/4-20260828000000001', {});
+    rx._on_message(sent[0]);
+    assert.strictEqual(rx.get('/Mobius/ae1/cnt1'), undefined);
+    assert.notStrictEqual(rx.get('/Mobius/ae1/cnt1/4-20260828000000001'), undefined,
+        'self:true 수신은 O(1) 삭제여야 한다');
+});
+
+test('삭제 경로의 invalidate 는 여전히 자손을 걷어낸다 (invalidate_self 로 바뀌지 않았다)', function () {
+    const cm = fresh(100);
+    cm.set('/Mobius/ae1', {});
+    cm.set('/Mobius/ae1/cnt1', {});
+    cm.set('/Mobius/ae1/cnt1/4-20260828000000001', {});
+
+    cm.invalidate('/Mobius/ae1');
+
+    assert.strictEqual(cm.get('/Mobius/ae1/cnt1'), undefined);
+    assert.strictEqual(cm.get('/Mobius/ae1/cnt1/4-20260828000000001'), undefined);
+});
+
+// --- 리뷰 Critical 1(b): 세대 검사는 키별이다 ---
+
+test('set_if_unchanged: 관계없는 리소스의 무효화는 채움을 막지 않는다', function () {
+    const cm = fresh(100);
+    const gen = cm.generation();              // GET /Mobius/ae1/cnt1 의 DB 조회 시작
+    cm.invalidate_self('/Mobius/ae9/cntX');   // 그 사이 다른 컨테이너에 CIN 이 들어왔다
+    cm.invalidate_self('/Mobius/ae8/cntY');
+
+    assert.strictEqual(cm.set_if_unchanged('/Mobius/ae1/cnt1', { ri: 'x' }, gen), true,
+        '전역 카운터 비교였다면 여기서 캐시가 영원히 채워지지 않는다');
+    assert.notStrictEqual(cm.get('/Mobius/ae1/cnt1'), undefined);
+});
+
+test('set_if_unchanged: 그 키 자신이 무효화됐으면 채우지 않는다', function () {
+    const cm = fresh(100);
+    const gen = cm.generation();
+    cm.invalidate('/Mobius/ae1/cnt1');
+
+    assert.strictEqual(cm.set_if_unchanged('/Mobius/ae1/cnt1', { ri: 'x' }, gen), false);
+    assert.strictEqual(cm.get('/Mobius/ae1/cnt1'), undefined);
+});
+
+test('set_if_unchanged: 조상이 무효화됐으면 in-flight 자손 채움을 막는다', function () {
+    const cm = fresh(100);
+    // GET /Mobius/ae1/cnt1 이 DB 를 읽는 중 — 아직 store 에 없으므로 keys_for 가
+    // 이 키를 찾을 수 없다. 조상 접두어 검사가 없으면 그대로 캐싱되어 버린다.
+    const gen = cm.generation();
+    cm.invalidate('/Mobius/ae1');            // DELETE /Mobius/ae1
+
+    assert.strictEqual(cm.set_if_unchanged('/Mobius/ae1/cnt1', { ri: 'x' }, gen), false,
+        '조상이 지워졌으므로 방금 읽은 자손 행은 이미 stale 이다');
+    assert.strictEqual(cm.get('/Mobius/ae1/cnt1'), undefined);
+});
+
+test('set_if_unchanged: 무효화가 조회 시작 *전* 이었으면 채운다', function () {
+    const cm = fresh(100);
+    cm.invalidate('/Mobius/ae1');
+    const gen = cm.generation();             // 무효화 이후에 조회를 시작했다
+
+    assert.strictEqual(cm.set_if_unchanged('/Mobius/ae1/cnt1', { ri: 'x' }, gen), true);
+});
+
+test('set_if_unchanged: invalidate_all 이후에는 그 전에 시작된 채움을 전부 막는다', function () {
+    const cm = fresh(100);
+    const gen = cm.generation();
+    cm.invalidate_all();
+    assert.strictEqual(cm.set_if_unchanged('/Mobius/ae1/cnt1', { ri: 'x' }, gen), false);
+    // 이후에 시작된 조회는 정상적으로 채운다
+    assert.strictEqual(cm.set_if_unchanged('/Mobius/ae1/cnt1', { ri: 'x' }, cm.generation()), true);
+});
+
+test('set_if_unchanged: 세대 기록 맵은 상한을 넘지 않고, 축출분은 fail-closed 로 막힌다', function () {
+    const cm = fresh(4);                     // 상한 4
+    const gen = cm.generation();
+    for (var i = 0; i < 40; i++) {
+        cm.invalidate_self('/Mobius/ae' + i);
+    }
+    const st = cm._inv_gen_state();
+    assert.ok(st.size <= 4, '세대 기록 맵이 상한을 넘어 자라면 안 된다 (size=' + st.size + ')');
+    assert.ok(st.floor > gen, '축출된 기록의 세대는 floor 로 올라가야 한다');
+
+    // 축출되어 개별 기록이 사라진 키라도, 조회 시작이 그 무효화보다 앞섰다면 막는다.
+    assert.strictEqual(cm.set_if_unchanged('/Mobius/ae0', { ri: 'x' }, gen), false,
+        '기록이 축출된 구간은 보수적으로(fail-closed) 거부해야 한다');
+});
+
 // --- 리뷰 MUST FIX 5: 대량 삭제용 전체 비우기 ---
 
 test('invalidate_all: 로컬 스토어를 비우고 세대를 올리고 all:true 를 브로드캐스트한다', function () {

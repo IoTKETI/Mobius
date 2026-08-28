@@ -15,21 +15,53 @@ var DEFAULT_LIMIT = 50000;
 var store = new Map();
 var send = null;   // 브로드캐스트 요청 함수. 마스터/단일 프로세스에서는 null
 
-// 무효화가 있을 때마다 증가하는 세대 카운터. check_resource_from_url 이
-// DB 조회 시작 시점의 값을 들고 있다가, 콜백이 돌아왔을 때 값이 바뀌었으면
-// (그 사이 어디선가 invalidate 가 있었으면) 방금 읽은 행을 캐시에 넣지
-// 않는다 -- 무효화 브로드캐스트가 도착한 *이후* 도착한 stale DB 응답이
-// 캐시를 다시 오염시키는 TOCTOU 를 막는다.
+// 무효화가 있을 때마다 증가하는 세대 카운터. 단조 증가하기만 하는 논리
+// 시계다. check_resource_from_url 이 DB 조회 시작 시점의 값을 들고 있다가,
+// 콜백이 돌아왔을 때 그 사이 "이 키(또는 그 조상)" 가 무효화됐으면 방금 읽은
+// 행을 캐시에 넣지 않는다 -- 무효화 브로드캐스트가 도착한 *이후* 도착한
+// stale DB 응답이 캐시를 다시 오염시키는 TOCTOU 를 막는다.
+//
+// 예전에는 이 카운터 하나를 전역으로 비교했다(generation() === gen). 그러면
+// 클러스터 전체에서 초당 200건만 무효화가 일어나도 5ms 마다 값이 바뀌어 --
+// select_resource_from_url 왕복보다 짧다 -- 검사가 사실상 항상 실패하고
+// 캐시가 영원히 채워지지 않는다. 그래서 세대는 "키별"로 기록한다.
 var generation = 0;
+
+// key -> 그 키가 마지막으로 무효화된 세대.
+var inv_gen = new Map();
+
+// inv_gen 에서 축출된 항목들의 세대 상한. 축출된 키는 개별 판정을 할 수
+// 없으므로, 이 값보다 오래된 in-flight 채움은 전부 막는다(fail-closed).
+// 축출은 가장 오래 전에 기록된 것부터라 floor_gen 은 낮게 유지된다.
+var floor_gen = 0;
 
 function limit() {
     var n = parseInt(global.cache_limit, 10);
     return (n > 0) ? n : DEFAULT_LIMIT;
 }
 
+// 이번 세대에 key 가 무효화됐다고 기록한다. store 와 같은 상한을 적용하고,
+// 넘치면 가장 오래된 기록부터 버리되 그 세대를 floor_gen 으로 올린다.
+function mark(key) {
+    if (inv_gen.has(key)) { inv_gen.delete(key); }   // 삽입 순서를 최신으로
+    inv_gen.set(key, generation);
+
+    var max = limit();
+    while (inv_gen.size > max) {
+        var oldest = inv_gen.keys().next().value;
+        var g = inv_gen.get(oldest);
+        inv_gen.delete(oldest);
+        if (g > floor_gen) { floor_gen = g; }
+    }
+}
+
 function clear_all() {
     store.clear();
     generation++;
+    // 개별 기록은 의미가 없어졌다. 대신 이 시점 이전에 시작된 모든 채움을
+    // 막도록 floor 를 지금 세대로 올린다.
+    inv_gen.clear();
+    floor_gen = generation;
 }
 
 exports.get = function (ri) {
@@ -57,6 +89,31 @@ exports.size = function () {
 
 exports.generation = function () {
     return generation;
+};
+
+// check_resource_from_url 전용. DB 조회를 시작하기 전에 받아둔 gen 이후로
+// ri (또는 그 조상 경로) 가 무효화됐으면 캐시에 넣지 않는다.
+//
+// 조상까지 보는 이유: invalidate('/Mobius/ae1') 은 '/Mobius/ae1/cnt1' 을
+// store 에서 지우고 그 키도 기록하지만, 그 시점에 store 에 아직 없던
+// (= 지금 in-flight 로 읽히는 중인) 자손은 keys_for 가 찾을 수 없다.
+// 조상 접두어를 따라 올라가며 확인해야 그 자손의 재캐싱도 막힌다.
+// 순회 횟수는 경로 깊이(oneM2M 에서 보통 4~5)로 제한된다.
+exports.set_if_unchanged = function (ri, row, gen) {
+    if (typeof ri !== 'string' || ri === '') { return false; }
+    if (gen < floor_gen) { return false; }
+
+    var key = ri;
+    while (key !== '') {
+        var g = inv_gen.get(key);
+        if (g !== undefined && g > gen) { return false; }
+        var slash = key.lastIndexOf('/');
+        if (slash <= 0) { break; }
+        key = key.substring(0, slash);
+    }
+
+    exports.set(ri, row);
+    return true;
 };
 
 // 무효화 대상 키를 모은다.
@@ -98,7 +155,10 @@ exports.invalidate_local = function (ri) {
     // 세대는 ri 가 유효한 한 항상 올린다. store 에 아무것도 없었어도(캐시
     // 미스 상태에서 삭제된 경우) 그 사이 시작된 DB 조회가 이 시점 이후에
     // 값을 다시 캐싱하지 못하게 막아야 하기 때문이다.
-    if (typeof ri === 'string' && ri !== '') { generation++; }
+    if (typeof ri === 'string' && ri !== '') {
+        generation++;
+        for (var j = 0; j < keys.length; j++) { mark(keys[j]); }
+    }
     return removed;
 };
 
@@ -106,6 +166,30 @@ exports.invalidate = function (ri) {
     var n = exports.invalidate_local(ri);
     if (send && typeof ri === 'string' && ri !== '') {
         send({ __mobius_cache_inv: true, ri: ri });
+    }
+    return n;
+};
+
+// ri 하나만 O(1) 로 무효화한다. 자손 스윕(keys_for 의 store 전체 forEach)을
+// 하지 않는다.
+//
+// contentInstance 삽입 전용이다: 그때 실제로 바뀌는 것은 부모 컨테이너 행의
+// st/cni/cbs 뿐이고 자손은 아무것도 바뀌지 않는다. 그런데 자손 스윕은 원 워커
+// 에서 한 번, 브로드캐스트를 받는 *모든* 워커에서 또 한 번씩 store 전체를
+// 훑는다 -- 워커를 늘려도 CIN 처리량이 늘지 않는 상한이 여기서 생겼다.
+// 삭제(DELETE) 경로는 실제로 서브트리가 사라지므로 invalidate 를 계속 쓴다.
+exports.invalidate_self_local = function (ri) {
+    if (typeof ri !== 'string' || ri === '') { return 0; }
+    var removed = store.delete(ri) ? 1 : 0;
+    generation++;
+    mark(ri);
+    return removed;
+};
+
+exports.invalidate_self = function (ri) {
+    var n = exports.invalidate_self_local(ri);
+    if (send && typeof ri === 'string' && ri !== '') {
+        send({ __mobius_cache_inv: true, ri: ri, self: true });
     }
     return n;
 };
@@ -124,6 +208,11 @@ exports.invalidate_all = function () {
 
 exports._set_sender = function (fn) { send = fn; };
 
+// 테스트 전용: 세대 기록 맵의 크기와 축출 하한.
+exports._inv_gen_state = function () {
+    return { size: inv_gen.size, floor: floor_gen };
+};
+
 exports._on_message = function (msg) {
     if (!msg || msg.__mobius_cache_inv !== true) { return false; }
     if (msg.all === true) {
@@ -131,7 +220,14 @@ exports._on_message = function (msg) {
         return true;
     }
     if (typeof msg.ri !== 'string' || msg.ri === '') { return false; }
-    exports.invalidate_local(msg.ri);
+    // self:true 는 CIN 삽입이 보낸 것이다. 받는 쪽에서도 자손 스윕을 하지
+    // 않아야 브로드캐스트 비용이 워커 수에 비례해 늘지 않는다.
+    if (msg.self === true) {
+        exports.invalidate_self_local(msg.ri);
+    }
+    else {
+        exports.invalidate_local(msg.ri);
+    }
     return true;
 };
 

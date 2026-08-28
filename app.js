@@ -90,12 +90,18 @@ function del_req_resource() {
     db.getConnection((code, connection) => {
         if (code === '200') {
             db_sql.delete_req(connection, (err, delete_Obj) => {
-                if (!err) {
-                    console.log('deleted ' + delete_Obj.affectedRows + ' request resource(s).');
-                    // del_expired_resource/del_orphan_resource 와 같은 이유:
-                    // lookup 을 대량으로, 개별 ri 없이 지운다.
-                    cache_man.invalidate_all();
+                if (err) {
+                    console.error('[del_req_resource] failed:', err);
                 }
+                else {
+                    console.log('deleted ' + delete_Obj.affectedRows + ' request resource(s).');
+                }
+                // 성공/실패 어느 쪽이든 비운다. delete_lookup 은 32개씩 배치로
+                // 재귀하므로 중간에 실패해도 앞선 배치는 이미 지워져 있고, 그
+                // 캐시 항목은 다음 일일 실행이 성공할 때까지 모든 워커에 남는다
+                // — 이 브랜치가 없애려던 바로 그 stale 캐시다. 하루 한 번이라
+                // 과하게 비우는 비용은 무시할 만하다.
+                cache_man.invalidate_all();
                 connection.release();
             });
         }
@@ -123,12 +129,15 @@ function del_expired_resource() {
                 }
                 else {
                     console.log('[del_expired_resource] done (AE/CNT/CSEBase are excluded by design)');
-                    // 마스터에서 지운다. 몇 개가 지워졌는지, 어떤 워커가 그
-                    // ri 들을 캐싱해 뒀는지 알 수 없고(개별 ri 브로드캐스트는
-                    // 수천 건일 수 있다) 워커 전용 store 에는 애초에 아무
-                    // 영향이 없으므로 전체 비우기를 브로드캐스트한다.
-                    cache_man.invalidate_all();
                 }
+                // 마스터에서 지운다. 몇 개가 지워졌는지, 어떤 워커가 그
+                // ri 들을 캐싱해 뒀는지 알 수 없고(개별 ri 브로드캐스트는
+                // 수천 건일 수 있다) 워커 전용 store 에는 애초에 아무
+                // 영향이 없으므로 전체 비우기를 브로드캐스트한다.
+                //
+                // 실패 분기에서도 비운다: delete_lookup 은 32개씩 배치로
+                // 재귀하므로 중간에 실패해도 앞선 배치는 이미 커밋돼 있다.
+                cache_man.invalidate_all();
                 connection.release();
             });
         }
@@ -146,10 +155,10 @@ function del_orphan_resource() {
                 if (err) {
                     console.log('[del_orphan_resource] error', err);
                 }
-                else {
-                    // del_expired_resource 와 같은 이유로 전체 비우기.
-                    cache_man.invalidate_all();
-                }
+                // del_expired_resource 와 같은 이유로 전체 비우기. 실패
+                // 분기도 포함한다 — 이쪽도 배치 재귀라 중간 실패 시 앞선
+                // 배치는 이미 지워져 있다.
+                cache_man.invalidate_all();
                 connection.release();
             });
         }
@@ -168,24 +177,39 @@ function del_orphan_resource() {
 // 주석과 같은 이유). release 도 connection.release() 가 아니라
 // db_facade.release(connection) 이다 — SQLite 핸들에는 .release() 가 없다.
 function del_old_hit_ri() {
-    db_facade.getConnection((code, connection) => {
-        if (code === '200') {
-            var days = parseInt(global.hit_ri_retention_days, 10) || 120;
-            var before = moment().utc().subtract(days, 'days').format('YYYYMMDD');
-            db_sql.delete_hit_ri_old(connection, before, (err, result) => {
-                if (err) {
-                    console.error('[del_old_hit_ri] error', err);
-                }
-                else {
-                    console.log('deleted ' + (result.affectedRows || 0) + ' old hit_ri row(s)');
-                }
-                db_facade.release(connection);
-            });
-        }
-        else {
-            console.log('[del_old_hit_ri] No Connection');
-        }
-    });
+    // db_facade.connect() 는 위에서 의도적으로 try/catch 로 감싸 실패해도
+    // 기동을 막지 않는다. 그래서 knexFactory 가 던졌다면 knexInstance 가
+    // null 인 채로 여기까지 오고, db_facade.getConnection() 의 assertReady()
+    // 가 *동기적으로* 던진다. 마스터에는 uncaughtException 핸들러가 없어
+    // 그러면 워커 하나가 아니라 서버 전체가 죽는다. 워커 쪽 wdt 콜백
+    // (mobius/hit_man.js start())은 이미 같은 이유로 감싸져 있다.
+    try {
+        db_facade.getConnection((code, connection) => {
+            if (code === '200') {
+                var days = parseInt(global.hit_ri_retention_days, 10) || 120;
+                var before = moment().utc().subtract(days, 'days').format('YYYYMMDD');
+                db_sql.delete_hit_ri_old(connection, before, (err, result) => {
+                    if (err) {
+                        // 파사드 규약은 실패 시 cb(true, err) 다
+                        // (mobius/db/index.js exports.run). err 를 그대로 찍으면
+                        // "[del_old_hit_ri] error true" 가 되어 진단이 불가능하다 —
+                        // hit_ri 테이블이 없는 기존 MySQL 설치에서 실제로 그랬다.
+                        console.error('[del_old_hit_ri] error: ' +
+                                      ((result && (result.message || result.code)) || err));
+                    }
+                    else {
+                        console.log('deleted ' + (result.affectedRows || 0) + ' old hit_ri row(s)');
+                    }
+                    db_facade.release(connection);
+                });
+            }
+            else {
+                console.log('[del_old_hit_ri] No Connection');
+            }
+        });
+    } catch (e) {
+        console.error('[del_old_hit_ri] threw: ' + (e.message || e));
+    }
 }
 
 var cluster = require('cluster');
@@ -1310,6 +1334,11 @@ function check_resource_from_url(connection, ri, sri, callback) {
         // 지워졌으면 방금 읽은(이미 stale 할 수 있는) 행을 캐시에 넣지
         // 않는다. 넣으면 그 뒤로는 아무것도 이 항목을 다시 무효화하지
         // 않으므로 영구히 stale 캐시가 남는다.
+        //
+        // 판정은 set_if_unchanged 가 "이 ri 와 그 조상"에 한해서 한다. 전역
+        // 카운터 비교(generation() === gen)로 하면 관계없는 리소스의 무효화
+        // 까지 이 채움을 막아, CIN 이 초당 수백 건만 들어와도 캐시가 아예
+        // 채워지지 않았다 (mobius/cache_man.js 주석 참고).
         var gen = cache_man.generation();
         db_sql.select_resource_from_url(connection, ri, sri, (err, results) => {
             if (err) {
@@ -1320,9 +1349,7 @@ function check_resource_from_url(connection, ri, sri, callback) {
                     callback(null, 404);
                 }
                 else {
-                    if (cache_man.generation() === gen) {
-                        cache_man.set(ri, JSON.parse(JSON.stringify(results[0])));
-                    }
+                    cache_man.set_if_unchanged(ri, JSON.parse(JSON.stringify(results[0])), gen);
                     callback(results[0], 200);
                 }
             }
@@ -1684,6 +1711,31 @@ function check_resource_supported(request, response, callback) {
     });
 }
 
+// hit_ri 집계. get_target_url 이 '200' 을 준 직후에만 부른다.
+//
+// 예전에는 라우터 진입 시점의 url.parse(request.url).pathname 을 그대로 키로
+// 썼다. 그러면 get_target_url 이 그 뒤에 하는 정규화를 전부 놓친다 — %23 -> #
+// 와 hash 제거, '/_/' -> '//', SP-ID 접두어와 '/~/<cse-id>/' 제거,
+// la/latest/ol/oldest/fopt 처리, 비구조 sri -> 구조 ri 해석. 같은 리소스가
+// 어떻게 주소지정됐느냐에 따라 서로 다른 hit_ri 키로 흩어지고, 그중 상당수는
+// lookup.ri 와 조인조차 되지 않는다. 콘솔의 "삭제해도 되는가" 판정이 이 신호를
+// 직접 읽으므로 그대로 두면 판정이 오염된다.
+//
+// 여기서는 해석된 ri 와 ty 를 둘 다 알 수 있으므로 attribute() 의 '4-\d' 경로
+// 추측 규칙에 기대지 않는다.
+//
+// ACP 검사보다 앞선다(의도): 거부된 접근도 "누군가 이 리소스를 쓰려 한다"는
+// 신호이고, 삭제 판정에서는 거짓 "미사용" 이 거짓 "사용중" 보다 훨씬 위험하다.
+// 404 는 더 이상 집계되지 않는다 — 리소스별 사용 신호로는 그쪽이 옳다.
+function record_hit(request) {
+    if (!request.targetObject) { return; }
+    var rootnm = Object.keys(request.targetObject)[0];
+    var target = request.targetObject[rootnm];
+    if (!target) { return; }
+    hit_man.record(target.ri, target.ty, request.headers['binding'] || 'H',
+                   request.headers['x-m2m-origin']);
+}
+
 function get_target_url(request, response, callback) {
     request.url = request.url.replace('%23', '#'); // convert '%23' to '#' of url
     request.hash = url.parse(request.url).hash;
@@ -1930,12 +1982,6 @@ app.post('*', onem2mParser, (request, response) => {
                     results = null;
                     connection.release();
                 });
-                // 이 시점에는 request.url 이 아직 부모 경로다(자식 rn 은
-                // 리소스 생성 후에야 붙는다). ty 는 아직 대상 리소스를 조회하지
-                // 않아 모른다 — hit_man.attribute() 가 경로 규칙으로 CIN 여부를
-                // 판별한다.
-                hit_man.record(url.parse(request.url).pathname, null,
-                               binding, request.headers['x-m2m-origin']);
             }
         });
         // db.getConnection((code, connection) => {
@@ -1963,6 +2009,10 @@ app.post('*', onem2mParser, (request, response) => {
                                 if (code === '200') {
                                     get_target_url(request, response, (code) => {
                                         if (code === '200') {
+                                            // CREATE 의 대상은 부모 리소스다 — 자식 rn 은
+                                            // 생성 후에야 정해진다. 부모에 귀속시키는 것이
+                                            // 맞다(CIN 도 부모 CNT 로 귀속된다).
+                                            record_hit(request);
                                             if (request.option !== '/fopt') {
                                                 parse_body_format(request, response, (code) => {
                                                     if (code === '200') {
@@ -2239,13 +2289,12 @@ app.get('*', onem2mParser, (request, response) => {
                         db_sql.set_hit(request.db_connection, request.headers['binding'], (err, results) => {
                             results = null;
                         });
-                        hit_man.record(url.parse(request.url).pathname, null,
-                                       request.headers['binding'], request.headers['x-m2m-origin']);
 
                         check_xm2m_headers(request, (code) => {
                             if (code === '200') {
                                 get_target_url(request, response, (code) => {
                                     if (code === '200') {
+                                        record_hit(request);
                                         if (request.option !== '/fopt') {
                                             var rootnm = Object.keys(request.targetObject)[0];
                                             request.url = request.targetObject[rootnm].ri;
@@ -2421,8 +2470,6 @@ app.put('*', onem2mParser, (request, response) => {
                 db_sql.set_hit(request.db_connection, request.headers['binding'], (err, results) => {
                     results = null;
                 });
-                hit_man.record(url.parse(request.url).pathname, null,
-                               request.headers['binding'], request.headers['x-m2m-origin']);
 
                 check_xm2m_headers(request, (code) => {
                     if (code === '200') {
@@ -2431,6 +2478,7 @@ app.put('*', onem2mParser, (request, response) => {
                                 if (code === '200') {
                                     get_target_url(request, response, (code) => {
                                         if (code === '200') {
+                                            record_hit(request);
                                             if (request.option !== '/fopt') {
                                                 parse_body_format(request, response, (code) => {
                                                     if (code === '200') {
@@ -2635,13 +2683,12 @@ app.delete('*', onem2mParser, (request, response) => {
                 db_sql.set_hit(request.db_connection, request.headers['binding'], (err, results) => {
                     results = null;
                 });
-                hit_man.record(url.parse(request.url).pathname, null,
-                               request.headers['binding'], request.headers['x-m2m-origin']);
 
                 check_xm2m_headers(request, (code) => {
                     if (code === '200') {
                         get_target_url(request, response, (code) => {
                             if (code === '200') {
+                                record_hit(request);
                                 if (request.option !== '/fopt') {
                                     check_type_delete_resource(request, (code) => {
                                         if (code === '200') {
