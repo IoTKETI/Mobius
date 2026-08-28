@@ -238,9 +238,30 @@ if (use_clustering) {
         // 카탈로그 흠결보다 위험하다. 배포 시점 로그에서 눈에 띄게 하는 것이 목적이다.
         reason.reportSelfCheck();
 
-        cluster.on('death', (worker) => {
-            console.log('worker' + worker.pid + ' died --> start again');
-            cluster.fork();
+        // 워커가 죽으면 다시 띄운다.
+        //
+        // 예전에는 'death' 를 듣고 있었다. Node 0.x 시절 이름이라 지금은
+        // 아무 때도 발화하지 않는다 (cluster 가 내는 것은 fork / online /
+        // listening / disconnect / exit / setup 뿐이다). 그래서 워커가 죽으면
+        // 그대로 사라졌고, 용량이 재시작 전까지 영구히 줄었다.
+        //
+        // 실측 (2026-08-28, 로컬): D22 이전 코드에 GET /Mobius/fopt 를 3번
+        // 보내니 워커가 17 -> 14 로 줄고 10초가 지나도 돌아오지 않았다.
+        // 요청 25번이면 배포 서버의 워커 25개가 전부 죽는 셈이었다.
+        //
+        // 죽는 원인 자체는 그때그때 고쳐야 하지만, 여기서 다시 띄우는 것은
+        // 원인과 무관하게 용량을 지키는 마지막 방어선이다.
+        var RESPAWN_DELAY_MS = 1000;
+        cluster.on('exit', (dead, code, signal) => {
+            // 종료를 의도한 경우(부모가 kill/disconnect)는 다시 띄우지 않는다.
+            if (dead.exitedAfterDisconnect) {
+                console.log('worker ' + dead.process.pid + ' 정상 종료');
+                return;
+            }
+            console.error('worker ' + dead.process.pid + ' 죽음 (code=' + code +
+                          ', signal=' + signal + ') --> 다시 띄운다');
+            // 기동 직후 연속으로 죽는 상황에서 포크 폭주를 막으려고 조금 쉰다.
+            setTimeout(() => { cluster.fork(); }, RESPAWN_DELAY_MS);
         });
 
         db.connect(usedbhost, 3306, 'root', usedbpass, (rsc) => {
