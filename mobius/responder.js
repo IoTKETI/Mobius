@@ -789,6 +789,37 @@ exports.rsrcLname = rceLname;
 exports.attrLname = attrLname;
 exports.attrSname = attrSname;
 
+/**
+ * 배열이어야 하는 컬럼 값을 배열로 읽는다. 절대 던지지 않는다.
+ *
+ * 응답을 만드는 도중이라 여기서 예외가 나면 응답 전송도 커넥션 반납도 못 한다.
+ * 깨진 행 하나가 그 리소스를 읽는 모든 요청을 죽이는 크래시 루프가 된다.
+ *
+ * 읽을 수 없으면 빈 배열로 둔다 — resource.js 의 makeObject 가 null/'' 을
+ * '[]' 로 채우는 것과 같은 방침이다.
+ */
+function parse_db_array(raw, attr) {
+    if (Array.isArray(raw)) {
+        return raw;
+    }
+    if (raw == null || raw === '') {
+        return [];
+    }
+    var parsed;
+    try {
+        parsed = JSON.parse(raw);
+    }
+    catch (e) {
+        console.error('[typeCheckAction] ' + attr + ' 를 배열로 읽을 수 없다: ' + e.message);
+        return [];
+    }
+    if (!Array.isArray(parsed)) {
+        console.error('[typeCheckAction] ' + attr + ' 가 배열이 아니다');
+        return parsed == null ? [] : [].concat(parsed);
+    }
+    return parsed;
+}
+
 function typeCheckAction(index1, body_Obj) {
     for (var index2 in body_Obj) {
         if(body_Obj.hasOwnProperty(index2)) {
@@ -911,7 +942,15 @@ function typeCheckAction(index1, body_Obj) {
             }
             else if (index2 == 'srv' || index2 == 'aa' || index2 == 'at' || index2 == 'poa' || index2 == 'lbl' || index2 == 'acpi' || index2 == 'srt' || index2 == 'nu' || index2 == 'mid' || index2 == 'macp') {
                 if (!Array.isArray(body_Obj[index2])) {
-                    body_Obj[index2] = JSON.parse(body_Obj[index2]);
+                    // 여기 오는 값은 이미 한 번 파싱에 실패한 것이다.
+                    // resource.js 의 makeObject 가 같은 컬럼을 try/catch 로 파싱하는데,
+                    // 실패하면 로그만 찍고 깨진 원본 문자열을 그대로 남긴다.
+                    // 그래서 이 두 번째 파싱은 "성공할 값은 안 오고 던질 값만 오는" 자리다.
+                    //
+                    // 응답 직렬화 도중이라 여기서 던지면 응답도 커넥션 반납도 못 하고
+                    // 워커가 죽는다. 깨진 행 하나가 그 리소스를 읽는 모든 요청을
+                    // 죽이는 크래시 루프가 된다.
+                    body_Obj[index2] = parse_db_array(body_Obj[index2], index2);
                 }
 
                 if (index2 == 'srt') {
@@ -993,8 +1032,21 @@ function typeCheckAction(index1, body_Obj) {
                 delete body_Obj[index2];
             }
             else if (index2 == 'pv' || index2 == 'pvs') {
-                if(getType(body_Obj[index2]) === 'string') {
+                // 가드가 뒤집혀 있었다. getType 은 문자열이 객체로 파싱되면
+                // 'string_object' 를, *파싱에 실패하면* 'string' 을 돌려준다.
+                // 그래서 === 'string' 조건은 정상적으로 저장된 pv 를 걸러내고
+                // (원래 의도한 파싱은 영영 일어나지 않았다) 파싱 불가능한 값만
+                // JSON.parse 로 넘겼다 — 반드시 던지는 자리였다.
+                //
+                // makeObject 가 이미 pv/pvs 를 파싱하므로 정상 값은 여기 오면
+                // 객체다. 문자열로 남아 있다는 것은 그때 실패했다는 뜻이다.
+                // 빈 객체로 바꿔치면 없는 권한을 지어내는 셈이라, 원본을 그대로
+                // 두고 로그만 남긴다 — 운영자가 깨진 행을 알아볼 수 있어야 한다.
+                if (getType(body_Obj[index2]) === 'string_object') {
                     body_Obj[index2] = JSON.parse(body_Obj[index2]);
+                }
+                else if (typeof body_Obj[index2] === 'string') {
+                    console.error('[typeCheckAction] ' + index2 + ' 를 읽을 수 없어 원본 그대로 내보낸다');
                 }
             }
         }

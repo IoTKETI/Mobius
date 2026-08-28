@@ -481,7 +481,16 @@ global.update_route = function (connection, cse_poa, callback) {
     db_sql.select_csr_like(connection, usecsebase, (err, results_csr) => {
         if (!err) {
             for (var i = 0; i < results_csr.length; i++) {
-                var poa_arr = JSON.parse(results_csr[i].poa);
+                // csr.poa 는 varchar(200) 이다. 긴 poa 배열이 비-strict sql_mode 에서
+                // 잘려 저장되면 깨진 JSON 이 된다. 여기는 DB 콜백 안이라 던지면
+                // 잡을 곳이 없어 워커가 죽는다 — 그리고 이 함수는 fanOutPoint 와
+                // group 생성이 매번 부르는 경로다.
+                //
+                // 깨진 행 하나 때문에 나머지 CSE 의 경로까지 잃을 이유는 없다. 건너뛴다.
+                var poa_arr = poa_util.parse(results_csr[i].poa, '[update_route] ' + results_csr[i].ri);
+                if (poa_arr === null) {
+                    continue;
+                }
                 for (var j = 0; j < poa_arr.length; j++) {
                     if (url.parse(poa_arr[j]).protocol == 'http:' || url.parse(poa_arr[j]).protocol == 'https:') {
                         cse_poa[results_csr[i].ri.split('/')[2]] = poa_arr[j];
