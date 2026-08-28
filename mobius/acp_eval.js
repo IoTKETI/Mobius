@@ -31,6 +31,17 @@ function checkAcor(acr, originator) {
         // KNOWN DIFFERENCE: 원본은 value.match(re) 에서 non-string 이면 TypeError 를 던진다.
         // 이 모듈은 re.test(value) 를 사용하므로 type coercion 된다.
         // 원본에서는 이 path 가 '500-1' 을 반환했으나, 여기서는 불필요하다.
+        //
+        // 같은 계열의 divergence 가 둘 더 있다 (모두 "원본은 던지고 여기서는
+        // 던지지 않는다"):
+        //   - acr.acop 누락: acor 가 매칭된 acr 에 acop 이 없으면 원본(bad4d4c:
+        //     security.js:160, :342)은 acop.toString() 에서 TypeError 를 던지고
+        //     그 자리의 catch 가 '500-1' 로 즉시 응답해 이후 acr 을 아예 보지
+        //     않았다. 여기서는 Number(undefined) 가 NaN 이라 비트 검사만 실패해
+        //     그 acr 을 건너뛰고, 뒤따르는 acr 이 대신 허용을 낼 수 있다.
+        //   - actw 원소가 non-string: 원본(bad4d4c:security.js:114, :298)은
+        //     element.split(' ') 에서 TypeError 를 던져 역시 '500-1' 이었다.
+        //     여기서는 String(element) 로 강제 변환한 뒤 split 한다.
         if ((re && re.test(value)) || value === 'all' || value === '*') {
             return { ok: true, usedRegex: true };
         }
@@ -46,7 +57,14 @@ function checkAcor(acr, originator) {
 // 예: acco=[{actw: no match}, {acip: no match}] 에서 첫 엔트리가 acip_permit=1 을 설정하면
 // 두 번째 엔트리의 실패한 acip 검사도 acip_permit=1 을 유지하게 된다.
 
-function checkAcip(acco_entry, clientIp, ipv6_idx_ref) {
+// clientIp 는 ipv4 분기 전용으로 유도된 주소, rawRemoteAddress 는 ipv6 분기
+// 전용으로 TCP 소켓의 주소 그대로다. 원본은 두 분기가 서로 다른 값을 봤다
+// (security.js 의 client_ip_of 주석 참고):
+//   ipv4 분기 -> remoteaddress 헤더 / ::1 치환 / '::ffff:' 제거를 거친 값
+//   ipv6 분기 -> request.connection.remoteAddress 원본 (헤더를 보지 않는다)
+// 하나로 합치면 (a) 루프백 클라이언트가 acip.ipv6:['::1'] 을 통과하지 못하고
+// (b) remoteaddress 헤더로 ipv6 제약을 우회할 수 있게 된다. 합치지 말 것.
+function checkAcip(acco_entry, clientIp, rawRemoteAddress, ipv6_idx_ref) {
     if (!acco_entry.hasOwnProperty('acip')) { return true; }
     var acip = acco_entry.acip;
 
@@ -75,7 +93,9 @@ function checkAcip(acco_entry, clientIp, ipv6_idx_ref) {
             // 매치를 찾자마자 대입 전에 return 해버리면 이 leak-clearing 효과가 사라진다 —
             // 이전에 반복(round)에서 이 실수를 했었다.
             ipv6_idx_ref.value = j;
-            if (list6.hasOwnProperty(j) && list6[j] === clientIp) { return true; }
+            // 원본 bad4d4c:security.js:84(_pv), :268(_pvs) 모두 여기서
+            // request.connection.remoteAddress 를 그대로 비교한다.
+            if (list6.hasOwnProperty(j) && list6[j] === rawRemoteAddress) { return true; }
         }
         // 원본 line 91: 루프가 끝난 뒤(매치 없이 끝났거나 리스트가 비어 있었던 경우)에만 검사한다.
         if (ipv6_idx_ref.value === 99) {
@@ -133,7 +153,7 @@ function checkAcco(acr, ctx, acipPermit, actwPermit, ipv6_idx_ref) {
 
         // acipPermit 과 actwPermit 는 리셋되지 않고 OR-누적된다.
         // 각 엔트리에서 true 를 반환하면 해당 플래그가 1 로 설정되고 유지된다.
-        if (checkAcip(acco[idx], ctx.clientIp, ipv6_idx_ref)) {
+        if (checkAcip(acco[idx], ctx.clientIp, ctx.rawRemoteAddress, ipv6_idx_ref)) {
             acipPermit.v = 1;
         }
         if (checkActw(acco[idx], ctx.now)) {

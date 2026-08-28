@@ -5,11 +5,15 @@ const acp = require('../mobius/acp_eval');
 
 const NOW = new Date(Date.UTC(2026, 7, 28, 10, 30, 45)); // 2026-08-28 10:30:45 UTC (금요일)
 
+// clientIp 와 rawRemoteAddress 를 일부러 다른 값으로 둔다. 원본은 ipv4 분기와
+// ipv6 분기가 서로 다른 주소를 봤고(mobius/acp_eval.js 의 checkAcip 주석),
+// 두 값이 같으면 그 비대칭이 테스트에서 드러나지 않는다.
 function ctx(over) {
     return Object.assign({
         originator: 'CAdmin',
         acop: acp.ACOP.RETRIEVE,
         clientIp: '10.0.0.5',
+        rawRemoteAddress: '::ffff:10.0.0.5',
         now: NOW,
         creator: 'CCreator'
     }, over || {});
@@ -64,6 +68,39 @@ test('acco.acip.ipv4 목록에 있으면 허용, 없으면 거부', function () 
     const mk = (ips) => [{ acr: [{ acor: ['CAdmin'], acop: 63, acco: [{ acip: { ipv4: ips } }] }] }];
     assert.strictEqual(acp.evaluatePrivileges(mk(['10.0.0.5']), ctx()).allowed, true);
     assert.strictEqual(acp.evaluatePrivileges(mk(['10.0.0.9']), ctx()).allowed, false);
+});
+
+// ---------------------------------------------------------------------------
+// 원본과의 divergence 회귀 방지 (리뷰 Critical 2).
+//
+// 원본(bad4d4c:mobius/security.js:84 의 _pv, :268 의 _pvs)은 ipv6 분기에서
+// request.connection.remoteAddress 를 가공 없이 그대로 비교한다. ipv4 분기만
+// remoteaddress 헤더 오버라이드 / ::1 -> ip.address() 치환 / '::ffff:' 제거를
+// 거친다. 추출을 ctx.clientIp 하나로 합치면 아래 두 줄이 원본과 어긋난다.
+//
+//   케이스                                          원본     합쳤을 때
+//   루프백 클라이언트 + acip.ipv6:['::1']            허용      거부
+//   remoteaddress 헤더 스푸핑 + acip.ipv6:[그 값]    거부      허용  <- 권한 상승
+// ---------------------------------------------------------------------------
+
+test('divergence 회귀: ipv6 분기는 유도된 clientIp 가 아니라 소켓 주소 원본을 본다 (루프백 허용)', function () {
+    const pv = [{ acr: [{ acor: ['CAdmin'], acop: 63, acco: [{ acip: { ipv6: ['::1'] } }] }] }];
+    // 루프백 접속: 원본의 ipv4 분기는 ::1 을 ip.address() (LAN 주소) 로 바꾸지만
+    // ipv6 분기는 '::1' 을 그대로 본다.
+    const r = acp.evaluatePrivileges(pv, ctx({ clientIp: '192.168.0.11', rawRemoteAddress: '::1' }));
+    assert.strictEqual(r.allowed, true,
+        "원본은 acip.ipv6:['::1'] 로 루프백 클라이언트를 허용한다 — clientIp 를 쓰면 거부로 뒤집힌다");
+});
+
+test('divergence 회귀: ipv6 분기는 remoteaddress 헤더 스푸핑을 통과시키지 않는다', function () {
+    const pv = [{ acr: [{ acor: ['CAdmin'], acop: 63, acco: [{ acip: { ipv6: ['2001:db8::5'] } }] }] }];
+    // clientIp 는 remoteaddress 헤더로 스푸핑된 값(원본 _pv 의 ipv4 분기 동작),
+    // rawRemoteAddress 는 실제 TCP 소스.
+    const r = acp.evaluatePrivileges(pv, ctx({
+        clientIp: '2001:db8::5', rawRemoteAddress: '::ffff:127.0.0.1'
+    }));
+    assert.strictEqual(r.allowed, false,
+        '헤더로 조작한 주소가 ipv6 제약을 통과하면 클라이언트가 스스로 권한을 올릴 수 있다');
 });
 
 test('acco 가 빈 배열이면 제약 없음으로 통과 (기존 동작)', function () {
@@ -164,7 +201,8 @@ test('KNOWN BUG: ipv6_idx 변수 누수로 인한 acip 검사 우회', function 
 // 때문이다. acr 을 3개로 나눠서 이 순서를 드러낸다 (acor 를 일부러 안 맞춰서 acip/actw
 // 판정만으로는 다음 acr 로 넘어가게 만든다):
 //   ACR0: acco.acip.ipv6 = [] (빈 리스트) → 루프 0회 → sentinel 99 유지 (leak 발생)
-//   ACR1: acco.acip.ipv6 = ['10.0.0.5'] (clientIp 와 매치) → sentinel 이 매치된 인덱스로
+//   ACR1: acco.acip.ipv6 = ['::ffff:10.0.0.5'] (rawRemoteAddress 와 매치 — ipv6 분기는
+//         clientIp 가 아니라 소켓 주소 원본을 본다) → sentinel 이 매치된 인덱스로
 //         갱신되어 leak 이 해소된다
 //   ACR2: acor 매치, acco.acip.ipv4 = ['10.0.0.9'] (non-match) → ACR1 이 leak 을 지웠으므로
 //         line 76 의 (leak) 자동 허용이 발동하지 않아 거부되어야 한다
@@ -176,7 +214,7 @@ test('KNOWN BUG: ipv6_idx leak 은 뒤따르는 acr 의 ipv6 매치로 해소된
     const pv = [{
         acr: [
             { acor: ['Nobody0'], acop: 63, acco: [{ acip: { ipv6: [] } }] },
-            { acor: ['Nobody1'], acop: 63, acco: [{ acip: { ipv6: ['10.0.0.5'] } }] },
+            { acor: ['Nobody1'], acop: 63, acco: [{ acip: { ipv6: ['::ffff:10.0.0.5'] } }] },
             { acor: ['CAdmin'], acop: 63, acco: [{ acip: { ipv4: ['10.0.0.9'] } }] }
         ]
     }];

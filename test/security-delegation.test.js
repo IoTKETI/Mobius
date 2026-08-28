@@ -95,6 +95,63 @@ test('Finding A: _pvs 는 remoteaddress 헤더를 보지 않으므로 실제 TCP
 });
 
 // ---------------------------------------------------------------------------
+// Critical 2: ipv4 분기 ↔ ipv6 분기의 IP 출처 비대칭.
+//
+// Finding A 는 _pv ↔ _pvs 사이의 헤더 비대칭이었고, 이건 각 함수 "안"의
+// ipv4 ↔ ipv6 비대칭이다. 원본(bad4d4c:mobius/security.js:84, :268)은 두
+// 함수 모두 ipv6 분기에서 request.connection.remoteAddress 를 그대로 쓴다.
+// 추출이 ctx.clientIp 하나만 넘기면서 아래 두 행이 원본과 어긋났다:
+//
+//   케이스                                        bad4d4c   합쳤을 때
+//   루프백 + acip.ipv6:['::1']                     '1'       '0'
+//   헤더 스푸핑 2001:db8::5 + acip.ipv6:[같은 값]   '0'       '1'  <- 권한 상승
+// ---------------------------------------------------------------------------
+
+const acpIpv6Loopback = [{
+    pv: JSON.stringify({ acr: [{ acor: ['CRequester'], acop: 63, acco: [{ acip: { ipv6: ['::1'] } }] }] }),
+    pvs: JSON.stringify({ acr: [{ acor: ['CRequester'], acop: 63, acco: [{ acip: { ipv6: ['::1'] } }] }] })
+}];
+
+test('Critical 2: _pv 의 ipv6 분기는 루프백 소켓 주소(::1)를 그대로 보고 허용한다', function (t, done) {
+    const security = freshSecurity(acpIpv6Loopback);
+    // 헤더 없음, 실제 소켓 주소가 ::1. ipv4 분기라면 ip.address() 로 치환되지만
+    // ipv6 분기는 원본 그대로를 본다.
+    const request = fakeRequest({}, '::1');
+    security.check(request, {}, '2', ['/Mobius/eqv_acp'], '2', 'CCreator', function (code) {
+        assert.strictEqual(code, '1',
+            "bad4d4c 는 acip.ipv6:['::1'] 로 루프백 클라이언트를 허용했다");
+        done();
+    });
+});
+
+test('Critical 2: _pvs 의 ipv6 분기도 루프백 소켓 주소를 그대로 보고 허용한다', function (t, done) {
+    const security = freshSecurity(acpIpv6Loopback);
+    const request = fakeRequest({}, '::1');
+    // ty=='1' -> security_check_action_pvs. ctx_of_pvs 도 rawRemoteAddress 를 실어야 한다.
+    security.check(request, {}, '1', ['/Mobius/eqv_acp'], '2', 'CCreator', function (code) {
+        assert.strictEqual(code, '1',
+            '원본의 _pvs ipv6 분기(bad4d4c:security.js:268)도 소켓 주소 원본을 비교한다');
+        done();
+    });
+});
+
+const acpIpv6Spoof = [{
+    pv: JSON.stringify({ acr: [{ acor: ['CRequester'], acop: 63, acco: [{ acip: { ipv6: ['2001:db8::5'] } }] }] }),
+    pvs: JSON.stringify({ acr: [{ acor: ['CRequester'], acop: 63, acco: [{ acip: { ipv6: ['2001:db8::5'] } }] }] })
+}];
+
+test('Critical 2: remoteaddress 헤더로는 ipv6 제약을 우회할 수 없다', function (t, done) {
+    const security = freshSecurity(acpIpv6Spoof);
+    // 클라이언트가 스스로 붙인 헤더. 실제 TCP 소스는 fakeRequest 기본값 203.0.113.9.
+    const request = fakeRequest({ remoteaddress: '2001:db8::5' });
+    security.check(request, {}, '2', ['/Mobius/eqv_acp'], '2', 'CCreator', function (code) {
+        assert.strictEqual(code, '0',
+            'ipv6 분기는 헤더를 보지 않는다 — 통과시키면 클라이언트가 스스로 권한을 올릴 수 있다');
+        done();
+    });
+});
+
+// ---------------------------------------------------------------------------
 // Finding B: _pv 의 "acr 없는 행" 즉시 단락(short-circuit) 소실.
 //
 // acpi 행 0 은 acr 이 아예 없는 pv({})고, 요청자는 creator 가 아니다. 행 1 은

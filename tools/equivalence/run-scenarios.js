@@ -84,6 +84,100 @@ const CT_SUB = 'application/vnd.onem2m-res+json;ty=23';
 const CT_ACP = 'application/vnd.onem2m-res+json;ty=1';
 const CT_GRP = 'application/vnd.onem2m-res+json;ty=9';
 
+// --- acco 커버리지 (acip.ipv4 / acip.ipv6 / actw) -------------------------
+//
+// 이 하네스는 오랫동안 acor 만 설정했다. 그래서 acco 계열 결함이 두 번 그대로
+// 통과했다 — _pv/_pvs 사이의 remoteaddress 헤더 비대칭, 그리고 각 함수 안의
+// ipv4/ipv6 분기 비대칭(리뷰 Critical 2). 아래 6개가 그 구멍을 막는다.
+//
+// 각 시나리오는 자기 ACP 와 자기 컨테이너를 만든다. 제약은 pv 에만 걸고 pvs 는
+// ORIGIN 에게 전권을 줘서 ACP 자체는 계속 다룰 수 있게 둔다. 판정 대상은
+// 그 컨테이너를 GET 했을 때의 허용/거부다.
+const ACO_AE = 'eqv_acco_ae';
+
+// 원본(bad4d4c:mobius/security.js)의 IP 출처:
+//   ipv4 분기 -> remoteaddress 헤더가 있으면 그 값
+//   ipv6 분기 -> request.connection.remoteAddress (헤더를 보지 않는다)
+// 그래서 ipv6 시나리오는 헤더를 엉뚱한 값으로 채워 두 출처를 갈라놓는다.
+const LOOPBACK_FORMS = ['::1', '::ffff:127.0.0.1', '127.0.0.1'];
+const OFF_NET = '203.0.113.9';        // TEST-NET-3, 절대 실제 소스가 아니다
+
+function accoScenarios() {
+    // actw 필드 순서는 [초, 분, 시, 일, 월, 요일] 이고 원본은 6개 중 하나만
+    // 맞아도 허용한다. 월은 실행 중에 바뀌지 않으므로 결정적으로 매치시킬 수 있다.
+    const utcMonth = String(new Date().getUTCMonth() + 1);
+
+    return [
+        {
+            name: 'acip-ipv4-match',
+            acco: [{ acip: { ipv4: ['198.51.100.7'] } }],
+            headers: { remoteaddress: '198.51.100.7' }
+        },
+        {
+            name: 'acip-ipv4-nomatch',
+            acco: [{ acip: { ipv4: ['198.51.100.7'] } }],
+            headers: { remoteaddress: OFF_NET }
+        },
+        {
+            // 헤더는 일부러 목록에 없는 값으로 둔다. ipv6 분기가 헤더를 보면
+            // (= 유도된 clientIp 를 쓰면) 거부, 소켓 주소를 보면 허용이다.
+            name: 'acip-ipv6-match',
+            acco: [{ acip: { ipv6: LOOPBACK_FORMS } }],
+            headers: { remoteaddress: OFF_NET }
+        },
+        {
+            // 반대 방향. 클라이언트가 스스로 붙인 헤더로 ipv6 제약을 통과하면
+            // 그게 권한 상승이다.
+            name: 'acip-ipv6-nomatch',
+            acco: [{ acip: { ipv6: ['2001:db8::5'] } }],
+            headers: { remoteaddress: '2001:db8::5' }
+        },
+        {
+            name: 'actw-match',
+            acco: [{ actw: ['* * * * ' + utcMonth + ' *'] }],
+            headers: {}
+        },
+        {
+            // 어떤 필드도 실제 시간 성분이 될 수 없는 값(초/분 최대 59, 월 최대 12,
+            // 일 최대 31, 요일 최대 6).
+            name: 'actw-nomatch',
+            acco: [{ actw: ['99 99 99 99 99 99'] }],
+            headers: {}
+        }
+    ];
+}
+
+const ACCO_SCENARIOS = accoScenarios();
+
+// acco 단계는 본문을 스냅샷에 넣지 않는다. 관심사는 "허용인가 거부인가" 하나뿐이고,
+// 허용된 경우의 본문에는 실행마다 달라지는 필드가 섞여 비교를 흔든다.
+async function accoStep(s) {
+    const acpName = 'eqv_acp_' + s.name;
+    const cntName = 'c_' + s.name.replace(/-/g, '_');
+
+    await call('POST', '/' + CSE, {
+        headers: { 'Content-Type': CT_ACP },
+        body: {
+            'm2m:acp': {
+                rn: acpName,
+                pv: { acr: [{ acor: [ORIGIN], acop: 63, acco: s.acco }] },
+                pvs: { acr: [{ acor: [ORIGIN], acop: 63 }] }
+            }
+        }
+    });
+
+    const created = await call('POST', '/' + CSE + '/' + ACO_AE, {
+        headers: { 'Content-Type': CT_CNT },
+        body: { 'm2m:cnt': { rn: cntName, acpi: ['/' + CSE + '/' + acpName] } }
+    });
+
+    const got = await call('GET', '/' + CSE + '/' + ACO_AE + '/' + cntName, {
+        headers: s.headers
+    });
+
+    return { setup: created.status, status: got.status, rsc: got.rsc };
+}
+
 // 서버가 실제로 응답하는지 먼저 확인한다. 이걸 안 하면 서버가 죽어 있을 때
 // 모든 단계가 똑같은 fetch 실패 객체를 기록하고, 두 스냅샷이 "일치"해버린다.
 async function waitReady(timeoutMs) {
@@ -113,6 +207,10 @@ async function main() {
     // 0) 이전 실행 잔재 제거 (결과는 스냅샷에 넣지 않는다)
     await call('DELETE', '/' + CSE + '/' + AE);
     await call('DELETE', '/' + CSE + '/eqv_acp');
+    await call('DELETE', '/' + CSE + '/' + ACO_AE);
+    for (const s of ACCO_SCENARIOS) {
+        await call('DELETE', '/' + CSE + '/eqv_acp_' + s.name);
+    }
 
     await step('cse-retrieve', () => call('GET', '/' + CSE));
 
@@ -206,6 +304,23 @@ async function main() {
 
     await step('ae-delete', () => call('DELETE', '/' + CSE + '/' + AE));
     await step('acp-delete', () => call('DELETE', '/' + CSE + '/eqv_acp'));
+
+    // --- acco 단계는 여기부터. 기존 단계 뒤에 붙여 앞부분이 예전 기준선과
+    // 그대로 정렬되게 한다 (tools/equivalence/README.md 참고).
+    await step('acco-ae-create', () => call('POST', '/' + CSE, {
+        headers: { 'Content-Type': CT_AE },
+        body: { 'm2m:ae': { rn: ACO_AE, api: '0.2.481.2.0001.001.000111', rr: 'true' } }
+    }));
+
+    for (const s of ACCO_SCENARIOS) {
+        await step('acco-' + s.name, () => accoStep(s));
+    }
+
+    // 정리 (결과는 스냅샷에 넣지 않는다)
+    await call('DELETE', '/' + CSE + '/' + ACO_AE);
+    for (const s of ACCO_SCENARIOS) {
+        await call('DELETE', '/' + CSE + '/eqv_acp_' + s.name);
+    }
 
     // 시나리오 도중 서버가 죽었을 수도 있다. status 0 은 fetch 자체가 실패한 것이므로
     // 그런 단계가 하나라도 있으면 스냅샷은 신뢰할 수 없다 — 쓰지 않는다.

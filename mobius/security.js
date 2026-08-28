@@ -18,10 +18,15 @@ var url = require('url');
 var db_sql = require('./sql_action');
 var ip = require("ip");
 
-var moment = require('moment');
 var acp_eval = require('./acp_eval');
 
 // 원본이 acip 검사 안에서 하던 IP 추출을 그대로 옮겼다.
+//
+// **ipv4 분기 전용 유도값이다.** 원본은 같은 함수 안에서도 ipv4 분기와 ipv6
+// 분기가 서로 다른 주소를 봤다: ipv6 분기(bad4d4c:security.js:84, :268)는
+// request.connection.remoteAddress 를 가공 없이 그대로 비교한다. 그쪽에는
+// ctx.rawRemoteAddress 를 넘긴다 (mobius/acp_eval.js 의 checkAcip 참고).
+//
 // _pv (security_check_action_pv) 전용: 원본(91a3f40:security.js:59-61)은
 // remoteaddress 헤더가 있으면 그 값으로 클라이언트 IP 를 덮어썼다. _pvs 는
 // 이 오버라이드가 없었다(client_ip_of_pvs 참고) — 리뷰에서 지적된 대로, 이 둘을
@@ -38,6 +43,7 @@ function client_ip_of(request) {
 
 // _pvs (security_check_action_pvs) 전용: 원본(91a3f40:security.js:247-252)은
 // remoteaddress 헤더를 전혀 보지 않는다. client_ip_of 와 절대 합치지 말 것.
+// 이것도 ipv4 분기 전용 유도값이다 (client_ip_of 주석 참고).
 function client_ip_of_pvs(request) {
     if (request.connection.remoteAddress === '::1') {
         return ip.address();
@@ -45,11 +51,18 @@ function client_ip_of_pvs(request) {
     return request.connection.remoteAddress.replace('::ffff:', '');
 }
 
+// ipv6 분기가 쓰는 값. _pv 와 _pvs 가 동일하다 — 두 원본 모두 ipv6 분기에서는
+// remoteaddress 헤더를 보지 않고 소켓 주소를 그대로 썼다.
+function raw_remote_address_of(request) {
+    return request.connection.remoteAddress;
+}
+
 function ctx_of(request, access_value, cr) {
     return {
         originator: request.headers['x-m2m-origin'],
         acop: parseInt(access_value, 10),
         clientIp: client_ip_of(request),
+        rawRemoteAddress: raw_remote_address_of(request),
         now: new Date(),
         creator: cr
     };
@@ -60,6 +73,7 @@ function ctx_of_pvs(request, access_value, cr) {
         originator: request.headers['x-m2m-origin'],
         acop: parseInt(access_value, 10),
         clientIp: client_ip_of_pvs(request),
+        rawRemoteAddress: raw_remote_address_of(request),
         now: new Date(),
         creator: cr
     };
