@@ -139,8 +139,76 @@ function get(key) {
     return Object.prototype.hasOwnProperty.call(REASON, key) ? REASON[key] : null;
 }
 
+// 기동 시 1회 도는 자체 점검. 문제 목록을 돌려준다 (빈 배열이면 정상).
+//
+// 파일시스템을 훑는 검사(아무도 참조하지 않는 사유가 있는가 등)는 여기 넣지
+// 않는다 — 기동 경로에서 소스 16개를 읽는 비용이 아깝고, 그런 검사는
+// test/reason-catalog.test.js 가 이미 한다. 여기서는 메모리 안에서 끝나는
+// 불변식만 본다.
+function selfCheck() {
+    var problems = require('./rsc').assertComplete();
+    var catalog = require('./rsc').RSC;
+
+    var byMsg = {};
+    Object.keys(REASON).forEach(function (k) {
+        var r = REASON[k];
+
+        // code 가 카탈로그의 실제 항목인가
+        var known = false;
+        for (var c in catalog) {
+            if (Object.prototype.hasOwnProperty.call(catalog, c) && catalog[c] === r.code) {
+                known = true;
+                break;
+            }
+        }
+        if (!known) { problems.push(k + ': code 가 RSC 카탈로그 항목이 아니다'); }
+
+        if (typeof r.msg !== 'string' || r.msg === '') {
+            problems.push(k + ': msg 가 비었거나 문자열이 아니다');
+        }
+        else {
+            // 결과 코드 접두어는 rsc 가 이미 나른다. 문구에 되풀이하지 않는다.
+            if (/^[A-Z_ ]{3,}:/.test(r.msg)) { problems.push(k + ': 문구에 접두어가 있다 — ' + r.msg); }
+            // 내부 식별자가 클라이언트 응답으로 나가면 안 된다. detail 로 옮긴다.
+            if (/\[[A-Za-z_.]+\]/.test(r.msg) || /\([a-z]+_[a-z_]+\)/.test(r.msg)) {
+                problems.push(k + ': 문구에 내부 식별자가 있다 — ' + r.msg);
+            }
+            if (!byMsg[r.msg]) { byMsg[r.msg] = []; }
+            byMsg[r.msg].push(k);
+        }
+
+        if (r.detail !== undefined && typeof r.detail !== 'string') {
+            problems.push(k + ': detail 이 문자열이 아니다');
+        }
+    });
+
+    Object.keys(byMsg).forEach(function (m) {
+        if (byMsg[m].length > 1) {
+            problems.push('같은 문구를 쓰는 사유가 여럿이다: ' + byMsg[m].join(', ') + ' — ' + m);
+        }
+    });
+
+    return problems;
+}
+
+// 점검 결과를 로그로 남긴다. 문제가 있어도 기동을 막지 않는다 —
+// 운영 배포에서 서버가 안 뜨는 쪽이 카탈로그 흠결보다 위험하다.
+// 클러스터 마스터에서 한 번만 부른다 (워커마다 부르면 같은 줄이 16번 찍힌다).
+function reportSelfCheck() {
+    var problems = selfCheck();
+    if (problems.length === 0) {
+        console.log('[reason] 자체 점검 통과 — 사유 ' + Object.keys(REASON).length + '개');
+        return 0;
+    }
+    console.error('[reason] 자체 점검에서 문제 ' + problems.length + '건 (기동은 계속한다)');
+    problems.forEach(function (p) { console.error('  - ' + p); });
+    return problems.length;
+}
+
 module.exports = {
     REASON: REASON,
     toLegacyTable: toLegacyTable,
-    get: get
+    get: get,
+    selfCheck: selfCheck,
+    reportSelfCheck: reportSelfCheck
 };

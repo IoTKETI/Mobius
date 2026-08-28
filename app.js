@@ -45,6 +45,16 @@ var fopt = require('./mobius/fopt');
 var tr = require('./mobius/tr');
 var sgn = require('./mobius/sgn');
 
+// 결과 코드와 사유는 카탈로그가 들고 있다.
+//   mobius/rsc.js     결과 코드 + 바인딩 매핑(http/coap)
+//   mobius/reason.js  사유별 문구
+// 에러 응답은 전부 response_error_result(request, response, code, cb) 를 거친다.
+// 예전의 { key: [status, rsc, msg] } 표는 읽는 곳이 없어져 걷어냈다.
+//
+// cluster 마스터의 자체 점검이 이 둘을 쓰므로 위쪽에서 미리 읽어 둔다.
+var reason = require('./mobius/reason');
+var RSC = require('./mobius/rsc').RSC;
+
 var db = require('./mobius/db_action');
 var db_sql = require('./mobius/sql_action');
 
@@ -220,6 +230,11 @@ var use_clustering = 1;
 var worker_init_count = 0;
 if (use_clustering) {
     if (cluster.isMaster) {
+        // 결과 코드·사유 카탈로그 자체 점검. 마스터에서 한 번만 돈다.
+        // 문제가 있어도 기동을 막지 않는다 — 운영 배포에서 서버가 안 뜨는 쪽이
+        // 카탈로그 흠결보다 위험하다. 배포 시점 로그에서 눈에 띄게 하는 것이 목적이다.
+        reason.reportSelfCheck();
+
         cluster.on('death', (worker) => {
             console.log('worker' + worker.pid + ' died --> start again');
             cluster.fork();
@@ -904,20 +919,8 @@ function check_grp(request, response, callback) {
     }
 }
 
-// 결과 코드 표는 mobius/reason.js 가 만든다. 형태는 { key: [status, rsc, msg] } 로
-// 예전과 같아서 아래 호출부들이 그대로 동작한다.
-//   결과 코드·바인딩 매핑 -> mobius/rsc.js
-//   사유별 문구          -> mobius/reason.js
-// 결과 코드와 사유는 카탈로그가 들고 있다.
-//   mobius/rsc.js     결과 코드 + 바인딩 매핑(http/coap)
-//   mobius/reason.js  사유별 문구
+// (결과 코드·사유 카탈로그는 파일 상단에서 require 한다)
 //
-// 에러 응답은 전부 아래 response_error_result(request, response, code, cb) 를 거친다.
-// 예전의 { key: [status, rsc, msg] } 호환 표는 읽는 곳이 없어져 걷어냈다.
-// (reason.toLegacyTable() 은 골든 하네스와 테스트가 아직 쓴다)
-var reason = require('./mobius/reason');
-var RSC = require('./mobius/rsc').RSC;
-
 // 에러 응답의 단일 통로. 코드 키('400-8')만 넘기면 나머지는 카탈로그가 채운다.
 //
 // 예전에는 호출부마다 resultStatusCode[code][0], [1], [2] 를 직접 펼쳐 넘겼다.

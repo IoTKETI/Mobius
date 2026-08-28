@@ -211,3 +211,72 @@ test('toLegacyTable 은 detail 을 내보내지 않는다', function () {
     Object.keys(t).forEach(function (k) { assert.strictEqual(t[k].length, 3, k); });
     assert.strictEqual(t['500-4'][2], 'resource could not be created');
 });
+
+// ── 기동 자체 점검 ───────────────────────────────────────────────────────
+
+test('현재 카탈로그는 자체 점검을 통과한다', function () {
+    const problems = reason.selfCheck();
+    assert.deepStrictEqual(problems, [], problems.join('\n'));
+});
+
+test('selfCheck 가 실제로 문제를 잡는다', function () {
+    // 점검이 통과만 하고 아무것도 못 잡으면 있으나 마나다. 결함을 넣어 확인한다.
+    // 전역 객체를 건드리므로 매번 원복한다.
+
+    // 1) CoAP 매핑 누락
+    const savedCoap = rsc.RSC.BAD_REQUEST.coap;
+    delete rsc.RSC.BAD_REQUEST.coap;
+    assert.ok(reason.selfCheck().some(function (p) { return /coap/.test(p); }),
+        'CoAP 매핑 누락을 못 잡는다');
+    rsc.RSC.BAD_REQUEST.coap = savedCoap;
+
+    // 2) 중복 문구
+    const savedMsg = reason.REASON['400-40'].msg;
+    reason.REASON['400-40'].msg = reason.REASON['400-41'].msg;
+    assert.ok(reason.selfCheck().some(function (p) { return /같은 문구/.test(p); }),
+        '중복 문구를 못 잡는다');
+    reason.REASON['400-40'].msg = savedMsg;
+
+    // 3) 접두어 재유입
+    const saved1 = reason.REASON['400-1'].msg;
+    reason.REASON['400-1'].msg = 'BAD REQUEST: ' + saved1;
+    assert.ok(reason.selfCheck().some(function (p) { return /접두어/.test(p); }),
+        '접두어를 못 잡는다');
+    reason.REASON['400-1'].msg = saved1;
+
+    // 4) 내부 식별자 재유입 (대괄호·괄호 두 형태)
+    const saved404 = reason.REASON['404-1'].msg;
+    reason.REASON['404-1'].msg = 'resource does not exist (get_target_url)';
+    assert.ok(reason.selfCheck().some(function (p) { return /내부 식별자/.test(p); }),
+        '괄호 형태 내부 식별자를 못 잡는다');
+    reason.REASON['404-1'].msg = '[get_target_url] resource does not exist';
+    assert.ok(reason.selfCheck().some(function (p) { return /내부 식별자/.test(p); }),
+        '대괄호 형태 내부 식별자를 못 잡는다');
+    reason.REASON['404-1'].msg = saved404;
+
+    // 원복 확인 — 뒤 테스트에 오염을 남기면 안 된다
+    assert.deepStrictEqual(reason.selfCheck(), []);
+});
+
+test('reportSelfCheck 는 문제가 있어도 던지지 않는다', function () {
+    // 기동을 막으면 안 된다. 운영 배포에서 서버가 안 뜨는 쪽이 더 위험하다.
+    const savedMsg = reason.REASON['400-40'].msg;
+    reason.REASON['400-40'].msg = reason.REASON['400-41'].msg;
+
+    const origErr = console.error, origLog = console.log;
+    const lines = [];
+    console.error = function () { lines.push(Array.prototype.join.call(arguments, ' ')); };
+    console.log = function () { lines.push(Array.prototype.join.call(arguments, ' ')); };
+    let count;
+    try {
+        count = reason.reportSelfCheck();          // 던지면 여기서 실패한다
+    } finally {
+        console.error = origErr;
+        console.log = origLog;
+        reason.REASON['400-40'].msg = savedMsg;
+    }
+
+    assert.ok(count > 0, '문제 건수를 돌려줘야 한다');
+    assert.ok(lines.some(function (l) { return /기동은 계속한다/.test(l); }),
+        '기동을 계속한다는 것이 로그에 드러나야 한다');
+});
