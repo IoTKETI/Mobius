@@ -69,7 +69,10 @@ exports.attribute = function (ri, ty) {
     }
 
     // CIN 은 부모 컨테이너에 귀속한다.
-    if (String(ty) === '4') {
+    // ty 를 아는 호출은 ty 로, 모르는 호출(라우터 진입 시점)은 경로 규칙으로 판별한다.
+    // Mobius 의 CIN rn 은 '4-<타임스탬프>' 형식이다 (resource.js 가 생성).
+    var last = ri.substring(ri.lastIndexOf('/') + 1);
+    if (String(ty) === '4' || /^4-\d/.test(last)) {
         var slash = ri.lastIndexOf('/');
         return (slash > 0) ? ri.substring(0, slash) : ri;
     }
@@ -149,7 +152,19 @@ exports.flush = function (callback) {
 exports.start = function () {
     var sec = parseInt(global.hit_ri_flush_sec, 10) || DEFAULT_FLUSH_SEC;
     global.wdt.set_wdt(WDT_ID, sec, function () {
-        exports.flush(function () {});
+        // wdt.js 의 tick 루프(resource_manager)에는 try/catch 가 없고, 이
+        // 프로세스에는 process.on('uncaughtException') 도 없다 — 이 콜백 안에서
+        // 뭔가 동기적으로 던지면(예: db 파사드가 아직 connect() 되지 않은
+        // 상태에서 assertReady() 가 던지는 경우) 워커 전체가 죽는다.
+        // flush 는 10초마다 도는 기록용 부가 작업일 뿐이므로, 한 번의 실패가
+        // 요청을 처리 중인 워커를 crash-loop 로 몰아넣게 둘 수 없다. 정상
+        // 경로(writer 콜백의 err)는 이미 flush() 안에서 처리되므로 여기 잡히는
+        // 건 예상 밖의 동기 예외뿐이다.
+        try {
+            exports.flush(function () {});
+        } catch (e) {
+            console.error('[hit_man] flush threw: ' + (e.message || e));
+        }
     });
 };
 

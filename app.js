@@ -47,6 +47,7 @@ var sgn = require('./mobius/sgn');
 
 var db = require('./mobius/db_action');
 var db_sql = require('./mobius/sql_action');
+var hit_man = require('./mobius/hit_man');
 
 // 전환된 sql_action 함수들이 쓰는 새 DB 파사드.
 // 전환이 끝나면(구 db_action/db_sqlite 삭제 시) 위 db 를 이것으로 대체한다.
@@ -150,6 +151,35 @@ function del_orphan_resource() {
     });
 }
 
+// hit_ri 보관 정리 (기동 시 + 일 1회, 마스터 전용).
+//
+// db(레거시 MySQL 풀)이 아니라 db_facade 로 커넥션을 얻는다. delete_hit_ri_old
+// (mobius/sql_action.js)는 hit_man.js 의 writer 와 마찬가지로 순수 파사드
+// 함수라 usesqlite 분기가 함수 내부에 없다 — legacy db.getConnection 을 쓰면
+// SQLite 배포에서도 이 정리 작업이 MySQL 가용성에 묶인다(hit_man.js 20-30행
+// 주석과 같은 이유). release 도 connection.release() 가 아니라
+// db_facade.release(connection) 이다 — SQLite 핸들에는 .release() 가 없다.
+function del_old_hit_ri() {
+    db_facade.getConnection((code, connection) => {
+        if (code === '200') {
+            var days = parseInt(global.hit_ri_retention_days, 10) || 120;
+            var before = moment().utc().subtract(days, 'days').format('YYYYMMDD');
+            db_sql.delete_hit_ri_old(connection, before, (err, result) => {
+                if (err) {
+                    console.error('[del_old_hit_ri] error', err);
+                }
+                else {
+                    console.log('deleted ' + (result.affectedRows || 0) + ' old hit_ri row(s)');
+                }
+                db_facade.release(connection);
+            });
+        }
+        else {
+            console.log('[del_old_hit_ri] No Connection');
+        }
+    });
+}
+
 var cluster = require('cluster');
 var os = require('os');
 //var cpuCount = (os.cpus().length / 2);
@@ -198,6 +228,9 @@ if (use_clustering) {
                                 del_orphan_resource();
                                 setInterval(del_orphan_resource, (24) * (60) * (60) * (1000));
 
+                                del_old_hit_ri();
+                                setInterval(del_old_hit_ri, (24) * (60) * (60) * (1000));
+
                                 require('./pxy_mqtt');
                                 require('./pxy_coap');
                                 require('./pxy_ws');
@@ -232,6 +265,19 @@ if (use_clustering) {
                 } catch (e) {
                     console.error('[db_facade] connect threw: ' + (e.message || e));
                 }
+
+                // db_facade.connect() 호출(바로 위) 뒤에 둔다 — install_worker()
+                // 직후가 아니다. hit_man 의 기본 writer 는 flush 마다
+                // db_facade.getConnection/release 를 부르고 그 둘은 connect() 가
+                // 한 번도 호출되지 않았으면 assertReady() 에서 동기적으로 던진다
+                // (mobius/db/index.js). hit_man.flush 에도 wdt.js 의 tick 루프에도
+                // try/catch 가 없으므로, connect() 보다 먼저 start() 를 등록하면
+                // 첫 flush tick 에서 워커가 uncaught exception 으로 죽는다.
+                // (assertReady 는 connect() 의 콜백이 끝나기를 기다리지 않는다 —
+                // adapter/knexInstance 는 connect() 진입 시 동기적으로 설정되므로,
+                // 위 호출 "직후"면 충분하고 콜백(rsc2)을 기다릴 필요는 없다.)
+                hit_man.start();
+
                 db.getConnection((code, connection) => {
                     if (code === '200') {
                         if (use_secure === 'disable') {
@@ -1876,6 +1922,12 @@ app.post('*', onem2mParser, (request, response) => {
                     results = null;
                     connection.release();
                 });
+                // 이 시점에는 request.url 이 아직 부모 경로다(자식 rn 은
+                // 리소스 생성 후에야 붙는다). ty 는 아직 대상 리소스를 조회하지
+                // 않아 모른다 — hit_man.attribute() 가 경로 규칙으로 CIN 여부를
+                // 판별한다.
+                hit_man.record(url.parse(request.url).pathname, null,
+                               binding, request.headers['x-m2m-origin']);
             }
         });
         // db.getConnection((code, connection) => {
@@ -2179,6 +2231,8 @@ app.get('*', onem2mParser, (request, response) => {
                         db_sql.set_hit(request.db_connection, request.headers['binding'], (err, results) => {
                             results = null;
                         });
+                        hit_man.record(url.parse(request.url).pathname, null,
+                                       request.headers['binding'], request.headers['x-m2m-origin']);
 
                         check_xm2m_headers(request, (code) => {
                             if (code === '200') {
@@ -2359,6 +2413,8 @@ app.put('*', onem2mParser, (request, response) => {
                 db_sql.set_hit(request.db_connection, request.headers['binding'], (err, results) => {
                     results = null;
                 });
+                hit_man.record(url.parse(request.url).pathname, null,
+                               request.headers['binding'], request.headers['x-m2m-origin']);
 
                 check_xm2m_headers(request, (code) => {
                     if (code === '200') {
@@ -2571,6 +2627,8 @@ app.delete('*', onem2mParser, (request, response) => {
                 db_sql.set_hit(request.db_connection, request.headers['binding'], (err, results) => {
                     results = null;
                 });
+                hit_man.record(url.parse(request.url).pathname, null,
+                               request.headers['binding'], request.headers['x-m2m-origin']);
 
                 check_xm2m_headers(request, (code) => {
                     if (code === '200') {

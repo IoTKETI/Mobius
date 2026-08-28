@@ -62,6 +62,11 @@ global.usesuperuser = conf.superuser || 'Sponde';
 // 빈 문자열이면 비활성.
 global.useadminorigin = conf.adminOrigin || '';
 
+// hit_ri 수집. flush 주기(초)와 보관 기간(일).
+// 보관은 판정 기준(무접근 90일)보다 길게 잡는다 — 경계에서 판정이 흔들리지 않도록.
+global.hit_ri_flush_sec = conf.hitRiFlushSec || 10;
+global.hit_ri_retention_days = conf.hitRiRetentionDays || 120;
+
 // 리소스 경로 캐시 상한 (항목 수). 미설정 시 cache_man 의 기본값 50000.
 global.cache_limit = conf.cacheLimit || 50000;
 

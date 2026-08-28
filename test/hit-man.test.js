@@ -83,6 +83,15 @@ test('attribute: 이름이 la/ol 로 끝나도 접미사가 아니면 잘리지 
     assert.strictEqual(hm.attribute('/Mobius/ae1/cola', 3), '/Mobius/ae1/cola');
 });
 
+test('attribute: ty 를 몰라도 경로로 CIN 을 판별한다', function () {
+    const hm = fresh();
+    assert.strictEqual(
+        hm.attribute('/Mobius/ae1/cnt1/4-20260828010203456', null),
+        '/Mobius/ae1/cnt1');
+    // CIN 이 아닌 것을 CIN 으로 오인하면 안 된다
+    assert.strictEqual(hm.attribute('/Mobius/ae1/4things', null), '/Mobius/ae1/4things');
+});
+
 test('record: 프로토콜별로 누적된다', function () {
     const hm = fresh();
     hm.record('/Mobius/ae1', 2, 'H', 'CSomeone');
