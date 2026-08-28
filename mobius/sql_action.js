@@ -3636,53 +3636,71 @@ exports.delete_lookup_et = function (connection, et, limit, callback) {
 // 사이사이 이벤트 루프를 놓아 라이브 트래픽을 막지 않는다.
 // 다단계 고아: 같은 패스에서 부모가 지워진 자식은 다음 패스가 잡는다.
 // 패스는 삭제가 있었던 동안만 반복한다 (평상시 1패스로 끝).
+// 실행자만 갈라져 있었다 (db_sqlite.getResult vs db.getResult). SQL 은 한 벌을
+// 공유했으므로 파사드로 옮기면 분기가 사라진다.
+//
+// 겸사겸사 수동 이스케이프(esc)를 걷어냈다. `\` 와 `'` 만 다루는 불완전한
+// 것이었고, ri/pi 는 클라이언트가 정한 rn 을 담으므로 2차 주입 통로였다.
 exports.delete_orphan_lookup = function (connection, callback) {
-    var exec = (global.usesqlite === 'true') ? require('./db_sqlite').getResult : db.getResult;
     var BATCH = 5000;
-    var esc = function (s) { return String(s).replace(/\\/g, '\\\\').replace(/'/g, "\\'"); };
     var grand_total = 0;
 
     function run_pass(pass_deleted, last_ri, pass_done) {
-        var sel = "SELECT ri, pi FROM lookup WHERE ri > '" + esc(last_ri) + "' AND pi <> '' ORDER BY ri LIMIT " + BATCH;
-        exec(sel, connection, function (err, rows) {
+        // CSEBase 는 pi 가 빈 문자열이다 — 고아가 아니므로 뺀다.
+        var scan = facade.k('lookup')
+            .select('ri', 'pi')
+            .where('ri', '>', last_ri)
+            .whereNot('pi', '')
+            .orderBy('ri', 'asc')
+            .limit(BATCH);
+
+        facade.run(scan, connection, function (err, rows) {
             if (err) {
                 console.error('[delete_orphan_lookup] scan error:', rows);
                 callback(rows);
                 return;
             }
+            rows = rows || [];
             if (!rows.length) {
                 pass_done(pass_deleted);
                 return;
             }
             var next_ri = rows[rows.length - 1].ri;
             var pi_set = {};
-            for (var i = 0; i < rows.length; i++) pi_set[rows[i].pi] = 1;
-            var in_list = Object.keys(pi_set).map(function (p) { return "'" + esc(p) + "'"; }).join(',');
-            exec("SELECT ri FROM lookup WHERE ri IN (" + in_list + ")", connection, function (err2, prows) {
-                if (err2) {
-                    console.error('[delete_orphan_lookup] parent check error:', prows);
-                    callback(prows);
-                    return;
-                }
-                var exists = {};
-                for (var j = 0; j < prows.length; j++) exists[prows[j].ri] = 1;
-                var orphans = rows.filter(function (r) { return !exists[r.pi]; }).map(function (r) { return "'" + esc(r.ri) + "'"; });
-                if (!orphans.length) {
-                    setImmediate(run_pass, pass_deleted, next_ri, pass_done);
-                    return;
-                }
-                exec("DELETE FROM lookup WHERE ri IN (" + orphans.join(',') + ")", connection, function (err3, dres) {
-                    if (err3) {
-                        console.error('[delete_orphan_lookup] delete error:', dres);
-                        callback(dres);
+            for (var i = 0; i < rows.length; i++) { pi_set[rows[i].pi] = 1; }
+            var pi_list = Object.keys(pi_set);
+
+            facade.run(facade.k('lookup').select('ri').whereIn('ri', pi_list), connection,
+                function (err2, prows) {
+                    if (err2) {
+                        console.error('[delete_orphan_lookup] parent check error:', prows);
+                        callback(prows);
                         return;
                     }
-                    var n = (dres.affectedRows || dres.changes || 0);
-                    grand_total += n;
-                    console.log('[delete_orphan_lookup] deleted ' + n + ' orphan row(s)');
-                    setImmediate(run_pass, pass_deleted + n, next_ri, pass_done);
+                    prows = prows || [];
+                    var exists = {};
+                    for (var j = 0; j < prows.length; j++) { exists[prows[j].ri] = 1; }
+                    var orphans = rows.filter(function (r) { return !exists[r.pi]; })
+                        .map(function (r) { return r.ri; });
+                    if (!orphans.length) {
+                        setImmediate(run_pass, pass_deleted, next_ri, pass_done);
+                        return;
+                    }
+                    facade.run(facade.k('lookup').whereIn('ri', orphans).del(), connection,
+                        function (err3, dres) {
+                            if (err3) {
+                                console.error('[delete_orphan_lookup] delete error:', dres);
+                                callback(dres);
+                                return;
+                            }
+                            // 파사드가 두 백엔드 모두 affectedRows 로 맞춰 준다
+                            // (예전에는 SQLite 의 changes 를 따로 봐야 했다).
+                            var n = (dres && dres.affectedRows) || 0;
+                            grand_total += n;
+                            console.log('[delete_orphan_lookup] deleted ' + n + ' orphan row(s)');
+                            setImmediate(run_pass, pass_deleted + n, next_ri, pass_done);
+                        });
                 });
-            });
         });
     }
 
