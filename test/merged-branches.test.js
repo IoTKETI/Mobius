@@ -136,6 +136,70 @@ bothBackends('update_lcp', function (sa, cb) {
     }, cb);
 });
 
+// --- upsert: 방언 차이는 knex 가 흡수한다 -------------------------------------
+// 예전에는 SQLite 가 ON CONFLICT(ct) DO UPDATE, MySQL 이 ON DUPLICATE KEY UPDATE
+// 로 갈라져 있었다. 같은 문장을 두 번 쓰던 것이라 knex 가 대신 고른다.
+
+test('set_hit: SQLite 는 ON CONFLICT 를 낸다', function (t, done) {
+    const { sql_action, seen } = tapAdapter(true);
+    sql_action.set_hit({}, 'H', guard(done, function (err) {
+        assert.ok(!err, JSON.stringify(err));
+        assertNoLegacy(seen);
+        assert.match(seen[0].sql, /on conflict/i, seen[0].sql);
+        done();
+    }));
+});
+
+test('set_hit: MySQL 은 ON DUPLICATE KEY 를 낸다', function (t, done) {
+    const { sql_action, seen } = tapAdapter(false);
+    sql_action.set_hit({}, 'H', guard(done, function (err) {
+        assert.ok(!err, JSON.stringify(err));
+        assertNoLegacy(seen);
+        assert.match(seen[0].sql, /on duplicate key/i, seen[0].sql);
+        done();
+    }));
+});
+
+test('set_hit: 카운터를 대입이 아니라 증분한다', function (t, done) {
+    const { sql_action, seen } = tapAdapter(true);
+    sql_action.set_hit({}, 'M', guard(done, function () {
+        assert.match(seen[0].sql, /mqtt\s*\+/i, '증분이 아니다: ' + seen[0].sql);
+        done();
+    }));
+});
+
+test('set_hit_n: 두 백엔드 모두 파사드를 거친다', function (t, done) {
+    const { sql_action, seen } = tapAdapter(true);
+    sql_action.set_hit_n({}, '20260828', 1, 0, 0, 0, guard(done, function (err) {
+        assert.ok(!err, JSON.stringify(err));
+        assertNoLegacy(seen);
+        assert.match(seen[0].sql, /on conflict/i);
+        done();
+    }));
+});
+
+// insert_cb 는 먼저 insert_lookup 을 부르는데 그건 아직 미전환(real 분기)이라
+// 구 경로로 나간다. 여기서는 cb 삽입 자체만 본다.
+[true, false].forEach(function (useSqlite) {
+    test('insert_cb: cb 삽입이 파사드를 거치고 값을 바인딩한다 (' +
+        (useSqlite ? 'SQLite' : 'MySQL') + ')', function (t, done) {
+        const { sql_action, seen } = tapAdapter(useSqlite);
+        sql_action.insert_cb({}, {
+            ri: '/M/cb', ty: '5', ct: 'C', st: 0, rn: 'r', lt: 'L', et: 'E',
+            acpi: [], lbl: [], at: [], aa: [], sri: 's', spi: 'p', subl: [],
+            cst: 1, csi: '/x', srt: [1, 2], poa: [EVIL], nl: '', ncp: '', srv: ['2a']
+        }, guard(done, function () {
+            const cbIns = seen.filter(function (s) { return /^insert into `cb`/i.test(s.sql); });
+            assert.strictEqual(cbIns.length, 1, 'cb 삽입이 파사드로 안 나갔다');
+            assert.strictEqual(cbIns[0].sql.indexOf('drop table'), -1,
+                'SQL 본문에 값이 박혔다: ' + cbIns[0].sql);
+            assert.ok(JSON.stringify(cbIns[0].bindings).indexOf('drop table') >= 0,
+                '값이 바인딩으로 가야 한다');
+            done();
+        }));
+    });
+});
+
 // --- 분기가 실제로 사라졌는지 ------------------------------------------------
 
 test('전환한 함수들에 usesqlite 분기가 남아 있지 않다', function () {
@@ -143,7 +207,8 @@ test('전환한 함수들에 usesqlite 분기가 남아 있지 않다', function
     const src = fs.readFileSync(path.join(__dirname, '..', 'mobius', 'sql_action.js'), 'utf8');
     const names = ['select_lookup', 'select_ri_lookup', 'select_ae', 'select_acp',
         'select_acp_in', 'get_hit_all', 'delete_ri_lookup', 'update_grp', 'update_lcp',
-        'select_spec_ri', 'select_resource_from_url', 'select_acp_cnt'];
+        'select_spec_ri', 'select_resource_from_url', 'select_acp_cnt',
+        'set_hit', 'set_hit_n', 'insert_cb'];
 
     names.forEach(function (n) {
         const i = src.indexOf('exports.' + n + ' = function');

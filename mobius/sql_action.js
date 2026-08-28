@@ -136,48 +136,30 @@ exports.set_hit = function (connection, binding, callback) {
         _ws = 1;
     }
 
-    if (global.usesqlite === 'true') {
-        var sqlite = require('./db_sqlite');
-        // SQLite UPSERT syntax (requires SQLite 3.24+) or INSERT OR REPLACE
-        // Simple INSERT OR REPLACE avoids ON DUPLICATE KEY UPDATE complexity for now if row exists
-        // But for counters we want to increment.
-        // SQLite standard UPSERT: INSERT INTO ... ON CONFLICT(ct) DO UPDATE SET http=http+excluded.http ...
-        var sql = util.format('INSERT INTO hit (ct, http, mqtt, coap, ws) VALUES (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\') ON CONFLICT(ct) DO UPDATE SET http=http+%s, mqtt=mqtt+%s, coap=coap+%s, ws=ws+%s;',
-            _ct, _http, _mqtt, _coap, _ws, _http, _mqtt, _coap, _ws);
-
-        sqlite.getResult(sql, null, function (err, results) {
-            callback(err, results);
-        });
-    }
-    else {
-        var sql = util.format('INSERT INTO hit (ct, http, mqtt, coap, ws) VALUES (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\') ON DUPLICATE KEY UPDATE http=http+%s, mqtt=mqtt+%s, coap=coap+%s, ws=ws+%s;',
-            _ct, _http, _mqtt, _coap, _ws, _http, _mqtt, _coap, _ws);
-
-        db.getResult(sql, connection, function (err, results) {
-            callback(err, results);
-        });
-    }
+    bump_hit(connection, _ct, _http, _mqtt, _coap, _ws, callback);
 };
 
+// 일자별 프로토콜 히트 카운터를 증분한다.
+//
+// 예전에는 SQLite 가 ON CONFLICT(ct) DO UPDATE, MySQL 이 ON DUPLICATE KEY UPDATE
+// 로 갈라져 있었다. 같은 문장을 방언만 바꿔 두 번 쓰던 것이라 knex 의
+// onConflict().merge() 가 대신 고른다.
+function bump_hit(connection, _ct, _http, _mqtt, _coap, _ws, callback) {
+    var qb = facade.k('hit')
+        .insert({ ct: _ct, http: _http, mqtt: _mqtt, coap: _coap, ws: _ws })
+        .onConflict('ct')
+        .merge({
+            http: facade.raw('http + ?', [_http]),
+            mqtt: facade.raw('mqtt + ?', [_mqtt]),
+            coap: facade.raw('coap + ?', [_coap]),
+            ws: facade.raw('ws + ?', [_ws])
+        });
+
+    facade.run(qb, connection, callback);
+}
+
 exports.set_hit_n = function (connection, _ct, _http, _mqtt, _coap, _ws, callback) {
-    if (global.usesqlite === 'true') {
-        var sqlite = require('./db_sqlite');
-
-        var sql = util.format('INSERT INTO hit (ct, http, mqtt, coap, ws) VALUES (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\') ON CONFLICT(ct) DO UPDATE SET http=http+%s, mqtt=mqtt+%s, coap=coap+%s, ws=ws+%s;',
-            _ct, _http, _mqtt, _coap, _ws, _http, _mqtt, _coap, _ws);
-
-        sqlite.getResult(sql, null, function (err, results) {
-            callback(err, results);
-        });
-    }
-    else {
-        var sql = util.format('INSERT INTO hit (ct, http, mqtt, coap, ws) VALUES (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\') ON DUPLICATE KEY UPDATE http=http+%s, mqtt=mqtt+%s, coap=coap+%s, ws=ws+%s;',
-            _ct, _http, _mqtt, _coap, _ws, _http, _mqtt, _coap, _ws);
-
-        db.getResult(sql, connection, function (err, results) {
-            callback(err, results);
-        });
-    }
+    bump_hit(connection, _ct, _http, _mqtt, _coap, _ws, callback);
 };
 
 // exports.get_sri_sri = function (connection, ri, callback) {
@@ -268,44 +250,31 @@ exports.insert_cb = function (connection, obj, callback) {
     console.time('insert_cb ' + obj.ri);
     _this.insert_lookup(connection, obj, function (err, results) {
         if (!err) {
-            if (global.usesqlite === 'true') {
-                var sql = util.format('insert into cb (' +
-                    'ri, cst, csi, srt, poa, nl, ncp, srv) ' +
-                    'values (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
-                    obj.ri, obj.cst, obj.csi, JSON.stringify(obj.srt).replace(/'/g, "''"), JSON.stringify(obj.poa).replace(/'/g, "''"), obj.nl, obj.ncp, JSON.stringify(obj.srv).replace(/'/g, "''"));
+            // 두 분기는 같은 INSERT 였고 수동 이스케이프만 달랐다
+            // (SQLite 는 '' 로, MySQL 은 \" \' 로). 바인딩을 쓰면 둘 다 필요 없다.
+            var qb = facade.k('cb').insert({
+                ri: obj.ri,
+                cst: obj.cst,
+                csi: obj.csi,
+                srt: JSON.stringify(obj.srt),
+                poa: JSON.stringify(obj.poa),
+                nl: obj.nl,
+                ncp: obj.ncp,
+                srv: JSON.stringify(obj.srv)
+            });
 
-                sqlite.getResult(sql, null, function (err, results) {
-                    if (!err) {
-                        console.timeEnd('insert_cb ' + obj.ri);
-                        callback(err, results);
-                    }
-                    else {
-                        sql = util.format("delete from lookup where ri = \'%s\'", obj.ri);
-                        sqlite.getResult(sql, null, function () {
-                            callback(err, results);
-                        });
-                    }
-                });
-            }
-            else {
-                var sql = util.format('insert into cb (' +
-                    'ri, cst, csi, srt, poa, nl, ncp, srv) ' +
-                    'values (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
-                    obj.ri, obj.cst, obj.csi, JSON.stringify(obj.srt).replace(/\"/g, '\\"').replace(/\'/g, '\\\''), JSON.stringify(obj.poa).replace(/\"/g, '\\"').replace(/\'/g, '\\\''), obj.nl, obj.ncp, JSON.stringify(obj.srv).replace(/\"/g, '\\"').replace(/\'/g, '\\\''));
-
-                db.getResult(sql, connection, function (err, results) {
-                    if (!err) {
-                        console.timeEnd('insert_cb ' + obj.ri);
-                        callback(err, results);
-                    }
-                    else {
-                        sql = util.format("delete from lookup where ri = \'%s\'", obj.ri);
-                        db.getResult(sql, connection, function () {
-                            callback(err, results);
-                        });
-                    }
-                });
-            }
+            facade.run(qb, connection, function (err2, results2) {
+                if (!err2) {
+                    console.timeEnd('insert_cb ' + obj.ri);
+                    callback(err2, results2);
+                    return;
+                }
+                // cb 삽입이 실패하면 앞서 넣은 lookup 행을 되돌린다.
+                facade.run(facade.k('lookup').where({ ri: obj.ri }).del(), connection,
+                    function () {
+                        callback(err2, results2);
+                    });
+            });
         }
         else {
             callback(err, results);
