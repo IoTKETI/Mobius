@@ -109,6 +109,13 @@ const CASES = [
     // 응답하므로 check_grp 의 응답 자체가 중복이었다.
     { case: 'fopt-non-group', method: 'GET', path: CB + '/fopt' },
 
+    // Content-Type 없는 POST / 깨진 XML 본문.
+    // 400-20 · 400-5 를 노렸으나 실제로는 둘 다 400-4 가 난다 — 본문을 두 번
+    // 파싱하는데(§4.3) 앞선 check_resource_supported 가 먼저 걸러내기 때문이다.
+    // 그 사실 자체를 기록으로 남긴다.
+    { case: 'no-content-type', method: 'POST', path: CB, body: '{}' },
+    { case: 'broken-xml',      method: 'POST', path: CB, ct: 'application/xml;ty=2', body: 'not-xml' },
+
     // --- 워커를 죽이는 케이스는 반드시 맨 뒤 ---
     // D21: get_target_url 의 la/ol 분기가 callback() 후 return 하지 않아 콜백이 두 번
     // 불린다. 두 번째 호출은 request 가 null 이 된 뒤라 error_result 에서 TypeError 로

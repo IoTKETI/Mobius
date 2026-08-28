@@ -77,3 +77,100 @@ test('문구 중복은 아직 그대로다 (정리는 나중 단계)', function 
     // 이 테스트는 "아직 정리 안 됨"을 기록해 두는 것이고, 정리 단계에서 뒤집힌다.
     assert.strictEqual(reason.REASON['400-36'].msg, reason.REASON['400-52'].msg);
 });
+
+// ── dbg / detail 분리 ────────────────────────────────────────────────────
+
+const responder = require('../mobius/responder');
+
+function mockPair() {
+    const sent = { headers: {}, status: null, body: null };
+    const request = {
+        method: 'POST',
+        url: '/Mobius',
+        query: {},
+        headers: { 'x-m2m-ri': 'unit', 'accept': 'application/json' },
+        usebodytype: 'json'
+    };
+    const response = {
+        header: function (k, v) { sent.headers[k] = v; },
+        status: function (s) { sent.status = s; return { end: function (b) { sent.body = b; } }; }
+    };
+    return { request: request, response: response, sent: sent };
+}
+
+test('respond 는 dbg 만 응답 본문에 싣는다', function () {
+    const m = mockPair();
+    let done = false;
+    responder.respond(m.request, m.response, {
+        code: rsc.RSC.BAD_REQUEST,
+        dbg: '클라이언트에게 보일 문구',
+        detail: 'internal_function: 내부 상세'
+    }, function () { done = true; });
+
+    assert.ok(done, '콜백이 불려야 한다');
+    assert.strictEqual(m.sent.status, 400, 'http 는 카탈로그의 number 를 쓴다');
+    assert.strictEqual(m.sent.headers['X-M2M-RSC'], '4000');
+
+    const body = JSON.parse(m.sent.body);
+    assert.strictEqual(body['m2m:dbg'], '클라이언트에게 보일 문구');
+    assert.ok(m.sent.body.indexOf('internal_function') < 0,
+        'detail 이 응답 본문에 새어 나갔다: ' + m.sent.body);
+});
+
+test('detail 은 로그로 나간다', function () {
+    const m = mockPair();
+    const orig = console.error;
+    const logged = [];
+    console.error = function () { logged.push(Array.prototype.join.call(arguments, ' ')); };
+    try {
+        responder.respond(m.request, m.response, {
+            code: rsc.RSC.INTERNAL_SERVER_ERROR,
+            dbg: 'resource could not be created',
+            detail: 'create_action: insert failed'
+        }, function () {});
+    } finally {
+        console.error = orig;
+    }
+    assert.ok(logged.some(function (l) { return l.indexOf('create_action: insert failed') >= 0; }),
+        'detail 이 로그에 없다: ' + JSON.stringify(logged));
+    assert.ok(logged.some(function (l) { return l.indexOf('INTERNAL_SERVER_ERROR') >= 0; }),
+        '로그에 코드 이름이 있어야 한다');
+});
+
+test('detail 이 없으면 로그도 남기지 않는다', function () {
+    const m = mockPair();
+    const orig = console.error;
+    const logged = [];
+    console.error = function () { logged.push(Array.prototype.join.call(arguments, ' ')); };
+    try {
+        responder.respond(m.request, m.response,
+            { code: rsc.RSC.NOT_FOUND, dbg: 'resource does not exist' }, function () {});
+    } finally {
+        console.error = orig;
+    }
+    assert.deepStrictEqual(logged, []);
+    assert.strictEqual(m.sent.status, 404);
+});
+
+test('내부 식별자가 든 사유가 하나도 없다 (D20)', function () {
+    // [parse_to_json] [check_notification] [create_action] [app.use] 같은 것이
+    // m2m:dbg 로 클라이언트에 나가고 있었다. detail 로 옮겼다.
+    const leaked = Object.keys(reason.REASON)
+        .filter(function (k) { return /\[[A-Za-z_.]+\]/.test(reason.REASON[k].msg); });
+    assert.deepStrictEqual(leaked, [], '응답 문구에 내부 식별자가 남아 있다: ' + leaked.join(', '));
+});
+
+test('detail 은 8건에 붙어 있고 전부 문자열이다', function () {
+    const withDetail = Object.keys(reason.REASON).filter(function (k) { return reason.REASON[k].detail; });
+    assert.strictEqual(withDetail.length, 8);
+    withDetail.forEach(function (k) {
+        assert.strictEqual(typeof reason.REASON[k].detail, 'string', k);
+    });
+});
+
+test('toLegacyTable 은 detail 을 내보내지 않는다', function () {
+    // 옛 형태는 [status, rsc, msg] 3원소다. detail 이 섞이면 안 된다.
+    const t = reason.toLegacyTable();
+    Object.keys(t).forEach(function (k) { assert.strictEqual(t[k].length, 3, k); });
+    assert.strictEqual(t['500-4'][2], 'resource could not be created');
+});

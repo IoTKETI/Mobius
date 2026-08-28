@@ -970,7 +970,8 @@ function response_error_result(request, response, code, callback) {
         }, callback);
         return;
     }
-    responder.respond(request, response, { code: r.code, dbg: r.msg }, callback);
+    // dbg 는 클라이언트 응답 본문(m2m:dbg)으로, detail 은 로그로만 나간다.
+    responder.respond(request, response, { code: r.code, dbg: r.msg, detail: r.detail }, callback);
 }
 
 function lookup_create(request, response, callback) {
