@@ -140,6 +140,95 @@ test('본문 조립과 발송이 nu 별 값을 쓴다', function () {
 
     assert.ok(/make_body_string_for_noti\(sub_nu\.protocol, nu, this_node, this_bodytype, xm2mri, this_short,/.test(body),
         '본문 조립이 공유 값을 쓴다');
-    assert.ok(/sgn_man\.post\(nu, bodytype, xm2mri, bodyString\)/.test(body),
-        '발송이 공유 bodytype 을 쓴다');
+    // ri 는 구독 ri 다. 알림 로그에 어느 구독인지가 없어서 실패를 역추적할 수
+    // 없었다 — 관리 UI 가 물어볼 첫 질문이 그것이다. ss_ri 가 이미 인자로
+    // 들어와 있던 값이라 추가 조회는 없다.
+    assert.ok(/sgn_man\.post\(nu, bodytype, xm2mri, bodyString, ri\)/.test(body),
+        '발송이 nu 별 bodytype 과 구독 ri 를 함께 넘겨야 한다');
+});
+
+// ── 알림 결과 판정 (관측 신호) ───────────────────────────────────────
+//
+// 여기까지는 "알림이 나갔는지" 를 판정하는 코드가 한 줄도 없었다.
+// HTTP 는 'response' 리스너가 없어 수신자가 500 을 줘도 성공과 같았고,
+// 실패 로그에는 어느 구독인지가 없어 역추적조차 안 됐다.
+// 그래서 "안 쓰는 구독 / 못 보내는 구독" 을 물어도 답할 데이터가 없었다.
+//
+// 이 단계는 판정만 한다 — 저장도, 정책도, 자동 삭제도 없다.
+//
+// 실측 (구독 5개에 CIN 1건):
+//   ok     http  sub=.../ns_ok      (rsc=2000)
+//   reject http  sub=.../ns_reject  (rsc=4004)     받았지만 거부 — 삭제 후보 아님
+//   fail   http  sub=.../ns_err500  (status=500)
+//   fail   http  sub=.../ns_dead    (ECONNREFUSED)
+//   fail   -     sub=.../ns_goneAE  (받을 리소스가 없다)   ← 수신자가 사라진 구독
+
+const SGN_MAN = fs.readFileSync(path.join(ROOT, 'mobius', 'sgn_man.js'), 'utf8');
+
+test('HTTP 알림이 응답을 읽고 본문을 소비한다', function () {
+    assert.ok(/req\.on\('response'/.test(SGN_MAN),
+        "'response' 리스너가 없다 — 수신자가 500 을 줘도 성공과 구분되지 않는다");
+
+    // res.resume() 이 이 코드의 유일한 함정이다. 리스너만 붙이고 본문을
+    // 소비하지 않으면 정상 응답을 받은 요청도 arm 타임아웃까지 소켓을
+    // 붙잡고 가짜 '응답이 오지 않는다' 로그를 남긴다 — 개선이 아니라 장애다.
+    // 주석이 아니라 실제 문장이어야 한다. 문자열만 찾으면 주석 처리해도 통과한다.
+    assert.ok(/^\s*res\.resume\(\);\s*$/m.test(SGN_MAN),
+        'res.resume() 이 문장으로 없다 — 소켓이 타임아웃까지 안 풀린다');
+});
+
+test('결과를 네 갈래로 가른다', function () {
+    for (const kind of ['NOTI_OK', 'NOTI_REJECT', 'NOTI_FAIL', 'NOTI_UNKNOWN']) {
+        assert.ok(SGN_MAN.indexOf(kind) > 0, kind + ' 이 없다');
+    }
+    // 2xx + RSC 4xxx/5xxx 는 '받았지만 거부' 다. 실패로 뭉뚱그리면
+    // 설정이 어긋난 구독이 삭제 후보로 올라온다.
+    const at = SGN_MAN.indexOf("req.on('response'");
+    const block = SGN_MAN.slice(at, at + 900);
+    assert.ok(block.indexOf('NOTI_REJECT') > 0,
+        '2xx 인데 RSC 가 거부인 경우를 가르지 않는다');
+    assert.ok(/rsc && !\/\^2/.test(block),
+        'RSC 가 2xxx 인지 보는 판정이 없다');
+});
+
+test('판정 불가를 실패로 세지 않는다', function () {
+    // MQTT 는 QoS0 라 브로커 도달조차 알 수 없고, WS 는 보내자마자 닫는다.
+    // 이들을 '실패' 로 세면 멀쩡한 구독이 죽은 것으로 보인다.
+    const mqtt = SGN_MAN.slice(SGN_MAN.indexOf('function request_noti_mqtt'), SGN_MAN.indexOf('function request_noti_ws'));
+    assert.ok(/NOTI_UNKNOWN/.test(mqtt), 'MQTT 를 판정 불가로 두지 않았다');
+
+    // keep-alive 재사용 소켓의 정상 종료도 실패가 아니다.
+    // Node 의 globalAgent 는 keepAlive 가 기본 true 라(실측) 수신자가 자기
+    // idle 타임아웃으로 먼저 닫으면 다음 알림이 ECONNRESET 으로 떨어진다.
+    assert.ok(/req\.reusedSocket/.test(SGN_MAN),
+        'keep-alive 재사용 소켓 실패를 구분하지 않는다 — 멀쩡한 수신자가 실패로 쌓인다');
+});
+
+test('모든 신호에 구독 ri 가 붙는다', function () {
+    // 로그에 어느 구독인지가 없으면 관리 UI 가 아무것도 못 한다.
+    assert.ok(/function noti_result\(kind, proto, nu, ri/.test(SGN_MAN),
+        '판정 로그가 구독 ri 를 받지 않는다');
+    assert.ok(/sub=' \+ \(ri \|\| '\?'\)/.test(SGN_MAN),
+        '로그에 sub= 이 없다');
+
+    // outbound 타임아웃 로그도 어느 구독인지 알아야 한다.
+    assert.ok(/outbound\.arm\(req, 'notify http ' \+ \(ri \|\| nu\)\)/.test(SGN_MAN),
+        'arm label 에 구독 ri 가 없다 — 타임아웃 로그를 역추적할 수 없다');
+});
+
+test('못 푼 nu 는 배열에서 빼고 순회를 이어 간다', function () {
+    // 예전에는 주석이 '순회만 이어 간다' 인데 코드는 callback 후 return 이라
+    // 거기서 끝났다. 그러면 뒤에 오는 ID 형식 nu 가 영영 안 풀린다.
+    // 그리고 못 푼 문자열을 배열에 남기면 발송 단계가 그것을 주소로 착각해
+    // 엉뚱한 두 번째 실패 로그를 낸다 — 구독 하나가 두 줄로 보인다.
+    const at = SGN.indexOf('function get_nu_arr');
+    const body = SGN.slice(at, SGN.indexOf('function sgn_action', at));
+
+    const splices = (body.match(/nu_arr\.splice\(req_count, 1\)/g) || []).length;
+    assert.strictEqual(splices, 4,
+        '못 푼 nu 를 빼는 곳이 ' + splices + '곳이다 — 해석 실패 분기 4곳 전부여야 한다');
+
+    // splice 로 한 칸 줄었으므로 재귀는 req_count 그대로다(+1 이 아니다).
+    assert.strictEqual(/splice\(req_count, 1\);\s*\r?\n\s*get_nu_arr\(connection, nu_arr, req_count \+ 1,/.test(body), false,
+        'splice 후 req_count + 1 로 재귀하면 한 항목을 건너뛴다');
 });
