@@ -80,7 +80,8 @@ global.cache_security_check = {};
 app.use(cors());
 
 global.usespid = '//keti.re.kr';
-global.usesuperuser = 'Sponde'; //'Superman';
+// usesuperuser 는 mobius.js 가 conf.json 에서 읽어 설정한다.
+// 이 값을 X-M2M-Origin 에 넣으면 모든 ACP 검사를 건너뛰므로 코드에 두면 안 된다.
 global.useobserver = 'Sandwich';
 
 var logDirectory = __dirname + '/log';
