@@ -2348,7 +2348,9 @@ var leaf_ty_list = ['1', '4', '9', '23'];
 // R4 방식 비동기 subtree 삭제: 응답은 루트 행 삭제 직후 나가고,
 // 자손은 별도 커넥션으로 백그라운드 삭제한다. 도중에 프로세스가 죽어
 // 고아 행이 남으면 delete_orphan_lookup(기동 시/일 1회)이 정리한다.
-function delete_descendants_background(root_ri) {
+function delete_descendants_background(root_ri, attempt) {
+    attempt = attempt || 1;
+
     if (global.usesqlite === 'true') {
         run(null);
     }
@@ -2358,7 +2360,20 @@ function delete_descendants_background(root_ri) {
                 run(connection);
             }
             else {
-                setTimeout(delete_descendants_background, 5000, root_ri);
+                // 커넥션을 못 빌렸다. 예전에는 5초마다 무한히 다시 시도했고
+                // 로그가 없어, 풀이 고갈된 동안 이 재시도가 몇 개나 돌고 있는지
+                // 알 수 없었다. 횟수를 세어 남기고, 일정 횟수 뒤에는 포기한다 —
+                // 포기해도 고아 정리로 치울 수 있고, 영원히 도는 것보다 낫다.
+                if (attempt >= 12) {          // 5초 x 12 = 1분
+                    console.error('[delete_descendants] ' + root_ri +
+                                  ' 커넥션을 ' + attempt + '번 못 빌려 포기한다. 자손이 고아로 남는다.');
+                    return;
+                }
+                if (attempt === 1) {
+                    console.error('[delete_descendants] ' + root_ri +
+                                  ' 커넥션을 못 빌렸다 — 5초 뒤 재시도 (풀 고갈?)');
+                }
+                setTimeout(delete_descendants_background, 5000, root_ri, attempt + 1);
             }
         });
     }
@@ -2369,6 +2384,11 @@ function delete_descendants_background(root_ri) {
         console.time('delete_descendants ' + root_ri);
         db_sql.search_parents_lookup_all(connection, pi_list, [], result_ri, function (code) {
             if (code !== '200') {
+                // 자손 목록을 못 만들었다. 루트는 이미 지워졌으므로 그 아래가
+                // 통째로 고아가 된다. 예전에는 조용히 return 했다.
+                console.error('[delete_descendants] ' + root_ri +
+                              ' 의 자손 목록을 만들지 못했다 (code=' + code +
+                              '). 자손이 통째로 고아로 남는다.');
                 console.timeEnd('delete_descendants ' + root_ri);
                 if (connection) connection.release();
                 return;
@@ -2378,6 +2398,17 @@ function delete_descendants_background(root_ri) {
             }
             pi_list.reverse();
             db_sql.delete_lookup(connection, pi_list, 0, [], 0, function (code) {
+                // 예전에는 이 code 를 아예 보지 않았다. 삭제가 중간에 멈춰도
+                // 흔적이 없어서, 고아가 왜 생기는지 물어도 답할 근거가 없었다.
+                //
+                // 원인 후보는 여럿이다 — 워커 16개가 겹치는 서브트리를 동시에
+                // 지울 때의 InnoDB 데드락, 대형 서브트리의 60초 쿼리 타임아웃,
+                // 커넥션 끊김. 어느 것인지는 로그를 봐야 안다.
+                if (code !== '200') {
+                    console.error('[delete_descendants] ' + root_ri +
+                                  ' subtree 삭제가 끝나지 못했다 (code=' + code +
+                                  ', 대상 ' + pi_list.length + '개). 남은 것은 고아가 된다.');
+                }
                 console.timeEnd('delete_descendants ' + root_ri);
                 if (connection) connection.release();
             });

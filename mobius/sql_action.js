@@ -3154,6 +3154,17 @@ function delete_lookup_action(connection, pi_list, req_count, callback) {
     facade.run(facade.k('lookup').where({ pi: pi }).del(), connection,
         function (err, deleted_Obj) {
             if (err) {
+                // 예전에는 아무것도 남기지 않고 '500-1' 만 돌려줬다. 위로
+                // 올라가도 호출부가 코드를 안 보기 때문에(아래 delete_lookup 과
+                // resource.js 의 delete_descendants_background), subtree 삭제가
+                // 중간에 멈춰도 흔적이 하나도 없었다.
+                //
+                // 그래서 "고아가 왜 생기나" 를 물으면 답할 근거가 없었다.
+                // 데드락인지, 60초 쿼리 타임아웃인지, 커넥션이 끊긴 것인지
+                // 구분할 수 없다. 드라이버 코드를 남긴다.
+                console.error('[delete_lookup_action] ' + pi + ' 삭제 실패: ' +
+                              ((deleted_Obj && (deleted_Obj.driverCode || deleted_Obj.code)) || '?') +
+                              ' / ' + ((deleted_Obj && deleted_Obj.message) || ''));
                 callback('500-1');
                 return;
             }
@@ -3164,6 +3175,7 @@ function delete_lookup_action(connection, pi_list, req_count, callback) {
 
 exports.delete_lookup = function (connection, pi_list, pi_index, found_Obj, found_Cnt, callback) {
     var cur_pi = [];
+    var batch_start = pi_index;      // 실패 시 어느 구간이었는지 알려면 필요하다
 
     for (var idx = 0; idx < 32; idx++) {
         if (pi_index < pi_list.length) {
@@ -3186,6 +3198,16 @@ exports.delete_lookup = function (connection, pi_list, pi_index, found_Obj, foun
             }
         }
         else {
+            // 한 배치(32개)에서 실패하면 남은 것을 건드리지 않고 멈춘다.
+            // 어디까지 가고 멈췄는지를 남긴다 — 이게 없으면 subtree 가
+            // 반만 지워진 채로 끝나도 아무도 모른다.
+            //
+            // 배치의 *시작* 인덱스를 적는다. pi_index 는 이미 배치 끝까지
+            // 전진해 있어서 그대로 쓰면 진행도를 과장한다. 실패는 이 배치
+            // 안 어딘가에서 났고, 그 앞(batch_start 개)까지는 지워졌다.
+            console.error('[delete_lookup] ' + batch_start + '/' + pi_list.length +
+                          ' 까지 지우고 다음 배치에서 멈췄다 (code=' + code +
+                          '). 나머지는 고아로 남는다.');
             callback(code);
         }
     });
