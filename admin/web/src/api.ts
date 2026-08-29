@@ -1,6 +1,23 @@
-import type { ExpiredPage, ExpiredSummary, OrphanPage, OrphanSummary } from './types'
+import type {
+  ExpiredPage,
+  ExpiredSummary,
+  Job,
+  OrphanPage,
+  OrphanSummary,
+  SessionInfo,
+} from './types'
 
 export class AuthError extends Error {}
+
+/** 이미 도는 작업이 있어 거절당했다. 화면이 그 작업을 붙잡아 보여 줄 수 있게 실어 나른다. */
+export class BusyError extends Error {
+  constructor(
+    message: string,
+    readonly active: Job | null,
+  ) {
+    super(message)
+  }
+}
 
 async function get<T>(path: string): Promise<T> {
   const res = await fetch(path, { credentials: 'same-origin' })
@@ -8,6 +25,22 @@ async function get<T>(path: string): Promise<T> {
   if (!res.ok) {
     const body = await res.json().catch(() => ({}))
     throw new Error((body as { error?: string }).error ?? `HTTP ${res.status}`)
+  }
+  return res.json() as Promise<T>
+}
+
+async function post<T>(path: string, body?: unknown): Promise<T> {
+  const res = await fetch(path, {
+    method: 'POST',
+    headers: body === undefined ? {} : { 'Content-Type': 'application/json' },
+    credentials: 'same-origin',
+    body: body === undefined ? undefined : JSON.stringify(body),
+  })
+  if (res.status === 401) throw new AuthError('not authenticated')
+  if (!res.ok) {
+    const b = (await res.json().catch(() => ({}))) as { error?: string; active?: Job }
+    if (res.status === 409 && b.active) throw new BusyError(b.error ?? '이미 도는 작업이 있다', b.active)
+    throw new Error(b.error ?? `HTTP ${res.status}`)
   }
   return res.json() as Promise<T>
 }
@@ -28,7 +61,45 @@ export async function logout(): Promise<void> {
 }
 
 export function session() {
-  return get<{ ok: boolean; backend: string }>('/api/session')
+  return get<SessionInfo>('/api/session')
+}
+
+// ── 일괄 작업 ──────────────────────────────────────────────────────────────
+
+export function startExpiredDelete(ris: string[]) {
+  return post<Job>('/api/jobs/expired-delete', { ris })
+}
+
+export function startExpiredExtend(ris: string[], et: string) {
+  return post<Job>('/api/jobs/expired-extend', { ris, et })
+}
+
+export function startOrphanDelete(ris: string[]) {
+  return post<Job>('/api/jobs/orphan-delete', { ris })
+}
+
+export function getJob(id: string) {
+  return get<Job>(`/api/jobs/${encodeURIComponent(id)}`)
+}
+
+export function cancelJob(id: string) {
+  return post<Job>(`/api/jobs/${encodeURIComponent(id)}/cancel`)
+}
+
+/** 지금 도는 작업이 있으면 돌려준다. 화면을 새로 열어도 진행 중인 작업을 놓치지 않는다. */
+export async function runningJob(): Promise<Job | null> {
+  const { jobs } = await get<{ jobs: Job[] }>('/api/jobs')
+  return jobs.find((j) => j.state === 'running') ?? null
+}
+
+/** 'YYYYMMDDThhmmss' 를 오늘부터 N일 뒤로 만든다. */
+export function etAfterDays(days: number): string {
+  const d = new Date(Date.now() + days * 86400000)
+  const p = (n: number) => String(n).padStart(2, '0')
+  return (
+    `${d.getUTCFullYear()}${p(d.getUTCMonth() + 1)}${p(d.getUTCDate())}T` +
+    `${p(d.getUTCHours())}${p(d.getUTCMinutes())}${p(d.getUTCSeconds())}`
+  )
 }
 
 export function expiredSummary(cap = 5000) {

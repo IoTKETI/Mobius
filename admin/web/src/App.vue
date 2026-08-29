@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { session, login, logout, AuthError } from './api'
+import type { WriteInfo } from './types'
 import ExpiredView from './views/ExpiredView.vue'
 import OrphanView from './views/OrphanView.vue'
 
@@ -17,11 +18,15 @@ const password = ref('')
 const loginError = ref('')
 const busy = ref(false)
 
+const OFFLINE: WriteInfo = { enabled: false, target: null, superuser: false }
+const write = ref<WriteInfo>(OFFLINE)
+
 async function probe() {
   try {
     const s = await session()
     authed.value = s.ok
     backend.value = s.backend
+    write.value = s.write ?? OFFLINE
   } catch (e) {
     authed.value = !(e instanceof AuthError)
   }
@@ -53,7 +58,7 @@ onMounted(probe)
   <div v-if="!authed" class="login-wrap">
     <form class="login" @submit.prevent="doLogin">
       <h1>Mobius 관리 콘솔</h1>
-      <p class="muted">조회 전용입니다. 삭제·수정 기능은 아직 없습니다.</p>
+      <p class="muted">만료·고아 리소스를 확인하고 정리합니다.</p>
       <input
         v-model="password"
         type="password"
@@ -84,14 +89,20 @@ onMounted(probe)
       </nav>
       <span class="spacer" />
       <span class="pill">{{ backend }}</span>
-      <span class="pill readonly">조회 전용</span>
+      <!-- 콘솔이 무엇을 할 수 있는 상태인지 항상 보이게 둔다. superuser 로 붙어
+           있다면 ACP 를 전부 통과한다는 뜻이라 숨기지 않는다. -->
+      <span v-if="!write.enabled" class="pill readonly">조회 전용</span>
+      <span v-else-if="write.superuser" class="pill super" :title="`쓰기 대상 ${write.target}`">
+        쓰기 · superuser
+      </span>
+      <span v-else class="pill write" :title="`쓰기 대상 ${write.target}`">쓰기</span>
       <button @click="doLogout">로그아웃</button>
     </header>
     <main>
       <!-- 탭을 떠났다가 돌아오면 다시 읽는다. 두 화면 모두 무거운 스캔을
            하므로 캐시해 두면 낡은 숫자를 사실처럼 보여 주게 된다. -->
-      <ExpiredView v-if="tab === 'expired'" />
-      <OrphanView v-else-if="tab === 'orphans'" />
+      <ExpiredView v-if="tab === 'expired'" :write="write" />
+      <OrphanView v-else-if="tab === 'orphans'" :write="write" />
     </main>
   </template>
 </template>
@@ -166,5 +177,7 @@ nav { display: flex; gap: 0.25rem; margin-left: 0.6rem; }
   color: var(--muted);
 }
 .pill.readonly { border-color: var(--ok); color: var(--ok); }
+.pill.write { border-color: var(--accent); color: var(--accent-strong); }
+.pill.super { border-color: var(--danger); color: var(--danger); font-weight: 600; }
 main { padding: 1.6rem 1.4rem 3rem; max-width: 1500px; margin: 0 auto; }
 </style>

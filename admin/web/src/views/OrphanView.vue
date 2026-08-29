@@ -1,7 +1,12 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { orphanSummary, orphanPage, fmtTime } from '../api'
-import type { OrphanRow, OrphanSummary } from '../types'
+import { ref, computed, onMounted } from 'vue'
+import { orphanSummary, orphanPage, fmtTime, startOrphanDelete } from '../api'
+import type { OrphanRow, OrphanSummary, WriteInfo } from '../types'
+import { useJobRunner } from '../job'
+import JobPanel from '../components/JobPanel.vue'
+import ConfirmDialog from '../components/ConfirmDialog.vue'
+
+defineProps<{ write: WriteInfo }>()
 
 const summary = ref<OrphanSummary | null>(null)
 const rows = ref<OrphanRow[]>([])
@@ -41,9 +46,49 @@ async function loadSummary() {
   }
 }
 
+// ── 선택 ──────────────────────────────────────────────────────────────────
+const selected = ref<Set<string>>(new Set())
+
+function toggle(ri: string) {
+  const s = new Set(selected.value)
+  if (s.has(ri)) s.delete(ri)
+  else s.add(ri)
+  selected.value = s
+}
+
+const allSelected = computed(
+  () => rows.value.length > 0 && rows.value.every((r) => selected.value.has(r.ri)),
+)
+
+function toggleAll() {
+  selected.value = allSelected.value ? new Set() : new Set(rows.value.map((r) => r.ri))
+}
+
+const selectedList = computed(() => [...selected.value])
+
+// ── 작업 ──────────────────────────────────────────────────────────────────
+// 작업이 **끝난 뒤** 다시 읽는다. 여기서는 특히 중요하다 — 끊긴 지점을 지우면
+// 그 자식들이 새 고아로 올라오는데, 시작 직후에 읽으면 그 갱신이 "지워지지
+// 않은 것" 처럼 보인다.
+const runner = useJobRunner(() => {
+  void loadFirst()
+  void loadSummary()
+})
+const confirming = ref(false)
+const starting = ref(false)
+
+async function runDelete() {
+  starting.value = true
+  const ok = await runner.start(() => startOrphanDelete(selectedList.value))
+  starting.value = false
+  confirming.value = false
+  if (ok) selected.value = new Set()
+}
+
 async function loadFirst() {
   loading.value = true
   error.value = ''
+  selected.value = new Set()
   try {
     const p = await orphanPage({ limit: PAGE })
     rows.value = p.rows
@@ -77,6 +122,7 @@ async function loadMore() {
 }
 
 onMounted(async () => {
+  void runner.attach()
   await loadFirst()
   await loadSummary()
 })
@@ -144,10 +190,41 @@ onMounted(async () => {
 
     <p v-if="error" class="err">{{ error }}</p>
 
+    <JobPanel
+      v-if="runner.job.value"
+      :job="runner.job.value"
+      :error="runner.error.value"
+      @cancel="runner.cancel"
+      @dismiss="runner.dismiss"
+    />
+
+    <p v-if="!write.enabled" class="note ro">
+      조회 전용으로 떠 있습니다. 정리를 쓰려면 <code>conf.json</code> 에
+      <code>csebaseport</code>(또는 <code>adminCsePort</code>)를 넣어 Mobius 주소를 알려 줍니다.
+    </p>
+
+    <div v-if="write.enabled && selected.size" class="actionbar">
+      <strong>{{ selected.size.toLocaleString() }}건 선택</strong>
+      <button class="link" @click="selected = new Set()">선택 해제</button>
+      <span class="spacer" />
+      <button class="danger" @click="confirming = true">
+        삭제 ({{ selected.size.toLocaleString() }}건)
+      </button>
+    </div>
+
     <div v-if="rows.length" class="table-wrap">
       <table>
         <thead>
           <tr>
+            <th class="cb">
+              <input
+                type="checkbox"
+                :checked="allSelected"
+                :disabled="!write.enabled"
+                aria-label="이 쪽 전체 선택"
+                @change="toggleAll"
+              />
+            </th>
             <th>고아 경로 (ri)</th>
             <th>타입</th>
             <th>사라진 부모 (pi)</th>
@@ -156,7 +233,16 @@ onMounted(async () => {
           </tr>
         </thead>
         <tbody>
-          <tr v-for="r in rows" :key="r.ri">
+          <tr v-for="r in rows" :key="r.ri" :class="{ picked: selected.has(r.ri) }">
+            <td class="cb">
+              <input
+                type="checkbox"
+                :checked="selected.has(r.ri)"
+                :disabled="!write.enabled"
+                :aria-label="r.ri + ' 선택'"
+                @change="toggle(r.ri)"
+              />
+            </td>
             <td class="mono path">{{ r.ri }}</td>
             <td><span class="ty">{{ typeLabel(r.ty) }}</span></td>
             <td class="mono path missing">{{ r.pi }}</td>
@@ -182,11 +268,26 @@ onMounted(async () => {
       <span class="muted">{{ rows.length }}건 표시 중<template v-if="more"> · 더 있음</template></span>
     </div>
 
-    <p class="next">
-      정리 실행은 다음 단계에서 붙입니다. 전부 지우는 단일 연산이고 수십 초가 걸려,
-      요청-응답 안에서 끝낼 수 없습니다 — 진행률을 보여 주는 비동기 작업으로 만들어야 합니다.
-      만료 리소스 삭제도 같은 작업 엔진을 씁니다.
-    </p>
+    <ConfirmDialog
+      v-if="confirming"
+      title="고아 리소스를 삭제합니다"
+      :confirm-label="`${selected.size.toLocaleString()}건 삭제`"
+      :paths="selectedList"
+      destructive
+      :busy="starting"
+      @cancel="confirming = false"
+      @confirm="runDelete"
+    >
+      <p class="dlg">
+        되돌릴 수 없습니다. 삭제 직전에 부모가 여전히 없는지 다시 확인해서,
+        그사이 부모가 되살아난 것은 건너뜁니다.
+      </p>
+      <p class="dlg warn">
+        <strong>한 번에 다 끝나지 않습니다.</strong> 끊긴 지점을 지우면 그 자식들이
+        새로 고아가 되어 다음 조회에 올라옵니다. 목록이 비어 보일 때까지
+        조회 → 삭제를 반복해야 합니다.
+      </p>
+    </ConfirmDialog>
   </section>
 </template>
 
@@ -291,14 +392,42 @@ h2 {
   padding: 1.1rem 0;
   font-size: 0.95rem;
 }
-.next {
-  margin-top: 1rem;
-  padding: 1rem 1.2rem;
-  border-left: 3px solid var(--accent);
+.note { color: var(--muted); font-size: 0.92rem; margin: 0.9rem 0; max-width: 72ch; }
+.note.ro { border-left: 3px solid var(--warn); padding-left: 0.8rem; }
+
+.actionbar {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  flex-wrap: wrap;
+  margin: 1rem 0;
+  padding: 0.8rem 1rem;
   background: var(--accent-wash);
-  border-radius: 0 8px 8px 0;
-  color: var(--text);
-  font-size: 0.95rem;
-  max-width: 78ch;
+  border: 1px solid var(--accent);
+  border-radius: 10px;
 }
+.actionbar strong { color: var(--accent-strong); }
+.actionbar .spacer { flex: 1; }
+.actionbar .link {
+  border: none;
+  background: none;
+  color: var(--muted);
+  text-decoration: underline;
+  padding: 0;
+  font-size: 0.92rem;
+}
+.actionbar .danger {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: #fff;
+  font-weight: 600;
+}
+
+.cb { width: 2.4rem; text-align: center; }
+.cb input { width: 1.05rem; height: 1.05rem; accent-color: var(--accent); cursor: pointer; }
+.cb input:disabled { cursor: not-allowed; opacity: 0.35; }
+tr.picked td { background: var(--accent-wash); }
+
+.dlg { margin: 0 0 0.6rem; font-size: 0.97rem; }
+.dlg.warn { color: var(--danger); }
 </style>

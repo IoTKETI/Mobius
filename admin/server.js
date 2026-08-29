@@ -9,8 +9,10 @@
  * 읽기는 mobius/db 파사드로 DB 를 직접 본다. oneM2M discovery 로는 "만료된
  * 리소스를 et 순으로" 같은 질의를 표현할 수 없다.
  *
- * 쓰기는 아직 없다. 삭제·et 연장은 워커 간 캐시 무효화가 들어간 뒤에 붙인다 —
- * 지금 붙이면 지운 리소스를 다른 워커가 계속 200 으로 돌려준다.
+ * **쓰기는 DB 를 건드리지 않고 Mobius 의 oneM2M HTTP API 를 지난다**(admin/cse.js).
+ * 콘솔은 별도 프로세스라 워커들의 캐시 무효화 IPC 에 낄 수 없다 — DB 를 직접
+ * 지우면 워커들이 지워진 리소스를 계속 200 으로 돌려준다. 구독 알림과 부모
+ * 카운터도 앱 레이어에 있다.
  *
  * 실행:  node admin/server.js [sqlite|mysql]
  */
@@ -60,6 +62,36 @@ global.usedbpass = conf.dbpass;
 var db = require(path.join(ROOT, 'mobius', 'db'));
 var db_sql = require(path.join(ROOT, 'mobius', 'sql_action'));
 var responder = require(path.join(ROOT, 'mobius', 'responder'));
+
+var jobs = require('./jobs');
+var cse_client = require('./cse');
+
+// ── Mobius(CSE) 연결 — 쓰기 경로 ──────────────────────────────────────────
+// 설정이 없으면 조회 전용으로 뜬다. 주소를 추측해서 다른 곳에 DELETE 를 쏘는
+// 일은 없어야 한다.
+var CSE_HOST = (typeof conf.adminCseHost === 'string' && conf.adminCseHost !== '')
+    ? conf.adminCseHost : '127.0.0.1';
+var CSE_PORT = parseInt(conf.adminCsePort || conf.csebaseport, 10);
+
+// 콘솔이 쓰는 X-M2M-Origin.
+//
+// 기본은 superUser 다. 관리 콘솔은 어떤 리소스든 지울 수 있어야 하는데 그러려면
+// ACP 를 통과해야 하고, security.js:356 이 이 값에 대해 무조건 통과시킨다.
+// **즉 콘솔의 비밀번호는 사실상 superUser 키와 같은 힘을 가진다.** ACP 로
+// 제한하고 싶으면 adminOrigin 에 별도 AE-ID 를 넣는다 — 그러면 콘솔은 그
+// AE 가 권한을 가진 리소스만 지울 수 있다.
+var SUPER_USER = (typeof conf.superUser === 'string' && conf.superUser !== '')
+    ? conf.superUser : 'Sponde';
+var CSE_ORIGIN = (typeof conf.adminOrigin === 'string' && conf.adminOrigin !== '')
+    ? conf.adminOrigin : SUPER_USER;
+
+var cse = null;
+if (CSE_PORT > 0) {
+    cse = new cse_client.Client({ host: CSE_HOST, port: CSE_PORT, origin: CSE_ORIGIN });
+}
+
+/** 한 작업이 다룰 수 있는 대상 수. 넘으면 나눠서 돌린다. */
+var MAX_TARGETS = 5000;
 
 // ── 세션 ──────────────────────────────────────────────────────────────────
 // 메모리에만 둔다. 콘솔을 재시작하면 다시 로그인한다 — 관리자 한 명이라
@@ -162,7 +194,17 @@ function now_et() {
 }
 
 app.get('/api/session', function (req, res) {
-    res.json({ ok: true, backend: global.usesqlite === 'true' ? 'sqlite' : 'mysql' });
+    res.json({
+        ok: true,
+        backend: global.usesqlite === 'true' ? 'sqlite' : 'mysql',
+        // 쓰기가 가능한지, 그리고 그 권한이 어디서 오는지 화면이 알아야 한다.
+        // origin 값 자체는 내려보내지 않는다 — superUser 는 공유 비밀이다.
+        write: {
+            enabled: cse !== null,
+            target: cse ? (CSE_HOST + ':' + CSE_PORT) : null,
+            superuser: CSE_ORIGIN === SUPER_USER
+        }
+    });
 });
 
 /**
@@ -272,6 +314,215 @@ app.get('/api/orphans', function (req, res) {
             });
         });
     });
+});
+
+// ── 일괄 작업 ─────────────────────────────────────────────────────────────
+
+/** 커넥션을 하나 빌려 fn 에 넘기고 반드시 반납한다. 작업 항목마다 짧게 빌린다. */
+function borrow(fn) {
+    db.getConnection(function (code, connection) {
+        if (code !== '200') { return fn('database unavailable (' + code + ')', null, function () {}); }
+        var released = false;
+        fn(null, connection, function () {
+            if (released) { return; }
+            released = true;
+            db.release(connection);
+        });
+    });
+}
+
+/** 대상 목록을 검증한다. 문제가 있으면 문자열을 돌려준다. */
+function bad_targets(ris) {
+    if (!Array.isArray(ris) || ris.length === 0) { return '대상이 비어 있다'; }
+    if (ris.length > MAX_TARGETS) { return '한 번에 ' + MAX_TARGETS + '건까지 처리한다'; }
+    for (var i = 0; i < ris.length; i++) {
+        if (typeof ris[i] !== 'string' || ris[i][0] !== '/') {
+            return '리소스 경로가 아니다: ' + String(ris[i]).slice(0, 80);
+        }
+    }
+    return null;
+}
+
+/**
+ * 삭제 워커. 지우기 **전에** DB 에서 현재 상태를 다시 본다.
+ *
+ * 목록은 몇 분 전 것일 수 있다. 그 사이 누가 et 를 늘렸는데 낡은 목록을 믿고
+ * 지우면 되돌릴 수 없다. 한 건당 조회 한 번이 늘지만, 삭제는 되돌릴 수 없으므로
+ * 그 값을 치른다.
+ */
+function make_delete_worker(guard) {
+    return function (ri, cb) {
+        borrow(function (err, conn, done) {
+            if (err) { done(); return cb('failed', err); }
+            db_sql.select_lookup(conn, ri, function (e, rows) {
+                if (e) { done(); return cb('failed', 'DB 조회 실패: ' + String((rows && rows.message) || e)); }
+                if (!rows || rows.length === 0) { done(); return cb('skipped', '이미 없음'); }
+                var row = rows[0];
+                guard(conn, row, function (reason) {
+                    done();
+                    if (reason) { return cb('skipped', reason); }
+                    cse.remove(ri, function (r) {
+                        if (r.ok) { return cb('ok'); }
+                        if (r.status === 404) { return cb('skipped', '이미 없음'); }
+                        cb('failed', describe(r));
+                    });
+                });
+            });
+        });
+    };
+}
+
+function describe(r) {
+    if (r.error) { return r.error; }
+    var msg = 'HTTP ' + r.status + (r.rsc ? ' rsc=' + r.rsc : '');
+    if (r.status === 403) { msg += ' (권한 없음 — adminOrigin 이 ACP 를 통과하지 못한다)'; }
+    return msg;
+}
+
+/** et 연장이 가능한 타입. CIN 은 oneM2M 상 수정 자체가 안 된다(app.js:1839 → 405-7). */
+var EXTENDABLE = { '1': 1, '2': 1, '3': 1, '9': 1, '23': 1 };
+
+function require_write(res) {
+    if (!cse) {
+        res.status(503).json({
+            error: 'Mobius 주소가 설정되지 않아 쓰기를 할 수 없다. ' +
+                   'conf.json 에 csebaseport(또는 adminCsePort)를 넣는다.'
+        });
+        return false;
+    }
+    return true;
+}
+
+function start_or_conflict(res, spec) {
+    var job = jobs.start(spec);
+    if (!job) {
+        return res.status(409).json({
+            error: '이미 도는 작업이 있다. 끝나거나 취소된 뒤에 시작한다.',
+            active: jobs.active().view()
+        });
+    }
+    res.status(202).json(job.view());
+}
+
+/**
+ * 만료 리소스 삭제. 실행 직전 et 를 다시 확인해 아직 만료 상태일 때만 지운다.
+ */
+app.post('/api/jobs/expired-delete', function (req, res) {
+    if (!require_write(res)) { return; }
+    var ris = req.body && req.body.ris;
+    var bad = bad_targets(ris);
+    if (bad) { return res.status(400).json({ error: bad }); }
+
+    var asOf = now_et();
+    start_or_conflict(res, {
+        kind: 'expired-delete',
+        title: '만료 리소스 삭제 ' + ris.length + '건',
+        note: '삭제 직전 et 를 다시 확인한다. 그사이 만료가 풀린 것은 건너뛴다.',
+        targets: ris,
+        concurrency: 4,
+        worker: make_delete_worker(function (conn, row, next) {
+            // et 가 비었으면 만료 개념이 없는 리소스다. 만료 화면에서 왔더라도
+            // 지금은 아니므로 건드리지 않는다.
+            if (!row.et) { return next('et 가 없음'); }
+            if (row.et >= asOf) { return next('만료가 해제됨 (et=' + row.et + ')'); }
+            next(null);
+        })
+    });
+});
+
+/**
+ * 고아 리소스 삭제. 실행 직전 부모가 정말 없는지 다시 확인한다.
+ *
+ * 부모가 다시 생겼다면 그 행은 더 이상 고아가 아니라 살아 있는 데이터다.
+ * 낡은 목록으로 그걸 지우면 안 된다.
+ */
+app.post('/api/jobs/orphan-delete', function (req, res) {
+    if (!require_write(res)) { return; }
+    var ris = req.body && req.body.ris;
+    var bad = bad_targets(ris);
+    if (bad) { return res.status(400).json({ error: bad }); }
+
+    start_or_conflict(res, {
+        kind: 'orphan-delete',
+        title: '고아 리소스 삭제 ' + ris.length + '건',
+        note: '삭제 직전 부모가 여전히 없는지 다시 확인한다. ' +
+              '끝난 직후의 목록에는 방금 지운 것의 자식들이 새 고아로 올라온다 — ' +
+              '그중 일부는 배경 정리가 곧 지울 것들이니, 잠시 뒤 “다시 세기”로 확인한다.',
+        targets: ris,
+        concurrency: 4,
+        worker: make_delete_worker(function (conn, row, next) {
+            if (!row.pi) { return next('부모 경로가 비어 있음 (CSEBase)'); }
+            db_sql.select_lookup(conn, row.pi, function (e, prows) {
+                if (e) { return next('부모 확인 실패 — 안전을 위해 건너뜀'); }
+                if (prows && prows.length > 0) { return next('부모가 다시 생김 — 고아가 아님'); }
+                next(null);
+            });
+        })
+    });
+});
+
+/**
+ * et 연장. 절대 시각을 받는다 — "며칠 뒤" 를 서버에서 계산하면 화면이 보여 준
+ * 값과 실제로 들어가는 값이 어긋날 수 있다.
+ */
+app.post('/api/jobs/expired-extend', function (req, res) {
+    if (!require_write(res)) { return; }
+    var ris = req.body && req.body.ris;
+    var et = req.body && req.body.et;
+    var bad = bad_targets(ris);
+    if (bad) { return res.status(400).json({ error: bad }); }
+    if (typeof et !== 'string' || !/^\d{8}T\d{6}$/.test(et)) {
+        return res.status(400).json({ error: 'et 형식이 YYYYMMDDThhmmss 가 아니다' });
+    }
+    if (et <= now_et()) {
+        return res.status(400).json({ error: '새 et 가 현재보다 과거다 — 연장이 되지 않는다' });
+    }
+
+    start_or_conflict(res, {
+        kind: 'expired-extend',
+        title: 'et 연장 ' + ris.length + '건 → ' + et,
+        note: 'CIN 은 oneM2M 상 수정할 수 없어 건너뛴다.',
+        targets: ris,
+        concurrency: 4,
+        worker: function (ri, cb) {
+            borrow(function (err, conn, done) {
+                if (err) { done(); return cb('failed', err); }
+                db_sql.select_lookup(conn, ri, function (e, rows) {
+                    done();
+                    if (e) { return cb('failed', 'DB 조회 실패: ' + String((rows && rows.message) || e)); }
+                    if (!rows || rows.length === 0) { return cb('skipped', '이미 없음'); }
+                    var ty = String(rows[0].ty);
+                    if (!EXTENDABLE[ty]) {
+                        // 타입 이름의 받침에 따라 조사가 달라지므로 조사를 붙이지 않는다.
+                        var nm = responder.typeRsrc[ty] || ('ty' + ty);
+                        return cb('skipped', nm.toUpperCase() + ' — et 를 수정할 수 없는 타입');
+                    }
+                    cse.setExpiry(ri, 'm2m:' + responder.typeRsrc[ty], et, function (r) {
+                        if (r.ok) { return cb('ok'); }
+                        if (r.status === 404) { return cb('skipped', '이미 없음'); }
+                        cb('failed', describe(r));
+                    });
+                });
+            });
+        }
+    });
+});
+
+app.get('/api/jobs', function (req, res) {
+    res.json({ jobs: jobs.list() });
+});
+
+app.get('/api/jobs/:id', function (req, res) {
+    var job = jobs.get(req.params.id);
+    if (!job) { return res.status(404).json({ error: 'no such job' }); }
+    res.json(job.view());
+});
+
+app.post('/api/jobs/:id/cancel', function (req, res) {
+    if (!jobs.cancel(req.params.id)) {
+        return res.status(409).json({ error: '취소할 수 없다 — 이미 끝났거나 없는 작업이다' });
+    }
+    res.json(jobs.get(req.params.id).view());
 });
 
 // ── 정적 파일 ─────────────────────────────────────────────────────────────
