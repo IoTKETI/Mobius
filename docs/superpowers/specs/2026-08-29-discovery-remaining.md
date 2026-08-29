@@ -18,7 +18,29 @@ discovery 를 재귀 CTE 로 통일하고(`origin/lite` 기준) 골격 재귀를
 
 ---
 
-## 1. `select_spec_ri` 의 N+1
+## 1. `select_spec_ri` 의 N+1 — **완료 (2026-08-29 배포)**
+
+타입별로 묶어 `where ri in (...)` 로 던지도록 바꿨다. ri 가 최대 200자라
+500개씩 끊는다. 배포 서버 실측:
+
+| | 전 | 후 |
+|---|---|---|
+| `fu=1&ty=3&lim=2000` | 2,231ms | **550ms** |
+| 그 요청이 던지는 질의 | 2,000회 넘음 | **6회** (CTE 1 + `cnt` 청크 4 + hit 1) |
+| `fu=1&ty=3&lim=100` | 442ms | 436ms / **3회** |
+
+지켜야 했던 동작 두 가지는 `test/select-spec-ri.test.js` 로 고정했다:
+키 순서(=응답 순서) 보존, 타입 테이블에 짝 없는 행 제거.
+
+곁들여 고친 것: `typeRsrc` 에 없는 `ty` 가 어느 `ri` 인지 로그에 남기고,
+파사드 규약(`cb(true, errObj)`)대로 둘째 인자에서 오류 메시지를 읽는다.
+그리고 `search_lookup` 이 "인덱스가 없다" 를 따로 알린다 — `force index`
+때문에 마이그레이션 004 를 안 돌리면 discovery 가 전부 500 이 되는데,
+로컬에서 실제로 겪었다(새로 설치하면 `mobiusdb.sql` 이 만들어 주므로
+업그레이드만 해당).
+
+<details>
+<summary>원래 문제 설명</summary>
 
 `mobius/sql_action.js` 의 `select_spec_ri` 가 discovery 결과 **한 건마다 질의
 하나**를 순차로 던진다. `mobius/resource.js` 의 `retrieve` 가 `fu`/`rcn` 과
@@ -34,6 +56,8 @@ discovery 를 재귀 CTE 로 통일하고(`origin/lite` 기준) 골격 재귀를
 주의: 이 함수는 `lookup` 에는 있는데 타입 테이블에 없는 행을 응답에서 빼는
 역할도 한다(`delete found_Obj[ri]`). 그 동작을 유지해야 한다 — 배포 서버에
 그런 행이 실제로 2건 있다.
+
+</details>
 
 ## 2. `X-M2M-CTS` / `X-M2M-CTO` 판정이 상수와 비교된다
 
