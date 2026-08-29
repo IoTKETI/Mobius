@@ -37,7 +37,6 @@ var REASON = {
     '400-1': { code: RSC.BAD_REQUEST, msg: "X-M2M-RI is none" },
     '400-2': { code: RSC.BAD_REQUEST, msg: "X-M2M-Origin header is Mandatory" },
     '400-3': { code: RSC.BAD_REQUEST, msg: "not supported resource type requested" },
-    '400-4': { code: RSC.BAD_REQUEST, msg: "not parse your body" },
     '400-5': { code: RSC.BAD_REQUEST, msg: "request body is not valid XML", detail: 'parse_to_json: xml' },
     '400-6': { code: RSC.BAD_REQUEST, msg: "request body is not valid CBOR", detail: 'parse_to_json: cbor' },
     '400-7': { code: RSC.BAD_REQUEST, msg: "root tag of body does not match a known resource type", detail: 'parse_to_json: rootnm' },

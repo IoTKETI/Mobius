@@ -16,8 +16,12 @@ const reason = require('../mobius/reason');
 const rsc = require('../mobius/rsc');
 const ROOT = path.join(__dirname, '..');
 
-test('사유 95개가 있다', function () {
-    assert.strictEqual(Object.keys(reason.REASON).length, 95);   // 501-1 은 걷어내고, 301-5 / 404-8 을 더했다
+test('사유 94개가 있다', function () {
+    // 501-1 과 400-4 를 걷어내고, 301-5 / 404-8 을 더했다.
+    // 400-4("not parse your body")는 check_resource_supported 가 파싱 실패를
+    // 전부 이 하나로 뭉개던 코드였다. 파싱이 한 곳으로 모이면서
+    // 400-5(XML) / 400-6(CBOR) / 400-7(JSON) 이 그대로 나가게 되어 쓰이지 않는다.
+    assert.strictEqual(Object.keys(reason.REASON).length, 94);
 });
 
 test('모든 사유의 code 가 RSC 카탈로그의 실제 항목이다', function () {
@@ -33,7 +37,7 @@ test('모든 사유의 code 가 RSC 카탈로그의 실제 항목이다', functi
 
 test('toLegacyTable 이 app.js 가 쓰던 형태를 만든다', function () {
     const t = reason.toLegacyTable();
-    assert.strictEqual(Object.keys(t).length, 95);
+    assert.strictEqual(Object.keys(t).length, 94);
 
     Object.keys(t).forEach(function (k) {
         const row = t[k];
