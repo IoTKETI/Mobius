@@ -210,6 +210,13 @@ exports.indexHint = function (name) {
     return adapter.indexHint ? adapter.indexHint(name) : '';
 };
 
+// 지정한 별칭 사이에 해시 조인을 쓰지 말라는 힌트 조각. 없으면 null.
+// 쓰는 쪽은 다른 힌트와 함께 /*+ ... */ 안에 넣는다.
+exports.noHashJoinHint = function (aliases) {
+    builder();
+    return adapter.noHashJoinHint ? adapter.noHashJoinHint(aliases) : null;
+};
+
 // 테스트용. 운영 코드는 어느 백엔드인지 알 필요가 없다.
 exports._adapterName = function () {
     return adapter ? adapter.name : null;

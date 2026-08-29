@@ -46,6 +46,9 @@ exports.pathCollate = function () { return ''; };
 // 임베디드 규모에서는 옵티마이저를 강제할 이유가 없다.
 exports.indexHint = function () { return ''; };
 
+// SQLite 에는 조인 알고리즘을 고르는 힌트가 없다 (중첩 루프만 쓴다).
+exports.noHashJoinHint = function () { return null; };
+
 exports.connect = function (conf, callback) {
     db = new sqlite3.Database(DB_PATH, function (err) {
         if (err) {

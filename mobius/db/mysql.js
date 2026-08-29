@@ -53,6 +53,17 @@ exports.indexHint = function (name) {
     return ' force index (' + name + ')';
 };
 
+// 지정한 별칭 사이에 해시 조인을 쓰지 말라는 힌트. MySQL 8.0.18+.
+//
+// 재귀 CTE 에서 필요하다. 옵티마이저가 값이 희소한 분기에서 "작은 인덱스를
+// 통째로 훑고 상대 쪽으로 해시를 만드는" 계획을 고르는데, 재귀는 반복마다
+// 상대(새 행 집합)가 바뀌므로 그 해시를 매번 새로 만든다.
+// 배포 서버 실측(2026-08-29): 골격 질의 15,584ms -> 4,856ms.
+exports.noHashJoinHint = function (aliases) {
+    if (!aliases || !aliases.length) { return null; }
+    return 'NO_HASH_JOIN(' + aliases.join(', ') + ')';
+};
+
 exports.connect = function (conf, callback) {
     pool = mysql.createPool({
         host: conf.host,

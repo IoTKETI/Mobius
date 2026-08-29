@@ -1612,24 +1612,48 @@ function build_descendant_sql(ri, query, query_where, cur_lim) {
     var C = facade.pathCollate();
     var max_lvl = descendant_max_lvl(query);
 
+    // 재귀항에도 인덱스를 고정해야 한다.
+    //
+    // 안 걸면 옵티마이저가 클러스터드 PRIMARY(pi, ri, ty) 를 골라 pi 로만 찾고
+    // ty 를 **필터**로 처리한다. 그러면 골격을 넓히려고 컨테이너를 훑을 때마다
+    // 그 컨테이너의 CIN 을 전부 읽는다.
+    //
+    // 배포 서버 실측(2026-08-29, 전체 CSE 골격 30,794노드):
+    //   고정 없음                    80,421ms  (30초 상한에 걸려 HTTP 500)
+    //   force index 만               15,584ms
+    //   force index + NO_HASH_JOIN    4,856ms
+    //
+    // 계획 차이는 EXPLAIN 한 줄로 드러난다:
+    //   고정 없음  Covering index lookup on l using PRIMARY (pi=s.sk_ri)
+    //              + Filter: (l.ty = 3)            <- ty 가 인덱스 밖
+    //   고정       Covering index lookup on l using idx_lookup_pi_ty_ct
+    //              (pi=s.sk_ri, ty=3)              <- ty 가 인덱스 안
+    //
+    // 어느 쪽을 고르는지는 통계와 캐시 상태로 뒤집힌다. 실제로 같은 질의가
+    // 아침에는 751ms, 오후에는 80초였다. 고정하지 않으면 재현되지 않는 장애가 된다.
+    var hint = facade.indexHint('idx_lookup_pi_ty_ct');
+
     var branches = '';
     // max_lvl 이 0 이면 직계 자식만 보면 되므로 재귀가 아예 필요 없다.
     if (max_lvl === null || max_lvl > 0) {
         var guard = (max_lvl === null) ? '' : ' and s.sk_lvl < ' + max_lvl;
         for (var i = 0; i < NONLEAF_TY.length; i++) {
             branches += '\n  union\n' +
-                '  select l.ri' + C + ', s.sk_lvl + 1 from lookup l' +
+                '  select l.ri' + C + ', s.sk_lvl + 1 from lookup l' + hint +
                 ' join skel s on l.pi = s.sk_ri' +
                 " where l.ty = '" + NONLEAF_TY[i] + "'" + guard;
         }
     }
 
-    // lbl 등 lookup 밖의 컬럼을 걸러야 하면 옵티마이저가 클러스터드 PRIMARY
-    // (pi, ri, ty) 를 골라 ty 를 범위에서 빼 버린다. 그러면 부모마다 CIN 을
-    // 전부 읽는다 — 배포 서버에서 60초를 넘겼다. (pi, ty, ct) 를 강제한다.
-    var hint = facade.indexHint('idx_lookup_pi_ty_ct');
+    // 바깥 질의도 같은 이유로 고정한다. lbl 처럼 lookup 밖의 컬럼을 거르면
+    // 옵티마이저가 PRIMARY 를 골라 부모마다 CIN 을 전부 읽는다 — 60초 초과.
     var timeout = facade.statementTimeoutHint(DISCOVERY_TIMEOUT_MS);
-    var lead = 'select ' + (timeout ? '/*+ ' + timeout + ' */ ' : '');
+    // 해시 조인을 막는다. 값이 희소한 타입 분기에서 옵티마이저가 idx_lookup_ty 를
+    // 통째로 훑고 골격의 새 행으로 해시를 만드는 계획을 고르는데, 그 해시를
+    // 재귀 반복마다 새로 만든다. 실측 15,584ms -> 4,856ms.
+    var nohash = facade.noHashJoinHint(['l', 's']);
+    var hints = [timeout, nohash].filter(Boolean).join(' ');
+    var lead = 'select ' + (hints ? '/*+ ' + hints + ' */ ' : '');
 
     // 골격 컬럼을 처음부터 비교용 콜레이션으로 만든다.
     //

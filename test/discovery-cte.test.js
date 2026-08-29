@@ -253,6 +253,56 @@ test('MySQL 은 콜레이션 / 인덱스 강제 / 문장 타임아웃을 붙인�
     }));
 });
 
+// 재귀항에 인덱스를 고정하지 않으면 옵티마이저가 클러스터드 PRIMARY(pi, ri, ty)
+// 를 골라 pi 로만 찾고 ty 를 필터로 처리한다. 그러면 골격을 넓힐 때마다 그
+// 컨테이너의 CIN 을 전부 읽는다.
+//
+// 배포 서버 실측(2026-08-29, 전체 CSE 골격 30,794노드):
+//   고정 없음                    80,421ms (30초 상한에 걸려 HTTP 500)
+//   force index 만               15,584ms
+//   force index + NO_HASH_JOIN    4,856ms
+//
+// 어느 계획을 고르는지는 통계·캐시 상태로 뒤집힌다 — 같은 질의가 아침에는
+// 751ms, 오후에는 80초였다. 고정하지 않으면 재현되지 않는 장애가 된다.
+
+test('재귀항에도 인덱스를 고정한다', function (t, done) {
+    const h = tap('mysql');
+    run(h, { ty: '3', lim: 20 }, guard(done, function (code, ris, seen) {
+        const sql = seen[0].sql;
+        const skel = sql.slice(0, sql.indexOf(')\nselect'));
+        const NL = h.sql_action.NONLEAF_TY;
+        const hinted = (skel.match(/from lookup l force index \(idx_lookup_pi_ty_ct\)/g) || []).length;
+        assert.strictEqual(hinted, NL.length,
+            '재귀 분기 ' + NL.length + '개 중 ' + hinted + '개만 인덱스가 고정됐다');
+        // 힌트가 join 앞에 와야 문법이 성립한다
+        assert.ok(!/from lookup l join/.test(skel), '힌트 없는 재귀 분기가 있다');
+        done();
+    }));
+});
+
+test('해시 조인 금지 힌트를 붙인다', function (t, done) {
+    const h = tap('mysql');
+    run(h, { ty: '3', lim: 20 }, guard(done, function (code, ris, seen) {
+        assert.match(seen[0].sql, /NO_HASH_JOIN\(l, s\)/,
+            '해시 조인 금지 힌트가 없다 — 희소 타입 분기에서 반복마다 해시를 새로 만든다');
+        // 힌트 두 개가 한 주석 안에 들어가야 한다
+        assert.match(seen[0].sql, /\/\*\+ MAX_EXECUTION_TIME\(\d+\) NO_HASH_JOIN\(l, s\) \*\//);
+        done();
+    }));
+});
+
+test('lvl=1 이면 재귀항이 없으니 힌트도 골격에 없다', function (t, done) {
+    const h = tap('mysql');
+    run(h, { ty: '3', lim: 20, lvl: '1' }, guard(done, function (code, ris, seen) {
+        const sql = seen[0].sql;
+        const skel = sql.slice(0, sql.indexOf(')\nselect'));
+        assert.ok(!/force index/.test(skel), 'lvl=1 인데 골격에 힌트가 붙었다');
+        // 바깥 질의에는 여전히 붙어야 한다
+        assert.match(sql.slice(sql.indexOf(')\nselect')), /force index \(idx_lookup_pi_ty_ct\)/);
+        done();
+    }));
+});
+
 test('SQLite 는 MySQL 전용 문법을 붙이지 않는다', function (t, done) {
     const h = tap('sqlite');
     run(h, { ty: '3', lim: 20 }, guard(done, function (code, ris, seen) {
