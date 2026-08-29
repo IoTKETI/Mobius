@@ -28,6 +28,10 @@ test_*
 .claude/
 CLAUDE.md
 .superpowers/
+.playwright-mcp/
+
+# 관리 콘솔 프런트엔드 빌드 산출물 (admin/web/README.md 의 절차로 만든다)
+admin/web/dist/
 
 # 자격증명 — 저장소에 들어가면 안 된다
 #

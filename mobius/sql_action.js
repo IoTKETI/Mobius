@@ -3331,6 +3331,88 @@ exports.select_expired_resources = function (connection, et, limit, callback) {
     facade.run(qb, connection, callback);
 };
 
+// 관리자 콘솔용 만료 조회. select_expired_resources 와 두 가지가 다르다.
+//
+//  1. **타입을 제외하지 않는다.** 삭제 경로가 AE(2)·CNT(3)·CSEBase(5)를 빼는 것은
+//     자동 삭제의 안전장치이지, 관리자가 그것들을 *보면* 안 된다는 뜻이 아니다.
+//     오히려 자동 정리에서 빠지기 때문에 계속 쌓이는 쪽이 이들이다 — 관리자가
+//     실제 규모를 보려면 반드시 보여야 한다.
+//  2. 키셋 커서를 받는다. 배포의 lookup 은 5,740만 행이고 et 가 지난 행이
+//     표본의 81% 라, 화면이 오프셋 페이징을 쓰면 뒤로 갈수록 느려진다.
+//
+// 커서는 (et, ri) 쌍이다. et 만으로는 같은 et 를 가진 행이 잘려 유실된다.
+//
+// @param opts.limit   한 페이지 크기
+// @param opts.types   볼 ty 목록. 비우면 전부
+// @param opts.afterEt / opts.afterRi  직전 페이지의 마지막 행 (없으면 처음부터)
+exports.select_expired_page = function (connection, et, opts, callback) {
+    opts = opts || {};
+    var limit = opts.limit > 0 ? opts.limit : 50;
+
+    var qb = facade.k('lookup')
+        .select('ri', 'ty', 'rn', 'pi', 'et', 'ct', 'lt')
+        .where('et', '<', et)
+        .orderBy('et', 'asc')
+        .orderBy('ri', 'asc')
+        .limit(limit + 1);          // +1 로 "다음 쪽이 있는가" 만 본다
+
+    if (opts.types && opts.types.length) {
+        qb = qb.whereIn('ty', opts.types);
+    }
+    if (opts.afterEt) {
+        // (et, ri) 사전식 비교. knex 에 행 값 비교가 없어 풀어 쓴다.
+        qb = qb.andWhere(function () {
+            this.where('et', '>', opts.afterEt)
+                .orWhere(function () {
+                    this.where('et', opts.afterEt).andWhere('ri', '>', opts.afterRi || '');
+                });
+        });
+    }
+
+    facade.run(qb, connection, function (err, rows) {
+        if (err) { return callback(err, rows); }
+        rows = rows || [];
+        var more = rows.length > limit;
+        if (more) { rows = rows.slice(0, limit); }
+        var last = rows.length ? rows[rows.length - 1] : null;
+        callback(null, {
+            rows: rows,
+            more: more,
+            nextEt: last ? last.et : null,
+            nextRi: last ? last.ri : null
+        });
+    });
+};
+
+// 만료 리소스를 타입별로 센다. **상한을 두고 센다** — 배포의 MySQL lookup 에는
+// et 인덱스가 없어(SQLite 에만 idx_lookup_et 이 있다) 끝까지 세면 5,740만 행
+// 풀스캔이다. 화면은 "많다"만 알면 되므로 limit 에서 끊고 capped 로 알린다.
+//
+// count_orphan_lookup 의 { count, capped } 규약을 따른다.
+exports.count_expired_by_type = function (connection, et, limit, callback) {
+    if (typeof limit === 'function') { callback = limit; limit = 1000; }
+    var cap = limit > 0 ? limit : 1000;
+
+    var qb = facade.k('lookup')
+        .select('ty')
+        .where('et', '<', et)
+        .limit(cap + 1);
+
+    facade.run(qb, connection, function (err, rows) {
+        if (err) { return callback(err, rows); }
+        rows = rows || [];
+        var capped = rows.length > cap;
+        if (capped) { rows = rows.slice(0, cap); }
+
+        var by_type = {};
+        for (var i = 0; i < rows.length; i++) {
+            var ty = String(rows[i].ty);
+            by_type[ty] = (by_type[ty] || 0) + 1;
+        }
+        callback(null, { byType: by_type, count: rows.length, capped: capped });
+    });
+};
+
 // 만료된 리소스를 지운다. **자동 실행하지 않는다** — app.js 에 주기 등록이 없다.
 // 관리자가 select_expired_resources 로 확인한 뒤 호출하는 용도다.
 //
