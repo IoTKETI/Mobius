@@ -193,40 +193,53 @@ function sgn_action_send(nu_arr, req_count, sub_bodytype, node, short_flag, chec
     var nu = nu_arr[req_count];
     var sub_nu = url.parse(nu);
 
+    // nu 마다 자기 값을 쓴다. 예전에는 파라미터 자체를 덮어쓰고 그 값을
+    // 그대로 다음 nu 로 넘겨서, 앞선 nu 의 옵션이 뒤에 전부 번졌다.
+    //
+    // 실측: nu = ['http://a/?rcn=9', 'http://b/'] 로 두면 b 도 축약본을 받았다.
+    // 요청하지도 않은 형식·내용이 가는 것이고, 로그에는 아무것도 남지 않는다.
+    var this_bodytype = sub_bodytype;
+    var this_node = node;
+    var this_short = short_flag;
+
     if (sub_nu.query != null) {
         var sub_nu_query_arr = sub_nu.query.split('&');
         for (var prop in sub_nu_query_arr) {
             if (sub_nu_query_arr.hasOwnProperty(prop)) {
                 if (sub_nu_query_arr[prop].split('=')[0] == 'ct') {
                     if (sub_nu_query_arr[prop].split('=')[1] == 'xml') {
-                        sub_bodytype = 'xml';
+                        this_bodytype = 'xml';
                     }
                     else {
-                        sub_bodytype = 'json';
+                        this_bodytype = 'json';
                     }
                 }
                 else if (sub_nu_query_arr[prop].split('=')[0] == 'rcn') {
                     if (sub_nu_query_arr[prop].split('=')[1] == '9') {
-                        for (var index in node['m2m:sgn'].nev.rep) {
-                            if (node['m2m:sgn'].nev.rep.hasOwnProperty(index)) {
-                                if (node['m2m:sgn'].nev.rep[index].cr) {
-                                    delete node['m2m:sgn'].nev.rep[index].cr;
+                        // 여기서만 복제한다. 대부분의 nu 는 옵션이 없으므로
+                        // 매번 복제하면 알림마다 그만큼이 그대로 낭비다.
+                        this_node = JSON.parse(JSON.stringify(node));
+
+                        for (var index in this_node['m2m:sgn'].nev.rep) {
+                            if (this_node['m2m:sgn'].nev.rep.hasOwnProperty(index)) {
+                                if (this_node['m2m:sgn'].nev.rep[index].cr) {
+                                    delete this_node['m2m:sgn'].nev.rep[index].cr;
                                 }
 
-                                if (node['m2m:sgn'].nev.rep[index].st) {
-                                    delete node['m2m:sgn'].nev.rep[index].st;
+                                if (this_node['m2m:sgn'].nev.rep[index].st) {
+                                    delete this_node['m2m:sgn'].nev.rep[index].st;
                                 }
 
-                                delete node['m2m:sgn'].nev.rep[index].ct;
-                                delete node['m2m:sgn'].nev.rep[index].lt;
-                                delete node['m2m:sgn'].nev.rep[index].et;
-                                delete node['m2m:sgn'].nev.rep[index].ri;
-                                delete node['m2m:sgn'].nev.rep[index].pi;
-                                delete node['m2m:sgn'].nev.rep[index].rn;
-                                delete node['m2m:sgn'].nev.rep[index].ty;
-                                delete node['m2m:sgn'].nev.rep[index].fr;
+                                delete this_node['m2m:sgn'].nev.rep[index].ct;
+                                delete this_node['m2m:sgn'].nev.rep[index].lt;
+                                delete this_node['m2m:sgn'].nev.rep[index].et;
+                                delete this_node['m2m:sgn'].nev.rep[index].ri;
+                                delete this_node['m2m:sgn'].nev.rep[index].pi;
+                                delete this_node['m2m:sgn'].nev.rep[index].rn;
+                                delete this_node['m2m:sgn'].nev.rep[index].ty;
+                                delete this_node['m2m:sgn'].nev.rep[index].fr;
 
-                                short_flag = 1;
+                                this_short = 1;
                             }
                         }
                     }
@@ -235,34 +248,37 @@ function sgn_action_send(nu_arr, req_count, sub_bodytype, node, short_flag, chec
         }
     }
 
+    // 아래 둘은 nu 와 무관하게 모든 수신자에게 똑같이 적용된다.
+    // 몇 번을 돌려도 같은 결과라 공유 객체에 그대로 둔다.
     if(check_value == 128) {
-        node['m2m:sgn'].sud = true;
-        delete node['m2m:sgn'].nev;
+        this_node['m2m:sgn'].sud = true;
+        delete this_node['m2m:sgn'].nev;
     }
     else if(check_value == 256) {
-        if(!node['m2m:sgn'].hasOwnProperty('vrq')) {
-            node['m2m:sgn'].vrq = true;
+        if(!this_node['m2m:sgn'].hasOwnProperty('vrq')) {
+            this_node['m2m:sgn'].vrq = true;
         }
-        node['m2m:sgn'].vrq = true;
-        var temp = node['m2m:sgn'].sur;
-        delete node['m2m:sgn'].sur;
-        node['m2m:sgn'].sur = temp;
-        node['m2m:sgn'].cr = ss_cr;
-        delete node['m2m:sgn'].nev;
+        this_node['m2m:sgn'].vrq = true;
+        var temp = this_node['m2m:sgn'].sur;
+        delete this_node['m2m:sgn'].sur;
+        this_node['m2m:sgn'].sur = temp;
+        this_node['m2m:sgn'].cr = ss_cr;
+        delete this_node['m2m:sgn'].nev;
     }
 
-    node['m2m:sgn'].rvi = uservi;
+    this_node['m2m:sgn'].rvi = uservi;
 
-    make_body_string_for_noti(sub_nu.protocol, nu, node, sub_bodytype, xm2mri, short_flag, function (bodyString) {
+    make_body_string_for_noti(sub_nu.protocol, nu, this_node, this_bodytype, xm2mri, this_short, function (bodyString) {
         if (bodyString === '') { // parse error
             console.log('can not send notification since error of converting json to xml');
         }
         else {
-            setTimeout(function (nu, sub_bodytype, xm2mri, bodyString) {
-                sgn_man.post(nu, sub_bodytype, xm2mri, bodyString);
-            }, parseInt(1 + Math.random() * 10), nu, sub_bodytype, xm2mri, bodyString);
+            setTimeout(function (nu, bodytype, xm2mri, bodyString) {
+                sgn_man.post(nu, bodytype, xm2mri, bodyString);
+            }, parseInt(1 + Math.random() * 10), nu, this_bodytype, xm2mri, bodyString);
         }
 
+        // 다음 nu 에는 **원래 값**을 넘긴다. 이 nu 의 옵션이 번지면 안 된다.
         sgn_action_send(nu_arr, ++req_count, sub_bodytype, node, short_flag, check_value, ss_cr, ss_ri, xm2mri, exc, parentObj, function (code) {
             callback(code);
         });

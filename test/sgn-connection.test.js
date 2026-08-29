@@ -83,3 +83,63 @@ test('요청마다 찍히던 디버그 배너가 없다', function () {
     assert.strictEqual(/#{10,}/.test(SGN), false,
         '디버그 배너가 되살아났다 — 운영 로그가 밀린다');
 });
+
+// ── nu 순회 중 공유 객체를 변형하던 것 (SGN-SHARED-NODE) ─────────────
+//
+// sgn_action_send 는 nu 하나를 처리하며 node / sub_bodytype / short_flag 를
+// 고친 뒤 **같은 값을 다음 nu 로 넘겼다**. 앞선 nu 의 옵션이 뒤에 전부 번졌다.
+//
+// 실측 (수정 전):
+//   nu = ['http://a/?rcn=9', 'http://b/']
+//     a: 속성=[con,cs]                          <- 요청한 축약본
+//     b: 속성=[con,cs]                          <- 요청하지 않았는데 축약본
+//   nu = ['http://a/?ct=xml', 'http://b/']
+//     a: xml,  b: xml                           <- b 는 json 이어야 한다
+//
+// 수정 후 b 는 각각 온전한 본문과 json 을 받는다.
+// 로그에는 아무것도 남지 않으므로 구독자가 신고하기 전에는 알 수 없다.
+
+test('nu 옵션이 뒤따르는 nu 로 번지지 않는다', function () {
+    const at = SGN.indexOf('function sgn_action_send');
+    assert.ok(at > 0);
+    const end = SGN.indexOf('\nfunction ', at + 10);
+    const body = SGN.slice(at, end > 0 ? end : SGN.length);
+
+    // nu 마다 자기 값을 써야 한다.
+    for (const local of ['this_bodytype', 'this_node', 'this_short']) {
+        assert.ok(body.indexOf('var ' + local) > 0,
+            local + ' 이 없다 — nu 별 값을 쓰지 않고 파라미터를 덮어쓰는지 확인할 것');
+    }
+
+    // 재귀에는 원래 값을 넘겨야 한다. this_* 를 넘기면 다시 번진다.
+    assert.ok(/sgn_action_send\(nu_arr, \+\+req_count, sub_bodytype, node, short_flag,/.test(body),
+        '재귀가 이 nu 의 값을 다음으로 넘긴다 — 옵션이 번진다');
+});
+
+test('rcn=9 일 때만 node 를 복제한다', function () {
+    const at = SGN.indexOf('function sgn_action_send');
+    const end = SGN.indexOf('\nfunction ', at + 10);
+    const body = SGN.slice(at, end > 0 ? end : SGN.length);
+
+    // 매번 복제하면 알림마다 그만큼이 그대로 낭비다.
+    const clones = (body.match(/JSON\.parse\(JSON\.stringify\(node\)\)/g) || []).length;
+    assert.strictEqual(clones, 1,
+        'node 복제가 ' + clones + '곳이다 — rcn=9 분기 안에서 한 번만 해야 한다');
+
+    // 그 복제가 rcn 분기 안에 있어야 한다.
+    const rcn_at = body.indexOf("== 'rcn'");
+    const clone_at = body.indexOf('JSON.parse(JSON.stringify(node))');
+    assert.ok(rcn_at > 0 && clone_at > rcn_at,
+        'node 복제가 rcn 분기 밖에 있다 — 옵션 없는 알림까지 복제한다');
+});
+
+test('본문 조립과 발송이 nu 별 값을 쓴다', function () {
+    const at = SGN.indexOf('function sgn_action_send');
+    const end = SGN.indexOf('\nfunction ', at + 10);
+    const body = SGN.slice(at, end > 0 ? end : SGN.length);
+
+    assert.ok(/make_body_string_for_noti\(sub_nu\.protocol, nu, this_node, this_bodytype, xm2mri, this_short,/.test(body),
+        '본문 조립이 공유 값을 쓴다');
+    assert.ok(/sgn_man\.post\(nu, bodytype, xm2mri, bodyString\)/.test(body),
+        '발송이 공유 bodytype 을 쓴다');
+});
