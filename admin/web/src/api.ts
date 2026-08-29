@@ -160,10 +160,10 @@ export function acpLint(opts: { limit?: number; afterRi?: string | null } = {}) 
   return get<AcpLintPage>(`/api/acp/lint?${q}`)
 }
 
-export function acpLintRefs(opts: { maxRefs?: number; afterRi?: string | null } = {}) {
+/** 이어보기가 없다 — 서버 주석 참고. 상한에 걸리면 capped 로만 알려 준다. */
+export function acpLintRefs(opts: { maxRefs?: number } = {}) {
   const q = new URLSearchParams()
   if (opts.maxRefs) q.set('maxRefs', String(opts.maxRefs))
-  if (opts.afterRi) q.set('afterRi', opts.afterRi)
   return get<AcpRefLintPage>(`/api/acp/lint-refs?${q}`)
 }
 

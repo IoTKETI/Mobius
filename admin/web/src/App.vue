@@ -119,9 +119,12 @@ onMounted(probe)
     <!-- 관찰 모드는 거부를 허용으로 내보낸다. 켠 채로 잊으면 ACP 가 통째로
          무력하므로 화면 맨 위에 항상 띄운다. -->
     <div v-if="acpCfg && acpCfg.observeMode === 'observe'" class="alertbar">
-      <strong>ACP 관찰 모드가 켜져 있습니다</strong> — 거부가 <strong>허용으로 나갑니다</strong>.
-      잠그기 전 하루만 켜는 설정입니다. <code>conf.json</code> 의
-      <code>acpObserveMode</code> 를 <code>'off'</code> 로 되돌린 뒤 Mobius 를 재기동하세요.
+      <strong>ACP 관찰 모드가 켜져 있습니다</strong> —
+      <strong>ACP 평가로 난 거부가 허용으로 나갑니다</strong>.
+      규칙에 안 맞아 막혔을 요청이 그대로 통과하므로, 잠그기 전 하루만 켜는 설정입니다.
+      (<code>acpi</code> 가 없어 기본 정책으로 막히는 것은 그대로 막힙니다.)
+      <code>conf.json</code> 의 <code>acpObserveMode</code> 를 <code>'off'</code> 로 되돌린 뒤
+      Mobius 를 재기동하세요.
       <em>(콘솔이 읽은 설정값 기준입니다 — 워커의 실제 상태는 콘솔이 알 수 없습니다.)</em>
     </div>
 

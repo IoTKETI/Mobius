@@ -352,6 +352,54 @@ app.get('/api/orphans', function (req, res) {
 // 화면의 목적은 "권한을 예쁘게 보여 주는 것" 이 아니라 **잘못 걸린 것을
 // 찾아내고, 걸기 전에 결과를 미리 보는 것** 이다.
 
+/**
+ * acpi 역참조를 **끝까지** 훑는다.
+ *
+ * scan_acpi_refs 는 훑기 상한(scanCap)에 걸리면 거기서 끊고 {nextTy, nextRi} 를
+ * 준다. 타입별로 훑기 때문에 이어보려면 **둘 다** 넘겨야 한다 — 하나만 넘기면
+ * 다음 호출이 엉뚱한 타입의 같은 ri 에서 시작한다.
+ *
+ * 한 쪽만 보고 끝내지 않는 이유: 이 결과는 "이 ACP 를 지워도 되는가" 의 근거다.
+ * 잘린 목록을 그대로 보여 주면 참조가 있는데 없다고 말하는 셈이 된다. 배포의
+ * 비-CIN 은 34,313행이라 실제로는 한 쪽에 끝나지만, 상한은 만약을 위해 둔다.
+ */
+var REF_SCAN_MAX_PASSES = 20;
+function scan_refs_all(conn, acpRi, callback) {
+    var acc = { refs: [], refsTruncated: false, byAcp: {}, scanned: 0,
+                capped: false, broken: 0, unresolved: {} };
+    var passes = 0;
+
+    function step(afterTy, afterRi) {
+        db_sql.scan_acpi_refs(conn, {
+            acpRi: acpRi, afterTy: afterTy, afterRi: afterRi
+        }, function (err, r) {
+            if (err) { return callback(err, r); }
+
+            acc.refs = acc.refs.concat(r.refs);
+            acc.refsTruncated = acc.refsTruncated || r.refsTruncated;
+            acc.scanned += r.scanned;
+            acc.broken += r.broken;
+            (r.unresolved || []).forEach(function (u) { acc.unresolved[u] = 1; });
+            Object.keys(r.byAcp || {}).forEach(function (k) {
+                acc.byAcp[k] = (acc.byAcp[k] || 0) + r.byAcp[k];
+            });
+
+            if (!r.capped) {
+                acc.unresolved = Object.keys(acc.unresolved);
+                return callback(null, acc);
+            }
+            if (++passes >= REF_SCAN_MAX_PASSES) {
+                // 여기까지 왔으면 정말로 다 못 봤다. 숨기지 않는다.
+                acc.capped = true;
+                acc.unresolved = Object.keys(acc.unresolved);
+                return callback(null, acc);
+            }
+            step(r.nextTy, r.nextRi);
+        });
+    }
+    step(undefined, '');
+}
+
 /** ACP 목록. ty 등치라 idx_lookup_ty 를 탄다. */
 app.get('/api/acp', function (req, res) {
     var limit = Math.min(parseInt(req.query.limit, 10) || 100, 500);
@@ -385,7 +433,7 @@ app.get('/api/acp/detail', function (req, res) {
             // "그룹 참조 0건" 은 ACP 를 지워도 된다는 신호로 읽히므로, 확인하지
             // 못한 것을 확인해서 없는 것처럼 말하면 안 된다.
             // (SQLite 백엔드에는 grp 테이블 자체가 없어 실제로 자주 실패한다.)
-            db_sql.scan_acpi_refs(conn, { acpRi: ri }, function (err2, refs) {
+            scan_refs_all(conn, ri, function (err2, refs) {
                 var refsErr = err2 ? String((refs && refs.message) || err2) : null;
                 db_sql.scan_macp_refs(conn, { acpRi: ri }, function (err3, macp) {
                     done();
@@ -421,14 +469,20 @@ app.get('/api/acp/lint', function (req, res) {
     });
 });
 
-/** acpi 참조 검사 — 없는 ACP 를 가리키는 리소스(dangling)를 찾는다. */
+/**
+ * acpi 참조 검사 — 없는 ACP 를 가리키는 리소스(dangling)를 찾는다.
+ *
+ * **이어보기를 노출하지 않는다.** lint_acpi_refs 는 커서를 돌려주지 않아
+ * 애초에 이어볼 수 없고, 그 아래 scan_acpi_refs 는 타입별로 훑기 때문에
+ * afterRi 만 넘기면 엉뚱한 타입의 같은 ri 에서 시작한다 — 있으나마나가 아니라
+ * 틀린 결과를 내는 손잡이다. 상한에 걸리면 capped 로 그 사실만 전한다.
+ */
 app.get('/api/acp/lint-refs', function (req, res) {
     with_connection(res, function (conn, done) {
         acp_lint.lint_acpi_refs(conn, {
             batch: Math.min(parseInt(req.query.batch, 10) || 5000, 20000),
             scanCap: Math.min(parseInt(req.query.scanCap, 10) || 200000, 2000000),
-            maxRefs: Math.min(parseInt(req.query.maxRefs, 10) || 500, 2000),
-            afterRi: req.query.afterRi || ''
+            maxRefs: Math.min(parseInt(req.query.maxRefs, 10) || 500, 2000)
         }, function (err, r) {
             done();
             if (err) { return res.status(500).json({ error: String((r && r.message) || err) }); }
