@@ -4,8 +4,28 @@ const fs = require('fs');
 const a = process.argv[2], b = process.argv[3];
 if (!a || !b) { console.error('usage: node compare.js <before.json> <after.json>'); process.exit(1); }
 
-const A = JSON.parse(fs.readFileSync(a, 'utf8'));
-const B = JSON.parse(fs.readFileSync(b, 'utf8'));
+// CIN 의 rn 은 생성 시각이라 실행마다 다르다. 부모 안에서 몇 번째인지로
+// 바꾼다 — rn 은 폭이 고정이라 사전순이 곧 생성순이다(mobius/rid.js).
+function normalizeCin(snap) {
+    for (const k of Object.keys(snap)) {
+        const v = snap[k];
+        if (v && v.uril) {
+            const idx = {};
+            v.uril = v.uril.slice().sort().map(function (u) {
+                const m = /^(.*)\/(4-\d{10,})$/.exec(u);
+                if (!m) { return u; }
+                idx[m[1]] = (idx[m[1]] || 0) + 1;
+                return m[1] + '/cin#' + idx[m[1]];
+            }).sort();
+        }
+        // la / ol 은 rn 대신 내용으로 비교한다.
+        if (v && v.cin_rn) { delete v.cin_rn; }
+    }
+    return snap;
+}
+
+const A = normalizeCin(JSON.parse(fs.readFileSync(a, 'utf8')));
+const B = normalizeCin(JSON.parse(fs.readFileSync(b, 'utf8')));
 const keys = Array.from(new Set(Object.keys(A).concat(Object.keys(B))));
 
 let diff = 0;

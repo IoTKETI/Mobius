@@ -1301,17 +1301,21 @@ function build_search_query(query, callback) {
         query_where = ' and ';
         if (query.lbl.toString().split(',')[1] == null) {
             query_where += util.format(' lbl like \'%%\"%%%s%%\"%%\'', query.lbl);
-            //query_where += util.format(' lbl like \'%s\'', request.query.lbl);
         }
         else {
+            // 라벨 여러 개는 OR 로 묶는다. 괄호가 없으면 뒤에 오는 필터가
+            // 마지막 라벨에만 걸린다 — AND 가 OR 보다 세다:
+            //   and lbl~a or lbl~b and ty=3  ->  (lbl~a) or ((lbl~b) and ty=3)
+            // 그러면 ty 를 줘도 첫 라벨은 타입 상관없이 다 딸려 나온다.
+            query_where += ' (';
             for (var i = 0; i < query.lbl.length; i++) {
                 query_where += util.format(' lbl like \'%%\"%%%s%%\"%%\'', query.lbl[i]);
-                //query_where += util.format(' lbl like \'%s\'', request.query.lbl[i]);
 
                 if (i < query.lbl.length - 1) {
                     query_where += ' or ';
                 }
             }
+            query_where += ') ';
         }
         query_count++;
     }

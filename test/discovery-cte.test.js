@@ -281,6 +281,47 @@ test('두 백엔드가 같은 CTE 골격을 만든다', function (t, done) {
     }));
 });
 
+// --- 6.5) lbl 필터 ----------------------------------------------------------
+//
+// Mobius 는 lbl 을 '[\n    "tagX"\n]' 처럼 들여쓴 JSON 으로 저장한다.
+// 예전 MySQL 경로는 lbl like '["%tagX%"]' 를 썼는데, 여는 대괄호 바로 뒤
+// 개행 때문에 아무것도 못 맞췄다 (로컬 실측: 같은 트리에서 fu=1 은 1건,
+// fu=1&lbl=tagX 는 0건). SQLite 가 쓰던 느슨한 패턴으로 통일한다.
+
+test('lbl 패턴이 대괄호에 붙어 있지 않다', function (t, done) {
+    const h = tap('mysql');
+    run(h, { lbl: 'tagX', lim: 20 }, guard(done, function (code, ris, seen) {
+        assert.ok(!/lbl like '\[/.test(seen[0].sql),
+            'lbl 패턴이 대괄호로 시작한다 - 들여쓴 JSON 을 못 맞춘다: ' + seen[0].sql);
+        assert.match(seen[0].sql, /lbl like '%"%tagX%"%'/);
+        done();
+    }));
+});
+
+// AND 가 OR 보다 세므로 괄호가 없으면
+//   and lbl~a or lbl~b and ty=3  ->  (lbl~a) or ((lbl~b) and ty=3)
+// 이 되어 첫 라벨은 타입 상관없이 전부 딸려 나온다.
+
+test('라벨이 여러 개면 OR 그룹을 괄호로 묶는다', function (t, done) {
+    const h = tap('mysql');
+    run(h, { lbl: ['a', 'b'], ty: '3', lim: 20 }, guard(done, function (code, ris, seen) {
+        const sql = seen[0].sql;
+        const m = /and\s+\(([^)]*lbl like[^)]*)\)/i.exec(sql);
+        assert.ok(m, '라벨 OR 그룹에 괄호가 없다: ' + sql);
+        assert.ok(/ or /.test(m[1]), '괄호 안에 or 가 없다: ' + m[1]);
+        assert.ok(!/ty =/.test(m[1]), 'ty 가 라벨 괄호 안에 들어갔다: ' + m[1]);
+        done();
+    }));
+});
+
+test('라벨이 하나면 괄호를 만들지 않는다', function (t, done) {
+    const h = tap('mysql');
+    run(h, { lbl: 'a', ty: '3', lim: 20 }, guard(done, function (code, ris, seen) {
+        assert.match(seen[0].sql, /and\s+lbl like '%"%a%"%'/);
+        done();
+    }));
+});
+
 // --- 7) 주입 방어 -----------------------------------------------------------
 
 test('루트 ri 는 바인딩으로 넘어간다', function (t, done) {
