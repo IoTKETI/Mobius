@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, watch, onMounted } from 'vue'
 import { acpList, acpDetail, acpAudit, fmtTime } from '../api'
+import AcpPolicyNote from '../components/AcpPolicyNote.vue'
 import type { AcpListRow, AcpDetailResponse, AcpAuditRow, AcpRule, WriteInfo } from '../types'
 
 const props = defineProps<{ selected?: string | null; write: WriteInfo }>()
@@ -113,6 +114,8 @@ onMounted(async () => {
       접근제어정책(<code>accessControlPolicy</code>) 리소스입니다. 리소스의
       <code>acpi</code> 가 이것을 가리켜야 효력이 있습니다.
     </p>
+
+    <AcpPolicyNote />
 
     <p v-if="error" class="err">{{ error }}</p>
 

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue'
 import { acpDetail, acpValidate, acpSave, acpSimulateWithRows } from '../api'
+import AcpPolicyNote from '../components/AcpPolicyNote.vue'
 import type {
   AcpDetailResponse,
   AcpOp,
@@ -26,9 +27,43 @@ const OP_BITS: { bit: number; name: string; hint: string }[] = [
 
 type EditRule = { acor: string; acop: number }
 
+/**
+ * 운영 방안이 정한 템플릿 셋. 문서는 "예외 세 가지만 쓴다 / 리소스마다 만들지
+ * 않는다 / ACP 개수를 한 자리로 유지한다" 고 못박았다. 직접 규칙을 짜는 대신
+ * 여기서 시작하게 두면 그 방침이 화면에서 지켜진다.
+ * 출처: docs/superpowers/specs/2026-08-29-acp-operating-model.md
+ */
+const TEMPLATES: { key: string; name: string; hint: string; pv: EditRule[] }[] = [
+  {
+    key: 'A',
+    name: 'A · 완전 비공개',
+    hint: '정해진 곳만 봅니다. 장치 ID 는 적지 않아도 됩니다 — 생성자는 자동으로 통과합니다.',
+    pv: [{ acor: '', acop: 63 }],
+  },
+  {
+    key: 'B',
+    name: 'B · 올리기는 열고, 보는 것만 제한',
+    hint: '장비는 계속 올리고 조회·탐색만 제한합니다. “남이 못 보게”의 대부분이 여기입니다.',
+    pv: [
+      { acor: '', acop: 63 },
+      { acor: 'all', acop: 1 },
+    ],
+  },
+  {
+    key: 'C',
+    name: 'C · 보는 건 열고, 만드는 것만 막기',
+    hint: '읽기는 지금처럼 열되 아무나 데이터를 넣지는 못하게 합니다.',
+    pv: [
+      { acor: '', acop: 63 },
+      { acor: 'all', acop: 34 },
+    ],
+  },
+]
+
 const detail = ref<AcpDetailResponse | null>(null)
 const loading = ref(true)
 const error = ref('')
+const templateApplied = ref('')
 
 const pv = ref<EditRule[]>([])
 const pvs = ref<EditRule[]>([])
@@ -110,6 +145,18 @@ function toggleBit(rule: EditRule, bit: number) {
 function addRule(list: EditRule[]) {
   list.push({ acor: '', acop: 2 })
 }
+
+/**
+ * 템플릿을 pv 에 얹는다. **덮어쓰되 저장하지는 않는다** — 미리보기와 저장
+ * 버튼이 그대로 앞을 막고 있으므로, 잘못 눌러도 되돌릴 수 있다.
+ * pvs 는 건드리지 않는다. 관리자를 빼는 실수가 제일 비싸다.
+ */
+function applyTemplate(key: string) {
+  const t = TEMPLATES.find((x) => x.key === key)
+  if (!t) return
+  pv.value = t.pv.map((r) => ({ ...r }))
+  templateApplied.value = key
+}
 function removeRule(list: EditRule[], i: number) {
   list.splice(i, 1)
 }
@@ -188,11 +235,32 @@ onMounted(load)
     </p>
 
     <template v-if="detail">
+      <AcpPolicyNote />
+
       <p class="lead">
         <strong>pv</strong> 는 이 ACP 를 <em>가리키는 리소스</em>의 권한이고,
         <strong>pvs</strong> 는 <em>이 ACP 자신을</em> 고칠 수 있는 권한입니다.
         <code>pvs</code> 에서 자기를 빼면 수퍼유저 말고는 되돌릴 수 없습니다.
       </p>
+
+      <!-- 직접 짜는 대신 템플릿에서 시작하게 둔다. 문서가 "예외 세 가지만 쓴다"
+           고 정했으므로, 그 방침이 화면에서 지켜지게 하는 자리다. -->
+      <div class="templates">
+        <span class="tlabel">템플릿에서 시작</span>
+        <button
+          v-for="t in TEMPLATES"
+          :key="t.key"
+          class="tbtn"
+          :class="{ on: templateApplied === t.key }"
+          :title="t.hint"
+          @click="applyTemplate(t.key)"
+        >
+          {{ t.name }}
+        </button>
+        <span class="tnote">
+          <code>pv</code> 만 바꿉니다 · 저장하지 않습니다 · <code>acor</code> 를 채우세요
+        </span>
+      </div>
 
       <div class="cols">
         <div class="col">
@@ -356,6 +424,18 @@ h3 { margin: 0 0 0.6rem; font-size: 1.05rem; color: var(--text-strong); }
 .ok { color: var(--ok); font-weight: 600; }
 .muted { color: var(--muted); }
 .none { color: var(--muted); font-size: 0.93rem; }
+
+.templates {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+}
+.tlabel { font-size: 0.85rem; color: var(--muted); font-weight: 600; margin-right: 0.2rem; }
+.tbtn { font-size: 0.9rem; padding: 0.3rem 0.75rem; border-radius: 999px; }
+.tbtn.on { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+.tnote { font-size: 0.85rem; color: var(--muted); }
 
 .cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 1.4rem; }
 .col {
