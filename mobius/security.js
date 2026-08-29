@@ -351,7 +351,10 @@ function security_check_action_pvs(request, response, acpiList, access_value, cr
                                                                 }
                                                             }
 
-                                                            if (ipv6_idx == 99) {
+                                                            // pv 쪽과 같은 오참조였다 — ipv4 분기인데 ipv6_idx 를 봤다.
+                                                            // 첫 평가에서는 undefined 라 이 기본 허용이 죽고, 앞선 acco
+                                                            // 항목이 ipv6 분기를 탔다면 그 값에 오염된다.
+                                                            if (ipv4_idx == 99) {
                                                                 acip_permit = 1;
                                                             }
                                                         }
@@ -386,18 +389,13 @@ function security_check_action_pvs(request, response, acpiList, access_value, cr
                                                         actw_cur[2] = moment().utc().hour();
                                                         actw_cur[1] = moment().utc().minute();
                                                         actw_cur[0] = moment().utc().second();
+                                                        // pv 쪽과 같은 판정이다 — actw_matches() 주석에 예전 동작과
+                                                        // 무엇이 반대였는지 적어 두었다.
                                                         var actw_idx = 99;
                                                         for (actw_idx in acco[acco_idx].actw) {
                                                             if (acco[acco_idx].actw.hasOwnProperty(actw_idx)) {
-                                                                var actw_arr = acco[acco_idx].actw[actw_idx].split(' ');
-                                                                for (var d = 0; d < 6; d++) {
-                                                                    if (actw_arr[d] != '*' && actw_arr[d] == actw_cur[d].toString()) {
-                                                                        actw_permit = 1;
-                                                                        break;
-                                                                    }
-                                                                }
-
-                                                                if (actw_permit == 1) {
+                                                                if (actw_matches(acco[acco_idx].actw[actw_idx], actw_cur)) {
+                                                                    actw_permit = 1;
                                                                     break;
                                                                 }
                                                             }

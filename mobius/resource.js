@@ -1156,25 +1156,13 @@ exports.create = function (request, response, callback) {
                         smd.request_post(request.url, JSON.stringify(request.resourceObj));
                     }
 
-                    if (Object.keys(request.resourceObj)[0] == 'req') {
-                        request.headers.tg = request.resourceObj[rootnm].ri.replace('/', '');
-                        request.headers.rootnm = 'uri';
-                        var resource_Obj = {};
-                        resource_Obj.uri = {};
-                        resource_Obj.uri = request.resourceObj[rootnm].ri.replace('/', '');
-                        request.resourceObj = resource_Obj;
-
-                        if (request.headers.hasOwnProperty('x-m2m-rtu')) {
-                            callback('202-2');
-                        }
-                        else {
-                            callback('202-1');
-                        }
-                    }
-                    else {
+                    // req(ty=17) 를 만들었을 때 202 를 돌려주던 분기는 걷어냈다.
+                    // 논블로킹을 지원하지 않게 되면서 req 를 만드는 경로가 없고,
+                    // '202-1'/'202-2' 를 받아 응답하는 곳도 없다.
+                    {
                         if (request.query.rcn == 2) { // hierarchical address
                             request.headers.rootnm = 'uri';
-                            resource_Obj = {};
+                            var resource_Obj = {};
                             resource_Obj.uri = {};
                             resource_Obj.uri = request.resourceObj[rootnm].ri;
                             resource_Obj.uri = resource_Obj.uri.replace('/', ''); // make cse relative uri
