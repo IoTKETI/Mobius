@@ -128,19 +128,36 @@ exports.simulate = function (connection, params, callback) {
         var use_ra = (ty !== '1');
         var cr_fallback = (ty !== '1');
 
-        if (Array.isArray(p.acpiOverride)) {
+        // acpiOverride 가 **빈 배열**이면 "이 ACP 를 떼면 어떻게 되나" 를 묻는
+        // 것이다. 그때는 저장된 acpi 가 비었을 때와 똑같은 갈래를 타야 한다 —
+        // 상속을 찾고, 없으면 기본 정책이다.
+        //
+        // 예전에는 빈 배열도 override 갈래로 보내 select_acp_in 에 빈 목록을
+        // 넘겼고, 행이 없으니 no_acp_row(생성자만 통과)로 답했다. 실제로는
+        // 기본 정책이라 **전원에게 열리는데** 미리보기는 "다 잠긴다" 고 했다.
+        // 미리보기가 안전한 쪽이 아니라 **위험한 쪽으로** 틀렸다.
+        //   실측: acpi 를 실제로 비우면 제3자 GET 200, 그런데 override:[] 는 거부.
+        var overridden = Array.isArray(p.acpiOverride);
+        if (overridden && p.acpiOverride.length > 0) {
             finish('override', null, p.acpiOverride);
             return;
         }
 
-        var own = parse_acpi(target.acpi);
+        // override 로 비운 경우에도 "저장된 acpi 가 비었다" 와 같게 본다.
+        var own = overridden ? [] : parse_acpi(target.acpi);
+        // 어디서 온 판정인지는 화면에 남아야 한다. 뗐다고 가정한 결과와
+        // 지금 그대로의 결과를 구분하지 못하면 미리보기의 뜻이 사라진다.
+        var src_own = overridden ? 'override' : 'own';
+        var src_none = overridden ? 'override' : 'none';
+
         if (ty === '1' && own.length === 0) {
-            // ACP 자신은 자기 pvs 로 판정한다.
-            finish('own', null, [target.ri]);
+            // ACP 자신은 자기 pvs 로 판정한다. 이건 acpi 와 무관하므로
+            // override 로 비워도 그대로다.
+            finish(src_own, null, [target.ri]);
             return;
         }
         if (own.length > 0) {
-            finish('own', null, own);
+            finish(src_own, null, own);
             return;
         }
         if (INHERITS[ty]) {
@@ -148,13 +165,13 @@ exports.simulate = function (connection, params, callback) {
             db_sql.select_acp_cnt(connection, 0, uri_arr, function (err2, inherited, found_ri) {
                 if (err2) { return callback(err2, inherited); }
                 if (!inherited || inherited.length === 0) {
-                    return finish_default('none', null);
+                    return finish_default(src_none, null);
                 }
-                finish('inherited', found_ri || null, inherited);
+                finish(overridden ? 'override_inherited' : 'inherited', found_ri || null, inherited);
             });
             return;
         }
-        finish_default('none', null);
+        finish_default(src_none, null);
 
         function finish_default(source, from) {
             // acpi 가 아무 데도 없다. security_default_check_action 과 같은 식.
