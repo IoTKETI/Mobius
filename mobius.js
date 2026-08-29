@@ -70,12 +70,20 @@ global.retention_policies = Array.isArray(conf.retentionPolicies) ? conf.retenti
 global.outbound_timeout_ms = (typeof conf.outboundTimeoutMs === 'number' && conf.outboundTimeoutMs > 0)
     ? conf.outboundTimeoutMs : 0;
 
-global.usepxywsport = '7577';
-global.usepxymqttport = '7578';
+// 보조 포트도 conf 로 뺀다. csebaseport 만 옮겨서는 두 번째 인스턴스를 띄울 수
+// 없다 — 이 다섯이 하드코딩이라 프록시가 EADDRINUSE 로 죽는다. 그러면 요청이
+// 조용히 먼저 뜬 인스턴스로 가서, 고친 코드를 검증한다고 믿는 동안 남의
+// 서버를 재고 있게 된다(실제로 겪었다). 기본값은 전부 지금 값 그대로다.
+function port_of(v, dflt) {
+    return (v === undefined || v === null || String(v) === '') ? dflt : String(v);
+}
 
-global.use_sgn_man_port = '7599';
-global.use_cnt_man_port = '7583';
-global.use_hit_man_port = '7594';
+global.usepxywsport = port_of(conf.pxyWsPort, '7577');
+global.usepxymqttport = port_of(conf.pxyMqttPort, '7578');
+
+global.use_sgn_man_port = port_of(conf.sgnManPort, '7599');
+global.use_cnt_man_port = port_of(conf.cntManPort, '7583');
+global.use_hit_man_port = port_of(conf.hitManPort, '7594');
 
 global.use_mqtt_broker = 'localhost'; // mqttbroker for mobius
 
