@@ -32,7 +32,8 @@ var lcp = require('./lcp');
 var mms = require('./mms');
 var acp = require('./acp');
 var grp = require('./grp');
-var req = require('./req');
+// req(ty=17) 는 논블로킹 요청의 임시 기록이었다. 논블로킹을 지원하지 않게
+// 되면서 이 리소스를 만드는 경로가 사라져 핸들러째 걷어냈다.
 var nod = require('./nod');
 var mgo = require('./mgo');
 var fcnt = require('./fcnt');
@@ -49,7 +50,13 @@ var rid = require('./rid');
 
 var _this = this;
 
-global.ty_list = ['1', '2', '3', '4', '5', '9', '10', '13', '14', '16', '17', '23', '24', '27', '28', '38', '39', '91', '92', '93', '94', '95', '96', '97', '98'];
+// search_action 이 이 목록을 돌며 타입별 테이블을 조회한다. 여기에 있으면
+// discovery 때마다 그 테이블을 한 번씩 읽는다.
+//
+// '17'(req)을 뺐다 — 논블로킹을 지원하지 않게 되면서 이 리소스를 만드는
+// 경로가 없어졌으므로, 매 discovery 마다 req 테이블을 읽을 이유가 없다.
+// 기존 배포에 남아 있는 행은 app.js 의 del_req_resource 가 걷어낸다.
+global.ty_list = ['1', '2', '3', '4', '5', '9', '10', '13', '14', '16', '23', '24', '27', '28', '38', '39', '91', '92', '93', '94', '95', '96', '97', '98'];
 
 var create_np_attr_list = {};
 create_np_attr_list.acp = ['ty', 'ri', 'pi', 'ct', 'lt', 'st'];
@@ -741,22 +748,6 @@ function create_action(request, response, callback) {
             }
         });
     }
-    else if (ty == '17') {
-        db_sql.insert_req(request.db_connection, resource_Obj[rootnm], function (err, results) {
-            if (!err) {
-                callback('200');
-            }
-            else {
-                if (db_errors.isDuplicateKey(results)) {
-                    callback('409-5');
-                }
-                else {
-                    console.log('[create_action] create resource error ======== ' + results.code);
-                    callback('500-4');
-                }
-            }
-        });
-    }
     else if (ty == '23') {
         db_sql.insert_sub(request.db_connection, resource_Obj[rootnm], (err, results) => {
             if (!err) {
@@ -958,13 +949,6 @@ function build_resource(request, response, callback) {
     resource_Obj[rootnm].st = 0;
     // et 를 명시하지 않으면 사실상 만료하지 않는다 (mobius/defaults.js 주석 참조).
     resource_Obj[rootnm].et = defaults.DEFAULT_ET;
-    if (request.ty == '17') {
-        // <request> 는 논블로킹 요청의 임시 기록이라 짧게 만료시킨다.
-        // 이 값은 별도 정리기(app.js del_req_resource -> delete_req)와 짝을 이루므로
-        // 위의 기본값을 따르지 않는다.
-        resource_Obj[rootnm].et = moment().utc().add(1, 'days').format('YYYYMMDDTHHmmss');
-    }
-
     if (request.ty == '3') {
         resource_Obj[rootnm].mni = '3153600000';
     }
@@ -1099,11 +1083,6 @@ function build_resource(request, response, callback) {
             break;
         case '16':
             csr.build_csr(request, response, resource_Obj, body_Obj, function (code) {
-                callback(code);
-            });
-            break;
-        case '17':
-            req.build_req(request, response, resource_Obj, body_Obj, function (code) {
                 callback(code);
             });
             break;
@@ -2433,6 +2412,9 @@ exports.update = function (request, response, callback) {
 // update_parent_by_delete 를 부르도록 바꾸고 제거했다.
 
 // 리프 타입(하위 리소스를 가질 수 없는 ty)은 background subtree 삭제가 필요 없다.
+// 자식을 가질 수 없는 타입. 여기에 없으면 삭제 시 자식 탐색을 예약한다.
+// '17'(req)은 더 이상 만들어지지 않지만, 기존 배포에 남은 행을 지울 때
+// 헛된 탐색을 걸지 않도록 남겨 둔다.
 var leaf_ty_list = ['1', '4', '9', '17', '23'];
 
 // R4 방식 비동기 subtree 삭제: 응답은 루트 행 삭제 직후 나가고,

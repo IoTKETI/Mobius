@@ -102,6 +102,12 @@ app.use(morgan('combined', {stream: accessLogStream}));
 
 //ts_app.use(morgan('short', {stream: accessLogStream}));
 
+// 남아 있는 req(ty=17) 행을 걷어낸다. 24시간마다 돈다.
+//
+// req 는 논블로킹 요청의 임시 기록이었고, 논블로킹을 지원하지 않게 되면서
+// 이제 새로 만들어지지 않는다. 이 정리기는 기존 배포에 남은 행을 비우기
+// 위해 남겨 둔 것이다 — 다 비워지고 나면 이 함수와 delete_req, req 테이블을
+// 함께 걷어낼 수 있다.
 function del_req_resource() {
     db.getConnection((code, connection) => {
         if (code === '200') {
@@ -1946,20 +1952,6 @@ app.post('*', onem2mParser, (request, response) => {
                                                                                 }
                                                                                 else if (code === '201-3') {
                                                                                     responder.response_rcn3_result(request, response, '201', '2001', '', () => {
-                                                                                        connection.release();
-                                                                                        request = null;
-                                                                                        response = null;
-                                                                                    });
-                                                                                }
-                                                                                else if (code === '202-1') {
-                                                                                    responder.response_result(request, response, '202', '1001', '', () => {
-                                                                                        connection.release();
-                                                                                        request = null;
-                                                                                        response = null;
-                                                                                    });
-                                                                                }
-                                                                                else if (code === '202-2') {
-                                                                                    responder.response_result(request, response, '202', '1002', '', () => {
                                                                                         connection.release();
                                                                                         request = null;
                                                                                         response = null;

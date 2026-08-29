@@ -1012,32 +1012,6 @@ exports.insert_csr = function (connection, obj, callback) {
     });
 };
 
-exports.insert_req = function (connection, obj, callback) {
-    console.time('insert_req ' + obj.ri);
-    _this.insert_lookup(connection, obj, function (err, results) {
-        if (!err) {
-            var sql = util.format('insert into req (ri, op, tg, org, rid, mi, pc, rs, ors) ' +
-                'value (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
-                obj.ri, obj.op, obj.tg, obj.org, obj.rid, obj.mi, obj.pc, obj.rs, obj.ors);
-            db.getResult(sql, connection, function (err, results) {
-                if (!err) {
-                    console.timeEnd('insert_req ' + obj.ri);
-                    callback(err, results);
-                }
-                else {
-                    sql = util.format("delete from lookup where ri = \'%s\'", obj.ri);
-                    db.getResult(sql, connection, function () {
-                        callback(err, results);
-                    });
-                }
-            });
-        }
-        else {
-            callback(err, results);
-        }
-    });
-};
-
 exports.insert_sub = function (connection, obj, callback) {
     console.time('insert_sub ' + obj.ri);
     _this.insert_lookup(connection, obj, function (err, results) {
@@ -3046,21 +3020,6 @@ exports.update_csr = function (connection, obj, callback) {
     });
 };
 
-exports.update_req = function (connection, ri, pc, op, mi, rs, ors, callback) {
-    console.time('update_req ' + ri);
-    //var sql2 = util.format('update req set pc = \'%s\', rs = \'%s\' where ri = \'%s\'', (new Buffer(pc)).toString('base64'), rs, ri);
-    var sql2 = util.format('update req set pc = \'%s\', op = \'%s\', mi = \'%s\', rs = \'%s\', ors = \'%s\' where ri = \'%s\'', pc, op, mi, rs, ors, ri);
-    db.getResult(sql2, connection, function (err, results) {
-        if (!err) {
-            console.timeEnd('update_req ' + ri);
-            callback(err, results);
-        }
-        else {
-            callback(err, results);
-        }
-    });
-};
-
 // 이전에는 db.getResult 를 무조건 호출해 SQLite 모드에서 구독 갱신이 유실됐다
 // (2차에서 수정). 여기서는 lookup 과 sub 두 문장을 한 트랜잭션으로 묶는다 —
 // 반쪽만 반영되면 리소스 메타데이터와 알림 설정이 어긋난다.
@@ -3718,6 +3677,9 @@ exports.delete_orphan_lookup = function (connection, callback) {
 };
 
 
+// insert_req / update_req 는 걷어냈다. req(ty=17) 는 논블로킹 요청의 임시
+// 기록이었는데, 논블로킹을 지원하지 않게 되면서 만드는 경로가 사라졌다.
+// delete_req 는 아래에 남겨 뒀다 — 기존 배포에 남은 행을 걷어내야 한다.
 exports.delete_req = function (connection, callback) {
     var sql = util.format("delete from lookup where ty = \'17\'");
     db.getResult(sql, connection, function (err, delete_Obj) {
