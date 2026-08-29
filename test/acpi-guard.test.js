@@ -87,7 +87,18 @@ test('UPDATE 가 check_acp_update_acpi 앞에서 검증한다', function () {
     assert.ok(u, 'UPDATE 배선을 찾지 못했다');
     assert.ok(/validate_acpi\(request, response, body_Obj\[rootnm\]\.acpi/.test(u[0]));
     assert.ok(/body_Obj\[rootnm\]\.acpi = normalized/.test(u[0]));
-    assert.ok(/resource_Obj\[rootnm\]\.acpi = normalized/.test(u[0]));
+});
+
+test('권한은 **지금 걸려 있는** acpi 로 본다', function () {
+    // 새로 걸 ACP 의 pvs 로 보면 "내가 만든 ACP 를 붙이겠다" 가 언제나
+    // 통과한다. resource_Obj 는 아직 DB 에서 읽은 그대로여야 한다.
+    const u = SRC.match(/if \(!body_Obj\[rootnm\]\.hasOwnProperty\('acpi'\)\)[\s\S]*?function run_acp_check/);
+    assert.ok(/var existingAcpi = resource_Obj\[rootnm\]\.acpi/.test(u[0]),
+        '기존 acpi 를 먼저 붙잡아야 한다');
+    assert.ok(/run_acp_check\(existingAcpi, normalized\)/.test(u[0]),
+        '권한 검사에 기존 acpi 를 넘겨야 한다');
+    assert.ok(!/resource_Obj\[rootnm\]\.acpi = normalized/.test(u[0]),
+        '검사 전에 resource_Obj 를 덮어쓰면 기존 값이 사라진다');
 });
 
 test('acpi 만 바꾸는 PUT 도 이 검증을 지난다', function () {

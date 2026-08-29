@@ -112,6 +112,13 @@ if (global.acp_observe_mode === 'observe') {
     console.log('[acp] 관찰 모드다 — ACP 거부가 허용으로 나간다. 확인이 끝나면 반드시 끈다.');
 }
 
+// ACP 가 안 걸린 리소스에 누가 처음 acpi 를 붙일 수 있는가.
+//   'open'    (기본 / 현재 동작) 인증된 아무나. 붙는 순간 잠기고 로그만 남는다
+//   'creator' 그 리소스의 생성자와 수퍼유저만
+// 지금 바로 'creator' 로 켜면 acpi 를 붙이던 정상 요청이 거부되기 시작한다.
+// acpi_attach 로그를 하루 본 뒤에 정한다.
+global.acpi_attach_policy = (conf.acpiAttachPolicy === 'creator') ? 'creator' : 'open';
+
 global.wdt = require('./wdt');
 
 

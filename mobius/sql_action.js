@@ -3477,6 +3477,249 @@ exports.delete_lookup_et = function (connection, et, limit, callback) {
 //
 // 겸사겸사 수동 이스케이프(esc)를 걷어냈다. `\` 와 `'` 만 다루는 불완전한
 // 것이었고, ri/pi 는 클라이언트가 정한 rn 을 담으므로 2차 주입 통로였다.
+// ── ACP 조회 (관리 콘솔용) ────────────────────────────────────────────
+//
+// 전부 읽기 전용이다. 무엇도 지우거나 고치지 않고 목록만 돌려준다 — 되돌릴
+// 수 없는 조작은 관리자가 화면을 보고 정한다.
+//
+// **lookup.acpi 에는 인덱스가 없다.** JSON 문자열이라 SQL 로 역질의도 안 된다
+// (`acpi like '%...%'` 는 선행 와일드카드라 인덱스를 못 탄다 — 배포 lookup 은
+// 5,740만 행이므로 절대 쓰지 않는다). 그래서 역참조는 not_cin 술어로 CIN
+// 3,400만 행을 빼고 남는 34,313 행만 키셋으로 훑으며 앱에서 대조한다.
+
+var ACP_LIST_MAX = 500;
+var ACP_SCAN_BATCH = 2000;
+var ACP_SCAN_CAP = 200000;
+var ACP_REFS_MAX = 1000;
+
+/**
+ * ACP 리소스 목록. ty 등치라 idx_lookup_ty 를 탄다.
+ *
+ * @param opts { limit=100(상한 500), afterRi='' }
+ * @returns callback(null, { rows:[{ri,pi,rn,ct,lt,et,acpi}], more, nextRi })
+ */
+exports.select_acp_list = function (connection, opts, callback) {
+    if (typeof opts === 'function') { callback = opts; opts = {}; }
+    var o = opts || {};
+    var limit = Math.min(Math.max(parseInt(o.limit, 10) || 100, 1), ACP_LIST_MAX);
+    var after = o.afterRi || '';
+
+    var qb = facade.k('lookup')
+        .select('ri', 'pi', 'rn', 'ct', 'lt', 'et', 'acpi')
+        .where('ty', 1)
+        .where('ri', '>', after)
+        .orderBy('ri', 'asc')
+        .limit(limit + 1);          // 한 줄 더 읽어 more 를 판단한다
+
+    facade.run(qb, connection, function (err, rows) {
+        if (err) { return callback(err, rows); }
+        rows = rows || [];
+        var more = rows.length > limit;
+        if (more) { rows = rows.slice(0, limit); }
+        callback(null, {
+            rows: rows,
+            more: more,
+            // **반환된 마지막 행**의 ri 다. 잘라낸 limit+1 번째를 쓰면 한 줄이 샌다.
+            nextRi: rows.length ? rows[rows.length - 1].ri : null
+        });
+    });
+};
+
+/**
+ * ACP 한 건의 상세 — lookup 행과 acp 본문을 함께 준다.
+ *
+ * @returns callback(null, {ri,rn,pi,ct,lt,et,pv,pvs,pv_parsed,pvs_parsed}) 또는 null
+ */
+exports.select_acp_detail = function (connection, ri, callback) {
+    facade.run(facade.k('lookup').select('ri', 'pi', 'rn', 'ty', 'ct', 'lt', 'et', 'acpi').where({ ri: ri }),
+        connection, function (err, lrows) {
+            if (err) { return callback(err, lrows); }
+            if (!lrows || lrows.length === 0) { return callback(null, null); }
+
+            facade.run(facade.k('acp').select('ri', 'pv', 'pvs').where({ ri: ri }), connection,
+                function (err2, arows) {
+                    if (err2) { return callback(err2, arows); }
+                    var a = (arows && arows[0]) ? arows[0] : { pv: null, pvs: null };
+                    var out = lrows[0];
+                    out.pv = a.pv;
+                    out.pvs = a.pvs;
+                    out.pv_parsed = safe_json(a.pv);
+                    out.pvs_parsed = safe_json(a.pvs);
+                    // acp 행이 없으면 lookup 에만 남은 반쪽이다. 평가에서는
+                    // "참조한 ACP 를 못 찾음" 으로 취급돼 잠금이 조용히 풀린다.
+                    out.body_missing = !arows || arows.length === 0;
+                    callback(null, out);
+                });
+        });
+};
+
+function safe_json(s) {
+    if (s === null || s === undefined) { return null; }
+    if (typeof s === 'object') { return s; }
+    try { return JSON.parse(s); }
+    catch (e) { return null; }
+}
+
+// acpi 원소를 make_internal_ri 와 같은 규칙으로 접는다. 스캔 중에는 DB 를 더
+// 부르지 않는다 — 3만 행에 한 건씩 질의하면 N+1 이 된다.
+function fold_acpi_entry(v) {
+    if (typeof v !== 'string') { return null; }
+    if (v.indexOf(usespid + usecseid + '/') === 0) { return v.replace(usespid + usecseid + '/', '/'); }
+    if (v.indexOf(usecseid + '/' + usecsebase + '/') === 0) { return v.replace(usecseid + '/', '/'); }
+    if (v.indexOf(usecsebase) === 0) { return '/' + v; }
+    return v;
+}
+
+/**
+ * 어떤 리소스가 이 ACP 를 쓰는가 — 풀스캔 없이.
+ *
+ * ACP 를 지우면 그것을 참조하던 리소스는 "생성자만 통과" 로 조용히 풀린다.
+ * 삭제 전 영향 분석을 할 수단이 지금까지 없었다.
+ *
+ * @param opts { acpRi=null(전부), tys=null, batch, scanCap, maxRefs, afterRi }
+ * @returns callback(null, { refs, refsTruncated, byAcp, scanned, capped, broken, unresolved, nextRi })
+ */
+exports.scan_acpi_refs = function (connection, opts, callback) {
+    if (typeof opts === 'function') { callback = opts; opts = {}; }
+    var o = opts || {};
+    var target = o.acpRi ? fold_acpi_entry(o.acpRi) : null;
+    var batch = Math.min(Math.max(parseInt(o.batch, 10) || ACP_SCAN_BATCH, 1), 10000);
+    var cap = parseInt(o.scanCap, 10) || ACP_SCAN_CAP;
+    var maxRefs = parseInt(o.maxRefs, 10) || ACP_REFS_MAX;
+
+    var refs = [];
+    var byAcp = {};
+    var unresolved = {};
+    var scanned = 0;
+    var broken = 0;
+    var truncated = false;
+
+    function scan(after) {
+        var qb = facade.k('lookup')
+            .select('ri', 'ty', 'pi', 'rn', 'acpi')
+            // CIN 3,400만 행을 뺀다. MySQL 은 생성 컬럼 not_cin(idx_lookup_pi_notcin),
+            // SQLite 는 ty <> 4 로 같은 뜻을 낸다.
+            .whereRaw(facade.notCinPredicate('lookup'))
+            .where('ri', '>', after)
+            .orderBy('ri', 'asc')
+            .limit(batch);
+        if (Array.isArray(o.tys) && o.tys.length > 0) { qb = qb.whereIn('ty', o.tys); }
+
+        facade.run(qb, connection, function (err, rows) {
+            if (err) { return callback(err, rows); }
+            rows = rows || [];
+            if (rows.length === 0) { return done(null); }
+
+            var next = rows[rows.length - 1].ri;
+            for (var i = 0; i < rows.length; i++) {
+                scanned++;
+                var raw = rows[i].acpi;
+                if (raw === null || raw === undefined || raw === '' || raw === '[]') { continue; }
+
+                var list = safe_json(raw);
+                if (!Array.isArray(list)) { broken++; continue; }
+
+                var folded = [];
+                var hit = (target === null);
+                for (var j = 0; j < list.length; j++) {
+                    var f = fold_acpi_entry(list[j]);
+                    if (f === null) { broken++; continue; }
+                    if (f.charAt(0) !== '/') { unresolved[f] = 1; }
+                    folded.push(f);
+                    if (target !== null && f === target) { hit = true; }
+                }
+                if (!hit || folded.length === 0) { continue; }
+
+                for (var k = 0; k < folded.length; k++) {
+                    byAcp[folded[k]] = (byAcp[folded[k]] || 0) + 1;
+                }
+                if (refs.length < maxRefs) {
+                    refs.push({ ri: rows[i].ri, ty: rows[i].ty, rn: rows[i].rn, pi: rows[i].pi,
+                                acpi: folded, raw: String(raw),
+                                normalized: JSON.stringify(folded) === String(raw) });
+                }
+                else {
+                    truncated = true;
+                }
+            }
+
+            if (scanned >= cap) { return done(next, true); }
+            setImmediate(scan, next);
+        });
+    }
+
+    function done(next, capped) {
+        callback(null, {
+            refs: refs,
+            refsTruncated: truncated,
+            byAcp: byAcp,
+            scanned: scanned,
+            capped: !!capped,
+            broken: broken,
+            unresolved: Object.keys(unresolved),
+            nextRi: capped ? next : null
+        });
+    }
+
+    scan(o.afterRi || '');
+};
+
+/**
+ * sri 표기로 적힌 acpi 원소를 내부 ri 로 푼다. scan_acpi_refs 의 unresolved 용.
+ */
+exports.resolve_acpi_entries = function (connection, entries, callback) {
+    var list = (entries || []).filter(function (e) { return typeof e === 'string'; });
+    if (list.length === 0) { return callback(null, { map: {} }); }
+
+    facade.run(facade.k('lookup').select('ri', 'sri').whereIn('sri', list), connection,
+        function (err, rows) {
+            if (err) { return callback(err, rows); }
+            var bySri = {};
+            (rows || []).forEach(function (r) { bySri[r.sri] = r.ri; });
+            var map = {};
+            list.forEach(function (e) { map[e] = bySri[e] || null; });
+            callback(null, { map: map });
+        });
+};
+
+/**
+ * 그룹의 macp 참조. fanOutPoint 는 acpi 가 아니라 grp.macp 로 판정하므로,
+ * ACP 삭제 전 참조 확인이 여기를 빠뜨리면 그룹 팬아웃이 조용히 잠긴다.
+ * macp 는 mediumtext 라 acpi 의 7개 한계가 적용되지 않는다.
+ */
+exports.scan_macp_refs = function (connection, opts, callback) {
+    if (typeof opts === 'function') { callback = opts; opts = {}; }
+    var target = (opts && opts.acpRi) ? fold_acpi_entry(opts.acpRi) : null;
+
+    facade.run(facade.k('grp').select('ri', 'macp'), connection, function (err, rows) {
+        if (err) { return callback(err, rows); }
+        var refs = [];
+        var byAcp = {};
+        var broken = 0;
+
+        (rows || []).forEach(function (r) {
+            var list = safe_json(r.macp);
+            if (!Array.isArray(list)) {
+                if (r.macp !== null && r.macp !== undefined && r.macp !== '') { broken++; }
+                return;
+            }
+            var folded = [];
+            var hit = (target === null);
+            list.forEach(function (v) {
+                var f = fold_acpi_entry(v);
+                if (f === null) { broken++; return; }
+                folded.push(f);
+                if (target !== null && f === target) { hit = true; }
+            });
+            if (!hit || folded.length === 0) { return; }
+            folded.forEach(function (f) { byAcp[f] = (byAcp[f] || 0) + 1; });
+            refs.push({ ri: r.ri, macp: folded });
+        });
+
+        callback(null, { refs: refs, byAcp: byAcp, broken: broken });
+    });
+};
+
 /**
  * 고아 행이 몇 개인지 센다. 아무것도 바꾸지 않는다.
  *

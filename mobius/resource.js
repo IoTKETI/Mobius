@@ -41,6 +41,7 @@ var tm = require('./tm');
 var tr = require('./tr');
 
 var security = require('./security');
+var acp_observe = require('./acp_observe');
 var db = require('./db_action');
 var db_sql = require('./sql_action');
 var cnt_man = require('./cnt_man');
@@ -2321,16 +2322,46 @@ global.validate_acpi = function (request, response, acpi, callback) {
     });
 };
 
-function check_acp_update_acpi(request, response, acpi, cr, callback) {
-    // when update acpi check pvs of acp
+/**
+ * acpi 를 바꿀 권한이 있는가.
+ *
+ * @param acpi     **지금 걸려 있는** acpi. 새로 걸 것이 아니다.
+ * @param newAcpi  새로 걸 acpi (관측용). 없으면 관측만 건너뛴다.
+ */
+function check_acp_update_acpi(request, response, acpi, cr, newAcpi, callback) {
+    if (typeof newAcpi === 'function') { callback = newAcpi; newAcpi = undefined; }
+
+    // 이미 ACP 가 걸려 있으면 그 ACP 의 pvs 가 정한다. oneM2M 의 selfPrivileges 다.
     if (acpi.length > 0) {
         security.check(request, response, '1', acpi, '4', cr, function (code) {
             callback(code);
         });
+        return;
     }
-    else {
-        callback('1');
+
+    // 여기가 문제의 자리다. **지금은 인증된 아무나** ACP 가 안 걸린 남의
+    // 리소스에 자기 ACP 를 붙여 잠글 수 있다(실측: HTTP 200, 그 뒤 생성자
+    // 조회가 403). 붙이는 순간 잠기고, 그 사실이 아무 데도 안 남는다.
+    //
+    // 그렇다고 지금 바로 막으면 acpi 를 붙이던 정상 요청이 거부되기 시작한다.
+    // 스위치와 관측을 먼저 넣고, 켜는 것은 로그를 본 뒤에 정한다.
+    var from = request.headers['x-m2m-origin'];
+    var target_ri = request.url ? request.url.split('?')[0] : '';
+
+    if (newAcpi !== undefined && newAcpi !== null && newAcpi.length > 0) {
+        acp_observe.record('acpi_attach', {
+            ri: target_ri, ty: request.ty, origin: from, cr: cr,
+            before: [], after: newAcpi
+        });
     }
+
+    if (global.acpi_attach_policy === 'creator') {
+        var is_su = (from === usesuperuser || from === ('/' + usesuperuser));
+        callback((is_su || (cr && from === cr)) ? '1' : '0');
+        return;
+    }
+
+    callback('1');
 }
 
 function update_resource(request, response, callback) {
@@ -2414,6 +2445,11 @@ function update_resource(request, response, callback) {
             return;
         }
 
+        // **지금 걸려 있는** acpi 로 권한을 본다. 새로 걸 ACP 가 아니다 —
+        // 새 값으로 보면 "내가 만든 ACP 를 붙이겠다" 가 언제나 통과한다.
+        // resource_Obj 는 아직 DB 에서 읽은 그대로다(update_body 는 뒤에 돈다).
+        var existingAcpi = resource_Obj[rootnm].acpi;
+
         // acpi 만 바꾸는 PUT 도 여기를 지난다 — app.js 가 건너뛰는 것은
         // authorize_and_run(대상 리소스 권한)이지 update_resource 가 아니다.
         validate_acpi(request, response, body_Obj[rootnm].acpi, function (code, normalized) {
@@ -2421,13 +2457,13 @@ function update_resource(request, response, callback) {
                 callback(code);
                 return;
             }
+            // update_body 가 body 값을 그대로 옮기므로 여기만 갈아끼우면 된다.
             body_Obj[rootnm].acpi = normalized;
-            resource_Obj[rootnm].acpi = normalized;
-            run_acp_check(normalized);
+            run_acp_check(existingAcpi, normalized);
         });
 
-        function run_acp_check(updateAcpiList) {
-        check_acp_update_acpi(request, response, updateAcpiList, resource_Obj[rootnm].cr, function (code) {
+        function run_acp_check(updateAcpiList, newAcpi) {
+        check_acp_update_acpi(request, response, updateAcpiList, resource_Obj[rootnm].cr, newAcpi, function (code) {
             if (code === '1') {
                 update_body(rootnm, body_Obj, resource_Obj); // (attr == 'aa' || attr == 'poa' || attr == 'lbl' || attr == 'acpi' || attr == 'srt' || attr == 'nu' || attr == 'mid' || attr == 'macp')
 
