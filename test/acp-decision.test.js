@@ -325,3 +325,48 @@ test('컨텍스트를 통과해도 acor 이 막으면 거부', function () {
     const rule = { acor: ['Other'], acop: 63, acco: [{ actw: ['* * * * * *'] }] };
     assert.strictEqual(security._evaluate_acr(rule, req(), 'Reader', '2', false), false);
 });
+
+// ── 생성자 우회 (creator_bypasses) ────────────────────────────────────
+//
+// ACP 는 권한을 **더하는** 것이지 생성자를 몰아내는 것이 아니다.
+// 예전에는 정상 ACP 가 걸리는 순간 생성자가 자기 리소스에서 밀려났고,
+// 그래서 장치가 자기가 만든 리소스를 못 읽고 잠금을 스스로 못 풀었다.
+
+test('생성자는 통과한다', function () {
+    assert.strictEqual(security._creator_bypasses('3', 'Cowner', 'Cowner'), true);
+});
+
+test('생성자가 아니면 통과하지 않는다', function () {
+    assert.strictEqual(security._creator_bypasses('3', 'Cowner', 'Cother'), false);
+});
+
+test('ty=1(ACP 자신)은 생성자 우회에서 빠진다 — pvs 가 정한다', function () {
+    // check_acp_update_acpi 는 **대상 리소스의** cr 을 넘긴다. 빼지 않으면
+    // 대상의 생성자가 아무 ACP 나 그 pvs 와 무관하게 갖다 붙일 수 있다.
+    assert.strictEqual(security._creator_bypasses('1', 'Cowner', 'Cowner'), false);
+    assert.strictEqual(security._creator_bypasses(1, 'Cowner', 'Cowner'), false);
+});
+
+test('cr 이 없는 리소스는 우회가 없다 — acp 와 ae 에는 cr 컬럼이 없다', function () {
+    assert.strictEqual(security._creator_bypasses('3', undefined, 'Cowner'), false);
+    assert.strictEqual(security._creator_bypasses('3', '', ''), false);
+    assert.strictEqual(security._creator_bypasses('3', null, null), false);
+});
+
+test('빈 원본이 빈 cr 과 맞아떨어지지 않는다', function () {
+    // 둘 다 빈 값이면 == 는 참이 된다. 그 구멍으로 아무나 통과하면 안 된다.
+    assert.strictEqual(security._creator_bypasses('3', '', 'anything'), false);
+    assert.strictEqual(security._creator_bypasses('3', 'Cowner', ''), false);
+    assert.strictEqual(security._creator_bypasses('3', 'Cowner', undefined), false);
+});
+
+test('생성자 비교는 문자열 등치다 — 접두사나 정규식이 아니다', function () {
+    assert.strictEqual(security._creator_bypasses('3', 'Cowner', 'Cowner2'), false);
+    assert.strictEqual(security._creator_bypasses('3', 'Cowner', 'Cown'), false);
+    assert.strictEqual(security._creator_bypasses('3', 'C.*', 'Cowner'), false);
+});
+
+test('ty 는 숫자로 와도 문자열로 와도 같게 판정한다', function () {
+    assert.strictEqual(security._creator_bypasses(3, 'Cowner', 'Cowner'), true);
+    assert.strictEqual(security._creator_bypasses('3', 'Cowner', 'Cowner'), true);
+});

@@ -226,7 +226,10 @@ update_opt_attr_list.nod = ['acpi', 'et', 'lbl', 'aa', 'at', 'daci', 'ni', 'mgca
 update_opt_attr_list.smd = ['acpi', 'et', 'lbl', 'aa', 'at', 'dcrp', 'soe', 'dsp', 'or', 'rels'];
 update_opt_attr_list.mms =['acpi', 'et', 'lbl', 'aa', 'at', 'stid', 'asd', 'osd', 'sst'];
 update_opt_attr_list.tm = ['acpi', 'et', 'lbl', 'daci', 'tctl', 'tmr', 'tmh'];
-update_opt_attr_list.tr = ['acpi', 'et', 'lbl', 'cr', 'tctl'];
+// cr 이 옵션 목록에 있었다. update_body 는 본문 속성을 전부 그대로 옮기므로
+// PUT {"m2m:tr":{"cr":"남"}} 하나로 소유권이 넘어갔다 — creator_bypasses 가
+// 들어온 뒤로는 그것이 곧 권한 탈취다. 다른 타입은 전부 np 목록에 있다.
+update_opt_attr_list.tr = ['acpi', 'et', 'lbl', 'tctl'];
 
 update_opt_attr_list.fwr = ['acpi', 'et', 'lbl', 'daci', 'dc', 'cmlk', 'vr', 'fwnnam', 'url', 'ud', 'uds'];
 update_opt_attr_list.bat = ['acpi', 'et', 'lbl', 'daci', 'dc', 'cmlk', 'btl', 'bts'];

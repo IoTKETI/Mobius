@@ -33,7 +33,8 @@ exports.build_smd = function(request, response, resource_Obj, body_Obj, callback
     resource_Obj[rootnm].dcrp = body_Obj[rootnm].dcrp;
 
     resource_Obj[rootnm].or = (body_Obj[rootnm].or) ? body_Obj[rootnm].or : '';
-    resource_Obj[rootnm].cr = (body_Obj[rootnm].cr) ? body_Obj[rootnm].cr : request.headers['x-m2m-origin'];
+    // cr 은 서버가 정한다 — 이유는 mobius/cnt.js 의 같은 자리 주석 참조.
+    resource_Obj[rootnm].cr = request.headers['x-m2m-origin'];
     resource_Obj[rootnm].soe = (body_Obj[rootnm].soe) ? body_Obj[rootnm].soe : '';
     resource_Obj[rootnm].rels = (body_Obj[rootnm].rels) ? body_Obj[rootnm].rels : [];
 

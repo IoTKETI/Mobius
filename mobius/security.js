@@ -375,8 +375,46 @@ function security_default_check_action(request, response, cr, access_value, call
     }
 }
 
+/**
+ * 생성자는 ACP 가 걸려 있어도 통과하는가.
+ *
+ * 예전에는 cr 을 세 자리에서만 봤다 — acpi 가 비었을 때(기본 정책), 참조한
+ * ACP 가 DB 에 없을 때, pv 에 acr 키가 없을 때. **정상 ACP 가 걸리는 순간
+ * 생성자는 자기 리소스에서 밀려났다.** 그 결과가 둘이다.
+ *
+ *   - 장치가 만든 리소스를 그 장치가 못 읽는다. 사람은 장치의 원본 ID 를
+ *     모르므로 pv.acr 에 적어 줄 수도 없다.
+ *   - 잘못 걸린 ACP 를 생성자가 스스로 못 푼다. 배포의 /Mobius/sch8 이
+ *     수퍼유저 말고는 아무도 못 쓰는 상태로 남아 있는 이유다.
+ *
+ * 운영 대원칙("수정·삭제는 생성자만")대로면 생성자는 자기 것에서 배제되지
+ * 않아야 한다. 그래서 ACP 는 **권한을 더하는 것**이지 생성자를 몰아내는
+ * 것이 아니다.
+ *
+ * ty=1(ACP 리소스 자신)은 뺀다. ACP 를 누가 고칠 수 있는지는 pvs 가 정하고,
+ * 여기 오는 cr 이 ACP 의 생성자가 아니기 때문이다 — check_acp_update_acpi
+ * (resource.js)는 **대상 리소스의** cr 을 넘긴다. 빼지 않으면 대상의
+ * 생성자가 아무 ACP 나, 그 ACP 의 pvs 와 무관하게 갖다 붙일 수 있다.
+ */
+function creator_bypasses(ty, cr, from) {
+    if (ty == '1') {
+        return false;
+    }
+    // cr 이 빈 문자열·undefined 인 리소스가 있다(acp 와 ae 에는 cr 컬럼이 없다).
+    // 그때 from 이 마침 빈 값이면 아무나 통과해 버린다 — 반드시 막는다.
+    if (!cr || !from) {
+        return false;
+    }
+    return String(from) === String(cr);
+}
+
+exports._creator_bypasses = creator_bypasses;
+
 exports.check = function(request, response, ty, acpiList, access_value, cr, callback) {
     if(request.headers['x-m2m-origin'] == usesuperuser || request.headers['x-m2m-origin'] == ('/'+usesuperuser)) {
+        callback('1');
+    }
+    else if (creator_bypasses(ty, cr, request.headers['x-m2m-origin'])) {
         callback('1');
     }
     else {

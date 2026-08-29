@@ -67,7 +67,8 @@ exports.build_tm = function(request, response, resource_Obj, body_Obj, callback)
     var rootnm = request.headers.rootnm;
 
     // body
-    resource_Obj[rootnm].cr = (body_Obj[rootnm].cr) ? body_Obj[rootnm].cr : request.headers['x-m2m-origin'];
+    // cr 은 서버가 정한다 — 이유는 mobius/cnt.js 의 같은 자리 주석 참조.
+    resource_Obj[rootnm].cr = request.headers['x-m2m-origin'];
 
     resource_Obj[rootnm].rqps = body_Obj[rootnm].rqps;
 
