@@ -69,7 +69,6 @@ var REASON = {
     '400-34': { code: RSC.MEMBER_TYPE_INCONSISTENT, msg: "can not create group because csy is ABANDON_GROUP when MEMBER_TYPE_INCONSISTENT" },
     '400-35': { code: RSC.BAD_REQUEST, msg: "mgmtDefinition does not match the mgmtObj resource" },
     '400-36': { code: RSC.BAD_REQUEST, msg: "resource type is not supported for create" },
-    '400-37': { code: RSC.BAD_REQUEST, msg: "transaction resource could not be created" },
     '400-40': { code: RSC.BAD_REQUEST, msg: "body is empty" },
     '400-41': { code: RSC.BAD_REQUEST, msg: "BAD REQUEST" },
     '400-42': { code: RSC.BAD_REQUEST, msg: "ty does not match the body" },
@@ -78,7 +77,6 @@ var REASON = {
     '400-45': { code: RSC.BAD_REQUEST, msg: "rcn or fu query is not supported at PUT request" },
     '400-46': { code: RSC.BAD_REQUEST, msg: "rcn or fu query is not supported at DELETE request" },
     '400-47': { code: RSC.BAD_REQUEST, msg: "protocol in poa of ae is not supported" },
-    '400-50': { code: RSC.BAD_REQUEST, msg: "transaction state does not match" },
     '400-51': { code: RSC.BAD_REQUEST, msg: "requested mgmtObj does not match the body content type" },
     '400-52': { code: RSC.BAD_REQUEST, msg: "resource type is not supported for update" },
     '400-53': { code: RSC.BAD_REQUEST, msg: "this resource of mgmtObj is not supported" },
@@ -147,7 +145,6 @@ var REASON = {
     '409-5': { code: RSC.ALREADY_EXISTS, msg: "resource already exists" },
     '409-6': { code: RSC.AEI_DUPLICATED, msg: "aei is already registered", detail: 'create_action: aei duplicate' },
 
-    '423-1': { code: RSC.LOCKED, msg: "resource is locked by another request" },
 
     '500-1': { code: RSC.INTERNAL_SERVER_ERROR, msg: "database error" },
     '500-2': { code: RSC.SUBSCRIPTION_VERIFICATION_INITIATION_FAILED, msg: "SUBSCRIPTION_VERIFICATION_INITIATION_FAILED" },

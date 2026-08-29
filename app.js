@@ -42,7 +42,6 @@ var responder = require('./mobius/responder');
 var resource = require('./mobius/resource');
 var security = require('./mobius/security');
 var fopt = require('./mobius/fopt');
-var tr = require('./mobius/tr');
 var sgn = require('./mobius/sgn');
 
 // 결과 코드와 사유는 카탈로그가 들고 있다.
@@ -654,20 +653,6 @@ global.make_json_arraytype = function (body_Obj) {
                             body_Obj[prop][attr] = [];
                         }
                     }
-                    else if (attr == 'rqps') {
-                        var rqps_type = getType(body_Obj[prop][attr]);
-                        if (rqps_type === 'array') {
-
-                        }
-                        else if (rqps_type === 'object') {
-                            var temp = body_Obj[prop][attr];
-                            body_Obj[prop][attr] = [];
-                            body_Obj[prop][attr].push(temp);
-                        }
-                        else {
-
-                        }
-                    }
                     else if (attr == 'enc') {
                         if (body_Obj[prop][attr]) {
                             if (body_Obj[prop][attr].net) {
@@ -853,7 +838,7 @@ function parse_body_format(request, response, callback) {
                     for (var attr in body_Obj[prop]) {
                         if (body_Obj[prop].hasOwnProperty(attr)) {
                             if (attr == 'aa' || attr == 'at' || attr == 'poa' || attr == 'acpi' || attr == 'srt' ||
-                                attr == 'nu' || attr == 'mid' || attr == 'macp' || attr == 'rels' || attr == 'rqps' || attr == 'srv') {
+                                attr == 'nu' || attr == 'mid' || attr == 'macp' || attr == 'rels' || attr == 'srv') {
                                 if (!Array.isArray(body_Obj[prop][attr])) {
                                     callback('400-8');
                                     return;
@@ -1169,95 +1154,84 @@ function lookup_create(request, response, callback) {
         if (code === '200') {
             var parentObj = request.targetObject[Object.keys(request.targetObject)[0]];
 
-            tr.check(request, (code) => {
-                if (code === '200') {
-                    if ((request.ty == 1) && (parentObj.ty == 5 || parentObj.ty == 16 || parentObj.ty == 2)) { // accessControlPolicy
+                if ((request.ty == 1) && (parentObj.ty == 5 || parentObj.ty == 16 || parentObj.ty == 2)) { // accessControlPolicy
+                }
+                else if ((request.ty == 9) && (parentObj.ty == 5 || parentObj.ty == 16 || parentObj.ty == 2)) { // group
+                }
+                else if ((request.ty == 16) && (parentObj.ty == 5)) { // remoteCSE
+                    if (usecsetype == 'asn' && request.headers.csr == null) {
+                        callback('400-28');
+                        return;
                     }
-                    else if ((request.ty == 9) && (parentObj.ty == 5 || parentObj.ty == 16 || parentObj.ty == 2)) { // group
+                }
+                else if ((request.ty == 10) && (parentObj.ty == 5)) { // locationPolicy
+                }
+                else if ((request.ty == 2) && (parentObj.ty == 5)) { // ae
+                }
+                else if ((request.ty == 3) && (parentObj.ty == 5 || parentObj.ty == 2 || parentObj.ty == 3)) { // container
+                }
+                else if ((request.ty == 23) && (parentObj.ty == 5 || parentObj.ty == 16 || parentObj.ty == 2 || parentObj.ty == 3 || parentObj.ty == 24 || parentObj.ty == 9 || parentObj.ty == 1 || parentObj.ty == 27 || parentObj.ty == 28)) { // sub
+                }
+                else if ((request.ty == 4) && (parentObj.ty == 3)) { // contentInstance
+                }
+                else if ((request.ty == 24) && (parentObj.ty == 2 || parentObj.ty == 3 || parentObj.ty == 4)) { // semanticDescriptor
+                }
+                else if ((request.ty == 27) && (parentObj.ty == 2 || parentObj.ty == 16)) { // multimediaSession
+                }
+                else if ((request.ty == 14) && (parentObj.ty == 5)) { // node
+                }
+                else if ((request.ty == 13) && (parentObj.ty == 14)) { // mgmtObj
+                }
+                else if ((request.ty == 28) && (parentObj.ty == 5 || parentObj.ty == 2 || parentObj.ty == 3 || parentObj.ty == 28)) { // flexcontainer
+                }
+                else if ((request.ty == 98 || request.ty == 97 || request.ty == 96 || request.ty == 95 || request.ty == 94 || request.ty == 93 || request.ty == 92 || request.ty == 91) && (parentObj.ty == 28)) { // flexcontainer
+                }
+                else {
+                    callback('403-2');
+                    return;
+                }
+
+                if ((request.ty == 4) && (parentObj.ty == 3)) { // contentInstance
+                    if (parseInt(parentObj.mni) == 0) {
+                        callback('406-1');
+                        return;
                     }
-                    else if ((request.ty == 16) && (parentObj.ty == 5)) { // remoteCSE
-                        if (usecsetype == 'asn' && request.headers.csr == null) {
-                            callback('400-28');
-                            return;
-                        }
+                    else if (parseInt(parentObj.mbs) == 0) {
+                        callback('406-2');
+                        return;
                     }
-                    else if ((request.ty == 10) && (parentObj.ty == 5)) { // locationPolicy
-                    }
-                    else if ((request.ty == 2) && (parentObj.ty == 5)) { // ae
-                    }
-                    else if ((request.ty == 3) && (parentObj.ty == 5 || parentObj.ty == 2 || parentObj.ty == 3)) { // container
-                    }
-                    else if ((request.ty == 23) && (parentObj.ty == 5 || parentObj.ty == 16 || parentObj.ty == 2 || parentObj.ty == 3 || parentObj.ty == 24 || parentObj.ty == 9 || parentObj.ty == 1 || parentObj.ty == 27 || parentObj.ty == 28)) { // sub
-                    }
-                    else if ((request.ty == 4) && (parentObj.ty == 3)) { // contentInstance
-                    }
-                    else if ((request.ty == 24) && (parentObj.ty == 2 || parentObj.ty == 3 || parentObj.ty == 4)) { // semanticDescriptor
-                    }
-                    else if ((request.ty == 27) && (parentObj.ty == 2 || parentObj.ty == 16)) { // multimediaSession
-                    }
-                    else if ((request.ty == 14) && (parentObj.ty == 5)) { // node
-                    }
-                    else if ((request.ty == 13) && (parentObj.ty == 14)) { // mgmtObj
-                    }
-                    else if ((request.ty == 38) && (parentObj.ty == 5 || parentObj.ty == 16 || parentObj.ty == 2 || parentObj.ty == 3 || parentObj.ty == 24 || parentObj.ty == 9 || parentObj.ty == 1 || parentObj.ty == 27)) { // transaction
-                    }
-                    else if ((request.ty == 39) && (parentObj.ty == 5 || parentObj.ty == 16 || parentObj.ty == 2 || parentObj.ty == 3 || parentObj.ty == 24 || parentObj.ty == 9 || parentObj.ty == 1 || parentObj.ty == 27)) { // transaction
-                    }
-                    else if ((request.ty == 28) && (parentObj.ty == 5 || parentObj.ty == 2 || parentObj.ty == 3 || parentObj.ty == 28)) { // flexcontainer
-                    }
-                    else if ((request.ty == 98 || request.ty == 97 || request.ty == 96 || request.ty == 95 || request.ty == 94 || request.ty == 93 || request.ty == 92 || request.ty == 91) && (parentObj.ty == 28)) { // flexcontainer
-                    }
-                    else {
-                        callback('403-2');
+                    else if (parentObj.disr == true) {
+                        callback('405-6');
                         return;
                     }
 
-                    if ((request.ty == 4) && (parentObj.ty == 3)) { // contentInstance
-                        if (parseInt(parentObj.mni) == 0) {
-                            callback('406-1');
-                            return;
-                        }
-                        else if (parseInt(parentObj.mbs) == 0) {
-                            callback('406-2');
-                            return;
-                        }
-                        else if (parentObj.disr == true) {
-                            callback('405-6');
-                            return;
-                        }
+                    request.headers.mni = parentObj.mni;
+                    request.headers.mbs = parentObj.mbs;
+                    request.headers.cni = parentObj.cni;
+                    request.headers.cbs = parentObj.cbs;
+                    request.headers.st = parentObj.st;
+                }
 
-                        request.headers.mni = parentObj.mni;
-                        request.headers.mbs = parentObj.mbs;
-                        request.headers.cni = parentObj.cni;
-                        request.headers.cbs = parentObj.cbs;
-                        request.headers.st = parentObj.st;
-                    }
-
-                    if (parentObj.length == 0) {
-                        parentObj = {};
-                        parentObj.cr = '';
-                        console.log('no creator');
-                    }
-                    else {
-                        if (parentObj.ty == 2) {
-                            parentObj.cr = parentObj.aei;
-                        }
-                    }
-
-                    // sub 생성은 CREATE(1)가 아니라 NOTIFY 를 포함한 3 을 본다.
-                    var access_value = (request.ty == 23) ? '3' : '1';
-
-                    // 예전에는 여기서 두 가지를 더 했다.
-                    //   - 요청마다 shortid 를 만들어 security.check 를 console.time 으로 쟀다.
-                    //     CREATE 마다 로그 두 줄이 나가는 계측이라 걷어냈다.
-                    //   - cache_security_check 에 판정 결과를 적었다. **읽는 곳이 없다** —
-                    //     origin 과 ri 로 키를 만들어 무한히 쌓이기만 하는 메모리 누수였다.
-                    authorize_and_run(request, response, parentObj, access_value, resource.create, callback);
+                if (parentObj.length == 0) {
+                    parentObj = {};
+                    parentObj.cr = '';
+                    console.log('no creator');
                 }
                 else {
-                    callback(code);
+                    if (parentObj.ty == 2) {
+                        parentObj.cr = parentObj.aei;
+                    }
                 }
-            });
+
+                // sub 생성은 CREATE(1)가 아니라 NOTIFY 를 포함한 3 을 본다.
+                var access_value = (request.ty == 23) ? '3' : '1';
+
+                // 예전에는 여기서 두 가지를 더 했다.
+                //   - 요청마다 shortid 를 만들어 security.check 를 console.time 으로 쟀다.
+                //     CREATE 마다 로그 두 줄이 나가는 계측이라 걷어냈다.
+                //   - cache_security_check 에 판정 결과를 적었다. **읽는 곳이 없다** —
+                //     origin 과 ri 로 키를 만들어 무한히 쌓이기만 하는 메모리 누수였다.
+                authorize_and_run(request, response, parentObj, access_value, resource.create, callback);
         }
         else {
             callback(code);
@@ -1275,15 +1249,11 @@ function lookup_retrieve(request, response, callback) {
             resultObj.acpi = [];
         }
 
-        tr.check(request, (code) => {
-            if (code !== '200') { callback(code); return; }
-
-            // discovery(fu=1)는 DISCOVER(32), 일반 조회는 RETRIEVE(2).
-            // 예전에는 이 둘 때문에 같은 블록이 두 벌 있었다.
-            var access_value = (request.query.fu == 1) ? '32' : '2';
-            resolve_cr(resultObj);
-            authorize_and_run(request, response, resultObj, access_value, resource.retrieve, callback);
-        });
+        // discovery(fu=1)는 DISCOVER(32), 일반 조회는 RETRIEVE(2).
+        // 예전에는 이 둘 때문에 같은 블록이 두 벌 있었다.
+        var access_value = (request.query.fu == 1) ? '32' : '2';
+        resolve_cr(resultObj);
+        authorize_and_run(request, response, resultObj, access_value, resource.retrieve, callback);
     });
 }
 
@@ -1312,20 +1282,16 @@ function lookup_update(request, response, callback) {
 
         var resultObj = request.targetObject[Object.keys(request.targetObject)[0]];
 
-        tr.check(request, (code) => {
-            if (code !== '200') { callback(code); return; }
+        if (!updates_beyond_acpi(request.bodyObj)) {
+            // acpi 만 바꾸는 경우 — 권한 검사 없이 진행한다.
+            resource.update(request, response, (code) => {
+                callback(code);
+            });
+            return;
+        }
 
-            if (!updates_beyond_acpi(request.bodyObj)) {
-                // acpi 만 바꾸는 경우 — 권한 검사 없이 진행한다.
-                resource.update(request, response, (code) => {
-                    callback(code);
-                });
-                return;
-            }
-
-            resolve_cr(resultObj);
-            authorize_and_run(request, response, resultObj, '4', resource.update, callback);
-        });
+        resolve_cr(resultObj);
+        authorize_and_run(request, response, resultObj, '4', resource.update, callback);
     });
 }
 
@@ -1335,11 +1301,8 @@ function lookup_delete(request, response, callback) {
 
         var resultObj = request.targetObject[Object.keys(request.targetObject)[0]];
 
-        tr.check(request, (code) => {
-            if (code !== '200') { callback(code); return; }
-            resolve_cr(resultObj);
-            authorize_and_run(request, response, resultObj, '8', resource.delete, callback);
-        });
+        resolve_cr(resultObj);
+        authorize_and_run(request, response, resultObj, '8', resource.delete, callback);
     });
 }
 

@@ -37,8 +37,6 @@ var grp = require('./grp');
 var nod = require('./nod');
 var mgo = require('./mgo');
 var fcnt = require('./fcnt');
-var tm = require('./tm');
-var tr = require('./tr');
 
 var security = require('./security');
 var acp_observe = require('./acp_observe');
@@ -58,7 +56,7 @@ var _this = this;
 // '17'(req)을 뺐다 — 논블로킹을 지원하지 않게 되면서 이 리소스를 만드는
 // 경로가 없어졌으므로, 매 discovery 마다 req 테이블을 읽을 이유가 없다.
 // 기존 배포에 남아 있는 행은 migrations/003-drop-req-table.js 가 걷어낸다.
-global.ty_list = ['1', '2', '3', '4', '5', '9', '10', '13', '14', '16', '23', '24', '27', '28', '38', '39', '91', '92', '93', '94', '95', '96', '97', '98'];
+global.ty_list = ['1', '2', '3', '4', '5', '9', '10', '13', '14', '16', '23', '24', '27', '28', '91', '92', '93', '94', '95', '96', '97', '98'];
 
 var create_np_attr_list = {};
 create_np_attr_list.acp = ['ty', 'ri', 'pi', 'ct', 'lt', 'st'];
@@ -73,8 +71,6 @@ create_np_attr_list.nod = ['ty', 'ri', 'pi', 'ct', 'lt', 'st'];
 create_np_attr_list.smd = ['ty', 'ri', 'pi', 'ct', 'lt', 'st', 'soe'];
 create_np_attr_list.mms =['ty', 'ri', 'pi', 'ct', 'lt', 'st', 'sid'];
 create_np_attr_list.req = ['rn', 'ty', 'ri', 'et', 'pi', 'ct', 'lt', 'acpi', 'lbl', 'st', 'daci', 'op', 'tg', 'org', 'rid', 'mi', 'pc', 'rs', 'ors'];
-create_np_attr_list.tm = ['ty', 'ri', 'pi', 'ct', 'lt', 'st', 'tctl', 'tst', 'trsp'];
-create_np_attr_list.tr = ['ty', 'ri', 'pi', 'ct', 'lt', 'st', 'tctl', 'tst', 'trsp'];
 
 create_np_attr_list.fwr = ['ty', 'ri', 'pi', 'ct', 'lt', 'st', 'uds'];
 create_np_attr_list.bat = ['ty', 'ri', 'pi', 'ct', 'lt', 'st'];
@@ -105,8 +101,6 @@ create_m_attr_list.nod = ['ni'];
 create_m_attr_list.smd = ['dcrp', 'dsp'];
 create_m_attr_list.mms =['soid', 'asd'];
 create_m_attr_list.req = [];
-create_m_attr_list.tm = ['rqps'];
-create_m_attr_list.tr = ['tid', 'trqp'];
 
 create_m_attr_list.fwr = ['mgd', 'vr', 'fwnnam', 'url', 'ud'];
 create_m_attr_list.bat = ['mgd', 'btl', 'bts'];
@@ -137,8 +131,6 @@ create_opt_attr_list.nod = ['rn', 'acpi', 'et', 'lbl', 'aa', 'at', 'daci', 'hcl'
 create_opt_attr_list.smd = ['rn', 'acpi', 'et', 'lbl', 'aa', 'at', 'cr', 'or', 'rels'];
 create_opt_attr_list.mms =['rn', 'acpi', 'et', 'lbl', 'aa', 'at', 'stid', 'osd', 'sst'];
 create_opt_attr_list.req = [];
-create_opt_attr_list.tm = ['rn', 'acpi', 'et', 'lbl', 'daci', 'cr', 'tltm', 'text', 'tct', 'tept', 'tmd', 'tltp', 'tmr', 'tmh'];
-create_opt_attr_list.tr = ['rn', 'acpi', 'et', 'lbl', 'daci', 'cr', 'tltm', 'text', 'tct', 'tltp'];
 
 create_opt_attr_list.fwr = ['rn', 'acpi', 'et', 'lbl', 'daci', 'objs', 'obps', 'dc', 'cmlk'];
 create_opt_attr_list.bat = ['rn', 'acpi', 'et', 'lbl', 'daci', 'objs', 'obps', 'dc', 'cmlk'];
@@ -167,8 +159,6 @@ update_np_attr_list.grp = ['rn', 'ty', 'ri', 'pi', 'ct', 'lt', 'st', 'cr', 'mt',
 update_np_attr_list.nod = ['rn', 'ty', 'ri', 'pi', 'ct', 'lt', 'st', 'hcl'];
 update_np_attr_list.smd = ['rn', 'ty', 'ri', 'pi', 'ct', 'lt', 'st', 'cr'];
 update_np_attr_list.mms =['rn', 'ty', 'ri', 'pi', 'ct', 'lt', 'st', 'sid', 'soid'];
-update_np_attr_list.tm = ['rn', 'ty', 'ri', 'pi', 'ct', 'lt', 'st', 'cr', 'tltm', 'text', 'tct', 'tept', 'tmd', 'tltp', 'rqps', 'rsps'];
-update_np_attr_list.tr = ['rn', 'ty', 'ri', 'pi', 'ct', 'lt', 'st', 'daci', 'tid', 'tst', 'tltm', 'text', 'tct', 'tltp', 'trqp', 'trsp'];
 
 update_np_attr_list.fwr = ['rn', 'ty', 'ri', 'pi', 'ct', 'lt', 'st', 'mgd', 'objs', 'obps'];
 update_np_attr_list.bat = ['rn', 'ty', 'ri', 'pi', 'ct', 'lt', 'st', 'mgd', 'objs', 'obps'];
@@ -197,8 +187,6 @@ update_m_attr_list.grp = [];
 update_m_attr_list.nod = [];
 update_m_attr_list.smd = [];
 update_m_attr_list.mms = [];
-update_m_attr_list.tm = [];
-update_m_attr_list.tr = [];
 
 update_m_attr_list.fwr = [];
 update_m_attr_list.bat = [];
@@ -227,11 +215,9 @@ update_opt_attr_list.grp = ['acpi', 'et', 'lbl', 'aa', 'at', 'daci', 'mnm', 'mid
 update_opt_attr_list.nod = ['acpi', 'et', 'lbl', 'aa', 'at', 'daci', 'ni', 'mgca'];
 update_opt_attr_list.smd = ['acpi', 'et', 'lbl', 'aa', 'at', 'dcrp', 'soe', 'dsp', 'or', 'rels'];
 update_opt_attr_list.mms =['acpi', 'et', 'lbl', 'aa', 'at', 'stid', 'asd', 'osd', 'sst'];
-update_opt_attr_list.tm = ['acpi', 'et', 'lbl', 'daci', 'tctl', 'tmr', 'tmh'];
 // cr 이 옵션 목록에 있었다. update_body 는 본문 속성을 전부 그대로 옮기므로
 // PUT {"m2m:tr":{"cr":"남"}} 하나로 소유권이 넘어갔다 — creator_bypasses 가
 // 들어온 뒤로는 그것이 곧 권한 탈취다. 다른 타입은 전부 np 목록에 있다.
-update_opt_attr_list.tr = ['acpi', 'et', 'lbl', 'tctl'];
 
 update_opt_attr_list.fwr = ['acpi', 'et', 'lbl', 'daci', 'dc', 'cmlk', 'vr', 'fwnnam', 'url', 'ud', 'uds'];
 update_opt_attr_list.bat = ['acpi', 'et', 'lbl', 'daci', 'dc', 'cmlk', 'btl', 'bts'];
@@ -834,95 +820,6 @@ function create_action(request, response, callback) {
             }
         });
     }
-    else if (ty == '38') { // transactionMgmt resource
-        if (resource_Obj[rootnm].tmd == tmd_v.CREATOR_CONTROLLED) { // INITIAL
-            resource_Obj[rootnm].tst = tst_v.INITIAL;
-            db_sql.insert_tm(request.db_connection, resource_Obj[rootnm], function (err, results) {
-                if (!err) {
-                    callback('200');
-                }
-                else {
-                    if (db_errors.isDuplicateKey(results)) {
-                        callback('409-5');
-                    }
-                    else {
-                        console.log('[create_action] create resource error ======== ' + results.code);
-                        callback('500-4');
-                    }
-                }
-            });
-        }
-        else {
-            tm.request_lock(resource_Obj, 0, function(rsc, resource_Obj, rsps) {
-                if(rsc != '1') {
-                    callback('400-37');
-                    return;
-                }
-
-                var check_tst = 0;
-                for(var idx in rsps) {
-                    if(rsps.hasOwnProperty(idx)) {
-                        for(var root in rsps[idx].pc) {
-                            if(rsps[idx].pc.hasOwnProperty(root)) {
-                                for(var attr in rsps[idx].pc[root]) {
-                                    if (rsps[idx].pc[root].hasOwnProperty(attr)) {
-                                        if(attr === 'tst') {
-                                            if(rsps[idx].pc[root][attr] == tst_v.LOCKED) {
-                                                check_tst++;
-                                            }
-                                            else {
-                                                check_tst = 0;
-                                                break;
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                if(check_tst == 0) {
-                    resource_Obj[rootnm].tst = tst_v.ERROR;
-                }
-                else {
-                    resource_Obj[rootnm].tst = tst_v.LOCKED;
-                }
-                resource_Obj[rootnm].rsps = rsps;
-
-                db_sql.insert_tm(request.db_connection, resource_Obj[rootnm], function (err, results) {
-                    if (!err) {
-                        callback('200');
-                    }
-                    else {
-                        if (db_errors.isDuplicateKey(results)) {
-                            callback('409-5');
-                        }
-                        else {
-                            console.log('[create_action] create resource error ======== ' + results.code);
-                            callback('500-4');
-                        }
-                    }
-                });
-            });
-        }
-    }
-    else if (ty == '39') { // transaction resource
-        db_sql.insert_tr(request.db_connection, resource_Obj[rootnm], function (err, results) {
-            if (!err) {
-                callback('200');
-            }
-            else {
-                if (db_errors.isDuplicateKey(results)) {
-                    callback('409-5');
-                }
-                else {
-                    console.log('[create_action] create resource error ======== ' + results.code);
-                    callback('500-4');
-                }
-            }
-        });
-    }
     else {
         callback('400-36');
     }
@@ -1131,16 +1028,6 @@ function build_resource(request, response, callback) {
                 callback(code);
             });
             break;
-        case '38':
-            tm.build_tm(request, response, resource_Obj, body_Obj, function (code) {
-                callback(code);
-            });
-            break;
-        case '39':
-            tr.build_tr(request, response, resource_Obj, body_Obj, function (code) {
-                callback(code);
-            });
-            break;
         default: {
             callback('409-4');
             return;
@@ -1178,13 +1065,6 @@ exports.create = function (request, response, callback) {
 
             if(resource_Obj[rootnm].ty == 2) {
                 resource_Obj[rootnm].sri = resource_Obj[rootnm].aei;
-            }
-
-            if (request.query.tctl == 3) { // for EXECUTE of transaction
-                _this.remove_no_value(request, request.resourceObj);
-
-                callback('201');
-                return;
             }
 
             create_action(request, response, (code) => {
@@ -1372,7 +1252,7 @@ global.makeObject = function (obj) {
 
                     if (attr == 'aa' || attr == 'at' || attr == 'lbl' || attr == 'srt' || attr == 'nu' || attr == 'acpi' || attr == 'poa' || attr == 'enc'
                         || attr == 'bn' || attr == 'pv' || attr == 'pvs' || attr == 'mid' || attr == 'uds' || attr == 'cas' || attr == 'macp'
-                        || attr == 'rels' || attr == 'rqps' || attr == 'rsps' || attr == 'srv' || attr == 'mi' || attr == 'subl') {
+                        || attr == 'rels' || attr == 'srv' || attr == 'mi' || attr == 'subl') {
                         try {
                             //console.log(attr);
                             if((obj[attr] == null) || (obj[attr] == '')) {
@@ -1390,16 +1270,6 @@ global.makeObject = function (obj) {
                         if (trqp_type === 'object' || trqp_type === 'array' || trqp_type === 'string_object') {
                             try {
                                 obj.trqp = JSON.parse(obj.trqp);
-                            }
-                            catch (e) {
-                            }
-                        }
-                    }
-                    else if (attr == 'trsp') {
-                        var trsp_type = getType(obj.trsp);
-                        if (trsp_type === 'object' || trsp_type === 'array' || trsp_type === 'string_object') {
-                            try {
-                                obj.trsp = JSON.parse(obj.trsp);
                             }
                             catch (e) {
                             }
@@ -1964,280 +1834,6 @@ function update_action(request, response, callback) {
                 callback('500-1');
             }
         });
-    }
-    else if (ty == '38') { // transactionMgmt
-        if (resource_Obj[rootnm].tctl == tctl_v.LOCK && (resource_Obj[rootnm].tst == tst_v.INITIAL)) { // LOCK
-            tm.request_lock(resource_Obj, 0, function(rsc, resource_Obj, rsps) {
-                if(rsc != '1') {
-                    body_Obj = {};
-                    body_Obj['dbg'] = "BAD_REQUEST: transaction resource could not create";
-                    responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-                    callback('0', resource_Obj);
-                    return '0';
-                }
-
-                var check_tst = 0;
-                for(var idx in rsps) {
-                    if(rsps.hasOwnProperty(idx)) {
-                        for(var root in rsps[idx].pc) {
-                            if(rsps[idx].pc.hasOwnProperty(root)) {
-                                for(var attr in rsps[idx].pc[root]) {
-                                    if (rsps[idx].pc[root].hasOwnProperty(attr)) {
-                                        if(attr === 'tst') {
-                                            if(rsps[idx].pc[root][attr] == tst_v.LOCKED) {
-                                                check_tst++;
-                                            }
-                                            else {
-                                                check_tst = 0;
-                                                break;
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                if(check_tst == 0) {
-                    resource_Obj[rootnm].tst = tst_v.ERROR;
-                }
-                else {
-                    resource_Obj[rootnm].tst = tst_v.LOCKED;
-                }
-                resource_Obj[rootnm].rsps = rsps;
-
-                db_sql.update_tm(request.db_connection, resource_Obj[rootnm], function (err, results) {
-                    if (!err) {
-                        callback('200');
-                    }
-                    else {
-                        console.log('[update_action] ty=' + ty + ' error: ' +
-                                    (results.driverCode || results.code) + ' / ' + results.message);
-                        callback('500-1');
-                    }
-                });
-            });
-        }
-        else if ((resource_Obj[rootnm].tctl == tctl_v.EXECUTE) && (resource_Obj[rootnm].tst == tst_v.LOCKED)) { // EXECUTE
-            tm.request_execute(resource_Obj, 0, function (rsc, resource_Obj, rsps) {
-                var check_tst = 0;
-                if(rsc == '1') {
-                    for (var idx in rsps) {
-                        if (rsps.hasOwnProperty(idx)) {
-                            for (var root in rsps[idx].pc) {
-                                if (rsps[idx].pc.hasOwnProperty(root)) {
-                                    for (var attr in rsps[idx].pc[root]) {
-                                        if (rsps[idx].pc[root].hasOwnProperty(attr)) {
-                                            if (attr === 'tst') {
-                                                if (rsps[idx].pc[root][attr] == tst_v.EXECUTED) {
-                                                    check_tst++;
-                                                }
-                                                else {
-                                                    check_tst = 0;
-                                                    break;
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                if(check_tst == 0) {
-                    resource_Obj[rootnm].tst = tst_v.ERROR;
-                }
-                else {
-                    resource_Obj[rootnm].tst = tst_v.LOCKED;
-                }
-                resource_Obj[rootnm].rsps = rsps;
-
-                db_sql.update_tm(request.db_connection, resource_Obj[rootnm], function (err, results) {
-                    if (!err) {
-                        callback('200');
-                    }
-                    else {
-                        console.log('[update_action] ty=' + ty + ' error: ' +
-                                    (results.driverCode || results.code) + ' / ' + results.message);
-                        callback('500-1');
-                    }
-                });
-            });
-        }
-        else if ((resource_Obj[rootnm].tctl == tctl_v.ABORT) && (resource_Obj[rootnm].tst == tst_v.LOCKED || resource_Obj[rootnm].tst == tst_v.EXECUTED || resource_Obj[rootnm].tst == tst_v.ERROR)) { // ABORT
-            tm.request_abort(resource_Obj, 0, function (rsc, resource_Obj, rsps) {
-                var check_tst = 0;
-                if(rsc == '1') {
-                    for (var idx in rsps) {
-                        if (rsps.hasOwnProperty(idx)) {
-                            for (var root in rsps[idx].pc) {
-                                if (rsps[idx].pc.hasOwnProperty(root)) {
-                                    for (var attr in rsps[idx].pc[root]) {
-                                        if (rsps[idx].pc[root].hasOwnProperty(attr)) {
-                                            if (attr === 'tst') {
-                                                if (rsps[idx].pc[root][attr] == tst_v.ABORTED) {
-                                                    check_tst++;
-                                                }
-                                                else {
-                                                    check_tst = 0;
-                                                    break;
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                if(check_tst == 0) {
-                    resource_Obj[rootnm].tst = tst_v.ERROR;
-                }
-                else {
-                    resource_Obj[rootnm].tst = tst_v.ABORTED;
-                }
-                resource_Obj[rootnm].rsps = rsps;
-
-                db_sql.update_tm(request.db_connection, resource_Obj[rootnm], function (err, results) {
-                    if (!err) {
-                        callback('200');
-                    }
-                    else {
-                        console.log('[update_action] ty=' + ty + ' error: ' +
-                                    (results.driverCode || results.code) + ' / ' + results.message);
-                        callback('500-1');
-                    }
-                });
-            });
-        }
-        else if ((resource_Obj[rootnm].tctl == tctl_v.COMMIT) && resource_Obj[rootnm].tst == tst_v.EXECUTED) { // COMMIT
-            tm.request_commit(resource_Obj, 0, function (rsc, resource_Obj, rsps) {
-                var check_tst = 0;
-                if(rsc == '1') {
-                    for (var idx in rsps) {
-                        if (rsps.hasOwnProperty(idx)) {
-                            for (var root in rsps[idx].pc) {
-                                if (rsps[idx].pc.hasOwnProperty(root)) {
-                                    for (var attr in rsps[idx].pc[root]) {
-                                        if (rsps[idx].pc[root].hasOwnProperty(attr)) {
-                                            if (attr === 'tst') {
-                                                if (rsps[idx].pc[root][attr] == tst_v.COMMITTED) {
-                                                    check_tst++;
-                                                }
-                                                else {
-                                                    check_tst = 0;
-                                                    break;
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                if(check_tst == 0) {
-                    resource_Obj[rootnm].tst = tst_v.ERROR;
-                }
-                else {
-                    resource_Obj[rootnm].tst = tst_v.COMMITTED;
-                }
-                resource_Obj[rootnm].rsps = rsps;
-
-                db_sql.update_tm(request.db_connection, resource_Obj[rootnm], function (err, results) {
-                    if (!err) {
-                        callback('200');
-                    }
-                    else {
-                        console.log('[update_action] ty=' + ty + ' error: ' +
-                                    (results.driverCode || results.code) + ' / ' + results.message);
-                        callback('500-1');
-                    }
-                });
-            });
-        }
-        else if ((resource_Obj[rootnm].tctl == tctl_v.INITIAL) && (resource_Obj[rootnm].tst == tst_v.ERROR || resource_Obj[rootnm].tst == tst_v.COMMITTED || resource_Obj[rootnm].tst == tst_v.ABORTED)) { // INITIAL
-            resource_Obj[rootnm].tst = tst_v.INITIAL;
-            resource_Obj[rootnm].rsps = [];
-
-            db_sql.update_tm(request.db_connection, resource_Obj[rootnm], function (err, results) {
-                if (!err) {
-                    callback('200');
-                }
-                else {
-                    console.log('[update_action] ty=' + ty + ' error: ' +
-                                (results.driverCode || results.code) + ' / ' + results.message);
-                    callback('500-1');
-                }
-            });
-        }
-        else {
-            callback('400-50');
-        }
-    }
-    else if (ty == '39') { // transaction
-        if (resource_Obj[rootnm].tctl == tctl_v.LOCK && (resource_Obj[rootnm].tst == tst_v.ABORTED || resource_Obj[rootnm].tst == tst_v.COMMITTED)) { // LOCK
-            resource_Obj[rootnm].tst = tst_v.LOCKED;
-            resource_Obj[rootnm].trsp = '';
-            db_sql.update_tr(request.db_connection, resource_Obj[rootnm], function (err, results) {
-                if (!err) {
-                    callback('200');
-                }
-                else {
-                    console.log('[update_action] ty=' + ty + ' error: ' +
-                                (results.driverCode || results.code) + ' / ' + results.message);
-                    callback('500-1');
-                }
-            });
-        }
-        else if (resource_Obj[rootnm].tctl == tctl_v.EXECUTE && (resource_Obj[rootnm].tst == tst_v.LOCKED)) { // EXCUTE
-            tr.request_execute(resource_Obj, function(rsc, resource_Obj) {
-                db_sql.update_tr(request.db_connection, resource_Obj[rootnm], function (err, results) {
-                    if (!err) {
-                        callback('200');
-                    }
-                    else {
-                        console.log('[update_action] ty=' + ty + ' error: ' +
-                                    (results.driverCode || results.code) + ' / ' + results.message);
-                        callback('500-1');
-                    }
-                });
-            });
-        }
-        else if (resource_Obj[rootnm].tctl == tctl_v.COMMIT && (resource_Obj[rootnm].tst == tst_v.EXECUTED)) { // COMMIT
-            tr.request_commit(resource_Obj, function (rsc, resource_Obj) {
-                db_sql.update_tr(request.db_connection, resource_Obj[rootnm], function (err, results) {
-                    if (!err) {
-                        callback('200');
-                    }
-                    else {
-                        console.log('[update_action] ty=' + ty + ' error: ' +
-                                    (results.driverCode || results.code) + ' / ' + results.message);
-                        callback('500-1');
-                    }
-                });
-            });
-        }
-        else if (resource_Obj[rootnm].tctl == tctl_v.ABORT && (resource_Obj[rootnm].tst == tst_v.LOCKED || resource_Obj[rootnm].tst == tst_v.EXECUTED)) { // ABORT
-            resource_Obj[rootnm].tst = tst_v.ABORTED;
-            db_sql.update_tr(request.db_connection, resource_Obj[rootnm], function (err, results) {
-                if (!err) {
-                    callback('200');
-                }
-                else {
-                    console.log('[update_action] ty=' + ty + ' error: ' +
-                                (results.driverCode || results.code) + ' / ' + results.message);
-                    callback('500-1');
-                }
-            });
-        }
-        else {
-            callback('400-50');
-        }
     }
     else {
         callback('400-52');
