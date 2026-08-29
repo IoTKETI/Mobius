@@ -1738,8 +1738,14 @@ function search_lookup_action(connection, pi_list, count, result_ri, query_where
         return;
     }
 
-    var sql = util.format("select * from lookup where pi = \'" + pi_list[count] + "\' " + query_where);
-    db.getResult(sql, connection, function (err, result_lookup_ri) {
+    // query_where 는 앞 단계에서 만든 SQL 조각이라 그대로 이어 붙인다.
+    // pi 만 바인딩으로 넘긴다 — pi 는 DB 에서 읽은 ri 이고 그 ri 는 클라이언트가
+    // 정한 rn 을 담으므로 2차 주입 통로였다.
+    //
+    // 파사드를 쓰면 두 백엔드 모두에서 돌아간다. 예전의 db.getResult 는
+    // mysql_pool 을 직접 잡아 SQLite 에서는 아예 동작하지 않았다.
+    var sql = 'select * from lookup where pi = ? ' + query_where;
+    facade.run(facade.raw(sql, [pi_list[count]]), connection, function (err, result_lookup_ri) {
         if (!err) {
             if (result_lookup_ri.length === 0) {
                 search_lookup_action(connection, pi_list, ++count, result_ri, query_where, function (code) {
@@ -1907,10 +1913,19 @@ function search_resource_action(connection, ri, query, cur_lim, pi_list, cni, lo
         query_count++;
     }
     else {
+        // limit 만 붙인다. offset 은 여기 넣으면 **부모마다** 적용된다 —
+        // 이 조각은 search_lookup_action 이 부모 하나씩 실행하기 때문이다.
+        // 부모가 가진 자식보다 오프셋이 크면 그 부모는 아무것도 안 돌려주고,
+        // 결국 전체가 빈 결과가 된다.
+        //
+        // 배포 서버 실측 (2026-08-29, MySQL):
+        //   lim=200&ofst=1000 -> 0건
+        //   lim=300&ofst=10   -> 300건이지만 ofst=0 의 300건과 20건만 겹침
+        //                        (전역 오프셋이면 290건이 겹쳐야 한다)
+        //
+        // 이제 SQL 에서는 건너뛰지 않고, search_lookup 이 모아서 한 번만
+        // 건너뛴다. cur_lim 에는 그 몫이 이미 더해져 들어온다.
         query_where += ' limit ' + cur_lim;
-        if (query.ofst != null) {
-            query_where += util.format(' offset %s', query.ofst);
-        }
     }
 
     var search_Obj = [];
@@ -2013,10 +2028,14 @@ exports.search_lookup_sqlite = function (connection, ri, query, cur_lim, pi_list
     });
 };
 
-exports.search_lookup = function (connection, ri, query, cur_lim, pi_list, pi_index, found_Obj, found_Cnt, cni, cur_d, loop_cnt, callback, search_tid) {
+// 8번째 인자(예전 이름 found_Cnt)는 어디서도 읽히지 않는 미사용 값이었다.
+// ofst 를 전역으로 적용하려면 "지금까지 몇 개를 건너뛰었나"를 재귀 사이에
+// 들고 다녀야 해서 그 자리를 쓴다. 호출부(resource.js)는 이미 0 을 넘긴다.
+exports.search_lookup = function (connection, ri, query, cur_lim, pi_list, pi_index, found_Obj, skipped, cni, cur_d, loop_cnt, callback, search_tid) {
     sanitize_discovery_query(query); // SQL Injection 방어: 두 backend(MySQL/SQLite) 진입점에서 한 번만 정규화
     if (global.usesqlite === 'true') {
-        return _this.search_lookup_sqlite(connection, ri, query, cur_lim, pi_list, pi_index, found_Obj, found_Cnt, cni, cur_d, loop_cnt, callback);
+        // SQLite 경로는 오프셋을 SQL 에서 전역으로 처리하므로 skipped 를 안 쓴다.
+        return _this.search_lookup_sqlite(connection, ri, query, cur_lim, pi_list, pi_index, found_Obj, skipped, cni, cur_d, loop_cnt, callback);
     }
 
     // 타이머 라벨을 모듈 전역이 아닌 호출 체인 지역으로 유지 (동시 검색 시 race로 'No such label' 경고 발생하던 문제)
@@ -2042,8 +2061,17 @@ exports.search_lookup = function (connection, ri, query, cur_lim, pi_list, pi_in
         }
     }
 
+    // 아직 건너뛸 몫. la 는 자기 나름의 상한을 쓰므로 대상이 아니다.
+    skipped = parseInt(skipped, 10) || 0;
+    var want_skip = 0;
+    if (query.ofst != null && query.la == null) {
+        var ofst_n = parseInt(query.ofst, 10);
+        if (!isNaN(ofst_n) && ofst_n > skipped) { want_skip = ofst_n - skipped; }
+    }
+
     var seekObj = {};
-    search_resource_action(connection, ri, query, cur_lim, cur_pi, cni, 0, seekObj, function (code) {
+    // 건너뛸 몫까지 가져와야 그만큼 버리고도 lim 을 채울 수 있다.
+    search_resource_action(connection, ri, query, cur_lim + want_skip, cur_pi, cni, 0, seekObj, function (code) {
         if (code === '200') {
             var search_Obj = [];
             for (var idx in seekObj) {
@@ -2053,7 +2081,13 @@ exports.search_lookup = function (connection, ri, query, cur_lim, pi_list, pi_in
             }
 
             if (search_Obj.length > 0) {
+                var skip_left = want_skip;
                 for (var i = 0; i < search_Obj.length; i++) {
+                    if (skip_left > 0) {
+                        skip_left--;
+                        skipped++;
+                        continue;
+                    }
                     found_Obj[search_Obj[i].ri] = search_Obj[i];
                     if (Object.keys(found_Obj).length >= query.lim) {
                         break;
@@ -2066,14 +2100,14 @@ exports.search_lookup = function (connection, ri, query, cur_lim, pi_list, pi_in
                 }
                 else {
                     cur_lim = parseInt(query.lim) - Object.keys(found_Obj).length;
-                    _this.search_lookup(connection, ri, query, cur_lim, pi_list, pi_index, found_Obj, found_Cnt, cni, cur_d, ++loop_cnt, function (code) {
+                    _this.search_lookup(connection, ri, query, cur_lim, pi_list, pi_index, found_Obj, skipped, cni, cur_d, ++loop_cnt, function (code) {
                         callback(code);
                     }, search_tid);
                 }
             }
             else {
                 cur_lim = parseInt(query.lim) - Object.keys(found_Obj).length;
-                _this.search_lookup(connection, ri, query, cur_lim, pi_list, pi_index, found_Obj, found_Cnt, cni, cur_d, ++loop_cnt, function (code) {
+                _this.search_lookup(connection, ri, query, cur_lim, pi_list, pi_index, found_Obj, skipped, cni, cur_d, ++loop_cnt, function (code) {
                     callback(code);
                 }, search_tid);
             }
