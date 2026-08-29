@@ -1682,9 +1682,17 @@ function build_descendant_sql(ri, query, query_where, cur_lim) {
     // 중복이었고, ty=3 lim=2000 요청이 2,000행을 받아 1,960건만 돌려줬다.
     // 골격 컬럼을 ci 로 선언하면 UNION 이 원천에서 지운다 — 골격 30,794행,
     // 응답 2,000건, ty=3 전체도 정확히 30,281건(컨테이너 수와 일치).
+    // 바인딩은 **이름**으로 준다. 위치 바인딩(?)을 쓰면 안 된다 —
+    // query_where 는 클라이언트가 준 값을 문자열 리터럴로 품고 있고, 그 값에
+    // 물음표가 하나라도 있으면 knex 가 그것까지 자리표로 세어
+    // "Expected 1 bindings, saw 2" 로 죽는다. 물음표는 리소스 이름이나
+    // 라벨에 얼마든지 들어갈 수 있는 평범한 글자다
+    // (로컬 재현: ?fu=1&rn=what%3F -> HTTP 500).
+    // 이름 바인딩에서는 knex 가 :name 만 찾으므로 리터럴 물음표를 건드리지 않는다.
+    // 두 방언(mysql / sqlite3) 모두 확인했다.
     var sql =
         'with recursive skel as (\n' +
-        '  select ri' + C + ' as sk_ri, 0 as sk_lvl from lookup where ri = ?' + branches + '\n' +
+        '  select ri' + C + ' as sk_ri, 0 as sk_lvl from lookup where ri = :root_ri' + branches + '\n' +
         ')\n' +
         lead + 'r.* from lookup r' + hint +
         ' join skel s on r.pi = s.sk_ri\n' +
@@ -1712,7 +1720,7 @@ function build_descendant_sql(ri, query, query_where, cur_lim) {
     sql += ' limit ' + lim;
     if (ofst !== null) { sql += ' offset ' + ofst; }
 
-    return { sql: sql, bindings: [ri] };
+    return { sql: sql, bindings: { root_ri: ri } };
 }
 exports.build_descendant_sql = build_descendant_sql;
 
@@ -1725,7 +1733,11 @@ exports.search_lookup = function (connection, ri, query, cur_lim, pi_list, pi_in
     build_search_query(query, function (query_where) {
         var q = build_descendant_sql(ri, query, query_where, cur_lim);
 
-        facade.run(facade.raw(q.sql, q.bindings), connection, function (err, rows) {
+        // 파사드 규약: 실패는 cb(true, errObj) 다 — 에러 객체는 **둘째** 인자로 온다
+        // (mobius/db/index.js 의 run 참고). 첫 인자를 에러로 착각하면 err 는 그냥
+        // boolean true 라서 err.code / err.message 가 전부 undefined 가 되고,
+        // 로그에 '[search_lookup] true' 한 줄만 남아 원인을 알 수 없게 된다.
+        facade.run(facade.raw(q.sql, q.bindings), connection, function (err, res) {
             if (err) {
                 // 문장 상한(MySQL ER_MAX_EXECUTION_TIME_EXCEEDED)은 DB 고장이
                 // 아니라 "이 질의가 감당 못 할 범위"라는 뜻이다. 구분해서 남긴다.
@@ -1733,17 +1745,18 @@ exports.search_lookup = function (connection, ri, query, cur_lim, pi_list, pi_in
                 // 대표적인 형태가 ty 없이 lbl like '%..%' 다. 그러면 후보에
                 // CIN 이 전부 들어오는데(배포 서버 6,620만 행) LIKE 는 인덱스를
                 // 못 타므로 어떤 계획으로도 빠를 수 없다. 인덱스를 강제해도
-                // 안 해도 30초를 넘긴다(2026-08-29 실측). 예전 구현은 부모마다
-                // 상한을 걸어 23초 만에 **불완전한** 결과를 돌려줬다.
-                if (err.driverCode === 'ER_MAX_EXECUTION_TIME_EXCEEDED' || err.errno === 3024) {
+                // 안 해도 30초를 넘긴다(2026-08-29 실측). 예전 구현은 lbl 패턴이
+                // 아예 안 맞아 늘 빈 결과였다(커밋 83e8461).
+                if (res && (res.driverCode === 'ER_MAX_EXECUTION_TIME_EXCEEDED' || res.errno === 3024)) {
                     console.error('[search_lookup] statement timeout (' + DISCOVERY_TIMEOUT_MS +
                                   'ms) ri=' + ri + ' query=' + JSON.stringify(query));
                 }
                 else {
-                    console.error('[search_lookup] ' + ((err && err.message) || err));
+                    console.error('[search_lookup] ' + ((res && (res.sqlMessage || res.message)) || res));
                 }
                 return callback('500-1');
             }
+            var rows = res || [];
             for (var i = 0; i < rows.length; i++) {
                 found_Obj[rows[i].ri] = rows[i];
             }

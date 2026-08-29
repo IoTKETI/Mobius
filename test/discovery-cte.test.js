@@ -394,6 +394,97 @@ test('lim / ofst 는 정수로만 들어간다', function (t, done) {
         }));
 });
 
+// --- 7.5) 필터 값에 물음표가 있어도 죽지 않는다 ------------------------------
+//
+// query_where 는 클라이언트가 준 값을 문자열 리터럴로 품는다. 위치 바인딩(?)을
+// 쓰면 knex 가 그 물음표까지 자리표로 세어 "Expected 1 bindings, saw 2" 로
+// 죽는다. 물음표는 리소스 이름·라벨에 얼마든지 들어갈 수 있는 평범한 글자다.
+// 이름 바인딩(:root_ri)을 쓰면 knex 가 리터럴 물음표를 건드리지 않는다.
+
+test('rn 값에 물음표가 있어도 질의가 나간다', function (t, done) {
+    const h = tap('mysql');
+    run(h, { rn: 'what?', lim: 10 }, guard(done, function (code, ris, seen) {
+        assert.strictEqual(code, '200', '물음표 하나에 500 이 났다');
+        assert.strictEqual(seen.length, 1, '질의가 안 나갔다');
+        assert.ok(seen[0].sql.indexOf("rn = 'what?'") !== -1, '필터가 빠졌다: ' + seen[0].sql);
+        assert.deepStrictEqual(seen[0].bindings, ['/M'], '루트 ri 바인딩이 어긋났다');
+        done();
+    }));
+});
+
+test('lbl 값에 물음표가 여러 개 있어도 된다', function (t, done) {
+    const h = tap('mysql');
+    run(h, { lbl: 'a?b?c', ty: '3', lim: 10 }, guard(done, function (code, ris, seen) {
+        assert.strictEqual(code, '200');
+        assert.deepStrictEqual(seen[0].bindings, ['/M']);
+        done();
+    }));
+});
+
+test('루트 ri 는 이름 바인딩으로 넘어간다', function (t, done) {
+    const h = tap('mysql');
+    run(h, { ty: '3', lim: 10 }, guard(done, function (code, ris, seen) {
+        // knex 가 :root_ri 를 위치 자리표로 바꿔 내보낸다
+        assert.ok(seen[0].sql.indexOf(':root_ri') === -1, ':root_ri 가 치환되지 않았다');
+        assert.deepStrictEqual(seen[0].bindings, ['/M']);
+        done();
+    }));
+});
+
+// --- 7.6) DB 오류를 로그에서 알아볼 수 있어야 한다 ---------------------------
+//
+// 파사드 규약은 실패 시 cb(true, errObj) 다 — 에러 객체는 **둘째** 인자다.
+// 첫 인자를 에러로 착각하면 err 는 boolean true 라서 로그에
+// '[search_lookup] true' 한 줄만 남고 원인을 알 수 없게 된다.
+
+test('문장 타임아웃을 다른 DB 오류와 구분해 남긴다', function (t, done) {
+    const h = tap('mysql');
+    const adapter = require(path.join(DB, 'mysql.js'));
+    adapter.execute = function (conn, sql, bindings, cb) {
+        const e = new Error('Query execution was interrupted');
+        e.code = 'ER_MAX_EXECUTION_TIME_EXCEEDED';
+        e.errno = 3024;
+        cb(e, null);
+    };
+    const logs = [];
+    const orig = console.error;
+    console.error = function () { logs.push([].slice.call(arguments).join(' ')); };
+    run(h, { ty: '3', lim: 10 }, function (code) {
+        console.error = orig;
+        try {
+            assert.strictEqual(code, '500-1');
+            assert.ok(logs.some((l) => /statement timeout/.test(l)),
+                '타임아웃이 구분되지 않았다: ' + JSON.stringify(logs));
+            assert.ok(!logs.some((l) => /^\[search_lookup\] true$/.test(l)),
+                '에러 객체를 첫 인자로 착각했다');
+            done();
+        } catch (e) { done(e); }
+    });
+});
+
+test('그 밖의 DB 오류는 메시지를 남긴다', function (t, done) {
+    const h = tap('mysql');
+    const adapter = require(path.join(DB, 'mysql.js'));
+    adapter.execute = function (conn, sql, bindings, cb) {
+        const e = new Error('Unknown column');
+        e.code = 'ER_BAD_FIELD_ERROR';
+        e.sqlMessage = "Unknown column 'cs' in 'where clause'";
+        cb(e, null);
+    };
+    const logs = [];
+    const orig = console.error;
+    console.error = function () { logs.push([].slice.call(arguments).join(' ')); };
+    run(h, { ty: '3', lim: 10 }, function (code) {
+        console.error = orig;
+        try {
+            assert.strictEqual(code, '500-1');
+            assert.ok(logs.some((l) => /Unknown column/.test(l)),
+                '오류 메시지가 안 남았다: ' + JSON.stringify(logs));
+            done();
+        } catch (e) { done(e); }
+    });
+});
+
 // --- 8) 골격 컬럼은 필터 조각과 이름이 겹치지 않는다 -------------------------
 //
 // build_search_query 는 컬럼을 alias 없이 부른다 (lbl, ty, ct ...).
