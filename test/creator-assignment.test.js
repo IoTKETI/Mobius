@@ -16,13 +16,14 @@ const path = require('node:path');
 const MOBIUS = path.join(__dirname, '..', 'mobius');
 
 // cr 컬럼을 가진, 클라이언트가 만들 수 있는 리소스 타입들
-const BUILDERS = ['cnt.js', 'cin.js', 'fcnt.js', 'grp.js', 'smd.js', 'sub.js', 'tm.js', 'tr.js'];
+// tm.js / tr.js 는 트랜잭션 리소스(ty=38/39)와 함께 제거됐다.
+const BUILDERS = ['cnt.js', 'cin.js', 'fcnt.js', 'grp.js', 'smd.js', 'sub.js'];
 
 function source(f) {
     return fs.readFileSync(path.join(MOBIUS, f), 'utf8');
 }
 
-test('빌더 여덟은 cr 을 x-m2m-origin 에서만 가져온다', function () {
+test('빌더 여섯은 cr 을 x-m2m-origin 에서만 가져온다', function () {
     for (const f of BUILDERS) {
         const src = source(f);
         assert.ok(/\.cr = request\.headers\['x-m2m-origin'\]/.test(src),
@@ -52,7 +53,7 @@ function attrList(name, ty) {
 }
 
 // cr 컬럼이 있으면서 UPDATE 속성표를 가진 타입 전부
-const UPDATABLE_WITH_CR = ['cnt', 'sub', 'grp', 'smd', 'mms', 'tm', 'tr', 'fcnt', 'lcp', 'nod'];
+const UPDATABLE_WITH_CR = ['cnt', 'sub', 'grp', 'smd', 'mms', 'fcnt', 'lcp', 'nod'];
 
 test('cr 은 어느 타입에서도 UPDATE 로 통과하지 못한다', function () {
     for (const ty of UPDATABLE_WITH_CR) {

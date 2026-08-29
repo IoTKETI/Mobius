@@ -1112,58 +1112,6 @@ exports.insert_mms =function (connection, obj, callback) {
     });
 };
 
-exports.insert_tr = function (connection, obj, callback) {
-    console.time('insert_tr ' + obj.ri);
-    _this.insert_lookup(connection, obj, function (err, results) {
-        if (!err) {
-            var sql = util.format('insert into tr (ri, cr, tid, tctl, tst, tltm, text, tct, tltp, trqp, trsp) ' +
-                'value (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
-                obj.ri, obj.cr, obj.tid, obj.tctl, obj.tst, obj.tltm, obj.text, obj.tct, obj.tltp, JSON.stringify(obj.trqp), JSON.stringify(obj.trsp).replace(/\"/g, '\\"').replace(/\'/g, '\\\''));
-            db.getResult(sql, connection, function (err, results) {
-                if (!err) {
-                    console.timeEnd('insert_tr ' + obj.ri);
-                    callback(err, results);
-                }
-                else {
-                    sql = util.format("delete from lookup where ri = \'%s\'", obj.ri);
-                    db.getResult(sql, connection, function () {
-                        callback(err, results);
-                    });
-                }
-            });
-        }
-        else {
-            callback(err, results);
-        }
-    });
-};
-
-exports.insert_tm = function (connection, obj, callback) {
-    console.time('insert_tm ' + obj.ri);
-    _this.insert_lookup(connection, obj, function (err, results) {
-        if (!err) {
-            var sql = util.format('insert into tm (ri, tltm, text, tct, tept, tmd, tltp, tctl, tst, tmr, tmh, rqps, rsps, cr) ' +
-                'value (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
-                obj.ri, obj.tltm, obj.text, obj.tct, obj.tept, obj.tmd, obj.tltp, obj.tctl, obj.tst, obj.tmr, obj.tmh, JSON.stringify(obj.rqps).replace(/\"/g, '\\"').replace(/\'/g, '\\\''), JSON.stringify(obj.rsps).replace(/\"/g, '\\"').replace(/\'/g, '\\\''), obj.cr);
-            db.getResult(sql, connection, function (err, results) {
-                if (!err) {
-                    console.timeEnd('insert_tm ' + obj.ri);
-                    callback(err, results);
-                }
-                else {
-                    sql = util.format("delete from lookup where ri = \'%s\'", obj.ri);
-                    db.getResult(sql, connection, function () {
-                        callback(err, results);
-                    });
-                }
-            });
-        }
-        else {
-            callback(err, results);
-        }
-    });
-};
-
 // 공통 속성(lookup) 한 행과 타입별 테이블 한 행을 합쳐 돌려준다.
 //
 // 두 분기를 합치면서 SQLite 쪽의 가드를 채택했다. MySQL 분기는
@@ -2085,26 +2033,6 @@ exports.select_sub = function (connection, pi, callback) {
     });
 };
 
-exports.select_tr = function (connection, pi, callback) {
-    var sql = util.format('select * from lookup where pi = \'%s\' and ty = \'39\'', pi);
-    db.getResult(sql, connection, function (err, results_comm_tr) {
-        if (!err) {
-            if (results_comm_tr.length === 0) {
-                callback(err, results_comm_tr);
-            }
-            else {
-                var sql2 = util.format('select * from tr where ri = \'%s\'', results_comm_tr[0].ri);
-                db.getResult(sql2, connection, function (err, results_tr) {
-                    callback(err, results_tr);
-                });
-            }
-        }
-        else {
-            callback(err, results_comm_tr);
-        }
-    });
-};
-
 exports.select_cb = function (connection, ri, callback) {
     facade.run(facade.k('cb').select('*').where({ ri: ri }), connection, function (err, results_cb) {
         callback(err, results_cb);
@@ -2957,78 +2885,6 @@ exports.update_mms =function (connection, obj, callback) {
     });
 };
 
-exports.update_tm = function (connection, obj, callback) {
-    console.time('update_tm ' + obj.ri);
-    _this.update_lookup(connection, obj, function (err, results) {
-        if (!err) {
-            var sql2 = util.format('update tm set cr = \'%s\', tctl = \'%s\', tst = \'%s\', tmr = \'%s\', tmh = \'%s\', rsps = \'%s\' where ri = \'%s\'',
-                obj.cr, obj.tctl, obj.tst, obj.tmr, obj.tmh, JSON.stringify(obj.rsps), obj.ri);
-            db.getResult(sql2, connection, function (err, results) {
-                if (!err) {
-                    console.timeEnd('update_tm ' + obj.ri);
-                    callback(err, results);
-                }
-                else {
-                    callback(err, results);
-                }
-            });
-        }
-        else {
-            callback(err, results);
-        }
-    });
-};
-
-
-exports.update_tr = function (connection, obj, callback) {
-    console.time('update_tr ' + obj.ri);
-    _this.update_lookup(connection, obj, function (err, results) {
-        if (!err) {
-            var sql2 = util.format('update tr set cr = \'%s\', tctl = \'%s\', tst = \'%s\', trsp = \'%s\' where ri = \'%s\'',
-                obj.cr, obj.tctl, obj.tst, JSON.stringify(obj.trsp), obj.ri);
-            db.getResult(sql2, connection, function (err, results) {
-                if (!err) {
-                    console.timeEnd('update_tr ' + obj.ri);
-                    callback(err, results);
-                }
-                else {
-                    callback(err, results);
-                }
-            });
-        }
-        else {
-            callback(err, results);
-        }
-    });
-};
-
-exports.update_tr_trsp = function (connection, ri, tst, trsp, callback) {
-    console.time('update_tr_trsp ' + ri);
-    var sql2 = util.format('update tr set tst = \'%s\', trsp = \'%s\' where ri = \'%s\'', tst, trsp, ri);
-    db.getResult(sql2, connection, function (err, results) {
-        if (!err) {
-            console.timeEnd('update_tr_trsp ' + ri);
-            callback(err, results);
-        }
-        else {
-            callback(err, results);
-        }
-    });
-};
-
-exports.update_tr_tst = function (connection, ri, tst, callback) {
-    console.time('update_tr_tst ' + ri);
-    var sql2 = util.format('update tr set tst = \'%s\' where ri = \'%s\'', tst, ri);
-    db.getResult(sql2, connection, function (err, results) {
-        if (!err) {
-            console.timeEnd('update_tr_tst ' + ri);
-            callback(err, results);
-        }
-        else {
-            callback(err, results);
-        }
-    });
-};
 
 // 컨테이너의 cni/cbs 를 절대값으로 고쳐 쓴다. 정합 맞추기(reconcile_cnt_counters)
 // 전용이다 — 평상시 카운터 유지는 전부 증분(cnt_man / delete_oldest /
