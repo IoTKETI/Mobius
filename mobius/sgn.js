@@ -270,12 +270,17 @@ function sgn_action_send(nu_arr, req_count, sub_bodytype, node, short_flag, chec
 
     make_body_string_for_noti(sub_nu.protocol, nu, this_node, this_bodytype, xm2mri, this_short, function (bodyString) {
         if (bodyString === '') { // parse error
-            console.log('can not send notification since error of converting json to xml');
+            // 어느 구독인지 없으면 이 줄로 아무것도 못 한다.
+            console.error('[noti] fail - sub=' + (ss_ri || '?') + ' nu=' + nu +
+                          ' (본문을 ' + this_bodytype + ' 로 만들지 못했다)');
         }
         else {
-            setTimeout(function (nu, bodytype, xm2mri, bodyString) {
-                sgn_man.post(nu, bodytype, xm2mri, bodyString);
-            }, parseInt(1 + Math.random() * 10), nu, this_bodytype, xm2mri, bodyString);
+            // ss_ri 는 이 함수가 이미 인자로 들고 있던 값이다 — 추가 조회가 없다.
+            // 알림 로그에 구독 ri 가 없어서 "어느 구독이 실패했나" 를
+            // 역추적할 수 없었다. 관리 UI 가 물어볼 첫 번째 질문이 그것이다.
+            setTimeout(function (nu, bodytype, xm2mri, bodyString, ri) {
+                sgn_man.post(nu, bodytype, xm2mri, bodyString, ri);
+            }, parseInt(1 + Math.random() * 10), nu, this_bodytype, xm2mri, bodyString, ss_ri);
         }
 
         // 다음 nu 에는 **원래 값**을 넘긴다. 이 nu 의 옵션이 번지면 안 된다.
@@ -285,7 +290,10 @@ function sgn_action_send(nu_arr, req_count, sub_bodytype, node, short_flag, chec
     });
 }
 
-function get_nu_arr(connection, nu_arr, req_count, callback) {
+// sub_ri 는 로그 역추적용이다. 어느 구독의 nu 를 풀다 실패했는지가
+// "받을 놈이 사라진 구독" 을 찾는 유일한 단서인데, 예전에는 로그에
+// nu 대상의 ri 만 있고 구독 ri 가 없어 되짚을 수가 없었다.
+function get_nu_arr(connection, nu_arr, req_count, callback, sub_ri) {
     if(nu_arr.length <= req_count) {
         callback('200');
         return;
@@ -307,8 +315,10 @@ function get_nu_arr(connection, nu_arr, req_count, callback) {
 
         db_sql.get_ri_sri(connection, absolute_url_arr[1].split('?')[0], function (err, results) {
             if (err) {
-                console.log('[sgn_action] database error (can not get resourceID from database)');
-                callback('200');
+                console.error('[noti] fail - sub=' + (sub_ri || '?') + ' nu=' + nu +
+                              ' (nu 해석 중 DB 오류)');
+                nu_arr.splice(req_count, 1);
+                get_nu_arr(connection, nu_arr, req_count, callback, sub_ri);
             }
             else {
                 absolute_url = (results.length == 0) ? absolute_url : ((results[0].hasOwnProperty('ri')) ? absolute_url.replace('/' + absolute_url_arr[1], results[0].ri) : absolute_url);
@@ -319,11 +329,19 @@ function get_nu_arr(connection, nu_arr, req_count, callback) {
                     if (!err) {
                         // 예전에는 이 두 조건에 else 가 없어, 리소스를 못 찾거나
                         // poa 가 비면 콜백이 사라졌다. 알림 사슬이 그대로 멈췄다.
-                        // 못 풀면 그 항목은 그대로 두고 순회만 이어 간다 —
-                        // 아래 DB 오류 분기와 같은 방침이다.
+                        //
+                        // 그다음 고칠 때 '순회만 이어 간다' 고 주석을 적었는데
+                        // 코드는 callback 후 return 이라 **거기서 끝났다**.
+                        // 그러면 뒤에 오는 ID 형식 nu 가 영영 안 풀린다.
+                        // 그리고 못 푼 문자열을 배열에 남기면 발송 단계가 그것을
+                        // 주소로 착각해 엉뚱한 두 번째 실패 로그를 낸다 —
+                        // 구독 하나가 두 줄로 보인다. 그래서 빼고 이어 간다.
+                        // splice 로 한 칸 줄었으므로 재귀는 req_count 그대로다.
                         if (result_Obj.length != 1) {
-                            console.log('[sgn_action] nu 리소스를 찾지 못했다: ' + ri);
-                            callback('200');
+                            console.error('[noti] fail - sub=' + (sub_ri || '?') + ' nu=' + nu +
+                                          ' (받을 리소스가 없다: ' + ri + ')');
+                            nu_arr.splice(req_count, 1);
+                            get_nu_arr(connection, nu_arr, req_count, callback, sub_ri);
                             return;
                         }
 
@@ -332,8 +350,10 @@ function get_nu_arr(connection, nu_arr, req_count, callback) {
                         // JSON.parse(null) 이 null 을 돌려줘 .length 에서 워커가 죽었다.
                         var poa_arr = poa_util.parse(result_Obj[0].poa, '[sgn_action] ' + ri);
                         if (poa_arr === null || poa_arr.length === 0) {
-                            console.log('[sgn_action] nu 리소스에 poa 가 없다: ' + ri);
-                            callback('200');
+                            console.error('[noti] fail - sub=' + (sub_ri || '?') + ' nu=' + nu +
+                                          ' (받을 리소스에 poa 가 없다: ' + ri + ')');
+                            nu_arr.splice(req_count, 1);
+                            get_nu_arr(connection, nu_arr, req_count, callback, sub_ri);
                             return;
                         }
 
@@ -358,11 +378,13 @@ function get_nu_arr(connection, nu_arr, req_count, callback) {
                         // 갈아 끼운 만큼 건너뛴다. 새로 넣은 것들은 이미 URL 이다.
                         get_nu_arr(connection, nu_arr, req_count + resolved.length, function (code) {
                             callback(code);
-                        });
+                        }, sub_ri);
                     }
                     else {
-                        console.log('[sgn_action] database error (nu resource)');
-                        callback('200');
+                        console.error('[noti] fail - sub=' + (sub_ri || '?') + ' nu=' + nu +
+                                      ' (받을 리소스 조회 중 DB 오류)');
+                        nu_arr.splice(req_count, 1);
+                        get_nu_arr(connection, nu_arr, req_count, callback, sub_ri);
                     }
                 });
             }
@@ -375,7 +397,7 @@ function get_nu_arr(connection, nu_arr, req_count, callback) {
         // 바로 위 종료 조건에 걸린다.
         get_nu_arr(connection, nu_arr, req_count + 1, function (code) {
             callback(code);
-        });
+        }, sub_ri);
     }
 }
 
@@ -481,7 +503,7 @@ function sgn_action(connection, rootnm, check_value, subl, req_count, noti_Obj, 
                         });
                     }
                 }
-            });
+            }, results_ss.ri);
             break;
         }
     }
