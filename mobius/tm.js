@@ -151,7 +151,6 @@ exports.request_lock = function(obj, retry_count, callback) {
     var tmr = parseInt(resource_Obj.tmr, 10);
     var request_count = 0;
     var rsps = [];
-    var resBody = '';
 
     // 콜백을 부르는 지점이 전부 아래 루프 안에서 등록되는 응답 핸들러에만 있다.
     // rqps 가 비면 루프가 한 번도 돌지 않아 콜백이 영영 안 불렸다 — 응답도
@@ -203,13 +202,17 @@ exports.request_lock = function(obj, retry_count, callback) {
 
             if (use_secure == 'disable') {
                 var req = http.request(options, function (res) {
+                    // 이 응답만의 버퍼다. 예전에는 함수 전체가 하나를
+                    // 공유해서, 동시에 나간 요청들의 본문이 한 문자열에
+                    // 섞였다. 먼저 끝난 쪽이 섞인 전체를 가져가고
+                    // 나머지는 빈 본문을 받았다.
+                    var body = '';
                     res.on('data', function (chunk) {
-                        resBody += chunk;
+                        body += chunk;
                     });
 
                     res.on('end', function () {
-                        res.body = resBody;
-                        resBody = '';
+                        res.body = body;
                         request_count++;
 
                         var rsp_primitive = {};
@@ -254,13 +257,13 @@ exports.request_lock = function(obj, retry_count, callback) {
                 options.ca = fs.readFileSync('ca-crt.pem');
 
                 req = https.request(options, function (res) {
+                    var body = '';
                     res.on('data', function (chunk) {
-                        resBody += chunk;
+                        body += chunk;
                     });
 
                     res.on('end', function () {
-                        res.body = resBody;
-                        resBody = '';
+                        res.body = body;
                         request_count++;
 
                         var rsp_primitive = {};
@@ -338,7 +341,6 @@ function request_tctl(obj, retry_count, tctl, callback) {
     var tmr = parseInt(resource_Obj.tmr, 10);
     var request_count = 0;
     var rsps = [];
-    var resBody = '';
 
     // request_lock 과 같은 이유다 — 콜백이 전부 루프 안에서 등록되는 응답
     // 핸들러에만 있어, rqps 가 비면 콜백이 영영 안 불리고 요청이 매달렸다.
@@ -385,13 +387,17 @@ function request_tctl(obj, retry_count, tctl, callback) {
 
             if (use_secure == 'disable') {
                 var req = http.request(options, function (res) {
+                    // 이 응답만의 버퍼다. 예전에는 함수 전체가 하나를
+                    // 공유해서, 동시에 나간 요청들의 본문이 한 문자열에
+                    // 섞였다. 먼저 끝난 쪽이 섞인 전체를 가져가고
+                    // 나머지는 빈 본문을 받았다.
+                    var body = '';
                     res.on('data', function (chunk) {
-                        resBody += chunk;
+                        body += chunk;
                     });
 
                     res.on('end', function () {
-                        res.body = resBody;
-                        resBody = '';
+                        res.body = body;
                         request_count++;
 
                         var rsp_primitive = {};
@@ -435,13 +441,13 @@ function request_tctl(obj, retry_count, tctl, callback) {
                 options.ca = fs.readFileSync('ca-crt.pem');
 
                 req = https.request(options, function (res) {
+                    var body = '';
                     res.on('data', function (chunk) {
-                        resBody += chunk;
+                        body += chunk;
                     });
 
                     res.on('end', function () {
-                        res.body = resBody;
-                        resBody = '';
+                        res.body = body;
                         request_count++;
 
                         var rsp_primitive = {};
