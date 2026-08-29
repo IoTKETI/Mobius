@@ -194,8 +194,12 @@ function actw_allows(actw) {
  * 'all' / '*' 여야 하고, 그 위에 acop 비트가 요청한 연산을 포함해야 한다.
  */
 function acor_allows(rule, from, access_value) {
+    // acor 이 없으면 "발신자 제한이 없다" 는 뜻이지 "연산 제한이 없다" 는 뜻이
+    // 아니다. 예전에는 여기서 그냥 true 를 돌려줘 acop 을 **아예 보지 않았다** —
+    // acop:0(아무 권한도 주지 않겠다는 규칙)이 DELETE 를 통과시켰다.
+    // 발신자만 통과시키고 연산 비트는 아래와 똑같이 본다.
     if (!rule.hasOwnProperty('acor')) {
-        return true;
+        return (rule.acop.toString() & access_value) == access_value;
     }
 
     // 발신자를 **그대로** 비교한다. 절대 정규식으로 만들지 말 것.

@@ -224,6 +224,18 @@ test('acor 이 없으면 발신자 제한이 없다', function () {
     assert.strictEqual(security._acor_allows({ acop: 63 }, 'anyone', '2'), true);
 });
 
+// acor 이 없다는 건 "발신자 제한이 없다" 는 뜻이지 "연산 제한이 없다" 는 뜻이
+// 아니다. 예전에는 여기서 곧바로 true 를 돌려줘 acop 을 아예 보지 않았다 —
+// acop:0(아무 권한도 주지 않겠다는 규칙)이 DELETE 를 통과시켰다.
+test('acor 이 없어도 acop 비트는 지켜진다', function () {
+    // RETRIEVE 만 준 규칙에 DELETE 를 요청하면 거부여야 한다
+    assert.strictEqual(security._acor_allows({ acop: 2 }, 'anyone', '8'), false);
+    assert.strictEqual(security._acor_allows({ acop: 2 }, 'anyone', '2'), true);
+    // 아무 권한도 주지 않은 규칙은 아무것도 통과시키면 안 된다
+    assert.strictEqual(security._acor_allows({ acop: 0 }, 'anyone', '8'), false);
+    assert.strictEqual(security._acor_allows({ acop: 0 }, 'anyone', '2'), false);
+});
+
 test('acor 이 일치하고 acop 비트가 맞아야 허용', function () {
     const rule = { acor: ['Reader'], acop: 63 };
     assert.strictEqual(security._acor_allows(rule, 'Reader', '2'), true);
