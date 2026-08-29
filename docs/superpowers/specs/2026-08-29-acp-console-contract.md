@@ -69,10 +69,16 @@ db_sql.select_acp_list(conn, { limit: 100, afterRi: '' }, cb)
 
 ```js
 db_sql.select_acp_detail(conn, ri, cb)
-// -> { ri, rn, pi, ct, lt, et, acpi, pv, pvs, pv_parsed, pvs_parsed, body_missing } | null
+// -> { ri, rn, pi, ty, ct, lt, et, acpi, is_acp,
+//      pv, pvs, pv_parsed, pvs_parsed, body_missing } | null
 ```
-`body_missing: true` 면 `lookup` 에만 있고 `acp` 본문이 없는 반쪽이다. 평가에서는
-"참조한 ACP 를 못 찾음" 이 되어 잠금이 조용히 풀린다.
+`is_acp: false` 면 그 `ri` 가 ACP 가 아니다(다른 리소스 경로를 넣은 것).
+`body_missing: true` 는 **ACP 인데** `acp` 본문이 없는 반쪽일 때만 나온다 —
+평가에서 "참조한 ACP 를 못 찾음" 이 되어 잠금이 조용히 풀리는 상태다.
+`null` 은 그 `ri` 자체가 없다는 뜻이다.
+
+> 예전에는 `ty` 를 안 봐서 컨테이너 경로를 넣으면 `body_missing: true` 가
+> 나갔다. 화면이 "본문이 없는 깨진 ACP" 로 그려 없는 문제를 만들어 냈다.
 
 ### 역참조 — 이 ACP 를 누가 쓰는가
 
@@ -145,8 +151,20 @@ acp_simulate.simulate(conn, {
 //      allowed, code, decided_by, acp_ri, field, acr_index, trace, warnings }
 
 acp_simulate.simulate_many(conn, { ri, origins, ops, ip, acpiOverride, acpRowsOverride }, cb)
-// -> { ri, ty, cr, source, acpi, matrix:[{origin, op, allowed, code, decided_by, acp_ri}], warnings }
+// -> { ri, ty, cr, found,
+//      source, inherited_from, acpi, resolved,   // 리소스의 성질 — 원본과 무관
+//      matrix:[{origin, op, allowed, code, decided_by, acp_ri}], warnings }
 ```
+
+**`source` / `acpi` / `inherited_from` 은 리소스의 성질이지 원본의 성질이
+아니다.** `acpi` 를 **실제로 푼** 결과에서만 읽는다 — 수퍼유저와 생성자는
+`acpi` 를 풀기 전에 단축 판정되므로 그 결과를 쓰면 안 된다.
+
+모든 조합이 그렇게 단축되면 `source` / `acpi` / `resolved` 가 **`null`** 이고
+`warnings` 에 `source_unknown` 이 들어간다. `'none'`(= ACP 가 없다)으로
+적으면 거짓이 되고, 그러면 상속 경고가 통째로 사라진다 — 컨테이너 `acpi` 가
+조상을 덮어쓴다는 사실을 알리는 것이 그 경고인데, 관리자가 자기 장치 ID 를
+첫 칸에 적었다는 이유만으로 없어지면 안 된다.
 
 **이게 핵심이다.** 콘솔은 별도 프로세스이고 쓰기 origin 이 수퍼유저라, HTTP 로
 왕복해도 정책을 원리적으로 검증할 수 없다 — `security.js` 가 수퍼유저를 무조건

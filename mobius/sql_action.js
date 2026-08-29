@@ -3633,11 +3633,26 @@ exports.select_acp_detail = function (connection, ri, callback) {
             if (err) { return callback(err, lrows); }
             if (!lrows || lrows.length === 0) { return callback(null, null); }
 
+            // ACP 가 아니면 그렇다고 말한다. 예전에는 ty 를 안 봐서, 컨테이너
+            // 경로를 넣으면 acp 행이 없다는 이유로 body_missing:true 가 나갔다 —
+            // 화면이 "본문이 없는 깨진 ACP" 로 그린다. 없는 문제를 만들어 낸다.
+            if (String(lrows[0].ty) !== '1') {
+                var notAcp = lrows[0];
+                notAcp.is_acp = false;
+                notAcp.pv = null;
+                notAcp.pvs = null;
+                notAcp.pv_parsed = null;
+                notAcp.pvs_parsed = null;
+                notAcp.body_missing = false;
+                return callback(null, notAcp);
+            }
+
             facade.run(facade.k('acp').select('ri', 'pv', 'pvs').where({ ri: ri }), connection,
                 function (err2, arows) {
                     if (err2) { return callback(err2, arows); }
                     var a = (arows && arows[0]) ? arows[0] : { pv: null, pvs: null };
                     var out = lrows[0];
+                    out.is_acp = true;
                     out.pv = a.pv;
                     out.pvs = a.pvs;
                     out.pv_parsed = safe_json(a.pv);
