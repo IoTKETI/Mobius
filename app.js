@@ -892,49 +892,28 @@ function check_request_query_rt(request, response, callback) {
         callback('200');
     }
     else if (request.query.rt == 1 || request.query.rt == 2) { // nonblocking
-        // 논블로킹은 POST 에서만 끝까지 이어진다. 결과 코드 '202-1'/'202-2' 를
-        // 받아 202 로 응답하는 분기가 app.post 에만 있고, GET/PUT/DELETE 에는 없다.
-        // 그래서 그 세 경로에서는 '202-1' 이 사유 표에 없는 코드로 흘러가
-        // 500 이 나갔다(Task 8 이전에는 표를 인덱싱하다 워커가 죽었다).
+        // rt=2 는 결과를 받을 주소를 X-M2M-RTU 로 함께 줘야 한다. 없으면
+        // 잘못된 요청이다.
         //
-        // req 리소스를 만들어 놓고 202 를 돌려주면, 클라이언트는 영영 채워지지
-        // 않을 결과를 기다리게 된다. 지원하지 않는다고 정직하게 답한다.
-        if (request.method.toLowerCase() !== 'post') {
-            console.log('[check_request_query_rt] 논블로킹(rt=' + request.query.rt + ')은 ' +
-                        request.method + ' 에서 지원하지 않는다');
-            callback('405-4');
+        // 원래 조건이 `rtu == null && rtu == ''` 였다. 두 조건이 동시에 참일 수
+        // 없으므로 언제나 거짓이었고, 그래서 400-21 이 한 번도 나가지 않았다.
+        var rtu = request.headers['x-m2m-rtu'];
+        if (request.query.rt == 2 && (rtu == null || rtu === '')) {
+            callback('400-21');
             return;
         }
 
-        if (request.query.rt == 2 && request.headers['x-m2m-rtu'] == null && request.headers['x-m2m-rtu'] == '') {
-            callback('400-21');
-        }
-        else {
-            // first create request resource under CSEBase
-            var temp_rootnm = request.headers.rootnm;
-            var temp_body_Obj = JSON.parse(JSON.stringify(request.bodyObj));
-            var temp_ty = request.ty;
-
-
-            request.ty = '17';
-            var rt_body_Obj = {req: {}};
-            request.headers.rootnm = 'req';
-            request.bodyObj = rt_body_Obj;
-            request.query.rt = 3;
-
-            resource.create(request, response, (code) => {
-                if (code === '200') {
-                    request.ty = temp_ty;
-                    request.headers.rootnm = temp_rootnm;
-                    request.bodyObj = temp_body_Obj;
-                    request.query.rt = 1;
-                    callback(code);
-                }
-                else {
-                    callback(code);
-                }
-            });
-        }
+        // 논블로킹은 지원하지 않는다.
+        //
+        // 예전에는 여기서 req 리소스를 만들고 202 + 그 URI 를 돌려줬는데,
+        // 정작 요청한 연산은 수행하지 않았다. 클라이언트는 영영 채워지지 않을
+        // 결과를 기다리게 된다. 게다가 202 를 받아 응답하는 분기가 app.post 에만
+        // 있어서 GET/PUT/DELETE 는 사유 표에 없는 코드로 흘러가 500 이 났다.
+        //
+        // 절반만 구현된 것을 남겨 두는 것보다 지원하지 않는다고 답하는 편이 낫다.
+        // 이제 req 리소스를 만드는 곳이 없다 — ty=17 직접 생성은 405-2 가 막는다.
+        console.log('[check_request_query_rt] 논블로킹(rt=' + request.query.rt + ')은 지원하지 않는다');
+        callback('405-4');
     }
     else {
         callback('405-4');
