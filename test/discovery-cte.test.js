@@ -476,6 +476,68 @@ test('needs_cin_join 이 셋을 정확히 가린다', function () {
     assert.strictEqual(f({}), false);
 });
 
+// cs / cnf 는 contentInstance 에만 있으므로 결과는 반드시 ty=4 다.
+// 명시하지 않으면 옵티마이저가 골격의 모든 자식을 후보로 놓고 cin(249GB)을
+// 하나씩 찾아본다 — 배포 서버에서 fu=1&ty=3&sza=10 이 30초 상한에 걸렸다.
+
+test('크기·형식 필터가 있으면 ty=4 를 명시한다', function (t, done) {
+    const h = tap('mysql');
+    run(h, { sza: 10, lim: 20 }, guard(done, function (code, ris, seen) {
+        assert.match(seen[0].sql, /where 1 = 1 and r\.ty = '4'/,
+            "ty=4 를 안 박으면 인덱스가 CIN 만 집어내지 못한다");
+        done();
+    }));
+});
+
+test('필터가 없으면 ty=4 를 박지 않는다', function (t, done) {
+    const h = tap('mysql');
+    run(h, { ty: '3', lim: 20 }, guard(done, function (code, ris, seen) {
+        assert.ok(!/r\.ty = '4'/.test(seen[0].sql), '엉뚱하게 ty=4 가 붙었다');
+        done();
+    }));
+});
+
+// 답이 있을 수 없는 조합이면 DB 를 아예 안 건드린다.
+
+test('ty 가 4 를 안 포함하면 질의를 던지지 않는다', function (t, done) {
+    const h = tap('mysql');
+    run(h, { ty: '3', sza: 10, lim: 20 }, guard(done, function (code, ris, seen) {
+        assert.strictEqual(code, '200');
+        assert.strictEqual(ris.length, 0);
+        assert.strictEqual(seen.length, 0,
+            '답이 없는 게 확실한데 DB 를 훑었다');
+        done();
+    }));
+});
+
+test('ty 에 4 가 섞여 있으면 질의를 던진다', function (t, done) {
+    const h = tap('mysql');
+    run(h, { ty: ['3', '4'], sza: 10, lim: 20 }, guard(done, function (code, ris, seen) {
+        assert.strictEqual(seen.length, 1, 'ty 에 4 가 있는데 건너뛰었다');
+        done();
+    }));
+});
+
+test('ty 를 안 주면 질의를 던진다 (CIN 도 후보다)', function (t, done) {
+    const h = tap('mysql');
+    run(h, { sza: 10, lim: 20 }, guard(done, function (code, ris, seen) {
+        assert.strictEqual(seen.length, 1);
+        done();
+    }));
+});
+
+test('size_filter_excludes_all 판정', function () {
+    const h = tap('mysql');
+    const f = h.sql_action.size_filter_excludes_all;
+    assert.strictEqual(f({ ty: '3', sza: 1 }), true);
+    assert.strictEqual(f({ ty: '4', sza: 1 }), false);
+    assert.strictEqual(f({ ty: '3,4', sza: 1 }), false, '쉼표로 여러 개');
+    assert.strictEqual(f({ ty: ['2', '3'], szb: 1 }), true, '배열로 여러 개');
+    assert.strictEqual(f({ ty: ['2', '4'], cty: 'x' }), false);
+    assert.strictEqual(f({ sza: 1 }), false, 'ty 를 안 주면 CIN 도 후보다');
+    assert.strictEqual(f({ ty: '3' }), false, '필터가 없으면 상관없다');
+});
+
 // --- 7) 주입 방어 -----------------------------------------------------------
 
 test('루트 ri 는 바인딩으로 넘어간다', function (t, done) {

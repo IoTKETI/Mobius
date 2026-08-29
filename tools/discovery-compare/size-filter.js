@@ -75,6 +75,8 @@ async function build() {
 }
 
 const BASE = CB + '/' + AE;
+// removeTree 가 먼저 지울 하위 경로 (깊은 것부터)
+const SUBPATHS = ['/c1'];
 const sizes = CINS.map((c) => c.con.length);
 
 // [이름, 질의, 기대 건수]
@@ -96,6 +98,25 @@ const CASES = [
     ['ty=3 에 sza=1',        'fu=1&ty=3&sza=1',                0]
 ];
 
+
+// subtree 삭제는 비동기다 — 지운 뒤 바로 다시 만들면 이전 실행의 자손이
+// 남은 채 섞인다 (SQLite 에서 실제로 겪었다: 건수가 실행 횟수만큼 배가 됐다).
+// 정말 사라질 때까지 기다린다.
+async function removeTree() {
+    // AE 가 이미 없어도 그 아래가 고아로 남아 있을 수 있다. 알려진 하위
+    // 경로를 먼저 지워 이전 실행의 잔재를 확실히 걷어낸다.
+    for (const sub of SUBPATHS) {
+        await call({ path: BASE + sub, method: 'DELETE' });
+    }
+    await call({ path: BASE, method: 'DELETE' });
+    for (let i = 0; i < 60; i++) {
+        const r = await call({ path: BASE, method: 'GET' });
+        if (r.status === 404) { return; }
+        await wait(500);
+    }
+    throw new Error('이전 실행의 트리가 안 지워진다: ' + BASE);
+}
+
 async function main() {
     const args = [path.join(ROOT, 'mobius.js')];
     if (BACKEND) { args.push(BACKEND); }
@@ -105,8 +126,7 @@ async function main() {
     let fail = 0;
     try {
         if (!await waitUp()) { throw new Error('서버가 뜨지 않았다 (size-filter.log 확인)'); }
-        await call({ path: BASE, method: 'DELETE' });
-        await wait(1500);
+        await removeTree();
         await build();
         await wait(500);
 
@@ -123,7 +143,11 @@ async function main() {
                 (ok ? '' : '   (기대 ' + want + '건)'));
         }
 
-        await call({ path: BASE, method: 'DELETE' });
+        // 마지막 정리도 끝까지 기다린다. 자손 삭제는 백그라운드라, 여기서
+        // 바로 서버를 죽이면 자손이 고아로 남아 **다음 실행에 섞인다**
+        // (실제로 겪었다: 실행할 때마다 건수가 5 -> 15 -> 20 으로 늘었다).
+        await removeTree();
+        await wait(2000);
         console.log('');
         console.log(fail === 0 ? '전부 통과' : fail + '건 실패');
     } finally {

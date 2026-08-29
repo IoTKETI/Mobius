@@ -1427,6 +1427,27 @@ function needs_cin_join(query) {
     return query.sza != null || query.szb != null || query.cty != null;
 }
 exports.needs_cin_join = needs_cin_join;
+
+// 요청이 고른 ty 목록. 없으면 null (타입을 안 가린다).
+function requested_ty_list(query) {
+    if (query.ty == null) { return null; }
+    var raw = Array.isArray(query.ty) ? query.ty : String(query.ty).split(',');
+    return raw.map(function (t) { return String(t).trim(); }).filter(Boolean);
+}
+
+// cs / cnf 는 contentInstance(ty=4)에만 있다. 그래서 크기·형식 필터가 붙으면
+// 결과는 반드시 ty=4 다. 요청이 다른 타입만 찾고 있으면 답이 있을 수 없다.
+//
+// 이걸 안 보면 DB 가 그 사실을 모른 채 골격 전체를 훑는다 — 배포 서버에서
+// `fu=1&ty=3&sza=10` 이 컨테이너 30,281개마다 cin(249GB)을 찾아보고 0건을
+// 돌려주느라 30초 상한에 걸렸다. 질의를 아예 던지지 않는 게 맞다.
+function size_filter_excludes_all(query) {
+    if (!needs_cin_join(query)) { return false; }
+    var tys = requested_ty_list(query);
+    if (tys === null) { return false; }   // ty 를 안 줬으면 CIN 도 후보다
+    return tys.indexOf('4') < 0;
+}
+exports.size_filter_excludes_all = size_filter_excludes_all;
 /*
 exports.search_lookup_parents = function(connection, query, pi, cur_lim, count, found_Obj, callback) {
     if(count >= Object.keys(responder.typeRsrc).length-1) {
@@ -1775,13 +1796,19 @@ function build_descendant_sql(ri, query, query_where, cur_lim) {
     var cin_join = needs_cin_join(query)
         ? ' join cin c on c.pi = r.pi and c.ri = r.ri' : '';
 
+    // 크기·형식 필터가 붙으면 결과는 반드시 ty=4 다 (cs / cnf 가 cin 에만 있다).
+    // 조인만으로도 결과는 같지만, 이 조건을 명시해야 (pi, ty) 인덱스가 CIN 만
+    // 집어낸다. 없으면 옵티마이저가 골격의 모든 자식을 후보로 놓고 cin 을
+    // 하나씩 찾아본다 — 249GB 테이블에 대한 임의 접근이라 매우 비싸다.
+    var cin_ty = needs_cin_join(query) ? " and r.ty = '4'" : '';
+
     var sql =
         'with recursive skel as (\n' +
         '  select ri' + C + ' as sk_ri, 0 as sk_lvl from lookup where ri = :root_ri' + branches + '\n' +
         ')\n' +
         lead + 'r.* from lookup r' + hint +
         ' join skel s on r.pi = s.sk_ri' + cin_join + '\n' +
-        ' where 1 = 1' + query_where;
+        ' where 1 = 1' + cin_ty + query_where;
 
     if (max_lvl !== null) { sql += ' and s.sk_lvl <= ' + max_lvl; }
 
@@ -1829,6 +1856,12 @@ exports.search_lookup = function (connection, ri, query, cur_lim, pi_list, pi_in
 
     build_search_query(query, function (query_where) {
         var q = build_descendant_sql(ri, query, query_where, cur_lim);
+
+        // 답이 있을 수 없는 조합이면 DB 를 건드리지 않는다.
+        // (크기·형식 필터 + ty=4 를 뺀 타입 지정 — 위 함수 주석 참고)
+        if (size_filter_excludes_all(query)) {
+            return callback('200', { rows: 0, limit: q.limit, offset: q.offset });
+        }
 
         // 파사드 규약: 실패는 cb(true, errObj) 다 — 에러 객체는 **둘째** 인자로 온다
         // (mobius/db/index.js 의 run 참고). 첫 인자를 에러로 착각하면 err 는 그냥
