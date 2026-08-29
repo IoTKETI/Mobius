@@ -270,7 +270,12 @@ var MATRIX_OPS = 7;          // OPS 전부
 var MATRIX_MAX = 120;
 
 /**
- * 원본 × 연산 조합을 한 번에 본다. 대상 행과 ACP 행은 한 번만 읽는다.
+ * 원본 × 연산 조합을 한 번에 본다.
+ *
+ * **조합마다 simulate 를 다시 부르므로 대상 행과 ACP 행도 그때마다 다시 읽는다.**
+ * (예전 주석은 "한 번만 읽는다" 였는데 사실이 아니었다.) 상한이 원본 20 ×
+ * 연산 7 = 120칸이라 최악이 120회고, 관리자 한 명이 버튼을 눌러 도는 조회라
+ * 지금은 문제가 안 된다. 요청 경로에서 부르게 되면 그때 캐시를 넣는다.
  */
 exports.simulate_many = function (connection, params, callback) {
     var p = params || {};
