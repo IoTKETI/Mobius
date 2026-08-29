@@ -136,7 +136,26 @@ function coap_message_handler(request, response) {
                 headers['X-M2M-RI'] = request.options[idx].value.toString();
             }
             else if (request.options[idx].name == '267') { // 'X-M2M-TY
-                headers['X-M2M-TY'] = Buffer.isBuffer(request.options[idx].value) ? request.options[idx].value[0].toString() : request.options[idx].value.toString();
+                // 길이 0 인 옵션은 빈 Buffer 로 파싱된다. Buffer.isBuffer 는
+                // 통과하고 value[0] 이 undefined 라 .toString() 이 던졌다.
+                // 옵션 256/257 은 Buffer 전체를 toString 해서 안전하고
+                // 267 만 첫 바이트를 인덱싱한다.
+                //
+                // 프로세스가 죽지는 않는다 — node-coap 이 핸들러 예외를 잡는다
+                // (node_modules/coap/lib/server.js:343). 대신 두 가지가 나쁘다.
+                //   1. 정상 처리되어야 할 요청이 5.00 으로 실패한다
+                //   2. **예외 메시지가 그대로 응답 본문에 실린다.** 실측:
+                //      "Cannot read properties of undefined (reading 'toString')"
+                //      D20(내부 정보 노출)과 같은 부류다.
+                var ty_opt = request.options[idx].value;
+                if (Buffer.isBuffer(ty_opt)) {
+                    if (ty_opt.length > 0) {
+                        headers['X-M2M-TY'] = ty_opt[0].toString();
+                    }
+                }
+                else if (ty_opt != null) {
+                    headers['X-M2M-TY'] = ty_opt.toString();
+                }
             }
             // else if (request.options[idx].name == '268') { // 'X-M2M-RVI
             //     headers['X-M2M-RVI'] = request.options[idx].value.toString();

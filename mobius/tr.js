@@ -26,6 +26,7 @@ var fs = require('fs');
 
 var db_sql = require('./sql_action');
 var outbound = require('./outbound');
+var once = require('./once');
 
 global.tctl_v = {};
 tctl_v.INITIAL = '1';
@@ -82,6 +83,18 @@ function execute_action(ri, bodytype, res, resBody, callback) {
 }
 
 exports.request_execute = function(obj, callback) {
+    // 이 콜백은 응답 경로(res.on('end'))와 에러 경로(req.on('error')) 양쪽에서
+    // 불릴 수 있다. 예전에는 에러 경로가 로그만 남기고 콜백을 부르지 않았다.
+    //
+    // 그러면 호출부(resource.js 의 update_action)가 영원히 기다린다 —
+    // update_action -> resource.update -> authorize_and_run -> settle 이
+    // 통째로 멈추므로 응답도 안 나가고 커넥션도 반납되지 않는다.
+    // 크래시가 아니라 cluster 재시작도 안 걸리는 조용한 고갈이다.
+    //
+    // outbound.arm 이 응답 없는 요청을 끊으면 곧바로 이 경로로 온다.
+    // tm.js 는 같은 자리에서 '0' 으로 실패를 알린다 — 그 관례를 따른다.
+    callback = once(callback, 'tr request_execute ' + (obj.tr ? obj.tr.ri : ''));
+
     var rqi = require('shortid').generate();
     var content_type = 'application/json';
     var bodytype = 'json';
@@ -199,6 +212,10 @@ exports.request_execute = function(obj, callback) {
         if (e.message != 'read ECONNRESET') {
             console.log('[delete_TR] problem with request: ' + e.message);
         }
+
+        // 여기서 반드시 콜백을 불러야 한다. 안 부르면 호출부가 영원히 기다린다.
+        // 상태(tst)는 건드리지 않는다 — 실패했으므로 이전 상태 그대로 남는다.
+        callback('0', obj);
     });
 
     // write data to request body
@@ -280,6 +297,10 @@ function trsp_action(ri, bodytype, res, resBody, callback) {
 }
 
 exports.request_commit = function(obj, callback) {
+    // request_execute 와 같은 이유다. 에러 경로가 콜백을 부르지 않으면
+    // 요청이 응답 없이 매달리고 커넥션이 반납되지 않는다.
+    callback = once(callback, 'tr request_commit ' + (obj.tr ? obj.tr.ri : ''));
+
     var rqi = require('shortid').generate();
     obj.tr.trqp.rqi = rqi;
 
@@ -401,6 +422,10 @@ exports.request_commit = function(obj, callback) {
         if (e.message != 'read ECONNRESET') {
             console.log('[delete_TR] problem with request: ' + e.message);
         }
+
+        // 여기서 반드시 콜백을 불러야 한다. 안 부르면 호출부가 영원히 기다린다.
+        // 상태(tst)는 건드리지 않는다 — 실패했으므로 이전 상태 그대로 남는다.
+        callback('0', obj);
     });
 
     // write data to request body

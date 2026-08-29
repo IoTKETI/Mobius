@@ -152,3 +152,75 @@ test('정상 JSON 응답은 pc 로 실린다', async function () {
         srv.close();
     }
 });
+
+// ── 에러 경로 — 응답이 아예 오지 않을 때 ─────────────────────────────
+//
+// 예전에는 req.on('error') 가 로그만 남기고 콜백을 부르지 않았다.
+// 그러면 호출부(resource.js 의 update_action)가 영원히 기다린다 —
+// update_action -> resource.update -> authorize_and_run -> settle 이
+// 통째로 멈추므로 응답도 안 나가고 커넥션도 반납되지 않는다.
+// 크래시가 아니라 cluster 재시작도 안 걸리는 조용한 고갈이다.
+//
+// outbound.arm 이 응답 없는 요청을 끊으면 곧바로 이 경로로 온다.
+// tm.js 는 같은 자리에서 '0' 으로 실패를 알린다.
+
+test('상대가 접속을 거절해도 커밋이 콜백을 부른다', async function () {
+    // 아무도 듣지 않는 포트. connect 가 곧바로 ECONNREFUSED 를 낸다.
+    const dead = await fakeCse('');
+    const port = dead.port;
+    dead.close();
+    await new Promise(function (r) { setTimeout(r, 50); });
+
+    const r = await commitAgainst({ port: port }, 'json');
+    assert.strictEqual(r.called, 1, '에러 경로에서도 콜백은 정확히 한 번');
+    assert.strictEqual(r.rsc, '0', 'tm.js 와 같은 관례로 실패를 알린다');
+});
+
+test('상대가 접속을 거절해도 실행이 콜백을 부른다', async function () {
+    const dead = await fakeCse('');
+    const port = dead.port;
+    dead.close();
+    await new Promise(function (r) { setTimeout(r, 50); });
+
+    const obj = { tr: {
+        ri: '39-e',
+        trqp: { to: 'http://127.0.0.1:' + port + '/x', fr: 'S', op: 1, pc: {} },
+        tst: 0
+    }};
+    global.usecsebaseport = String(port);
+
+    const out = await new Promise(function (resolve, reject) {
+        const timer = setTimeout(function () {
+            reject(new Error('콜백이 불리지 않았다 — 요청이 매달린다'));
+        }, 3000);
+        let called = 0;
+        quiet(function () {
+            tr.request_execute(obj, function (rsc) {
+                called++;
+                clearTimeout(timer);
+                resolve({ rsc: rsc, called: called });
+            });
+        });
+    });
+    assert.strictEqual(out.called, 1);
+    assert.strictEqual(out.rsc, '0');
+});
+
+test('tr.js 의 error 핸들러가 전부 콜백을 부른다', function () {
+    const fs = require('node:fs');
+    const path = require('node:path');
+    const src = fs.readFileSync(path.join(__dirname, '..', 'mobius', 'tr.js'), 'utf8');
+
+    // 핸들러 시작부터 그 뒤 req.write( 까지 사이에 callback 호출이 있어야 한다.
+    // 핸들러 안에 if 가 들어 있어서 첫 '});' 로 자르면 안 된다.
+    // 주석에도 같은 문구가 있으므로 function 까지 붙여 실제 핸들러만 고른다.
+    const handlers = src.split("req.on('error', function").slice(1);
+    assert.strictEqual(handlers.length, 2,
+        "req.on('error') 핸들러가 " + handlers.length + '개다 — 늘었다면 그것도 콜백을 부르는지 확인할 것');
+    handlers.forEach(function (h, i) {
+        const end = h.indexOf('req.write(');
+        const block = h.slice(0, end > 0 ? end : 800);
+        assert.ok(/callback\(/.test(block),
+            (i + 1) + '번째 error 핸들러가 콜백을 부르지 않는다 — 요청이 매달린다');
+    });
+});

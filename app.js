@@ -542,6 +542,26 @@ function make_short_nametype(body_Obj) {
     }
 }
 
+// 프로토콜 프록시(mqtt/ws/coap)가 받은 메시지를 객체로 바꾼다.
+//
+// 호출부는 rsc 가 '1' 이면 result 를 곧바로 역참조한다. 그래서 '1' 은
+// "파싱이 성공했다" 가 아니라 "역참조해도 되는 객체를 준다" 는 뜻이어야 한다.
+//
+// 그 둘이 어긋나 있었다. cbor.decodeFirst('f6') 는 err 없이 null 을 준다 —
+// CBOR 의 null 값이라 파서 입장에서는 정상이다. 그런데 '1' 로 넘기면
+// pxy_ws.js:225 의 jsonObj['m2m:rqp'] 가 null 을 역참조한다.
+// 프록시는 cluster.isMaster 블록에서 require 되므로 워커가 아니라
+// **마스터가 죽고, 워커 재시작 로직까지 함께 사라진다.**
+//
+// 실측: WS 7577(인증 없음)에 subprotocol onem2m.r2.0.cbor 로 붙어
+// 1바이트 0xF6 을 보내면 리스닝 포트가 전부 사라졌다.
+//
+// 최상위가 객체가 아니면(null, 숫자, 문자열, 배열) 어차피 oneM2M 요청이
+// 아니므로 여기서 실패로 돌린다.
+function usable_object(v) {
+    return v != null && typeof v === 'object' && !Array.isArray(v);
+}
+
 global.make_json_obj = function (bodytype, str, callback) {
     try {
         if (bodytype === 'xml') {
@@ -567,6 +587,7 @@ global.make_json_obj = function (bodytype, str, callback) {
                             }
                         }
                     }
+                    if (!usable_object(result)) { callback('0'); return; }
                     callback('1', result);
                 }
             });
@@ -581,6 +602,10 @@ global.make_json_obj = function (bodytype, str, callback) {
                     console.error('[make_json_obj] cbor 를 읽을 수 없다: ' + err.message);
                     callback('0');
                 }
+                else if (!usable_object(result)) {
+                    console.error('[make_json_obj] cbor 최상위가 객체가 아니다: ' + JSON.stringify(result));
+                    callback('0');
+                }
                 else {
                     callback('1', result);
                 }
@@ -588,6 +613,7 @@ global.make_json_obj = function (bodytype, str, callback) {
         }
         else {
             var result = JSON.parse(str);
+            if (!usable_object(result)) { callback('0'); return; }
             callback('1', result);
         }
     }
@@ -718,7 +744,17 @@ function parse_to_json(request, response, callback) {
         return;
     }
 
+    // 파서가 성공했다고 최상위가 객체인 것은 아니다. cbor.decodeFirst 는
+    // 'f6'(CBOR null)에 err 없이 null 을 주고, JSON.parse('3') 은 숫자를 준다.
+    // 그대로 Object.keys 에 넣으면 던지는데, cbor 콜백은 비동기라 바깥 try 를
+    // 벗어난다. db.getConnection 콜백 안이라 빌린 커넥션도 새어 나갔다.
+    //
+    // 실측: POST /Mobius, Content-Type: application/cbor, 본문 'f6' 한 건으로
+    // 워커가 죽었다.
     function settle(result) {
+        if (!usable_object(result)) {
+            return false;
+        }
         request.rawRootKey = Object.keys(result)[0];
         request.bodyObj = result;
         make_short_nametype(request.bodyObj);
@@ -732,8 +768,10 @@ function parse_to_json(request, response, callback) {
                 if (err) {
                     callback('400-5');
                 }
+                else if (!settle(result)) {
+                    callback('400-5');
+                }
                 else {
-                    settle(result);
                     make_json_arraytype(request.bodyObj);
 
                     request.headers.rootnm = Object.keys(request.bodyObj)[0];
@@ -753,8 +791,10 @@ function parse_to_json(request, response, callback) {
                 if (err) {
                     callback('400-6');
                 }
+                else if (!settle(result)) {
+                    callback('400-6');
+                }
                 else {
-                    settle(result);
                     //make_json_arraytype(request.bodyObj);
 
                     request.headers.rootnm = Object.keys(request.bodyObj)[0];
@@ -769,7 +809,10 @@ function parse_to_json(request, response, callback) {
     }
     else {
         try {
-            settle(JSON.parse(request.body.toString()));
+            if (!settle(JSON.parse(request.body.toString()))) {
+                callback('400-7');
+                return;
+            }
 
             if (Object.keys(request.bodyObj)[0] == 'undefined') {
                 callback('400-7');

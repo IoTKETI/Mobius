@@ -2550,8 +2550,8 @@ exports.update_hd_dooLk = function (connection, obj, callback) {
     console.time('update_hd_dooLk ' + obj.ri);
     _this.update_lookup(connection, obj, function (err, results) {
         if (!err) {
-            var sql2 = util.format('update fcnt set fcnt.lock = \'%s\'', obj.lock);
-            db.getResult(sql2, connection, function (err, results) {
+            var qb2 = facade.k('fcnt').update({ lock: obj.lock }).where({ ri: obj.ri });
+            facade.run(qb2, connection, function (err, results) {
                 if (!err) {
                     console.timeEnd('update_hd_dooLk ' + obj.ri);
                     callback(err, results);
@@ -2571,8 +2571,8 @@ exports.update_hd_bat = function (connection, obj, callback) {
     console.time('update_hd_bat ' + obj.ri);
     _this.update_lookup(connection, obj, function (err, results) {
         if (!err) {
-            var sql2 = util.format('update fcnt set lvl = \'%s\'', obj.lvl);
-            db.getResult(sql2, connection, function (err, results) {
+            var qb2 = facade.k('fcnt').update({ lvl: obj.lvl }).where({ ri: obj.ri });
+            facade.run(qb2, connection, function (err, results) {
                 if (!err) {
                     console.timeEnd('update_hd_bat ' + obj.ri);
                     callback(err, results);
@@ -2592,8 +2592,8 @@ exports.update_hd_tempe = function (connection, obj, callback) {
     console.time('update_hd_tempe ' + obj.ri);
     _this.update_lookup(connection, obj, function (err, results) {
         if (!err) {
-            var sql2 = util.format('update fcnt set curT0 = \'%s\'', obj.curT0);
-            db.getResult(sql2, connection, function (err, results) {
+            var qb2 = facade.k('fcnt').update({ curT0: obj.curT0 }).where({ ri: obj.ri });
+            facade.run(qb2, connection, function (err, results) {
                 if (!err) {
                     console.timeEnd('update_hd_tempe ' + obj.ri);
                     callback(err, results);
@@ -2613,8 +2613,8 @@ exports.update_hd_binSh = function (connection, obj, callback) {
     console.time('update_hd_binSh ' + obj.ri);
     _this.update_lookup(connection, obj, function (err, results) {
         if (!err) {
-            var sql2 = util.format('update fcnt set powerSe = \'%s\'', obj.powerSe);
-            db.getResult(sql2, connection, function (err, results) {
+            var qb2 = facade.k('fcnt').update({ powerSe: obj.powerSe }).where({ ri: obj.ri });
+            facade.run(qb2, connection, function (err, results) {
                 if (!err) {
                     console.timeEnd('update_hd_binSh ' + obj.ri);
                     callback(err, results);
@@ -2634,8 +2634,8 @@ exports.update_hd_fauDn = function (connection, obj, callback) {
     console.time('update_hd_fauDn ' + obj.ri);
     _this.update_lookup(connection, obj, function (err, results) {
         if (!err) {
-            var sql2 = util.format('update fcnt set sus = \'%s\'', obj.sus);
-            db.getResult(sql2, connection, function (err, results) {
+            var qb2 = facade.k('fcnt').update({ sus: obj.sus }).where({ ri: obj.ri });
+            facade.run(qb2, connection, function (err, results) {
                 if (!err) {
                     console.timeEnd('update_hd_fauDn ' + obj.ri);
                     callback(err, results);
@@ -2655,8 +2655,8 @@ exports.update_hd_colSn = function (connection, obj, callback) {
     console.time('update_hd_colSn ' + obj.ri);
     _this.update_lookup(connection, obj, function (err, results) {
         if (!err) {
-            var sql2 = util.format('update fcnt set colSn = \'%s\'', obj.colSn);
-            db.getResult(sql2, connection, function (err, results) {
+            var qb2 = facade.k('fcnt').update({ colSn: obj.colSn }).where({ ri: obj.ri });
+            facade.run(qb2, connection, function (err, results) {
                 if (!err) {
                     console.timeEnd('update_hd_colSn ' + obj.ri);
                     callback(err, results);
@@ -2676,8 +2676,8 @@ exports.update_hd_brigs = function (connection, obj, callback) {
     console.time('update_hd_brigs ' + obj.ri);
     _this.update_lookup(connection, obj, function (err, results) {
         if (!err) {
-            var sql2 = util.format('update fcnt set brigs = \'%s\'', obj.brigs);
-            db.getResult(sql2, connection, function (err, results) {
+            var qb2 = facade.k('fcnt').update({ brigs: obj.brigs }).where({ ri: obj.ri });
+            facade.run(qb2, connection, function (err, results) {
                 if (!err) {
                     console.timeEnd('update_hd_brigs ' + obj.ri);
                     callback(err, results);
@@ -2697,8 +2697,8 @@ exports.update_hd_color = function (connection, obj, callback) {
     console.time('update_hd_color ' + obj.ri);
     _this.update_lookup(connection, obj, function (err, results) {
         if (!err) {
-            var sql2 = util.format('update fcnt set red = \'%s\', green = \'%s\', blue = \'%s\'', obj.red, obj.green, obj.blue);
-            db.getResult(sql2, connection, function (err, results) {
+            var qb2 = facade.k('fcnt').update({ red: obj.red, green: obj.green, blue: obj.blue }).where({ ri: obj.ri });
+            facade.run(qb2, connection, function (err, results) {
                 if (!err) {
                     console.timeEnd('update_hd_color ' + obj.ri);
                     callback(err, results);
