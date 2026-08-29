@@ -109,17 +109,9 @@ const creatorPasses = computed(
         </div>
       </div>
 
-      <!-- acpiOverride:[] 경로가 지금 실제와 반대로 답한다. 실측: acpi 를 비우면
-           실제로는 전원 허용(HTTP 200)인데 시뮬레이터는 no_acp_row 로 전원 거부라고
-           답한다. "이 ACP 를 떼도 안전한가" 에 정확히 거꾸로 답하는 셈이라,
-           고쳐질 때까지 잠가 둔다 — 틀린 미리보기는 없는 것보다 나쁘다.
-           코어 수정(mobius/acp_simulate.js:131)이 들어오면 disabled 만 걷으면 된다. -->
-      <label class="check off">
-        <input v-model="previewRemoved" type="checkbox" disabled />
-        <span>
-          이 리소스의 <code>acpi</code> 를 뗐다고 가정하고 보기
-          <em>— 코어 수정 대기 중. 지금은 실제와 반대로 답합니다(보고됨).</em>
-        </span>
+      <label class="check">
+        <input v-model="previewRemoved" type="checkbox" />
+        <span>이 리소스의 <code>acpi</code> 를 뗐다고 가정하고 보기</span>
       </label>
 
       <div class="actions">
@@ -142,9 +134,11 @@ const creatorPasses = computed(
               ? '이 리소스의 acpi'
               : result.source === 'inherited'
                 ? '조상에서 상속'
-                : result.source === 'override'
-                  ? '가정한 값'
-                  : 'acpi 없음 (기본 정책)'
+                : result.source === 'override_inherited'
+                  ? '가정한 값 — 뗐지만 조상 것이 걸림'
+                  : result.source === 'override'
+                    ? '가정한 값'
+                    : 'acpi 없음 (기본 정책)'
           }}</strong>
           <template v-if="result.inherited_from">
             — <code class="mono">{{ result.inherited_from }}</code>
@@ -152,7 +146,16 @@ const creatorPasses = computed(
         </span>
       </div>
 
-      <p v-if="result.source === 'inherited'" class="banner warnbox">
+      <p v-if="previewRemoved" class="banner warnbox">
+        <strong>가정한 결과입니다 — 아직 아무것도 바뀌지 않았습니다.</strong>
+        이 리소스의 <code>acpi</code> 를 뗐다고 놓고 계산한 값입니다.
+        <template v-if="result.source === 'override_inherited'">
+          뗀 뒤에도 <strong>조상의 ACP 가 그대로 걸립니다</strong> —
+          자기 <code>acpi</code> 만 뗀 것이지 조상 것까지 뗀 것이 아닙니다.
+        </template>
+      </p>
+
+      <p v-if="result.source === 'inherited' || result.source === 'override_inherited'" class="banner warnbox">
         이 리소스에는 <code>acpi</code> 가 없어 <strong>조상의 것을 씁니다.</strong>
         컨테이너의 <code>acpi</code> 는 조상과 합쳐지지 않고 <strong>가장 가까운 것 하나만</strong>
         쓰이므로, 중간 컨테이너에 <code>acpi</code> 가 생기면 AE 의 ACP 를 고쳐도 먹지 않습니다.

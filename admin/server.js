@@ -736,6 +736,18 @@ if (fs.existsSync(WEB_DIST)) {
 }
 
 // ── 기동 ──────────────────────────────────────────────────────────────────
+// acpi 접기가 성립하는지 기동 시 한 번 확인한다. 전역을 세우기는 했지만
+// **틀리게** 세우면 조용히 어긋난다 — 절대 표기를 내부 ri 로 접지 못해 그
+// 리소스를 "참조 없음" 으로 보고하고, 그러면 ACP 삭제 영향 분석이 빗나간다.
+// 못 세운 것보다 잘못 세운 쪽이 나쁘므로 눈에 띄게 찍는다.
+if (typeof db_sql.acp_ri_context === 'function') {
+    var acp_ctx = db_sql.acp_ri_context();
+    if (!acp_ctx.ok) {
+        console.error('[admin] 경고: CSE 신원 전역이 비었다 (' + acp_ctx.missing.join(', ') + ').');
+        console.error('[admin]   acpi 역참조가 어긋나 "참조 없음" 을 잘못 보고할 수 있다.');
+    }
+}
+
 db.connect(global.usedbhost, 3306, 'root', global.usedbpass, function (rsc) {
     if (rsc !== '1') {
         console.error('[admin] DB 연결 실패 (' + rsc + ')');
