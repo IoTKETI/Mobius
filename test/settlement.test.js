@@ -26,87 +26,28 @@ function quiet(fn) {
     finally { console.error = orig; }
 }
 
-// ── req 리소스의 pc ──────────────────────────────────────────────────
+// ── req(ty=17) 는 더 이상 없다 ───────────────────────────────────────
 //
-// req 의 pc 는 그 요청의 결과다. 아직 결과가 없으면 비어 있는데,
-// 예전에는 방어 없이 JSON.parse 를 불러 '"undefined" is not valid JSON' 으로
-// 터졌다. 응답 전송 전이라 워커가 죽고 커넥션이 샜다.
+// req 는 논블로킹 요청의 임시 기록이었다. 논블로킹을 지원하지 않게 되면서
+// 리소스도 테이블도 걷어냈다(migrations/003-drop-req-table.js).
 //
-// 논블로킹 POST 가 만든 req 를 조회하면 정확히 이 상태다 —
-// 평범한 요청 두 번으로 워커를 죽일 수 있었다.
-//
-// 아래는 실제 exports.response_result 를 태운다. request/response 는 최소 스텁이다.
+// 예전에는 response_result 안에 req 의 pc 를 특별히 다루는 분기가 있었고,
+// 거기서 방어 없이 JSON.parse 를 불러 결과가 비어 있으면 워커가 죽었다.
+// 그 분기째 사라졌으므로, 이제는 되살아나지 않았는지만 확인한다.
 
-function fakeReq(resourceObj) {
-    return {
-        headers: { 'x-m2m-ri': 'ri1', rootnm: 'req', accept: 'application/json' },
-        query: { rt: 3 },
-        method: 'get',
-        url: '/Mobius/17-x',
-        usebodytype: 'json',
-        resourceObj: resourceObj
-    };
-}
-
-function fakeRes() {
-    const sent = {};
-    const res = {
-        header: function () { return res; },
-        setHeader: function () { return res; },
-        status: function (s) { sent.status = s; return res; },
-        end: function (b) { sent.body = b; return res; },
-        send: function (b) { sent.body = b; return res; }
-    };
-    res._sent = sent;
-    return res;
-}
-
-// response_result 를 태우고, 실제로 나간 본문을 돌려준다
-function respond(resourceObj) {
-    const req = fakeReq(resourceObj);
-    const res = fakeRes();
-    let settled = 0;
-    responder.response_result(req, res, '200', '2000', '', function () { settled++; });
-    return { body: res._sent.body, status: res._sent.status, settled: settled };
-}
-
-test('결과가 아직 없는 req 를 응답해도 던지지 않는다', function () {
-    // JSON.parse(undefined) 는 String(undefined) 를 파싱해 반드시 던진다.
-    assert.throws(function () { JSON.parse(undefined); }, SyntaxError);
-
-    const r = quiet(function () { return respond({ req: { rn: 'r', ty: 17 } }); });
-    assert.strictEqual(r.settled, 1, '정산은 정확히 한 번');
-    const out = JSON.parse(r.body);
-    assert.ok(!('pc' in out['m2m:req']),
-        'pc 는 선택 속성이다. 빈 객체를 넣으면 "결과가 비었다" 는 거짓말이 된다');
+test('req 특별 취급 분기가 되살아나지 않았다', function () {
+    const fsx = require('node:fs');
+    const pathx = require('node:path');
+    const src = fsx.readFileSync(pathx.join(__dirname, '..', 'mobius', 'responder.js'), 'utf8');
+    assert.strictEqual(src.indexOf("rootnm === 'req'"), -1,
+        'req 특별 취급 분기가 되살아났다');
+    assert.strictEqual(src.indexOf('store_to_req_resource'), -1,
+        'req 기록 함수가 되살아났다');
 });
 
-test('pc 가 빈 문자열이어도 응답이 나간다', function () {
-    const r = quiet(function () { return respond({ req: { rn: 'r', ty: 17, pc: '' } }); });
-    assert.strictEqual(r.settled, 1);
-    assert.ok(!('pc' in JSON.parse(r.body)['m2m:req']));
-});
-
-test('pc 가 깨진 JSON 이어도 응답이 나가고 이유를 남긴다', function () {
-    const lines = [];
-    const orig = console.error;
-    console.error = function (s) { lines.push(String(s)); };
-    let r;
-    try { r = respond({ req: { rn: 'r', ty: 17, pc: '{"잘린' } }); }
-    finally { console.error = orig; }
-    assert.strictEqual(r.settled, 1);
-    assert.ok(!('pc' in JSON.parse(r.body)['m2m:req']));
-    assert.ok(lines.length >= 1, '조용히 넘기면 깨진 행을 못 찾는다');
-});
-
-test('정상 pc 는 객체로 파싱되어 나간다', function () {
-    const r = respond({ req: { rn: 'r', ty: 17, pc: '{"m2m:cnt":{"rn":"x"}}' } });
-    assert.deepStrictEqual(JSON.parse(r.body)['m2m:req'].pc, { 'm2m:cnt': { rn: 'x' } });
-});
-
-test('uril 은 공백으로 쪼개져 나간다', function () {
-    const r = respond({ req: { rn: 'r', ty: 17, pc: '{"m2m:uril":"/a /b /c"}' } });
-    assert.deepStrictEqual(JSON.parse(r.body)['m2m:req'].pc['m2m:uril'], ['/a', '/b', '/c']);
+test('typeRsrc 에 17 이 없다', function () {
+    assert.strictEqual(responder.typeRsrc['17'], undefined,
+        'req 타입이 되살아났다 — 만들 수 없는 타입은 표에 두지 않는다');
 });
 
 // ── cbor 디코드 실패 ─────────────────────────────────────────────────

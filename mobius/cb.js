@@ -55,8 +55,11 @@ function cb_create_action(connection, callback) {
 
     resource_Obj[rootnm].csi = usecseid;
 
+    // CSEBase 가 클라이언트에 알리는 지원 리소스 타입이다.
+    // '17'(req)을 뺐다 — 논블로킹을 지원하지 않게 되면서 만들 수 없는 타입이 됐다.
+    // 지원하지 않는 것을 목록에 두면 클라이언트가 시도했다가 405 를 받는다.
     //resource_Obj[rootnm].srt = ty_list;
-    resource_Obj[rootnm].srt = ['1', '2', '3', '4', '5', '9', '10', '13', '14', '16', '17', '23'];
+    resource_Obj[rootnm].srt = ['1', '2', '3', '4', '5', '9', '10', '13', '14', '16', '23'];
 
     resource_Obj[rootnm].poa = [];
     resource_Obj[rootnm].poa.push('http://' + ip.address() + ':' + usecsebaseport);

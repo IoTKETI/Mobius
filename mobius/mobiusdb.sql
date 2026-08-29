@@ -395,28 +395,15 @@ CREATE TABLE `nod` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
--- Table structure for table `req`
+-- req(ty=17, <request>) 테이블은 걷어냈다.
 --
-
-DROP TABLE IF EXISTS `req`;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!50503 SET character_set_client = utf8mb4 */;
-CREATE TABLE `req` (
-  `ri` varchar(200) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
-  `op` varchar(45) NOT NULL,
-  `tg` varchar(45) NOT NULL,
-  `org` varchar(45) NOT NULL,
-  `rid` varchar(45) NOT NULL,
-  `mi` varchar(45) DEFAULT NULL,
-  `pc` longtext,
-  `rs` varchar(45) DEFAULT NULL,
-  `ors` varchar(45) DEFAULT NULL,
-  `cr` varchar(45) DEFAULT NULL,
-  PRIMARY KEY (`ri`),
-  UNIQUE KEY `ri_UNIQUE` (`ri`),
-  CONSTRAINT `req_ri` FOREIGN KEY (`ri`) REFERENCES `lookup` (`ri`) ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8;
-/*!40101 SET character_set_client = @saved_cs_client */;
+-- 논블로킹 요청(rt=1/2)의 임시 기록이었는데, 논블로킹이 절반만 구현돼 있어
+-- (req 를 만들고 202 를 주지만 정작 연산은 수행하지 않았다) 지원하지 않기로
+-- 했다. 만드는 경로가 없어져 이 테이블에는 새 행이 들어오지 않는다.
+--
+-- 기존 배포는 migrations/003-drop-req-table.js 로 정리한다.
+-- 테이블 구조가 필요하면 이 파일의 git 이력에 있다.
+--
 
 --
 -- Table structure for table `smd`

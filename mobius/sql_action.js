@@ -1183,6 +1183,22 @@ exports.select_resource_from_url = function (connection, ri, sri, callback) {
         }
 
         var table = responder.typeRsrc[comm_Obj[0].ty];
+        if (!table) {
+            // 이 CSE 가 다루지 않는 타입이다. 지원을 걷어낸 타입의 옛 행이
+            // lookup 에 남아 있으면 여기로 온다.
+            //
+            // 예전에는 undefined 를 그대로 테이블 이름 자리에 넣어 깨진 질의를
+            // 만들었고 500 "database error" 가 나갔다 — 원인을 짐작할 수 없는
+            // 응답이다.
+            //
+            // lookup 행만 돌려준다. 지우거나 비우지 않는 이유는 호출부가 ty 를
+            // 보고 "지원하지 않는 타입" 이라고 답할 수 있어야 하기 때문이다.
+            // 빈 배열로 만들면 그냥 404 가 되어 이유가 사라진다.
+            console.error('[select_resource_from_url] 지원하지 않는 타입의 행: ty=' +
+                          comm_Obj[0].ty + ' ' + comm_Obj[0].ri);
+            callback(null, [comm_Obj[0]]);
+            return;
+        }
 
         facade.run(facade.k(table).select('*').where({ ri: comm_Obj[0].ri }), connection,
             function (err2, spec_Obj) {
@@ -1474,7 +1490,7 @@ exports.search_lookup_parents = function(connection, query, pi, cur_lim, count, 
 
 // 자손 수집이 훑지 않는 타입. 리프(4=cin, 23=sub, 17=req)와
 // 별도 경로로 다루는 것(1=acp, 9=grp)이다.
-const PRESEARCH_SKIP_TY = ['1', '9', '23', '4', '17'];
+const PRESEARCH_SKIP_TY = ['1', '9', '23', '4'];
 
 // 하위(비-리프 타입) 자손을 재귀 CTE 한 번으로 수집.
 //
@@ -3162,6 +3178,17 @@ function delete_lookup_action(connection, pi_list, req_count, callback) {
     facade.run(facade.k('lookup').where({ pi: pi }).del(), connection,
         function (err, deleted_Obj) {
             if (err) {
+                // 예전에는 아무것도 남기지 않고 '500-1' 만 돌려줬다. 위로
+                // 올라가도 호출부가 코드를 안 보기 때문에(아래 delete_lookup 과
+                // resource.js 의 delete_descendants_background), subtree 삭제가
+                // 중간에 멈춰도 흔적이 하나도 없었다.
+                //
+                // 그래서 "고아가 왜 생기나" 를 물으면 답할 근거가 없었다.
+                // 데드락인지, 60초 쿼리 타임아웃인지, 커넥션이 끊긴 것인지
+                // 구분할 수 없다. 드라이버 코드를 남긴다.
+                console.error('[delete_lookup_action] ' + pi + ' 삭제 실패: ' +
+                              ((deleted_Obj && (deleted_Obj.driverCode || deleted_Obj.code)) || '?') +
+                              ' / ' + ((deleted_Obj && deleted_Obj.message) || ''));
                 callback('500-1');
                 return;
             }
@@ -3172,6 +3199,7 @@ function delete_lookup_action(connection, pi_list, req_count, callback) {
 
 exports.delete_lookup = function (connection, pi_list, pi_index, found_Obj, found_Cnt, callback) {
     var cur_pi = [];
+    var batch_start = pi_index;      // 실패 시 어느 구간이었는지 알려면 필요하다
 
     for (var idx = 0; idx < 32; idx++) {
         if (pi_index < pi_list.length) {
@@ -3194,6 +3222,16 @@ exports.delete_lookup = function (connection, pi_list, pi_index, found_Obj, foun
             }
         }
         else {
+            // 한 배치(32개)에서 실패하면 남은 것을 건드리지 않고 멈춘다.
+            // 어디까지 가고 멈췄는지를 남긴다 — 이게 없으면 subtree 가
+            // 반만 지워진 채로 끝나도 아무도 모른다.
+            //
+            // 배치의 *시작* 인덱스를 적는다. pi_index 는 이미 배치 끝까지
+            // 전진해 있어서 그대로 쓰면 진행도를 과장한다. 실패는 이 배치
+            // 안 어딘가에서 났고, 그 앞(batch_start 개)까지는 지워졌다.
+            console.error('[delete_lookup] ' + batch_start + '/' + pi_list.length +
+                          ' 까지 지우고 다음 배치에서 멈췄다 (code=' + code +
+                          '). 나머지는 고아로 남는다.');
             callback(code);
         }
     });
@@ -3277,6 +3315,66 @@ exports.delete_lookup_et = function (connection, et, limit, callback) {
 //
 // 겸사겸사 수동 이스케이프(esc)를 걷어냈다. `\` 와 `'` 만 다루는 불완전한
 // 것이었고, ri/pi 는 클라이언트가 정한 rn 을 담으므로 2차 주입 통로였다.
+/**
+ * 고아 행이 몇 개인지 센다. 아무것도 바꾸지 않는다.
+ *
+ * delete_orphan_lookup 은 lookup 전체를 훑고 여러 패스를 돌아 비싸다. 지우기
+ * 전에 "정말 지울 것이 있는가" 를 먼저 볼 수 있어야 관리자가 판단할 수 있다.
+ * 만료 스윕의 select_expired_resources 와 같은 역할이다.
+ *
+ * 세는 것도 전수 스캔이라 공짜는 아니다. 다만 삭제와 달리 한 패스로 끝나고
+ * 아무것도 바꾸지 않는다.
+ *
+ * @param {number} limit  이 수를 넘으면 세기를 멈추고 그 값을 돌려준다.
+ *                        "많다" 는 것만 알면 되는데 끝까지 세느라 오래 걸릴
+ *                        이유가 없다. 0 이나 미지정이면 끝까지 센다.
+ * @returns callback(err, { count, capped }) — capped 면 실제로는 더 많다
+ */
+exports.count_orphan_lookup = function (connection, limit, callback) {
+    if (typeof limit === 'function') { callback = limit; limit = 0; }
+    var BATCH = 5000;
+    var total = 0;
+
+    function scan(last_ri) {
+        var qb = facade.k('lookup')
+            .select('ri', 'pi')
+            .where('ri', '>', last_ri)
+            .whereNot('pi', '')          // CSEBase 는 pi 가 빈 문자열이라 제외
+            .orderBy('ri', 'asc')
+            .limit(BATCH);
+
+        facade.run(qb, connection, function (err, rows) {
+            if (err) { return callback(err, rows); }
+            rows = rows || [];
+            if (!rows.length) { return callback(null, { count: total, capped: false }); }
+
+            var next_ri = rows[rows.length - 1].ri;
+            var pi_set = {};
+            for (var i = 0; i < rows.length; i++) { pi_set[rows[i].pi] = 1; }
+
+            facade.run(facade.k('lookup').select('ri').whereIn('ri', Object.keys(pi_set)), connection,
+                function (err2, prows) {
+                    if (err2) { return callback(err2, prows); }
+                    var exists = {};
+                    prows = prows || [];
+                    for (var j = 0; j < prows.length; j++) { exists[prows[j].ri] = 1; }
+                    for (var k = 0; k < rows.length; k++) {
+                        if (!exists[rows[k].pi]) { total++; }
+                    }
+                    if (limit > 0 && total >= limit) {
+                        return callback(null, { count: total, capped: true });
+                    }
+                    setImmediate(scan, next_ri);
+                });
+        });
+    }
+
+    scan('');
+};
+
+// **자동 실행하지 않는다** — app.js 에 주기 등록이 없다.
+// 관리자가 count_orphan_lookup 으로 확인한 뒤 호출하는 용도다.
+// 비용은 app.js 의 "고아 행 정리는 자동으로 돌리지 않는다" 주석 참고.
 exports.delete_orphan_lookup = function (connection, callback) {
     var BATCH = 5000;
     var grand_total = 0;
@@ -3354,20 +3452,11 @@ exports.delete_orphan_lookup = function (connection, callback) {
 };
 
 
-// insert_req / update_req 는 걷어냈다. req(ty=17) 는 논블로킹 요청의 임시
-// 기록이었는데, 논블로킹을 지원하지 않게 되면서 만드는 경로가 사라졌다.
-// delete_req 는 아래에 남겨 뒀다 — 기존 배포에 남은 행을 걷어내야 한다.
-exports.delete_req = function (connection, callback) {
-    var sql = util.format("delete from lookup where ty = \'17\'");
-    db.getResult(sql, connection, function (err, delete_Obj) {
-        // 예전에는 if (!err) 만 있고 else 가 없었다. 호출부(app.js del_req_resource)는
-        // connection.release() 를 이 콜백 안에서 하므로, DB 오류가 날 때마다
-        // 커넥션이 하나씩 영구히 새어 나갔다. 24시간마다 도는 주기 작업이라
-        // 응답이 없어 아무도 눈치채지 못했다.
-        callback(err, delete_Obj);
-    });
-};
-
+// req(ty=17) 관련 질의는 전부 걷어냈다 — insert_req / update_req / delete_req.
+//
+// req 는 논블로킹 요청의 임시 기록이었는데, 논블로킹을 지원하지 않게 되면서
+// 만드는 경로가 사라졌다. 기존 배포에 남은 행과 테이블은
+// migrations/003-drop-req-table.js 가 한 번에 정리한다.
 
 exports.select_sum_cbs = function (connection, callback) {
     var tid = require('shortid').generate();

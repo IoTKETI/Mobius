@@ -102,27 +102,12 @@ app.use(morgan('combined', {stream: accessLogStream}));
 
 //ts_app.use(morgan('short', {stream: accessLogStream}));
 
-// 남아 있는 req(ty=17) 행을 걷어낸다. 24시간마다 돈다.
+// del_req_resource 는 걷어냈다.
 //
-// req 는 논블로킹 요청의 임시 기록이었고, 논블로킹을 지원하지 않게 되면서
-// 이제 새로 만들어지지 않는다. 이 정리기는 기존 배포에 남은 행을 비우기
-// 위해 남겨 둔 것이다 — 다 비워지고 나면 이 함수와 delete_req, req 테이블을
-// 함께 걷어낼 수 있다.
-function del_req_resource() {
-    db.getConnection((code, connection) => {
-        if (code === '200') {
-            db_sql.delete_req(connection, (err, delete_Obj) => {
-                if (!err) {
-                    console.log('deleted ' + delete_Obj.affectedRows + ' request resource(s).');
-                }
-                connection.release();
-            });
-        }
-        else {
-            console.log('[del_req_resource] No Connection');
-        }
-    });
-}
+// req(ty=17) 행을 24시간마다 지우던 주기 작업인데, 논블로킹을 지원하지 않게
+// 되면서 새 행이 생기지 않는다. 기존 배포에 남은 행과 테이블은
+// migrations/003-drop-req-table.js 가 한 번에 정리한다 — 영구 주기 작업으로
+// 둘 일이 아니다.
 
 // 만료 리소스는 **자동으로 지우지 않는다.**
 //
@@ -219,22 +204,26 @@ function reconcile_counters(is_continuation) {
     });
 }
 
-// 비동기 subtree 삭제 도중 프로세스가 죽어 남은 고아 행 정리 (기동 시 + 일 1회)
-function del_orphan_resource() {
-    db.getConnection((code, connection) => {
-        if (code === '200') {
-            db_sql.delete_orphan_lookup(connection, (err) => {
-                if (err) {
-                    console.log('[del_orphan_resource] error', err);
-                }
-                connection.release();
-            });
-        }
-        else {
-            console.log('[del_orphan_resource] No Connection');
-        }
-    });
-}
+// 고아 행 정리는 **자동으로 돌리지 않는다.**
+//
+// 비동기 subtree 삭제(delete_descendants_background)가 도중에 끊기면 부모를
+// 잃은 lookup 행이 남는다. 그걸 치우는 기능은 필요하지만, 주기 실행으로 둘
+// 일은 아니다.
+//
+// 이유는 비용이다. delete_orphan_lookup 은 lookup 전체를 5,000행 배치로 훑고,
+// 배치마다 질의가 두 번(스캔 + 부모 존재 확인) 나간다. 게다가 아무것도 안
+// 지울 때까지 여러 패스를 돈다. 배포의 lookup 은 5,740만 행이라 한 패스에만
+// 배치가 11,000회를 넘는다. 그동안 풀 커넥션 하나를 계속 붙잡는다.
+//
+// 고아가 얼마나 쌓이는지는 배포마다 다르다 — 비동기 삭제가 끊긴 횟수에
+// 달렸으므로, 매일 전수를 훑는 것이 맞는지는 실제 수를 보고 정할 일이다.
+// 그래서 기동 시 실행과 24시간 주기를 모두 뺐다. 만료 스윕과 같은 방침이다.
+//
+// 관리자 UI 가 쓸 함수:
+//   db_sql.count_orphan_lookup(conn, cb)          몇 개인지 센다 (읽기 전용)
+//   db_sql.delete_orphan_lookup(conn, cb)         확인 후 삭제
+//
+// 자세한 배경은 docs/superpowers/specs/2026-08-29-admin-ui-handoff.md 참고.
 
 var cluster = require('cluster');
 var os = require('os');
@@ -308,12 +297,9 @@ if (use_clustering) {
                             cb.create(connection, (rsp) => {
                                 console.log(JSON.stringify(rsp));
 
-                                setInterval(del_req_resource, (24) * (60) * (60) * (1000));
-                                // 만료 스윕(del_expired_resource)의 주기 실행은 뺐다.
+                                // 만료 스윕(del_expired_resource)과 고아 정리
+                                // (delete_orphan_lookup)의 주기 실행은 뺐다.
                                 // 이유는 위 주석 참고 — 관리자 UI 가 확인 후 호출한다.
-
-                                del_orphan_resource();
-                                setInterval(del_orphan_resource, (24) * (60) * (60) * (1000));
 
                                 reconcile_counters();
                                 setInterval(reconcile_counters, (24) * (60) * (60) * (1000));
@@ -1283,6 +1269,19 @@ function check_resource_from_url(connection, ri, sri, callback) {
                 if (results.length === 0) {
                     callback(null, 404);
                 }
+                else if (!responder.typeRsrc.hasOwnProperty(String(results[0].ty))) {
+                    // lookup 에 있는데 그 타입을 이 CSE 가 다루지 않는 경우다.
+                    // 지원을 걷어낸 타입의 옛 행이 남아 있으면 여기로 온다
+                    // (예: req/ty=17 — 논블로킹을 접으면서 제거했다).
+                    //
+                    // 예전에는 그대로 흘려보내 typeRsrc[ty] 가 undefined 인 채
+                    // 테이블 이름 자리에 들어갔고, 깨진 질의가 500
+                    // "database error" 로 나갔다. 원인을 짐작할 수 없는 응답이다.
+                    // 지원하지 않는 타입이라고 답한다.
+                    console.log('[check_resource_from_url] 지원하지 않는 타입의 행: ty=' +
+                                results[0].ty + ' ' + ri);
+                    callback(null, 501);
+                }
                 else {
                     cache_resource_url[ri] = JSON.parse(JSON.stringify(results[0]));
                     callback(results[0], 200);
@@ -1737,6 +1736,10 @@ function get_target_url(request, response, callback) {
         }
         else if (status == 500) {
             callback('500-1');
+        }
+        else if (status == 501) {
+            // 이 CSE 가 다루지 않는 타입의 행이다. check_resource_from_url 주석 참고.
+            callback('405-3');
         }
         else {
             if (targetObject) {
