@@ -139,14 +139,14 @@ CREATE TABLE IF NOT EXISTS sub (
 -- ct, ri 까지 넣어 la/ol 의 ORDER BY 와 delete_oldest 가 정렬 없이 끝난다.
 CREATE INDEX IF NOT EXISTS idx_lookup_pi_ty_ct ON lookup (pi, ty, ct, ri);
 
--- discovery 골격 재귀용. "CIN 이 아닌 자식" 을 등치 조건 하나로 찾는다.
+-- discovery 골격 재귀는 idx_lookup_pi_ty_ct 로 충분하다.
 --
--- MySQL 의 재귀 CTE 안에서는 ref(등치) 접근만 되고 range 가 안 된다. 그래서
--- ty <> 4 를 그대로 쓰면 인덱스가 pi 까지만 잡히고 나머지는 필터가 되어
--- 부모마다 CIN 을 전부 읽는다(배포 서버 실측 125초). (ty <> 4) 를 인덱스
--- 키로 만들면 등치가 되어 분기 하나로 끝난다.
--- 질의는 반드시 `(ty <> 4) = 1` 형태여야 한다 — mobius/sql_action.js 참고.
-CREATE INDEX IF NOT EXISTS idx_lookup_pi_notcin ON lookup (pi, (ty <> 4));
+-- MySQL 쪽에는 not_cin 가상 컬럼과 (pi, not_cin) 인덱스를 따로 뒀다
+-- (migrations/004). 재귀 CTE 안에서 range 접근이 안 되어 "CIN 이 아니다" 를
+-- 등치로 만들어야 했기 때문이다. SQLite 는 두 가지 이유로 대상이 아니다:
+--   1. INVISIBLE 컬럼이 없어서 만들면 `select *` 응답에 그대로 샌다
+--   2. 임베디드 규모라 ty <> 4 를 필터로 처리해도 문제되지 않는다
+-- 파사드가 백엔드별 조건을 낸다 — mobius/db/sqlite.js 의 notCinPredicate.
 
 -- select_resource_from_url 은 (ri = ?) or (sri = ?) 로 찾는다.
 -- ri 는 PRIMARY KEY 라 이미 빠르고, sri 쪽만 없었다.

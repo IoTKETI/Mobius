@@ -217,6 +217,21 @@ exports.noHashJoinHint = function (aliases) {
     return adapter.noHashJoinHint ? adapter.noHashJoinHint(aliases) : null;
 };
 
+// "이 행은 contentInstance(ty=4) 가 아니다" 를 그 백엔드에서 가장 잘 도는
+// 형태로 돌려준다. discovery 골격이 트리를 넓힐 때 쓴다.
+//   MySQL   'l.not_cin = 1'   (가상 생성 컬럼 — 재귀 CTE 는 등치만 인덱스를 탄다)
+//   SQLite  'l.ty <> 4'
+exports.notCinPredicate = function (alias) {
+    builder();
+    return adapter.notCinPredicate ? adapter.notCinPredicate(alias) : (alias + '.ty <> 4');
+};
+
+// 위 조건을 태울 인덱스 이름. 없으면 null (힌트를 붙이지 않는다).
+exports.notCinIndexName = function () {
+    builder();
+    return adapter.notCinIndexName ? adapter.notCinIndexName() : null;
+};
+
 // 테스트용. 운영 코드는 어느 백엔드인지 알 필요가 없다.
 exports._adapterName = function () {
     return adapter ? adapter.name : null;

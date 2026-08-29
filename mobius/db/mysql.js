@@ -50,6 +50,7 @@ exports.pathCollate = function () {
 // 클러스터드 PRIMARY 를 골라 부모마다 CIN 을 전부 읽는다.
 // 배포 서버 실측(2026-08-29): lbl 필터가 60초 초과 → 강제 시 840ms.
 exports.indexHint = function (name) {
+    if (!name) { return ''; }
     return ' force index (' + name + ')';
 };
 
@@ -62,6 +63,26 @@ exports.indexHint = function (name) {
 exports.noHashJoinHint = function (aliases) {
     if (!aliases || !aliases.length) { return null; }
     return 'NO_HASH_JOIN(' + aliases.join(', ') + ')';
+};
+
+// "이 행은 contentInstance(ty=4) 가 아니다" 를 재귀 CTE 가 인덱스로 탈 수 있는
+// 형태로 돌려준다. discovery 골격이 트리를 넓힐 때 쓴다.
+//
+// 왜 ty <> 4 를 그대로 안 쓰는가: MySQL 의 재귀 CTE 안에서는 ref(등치) 접근만
+// 되고 range 가 안 된다. `ty <> 4` 는 인덱스가 pi 까지만 잡히고 나머지가
+// 필터로 밀려 부모마다 CIN 을 전부 읽는다 (배포 서버 실측 125,385ms).
+// 그래서 lookup 에 가상 생성 컬럼 not_cin = (ty <> 4) 를 두고 등치로 묻는다.
+//
+// not_cin 은 INVISIBLE 이라 `select *` 에 나타나지 않는다. 눈에 보이면
+// 리소스 조회 응답(m2m:cnt 등)에 그대로 실려 나간다 — 배포 서버에서 실제로
+// 한 번 샜다. migrations/004 참고.
+exports.notCinPredicate = function (alias) {
+    return alias + '.not_cin = 1';
+};
+
+// 위 조건을 태울 인덱스 이름. 없으면 null.
+exports.notCinIndexName = function () {
+    return 'idx_lookup_pi_notcin';
 };
 
 exports.connect = function (conf, callback) {

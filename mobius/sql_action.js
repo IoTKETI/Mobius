@@ -1587,20 +1587,9 @@ exports.select_spec_ri = function (connection, found_Obj, count, callback) {
 // 그 방식은 레벨당 2,000개 상한이 있어 큰 트리에서 결과가 조용히 잘렸고,
 // 부모 수만큼 왕복이 생겼다. SQLite 는 이미 CTE 였으므로 CTE 로 통일한다.
 //
-// 재귀항에서 ty 를 **등치**로 줘야 (pi, ty) 인덱스 범위를 탄다.
-// 배포 서버 실측(2026-08-29, lookup 6,620만행 / CIN 이 99.95%):
-//   ty in (2,3,5)  -> 인덱스가 pi 까지만, 나머지는 필터   6,961ms
-//   ty < 4         -> 마찬가지                          77,387ms
-//   ty = 3 (등치)  -> (pi, ty) 범위                        434ms
-// 그래서 타입마다 UNION 분기를 하나씩 만든다.
-//
-// 자식을 가질 수 있는 타입 = global.ty_list - leaf_ty_list(resource.js).
-// 여기서 직접 들고 있는 이유는 sql_action 이 resource 보다 먼저 로드될 수
-// 있어서다. 새 타입을 추가하면 양쪽을 같이 고쳐야 한다 —
-// test/discovery-cte.test.js 가 두 목록의 일치를 검사한다.
-var NONLEAF_TY = ['2', '3', '5', '10', '13', '14', '16', '24', '27', '28',
-                  '38', '39', '91', '92', '93', '94', '95', '96', '97', '98'];
-exports.NONLEAF_TY = NONLEAF_TY;
+// 골격은 "CIN(ty=4) 이 아닌 자식" 을 따라 넓힌다. 조건의 표현은 백엔드마다
+// 다르므로 파사드가 낸다 — facade.notCinPredicate() / notCinIndexName() 참고.
+// (MySQL 은 재귀 CTE 안에서 등치만 인덱스를 타므로 가상 생성 컬럼을 쓴다)
 
 // 큰 트리에서 pathological 한 질의(ty 없이 lbl like '%..%' 등)가 커넥션을
 // 오래 붙잡지 않도록 문장 단위 상한을 건다. 지원하지 않는 백엔드에서는 null 이라
@@ -1628,45 +1617,53 @@ function build_descendant_sql(ri, query, query_where, cur_lim) {
     var C = facade.pathCollate();
     var max_lvl = descendant_max_lvl(query);
 
-    // 재귀항에도 인덱스를 고정해야 한다.
+    // 재귀항에는 반드시 인덱스를 고정해야 한다.
     //
     // 안 걸면 옵티마이저가 클러스터드 PRIMARY(pi, ri, ty) 를 골라 pi 로만 찾고
-    // ty 를 **필터**로 처리한다. 그러면 골격을 넓히려고 컨테이너를 훑을 때마다
-    // 그 컨테이너의 CIN 을 전부 읽는다.
-    //
-    // 배포 서버 실측(2026-08-29, 전체 CSE 골격 30,794노드):
-    //   고정 없음                    80,421ms  (30초 상한에 걸려 HTTP 500)
-    //   force index 만               15,584ms
-    //   force index + NO_HASH_JOIN    4,856ms
-    //
-    // 계획 차이는 EXPLAIN 한 줄로 드러난다:
-    //   고정 없음  Covering index lookup on l using PRIMARY (pi=s.sk_ri)
-    //              + Filter: (l.ty = 3)            <- ty 가 인덱스 밖
-    //   고정       Covering index lookup on l using idx_lookup_pi_ty_ct
-    //              (pi=s.sk_ri, ty=3)              <- ty 가 인덱스 안
-    //
-    // 어느 쪽을 고르는지는 통계와 캐시 상태로 뒤집힌다. 실제로 같은 질의가
-    // 아침에는 751ms, 오후에는 80초였다. 고정하지 않으면 재현되지 않는 장애가 된다.
-    var hint = facade.indexHint('idx_lookup_pi_ty_ct');
+    // 나머지를 **필터**로 처리한다. 그러면 골격을 넓히려고 컨테이너를 훑을
+    // 때마다 그 컨테이너의 CIN 을 전부 읽는다. 어느 계획을 고르는지는 통계와
+    // 캐시 상태로 뒤집혀서, 같은 질의가 아침에 751ms 오후에 80초였고 배포
+    // 서버가 실제로 HTTP 500 을 내고 있었다.
+    var recur_hint = facade.indexHint(facade.notCinIndexName());
 
+    // 골격은 "CIN 이 아닌 자식" 을 따라 넓힌다 — 분기 하나면 된다.
+    //
+    // 예전에는 비-리프 타입마다 UNION 분기를 하나씩 만들었다(20개). MySQL 의
+    // 재귀 CTE 안에서는 ref(등치) 접근만 되고 range 가 안 되기 때문이다.
+    // 배포 서버 실측(2026-08-29, 전체 CSE 골격):
+    //   ty in (2,3,5)     인덱스는 pi 까지만, 나머지는 Filter      6,961ms
+    //   ty < 4 / ty > 4   인덱스를 고정해도 Filter 로 밀림       125,385ms
+    //   ty between        마찬가지                              77,060ms
+    //   ty = 'N' 등치 20개                                        4,856ms
+    // 골격 30,794노드 × 20 = 616,000회 탐색이 전체 CSE discovery 5초의 대부분이고,
+    // 그중 15개 타입은 이 배포에 행이 0개인데도 노드마다 찾아봤다.
+    //
+    // 이제 lookup 에 (pi, not_cin) 인덱스가 있다(migrations/004). not_cin 은
+    // (ty <> 4) 를 담은 가상 생성 컬럼이라 "CIN 이 아니다" 가 등치가 되고,
+    // 분기 하나로 끝난다 — 탐색 616,000 -> 34,243 회.
+    //
+    // ty <> 4 는 SUB / ACP / GRP 도 골격에 넣지만(30,794 -> 34,243) 배포 서버에서
+    // 자식을 가진 노드의 타입은 2 / 3 / 5 / 14 뿐이라 결과는 같다. 오히려 앞으로
+    // 어떤 타입이 자식을 갖게 되어도 목록을 고칠 필요가 없어 더 안전하다.
     var branches = '';
     // max_lvl 이 0 이면 직계 자식만 보면 되므로 재귀가 아예 필요 없다.
     if (max_lvl === null || max_lvl > 0) {
         var guard = (max_lvl === null) ? '' : ' and s.sk_lvl < ' + max_lvl;
-        for (var i = 0; i < NONLEAF_TY.length; i++) {
-            branches += '\n  union\n' +
-                '  select l.ri' + C + ', s.sk_lvl + 1 from lookup l' + hint +
-                ' join skel s on l.pi = s.sk_ri' +
-                " where l.ty = '" + NONLEAF_TY[i] + "'" + guard;
-        }
+        branches = '\n  union\n' +
+            '  select l.ri' + C + ', s.sk_lvl + 1 from lookup l' + recur_hint +
+            ' join skel s on l.pi = s.sk_ri' +
+            ' where ' + facade.notCinPredicate('l') + guard;
     }
 
-    // 바깥 질의도 같은 이유로 고정한다. lbl 처럼 lookup 밖의 컬럼을 거르면
-    // 옵티마이저가 PRIMARY 를 골라 부모마다 CIN 을 전부 읽는다 — 60초 초과.
+    // 바깥 질의는 (pi, ty, ct) 를 고정한다. 여기는 요청의 ty 로 거르는데,
+    // lbl 처럼 인덱스 밖 컬럼이 끼면 옵티마이저가 PRIMARY 를 골라 ty 를 범위에서
+    // 빼 버리고 부모마다 CIN 을 전부 읽는다 — 배포 서버에서 60초를 넘겼다.
+    var hint = facade.indexHint('idx_lookup_pi_ty_ct');
+
     var timeout = facade.statementTimeoutHint(DISCOVERY_TIMEOUT_MS);
-    // 해시 조인을 막는다. 값이 희소한 타입 분기에서 옵티마이저가 idx_lookup_ty 를
-    // 통째로 훑고 골격의 새 행으로 해시를 만드는 계획을 고르는데, 그 해시를
-    // 재귀 반복마다 새로 만든다. 실측 15,584ms -> 4,856ms.
+    // 해시 조인을 막는다. 옵티마이저가 재귀항에서 "작은 인덱스를 통째로 훑고
+    // 골격의 새 행으로 해시를 만드는" 계획을 고를 때가 있는데, 재귀는 반복마다
+    // 상대가 바뀌므로 그 해시를 매번 새로 만든다 (실측 15,584ms -> 4,856ms).
     var nohash = facade.noHashJoinHint(['l', 's']);
     var hints = [timeout, nohash].filter(Boolean).join(' ');
     var lead = 'select ' + (hints ? '/*+ ' + hints + ' */ ' : '');

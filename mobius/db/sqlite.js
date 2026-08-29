@@ -49,6 +49,18 @@ exports.indexHint = function () { return ''; };
 // SQLite 에는 조인 알고리즘을 고르는 힌트가 없다 (중첩 루프만 쓴다).
 exports.noHashJoinHint = function () { return null; };
 
+// SQLite 는 조건을 그대로 쓴다.
+//
+// MySQL 쪽은 재귀 CTE 안에서 range 접근이 안 되어 가상 생성 컬럼(not_cin)이
+// 필요했지만, SQLite 는 임베디드 규모라 그럴 이유가 없다. 그리고 SQLite 에는
+// INVISIBLE 컬럼이 없어서 컬럼을 만들면 `select *` 응답에 그대로 새어 나간다.
+// 조건만 다르고 질의 모양은 두 백엔드가 같다.
+exports.notCinPredicate = function (alias) {
+    return alias + '.ty <> 4';
+};
+
+exports.notCinIndexName = function () { return null; };
+
 exports.connect = function (conf, callback) {
     db = new sqlite3.Database(DB_PATH, function (err) {
         if (err) {

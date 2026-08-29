@@ -64,6 +64,9 @@ function guard(done, fn) {
     };
 }
 
+// 골격 CTE 가 끝나는 지점. SQL 을 골격/바깥으로 가르는 데 쓴다.
+const SKEL_END = ')\nselect';
+
 // 옛 시그니처를 그대로 쓴다 (resource.js 호출부와 같은 형태).
 function run(t, query, cb, root) {
     const found = {};
@@ -86,41 +89,49 @@ test('discovery 는 질의를 한 번만 던진다', function (t, done) {
     }));
 });
 
-// --- 2) 재귀항의 ty 는 등치여야 한다 -----------------------------------------
+// --- 2) 골격 재귀는 분기 하나로, 등치 조건으로 -------------------------------
 //
-// 배포 서버 실측(2026-08-29, lookup 6,620만행 / CIN 99.95%):
-//   ty in (2,3,5) -> 인덱스가 pi 까지만 잡히고 나머지는 필터   6,961ms
-//   ty < 4        -> 마찬가지                               77,387ms
-//   ty = 3 (등치) -> (pi, ty) 범위                              434ms
+// MySQL 의 재귀 CTE 안에서는 ref(등치) 접근만 되고 range 가 안 된다.
+// 배포 서버 실측(2026-08-29, 전체 CSE 골격):
+//   ty in (2,3,5)     인덱스는 pi 까지만, 나머지는 Filter      6,961ms
+//   ty < 4 / ty > 4   인덱스를 고정해도 Filter 로 밀림       125,385ms
+//   ty = 'N' 등치 20개                                        4,856ms
+//   not_cin = 1 등치 1개 (지금)                          -> migrations/004
+// 그래서 조건이 반드시 **등치**여야 하고, 범위나 IN 이 들어가면 안 된다.
 
-test('재귀항은 타입마다 등치 분기를 만든다', function (t, done) {
+test('골격 재귀는 UNION 분기를 하나만 만든다', function (t, done) {
     const h = tap('mysql');
     run(h, { ty: '3', lim: 20 }, guard(done, function (code, ris, seen) {
         const sql = seen[0].sql;
-        const NL = h.sql_action.NONLEAF_TY;
-        assert.ok(NL.length > 0);
-        NL.forEach(function (ty) {
-            assert.ok(sql.indexOf("l.ty = '" + ty + "'") !== -1,
-                'ty=' + ty + ' 분기가 없다');
-        });
-        // 골격 부분에 범위/집합 조건이 끼면 인덱스를 못 탄다.
-        const skel = sql.slice(0, sql.indexOf(')\nselect'));
-        assert.ok(!/l\.ty\s+in\s*\(/i.test(skel), '재귀항에 ty IN (...) 이 있다');
-        assert.ok(!/l\.ty\s*[<>]/.test(skel), '재귀항에 ty 범위 조건이 있다');
+        const skel = sql.slice(0, sql.indexOf(SKEL_END));
+        assert.strictEqual((skel.match(/union/gi) || []).length, 1,
+            '분기가 하나가 아니다 — 타입마다 분기하던 시절로 돌아갔다');
         done();
     }));
 });
 
-test('비-리프 타입 목록이 resource.js 의 ty_list - leaf_ty_list 와 같다', function () {
+test('골격 조건에 범위나 IN 이 들어가지 않는다', function (t, done) {
     const h = tap('mysql');
-    const src = fs.readFileSync(path.join(ROOT, 'mobius', 'resource.js'), 'utf8');
-    const all = /global\.ty_list\s*=\s*\[([^\]]*)\]/.exec(src);
-    const leaf = /var leaf_ty_list\s*=\s*\[([^\]]*)\]/.exec(src);
-    assert.ok(all && leaf, 'resource.js 에서 타입 목록을 못 찾았다');
-    const parse = (m) => m[1].split(',').map((s) => s.trim().replace(/'/g, '')).filter(Boolean);
-    const expected = parse(all).filter((t) => parse(leaf).indexOf(t) < 0);
-    assert.deepStrictEqual(h.sql_action.NONLEAF_TY, expected,
-        'resource.js 의 타입 목록과 어긋난다 — 한쪽만 고쳤다');
+    run(h, { ty: '3', lim: 20 }, guard(done, function (code, ris, seen) {
+        const skel = seen[0].sql.slice(0, seen[0].sql.indexOf(SKEL_END));
+        assert.ok(!/l\.ty\s+in\s*\(/i.test(skel), '재귀항에 ty IN (...) 이 있다');
+        assert.ok(!/l\.ty\s*[<>]\s*\d/.test(skel),
+            '재귀항에 ty 범위 조건이 있다 — MySQL 은 재귀 안에서 range 를 못 쓴다');
+        assert.match(skel, /where l\.not_cin = 1/, '등치 조건이 아니다');
+        done();
+    }));
+});
+
+test('SQLite 는 가상 컬럼 없이 조건을 그대로 쓴다', function (t, done) {
+    const h = tap('sqlite');
+    run(h, { ty: '3', lim: 20 }, guard(done, function (code, ris, seen) {
+        const skel = seen[0].sql.slice(0, seen[0].sql.indexOf(SKEL_END));
+        // SQLite 에는 INVISIBLE 컬럼이 없어 not_cin 을 만들면 select * 에 샌다.
+        assert.ok(!/not_cin/.test(seen[0].sql), 'SQLite 에 not_cin 이 들어갔다');
+        assert.match(skel, /where l\.ty <> 4/);
+        assert.strictEqual((skel.match(/union/gi) || []).length, 1);
+        done();
+    }));
 });
 
 // --- 3) lim / ofst 는 전역이다 -----------------------------------------------
@@ -270,14 +281,33 @@ test('재귀항에도 인덱스를 고정한다', function (t, done) {
     run(h, { ty: '3', lim: 20 }, guard(done, function (code, ris, seen) {
         const sql = seen[0].sql;
         const skel = sql.slice(0, sql.indexOf(')\nselect'));
-        const NL = h.sql_action.NONLEAF_TY;
-        const hinted = (skel.match(/from lookup l force index \(idx_lookup_pi_ty_ct\)/g) || []).length;
-        assert.strictEqual(hinted, NL.length,
-            '재귀 분기 ' + NL.length + '개 중 ' + hinted + '개만 인덱스가 고정됐다');
-        // 힌트가 join 앞에 와야 문법이 성립한다
+        // 재귀항은 (pi, not_cin), 바깥 질의는 (pi, ty, ct) 를 쓴다
+        assert.match(skel, /from lookup l force index \(idx_lookup_pi_notcin\)/,
+            '재귀항에 인덱스가 고정되지 않았다');
         assert.ok(!/from lookup l join/.test(skel), '힌트 없는 재귀 분기가 있다');
+        assert.match(sql.slice(sql.indexOf(')\nselect')),
+            /from lookup r force index \(idx_lookup_pi_ty_ct\)/,
+            '바깥 질의에 인덱스가 고정되지 않았다');
         done();
     }));
+});
+
+// 스키마와 질의가 어긋나면 전부 500 이 난다. 인덱스 이름과 컬럼 이름이
+// 스키마 파일에 실재하는지 검사한다.
+test('골격이 쓰는 인덱스와 컬럼이 스키마에 선언돼 있다', function () {
+    const my = fs.readFileSync(path.join(ROOT, 'mobius', 'mobiusdb.sql'), 'utf8');
+    assert.match(my, /idx_lookup_pi_notcin/, 'mobiusdb.sql 에 인덱스 선언이 없다');
+    assert.match(my, /`not_cin`[\s\S]{0,120}GENERATED ALWAYS AS \(`?ty`? <> 4\)/,
+        'mobiusdb.sql 에 not_cin 생성 컬럼 선언이 없다');
+    assert.match(my, /`not_cin`[\s\S]{0,160}INVISIBLE/,
+        'not_cin 이 INVISIBLE 이 아니다 — select * 로 응답에 새어 나간다');
+
+    // 마이그레이션도 같은 이름을 써야 한다
+    const mig = fs.readFileSync(
+        path.join(ROOT, 'migrations', '004-lookup-pi-notcin-index.js'), 'utf8');
+    assert.match(mig, /idx_lookup_pi_notcin/);
+    assert.match(mig, /not_cin/);
+    assert.match(mig, /INVISIBLE/, '마이그레이션이 INVISIBLE 을 안 쓴다');
 });
 
 test('해시 조인 금지 힌트를 붙인다', function (t, done) {
@@ -320,10 +350,13 @@ test('두 백엔드가 같은 CTE 골격을 만든다', function (t, done) {
     run(m, { ty: '3', lim: 20 }, guard(done, function (c1, r1, s1) {
         const q = tap('sqlite');
         run(q, { ty: '3', lim: 20 }, guard(done, function (c2, r2, s2) {
+            // 어댑터가 내는 조각만 다르고 뼈대는 같아야 한다:
+            //   콜레이션 / 인덱스 강제 / 옵티마이저 힌트 / "CIN 이 아니다" 표현
             const strip = (s) => s
                 .replace(/ collate utf8mb3_general_ci/g, '')
                 .replace(/ force index \([^)]*\)/g, '')
-                .replace(/\/\*\+ [^*]*\*\/ /g, '');
+                .replace(/\/\*\+ [^*]*\*\/ /g, '')
+                .replace(/l\.not_cin = 1|l\.ty <> 4/g, '<NOT_CIN>');
             assert.strictEqual(strip(s1[0].sql), strip(s2[0].sql),
                 '방언 조각을 뺀 SQL 이 서로 다르다');
             done();

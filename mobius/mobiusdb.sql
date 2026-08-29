@@ -302,13 +302,20 @@ CREATE TABLE `lookup` (
   `sri` varchar(45) NOT NULL,
   `spi` varchar(45) NOT NULL,
   `subl` mediumtext,
+  -- discovery 골격 재귀용. "CIN(ty=4) 이 아니다" 를 등치로 물을 수 있게 한다.
+  -- MySQL 의 재귀 CTE 안에서는 ref(등치) 접근만 되고 range 가 안 되기 때문에
+  -- ty <> 4 를 그대로 쓰면 인덱스가 pi 까지만 잡히고 나머지는 필터로 밀린다
+  -- (배포 서버 실측 125,385ms). VIRTUAL 이라 행을 차지하지 않는다.
+  -- INVISIBLE 이 필수다 — 안 그러면 `select *` 로 읽는 리소스 조회 응답에
+  -- not_cin 이 그대로 실려 나간다 (배포 서버에서 실제로 한 번 샜다).
+  `not_cin` tinyint unsigned GENERATED ALWAYS AS (`ty` <> 4) VIRTUAL INVISIBLE,
   PRIMARY KEY (`pi`,`ri`,`ty`),
   UNIQUE KEY `ri_UNIQUE` (`ri`),
   KEY `idx_lookup_ty` (`ty`) USING BTREE,
   KEY `idx_lookup_ct` (`ct`),
   KEY `idx_lookup_sri` (`sri`),
   KEY `idx_lookup_pi_ty_ct` (`pi`,`ty`,`ct`),
-  KEY `idx_lookup_pi_notcin` (`pi`,(`ty` <> 4))
+  KEY `idx_lookup_pi_notcin` (`pi`,`not_cin`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
