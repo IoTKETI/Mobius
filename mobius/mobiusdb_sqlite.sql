@@ -139,6 +139,15 @@ CREATE TABLE IF NOT EXISTS sub (
 -- ct, ri 까지 넣어 la/ol 의 ORDER BY 와 delete_oldest 가 정렬 없이 끝난다.
 CREATE INDEX IF NOT EXISTS idx_lookup_pi_ty_ct ON lookup (pi, ty, ct, ri);
 
+-- discovery 골격 재귀용. "CIN 이 아닌 자식" 을 등치 조건 하나로 찾는다.
+--
+-- MySQL 의 재귀 CTE 안에서는 ref(등치) 접근만 되고 range 가 안 된다. 그래서
+-- ty <> 4 를 그대로 쓰면 인덱스가 pi 까지만 잡히고 나머지는 필터가 되어
+-- 부모마다 CIN 을 전부 읽는다(배포 서버 실측 125초). (ty <> 4) 를 인덱스
+-- 키로 만들면 등치가 되어 분기 하나로 끝난다.
+-- 질의는 반드시 `(ty <> 4) = 1` 형태여야 한다 — mobius/sql_action.js 참고.
+CREATE INDEX IF NOT EXISTS idx_lookup_pi_notcin ON lookup (pi, (ty <> 4));
+
 -- select_resource_from_url 은 (ri = ?) or (sri = ?) 로 찾는다.
 -- ri 는 PRIMARY KEY 라 이미 빠르고, sri 쪽만 없었다.
 CREATE INDEX IF NOT EXISTS idx_lookup_sri ON lookup (sri);
