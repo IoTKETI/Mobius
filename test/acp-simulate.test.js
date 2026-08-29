@@ -24,6 +24,26 @@ global.useaccesscontrolpolicy = 'disable';
 
 const security = require('../mobius/security');
 
+// 질의 **내용**을 보고 답하는 어댑터. 원본마다 질의 수가 다를 때
+// (생성자·수퍼유저는 acpi 를 풀기 전에 끝난다) 고정 배열로는 줄이 안 맞는다.
+function tapBy(answer) {
+    for (const m of [DB, path.join(DB, 'mysql.js'), path.join(DB, 'sqlite.js'),
+                     path.join(__dirname, '..', 'mobius', 'sql_action.js'),
+                     path.join(__dirname, '..', 'mobius', 'acp_simulate.js')]) {
+        delete require.cache[require.resolve(m)];
+    }
+    global.usesqlite = 'false';
+    const db = require(DB);
+    const adapter = require(path.join(DB, 'mysql.js'));
+    const seen = [];
+    adapter.execute = function (conn, sql, bindings, cb) {
+        seen.push({ sql: sql, bindings: bindings });
+        cb(null, answer(sql, bindings) || []);
+    };
+    db.connect('h', 1, 'u', 'p', function () {});
+    return { sim: require(path.join(__dirname, '..', 'mobius', 'acp_simulate.js')), seen: seen };
+}
+
 function tap(pages) {
     for (const m of [DB, path.join(DB, 'mysql.js'), path.join(DB, 'sqlite.js'),
                      path.join(__dirname, '..', 'mobius', 'sql_action.js'),
@@ -264,6 +284,48 @@ test('모르는 연산은 거부한다', function (t, done) {
         assert.strictEqual(out.code, 'BAD_PARAMS');
         done();
     });
+});
+
+test('acpi 출처는 원본을 적은 순서에 좌우되지 않는다', function (t, done) {
+    // 수퍼유저·생성자는 acpi 를 풀기 전에 단축 판정된다. 그 결과를 최상위
+    // source/acpi 로 쓰면 **생성자를 첫 칸에 적었다는 이유만으로** 출처가
+    // 'none' 이 되고 상속 경고가 통째로 사라진다. 관리자가 자기 장치 ID 를
+    // 먼저 적는 것은 아주 자연스러운 순서다.
+    const target_row = cnt('c1', ['/Mobius/acp1'], 'Cdevice');
+    function run(origins, cb) {
+        // 원본마다 질의 수가 다르므로(생성자는 acpi 를 안 푼다) SQL 을 보고 답한다.
+        const h = tapBy(function (sql) {
+            if (/from `acp`/.test(sql)) { return [acpRow('/Mobius/acp1', 'Cteam')]; }
+            return [target_row];
+        });
+        h.sim.simulate_many(null, { ri: '/Mobius/c1', origins: origins, ops: ['RETRIEVE'] }, cb);
+    }
+    run(['Cteam', 'Cdevice'], function (e1, a) {
+        assert.ok(!e1, JSON.stringify(a));
+        run(['Cdevice', 'Cteam'], function (e2, b) {
+            assert.ok(!e2, JSON.stringify(b));
+            assert.strictEqual(a.source, b.source, '순서만 바꿨는데 출처가 달라진다');
+            assert.deepStrictEqual(a.acpi, b.acpi, '순서만 바꿨는데 acpi 가 달라진다');
+            assert.strictEqual(b.source, 'own');
+            done();
+        });
+    });
+});
+
+test('전부 단축 판정되면 출처를 모른다고 말한다', function (t, done) {
+    // 'none'(= ACP 가 없다) 으로 적으면 거짓이 된다.
+    const h = tap(target(cnt('c1', ['/Mobius/acp1'], 'Cowner')));
+    h.sim.simulate_many(null, { ri: '/Mobius/c1', origins: ['Cowner'], ops: ['RETRIEVE'] },
+        function (err, r) {
+            assert.ok(!err, JSON.stringify(r));
+            assert.strictEqual(r.source, null);
+            assert.strictEqual(r.acpi, null);
+            assert.ok(r.warnings.some((w) => w.rule === 'source_unknown'));
+            // 리소스 자체를 말하는 값은 그대로 있어야 한다.
+            assert.strictEqual(r.cr, 'Cowner');
+            assert.strictEqual(String(r.ty), '3');
+            done();
+        });
 });
 
 test('조합이 너무 많으면 거부한다 — 조용히 자르지 않는다', function (t, done) {

@@ -296,21 +296,53 @@ exports.simulate_many = function (connection, params, callback) {
     var matrix = [];
     var seen_warn = {};
     var warnings = [];
-    var head = null;
+    // 리소스 자체를 말하는 값(ty, cr, found)과 **acpi 출처**를 나눠서 모은다.
+    var head = null;      // 리소스 자체 — 어느 결과에서 읽어도 같다
+    var src = null;       // acpi 출처 — acpi 를 실제로 푼 결과에서만 읽는다
     var i = 0;
+
+    // 수퍼유저와 생성자는 acpi 를 풀기 전에 단축 판정된다. 그 결과에는
+    // source 가 'none', acpi 가 [] 로 들어 있는데 그건 "이 리소스에 ACP 가
+    // 없다" 가 아니라 "볼 필요가 없었다" 는 뜻이다.
+    function resolved_acpi(r) {
+        return r && r.found !== false &&
+               r.decided_by !== 'superuser' && r.decided_by !== 'creator';
+    }
 
     function next() {
         if (i >= jobs.length) {
-            return callback(null, {
+            var out = {
                 ri: p.ri,
                 ty: head ? head.ty : null,
                 cr: head ? head.cr : null,
                 found: head ? head.found : false,
-                source: head ? head.source : null,
-                acpi: head ? head.acpi : [],
                 matrix: matrix,
                 warnings: warnings
-            });
+            };
+            if (src) {
+                out.source = src.source;
+                out.inherited_from = src.inherited_from || null;
+                out.acpi = src.acpi;
+                out.resolved = src.resolved;
+            }
+            else {
+                // 모든 조합이 수퍼유저·생성자로 단축 판정됐다. acpi 출처를
+                // **모른다** — 'none' 으로 적으면 "ACP 가 없다" 로 읽히고,
+                // 그러면 상속 경고가 통째로 사라진다. 컨테이너 acpi 가
+                // 조상을 덮어쓴다는 사실을 알리는 것이 그 경고인데,
+                // 관리자가 자기 장치 ID 를 첫 칸에 적었다는 이유만으로
+                // 사라지면 안 된다.
+                out.source = null;
+                out.inherited_from = null;
+                out.acpi = null;
+                out.resolved = null;
+                if (head && head.found !== false) {
+                    warnings.push({ rule: 'source_unknown', acp_ri: null,
+                        message: '모든 원본이 수퍼유저·생성자로 단축 판정돼 acpi 출처를 확인하지 못했다 — ' +
+                                 '출처를 보려면 그 둘이 아닌 원본을 하나 넣는다' });
+                }
+            }
+            return callback(null, out);
         }
         var job = jobs[i++];
         exports.simulate(connection, {
@@ -319,6 +351,8 @@ exports.simulate_many = function (connection, params, callback) {
         }, function (err, r) {
             if (err) { return callback(err, r); }
             if (head === null) { head = r; }
+            // 순서와 무관하게, acpi 를 실제로 푼 첫 결과를 출처로 삼는다.
+            if (src === null && resolved_acpi(r)) { src = r; }
             if (r.found === false) {
                 matrix.push({ origin: job.origin, op: job.op, found: false });
             }
