@@ -4,4 +4,6 @@ size-filter.log
 acp-leak.log
 recover.log
 stale.log
+inherit.log
+replace.log
 *.json
