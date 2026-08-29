@@ -133,3 +133,47 @@ test('app.js 에 흩어진 정산 클로저가 남아 있지 않다', function (
     assert.ok(rel <= 12,
         'connection.release() 가 ' + rel + '곳이다 — 라우트 정산이 다시 흩어졌는지 확인할 것');
 });
+
+// ── lookup_* 파이프라인 (§9.3) ───────────────────────────────────────
+//
+// create / retrieve / update / delete 는 "권한을 보고 연산한다" 는 같은 꼬리를
+// 네 벌 들고 있었다. authorize_and_run 으로 모았다.
+//
+// app.js 는 export 가 없어 직접 부를 수 없다. 되돌아가지 않았는지만 지킨다.
+
+test('lookup_* 가 security.check 를 직접 부르지 않는다', function () {
+    const fs = require('node:fs');
+    const path = require('node:path');
+    const src = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8');
+
+    // authorize_and_run 안의 1곳 + fanOutPoint 4곳 = 5곳.
+    //
+    // fopt 쪽은 아직 안 모았다. 판정 대상이 다르고(그룹의 macp), 거부 코드도
+    // 403-5 로 다르며, 권한이 있을 때 하는 일이 메서드마다 다르다 —
+    // POST 는 본문 파싱이 끼어든다. 같은 부류의 중복이지만 별도 작업이다.
+    const calls = (src.match(/security\.check\(/g) || []).length;
+    assert.strictEqual(calls, 5,
+        'security.check 호출이 ' + calls + '곳이다 — lookup_* 파이프라인이 다시 흩어졌는지 확인할 것');
+});
+
+test('죽은 캐시 cache_security_check 가 되살아나지 않았다', function () {
+    const fs = require('node:fs');
+    const path = require('node:path');
+    const src = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8');
+
+    // 쓰기만 하고 읽는 곳이 없어 origin·ri 로 무한히 쌓이던 메모리 누수다.
+    assert.strictEqual(/^global\.cache_security_check/m.test(src), false,
+        'cache_security_check 전역이 되살아났다');
+    assert.strictEqual(/cache_security_check\[/.test(src), false,
+        'cache_security_check 에 다시 쓰고 있다');
+});
+
+test('CREATE 마다 돌던 security.check 계측이 없다', function () {
+    const fs = require('node:fs');
+    const path = require('node:path');
+    const src = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8');
+
+    // 요청마다 shortid 를 만들고 console.time 두 줄을 찍던 것이다.
+    assert.strictEqual(/'security\.check - '/.test(src), false,
+        'CREATE 마다 도는 계측이 되살아났다');
+});
