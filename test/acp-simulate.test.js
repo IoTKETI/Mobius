@@ -153,6 +153,39 @@ test('acpiOverride 는 저장값을 무시한다 — 잠그기 전에 미리 본
     });
 });
 
+test('acpiOverride:[] 는 "떼면 어떻게 되나" 다 — 저장값이 빈 것과 같아야 한다', function (t, done) {
+    // 예전에는 빈 배열도 override 갈래로 가서 select_acp_in 에 빈 목록을
+    // 넘겼고, 행이 없으니 no_acp_row(생성자만 통과)로 답했다. 실제로는 기본
+    // 정책이라 전원에게 열리는데 미리보기는 "다 잠긴다" 고 했다 —
+    // **안전한 쪽이 아니라 위험한 쪽으로** 틀렸다.
+    const h = tap(target(cnt('c1', ['/Mobius/acp1'], 'Cowner')).concat([[]]));
+    h.sim.simulate(null, { ri: '/Mobius/c1', origin: 'Cother', op: 'RETRIEVE',
+                           acpiOverride: [] }, function (err, r) {
+        assert.ok(!err, JSON.stringify(r));
+        assert.strictEqual(r.decided_by, 'default_policy',
+            "빈 override 는 기본 정책으로 떨어져야 한다 (받은 값: " + r.decided_by + ")");
+        assert.strictEqual(r.allowed, true, "'disable' 에서 조회는 누구나다");
+        assert.strictEqual(r.source, 'override', '뗐다고 가정한 결과임이 남아야 한다');
+        done();
+    });
+});
+
+test('acpiOverride:[] 여도 조상 상속은 그대로 걸린다', function (t, done) {
+    // select_acp_cnt 가 조상의 acpi 를 돌려주는 경우. 자기 것만 뗀 것이지
+    // 조상 것까지 뗀 것이 아니다.
+    const h = tap(target(cnt('c1', ['/Mobius/acp1'], 'Cowner'))
+        .concat([[{ acpi: JSON.stringify(['/Mobius/acpP']), ty: 2 }],
+                 [acpRow('/Mobius/acpP', 'Cteam')]]));
+    h.sim.simulate(null, { ri: '/Mobius/c1', origin: 'Cteam', op: 'RETRIEVE',
+                           acpiOverride: [] }, function (err, r) {
+        assert.ok(!err, JSON.stringify(r));
+        assert.strictEqual(r.source, 'override_inherited');
+        assert.strictEqual(r.allowed, true);
+        assert.strictEqual(r.acp_ri, '/Mobius/acpP');
+        done();
+    });
+});
+
 test('acpRowsOverride 로 아직 저장하지 않은 본문을 물어볼 수 있다', function (t, done) {
     const h = tap(target(cnt('c1', [], 'Cowner')).concat([[]]));
     h.sim.simulate(null, {

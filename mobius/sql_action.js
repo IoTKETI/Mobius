@@ -3642,15 +3642,46 @@ function safe_json(s) {
     catch (e) { return null; }
 }
 
+// 전역을 이름으로 바로 읽으면 없을 때 ReferenceError 로 **동기 throw** 한다 —
+// 콜백으로도 안 나오고 함수가 통째로 죽는다. 관리 콘솔은 app.js 를 require 하지
+// 않으므로 usespid 가 실제로 없다(app.js 에서만 세운다). 값이 **틀린** 경우가
+// 더 나쁘다: 절대 표기를 못 접어서 "참조 없음" 으로 잘못 보고하고, 그러면
+// ACP 삭제 영향 분석이 조용히 빗나간다. 그래서 읽을 때마다 안전하게 본다.
+function g(name) {
+    return (typeof global[name] === 'string') ? global[name] : '';
+}
+
 // acpi 원소를 make_internal_ri 와 같은 규칙으로 접는다. 스캔 중에는 DB 를 더
 // 부르지 않는다 — 3만 행에 한 건씩 질의하면 N+1 이 된다.
 function fold_acpi_entry(v) {
     if (typeof v !== 'string') { return null; }
-    if (v.indexOf(usespid + usecseid + '/') === 0) { return v.replace(usespid + usecseid + '/', '/'); }
-    if (v.indexOf(usecseid + '/' + usecsebase + '/') === 0) { return v.replace(usecseid + '/', '/'); }
-    if (v.indexOf(usecsebase) === 0) { return '/' + v; }
+    var spid = g('usespid');
+    var cseid = g('usecseid');
+    var cb = g('usecsebase');
+
+    if (cseid !== '') {
+        if (spid !== '' && v.indexOf(spid + cseid + '/') === 0) {
+            return v.replace(spid + cseid + '/', '/');
+        }
+        if (cb !== '' && v.indexOf(cseid + '/' + cb + '/') === 0) {
+            return v.replace(cseid + '/', '/');
+        }
+    }
+    if (cb !== '' && v.indexOf(cb) === 0) { return '/' + v; }
     return v;
 }
+
+/**
+ * 표기를 접는 데 필요한 전역이 서 있는가.
+ *
+ * 없으면 절대·SP상대 표기를 못 접어 역참조가 조용히 어긋난다. 죽지는 않지만
+ * 결과가 틀리므로, 부르는 쪽(관리 콘솔 등)이 확인할 수 있게 내보낸다.
+ */
+exports.acp_ri_context = function () {
+    var missing = ['usecsebase', 'usecseid', 'usespid'].filter(function (n) { return g(n) === ''; });
+    return { ok: missing.length === 0, missing: missing,
+             usecsebase: g('usecsebase'), usecseid: g('usecseid'), usespid: g('usespid') };
+};
 
 /**
  * 어떤 리소스가 이 ACP 를 쓰는가 — 풀스캔 없이.

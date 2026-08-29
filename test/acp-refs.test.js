@@ -78,6 +78,38 @@ test('소스 어디에도 acpi like 가 없다', function () {
     assert.ok(!/acpi'?\s*,\s*'like|like.{0,10}%.{0,10}acpi/i.test(code), 'acpi 에 like 를 쓰는 곳이 있다');
 });
 
+test('전역이 하나도 없어도 던지지 않는다 — 콘솔은 app.js 를 안 부른다', function (t, done) {
+    // usespid 는 app.js 에서만 세운다. 관리 콘솔은 별도 프로세스라 그 전역이
+    // 없고, 이름으로 바로 읽으면 ReferenceError 로 **동기 throw** 한다 —
+    // 콜백으로도 안 나오고 함수가 통째로 죽는다.
+    const saved = ['usespid', 'usecseid', 'usecsebase'].map((n) => [n, global[n]]);
+    saved.forEach(([n]) => { delete global[n]; });
+    const h = tap(false, [[row('a', ['/Mobius/acp1'])], []]);
+    assert.doesNotThrow(function () {
+        h.sql_action.scan_acpi_refs(null, { acpRi: '/Mobius/acp1' }, function (err, res) {
+            saved.forEach(([n, v]) => { if (v !== undefined) { global[n] = v; } });
+            assert.ok(!err);
+            assert.strictEqual(res.refs.length, 1);
+            done();
+        });
+    });
+});
+
+test('접기에 필요한 전역이 서 있는지 알려 준다', function (t, done) {
+    const h = tap(false, []);
+    const saved = global.usespid;
+    delete global.usespid;
+    const bad = h.sql_action.acp_ri_context();
+    assert.strictEqual(bad.ok, false);
+    assert.deepStrictEqual(bad.missing, ['usespid']);
+    global.usespid = '//ketiabc.com';
+    const good = h.sql_action.acp_ri_context();
+    assert.strictEqual(good.ok, true);
+    assert.deepStrictEqual(good.missing, []);
+    if (saved !== undefined) { global.usespid = saved; }
+    done();
+});
+
 test('키셋으로 전진하고 마지막 반환 행을 커서로 쓴다', function (t, done) {
     const p1 = [row('a', []), row('b', ['/Mobius/acp1'])];
     const h = tap(false, [p1, []]);
