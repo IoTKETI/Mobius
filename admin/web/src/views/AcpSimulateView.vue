@@ -131,7 +131,7 @@ const creatorPasses = computed(
         <span>생성자(<code>cr</code>): <strong class="mono">{{ result.cr || '(없음)' }}</strong></span>
         <span>
           권한 출처:
-          <strong v-if="result.factsResolved === false" class="unknown">확인하지 못함</strong>
+          <strong v-if="result.source === null" class="unknown">확인하지 못함</strong>
           <strong v-else>{{
             result.source === 'own'
               ? '이 리소스의 acpi'
@@ -163,6 +163,16 @@ const creatorPasses = computed(
           </li>
         </ul>
       </details>
+
+      <!-- 출처를 확인하지 못한 이유를 그냥 두면 관리자가 "고장" 으로 읽는다.
+           무엇을 하면 볼 수 있는지까지 말한다. -->
+      <p v-if="result.source === null" class="banner warnbox">
+        <strong>권한 출처를 확인하지 못했습니다.</strong>
+        넣으신 원본이 전부 수퍼유저이거나 이 리소스의 생성자라서, 서버가
+        <code>acpi</code> 를 풀기 전에 판정을 끝냈습니다. 출처를 보려면
+        <strong>그 둘이 아닌 원본을 하나 넣으세요.</strong>
+        (아래 행렬 자체는 정확합니다.)
+      </p>
 
       <p v-if="previewRemoved" class="banner warnbox">
         <strong>가정한 결과입니다 — 아직 아무것도 바뀌지 않았습니다.</strong>

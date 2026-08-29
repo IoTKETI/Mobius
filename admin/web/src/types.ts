@@ -167,7 +167,12 @@ export interface AcpDetail {
   pvs: unknown
   pv_parsed: AcpPrivileges | null
   pvs_parsed: AcpPrivileges | null
-  /** lookup 에만 있고 acp 본문이 없는 반쪽. 참조하는 리소스의 잠금이 조용히 풀린다. */
+  /** 이 ri 가 정말 ACP(ty=1)인가. false 면 아래 body_missing 은 뜻이 없다. */
+  is_acp: boolean
+  /**
+   * ACP 인데 acp 본문이 없는 반쪽. 참조하는 리소스의 잠금이 조용히 풀린다.
+   * is_acp 가 false 면 항상 false 다 — ACP 가 아닌 것을 반쪽이라고 하지 않는다.
+   */
   body_missing: boolean
 }
 
@@ -291,16 +296,18 @@ export interface AcpSimulation {
   ri: string
   ty: number
   cr: string
-  /** own | inherited | override | override_inherited | none */
-  source: string
-  inherited_from?: string | null
-  acpi: string[]
-  resolved?: AcpResolvedEntry[]
   /**
-   * 리소스의 권한 출처를 원본과 무관하게 확인했는가.
-   * false 면 source/acpi 를 믿을 수 없으므로 화면이 단정하지 않는다.
+   * own | inherited | override | override_inherited | none
+   *
+   * **리소스의 성질이지 원본의 성질이 아니다.** 원본을 적은 순서와 무관하다.
+   * 전부 수퍼유저·생성자로 단축 판정되면 `null` 이다 — 'none' 으로 적으면
+   * "ACP 가 없다" 로 읽히고 그것이 거짓이기 때문이다. 그때는
+   * `source_unknown` 경고가 함께 온다.
    */
-  factsResolved?: boolean
+  source: string | null
+  inherited_from?: string | null
+  acpi: string[] | null
+  resolved?: AcpResolvedEntry[] | null
   matrix: AcpVerdict[]
   warnings: { rule: string; message: string }[]
 }

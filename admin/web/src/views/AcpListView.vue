@@ -161,7 +161,12 @@ onMounted(async () => {
       <p v-if="detailLoading" class="muted">불러오는 중…</p>
 
       <template v-if="detail">
-        <p v-if="detail.detail.body_missing" class="banner danger">
+        <p v-if="detail.detail.is_acp === false" class="banner danger">
+          <strong>이 경로는 ACP 가 아닙니다.</strong> 접근제어정책(<code>ty=1</code>)이
+          아닌 리소스라 권한 규칙이 없습니다. 이 리소스에 <em>걸린</em> 권한을 보려면
+          시뮬레이터를 쓰세요.
+        </p>
+        <p v-else-if="detail.detail.body_missing" class="banner danger">
           <strong>본문이 없습니다.</strong> <code>lookup</code> 에는 있는데
           <code>acp</code> 테이블에 행이 없는 반쪽입니다. 이 ACP 를 참조하는 리소스는
           평가에서 “참조한 ACP 를 못 찾음”이 되어 <strong>잠금이 조용히 풀립니다.</strong>
