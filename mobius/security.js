@@ -17,6 +17,7 @@
 var url = require('url');
 var db_sql = require('./sql_action');
 var ip = require("ip");
+var acp_observe = require('./acp_observe');
 
 var moment = require('moment');
 
@@ -94,7 +95,13 @@ exports._actw_matches = actw_matches;
 exports._acip_allows = acip_allows;
 exports._actw_allows = actw_allows;
 exports._acor_allows = acor_allows;
+exports._acor_matches = acor_matches;
+exports._acop_allows = acop_allows;
 exports._evaluate_acr = evaluate_acr;
+exports._evaluate_acr_traced = evaluate_acr_traced;
+// 시뮬레이터(acp_simulate)가 이 함수를 그대로 쓴다. 판정 로직의 두 번째 사본을
+// 만들면 언젠가 갈라지고, 그러면 "미리 본 결과" 를 믿을 수 없게 된다.
+exports._evaluate_acp_rows = evaluate_acp_rows;
 
 // ── 권한 평가 ────────────────────────────────────────────────────────
 //
@@ -198,8 +205,20 @@ function acor_allows(rule, from, access_value) {
     // 아니다. 예전에는 여기서 그냥 true 를 돌려줘 acop 을 **아예 보지 않았다** —
     // acop:0(아무 권한도 주지 않겠다는 규칙)이 DELETE 를 통과시켰다.
     // 발신자만 통과시키고 연산 비트는 아래와 똑같이 본다.
+    //
+    // 둘로 나눈 것은 판정근거 때문이다. 거부가 발신자 때문인지 연산 비트
+    // 때문인지 구분하지 못하면 관리자가 ACP 를 어떻게 고쳐야 할지 알 수 없다.
+    // **평가 순서는 그대로 지킨다** — acor 이 안 맞으면 acop 을 건드리지
+    // 않는다. acop 이 없는 규칙은 그때만 던져야 한다(동작 보존).
+    return acor_matches(rule, from) && acop_allows(rule, access_value);
+}
+
+/**
+ * 발신자(acor)만 본다. acor 키가 없으면 발신자 제한이 없다는 뜻이라 통과다.
+ */
+function acor_matches(rule, from) {
     if (!rule.hasOwnProperty('acor')) {
-        return (rule.acop.toString() & access_value) == access_value;
+        return true;
     }
 
     // 발신자를 **그대로** 비교한다. 절대 정규식으로 만들지 말 것.
@@ -225,12 +244,21 @@ function acor_allows(rule, from, access_value) {
     for (var i = 0; i < keys.length; i++) {
         var who = rule.acor[keys[i]];
         if (String(who) === String(from) || who === 'all' || who === '*') {
-            if ((rule.acop.toString() & access_value) == access_value) {
-                return true;
-            }
+            return true;
         }
     }
     return false;
+}
+
+/**
+ * 연산 비트(acop)만 본다.
+ *
+ * acop 이 없으면 여기서 TypeError 가 난다 — 그러면 403 이 아니라 HTTP 500 이
+ * 나간다. 예전부터 그랬고 고치지 않는다(동작 보존). 대신 acp_lint 가 그런
+ * ACP 를 미리 찾아내고, 새로 쓰는 값은 acp.validate_privileges 가 막는다.
+ */
+function acop_allows(rule, access_value) {
+    return (rule.acop.toString() & access_value) == access_value;
 }
 
 /**
@@ -240,30 +268,157 @@ function acor_allows(rule, from, access_value) {
  * 된다. acco 가 없거나 비어 있으면 컨텍스트 제약이 없다는 뜻이다.
  */
 function evaluate_acr(rule, request, from, access_value, use_ra) {
-    var ctx_ok = true;
+    return evaluate_acr_traced(rule, request, from, access_value, use_ra).allow;
+}
+
+/**
+ * evaluate_acr 와 같은 판정을, **어느 조건에서 걸렸는지**와 함께 돌려준다.
+ *
+ * 세 관문을 원래 순서대로 지난다. 순서가 중요하다 — acco 나 acor 에서 막히면
+ * acop 을 건드리지 않고, acop 이 없는 규칙은 그때 던지지 않는다.
+ * 아직 보지 않은 관문은 null 이다(false 가 아니다).
+ */
+function evaluate_acr_traced(rule, request, from, access_value, use_ra) {
+    var acco_ok = true;
 
     if (rule.hasOwnProperty('acco')) {
         var acco = rule.acco;
         var keys = Object.keys(acco || {});
         if (keys.length === 0) {
-            ctx_ok = true;              // 빈 acco = 제약 없음
+            acco_ok = true;             // 빈 acco = 제약 없음
         }
         else {
-            ctx_ok = false;
+            acco_ok = false;
             for (var i = 0; i < keys.length; i++) {
                 var one = acco[keys[i]];
                 if (acip_allows(one.acip, request, use_ra) && actw_allows(one.actw)) {
-                    ctx_ok = true;
+                    acco_ok = true;
                     break;
                 }
             }
         }
     }
 
-    if (!ctx_ok) {
-        return false;
+    if (!acco_ok) {
+        return { allow: false, acco_ok: false, acor_ok: null, acop_ok: null };
     }
-    return acor_allows(rule, from, access_value);
+
+    var acor_ok = acor_matches(rule, from);
+    if (!acor_ok) {
+        return { allow: false, acco_ok: true, acor_ok: false, acop_ok: null };
+    }
+
+    var acop_ok = acop_allows(rule, access_value);
+    return { allow: acop_ok, acco_ok: true, acor_ok: true, acop_ok: acop_ok };
+}
+
+/**
+ * ACP 행 목록으로 판정한다 — DB 도 콜백도 없는 순수 함수.
+ *
+ * security_check_action 의 루프를 그대로 떼어냈다. 판정 규칙은 한 줄도 바뀌지
+ * 않았고, 대신 **왜 그렇게 판정했는지**를 함께 돌려준다. 지금까지 거부는
+ * '0' 한 글자였고 그 안에 이유가 없었다 — 어느 ACP 의 어느 규칙이 막았는지,
+ * 뒤에 평가되지 못한 ACP 가 있는지 알 방법이 없었다.
+ *
+ * 이 함수가 DB 에서 떨어져 있어야 시뮬레이터("걸면 어떻게 되나")가 성립한다.
+ * 요청을 실제로 보내지 않고도 같은 코드로 답할 수 있어야 하기 때문이다.
+ *
+ * @param rows         [{ri, pv, pvs}] — select_acp_in 이 돌려준 그대로
+ * @param field        'pv' 또는 'pvs'
+ * @param use_ra       client IPv4 를 remoteaddress 헤더에서 먼저 볼 것인가
+ * @param cr_fallback  acr 없는 규칙에서 cr 비교로 즉시 끝낼 것인가
+ * @returns { code: '1'|'0'|'500-1', trace: {...} }
+ */
+function evaluate_acp_rows(rows, request, cr, access_value, field, use_ra, cr_fallback) {
+    var from = request.headers['x-m2m-origin'];
+    var trace = {
+        decided_by: null,
+        field: field,
+        acp_ri: null,
+        acr_index: null,
+        cr: cr,
+        from: from,
+        access_value: access_value,
+        order: (rows || []).map(function (r) { return r.ri; }),
+        evaluated: [],
+        stopped_early: false,
+        not_evaluated: [],
+        error: null
+    };
+
+    function rest_of(i) {
+        return trace.order.slice(i + 1);
+    }
+
+    if (!rows || rows.length === 0) {
+        // 참조한 ACP 를 하나도 못 찾았다. 잠금이 조용히 풀려 생성자만 통과한다.
+        trace.decided_by = 'no_acp_row';
+        return { code: (from == cr ? '1' : '0'), trace: trace };
+    }
+
+    for (var i = 0; i < rows.length; i++) {
+        var ruleObj = parse_acp_rule(rows[i][field], field, rows[i].ri);
+        if (ruleObj === null) {
+            // 깨진 acp 행 하나가 그 ACP 를 참조하는 모든 요청을 죽이면 안 된다.
+            trace.evaluated.push({ ri: rows[i].ri, skipped: true, reason: 'parse_error', rules: [] });
+            continue;
+        }
+
+        if (!ruleObj.hasOwnProperty('acr')) {
+            trace.evaluated.push({ ri: rows[i].ri, skipped: true, reason: 'no_acr', rules: [] });
+            // pv 는 여기서 생성자와 비교하고 끝낸다. pvs 에는 이 분기가
+            // 없어서 그냥 다음 acp 로 넘어갔다 — 동작을 바꾸지 않는다.
+            if (cr_fallback) {
+                trace.decided_by = 'no_acr_cr';
+                trace.acp_ri = rows[i].ri;
+                trace.stopped_early = true;
+                trace.not_evaluated = rest_of(i);
+                return { code: (from == cr ? '1' : '0'), trace: trace };
+            }
+            continue;
+        }
+
+        var seen = { ri: rows[i].ri, skipped: false, reason: null, rules: [] };
+        trace.evaluated.push(seen);
+
+        var acr_keys = Object.keys(ruleObj.acr || {});
+        for (var j = 0; j < acr_keys.length; j++) {
+            var rule = ruleObj.acr[acr_keys[j]];
+            try {
+                var detail = evaluate_acr_traced(rule, request, from, access_value, use_ra);
+                seen.rules.push({
+                    i: j,
+                    acor_ok: detail.acor_ok,
+                    acop_ok: detail.acop_ok,
+                    acco_ok: detail.acco_ok,
+                    allow: detail.allow
+                });
+                if (detail.allow) {
+                    trace.decided_by = 'acr';
+                    trace.acp_ri = rows[i].ri;
+                    trace.acr_index = j;
+                    trace.stopped_early = i < rows.length - 1;
+                    trace.not_evaluated = rest_of(i);
+                    return { code: '1', trace: trace };
+                }
+            }
+            catch (e) {
+                // acop 이 없는 규칙이 여기로 온다. 403 이 아니라 500 이 나가는데,
+                // 그 사실이 지금까지 로그 한 줄로만 남았다.
+                console.log('[security_check_action ' + field + '] ' + e);
+                trace.decided_by = 'eval_error';
+                trace.acp_ri = rows[i].ri;
+                trace.acr_index = j;
+                trace.error = e && e.message ? e.message : String(e);
+                trace.stopped_early = true;
+                trace.not_evaluated = rest_of(i);
+                return { code: '500-1', trace: trace };
+            }
+        }
+    }
+
+    trace.decided_by = 'exhausted';
+    return { code: '0', trace: trace };
 }
 
 /**
@@ -279,60 +434,22 @@ function security_check_action(request, response, acpiList, cr, access_value,
     var ri_list = [];
     get_ri_list_sri(request, response, acpiList, ri_list, 0, function (code) {
         if (code !== '200') {
-            callback(code);
+            callback(code, { decided_by: 'lookup_error', field: field, acpi: acpiList });
             return;
         }
 
         db_sql.select_acp_in(request.db_connection, ri_list, function (err, results_acp) {
             if (err) {
                 console.log('query error: ' + results_acp.message);
-                callback('500-1');
+                callback('500-1', { decided_by: 'db_error', field: field, acpi: ri_list });
                 return;
             }
 
-            if (results_acp.length == 0) {
-                callback(request.headers['x-m2m-origin'] == cr ? '1' : '0');
-                return;
-            }
-
-            var from = request.headers['x-m2m-origin'];
-
-            for (var i = 0; i < results_acp.length; i++) {
-                // 깨진 acp 행 하나가 그 ACP 를 참조하는 모든 요청을 죽이면 안 된다.
-                // parse_acp_rule 은 던지지 않고 null 을 준다.
-                var ruleObj = parse_acp_rule(results_acp[i][field], field, results_acp[i].ri);
-                if (ruleObj === null) {
-                    continue;
-                }
-
-                if (!ruleObj.hasOwnProperty('acr')) {
-                    // pv 는 여기서 생성자와 비교하고 끝낸다. pvs 에는 이 분기가
-                    // 없어서 그냥 다음 acp 로 넘어갔다 — 동작을 바꾸지 않는다.
-                    if (cr_fallback) {
-                        callback(from == cr ? '1' : '0');
-                        return;
-                    }
-                    continue;
-                }
-
-                var acr_keys = Object.keys(ruleObj.acr || {});
-                for (var j = 0; j < acr_keys.length; j++) {
-                    try {
-                        if (evaluate_acr(ruleObj.acr[acr_keys[j]], request, from, access_value, use_ra)) {
-                            callback('1');
-                            return;
-                        }
-                    }
-                    catch (e) {
-                        console.log('[security_check_action ' + field + '] ' + e);
-                        callback('500-1');
-                        return;
-                    }
-                }
-            }
-
+            var verdict = evaluate_acp_rows(results_acp, request, cr, access_value,
+                                            field, use_ra, cr_fallback);
+            verdict.trace.acpi = ri_list;
             results_acp = null;
-            callback('0');
+            callback(verdict.code, verdict.trace);
         });
     });
 }
@@ -352,24 +469,36 @@ function security_check_action_pvs(request, response, acpiList, access_value, cr
 
 
 function security_default_check_action(request, response, cr, access_value, callback) {
+    // acpi 가 아무 데도 없는 리소스의 기본 정책이다. useaccesscontrolpolicy 라는
+    // 이름과 달리 "ACP 를 쓰느냐" 가 아니라 "ACP 가 없을 때 어떻게 하느냐" 다.
+    var trace = {
+        decided_by: 'default_policy',
+        source: 'none',
+        policy: useaccesscontrolpolicy,
+        cr: cr,
+        from: request.headers['x-m2m-origin'],
+        cr_match: request.headers['x-m2m-origin'] == cr,
+        access_value: access_value
+    };
+
     if(useaccesscontrolpolicy == 'enable') {
         if (request.headers['x-m2m-origin'] == cr) {
-            callback('1');
+            callback('1', trace);
         }
         else {
-            callback('0');
+            callback('0', trace);
         }
     }
     else {
         if (request.headers['x-m2m-origin'] == cr) {
-            callback('1');
+            callback('1', trace);
         }
         else {
             if (access_value & '1' || access_value & '2' || access_value & '32') {
-                callback('1');
+                callback('1', trace);
             }
             else {
-                callback('0');
+                callback('0', trace);
             }
         }
     }
@@ -410,20 +539,45 @@ function creator_bypasses(ty, cr, from) {
 
 exports._creator_bypasses = creator_bypasses;
 
+/**
+ * 접근을 판정한다.
+ *
+ * callback(code, trace) 로 **판정근거**를 함께 준다. 기존 호출부 셋은 두 번째
+ * 인자를 무시하므로 그대로 둬도 된다. 지금까지 거부는 '0' 한 글자였고 그 안에
+ * 이유가 없어서, 403 이 나면 관리자가 어느 ACP 를 어떻게 고쳐야 할지 알 수
+ * 없었다 — 배포 로그 22개 파일에 거부 흔적이 한 줄도 없는 이유이기도 하다.
+ */
 exports.check = function(request, response, ty, acpiList, access_value, cr, callback) {
-    if(request.headers['x-m2m-origin'] == usesuperuser || request.headers['x-m2m-origin'] == ('/'+usesuperuser)) {
-        callback('1');
+    var from = request.headers['x-m2m-origin'];
+
+    function done(code, trace) {
+        var t = trace || {};
+        t.ty = ty;
+        t.op_value = access_value;
+        // 관찰 모드면 여기서 '0' 이 '1' 로 바뀐다. 판정 자체는 그대로 두고
+        // 내보낼 코드만 바꾼다 — trace 에는 원래 거부 사유가 남는다.
+        callback(acp_observe.record_decision(request, code, t), t);
     }
-    else if (creator_bypasses(ty, cr, request.headers['x-m2m-origin'])) {
-        callback('1');
+
+    if(from == usesuperuser || from == ('/'+usesuperuser)) {
+        // 수퍼유저는 ACP 를 하나도 보지 않는다. 이 통과는 정책 검증이 아니다.
+        done('1', { decided_by: 'superuser', from: from, cr: cr });
+    }
+    else if (creator_bypasses(ty, cr, from)) {
+        done('1', { decided_by: 'creator', from: from, cr: cr });
     }
     else {
         if (ty == '1') { // check selfPrevileges
+            var self_acp = false;
             if (acpiList.length == 0) {
                 acpiList = [url.parse(request.url).pathname.split('?')[0]];
+                self_acp = true;
             }
-            security_check_action_pvs(request, response, acpiList, access_value, cr, function (code) {
-                callback(code);
+            security_check_action_pvs(request, response, acpiList, access_value, cr, function (code, trace) {
+                var t = trace || {};
+                t.path = 'pvs';
+                t.self = self_acp;
+                done(code, t);
             });
         }
         else if(ty == '33' || ty == '23' || ty == '4' || ty == '3') { // cnt or sub --> check parents acpi to AE
@@ -432,39 +586,45 @@ exports.check = function(request, response, ty, acpiList, access_value, cr, call
                 var targetUri_arr = targetUri.split('/');
 
                 var loop_cnt = 0;
-                db_sql.select_acp_cnt(request.db_connection, loop_cnt, targetUri_arr, function (err, results_acpi) {
+                db_sql.select_acp_cnt(request.db_connection, loop_cnt, targetUri_arr, function (err, results_acpi, found_ri) {
                     if (!err) {
                         if (results_acpi.length == 0) {
-                            security_default_check_action(request, response, cr, access_value, function (code) {
-                                callback(code);
-                            });
+                            security_default_check_action(request, response, cr, access_value, done);
                         }
                         else {
-                            security_check_action_pv(request, response, results_acpi, cr, access_value, function (code) {
-                                callback(code);
+                            security_check_action_pv(request, response, results_acpi, cr, access_value, function (code, trace) {
+                                var t = trace || {};
+                                // 이 리소스가 아니라 **조상**의 acpi 로 판정했다는 사실은
+                                // 지금 어디에도 남지 않았다. AE 의 ACP 를 고쳐도 왜 안
+                                // 먹는지(중간 컨테이너가 덮어썼다) 를 여기서만 알 수 있다.
+                                t.source = 'inherited';
+                                t.inherited_from = found_ri || null;
+                                done(code, t);
                             });
                         }
                     }
                     else {
-                        callback('500-1');
+                        done('500-1', { decided_by: 'db_error', source: 'inherited' });
                     }
                 });
             }
             else {
-                security_check_action_pv(request, response, acpiList, cr, access_value, function (code) {
-                    callback(code);
+                security_check_action_pv(request, response, acpiList, cr, access_value, function (code, trace) {
+                    var t = trace || {};
+                    t.source = 'own';
+                    done(code, t);
                 });
             }
         }
         else {
             if (acpiList.length == 0) {
-                security_default_check_action(request, response, cr, access_value, function (code) {
-                    callback(code);
-                });
+                security_default_check_action(request, response, cr, access_value, done);
             }
             else {
-                security_check_action_pv(request, response, acpiList, cr, access_value, function (code) {
-                    callback(code);
+                security_check_action_pv(request, response, acpiList, cr, access_value, function (code, trace) {
+                    var t = trace || {};
+                    t.source = 'own';
+                    done(code, t);
                 });
             }
         }

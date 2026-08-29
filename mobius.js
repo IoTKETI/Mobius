@@ -93,7 +93,24 @@ if (use_secure === 'enable') {
     use_mqtt_port = '8883';
 }
 
-global.useaccesscontrolpolicy = 'disable';
+// 이름과 달리 "ACP 를 쓰느냐" 가 아니라 **acpi 가 없는 리소스의 기본 정책**이다.
+//   'disable' (지금 / 운영 대원칙) — 생성·조회·탐색은 누구나, 수정·삭제는 생성자만
+//   'enable'                       — 전부 생성자만
+// 대원칙대로면 'disable' 이 정답이라 바꿀 일이 없다. conf 로 빼되 기본값은 그대로.
+global.useaccesscontrolpolicy = conf.defaultAccessPolicy || 'disable';
+
+// ACP 관측. 기본값은 전부 현재 동작과 같다 — 늘어나는 것은 로그 줄뿐이다.
+//   acpObserveMode 'observe' 로 켜면 **거부가 허용으로 나간다.** 잠그기 전에
+//   무엇이 막힐지 하루쯤 보고 끄기 위한 것이고, 켠 채로 두면 ACP 가 무력해진다.
+global.acp_observe_mode = conf.acpObserveMode || 'off';
+require('./mobius/acp_observe').configure({
+    mode: global.acp_observe_mode,
+    denyLog: conf.acpDenyLog || 'sample',
+    rate: (typeof conf.acpDenyLogRate === 'number') ? conf.acpDenyLogRate : 5
+});
+if (global.acp_observe_mode === 'observe') {
+    console.log('[acp] 관찰 모드다 — ACP 거부가 허용으로 나간다. 확인이 끝나면 반드시 끈다.');
+}
 
 global.wdt = require('./wdt');
 

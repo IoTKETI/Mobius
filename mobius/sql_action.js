@@ -2052,15 +2052,24 @@ exports.select_acp_cnt = function (connection, loop, uri_arr, callback) {
                 return;
             }
 
-            callback(err, results[0].acpi);
+            // 세 번째 인자로 **어느 조상에서 찾았는지**를 준다. 상속으로 판정한
+            // 사실이 지금까지 어디에도 남지 않아, AE 의 ACP 를 고쳐도 왜 안
+            // 먹는지(중간 컨테이너가 덮어썼다) 를 알 수 없었다.
+            // 기존 호출부는 두 인자만 받으므로 그대로 둬도 된다.
+            callback(err, results[0].acpi, pi);
         });
 };
 
 // 예전에는 IN 목록을 JSON.stringify 한 뒤 대괄호만 떼어 SQL 에 붙였다.
 // acpi 는 클라이언트가 주는 값이라 따옴표가 섞이면 SQL 구조가 깨진다.
 // whereIn 은 원소마다 바인딩을 만든다.
+// 평가 순서가 결과를 바꾸므로 옵티마이저에 맡기지 않는다. pv 에 acr 이 없는
+// ACP 를 만나면 security.js 가 그 자리에서 평가를 끝내고 뒤 ACP 를 안 본다.
+// ORDER BY 가 없을 때 실측한 것: 요청 순서가 [dev, aaa_empty] 인데 반환은
+// [aaa_empty, dev] 로 뒤집혀, ACP 이름만 바꿔도 권한이 사라졌다.
 exports.select_acp_in = function (connection, acpiList, callback) {
-    facade.run(facade.k('acp').select('*').whereIn('ri', acpiList || []), connection, callback);
+    facade.run(facade.k('acp').select('*').whereIn('ri', acpiList || []).orderBy('ri', 'asc'),
+        connection, callback);
 };
 
 exports.select_sub = function (connection, pi, callback) {
