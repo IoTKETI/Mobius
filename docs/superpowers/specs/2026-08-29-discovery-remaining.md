@@ -149,7 +149,51 @@ discovery 경로를 안 탄다), `fu=1&...&sza=100` 이나 `fu=2&rcn=4&...&sza=1
 리소스의 접근 권한은 확인하지 않는 것으로 보인다. 권한 문제라 성능 작업과
 섞으면 안 된다 — 먼저 권한 없는 리소스가 실제로 노출되는지 재현부터 할 것.
 
-## 5. 안 쓰는 인덱스가 있는지 확인 (`idx_lookup_ct` / `idx_lookup_sri`)
+## 5. 안 쓰는 인덱스 — **005 적용됨, 006 은 관찰 후**
+
+**확인 결과: `idx_lookup_ct` 는 안 쓰이고 `idx_lookup_sri` 는 쓰인다.**
+
+배포 서버 실측 (2026-08-29, MySQL 가동 40.6시간 누적,
+`performance_schema.table_io_waits_summary_by_index_usage`):
+
+| 인덱스 | 읽기 | 크기 |
+|---|---|---|
+| `idx_lookup_pi_notcin` | 12,925,133 | 10.0GB |
+| `idx_lookup_pi_ty_ct` | 3,292,103 | 11.1GB |
+| `ri_UNIQUE` | 98,317 | 9.7GB |
+| `idx_lookup_ty` | 37,561 | 9.7GB |
+| (테이블 스캔) | 16,171 | — |
+| `idx_lookup_sri` | 15,883 | 15.5GB |
+| PRIMARY | 14,584 | 22.2GB |
+| **`idx_lookup_ct`** | **0** | **15.6GB** |
+
+코드로도 교차 확인했다. `lookup` 을 `ct` 로 거르거나 정렬하는 곳은 전부
+`pi`(대개 `ty` 까지)와 함께라 `idx_lookup_pi_ty_ct` 가 처리한다 — discovery 의
+`la` 정렬, `delete_oldest`, `select_edge_resource`. `ct` 단독 접근은 없고
+만료 스윕은 `et` 를 쓴다. 이 DB 를 쓰는 다른 프로세스도 없다(접속은 Mobius 워커뿐).
+
+**진행 상태**
+- `migrations/005` (INVISIBLE) — **배포 서버 적용 완료** (0.2초, 메타데이터만).
+  옵티마이저가 안 쓰는 상태를 위험 없이 흉내 낸다. 되돌리기는 1초:
+  `ALTER TABLE lookup ALTER INDEX idx_lookup_ct VISIBLE;`
+- `migrations/006` (DROP) — **아직 적용 안 함.** 하루 이상 관찰한 뒤 적용한다.
+
+**관찰할 것** (005 적용 뒤 하루 이상 두고):
+```sql
+select ifnull(index_name,'(TABLE SCAN)'), count_read
+  from performance_schema.table_io_waits_summary_by_index_usage
+ where object_schema='mobiusdb' and object_name='lookup'
+ order by count_read desc;
+```
+응답 시간에 변화가 없고 위 표의 다른 인덱스 분포가 그대로면 006 을 적용한다.
+적용 뒤 15.6GB 가 회수되고, `lookup` 에 쓰는 모든 질의가 인덱스 하나를 덜
+유지한다. DROP 자체는 빠르지만(002 에서 2.5초) 되돌리려면 수십 분이다.
+
+`mobiusdb.sql` 에서도 뺐다 — 안 그러면 신규 설치가 다시 만든다.
+
+<details>
+<summary>원래 조사 항목</summary>
+
 
 `lookup` 의 인덱스 총량이 61.4GB 다 (데이터는 22.2GB).
 
@@ -177,3 +221,5 @@ discovery 경로를 안 탄다), `fu=1&...&sza=100` 이나 `fu=2&rcn=4&...&sza=1
 된다 — 드물게 도는 관리 질의가 쓸 수 있다. 최소 하루치 사용량을 보고 판단할 것.
 
 디스크는 여유가 있다(3.6TB 중 2.9TB). 급한 일은 아니다.
+
+</details>
