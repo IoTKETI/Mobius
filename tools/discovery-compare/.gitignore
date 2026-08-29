@@ -6,4 +6,6 @@ recover.log
 stale.log
 inherit.log
 replace.log
+crcheck.log
+device.log
 *.json
