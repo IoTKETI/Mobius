@@ -242,9 +242,29 @@ global.remove_duplicated_mid = function(mid) {
     return mid;
 };
 
+// macp 는 mediumtext 라 acpi 의 varchar(200) 한도가 적용되지 않는다.
+// 그래도 상한은 둔다 — 개수 검사가 이 값에서 나오고, 그것이 없으면
+// 배열 하나로 질의 수천 건을 만들 수 있다.
+var MACP_MAX_JSON = 2000;
+
 exports.build_grp = function(request, response, resource_Obj, body_Obj, callback) {
     var rootnm = request.headers.rootnm;
 
+    // macp 는 acpi 와 같은 길로 권한 검사에 들어간다 — app.js 의 그룹 팬아웃이
+    // security.check 에 macp 를 그대로 넘긴다. 그래서 acpi 와 같은 검증이
+    // 필요하다. 안 하면 원소에 숫자를 하나 넣는 것만으로 make_internal_ri 가
+    // 던져 **워커가 죽었다**(그 fanOutPoint 를 치는 순간).
+    if (!body_Obj[rootnm].hasOwnProperty('macp')) {
+        return build_rest();
+    }
+    validate_acpi(request, response, body_Obj[rootnm].macp, { maxJson: MACP_MAX_JSON },
+        function (code, normalized) {
+            if (code) { return callback(code); }
+            body_Obj[rootnm].macp = normalized;
+            build_rest();
+        });
+
+    function build_rest() {
     // body
     resource_Obj[rootnm].mnm = body_Obj[rootnm].mnm;
     resource_Obj[rootnm].mid = remove_duplicated_mid(body_Obj[rootnm].mid);
@@ -281,6 +301,7 @@ exports.build_grp = function(request, response, resource_Obj, body_Obj, callback
         request.resourceObj = JSON.parse(JSON.stringify(resource_Obj));
 
         callback('200');
+    }
     }
 };
 

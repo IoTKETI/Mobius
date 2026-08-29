@@ -43,18 +43,56 @@ test('varchar(200) 한도가 코드에 상수로 있다', function () {
     assert.ok(/ACPI_MAX_JSON = 200/.test(SRC), 'lookup.acpi 는 varchar(200) 이다');
 });
 
-test('validate_acpi 가 다섯 가지를 순서대로 본다', function () {
+test('validate_acpi 가 순서대로 본다 — 값싼 검사가 먼저', function () {
     const f = fn('validate_acpi');
-    // 순서가 중요하다. 타입 검사가 먼저여야 make_internal_ri 의 .split 이
-    // 숫자에 TypeError 를 던져 워커를 죽이는 일이 없다.
-    const order = ['400-8', '400-61', 'make_internal_ri', 'get_ri_list_sri',
-                   'ACPI_MAX_JSON', '400-62', 'select_acp_in', '400-63'];
+    // 순서가 중요하다.
+    //  - 타입 검사가 먼저여야 make_internal_ri 의 .split 이 숫자에 TypeError 를
+    //    던져 워커를 죽이는 일이 없다.
+    //  - **개수 검사가 get_ri_list_sri 보다 먼저여야 한다.** 그 함수는 원소마다
+    //    질의를 한 번씩 내므로, 개수를 안 보면 배열 하나로 질의 수천 건이 나간다.
+    // 주석에도 같은 낱말이 나오므로 **호출 형태**로 찾는다.
+    const order = ["'400-8'", "'400-61'", 'acpi.length > max_count',
+                   'make_internal_ri(given)', 'get_ri_list_sri(request',
+                   '.length > maxJson', 'select_acp_in(', "'400-63'"];
     let at = -1;
     for (const token of order) {
         const i = f.indexOf(token);
-        assert.ok(i > at, token + ' 이 순서에서 벗어났다');
+        assert.ok(i > at, token + ' 이 순서에서 벗어났다 (' + i + ' <= ' + at + ')');
         at = i;
     }
+    // 개수 상한과 길이 상한은 둘 다 400-62 다 — 같은 뜻("담을 수 없다")이고
+    // 어느 쪽에 걸렸는지는 로그로 구분한다.
+    assert.strictEqual((f.match(/'400-62'/g) || []).length, 2);
+});
+
+test('원소 수 상한이 sri 해석보다 먼저 걸린다', function () {
+    const f = fn('validate_acpi');
+    const cap = f.indexOf('acpi.length > max_count');
+    const resolve = f.indexOf('get_ri_list_sri(request');
+    assert.ok(cap > 0, '개수 상한이 없다');
+    assert.ok(resolve > 0, 'sri 해석을 찾지 못했다');
+    assert.ok(cap < resolve, '개수 상한이 원소당 질의보다 뒤에 있으면 상한이 무의미하다');
+});
+
+test('macp 도 같은 검증을 지난다 — 안 그러면 워커가 죽는다', function () {
+    // app.js 의 그룹 팬아웃이 security.check 에 macp 를 그대로 넘긴다.
+    // 원소가 숫자면 make_internal_ri 가 던지고 잡을 곳이 없다.
+    const grp = fs.readFileSync(path.join(__dirname, '..', 'mobius', 'grp.js'), 'utf8');
+    assert.ok(/validate_acpi\(request, response, body_Obj\[rootnm\]\.macp/.test(grp),
+        'grp 생성이 macp 를 검증하지 않는다');
+    assert.ok(/validate_acpi\(request, response, body_Obj\[rootnm\]\.macp/.test(SRC),
+        'grp 수정이 macp 를 검증하지 않는다');
+    // mediumtext 라 varchar(200) 한도를 쓰면 안 된다.
+    assert.ok(/maxJson: (MACP_MAX_JSON|2000)/.test(grp), 'macp 에 acpi 한도를 쓰고 있다');
+});
+
+test('make_internal_ri 는 문자열이 아닌 원소에 던지지 않는다', function () {
+    // 크래시 지점 자체를 막는다. 호출부가 전부 DB 콜백 안이거나
+    // security.check 안이라 여기서 던지면 워커가 죽는다.
+    const m = SRC.match(/global\.make_internal_ri = function[\s\S]*?\n\};/);
+    assert.ok(m, 'make_internal_ri 를 찾지 못했다');
+    assert.ok(/typeof resource_Obj\[index\] !== 'string'[\s\S]{0,40}continue/.test(m[0]),
+        '문자열이 아닌 원소를 건너뛰지 않는다');
 });
 
 test('중복은 거부하지 않고 없앤다', function () {
