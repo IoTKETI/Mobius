@@ -240,6 +240,48 @@ test("acor 의 'all' 과 '*' 는 누구나 통과시킨다", function () {
     assert.strictEqual(security._acor_allows({ acor: ['*'], acop: 63 }, 'anyone', '2'), true);
 });
 
+// ── 발신자를 정규식으로 만들면 안 된다 ────────────────────────────────
+//
+// 예전에는 new RegExp('^' + from + '$') 로 **요청자가 보낸 헤더**를 정규식으로
+// 만들어 정책 쪽 항목을 검사했다. 방향이 반대라 헤더 한 줄로 ACP 가 통째로
+// 우회됐다. 배포 서버 실측(2026-08-29, acor=["S","SjOu6u0QHNF"] 로 보호된 리소스):
+//   X-M2M-Origin: Cstranger -> 403 (정상)
+//   X-M2M-Origin: .*        -> 200 (우회)
+// 되살아나면 안 되는 동작이라 여기서 못박는다.
+
+test('발신자에 정규식을 넣어도 우회되지 않는다', function () {
+    const rule = { acor: ['SAE1'], acop: 63 };
+    for (const evil of ['.*', '.+', 'S.*', '.', '[sS]AE1', 'SAE.', '^SAE1$', 'SAE1|x']) {
+        assert.strictEqual(security._acor_allows(rule, evil, '2'), false,
+            'X-M2M-Origin: ' + evil + ' 이 통과했다 — 정규식으로 해석되고 있다');
+    }
+});
+
+test('정규식 주입으로 DELETE 까지 얻을 수 없다', function () {
+    // 수퍼유저에게만 전권을 준 ACP 라도 마찬가지다.
+    assert.strictEqual(security._acor_allows({ acor: ['Sponde'], acop: 63 }, '.*', '8'), false);
+    assert.strictEqual(security._acor_allows({ acor: ['Owner'], acop: 63 }, '.+', '8'), false);
+});
+
+test('깨진 정규식 문자를 보내도 던지지 않는다', function () {
+    // 예전에는 RegExp 생성자가 던져 500 "database error" 가 나갔다.
+    const rule = { acor: ['Reader'], acop: 63 };
+    for (const s of ['[', '(', '\\', '*', '+', '?', '{2,']) {
+        // '*' 는 acor 쪽 와일드카드라 발신자 자리에서는 의미가 없다
+        assert.doesNotThrow(function () { security._acor_allows(rule, s, '2'); },
+            'from=' + JSON.stringify(s) + ' 에서 던졌다');
+        assert.strictEqual(security._acor_allows(rule, s, '2'), false);
+    }
+});
+
+test('acor 쪽 패턴은 원래도 동작하지 않았고 지금도 안 한다', function () {
+    // 방향이 반대였을 때도 acor:['S.*'] 는 from='SAE1' 을 못 잡았다.
+    // 여러 발신자를 허용하려면 'all' / '*' 를 쓴다.
+    assert.strictEqual(security._acor_allows({ acor: ['S.*'], acop: 63 }, 'SAE1', '2'), false);
+    assert.strictEqual(security._acor_allows({ acor: ['S.*'], acop: 63 }, 'S.*', '2'), true,
+        '리터럴로는 자기 자신과 일치해야 한다');
+});
+
 // ── 규칙 전체 ────────────────────────────────────────────────────────
 
 test('acco 가 없으면 컨텍스트 제약이 없다', function () {

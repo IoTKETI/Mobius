@@ -197,11 +197,30 @@ function acor_allows(rule, from, access_value) {
     if (!rule.hasOwnProperty('acor')) {
         return true;
     }
-    var re = new RegExp('^' + from + '$');
+
+    // 발신자를 **그대로** 비교한다. 절대 정규식으로 만들지 말 것.
+    //
+    // 예전에는 new RegExp('^' + from + '$') 로 **요청자가 보낸 헤더**를 정규식으로
+    // 만들어 정책 쪽 항목(acor)을 검사했다. 방향이 반대다. 그래서:
+    //
+    //   1. `X-M2M-Origin: .*` 한 줄로 acor 의 어떤 값에도 매칭돼 ACP 가 통째로
+    //      우회됐다. RETRIEVE 뿐 아니라 DELETE 까지 통과한다.
+    //      배포 서버 실측(2026-08-29, /Mobius/Camera1/health, acor=["S","SjOu6u0QHNF"]):
+    //        X-M2M-Origin: Cstranger  -> 403  (정상)
+    //        X-M2M-Origin: .*         -> 200  (우회)
+    //        X-M2M-Origin: .+         -> 200  (우회)
+    //        X-M2M-Origin: S.*        -> 200  (우회)
+    //   2. `X-M2M-Origin: [` 처럼 깨진 정규식이면 RegExp 생성자가 던져
+    //      security_check_action 의 catch 로 빠지고 500 "database error" 가 났다.
+    //      헤더 한 줄로 임의의 ACP 경로를 500 으로 만들 수 있었다.
+    //
+    // 정규식이 무슨 기능을 준 것도 아니다. acor 쪽에 패턴을 적는 것은 원래도
+    // 동작하지 않았다 — acor:['S.*'] 에 from='SAE1' 은 false 다 (방향이 반대라서).
+    // 여러 발신자를 한꺼번에 허용하려면 'all' 또는 '*' 를 쓴다.
     var keys = Object.keys(rule.acor || {});
     for (var i = 0; i < keys.length; i++) {
         var who = rule.acor[keys[i]];
-        if (who.match(re) || who == 'all' || who == '*') {
+        if (String(who) === String(from) || who === 'all' || who === '*') {
             if ((rule.acop.toString() & access_value) == access_value) {
                 return true;
             }
