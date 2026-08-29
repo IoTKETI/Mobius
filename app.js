@@ -78,7 +78,8 @@ var db_facade = require('./mobius/db');
 var app = express();
 
 global.cache_resource_url = {};
-global.cache_security_check = {};
+// cache_security_check 는 걷어냈다 — 쓰기만 하고 읽는 곳이 없어
+// origin·ri 로 키가 무한히 쌓이는 메모리 누수였다.
 
 app.use(cors());
 
@@ -982,6 +983,56 @@ function response_error_result(request, response, code, callback) {
     responder.respond(request, response, { code: r.code, dbg: r.msg, detail: r.detail }, callback);
 }
 
+/**
+ * 판정 대상의 cr(생성자)을 정한다.
+ *
+ * AE 는 aei, remoteCSE 는 csi 가 곧 생성자다. ACP 가 하나도 안 걸린 리소스는
+ * security 가 "요청자 == cr" 로만 판정하므로 이 값이 결과를 좌우한다.
+ *
+ * create 는 이 함수를 쓰지 않는다 — 부모가 remoteCSE 일 때 csi 를 넣지 않는
+ * 것이 원래 동작이고, 바꾸면 ACP 없는 remoteCSE 아래 생성의 판정이 달라진다.
+ */
+function resolve_cr(target) {
+    if (target.ty == 2) {
+        target.cr = target.aei;
+    }
+    else if (target.ty == 16) {
+        target.cr = target.csi;
+    }
+}
+
+/**
+ * lookup_* 넷의 공통 꼬리 — 권한을 확인하고 연산을 수행한다.
+ *
+ * create / retrieve / update / delete 는 앞부분(무엇을 검사하느냐)이 다를 뿐
+ * 이 꼬리는 같았다. 네 곳에 똑같이 적혀 있던 것을 모은다.
+ *
+ *   1. security.check 로 권한을 본다.
+ *   2. '1' 이면 연산, '0' 이면 403-3, 그 밖은 받은 코드를 그대로 올린다.
+ *
+ * cr 은 호출부가 미리 정해 둔다 — create 와 나머지가 다르기 때문이다.
+ *
+ * @param target        판정 대상 리소스. create 는 부모, 나머지는 자기 자신이다.
+ * @param access_value  oneM2M acop 비트. create '1'(sub 는 '3') / retrieve '2'
+ *                      (discovery 는 '32') / update '4' / delete '8'
+ * @param run           권한이 있을 때 수행할 연산 (resource.create 등)
+ */
+function authorize_and_run(request, response, target, access_value, run, callback) {
+    security.check(request, response, target.ty, target.acpi, access_value, target.cr, (code) => {
+        if (code === '1') {
+            run(request, response, (code) => {
+                callback(code);
+            });
+        }
+        else if (code === '0') {
+            callback('403-3');
+        }
+        else {
+            callback(code);
+        }
+    });
+}
+
 function lookup_create(request, response, callback) {
     check_request_query_rt(request, response, (code) => {
         if (code === '200') {
@@ -1062,35 +1113,15 @@ function lookup_create(request, response, callback) {
                         }
                     }
 
-                    if (request.ty == 23) {
-                        var access_value = '3';
-                    }
-                    else {
-                        access_value = '1';
-                    }
+                    // sub 생성은 CREATE(1)가 아니라 NOTIFY 를 포함한 3 을 본다.
+                    var access_value = (request.ty == 23) ? '3' : '1';
 
-                    var tid = 'security.check - ' + require('shortid').generate();
-                    console.time(tid);
-                    security.check(request, response, parentObj.ty, parentObj.acpi, access_value, parentObj.cr, (code) => {
-                        console.timeEnd(tid);
-
-                        cache_security_check[request.headers['x-m2m-origin']] = {};
-                        cache_security_check[request.headers['x-m2m-origin']][parentObj.ri] = {}
-                        cache_security_check[request.headers['x-m2m-origin']][parentObj.ri][access_value] = code;
-
-                        if (code === '1') {
-                            resource.create(request, response, (code) => {
-                                callback(code);
-                            });
-                        }
-                        else if (code === '0') {
-                            callback('403-3');
-
-                        }
-                        else {
-                            callback(code);
-                        }
-                    });
+                    // 예전에는 여기서 두 가지를 더 했다.
+                    //   - 요청마다 shortid 를 만들어 security.check 를 console.time 으로 쟀다.
+                    //     CREATE 마다 로그 두 줄이 나가는 계측이라 걷어냈다.
+                    //   - cache_security_check 에 판정 결과를 적었다. **읽는 곳이 없다** —
+                    //     origin 과 ri 로 키를 만들어 무한히 쌓이기만 하는 메모리 누수였다.
+                    authorize_and_run(request, response, parentObj, access_value, resource.create, callback);
                 }
                 else {
                     callback(code);
@@ -1105,163 +1136,79 @@ function lookup_create(request, response, callback) {
 
 function lookup_retrieve(request, response, callback) {
     check_request_query_rt(request, response, (code) => {
-        if (code === '200') {
-            var resultObj = request.targetObject[Object.keys(request.targetObject)[0]];
+        if (code !== '200') { callback(code); return; }
 
-            if(!resultObj.hasOwnProperty('acpi')) {
-                resultObj.acpi = [];
-            }
+        var resultObj = request.targetObject[Object.keys(request.targetObject)[0]];
 
-            tr.check(request, (code) => {
-                if (code === '200') {
-                    if (resultObj.ty == 2) {
-                        resultObj.cr = resultObj.aei;
-                    }
-                    else if (resultObj.ty == 16) {
-                        resultObj.cr = resultObj.csi;
-                    }
-
-                    if (request.query.fu == 1) {
-                        security.check(request, response, resultObj.ty, resultObj.acpi, '32', resultObj.cr, (code) => {
-                            if (code === '1') {
-                                resource.retrieve(request, response, (code) => {
-                                    callback(code);
-                                });
-                            }
-                            else if (code === '0') {
-                                callback('403-3');
-                            }
-                            else {
-                                callback(code);
-                            }
-                        });
-                    }
-                    else {
-                        security.check(request, response, resultObj.ty, resultObj.acpi, '2', resultObj.cr, (code) => {
-                            if (code === '1') {
-                                resource.retrieve(request, response, (code) => {
-                                    callback(code);
-                                });
-                            }
-                            else if (code === '0') {
-                                callback('403-3');
-                            }
-                            else {
-                                callback(code);
-                            }
-                        });
-                    }
-                }
-                else {
-                    callback(code);
-                }
-            });
+        if(!resultObj.hasOwnProperty('acpi')) {
+            resultObj.acpi = [];
         }
-        else {
-            callback(code);
-        }
+
+        tr.check(request, (code) => {
+            if (code !== '200') { callback(code); return; }
+
+            // discovery(fu=1)는 DISCOVER(32), 일반 조회는 RETRIEVE(2).
+            // 예전에는 이 둘 때문에 같은 블록이 두 벌 있었다.
+            var access_value = (request.query.fu == 1) ? '32' : '2';
+            resolve_cr(resultObj);
+            authorize_and_run(request, response, resultObj, access_value, resource.retrieve, callback);
+        });
     });
+}
+
+/**
+ * 본문이 acpi 말고 다른 속성도 건드리는가.
+ *
+ * acpi 만 바꾸는 UPDATE 는 권한 검사를 건너뛴다 — 그 리소스에 어떤 ACP 를
+ * 걸지는 selfPrivileges(pvs)가 정하는 일이라는 취지다.
+ * (그 판단이 옳은지는 별개 문제다. 여기서는 동작을 그대로 옮긴다.)
+ */
+function updates_beyond_acpi(bodyObj) {
+    for (var rootnm in bodyObj) {
+        if (!bodyObj.hasOwnProperty(rootnm)) { continue; }
+        for (var attr in bodyObj[rootnm]) {
+            if (bodyObj[rootnm].hasOwnProperty(attr) && attr !== 'acpi') {
+                return true;
+            }
+        }
+    }
+    return false;
 }
 
 function lookup_update(request, response, callback) {
     check_request_query_rt(request, response, (code) => {
-        if (code === '200') {
-            var resultObj = request.targetObject[Object.keys(request.targetObject)[0]];
+        if (code !== '200') { callback(code); return; }
 
-            tr.check(request, (code) => {
-                if (code === '200') {
-                    if (resultObj.ty == 2) {
-                        resultObj.cr = resultObj.aei;
-                    }
-                    else if (resultObj.ty == 16) {
-                        resultObj.cr = resultObj.csi;
-                    }
+        var resultObj = request.targetObject[Object.keys(request.targetObject)[0]];
 
-                    var acpi_check = 0;
-                    var other_check = 0;
-                    for (var rootnm in request.bodyObj) {
-                        if (request.bodyObj.hasOwnProperty(rootnm)) {
-                            for (var attr in request.bodyObj[rootnm]) {
-                                if (request.bodyObj[rootnm].hasOwnProperty(attr)) {
-                                    if (attr == 'acpi') {
-                                        acpi_check++;
-                                    }
-                                    else {
-                                        other_check++;
-                                    }
-                                }
-                            }
-                        }
-                    }
+        tr.check(request, (code) => {
+            if (code !== '200') { callback(code); return; }
 
-                    if (other_check > 0) {
-                        security.check(request, response, resultObj.ty, resultObj.acpi, '4', resultObj.cr, (code) => {
-                            if (code === '1') {
-                                resource.update(request, response, (code) => {
-                                    callback(code)
-                                });
-                            }
-                            else if (code === '0') {
-                                callback('403-3');
-                            }
-                            else {
-                                callback(code);
-                            }
-                        });
-                    }
-                    else {
-                        resource.update(request, response, (code) => {
-                            callback(code)
-                        });
-                    }
-                }
-                else {
+            if (!updates_beyond_acpi(request.bodyObj)) {
+                // acpi 만 바꾸는 경우 — 권한 검사 없이 진행한다.
+                resource.update(request, response, (code) => {
                     callback(code);
-                }
-            });
-        }
-        else {
-            callback(code);
-        }
+                });
+                return;
+            }
+
+            resolve_cr(resultObj);
+            authorize_and_run(request, response, resultObj, '4', resource.update, callback);
+        });
     });
 }
 
 function lookup_delete(request, response, callback) {
     check_request_query_rt(request, response, (code) => {
-        if (code === '200') {
-            var resultObj = request.targetObject[Object.keys(request.targetObject)[0]];
+        if (code !== '200') { callback(code); return; }
 
-            tr.check(request, (code) => {
-                if (code === '200') {
-                    if (resultObj.ty == 2) {
-                        resultObj.cr = resultObj.aei;
-                    }
-                    else if (resultObj.ty == 16) {
-                        resultObj.cr = resultObj.csi;
-                    }
+        var resultObj = request.targetObject[Object.keys(request.targetObject)[0]];
 
-                    security.check(request, response, resultObj.ty, resultObj.acpi, '8', resultObj.cr, (code) => {
-                        if (code === '1') {
-                            resource.delete(request, response, (code) => {
-                                callback(code);
-                            });
-                        }
-                        else if (code === '0') {
-                            callback('403-3');
-                        }
-                        else {
-                            callback(code);
-                        }
-                    });
-                }
-                else {
-                    callback(code);
-                }
-            });
-        }
-        else {
-            callback(code);
-        }
+        tr.check(request, (code) => {
+            if (code !== '200') { callback(code); return; }
+            resolve_cr(resultObj);
+            authorize_and_run(request, response, resultObj, '8', resource.delete, callback);
+        });
     });
 }
 
