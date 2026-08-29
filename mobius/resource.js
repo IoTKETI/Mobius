@@ -1179,13 +1179,22 @@ exports.create = function (request, response, callback) {
             create_action(request, response, (code) => {
                 if(code === '200') {
                     var made = request.resourceObj[rootnm];
-                    if (request.ty == '1') {
-                        record_acp_change(request, 'acp_create', null,
-                            { pv: made.pv, pvs: made.pvs }, made.ri, request.ty, made.cr);
-                    }
+                    // 커넥션이 살아 있는 동안 남긴다 — 응답 뒤에는 반납된다.
+                    record_acp_change(request, 'acp_create', null,
+                        request.ty == '1' ? { pv: made.pv, pvs: made.pvs } : null,
+                        made.ri, request.ty, made.cr, function () {
                     record_acp_change(request, 'acpi_set', [], acpi_of(made),
-                        made.ri, request.ty, made.cr);
+                        made.ri, request.ty, made.cr, function () {
+                    after_audit();
+                    });
+                    });
+                    return;
+                }
+                else {
+                    callback(code);
+                }
 
+                function after_audit() {
                     _this.remove_no_value(request, request.resourceObj);
 
                     if(request.ty != 23) {
@@ -1230,9 +1239,6 @@ exports.create = function (request, response, callback) {
                             callback('201');
                         }
                     }
-                }
-                else {
-                    callback(code);
                 }
             });
         }
@@ -2504,20 +2510,25 @@ function update_resource(request, response, callback) {
 
 // acpi / pv / pvs 가 실제로 바뀐 경우에만 이력을 남긴다.
 //
-// **응답을 지연시키지 않는다.** setImmediate 로 뒤로 미루고, 실패해도 요청에는
-// 영향이 없다(insert_acp_audit 이 best-effort 다). 감사 때문에 운영이 멈추면
-// 감사부터 꺼진다.
-function record_acp_change(request, op, before, after, ri, ty, cr) {
-    if (global.acp_audit === 'off') { return; }
-    if (JSON.stringify(before) === JSON.stringify(after)) { return; }
-    var conn = request.db_connection;
-    setImmediate(function () {
-        db_sql.insert_acp_audit(conn, {
-            op: op, ri: ri, ty: ty,
-            origin: request.headers ? request.headers['x-m2m-origin'] : undefined,
-            cr: cr, before: before, after: after
-        });
-    });
+// **setImmediate 로 미루지 않는다.** 미루면 그 사이 응답이 나가고
+// request.db_connection 이 풀에 반납된다. 반납된 핸들로 질의하면 그 커넥션을
+// 이미 빌려 간 **다른 요청의 트랜잭션 안으로** INSERT 가 섞여 들어가고,
+// 그쪽이 롤백하면 이력이 조용히 사라진다. 최악은 남의 트랜잭션을 방해하는 것이다.
+//
+// 대신 값이 실제로 바뀐 경우에만 부른다. 배포에서 acpi 를 바꾸는 요청은
+// 사실상 없으므로(채워진 행 2개) 일상 트래픽에 INSERT 가 늘지 않는다.
+// insert_acp_audit 은 best-effort 라 실패해도 요청을 실패시키지 않는다 —
+// 감사 때문에 운영이 멈추면 감사부터 꺼진다.
+function record_acp_change(request, op, before, after, ri, ty, cr, done) {
+    var cb = done || function () {};
+    if (global.acp_audit === 'off') { return cb(); }
+    if (JSON.stringify(before) === JSON.stringify(after)) { return cb(); }
+
+    db_sql.insert_acp_audit(request.db_connection, {
+        op: op, ri: ri, ty: ty,
+        origin: request.headers ? request.headers['x-m2m-origin'] : undefined,
+        cr: cr, before: before, after: after
+    }, cb);
 }
 
 function acpi_of(obj) {
@@ -2554,13 +2565,13 @@ exports.update = function (request, response, callback) {
             update_action(request, response, function (code) {
                 if (code == '200') {
                     var now = request.resourceObj[rootnm];
+                    // 커넥션이 살아 있는 동안 남긴다 — 응답 뒤에는 반납된다.
                     record_acp_change(request, 'acpi_set', before_acpi, acpi_of(now),
-                        now.ri, ty, now.cr);
-                    if (ty == 1) {
-                        record_acp_change(request, 'acp_update',
-                            { pv: before_pv, pvs: before_pvs },
-                            { pv: now.pv, pvs: now.pvs }, now.ri, ty, now.cr);
-                    }
+                        now.ri, ty, now.cr, function () {
+                    record_acp_change(request, 'acp_update',
+                        ty == 1 ? { pv: before_pv, pvs: before_pvs } : null,
+                        ty == 1 ? { pv: now.pv, pvs: now.pvs } : null,
+                        now.ri, ty, now.cr, function () {
 
                     _this.remove_no_value(request, request.resourceObj);
 
@@ -2569,6 +2580,8 @@ exports.update = function (request, response, callback) {
                     });
 
                     callback('200');
+                    });
+                    });
                 }
                 else {
                     callback(code);
@@ -2772,12 +2785,12 @@ exports.delete = function (request, response, callback) {
             // DELETE 에는 Content-Type 의 ty 가 없어 request.ty 가 비어 있을 수
             // 있다. 지우는 리소스 자신의 ty 를 먼저 본다.
             var gone_ty = (gone && gone.ty !== undefined) ? gone.ty : ty;
-            if (gone_ty == '1') {
-                // ACP 를 지우면 그것을 참조하던 리소스는 "생성자만 통과" 로
-                // 조용히 풀린다. 무엇이 사라졌는지 남겨야 되돌릴 수 있다.
-                record_acp_change(request, 'acp_delete',
-                    { pv: gone.pv, pvs: gone.pvs }, null, gone.ri, gone_ty, gone.cr);
-            }
+            // ACP 를 지우면 그것을 참조하던 리소스는 "생성자만 통과" 로 조용히
+            // 풀린다. 무엇이 사라졌는지 남겨야 되돌릴 수 있다.
+            // 커넥션이 살아 있는 동안 남긴다 — 응답 뒤에는 반납된다.
+            record_acp_change(request, 'acp_delete',
+                gone_ty == '1' ? { pv: gone.pv, pvs: gone.pvs } : null, null,
+                gone.ri, gone_ty, gone.cr, function () {
 
             _this.remove_no_value(request, request.resourceObj);
 
@@ -2794,6 +2807,7 @@ exports.delete = function (request, response, callback) {
             // 올바른 복원 방안은
             // docs/superpowers/specs/2026-08-27-counter-maintenance-review.md 참조.
             callback('200');
+            });
         }
         else {
             callback(code);

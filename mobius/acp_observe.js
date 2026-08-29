@@ -93,6 +93,15 @@ function may_log() {
     return false;
 }
 
+// 관찰 모드가 뒤집어도 되는 거부 사유. **ACP 평가로 난 거부만** 들어간다.
+// 'default_policy'(ACP 가 없을 때의 기본 정책)와 'superuser' 는 여기 없다.
+var OBSERVABLE = {
+    acr: 1,           // 규칙을 다 봤는데 통과가 없다
+    exhausted: 1,     // ACP 는 있는데 아무 규칙도 안 맞았다
+    no_acr_cr: 1,     // pv 에 acr 이 없어 생성자 비교로 끝났다
+    no_acp_row: 1     // 참조한 ACP 를 못 찾았다 (dangling)
+};
+
 var OP_NAME = {
     '1': 'CREATE', '2': 'RETRIEVE', '3': 'CREATE_SUB', '4': 'UPDATE',
     '8': 'DELETE', '16': 'NOTIFY', '32': 'DISCOVERY'
@@ -156,6 +165,27 @@ exports.record_decision = function (request, code, trace) {
         }
 
         stats.byReason[reason] = (stats.byReason[reason] || 0) + 1;
+
+        if (cfg.mode === 'observe' && !OBSERVABLE[reason]) {
+            // 관찰 모드는 **ACP 때문에 막힌 것**만 뒤집는다.
+            //
+            // 예전에는 사유를 안 보고 모든 '0' 을 '1' 로 바꿨다. 그런데 배포에
+            // acpi 가 채워진 행은 2개뿐이라 실제로 나는 거부는 사실상 전부
+            // default_policy 다 — "수정·삭제는 생성자만" 이라는 기본 정책이다.
+            // 그러면 관찰 모드를 하루 켜는 것이 "ACP 로 뭐가 막힐지 본다" 가
+            // 아니라 **5,740만 행 전부를 임의 원본의 UPDATE·DELETE 에 여는 것**이
+            // 된다. 그 창에서 지워진 리소스는 돌아오지 않으므로 "관찰은 되돌릴
+            // 수 있다" 는 전제가 깨진다.
+            //
+            // 기본 정책은 ACP 가 아니라 ACP 가 **없을 때**의 정책이라 관찰
+            // 대상이 아니다. 그것을 바꾸려면 defaultAccessPolicy 를 쓴다.
+            push_recent({ at: new Date().toISOString(), kind: 'deny', info: line_info(request, t) });
+            stats.counts.deny += 1;
+            if (may_log()) {
+                console.log('[acp] deny ' + format(request, t) + ' (관찰 모드지만 ACP 거부가 아니라 그대로 막는다)');
+            }
+            return code;
+        }
 
         if (cfg.mode === 'observe') {
             t.observed = true;

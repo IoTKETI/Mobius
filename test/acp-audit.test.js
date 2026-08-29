@@ -165,7 +165,22 @@ test('acpi 를 안 바꾸는 수정은 이력을 남기지 않는다', function 
     assert.ok(m, 'record_acp_change 를 찾지 못했다');
     assert.ok(/JSON\.stringify\(before\) === JSON\.stringify\(after\)/.test(m[0]),
         '값이 같으면 건너뛰어야 한다 — 안 그러면 모든 PUT 이 이력을 남긴다');
-    assert.ok(/setImmediate/.test(m[0]), '응답을 지연시키면 안 된다');
+});
+
+test('이력은 커넥션이 살아 있는 동안 남긴다 — 미루면 안 된다', function () {
+    // setImmediate 로 미루면 그 사이 응답이 나가고 request.db_connection 이
+    // 풀에 반납된다. 반납된 핸들로 질의하면 그 커넥션을 이미 빌려 간 다른
+    // 요청의 트랜잭션 안으로 INSERT 가 섞이고, 그쪽이 롤백하면 이력이
+    // 조용히 사라진다. 최악은 남의 트랜잭션을 방해하는 것이다.
+    const src = fs.readFileSync(path.join(__dirname, '..', 'mobius', 'resource.js'), 'utf8');
+    const m = src.match(/function record_acp_change[\s\S]*?\n\}/);
+    assert.ok(!/setImmediate/.test(m[0]),
+        '미루면 반납된 커넥션에서 돈다');
+    assert.ok(/db_sql\.insert_acp_audit\(request\.db_connection/.test(m[0]),
+        '요청 커넥션을 그 자리에서 써야 한다');
+    // 호출부가 콜백을 받아 순서를 지키는지도 본다.
+    assert.ok(/record_acp_change\(request, 'acpi_set'[\s\S]{0,200}function \(\) \{/.test(src),
+        '호출부가 이력 저장을 기다린 뒤 응답해야 한다');
 });
 
 test('마이그레이션과 두 스키마 파일이 같은 테이블을 만든다', function () {
