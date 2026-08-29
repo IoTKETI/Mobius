@@ -61,6 +61,9 @@ var outbound = require('./mobius/outbound');
 // 응답·커넥션 반납을 하는 콜백을 한 번만 통과시킨다
 var once = require('./mobius/once');
 
+// 응답 전송과 커넥션 반납을 한 번만 하도록 모은다
+var settle_mod = require('./mobius/settle');
+
 // DB 의 poa 컬럼을 안전하게 배열로 읽는다
 var poa_util = require('./mobius/poa');
 
@@ -956,6 +959,12 @@ function check_grp(request, response, callback) {
 // 예전에는 호출부마다 resultStatusCode[code][0], [1], [2] 를 직접 펼쳐 넘겼다.
 // 표의 3원소 배열 구조가 47곳에 새어 나가 있어서, 표에 필드를 하나 더하려면
 // 그 47곳을 전부 봐야 했다.
+// 정산기는 mobius/settle.js 에 있다. 여기서는 response_error_result 를 엮어
+// 넘기기만 한다 — 그 함수가 reason 카탈로그와 responder.respond 를 잇고 있다.
+function make_settler(request, response, connection) {
+    return settle_mod.make(request, response, connection, response_error_result);
+}
+
 function response_error_result(request, response, code, callback) {
     var r = reason.get(code);
     if (!r) {
@@ -1926,6 +1935,7 @@ app.post('*', onem2mParser, (request, response) => {
         db.getConnection((code, connection) => {
             if (code === '200') {
                 request.db_connection = connection;
+                var settle = make_settler(request, response, connection);
 
                 check_xm2m_headers(request, (code) => {
                     if (code === '200') {
@@ -1947,98 +1957,63 @@ app.post('*', onem2mParser, (request, response) => {
                                                                         if ((request.query.fu == 2) && (request.query.rcn == 0 || request.query.rcn == 1 || request.query.rcn == 2 || request.query.rcn == 3)) {
                                                                             lookup_create(request, response, (code) => {
                                                                                 if (code === '201') {
-                                                                                    responder.response_result(request, response, '201', '2001', '', () => {
-                                                                                        connection.release();
-                                                                                        request = null;
-                                                                                        response = null;
-                                                                                    });
+                                                                                    settle.result('201', '2001', '');
                                                                                 }
                                                                                 else if (code === '201-3') {
-                                                                                    responder.response_rcn3_result(request, response, '201', '2001', '', () => {
-                                                                                        connection.release();
-                                                                                        request = null;
-                                                                                        response = null;
-                                                                                    });
+                                                                                    settle.rcn3('201', '2001', '');
                                                                                 }
                                                                                 else {
-                                                                                    response_error_result(request, response, code, () => {
-                                                                                        connection.release();
-                                                                                        request = null;
-                                                                                        response = null;
-                                                                                    });
+                                                                                    settle.error(code);
                                                                                 }
                                                                             });
                                                                         }
                                                                         else {
                                                                             code = '400-43';
-                                                                            response_error_result(request, response, code, () => {
-                                                                                connection.release();
-                                                                                request = null;
-                                                                                response = null;
-                                                                            });
+                                                                            settle.error(code);
                                                                         }
                                                                     }
                                                                     else if (code === 'notify') {
                                                                         check_ae_notify(request, response, (code, res) => {
                                                                             if (code === '200') {
-                                                                                connection.release();
+                                                                                settle.raw('ae notify', function () {
 
-                                                                                if (res.headers['content-type']) {
-                                                                                    response.header('Content-Type', res.headers['content-type']);
-                                                                                }
-                                                                                if (res.headers['x-m2m-ri']) {
-                                                                                    response.header('X-M2M-RI', res.headers['x-m2m-ri']);
-                                                                                }
-                                                                                if (res.headers['x-m2m-rvi']) {
-                                                                                    response.header('X-M2M-RVI', res.headers['x-m2m-rvi']);
-                                                                                }
-                                                                                if (res.headers['x-m2m-rsc']) {
-                                                                                    response.header('X-M2M-RSC', res.headers['x-m2m-rsc']);
-                                                                                }
-                                                                                if (res.headers['content-location']) {
-                                                                                    response.header('Content-Location', res.headers['content-location']);
-                                                                                }
+                                                                                    if (res.headers['content-type']) {
+                                                                                        response.header('Content-Type', res.headers['content-type']);
+                                                                                    }
+                                                                                    if (res.headers['x-m2m-ri']) {
+                                                                                        response.header('X-M2M-RI', res.headers['x-m2m-ri']);
+                                                                                    }
+                                                                                    if (res.headers['x-m2m-rvi']) {
+                                                                                        response.header('X-M2M-RVI', res.headers['x-m2m-rvi']);
+                                                                                    }
+                                                                                    if (res.headers['x-m2m-rsc']) {
+                                                                                        response.header('X-M2M-RSC', res.headers['x-m2m-rsc']);
+                                                                                    }
+                                                                                    if (res.headers['content-location']) {
+                                                                                        response.header('Content-Location', res.headers['content-location']);
+                                                                                    }
 
-                                                                                response.statusCode = res.statusCode;
-                                                                                response.send(res.body);
-
-                                                                                res = null;
-                                                                                request = null;
-                                                                                response = null;
+                                                                                    response.statusCode = res.statusCode;
+                                                                                    response.send(res.body);
+                                                                                });
                                                                             }
                                                                             else {
-                                                                                response_error_result(request, response, code, () => {
-                                                                                    connection.release();
-                                                                                    request = null;
-                                                                                    response = null;
-                                                                                });
+                                                                                settle.error(code);
                                                                             }
                                                                         });
                                                                     }
                                                                     else {
-                                                                        response_error_result(request, response, code, () => {
-                                                                            connection.release();
-                                                                            request = null;
-                                                                            response = null;
-                                                                        });
+                                                                        settle.error(code);
                                                                     }
                                                                 });
                                                             }
                                                             else {
-                                                                response_error_result(request, response, code, () => {
-                                                                    connection.release();
-                                                                    request = null;
-                                                                    response = null;
-                                                                });
+                                                                settle.error(code);
                                                             }
                                                         });
                                                     }
                                                     else {
-                                                        response_error_result(request, response, code, () => {
-                                                            connection.release();
-                                                            request = null;
-                                                            response = null;
-                                                        });
+                                                        settle.error(code);
                                                     }
                                                 });
                                             }
@@ -2053,61 +2028,33 @@ app.post('*', onem2mParser, (request, response) => {
                                                                     if (code === '200') {
                                                                         fopt.check(request, response, result_grp, body_Obj, (code) => {
                                                                             if (code === '200') {
-                                                                                responder.search_result(request, response, '200', '2000', '', () => {
-                                                                                    connection.release();
-                                                                                    request = null;
-                                                                                    response = null;
-                                                                                });
+                                                                                settle.search('200', '2000', '');
                                                                             }
                                                                             else {
-                                                                                response_error_result(request, response, code, () => {
-                                                                                    connection.release();
-                                                                                    request = null;
-                                                                                    response = null;
-                                                                                });
+                                                                                settle.error(code);
                                                                             }
                                                                         });
                                                                     }
                                                                     else {
-                                                                        response_error_result(request, response, code, () => {
-                                                                            connection.release();
-                                                                            request = null;
-                                                                            response = null;
-                                                                        });
+                                                                        settle.error(code);
                                                                     }
                                                                 });
                                                             }
                                                             else if (code === '0') {
-                                                                response_error_result(request, response, '403-5', () => {
-                                                                    connection.release();
-                                                                    request = null;
-                                                                    response = null;
-                                                                });
+                                                                settle.error('403-5');
                                                             }
                                                             else {
-                                                                response_error_result(request, response, code, () => {
-                                                                    connection.release();
-                                                                    request = null;
-                                                                    response = null;
-                                                                });
+                                                                settle.error(code);
                                                             }
                                                         });
                                                     }
                                                     else if (rsc == '2') {
                                                         code = '403-6';
-                                                        response_error_result(request, response, code, () => {
-                                                            connection.release();
-                                                            request = null;
-                                                            response = null;
-                                                        });
+                                                        settle.error(code);
                                                     }
                                                     else {
                                                         code = '404-4';
-                                                        response_error_result(request, response, code, () => {
-                                                            connection.release();
-                                                            request = null;
-                                                            response = null;
-                                                        });
+                                                        settle.error(code);
                                                     }
                                                 });
                                             }
@@ -2115,60 +2062,37 @@ app.post('*', onem2mParser, (request, response) => {
                                         else if (code === '301-1') {
                                             check_csr(request, response, (code) => {
                                                 if (code === '301-2') {
-                                                    response.status(response.statusCode).end(response.body);
-                                                    connection.release();
-                                                    request = null;
-                                                    response = null;
+                                                    settle.raw('csr forward', function () {
+                                                        response.status(response.statusCode).end(response.body);
+                                                    });
                                                 }
                                                 else {
-                                                    response_error_result(request, response, code, () => {
-                                                        connection.release();
-                                                        request = null;
-                                                        response = null;
-                                                    });
+                                                    settle.error(code);
                                                 }
                                             });
                                         }
                                         else {
-                                            response_error_result(request, response, code, () => {
-                                                connection.release();
-                                                request = null;
-                                                response = null;
-                                            });
+                                            settle.error(code);
                                         }
                                     });
                                 }
                                 else {
-                                    response_error_result(request, response, code, () => {
-                                        connection.release();
-                                        request = null;
-                                        response = null;
-                                    });
+                                    settle.error(code);
                                 }
                             });
                         }
                         else {
-                            response_error_result(request, response, '400-40', () => {
-                                connection.release();
-                                request = null;
-                                response = null;
-                            });
+                            settle.error('400-40');
                         }
                     }
                     else {
-                        response_error_result(request, response, code, () => {
-                            connection.release();
-                            request = null;
-                            response = null;
-                        });
+                        settle.error(code);
                     }
                 });
             }
             else {
-                response_error_result(request, response, code, () => {
-                    request = null;
-                    response = null;
-                });
+                // 커넥션을 못 빌린 경로다 — 반납할 것이 없어 null 을 넘긴다.
+                make_settler(request, response, null).error(code);
             }
         });
     });
@@ -2186,6 +2110,7 @@ app.get('*', onem2mParser, (request, response) => {
         db.getConnection((code, connection) => {
             if (code === '200') {
                 request.db_connection = connection;
+                var settle = make_settler(request, response, connection);
 
                 extra_api_action(connection, request.url, (code, result) => {
                     if (code === '200') {
@@ -2207,34 +2132,18 @@ app.get('*', onem2mParser, (request, response) => {
                                             if ((request.query.fu == 1 || request.query.fu == 2) && (request.query.rcn == 1 || request.query.rcn == 4 || request.query.rcn == 5 || request.query.rcn == 6 || request.query.rcn == 7)) {
                                                 lookup_retrieve(request, response, (code) => {
                                                     if (code === '200') {
-                                                        responder.response_result(request, response, '200', '2000', '', () => {
-                                                            connection.release();
-                                                            request = null;
-                                                            response = null;
-                                                        });
+                                                        settle.result('200', '2000', '');
                                                     }
                                                     else if (code === '200-1') {
-                                                        responder.search_result(request, response, '200', '2000', '', () => {
-                                                            connection.release();
-                                                            request = null;
-                                                            response = null;
-                                                        });
+                                                        settle.search('200', '2000', '');
                                                     }
                                                     else {
-                                                        response_error_result(request, response, code, () => {
-                                                            connection.release();
-                                                            request = null;
-                                                            response = null;
-                                                        });
+                                                        settle.error(code);
                                                     }
                                                 });
                                             }
                                             else {
-                                                response_error_result(request, response, '400-44', () => {
-                                                    connection.release();
-                                                    request = null;
-                                                    response = null;
-                                                });
+                                                settle.error('400-44');
                                             }
                                         }
                                         else { //if (request.option === '/fopt') {
@@ -2246,51 +2155,27 @@ app.get('*', onem2mParser, (request, response) => {
                                                         if (code === '1') {
                                                             fopt.check(request, response, result_grp, body_Obj, (code) => {
                                                                 if (code === '200') {
-                                                                    responder.search_result(request, response, '200', '2000', '', () => {
-                                                                        connection.release();
-                                                                        request = null;
-                                                                        response = null;
-                                                                    });
+                                                                    settle.search('200', '2000', '');
                                                                 }
                                                                 else {
-                                                                    response_error_result(request, response, code, () => {
-                                                                        connection.release();
-                                                                        request = null;
-                                                                        response = null;
-                                                                    });
+                                                                    settle.error(code);
                                                                 }
                                                             });
                                                         }
                                                         else if (code === '0') {
-                                                            response_error_result(request, response, '403-5', () => {
-                                                                connection.release();
-                                                                request = null;
-                                                                response = null;
-                                                            });
+                                                            settle.error('403-5');
                                                         }
                                                         else {
-                                                            response_error_result(request, response, code, () => {
-                                                                connection.release();
-                                                                request = null;
-                                                                response = null;
-                                                            });
+                                                            settle.error(code);
                                                         }
                                                     });
                                                 }
                                                 else if (rsc == '2') {
                                                     code = '403-6';
-                                                    response_error_result(request, response, code, () => {
-                                                        connection.release();
-                                                        request = null;
-                                                        response = null;
-                                                    });
+                                                    settle.error(code);
                                                 }
                                                 else {
-                                                    response_error_result(request, response, '404-4', () => {
-                                                        connection.release();
-                                                        request = null;
-                                                        response = null;
-                                                    });
+                                                    settle.error('404-4');
                                                 }
                                             });
                                         }
@@ -2298,35 +2183,22 @@ app.get('*', onem2mParser, (request, response) => {
                                     else if (code === '301-1') {
                                         check_csr(request, response, (code) => {
                                             if (code === '301-2') {
-                                                connection.release();
-                                                response.status(response.statusCode).end(response.body);
-                                                request = null;
-                                                response = null;
+                                                settle.raw('csr forward', function () {
+                                                    response.status(response.statusCode).end(response.body);
+                                                });
                                             }
                                             else {
-                                                response_error_result(request, response, code, () => {
-                                                    connection.release();
-                                                    request = null;
-                                                    response = null;
-                                                });
+                                                settle.error(code);
                                             }
                                         });
                                     }
                                     else {
-                                        response_error_result(request, response, code, () => {
-                                            connection.release();
-                                            request = null;
-                                            response = null;
-                                        });
+                                        settle.error(code);
                                     }
                                 });
                             }
                             else {
-                                response_error_result(request, response, code, () => {
-                                    connection.release();
-                                    request = null;
-                                    response = null;
-                                });
+                                settle.error(code);
                             }
                         });
                     }
@@ -2337,19 +2209,13 @@ app.get('*', onem2mParser, (request, response) => {
                         result = null;
                     }
                     else {
-                        response_error_result(request, response, code, () => {
-                            connection.release();
-                            request = null;
-                            response = null;
-                        });
+                        settle.error(code);
                     }
                 });
             }
             else {
-                response_error_result(request, response, code, () => {
-                    request = null;
-                    response = null;
-                });
+                // 커넥션을 못 빌린 경로다 — 반납할 것이 없어 null 을 넘긴다.
+                make_settler(request, response, null).error(code);
             }
         });
     });
@@ -2368,6 +2234,7 @@ app.put('*', onem2mParser, (request, response) => {
         db.getConnection((code, connection) => {
             if (code === '200') {
                 request.db_connection = connection;
+                var settle = make_settler(request, response, connection);
 
                 if (!request.headers.hasOwnProperty('binding')) {
                     request.headers['binding'] = 'H';
@@ -2398,44 +2265,24 @@ app.put('*', onem2mParser, (request, response) => {
                                                                                 delete cache_resource_url[request.url];
                                                                             }
 
-                                                                            responder.response_result(request, response, '200', '2004', '', () => {
-                                                                                connection.release();
-                                                                                request = null;
-                                                                                response = null;
-                                                                            });
+                                                                            settle.result('200', '2004', '');
                                                                         }
                                                                         else {
-                                                                            response_error_result(request, response, code, () => {
-                                                                                connection.release();
-                                                                                request = null;
-                                                                                response = null;
-                                                                            });
+                                                                            settle.error(code);
                                                                         }
                                                                     });
                                                                 }
                                                                 else {
-                                                                    response_error_result(request, response, '400-45', () => {
-                                                                        connection.release();
-                                                                        request = null;
-                                                                        response = null;
-                                                                    });
+                                                                    settle.error('400-45');
                                                                 }
                                                             }
                                                             else {
-                                                                response_error_result(request, response, code, () => {
-                                                                    connection.release();
-                                                                    request = null;
-                                                                    response = null;
-                                                                });
+                                                                settle.error(code);
                                                             }
                                                         });
                                                     }
                                                     else {
-                                                        response_error_result(request, response, code, () => {
-                                                            connection.release();
-                                                            request = null;
-                                                            response = null;
-                                                        });
+                                                        settle.error(code);
                                                     }
                                                 });
                                             }
@@ -2450,60 +2297,32 @@ app.put('*', onem2mParser, (request, response) => {
                                                                     if (code === '200') {
                                                                         fopt.check(request, response, result_grp, body_Obj, (code) => {
                                                                             if (code === '200') {
-                                                                                responder.search_result(request, response, '200', '2000', '', () => {
-                                                                                    connection.release();
-                                                                                    request = null;
-                                                                                    response = null;
-                                                                                });
+                                                                                settle.search('200', '2000', '');
                                                                             }
                                                                             else {
-                                                                                response_error_result(request, response, code, () => {
-                                                                                    connection.release();
-                                                                                    request = null;
-                                                                                    response = null;
-                                                                                });
+                                                                                settle.error(code);
                                                                             }
                                                                         });
                                                                     }
                                                                     else {
-                                                                        response_error_result(request, response, code, () => {
-                                                                            connection.release();
-                                                                            request = null;
-                                                                            response = null;
-                                                                        });
+                                                                        settle.error(code);
                                                                     }
                                                                 });
                                                             }
                                                             else if (code === '0') {
-                                                                response_error_result(request, response, '403-5', () => {
-                                                                    connection.release();
-                                                                    request = null;
-                                                                    response = null;
-                                                                });
+                                                                settle.error('403-5');
                                                             }
                                                             else {
-                                                                response_error_result(request, response, code, () => {
-                                                                    connection.release();
-                                                                    request = null;
-                                                                    response = null;
-                                                                });
+                                                                settle.error(code);
                                                             }
                                                         });
                                                     }
                                                     else if (rsc == '2') {
                                                         code = '403-6';
-                                                        response_error_result(request, response, code, () => {
-                                                            connection.release();
-                                                            request = null;
-                                                            response = null;
-                                                        });
+                                                        settle.error(code);
                                                     }
                                                     else {
-                                                        response_error_result(request, response, '404-4', () => {
-                                                            connection.release();
-                                                            request = null;
-                                                            response = null;
-                                                        });
+                                                        settle.error('404-4');
                                                     }
                                                 });
                                             }
@@ -2511,60 +2330,37 @@ app.put('*', onem2mParser, (request, response) => {
                                         else if (code === '301-1') {
                                             check_csr(request, response, (code) => {
                                                 if (code === '301-2') {
-                                                    connection.release();
-                                                    response.status(response.statusCode).end(response.body);
-                                                    request = null;
-                                                    response = null;
+                                                    settle.raw('csr forward', function () {
+                                                        response.status(response.statusCode).end(response.body);
+                                                    });
                                                 }
                                                 else {
-                                                    response_error_result(request, response, code, () => {
-                                                        connection.release();
-                                                        request = null;
-                                                        response = null;
-                                                    });
+                                                    settle.error(code);
                                                 }
                                             });
                                         }
                                         else {
-                                            response_error_result(request, response, code, () => {
-                                                connection.release();
-                                                request = null;
-                                                response = null;
-                                            });
+                                            settle.error(code);
                                         }
                                     });
                                 }
                                 else {
-                                    response_error_result(request, response, code, () => {
-                                        connection.release();
-                                        request = null;
-                                        response = null;
-                                    });
+                                    settle.error(code);
                                 }
                             });
                         }
                         else {
-                            response_error_result(request, response, '400-40', () => {
-                                connection.release();
-                                request = null;
-                                response = null;
-                            });
+                            settle.error('400-40');
                         }
                     }
                     else {
-                        response_error_result(request, response, code, () => {
-                            connection.release();
-                            request = null;
-                            response = null;
-                        });
+                        settle.error(code);
                     }
                 });
             }
             else {
-                response_error_result(request, response, code, () => {
-                    request = null;
-                    response = null;
-                });
+                // 커넥션을 못 빌린 경로다 — 반납할 것이 없어 null 을 넘긴다.
+                make_settler(request, response, null).error(code);
             }
         });
     });
@@ -2582,6 +2378,7 @@ app.delete('*', onem2mParser, (request, response) => {
         db.getConnection((code, connection) => {
             if (code === '200') {
                 request.db_connection = connection;
+                var settle = make_settler(request, response, connection);
 
                 if (!request.headers.hasOwnProperty('binding')) {
                     request.headers['binding'] = 'H';
@@ -2618,35 +2415,19 @@ app.delete('*', onem2mParser, (request, response) => {
                                                             }
                                                         });
 
-                                                        responder.response_result(request, response, '200', '2002', '', () => {
-                                                            connection.release();
-                                                            request = null;
-                                                            response = null;
-                                                        });
+                                                        settle.result('200', '2002', '');
                                                     }
                                                     else {
-                                                        response_error_result(request, response, code, () => {
-                                                            connection.release();
-                                                            request = null;
-                                                            response = null;
-                                                        });
+                                                        settle.error(code);
                                                     }
                                                 });
                                             }
                                             else {
-                                                response_error_result(request, response, '400-46', () => {
-                                                    connection.release();
-                                                    request = null;
-                                                    response = null;
-                                                });
+                                                settle.error('400-46');
                                             }
                                         }
                                         else {
-                                            response_error_result(request, response, code, () => {
-                                                connection.release();
-                                                request = null;
-                                                response = null;
-                                            });
+                                            settle.error(code);
                                         }
                                     });
                                 }
@@ -2659,51 +2440,27 @@ app.delete('*', onem2mParser, (request, response) => {
                                                 if (code === '1') {
                                                     fopt.check(request, response, result_grp, body_Obj, (code) => {
                                                         if (code === '200') {
-                                                            responder.search_result(request, response, '200', '2000', '', () => {
-                                                                connection.release();
-                                                                request = null;
-                                                                response = null;
-                                                            });
+                                                            settle.search('200', '2000', '');
                                                         }
                                                         else {
-                                                            response_error_result(request, response, code, () => {
-                                                                connection.release();
-                                                                request = null;
-                                                                response = null;
-                                                            });
+                                                            settle.error(code);
                                                         }
                                                     });
                                                 }
                                                 else if (code === '0') {
-                                                    response_error_result(request, response, '403-5', () => {
-                                                        connection.release();
-                                                        request = null;
-                                                        response = null;
-                                                    });
+                                                    settle.error('403-5');
                                                 }
                                                 else {
-                                                    response_error_result(request, response, code, () => {
-                                                        connection.release();
-                                                        request = null;
-                                                        response = null;
-                                                    });
+                                                    settle.error(code);
                                                 }
                                             });
                                         }
                                         else if (rsc == '2') {
                                             code = '403-6';
-                                            response_error_result(request, response, code, () => {
-                                                connection.release();
-                                                request = null;
-                                                response = null;
-                                            });
+                                            settle.error(code);
                                         }
                                         else {
-                                            response_error_result(request, response, '404-4', () => {
-                                                connection.release();
-                                                request = null;
-                                                response = null;
-                                            });
+                                            settle.error('404-4');
                                         }
                                     });
                                 }
@@ -2711,43 +2468,28 @@ app.delete('*', onem2mParser, (request, response) => {
                             else if (code === '301-1') {
                                 check_csr(request, response, (code) => {
                                     if (code === '301-2') {
-                                        connection.release();
-                                        response.status(response.statusCode).end(response.body);
-                                        request = null;
-                                        response = null;
+                                        settle.raw('csr forward', function () {
+                                            response.status(response.statusCode).end(response.body);
+                                        });
                                     }
                                     else {
-                                        response_error_result(request, response, code, () => {
-                                            connection.release();
-                                            request = null;
-                                            response = null;
-                                        });
+                                        settle.error(code);
                                     }
                                 });
                             }
                             else {
-                                response_error_result(request, response, code, () => {
-                                    connection.release();
-                                    request = null;
-                                    response = null;
-                                });
+                                settle.error(code);
                             }
                         });
                     }
                     else {
-                        response_error_result(request, response, code, () => {
-                            connection.release();
-                            request = null;
-                            response = null;
-                        });
+                        settle.error(code);
                     }
                 });
             }
             else {
-                response_error_result(request, response, code, () => {
-                    request = null;
-                    response = null;
-                });
+                // 커넥션을 못 빌린 경로다 — 반납할 것이 없어 null 을 넘긴다.
+                make_settler(request, response, null).error(code);
             }
         });
     });
