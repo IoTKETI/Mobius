@@ -304,6 +304,16 @@ global.make_cse_relative = function (resource_Obj) {
 global.make_internal_ri = function (resource_Obj) {
     for (var index in resource_Obj) {
         if (resource_Obj.hasOwnProperty(index)) {
+            // 문자열이 아니면 건드리지 않는다. 예전에는 .split 이 TypeError 를
+            // 던졌는데, 호출부가 전부 DB 콜백 안이거나 security.check 안이라
+            // 잡을 곳이 없어 **워커가 죽었다.** 그룹의 macp 에 숫자를 하나
+            // 넣고 그 fanOutPoint 를 치면 재현된다(app.js 의 그룹 권한 검사가
+            // macp 를 그대로 여기로 넘긴다).
+            //
+            // 값을 그대로 두면 뒤의 whereIn 에서 아무것과도 안 맞아 "그런 ACP 가
+            // 없다" 로 처리된다 — 잘못된 값을 통과시키는 것이 아니다.
+            if (typeof resource_Obj[index] !== 'string') { continue; }
+
             if (resource_Obj[index].split(usespid + usecseid + '/')[0] == '') { // absolute relative
                 resource_Obj[index] = resource_Obj[index].replace(usespid + usecseid + '/', '/');
             }
@@ -2274,9 +2284,15 @@ var ACPI_MAX_JSON = 200;
  *
  * **새로 쓰는 값만 본다.** 이미 저장된 acpi 는 건드리지 않는다.
  *
+ * @param opts.maxJson  직렬화 길이 한도. 기본은 lookup.acpi 의 varchar(200).
+ *                      grp.macp 는 mediumtext 라 더 넉넉하다.
  * @param callback callback(null, normalized) 통과 / callback(code) 거부
  */
-global.validate_acpi = function (request, response, acpi, callback) {
+global.validate_acpi = function (request, response, acpi, opts, callback) {
+    if (typeof opts === 'function') { callback = opts; opts = {}; }
+    var o = opts || {};
+    var maxJson = o.maxJson || ACPI_MAX_JSON;
+
     if (!Array.isArray(acpi)) {
         callback('400-8');
         return;
@@ -2289,6 +2305,21 @@ global.validate_acpi = function (request, response, acpi, callback) {
     }
     if (acpi.length === 0) {
         callback(null, []);
+        return;
+    }
+
+    // **원소 수를 먼저 막는다.** get_ri_list_sri 는 원소마다 질의를 한 번씩
+    // 내므로, 개수를 안 보면 클라이언트가 배열 하나로 질의 수천 건을 만든다.
+    // 길이 검사는 sri 해석이 끝난 뒤에야 할 수 있어서(짧은 sri 가 긴 ri 로
+    // 풀린다) 그 전에 값싼 상한을 하나 둔다.
+    //
+    // 한도는 직렬화 한도에서 나온다 — 원소 하나가 최소 세 글자("x",)라고 보면
+    // maxJson 을 넘길 수 없는 개수의 상한이 이만큼이다. 정상 사용(ACP 7개,
+    // 그룹 macp 도 한 자리)에는 걸리지 않는다.
+    var max_count = Math.max(8, Math.ceil(maxJson / 3));
+    if (acpi.length > max_count) {
+        console.log('[acp] reject 400-62 — 원소가 ' + acpi.length + '개다 (상한 ' + max_count + ')');
+        callback('400-62');
         return;
     }
 
@@ -2310,7 +2341,7 @@ global.validate_acpi = function (request, response, acpi, callback) {
             }
         }
 
-        if (JSON.stringify(normalized).length > ACPI_MAX_JSON) {
+        if (JSON.stringify(normalized).length > maxJson) {
             callback('400-62');
             return;
         }
@@ -2454,6 +2485,21 @@ function update_resource(request, response, callback) {
             }
         }
 
+        // macp 도 같은 길로 권한 검사에 들어간다(app.js 의 그룹 팬아웃이
+        // security.check 에 macp 를 그대로 넘긴다). 검증을 안 하면 원소에
+        // 숫자 하나로 워커가 죽는다.
+        if (body_Obj[rootnm].hasOwnProperty('macp')) {
+            validate_acpi(request, response, body_Obj[rootnm].macp, { maxJson: 2000 },
+                function (mcode, mnorm) {
+                    if (mcode) { return callback(mcode); }
+                    body_Obj[rootnm].macp = mnorm;
+                    after_macp();
+                });
+            return;
+        }
+        after_macp();
+
+        function after_macp() {
         if (!body_Obj[rootnm].hasOwnProperty('acpi')) {
             run_acp_check([]);
             return;
@@ -2501,6 +2547,7 @@ function update_resource(request, response, callback) {
                 callback(code);
             }
         });
+        }
         }
     }
     else {
