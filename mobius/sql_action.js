@@ -23,6 +23,10 @@ var sqlite = require('./db_sqlite');
 // 전환된 함수는 이 파사드를 쓴다. 전환이 끝나면 위 두 줄은 삭제한다.
 var facade = require('./db');
 
+// 구독 도달성 감사(audit_subscriptions)가 nu 와 poa 를 읽는다.
+var url = require('url');
+var poa_util = require('./poa');
+
 var _this = this;
 
 global.max_lim = 2000;
@@ -4141,4 +4145,310 @@ exports.select_sum_ae = function (connection, callback) {
         console.timeEnd('select_sum_ae ' + tid);
         callback(err, result_Obj);
     });
+};
+
+/* ─── 구독 도달성 감사 ────────────────────────────────────────────────
+ *
+ * "구독은 잔뜩 있는데 받을 놈이 사라진" 상태를 찾는다. 읽기만 한다.
+ *
+ * 알림 경로(sgn.js)는 이 판정을 이미 매번 하고 있다 — 다만 로그로만 남기고
+ * 버린다. 그리고 알림이 실제로 발생해야(= 부모에 CIN 이 들어와야) 드러난다.
+ * 여기서는 같은 판정을 **전송 시도 없이, 오프라인으로** 재현한다.
+ * 그래서 관리 UI 가 알림을 기다리지 않고 목록을 만들 수 있다.
+ *
+ * ── 하지 않는 것
+ *
+ * et 가 과거인 구독을 "보낼 수 없는 구독" 으로 분류하지 않는다.
+ * et 는 이 코드의 런타임 어디에서도 강제되지 않는다 — 만료 스윕은 주기 실행이
+ * 없고, 알림 경로에도 리소스 조회 경로에도 et 비교가 없다.
+ * 즉 et 가 지난 구독의 대다수는 **지금 이 순간 정상적으로 알림을 보내고 있다.**
+ * 배포 표본에서 et 의 약 81% 가 이미 과거이므로, 이것을 삭제 후보로 올리면
+ * 목록이 통째로 오염된다. 만료는 select_expired_resources 가 따로 다룬다.
+ *
+ * ── 왜 subl 을 안 보는가
+ *
+ * 부모의 subl 사본은 신뢰할 수 없다. update_lookup 이 절대값으로 덮어쓰고
+ * 호출부가 26곳이라, 구독을 동시에 만들면 조용히 사라진다(실측: 12개 중 11개).
+ * 진실은 lookup(ty=23) + sub 이다.
+ */
+
+// 판정 사유. 관리 UI 가 그룹으로 묶어 보여 줄 수 있게 코드로 준다.
+var SUB_AUDIT_REASON = {
+    NO_SUB_ROW:    'no_sub_row',      // lookup 에는 ty=23 인데 sub 행이 없다
+    NU_EMPTY:      'nu_empty',        // nu 가 비었거나 읽을 수 없다
+    NU_UNRESOLVED: 'nu_unresolved',   // ID 형식인데 그 리소스가 없다 <- 받을 놈이 사라짐
+    NU_NO_POA:     'nu_no_poa',       // 리소스는 있는데 보낼 주소가 없다
+    NU_BAD_SCHEME: 'nu_bad_scheme'    // http/https/coap/ws/mqtt 가 아니다
+};
+exports.SUB_AUDIT_REASON = SUB_AUDIT_REASON;
+
+var SUB_AUDIT_BATCH = 500;
+var SUB_AUDIT_CAP = 20000;
+var SUB_AUDIT_MAX_FINDINGS = 2000;
+var SUB_NU_SCHEMES = ['http:', 'https:', 'coap:', 'ws:', 'mqtt:'];
+
+function parse_json_array(raw) {
+    if (Array.isArray(raw)) { return raw; }
+    if (raw === null || raw === undefined || raw === '') { return []; }
+    try {
+        var v = JSON.parse(raw);
+        return Array.isArray(v) ? v : null;
+    }
+    catch (e) { return null; }
+}
+
+/**
+ * 알림을 보낼 수 없는 구독을 찾는다. DB 쓰기 0.
+ *
+ * @param opts { batch, scanCap, maxFindings, after }
+ *        after 는 앞선 호출의 result.next 를 **그대로** 넘긴다.
+ * @returns callback(null, {
+ *            findings: [{ ri, pi, nu, reason, detail }],
+ *            findingsTruncated, scanned, capped, byReason, next })
+ *          next 가 null 이면 다 훑은 것이다.
+ */
+exports.audit_subscriptions = function (connection, opts, callback) {
+    if (typeof opts === 'function') { callback = opts; opts = {}; }
+    var o = opts || {};
+
+    var batch = Math.min(Math.max(parseInt(o.batch, 10) || SUB_AUDIT_BATCH, 1), 5000);
+    var cap = parseInt(o.scanCap, 10) || SUB_AUDIT_CAP;
+    var maxFindings = parseInt(o.maxFindings, 10) || SUB_AUDIT_MAX_FINDINGS;
+    var after = (o.after === undefined || o.after === null) ? '' : String(o.after);
+
+    var findings = [];
+    var byReason = {};
+    var scanned = 0;
+    var truncated = false;
+
+    function note(ri, pi, nu, reason, detail) {
+        byReason[reason] = (byReason[reason] || 0) + 1;
+        if (findings.length >= maxFindings) { truncated = true; return; }
+        findings.push({ ri: ri, pi: pi, nu: nu, reason: reason, detail: detail || '' });
+    }
+
+    function done(next, capped) {
+        callback(null, {
+            findings: findings,
+            findingsTruncated: truncated,
+            scanned: scanned,
+            capped: !!capped,
+            byReason: byReason,
+            // 상한에 걸렸을 때만 이어보기 커서를 준다. 조용히 자르지 않는다.
+            next: capped ? next : null
+        });
+    }
+
+    // ID 형식 nu 를 절대 경로와 첫 조각으로 나눈다.
+    //
+    // sgn.js 의 get_nu_arr 과 **정확히 같은 방식**이라야 판정이 갈리지 않는다.
+    // 해석은 두 단계다 — 첫 조각(sri)으로 그 리소스의 ri 를 찾고, 그것으로
+    // 경로 앞부분을 치환한 뒤 전체 경로로 대상을 찾는다.
+    // 한 단계만 하면 첫 조각(대개 CSEBase 이름)을 대상으로 착각한다.
+    function split_id_nu(nu) {
+        var s = String(nu);
+        s = s.replace(usespid + usecseid + '/', '/');
+        s = s.replace(usecseid + '/', '/');
+        if (s.charAt(0) !== '/') { s = '/' + s; }
+        var parts = s.split('/');
+        return { abs: s, head: (parts[1] || '').split('?')[0] };
+    }
+
+    function classify(found, pending, next) {
+        pending.forEach(function (p) {
+            var target = found[p.target_path];
+            if (!target) {
+                // **여기가 "받을 놈이 사라진" 구독이다.**
+                // AE 가 등록을 해제하면 그 AE 를 nu 로 가진 구독이 전부 여기 걸린다.
+                note(p.ri, p.pi, p.nu, SUB_AUDIT_REASON.NU_UNRESOLVED, '대상: ' + p.target_path);
+                return;
+            }
+            if (!POA_TABLE[String(target.ty)]) {
+                // AE/CSEBase/remoteCSE 가 아니면 poa 자체가 없는 타입이다.
+                // 컨테이너를 nu 로 적어 둔 것 같은 설정 실수가 여기 걸린다.
+                note(p.ri, p.pi, p.nu, SUB_AUDIT_REASON.NU_NO_POA,
+                     '대상 ty=' + target.ty + ' 는 poa 를 갖지 않는다');
+                return;
+            }
+            var poa = poa_util.parse(target.poa, '[audit] ' + target.ri);
+            if (poa === null || poa.length === 0) {
+                note(p.ri, p.pi, p.nu, SUB_AUDIT_REASON.NU_NO_POA, '대상: ' + target.ri);
+            }
+        });
+        next();
+    }
+
+    // 대상을 두 단계로, 페이지 단위 배치로 확인한다.
+    // 구독마다 따로 조회하면 구독 수만큼 왕복이 된다.
+    //
+    // poa 는 lookup 에 없다. 타입별 테이블(ae/cb/csr)에 있으므로
+    // select_resource_from_url 과 같이 한 단계 더 읽는다.
+    function resolve_targets(want, pending, next) {
+        var heads = Object.keys(want);
+        if (heads.length === 0) { return next(); }
+
+        // 1단계: 첫 조각(sri)으로 그 리소스의 ri 를 찾는다.
+        facade.run(facade.k('lookup').select('ri', 'sri').whereIn('sri', heads),
+            connection, function (err, head_rows) {
+                if (err) { return callback(true, head_rows); }
+
+                var head_ri = {};
+                (head_rows || []).forEach(function (r) { head_ri[r.sri] = r.ri; });
+
+                // 2단계: 치환한 전체 경로로 대상을 찾는다.
+                // 첫 조각을 못 찾으면 경로를 그대로 쓴다 — sgn.js 와 같다.
+                var paths = {};
+                pending.forEach(function (p) {
+                    var hr = head_ri[p.head];
+                    p.target_path = hr ? p.abs.replace('/' + p.head, hr) : p.abs;
+                    p.target_path = p.target_path.split('?')[0];
+                    paths[p.target_path] = true;
+                });
+
+                var keys = Object.keys(paths);
+                if (keys.length === 0) { return next(); }
+
+                facade.run(facade.k('lookup').select('ri', 'sri', 'ty').whereIn('ri', keys),
+                    connection, function (err2, rows) {
+                        if (err2) { return callback(true, rows); }
+
+                        var found = {};
+                        (rows || []).forEach(function (r) { found[r.ri] = r; });
+
+                        // ri 로 못 찾으면 sri 로도 본다 —
+                        // select_resource_from_url 이 둘 다 보기 때문이다.
+                        var miss = keys.filter(function (k) { return !found[k]; });
+                        if (miss.length === 0) { return fetch_poa(found, pending, next); }
+
+                        facade.run(facade.k('lookup').select('ri', 'sri', 'ty').whereIn('sri', miss),
+                            connection, function (err3, rows2) {
+                                if (err3) { return callback(true, rows2); }
+                                (rows2 || []).forEach(function (r) { found[r.sri] = r; });
+                                fetch_poa(found, pending, next);
+                            });
+                    });
+            });
+    }
+
+    // poa 를 가진 타입은 ae(2) / cb(5) / csr(16) 뿐이다.
+    // 그 밖의 타입이 nu 대상이면 보낼 주소가 없는 것이다.
+    var POA_TABLE = { '2': 'ae', '5': 'cb', '16': 'csr' };
+
+    function fetch_poa(found, pending, next) {
+        var byTable = {};
+        Object.keys(found).forEach(function (k) {
+            var t = POA_TABLE[String(found[k].ty)];
+            if (!t) { return; }              // poa 가 없는 타입 — classify 가 처리한다
+            if (!byTable[t]) { byTable[t] = []; }
+            byTable[t].push(found[k].ri);
+        });
+
+        var tables = Object.keys(byTable);
+        if (tables.length === 0) { return classify(found, pending, next); }
+
+        var poa_by_ri = {};
+        var at = 0;
+        (function step() {
+            if (at >= tables.length) {
+                Object.keys(found).forEach(function (k) {
+                    found[k].poa = poa_by_ri[found[k].ri];
+                });
+                return classify(found, pending, next);
+            }
+            var t = tables[at++];
+            facade.run(facade.k(t).select('ri', 'poa').whereIn('ri', byTable[t]),
+                connection, function (err, rows) {
+                    if (err) { return callback(true, rows); }
+                    (rows || []).forEach(function (r) { poa_by_ri[r.ri] = r.poa; });
+                    step();
+                });
+        })();
+    }
+
+    function scan(cursor) {
+        // ty 등치라 idx_lookup_ty 를 탄다. 선행 와일드카드 LIKE 나
+        // 전역 COUNT(*) 는 5,740만 행에서 풀스캔이라 쓰지 않는다.
+        var qb = facade.k('lookup')
+            .select('ri', 'pi', 'rn', 'ct', 'lt', 'et')
+            .where({ ty: 23 })
+            .andWhere('ri', '>', cursor)
+            .orderBy('ri', 'asc')
+            .limit(batch);
+
+        function advance(last_ri) {
+            if (scanned >= cap) { return done(last_ri, true); }
+            setImmediate(scan, last_ri);
+        }
+
+        facade.run(qb, connection, function (err, rows) {
+            if (err) { return callback(true, rows); }
+            if (!rows || rows.length === 0) { return done(null, false); }
+
+            scanned += rows.length;
+            // 커서는 **반환된 마지막 행**이다. 계산해서 만들면 한 칸씩 어긋난다.
+            var last = rows[rows.length - 1].ri;
+            var ri_list = rows.map(function (r) { return r.ri; });
+            var by_ri = {};
+            rows.forEach(function (r) { by_ri[r.ri] = r; });
+
+            // sub 는 PK 가 ri 라 whereIn 이 인덱스를 탄다.
+            facade.run(facade.k('sub').select('ri', 'nu').whereIn('ri', ri_list),
+                connection, function (err2, subs) {
+                    if (err2) { return callback(true, subs); }
+
+                    var have = {};
+                    (subs || []).forEach(function (s) { have[s.ri] = s; });
+
+                    // 이 페이지에서 확인해야 할 ID 형식 nu 를 모은다.
+                    // 구독마다 따로 조회하면 구독 수만큼 왕복이 된다.
+                    var want = {};
+                    var pending = [];
+
+                    ri_list.forEach(function (ri) {
+                        var row = by_ri[ri];
+                        var s = have[ri];
+                        if (!s) {
+                            // FK ON DELETE CASCADE 라 정상적으로는 생기지 않는다.
+                            // 생겼다면 그 자체가 보고할 일이다.
+                            note(ri, row.pi, '', SUB_AUDIT_REASON.NO_SUB_ROW, 'sub 행이 없다');
+                            return;
+                        }
+                        var nu_arr = parse_json_array(s.nu);
+                        if (nu_arr === null) {
+                            note(ri, row.pi, String(s.nu), SUB_AUDIT_REASON.NU_EMPTY, 'nu 를 읽을 수 없다');
+                            return;
+                        }
+                        if (nu_arr.length === 0) {
+                            note(ri, row.pi, '', SUB_AUDIT_REASON.NU_EMPTY, 'nu 가 비어 있다');
+                            return;
+                        }
+                        nu_arr.forEach(function (nu) {
+                            var parsed = url.parse(String(nu));
+                            if (parsed.protocol === null) {
+                                // ID 형식이다. 대상 리소스를 확인해야 한다.
+                                var split = split_id_nu(nu);
+                                if (split.head === '') {
+                                    note(ri, row.pi, nu, SUB_AUDIT_REASON.NU_EMPTY, 'nu 형식을 읽을 수 없다');
+                                    return;
+                                }
+                                want[split.head] = true;
+                                pending.push({ ri: ri, pi: row.pi, nu: nu,
+                                               head: split.head, abs: split.abs });
+                                return;
+                            }
+                            if (SUB_NU_SCHEMES.indexOf(parsed.protocol) < 0) {
+                                note(ri, row.pi, nu, SUB_AUDIT_REASON.NU_BAD_SCHEME, parsed.protocol);
+                            }
+                            // URL 형식은 여기서 도달성을 알 수 없다.
+                            // 그건 알림 결과 신호([noti] 로그)가 답한다.
+                        });
+                    });
+
+                    if (pending.length === 0) { return advance(last); }
+                    resolve_targets(want, pending, function () { advance(last); });
+                });
+        });
+    }
+
+    scan(after);
 };
