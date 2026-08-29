@@ -1553,32 +1553,90 @@ exports.search_parents_lookup_all = function (connection, pi_list, cur_result_ri
 };
 
 
+// discovery 로 찾은 lookup 행에 타입 테이블(cnt / cin / ae ...)의 속성을 채운다.
+// 타입 테이블에 짝이 없는 행은 응답에서 뺀다 — lookup 에만 남은 고아다
+// (배포 서버에 실제로 ty=3 기준 2건 있다).
+//
+// 예전에는 결과 **한 건마다 질의 하나**를 순차로 던졌다. resource.js 의
+// retrieve 가 fu / rcn 과 무관하게 이 함수를 부르므로, lim=2000 이면
+// CTE 1회 + 단건 조회 2,000회이고 그동안 커넥션 하나를 계속 쥐고 있었다.
+// 타입별로 묶으면 타입 수만큼(대개 1~3회)으로 끝난다.
+//
+// count 인자는 그 재귀 구현의 잔재다. 호출부(resource.js)가 0 을 넘기고,
+// 이제는 읽지 않는다.
 exports.select_spec_ri = function (connection, found_Obj, count, callback) {
-    if (Object.keys(found_Obj).length <= count) {
+    // 키 순서가 곧 응답 순서다. 아래에서 **이미 있는 키에만 대입**하므로
+    // (새 키를 만들지 않으므로) 순서가 보존된다.
+    var ris = Object.keys(found_Obj);
+    if (ris.length === 0) {
         callback('200');
         return;
     }
 
-    var ri = Object.keys(found_Obj)[count];
-    var table = responder.typeRsrc[found_Obj[ri].ty];
+    // 타입별로 나눈다.
+    var by_table = {};
+    var i;
+    for (i = 0; i < ris.length; i++) {
+        var table = responder.typeRsrc[found_Obj[ris[i]].ty];
+        if (!table) {
+            // 예전에는 facade.k(undefined) 가 만든 SQL 이 깨져 500 이 났다.
+            // 결과는 같게 두되 원인을 알아볼 수 있게 남긴다.
+            console.error('[select_spec_ri] unknown ty=' + found_Obj[ris[i]].ty +
+                          ' ri=' + ris[i] + ' — responder.typeRsrc 에 없다');
+            callback('500-1');
+            return;
+        }
+        if (!by_table[table]) { by_table[table] = []; }
+        by_table[table].push(ris[i]);
+    }
 
-    facade.run(facade.k(table).select('*').where({ ri: ri }), connection,
-        function (err, spec_Obj) {
-            if (err) {
-                callback('500-1');
-                return;
-            }
+    // ri 는 최대 200자라 500개씩이면 IN 목록이 100KB 남짓이다.
+    var CHUNK = 500;
+    var tables = Object.keys(by_table);
+    var spec_by_ri = {};
 
-            if (spec_Obj.length >= 1) {
-                makeObject(spec_Obj[0]);
-                found_Obj[ri] = merge(found_Obj[ri], spec_Obj[0]);
-                _this.select_spec_ri(connection, found_Obj, ++count, callback);
-            }
-            else {
-                delete found_Obj[ri];
-                _this.select_spec_ri(connection, found_Obj, count, callback);
-            }
-        });
+    function done() {
+        for (var k = 0; k < ris.length; k++) {
+            var ri = ris[k];
+            if (spec_by_ri[ri]) { found_Obj[ri] = merge(found_Obj[ri], spec_by_ri[ri]); }
+            else { delete found_Obj[ri]; }
+        }
+        callback('200');
+    }
+
+    function next_table(ti) {
+        if (ti >= tables.length) { return done(); }
+        var t = tables[ti];
+        var list = by_table[t];
+        var pos = 0;
+
+        function next_chunk() {
+            if (pos >= list.length) { return next_table(ti + 1); }
+            var chunk = list.slice(pos, pos + CHUNK);
+            pos += CHUNK;
+
+            facade.run(facade.k(t).select('*').whereIn('ri', chunk), connection,
+                function (err, rows) {
+                    if (err) {
+                        console.error('[select_spec_ri] ' + t + ': ' +
+                                      ((rows && (rows.sqlMessage || rows.message)) || rows));
+                        return callback('500-1');
+                    }
+                    rows = rows || [];
+                    for (var r = 0; r < rows.length; r++) {
+                        // makeObject 가 행을 제자리에서 고치므로 키를 먼저 잡아 둔다.
+                        var key = rows[r].ri;
+                        makeObject(rows[r]);
+                        spec_by_ri[key] = rows[r];
+                    }
+                    next_chunk();
+                });
+        }
+
+        next_chunk();
+    }
+
+    next_table(0);
 };
 
 // discovery 는 두 백엔드 모두 재귀 CTE 하나로 처리한다.
@@ -1747,6 +1805,16 @@ exports.search_lookup = function (connection, ri, query, cur_lim, pi_list, pi_in
                 if (res && (res.driverCode === 'ER_MAX_EXECUTION_TIME_EXCEEDED' || res.errno === 3024)) {
                     console.error('[search_lookup] statement timeout (' + DISCOVERY_TIMEOUT_MS +
                                   'ms) ri=' + ri + ' query=' + JSON.stringify(query));
+                }
+                // 인덱스가 없으면 force index 때문에 discovery 가 **전부** 실패한다.
+                // 코드만 올리고 마이그레이션을 안 돌린 경우다 — 원인을 바로 알려준다.
+                // (새로 설치하면 mobiusdb.sql 이 만들어 주므로 이 경우는 업그레이드뿐)
+                else if (res && (res.driverCode === 'ER_KEY_DOES_NOT_EXITS' ||
+                                 res.errno === 1176 ||
+                                 /Key '[^']*' doesn't exist/i.test(res.sqlMessage || res.message || ''))) {
+                    console.error('[search_lookup] 인덱스가 없다: ' +
+                                  (res.sqlMessage || res.message) +
+                                  ' — node tools/migrate.js --check mysql 로 확인하고 적용할 것');
                 }
                 else {
                     console.error('[search_lookup] ' + ((res && (res.sqlMessage || res.message)) || res));
