@@ -3269,6 +3269,66 @@ exports.delete_lookup_et = function (connection, et, limit, callback) {
 //
 // 겸사겸사 수동 이스케이프(esc)를 걷어냈다. `\` 와 `'` 만 다루는 불완전한
 // 것이었고, ri/pi 는 클라이언트가 정한 rn 을 담으므로 2차 주입 통로였다.
+/**
+ * 고아 행이 몇 개인지 센다. 아무것도 바꾸지 않는다.
+ *
+ * delete_orphan_lookup 은 lookup 전체를 훑고 여러 패스를 돌아 비싸다. 지우기
+ * 전에 "정말 지울 것이 있는가" 를 먼저 볼 수 있어야 관리자가 판단할 수 있다.
+ * 만료 스윕의 select_expired_resources 와 같은 역할이다.
+ *
+ * 세는 것도 전수 스캔이라 공짜는 아니다. 다만 삭제와 달리 한 패스로 끝나고
+ * 아무것도 바꾸지 않는다.
+ *
+ * @param {number} limit  이 수를 넘으면 세기를 멈추고 그 값을 돌려준다.
+ *                        "많다" 는 것만 알면 되는데 끝까지 세느라 오래 걸릴
+ *                        이유가 없다. 0 이나 미지정이면 끝까지 센다.
+ * @returns callback(err, { count, capped }) — capped 면 실제로는 더 많다
+ */
+exports.count_orphan_lookup = function (connection, limit, callback) {
+    if (typeof limit === 'function') { callback = limit; limit = 0; }
+    var BATCH = 5000;
+    var total = 0;
+
+    function scan(last_ri) {
+        var qb = facade.k('lookup')
+            .select('ri', 'pi')
+            .where('ri', '>', last_ri)
+            .whereNot('pi', '')          // CSEBase 는 pi 가 빈 문자열이라 제외
+            .orderBy('ri', 'asc')
+            .limit(BATCH);
+
+        facade.run(qb, connection, function (err, rows) {
+            if (err) { return callback(err, rows); }
+            rows = rows || [];
+            if (!rows.length) { return callback(null, { count: total, capped: false }); }
+
+            var next_ri = rows[rows.length - 1].ri;
+            var pi_set = {};
+            for (var i = 0; i < rows.length; i++) { pi_set[rows[i].pi] = 1; }
+
+            facade.run(facade.k('lookup').select('ri').whereIn('ri', Object.keys(pi_set)), connection,
+                function (err2, prows) {
+                    if (err2) { return callback(err2, prows); }
+                    var exists = {};
+                    prows = prows || [];
+                    for (var j = 0; j < prows.length; j++) { exists[prows[j].ri] = 1; }
+                    for (var k = 0; k < rows.length; k++) {
+                        if (!exists[rows[k].pi]) { total++; }
+                    }
+                    if (limit > 0 && total >= limit) {
+                        return callback(null, { count: total, capped: true });
+                    }
+                    setImmediate(scan, next_ri);
+                });
+        });
+    }
+
+    scan('');
+};
+
+// **자동 실행하지 않는다** — app.js 에 주기 등록이 없다.
+// 관리자가 count_orphan_lookup 으로 확인한 뒤 호출하는 용도다.
+// 비용은 app.js 의 "고아 행 정리는 자동으로 돌리지 않는다" 주석 참고.
 exports.delete_orphan_lookup = function (connection, callback) {
     var BATCH = 5000;
     var grand_total = 0;

@@ -204,22 +204,26 @@ function reconcile_counters(is_continuation) {
     });
 }
 
-// 비동기 subtree 삭제 도중 프로세스가 죽어 남은 고아 행 정리 (기동 시 + 일 1회)
-function del_orphan_resource() {
-    db.getConnection((code, connection) => {
-        if (code === '200') {
-            db_sql.delete_orphan_lookup(connection, (err) => {
-                if (err) {
-                    console.log('[del_orphan_resource] error', err);
-                }
-                connection.release();
-            });
-        }
-        else {
-            console.log('[del_orphan_resource] No Connection');
-        }
-    });
-}
+// 고아 행 정리는 **자동으로 돌리지 않는다.**
+//
+// 비동기 subtree 삭제(delete_descendants_background)가 도중에 끊기면 부모를
+// 잃은 lookup 행이 남는다. 그걸 치우는 기능은 필요하지만, 주기 실행으로 둘
+// 일은 아니다.
+//
+// 이유는 비용이다. delete_orphan_lookup 은 lookup 전체를 5,000행 배치로 훑고,
+// 배치마다 질의가 두 번(스캔 + 부모 존재 확인) 나간다. 게다가 아무것도 안
+// 지울 때까지 여러 패스를 돈다. 배포의 lookup 은 5,740만 행이라 한 패스에만
+// 배치가 11,000회를 넘는다. 그동안 풀 커넥션 하나를 계속 붙잡는다.
+//
+// 고아가 얼마나 쌓이는지는 배포마다 다르다 — 비동기 삭제가 끊긴 횟수에
+// 달렸으므로, 매일 전수를 훑는 것이 맞는지는 실제 수를 보고 정할 일이다.
+// 그래서 기동 시 실행과 24시간 주기를 모두 뺐다. 만료 스윕과 같은 방침이다.
+//
+// 관리자 UI 가 쓸 함수:
+//   db_sql.count_orphan_lookup(conn, cb)          몇 개인지 센다 (읽기 전용)
+//   db_sql.delete_orphan_lookup(conn, cb)         확인 후 삭제
+//
+// 자세한 배경은 docs/superpowers/specs/2026-08-29-admin-ui-handoff.md 참고.
 
 var cluster = require('cluster');
 var os = require('os');
@@ -293,11 +297,9 @@ if (use_clustering) {
                             cb.create(connection, (rsp) => {
                                 console.log(JSON.stringify(rsp));
 
-                                // 만료 스윕(del_expired_resource)의 주기 실행은 뺐다.
+                                // 만료 스윕(del_expired_resource)과 고아 정리
+                                // (delete_orphan_lookup)의 주기 실행은 뺐다.
                                 // 이유는 위 주석 참고 — 관리자 UI 가 확인 후 호출한다.
-
-                                del_orphan_resource();
-                                setInterval(del_orphan_resource, (24) * (60) * (60) * (1000));
 
                                 reconcile_counters();
                                 setInterval(reconcile_counters, (24) * (60) * (60) * (1000));
