@@ -59,7 +59,29 @@ discovery 를 재귀 CTE 로 통일하고(`origin/lite` 기준) 골격 재귀를
 
 </details>
 
-## 2. `X-M2M-CTS` / `X-M2M-CTO` 판정이 상수와 비교된다
+## 2. `X-M2M-CTS` / `X-M2M-CTO` — **완료 (2026-08-29 배포)**
+
+`search_lookup` 의 콜백을 `callback(code, { rows, limit, offset })` 으로 바꿔,
+SQL 에 실제로 건 한도와 돌려준 행 수를 호출부에 넘긴다. 판정은
+"SQL 이 한도를 정확히 채웠는가" 이고, 다음 오프셋은 `offset + rows` 다.
+
+세 가지가 고쳐졌다:
+1. 상수 2000 대신 요청의 실효 한도와 비교 — `lim=100` 도 신호를 받는다
+2. `la` 요청은 `query.la` 가 실효 한도다
+3. CTO 를 `select_spec_ri` 가 고아 행을 걷어내기 **전** 행 수로 계산 —
+   DB 가 건너뛴 만큼과 일치한다
+
+배포 서버 실측 (컨테이너 30,281개, `lim=2000` 으로 CTO 만 따라가기):
+16페이지, **중복 0건**, 30,279건 수집(= 30,281 − 고아 2건), 마지막 페이지에
+CTS 없음. 페이지 7·8 은 고아가 껴서 1,999건이었지만 CTO 는 2,000씩 전진했다 —
+예전 계산이었으면 여기서 어긋나 이후 페이지가 계속 밀렸다.
+
+헤더 자체는 `tools/discovery-compare/headers.js` 로 9케이스를 검증한다
+(MySQL / SQLite 양쪽).
+
+<details>
+<summary>원래 문제 설명</summary>
+
 
 `mobius/resource.js` 의 `retrieve` 가 `Object.keys(foundObj).length >= max_lim`
 (상수 2000)일 때만 잘림 헤더를 붙인다. 요청이 `lim=100` 이면 결과가 잘려도
@@ -68,6 +90,8 @@ discovery 를 재귀 CTE 로 통일하고(`origin/lite` 기준) 골격 재귀를
 구조적으로는 더 깊은 문제가 있다: `search_lookup` 의 콜백이 코드만 넘기고
 SQL 이 준 행 수를 안 넘긴다. 그래서 호출부는 "SQL 이 정확히 lim 을 채웠다(잘림)"
 와 "lim 보다 적게 왔다(완결)" 를 구분할 수단이 없다. 콜백 계약을 바꿔야 한다.
+
+</details>
 
 ## 3. `sza` / `szb` / `cty` 가 HTTP 500 을 낸다
 
