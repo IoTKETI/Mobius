@@ -77,9 +77,9 @@ db_sql.select_acp_detail(conn, ri, cb)
 ### 역참조 — 이 ACP 를 누가 쓰는가
 
 ```js
-db_sql.scan_acpi_refs(conn, { acpRi, tys, batch, scanCap, maxRefs, afterTy, afterRi }, cb)
+db_sql.scan_acpi_refs(conn, { acpRi, tys, batch, scanCap, maxRefs, after }, cb)
 // -> { refs:[{ri, ty, rn, pi, acpi, raw, normalized}], refsTruncated,
-//      byAcp, scanned, capped, broken, unresolved, nextTy, nextRi }
+//      byAcp, scanned, capped, broken, unresolved, next }
 ```
 
 **`lookup.acpi` 에는 인덱스가 없다.** JSON 문자열이라 SQL 역질의도 안 되고,
@@ -96,9 +96,29 @@ db_sql.scan_acpi_refs(conn, { acpRi, tys, batch, scanCap, maxRefs, afterTy, afte
 | `where ty = 3 and ri > ''` | ref `idx_lookup_ty` | 119ms / 2,000행 |
 | `where ty = 2 and ri > ''` | ref `idx_lookup_ty` | 0.9ms / 568행 |
 
-**이어보기는 타입과 커서를 함께 넘긴다** — `capped` 면
-`{ afterTy: res.nextTy, afterRi: res.nextRi }`. 하나만 넘기면 다음 호출이
-엉뚱한 타입의 같은 `ri` 에서 시작한다.
+**이어보기는 `result.next` 를 `after` 로 그대로 넘긴다.** 쪼개지 말 것 —
+커서 안에 타입과 `ri` 가 함께 들어 있다.
+
+```js
+var out = [], after = null;
+(function step() {
+    db_sql.scan_acpi_refs(conn, { acpRi: ri, after: after }, function (err, res) {
+        if (err) { return fail(res); }        // { code: 'BAD_CURSOR', ... }
+        out = out.concat(res.refs);
+        if (!res.next) { return finish(out); }   // next 가 없으면 다 훑은 것이다
+        after = res.next;
+        step();
+    });
+})();
+```
+
+> 예전에는 `nextTy` / `nextRi` 를 따로 줬는데, `ri` 만 넘기면 타입이 0 으로
+> 돌아가 **같은 자리를 무한히 다시 훑었다** — 결과가 틀린 것이 아니라 루프가
+> 닫히지 않았다(콘솔에서 패스 201 강제 중단으로 실측). 쪼갤 수 있는 커서를
+> 주면 언젠가 쪼개지므로 하나로 묶었고, 쪼갠 인자(`afterTy`/`afterRi`)를
+> 넘기면 조용히 처음부터 훑는 대신 `BAD_CURSOR` 로 거부한다.
+
+`lint_acpi_refs` 도 같은 `after` / `next` 를 쓴다.
 
 `unresolved` 는 표기 접기만으로 내부 `ri` 가 되지 않은 원소다. 스캔 중에 DB 를
 더 부르면 N+1 이 되므로 그대로 올려보낸다 — `resolve_acpi_entries` 로 푼다.
@@ -150,8 +170,9 @@ acp_lint.lint_acp(conn, { limit: 200, afterRi: '' }, cb)
 // -> { rows:[{ri, rn, ct, lt, et, problems:[{severity, rule, path, message}]}],
 //      more, nextRi, counts:{error, warn, clean} }
 
-acp_lint.lint_acpi_refs(conn, { batch, scanCap, maxRefs, afterRi }, cb)
-// -> { rows:[{ri, ty, rn, acpi, problems}], counts, scanned, capped, broken, unresolved }
+acp_lint.lint_acpi_refs(conn, { batch, scanCap, maxRefs, after }, cb)
+// -> { rows:[{ri, ty, rn, acpi, problems}], counts, scanned, capped, broken,
+//      unresolved, next }
 ```
 
 가드레일은 **새로 쓰는 값만** 막는다. 이미 저장된 잘못된 값은 그대로 남아 500 이나

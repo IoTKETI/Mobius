@@ -192,8 +192,66 @@ test('scanCap 을 넘기면 capped 로 멈추고 콜백이 한 번만 불린다'
         calls++;
         assert.ok(!err);
         assert.strictEqual(res.capped, true);
-        assert.ok(res.nextRi, '이어서 훑을 커서를 줘야 한다');
+        assert.ok(res.next, '이어서 훑을 커서를 줘야 한다');
         setTimeout(function () { assert.strictEqual(calls, 1); done(); }, 30);
+    });
+});
+
+test('이어보기 커서는 타입과 ri 를 하나로 묶는다 — 쪼갤 수 없어야 한다', function (t, done) {
+    // 쪼갤 수 있게 두면 언젠가 쪼개지고, 그러면 타입이 0 으로 돌아가
+    // **같은 자리를 무한히 다시 훑는다**. 결과가 틀린 게 아니라 루프가 안 닫힌다.
+    const page = Array.from({ length: 5 }, (_, i) => row('r' + i, ['/Mobius/acp1']));
+    const h = tap(false, [page]);
+    h.sql_action.scan_acpi_refs(null, { batch: 5, scanCap: 5 }, function (err, res) {
+        assert.ok(!err);
+        const c = h.sql_action._parse_scan_cursor(res.next);
+        assert.ok(c, '커서를 읽을 수 없다: ' + res.next);
+        assert.strictEqual(typeof c.ty, 'number');
+        assert.strictEqual(c.ri, '/Mobius/r4');
+        done();
+    });
+});
+
+test('쪼갠 커서는 조용히 처음부터 훑지 않고 거부한다', function (t, done) {
+    const h = tap(false, [[]]);
+    h.sql_action.scan_acpi_refs(null, { afterRi: '/Mobius/x' }, function (err, out) {
+        assert.strictEqual(err, true);
+        assert.strictEqual(out.code, 'BAD_CURSOR');
+        h.sql_action.scan_acpi_refs(null, { afterTy: 3 }, function (err2, out2) {
+            assert.strictEqual(err2, true);
+            assert.strictEqual(out2.code, 'BAD_CURSOR');
+            done();
+        });
+    });
+});
+
+test('읽을 수 없는 커서도 거부한다', function (t, done) {
+    const h = tap(false, [[]]);
+    h.sql_action.scan_acpi_refs(null, { after: '쓰레기' }, function (err, out) {
+        assert.strictEqual(err, true);
+        assert.strictEqual(out.code, 'BAD_CURSOR');
+        done();
+    });
+});
+
+test('커서의 타입이 이번 대상에 없으면 거부한다', function (t, done) {
+    // tys 를 바꿔 이어보면 조용히 처음부터 훑게 되고 루프가 안 닫힌다.
+    const h = tap(false, [[]]);
+    h.sql_action.scan_acpi_refs(null, { tys: [3], after: '9|/Mobius/x' }, function (err, out) {
+        assert.strictEqual(err, true);
+        assert.strictEqual(out.code, 'BAD_CURSOR');
+        done();
+    });
+});
+
+test('커서로 이어보면 그 타입 그 자리에서 시작한다', function (t, done) {
+    const h = tap(false, [[row('z', ['/Mobius/acp1'])], []]);
+    h.sql_action.scan_acpi_refs(null, { tys: [2, 3], after: '3|/Mobius/m' }, function (err, res) {
+        assert.ok(!err, JSON.stringify(res));
+        // 첫 질의가 ty=3, ri > '/Mobius/m' 이어야 한다 (ty=2 로 되돌아가지 않는다)
+        assert.strictEqual(h.seen[0].bindings[0], 3);
+        assert.strictEqual(h.seen[0].bindings[1], '/Mobius/m');
+        done();
     });
 });
 

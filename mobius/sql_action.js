@@ -3616,18 +3616,57 @@ exports.acp_ri_context = function () {
              usecsebase: g('usecsebase'), usecseid: g('usecseid'), usespid: g('usespid') };
 };
 
+// 이어보기 커서. 타입과 ri 를 **하나로 묶는다.**
+//
+// 예전에는 nextTy 와 nextRi 를 따로 돌려줬는데, 호출부가 ri 만 넘기면 타입이
+// 0 으로 돌아가 **같은 자리를 무한히 다시 훑었다** — 결과가 틀린 것이 아니라
+// 루프가 닫히지 않았다(콘솔에서 패스 201 에서 강제 중단으로 실측).
+// 쪼갤 수 있는 커서를 주면 언젠가 쪼개진다. 그래서 안 쪼개지게 만든다.
+function make_scan_cursor(ty, ri) {
+    return String(ty) + '|' + String(ri);
+}
+
+function parse_scan_cursor(v) {
+    if (typeof v !== 'string' || v === '') { return null; }
+    var at = v.indexOf('|');
+    if (at < 0) { return null; }
+    var ty = Number(v.slice(0, at));
+    if (!isFinite(ty)) { return null; }
+    return { ty: ty, ri: v.slice(at + 1) };
+}
+
+exports._make_scan_cursor = make_scan_cursor;
+exports._parse_scan_cursor = parse_scan_cursor;
+
 /**
  * 어떤 리소스가 이 ACP 를 쓰는가 — 풀스캔 없이.
  *
  * ACP 를 지우면 그것을 참조하던 리소스는 "생성자만 통과" 로 조용히 풀린다.
  * 삭제 전 영향 분석을 할 수단이 지금까지 없었다.
  *
- * @param opts { acpRi=null(전부), tys=null, batch, scanCap, maxRefs, afterRi }
- * @returns callback(null, { refs, refsTruncated, byAcp, scanned, capped, broken, unresolved, nextRi })
+ * @param opts { acpRi=null(전부), tys=null, batch, scanCap, maxRefs, after }
+ *        after 는 앞선 호출의 result.next 를 **그대로** 넘긴다. 쪼개지 말 것.
+ * @returns callback(null, { refs, refsTruncated, byAcp, scanned, capped,
+ *                           broken, unresolved, next })
+ *          next 는 capped 일 때만 값이 있다. 없으면 다 훑은 것이다.
  */
 exports.scan_acpi_refs = function (connection, opts, callback) {
     if (typeof opts === 'function') { callback = opts; opts = {}; }
     var o = opts || {};
+
+    // 쪼갠 커서를 넘기면 조용히 처음부터 다시 훑는 대신 분명히 거부한다.
+    if (o.afterRi !== undefined || o.afterTy !== undefined) {
+        return callback(true, { code: 'BAD_CURSOR',
+            message: 'afterRi / afterTy 는 더 쓰지 않는다. result.next 를 after 로 그대로 넘긴다' });
+    }
+    var cursor = null;
+    if (o.after !== undefined && o.after !== null && o.after !== '') {
+        cursor = parse_scan_cursor(o.after);
+        if (cursor === null) {
+            return callback(true, { code: 'BAD_CURSOR', message: '이어보기 커서를 읽을 수 없다: ' + o.after });
+        }
+    }
+
     var target = o.acpRi ? fold_acpi_entry(o.acpRi) : null;
     var batch = Math.min(Math.max(parseInt(o.batch, 10) || ACP_SCAN_BATCH, 1), 10000);
     var cap = parseInt(o.scanCap, 10) || ACP_SCAN_CAP;
@@ -3720,19 +3759,26 @@ exports.scan_acpi_refs = function (connection, opts, callback) {
             capped: !!capped,
             broken: broken,
             unresolved: Object.keys(unresolved),
-            // 타입별로 훑으므로 이어보려면 타입과 커서를 함께 줘야 한다.
-            // 하나만 주면 다음 호출이 엉뚱한 타입의 같은 ri 에서 시작한다.
-            nextTy: capped ? (ty_list[ty_at] === undefined ? null : ty_list[ty_at]) : null,
-            nextRi: capped ? next : null
+            // 타입과 ri 를 하나로 묶어서 준다. 쪼갤 수 있게 두면 언젠가
+            // 쪼개지고, 그러면 같은 자리를 무한히 다시 훑는다.
+            next: (capped && ty_list[ty_at] !== undefined)
+                ? make_scan_cursor(ty_list[ty_at], next) : null
         });
     }
 
-    // 이어보기: nextTy 가 있으면 그 타입부터 시작한다.
-    if (o.afterTy !== undefined && o.afterTy !== null) {
-        var at = ty_list.indexOf(Number(o.afterTy));
-        if (at >= 0) { ty_at = at; }
+    if (cursor === null) {
+        scan('');
+        return;
     }
-    scan(o.afterRi || '');
+    var at = ty_list.indexOf(cursor.ty);
+    if (at < 0) {
+        // 커서가 가리키는 타입이 목록에 없다(tys 를 바꿨거나 타입이 사라졌다).
+        // 조용히 처음부터 다시 훑으면 호출부의 이어보기 루프가 안 닫힌다.
+        return callback(true, { code: 'BAD_CURSOR',
+            message: '커서의 타입 ' + cursor.ty + ' 가 이번 스캔 대상에 없다' });
+    }
+    ty_at = at;
+    scan(cursor.ri);
 };
 
 /**
