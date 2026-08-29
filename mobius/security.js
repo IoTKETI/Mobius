@@ -49,7 +49,48 @@ function parse_acp_rule(raw, attr, ri) {
 }
 
 // 테스트에서 직접 부를 수 있게 내보낸다. 공개 진입점은 exports.check 하나다.
+/**
+ * 지금이 accessControlWindow 안인가.
+ *
+ * actw 는 crontab 형식(초 분 시 일 월 요일)의 허용 시간창 목록이다.
+ * 창 하나가 성립하려면 여섯 자리가 *전부* 맞아야 하고, '*' 는
+ * "이 자리는 제한 없음" 이라 언제나 맞는 것으로 친다.
+ *
+ * 예전 코드는 두 가지가 반대였다.
+ *   - 한 자리라도 맞으면 곧바로 허용했다(AND 가 아니라 OR).
+ *     '0 0 3 * * *'(매일 새벽 3시)가 12:00:00 에도 통과했다 — 초가 0 이라는
+ *     이유만으로. 권한을 과하게 내주는 쪽이라 이쪽이 더 위험했다.
+ *   - `actw_arr[d] != '*'` 조건 때문에 '*' 자리는 맞는 것으로 칠 수 없었다.
+ *     그래서 '* * * * * *'(항상 허용)가 한 자리도 못 맞춰 *항상 거부* 됐다.
+ *
+ * 자리 값의 목록·범위·주기 표기(1,3 또는 1-5 등)는 예전에도 지원하지 않았다.
+ * 여기서도 정확히 일치만 본다.
+ *
+ * @param {string} window  창 하나 (예: '0 0 3 * * *')
+ * @param {Array}  now     [초, 분, 시, 일, 월, 요일] 현재 값
+ * @returns {boolean} 이 창에 들어오면 true. 형식이 6자리가 아니면 false
+ */
+function actw_matches(window, now) {
+    var parts = String(window).trim().split(/\s+/);
+    if (parts.length !== 6) {
+        // 판단할 수 없는 창은 허용하지 않는다.
+        console.error('[security] actw 형식이 6자리가 아니다: ' + window);
+        return false;
+    }
+    for (var d = 0; d < 6; d++) {
+        if (parts[d] === '*') {
+            continue;                       // 이 자리는 제한 없음
+        }
+        if (parts[d] !== String(now[d])) {
+            return false;
+        }
+    }
+    return true;
+}
+
 exports._parse_acp_rule = parse_acp_rule;
+// 테스트에서 직접 부를 수 있게 내보낸다. 공개 진입점은 exports.check 하나다.
+exports._actw_matches = actw_matches;
 
 function security_check_action_pv(request, response, acpiList, cr, access_value, callback) {
     make_internal_ri(acpiList);
@@ -117,7 +158,15 @@ function security_check_action_pv(request, response, acpiList, cr, access_value,
                                                                     }
                                                                 }
 
-                                                                if (ipv6_idx == 99) {
+                                                                // ipv4 목록이 비어 있으면(= 제한이 없으면) 허용한다.
+                                                                // 원래 여기가 ipv6_idx 를 보고 있었다. 두 가지로 틀린다.
+                                                                //   - 첫 평가에서는 ipv6_idx 가 아직 대입 전이라 undefined 다.
+                                                                //     var 는 함수 스코프로 호이스팅되므로 선언은 아래에 있어도
+                                                                //     참조 자체는 되지만 값이 없다. undefined == 99 는 거짓이라
+                                                                //     이 기본 허용 분기가 한 번도 실행되지 않았다.
+                                                                //   - 앞선 acco 항목이 ipv6 분기를 탔다면 그때의 인덱스가 남아,
+                                                                //     이번 ipv4 판정이 이전 항목의 결과에 오염된다.
+                                                                if (ipv4_idx == 99) {
                                                                     acip_permit = 1;
                                                                 }
                                                             }
@@ -152,18 +201,13 @@ function security_check_action_pv(request, response, acpiList, cr, access_value,
                                                             actw_cur[2] = moment().utc().hour();
                                                             actw_cur[1] = moment().utc().minute();
                                                             actw_cur[0] = moment().utc().second();
+                                                            // 판정은 actw_matches() 가 한다 — 그 주석에 예전 동작과
+                                                            // 무엇이 반대였는지 적어 두었다.
                                                             var actw_idx = 99;
                                                             for (actw_idx in acco[acco_idx].actw) {
                                                                 if (acco[acco_idx].actw.hasOwnProperty(actw_idx)) {
-                                                                    var actw_arr = acco[acco_idx].actw[actw_idx].split(' ');
-                                                                    for (var d = 0; d < 6; d++) {
-                                                                        if (actw_arr[d] != '*' && actw_arr[d] == actw_cur[d].toString()) {
-                                                                            actw_permit = 1;
-                                                                            break;
-                                                                        }
-                                                                    }
-
-                                                                    if (actw_permit == 1) {
+                                                                    if (actw_matches(acco[acco_idx].actw[actw_idx], actw_cur)) {
+                                                                        actw_permit = 1;
                                                                         break;
                                                                     }
                                                                 }

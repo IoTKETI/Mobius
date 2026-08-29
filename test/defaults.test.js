@@ -40,10 +40,18 @@ test('cb.js(CSEBase) 의 기본 et 도 DEFAULT_ET 를 쓴다', function () {
         "CSEBase 의 et 가 add(10, 'years') 로 되돌아갔다");
 });
 
-// <request>(ty=17) 는 논블로킹 요청의 임시 기록이라 짧게 만료시킨다.
-// 별도 정리기(del_req_resource -> delete_req)와 짝을 이루므로 기본값을 따르면 안 된다.
-test('ty=17(<request>) 의 1일 만료는 유지된다', function () {
+// <request>(ty=17) 는 논블로킹 요청의 임시 기록이었다. 논블로킹을 지원하지 않게
+// 되면서 이 리소스를 만드는 경로 자체가 사라졌고, 짧은 만료를 주던 코드도 함께
+// 걷어냈다. 만들지 않는 리소스에 만료 규칙이 남아 있으면 오해를 부른다.
+//
+// 기존 배포에 남은 행은 del_req_resource 가 24시간마다 걷어낸다 — 그쪽은 만료가
+// 아니라 ty=17 을 통째로 지우는 방식이라 이 값과 무관하다.
+test('ty=17(<request>) 생성 경로가 없다', function () {
     const src = fs.readFileSync(path.join(__dirname, '..', 'mobius', 'resource.js'), 'utf8');
-    assert.ok(src.indexOf("add(1, 'days')") !== -1,
-        '<request> 의 1일 만료가 사라졌다 — del_req_resource 와 짝을 이루는 값이다');
+    assert.strictEqual(src.indexOf("add(1, 'days')"), -1,
+        'ty=17 만료 규칙이 되살아났다 — req 는 더 이상 만들지 않는다');
+    assert.strictEqual(src.indexOf('insert_req'), -1,
+        'req 생성 경로가 되살아났다');
+    assert.strictEqual(src.indexOf('build_req'), -1,
+        'req 타입 핸들러 호출이 되살아났다');
 });

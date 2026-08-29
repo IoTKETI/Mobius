@@ -32,7 +32,8 @@ var lcp = require('./lcp');
 var mms = require('./mms');
 var acp = require('./acp');
 var grp = require('./grp');
-var req = require('./req');
+// req(ty=17) 는 논블로킹 요청의 임시 기록이었다. 논블로킹을 지원하지 않게
+// 되면서 이 리소스를 만드는 경로가 사라져 핸들러째 걷어냈다.
 var nod = require('./nod');
 var mgo = require('./mgo');
 var fcnt = require('./fcnt');
@@ -49,7 +50,13 @@ var rid = require('./rid');
 
 var _this = this;
 
-global.ty_list = ['1', '2', '3', '4', '5', '9', '10', '13', '14', '16', '17', '23', '24', '27', '28', '38', '39', '91', '92', '93', '94', '95', '96', '97', '98'];
+// search_action 이 이 목록을 돌며 타입별 테이블을 조회한다. 여기에 있으면
+// discovery 때마다 그 테이블을 한 번씩 읽는다.
+//
+// '17'(req)을 뺐다 — 논블로킹을 지원하지 않게 되면서 이 리소스를 만드는
+// 경로가 없어졌으므로, 매 discovery 마다 req 테이블을 읽을 이유가 없다.
+// 기존 배포에 남아 있는 행은 app.js 의 del_req_resource 가 걷어낸다.
+global.ty_list = ['1', '2', '3', '4', '5', '9', '10', '13', '14', '16', '23', '24', '27', '28', '38', '39', '91', '92', '93', '94', '95', '96', '97', '98'];
 
 var create_np_attr_list = {};
 create_np_attr_list.acp = ['ty', 'ri', 'pi', 'ct', 'lt', 'st'];
@@ -741,22 +748,6 @@ function create_action(request, response, callback) {
             }
         });
     }
-    else if (ty == '17') {
-        db_sql.insert_req(request.db_connection, resource_Obj[rootnm], function (err, results) {
-            if (!err) {
-                callback('200');
-            }
-            else {
-                if (db_errors.isDuplicateKey(results)) {
-                    callback('409-5');
-                }
-                else {
-                    console.log('[create_action] create resource error ======== ' + results.code);
-                    callback('500-4');
-                }
-            }
-        });
-    }
     else if (ty == '23') {
         db_sql.insert_sub(request.db_connection, resource_Obj[rootnm], (err, results) => {
             if (!err) {
@@ -769,8 +760,19 @@ function create_action(request, response, callback) {
                 }
 
                 db_sql.update_lookup(request.db_connection, parentObj[parent_rootnm], (err, results) => {
+                    // else 가 없었다. 부모 lookup 갱신이 실패하면 콜백이 사라져
+                    // 응답도 connection.release() 도 없이 요청이 매달렸다.
+                    // 데드락, 락 타임아웃, 커넥션 끊김, SQLITE_BUSY 에서 실제로 난다.
+                    //
+                    // sub 행은 이미 들어갔으므로 200 이 완전히 틀린 것은 아니지만,
+                    // 부모의 subl 이 갱신되지 않아 알림이 안 나간다. 실패를 알린다.
                     if(!err) {
                         callback('200');
+                    }
+                    else {
+                        console.log('[create_action] sub 의 부모 lookup 갱신 실패: ' +
+                                    ((results && (results.driverCode || results.code)) || '?'));
+                        callback('500-1');
                     }
                 });
             }
@@ -947,13 +949,6 @@ function build_resource(request, response, callback) {
     resource_Obj[rootnm].st = 0;
     // et 를 명시하지 않으면 사실상 만료하지 않는다 (mobius/defaults.js 주석 참조).
     resource_Obj[rootnm].et = defaults.DEFAULT_ET;
-    if (request.ty == '17') {
-        // <request> 는 논블로킹 요청의 임시 기록이라 짧게 만료시킨다.
-        // 이 값은 별도 정리기(app.js del_req_resource -> delete_req)와 짝을 이루므로
-        // 위의 기본값을 따르지 않는다.
-        resource_Obj[rootnm].et = moment().utc().add(1, 'days').format('YYYYMMDDTHHmmss');
-    }
-
     if (request.ty == '3') {
         resource_Obj[rootnm].mni = '3153600000';
     }
@@ -1088,11 +1083,6 @@ function build_resource(request, response, callback) {
             break;
         case '16':
             csr.build_csr(request, response, resource_Obj, body_Obj, function (code) {
-                callback(code);
-            });
-            break;
-        case '17':
-            req.build_req(request, response, resource_Obj, body_Obj, function (code) {
                 callback(code);
             });
             break;
@@ -1810,23 +1800,45 @@ function update_action(request, response, callback) {
         db_sql.update_sub(request.db_connection, resource_Obj[rootnm], function (err, results) {
             if (!err) {
                 db_sql.select_lookup(request.db_connection, resource_Obj[rootnm].pi, function (err, results_comm) {
-                    if (!err) {
-                        makeObject(results_comm[0]);
-                        var parentObj = results_comm[0];
-                        for(var idx in parentObj.subl) {
-                            if(parentObj.subl.hasOwnProperty(idx)) {
-                                if(parentObj.subl[idx].ri == resource_Obj[rootnm].ri) {
-                                    parentObj.subl[idx] = resource_Obj[rootnm];
-                                    break;
-                                }
+                    // 이 두 콜백에 else 가 없었다. 부모를 못 읽거나 갱신하지
+                    // 못하면 update_action 의 콜백이 사라져, 응답도
+                    // connection.release() 도 없이 PUT 요청이 매달렸다.
+                    if (err) {
+                        console.log('[update_action] sub 의 부모 조회 실패: ' +
+                                    ((results_comm && (results_comm.driverCode || results_comm.code)) || '?'));
+                        callback('500-1');
+                        return;
+                    }
+
+                    // 부모를 잃은 sub 를 수정하면 results_comm 이 빈 배열이라
+                    // results_comm[0] 이 undefined 가 되고, 다음 줄의
+                    // parentObj.subl 에서 워커가 죽었다.
+                    if (results_comm.length === 0) {
+                        console.log('[update_action] sub 의 부모 lookup 행이 없다: ' + resource_Obj[rootnm].pi);
+                        callback('404-1');
+                        return;
+                    }
+
+                    makeObject(results_comm[0]);
+                    var parentObj = results_comm[0];
+                    for(var idx in parentObj.subl) {
+                        if(parentObj.subl.hasOwnProperty(idx)) {
+                            if(parentObj.subl[idx].ri == resource_Obj[rootnm].ri) {
+                                parentObj.subl[idx] = resource_Obj[rootnm];
+                                break;
                             }
                         }
-                        db_sql.update_lookup(request.db_connection, parentObj, function (err, results) {
-                            if (!err) {
-                                callback('200');
-                            }
-                        });
                     }
+                    db_sql.update_lookup(request.db_connection, parentObj, function (err, results) {
+                        if (!err) {
+                            callback('200');
+                        }
+                        else {
+                            console.log('[update_action] sub 의 부모 lookup 갱신 실패: ' +
+                                        ((results && (results.driverCode || results.code)) || '?'));
+                            callback('500-1');
+                        }
+                    });
                 });
             }
             else {
@@ -2328,6 +2340,9 @@ exports.update = function (request, response, callback) {
 // update_parent_by_delete 를 부르도록 바꾸고 제거했다.
 
 // 리프 타입(하위 리소스를 가질 수 없는 ty)은 background subtree 삭제가 필요 없다.
+// 자식을 가질 수 없는 타입. 여기에 없으면 삭제 시 자식 탐색을 예약한다.
+// '17'(req)은 더 이상 만들어지지 않지만, 기존 배포에 남은 행을 지울 때
+// 헛된 탐색을 걸지 않도록 남겨 둔다.
 var leaf_ty_list = ['1', '4', '9', '17', '23'];
 
 // R4 방식 비동기 subtree 삭제: 응답은 루트 행 삭제 직후 나가고,

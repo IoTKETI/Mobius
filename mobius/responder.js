@@ -1626,42 +1626,6 @@ var operation = {
     'delete': 4
 };
 
-function store_to_req_resource(request, bodyString, rsc, cap, callback) {
-    var op = operation[request.method];
-    var mi = {};
-    mi.rvi = request.headers['x-m2m-rvi'];
-    var rs = 1;
-    var ors = rsc;
-    db_sql.update_req(request.db_connection, '/' + request.headers.tg, bodyString, op, JSON.stringify(mi), rs, ors, function () {
-        var rspObj = {};
-        rspObj.rsc = rsc;
-        rspObj.ri = request.method + "-" + request.headers['x-m2m-ri'] + "-" + JSON.stringify(request.query);
-        rspObj = cap;
-        // console.log(JSON.stringify(rspObj)); // 응답 바디 전체 덤프 - 로그 폭주 원인이라 비활성
-
-        if (request.headers['x-m2m-rtu'] != null && request.headers['x-m2m-rtu'] != '') {
-            var nu = request.headers['x-m2m-rtu'];
-            var sub_nu = url.parse(nu);
-            var xm2mri = require('shortid').generate();
-
-            if (sub_nu.protocol == 'http:') {
-                request_noti_http(nu, bodyString, request.usebodytype, xm2mri);
-            }
-            else if (sub_nu.protocol == 'coap:') {
-                request_noti_coap(nu, bodyString, request.usebodytype, xm2mri);
-            }
-            else if (sub_nu.protocol == 'ws:') {
-                request_noti_ws(nu, bodyString, request.usebodytype, xm2mri);
-            }
-            else { // mqtt:
-                request_noti_mqtt(nu, bodyString, request.usebodytype, xm2mri);
-            }
-        }
-
-        callback();
-    });
-}
-
 exports.response_result = function(request, response, status, rsc, cap, callback) {
     var body_Obj = request.resourceObj;
 
@@ -1716,27 +1680,9 @@ exports.response_result = function(request, response, status, rsc, cap, callback
 
             callback();
         }
-        else if (request.query.rt == 1) {
-            var mi = {};
-            if(request.headers.hasOwnProperty('x-m2m-rvi')) {
-                mi.rvi = request.headers['x-m2m-rvi'];
-            }
-            db_sql.update_req(request.db_connection, '/'+request.headers.tg, '', operation[request.method], JSON.stringify(mi), 1, rsc, function () {
-                var rspObj = {
-                    rsc: rsc,
-                    dbg: cap
-                };
-                rspObj.ri = request.method + "-" + request.url + "-" + JSON.stringify(request.query);
-
-                //console.log(JSON.stringify(rspObj));
-
-                body_Obj = null;
-                rspObj = null;
-
-                callback();
-            });
-        }
         else {
+            // 예전에는 rt==1 일 때 req 리소스에 결과를 적는 분기가 있었다.
+            // 논블로킹을 지원하지 않게 되면서 도달할 수 없다.
             callback();
         }
     }
@@ -1832,13 +1778,16 @@ exports.response_result = function(request, response, status, rsc, cap, callback
         _this.typeCheckforJson(body_Obj);
 
         if(rootnm === 'req') {
-            // req 의 pc 는 그 요청의 결과다. 아직 결과가 없으면 비어 있는데,
-            // 예전에는 방어 없이 JSON.parse 를 불러 String(undefined) 가
+            // req(ty=17)는 더 이상 만들어지지 않는다 — 논블로킹을 지원하지 않게
+            // 되면서 생성 경로를 걷어냈다. 다만 기존 배포에는 예전에 만들어진
+            // 행이 lookup 과 req 테이블에 남아 있을 수 있고, URI 를 알면 직접
+            // 조회된다(discovery 에는 더 이상 안 뜬다 — ty_list 에서 뺐다).
+            // app.js 의 del_req_resource 가 걷어낼 때까지는 이 경로가 살아 있다.
+            //
+            // pc 는 그 요청의 결과다. 결과가 없으면 비어 있는데, 예전에는 방어
+            // 없이 JSON.parse 를 불러 String(undefined) 가
             // '"undefined" is not valid JSON' 으로 터졌다 — 응답 전송과 커넥션
             // 반납 전이라 워커가 죽고 커넥션이 샜다.
-            //
-            // 논블로킹 POST 가 만든 req 를 조회하면 정확히 이 상태다. 즉 평범한
-            // 요청 두 번으로 워커를 죽일 수 있었다.
             var req_obj = body_Obj['m2m:' + rootnm];
             var pc_parsed = null;
             if (typeof req_obj.pc === 'string' && req_obj.pc !== '') {
@@ -1870,41 +1819,30 @@ exports.response_result = function(request, response, status, rsc, cap, callback
 
         // console.log(bodyString); // 응답 바디 전체 덤프 - 로그 폭주 원인이라 비활성
 
-        // rt 가 1/2/3 이 아니거나 rt==2 인데 x-m2m-rtu 가 없으면, 예전에는 두 조건이
-        // 모두 거짓이 되어 콜백이 사라졌다 — 응답도 connection.release() 도 없이
-        // 요청이 매달렸다. 크래시가 아니라 워커 재시작도 안 걸리는 조용한 고갈이다.
-        // 이제 논블로킹만 명시적으로 잡고 나머지는 기본(블로킹)으로 보낸다.
-        if (!(request.query.rt == 1 || (request.query.rt == 2 && request.headers['x-m2m-rtu'] != null && request.headers['x-m2m-rtu'] != ''))) {
-            if (request.usebodytype == 'json') {
-            }
-            else if (request.usebodytype == 'cbor') {
-                bodyString = cbor.encode(body_Obj).toString('hex');
-            }
-            else {
-                bodyString = _this.convertXml(rootnm, body_Obj);
-            }
-
-            response.status(parseInt(status, 10)).end(bodyString);
-
-            rspObj = {};
-            rspObj.rsc = rsc;
-            rspObj.ri = request.method + "-" + request.url + "-" + JSON.stringify(request.query);
-            rspObj = cap;
-            // console.log(JSON.stringify(rspObj)); // 응답 바디 전체 덤프 - 로그 폭주 원인이라 비활성
-
-            body_Obj = null;
-            rspObj = null;
-
-            callback();
+        // 논블로킹(rt=1/2)은 지원하지 않는다 — app.js 의 check_request_query_rt 가
+        // 405-4 로 막으므로 여기까지 오는 요청은 모두 블로킹이다.
+        // 예전에는 여기서 rt 로 갈라져 한쪽이 req 리소스에 결과를 적었다.
+        if (request.usebodytype == 'json') {
+        }
+        else if (request.usebodytype == 'cbor') {
+            bodyString = cbor.encode(body_Obj).toString('hex');
         }
         else {
-            store_to_req_resource(request, bodyString, rsc, cap, function () {
-                body_Obj = null;
-                rspObj = null;
-
-                callback();
-            });
+            bodyString = _this.convertXml(rootnm, body_Obj);
         }
+
+        response.status(parseInt(status, 10)).end(bodyString);
+
+        rspObj = {};
+        rspObj.rsc = rsc;
+        rspObj.ri = request.method + "-" + request.url + "-" + JSON.stringify(request.query);
+        rspObj = cap;
+        // console.log(JSON.stringify(rspObj)); // 응답 바디 전체 덤프 - 로그 폭주 원인이라 비활성
+
+        body_Obj = null;
+        rspObj = null;
+
+        callback();
     }
 };
 
@@ -1972,65 +1910,58 @@ exports.response_rcn3_result = function(request, response, status, rsc, cap, cal
     // 모두 거짓이 되어 콜백이 사라졌다 — 응답도 connection.release() 도 없이
     // 요청이 매달렸다. 크래시가 아니라 워커 재시작도 안 걸리는 조용한 고갈이다.
     // 이제 논블로킹만 명시적으로 잡고 나머지는 기본(블로킹)으로 보낸다.
-    if (!(request.query.rt == 1 || (request.query.rt == 2 && request.headers['x-m2m-rtu'] != null && request.headers['x-m2m-rtu'] != ''))) {
-        if (request.usebodytype == 'json') {
-        }
-        else if (request.usebodytype == 'cbor') {
-            bodyString = cbor.encode(body_Obj).toString('hex');
-        }
-        else {
-            var xml_root = xmlbuilder.create('m2m:' + rce_nm, {version: '1.0', encoding: 'UTF-8', standalone: true},
-                {pubID: null, sysID: null}, {
-                    allowSurrogateChars: false,
-                    skipNullAttributes: false,
-                    headless: false,
-                    ignoreDecorators: false,
-                    stringify: {}
-                }
-            ).att('xmlns:m2m', 'http://www.onem2m.org/xml/protocols').att('xmlns:xsi', 'http://www.w3.org/2001/XMLSchema-instance');
+    // 논블로킹(rt=1/2)은 지원하지 않는다 — app.js 의 check_request_query_rt 가
+    // 405-4 로 막으므로 여기까지 오는 요청은 모두 블로킹이다.
+    // 예전에는 여기서 rt 로 갈라져 한쪽이 req 리소스에 결과를 적었다.
+    if (request.usebodytype == 'json') {
+    }
+    else if (request.usebodytype == 'cbor') {
+        bodyString = cbor.encode(body_Obj).toString('hex');
+    }
+    else {
+        var xml_root = xmlbuilder.create('m2m:' + rce_nm, {version: '1.0', encoding: 'UTF-8', standalone: true},
+            {pubID: null, sysID: null}, {
+                allowSurrogateChars: false,
+                skipNullAttributes: false,
+                headless: false,
+                ignoreDecorators: false,
+                stringify: {}
+            }
+        ).att('xmlns:m2m', 'http://www.onem2m.org/xml/protocols').att('xmlns:xsi', 'http://www.w3.org/2001/XMLSchema-instance');
 
-            for (var rce in body_Obj) {
-                if (body_Obj.hasOwnProperty(rce)) {
-                    for (var index in body_Obj[rce]) {
-                        if (body_Obj[rce].hasOwnProperty(index)) {
-                            if (index == 'uri') {
-                                var xml = xml_root.ele(index, body_Obj[rce][index]);
-                            }
-                            else {
-                                xml = xml_root.ele(index, '');
-                                xmlAction(xml, body_Obj[rce][index]);
-                            }
+        for (var rce in body_Obj) {
+            if (body_Obj.hasOwnProperty(rce)) {
+                for (var index in body_Obj[rce]) {
+                    if (body_Obj[rce].hasOwnProperty(index)) {
+                        if (index == 'uri') {
+                            var xml = xml_root.ele(index, body_Obj[rce][index]);
+                        }
+                        else {
+                            xml = xml_root.ele(index, '');
+                            xmlAction(xml, body_Obj[rce][index]);
                         }
                     }
                 }
             }
-            bodyString = xml.end({pretty: false, indent: '  ', newline: '\n'}).toString();
         }
-
-        response.status(parseInt(status, 10)).end(bodyString);
-
-        var rspObj = {};
-        rspObj.rsc = rsc;
-        rspObj.ri = request.method + "-" + request.url + "-" + JSON.stringify(request.query);
-        rspObj = cap;
-        // console.log(JSON.stringify(rspObj)); // 응답 바디 전체 덤프 - 로그 폭주 원인이라 비활성
-
-        delete body_Obj;
-        delete rspObj;
-
-        body_Obj = null;
-        rspObj = null;
-
-        callback();
+        bodyString = xml.end({pretty: false, indent: '  ', newline: '\n'}).toString();
     }
-    else {
-        store_to_req_resource(request, bodyString, rsc, cap, function () {
-            body_Obj = null;
-            rspObj = null;
 
-            callback();
-        });
-    }
+    response.status(parseInt(status, 10)).end(bodyString);
+
+    var rspObj = {};
+    rspObj.rsc = rsc;
+    rspObj.ri = request.method + "-" + request.url + "-" + JSON.stringify(request.query);
+    rspObj = cap;
+    // console.log(JSON.stringify(rspObj)); // 응답 바디 전체 덤프 - 로그 폭주 원인이라 비활성
+
+    delete body_Obj;
+    delete rspObj;
+
+    body_Obj = null;
+    rspObj = null;
+
+    callback();
 };
 
 
@@ -2086,65 +2017,43 @@ exports.search_result = function(request, response, status, rsc, cap, callback) 
         // 모두 거짓이 되어 콜백이 사라졌다 — 응답도 connection.release() 도 없이
         // 요청이 매달렸다. 크래시가 아니라 워커 재시작도 안 걸리는 조용한 고갈이다.
         // 이제 논블로킹만 명시적으로 잡고 나머지는 기본(블로킹)으로 보낸다.
-        if (!(request.query.rt == 1)) {
-            body_Obj['m2m:' + rootnm] = body_Obj[rootnm];
-            delete body_Obj[rootnm];
+        // 논블로킹(rt=1/2)은 지원하지 않는다 — app.js 의 check_request_query_rt 가
+        // 405-4 로 막으므로 여기까지 오는 요청은 모두 블로킹이다.
+        // 예전에는 여기서 rt 로 갈라져 한쪽이 req 리소스에 결과를 적었다.
+        body_Obj['m2m:' + rootnm] = body_Obj[rootnm];
+        delete body_Obj[rootnm];
 
-            var bodyString = JSON.stringify(body_Obj);
+        var bodyString = JSON.stringify(body_Obj);
 
-            if (request.usebodytype == 'json') {
-            }
-            else if (request.usebodytype == 'cbor') {
-                bodyString = cbor.encode(body_Obj).toString('hex');
-            }
-            else {
-                body_Obj['m2m:' + rootnm] = body_Obj['m2m:' + rootnm].toString().replace(/,/g, ' ');
-                var xml = xmlbuilder.create('m2m:' + rootnm, {version: '1.0', encoding: 'UTF-8', standalone: true},
-                    {pubID: null, sysID: null}, {
-                        allowSurrogateChars: false,
-                        skipNullAttributes: false,
-                        headless: false,
-                        ignoreDecorators: false,
-                        stringify: {}
-                    }
-                ).att('xmlns:m2m', 'http://www.onem2m.org/xml/protocols').att('xmlns:xsi', 'http://www.w3.org/2001/XMLSchema-instance');
-                xml.txt(body_Obj['m2m:' + rootnm]);
-                bodyString = xml.end({pretty: false, indent: '  ', newline: '\n'}).toString();
-            }
-
-            response.status(parseInt(status, 10)).end(bodyString);
-
-            var rspObj = {};
-            rspObj.rsc = rsc;
-            rspObj.ri = request.method + "-" + request.url + "-" + JSON.stringify(request.query);
-            rspObj = cap;
-            // console.log(JSON.stringify(rspObj)); // 응답 바디 전체 덤프 - 로그 폭주 원인이라 비활성
-
-            callback();
+        if (request.usebodytype == 'json') {
+        }
+        else if (request.usebodytype == 'cbor') {
+            bodyString = cbor.encode(body_Obj).toString('hex');
         }
         else {
-            body_Obj[rootnm] = body_Obj[rootnm].toString().replace(/,/g, ' ');
-
-            body_Obj['m2m:' + rootnm] = body_Obj[rootnm];
-            delete body_Obj[rootnm];
-
-            bodyString = JSON.stringify(body_Obj);
-
-            var mi = {};
-            mi.rvi = request.headers['x-m2m-rvi'];
-            db_sql.update_req(request.db_connection, '/'+request.headers.tg, bodyString, operation[request.method], JSON.stringify(mi), 1, rsc, function () {
-                rspObj = {};
-                rspObj.rsc = rsc;
-                rspObj.ri = request.method + "-" + request.url + "-" + JSON.stringify(request.query);
-                rspObj = cap;
-                // console.log(JSON.stringify(rspObj)); // 응답 바디 전체 덤프 - 로그 폭주 원인이라 비활성
-
-                body_Obj = null;
-                rspObj = null;
-
-                callback();
-            });
+            body_Obj['m2m:' + rootnm] = body_Obj['m2m:' + rootnm].toString().replace(/,/g, ' ');
+            var xml = xmlbuilder.create('m2m:' + rootnm, {version: '1.0', encoding: 'UTF-8', standalone: true},
+                {pubID: null, sysID: null}, {
+                    allowSurrogateChars: false,
+                    skipNullAttributes: false,
+                    headless: false,
+                    ignoreDecorators: false,
+                    stringify: {}
+                }
+            ).att('xmlns:m2m', 'http://www.onem2m.org/xml/protocols').att('xmlns:xsi', 'http://www.w3.org/2001/XMLSchema-instance');
+            xml.txt(body_Obj['m2m:' + rootnm]);
+            bodyString = xml.end({pretty: false, indent: '  ', newline: '\n'}).toString();
         }
+
+        response.status(parseInt(status, 10)).end(bodyString);
+
+        var rspObj = {};
+        rspObj.rsc = rsc;
+        rspObj.ri = request.method + "-" + request.url + "-" + JSON.stringify(request.query);
+        rspObj = cap;
+        // console.log(JSON.stringify(rspObj)); // 응답 바디 전체 덤프 - 로그 폭주 원인이라 비활성
+
+        callback();
     }
     else {
         rootnm = request.headers.rootnm;
@@ -2192,42 +2101,35 @@ exports.search_result = function(request, response, status, rsc, cap, callback) 
         // 모두 거짓이 되어 콜백이 사라졌다 — 응답도 connection.release() 도 없이
         // 요청이 매달렸다. 크래시가 아니라 워커 재시작도 안 걸리는 조용한 고갈이다.
         // 이제 논블로킹만 명시적으로 잡고 나머지는 기본(블로킹)으로 보낸다.
-        if (!(request.query.rt == 1 || (request.query.rt == 2 && request.headers['x-m2m-rtu'] != null && request.headers['x-m2m-rtu'] != ''))) {
-            if (request.usebodytype == 'json') {
-            }
-            else if (request.usebodytype == 'cbor') {
-                bodyString = cbor.encode(body_Obj['m2m:' + rootnm]).toString('hex');
-            }
-            else {
-                if(rootnm == 'agr') {
-                    bodyString = _this.convertXml2(rootnm, body_Obj['m2m:' + rootnm]);
-                }
-                else {
-                    bodyString = _this.convertXml2(rootnm, body_Obj);
-                }
-            }
-
-            response.status(parseInt(status, 10)).end(bodyString);
-
-            rspObj = {};
-            rspObj.rsc = rsc;
-            rspObj.ri = request.method + "-" + request.url + "-" + JSON.stringify(request.query);
-            rspObj = cap;
-            // console.log(JSON.stringify(rspObj)); // 응답 바디 전체 덤프 - 로그 폭주 원인이라 비활성
-
-            body_Obj = null;
-            rspObj = null;
-
-            callback();
+        // 논블로킹(rt=1/2)은 지원하지 않는다 — app.js 의 check_request_query_rt 가
+        // 405-4 로 막으므로 여기까지 오는 요청은 모두 블로킹이다.
+        // 예전에는 여기서 rt 로 갈라져 한쪽이 req 리소스에 결과를 적었다.
+        if (request.usebodytype == 'json') {
+        }
+        else if (request.usebodytype == 'cbor') {
+            bodyString = cbor.encode(body_Obj['m2m:' + rootnm]).toString('hex');
         }
         else {
-            store_to_req_resource(request, bodyString, rsc, cap, function () {
-                body_Obj = null;
-                rspObj = null;
-
-                callback();
-            });
+            if(rootnm == 'agr') {
+                bodyString = _this.convertXml2(rootnm, body_Obj['m2m:' + rootnm]);
+            }
+            else {
+                bodyString = _this.convertXml2(rootnm, body_Obj);
+            }
         }
+
+        response.status(parseInt(status, 10)).end(bodyString);
+
+        rspObj = {};
+        rspObj.rsc = rsc;
+        rspObj.ri = request.method + "-" + request.url + "-" + JSON.stringify(request.query);
+        rspObj = cap;
+        // console.log(JSON.stringify(rspObj)); // 응답 바디 전체 덤프 - 로그 폭주 원인이라 비활성
+
+        body_Obj = null;
+        rspObj = null;
+
+        callback();
     }
 };
 
@@ -2324,205 +2226,3 @@ exports.respond = function (request, response, result, callback) {
 exports.error_result = function (request, response, status, rsc, dbg_string, callback) {
     sendError(request, response, status, rsc, dbg_string, callback);
 };
-
-function request_noti_http(nu, bodyString, bodytype, xm2mri) {
-    var options = {
-        hostname: url.parse(nu).hostname,
-        port: url.parse(nu).port,
-        path: url.parse(nu).path,
-        method: 'POST',
-        headers: {
-            'X-M2M-RI': xm2mri,
-            'Accept': 'application/'+bodytype,
-            'X-M2M-Origin': usecseid,
-            'Content-Type': 'application/'+bodytype,
-            'X-M2M-RVI': uservi
-        }
-    };
-
-    var bodyStr = '';
-    var req = http.request(options, function (res) {
-        //res.setEncoding('utf8');
-        res.on('data', function (chunk) {
-            bodyStr += chunk;
-        });
-
-        res.on('end', function () {
-            console.log('----> [nonblocking-async-http] response for notification through http  ' + res.headers['x-m2m-rsc']);
-        });
-    });
-
-    // 응답이 오지 않으면 요청을 끊는다. 파기하면 아래 error 핸들러가 뒷정리를 한다.
-    outbound.arm(req, 'rtu notify http');
-    req.on('error', function (e) {
-        if(e.message != 'read ECONNRESET') {
-            console.log('[nonblocking-async-http] problem with request: ' + e.message);
-        }
-    });
-
-    req.on('close', function() {
-        console.log('[nonblocking-async-http] close: no response for notification');
-    });
-
-    console.log('<---- [nonblocking-async-http] notification for non-blocking request with ' + bodytype + ' to ' + nu);
-    req.write(bodyString);
-    req.end();
-}
-
-function request_noti_coap(nu, bodyString, bodytype, xm2mri) {
-    var options = {
-        host: url.parse(nu).hostname,
-        port: url.parse(nu).port,
-        pathname: url.parse(nu).path,
-        method: 'post',
-        confirmable: 'false',
-        options: {
-            'Accept': 'application/'+bodytype,
-            'Content-Type': 'application/'+bodytype,
-            'Content-Length' : bodyString.length
-        }
-    };
-
-    var responseBody = '';
-    var req = coap.request(options);
-    req.setOption("256", new Buffer(usecseid));      // X-M2M-Origin
-    req.setOption("257", new Buffer(xm2mri));    // X-M2M-RI
-    req.on('response', function (res) {
-        res.on('data', function () {
-            responseBody += res.payload.toString();
-        });
-
-        res.on('end', function () {
-            console.log('----> [nonblocking-async-coap] response for notification through coap  ' + res.code);
-        });
-    });
-
-    console.log('<---- [nonblocking-async-coap] request for notification through coap with ' + bodytype);
-
-    req.write(bodyString);
-    req.end();
-}
-
-function request_noti_ws(nu, bodyString, bodytype, xm2mri) {
-    var bodyStr = '';
-
-    var WebSocketClient = require('websocket').client;
-    var ws_client = new WebSocketClient();
-
-    if(bodytype == 'xml') {
-        ws_client.connect(nu, 'onem2m.r2.0.xml');
-    }
-    else if(bodytype == 'cbor') {
-        ws_client.connect(nu, 'onem2m.r2.0.cbor');
-    }
-    else {
-        ws_client.connect(nu, 'onem2m.r2.0.json');
-    }
-
-    ws_client.on('connectFailed', function (error) {
-        console.log('[nonblocking-async-ws] Connect Error: ' + error.toString());
-        ws_client.removeAllListeners();
-    });
-
-    ws_client.on('connect', function (connection) {
-        console.log('<---- [nonblocking-async-ws] ' + nu);
-        // console.log(bodyString); // 응답 바디 전체 덤프 - 로그 폭주 원인이라 비활성
-        connection.sendUTF(bodyString);
-
-        connection.on('error', function (error) {
-            console.log("[nonblocking-async-ws] Connection Error: " + error.toString());
-        });
-
-        connection.on('close', function () {
-            console.log('[nonblocking-async-ws] Connection Closed');
-        });
-
-        connection.on('message', function (message) {
-            console.log('----> [nonblocking-async-ws] ' + message.utf8Data.toString());
-
-            var protocol_arr = this.protocol.split('.');
-
-            if(bodytype === 'xml') {
-                var xml2js = require('xml2js');
-                var parser = new xml2js.Parser({explicitArray: false});
-                parser.parseString(message.utf8Data.toString(), function (err, jsonObj) {
-                    if (err) {
-                        console.log('[nonblocking-async-ws] xml2js parser error');
-                    }
-                    else {
-                        console.log('----> [nonblocking-async-ws] response for notification through mqtt ' + res.headers['x-m2m-rsc']);
-                        connection.close();
-                    }
-                });
-            }
-            else if(bodytype === 'cbor') {
-                var encoded = message.utf8Data.toString();
-                cbor.decodeFirst(encoded, function(err, jsonObj) {
-                    if (err) {
-                        console.log('[nonblocking-async-ws] cbor parser error');
-                    }
-                    else {
-                        if (jsonObj.rsc == 2001 || jsonObj.rsc == 2000) {
-                            console.log('----> [nonblocking-async-ws] response for notification through ws ' + jsonObj.rsc);
-                            connection.close();
-                        }
-                    }
-                });
-            }
-            else { // 'json'
-                var jsonObj = JSON.parse(message.utf8Data.toString());
-
-                try {
-                    if (jsonObj.rsc == 2001 || jsonObj.rsc == 2000) {
-                        console.log('----> [nonblocking-async-ws] response for notification through ws ' + jsonObj.rsc + ' - ' + ri);
-                        connection.close();
-                    }
-                }
-                catch (e) {
-                    console.log('----> [nonblocking-async-ws] response for notification through ws  - ' + ri);
-                }
-            }
-        });
-    });
-}
-
-function request_noti_mqtt(nu, bodyString, bodytype, xm2mri) {
-    var aeid = url.parse(nu).pathname.replace('/', '').split('?')[0];
-    console.log('[nonblocking-async-mqtt] - ' + aeid);
-
-    if (aeid == '') {
-        console.log('[nonblocking-async-mqtt] aeid of notification url is none');
-        return;
-    }
-
-    var mqtt = require('mqtt');
-    var _mqtt_client = mqtt.connect('mqtt://' + url.parse(nu).hostname + ':' + ((url.parse(nu).port != null) ? url.parse(nu).port : '1883'));
-
-    _mqtt_client.on('connect', function () {
-        var resp_topic = util.format('/oneM2M/resp/%s/#', usecseid.replace('/', ''));
-        _mqtt_client.subscribe(resp_topic);
-
-        console.log('[nonblocking-async-mqtt] subscribe resp_topic as ' + resp_topic);
-
-        var noti_topic = util.format('/oneM2M/req/%s/%s/%s', usecseid.replace('/', ''), aeid, bodytype);
-
-        _mqtt_client.publish(noti_topic, bodyString);
-        console.log('<---- [nonblocking-async-mqtt] ' + noti_topic);
-        _mqtt_client.end(function () {
-            _mqtt_client = null;
-        });
-    });
-
-    _mqtt_client.on('message', function (topic, message) {
-        console.log('----> [nonblocking-async-mqtt] ' + topic + ' - ' + message);
-        _mqtt_client.end(function () {
-            _mqtt_client = null;
-        });
-    });
-
-    _mqtt_client.on('error', function (error) {
-        _mqtt_client.end(true, function () {
-            _mqtt_client = null;
-        });
-    });
-}

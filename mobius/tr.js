@@ -16,6 +16,7 @@
 
 var url = require('url');
 var xml2js = require('xml2js');
+var cbor = require('cbor');
 var xmlbuilder = require('xmlbuilder');
 var util = require('util');
 var responder = require('./responder');
@@ -216,44 +217,65 @@ function trsp_action(ri, bodytype, res, resBody, callback) {
         tst_value = tst_v.ABORTED;
     }
 
-    if (bodytype === 'xml') {
-        try {
-            var parser = new xml2js.Parser({explicitArray: false});
-            parser.parseString(resBody, function (err, body_Obj) {
-                var trsp_primitive = {};
-                trsp_primitive.rsc = parseInt(res.headers['x-m2m-rsc']); // convert to int
-                trsp_primitive.rqi = res.headers['x-m2m-ri'];
-                trsp_primitive.pc = JSON.parse(body_Obj.toString());
+    // 응답 본문을 pc 로 옮긴다. 어떤 경우에도 정확히 한 번만 정산한다.
+    //
+    // 예전에는 세 분기가 각각 다른 방식으로 깨져 있었다.
+    //   xml : JSON.parse(body_Obj.toString()) — body_Obj 는 파싱된 객체라
+    //         String() 이 '[object Object]' 가 되어 *언제나* 던졌다. 그리고
+    //         catch 가 같은 본문을 또 JSON 으로 파싱해 다시 던졌다.
+    //   cbor: 블록이 비어 있어 콜백이 아예 안 불렸다 — 요청이 매달렸다.
+    //   json: catch 가 방금 던진 것과 글자 그대로 같은 파싱을 반복했다.
+    //         복구 능력이 0이라 첫 파싱이 실패하면 두 번째도 반드시 실패하고,
+    //         이번엔 잡아 줄 곳이 없어 워커가 죽었다.
+    //
+    // 상대 CSE 가 준 본문이라 형식을 신뢰할 수 없다. 읽지 못하면 pc 를 비우고
+    // 원문을 로그로 남긴다 — 트랜잭션 상태(tst)는 이미 rsc 로 정했으므로
+    // pc 를 못 읽었다고 해서 사슬을 멈출 이유가 없다.
+    var trsp_primitive = {};
+    trsp_primitive.rsc = parseInt(res.headers['x-m2m-rsc']); // convert to int
+    trsp_primitive.rqi = res.headers['x-m2m-ri'];
 
-                callback('1', tst_value, trsp_primitive);
-            });
+    function settle(pc) {
+        if (pc != null) {
+            trsp_primitive.pc = pc;
         }
-        catch (e) {
-            trsp_primitive = {};
-            trsp_primitive.rsc = parseInt(res.headers['x-m2m-rsc']); // convert to int
-            trsp_primitive.rqi = res.headers['x-m2m-ri'];
-            trsp_primitive.pc = JSON.parse(resBody.toString());
-            callback('1', tst_value, trsp_primitive);
-        }
+        callback('1', tst_value, trsp_primitive);
+    }
+
+    function unreadable(why) {
+        console.error('[trsp_action] 상대 응답을 읽지 못했다 (' + ri + ', ' + bodytype + '): ' + why);
+        settle(null);
+    }
+
+    if (bodytype === 'xml') {
+        var parser = new xml2js.Parser({explicitArray: false});
+        parser.parseString(resBody, function (err, body_Obj) {
+            if (err) {
+                unreadable(err.message);
+                return;
+            }
+            settle(body_Obj);        // 파싱 결과가 곧 pc 다. 다시 파싱하지 않는다
+        });
     }
     else if (bodytype === 'cbor') {
+        cbor.decodeFirst(resBody, function (err, decoded) {
+            if (err) {
+                unreadable(err.message);
+                return;
+            }
+            settle(decoded);
+        });
     }
-    else {
+    else { // json
+        var parsed;
         try {
-            var trsp_primitive = {};
-            trsp_primitive.rsc = parseInt(res.headers['x-m2m-rsc']); // convert to int
-            trsp_primitive.rqi = res.headers['x-m2m-ri'];
-            trsp_primitive.pc = JSON.parse(resBody.toString());
-
-            callback('1', tst_value, trsp_primitive);
+            parsed = JSON.parse(resBody.toString());
         }
         catch (e) {
-            trsp_primitive = {};
-            trsp_primitive.rsc = parseInt(res.headers['x-m2m-rsc']); // convert to int
-            trsp_primitive.rqi = res.headers['x-m2m-ri'];
-            trsp_primitive.pc = JSON.parse(resBody.toString());
-            callback('1', tst_value, trsp_primitive);
+            unreadable(e.message);
+            return;
         }
+        settle(parsed);
     }
 }
 

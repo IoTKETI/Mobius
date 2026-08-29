@@ -148,3 +148,59 @@ test('응답 직렬화는 어떤 깨진 값에도 던지지 않는다', function
         quiet(function () { responder.typeCheckforJson(o); });   // 던지면 실패한다
     });
 });
+
+// ── rt (responseType) 판정 ───────────────────────────────────────────
+//
+// 논블로킹(rt=1/2)은 지원하지 않는다. 예전에는 req 리소스를 만들고 202 를
+// 돌려줬는데 정작 요청한 연산은 수행하지 않아, 클라이언트가 영영 채워지지
+// 않을 결과를 기다리게 됐다.
+//
+// check_request_query_rt 는 app.js 안의 비공개 함수라 판정 규칙만 옮겨 둔다.
+// 종단 동작은 tools/response-golden 하네스와 수동 확인으로 본다.
+
+function decide_rt(rt, rtu, hasRtKey) {
+    // app.js 의 기본값 채우기: rt 키가 없을 때만 3 을 넣는다(교정이 아니다)
+    if (!hasRtKey) { rt = 3; }
+
+    if (rt == 3) { return '200'; }
+    if (rt == 1 || rt == 2) {
+        // rt=2 는 결과를 받을 주소를 함께 줘야 한다.
+        // 예전 조건은 `rtu == null && rtu == ''` 라 언제나 거짓이었고,
+        // 그래서 400-21 이 한 번도 나가지 않았다.
+        if (rt == 2 && (rtu == null || rtu === '')) { return '400-21'; }
+        return '405-4';                 // 논블로킹 미지원
+    }
+    return '405-4';                     // rt 가 1/2/3 이 아니다
+}
+
+test('rt 를 안 주면 블로킹으로 친다', function () {
+    assert.strictEqual(decide_rt(undefined, undefined, false), '200');
+});
+
+test('rt=3 은 블로킹이다', function () {
+    assert.strictEqual(decide_rt('3', undefined, true), '200');
+});
+
+test('rt=2 인데 RTU 가 없으면 400 이다 — 예전에는 한 번도 안 나갔다', function () {
+    // `rtu == null && rtu == ''` 는 두 조건이 동시에 참일 수 없다.
+    assert.strictEqual(undefined == null && undefined == '', false, '옛 조건은 언제나 거짓');
+    assert.strictEqual(decide_rt('2', undefined, true), '400-21');
+    assert.strictEqual(decide_rt('2', '', true), '400-21');
+});
+
+test('논블로킹은 메서드와 무관하게 미지원이다', function () {
+    assert.strictEqual(decide_rt('1', undefined, true), '405-4');
+    assert.strictEqual(decide_rt('2', 'http://x/y', true), '405-4');
+});
+
+test('rt 가 1/2/3 이 아니면 미지원이다', function () {
+    ['99', 'abc', '', '-1', '0'].forEach(function (v) {
+        assert.strictEqual(decide_rt(v, undefined, true), '405-4', 'rt=' + JSON.stringify(v));
+    });
+});
+
+test('RTU 검사가 미지원 판정보다 먼저다', function () {
+    // 잘못된 요청(400)과 미지원(405)이 겹칠 때, 더 구체적인 쪽을 준다.
+    assert.strictEqual(decide_rt('2', undefined, true), '400-21');
+    assert.strictEqual(decide_rt('2', 'http://x', true), '405-4');
+});

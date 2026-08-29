@@ -199,7 +199,9 @@ test('내부 식별자가 든 사유가 하나도 없다 (D20)', function () {
 
 test('detail 은 8건에 붙어 있고 전부 문자열이다', function () {
     const withDetail = Object.keys(reason.REASON).filter(function (k) { return reason.REASON[k].detail; });
-    assert.strictEqual(withDetail.length, 9);
+    // 404-1 에서 걷어내 8건이 됐다. 이 테스트는 이름은 8 인데 단언은 9 였다 —
+    // detail 을 하나 늘리면서 숫자를 안 고친 흔적이다.
+    assert.strictEqual(withDetail.length, 8);
     withDetail.forEach(function (k) {
         assert.strictEqual(typeof reason.REASON[k].detail, 'string', k);
     });
@@ -279,4 +281,47 @@ test('reportSelfCheck 는 문제가 있어도 던지지 않는다', function () 
     assert.ok(count > 0, '문제 건수를 돌려줘야 한다');
     assert.ok(lines.some(function (l) { return /기동은 계속한다/.test(l); }),
         '기동을 계속한다는 것이 로그에 드러나야 한다');
+});
+
+// ── detail 은 흔한 사유에 붙이면 안 된다 ─────────────────────────────
+//
+// responder.respond 는 detail 이 있으면 console.error 를 찍는다(응답 본문에는
+// 안 나간다). 정상 운영에서 흔히 나는 사유에 붙이면 평범한 트래픽이 에러
+// 로그를 채운다. 404-1("resource does not exist")이 실제로 그랬다 —
+// 존재하지 않는 리소스를 조회할 때마다 [NOT_FOUND] get_target_url 이 쌓였다.
+
+test('404-1 에는 detail 이 없다 — 가장 흔한 404 다', function () {
+    const r = reason.get('404-1');
+    assert.ok(r, '404-1 이 있어야 한다');
+    assert.strictEqual(r.detail, undefined,
+        '흔한 404 에 detail 을 붙이면 정상 트래픽이 에러 로그를 채운다');
+});
+
+test('detail 을 가진 사유는 드물게 나는 것들뿐이다', function () {
+    // 새로 detail 을 붙일 때 "이게 흔한 사유인가"를 한 번 더 생각하게 한다.
+    // 늘리려면 이 목록에 근거와 함께 추가한다.
+    const ALLOWED = [
+        '400-5',   // 본문이 XML 이 아님 — 클라이언트 결함
+        '400-6',   // 본문이 CBOR 이 아님 — 클라이언트 결함
+        '400-7',   // 루트 태그 불일치 — 클라이언트 결함
+        '400-19',  // ty 없는 POST 에 알림 본문이 없음
+        '400-20',  // Content-Type 누락
+        '403-5',   // fanOutPoint 접근 거부
+        '409-6',   // aei 중복 등록
+        '500-4'    // 리소스 생성 실패 — 드물고 진단이 필요하다
+    ];
+    const withDetail = Object.keys(reason.REASON)
+        .filter(function (k) { return reason.REASON[k].detail != null; });
+    assert.deepStrictEqual(withDetail.sort(), ALLOWED.slice().sort());
+});
+
+test('detail 은 응답 본문에 나가지 않는다', function () {
+    // 내부 함수명이 클라이언트로 새면 안 된다. 로그 전용이다.
+    const t = reason.toLegacyTable();
+    Object.keys(reason.REASON).forEach(function (k) {
+        const r = reason.REASON[k];
+        if (r.detail == null) { return; }
+        assert.ok(t[k][2].indexOf(r.detail) < 0,
+            k + ' 의 detail 이 응답 문구에 섞였다: ' + t[k][2]);
+    });
 });

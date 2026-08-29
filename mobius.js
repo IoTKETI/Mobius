@@ -38,6 +38,18 @@ global.usecsebaseport = conf.csebaseport;
 global.usedbhost = 'localhost';
 global.usedbpass = conf.dbpass;
 
+// 이 값을 X-M2M-Origin 에 넣으면 security.check 가 맨 앞에서 통과시켜
+// 모든 ACP 검사를 건너뛴다. 사실상 마스터 키다.
+//
+// 예전에는 app.js 에 'Sponde' 로 박혀 있었다. 공개 저장소의 코드에 적혀
+// 있으면 아는 사람은 누구나 쓸 수 있다는 뜻이라 설정으로 뺀다.
+//
+// 기본값은 바꾸지 않았다 — 값을 바꾸면 이 계정으로 도는 기존 운영 도구가
+// 곧바로 403 을 받는다. 배포에서 실제로 바꿀 때는 그 도구들을 함께 옮겨야 한다.
+// conf.json 에 "superUser": "..." 를 넣으면 그 값이 쓰인다.
+global.usesuperuser = (typeof conf.superUser === 'string' && conf.superUser !== '')
+    ? conf.superUser : 'Sponde';
+
 if (process.argv[2] === 'sqlite') {
     global.usesqlite = 'true';
 }
