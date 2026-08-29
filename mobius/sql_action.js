@@ -1775,13 +1775,25 @@ function build_descendant_sql(ri, query, query_where, cur_lim) {
     sql += ' limit ' + lim;
     if (ofst !== null) { sql += ' offset ' + ofst; }
 
-    return { sql: sql, bindings: { root_ri: ri } };
+    // limit / offset 을 같이 돌려준다. 호출부가 "결과가 잘렸는가" 를 판정하고
+    // 다음 오프셋을 계산하는 데 쓴다 (X-M2M-CTS / X-M2M-CTO).
+    // 여기서 계산한 값을 그대로 넘겨야 판정이 SQL 과 어긋나지 않는다.
+    return { sql: sql, bindings: { root_ri: ri }, limit: lim, offset: ofst || 0 };
 }
 exports.build_descendant_sql = build_descendant_sql;
 
 // 인자 목록은 예전 2단계 구현의 것을 그대로 둔다 — 호출부(resource.js)와
 // 테스트가 이 형태를 쓴다. pi_list / pi_index / skipped / cni / cur_d /
 // loop_cnt / search_tid 는 CTE 가 한 문장으로 끝내므로 더는 읽지 않는다.
+//
+// 콜백은 callback(code, info) 다. 성공하면 info 에
+//   { rows, limit, offset }   SQL 이 돌려준 행 수와 실제로 건 한도/오프셋
+// 이 담긴다. 호출부는 이것으로 "결과가 잘렸는가" 를 판정하고 다음 오프셋을
+// 계산한다 (X-M2M-CTS / X-M2M-CTO).
+//
+// **rows 는 select_spec_ri 가 고아 행을 걷어내기 전 수**다. 다음 오프셋은
+// DB 가 실제로 건너뛴 만큼이어야 하므로 응답 건수가 아니라 이 값을 써야 한다.
+// 안 그러면 클라이언트가 다음 페이지에서 고아 수만큼 앞을 다시 읽는다.
 exports.search_lookup = function (connection, ri, query, cur_lim, pi_list, pi_index, found_Obj, skipped, cni, cur_d, loop_cnt, callback, search_tid) {
     sanitize_discovery_query(query); // SQL Injection 방어
 
@@ -1825,7 +1837,7 @@ exports.search_lookup = function (connection, ri, query, cur_lim, pi_list, pi_in
             for (var i = 0; i < rows.length; i++) {
                 found_Obj[rows[i].ri] = rows[i];
             }
-            callback('200');
+            callback('200', { rows: rows.length, limit: q.limit, offset: q.offset });
         });
     });
 };

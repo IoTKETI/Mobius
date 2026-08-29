@@ -1406,22 +1406,31 @@ exports.retrieve = function (request, response, callback) {
         presearch_action(request, response, pi_list, found_parent_list, function (code) {
             if (code == '200') {
                 var cur_d = moment().add(1, 'd').utc().format('YYYY-MM-DD HH:mm:ss');
-                db_sql.search_lookup(request.db_connection, resource_Obj[rootnm].ri, request.query, request.query.lim, pi_list, 0, foundObj, 0, request.query.cni, cur_d, 0, function (code) {
+                db_sql.search_lookup(request.db_connection, resource_Obj[rootnm].ri, request.query, request.query.lim, pi_list, 0, foundObj, 0, request.query.cni, cur_d, 0, function (code, search_info) {
                     if (code === '200') {
                         db_sql.select_spec_ri(request.db_connection, foundObj, 0, function (code) {
                             if(code === '200') {
+                                // 결과가 잘렸으면 알린다 (oneM2M: CTS=1 은 부분 결과,
+                                // CTO 는 이어받을 오프셋).
+                                //
+                                // 판정은 **SQL 이 건 한도를 정확히 채웠는가** 다.
+                                // 예전에는 세 가지가 틀렸다:
+                                //   1. 상수 max_lim(2000)과 비교해서 lim<2000 요청은
+                                //      결과가 잘려도 아무 신호를 못 받았다
+                                //   2. la 요청의 실효 한도는 query.la 인데 그걸 안 봤다
+                                //   3. select_spec_ri 가 고아 행을 걷어낸 **뒤**의 건수를
+                                //      썼다. DB 는 그만큼을 이미 건너뛰었으므로 다음
+                                //      오프셋이 모자라 클라이언트가 앞을 다시 읽는다
+                                // search_lookup 이 SQL 에 실제로 건 한도와 돌려준 행 수를
+                                // 그대로 넘겨주므로 판정이 SQL 과 어긋날 수 없다.
+                                if (search_info && search_info.limit > 0 &&
+                                    search_info.rows >= search_info.limit) {
+                                    response.header('X-M2M-CTS', 1);
+                                    response.header('X-M2M-CTO',
+                                        search_info.offset + search_info.rows);
+                                }
+
                                 if (Object.keys(foundObj).length >= 1) {
-                                    if (Object.keys(foundObj).length >= max_lim) {
-                                        response.header('X-M2M-CTS', 1);
-
-                                        if (request.query.ofst != null) {
-                                            response.header('X-M2M-CTO', parseInt(request.query.ofst, 10) + Object.keys(foundObj).length);
-                                        }
-                                        else {
-                                            response.header('X-M2M-CTO', Object.keys(foundObj).length);
-                                        }
-                                    }
-
                                     for (var index in foundObj) {
                                         if (foundObj.hasOwnProperty(index)) {
                                             ri_list.push(foundObj[index].ri);
