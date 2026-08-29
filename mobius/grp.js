@@ -25,6 +25,7 @@ var responder = require('./responder');
 
 var db_sql = require('./sql_action');
 var outbound = require('./outbound');
+var once = require('./once');
 
 function check_mt(request, res_body, callback) {
     var body_type = request.usebodytype;
@@ -85,6 +86,17 @@ function check_mt(request, res_body, callback) {
 }
 
 function check_member(request, response, req_count, cse_poa, callback) {
+    // 이 콜백은 응답 경로(res.on('end'))와 에러 경로(req.on('error')) 양쪽에서
+    // 불릴 수 있다. 둘 다 ++req_count 로 **재귀를 진행시킨다.**
+    //
+    // 둘 다 발화하면 재귀가 두 갈래로 갈라져 각자 끝까지 돌고 각자 콜백을
+    // 부른다. 그러면 그룹 생성 응답이 두 번 나가고, 두 번째가 이미 반납된
+    // 커넥션과 null 이 된 request 를 만져 워커가 죽는다.
+    // outbound.arm 이 요청을 끊으면 응답 직후 error 가 뜰 수 있어
+    // 이 조합은 실제로 가능하다. fopt.js 의 request_to_member 가
+    // 같은 이유로 같은 처방을 쓴다.
+    callback = once(callback, 'grp check_member ' + req_count);
+
     if(req_count >= request.mid.length) {
         callback('200');
     }
@@ -215,6 +227,13 @@ function check_mtv(request, response, resource_Obj, callback) {
                         resource_Obj[rootnm].mtv = 'true';
                         callback('200');
                     }
+                }
+                else {
+                    // 예전에는 이 else 가 없어, check_member 가 '200' 이 아닌
+                    // 코드를 주면 콜백이 그대로 사라졌다. 그러면 그룹 생성
+                    // 요청이 응답 없이 매달리고 커넥션도 반납되지 않는다 —
+                    // 크래시가 아니라 워커 재시작도 안 걸리는 조용한 고갈이다.
+                    callback(code);
                 }
             });
         }

@@ -171,3 +171,57 @@ test('하나가 여러 poa 로 늘어나도 인덱스가 어긋나지 않는다'
     assert.deepStrictEqual(a, ['http://a', 'http://b', 'id2']);
     assert.strictEqual(a[next], 'id2');
 });
+
+// ── 재귀가 두 갈래로 갈라지던 곳 (R1 / R4-R5) ────────────────────────
+//
+// grp.js 의 check_member 는 응답 경로와 에러 경로가 **둘 다** ++req_count 로
+// 재귀를 진행시킨다. 둘 다 발화하면 재귀가 갈라져 각자 끝까지 돌고 각자
+// 콜백을 부른다 — 그룹 생성 응답이 두 번 나가고, 두 번째가 이미 반납된
+// 커넥션과 null 이 된 request 를 만져 워커가 죽는다.
+// outbound.arm 이 요청을 끊으면 응답 직후 error 가 뜰 수 있어 실제로 가능하다.
+//
+// 그리고 결과 분기에 else 가 없어 '200' 이 아니면 콜백이 사라지던 곳이 둘 있었다.
+// 매달림은 크래시가 아니라 워커 재시작도 안 걸리는 조용한 고갈이다.
+
+const fsR = require('node:fs');
+const pathR = require('node:path');
+const ROOT_R = pathR.join(__dirname, '..');
+
+test('grp 의 멤버 확인이 once 로 감싸여 있다', function () {
+    const src = fsR.readFileSync(pathR.join(ROOT_R, 'mobius', 'grp.js'), 'utf8');
+
+    assert.ok(/require\('\.\/once'\)/.test(src), 'grp.js 가 once 를 쓰지 않는다');
+    assert.ok(/callback = once\(callback, 'grp check_member/.test(src),
+        'check_member 의 콜백이 once 로 감싸이지 않았다 — 재귀가 두 갈래로 갈라진다');
+
+    // 응답 경로와 에러 경로가 둘 다 재귀한다는 사실 자체는 그대로다.
+    // once 가 없으면 그것이 곧 결함이므로, 이 구조가 유지되는지도 본다.
+    const at = src.indexOf('function check_member');
+    const body = src.slice(at, src.indexOf('\nfunction ', at + 10));
+    const recur = (body.match(/check_member\(request, response, \+\+req_count/g) || []).length;
+    assert.ok(recur >= 3,
+        '재귀 지점이 ' + recur + '곳이다 — 구조가 바뀌었으면 once 의 필요성을 다시 판단할 것');
+});
+
+test('check_mtv 가 멤버 확인 실패를 흘려보낸다', function () {
+    const src = fsR.readFileSync(pathR.join(ROOT_R, 'mobius', 'grp.js'), 'utf8');
+    const at = src.indexOf('function check_mtv');
+    const body = src.slice(at, src.indexOf('\nfunction ', at + 10) > 0
+        ? src.indexOf('\nfunction ', at + 10) : src.length);
+
+    // check_member 결과가 '200' 이 아닐 때 콜백을 부르는 else 가 있어야 한다.
+    assert.ok(/\}\s*\r?\n\s*else \{[\s\S]{0,400}?callback\(code\);/.test(body),
+        'check_member 결과 분기에 else 가 없다 — 실패 시 요청이 매달린다');
+});
+
+test('sgn_action 이 nu 해석 실패를 흘려보낸다', function () {
+    const src = fsR.readFileSync(pathR.join(ROOT_R, 'mobius', 'sgn.js'), 'utf8');
+    const at = src.indexOf('get_nu_arr(connection, nu_arr, 0, function (code) {');
+    assert.ok(at > 0, 'sgn_action 의 get_nu_arr 호출을 찾지 못했다');
+    const body = src.slice(at, at + 2000);
+
+    // 지금 get_nu_arr 은 언제나 '200' 을 준다. 그래도 else 가 있어야 한다 —
+    // 없으면 그 계약이 바뀌는 순간 알림 사슬이 조용히 멈춘다.
+    assert.ok(/else \{[\s\S]{0,400}?sgn_action\(connection, rootnm, check_value, subl, \+\+req_count/.test(body),
+        'nu 해석이 200 이 아닐 때 다음 구독으로 넘어가지 않는다');
+});

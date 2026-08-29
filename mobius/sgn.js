@@ -503,6 +503,17 @@ function sgn_action(connection, rootnm, check_value, subl, req_count, noti_Obj, 
                         });
                     }
                 }
+                else {
+                    // get_nu_arr 은 지금 언제나 '200' 을 준다. 그래도 else 를
+                    // 둔다 — 없으면 그 계약이 바뀌는 순간 콜백이 조용히
+                    // 사라지고 알림 사슬이 거기서 멈춘다. 이 파일에서 이미
+                    // 두 번 일어난 부류다(get_nu_arr 의 두 조기 반환).
+                    console.error('[noti] sub=' + results_ss.ri +
+                                  ' nu 해석이 200 이 아닌 코드를 줬다: ' + code);
+                    sgn_action(connection, rootnm, check_value, subl, ++req_count, noti_Obj, sub_bodytype, parentObj, function (code) {
+                        callback(code);
+                    });
+                }
             }, results_ss.ri);
             break;
         }
