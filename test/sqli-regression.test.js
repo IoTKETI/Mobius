@@ -159,3 +159,56 @@ test('exports.update_sub 이 드라이버에 값을 바인딩으로 넘긴다 (S
         done();
     });
 });
+
+// ── update_hd_* — WHERE 가 통째로 빠져 있었다 ────────────────────────
+//
+// 8벌 전부가 이랬다:
+//
+//     util.format('update fcnt set fcnt.lock = \'%s\'', obj.lock)
+//                                                     ^ where 가 없다
+//
+// 도어록 하나에 PUT 을 보내면 fcnt 테이블의 모든 행이 그 값으로 바뀌었다.
+// 실측으로 확인했다 — 컨테이너 두 개를 만들고 한쪽만 PUT 했더니 다른 쪽
+// lock 도 함께 true 가 됐다. 배포 규모(5,740만 행)에서는 되돌릴 수 없다.
+//
+// 값도 이스케이프 없이 조립하고 있어서 인젝션 표면이기도 했다.
+// 파사드 바인딩으로 옮겨 둘을 함께 없앴다.
+
+test('fcnt 갱신은 ri 로 대상을 한정한다', function () {
+    const db = freshDb(false);
+    db.connect('h', 1, 'u', 'p', function () {});
+    const n = db.k('fcnt').update({ lock: 'true' }).where({ ri: '/M/x/d' }).toSQL().toNative();
+    assert.ok(/where/i.test(n.sql), 'where 절이 없으면 테이블 전체가 바뀐다: ' + n.sql);
+    assert.ok(n.bindings.indexOf('/M/x/d') >= 0, 'ri 가 바인딩으로 가야 한다');
+});
+
+test('예약어 lock 도 빌더가 인용한다', function () {
+    // 예전에 fcnt.lock 으로 테이블 접두를 붙였던 이유다. 빌더가 방언별로
+    // 인용하므로 컬럼명만 넘기면 된다.
+    for (const sqlite of [false, true]) {
+        const db = freshDb(sqlite);
+        db.connect('h', 1, 'u', 'p', function () {});
+        const n = db.k('fcnt').update({ lock: 'x' }).where({ ri: '/r' }).toSQL().toNative();
+        assert.ok(/["`]lock["`]/.test(n.sql),
+            (sqlite ? 'SQLite' : 'MySQL') + ': lock 이 인용되지 않았다 — ' + n.sql);
+    }
+});
+
+test('sql_action 에 WHERE 없는 update 가 없다', function () {
+    const fs = require('node:fs');
+    const src = fs.readFileSync(path.join(__dirname, '..', 'mobius', 'sql_action.js'), 'utf8');
+
+    // 문자열로 조립하는 update 문 중 where 가 없는 것을 찾는다.
+    const bad = [];
+    const lines = src.split(/\r?\n/);
+    lines.forEach(function (l, i) {
+        const m = l.match(/'(update\s+\w+\s+set\s[^']*)'/i);
+        if (m && !/where/i.test(m[1])) {
+            // 여러 줄로 이어 붙이는 경우가 있으므로 다음 두 줄까지 본다.
+            const around = lines.slice(i, i + 3).join(' ');
+            if (!/where/i.test(around)) { bad.push((i + 1) + ': ' + l.trim().slice(0, 80)); }
+        }
+    });
+    assert.deepStrictEqual(bad, [],
+        'WHERE 없는 update 가 남아 있다 — 테이블 전체를 덮어쓴다:\n  ' + bad.join('\n  '));
+});
