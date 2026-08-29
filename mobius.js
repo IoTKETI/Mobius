@@ -124,6 +124,14 @@ global.acpi_attach_policy = (conf.acpiAttachPolicy === 'creator') ? 'creator' : 
 // best-effort 라 요청은 정상 처리된다.
 global.acp_audit = (conf.acpAudit === 'off') ? 'off' : 'on';
 
+// discovery 결과를 리소스별 ACP 로 거를 것인가.
+//
+// 켜는 것이 기본이다 — 안 거르면 잠근 컨테이너의 **경로가 상위 탐색 결과에
+// 그대로 나온다**(이름·구조·CIN 개수·생성 시각). 관리자는 잠갔다고 생각하는데
+// 아니다. 배포에 acpi 가 채워진 리소스는 2개뿐이라 켜도 결과가 바뀌는 요청이
+// 사실상 없다. 문제가 생기면 'off' 로 되돌린다.
+global.acp_discovery_filter = (conf.acpDiscoveryFilter === 'off') ? 'off' : 'on';
+
 global.wdt = require('./wdt');
 
 

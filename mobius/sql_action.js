@@ -3625,6 +3625,23 @@ function fold_acpi_entry(v) {
  * 없으면 절대·SP상대 표기를 못 접어 역참조가 조용히 어긋난다. 죽지는 않지만
  * 결과가 틀리므로, 부르는 쪽(관리 콘솔 등)이 확인할 수 있게 내보낸다.
  */
+/**
+ * 주어진 ri 들 중 **acpi 가 채워진 것만** 돌려준다.
+ *
+ * discovery 필터가 조상의 잠금을 확인할 때 쓴다. ri 가 PK 라 등치 IN 이고,
+ * 대부분의 요청에서 빈 결과가 온다(배포에 acpi 가 채워진 리소스는 2개다).
+ * 목록은 **행 수가 아니라 서로 다른 조상 수**라 페이지가 커도 잘 안 는다 —
+ * CIN 2,000건이 한 컨테이너 아래면 조상은 하나다.
+ */
+exports.select_lookup_acpi_in = function (connection, ri_list, callback) {
+    if (!ri_list || ri_list.length === 0) { return callback(null, []); }
+    facade.run(facade.k('lookup').select('ri', 'acpi')
+        .whereIn('ri', ri_list)
+        .whereNot('acpi', '')
+        .whereNot('acpi', '[]'),
+        connection, callback);
+};
+
 // acpi 목록을 내부 ri 표기로 접는다. 실제 판정 경로(make_internal_ri)와 같은
 // 규칙이되 전역에 의존하지 않는다 — 관리 콘솔은 app.js 를 require 하지 않는다.
 exports.fold_acpi_list = function (list) {
