@@ -58,6 +58,9 @@ var RSC = require('./mobius/rsc').RSC;
 // ty 결정의 단일 진실원 (§9.1)
 var type_resolver = require('./mobius/type_resolver');
 
+// 잡히지 않은 예외의 마지막 방어선. 마스터는 살리고 워커는 종료한다.
+var backstop = require('./mobius/backstop');
+
 // 아웃바운드 요청 타임아웃 (D16)
 var outbound = require('./mobius/outbound');
 
@@ -242,6 +245,12 @@ var use_clustering = 1;
 var worker_init_count = 0;
 if (use_clustering) {
     if (cluster.isMaster) {
+        // 마지막 방어선. 프록시 3종이 이 블록에서 require 되므로, 그 메시지
+        // 핸들러가 던지면 마스터가 죽고 아래 워커 재기동 로직까지 함께
+        // 사라진다 — 리스닝 포트가 전부 없어진다. 마스터는 요청 상태를
+        // 들고 있지 않으므로 살아남는 쪽이 낫다. 자세한 근거는 backstop.js.
+        backstop.install('master');
+
         // 결과 코드·사유 카탈로그 자체 점검. 마스터에서 한 번만 돈다.
         // 문제가 있어도 기동을 막지 않는다 — 운영 배포에서 서버가 안 뜨는 쪽이
         // 카탈로그 흠결보다 위험하다. 배포 시점 로그에서 눈에 띄게 하는 것이 목적이다.
@@ -333,6 +342,12 @@ if (use_clustering) {
         });
     }
     else {
+        // 워커는 마스터와 반대로 종료를 택한다. 살려 두면 던진 요청이 응답
+        // 없이 매달리고 그 요청이 빌린 커넥션이 풀(워커당 100)에서 영구히
+        // 빠진다. 죽으면 소켓이 닫혀 커넥션이 회수되고 위의 cluster.on('exit')
+        // 가 다시 띄운다 — 오늘과 같은 회복에 진단만 더한다.
+        backstop.install('worker');
+
         db.connect(usedbhost, 3306, 'root', usedbpass, (rsc) => {
             if (rsc === '1') {
                 // 파사드 연결 실패가 서버 기동 자체를 막으면 안 된다.
