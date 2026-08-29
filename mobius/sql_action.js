@@ -1702,7 +1702,21 @@ exports.search_lookup = function (connection, ri, query, cur_lim, pi_list, pi_in
 
         facade.run(facade.raw(q.sql, q.bindings), connection, function (err, rows) {
             if (err) {
-                console.error('[search_lookup] ' + ((err && err.message) || err));
+                // 문장 상한(MySQL ER_MAX_EXECUTION_TIME_EXCEEDED)은 DB 고장이
+                // 아니라 "이 질의가 감당 못 할 범위"라는 뜻이다. 구분해서 남긴다.
+                //
+                // 대표적인 형태가 ty 없이 lbl like '%..%' 다. 그러면 후보에
+                // CIN 이 전부 들어오는데(배포 서버 6,620만 행) LIKE 는 인덱스를
+                // 못 타므로 어떤 계획으로도 빠를 수 없다. 인덱스를 강제해도
+                // 안 해도 30초를 넘긴다(2026-08-29 실측). 예전 구현은 부모마다
+                // 상한을 걸어 23초 만에 **불완전한** 결과를 돌려줬다.
+                if (err.driverCode === 'ER_MAX_EXECUTION_TIME_EXCEEDED' || err.errno === 3024) {
+                    console.error('[search_lookup] statement timeout (' + DISCOVERY_TIMEOUT_MS +
+                                  'ms) ri=' + ri + ' query=' + JSON.stringify(query));
+                }
+                else {
+                    console.error('[search_lookup] ' + ((err && err.message) || err));
+                }
                 return callback('500-1');
             }
             for (var i = 0; i < rows.length; i++) {
