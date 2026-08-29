@@ -79,40 +79,52 @@ onMounted(probe)
   min-height: 100vh;
   display: grid;
   place-items: center;
-  padding: 1rem;
+  padding: 1.5rem;
 }
 .login {
   background: var(--panel);
   border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 1.6rem;
-  width: min(360px, 100%);
+  border-radius: 14px;
+  box-shadow: var(--shadow);
+  padding: 2.2rem;
+  width: min(420px, 100%);
   display: grid;
-  gap: 0.7rem;
+  gap: 1rem;
 }
-.login h1 { margin: 0; font-size: 1.1rem; }
-.muted { color: var(--muted); margin: 0; font-size: 0.85rem; }
-.err { color: var(--danger); margin: 0; font-size: 0.85rem; }
+.login h1 {
+  margin: 0;
+  font-size: 1.4rem;
+  letter-spacing: -0.01em;
+  color: var(--text-strong);
+}
+.muted { color: var(--muted); margin: 0; font-size: 0.95rem; }
+.err { color: var(--danger); margin: 0; font-size: 0.95rem; }
 
 header {
   display: flex;
   align-items: center;
-  gap: 0.6rem;
-  padding: 0.7rem 1rem;
+  gap: 0.7rem;
+  padding: 0.9rem 1.4rem;
   background: var(--panel);
   border-bottom: 1px solid var(--border);
+  box-shadow: var(--shadow);
   position: sticky;
   top: 0;
   z-index: 5;
 }
+header strong {
+  font-size: 1.05rem;
+  letter-spacing: -0.01em;
+  color: var(--text-strong);
+}
 .spacer { flex: 1; }
 .pill {
-  font-size: 0.72rem;
-  padding: 0.15rem 0.5rem;
+  font-size: 0.8rem;
+  padding: 0.2rem 0.65rem;
   border: 1px solid var(--border);
   border-radius: 999px;
   color: var(--muted);
 }
 .pill.readonly { border-color: var(--ok); color: var(--ok); }
-main { padding: 1rem; max-width: 1400px; margin: 0 auto; }
+main { padding: 1.6rem 1.4rem 3rem; max-width: 1500px; margin: 0 auto; }
 </style>

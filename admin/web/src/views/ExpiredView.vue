@@ -147,35 +147,37 @@ onMounted(async () => {
 
     <p v-if="error" class="err">{{ error }}</p>
 
-    <table v-if="rows.length">
-      <thead>
-        <tr>
-          <th>경로 (ri)</th>
-          <th>타입</th>
-          <th>만료 (et)</th>
-          <th>경과</th>
-          <th>생성 (ct)</th>
-          <th>자동 정리</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr v-for="r in rows" :key="r.ri">
-          <td class="mono path">{{ r.ri }}</td>
-          <td><span class="ty">{{ typeLabel(r.ty) }}</span></td>
-          <td class="mono">{{ fmtTime(r.et) }}</td>
-          <td class="mono days">
-            <template v-if="daysSince(r.et, asOf) !== null">
-              {{ daysSince(r.et, asOf)!.toLocaleString() }}일
-            </template>
-            <template v-else>—</template>
-          </td>
-          <td class="mono muted">{{ fmtTime(r.ct) }}</td>
-          <td>
-            <span class="fate" :class="fate(r.ty).cls">{{ fate(r.ty).text }}</span>
-          </td>
-        </tr>
-      </tbody>
-    </table>
+    <div v-if="rows.length" class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>경로 (ri)</th>
+            <th>타입</th>
+            <th>만료 (et)</th>
+            <th>경과</th>
+            <th>생성 (ct)</th>
+            <th>자동 정리</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="r in rows" :key="r.ri">
+            <td class="mono path">{{ r.ri }}</td>
+            <td><span class="ty">{{ typeLabel(r.ty) }}</span></td>
+            <td class="mono">{{ fmtTime(r.et) }}</td>
+            <td class="mono days">
+              <template v-if="daysSince(r.et, asOf) !== null">
+                {{ daysSince(r.et, asOf)!.toLocaleString() }}일
+              </template>
+              <template v-else>—</template>
+            </td>
+            <td class="mono muted">{{ fmtTime(r.ct) }}</td>
+            <td>
+              <span class="fate" :class="fate(r.ty).cls">{{ fate(r.ty).text }}</span>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
 
     <p v-else-if="!loading" class="empty">만료된 리소스가 없습니다.</p>
 
@@ -194,52 +196,113 @@ onMounted(async () => {
 </template>
 
 <style scoped>
-h2 { margin: 0 0 0.3rem; font-size: 1.15rem; }
-.lead { margin: 0 0 1rem; color: var(--muted); }
-.note { color: var(--muted); font-size: 0.82rem; margin: 0.4rem 0 0; }
-.err { color: var(--danger); }
-.empty { color: var(--muted); padding: 2rem 0; text-align: center; }
+h2 {
+  margin: 0 0 0.4rem;
+  font-size: 1.6rem;
+  letter-spacing: -0.02em;
+  color: var(--text-strong);
+}
+.lead { margin: 0 0 1.5rem; color: var(--muted); font-size: 1.02rem; max-width: 72ch; }
+.note { color: var(--muted); font-size: 0.92rem; margin: 0.7rem 0 0; max-width: 72ch; }
+.err { color: var(--danger); font-size: 1rem; }
+.empty { color: var(--muted); padding: 3rem 0; text-align: center; font-size: 1.05rem; }
 
-.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 0.6rem; }
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 0.9rem;
+}
 .tile {
   background: var(--panel);
   border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 0.7rem 0.8rem;
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+  padding: 1rem 1.1rem;
 }
-.tile .k { font-size: 0.72rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
-.tile .v { font-size: 1.5rem; font-weight: 600; line-height: 1.3; }
-.tile .s { font-size: 0.74rem; color: var(--muted); }
-.tile .s.never { color: var(--warn); }
-.tile .s.risky { color: var(--danger); }
+.tile .k {
+  font-size: 0.8rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  font-weight: 600;
+}
+.tile .v {
+  font-size: 2.1rem;
+  font-weight: 650;
+  line-height: 1.25;
+  letter-spacing: -0.02em;
+  color: var(--text-strong);
+}
+.tile .s { font-size: 0.88rem; color: var(--muted); }
+.tile .s.never { color: var(--warn); font-weight: 600; }
+.tile .s.risky { color: var(--danger); font-weight: 600; }
 
-.filters { display: flex; align-items: center; gap: 0.35rem; flex-wrap: wrap; margin: 1rem 0 0.6rem; }
-.flabel { font-size: 0.75rem; color: var(--muted); margin-right: 0.2rem; }
-.filters button { padding: 0.25rem 0.6rem; font-size: 0.82rem; }
-.filters button.on { background: var(--accent); border-color: var(--accent); color: #fff; }
-.filters .cnt { opacity: 0.7; font-size: 0.9em; }
+.filters {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin: 1.8rem 0 0.9rem;
+}
+.flabel {
+  font-size: 0.85rem;
+  color: var(--muted);
+  margin-right: 0.3rem;
+  font-weight: 600;
+}
+.filters button { padding: 0.35rem 0.85rem; font-size: 0.92rem; border-radius: 999px; }
+.filters button.on {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.filters .cnt { opacity: 0.75; font-size: 0.92em; }
 .filters .clear { border-style: dashed; }
 
-.path { max-width: 520px; overflow-wrap: anywhere; }
-.ty {
-  font-size: 0.72rem;
+/* 표 자체가 이 화면의 본체다. 패널로 감싸 바탕에서 띄운다. */
+.table-wrap {
+  background: var(--panel);
   border: 1px solid var(--border);
-  border-radius: 4px;
-  padding: 0.05rem 0.35rem;
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+  overflow: auto;
+  max-height: 68vh;
 }
-.days { white-space: nowrap; }
+
+.path { max-width: 560px; overflow-wrap: anywhere; font-size: 0.95rem; }
+.ty {
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  border: 1px solid var(--accent);
+  color: var(--accent-strong);
+  background: var(--accent-wash);
+  border-radius: 5px;
+  padding: 0.1rem 0.45rem;
+  white-space: nowrap;
+}
+.days { white-space: nowrap; font-variant-numeric: tabular-nums; }
 .muted { color: var(--muted); }
-.fate { font-size: 0.74rem; }
-.fate.never { color: var(--warn); }
-.fate.risky { color: var(--danger); }
+.fate { font-size: 0.88rem; white-space: nowrap; }
+.fate.never { color: var(--warn); font-weight: 600; }
+.fate.risky { color: var(--danger); font-weight: 600; }
 .fate.manual { color: var(--muted); }
 
-.footer { display: flex; align-items: center; gap: 0.8rem; padding: 0.9rem 0; }
+.footer {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1.1rem 0;
+  font-size: 0.95rem;
+}
 .next {
-  margin-top: 1.2rem;
-  padding-top: 0.9rem;
-  border-top: 1px dashed var(--border);
-  color: var(--muted);
-  font-size: 0.85rem;
+  margin-top: 1.5rem;
+  padding: 1rem 1.2rem;
+  border-left: 3px solid var(--accent);
+  background: var(--accent-wash);
+  border-radius: 0 8px 8px 0;
+  color: var(--text);
+  font-size: 0.95rem;
+  max-width: 78ch;
 }
 </style>
