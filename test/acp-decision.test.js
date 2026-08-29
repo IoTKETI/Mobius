@@ -152,3 +152,122 @@ test('두 식이 갈리는 지점을 표로 남긴다', function () {
         assert.strictEqual(security._actw_matches(c[0], NOW), c[2], '새 식: ' + c[0]);
     });
 });
+
+// ── 통합 평가기 (§9.4) ───────────────────────────────────────────────
+//
+// pv 와 pvs 는 거의 같은 200줄을 두 벌 들고 있었다. 그 중복이 실제로 사고를
+// 냈다 — ipv4 오참조와 actw 반전을 pv 쪽만 고치고 pvs 를 놓쳐, 한동안
+// 절반만 고쳐진 채로 있었다. 이제 판정은 evaluate_acr 한 곳에서만 한다.
+
+function req(opts) {
+    opts = opts || {};
+    return {
+        headers: opts.headers || {},
+        connection: { remoteAddress: opts.addr || '127.0.0.1' }
+    };
+}
+
+// ── acip ─────────────────────────────────────────────────────────────
+
+test('acip 이 없으면 IP 제한이 없다', function () {
+    assert.strictEqual(security._acip_allows(undefined, req(), false), true);
+    assert.strictEqual(security._acip_allows(null, req(), false), true);
+});
+
+test('ipv4 목록이 비면 허용한다 — 예전에 죽어 있던 기본 분기', function () {
+    assert.strictEqual(security._acip_allows({ ipv4: [] }, req(), false), true);
+});
+
+test('ipv4 가 일치하면 허용, 아니면 거부', function () {
+    const r = req({ addr: '::ffff:10.0.0.5' });
+    assert.strictEqual(security._acip_allows({ ipv4: ['10.0.0.5'] }, r, false), true);
+    assert.strictEqual(security._acip_allows({ ipv4: ['10.0.0.9'] }, r, false), false);
+});
+
+test('use_ra 면 remoteaddress 헤더를 먼저 본다 — pv 만 그렇다', function () {
+    // 이 헤더는 CoAP 프록시가 넣는다. pvs 는 보지 않는 것이 현재 동작이다.
+    const r = req({ addr: '::ffff:1.1.1.1', headers: { remoteaddress: '10.0.0.5' } });
+    assert.strictEqual(security._acip_allows({ ipv4: ['10.0.0.5'] }, r, true), true);
+    assert.strictEqual(security._acip_allows({ ipv4: ['10.0.0.5'] }, r, false), false,
+        'use_ra 가 false 면 소켓 주소를 본다');
+});
+
+test('ipv6 목록이 비면 허용한다', function () {
+    assert.strictEqual(security._acip_allows({ ipv6: [] }, req(), false), true);
+});
+
+test('ipv4 도 ipv6 도 없는 acip 은 제한이 없다', function () {
+    assert.strictEqual(security._acip_allows({}, req(), false), true);
+});
+
+// ── actw ─────────────────────────────────────────────────────────────
+
+test('actw 목록이 비면 시간 제한이 없다', function () {
+    assert.strictEqual(security._actw_allows([]), true);
+    assert.strictEqual(security._actw_allows(undefined), true);
+});
+
+test("actw 에 '* * * * * *' 가 있으면 언제나 허용", function () {
+    assert.strictEqual(security._actw_allows(['* * * * * *']), true);
+});
+
+test('맞는 창이 하나도 없으면 거부', function () {
+    const lines = quiet(function () {
+        assert.strictEqual(security._actw_allows(['0 0 0 1 1 1']), false);
+    });
+    assert.strictEqual(lines.length, 0, '형식이 맞으면 로그는 없다');
+});
+
+// ── acor / acop ──────────────────────────────────────────────────────
+
+test('acor 이 없으면 발신자 제한이 없다', function () {
+    assert.strictEqual(security._acor_allows({ acop: 63 }, 'anyone', '2'), true);
+});
+
+test('acor 이 일치하고 acop 비트가 맞아야 허용', function () {
+    const rule = { acor: ['Reader'], acop: 63 };
+    assert.strictEqual(security._acor_allows(rule, 'Reader', '2'), true);
+    assert.strictEqual(security._acor_allows(rule, 'Other', '2'), false);
+});
+
+test('acop 비트가 요청한 연산을 포함하지 않으면 거부', function () {
+    // acop 1 = CREATE 만. RETRIEVE(2) 를 요청하면 거부다.
+    assert.strictEqual(security._acor_allows({ acor: ['Reader'], acop: 1 }, 'Reader', '2'), false);
+});
+
+test("acor 의 'all' 과 '*' 는 누구나 통과시킨다", function () {
+    assert.strictEqual(security._acor_allows({ acor: ['all'], acop: 63 }, 'anyone', '2'), true);
+    assert.strictEqual(security._acor_allows({ acor: ['*'], acop: 63 }, 'anyone', '2'), true);
+});
+
+// ── 규칙 전체 ────────────────────────────────────────────────────────
+
+test('acco 가 없으면 컨텍스트 제약이 없다', function () {
+    const rule = { acor: ['Reader'], acop: 63 };
+    assert.strictEqual(security._evaluate_acr(rule, req(), 'Reader', '2', false), true);
+});
+
+test('acco 가 빈 배열이어도 제약이 없다', function () {
+    const rule = { acor: ['Reader'], acop: 63, acco: [] };
+    assert.strictEqual(security._evaluate_acr(rule, req(), 'Reader', '2', false), true);
+});
+
+test('acco 는 하나라도 만족하면 통과 (OR)', function () {
+    const rule = { acor: ['Reader'], acop: 63, acco: [
+        { acip: { ipv4: ['10.9.9.9'] } },     // 안 맞음
+        { actw: ['* * * * * *'] }             // 맞음
+    ]};
+    assert.strictEqual(security._evaluate_acr(rule, req(), 'Reader', '2', false), true);
+});
+
+test('acco 안에서는 acip 과 actw 를 함께 만족해야 한다 (AND)', function () {
+    const rule = { acor: ['Reader'], acop: 63, acco: [
+        { acip: { ipv4: ['10.9.9.9'] }, actw: ['* * * * * *'] }   // ip 가 안 맞음
+    ]};
+    assert.strictEqual(security._evaluate_acr(rule, req(), 'Reader', '2', false), false);
+});
+
+test('컨텍스트를 통과해도 acor 이 막으면 거부', function () {
+    const rule = { acor: ['Other'], acop: 63, acco: [{ actw: ['* * * * * *'] }] };
+    assert.strictEqual(security._evaluate_acr(rule, req(), 'Reader', '2', false), false);
+});
