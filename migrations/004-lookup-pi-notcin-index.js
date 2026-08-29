@@ -68,8 +68,12 @@ function createIndex(ctx, cb) {
     // (001 을 적용할 때 배포 서버에서 실제로 발생)
     //
     // 되돌리려면: DROP INDEX idx_lookup_pi_notcin ON lookup;  (002 에서 2.5초 걸렸다)
+    // 인덱스 이름은 리터럴로 쓴다. test/schema-drift.test.js 가 마이그레이션
+    // 소스에서 ADD/DROP INDEX 대상을 정규식으로 읽어 mobiusdb.sql 과 대조하는데,
+    // 변수로 이어 붙이면 그 대조가 조용히 빗나가 거짓 통과한다.
+    // (002 주석에도 같은 이유가 적혀 있고, 실제로 한 번 그랬다)
     ctx.db.run(
-        ctx.db.raw('ALTER TABLE lookup ADD INDEX ' + INDEX_NAME + ' (pi, (ty <> 4)), ' +
+        ctx.db.raw('ALTER TABLE lookup ADD INDEX idx_lookup_pi_notcin (pi, (ty <> 4)), ' +
                    'ALGORITHM=INPLACE, LOCK=NONE'),
         ctx.conn, cb, { timeoutMs: 0 });
 }
