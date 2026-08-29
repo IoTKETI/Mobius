@@ -7,8 +7,9 @@ import OrphanView from './views/OrphanView.vue'
 import AcpProblemsView from './views/AcpProblemsView.vue'
 import AcpListView from './views/AcpListView.vue'
 import AcpSimulateView from './views/AcpSimulateView.vue'
+import AcpEditView from './views/AcpEditView.vue'
 
-type Tab = 'expired' | 'orphans' | 'acp-problems' | 'acp-list' | 'acp-sim'
+type Tab = 'expired' | 'orphans' | 'acp-problems' | 'acp-list' | 'acp-sim' | 'acp-edit'
 const TABS: { id: Tab; label: string; group?: string }[] = [
   { id: 'expired', label: '만료된 리소스' },
   { id: 'orphans', label: '고아 리소스' },
@@ -28,6 +29,10 @@ function openAcp(ri: string) {
 function simulateRi(ri: string) {
   focusRi.value = ri
   tab.value = 'acp-sim'
+}
+function editRi(ri: string) {
+  focusRi.value = ri
+  tab.value = 'acp-edit'
 }
 
 const authed = ref(false)
@@ -134,8 +139,20 @@ onMounted(probe)
       <ExpiredView v-if="tab === 'expired'" :write="write" />
       <OrphanView v-else-if="tab === 'orphans'" :write="write" />
       <AcpProblemsView v-else-if="tab === 'acp-problems'" @open="openAcp" />
-      <AcpListView v-else-if="tab === 'acp-list'" :selected="focusRi" @simulate="simulateRi" />
+      <AcpListView
+        v-else-if="tab === 'acp-list'"
+        :selected="focusRi"
+        :write="write"
+        @simulate="simulateRi"
+        @edit="editRi"
+      />
       <AcpSimulateView v-else-if="tab === 'acp-sim'" :initial-ri="focusRi" />
+      <AcpEditView
+        v-else-if="tab === 'acp-edit' && focusRi"
+        :ri="focusRi"
+        :write="write"
+        @done="tab = 'acp-list'"
+      />
     </main>
   </template>
 </template>

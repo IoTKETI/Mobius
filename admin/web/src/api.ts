@@ -4,6 +4,7 @@ import type {
   AcpLintPage,
   AcpListRow,
   AcpOp,
+  AcpPrivileges,
   AcpRefLintPage,
   AcpSimulation,
   AcpValidation,
@@ -182,6 +183,32 @@ export function acpSimulate(body: {
 
 export function acpValidate(field: 'pv' | 'pvs', value: unknown) {
   return post<AcpValidation>('/api/acp/validate', { field, value })
+}
+
+/** 보낸 것만 바뀐다 — pv 만 넘기면 pvs 는 그대로 남는다. */
+export function acpSave(ri: string, body: { pv?: AcpPrivileges; pvs?: AcpPrivileges }) {
+  return post<{ ok: boolean; status: number; rsc: string | null }>('/api/acp/save', {
+    ri,
+    ...body,
+  })
+}
+
+/**
+ * 저장하지 않은 본문으로 판정을 미리 본다.
+ * acpRowsOverride 는 {ri, pv, pvs} 행 배열이다.
+ */
+export function acpSimulateWithRows(body: {
+  ri: string
+  origins: string[]
+  ops: AcpOp[]
+  rows: { ri: string; pv?: AcpPrivileges; pvs?: AcpPrivileges }[]
+}) {
+  return post<AcpSimulation>('/api/acp/simulate', {
+    ri: body.ri,
+    origins: body.origins,
+    ops: body.ops,
+    acpRowsOverride: body.rows,
+  })
 }
 
 export function acpAudit(opts: { ri?: string; limit?: number; afterId?: number | null } = {}) {

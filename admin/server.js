@@ -590,6 +590,52 @@ app.post('/api/acp/validate', function (req, res) {
     res.json(acp_rules.validate_privileges(b.value, field));
 });
 
+/**
+ * ACP 본문 저장. pv / pvs 중 보낸 것만 바꾼다.
+ *
+ * 서버(Mobius)도 같은 가드레일을 지나지만 여기서 먼저 검사한다 — 응답의 msg 는
+ * 정적이라 **어느 값이 문제인지** 담지 못하고, path 는 validate_privileges 만
+ * 준다. 두 번 검사하는 것이 아니라, 화면이 고칠 자리를 짚어 주기 위해서다.
+ *
+ * 쓰기는 oneM2M PUT 을 지난다. 그래야 워커 캐시가 무효화되고 acp_audit 에
+ * 이력이 남는다.
+ */
+app.post('/api/acp/save', function (req, res) {
+    if (!require_write(res)) { return; }
+    var b = req.body || {};
+    if (typeof b.ri !== 'string' || b.ri.charAt(0) !== '/') {
+        return res.status(400).json({ error: 'ri 가 필요하다' });
+    }
+    var attrs = {};
+    var problems = [];
+    ['pv', 'pvs'].forEach(function (f) {
+        if (b[f] === undefined) { return; }
+        if (!b[f] || typeof b[f] !== 'object') {
+            problems.push({ field: f, code: '400-57', path: f, message: f + ' 가 객체가 아니다' });
+            return;
+        }
+        var v = acp_rules.validate_privileges(b[f], f);
+        if (v.code) { problems.push({ field: f, code: v.code, path: v.path, message: v.message || '' }); }
+        attrs[f] = b[f];
+    });
+    if (problems.length) { return res.status(400).json({ error: '값이 올바르지 않다', problems: problems }); }
+    if (Object.keys(attrs).length === 0) {
+        return res.status(400).json({ error: 'pv 또는 pvs 중 하나는 보내야 한다' });
+    }
+
+    cse.update(b.ri, 'm2m:acp', attrs, function (r) {
+        if (r.ok) { return res.json({ ok: true, status: r.status, rsc: r.rsc }); }
+        // 서버가 거절한 이유를 그대로 전한다. 콘솔이 통과시킨 값을 서버가 막았다면
+        // 그 차이 자체가 알아야 할 정보다.
+        res.status(r.status >= 400 && r.status < 500 ? 400 : 502).json({
+            error: describe(r),
+            status: r.status,
+            rsc: r.rsc,
+            body: r.body
+        });
+    });
+});
+
 /** 변경 이력. 최신순이라 커서는 "이 id 보다 작은 것" 이다. */
 app.get('/api/acp/audit', function (req, res) {
     var limit = Math.min(parseInt(req.query.limit, 10) || 50, 200);

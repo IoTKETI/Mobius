@@ -114,13 +114,21 @@ Client.prototype.retrieve = function (ri, callback) {
 };
 
 /**
- * et 를 바꾼다. 리소스 타입마다 루트 이름이 달라 호출자가 넘겨야 한다
- * (예: 'm2m:ae', 'm2m:cnt').
+ * 속성 몇 개를 바꾼다. 리소스 타입마다 루트 이름이 달라 호출자가 넘겨야 한다
+ * (예: 'm2m:ae', 'm2m:cnt', 'm2m:acp').
+ *
+ * oneM2M UPDATE 는 **보낸 속성만** 바꾼다. 통째로 덮어쓰지 않으므로 pv 만
+ * 보내면 pvs 는 그대로 남는다.
  */
-Client.prototype.setExpiry = function (ri, rootName, et, callback) {
+Client.prototype.update = function (ri, rootName, attrs, callback) {
     var content = {};
-    content[rootName] = { et: et };
+    content[rootName] = attrs;
     this.request('PUT', ri, { content: content }, callback);
+};
+
+/** et 를 바꾼다. */
+Client.prototype.setExpiry = function (ri, rootName, et, callback) {
+    this.update(ri, rootName, { et: et }, callback);
 };
 
 exports.Client = Client;

@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { ref, watch, onMounted } from 'vue'
 import { acpList, acpDetail, acpAudit, fmtTime } from '../api'
-import type { AcpListRow, AcpDetailResponse, AcpAuditRow, AcpRule } from '../types'
+import type { AcpListRow, AcpDetailResponse, AcpAuditRow, AcpRule, WriteInfo } from '../types'
 
-const props = defineProps<{ selected?: string | null }>()
-const emit = defineEmits<{ simulate: [ri: string] }>()
+const props = defineProps<{ selected?: string | null; write: WriteInfo }>()
+const emit = defineEmits<{ simulate: [ri: string]; edit: [ri: string] }>()
 
 const rows = ref<AcpListRow[]>([])
 const more = ref(false)
@@ -154,6 +154,14 @@ onMounted(async () => {
       <div class="dhead">
         <strong class="mono">{{ openRi }}</strong>
         <span class="spacer" />
+        <button
+          v-if="detail?.detail.is_acp !== false"
+          :disabled="!write.enabled"
+          :title="write.enabled ? '' : '조회 전용으로 떠 있습니다'"
+          @click="emit('edit', openRi)"
+        >
+          편집
+        </button>
         <button @click="emit('simulate', openRi)">시뮬레이터로</button>
         <button @click="close">닫기</button>
       </div>
