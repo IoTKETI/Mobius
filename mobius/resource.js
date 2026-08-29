@@ -42,6 +42,7 @@ var tr = require('./tr');
 
 var security = require('./security');
 var acp_observe = require('./acp_observe');
+var acp_filter = require('./acp_filter');
 var db = require('./db_action');
 var db_sql = require('./sql_action');
 var cnt_man = require('./cnt_man');
@@ -1478,7 +1479,27 @@ exports.retrieve = function (request, response, callback) {
                 db_sql.search_lookup(request.db_connection, resource_Obj[rootnm].ri, request.query, request.query.lim, pi_list, 0, foundObj, 0, request.query.cni, cur_d, 0, function (code, search_info) {
                     if (code === '200') {
                         db_sql.select_spec_ri(request.db_connection, foundObj, 0, function (code) {
-                            if(code === '200') {
+                            if(code !== '200') { return callback(code); }
+                            // 탐색은 요청 대상 하나만 검사하고 결과를 그대로 냈다.
+                            // 그래서 AE 아래 컨테이너 하나만 잠가도 그 경로가
+                            // 상위 탐색 결과에 나왔다 — 내용은 안 새고 이름·구조·
+                            // 개수·생성 시각이 샜다. select_spec_ri 뒤라 cr 이
+                            // 이미 붙어 있어 생성자 우회도 질의 없이 적용된다.
+                            acp_filter.filter_found(request.db_connection, request,
+                                resource_Obj[rootnm].ri, foundObj, function (ferr, fstat) {
+                            if (ferr) {
+                                console.error('[discovery] ACP 필터 실패 — 결과를 내보내지 않는다: ' +
+                                    ((fstat && (fstat.sqlMessage || fstat.message)) || fstat));
+                                return callback('500-1');
+                            }
+                            if (fstat.removed > 0) {
+                                console.log('[acp] discovery filtered removed=' + fstat.removed +
+                                    ' kept=' + fstat.kept + ' evaluated=' + fstat.evaluated +
+                                    ' queries=' + fstat.queries +
+                                    ' origin=' + request.headers['x-m2m-origin'] +
+                                    ' url=' + request.url);
+                            }
+                            {
                                 // 결과가 잘렸으면 알린다 (oneM2M: CTS=1 은 부분 결과,
                                 // CTO 는 이어받을 오프셋).
                                 //
@@ -1527,9 +1548,7 @@ exports.retrieve = function (request, response, callback) {
                                     callback('400');
                                 }
                             }
-                            else {
-                                callback(code);
-                            }
+                            });
                         });
                     }
                     else {
