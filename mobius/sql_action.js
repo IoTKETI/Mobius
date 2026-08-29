@@ -3330,20 +3330,11 @@ exports.delete_orphan_lookup = function (connection, callback) {
 };
 
 
-// insert_req / update_req 는 걷어냈다. req(ty=17) 는 논블로킹 요청의 임시
-// 기록이었는데, 논블로킹을 지원하지 않게 되면서 만드는 경로가 사라졌다.
-// delete_req 는 아래에 남겨 뒀다 — 기존 배포에 남은 행을 걷어내야 한다.
-exports.delete_req = function (connection, callback) {
-    var sql = util.format("delete from lookup where ty = \'17\'");
-    db.getResult(sql, connection, function (err, delete_Obj) {
-        // 예전에는 if (!err) 만 있고 else 가 없었다. 호출부(app.js del_req_resource)는
-        // connection.release() 를 이 콜백 안에서 하므로, DB 오류가 날 때마다
-        // 커넥션이 하나씩 영구히 새어 나갔다. 24시간마다 도는 주기 작업이라
-        // 응답이 없어 아무도 눈치채지 못했다.
-        callback(err, delete_Obj);
-    });
-};
-
+// req(ty=17) 관련 질의는 전부 걷어냈다 — insert_req / update_req / delete_req.
+//
+// req 는 논블로킹 요청의 임시 기록이었는데, 논블로킹을 지원하지 않게 되면서
+// 만드는 경로가 사라졌다. 기존 배포에 남은 행과 테이블은
+// migrations/003-drop-req-table.js 가 한 번에 정리한다.
 
 exports.select_sum_cbs = function (connection, callback) {
     var tid = require('shortid').generate();

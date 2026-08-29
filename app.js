@@ -102,27 +102,12 @@ app.use(morgan('combined', {stream: accessLogStream}));
 
 //ts_app.use(morgan('short', {stream: accessLogStream}));
 
-// 남아 있는 req(ty=17) 행을 걷어낸다. 24시간마다 돈다.
+// del_req_resource 는 걷어냈다.
 //
-// req 는 논블로킹 요청의 임시 기록이었고, 논블로킹을 지원하지 않게 되면서
-// 이제 새로 만들어지지 않는다. 이 정리기는 기존 배포에 남은 행을 비우기
-// 위해 남겨 둔 것이다 — 다 비워지고 나면 이 함수와 delete_req, req 테이블을
-// 함께 걷어낼 수 있다.
-function del_req_resource() {
-    db.getConnection((code, connection) => {
-        if (code === '200') {
-            db_sql.delete_req(connection, (err, delete_Obj) => {
-                if (!err) {
-                    console.log('deleted ' + delete_Obj.affectedRows + ' request resource(s).');
-                }
-                connection.release();
-            });
-        }
-        else {
-            console.log('[del_req_resource] No Connection');
-        }
-    });
-}
+// req(ty=17) 행을 24시간마다 지우던 주기 작업인데, 논블로킹을 지원하지 않게
+// 되면서 새 행이 생기지 않는다. 기존 배포에 남은 행과 테이블은
+// migrations/003-drop-req-table.js 가 한 번에 정리한다 — 영구 주기 작업으로
+// 둘 일이 아니다.
 
 // 만료 리소스는 **자동으로 지우지 않는다.**
 //
@@ -308,7 +293,6 @@ if (use_clustering) {
                             cb.create(connection, (rsp) => {
                                 console.log(JSON.stringify(rsp));
 
-                                setInterval(del_req_resource, (24) * (60) * (60) * (1000));
                                 // 만료 스윕(del_expired_resource)의 주기 실행은 뺐다.
                                 // 이유는 위 주석 참고 — 관리자 UI 가 확인 후 호출한다.
 

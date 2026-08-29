@@ -1782,7 +1782,7 @@ exports.response_result = function(request, response, status, rsc, cap, callback
             // 되면서 생성 경로를 걷어냈다. 다만 기존 배포에는 예전에 만들어진
             // 행이 lookup 과 req 테이블에 남아 있을 수 있고, URI 를 알면 직접
             // 조회된다(discovery 에는 더 이상 안 뜬다 — ty_list 에서 뺐다).
-            // app.js 의 del_req_resource 가 걷어낼 때까지는 이 경로가 살아 있다.
+            // migrations/003-drop-req-table.js 를 돌리기 전까지는 이 경로가 살아 있다.
             //
             // pc 는 그 요청의 결과다. 결과가 없으면 비어 있는데, 예전에는 방어
             // 없이 JSON.parse 를 불러 String(undefined) 가
