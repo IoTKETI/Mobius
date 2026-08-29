@@ -77,15 +77,48 @@ db_sql.select_acp_detail(conn, ri, cb)
 ### 역참조 — 이 ACP 를 누가 쓰는가
 
 ```js
-db_sql.scan_acpi_refs(conn, { acpRi, tys, batch, scanCap, maxRefs, afterRi }, cb)
+db_sql.scan_acpi_refs(conn, { acpRi, tys, batch, scanCap, maxRefs, after }, cb)
 // -> { refs:[{ri, ty, rn, pi, acpi, raw, normalized}], refsTruncated,
-//      byAcp, scanned, capped, broken, unresolved, nextRi }
+//      byAcp, scanned, capped, broken, unresolved, next }
 ```
 
 **`lookup.acpi` 에는 인덱스가 없다.** JSON 문자열이라 SQL 역질의도 안 되고,
 `acpi like '%..%'` 는 선행 와일드카드라 인덱스를 못 탄다 — 배포 `lookup` 은
 5,740만 행이므로 **절대 쓰지 말 것**(소스 스캔 테스트가 막고 있다).
-`not_cin` 술어로 CIN 3,400만 행을 빼고 남는 34,313 행만 키셋으로 훑는다.
+
+대신 **타입마다 `ty` 등치로 훑는다.** `not_cin` 술어를 쓰면 인덱스를 하나도
+못 탄다 — `idx_lookup_pi_notcin` 은 선행 컬럼이 `pi` 라 `not_cin` 단독 조건에
+쓸 수 없고, PK 는 `(pi, ri, ty)` 라 `ri` 범위에도 못 쓴다. 배포 EXPLAIN:
+
+| 질의 | 접근 | 비용 |
+|---|---|---|
+| `where not_cin = 1 and ri > ''` | range `ri_UNIQUE` | **rows=30,972,714** |
+| `where ty = 3 and ri > ''` | ref `idx_lookup_ty` | 119ms / 2,000행 |
+| `where ty = 2 and ri > ''` | ref `idx_lookup_ty` | 0.9ms / 568행 |
+
+**이어보기는 `result.next` 를 `after` 로 그대로 넘긴다.** 쪼개지 말 것 —
+커서 안에 타입과 `ri` 가 함께 들어 있다.
+
+```js
+var out = [], after = null;
+(function step() {
+    db_sql.scan_acpi_refs(conn, { acpRi: ri, after: after }, function (err, res) {
+        if (err) { return fail(res); }        // { code: 'BAD_CURSOR', ... }
+        out = out.concat(res.refs);
+        if (!res.next) { return finish(out); }   // next 가 없으면 다 훑은 것이다
+        after = res.next;
+        step();
+    });
+})();
+```
+
+> 예전에는 `nextTy` / `nextRi` 를 따로 줬는데, `ri` 만 넘기면 타입이 0 으로
+> 돌아가 **같은 자리를 무한히 다시 훑었다** — 결과가 틀린 것이 아니라 루프가
+> 닫히지 않았다(콘솔에서 패스 201 강제 중단으로 실측). 쪼갤 수 있는 커서를
+> 주면 언젠가 쪼개지므로 하나로 묶었고, 쪼갠 인자(`afterTy`/`afterRi`)를
+> 넘기면 조용히 처음부터 훑는 대신 `BAD_CURSOR` 로 거부한다.
+
+`lint_acpi_refs` 도 같은 `after` / `next` 를 쓴다.
 
 `unresolved` 는 표기 접기만으로 내부 `ri` 가 되지 않은 원소다. 스캔 중에 DB 를
 더 부르면 N+1 이 되므로 그대로 올려보낸다 — `resolve_acpi_entries` 로 푼다.
@@ -137,8 +170,9 @@ acp_lint.lint_acp(conn, { limit: 200, afterRi: '' }, cb)
 // -> { rows:[{ri, rn, ct, lt, et, problems:[{severity, rule, path, message}]}],
 //      more, nextRi, counts:{error, warn, clean} }
 
-acp_lint.lint_acpi_refs(conn, { batch, scanCap, maxRefs, afterRi }, cb)
-// -> { rows:[{ri, ty, rn, acpi, problems}], counts, scanned, capped, broken, unresolved }
+acp_lint.lint_acpi_refs(conn, { batch, scanCap, maxRefs, after }, cb)
+// -> { rows:[{ri, ty, rn, acpi, problems}], counts, scanned, capped, broken,
+//      unresolved, next }
 ```
 
 가드레일은 **새로 쓰는 값만** 막는다. 이미 저장된 잘못된 값은 그대로 남아 500 이나
@@ -253,7 +287,7 @@ ACP 가 안 걸린 리소스에는 인증된 아무나 자기 ACP 를 붙일 수
 | 키 | 기본 | 뜻 |
 |---|---|---|
 | `defaultAccessPolicy` | `'disable'` | `acpi` 가 없는 리소스의 기본 정책. 대원칙대로면 바꿀 일이 없다 |
-| `acpObserveMode` | `'off'` | `'observe'` 면 **거부를 허용으로 내보낸다.** 잠그기 전 하루만 켠다 |
+| `acpObserveMode` | `'off'` | `'observe'` 면 **ACP 거부를 허용으로 내보낸다.** 기본 정책 거부는 그대로 막는다 |
 | `acpDenyLog` | `'sample'` | `'off'` / `'sample'`(초당 rate 줄) / `'all'` |
 | `acpDenyLogRate` | `5` | 워커당 초당 로그 줄 수 |
 | `acpiAttachPolicy` | `'open'` | `'creator'` 면 생성자와 수퍼유저만 처음 `acpi` 를 붙일 수 있다 |

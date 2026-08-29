@@ -135,8 +135,10 @@ exports.lint_acp = function (connection, opts, callback) {
 /**
  * 저장된 acpi 참조를 점검한다 — 가리키는 ACP 가 실재하는가, 표기가 맞는가.
  *
- * @param opts { batch, scanCap, maxRefs, afterRi }
- * @returns callback(null, { rows, counts, scanned, capped, broken })
+ * @param opts { batch, scanCap, maxRefs, after }
+ *        after 는 앞선 호출의 result.next 를 **그대로** 넘긴다.
+ * @returns callback(null, { rows, counts, scanned, capped, broken, next })
+ *          next 가 있으면 아직 남았다. 없으면 다 훑은 것이다.
  */
 exports.lint_acpi_refs = function (connection, opts, callback) {
     if (typeof opts === 'function') { callback = opts; opts = {}; }
@@ -157,7 +159,7 @@ exports.lint_acpi_refs = function (connection, opts, callback) {
 
     function scan() {
         db_sql.scan_acpi_refs(connection, {
-            acpRi: null, batch: o.batch, scanCap: o.scanCap, maxRefs: o.maxRefs, afterRi: o.afterRi
+            acpRi: null, batch: o.batch, scanCap: o.scanCap, maxRefs: o.maxRefs, after: o.after
         }, function (err, res) {
             if (err) { return callback(err, res); }
 
@@ -211,7 +213,10 @@ exports.lint_acpi_refs = function (connection, opts, callback) {
             callback(null, {
                 rows: rows, counts: counts, scanned: res.scanned,
                 capped: res.capped, broken: res.broken,
-                refsTruncated: res.refsTruncated, unresolved: res.unresolved
+                refsTruncated: res.refsTruncated, unresolved: res.unresolved,
+                // 스캐너의 커서를 그대로 흘려보낸다. 안 넘기면 capped 상태에서
+                // 이어볼 방법이 없어 "여기까지가 전부" 로 오해하게 된다.
+                next: res.next
             });
     }
 
