@@ -535,6 +535,38 @@ app.get('/api/acp/lint-refs', function (req, res) {
 });
 
 /**
+ * 리소스의 권한 출처를 **원본과 무관하게** 알아낸다.
+ *
+ * simulate_many 의 최상위 source/acpi 는 첫 job 의 결과다. 그런데 생성자와
+ * 수퍼유저는 acpi 를 풀기 전에 단축 판정되어 source:'none' 을 돌려주므로,
+ * **원본을 적은 순서만 바꿔도 최상위 값이 달라진다.** 실측:
+ *
+ *   원본 [Cteam, Cdevice] -> source=own   acpi=["/Mobius/../a"]
+ *   원본 [Cdevice, Cteam] -> source=none  acpi=[]
+ *
+ * 상속 케이스가 특히 나쁘다. 생성자를 먼저 적으면 source 가 'inherited' 대신
+ * 'none' 이 되어, "이 컨테이너는 조상의 ACP 를 쓴다" 는 경고가 통째로 사라진다
+ * — 계약이 장애 대응 지연의 주범이라고 부른 바로 그 사실이다.
+ *
+ * acpi 출처는 원본이 아니라 **리소스의 성질**이므로, 어떤 규칙에도 걸리지 않을
+ * 사전 원본으로 한 번 더 물어 그 값을 쓴다. 행렬 자체는 simulate_many 것이
+ * 정확하므로 그대로 둔다.
+ */
+function resource_facts(conn, opts, callback) {
+    var probe = '__console_probe_' + crypto.randomBytes(6).toString('hex');
+    var o = { ri: opts.ri, origin: probe, op: 'RETRIEVE' };
+    if (opts.acpiOverride !== undefined) { o.acpiOverride = opts.acpiOverride; }
+    if (opts.acpRowsOverride !== undefined) { o.acpRowsOverride = opts.acpRowsOverride; }
+    acp_simulate.simulate(conn, o, function (err, r) {
+        if (err || !r || r.found === false) { return callback(null); }
+        // 사전 원본이 어쩌다 생성자·수퍼유저와 같으면 또 단축 판정된다.
+        // 사실상 일어나지 않지만, 그때는 값을 쓰지 않고 없다고 말한다.
+        if (r.decided_by === 'creator' || r.decided_by === 'superuser') { return callback(null); }
+        callback(r);
+    });
+}
+
+/**
  * 권한 시뮬레이터.
  *
  * **콘솔은 자기 자신을 검증받지 않는다.** adminOrigin 이 superUser 라
@@ -557,14 +589,25 @@ app.post('/api/acp/simulate', function (req, res) {
         if (Array.isArray(b.acpiOverride)) { opts.acpiOverride = b.acpiOverride; }
         if (Array.isArray(b.acpRowsOverride)) { opts.acpRowsOverride = b.acpRowsOverride; }
         acp_simulate.simulate_many(conn, opts, function (err, r) {
-            done();
             if (err) {
+                done();
                 // 상한 초과는 사용자 입력 문제이지 서버 오류가 아니다. 조용히
                 // 자르지 않고 거절한 것을 그대로 전한다.
                 if (r && r.code === 'TOO_MANY') { return res.status(400).json(r); }
                 return res.status(500).json({ error: String((r && r.message) || err) });
             }
-            res.json(r);
+            resource_facts(conn, opts, function (facts) {
+                done();
+                // 행렬은 simulate_many 것이 정확하다. 리소스 사실만 덮어쓴다.
+                if (facts) {
+                    r.source = facts.source;
+                    r.acpi = facts.acpi;
+                    r.inherited_from = facts.inherited_from || null;
+                    r.resolved = facts.resolved || [];
+                }
+                r.factsResolved = !!facts;
+                res.json(r);
+            });
         });
     });
 });

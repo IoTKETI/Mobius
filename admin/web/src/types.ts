@@ -278,14 +278,29 @@ export interface AcpVerdict {
   acp_ri: string | null
 }
 
+/** acpi 원소 하나의 저장 원문과 그것이 가리키는 실제 ri. 둘은 다를 수 있다. */
+export interface AcpResolvedEntry {
+  /** 저장된 그대로 (절대 표기·SP상대·sri 일 수 있다) */
+  given: string
+  /** 내부 ri 로 푼 값. 못 풀면 null */
+  ri: string | null
+  exists: boolean
+}
+
 export interface AcpSimulation {
   ri: string
   ty: number
   cr: string
-  /** own | inherited | override | none */
+  /** own | inherited | override | override_inherited | none */
   source: string
   inherited_from?: string | null
   acpi: string[]
+  resolved?: AcpResolvedEntry[]
+  /**
+   * 리소스의 권한 출처를 원본과 무관하게 확인했는가.
+   * false 면 source/acpi 를 믿을 수 없으므로 화면이 단정하지 않는다.
+   */
+  factsResolved?: boolean
   matrix: AcpVerdict[]
   warnings: { rule: string; message: string }[]
 }

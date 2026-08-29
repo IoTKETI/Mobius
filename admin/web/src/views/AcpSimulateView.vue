@@ -60,6 +60,8 @@ function cell(origin: string, op: AcpOp): AcpVerdict | undefined {
   return result.value?.matrix.find((m) => m.origin === origin && m.op === op)
 }
 
+const resolvedShown = computed(() => result.value?.resolved ?? [])
+
 const resultOrigins = computed(() => [...new Set(result.value?.matrix.map((m) => m.origin) ?? [])])
 const resultOps = computed(() => [...new Set(result.value?.matrix.map((m) => m.op) ?? [])])
 
@@ -129,7 +131,8 @@ const creatorPasses = computed(
         <span>생성자(<code>cr</code>): <strong class="mono">{{ result.cr || '(없음)' }}</strong></span>
         <span>
           권한 출처:
-          <strong>{{
+          <strong v-if="result.factsResolved === false" class="unknown">확인하지 못함</strong>
+          <strong v-else>{{
             result.source === 'own'
               ? '이 리소스의 acpi'
               : result.source === 'inherited'
@@ -145,6 +148,21 @@ const creatorPasses = computed(
           </template>
         </span>
       </div>
+
+      <!-- 저장된 표기와 실제로 가리키는 ri 가 다를 수 있다. 절대 표기나 sri 로
+           저장된 정상 참조를 "없는 ACP" 로 오해하지 않도록 둘 다 보여 준다. -->
+      <details v-if="resolvedShown.length" class="resolved">
+        <summary>참조하는 ACP {{ resolvedShown.length }}건</summary>
+        <ul>
+          <li v-for="(e, i) in resolvedShown" :key="i">
+            <code class="mono">{{ e.given }}</code>
+            <template v-if="e.ri && e.ri !== e.given">
+              <span class="arrow">→</span><code class="mono">{{ e.ri }}</code>
+            </template>
+            <span v-if="!e.exists" class="missing">없음 — 이 참조는 효력이 없습니다</span>
+          </li>
+        </ul>
+      </details>
 
       <p v-if="previewRemoved" class="banner warnbox">
         <strong>가정한 결과입니다 — 아직 아무것도 바뀌지 않았습니다.</strong>
@@ -260,6 +278,14 @@ h2 { margin: 0 0 0.4rem; font-size: 1.6rem; letter-spacing: -0.02em; color: var(
   color: var(--muted);
 }
 .meta strong { color: var(--text-strong); }
+.meta strong.unknown { color: var(--warn); }
+
+.resolved { margin: 0.2rem 0 0.6rem; font-size: 0.93rem; }
+.resolved summary { cursor: pointer; color: var(--muted); }
+.resolved ul { margin: 0.5rem 0 0; padding-left: 1.1rem; }
+.resolved li { margin-bottom: 0.25rem; overflow-wrap: anywhere; }
+.resolved .arrow { color: var(--muted); margin: 0 0.4rem; }
+.resolved .missing { color: var(--danger); font-weight: 600; margin-left: 0.5rem; }
 
 .banner {
   padding: 0.85rem 1.1rem;
