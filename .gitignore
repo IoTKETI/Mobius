@@ -35,10 +35,12 @@ admin/web/dist/
 
 # 자격증명 — 저장소에 들어가면 안 된다
 #
-# 주의: ca-crt.pem / server-crt.pem / server-key.pem 은 이미 추적 중이라
-# 아래 *.pem 규칙이 적용되지 않는다 (gitignore 는 추적되지 않는 파일에만 걸린다).
-# 특히 server-key.pem 은 개인키인데 저장소에 들어가 있다 — 의도한 것인지
-# 확인이 필요하다. 빼려면 git rm --cached 로 추적을 먼저 끊어야 한다.
+# 아래 규칙은 **추적되지 않는 파일에만** 걸린다. ca-crt.pem / server-crt.pem /
+# server-key.pem 은 이미 추적 중이라 *.pem 규칙이 적용되지 않는다.
+#
+# **그건 의도된 것이다** — HTTPS 시험용이고 운영 자격증명이 아니다.
+# 보안 결함으로 다시 지적하지 말 것. 빼기로 정하면 git rm --cached 로
+# 추적을 먼저 끊어야 한다.
 id_ed25519*
 id_rsa*
 *.pem
