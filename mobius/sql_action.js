@@ -4187,10 +4187,17 @@ exports.select_orphan_page = function (connection, opts, callback) {
                         if (exists[rows[k].pi]) { continue; }
                         found.push(rows[k]);
                         if (found.length > limit) {
-                            // limit+1 번째를 찾았다 = 다음 쪽이 있다.
+                            // limit+1 번째를 찾았다 = 다음 쪽이 있다. 이 행은
+                            // 돌려주지 않고 버린다.
                             found.pop();
+                            // **커서는 버린 행이 아니라 마지막으로 돌려주는 행이다.**
+                            // last_seen 은 방금 버린 행의 ri 라, 그걸 커서로 주면
+                            // 다음 쪽이 ri > 버린행 에서 시작해 그 행을 영영 건너뛴다.
+                            // 실측: 고아 7건을 limit=2 로 이어보면 5건만 나오고
+                            // 페이지 경계의 2건이 사라졌다.
                             return callback(null, {
-                                rows: found, more: true, nextRi: last_seen,
+                                rows: found, more: true,
+                                nextRi: found[found.length - 1].ri,
                                 scanned: scanned, scanCapped: false
                             });
                         }
