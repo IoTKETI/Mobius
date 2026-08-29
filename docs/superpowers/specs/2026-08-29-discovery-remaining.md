@@ -1,0 +1,97 @@
+# discovery 남은 작업
+
+discovery 를 재귀 CTE 로 통일하고(`origin/lite` 기준) 골격 재귀를 분기 1개로
+줄이는 데까지 끝냈다. 그 과정에서 확인했지만 손대지 않은 것들을 순서대로 적는다.
+
+배경과 실측치는 커밋 메시지와 `mobius/sql_action.js` 의 `build_descendant_sql`
+주석, `migrations/004-lookup-pi-notcin-index.js` 에 있다.
+
+**현재 성능 (배포 서버, 조용한 상태, 2026-08-29)**
+
+| 질의 | 지금 | 20분기 때 | CTE 이전(레벨 방식) |
+|---|---|---|---|
+| `fu=1&ty=3&lim=100` | 442ms | 4,994ms | 804ms |
+| `fu=1&ty=3&lbl=status` | 779ms / 96건 | 5,350ms / 96건 | 4,462ms / **6건** |
+| `fu=1&ty=3&ofst=1000` | 438ms / 100건 | 4,991ms / 100건 | 3,985ms / **0건** |
+| `fu=1&ty=3&lim=2000` | 2,231ms | 6,803ms | 2,934ms |
+| 좁은 경로 20건 평균 | 27ms | 32ms | 72ms |
+
+---
+
+## 1. `select_spec_ri` 의 N+1
+
+`mobius/sql_action.js` 의 `select_spec_ri` 가 discovery 결과 **한 건마다 질의
+하나**를 순차로 던진다. `mobius/resource.js` 의 `retrieve` 가 `fu`/`rcn` 과
+무관하게 이 함수를 부르므로, `lim=2000` 이면 CTE 1회 + 단건 조회 2,000회다.
+그동안 커넥션 하나를 계속 쥔다.
+
+`fu=1`(uril, 경로만 필요) 일 때도 전부 던진다. `lim=2000` 이 2,231ms 인 이유의
+상당 부분이 여기로 보인다.
+
+고칠 방향: 타입별로 묶어 `where ri in (...)` 한 번씩. 타입 수만큼(최대 몇 회)
+줄어든다. `Object.keys(found_Obj)[count]` 를 행마다 다시 만드는 O(n²) 도 같이.
+
+주의: 이 함수는 `lookup` 에는 있는데 타입 테이블에 없는 행을 응답에서 빼는
+역할도 한다(`delete found_Obj[ri]`). 그 동작을 유지해야 한다 — 배포 서버에
+그런 행이 실제로 2건 있다.
+
+## 2. `X-M2M-CTS` / `X-M2M-CTO` 판정이 상수와 비교된다
+
+`mobius/resource.js` 의 `retrieve` 가 `Object.keys(foundObj).length >= max_lim`
+(상수 2000)일 때만 잘림 헤더를 붙인다. 요청이 `lim=100` 이면 결과가 잘려도
+클라이언트는 더 있는지 알 방법이 없다.
+
+구조적으로는 더 깊은 문제가 있다: `search_lookup` 의 콜백이 코드만 넘기고
+SQL 이 준 행 수를 안 넘긴다. 그래서 호출부는 "SQL 이 정확히 lim 을 채웠다(잘림)"
+와 "lim 보다 적게 왔다(완결)" 를 구분할 수단이 없다. 콜백 계약을 바꿔야 한다.
+
+## 3. `sza` / `szb` / `cty` 가 HTTP 500 을 낸다
+
+oneM2M discovery 필터다 — contentInstance 를 크기(`sza`=sizeAbove,
+`szb`=sizeBelow)와 형식(`cty`=contentType)으로 거른다. `build_search_query` 가
+`cs` / `cnf` 로 조건을 만드는데 그 컬럼은 `cin` 에만 있고 `lookup` 에는 없다.
+SQL 준비 단계에서 깨지므로 데이터 규모와 무관하게 항상 500 이다.
+
+트리거 범위는 좁다: `?sza=100` 만 붙이면 200 이고(`fu` 기본값이 2, `rcn` 이 1이라
+discovery 경로를 안 탄다), `fu=1&...&sza=100` 이나 `fu=2&rcn=4&...&sza=100` 이 500 이다.
+
+8년 전 `mobiusdb.sql` 에서 컬럼을 뺄 때 `sql_action.js` 를 안 고쳤고, `test/` 에
+이 셋을 다루는 케이스가 0건이라 안 걸렸다. 실트래픽 사용 기록은 없다.
+
+고칠 방향: `cin` 과 조인. `sza`/`szb` 는 커버링 인덱스 `cin_ri_idx(pi, ri, cs)`
+로 싸고, `cnf` 만 행 접근이 필요해 비용 등급이 다르다.
+
+## 4. discovery 결과에 리소스별 ACP 검사가 없다
+
+`app.js` 가 **대상 리소스**에만 discovery 권한을 본다. 결과에 담긴 개별
+리소스의 접근 권한은 확인하지 않는 것으로 보인다. 권한 문제라 성능 작업과
+섞으면 안 된다 — 먼저 권한 없는 리소스가 실제로 노출되는지 재현부터 할 것.
+
+## 5. 안 쓰는 인덱스가 있는지 확인 (`idx_lookup_ct` / `idx_lookup_sri`)
+
+`lookup` 의 인덱스 총량이 61.4GB 다 (데이터는 22.2GB).
+
+| 인덱스 | 크기 |
+|---|---|
+| PRIMARY (pi, ri, ty) | 22.2GB |
+| `idx_lookup_ct` (ct) | 15.6GB |
+| `idx_lookup_sri` (sri) | 15.5GB |
+| `idx_lookup_pi_ty_ct` (pi, ty, ct) | 11.1GB |
+| `idx_lookup_pi_notcin` (pi, not_cin) | 10.0GB |
+| `idx_lookup_ty` (ty) | 9.7GB |
+| `ri_UNIQUE` (ri) | 9.7GB |
+
+`idx_lookup_ct` 가 의심스럽다. 마이그레이션 001 의 주석이 "옵티마이저가
+`idx_lookup_ct` 를 역방향 스캔하며 pi 로 걸러낸다"를 문제로 지목했고, 그걸
+고치려고 `idx_lookup_pi_ty_ct` 를 만들었다. 그 뒤로 `ct` 단독 인덱스를 쓰는
+질의가 남아 있는지 확인하지 않았다.
+
+확인 방법: `performance_schema.table_io_waits_summary_by_index_usage` 로 인덱스별
+읽기 횟수를 본다(서버 기동 이후 누적이므로 충분히 지난 뒤에 볼 것). 0 이면
+후보다. 쓰기마다 갱신 비용이 드는 것이라 안 쓰면 지우는 게 낫다.
+
+지울 때 주의: `DROP INDEX` 자체는 빠르지만(002 에서 2.5초) 되돌리려면 다시
+수십 분이 든다. 그리고 `information_schema` 통계만으로 "안 쓴다"고 단정하면 안
+된다 — 드물게 도는 관리 질의가 쓸 수 있다. 최소 하루치 사용량을 보고 판단할 것.
+
+디스크는 여유가 있다(3.6TB 중 2.9TB). 급한 일은 아니다.
