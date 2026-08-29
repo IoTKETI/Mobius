@@ -2442,45 +2442,56 @@ function request_noti_ws(nu, bodyString, bodytype, xm2mri) {
 
             var protocol_arr = this.protocol.split('.');
 
+            // 이 핸들러가 할 일은 응답을 기록하고 연결을 닫는 것뿐이다.
+            // 예전에는 세 분기가 각각 다르게 깨져 있었다.
+            //
+            //   xml : res.headers[...] 를 읽는데 res 는 이 스코프에 없다.
+            //         ReferenceError 가 파서 콜백에서 올라가 워커가 죽었다.
+            //   cbor: 파싱 실패 분기에서 connection.close() 를 안 불러 소켓이 남았다.
+            //         rsc 가 2000/2001 이 아닐 때도 마찬가지다.
+            //   json: JSON.parse 가 try *밖*에 있어 비JSON 응답에 그대로 던졌고,
+            //         ri 도 스코프에 없어 성공 경로에서까지 ReferenceError 였다.
+            //
+            // 이제 파싱 결과와 무관하게 항상 닫는다. 못 읽은 응답 때문에 소켓을
+            // 붙들고 있을 이유가 없다 — 요청마다 새 WebSocketClient 를 만들므로
+            // 안 닫으면 그대로 누수다.
+            var done = function (rsc, why) {
+                if (why) {
+                    console.log('----> [nonblocking-async-ws] ' + nu + ' (' + xm2mri + ') 응답을 읽지 못했다: ' + why);
+                }
+                else {
+                    console.log('----> [nonblocking-async-ws] response for notification through ws ' +
+                                rsc + ' - ' + nu + ' (' + xm2mri + ')');
+                }
+                try { connection.close(); }
+                catch (e) { /* 이미 닫혔다 */ }
+            };
+
             if(bodytype === 'xml') {
                 var xml2js = require('xml2js');
                 var parser = new xml2js.Parser({explicitArray: false});
                 parser.parseString(message.utf8Data.toString(), function (err, jsonObj) {
-                    if (err) {
-                        console.log('[nonblocking-async-ws] xml2js parser error');
-                    }
-                    else {
-                        console.log('----> [nonblocking-async-ws] response for notification through mqtt ' + res.headers['x-m2m-rsc']);
-                        connection.close();
-                    }
+                    if (err) { done(null, err.message); return; }
+                    done(jsonObj && jsonObj.rsc);
                 });
             }
             else if(bodytype === 'cbor') {
                 var encoded = message.utf8Data.toString();
                 cbor.decodeFirst(encoded, function(err, jsonObj) {
-                    if (err) {
-                        console.log('[nonblocking-async-ws] cbor parser error');
-                    }
-                    else {
-                        if (jsonObj.rsc == 2001 || jsonObj.rsc == 2000) {
-                            console.log('----> [nonblocking-async-ws] response for notification through ws ' + jsonObj.rsc);
-                            connection.close();
-                        }
-                    }
+                    if (err) { done(null, err.message); return; }
+                    done(jsonObj && jsonObj.rsc);
                 });
             }
             else { // 'json'
-                var jsonObj = JSON.parse(message.utf8Data.toString());
-
+                var jsonObj;
                 try {
-                    if (jsonObj.rsc == 2001 || jsonObj.rsc == 2000) {
-                        console.log('----> [nonblocking-async-ws] response for notification through ws ' + jsonObj.rsc + ' - ' + ri);
-                        connection.close();
-                    }
+                    jsonObj = JSON.parse(message.utf8Data.toString());
                 }
                 catch (e) {
-                    console.log('----> [nonblocking-async-ws] response for notification through ws  - ' + ri);
+                    done(null, e.message);
+                    return;
                 }
+                done(jsonObj && jsonObj.rsc);
             }
         });
     });

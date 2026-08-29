@@ -103,8 +103,18 @@ exports.request_get_discovery = function(request, response, callback) {
 
         res.on('end', function () {
             console.log('----> [smd.request_post()] response for smd  ' + res.statusCode);
-            callback(response, res.statusCode, bodyStr);
 
+            // 예전에는 여기서 callback(response, res.statusCode, bodyStr) 을 먼저
+            // 부르고 return 없이 아래로 내려가, 콜백이 반드시 두 번 불렸다.
+            //
+            // 이 콜백의 첫 인자는 결과 코드 문자열이어야 하는데 Express 의
+            // response 객체가 들어갔다. 상위(resource.js -> app.js)는 그것을
+            // 모르는 코드로 보고 500 을 내보낸 뒤 커넥션을 반납하고
+            // request/response 를 null 로 비운다. 그 다음 아래의 정상 코드가
+            // 두 번째로 도착해 null 을 역참조했다 — 잘못된 500 을 보낸 뒤
+            // 워커가 죽는 순서였다.
+            //
+            // 아래 분기가 세 경우를 모두 덮으므로 그 호출을 걷어낸다.
             var ri_list = bodyStr.split(',');
             if (res.statusCode == 200) {
                 make_cse_relative(ri_list);

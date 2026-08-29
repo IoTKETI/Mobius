@@ -769,8 +769,19 @@ function create_action(request, response, callback) {
                 }
 
                 db_sql.update_lookup(request.db_connection, parentObj[parent_rootnm], (err, results) => {
+                    // else 가 없었다. 부모 lookup 갱신이 실패하면 콜백이 사라져
+                    // 응답도 connection.release() 도 없이 요청이 매달렸다.
+                    // 데드락, 락 타임아웃, 커넥션 끊김, SQLITE_BUSY 에서 실제로 난다.
+                    //
+                    // sub 행은 이미 들어갔으므로 200 이 완전히 틀린 것은 아니지만,
+                    // 부모의 subl 이 갱신되지 않아 알림이 안 나간다. 실패를 알린다.
                     if(!err) {
                         callback('200');
+                    }
+                    else {
+                        console.log('[create_action] sub 의 부모 lookup 갱신 실패: ' +
+                                    ((results && (results.driverCode || results.code)) || '?'));
+                        callback('500-1');
                     }
                 });
             }
@@ -1882,23 +1893,45 @@ function update_action(request, response, callback) {
         db_sql.update_sub(request.db_connection, resource_Obj[rootnm], function (err, results) {
             if (!err) {
                 db_sql.select_lookup(request.db_connection, resource_Obj[rootnm].pi, function (err, results_comm) {
-                    if (!err) {
-                        makeObject(results_comm[0]);
-                        var parentObj = results_comm[0];
-                        for(var idx in parentObj.subl) {
-                            if(parentObj.subl.hasOwnProperty(idx)) {
-                                if(parentObj.subl[idx].ri == resource_Obj[rootnm].ri) {
-                                    parentObj.subl[idx] = resource_Obj[rootnm];
-                                    break;
-                                }
+                    // 이 두 콜백에 else 가 없었다. 부모를 못 읽거나 갱신하지
+                    // 못하면 update_action 의 콜백이 사라져, 응답도
+                    // connection.release() 도 없이 PUT 요청이 매달렸다.
+                    if (err) {
+                        console.log('[update_action] sub 의 부모 조회 실패: ' +
+                                    ((results_comm && (results_comm.driverCode || results_comm.code)) || '?'));
+                        callback('500-1');
+                        return;
+                    }
+
+                    // 부모를 잃은 sub 를 수정하면 results_comm 이 빈 배열이라
+                    // results_comm[0] 이 undefined 가 되고, 다음 줄의
+                    // parentObj.subl 에서 워커가 죽었다.
+                    if (results_comm.length === 0) {
+                        console.log('[update_action] sub 의 부모 lookup 행이 없다: ' + resource_Obj[rootnm].pi);
+                        callback('404-1');
+                        return;
+                    }
+
+                    makeObject(results_comm[0]);
+                    var parentObj = results_comm[0];
+                    for(var idx in parentObj.subl) {
+                        if(parentObj.subl.hasOwnProperty(idx)) {
+                            if(parentObj.subl[idx].ri == resource_Obj[rootnm].ri) {
+                                parentObj.subl[idx] = resource_Obj[rootnm];
+                                break;
                             }
                         }
-                        db_sql.update_lookup(request.db_connection, parentObj, function (err, results) {
-                            if (!err) {
-                                callback('200');
-                            }
-                        });
                     }
+                    db_sql.update_lookup(request.db_connection, parentObj, function (err, results) {
+                        if (!err) {
+                            callback('200');
+                        }
+                        else {
+                            console.log('[update_action] sub 의 부모 lookup 갱신 실패: ' +
+                                        ((results && (results.driverCode || results.code)) || '?'));
+                            callback('500-1');
+                        }
+                    });
                 });
             }
             else {

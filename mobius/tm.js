@@ -40,6 +40,29 @@ var tmh_v = {};
 tmh_v.DELETE = '1';
 tmh_v.PERSIST = '2';
 
+/**
+ * 하위 요청의 응답 본문을 pc 로 읽는다. 절대 던지지 않는다.
+ *
+ * 상대가 준 본문이라 JSON 이 아닐 수 있다 — 앞단 프록시의 오류 페이지,
+ * 잘린 응답, 빈 본문 등. 호출부가 전부 res.on('end') 안이라 여기서 던지면
+ * 잡을 곳이 없어 워커가 죽고, 진행 중이던 다른 요청까지 함께 날아간다.
+ *
+ * 읽지 못하면 pc 를 비운다. rsc 는 헤더에서 오므로 판정에는 지장이 없다.
+ */
+function read_pc(res, where) {
+    var raw = (res.body == null) ? '' : res.body.toString();
+    if (raw === '') {
+        return undefined;
+    }
+    try {
+        return JSON.parse(raw);
+    }
+    catch (e) {
+        console.error('[tm ' + where + '] 하위 응답이 JSON 이 아니다: ' + e.message);
+        return undefined;
+    }
+}
+
 exports.build_tm = function(request, response, resource_Obj, body_Obj, callback) {
     var rootnm = request.headers.rootnm;
 
@@ -129,6 +152,21 @@ exports.request_lock = function(obj, retry_count, callback) {
     var rsps = [];
     var resBody = '';
 
+    // 콜백을 부르는 지점이 전부 아래 루프 안에서 등록되는 응답 핸들러에만 있다.
+    // rqps 가 비면 루프가 한 번도 돌지 않아 콜백이 영영 안 불렸다 — 응답도
+    // connection.release() 도 없이 요청이 매달렸다. 크래시가 아니라 워커
+    // 재시작도 안 걸리는 조용한 고갈이다.
+    //
+    // rqps 는 필수 속성이지만 생성 검증이 "존재하는가" 만 보므로 rqps: [] 가
+    // 그대로 통과한다. 즉 본문 한 줄로 만들 수 있는 상태였다.
+    // 이 함수의 규약은 rsc == '1' 만 성공이다. 잠글 요청이 없는 트랜잭션은
+    // 만들 수 없으므로 실패로 알린다 — 소비자가 400-37 로 응답한다.
+    if (!rqps || rqps.length === 0) {
+        console.log('[request_lock] rqps 가 비어 잠글 요청이 없다: ' + ri);
+        callback('0', obj, rsps);
+        return;
+    }
+
     for(var idx in rqps) {
         if (rqps.hasOwnProperty(idx)) {
             var rqi = require('shortid').generate();
@@ -176,7 +214,7 @@ exports.request_lock = function(obj, retry_count, callback) {
                         var rsp_primitive = {};
                         rsp_primitive.rsc = parseInt(res.headers['x-m2m-rsc']); // convert to int
                         rsp_primitive.rqi = res.headers['x-m2m-ri'];
-                        rsp_primitive.pc = JSON.parse(res.body.toString());
+                        rsp_primitive.pc = read_pc(res, 'request_lock');
                         rsps.push(rsp_primitive);
                         if(request_count >= rqps.length) {
                             retry_count++;
@@ -227,7 +265,7 @@ exports.request_lock = function(obj, retry_count, callback) {
                         var rsp_primitive = {};
                         rsp_primitive.rsc = parseInt(res.headers['x-m2m-rsc']); // convert to int
                         rsp_primitive.rqi = res.headers['x-m2m-ri'];
-                        rsp_primitive.pc = JSON.parse(res.body.toString());
+                        rsp_primitive.pc = read_pc(res, 'request_lock');
                         rsps.push(rsp_primitive);
                         if(request_count >= rqps.length) {
                             retry_count++;
@@ -301,6 +339,14 @@ function request_tctl(obj, retry_count, tctl, callback) {
     var rsps = [];
     var resBody = '';
 
+    // request_lock 과 같은 이유다 — 콜백이 전부 루프 안에서 등록되는 응답
+    // 핸들러에만 있어, rqps 가 비면 콜백이 영영 안 불리고 요청이 매달렸다.
+    if (!rqps || rqps.length === 0) {
+        console.log('[request_tctl] rqps 가 비어 보낼 요청이 없다: ' + ri);
+        callback('0', obj, rsps);
+        return;
+    }
+
     for(var idx in rqps) {
         if (rqps.hasOwnProperty(idx)) {
             var rqi = require('shortid').generate();
@@ -350,7 +396,7 @@ function request_tctl(obj, retry_count, tctl, callback) {
                         var rsp_primitive = {};
                         rsp_primitive.rsc = parseInt(res.headers['x-m2m-rsc']); // convert to int
                         rsp_primitive.rqi = res.headers['x-m2m-ri'];
-                        rsp_primitive.pc = JSON.parse(res.body.toString());
+                        rsp_primitive.pc = read_pc(res, 'request_tctl');
                         rsps.push(rsp_primitive);
                         if(request_count >= rqps.length) {
                             retry_count++;
@@ -400,7 +446,7 @@ function request_tctl(obj, retry_count, tctl, callback) {
                         var rsp_primitive = {};
                         rsp_primitive.rsc = parseInt(res.headers['x-m2m-rsc']); // convert to int
                         rsp_primitive.rqi = res.headers['x-m2m-ri'];
-                        rsp_primitive.pc = JSON.parse(res.body.toString());
+                        rsp_primitive.pc = read_pc(res, 'request_tctl');
                         rsps.push(rsp_primitive);
                         if(request_count >= rqps.length) {
                             retry_count++;
