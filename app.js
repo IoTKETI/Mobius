@@ -933,6 +933,54 @@ function check_request_query_rt(request, response, callback) {
 //
 // 호출부가 이미 응답하므로 이 호출 자체가 중복이었다. 문구도 카탈로그의
 // 403-6 / 404-4 와 같은 내용이라 잃는 것이 없다.
+/**
+ * fanOutPoint(/fopt) 요청을 처리한다.
+ *
+ * 네 메서드가 같은 흐름을 네 벌 들고 있었다. 다른 것은 둘뿐이다.
+ *
+ *   access_value  POST '1' / GET '2'(discovery 는 '32') / PUT '4' / DELETE '8'
+ *   parse_body    본문을 읽어야 하는가. POST 와 PUT 만 참이다.
+ *
+ * 흐름은 이렇다.
+ *   1. 대상이 그룹이고 멤버가 있는지 본다 (check_grp)
+ *   2. 그룹의 macp 로 권한을 본다 — 일반 리소스의 acpi 가 아니다
+ *   3. (필요하면) 본문을 읽는다
+ *   4. 멤버마다 요청을 흘려보낸다 (fopt.check)
+ *
+ * 거부 코드가 일반 경로와 다르다 — 권한 없음이 403-3 이 아니라 403-5 다.
+ */
+function run_fanout(request, response, settle, access_value, parse_body) {
+    check_grp(request, response, (rsc, result_grp) => {
+        if (rsc !== '1') {
+            // '2' 는 그룹이지만 mid 가 비었다는 뜻, 그 밖은 그룹이 아니다.
+            settle.error(rsc === '2' ? '403-6' : '404-4');
+            return;
+        }
+
+        var body_Obj = {};
+        var target_ty = request.targetObject[Object.keys(request.targetObject)[0]].ty;
+
+        security.check(request, response, target_ty, result_grp.macp, access_value, result_grp.cr, (code) => {
+            if (code === '0') { settle.error('403-5'); return; }
+            if (code !== '1') { settle.error(code); return; }
+
+            function fan_out() {
+                fopt.check(request, response, result_grp, body_Obj, (code) => {
+                    if (code === '200') { settle.search('200', '2000', ''); }
+                    else { settle.error(code); }
+                });
+            }
+
+            if (!parse_body) { fan_out(); return; }
+
+            parse_body_format(request, response, (code) => {
+                if (code !== '200') { settle.error(code); return; }
+                fan_out();
+            });
+        });
+    });
+}
+
 function check_grp(request, response, callback) {
     var result_Obj = request.targetObject;
     var rootnm = Object.keys(result_Obj)[0];
@@ -1965,45 +2013,7 @@ app.post('*', onem2mParser, (request, response) => {
                                                 });
                                             }
                                             else { // if (request.option === '/fopt') {
-                                                check_grp(request, response, (rsc, result_grp) => { // check access right for fanoutpoint
-                                                    if (rsc == '1') {
-                                                        var access_value = '1';
-                                                        var body_Obj = {};
-                                                        security.check(request, response, request.targetObject[Object.keys(request.targetObject)[0]].ty, result_grp.macp, access_value, result_grp.cr, (code) => {
-                                                            if (code === '1') {
-                                                                parse_body_format(request, response, (code) => {
-                                                                    if (code === '200') {
-                                                                        fopt.check(request, response, result_grp, body_Obj, (code) => {
-                                                                            if (code === '200') {
-                                                                                settle.search('200', '2000', '');
-                                                                            }
-                                                                            else {
-                                                                                settle.error(code);
-                                                                            }
-                                                                        });
-                                                                    }
-                                                                    else {
-                                                                        settle.error(code);
-                                                                    }
-                                                                });
-                                                            }
-                                                            else if (code === '0') {
-                                                                settle.error('403-5');
-                                                            }
-                                                            else {
-                                                                settle.error(code);
-                                                            }
-                                                        });
-                                                    }
-                                                    else if (rsc == '2') {
-                                                        code = '403-6';
-                                                        settle.error(code);
-                                                    }
-                                                    else {
-                                                        code = '404-4';
-                                                        settle.error(code);
-                                                    }
-                                                });
+                                                run_fanout(request, response, settle, '1', true);
                                             }
                                         }
                                         else if (code === '301-1') {
@@ -2094,37 +2104,7 @@ app.get('*', onem2mParser, (request, response) => {
                                             }
                                         }
                                         else { //if (request.option === '/fopt') {
-                                            check_grp(request, response, (rsc, result_grp) => { // check access right for fanoutpoint
-                                                if (rsc == '1') {
-                                                    var access_value = (request.query.fu == 1) ? '32' : '2';
-                                                    var body_Obj = {};
-                                                    security.check(request, response, request.targetObject[Object.keys(request.targetObject)[0]].ty, result_grp.macp, access_value, result_grp.cr, (code) => {
-                                                        if (code === '1') {
-                                                            fopt.check(request, response, result_grp, body_Obj, (code) => {
-                                                                if (code === '200') {
-                                                                    settle.search('200', '2000', '');
-                                                                }
-                                                                else {
-                                                                    settle.error(code);
-                                                                }
-                                                            });
-                                                        }
-                                                        else if (code === '0') {
-                                                            settle.error('403-5');
-                                                        }
-                                                        else {
-                                                            settle.error(code);
-                                                        }
-                                                    });
-                                                }
-                                                else if (rsc == '2') {
-                                                    code = '403-6';
-                                                    settle.error(code);
-                                                }
-                                                else {
-                                                    settle.error('404-4');
-                                                }
-                                            });
+                                            run_fanout(request, response, settle, (request.query.fu == 1) ? '32' : '2', false);
                                         }
                                     }
                                     else if (code === '301-1') {
@@ -2234,44 +2214,7 @@ app.put('*', onem2mParser, (request, response) => {
                                                 });
                                             }
                                             else { // if (request.option === '/fopt') {
-                                                check_grp(request, response, (rsc, result_grp) => { // check access right for fanoutpoint
-                                                    if (rsc == '1') {
-                                                        var access_value = '4';
-                                                        var body_Obj = {};
-                                                        security.check(request, response, request.targetObject[Object.keys(request.targetObject)[0]].ty, result_grp.macp, access_value, result_grp.cr, (code) => {
-                                                            if (code === '1') {
-                                                                parse_body_format(request, response, (code) => {
-                                                                    if (code === '200') {
-                                                                        fopt.check(request, response, result_grp, body_Obj, (code) => {
-                                                                            if (code === '200') {
-                                                                                settle.search('200', '2000', '');
-                                                                            }
-                                                                            else {
-                                                                                settle.error(code);
-                                                                            }
-                                                                        });
-                                                                    }
-                                                                    else {
-                                                                        settle.error(code);
-                                                                    }
-                                                                });
-                                                            }
-                                                            else if (code === '0') {
-                                                                settle.error('403-5');
-                                                            }
-                                                            else {
-                                                                settle.error(code);
-                                                            }
-                                                        });
-                                                    }
-                                                    else if (rsc == '2') {
-                                                        code = '403-6';
-                                                        settle.error(code);
-                                                    }
-                                                    else {
-                                                        settle.error('404-4');
-                                                    }
-                                                });
+                                                run_fanout(request, response, settle, '4', true);
                                             }
                                         }
                                         else if (code === '301-1') {
@@ -2379,37 +2322,7 @@ app.delete('*', onem2mParser, (request, response) => {
                                     });
                                 }
                                 else { // if (request.option === '/fopt') {
-                                    check_grp(request, response, (rsc, result_grp) => { // check access right for fanoutpoint
-                                        if (rsc == '1') {
-                                            var access_value = '8';
-                                            var body_Obj = {};
-                                            security.check(request, response, request.targetObject[Object.keys(request.targetObject)[0]].ty, result_grp.macp, access_value, result_grp.cr, (code) => {
-                                                if (code === '1') {
-                                                    fopt.check(request, response, result_grp, body_Obj, (code) => {
-                                                        if (code === '200') {
-                                                            settle.search('200', '2000', '');
-                                                        }
-                                                        else {
-                                                            settle.error(code);
-                                                        }
-                                                    });
-                                                }
-                                                else if (code === '0') {
-                                                    settle.error('403-5');
-                                                }
-                                                else {
-                                                    settle.error(code);
-                                                }
-                                            });
-                                        }
-                                        else if (rsc == '2') {
-                                            code = '403-6';
-                                            settle.error(code);
-                                        }
-                                        else {
-                                            settle.error('404-4');
-                                        }
-                                    });
+                                    run_fanout(request, response, settle, '8', false);
                                 }
                             }
                             else if (code === '301-1') {
