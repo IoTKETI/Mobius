@@ -514,57 +514,21 @@ CREATE TABLE `sub` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
--- Table structure for table `tm`
+-- tm(ty=38, <transactionMgmt>) / tr(ty=39, <transaction>) 테이블은 걷어냈다.
 --
-
-DROP TABLE IF EXISTS `tm`;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!50503 SET character_set_client = utf8mb4 */;
-CREATE TABLE `tm` (
-  `ri` varchar(200) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
-  `tltm` varchar(45) DEFAULT NULL,
-  `text` varchar(45) DEFAULT NULL,
-  `tct` varchar(45) DEFAULT NULL,
-  `tept` varchar(45) DEFAULT NULL,
-  `tmd` varchar(45) DEFAULT NULL,
-  `tltp` varchar(45) DEFAULT NULL,
-  `tctl` varchar(45) DEFAULT NULL,
-  `tst` varchar(45) DEFAULT NULL,
-  `tmr` varchar(45) DEFAULT NULL,
-  `tmh` varchar(45) DEFAULT NULL,
-  `rqps` mediumtext,
-  `rsps` mediumtext,
-  `cr` varchar(45) DEFAULT NULL,
-  PRIMARY KEY (`ri`),
-  UNIQUE KEY `ri_UNIQUE` (`ri`),
-  CONSTRAINT `tm_ri` FOREIGN KEY (`ri`) REFERENCES `lookup` (`ri`) ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=latin1;
-/*!40101 SET character_set_client = @saved_cs_client */;
-
+-- oneM2M 의 분산 트랜잭션(2단계 커밋)이었다. tm 이 조정자로 rqps 의 요청들을
+-- LOCK -> EXECUTE -> COMMIT 순서로 진행시키고, 대상마다 tr 이 붙는 구조다.
 --
--- Table structure for table `tr`
+-- 쓰는 배포가 없고, 실제로 동작한 적도 없다 — tr 의 trsp_action 은 xml 분기가
+-- 항상 던지고 cbor 분기는 비어 있어 콜백이 사라졌으며, 로컬에서 tm 을 만들면
+-- 하위 요청이 나가고도 완결되지 않고 400-37 로 끝났다.
 --
-
-DROP TABLE IF EXISTS `tr`;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!50503 SET character_set_client = utf8mb4 */;
-CREATE TABLE `tr` (
-  `ri` varchar(200) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
-  `cr` varchar(45) DEFAULT NULL,
-  `tid` varchar(45) NOT NULL,
-  `tctl` varchar(45) DEFAULT NULL,
-  `tst` varchar(45) DEFAULT NULL,
-  `tltm` varchar(45) DEFAULT NULL,
-  `text` varchar(45) DEFAULT NULL,
-  `tct` varchar(45) DEFAULT NULL,
-  `tltp` varchar(45) DEFAULT NULL,
-  `trqp` mediumtext NOT NULL,
-  `trsp` mediumtext,
-  PRIMARY KEY (`ri`),
-  UNIQUE KEY `ri_UNIQUE` (`ri`),
-  CONSTRAINT `tr_ri` FOREIGN KEY (`ri`) REFERENCES `lookup` (`ri`) ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=latin1;
-/*!40101 SET character_set_client = @saved_cs_client */;
+-- 걷어내면서 모든 CRUD 요청이 무조건 하던 tr.check 조회(요청당 DB 왕복 1회)도
+-- 함께 사라졌다.
+--
+-- 기존 배포는 migrations/008-drop-tm-tr-tables.js 로 정리한다.
+-- 테이블 구조가 필요하면 이 파일의 git 이력에 있다.
+--
 
 --
 -- Final view structure for view `cur_info`
