@@ -231,6 +231,9 @@ CIN + `la` + 탐색, 아래는 전혀 안 건드림):
 
 ## 운용 우려 세 가지 — 실측
 
+> **이 절의 표는 2026-08-29 조사 당시(고치기 전) 실측이다.** 함정의 구조를
+> 보이려고 그대로 둔다. 각 항목 끝에 지금 어떻게 되는지를 붙였다.
+
 ### ① `acpi` 에 ACP 를 둘 이상 넣으면
 
 **OR(합집합)이다.** 하나라도 통과시키면 통과한다. 교집합이 아니다.
@@ -243,14 +246,20 @@ CIN + `la` + 탐색, 아래는 전혀 안 건드림):
 함정이 셋 있다.
 
 **평가 순서를 정하는 것은 `acpi` 배열이 아니라 ACP 이름의 사전순이다.**
-`select_acp_in`(`sql_action.js:2062`)은 `whereIn` 인데 `ORDER BY` 가 없다.
-`acp.ri` 가 PK 이고 `ri` 는 구조화 경로(`/Mobius/<AE>/<ACP 이름>`)라 MySQL 이
-PK 순서로 돌려준다. 계측:
+`select_acp_in` 이 `whereIn` 인데 `ORDER BY` 가 없었다. `acp.ri` 가 PK 이고
+`ri` 는 구조화 경로(`/Mobius/<AE>/<ACP 이름>`)라 MySQL 이 PK 순서로 돌려줬다.
+계측:
 
 ```
 요청순=[acp_mmm_dev, acp_zzz_empty]  반환순=[acp_mmm_dev, acp_zzz_empty]
 요청순=[acp_mmm_dev, acp_aaa_empty]  반환순=[acp_aaa_empty, acp_mmm_dev]   ← 뒤집힘
 ```
+
+> **지금은 `ORDER BY ri` 를 명시한다.** 사전순 자체를 없앤 것이 아니라
+> **옵티마이저 소관이던 것을 명시적 보장으로 승격**시킨 것이다. 순서는 여전히
+> `ri` 오름차순이므로 위 함정은 남는다 — 화면도 그 순서로 보여 줘야 한다.
+> 다만 `pv` 에 `acr` 이 없는 ACP 는 이제 만들 수 없어(아래) 실제로 걸릴 일이
+> 크게 줄었다.
 
 **`pv` 에 `acr` 키가 없는 ACP 를 만나면 거기서 평가가 끝난다.**
 `security.js:311` 이 생성자 비교 결과를 돌려주고 `return` 한다 — 뒤에 남은 ACP 는
@@ -263,15 +272,22 @@ PK 순서로 돌려준다. 계측:
 | `[acp_mmm_dev, acp_zzz_empty]` | 200 | **200** | 403 |
 | `[acp_mmm_dev, acp_aaa_empty]` | 200 | **403** | 403 |
 
-**`lookup.acpi` 는 `varchar(200)` 이다.** `ri` 22자 기준 7개가 한계이고 8개부터
-`HTTP 500` 이다. `400` 이 아니라 `500` 이라 원인을 알 수 없다. 기존 값은
-깨지지 않고 롤백된다.
+> **지금은 `pv: {}` 를 만들 수 없다** — `400-23` 이다. 이미 저장된 것은
+> 그대로 두므로(고치는 길을 막으면 안 된다) `acp_lint.lint_acp` 가
+> `acr_missing_or_empty` 로 찾아 준다.
+
+**`lookup.acpi` 는 `varchar(200)` 이다.** `ri` 22자 기준 7개가 한계였고 8개부터
+`HTTP 500` 이었다. `400` 이 아니라 `500` 이라 원인을 알 수 없었다.
 
 ```
  4개 (JSON 101자) -> 200,  저장 4
  6개 (JSON 151자) -> 200,  저장 6
- 8개 (JSON 201자) -> 500,  저장 6 (그대로)
+ 8개 (JSON 201자) -> 500,  저장 6 (그대로)     <- 지금은 400-62
 ```
+
+> **지금은 `400-62`** 로 사유가 함께 나간다:
+> `"acpi is too long to store (200 characters when serialized)"`.
+> 중복은 거부하지 않고 없애므로 같은 ACP 를 여러 번 적어도 1개로 센다.
 
 ### ② 컨테이너에 걸면 — 합쳐지지 않고 덮어쓴다
 
@@ -415,9 +431,12 @@ AE 의 생성자는 그 AE 의 **`aei`** 다 — `X-M2M-Origin` 에 `aei` 를 �
 > 로그는 워커당 초당 `acpDenyLogRate` 줄로 끊고 나머지는 세기만 한다 —
 > 잘못 걸린 ACP 하나가 25개 워커에서 디스크를 채우면 안 된다.
 >
-> 관찰 모드(`conf.acpObserveMode: 'observe'`)는 거부를 허용으로 내보내되
-> 판정 사유를 그대로 남긴다. **켠 채로 두면 ACP 가 무력하므로** 기동 시
-> 경고 한 줄을 찍는다.
+> 관찰 모드(`conf.acpObserveMode: 'observe'`)는 **ACP 평가로 난 거부만**
+> 허용으로 내보내되 판정 사유를 그대로 남긴다. 기본 정책 거부
+> (`decided_by: 'default_policy'`)는 그대로 막는다 — 그것까지 뒤집으면
+> "무엇이 막힐지 본다" 가 아니라 **`acpi` 없는 5,740만 행 전부를 임의 원본의
+> UPDATE·DELETE 에 여는 것**이 되고, 그 창에서 지워진 것은 돌아오지 않는다.
+> **켠 채로 두면 ACP 가 무력하므로** 기동 시 경고 한 줄을 찍는다.
 
 ---
 
@@ -448,7 +467,7 @@ HTTP 왕복으로는 정책을 원리적으로 검증할 수 없다 — `securit
 | 키 | 기본 | 뜻 |
 |---|---|---|
 | `defaultAccessPolicy` | `'disable'` | `acpi` 가 없는 리소스의 기본 정책 |
-| `acpObserveMode` | `'off'` | `'observe'` 면 **거부를 허용으로 내보낸다** |
+| `acpObserveMode` | `'off'` | `'observe'` 면 **ACP 거부만** 허용으로 내보낸다 (기본 정책 거부는 그대로) |
 | `acpDenyLog` | `'sample'` | `'off'` / `'sample'` / `'all'` |
 | `acpDenyLogRate` | `5` | 워커당 초당 로그 줄 수 |
 | `acpiAttachPolicy` | `'open'` | `'creator'` 면 생성자·수퍼유저만 처음 `acpi` 를 붙인다 |
@@ -500,7 +519,7 @@ ACP 를 찾아내는 것은 사실상 없다. 이 운영 방식 + 방안 A 면 *
 | ✅ | 판정근거(trace) + 거부 로그 + 관찰 모드 | "왜 403 인가" 에 답한다. `conf.acpObserveMode` |
 | ✅ | `pv`/`pvs` 쓰기 검증 | `pv:{}` 를 못 만든다. 경고 5종은 거부하지 않는다 |
 | ✅ | `acpi` 쓰기 검증 | 없는 ACP·8개 초과·타입 오류가 500 이 아니라 400 |
-| ✅ | `select_acp_in` 평가 순서 고정 | ACP 이름 사전순 의존을 없앴다 |
+| ✅ | `select_acp_in` 평가 순서 고정 | 옵티마이저 소관이던 `ri` 오름차순을 명시적 보장으로 승격 |
 | ✅ | 콘솔용 조회·시뮬레이터·린터 | `2026-08-29-acp-console-contract.md` 참조 |
 | ✅ | `acp_audit` 이력 | "누가 언제 무엇을 걸었는가" |
 | ✅ | 설정 외부화 | `defaultAccessPolicy` 등 6개. 기본값은 전부 현재 동작 |
