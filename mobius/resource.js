@@ -965,6 +965,21 @@ function build_resource(request, response, callback) {
     }
 
     if (ty_list.includes(request.ty.toString())) {
+        // ty_list 에는 있는데 속성표에는 없는 타입이 있다 — cb(5)와 mgo(13)다.
+        // 그대로 두면 create_np_attr_list[rootnm] 이 undefined 이고
+        // .includes 가 TypeError 를 낸다. 여기는 db.getConnection 콜백 안이라
+        // uncaughtException 핸들러도 없어 워커가 죽고 빌린 커넥션도 새어 나간다.
+        //
+        // 실측: POST /Mobius/<nod> 에 {"m2m:mgo":{...}} 하나로 워커가 죽었다.
+        // mgo 는 추상 타입이라 표가 없는 것이 맞다 — 구체 타입(fwr/bat/dvi/dvc/rbo)
+        // 에는 표가 있다. 즉 이것은 '표를 채워야 할 누락' 이 아니라
+        // '도달하면 안 되는 조합' 이므로 거절이 옳다.
+        if (!create_np_attr_list.hasOwnProperty(rootnm)) {
+            console.log('[build_resource] 속성표가 없는 리소스 이름이다: ' + rootnm + ' (ty=' + request.ty + ')');
+            callback('409-4');
+            return;
+        }
+
         var mandatory_check_count = 0;
 
         // check Not_Present and check Option and check Mandatory
@@ -1412,22 +1427,31 @@ exports.retrieve = function (request, response, callback) {
         presearch_action(request, response, pi_list, found_parent_list, function (code) {
             if (code == '200') {
                 var cur_d = moment().add(1, 'd').utc().format('YYYY-MM-DD HH:mm:ss');
-                db_sql.search_lookup(request.db_connection, resource_Obj[rootnm].ri, request.query, request.query.lim, pi_list, 0, foundObj, 0, request.query.cni, cur_d, 0, function (code) {
+                db_sql.search_lookup(request.db_connection, resource_Obj[rootnm].ri, request.query, request.query.lim, pi_list, 0, foundObj, 0, request.query.cni, cur_d, 0, function (code, search_info) {
                     if (code === '200') {
                         db_sql.select_spec_ri(request.db_connection, foundObj, 0, function (code) {
                             if(code === '200') {
+                                // 결과가 잘렸으면 알린다 (oneM2M: CTS=1 은 부분 결과,
+                                // CTO 는 이어받을 오프셋).
+                                //
+                                // 판정은 **SQL 이 건 한도를 정확히 채웠는가** 다.
+                                // 예전에는 세 가지가 틀렸다:
+                                //   1. 상수 max_lim(2000)과 비교해서 lim<2000 요청은
+                                //      결과가 잘려도 아무 신호를 못 받았다
+                                //   2. la 요청의 실효 한도는 query.la 인데 그걸 안 봤다
+                                //   3. select_spec_ri 가 고아 행을 걷어낸 **뒤**의 건수를
+                                //      썼다. DB 는 그만큼을 이미 건너뛰었으므로 다음
+                                //      오프셋이 모자라 클라이언트가 앞을 다시 읽는다
+                                // search_lookup 이 SQL 에 실제로 건 한도와 돌려준 행 수를
+                                // 그대로 넘겨주므로 판정이 SQL 과 어긋날 수 없다.
+                                if (search_info && search_info.limit > 0 &&
+                                    search_info.rows >= search_info.limit) {
+                                    response.header('X-M2M-CTS', 1);
+                                    response.header('X-M2M-CTO',
+                                        search_info.offset + search_info.rows);
+                                }
+
                                 if (Object.keys(foundObj).length >= 1) {
-                                    if (Object.keys(foundObj).length >= max_lim) {
-                                        response.header('X-M2M-CTS', 1);
-
-                                        if (request.query.ofst != null) {
-                                            response.header('X-M2M-CTO', parseInt(request.query.ofst, 10) + Object.keys(foundObj).length);
-                                        }
-                                        else {
-                                            response.header('X-M2M-CTO', Object.keys(foundObj).length);
-                                        }
-                                    }
-
                                     for (var index in foundObj) {
                                         if (foundObj.hasOwnProperty(index)) {
                                             ri_list.push(foundObj[index].ri);
@@ -2218,6 +2242,19 @@ function update_resource(request, response, callback) {
     resource_Obj[rootnm] = request.targetObject[Object.keys(request.targetObject)[0]];
 
     if (ty_list.includes(request.ty.toString())) {
+        // build_resource 와 같은 이유의 방어다. UPDATE 쪽이 더 넓다 —
+        // CREATE 는 부모-자식 검증이 cb 를 먼저 막아 주지만 UPDATE 에는
+        // 그런 관문이 없다.
+        //
+        // 실측: PUT /Mobius/<아무 리소스> 에 {"m2m:cb":{"lbl":["x"]}} 하나로
+        // 워커가 죽었다. 본문을 {"m2m:cb":{"acpi":[...]}} 로 하면
+        // updates_beyond_acpi 가 ACP 검사까지 건너뛰므로 인증만 되면 누구나 할 수 있었다.
+        if (!update_np_attr_list.hasOwnProperty(rootnm)) {
+            console.log('[update_resource] 속성표가 없는 리소스 이름이다: ' + rootnm + ' (ty=' + request.ty + ')');
+            callback('409-4');
+            return;
+        }
+
         var mandatory_check_count = 0;
 
         // check Not Present and check Option and check Mandatory

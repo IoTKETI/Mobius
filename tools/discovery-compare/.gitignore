@@ -1,2 +1,11 @@
 server.log
+headers.log
+size-filter.log
+acp-leak.log
+recover.log
+stale.log
+inherit.log
+replace.log
+crcheck.log
+device.log
 *.json

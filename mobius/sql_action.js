@@ -1384,15 +1384,24 @@ function build_search_query(query, callback) {
         query_count++;
     }
 
+    // sza / szb / cty 는 contentInstance 의 속성을 본다 — cs(contentSize) 와
+    // cnf(contentInfo) 다. 그 둘은 lookup 이 아니라 cin 에 있으므로 별칭 c 로
+    // 부른다. 호출부(build_descendant_sql)가 이 셋 중 하나라도 있으면
+    // cin 을 조인한다.
+    //
+    // 예전에는 별칭 없이 cs / cnf 라고 써서 lookup 에 붙였고, lookup 에는 그
+    // 컬럼이 없으니 SQL 준비 단계에서 깨져 **항상 HTTP 500** 이었다.
+    // 8년 전 mobiusdb.sql 에서 두 컬럼을 뺄 때 이쪽을 안 고쳤다.
     if (query.sza != null) {
         query_where += ' and ';
-        query_where += util.format('%s <= cs', query.sza);
+        // cs 는 MySQL 이 int, SQLite 가 TEXT 라 비교 전에 수로 맞춘다.
+        query_where += util.format('%s <= %s', query.sza, facade.numericExpr('c.cs'));
         query_count++;
     }
 
     if (query.szb != null) {
         query_where += ' and ';
-        query_where += util.format('cs < %s', query.szb);
+        query_where += util.format('%s < %s', facade.numericExpr('c.cs'), query.szb);
         query_count++;
     }
 
@@ -1404,12 +1413,41 @@ function build_search_query(query, callback) {
 
     if (query.cty != null) {
         query_where += ' and ';
-        query_where += util.format('cnf = \'%s\'', query.cty);
+        // cnf 에는 클라이언트가 준 contentInfo 가 그대로 들어간다
+        // (예: 'application/json:0'). 정확 일치로 본다.
+        query_where += util.format('c.cnf = \'%s\'', query.cty);
         query_count++;
     }
 
     callback(query_where);
 }
+
+// sza / szb / cty 는 cin 의 속성을 본다. 하나라도 있으면 조인해야 한다.
+function needs_cin_join(query) {
+    return query.sza != null || query.szb != null || query.cty != null;
+}
+exports.needs_cin_join = needs_cin_join;
+
+// 요청이 고른 ty 목록. 없으면 null (타입을 안 가린다).
+function requested_ty_list(query) {
+    if (query.ty == null) { return null; }
+    var raw = Array.isArray(query.ty) ? query.ty : String(query.ty).split(',');
+    return raw.map(function (t) { return String(t).trim(); }).filter(Boolean);
+}
+
+// cs / cnf 는 contentInstance(ty=4)에만 있다. 그래서 크기·형식 필터가 붙으면
+// 결과는 반드시 ty=4 다. 요청이 다른 타입만 찾고 있으면 답이 있을 수 없다.
+//
+// 이걸 안 보면 DB 가 그 사실을 모른 채 골격 전체를 훑는다 — 배포 서버에서
+// `fu=1&ty=3&sza=10` 이 컨테이너 30,281개마다 cin(249GB)을 찾아보고 0건을
+// 돌려주느라 30초 상한에 걸렸다. 질의를 아예 던지지 않는 게 맞다.
+function size_filter_excludes_all(query) {
+    if (!needs_cin_join(query)) { return false; }
+    var tys = requested_ty_list(query);
+    if (tys === null) { return false; }   // ty 를 안 줬으면 CIN 도 후보다
+    return tys.indexOf('4') < 0;
+}
+exports.size_filter_excludes_all = size_filter_excludes_all;
 /*
 exports.search_lookup_parents = function(connection, query, pi, cur_lim, count, found_Obj, callback) {
     if(count >= Object.keys(responder.typeRsrc).length-1) {
@@ -1745,13 +1783,32 @@ function build_descendant_sql(ri, query, query_where, cur_lim) {
     // (로컬 재현: ?fu=1&rn=what%3F -> HTTP 500).
     // 이름 바인딩에서는 knex 가 :name 만 찾으므로 리터럴 물음표를 건드리지 않는다.
     // 두 방언(mysql / sqlite3) 모두 확인했다.
+    // sza / szb / cty 를 쓰면 cin 을 조인한다. 그 값(cs / cnf)은 lookup 에 없다.
+    //
+    // 조인 키를 (pi, ri) 둘 다로 잡는 이유: cin_ri_idx(pi, ri, cs) 가
+    // cs 까지 담고 있어서, sza / szb 만 쓰면 cin 행을 읽지 않고 인덱스만으로
+    // 끝난다. cnf 는 인덱스에 없어 행 접근이 필요하다.
+    // 두 컬럼 모두 lookup 쪽과 콜레이션이 같아 별도 지정이 필요 없다
+    // (pi 는 양쪽 general_ci, ri 는 양쪽 bin).
+    //
+    // inner join 이 맞다 — cs / cnf 가 없는 리소스(컨테이너 등)는 크기·형식으로
+    // 거를 대상이 아니므로 결과에서 빠져야 한다.
+    var cin_join = needs_cin_join(query)
+        ? ' join cin c on c.pi = r.pi and c.ri = r.ri' : '';
+
+    // 크기·형식 필터가 붙으면 결과는 반드시 ty=4 다 (cs / cnf 가 cin 에만 있다).
+    // 조인만으로도 결과는 같지만, 이 조건을 명시해야 (pi, ty) 인덱스가 CIN 만
+    // 집어낸다. 없으면 옵티마이저가 골격의 모든 자식을 후보로 놓고 cin 을
+    // 하나씩 찾아본다 — 249GB 테이블에 대한 임의 접근이라 매우 비싸다.
+    var cin_ty = needs_cin_join(query) ? " and r.ty = '4'" : '';
+
     var sql =
         'with recursive skel as (\n' +
         '  select ri' + C + ' as sk_ri, 0 as sk_lvl from lookup where ri = :root_ri' + branches + '\n' +
         ')\n' +
         lead + 'r.* from lookup r' + hint +
-        ' join skel s on r.pi = s.sk_ri\n' +
-        ' where 1 = 1' + query_where;
+        ' join skel s on r.pi = s.sk_ri' + cin_join + '\n' +
+        ' where 1 = 1' + cin_ty + query_where;
 
     if (max_lvl !== null) { sql += ' and s.sk_lvl <= ' + max_lvl; }
 
@@ -1775,18 +1832,36 @@ function build_descendant_sql(ri, query, query_where, cur_lim) {
     sql += ' limit ' + lim;
     if (ofst !== null) { sql += ' offset ' + ofst; }
 
-    return { sql: sql, bindings: { root_ri: ri } };
+    // limit / offset 을 같이 돌려준다. 호출부가 "결과가 잘렸는가" 를 판정하고
+    // 다음 오프셋을 계산하는 데 쓴다 (X-M2M-CTS / X-M2M-CTO).
+    // 여기서 계산한 값을 그대로 넘겨야 판정이 SQL 과 어긋나지 않는다.
+    return { sql: sql, bindings: { root_ri: ri }, limit: lim, offset: ofst || 0 };
 }
 exports.build_descendant_sql = build_descendant_sql;
 
 // 인자 목록은 예전 2단계 구현의 것을 그대로 둔다 — 호출부(resource.js)와
 // 테스트가 이 형태를 쓴다. pi_list / pi_index / skipped / cni / cur_d /
 // loop_cnt / search_tid 는 CTE 가 한 문장으로 끝내므로 더는 읽지 않는다.
+//
+// 콜백은 callback(code, info) 다. 성공하면 info 에
+//   { rows, limit, offset }   SQL 이 돌려준 행 수와 실제로 건 한도/오프셋
+// 이 담긴다. 호출부는 이것으로 "결과가 잘렸는가" 를 판정하고 다음 오프셋을
+// 계산한다 (X-M2M-CTS / X-M2M-CTO).
+//
+// **rows 는 select_spec_ri 가 고아 행을 걷어내기 전 수**다. 다음 오프셋은
+// DB 가 실제로 건너뛴 만큼이어야 하므로 응답 건수가 아니라 이 값을 써야 한다.
+// 안 그러면 클라이언트가 다음 페이지에서 고아 수만큼 앞을 다시 읽는다.
 exports.search_lookup = function (connection, ri, query, cur_lim, pi_list, pi_index, found_Obj, skipped, cni, cur_d, loop_cnt, callback, search_tid) {
     sanitize_discovery_query(query); // SQL Injection 방어
 
     build_search_query(query, function (query_where) {
         var q = build_descendant_sql(ri, query, query_where, cur_lim);
+
+        // 답이 있을 수 없는 조합이면 DB 를 건드리지 않는다.
+        // (크기·형식 필터 + ty=4 를 뺀 타입 지정 — 위 함수 주석 참고)
+        if (size_filter_excludes_all(query)) {
+            return callback('200', { rows: 0, limit: q.limit, offset: q.offset });
+        }
 
         // 파사드 규약: 실패는 cb(true, errObj) 다 — 에러 객체는 **둘째** 인자로 온다
         // (mobius/db/index.js 의 run 참고). 첫 인자를 에러로 착각하면 err 는 그냥
@@ -1825,7 +1900,7 @@ exports.search_lookup = function (connection, ri, query, cur_lim, pi_list, pi_in
             for (var i = 0; i < rows.length; i++) {
                 found_Obj[rows[i].ri] = rows[i];
             }
-            callback('200');
+            callback('200', { rows: rows.length, limit: q.limit, offset: q.offset });
         });
     });
 };
@@ -2475,8 +2550,8 @@ exports.update_hd_dooLk = function (connection, obj, callback) {
     console.time('update_hd_dooLk ' + obj.ri);
     _this.update_lookup(connection, obj, function (err, results) {
         if (!err) {
-            var sql2 = util.format('update fcnt set fcnt.lock = \'%s\'', obj.lock);
-            db.getResult(sql2, connection, function (err, results) {
+            var qb2 = facade.k('fcnt').update({ lock: obj.lock }).where({ ri: obj.ri });
+            facade.run(qb2, connection, function (err, results) {
                 if (!err) {
                     console.timeEnd('update_hd_dooLk ' + obj.ri);
                     callback(err, results);
@@ -2496,8 +2571,8 @@ exports.update_hd_bat = function (connection, obj, callback) {
     console.time('update_hd_bat ' + obj.ri);
     _this.update_lookup(connection, obj, function (err, results) {
         if (!err) {
-            var sql2 = util.format('update fcnt set lvl = \'%s\'', obj.lvl);
-            db.getResult(sql2, connection, function (err, results) {
+            var qb2 = facade.k('fcnt').update({ lvl: obj.lvl }).where({ ri: obj.ri });
+            facade.run(qb2, connection, function (err, results) {
                 if (!err) {
                     console.timeEnd('update_hd_bat ' + obj.ri);
                     callback(err, results);
@@ -2517,8 +2592,8 @@ exports.update_hd_tempe = function (connection, obj, callback) {
     console.time('update_hd_tempe ' + obj.ri);
     _this.update_lookup(connection, obj, function (err, results) {
         if (!err) {
-            var sql2 = util.format('update fcnt set curT0 = \'%s\'', obj.curT0);
-            db.getResult(sql2, connection, function (err, results) {
+            var qb2 = facade.k('fcnt').update({ curT0: obj.curT0 }).where({ ri: obj.ri });
+            facade.run(qb2, connection, function (err, results) {
                 if (!err) {
                     console.timeEnd('update_hd_tempe ' + obj.ri);
                     callback(err, results);
@@ -2538,8 +2613,8 @@ exports.update_hd_binSh = function (connection, obj, callback) {
     console.time('update_hd_binSh ' + obj.ri);
     _this.update_lookup(connection, obj, function (err, results) {
         if (!err) {
-            var sql2 = util.format('update fcnt set powerSe = \'%s\'', obj.powerSe);
-            db.getResult(sql2, connection, function (err, results) {
+            var qb2 = facade.k('fcnt').update({ powerSe: obj.powerSe }).where({ ri: obj.ri });
+            facade.run(qb2, connection, function (err, results) {
                 if (!err) {
                     console.timeEnd('update_hd_binSh ' + obj.ri);
                     callback(err, results);
@@ -2559,8 +2634,8 @@ exports.update_hd_fauDn = function (connection, obj, callback) {
     console.time('update_hd_fauDn ' + obj.ri);
     _this.update_lookup(connection, obj, function (err, results) {
         if (!err) {
-            var sql2 = util.format('update fcnt set sus = \'%s\'', obj.sus);
-            db.getResult(sql2, connection, function (err, results) {
+            var qb2 = facade.k('fcnt').update({ sus: obj.sus }).where({ ri: obj.ri });
+            facade.run(qb2, connection, function (err, results) {
                 if (!err) {
                     console.timeEnd('update_hd_fauDn ' + obj.ri);
                     callback(err, results);
@@ -2580,8 +2655,8 @@ exports.update_hd_colSn = function (connection, obj, callback) {
     console.time('update_hd_colSn ' + obj.ri);
     _this.update_lookup(connection, obj, function (err, results) {
         if (!err) {
-            var sql2 = util.format('update fcnt set colSn = \'%s\'', obj.colSn);
-            db.getResult(sql2, connection, function (err, results) {
+            var qb2 = facade.k('fcnt').update({ colSn: obj.colSn }).where({ ri: obj.ri });
+            facade.run(qb2, connection, function (err, results) {
                 if (!err) {
                     console.timeEnd('update_hd_colSn ' + obj.ri);
                     callback(err, results);
@@ -2601,8 +2676,8 @@ exports.update_hd_brigs = function (connection, obj, callback) {
     console.time('update_hd_brigs ' + obj.ri);
     _this.update_lookup(connection, obj, function (err, results) {
         if (!err) {
-            var sql2 = util.format('update fcnt set brigs = \'%s\'', obj.brigs);
-            db.getResult(sql2, connection, function (err, results) {
+            var qb2 = facade.k('fcnt').update({ brigs: obj.brigs }).where({ ri: obj.ri });
+            facade.run(qb2, connection, function (err, results) {
                 if (!err) {
                     console.timeEnd('update_hd_brigs ' + obj.ri);
                     callback(err, results);
@@ -2622,8 +2697,8 @@ exports.update_hd_color = function (connection, obj, callback) {
     console.time('update_hd_color ' + obj.ri);
     _this.update_lookup(connection, obj, function (err, results) {
         if (!err) {
-            var sql2 = util.format('update fcnt set red = \'%s\', green = \'%s\', blue = \'%s\'', obj.red, obj.green, obj.blue);
-            db.getResult(sql2, connection, function (err, results) {
+            var qb2 = facade.k('fcnt').update({ red: obj.red, green: obj.green, blue: obj.blue }).where({ ri: obj.ri });
+            facade.run(qb2, connection, function (err, results) {
                 if (!err) {
                     console.timeEnd('update_hd_color ' + obj.ri);
                     callback(err, results);

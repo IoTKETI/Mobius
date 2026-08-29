@@ -55,6 +55,12 @@ var sgn = require('./mobius/sgn');
 var reason = require('./mobius/reason');
 var RSC = require('./mobius/rsc').RSC;
 
+// ty 결정의 단일 진실원 (§9.1)
+var type_resolver = require('./mobius/type_resolver');
+
+// 잡히지 않은 예외의 마지막 방어선. 마스터는 살리고 워커는 종료한다.
+var backstop = require('./mobius/backstop');
+
 // 아웃바운드 요청 타임아웃 (D16)
 var outbound = require('./mobius/outbound');
 
@@ -86,7 +92,8 @@ var app = express();
 //      — check_resource_from_url 이 캐시 히트 시 그 행으로 바로 응답을 만들기
 //      때문이다. 배포는 워커 25개라 삭제 한 건이 24개 워커에 남는다.
 global.cache_man = require('./mobius/cache_man');
-global.cache_security_check = {};
+// cache_security_check 는 걷어냈다 — 쓰기만 하고 읽는 곳이 없어
+// origin·ri 로 키가 무한히 쌓이는 메모리 누수였다.
 
 app.use(cors());
 
@@ -246,6 +253,13 @@ var use_clustering = 1;
 var worker_init_count = 0;
 if (use_clustering) {
     if (cluster.isMaster) {
+        // 마지막 방어선. 프록시 3종이 이 블록에서 require 되므로, 그 메시지
+        // 핸들러가 던지면 마스터가 죽고 아래 워커 재기동 로직까지 함께
+        // 사라진다 — 리스닝 포트가 전부 없어진다. 마스터는 요청 상태를
+        // 들고 있지 않으므로 살아남는 쪽이 낫다. 자세한 근거는 backstop.js.
+        // 가장 먼저 건다 — 아래에서 무엇이 던지든 이게 이미 걸려 있어야 한다.
+        backstop.install('master');
+
         // 워커가 보낸 캐시 무효화를 다른 워커에 중계한다. fork 보다 먼저 걸어야
         // 일찍 뜬 워커의 첫 무효화를 놓치지 않는다.
         cache_man.install_master(cluster);
@@ -341,6 +355,12 @@ if (use_clustering) {
         });
     }
     else {
+        // 워커는 마스터와 반대로 종료를 택한다. 살려 두면 던진 요청이 응답
+        // 없이 매달리고 그 요청이 빌린 커넥션이 풀(워커당 100)에서 영구히
+        // 빠진다. 죽으면 소켓이 닫혀 커넥션이 회수되고 위의 cluster.on('exit')
+        // 가 다시 띄운다 — 오늘과 같은 회복에 진단만 더한다.
+        backstop.install('worker');
+
         // 마스터가 중계한 무효화를 받고, 자기 무효화를 올려보낸다.
         // DB 연결 콜백 *밖* 에 둔다 — 연결이 늦거나 실패해도 이 워커가 다른
         // 워커의 무효화는 받아야 한다.
@@ -555,6 +575,26 @@ function make_short_nametype(body_Obj) {
     }
 }
 
+// 프로토콜 프록시(mqtt/ws/coap)가 받은 메시지를 객체로 바꾼다.
+//
+// 호출부는 rsc 가 '1' 이면 result 를 곧바로 역참조한다. 그래서 '1' 은
+// "파싱이 성공했다" 가 아니라 "역참조해도 되는 객체를 준다" 는 뜻이어야 한다.
+//
+// 그 둘이 어긋나 있었다. cbor.decodeFirst('f6') 는 err 없이 null 을 준다 —
+// CBOR 의 null 값이라 파서 입장에서는 정상이다. 그런데 '1' 로 넘기면
+// pxy_ws.js:225 의 jsonObj['m2m:rqp'] 가 null 을 역참조한다.
+// 프록시는 cluster.isMaster 블록에서 require 되므로 워커가 아니라
+// **마스터가 죽고, 워커 재시작 로직까지 함께 사라진다.**
+//
+// 실측: WS 7577(인증 없음)에 subprotocol onem2m.r2.0.cbor 로 붙어
+// 1바이트 0xF6 을 보내면 리스닝 포트가 전부 사라졌다.
+//
+// 최상위가 객체가 아니면(null, 숫자, 문자열, 배열) 어차피 oneM2M 요청이
+// 아니므로 여기서 실패로 돌린다.
+function usable_object(v) {
+    return v != null && typeof v === 'object' && !Array.isArray(v);
+}
+
 global.make_json_obj = function (bodytype, str, callback) {
     try {
         if (bodytype === 'xml') {
@@ -580,6 +620,7 @@ global.make_json_obj = function (bodytype, str, callback) {
                             }
                         }
                     }
+                    if (!usable_object(result)) { callback('0'); return; }
                     callback('1', result);
                 }
             });
@@ -594,6 +635,10 @@ global.make_json_obj = function (bodytype, str, callback) {
                     console.error('[make_json_obj] cbor 를 읽을 수 없다: ' + err.message);
                     callback('0');
                 }
+                else if (!usable_object(result)) {
+                    console.error('[make_json_obj] cbor 최상위가 객체가 아니다: ' + JSON.stringify(result));
+                    callback('0');
+                }
                 else {
                     callback('1', result);
                 }
@@ -601,6 +646,7 @@ global.make_json_obj = function (bodytype, str, callback) {
         }
         else {
             var result = JSON.parse(str);
+            if (!usable_object(result)) { callback('0'); return; }
             callback('1', result);
         }
     }
@@ -715,7 +761,39 @@ global.make_json_arraytype = function (body_Obj) {
     }
 };
 
+// 요청 본문을 딱 한 번 읽는다.
+//
+// 예전에는 같은 본문을 두 번 파싱했다 — check_resource_supported 가
+// make_json_obj 로 한 번, parse_body_format 이 parse_to_json 으로 또 한 번.
+// 두 파싱이 서로 다른 정규화를 적용해서(앞은 원문 키, 뒤는 접두를 뗀 키),
+// 그 어긋남이 몇몇 400 판정을 우연히 만들어 내고 있었다.
+//
+// 이제 한 번만 읽고, 정규화 전 원문 키를 request.rawRootKey 에 남긴다.
+// ty 결정은 원문 키로 한다 — 옛 check_resource_supported 와 같은 입력이라
+// 판정이 그대로 보존된다.
 function parse_to_json(request, response, callback) {
+    if (request.bodyParsed) {
+        callback('200');
+        return;
+    }
+
+    // 파서가 성공했다고 최상위가 객체인 것은 아니다. cbor.decodeFirst 는
+    // 'f6'(CBOR null)에 err 없이 null 을 주고, JSON.parse('3') 은 숫자를 준다.
+    // 그대로 Object.keys 에 넣으면 던지는데, cbor 콜백은 비동기라 바깥 try 를
+    // 벗어난다. db.getConnection 콜백 안이라 빌린 커넥션도 새어 나갔다.
+    //
+    // 실측: POST /Mobius, Content-Type: application/cbor, 본문 'f6' 한 건으로
+    // 워커가 죽었다.
+    function settle(result) {
+        if (!usable_object(result)) {
+            return false;
+        }
+        request.rawRootKey = Object.keys(result)[0];
+        request.bodyObj = result;
+        make_short_nametype(request.bodyObj);
+        return true;
+    }
+
     if (request.usebodytype === 'xml') {
         try {
             var parser = new xml2js.Parser({explicitArray: false});
@@ -723,12 +801,14 @@ function parse_to_json(request, response, callback) {
                 if (err) {
                     callback('400-5');
                 }
+                else if (!settle(result)) {
+                    callback('400-5');
+                }
                 else {
-                    request.bodyObj = result;
-                    make_short_nametype(request.bodyObj);
                     make_json_arraytype(request.bodyObj);
 
                     request.headers.rootnm = Object.keys(request.bodyObj)[0];
+                    request.bodyParsed = true;
                     callback('200');
                 }
             });
@@ -744,12 +824,14 @@ function parse_to_json(request, response, callback) {
                 if (err) {
                     callback('400-6');
                 }
+                else if (!settle(result)) {
+                    callback('400-6');
+                }
                 else {
-                    request.bodyObj = result;
-                    make_short_nametype(request.bodyObj);
                     //make_json_arraytype(request.bodyObj);
 
                     request.headers.rootnm = Object.keys(request.bodyObj)[0];
+                    request.bodyParsed = true;
                     callback('200');
                 }
             });
@@ -760,14 +842,17 @@ function parse_to_json(request, response, callback) {
     }
     else {
         try {
-            request.bodyObj = JSON.parse(request.body.toString());
-            make_short_nametype(request.bodyObj);
+            if (!settle(JSON.parse(request.body.toString()))) {
+                callback('400-7');
+                return;
+            }
 
             if (Object.keys(request.bodyObj)[0] == 'undefined') {
                 callback('400-7');
             }
             else {
                 request.headers.rootnm = Object.keys(request.bodyObj)[0];
+                request.bodyParsed = true;
                 callback('200');
             }
         }
@@ -949,6 +1034,54 @@ function check_request_query_rt(request, response, callback) {
 //
 // 호출부가 이미 응답하므로 이 호출 자체가 중복이었다. 문구도 카탈로그의
 // 403-6 / 404-4 와 같은 내용이라 잃는 것이 없다.
+/**
+ * fanOutPoint(/fopt) 요청을 처리한다.
+ *
+ * 네 메서드가 같은 흐름을 네 벌 들고 있었다. 다른 것은 둘뿐이다.
+ *
+ *   access_value  POST '1' / GET '2'(discovery 는 '32') / PUT '4' / DELETE '8'
+ *   parse_body    본문을 읽어야 하는가. POST 와 PUT 만 참이다.
+ *
+ * 흐름은 이렇다.
+ *   1. 대상이 그룹이고 멤버가 있는지 본다 (check_grp)
+ *   2. 그룹의 macp 로 권한을 본다 — 일반 리소스의 acpi 가 아니다
+ *   3. (필요하면) 본문을 읽는다
+ *   4. 멤버마다 요청을 흘려보낸다 (fopt.check)
+ *
+ * 거부 코드가 일반 경로와 다르다 — 권한 없음이 403-3 이 아니라 403-5 다.
+ */
+function run_fanout(request, response, settle, access_value, parse_body) {
+    check_grp(request, response, (rsc, result_grp) => {
+        if (rsc !== '1') {
+            // '2' 는 그룹이지만 mid 가 비었다는 뜻, 그 밖은 그룹이 아니다.
+            settle.error(rsc === '2' ? '403-6' : '404-4');
+            return;
+        }
+
+        var body_Obj = {};
+        var target_ty = request.targetObject[Object.keys(request.targetObject)[0]].ty;
+
+        security.check(request, response, target_ty, result_grp.macp, access_value, result_grp.cr, (code) => {
+            if (code === '0') { settle.error('403-5'); return; }
+            if (code !== '1') { settle.error(code); return; }
+
+            function fan_out() {
+                fopt.check(request, response, result_grp, body_Obj, (code) => {
+                    if (code === '200') { settle.search('200', '2000', ''); }
+                    else { settle.error(code); }
+                });
+            }
+
+            if (!parse_body) { fan_out(); return; }
+
+            parse_body_format(request, response, (code) => {
+                if (code !== '200') { settle.error(code); return; }
+                fan_out();
+            });
+        });
+    });
+}
+
 function check_grp(request, response, callback) {
     var result_Obj = request.targetObject;
     var rootnm = Object.keys(result_Obj)[0];
@@ -997,6 +1130,56 @@ function response_error_result(request, response, code, callback) {
     }
     // dbg 는 클라이언트 응답 본문(m2m:dbg)으로, detail 은 로그로만 나간다.
     responder.respond(request, response, { code: r.code, dbg: r.msg, detail: r.detail }, callback);
+}
+
+/**
+ * 판정 대상의 cr(생성자)을 정한다.
+ *
+ * AE 는 aei, remoteCSE 는 csi 가 곧 생성자다. ACP 가 하나도 안 걸린 리소스는
+ * security 가 "요청자 == cr" 로만 판정하므로 이 값이 결과를 좌우한다.
+ *
+ * create 는 이 함수를 쓰지 않는다 — 부모가 remoteCSE 일 때 csi 를 넣지 않는
+ * 것이 원래 동작이고, 바꾸면 ACP 없는 remoteCSE 아래 생성의 판정이 달라진다.
+ */
+function resolve_cr(target) {
+    if (target.ty == 2) {
+        target.cr = target.aei;
+    }
+    else if (target.ty == 16) {
+        target.cr = target.csi;
+    }
+}
+
+/**
+ * lookup_* 넷의 공통 꼬리 — 권한을 확인하고 연산을 수행한다.
+ *
+ * create / retrieve / update / delete 는 앞부분(무엇을 검사하느냐)이 다를 뿐
+ * 이 꼬리는 같았다. 네 곳에 똑같이 적혀 있던 것을 모은다.
+ *
+ *   1. security.check 로 권한을 본다.
+ *   2. '1' 이면 연산, '0' 이면 403-3, 그 밖은 받은 코드를 그대로 올린다.
+ *
+ * cr 은 호출부가 미리 정해 둔다 — create 와 나머지가 다르기 때문이다.
+ *
+ * @param target        판정 대상 리소스. create 는 부모, 나머지는 자기 자신이다.
+ * @param access_value  oneM2M acop 비트. create '1'(sub 는 '3') / retrieve '2'
+ *                      (discovery 는 '32') / update '4' / delete '8'
+ * @param run           권한이 있을 때 수행할 연산 (resource.create 등)
+ */
+function authorize_and_run(request, response, target, access_value, run, callback) {
+    security.check(request, response, target.ty, target.acpi, access_value, target.cr, (code) => {
+        if (code === '1') {
+            run(request, response, (code) => {
+                callback(code);
+            });
+        }
+        else if (code === '0') {
+            callback('403-3');
+        }
+        else {
+            callback(code);
+        }
+    });
 }
 
 function lookup_create(request, response, callback) {
@@ -1079,35 +1262,15 @@ function lookup_create(request, response, callback) {
                         }
                     }
 
-                    if (request.ty == 23) {
-                        var access_value = '3';
-                    }
-                    else {
-                        access_value = '1';
-                    }
+                    // sub 생성은 CREATE(1)가 아니라 NOTIFY 를 포함한 3 을 본다.
+                    var access_value = (request.ty == 23) ? '3' : '1';
 
-                    var tid = 'security.check - ' + require('shortid').generate();
-                    console.time(tid);
-                    security.check(request, response, parentObj.ty, parentObj.acpi, access_value, parentObj.cr, (code) => {
-                        console.timeEnd(tid);
-
-                        cache_security_check[request.headers['x-m2m-origin']] = {};
-                        cache_security_check[request.headers['x-m2m-origin']][parentObj.ri] = {}
-                        cache_security_check[request.headers['x-m2m-origin']][parentObj.ri][access_value] = code;
-
-                        if (code === '1') {
-                            resource.create(request, response, (code) => {
-                                callback(code);
-                            });
-                        }
-                        else if (code === '0') {
-                            callback('403-3');
-
-                        }
-                        else {
-                            callback(code);
-                        }
-                    });
+                    // 예전에는 여기서 두 가지를 더 했다.
+                    //   - 요청마다 shortid 를 만들어 security.check 를 console.time 으로 쟀다.
+                    //     CREATE 마다 로그 두 줄이 나가는 계측이라 걷어냈다.
+                    //   - cache_security_check 에 판정 결과를 적었다. **읽는 곳이 없다** —
+                    //     origin 과 ri 로 키를 만들어 무한히 쌓이기만 하는 메모리 누수였다.
+                    authorize_and_run(request, response, parentObj, access_value, resource.create, callback);
                 }
                 else {
                     callback(code);
@@ -1122,163 +1285,79 @@ function lookup_create(request, response, callback) {
 
 function lookup_retrieve(request, response, callback) {
     check_request_query_rt(request, response, (code) => {
-        if (code === '200') {
-            var resultObj = request.targetObject[Object.keys(request.targetObject)[0]];
+        if (code !== '200') { callback(code); return; }
 
-            if(!resultObj.hasOwnProperty('acpi')) {
-                resultObj.acpi = [];
-            }
+        var resultObj = request.targetObject[Object.keys(request.targetObject)[0]];
 
-            tr.check(request, (code) => {
-                if (code === '200') {
-                    if (resultObj.ty == 2) {
-                        resultObj.cr = resultObj.aei;
-                    }
-                    else if (resultObj.ty == 16) {
-                        resultObj.cr = resultObj.csi;
-                    }
-
-                    if (request.query.fu == 1) {
-                        security.check(request, response, resultObj.ty, resultObj.acpi, '32', resultObj.cr, (code) => {
-                            if (code === '1') {
-                                resource.retrieve(request, response, (code) => {
-                                    callback(code);
-                                });
-                            }
-                            else if (code === '0') {
-                                callback('403-3');
-                            }
-                            else {
-                                callback(code);
-                            }
-                        });
-                    }
-                    else {
-                        security.check(request, response, resultObj.ty, resultObj.acpi, '2', resultObj.cr, (code) => {
-                            if (code === '1') {
-                                resource.retrieve(request, response, (code) => {
-                                    callback(code);
-                                });
-                            }
-                            else if (code === '0') {
-                                callback('403-3');
-                            }
-                            else {
-                                callback(code);
-                            }
-                        });
-                    }
-                }
-                else {
-                    callback(code);
-                }
-            });
+        if(!resultObj.hasOwnProperty('acpi')) {
+            resultObj.acpi = [];
         }
-        else {
-            callback(code);
-        }
+
+        tr.check(request, (code) => {
+            if (code !== '200') { callback(code); return; }
+
+            // discovery(fu=1)는 DISCOVER(32), 일반 조회는 RETRIEVE(2).
+            // 예전에는 이 둘 때문에 같은 블록이 두 벌 있었다.
+            var access_value = (request.query.fu == 1) ? '32' : '2';
+            resolve_cr(resultObj);
+            authorize_and_run(request, response, resultObj, access_value, resource.retrieve, callback);
+        });
     });
+}
+
+/**
+ * 본문이 acpi 말고 다른 속성도 건드리는가.
+ *
+ * acpi 만 바꾸는 UPDATE 는 권한 검사를 건너뛴다 — 그 리소스에 어떤 ACP 를
+ * 걸지는 selfPrivileges(pvs)가 정하는 일이라는 취지다.
+ * (그 판단이 옳은지는 별개 문제다. 여기서는 동작을 그대로 옮긴다.)
+ */
+function updates_beyond_acpi(bodyObj) {
+    for (var rootnm in bodyObj) {
+        if (!bodyObj.hasOwnProperty(rootnm)) { continue; }
+        for (var attr in bodyObj[rootnm]) {
+            if (bodyObj[rootnm].hasOwnProperty(attr) && attr !== 'acpi') {
+                return true;
+            }
+        }
+    }
+    return false;
 }
 
 function lookup_update(request, response, callback) {
     check_request_query_rt(request, response, (code) => {
-        if (code === '200') {
-            var resultObj = request.targetObject[Object.keys(request.targetObject)[0]];
+        if (code !== '200') { callback(code); return; }
 
-            tr.check(request, (code) => {
-                if (code === '200') {
-                    if (resultObj.ty == 2) {
-                        resultObj.cr = resultObj.aei;
-                    }
-                    else if (resultObj.ty == 16) {
-                        resultObj.cr = resultObj.csi;
-                    }
+        var resultObj = request.targetObject[Object.keys(request.targetObject)[0]];
 
-                    var acpi_check = 0;
-                    var other_check = 0;
-                    for (var rootnm in request.bodyObj) {
-                        if (request.bodyObj.hasOwnProperty(rootnm)) {
-                            for (var attr in request.bodyObj[rootnm]) {
-                                if (request.bodyObj[rootnm].hasOwnProperty(attr)) {
-                                    if (attr == 'acpi') {
-                                        acpi_check++;
-                                    }
-                                    else {
-                                        other_check++;
-                                    }
-                                }
-                            }
-                        }
-                    }
+        tr.check(request, (code) => {
+            if (code !== '200') { callback(code); return; }
 
-                    if (other_check > 0) {
-                        security.check(request, response, resultObj.ty, resultObj.acpi, '4', resultObj.cr, (code) => {
-                            if (code === '1') {
-                                resource.update(request, response, (code) => {
-                                    callback(code)
-                                });
-                            }
-                            else if (code === '0') {
-                                callback('403-3');
-                            }
-                            else {
-                                callback(code);
-                            }
-                        });
-                    }
-                    else {
-                        resource.update(request, response, (code) => {
-                            callback(code)
-                        });
-                    }
-                }
-                else {
+            if (!updates_beyond_acpi(request.bodyObj)) {
+                // acpi 만 바꾸는 경우 — 권한 검사 없이 진행한다.
+                resource.update(request, response, (code) => {
                     callback(code);
-                }
-            });
-        }
-        else {
-            callback(code);
-        }
+                });
+                return;
+            }
+
+            resolve_cr(resultObj);
+            authorize_and_run(request, response, resultObj, '4', resource.update, callback);
+        });
     });
 }
 
 function lookup_delete(request, response, callback) {
     check_request_query_rt(request, response, (code) => {
-        if (code === '200') {
-            var resultObj = request.targetObject[Object.keys(request.targetObject)[0]];
+        if (code !== '200') { callback(code); return; }
 
-            tr.check(request, (code) => {
-                if (code === '200') {
-                    if (resultObj.ty == 2) {
-                        resultObj.cr = resultObj.aei;
-                    }
-                    else if (resultObj.ty == 16) {
-                        resultObj.cr = resultObj.csi;
-                    }
+        var resultObj = request.targetObject[Object.keys(request.targetObject)[0]];
 
-                    security.check(request, response, resultObj.ty, resultObj.acpi, '8', resultObj.cr, (code) => {
-                        if (code === '1') {
-                            resource.delete(request, response, (code) => {
-                                callback(code);
-                            });
-                        }
-                        else if (code === '0') {
-                            callback('403-3');
-                        }
-                        else {
-                            callback(code);
-                        }
-                    });
-                }
-                else {
-                    callback(code);
-                }
-            });
-        }
-        else {
-            callback(code);
-        }
+        tr.check(request, (code) => {
+            if (code !== '200') { callback(code); return; }
+            resolve_cr(resultObj);
+            authorize_and_run(request, response, resultObj, '8', resource.delete, callback);
+        });
     });
 }
 
@@ -1532,6 +1611,13 @@ function check_xm2m_headers(request, callback) {
     }
 
     request.ty = '99';
+
+    // Content-Type 이 실제로 ty 를 실어 왔는지. '99' 는 기본값이라
+    // "ty=99 를 명시했다" 와 "ty 가 아예 없다" 를 구분하지 못한다.
+    // 뒤에서 본문 유래 ty 와 대조할 때 이 둘은 전혀 다르게 다뤄야 한다 —
+    // 없으면 대조하지 않고 본문이 이긴다(WS·MQTT 는 PUT 에 ty 를 안 붙인다).
+    request.ty_hint = null;
+
     if (request.headers.hasOwnProperty('content-type')) {
         var content_type = request.headers['content-type'].split(';');
         for (var i in content_type) {
@@ -1551,6 +1637,7 @@ function check_xm2m_headers(request, callback) {
                         return;
                     }
                     request.ty = ty_arr[1].replace(' ', '');
+                    request.ty_hint = request.ty;
                     content_type = null;
                     break;
                 }
@@ -1640,40 +1727,28 @@ function check_xm2m_headers(request, callback) {
     callback('200');
 }
 
+// 본문에서 리소스 타입을 정한다. 여기가 CREATE·UPDATE 의 ty 결정 지점이다.
+//
+// 예전에는 이 함수가 본문을 따로 한 번 더 파싱하고, typeRsrc 를 직접
+// 역탐색하고, Content-Type 의 ty 를 조용히 덮어썼다. 덮어쓰기 때문에
+// application/json;ty=3 에 {"m2m:ae":...} 를 보내면 AE 가 201 로 만들어졌다.
+// 이제 파싱은 parse_to_json 한 곳, 타입 판정은 type_resolver 한 곳이다.
 function check_resource_supported(request, response, callback) {
-    make_json_obj(request.usebodytype, request.body, (err, body) => {
-        try {
-            var arr_rootnm = Object.keys(body)[0].split(':');
-
-            if(arr_rootnm[0] === 'hd') {
-                var rootnm = Object.keys(body)[0].replace('hd:', 'hd_');
-            }
-            else {
-                rootnm = Object.keys(body)[0].replace('m2m:', '');
-            }
-
-            var checkCount = 0;
-            for (var key in responder.typeRsrc) {
-                if (responder.typeRsrc.hasOwnProperty(key)) {
-                    if (responder.typeRsrc[key] == rootnm) {
-                        request.ty = key;
-                        break;
-                    }
-                    checkCount++;
-                }
-            }
-            body = null;
-
-            if (checkCount >= Object.keys(responder.typeRsrc).length) {
-                callback('400-3');
-            }
-            else {
-                callback('200');
-            }
+    parse_to_json(request, response, (code) => {
+        if (code !== '200') {
+            callback(code);
+            return;
         }
-        catch (e) {
-            callback('400-4');
+
+        // 정규화 전 원문 키로 판정한다 — 옛 코드와 같은 입력이다.
+        var resolved = type_resolver.resolve(request.rawRootKey, request.ty_hint);
+        if (resolved.rsc !== '200') {
+            callback(resolved.rsc);
+            return;
         }
+
+        request.ty = resolved.ty;
+        callback('200');
     });
 }
 
@@ -1687,7 +1762,12 @@ function get_target_url(request, response, callback) {
     var absolute_url_arr = absolute_url.split('/');
 
     console.log('\n' + request.method + ' : ' + request.url);
-    request.bodyObj = {};
+    // GET/DELETE 는 본문이 없어 여기가 bodyObj 의 유일한 생산 지점이다.
+    // POST/PUT 은 이 앞의 check_resource_supported 에서 이미 파싱했으므로
+    // 덮어쓰면 안 된다 — 그러면 파싱이 다시 두 번이 된다.
+    if (!request.bodyParsed) {
+        request.bodyObj = {};
+    }
 
     request.option = '';
     request.sri = absolute_url_arr[1].split('?')[0];
@@ -1834,33 +1914,34 @@ function check_allowed_app_ids(request, callback) {
 }
 
 function check_type_update_resource(request, callback) {
-    for (var ty_idx in responder.typeRsrc) {
-        if (responder.typeRsrc.hasOwnProperty(ty_idx)) {
-            if ((ty_idx == 4) && (responder.typeRsrc[ty_idx] == Object.keys(request.bodyObj)[0])) {
-                callback('405-7');
-                return;
-            }
-            else if ((ty_idx != 4) && (responder.typeRsrc[ty_idx] == Object.keys(request.bodyObj)[0])) {
-                if ((ty_idx == 17) && (responder.typeRsrc[ty_idx] == Object.keys(request.bodyObj)[0])) {
-                    callback('405-8');
-                    return;
-                }
-                else {
-                    request.ty = ty_idx;
-                    break;
-                }
-            }
-            else if (ty_idx == 13) {
-                for (var mgo_idx in responder.mgoType) {
-                    if (responder.mgoType.hasOwnProperty(mgo_idx)) {
-                        if ((responder.mgoType[mgo_idx] == Object.keys(request.bodyObj)[0])) {
-                            request.ty = ty_idx;
-                            break;
-                        }
-                    }
-                }
-            }
+    // 여기에 ty 결정 알고리즘이 한 벌 더 있었다 — check_resource_supported 와
+    // 다른 방식으로 같은 일을 했다. 두 벌이라 한쪽만 mgoType 을 알았다.
+    // 이제 둘 다 type_resolver 를 쓴다.
+    var body_root = Object.keys(request.bodyObj)[0];
+    var resolved = type_resolver.resolve(body_root, null);
+
+    if (resolved.rsc === '200') {
+        if (resolved.ty === '4') {
+            callback('405-7');      // contentInstance 는 수정할 수 없다
+            return;
         }
+        if (resolved.ty === '17') {
+            // typeRsrc 에서 17(req) 이 빠진 뒤로 도달하지 않는다.
+            // req 리소스가 되살아나면 다시 필요하므로 남겨 둔다.
+            callback('405-8');
+            return;
+        }
+        request.ty = resolved.ty;
+    }
+
+    // 본문 루트와 ty 가 어긋나는지. POST 는 check_allowed_app_ids 가 같은
+    // 검사를 하는데 PUT 에는 없었다. 그래서 접두 없는 본문({"cnt":...})은
+    // rootnm 이 undefined 인 채로, 속성표가 없는 타입({"m2m:cb":...})은
+    // 그대로 resource.update 까지 흘러가 워커를 죽였다. 실측으로 확인한
+    // 크래시 두 종이 여기서 막힌다.
+    if (responder.typeRsrc[request.ty] != body_root) {
+        callback('400-42');
+        return;
     }
 
     if (url.parse(request.targetObject[Object.keys(request.targetObject)[0]].ri).pathname == ('/' + usecsebase)) {
@@ -2041,45 +2122,7 @@ app.post('*', onem2mParser, (request, response) => {
                                                 });
                                             }
                                             else { // if (request.option === '/fopt') {
-                                                check_grp(request, response, (rsc, result_grp) => { // check access right for fanoutpoint
-                                                    if (rsc == '1') {
-                                                        var access_value = '1';
-                                                        var body_Obj = {};
-                                                        security.check(request, response, request.targetObject[Object.keys(request.targetObject)[0]].ty, result_grp.macp, access_value, result_grp.cr, (code) => {
-                                                            if (code === '1') {
-                                                                parse_body_format(request, response, (code) => {
-                                                                    if (code === '200') {
-                                                                        fopt.check(request, response, result_grp, body_Obj, (code) => {
-                                                                            if (code === '200') {
-                                                                                settle.search('200', '2000', '');
-                                                                            }
-                                                                            else {
-                                                                                settle.error(code);
-                                                                            }
-                                                                        });
-                                                                    }
-                                                                    else {
-                                                                        settle.error(code);
-                                                                    }
-                                                                });
-                                                            }
-                                                            else if (code === '0') {
-                                                                settle.error('403-5');
-                                                            }
-                                                            else {
-                                                                settle.error(code);
-                                                            }
-                                                        });
-                                                    }
-                                                    else if (rsc == '2') {
-                                                        code = '403-6';
-                                                        settle.error(code);
-                                                    }
-                                                    else {
-                                                        code = '404-4';
-                                                        settle.error(code);
-                                                    }
-                                                });
+                                                run_fanout(request, response, settle, '1', true);
                                             }
                                         }
                                         else if (code === '301-1') {
@@ -2170,37 +2213,7 @@ app.get('*', onem2mParser, (request, response) => {
                                             }
                                         }
                                         else { //if (request.option === '/fopt') {
-                                            check_grp(request, response, (rsc, result_grp) => { // check access right for fanoutpoint
-                                                if (rsc == '1') {
-                                                    var access_value = (request.query.fu == 1) ? '32' : '2';
-                                                    var body_Obj = {};
-                                                    security.check(request, response, request.targetObject[Object.keys(request.targetObject)[0]].ty, result_grp.macp, access_value, result_grp.cr, (code) => {
-                                                        if (code === '1') {
-                                                            fopt.check(request, response, result_grp, body_Obj, (code) => {
-                                                                if (code === '200') {
-                                                                    settle.search('200', '2000', '');
-                                                                }
-                                                                else {
-                                                                    settle.error(code);
-                                                                }
-                                                            });
-                                                        }
-                                                        else if (code === '0') {
-                                                            settle.error('403-5');
-                                                        }
-                                                        else {
-                                                            settle.error(code);
-                                                        }
-                                                    });
-                                                }
-                                                else if (rsc == '2') {
-                                                    code = '403-6';
-                                                    settle.error(code);
-                                                }
-                                                else {
-                                                    settle.error('404-4');
-                                                }
-                                            });
+                                            run_fanout(request, response, settle, (request.query.fu == 1) ? '32' : '2', false);
                                         }
                                     }
                                     else if (code === '301-1') {
@@ -2308,44 +2321,7 @@ app.put('*', onem2mParser, (request, response) => {
                                                 });
                                             }
                                             else { // if (request.option === '/fopt') {
-                                                check_grp(request, response, (rsc, result_grp) => { // check access right for fanoutpoint
-                                                    if (rsc == '1') {
-                                                        var access_value = '4';
-                                                        var body_Obj = {};
-                                                        security.check(request, response, request.targetObject[Object.keys(request.targetObject)[0]].ty, result_grp.macp, access_value, result_grp.cr, (code) => {
-                                                            if (code === '1') {
-                                                                parse_body_format(request, response, (code) => {
-                                                                    if (code === '200') {
-                                                                        fopt.check(request, response, result_grp, body_Obj, (code) => {
-                                                                            if (code === '200') {
-                                                                                settle.search('200', '2000', '');
-                                                                            }
-                                                                            else {
-                                                                                settle.error(code);
-                                                                            }
-                                                                        });
-                                                                    }
-                                                                    else {
-                                                                        settle.error(code);
-                                                                    }
-                                                                });
-                                                            }
-                                                            else if (code === '0') {
-                                                                settle.error('403-5');
-                                                            }
-                                                            else {
-                                                                settle.error(code);
-                                                            }
-                                                        });
-                                                    }
-                                                    else if (rsc == '2') {
-                                                        code = '403-6';
-                                                        settle.error(code);
-                                                    }
-                                                    else {
-                                                        settle.error('404-4');
-                                                    }
-                                                });
+                                                run_fanout(request, response, settle, '4', true);
                                             }
                                         }
                                         else if (code === '301-1') {
@@ -2447,37 +2423,7 @@ app.delete('*', onem2mParser, (request, response) => {
                                     });
                                 }
                                 else { // if (request.option === '/fopt') {
-                                    check_grp(request, response, (rsc, result_grp) => { // check access right for fanoutpoint
-                                        if (rsc == '1') {
-                                            var access_value = '8';
-                                            var body_Obj = {};
-                                            security.check(request, response, request.targetObject[Object.keys(request.targetObject)[0]].ty, result_grp.macp, access_value, result_grp.cr, (code) => {
-                                                if (code === '1') {
-                                                    fopt.check(request, response, result_grp, body_Obj, (code) => {
-                                                        if (code === '200') {
-                                                            settle.search('200', '2000', '');
-                                                        }
-                                                        else {
-                                                            settle.error(code);
-                                                        }
-                                                    });
-                                                }
-                                                else if (code === '0') {
-                                                    settle.error('403-5');
-                                                }
-                                                else {
-                                                    settle.error(code);
-                                                }
-                                            });
-                                        }
-                                        else if (rsc == '2') {
-                                            code = '403-6';
-                                            settle.error(code);
-                                        }
-                                        else {
-                                            settle.error('404-4');
-                                        }
-                                    });
+                                    run_fanout(request, response, settle, '8', false);
                                 }
                             }
                             else if (code === '301-1') {

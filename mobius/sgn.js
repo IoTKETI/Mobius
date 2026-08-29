@@ -22,6 +22,7 @@ var coap = require('coap');
 var js2xmlparser = require('js2xmlparser');
 var xmlbuilder = require('xmlbuilder');
 var fs = require('fs');
+var db = require('./db_action');
 var db_sql = require('./sql_action');
 var cbor = require("cbor");
 var merge = require('merge');
@@ -192,40 +193,53 @@ function sgn_action_send(nu_arr, req_count, sub_bodytype, node, short_flag, chec
     var nu = nu_arr[req_count];
     var sub_nu = url.parse(nu);
 
+    // nu 마다 자기 값을 쓴다. 예전에는 파라미터 자체를 덮어쓰고 그 값을
+    // 그대로 다음 nu 로 넘겨서, 앞선 nu 의 옵션이 뒤에 전부 번졌다.
+    //
+    // 실측: nu = ['http://a/?rcn=9', 'http://b/'] 로 두면 b 도 축약본을 받았다.
+    // 요청하지도 않은 형식·내용이 가는 것이고, 로그에는 아무것도 남지 않는다.
+    var this_bodytype = sub_bodytype;
+    var this_node = node;
+    var this_short = short_flag;
+
     if (sub_nu.query != null) {
         var sub_nu_query_arr = sub_nu.query.split('&');
         for (var prop in sub_nu_query_arr) {
             if (sub_nu_query_arr.hasOwnProperty(prop)) {
                 if (sub_nu_query_arr[prop].split('=')[0] == 'ct') {
                     if (sub_nu_query_arr[prop].split('=')[1] == 'xml') {
-                        sub_bodytype = 'xml';
+                        this_bodytype = 'xml';
                     }
                     else {
-                        sub_bodytype = 'json';
+                        this_bodytype = 'json';
                     }
                 }
                 else if (sub_nu_query_arr[prop].split('=')[0] == 'rcn') {
                     if (sub_nu_query_arr[prop].split('=')[1] == '9') {
-                        for (var index in node['m2m:sgn'].nev.rep) {
-                            if (node['m2m:sgn'].nev.rep.hasOwnProperty(index)) {
-                                if (node['m2m:sgn'].nev.rep[index].cr) {
-                                    delete node['m2m:sgn'].nev.rep[index].cr;
+                        // 여기서만 복제한다. 대부분의 nu 는 옵션이 없으므로
+                        // 매번 복제하면 알림마다 그만큼이 그대로 낭비다.
+                        this_node = JSON.parse(JSON.stringify(node));
+
+                        for (var index in this_node['m2m:sgn'].nev.rep) {
+                            if (this_node['m2m:sgn'].nev.rep.hasOwnProperty(index)) {
+                                if (this_node['m2m:sgn'].nev.rep[index].cr) {
+                                    delete this_node['m2m:sgn'].nev.rep[index].cr;
                                 }
 
-                                if (node['m2m:sgn'].nev.rep[index].st) {
-                                    delete node['m2m:sgn'].nev.rep[index].st;
+                                if (this_node['m2m:sgn'].nev.rep[index].st) {
+                                    delete this_node['m2m:sgn'].nev.rep[index].st;
                                 }
 
-                                delete node['m2m:sgn'].nev.rep[index].ct;
-                                delete node['m2m:sgn'].nev.rep[index].lt;
-                                delete node['m2m:sgn'].nev.rep[index].et;
-                                delete node['m2m:sgn'].nev.rep[index].ri;
-                                delete node['m2m:sgn'].nev.rep[index].pi;
-                                delete node['m2m:sgn'].nev.rep[index].rn;
-                                delete node['m2m:sgn'].nev.rep[index].ty;
-                                delete node['m2m:sgn'].nev.rep[index].fr;
+                                delete this_node['m2m:sgn'].nev.rep[index].ct;
+                                delete this_node['m2m:sgn'].nev.rep[index].lt;
+                                delete this_node['m2m:sgn'].nev.rep[index].et;
+                                delete this_node['m2m:sgn'].nev.rep[index].ri;
+                                delete this_node['m2m:sgn'].nev.rep[index].pi;
+                                delete this_node['m2m:sgn'].nev.rep[index].rn;
+                                delete this_node['m2m:sgn'].nev.rep[index].ty;
+                                delete this_node['m2m:sgn'].nev.rep[index].fr;
 
-                                short_flag = 1;
+                                this_short = 1;
                             }
                         }
                     }
@@ -234,34 +248,37 @@ function sgn_action_send(nu_arr, req_count, sub_bodytype, node, short_flag, chec
         }
     }
 
+    // 아래 둘은 nu 와 무관하게 모든 수신자에게 똑같이 적용된다.
+    // 몇 번을 돌려도 같은 결과라 공유 객체에 그대로 둔다.
     if(check_value == 128) {
-        node['m2m:sgn'].sud = true;
-        delete node['m2m:sgn'].nev;
+        this_node['m2m:sgn'].sud = true;
+        delete this_node['m2m:sgn'].nev;
     }
     else if(check_value == 256) {
-        if(!node['m2m:sgn'].hasOwnProperty('vrq')) {
-            node['m2m:sgn'].vrq = true;
+        if(!this_node['m2m:sgn'].hasOwnProperty('vrq')) {
+            this_node['m2m:sgn'].vrq = true;
         }
-        node['m2m:sgn'].vrq = true;
-        var temp = node['m2m:sgn'].sur;
-        delete node['m2m:sgn'].sur;
-        node['m2m:sgn'].sur = temp;
-        node['m2m:sgn'].cr = ss_cr;
-        delete node['m2m:sgn'].nev;
+        this_node['m2m:sgn'].vrq = true;
+        var temp = this_node['m2m:sgn'].sur;
+        delete this_node['m2m:sgn'].sur;
+        this_node['m2m:sgn'].sur = temp;
+        this_node['m2m:sgn'].cr = ss_cr;
+        delete this_node['m2m:sgn'].nev;
     }
 
-    node['m2m:sgn'].rvi = uservi;
+    this_node['m2m:sgn'].rvi = uservi;
 
-    make_body_string_for_noti(sub_nu.protocol, nu, node, sub_bodytype, xm2mri, short_flag, function (bodyString) {
+    make_body_string_for_noti(sub_nu.protocol, nu, this_node, this_bodytype, xm2mri, this_short, function (bodyString) {
         if (bodyString === '') { // parse error
             console.log('can not send notification since error of converting json to xml');
         }
         else {
-            setTimeout(function (nu, sub_bodytype, xm2mri, bodyString) {
-                sgn_man.post(nu, sub_bodytype, xm2mri, bodyString);
-            }, parseInt(1 + Math.random() * 10), nu, sub_bodytype, xm2mri, bodyString);
+            setTimeout(function (nu, bodytype, xm2mri, bodyString) {
+                sgn_man.post(nu, bodytype, xm2mri, bodyString);
+            }, parseInt(1 + Math.random() * 10), nu, this_bodytype, xm2mri, bodyString);
         }
 
+        // 다음 nu 에는 **원래 값**을 넘긴다. 이 nu 의 옵션이 번지면 안 된다.
         sgn_action_send(nu_arr, ++req_count, sub_bodytype, node, short_flag, check_value, ss_cr, ss_ri, xm2mri, exc, parentObj, function (code) {
             callback(code);
         });
@@ -477,6 +494,28 @@ function sgn_action(connection, rootnm, check_value, subl, req_count, noti_Obj, 
     }
 }
 
+// 이 알림이 DB 를 만져야 하는가.
+//
+// get_nu_arr 은 nu 가 URL 이 아니라 ID 형식일 때만 조회한다
+// (sub_nu.protocol == null). 대부분의 배포는 nu 에 URL 을 쓰므로 그런 경우
+// 커넥션을 아예 빌리지 않는다 — 알림마다 풀에서 하나씩 더 빼면
+// 워커당 100 인 한도가 금방 빡빡해진다.
+function needs_connection(subl) {
+    if (!Array.isArray(subl)) {
+        return false;
+    }
+    for (var i = 0; i < subl.length; i++) {
+        var nu_arr = subl[i] ? subl[i].nu : null;
+        if (!Array.isArray(nu_arr)) { continue; }
+        for (var j = 0; j < nu_arr.length; j++) {
+            if (url.parse(String(nu_arr[j])).protocol == null) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
 exports.check = function(request, notiObj, check_value, callback) {
     var rootnm = request.headers.rootnm;
 
@@ -492,28 +531,62 @@ exports.check = function(request, notiObj, check_value, callback) {
     var noti_Str = JSON.stringify(notiObj);
     var noti_Obj = JSON.parse(noti_Str);
 
-    var parentObj = JSON.parse(JSON.stringify(request.targetObject))[Object.keys(request.targetObject)[0]];
-    var subl = request.targetObject[Object.keys(request.targetObject)[0]].subl;
+    // 대상 객체 전체를 깊은 복제한 뒤 그중 하나만 꺼내 쓰고 있었다.
+    // 요청마다 도는 자리라 그만큼이 그대로 낭비다. sgn_action 이 parentObj 를
+    // 읽기만 하므로 복제 없이 넘긴다.
+    var target_root = Object.keys(request.targetObject)[0];
+    var parentObj = request.targetObject[target_root];
+    var subl = parentObj.subl;
 
-
-    console.log('###########################################', parentObj.ri, subl);
-
-
-    if(check_value == 256 || check_value == 128) { // verification
-        sgn_action(request.db_connection, rootnm, check_value, subl, 0, noti_Obj, request.usebodytype, parentObj, function (code) {
-            callback(code);
-        });
-    }
-    else {
+    if(check_value != 256 && check_value != 128) {
         var noti_ri = noti_Obj.ri;
         noti_Obj.ri = noti_Obj.sri;
         delete noti_Obj.sri;
         noti_Obj.pi = noti_Obj.spi;
         delete noti_Obj.spi;
+    }
 
-        sgn_action(request.db_connection, rootnm, check_value, subl, 0, noti_Obj, request.usebodytype, parentObj, function (code) {
+    // 요청 커넥션을 쓰면 안 된다.
+    //
+    // 호출부 네 곳이 전부 빈 콜백으로 부르고 곧바로 응답을 내보낸다 —
+    // 정산이 connection.release() 를 하고 나서도 여기 질의가 계속 돈다.
+    // 반납된 커넥션은 풀로 돌아가 다른 요청에 넘어가므로, 알림 질의가
+    // 남의 트랜잭션(checkAndPurge 의 SELECT ... FOR UPDATE) 안에서 실행될 수 있다.
+    // 크래시가 아니라 조용한 뒤섞임이라 로그에 아무것도 남지 않는다.
+    //
+    // 실측으로 확인했다 — nu 를 ID 형식으로 둔 구독에 CIN 3건을 넣으니
+    // 반납 후 질의가 6건 찍혔다(get_ri_sri, select_resource_from_url).
+    run_with_own_connection(subl, function (connection, release) {
+        sgn_action(connection, rootnm, check_value, subl, 0, noti_Obj, request.usebodytype, parentObj, function (code) {
+            release();
             callback(code);
         });
-    }
+    }, callback);
 };
+
+// DB 가 필요하면 자기 커넥션을 빌려 넘기고, 아니면 null 로 진행한다.
+// release 는 몇 번 불려도 한 번만 반납한다.
+function run_with_own_connection(subl, body, on_giveup) {
+    if (global.usesqlite === 'true' || !needs_connection(subl)) {
+        body(null, function () {});
+        return;
+    }
+
+    db.getConnection(function (code, connection) {
+        if (code !== '200') {
+            // 알림은 fire-and-forget 이다. 여기서 매달리거나 재시도하면
+            // 풀이 고갈된 상황을 더 악화시킨다. 남기고 포기한다.
+            console.error('[sgn] 커넥션을 못 빌려 알림의 ID 해석을 건너뛴다 (풀 고갈?)');
+            on_giveup('200');
+            return;
+        }
+
+        var released = false;
+        body(connection, function () {
+            if (released) { return; }
+            released = true;
+            connection.release();
+        });
+    });
+}
 
