@@ -59,6 +59,21 @@ else { global.usesqlite = conf.usesqlite; }
 global.usedbhost = 'localhost';
 global.usedbpass = conf.dbpass;
 
+// CSE 신원. Mobius 본체는 mobius.js 와 app.js 에서 이 값들을 세운다.
+//
+// 콘솔은 app.js 를 읽지 않으므로 직접 세워야 한다. 안 세우면 sql_action 의
+// fold_acpi_entry 가 **선언되지 않은 전역을 읽어 ReferenceError 로 죽는다** —
+// acpi 역참조 스캔(scan_acpi_refs)이 통째로 못 돈다. 값이 있어도 틀리면
+// '//spid/cseid/Mobius/ae' 같은 절대 표기를 내부 ri 로 접지 못해, 그 리소스를
+// 참조가 없는 것으로 잘못 보고한다 — ACP 삭제 영향 분석이 조용히 빗나간다.
+var SUPER_USER = (typeof conf.superUser === 'string' && conf.superUser !== '')
+    ? conf.superUser : 'Sponde';
+
+global.usecsebase = 'Mobius';
+global.usecseid = '/Mobius2';
+global.usespid = '//keti.re.kr';
+global.usesuperuser = SUPER_USER;
+
 var db = require(path.join(ROOT, 'mobius', 'db'));
 var db_sql = require(path.join(ROOT, 'mobius', 'sql_action'));
 var responder = require(path.join(ROOT, 'mobius', 'responder'));
@@ -80,8 +95,7 @@ var CSE_PORT = parseInt(conf.adminCsePort || conf.csebaseport, 10);
 // **즉 콘솔의 비밀번호는 사실상 superUser 키와 같은 힘을 가진다.** ACP 로
 // 제한하고 싶으면 adminOrigin 에 별도 AE-ID 를 넣는다 — 그러면 콘솔은 그
 // AE 가 권한을 가진 리소스만 지울 수 있다.
-var SUPER_USER = (typeof conf.superUser === 'string' && conf.superUser !== '')
-    ? conf.superUser : 'Sponde';
+// SUPER_USER 는 위에서(전역 설정 전에) 정한다.
 var CSE_ORIGIN = (typeof conf.adminOrigin === 'string' && conf.adminOrigin !== '')
     ? conf.adminOrigin : SUPER_USER;
 
