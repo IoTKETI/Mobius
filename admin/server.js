@@ -353,51 +353,95 @@ app.get('/api/orphans', function (req, res) {
 // 찾아내고, 걸기 전에 결과를 미리 보는 것** 이다.
 
 /**
- * acpi 역참조를 **끝까지** 훑는다.
+ * 커서로 이어보는 스캔을 **끝까지** 돌린다.
  *
- * scan_acpi_refs 는 훑기 상한(scanCap)에 걸리면 거기서 끊고 {nextTy, nextRi} 를
- * 준다. 타입별로 훑기 때문에 이어보려면 **둘 다** 넘겨야 한다 — 하나만 넘기면
- * 다음 호출이 엉뚱한 타입의 같은 ri 에서 시작한다.
+ * 한 쪽만 보고 끝내지 않는 이유: 이 결과들은 "이 ACP 를 지워도 되는가" 의
+ * 근거다. 잘린 목록을 그대로 보여 주면 참조가 있는데 없다고 말하는 셈이 된다.
+ * 배포의 비-CIN 은 34,313행이라 기본 상한(20만)에서 한 번에 끝나지만, 끝나지
+ * 않는 경우에도 화면이 "여기까지가 전부" 로 보이면 안 된다.
  *
- * 한 쪽만 보고 끝내지 않는 이유: 이 결과는 "이 ACP 를 지워도 되는가" 의 근거다.
- * 잘린 목록을 그대로 보여 주면 참조가 있는데 없다고 말하는 셈이 된다. 배포의
- * 비-CIN 은 34,313행이라 실제로는 한 쪽에 끝나지만, 상한은 만약을 위해 둔다.
+ * 커서는 불투명한 문자열 하나다(result.next → opts.after). 예전에는 타입과 ri
+ * 두 조각이었는데, 하나만 넘기면 첫 타입에서 맴돌며 **끝나지 않았다**(실측:
+ * refs=0 에 201패스). 쪼갤 수 있는 커서는 언젠가 쪼개지므로 코어가 하나로
+ * 묶었고, 옛 인자를 넘기면 BAD_CURSOR 로 거부한다.
+ *
+ * @param call   call(after, cb) — after 가 null 이면 처음부터
+ * @param merge  merge(acc, page) — 페이지를 누적기에 합친다
  */
-var REF_SCAN_MAX_PASSES = 20;
+var SCAN_MAX_PASSES = 50;
+function drain(call, acc, merge, callback) {
+    var passes = 0;
+    function step(after) {
+        call(after, function (err, page) {
+            if (err) { return callback(err, page); }
+            merge(acc, page);
+            if (!page.next) { return callback(null, acc); }
+            if (++passes >= SCAN_MAX_PASSES) {
+                // 종료 조건은 !page.next 라 원래 닫힌다. 이 상한은 코어가 커서를
+                // 전진시키지 못하는 상황에 대한 보험이고, 걸리면 숨기지 않는다.
+                acc.capped = true;
+                return callback(null, acc);
+            }
+            step(page.next);
+        });
+    }
+    step(null);
+}
+
+/** 이 ACP 를 참조하는 리소스 전부. */
 function scan_refs_all(conn, acpRi, callback) {
     var acc = { refs: [], refsTruncated: false, byAcp: {}, scanned: 0,
                 capped: false, broken: 0, unresolved: {} };
-    var passes = 0;
-
-    function step(afterTy, afterRi) {
-        db_sql.scan_acpi_refs(conn, {
-            acpRi: acpRi, afterTy: afterTy, afterRi: afterRi
-        }, function (err, r) {
-            if (err) { return callback(err, r); }
-
-            acc.refs = acc.refs.concat(r.refs);
-            acc.refsTruncated = acc.refsTruncated || r.refsTruncated;
-            acc.scanned += r.scanned;
-            acc.broken += r.broken;
-            (r.unresolved || []).forEach(function (u) { acc.unresolved[u] = 1; });
-            Object.keys(r.byAcp || {}).forEach(function (k) {
-                acc.byAcp[k] = (acc.byAcp[k] || 0) + r.byAcp[k];
+    drain(
+        function (after, cb) {
+            var o = { acpRi: acpRi };
+            if (after) { o.after = after; }
+            db_sql.scan_acpi_refs(conn, o, cb);
+        },
+        acc,
+        function (a, p) {
+            a.refs = a.refs.concat(p.refs);
+            a.refsTruncated = a.refsTruncated || p.refsTruncated;
+            a.scanned += p.scanned;
+            a.broken += p.broken;
+            (p.unresolved || []).forEach(function (u) { a.unresolved[u] = 1; });
+            Object.keys(p.byAcp || {}).forEach(function (k) {
+                a.byAcp[k] = (a.byAcp[k] || 0) + p.byAcp[k];
             });
-
-            if (!r.capped) {
-                acc.unresolved = Object.keys(acc.unresolved);
-                return callback(null, acc);
-            }
-            if (++passes >= REF_SCAN_MAX_PASSES) {
-                // 여기까지 왔으면 정말로 다 못 봤다. 숨기지 않는다.
-                acc.capped = true;
-                acc.unresolved = Object.keys(acc.unresolved);
-                return callback(null, acc);
-            }
-            step(r.nextTy, r.nextRi);
+        },
+        function (err, a) {
+            if (err) { return callback(err, a); }
+            a.unresolved = Object.keys(a.unresolved);
+            callback(null, a);
         });
-    }
-    step(undefined, '');
+}
+
+/** acpi 참조 검사 전부. 첫 화면이라 특히 "여기까지가 전부" 로 보이면 안 된다. */
+function lint_refs_all(conn, opts, callback) {
+    var acc = { rows: [], counts: { error: 0, warn: 0, clean: 0 }, scanned: 0,
+                capped: false, broken: 0, refsTruncated: false, unresolved: {} };
+    drain(
+        function (after, cb) {
+            var o = { batch: opts.batch, scanCap: opts.scanCap, maxRefs: opts.maxRefs };
+            if (after) { o.after = after; }
+            acp_lint.lint_acpi_refs(conn, o, cb);
+        },
+        acc,
+        function (a, p) {
+            a.rows = a.rows.concat(p.rows);
+            a.counts.error += p.counts.error;
+            a.counts.warn += p.counts.warn;
+            a.counts.clean += p.counts.clean;
+            a.scanned += p.scanned;
+            a.broken += p.broken;
+            a.refsTruncated = a.refsTruncated || p.refsTruncated;
+            (p.unresolved || []).forEach(function (u) { a.unresolved[u] = 1; });
+        },
+        function (err, a) {
+            if (err) { return callback(err, a); }
+            a.unresolved = Object.keys(a.unresolved);
+            callback(null, a);
+        });
 }
 
 /** ACP 목록. ty 등치라 idx_lookup_ty 를 탄다. */
@@ -472,14 +516,13 @@ app.get('/api/acp/lint', function (req, res) {
 /**
  * acpi 참조 검사 — 없는 ACP 를 가리키는 리소스(dangling)를 찾는다.
  *
- * **이어보기를 노출하지 않는다.** lint_acpi_refs 는 커서를 돌려주지 않아
- * 애초에 이어볼 수 없고, 그 아래 scan_acpi_refs 는 타입별로 훑기 때문에
- * afterRi 만 넘기면 엉뚱한 타입의 같은 ri 에서 시작한다 — 있으나마나가 아니라
- * 틀린 결과를 내는 손잡이다. 상한에 걸리면 capped 로 그 사실만 전한다.
+ * 이어보기를 화면에 노출하지 않고 **서버가 끝까지 돌린다.** 이 목록은 콘솔의
+ * 첫 화면이고 "무엇이 잘못 걸려 있나" 의 전부여야 한다 — 상한에 걸린 줄 모르고
+ * "여기까지가 전부" 로 보이는 것이 가장 나쁘다.
  */
 app.get('/api/acp/lint-refs', function (req, res) {
     with_connection(res, function (conn, done) {
-        acp_lint.lint_acpi_refs(conn, {
+        lint_refs_all(conn, {
             batch: Math.min(parseInt(req.query.batch, 10) || 5000, 20000),
             scanCap: Math.min(parseInt(req.query.scanCap, 10) || 200000, 2000000),
             maxRefs: Math.min(parseInt(req.query.maxRefs, 10) || 500, 2000)
