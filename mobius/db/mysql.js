@@ -33,6 +33,26 @@ exports.statementTimeoutHint = function (ms) {
     return 'MAX_EXECUTION_TIME(' + n + ')';
 };
 
+// 리소스 경로끼리 비교할 때 붙일 콜레이션 조각.
+//
+// mobiusdb.sql 에서 lookup.pi 는 utf8mb3_general_ci, lookup.ri 는 utf8mb3_bin
+// 이다. 둘을 그냥 조인하면 ER_CANT_AGGREGATE_2COLLATIONS 로 죽는다.
+// 기존 코드가 쓰던 'where pi = ?' 는 pi 쪽 콜레이션(대소문자 무시)으로
+// 비교됐으므로, 조인으로 바꿔도 같은 결과가 나오도록 general_ci 를 쓴다.
+exports.pathCollate = function () {
+    return ' collate utf8mb3_general_ci';
+};
+
+// 옵티마이저에게 인덱스를 강제한다.
+//
+// 왜 필요한가: PRIMARY KEY 가 (pi, ri, ty) 라 pi 만 등치로 잡히고 ty 는
+// 범위에 못 들어간다. lookup 밖의 컬럼(lbl 등)을 걸러야 하면 옵티마이저가
+// 클러스터드 PRIMARY 를 골라 부모마다 CIN 을 전부 읽는다.
+// 배포 서버 실측(2026-08-29): lbl 필터가 60초 초과 → 강제 시 840ms.
+exports.indexHint = function (name) {
+    return ' force index (' + name + ')';
+};
+
 exports.connect = function (conf, callback) {
     pool = mysql.createPool({
         host: conf.host,

@@ -1218,100 +1218,42 @@ exports.create = function (request, response, callback) {
     });
 };
 
+// discovery 요청 파라미터를 정규화한다.
+//
+// 예전에는 여기서 트리 전체의 부모 목록을 레벨별로 긁어 왔다
+// (search_parents_lookup). 이제 search_lookup 이 재귀 CTE 한 문장으로
+// 자손을 직접 뽑으므로 그 사전 탐색이 필요 없다 — 배포 서버에서 이 단계만
+// 25회 왕복 / 626ms 였고, 레벨당 2,000개 상한 때문에 큰 트리에서는 결과가
+// 조용히 잘리기까지 했다.
+//
+// 남은 일은 뒤 단계가 의존하는 질의 파라미터 보정뿐이라 DB 를 건드리지 않는다.
 function presearch_action(request, response, pi_list, found_parent_list, callback) {
     var resource_Obj = request.resourceObj;
     var rootnm = Object.keys(resource_Obj)[0];
 
-    console.time('search_parents_lookup ' + resource_Obj[rootnm].ri);
-    var cur_found_parent_list = [];
+    request.query.cni = '0';
 
-    // lvl 을 탐색 단계로 내려보낸다.
-    //
-    // 아래에서 어차피 depth(ri) <= cur_lvl + lvl 인 것만 남기는데, 그동안
-    // 트리는 끝까지 훑고 있었다. 탐색 레벨 k 의 노드는 depth >= cur_lvl+1+k
-    // 이므로 남는 것은 반드시 k <= lvl-1 이다 — lvl-1 레벨까지만 훑으면 된다.
-    //
-    // ty=2 는 아래(1231행)에서 lvl='1' 을 강제한다. 그 판정이 탐색 뒤에
-    // 일어나므로 여기서 같은 조건을 미리 본다. lvl=1 이면 0 레벨 —
-    // 부모 탐색 질의를 한 번도 안 던진다.
-    var eff_lvl = (request.query.ty == '2') ? '1' : request.query.lvl;
-    var max_levels;
-    if (eff_lvl != null) {
-        var parsed_lvl = parseInt(eff_lvl, 10);
-        if (!isNaN(parsed_lvl)) { max_levels = Math.max(0, parsed_lvl - 1); }
+    // ty=2(AE)는 CSE 바로 아래에만 있다. 더 내려갈 이유가 없다.
+    if (request.query.ty == '2') {
+        request.query.lvl = '1';
     }
 
-    db_sql.search_parents_lookup(request.db_connection, pi_list, cur_found_parent_list, found_parent_list, (code) => {
-        console.timeEnd('search_parents_lookup ' + resource_Obj[rootnm].ri);
-        if(code === '200') {
-            request.query.cni = '0';
-            if (request.query.ty == '2') {
-                request.query.lvl = '1';
-            }
-
-            if (request.query.la != null) {
-                if (resource_Obj[rootnm].ty == '3') {
-                    request.query.cni = parseInt(resource_Obj[rootnm].cni, 10);
-                }
-            }
-
-            if (request.query.lim != null) {
-                if (request.query.lim > max_lim) {
-                    request.query.lim = max_lim;
-                }
-            }
-            else {
-                request.query.lim = max_lim;
-            }
-
-            // remove pi be parent resource
-            if (request.query.ty == '4') {
-                for (var i = 0; i < found_parent_list.length; i) {
-                    if (found_parent_list[i].ty != '3') {
-                        found_parent_list.splice(i, 1);
-                    }
-                    else {
-                        i++;
-                    }
-                }
-            }
-            else if (request.query.ty == '2') {
-                for (i = 0; i < found_parent_list.length; i) {
-                    if (found_parent_list[i].ty != '5') {
-                        found_parent_list.splice(i, 1);
-                    }
-                    else {
-                        i++;
-                    }
-                }
-            }
-            else if (request.query.ty == '3') {
-                for (i = 0; i < found_parent_list.length; i) {
-                    if (found_parent_list[i].ty != '2' && found_parent_list[i].ty != '3' && found_parent_list[i].ty != '5') {
-                        found_parent_list.splice(i, 1);
-                    }
-                    else {
-                        i++;
-                    }
-                }
-            }
-            else if (request.query.ty == '1') {
-                for (i = 0; i < found_parent_list.length; i) {
-                    if (found_parent_list[i].ty != '2' && found_parent_list[i].ty != '3' && found_parent_list[i].ty != '5') {
-                        found_parent_list.splice(i, 1);
-                    }
-                    else {
-                        i++;
-                    }
-                }
-            }
-
-            callback(code);
+    if (request.query.la != null) {
+        if (resource_Obj[rootnm].ty == '3') {
+            request.query.cni = parseInt(resource_Obj[rootnm].cni, 10);
         }
-        else {
-            callback(code);
+    }
+
+    if (request.query.lim != null) {
+        if (request.query.lim > max_lim) {
+            request.query.lim = max_lim;
         }
-    }, max_levels);
+    }
+    else {
+        request.query.lim = max_lim;
+    }
+
+    callback('200');
 }
 
 function search_action(request, response, seq, resource_Obj, ri_list, strObj, presearch_Obj, callback) {
@@ -1478,27 +1420,13 @@ exports.retrieve = function (request, response, callback) {
 
         var found_parent_list = [];
         var ri_list = [];
-        var pi_list = [];
-        pi_list.push(resource_Obj[rootnm].ri);
+        // 부모 목록을 미리 모으지 않는다 — search_lookup 이 재귀 CTE 로
+        // 루트 아래를 직접 훑는다. lvl 도 그 안에서 처리된다.
+        var pi_list = [resource_Obj[rootnm].ri];
         var foundObj = {};
 
         presearch_action(request, response, pi_list, found_parent_list, function (code) {
             if (code == '200') {
-                pi_list = [];
-                pi_list.push(resource_Obj[rootnm].ri);
-                var cur_lvl = parseInt((url.parse(request.url).pathname.split('/').length), 10) - 2;
-                for (i = 0; i < found_parent_list.length; i++) {
-                    if (request.query.lvl != null) {
-                        var lvl = request.query.lvl;
-                        if ((found_parent_list[i].ri.split('/').length - 1) <= (cur_lvl + (parseInt(lvl, 10)))) {
-                            pi_list.push(found_parent_list[i].ri);
-                        }
-                    }
-                    else {
-                        pi_list.push(found_parent_list[i].ri);
-                    }
-                }
-
                 var cur_d = moment().add(1, 'd').utc().format('YYYY-MM-DD HH:mm:ss');
                 db_sql.search_lookup(request.db_connection, resource_Obj[rootnm].ri, request.query, request.query.lim, pi_list, 0, foundObj, 0, request.query.cni, cur_d, 0, function (code) {
                     if (code === '200') {

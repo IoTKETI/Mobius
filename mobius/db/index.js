@@ -193,6 +193,23 @@ exports.statementTimeoutHint = function (ms) {
     return adapter.statementTimeoutHint(ms);
 };
 
+// 리소스 경로(pi/ri)끼리 비교할 때 붙일 콜레이션 조각. 필요 없으면 빈 문자열.
+// 스키마가 두 컬럼을 다른 콜레이션으로 만든 백엔드(MySQL)에서만 값이 있다.
+//
+//   var C = db.pathCollate();
+//   'join skel s on l.pi = s.sk_ri' + C
+exports.pathCollate = function () {
+    builder();   // adapter 를 채운다 (connect() 전에도 방언은 정해진다)
+    return adapter.pathCollate ? adapter.pathCollate() : '';
+};
+
+// 옵티마이저에게 인덱스를 강제하는 조각. 지원하지 않는 백엔드는 빈 문자열.
+// 이름은 MySQL 스키마의 인덱스명을 그대로 쓴다 — 다른 백엔드는 무시한다.
+exports.indexHint = function (name) {
+    builder();
+    return adapter.indexHint ? adapter.indexHint(name) : '';
+};
+
 // 테스트용. 운영 코드는 어느 백엔드인지 알 필요가 없다.
 exports._adapterName = function () {
     return adapter ? adapter.name : null;

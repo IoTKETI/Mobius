@@ -1494,154 +1494,9 @@ exports.search_lookup_parents = function(connection, query, pi, cur_lim, count, 
 };
 */
 
-const max_parent_count = 2000;
-
-// 한 번에 물어볼 부모 수.
-//
-// 예전에는 부모 하나당 질의를 하나씩 던졌다. 그런데 부모 하나가 가진
-// 자식은 몇 개뿐이라, 비용의 대부분이 왕복 그 자체였다.
-//
-// 배포 서버 실측 (2026-08-28):
-//   루트 discovery 1건 -> 부모별 조회 4,080회 / 검사행 13,437 (쿼리당 3.3행)
-//                        DB 시간 1,235ms, 응답 1,984ms
-//   누적으로는 초당 103.7회 / 회당 0.43ms 로 남은 최대 비용이었다.
-//
-// 200개씩 묶으면 왕복이 4,080회 -> 21회가 된다. 읽는 행 수는 그대로다.
-// EXPLAIN 상 두 형태 모두 PRIMARY(pi, ri, ty) 커버링 인덱스를 쓴다
-// (단건은 type: ref, 묶음은 type: range).
-const PARENT_BATCH = 200;
-
-// presearch 가 훑지 않는 타입. 리프(4=cin, 23=sub, 17=req)와
+// 자손 수집이 훑지 않는 타입. 리프(4=cin, 23=sub, 17=req)와
 // 별도 경로로 다루는 것(1=acp, 9=grp)이다.
 const PRESEARCH_SKIP_TY = ['1', '9', '23', '4', '17'];
-
-function search_parents_lookup_action(connection, pi_list, count, cur_result_ri, result_ri, callback) {
-    if (count >= pi_list.length) {
-        callback('200');
-        return;
-    }
-
-    // 이 레벨에서 더 담을 수 있는 만큼만 가져온다. 상한을 넘기면 어차피 멈추므로
-    // 그 이상 읽어 오는 것은 낭비이고, 한 묶음이 돌려주는 행 수의 상한이기도 하다.
-    var room = max_parent_count - cur_result_ri.length + 1;
-    if (room <= 0) {
-        callback('200');
-        return;
-    }
-
-    var batch = pi_list.slice(count, count + PARENT_BATCH);
-
-    // 예전에는 pi 를 SQL 문자열에 그대로 끼워 넣었다. pi 는 DB 에서 읽은 ri 이고
-    // 그 ri 는 클라이언트가 정한 rn 을 담으므로, 2차 주입 통로였다.
-    var qb = facade.k('lookup')
-        .select('pi', 'ri', 'ty')
-        .whereIn('pi', batch)
-        .whereNotIn('ty', PRESEARCH_SKIP_TY)
-        .limit(room);
-
-    facade.run(qb, connection, function (err, rows) {
-        if (err) {
-            callback('500-1');
-            return;
-        }
-
-        rows = rows || [];
-
-        // IN 은 인덱스 순서(pi 오름차순)로 돌려준다. 예전 구현은 pi_list 순서로
-        // 부모를 하나씩 훑었으므로, 결과 순서를 그대로 두려면 여기서 다시 묶는다.
-        // 이 순서가 곧 discovery 응답의 순서가 된다 (resource.js 가
-        // found_parent_list 를 그 순서대로 pi_list 로 옮긴다).
-        var byPi = Object.create(null);
-        for (var i = 0; i < rows.length; i++) {
-            var r = rows[i];
-            if (byPi[r.pi] === undefined) { byPi[r.pi] = []; }
-            // 호출부는 ri 와 ty 만 쓴다. pi 는 묶는 데만 쓰고 넘기지 않는다.
-            byPi[r.pi].push({ ri: r.ri, ty: r.ty });
-        }
-
-        var full = false;
-        for (var b = 0; b < batch.length && !full; b++) {
-            var kids = byPi[batch[b]];
-            if (kids === undefined) { continue; }
-            for (var k = 0; k < kids.length; k++) {
-                cur_result_ri.push(kids[k]);
-                if (cur_result_ri.length > max_parent_count) { full = true; break; }
-            }
-        }
-
-        if (full) {
-            callback('200');
-            return;
-        }
-
-        search_parents_lookup_action(connection, pi_list, count + PARENT_BATCH,
-            cur_result_ri, result_ri, function (code) {
-                callback(code);
-            });
-    });
-}
-
-// 읽기(presearch) 경로: 레벨 단위 재귀 + 2000개 상한 (구버전 복원).
-// 무제한 CTE는 초대형 lookup에서 루트 디스커버리가 분 단위로 걸리는 회귀가
-// 있었다. 삭제/고아정리 등 전체 수집이 필요한 곳은 search_parents_lookup_all 사용.
-// max_levels 는 선택이다. 주면 그만큼의 레벨만 내려간다.
-//
-// ── 왜 필요한가 ─────────────────────────────────────────────────────────
-// 호출부(resource.js)는 lvl 질의 파라미터가 있으면 **훑고 나서** 깊이로
-// 걸러낸다. 즉 버릴 것을 다 읽고 있었다. 배포 서버 실측:
-//
-//   /Mobius?fu=1&ty=3&lim=100          -> 부모질의 25회 / 626ms
-//   /Mobius?fu=1&ty=3&lim=100&lvl=1    -> 부모질의 25회 / 665ms  (결과는 3건)
-//   /Mobius?fu=1&ty=2&lim=100          -> 부모질의 25회 / 659ms  (lvl=1 강제)
-//
-// lvl 을 줘도 훑는 양이 그대로다. ty=2(AE 조회)는 CSEBase 의 직계 자식만
-// 필요한데 3만 개 컨테이너 트리를 전부 훑고 있었다.
-//
-// ── 왜 결과가 같은가 ────────────────────────────────────────────────────
-// 호출부의 필터는 depth(ri) <= cur_lvl + lvl 인 것만 남긴다.
-// 탐색 레벨 k 의 노드는 depth >= cur_lvl + 1 + k 다 (등호는 rn 에 '/' 가
-// 없을 때. 배포 데이터에 rn='P1/test' 같은 예외가 실제로 하나 있다).
-// 따라서 필터가 남기는 노드는 반드시 k <= lvl - 1 이다.
-// lvl-1 레벨까지만 훑으면 남길 것은 하나도 안 잃는다.
-exports.search_parents_lookup = function (connection, pi_list, cur_result_ri, result_ri, callback, max_levels) {
-    if (global.usesqlite === 'true') {
-        return _this.search_parents_lookup_all(connection, pi_list, cur_result_ri, result_ri,
-            callback, max_levels);
-    }
-
-    // 더 내려갈 레벨이 없으면 질의 자체를 안 한다 (lvl=1 이면 0 레벨).
-    if (max_levels !== undefined && max_levels !== null && max_levels <= 0) {
-        callback('200');
-        return;
-    }
-
-    cur_result_ri = [];
-    search_parents_lookup_action(connection, pi_list, 0, cur_result_ri, result_ri, (code) => {
-        if (code === '200') {
-            if (cur_result_ri.length === 0) {
-                callback(code);
-            }
-            else {
-                var next_pi_list = [];
-                for (var idx in cur_result_ri) {
-                    if (cur_result_ri.hasOwnProperty(idx)) {
-                        next_pi_list.push(cur_result_ri[idx].ri);
-                        result_ri.push(cur_result_ri[idx]);
-                    }
-                }
-
-                _this.search_parents_lookup(connection, next_pi_list, cur_result_ri, result_ri,
-                    function (code) {
-                        callback(code);
-                    },
-                    (max_levels === undefined || max_levels === null) ? max_levels : max_levels - 1);
-            }
-        }
-        else {
-            callback(code);
-        }
-    });
-};
 
 // 하위(비-리프 타입) 자손을 재귀 CTE 한 번으로 수집.
 //
@@ -1732,390 +1587,125 @@ exports.select_spec_ri = function (connection, found_Obj, count, callback) {
         });
 };
 
-function search_lookup_action(connection, pi_list, count, result_ri, query_where, callback) {
-    if (count >= pi_list.length) {
-        callback('200');
-        return;
-    }
+// discovery 는 두 백엔드 모두 재귀 CTE 하나로 처리한다.
+//
+// 예전에는 MySQL 만 "레벨별로 부모를 모아 두고 부모마다 질의" 하는 2단계였다.
+// 그 방식은 레벨당 2,000개 상한이 있어 큰 트리에서 결과가 조용히 잘렸고,
+// 부모 수만큼 왕복이 생겼다. SQLite 는 이미 CTE 였으므로 CTE 로 통일한다.
+//
+// 재귀항에서 ty 를 **등치**로 줘야 (pi, ty) 인덱스 범위를 탄다.
+// 배포 서버 실측(2026-08-29, lookup 6,620만행 / CIN 이 99.95%):
+//   ty in (2,3,5)  -> 인덱스가 pi 까지만, 나머지는 필터   6,961ms
+//   ty < 4         -> 마찬가지                          77,387ms
+//   ty = 3 (등치)  -> (pi, ty) 범위                        434ms
+// 그래서 타입마다 UNION 분기를 하나씩 만든다.
+//
+// 자식을 가질 수 있는 타입 = global.ty_list - leaf_ty_list(resource.js).
+// 여기서 직접 들고 있는 이유는 sql_action 이 resource 보다 먼저 로드될 수
+// 있어서다. 새 타입을 추가하면 양쪽을 같이 고쳐야 한다 —
+// test/discovery-cte.test.js 가 두 목록의 일치를 검사한다.
+var NONLEAF_TY = ['2', '3', '5', '10', '13', '14', '16', '24', '27', '28',
+                  '38', '39', '91', '92', '93', '94', '95', '96', '97', '98'];
+exports.NONLEAF_TY = NONLEAF_TY;
 
-    // query_where 는 앞 단계에서 만든 SQL 조각이라 그대로 이어 붙인다.
-    // pi 만 바인딩으로 넘긴다 — pi 는 DB 에서 읽은 ri 이고 그 ri 는 클라이언트가
-    // 정한 rn 을 담으므로 2차 주입 통로였다.
-    //
-    // 파사드를 쓰면 두 백엔드 모두에서 돌아간다. 예전의 db.getResult 는
-    // mysql_pool 을 직접 잡아 SQLite 에서는 아예 동작하지 않았다.
-    var sql = 'select * from lookup where pi = ? ' + query_where;
-    facade.run(facade.raw(sql, [pi_list[count]]), connection, function (err, result_lookup_ri) {
-        if (!err) {
-            if (result_lookup_ri.length === 0) {
-                search_lookup_action(connection, pi_list, ++count, result_ri, query_where, function (code) {
-                    callback(code);
-                });
-            }
-            else {
-                for (var idx in result_lookup_ri) {
-                    if (result_lookup_ri.hasOwnProperty(idx)) {
-                        result_ri.push(result_lookup_ri[idx]);
-                        if (result_ri.length > max_search_count) {
-                            break;
-                        }
-                    }
-                }
+// 큰 트리에서 pathological 한 질의(ty 없이 lbl like '%..%' 등)가 커넥션을
+// 오래 붙잡지 않도록 문장 단위 상한을 건다. 지원하지 않는 백엔드에서는 null 이라
+// 아무것도 붙지 않는다. 배포 서버 실측: 그런 질의는 현행 코드에서도 23초 걸린다.
+const DISCOVERY_TIMEOUT_MS = 30000;
 
-                if (result_ri.length > max_search_count) {
-                    callback('200');
-                }
-                else {
-                    search_lookup_action(connection, pi_list, ++count, result_ri, query_where, function (code) {
-                        callback(code);
-                    });
-                }
-            }
-        }
-        else {
-            callback('500-1');
-        }
-    });
+// lvl -> 골격을 몇 레벨까지 훑을지. null 이면 무제한.
+//
+// 골격의 루트가 sk_lvl=0 이고 그 자식이 결과 depth 1 이다. lvl=N 이면
+// 결과는 depth N 까지이므로 부모는 sk_lvl <= N-1 까지만 있으면 된다.
+function descendant_max_lvl(query) {
+    if (query.lvl == null) { return null; }
+    var n = parseInt(query.lvl, 10);
+    if (isNaN(n)) { return null; }
+    return Math.max(0, n - 1);
 }
+exports.descendant_max_lvl = descendant_max_lvl;
 
-function search_resource_action(connection, ri, query, cur_lim, pi_list, cni, loop_count, seekObj, callback) {
-    if (loop_count >= 20) {
-        callback('200');
-        return;
-    }
+// ri 아래 자손을 한 문장으로 뽑는 SQL 을 만든다. {sql, bindings} 를 준다.
+//
+// query_where 는 build_search_query 가 만든 조각으로 이미 이스케이프돼 있고
+// (sanitize_discovery_query), 컬럼을 alias 없이 부른다. 골격 CTE 는 컬럼을
+// sk_ri / sk_lvl 로 이름 붙여 그 조각과 절대 겹치지 않게 한다.
+function build_descendant_sql(ri, query, query_where, cur_lim) {
+    var C = facade.pathCollate();
+    var max_lvl = descendant_max_lvl(query);
 
-    var query_where = '';
-    var query_count = 0;
-    if (query.lbl != null) {
-        query_where = ' and ';
-        if (query.lbl.toString().split(',')[1] == null) {
-            query_where += util.format(' lbl like \'[\"%%%s%%\"]\'', query.lbl);
-            //query_where += util.format(' lbl like \'%s\'', request.query.lbl);
+    var branches = '';
+    // max_lvl 이 0 이면 직계 자식만 보면 되므로 재귀가 아예 필요 없다.
+    if (max_lvl === null || max_lvl > 0) {
+        var guard = (max_lvl === null) ? '' : ' and s.sk_lvl < ' + max_lvl;
+        for (var i = 0; i < NONLEAF_TY.length; i++) {
+            branches += '\n  union\n' +
+                '  select l.ri, s.sk_lvl + 1 from lookup l' +
+                ' join skel s on l.pi = s.sk_ri' + C +
+                " where l.ty = '" + NONLEAF_TY[i] + "'" + guard;
         }
-        else {
-            for (var i = 0; i < query.lbl.length; i++) {
-                query_where += util.format(' lbl like \'%%\"%s\"%%\'', query.lbl[i]);
-                //query_where += util.format(' lbl like \'%s\'', request.query.lbl[i]);
-
-                if (i < query.lbl.length - 1) {
-                    query_where += ' or ';
-                }
-            }
-        }
-        query_count++;
     }
 
-    var ty_str = '';
-    if (query.ty != null) {
-        ty_str = ' and ';
-        query_where += ' and ';
+    // lbl 등 lookup 밖의 컬럼을 걸러야 하면 옵티마이저가 클러스터드 PRIMARY
+    // (pi, ri, ty) 를 골라 ty 를 범위에서 빼 버린다. 그러면 부모마다 CIN 을
+    // 전부 읽는다 — 배포 서버에서 60초를 넘겼다. (pi, ty, ct) 를 강제한다.
+    var hint = facade.indexHint('idx_lookup_pi_ty_ct');
+    var timeout = facade.statementTimeoutHint(DISCOVERY_TIMEOUT_MS);
+    var lead = 'select ' + (timeout ? '/*+ ' + timeout + ' */ ' : '');
 
-        if (query.ty.toString().split(',').length == 1) {
-            query_where += util.format('ty = \'%s\'', query.ty);
-            ty_str += util.format('ty = \'%s\'', query.ty);
-        }
-        else {
-            query_where += ' (';
-            ty_str += ' (';
-            for (i = 0; i < query.ty.length; i++) {
-                query_where += util.format('ty = \'%s\'', query.ty[i]);
-                ty_str += util.format('ty = \'%s\'', query.ty[i]);
-                if (i < query.ty.length - 1) {
-                    query_where += ' or ';
-                    ty_str += ' or ';
-                }
-            }
-            query_where += ') ';
-            ty_str += ') ';
-        }
-        query_count++;
-    }
+    var sql =
+        'with recursive skel as (\n' +
+        '  select ri as sk_ri, 0 as sk_lvl from lookup where ri = ?' + branches + '\n' +
+        ')\n' +
+        lead + 'r.* from lookup r' + hint +
+        ' join skel s on r.pi = s.sk_ri' + C + '\n' +
+        ' where 1 = 1' + query_where;
 
-    if (query.cra != null) {
-        query_where += ' and ';
-        query_where += util.format('\'%s\' <= ct', query.cra);
-        query_count++;
-    }
+    if (max_lvl !== null) { sql += ' and s.sk_lvl <= ' + max_lvl; }
 
-    if (query.crb != null) {
-        query_where += ' and ';
-        query_where += util.format(' ct < \'%s\'', query.crb);
-        query_count++;
-    }
-
-    if (query.ms != null) {
-        query_where += ' and ';
-        query_where += util.format('\'%s\' <= lt', query.ms);
-        query_count++;
-    }
-
-    if (query.us != null) {
-        query_where += ' and ';
-        query_where += util.format(' lt < \'%s\'', query.us);
-        query_count++;
-    }
-
-    if (query.exa != null) {
-        query_where += ' and ';
-        query_where += util.format('\'%s\' <= et', query.exa);
-        query_count++;
-    }
-
-    if (query.exb != null) {
-        query_where += ' and ';
-        query_where += util.format(' et < \'%s\'', query.exb);
-        query_count++;
-    }
-
-    if (query.sts != null) {
-        query_where += ' and ';
-        query_where += util.format(' st < \'%s\'', query.sts);
-        query_count++;
-    }
-
-    if (query.stb != null) {
-        query_where += ' and ';
-        query_where += util.format('\'%s\' <= st', query.stb);
-        query_count++;
-    }
-
-    if (query.sza != null) {
-        query_where += ' and ';
-        query_where += util.format('%s <= cs', query.sza);
-        query_count++;
-    }
-
-    if (query.szb != null) {
-        query_where += ' and ';
-        query_where += util.format('cs < %s', query.szb);
-        query_count++;
-    }
-
-    if (query.rn != null) {
-        query_where += ' and ';
-        query_where += util.format('rn = \'%s\'', query.rn);
-        query_count++;
-    }
-
-    if (query.cty != null) {
-        query_where += ' and ';
-        query_where += util.format('cnf = \'%s\'', query.cty);
-        query_count++;
-    }
-
+    // la 는 "최신 N건"이다. ct 는 초 단위라 동점이 흔해 ri 로 가려야
+    // 안정적이다 (select_edge_resource 와 같은 이유).
+    var lim, ofst = null;
     if (query.la != null) {
-        cur_lim = parseInt(query.la, 10);
-
-        var before_ct = moment().subtract(Math.pow(2, loop_count * 1), 'minutes').utc().format('YYYYMMDDTHHmmss');
-
-        query_where += ' and ';
-        query_where += util.format(' (\'%s\' < ct) ', before_ct);
-        query_count++;
+        sql += ' order by r.ct desc, r.ri desc';
+        lim = parseInt(query.la, 10);
     }
     else {
-        // limit 만 붙인다. offset 은 여기 넣으면 **부모마다** 적용된다 —
-        // 이 조각은 search_lookup_action 이 부모 하나씩 실행하기 때문이다.
-        // 부모가 가진 자식보다 오프셋이 크면 그 부모는 아무것도 안 돌려주고,
-        // 결국 전체가 빈 결과가 된다.
-        //
-        // 배포 서버 실측 (2026-08-29, MySQL):
-        //   lim=200&ofst=1000 -> 0건
-        //   lim=300&ofst=10   -> 300건이지만 ofst=0 의 300건과 20건만 겹침
-        //                        (전역 오프셋이면 290건이 겹쳐야 한다)
-        //
-        // 이제 SQL 에서는 건너뛰지 않고, search_lookup 이 모아서 한 번만
-        // 건너뛴다. cur_lim 에는 그 몫이 이미 더해져 들어온다.
-        query_where += ' limit ' + cur_lim;
+        lim = parseInt(cur_lim, 10);
+    }
+    if (isNaN(lim) || lim < 0) { lim = max_search_count; }
+
+    if (query.ofst != null) {
+        var o = parseInt(query.ofst, 10);
+        if (!isNaN(o) && o > 0) { ofst = o; }
     }
 
-    var search_Obj = [];
-    search_lookup_action(connection, pi_list, 0, search_Obj, query_where, function (code) {
-        if (code === '200') {
-            search_Obj = search_Obj.reverse();
-            for (var i in search_Obj) {
-                if (search_Obj.hasOwnProperty(i)) {
-                    seekObj[search_Obj[i].ri] = search_Obj[i];
-                    if (Object.keys(seekObj).length >= cur_lim) {
-                        break;
-                    }
-                }
-            }
+    sql += ' limit ' + lim;
+    if (ofst !== null) { sql += ' offset ' + ofst; }
 
-            if (query.la != null) {
-                if (Object.keys(seekObj).length >= cur_lim) {
-                    callback(code);
-                }
-                else {
-                    var foundCount = Object.keys(seekObj).length;
-                    search_resource_action(connection, ri, query, parseInt(cur_lim, 10) - foundCount, pi_list, cni, ++loop_count, seekObj, function (code) {
-                        callback(code);
-                    });
-                }
-            }
-            else {
-                callback(code);
-            }
-        }
-        else {
-            callback(code);
-        }
-    });
+    return { sql: sql, bindings: [ri] };
 }
+exports.build_descendant_sql = build_descendant_sql;
 
-exports.search_lookup_sqlite = function (connection, ri, query, cur_lim, pi_list, pi_index, found_Obj, found_Cnt, cni, cur_d, loop_cnt, callback) {
-    // 1. Build Filter Clause
-    build_search_query(query, function (query_where) {
-        // 2. Construct CTE Query
-        // Anchor: The root resource (ri)
-        // Recursive: Children (pi = parent.ri)
-        // Note: We exclude the root itself from result if typically desired, but discovery usually includes filtered results under root.
-        // Mobius logic usually starts discovery *under* the target.
-        // The original search_lookup starts with pi_list populated with the Target's RI.
-        // So we are looking for children of Target.
-        // We will start the anchor with children of the Target (pi = ri).
-
-        var anchor_sql = util.format("select * from lookup where pi = '%s'", ri);
-
-        // If we want the root included in search scope? usually discovery is "descendants".
-        // existing search_lookup uses 'select * from lookup where pi = ...' so it searches children.
-
-        var sql = `
-            WITH RECURSIVE hierarchy AS (
-                ${anchor_sql}
-                UNION ALL
-                SELECT l.* FROM lookup l JOIN hierarchy p ON l.pi = p.ri
-            )
-            SELECT * FROM hierarchy WHERE 1=1 ${query_where} 
-        `;
-
-        // Handle 'la' (Latest N) - implies ordering by creation time descending
-        if (query.la != null) {
-            // ct 는 초 단위라 동점이 흔하다. ri 로 가려야 최신 N건이 안정적이다.
-            sql += ` ORDER BY ct DESC, ri DESC LIMIT ${query.la}`;
-            if (query.ofst != null) {
-                sql += ` OFFSET ${query.ofst}`;
-            }
-        }
-        else {
-            // Standard limit logic
-            if (query.lim != null) {
-                sql += ` LIMIT ${cur_lim}`;
-            }
-            else {
-                sql += ` LIMIT 1000`; // Default safety limit
-            }
-
-            if (query.ofst != null) {
-                sql += ` OFFSET ${query.ofst}`;
-            }
-        }
-
-        var sqlite = require('./db_sqlite');
-        // console.log('[DEBUG-S] Search SQL:', sql);
-        sqlite.getResult(sql, connection, function (err, rows) {
-            if (!err) {
-                // console.log('[DEBUG-S] CTE Result Count:', rows.length);
-                for (var i = 0; i < rows.length; i++) {
-                    found_Obj[rows[i].ri] = rows[i];
-                }
-                callback('200');
-            }
-            else {
-                console.error('[search_lookup_sqlite] CTE Error:', err);
-                callback('500-1');
-            }
-        });
-    });
-};
-
-// 8번째 인자(예전 이름 found_Cnt)는 어디서도 읽히지 않는 미사용 값이었다.
-// ofst 를 전역으로 적용하려면 "지금까지 몇 개를 건너뛰었나"를 재귀 사이에
-// 들고 다녀야 해서 그 자리를 쓴다. 호출부(resource.js)는 이미 0 을 넘긴다.
+// 인자 목록은 예전 2단계 구현의 것을 그대로 둔다 — 호출부(resource.js)와
+// 테스트가 이 형태를 쓴다. pi_list / pi_index / skipped / cni / cur_d /
+// loop_cnt / search_tid 는 CTE 가 한 문장으로 끝내므로 더는 읽지 않는다.
 exports.search_lookup = function (connection, ri, query, cur_lim, pi_list, pi_index, found_Obj, skipped, cni, cur_d, loop_cnt, callback, search_tid) {
-    sanitize_discovery_query(query); // SQL Injection 방어: 두 backend(MySQL/SQLite) 진입점에서 한 번만 정규화
-    if (global.usesqlite === 'true') {
-        // SQLite 경로는 오프셋을 SQL 에서 전역으로 처리하므로 skipped 를 안 쓴다.
-        return _this.search_lookup_sqlite(connection, ri, query, cur_lim, pi_list, pi_index, found_Obj, skipped, cni, cur_d, loop_cnt, callback);
-    }
+    sanitize_discovery_query(query); // SQL Injection 방어
 
-    // 타이머 라벨을 모듈 전역이 아닌 호출 체인 지역으로 유지 (동시 검색 시 race로 'No such label' 경고 발생하던 문제)
-    if (!search_tid) {
-        search_tid = 'search_lookup (' + require('shortid').generate() + ')';
-        console.time(search_tid);
-    }
+    build_search_query(query, function (query_where) {
+        var q = build_descendant_sql(ri, query, query_where, cur_lim);
 
-    if (pi_index >= pi_list.length) {
-        console.timeEnd(search_tid);
-        callback('200');
-        return;
-    }
-
-    var cur_pi = [];
-
-    for (var idx = 0; idx < 32; idx++) {
-        if (pi_index < pi_list.length) {
-            cur_pi.push(pi_list[pi_index++]);
-        }
-        else {
-            break;
-        }
-    }
-
-    // 아직 건너뛸 몫. la 는 자기 나름의 상한을 쓰므로 대상이 아니다.
-    skipped = parseInt(skipped, 10) || 0;
-    var want_skip = 0;
-    if (query.ofst != null && query.la == null) {
-        var ofst_n = parseInt(query.ofst, 10);
-        if (!isNaN(ofst_n) && ofst_n > skipped) { want_skip = ofst_n - skipped; }
-    }
-
-    var seekObj = {};
-    // 건너뛸 몫까지 가져와야 그만큼 버리고도 lim 을 채울 수 있다.
-    search_resource_action(connection, ri, query, cur_lim + want_skip, cur_pi, cni, 0, seekObj, function (code) {
-        if (code === '200') {
-            var search_Obj = [];
-            for (var idx in seekObj) {
-                if (seekObj.hasOwnProperty(idx)) {
-                    search_Obj.push(seekObj[idx]);
-                }
+        facade.run(facade.raw(q.sql, q.bindings), connection, function (err, rows) {
+            if (err) {
+                console.error('[search_lookup] ' + ((err && err.message) || err));
+                return callback('500-1');
             }
-
-            if (search_Obj.length > 0) {
-                var skip_left = want_skip;
-                for (var i = 0; i < search_Obj.length; i++) {
-                    if (skip_left > 0) {
-                        skip_left--;
-                        skipped++;
-                        continue;
-                    }
-                    found_Obj[search_Obj[i].ri] = search_Obj[i];
-                    if (Object.keys(found_Obj).length >= query.lim) {
-                        break;
-                    }
-                }
-
-                if (Object.keys(found_Obj).length >= query.lim) {
-                    console.timeEnd(search_tid);
-                    callback('200');
-                }
-                else {
-                    cur_lim = parseInt(query.lim) - Object.keys(found_Obj).length;
-                    _this.search_lookup(connection, ri, query, cur_lim, pi_list, pi_index, found_Obj, skipped, cni, cur_d, ++loop_cnt, function (code) {
-                        callback(code);
-                    }, search_tid);
-                }
+            for (var i = 0; i < rows.length; i++) {
+                found_Obj[rows[i].ri] = rows[i];
             }
-            else {
-                cur_lim = parseInt(query.lim) - Object.keys(found_Obj).length;
-                _this.search_lookup(connection, ri, query, cur_lim, pi_list, pi_index, found_Obj, skipped, cni, cur_d, ++loop_cnt, function (code) {
-                    callback(code);
-                }, search_tid);
-            }
-        }
-        else {
-            console.timeEnd(search_tid);
-            callback(code);
-        }
+            callback('200');
+        });
     });
 };
 

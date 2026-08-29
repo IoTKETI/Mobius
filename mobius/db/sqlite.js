@@ -37,6 +37,15 @@ exports.capabilities = {
 
 exports.statementTimeoutHint = function () { return null; };
 
+// mobiusdb_sqlite.sql 은 pi / ri 를 같은(기본 BINARY) 콜레이션으로 만든다.
+// 붙일 조각이 없다. MySQL 이 대소문자를 무시하는 것과 달리 SQLite 는
+// 구분하지만, 이는 이 스키마가 원래 갖고 있던 성질이라 그대로 둔다.
+exports.pathCollate = function () { return ''; };
+
+// SQLite 에도 INDEXED BY 가 있으나 인덱스 이름이 MySQL 과 다르고,
+// 임베디드 규모에서는 옵티마이저를 강제할 이유가 없다.
+exports.indexHint = function () { return ''; };
+
 exports.connect = function (conf, callback) {
     db = new sqlite3.Database(DB_PATH, function (err) {
         if (err) {
