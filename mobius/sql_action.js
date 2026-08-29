@@ -1112,58 +1112,6 @@ exports.insert_mms =function (connection, obj, callback) {
     });
 };
 
-exports.insert_tr = function (connection, obj, callback) {
-    console.time('insert_tr ' + obj.ri);
-    _this.insert_lookup(connection, obj, function (err, results) {
-        if (!err) {
-            var sql = util.format('insert into tr (ri, cr, tid, tctl, tst, tltm, text, tct, tltp, trqp, trsp) ' +
-                'value (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
-                obj.ri, obj.cr, obj.tid, obj.tctl, obj.tst, obj.tltm, obj.text, obj.tct, obj.tltp, JSON.stringify(obj.trqp), JSON.stringify(obj.trsp).replace(/\"/g, '\\"').replace(/\'/g, '\\\''));
-            db.getResult(sql, connection, function (err, results) {
-                if (!err) {
-                    console.timeEnd('insert_tr ' + obj.ri);
-                    callback(err, results);
-                }
-                else {
-                    sql = util.format("delete from lookup where ri = \'%s\'", obj.ri);
-                    db.getResult(sql, connection, function () {
-                        callback(err, results);
-                    });
-                }
-            });
-        }
-        else {
-            callback(err, results);
-        }
-    });
-};
-
-exports.insert_tm = function (connection, obj, callback) {
-    console.time('insert_tm ' + obj.ri);
-    _this.insert_lookup(connection, obj, function (err, results) {
-        if (!err) {
-            var sql = util.format('insert into tm (ri, tltm, text, tct, tept, tmd, tltp, tctl, tst, tmr, tmh, rqps, rsps, cr) ' +
-                'value (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
-                obj.ri, obj.tltm, obj.text, obj.tct, obj.tept, obj.tmd, obj.tltp, obj.tctl, obj.tst, obj.tmr, obj.tmh, JSON.stringify(obj.rqps).replace(/\"/g, '\\"').replace(/\'/g, '\\\''), JSON.stringify(obj.rsps).replace(/\"/g, '\\"').replace(/\'/g, '\\\''), obj.cr);
-            db.getResult(sql, connection, function (err, results) {
-                if (!err) {
-                    console.timeEnd('insert_tm ' + obj.ri);
-                    callback(err, results);
-                }
-                else {
-                    sql = util.format("delete from lookup where ri = \'%s\'", obj.ri);
-                    db.getResult(sql, connection, function () {
-                        callback(err, results);
-                    });
-                }
-            });
-        }
-        else {
-            callback(err, results);
-        }
-    });
-};
-
 // 공통 속성(lookup) 한 행과 타입별 테이블 한 행을 합쳐 돌려준다.
 //
 // 두 분기를 합치면서 SQLite 쪽의 가드를 채택했다. MySQL 분기는
@@ -1438,6 +1386,33 @@ function requested_ty_list(query) {
     var raw = Array.isArray(query.ty) ? query.ty : String(query.ty).split(',');
     return raw.map(function (t) { return String(t).trim(); }).filter(Boolean);
 }
+
+/**
+ * 인덱스로 좁힐 수 없는 필터를 쓰면서 타입을 안 고른 요청인가.
+ *
+ * `lbl` 은 JSON 배열을 담은 문자열이라 `like '%..%'` 로 찾는다. 선행
+ * 와일드카드라 어떤 인덱스도 못 탄다. 그래서 타입을 안 고르면 후보가
+ * 골격 아래 **모든 자식**이 되고, 그 대부분이 CIN 이다(배포 1억4,560만 행).
+ *
+ * 배포 실측:
+ *   ?fu=1&lbl=status            30초 상한 -> HTTP 500   (0건)
+ *   ?fu=1&ty=3&lbl=status       774ms                  (96건)
+ *
+ * 레이블이 달린 행은 전체에서 극히 적다 — 배포에서 비-CIN 27,677행
+ * (ty=3 이 27,333, ty=2 가 338), CIN 은 20만 표본에 9행이다.
+ * 즉 후보의 99.95% 를 읽어 버리는 셈이다.
+ *
+ * 그래서 타입을 안 고르면 **CIN 을 뺀다.** (pi, not_cin) 인덱스가 이미 있어
+ * 등치 두 개로 끝난다 — 배포 실측 1.02초 / 96건.
+ *
+ * CIN 의 레이블은 실제로 쓰인다(예: /Mobius/Arthall/DAQ_1/IR-UWB 의
+ * ["signal","only"]). 그래서 **조용히 빼지 않는다** — 호출부가 알 수 있게
+ * 표시하고, 찾으려면 ty=4 로 명시하게 한다. 그때는 대상을 좁혀야 한다.
+ */
+function like_filter_without_ty(query) {
+    return query.lbl != null && query.ty == null;
+}
+exports._like_filter_without_ty = like_filter_without_ty;
 
 // cs / cnf 는 contentInstance(ty=4)에만 있다. 그래서 크기·형식 필터가 붙으면
 // 결과는 반드시 ty=4 다. 요청이 다른 타입만 찾고 있으면 답이 있을 수 없다.
@@ -1758,7 +1733,12 @@ function build_descendant_sql(ri, query, query_where, cur_lim) {
     // 바깥 질의는 (pi, ty, ct) 를 고정한다. 여기는 요청의 ty 로 거르는데,
     // lbl 처럼 인덱스 밖 컬럼이 끼면 옵티마이저가 PRIMARY 를 골라 ty 를 범위에서
     // 빼 버리고 부모마다 CIN 을 전부 읽는다 — 배포 서버에서 60초를 넘겼다.
-    var hint = facade.indexHint('idx_lookup_pi_ty_ct');
+    //
+    // 타입을 안 고르고 lbl 로 찾는 경우는 (pi, not_cin) 을 쓴다. 그래야
+    // 부모마다 CIN 을 건너뛰고 비-CIN 자식만 읽는다 — 위 함수 주석 참고.
+    var skip_cin = like_filter_without_ty(query);
+    var hint = facade.indexHint(skip_cin ? facade.notCinIndexName() : 'idx_lookup_pi_ty_ct');
+    var skip_cin_where = skip_cin ? (' and ' + facade.notCinPredicate('r')) : '';
 
     var timeout = facade.statementTimeoutHint(DISCOVERY_TIMEOUT_MS);
     // 해시 조인을 막는다. 옵티마이저가 재귀항에서 "작은 인덱스를 통째로 훑고
@@ -1812,7 +1792,7 @@ function build_descendant_sql(ri, query, query_where, cur_lim) {
         ')\n' +
         lead + 'r.* from lookup r' + hint +
         ' join skel s on r.pi = s.sk_ri' + cin_join + '\n' +
-        ' where 1 = 1' + cin_ty + query_where;
+        ' where 1 = 1' + cin_ty + skip_cin_where + query_where;
 
     if (max_lvl !== null) { sql += ' and s.sk_lvl <= ' + max_lvl; }
 
@@ -1839,7 +1819,10 @@ function build_descendant_sql(ri, query, query_where, cur_lim) {
     // limit / offset 을 같이 돌려준다. 호출부가 "결과가 잘렸는가" 를 판정하고
     // 다음 오프셋을 계산하는 데 쓴다 (X-M2M-CTS / X-M2M-CTO).
     // 여기서 계산한 값을 그대로 넘겨야 판정이 SQL 과 어긋나지 않는다.
-    return { sql: sql, bindings: { root_ri: ri }, limit: lim, offset: ofst || 0 };
+    return { sql: sql, bindings: { root_ri: ri }, limit: lim, offset: ofst || 0,
+             // 이 요청에서 CIN 을 뺐는가. 호출부가 응답에 표시하고 로그에 남긴다 —
+             // 조용히 좁히면 "없다" 와 "안 찾아봤다" 를 구별할 수 없다.
+             skippedCin: skip_cin };
 }
 exports.build_descendant_sql = build_descendant_sql;
 
@@ -1864,7 +1847,8 @@ exports.search_lookup = function (connection, ri, query, cur_lim, pi_list, pi_in
         // 답이 있을 수 없는 조합이면 DB 를 건드리지 않는다.
         // (크기·형식 필터 + ty=4 를 뺀 타입 지정 — 위 함수 주석 참고)
         if (size_filter_excludes_all(query)) {
-            return callback('200', { rows: 0, limit: q.limit, offset: q.offset });
+            return callback('200', { rows: 0, limit: q.limit, offset: q.offset,
+                                     skippedCin: q.skippedCin });
         }
 
         // 파사드 규약: 실패는 cb(true, errObj) 다 — 에러 객체는 **둘째** 인자로 온다
@@ -1883,7 +1867,11 @@ exports.search_lookup = function (connection, ri, query, cur_lim, pi_list, pi_in
                 // 아예 안 맞아 늘 빈 결과였다(커밋 83e8461).
                 if (res && (res.driverCode === 'ER_MAX_EXECUTION_TIME_EXCEEDED' || res.errno === 3024)) {
                     console.error('[search_lookup] statement timeout (' + DISCOVERY_TIMEOUT_MS +
-                                  'ms) ri=' + ri + ' query=' + JSON.stringify(query));
+                                  'ms) ri=' + ri + ' query=' + JSON.stringify(query) +
+                                  ' — 대상을 좁히거나(더 깊은 경로) ty 를 함께 준다');
+                    // 상한에 걸린 것은 DB 고장이 아니라 "이 범위를 감당 못 한다" 다.
+                    // 500 "database error" 로 뭉개면 호출자가 무엇을 고쳐야 할지 모른다.
+                    return callback('500-6');
                 }
                 // 인덱스가 없으면 force index 때문에 discovery 가 **전부** 실패한다.
                 // 코드만 올리고 마이그레이션을 안 돌린 경우다 — 원인을 바로 알려준다.
@@ -1904,7 +1892,8 @@ exports.search_lookup = function (connection, ri, query, cur_lim, pi_list, pi_in
             for (var i = 0; i < rows.length; i++) {
                 found_Obj[rows[i].ri] = rows[i];
             }
-            callback('200', { rows: rows.length, limit: q.limit, offset: q.offset });
+            callback('200', { rows: rows.length, limit: q.limit, offset: q.offset,
+                              skippedCin: q.skippedCin });
         });
     });
 };
@@ -2082,26 +2071,6 @@ exports.select_sub = function (connection, pi, callback) {
     db.getResult(sql, connection, function (err, results_ss) {
         console.timeEnd('select_sub');
         callback(err, results_ss);
-    });
-};
-
-exports.select_tr = function (connection, pi, callback) {
-    var sql = util.format('select * from lookup where pi = \'%s\' and ty = \'39\'', pi);
-    db.getResult(sql, connection, function (err, results_comm_tr) {
-        if (!err) {
-            if (results_comm_tr.length === 0) {
-                callback(err, results_comm_tr);
-            }
-            else {
-                var sql2 = util.format('select * from tr where ri = \'%s\'', results_comm_tr[0].ri);
-                db.getResult(sql2, connection, function (err, results_tr) {
-                    callback(err, results_tr);
-                });
-            }
-        }
-        else {
-            callback(err, results_comm_tr);
-        }
     });
 };
 
@@ -2957,78 +2926,6 @@ exports.update_mms =function (connection, obj, callback) {
     });
 };
 
-exports.update_tm = function (connection, obj, callback) {
-    console.time('update_tm ' + obj.ri);
-    _this.update_lookup(connection, obj, function (err, results) {
-        if (!err) {
-            var sql2 = util.format('update tm set cr = \'%s\', tctl = \'%s\', tst = \'%s\', tmr = \'%s\', tmh = \'%s\', rsps = \'%s\' where ri = \'%s\'',
-                obj.cr, obj.tctl, obj.tst, obj.tmr, obj.tmh, JSON.stringify(obj.rsps), obj.ri);
-            db.getResult(sql2, connection, function (err, results) {
-                if (!err) {
-                    console.timeEnd('update_tm ' + obj.ri);
-                    callback(err, results);
-                }
-                else {
-                    callback(err, results);
-                }
-            });
-        }
-        else {
-            callback(err, results);
-        }
-    });
-};
-
-
-exports.update_tr = function (connection, obj, callback) {
-    console.time('update_tr ' + obj.ri);
-    _this.update_lookup(connection, obj, function (err, results) {
-        if (!err) {
-            var sql2 = util.format('update tr set cr = \'%s\', tctl = \'%s\', tst = \'%s\', trsp = \'%s\' where ri = \'%s\'',
-                obj.cr, obj.tctl, obj.tst, JSON.stringify(obj.trsp), obj.ri);
-            db.getResult(sql2, connection, function (err, results) {
-                if (!err) {
-                    console.timeEnd('update_tr ' + obj.ri);
-                    callback(err, results);
-                }
-                else {
-                    callback(err, results);
-                }
-            });
-        }
-        else {
-            callback(err, results);
-        }
-    });
-};
-
-exports.update_tr_trsp = function (connection, ri, tst, trsp, callback) {
-    console.time('update_tr_trsp ' + ri);
-    var sql2 = util.format('update tr set tst = \'%s\', trsp = \'%s\' where ri = \'%s\'', tst, trsp, ri);
-    db.getResult(sql2, connection, function (err, results) {
-        if (!err) {
-            console.timeEnd('update_tr_trsp ' + ri);
-            callback(err, results);
-        }
-        else {
-            callback(err, results);
-        }
-    });
-};
-
-exports.update_tr_tst = function (connection, ri, tst, callback) {
-    console.time('update_tr_tst ' + ri);
-    var sql2 = util.format('update tr set tst = \'%s\' where ri = \'%s\'', tst, ri);
-    db.getResult(sql2, connection, function (err, results) {
-        if (!err) {
-            console.timeEnd('update_tr_tst ' + ri);
-            callback(err, results);
-        }
-        else {
-            callback(err, results);
-        }
-    });
-};
 
 // 컨테이너의 cni/cbs 를 절대값으로 고쳐 쓴다. 정합 맞추기(reconcile_cnt_counters)
 // 전용이다 — 평상시 카운터 유지는 전부 증분(cnt_man / delete_oldest /

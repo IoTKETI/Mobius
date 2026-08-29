@@ -618,9 +618,13 @@ test('문장 타임아웃을 다른 DB 오류와 구분해 남긴다', function 
     run(h, { ty: '3', lim: 10 }, function (code) {
         console.error = orig;
         try {
-            assert.strictEqual(code, '500-1');
+            // 상한에 걸린 것은 DB 고장이 아니라 "이 범위를 감당 못 한다" 다.
+            // 500-1("database error")로 뭉개면 호출자가 무엇을 고쳐야 할지 모른다.
+            assert.strictEqual(code, '500-6');
             assert.ok(logs.some((l) => /statement timeout/.test(l)),
                 '타임아웃이 구분되지 않았다: ' + JSON.stringify(logs));
+            assert.ok(logs.some((l) => /ty 를 함께 준다/.test(l)),
+                '무엇을 고쳐야 할지 로그에 없다: ' + JSON.stringify(logs));
             assert.ok(!logs.some((l) => /^\[search_lookup\] true$/.test(l)),
                 '에러 객체를 첫 인자로 착각했다');
             done();
@@ -686,6 +690,86 @@ test('MySQL 은 골격 컬럼에 콜레이션을 붙이고 조인 조건에는 �
             '재귀항의 골격 컬럼에 콜레이션이 없다');
         assert.ok(!/s\.sk_ri collate/.test(sql),
             '조인 조건에 콜레이션이 남아 있다 - 그러면 UNION 이 중복을 못 지운다');
+        done();
+    }));
+});
+
+// --- lbl 검색에 ty 가 없으면 CIN 을 뺀다 ------------------------------------
+//
+// lbl 은 JSON 배열 문자열이라 like '%..%' 로 찾는다. 선행 와일드카드라 어떤
+// 인덱스도 못 탄다. 타입을 안 고르면 후보가 골격 아래 모든 자식이 되고 그
+// 대부분이 CIN 이다(배포 1억4,560만 행).
+//
+// 배포 실측:
+//   ?fu=1&lbl=status         30초 상한 -> 500 (0건)
+//   ?fu=1&ty=3&lbl=status    774ms            (96건)
+//   CIN 을 뺀 같은 질의       1,020ms          (96건)   <- 기존 (pi, not_cin) 인덱스
+
+test('lbl 만 주면 CIN 을 빼고 (pi, not_cin) 을 쓴다', function (t, done) {
+    const h = tap('mysql');
+    run(h, { lbl: 'status', lim: 10 }, guard(done, function (code, ris, seen) {
+        const sql = seen[0].sql;
+        const outer = sql.slice(sql.indexOf('\n)\n'));
+        assert.ok(/idx_lookup_pi_notcin/.test(outer),
+            '바깥 질의가 (pi, not_cin) 을 안 쓴다: ' + outer);
+        assert.ok(/not_cin = 1/.test(outer), 'CIN 을 빼는 조건이 없다: ' + outer);
+        assert.ok(!/idx_lookup_pi_ty_ct/.test(outer),
+            'ty 인덱스를 쓰면 부모마다 CIN 을 전부 읽는다');
+        done();
+    }));
+});
+
+test('ty 를 함께 주면 예전 그대로 (pi, ty, ct) 를 쓴다', function (t, done) {
+    const h = tap('mysql');
+    run(h, { ty: '3', lbl: 'status', lim: 10 }, guard(done, function (code, ris, seen) {
+        const outer = seen[0].sql.slice(seen[0].sql.indexOf('\n)\n'));
+        assert.ok(/idx_lookup_pi_ty_ct/.test(outer), outer);
+        assert.ok(!/not_cin = 1/.test(outer), 'ty 를 줬는데 CIN 을 뺐다');
+        done();
+    }));
+});
+
+test('lbl 이 없으면 CIN 을 빼지 않는다', function (t, done) {
+    const h = tap('mysql');
+    run(h, { lim: 10 }, guard(done, function (code, ris, seen) {
+        const outer = seen[0].sql.slice(seen[0].sql.indexOf('\n)\n'));
+        assert.ok(!/not_cin = 1/.test(outer), 'lbl 도 없는데 CIN 을 뺐다: ' + outer);
+        done();
+    }));
+});
+
+test('CIN 을 뺐다는 사실을 호출부에 알린다 — 조용히 좁히지 않는다', function (t, done) {
+    // CIN 의 레이블은 실제로 쓰인다(배포의 /Mobius/Arthall/DAQ_1/IR-UWB 가
+    // ["signal","only"]). "없다" 와 "안 찾아봤다" 를 구별할 수 있어야 한다.
+    const h = tap('mysql');
+    const found = {};
+    h.sql_action.search_lookup(null, '/M', { lbl: 'status', lim: 10 }, 10, ['/M'], 0, found, 0,
+        '0', '2026-01-02 00:00:00', 0, function (code, info) {
+            try {
+                assert.strictEqual(code, '200');
+                assert.strictEqual(info.skippedCin, true);
+                done();
+            } catch (e) { done(e); }
+        });
+});
+
+test('ty 를 주면 skippedCin 이 서지 않는다', function (t, done) {
+    const h = tap('mysql');
+    const found = {};
+    h.sql_action.search_lookup(null, '/M', { ty: '3', lbl: 'x', lim: 10 }, 10, ['/M'], 0, found, 0,
+        '0', '2026-01-02 00:00:00', 0, function (code, info) {
+            try {
+                assert.strictEqual(info.skippedCin, false);
+                done();
+            } catch (e) { done(e); }
+        });
+});
+
+test('SQLite 도 같은 뜻을 낸다 (ty <> 4)', function (t, done) {
+    const h = tap('sqlite');
+    run(h, { lbl: 'status', lim: 10 }, guard(done, function (code, ris, seen) {
+        const outer = seen[0].sql.slice(seen[0].sql.indexOf('\n)\n'));
+        assert.ok(/ty.{0,3}<>.{0,3}4/.test(outer), outer);
         done();
     }));
 });
