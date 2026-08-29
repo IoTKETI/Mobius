@@ -1384,15 +1384,24 @@ function build_search_query(query, callback) {
         query_count++;
     }
 
+    // sza / szb / cty 는 contentInstance 의 속성을 본다 — cs(contentSize) 와
+    // cnf(contentInfo) 다. 그 둘은 lookup 이 아니라 cin 에 있으므로 별칭 c 로
+    // 부른다. 호출부(build_descendant_sql)가 이 셋 중 하나라도 있으면
+    // cin 을 조인한다.
+    //
+    // 예전에는 별칭 없이 cs / cnf 라고 써서 lookup 에 붙였고, lookup 에는 그
+    // 컬럼이 없으니 SQL 준비 단계에서 깨져 **항상 HTTP 500** 이었다.
+    // 8년 전 mobiusdb.sql 에서 두 컬럼을 뺄 때 이쪽을 안 고쳤다.
     if (query.sza != null) {
         query_where += ' and ';
-        query_where += util.format('%s <= cs', query.sza);
+        // cs 는 MySQL 이 int, SQLite 가 TEXT 라 비교 전에 수로 맞춘다.
+        query_where += util.format('%s <= %s', query.sza, facade.numericExpr('c.cs'));
         query_count++;
     }
 
     if (query.szb != null) {
         query_where += ' and ';
-        query_where += util.format('cs < %s', query.szb);
+        query_where += util.format('%s < %s', facade.numericExpr('c.cs'), query.szb);
         query_count++;
     }
 
@@ -1404,12 +1413,20 @@ function build_search_query(query, callback) {
 
     if (query.cty != null) {
         query_where += ' and ';
-        query_where += util.format('cnf = \'%s\'', query.cty);
+        // cnf 에는 클라이언트가 준 contentInfo 가 그대로 들어간다
+        // (예: 'application/json:0'). 정확 일치로 본다.
+        query_where += util.format('c.cnf = \'%s\'', query.cty);
         query_count++;
     }
 
     callback(query_where);
 }
+
+// sza / szb / cty 는 cin 의 속성을 본다. 하나라도 있으면 조인해야 한다.
+function needs_cin_join(query) {
+    return query.sza != null || query.szb != null || query.cty != null;
+}
+exports.needs_cin_join = needs_cin_join;
 /*
 exports.search_lookup_parents = function(connection, query, pi, cur_lim, count, found_Obj, callback) {
     if(count >= Object.keys(responder.typeRsrc).length-1) {
@@ -1745,12 +1762,25 @@ function build_descendant_sql(ri, query, query_where, cur_lim) {
     // (로컬 재현: ?fu=1&rn=what%3F -> HTTP 500).
     // 이름 바인딩에서는 knex 가 :name 만 찾으므로 리터럴 물음표를 건드리지 않는다.
     // 두 방언(mysql / sqlite3) 모두 확인했다.
+    // sza / szb / cty 를 쓰면 cin 을 조인한다. 그 값(cs / cnf)은 lookup 에 없다.
+    //
+    // 조인 키를 (pi, ri) 둘 다로 잡는 이유: cin_ri_idx(pi, ri, cs) 가
+    // cs 까지 담고 있어서, sza / szb 만 쓰면 cin 행을 읽지 않고 인덱스만으로
+    // 끝난다. cnf 는 인덱스에 없어 행 접근이 필요하다.
+    // 두 컬럼 모두 lookup 쪽과 콜레이션이 같아 별도 지정이 필요 없다
+    // (pi 는 양쪽 general_ci, ri 는 양쪽 bin).
+    //
+    // inner join 이 맞다 — cs / cnf 가 없는 리소스(컨테이너 등)는 크기·형식으로
+    // 거를 대상이 아니므로 결과에서 빠져야 한다.
+    var cin_join = needs_cin_join(query)
+        ? ' join cin c on c.pi = r.pi and c.ri = r.ri' : '';
+
     var sql =
         'with recursive skel as (\n' +
         '  select ri' + C + ' as sk_ri, 0 as sk_lvl from lookup where ri = :root_ri' + branches + '\n' +
         ')\n' +
         lead + 'r.* from lookup r' + hint +
-        ' join skel s on r.pi = s.sk_ri\n' +
+        ' join skel s on r.pi = s.sk_ri' + cin_join + '\n' +
         ' where 1 = 1' + query_where;
 
     if (max_lvl !== null) { sql += ' and s.sk_lvl <= ' + max_lvl; }

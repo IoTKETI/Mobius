@@ -85,6 +85,14 @@ exports.notCinIndexName = function () {
     return 'idx_lookup_pi_notcin';
 };
 
+// 수로 비교해야 하는 식을 감싼다.
+//
+// cin.cs 는 mobiusdb.sql 에서 int 라 그대로 비교하면 된다.
+// (mobiusdb_sqlite.sql 은 TEXT 라 캐스팅이 필요하다 — 그쪽 어댑터 참고)
+exports.numericExpr = function (expr) {
+    return expr;
+};
+
 exports.connect = function (conf, callback) {
     pool = mysql.createPool({
         host: conf.host,

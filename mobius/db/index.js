@@ -232,6 +232,13 @@ exports.notCinIndexName = function () {
     return adapter.notCinIndexName ? adapter.notCinIndexName() : null;
 };
 
+// 수로 비교해야 하는 식을 그 백엔드에 맞게 감싼다.
+// cin.cs 가 MySQL 은 int, SQLite 는 TEXT 라 그대로 비교하면 결과가 다르다.
+exports.numericExpr = function (expr) {
+    builder();
+    return adapter.numericExpr ? adapter.numericExpr(expr) : expr;
+};
+
 // 테스트용. 운영 코드는 어느 백엔드인지 알 필요가 없다.
 exports._adapterName = function () {
     return adapter ? adapter.name : null;

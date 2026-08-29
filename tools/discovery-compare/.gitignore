@@ -1,3 +1,4 @@
 server.log
 headers.log
+size-filter.log
 *.json

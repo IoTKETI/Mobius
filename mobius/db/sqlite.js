@@ -61,6 +61,17 @@ exports.notCinPredicate = function (alias) {
 
 exports.notCinIndexName = function () { return null; };
 
+// 수로 비교해야 하는 식을 감싼다.
+//
+// mobiusdb_sqlite.sql 은 cin.cs 를 TEXT 로 선언한다(MySQL 은 int 다).
+// SQLite 에서 TEXT 컬럼과 정수 리터럴을 비교하면 어느 쪽에도 수치 affinity 가
+// 없어 변환이 일어나지 않고, 정수는 늘 텍스트보다 작다고 판정된다 —
+// `10 <= cs` 가 모든 행에서 참이 되어 필터가 아무 일도 안 한다.
+// 스키마를 고쳐도 이미 만들어진 DB 는 TEXT 그대로이므로 캐스팅이 필요하다.
+exports.numericExpr = function (expr) {
+    return 'CAST(' + expr + ' AS INTEGER)';
+};
+
 exports.connect = function (conf, callback) {
     db = new sqlite3.Database(DB_PATH, function (err) {
         if (err) {
