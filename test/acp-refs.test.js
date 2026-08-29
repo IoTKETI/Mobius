@@ -42,20 +42,43 @@ function tap(useSqlite, pages) {
 const row = (rn, acpi, ty) => ({ ri: '/Mobius/' + rn, ty: ty || 3, pi: '/Mobius', rn: rn,
                                  acpi: JSON.stringify(acpi) });
 
-test('CIN 을 빼는 술어가 질의에 들어간다 (MySQL)', function (t, done) {
+test('타입마다 ty 등치로 훑는다 — not_cin 술어는 인덱스를 못 탄다', function (t, done) {
+    // 배포 EXPLAIN: `where not_cin = 1 and ri > ''` 는 ri_UNIQUE 범위 스캔으로
+    // **3,097만 행** 추정이다. idx_lookup_pi_notcin 은 선행 컬럼이 pi 라
+    // not_cin 단독 조건에 못 쓰고, PK 는 (pi, ri, ty) 라 ri 범위에도 못 쓴다.
+    // ty 등치는 idx_lookup_ty 를 탄다(ref, rows=1).
     const h = tap(false, [[]]);
     h.sql_action.scan_acpi_refs(null, {}, function (err) {
         assert.ok(!err);
-        assert.ok(/not_cin/.test(h.seen[0].sql), h.seen[0].sql);
+        assert.ok(/`ty` = \?/.test(h.seen[0].sql), h.seen[0].sql);
+        assert.ok(!/not_cin/.test(h.seen[0].sql), 'not_cin 술어는 쓰면 안 된다: ' + h.seen[0].sql);
         done();
     });
 });
 
-test('SQLite 는 ty <> 4 로 같은 뜻을 낸다', function (t, done) {
-    const h = tap(true, [[]]);
+test('CIN(ty=4)은 타입 목록에서 빠진다', function (t, done) {
+    const h = tap(false, [[]]);
+    const list = h.sql_action._non_cin_ty_list();
+    assert.ok(list.length > 0, '타입 목록이 비었다');
+    assert.ok(list.indexOf(4) === -1, 'CIN 이 들어가 있다');
+    assert.ok(list.indexOf(3) >= 0, '컨테이너가 빠졌다');
+    // 타입마다 한 번씩은 물어봐야 한다.
     h.sql_action.scan_acpi_refs(null, {}, function (err) {
         assert.ok(!err);
-        assert.ok(/ty.{0,3}<>.{0,3}4/.test(h.seen[0].sql), h.seen[0].sql);
+        assert.strictEqual(h.seen.length, list.length,
+            '타입 ' + list.length + '개인데 질의는 ' + h.seen.length + '번');
+        const asked = h.seen.map((s) => s.bindings[0]);
+        assert.ok(asked.indexOf(4) === -1, 'CIN 을 물어봤다');
+        done();
+    });
+});
+
+test('tys 를 주면 그 타입만, CIN 은 빼고 훑는다', function (t, done) {
+    const h = tap(false, [[], [], []]);
+    h.sql_action.scan_acpi_refs(null, { tys: [3, 4, 2] }, function (err) {
+        assert.ok(!err);
+        assert.strictEqual(h.seen.length, 2, 'CIN 을 뺀 2개여야 한다');
+        assert.deepStrictEqual(h.seen.map((s) => s.bindings[0]).sort(), [2, 3]);
         done();
     });
 });

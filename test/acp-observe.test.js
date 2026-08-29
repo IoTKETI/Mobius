@@ -91,6 +91,37 @@ test('관찰 모드는 거부를 허용으로 내보내고 원래 사유를 남�
     assert.strictEqual(s.counts.deny, 0);
 });
 
+test('관찰 모드는 기본 정책 거부를 뒤집지 않는다', function () {
+    // 배포에 acpi 가 채워진 행은 2개뿐이라 실제로 나는 거부는 사실상 전부
+    // default_policy 다. 사유를 안 보고 다 뒤집으면 관찰 모드가
+    // "ACP 로 뭐가 막힐지 본다" 가 아니라 **5,740만 행 전부를 임의 원본의
+    // UPDATE·DELETE 에 여는 것**이 된다. 그 창에서 지워진 것은 안 돌아온다.
+    reset({ mode: 'observe', denyLog: 'off' });
+    const t = { decided_by: 'default_policy', op_value: '8' };
+    let code;
+    quiet(function () { code = observe.record_decision(req('attacker'), '0', t); });
+    assert.strictEqual(code, '0', '기본 정책 거부는 그대로 막아야 한다');
+    assert.notStrictEqual(t.observed, true);
+    const s = observe.snapshot();
+    assert.strictEqual(s.counts.deny, 1);
+    assert.strictEqual(s.counts.observe, 0);
+});
+
+test('관찰 모드는 ACP 평가로 난 거부만 뒤집는다', function () {
+    for (const reason of ['acr', 'exhausted', 'no_acr_cr', 'no_acp_row']) {
+        reset({ mode: 'observe', denyLog: 'off' });
+        let code;
+        quiet(function () { code = observe.record_decision(req('C'), '0', { decided_by: reason }); });
+        assert.strictEqual(code, '1', reason + ' 는 뒤집혀야 한다');
+    }
+    for (const reason of ['default_policy', 'db_error', 'lookup_error', 'unknown']) {
+        reset({ mode: 'observe', denyLog: 'off' });
+        let code;
+        quiet(function () { code = observe.record_decision(req('C'), '0', { decided_by: reason }); });
+        assert.strictEqual(code, '0', reason + ' 는 뒤집으면 안 된다');
+    }
+});
+
 test('관찰 모드가 500 을 감추지 않는다', function () {
     reset({ mode: 'observe' });
     let code;

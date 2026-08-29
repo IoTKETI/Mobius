@@ -3574,6 +3574,21 @@ var ACP_SCAN_BATCH = 2000;
 var ACP_SCAN_CAP = 200000;
 var ACP_REFS_MAX = 1000;
 
+// CIN 이 아닌 리소스 타입. responder.typeRsrc 가 이 CSE 가 다루는 타입의
+// 단일 출처라 목록을 손으로 유지하지 않는다 — 새 타입이 생겨도 따라온다.
+function non_cin_ty_list() {
+    var out = [];
+    var map = responder.typeRsrc || {};
+    Object.keys(map).forEach(function (k) {
+        var t = Number(k);
+        if (isFinite(t) && t !== 4) { out.push(t); }
+    });
+    out.sort(function (a, b) { return a - b; });
+    return out;
+}
+
+exports._non_cin_ty_list = non_cin_ty_list;
+
 /**
  * ACP 리소스 목록. ty 등치라 idx_lookup_ty 를 탄다.
  *
@@ -3707,21 +3722,38 @@ exports.scan_acpi_refs = function (connection, opts, callback) {
     var broken = 0;
     var truncated = false;
 
+    // **타입마다 등치로 훑는다.** not_cin 술어를 그냥 쓰면 인덱스를 하나도
+    // 못 탄다 — idx_lookup_pi_notcin 은 선행 컬럼이 pi 라 not_cin 단독 조건에
+    // 쓸 수 없고, PK 는 (pi, ri, ty) 라 ri 범위에도 못 쓴다. 배포에서 EXPLAIN 을
+    // 재 봤다: `where not_cin = 1 and ri > ''` 는 ri_UNIQUE 범위 스캔으로
+    // **3,097만 행** 추정이다. 사실상 전수 순회다.
+    //
+    // ty 등치는 idx_lookup_ty 를 탄다(ref, rows=1). CIN(ty=4)만 빼면 남는 것이
+    // 34,313 행이므로, 타입 목록을 돌며 각각 키셋으로 훑는 편이 훨씬 싸다.
+    // discovery 재귀 CTE 에서 배운 것과 같다 — MySQL 은 ty 등치만 인덱스를 탄다.
+    var ty_list = (Array.isArray(o.tys) && o.tys.length > 0)
+        ? o.tys.map(Number).filter(function (t) { return t !== 4; })
+        : non_cin_ty_list();
+    var ty_at = 0;
+
     function scan(after) {
+        if (ty_at >= ty_list.length) { return done(null); }
+
         var qb = facade.k('lookup')
             .select('ri', 'ty', 'pi', 'rn', 'acpi')
-            // CIN 3,400만 행을 뺀다. MySQL 은 생성 컬럼 not_cin(idx_lookup_pi_notcin),
-            // SQLite 는 ty <> 4 로 같은 뜻을 낸다.
-            .whereRaw(facade.notCinPredicate('lookup'))
+            .where('ty', ty_list[ty_at])
             .where('ri', '>', after)
             .orderBy('ri', 'asc')
             .limit(batch);
-        if (Array.isArray(o.tys) && o.tys.length > 0) { qb = qb.whereIn('ty', o.tys); }
 
         facade.run(qb, connection, function (err, rows) {
             if (err) { return callback(err, rows); }
             rows = rows || [];
-            if (rows.length === 0) { return done(null); }
+            if (rows.length === 0) {
+                // 이 타입은 끝났다. 다음 타입을 처음부터.
+                ty_at++;
+                return setImmediate(scan, '');
+            }
 
             var next = rows[rows.length - 1].ri;
             for (var i = 0; i < rows.length; i++) {
@@ -3770,10 +3802,18 @@ exports.scan_acpi_refs = function (connection, opts, callback) {
             capped: !!capped,
             broken: broken,
             unresolved: Object.keys(unresolved),
+            // 타입별로 훑으므로 이어보려면 타입과 커서를 함께 줘야 한다.
+            // 하나만 주면 다음 호출이 엉뚱한 타입의 같은 ri 에서 시작한다.
+            nextTy: capped ? (ty_list[ty_at] === undefined ? null : ty_list[ty_at]) : null,
             nextRi: capped ? next : null
         });
     }
 
+    // 이어보기: nextTy 가 있으면 그 타입부터 시작한다.
+    if (o.afterTy !== undefined && o.afterTy !== null) {
+        var at = ty_list.indexOf(Number(o.afterTy));
+        if (at >= 0) { ty_at = at; }
+    }
     scan(o.afterRi || '');
 };
 
