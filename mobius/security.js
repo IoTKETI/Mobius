@@ -91,387 +91,242 @@ function actw_matches(window, now) {
 exports._parse_acp_rule = parse_acp_rule;
 // 테스트에서 직접 부를 수 있게 내보낸다. 공개 진입점은 exports.check 하나다.
 exports._actw_matches = actw_matches;
+exports._acip_allows = acip_allows;
+exports._actw_allows = actw_allows;
+exports._acor_allows = acor_allows;
+exports._evaluate_acr = evaluate_acr;
 
+// ── 권한 평가 ────────────────────────────────────────────────────────
+//
+// 예전에는 security_check_action_pv(205줄)와 security_check_action_pvs(176줄)가
+// 거의 같은 코드를 두 벌 들고 있었다. 그 중복이 실제로 사고를 냈다 —
+// ipv4 분기의 ipv6_idx 오참조와 actw 시간창 반전을 pv 쪽만 고치고 pvs 쪽을
+// 놓쳐, 한동안 절반만 고쳐진 채로 있었다.
+//
+// 이제 평가는 evaluate_acr() 한 곳에서만 한다. 고칠 일이 생기면 한 번만 고친다.
+//
+// 두 경로의 진짜 차이는 셋뿐이라 인자로 받는다.
+//   field        'pv' 는 일반 리소스 접근, 'pvs' 는 ACP 자신에 대한 접근
+//   use_ra       클라이언트 IPv4 를 remoteaddress 헤더에서 먼저 볼 것인가.
+//                이 헤더는 CoAP 프록시가 넣는다(pxy_coap.js). pv 만 보고 있었다 —
+//                pvs 도 봐야 맞을 것 같지만 동작을 바꾸지 않으려고 그대로 둔다.
+//   cr_fallback  acr 이 없는 규칙을 만났을 때 cr(생성자)과 비교하고 즉시 끝낼
+//                것인가. pv 만 그렇게 한다. pvs 는 그냥 다음 acp 로 넘어간다.
+
+/**
+ * 요청을 보낸 쪽의 IPv4 주소.
+ *
+ * @param use_ra  remoteaddress 헤더를 먼저 볼 것인가 (CoAP 프록시가 넣는다)
+ */
+function client_ipv4_of(request, use_ra) {
+    if (use_ra && request.headers.hasOwnProperty('remoteaddress')) {
+        return request.headers.remoteaddress;
+    }
+    if (request.connection.remoteAddress == '::1') {
+        return ip.address();
+    }
+    return request.connection.remoteAddress.replace('::ffff:', '');
+}
+
+/**
+ * acip(허용 IP) 조건을 통과하는가.
+ *
+ * 목록이 비어 있으면 "제한 없음"이라 통과다. 예전에는 ipv4 분기가 ipv6_idx 를
+ * 보고 있어서 이 기본 통과가 죽어 있었다 — var 호이스팅으로 첫 평가에서
+ * undefined 였고, 앞선 항목이 ipv6 분기를 탔다면 그 값에 오염됐다.
+ */
+function acip_allows(acip, request, use_ra) {
+    if (acip == null) {
+        return true;                    // acip 자체가 없으면 IP 제한이 없다
+    }
+    if (acip.hasOwnProperty('ipv4')) {
+        var list4 = acip['ipv4'] || [];
+        var keys4 = Object.keys(list4);
+        if (keys4.length === 0) {
+            return true;                // 빈 목록 = 제한 없음
+        }
+        var mine = client_ipv4_of(request, use_ra);
+        for (var i = 0; i < keys4.length; i++) {
+            if (list4[keys4[i]] == mine) { return true; }
+        }
+        return false;
+    }
+    if (acip.hasOwnProperty('ipv6')) {
+        var list6 = acip['ipv6'] || [];
+        var keys6 = Object.keys(list6);
+        if (keys6.length === 0) {
+            return true;
+        }
+        for (var j = 0; j < keys6.length; j++) {
+            if (list6[keys6[j]] == request.connection.remoteAddress) { return true; }
+        }
+        return false;
+    }
+    return true;                        // ipv4 도 ipv6 도 없으면 제한이 없다
+}
+
+/**
+ * actw(허용 시간창) 조건을 통과하는가. 목록이 비면 제한이 없다.
+ */
+function actw_allows(actw) {
+    var keys = Object.keys(actw || {});
+    if (keys.length === 0) {
+        return true;
+    }
+    var now = [];
+    now[5] = moment().utc().day();
+    now[4] = moment().utc().month() + 1;
+    now[3] = moment().utc().date();
+    now[2] = moment().utc().hour();
+    now[1] = moment().utc().minute();
+    now[0] = moment().utc().second();
+
+    for (var i = 0; i < keys.length; i++) {
+        if (actw_matches(actw[keys[i]], now)) { return true; }
+    }
+    return false;
+}
+
+/**
+ * acor(허용 발신자)와 acop(허용 연산) 조건을 통과하는가.
+ *
+ * acor 이 없으면 발신자 제한이 없다는 뜻이라 통과다. 있으면 정규식 일치나
+ * 'all' / '*' 여야 하고, 그 위에 acop 비트가 요청한 연산을 포함해야 한다.
+ */
+function acor_allows(rule, from, access_value) {
+    if (!rule.hasOwnProperty('acor')) {
+        return true;
+    }
+    var re = new RegExp('^' + from + '$');
+    var keys = Object.keys(rule.acor || {});
+    for (var i = 0; i < keys.length; i++) {
+        var who = rule.acor[keys[i]];
+        if (who.match(re) || who == 'all' || who == '*') {
+            if ((rule.acop.toString() & access_value) == access_value) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+/**
+ * 권한 규칙(acr 항목) 하나를 평가한다.
+ *
+ * acco(컨텍스트 제약)가 여러 개면 그중 하나라도 acip·actw 를 함께 만족하면
+ * 된다. acco 가 없거나 비어 있으면 컨텍스트 제약이 없다는 뜻이다.
+ */
+function evaluate_acr(rule, request, from, access_value, use_ra) {
+    var ctx_ok = true;
+
+    if (rule.hasOwnProperty('acco')) {
+        var acco = rule.acco;
+        var keys = Object.keys(acco || {});
+        if (keys.length === 0) {
+            ctx_ok = true;              // 빈 acco = 제약 없음
+        }
+        else {
+            ctx_ok = false;
+            for (var i = 0; i < keys.length; i++) {
+                var one = acco[keys[i]];
+                if (acip_allows(one.acip, request, use_ra) && actw_allows(one.actw)) {
+                    ctx_ok = true;
+                    break;
+                }
+            }
+        }
+    }
+
+    if (!ctx_ok) {
+        return false;
+    }
+    return acor_allows(rule, from, access_value);
+}
+
+/**
+ * acpiList 가 가리키는 ACP 들의 field(pv|pvs)로 접근을 판정한다.
+ *
+ * @param field       'pv' 또는 'pvs'
+ * @param use_ra      client IPv4 를 remoteaddress 헤더에서 먼저 볼 것인가
+ * @param cr_fallback acr 없는 규칙에서 cr 비교로 즉시 끝낼 것인가
+ */
+function security_check_action(request, response, acpiList, cr, access_value,
+                               field, use_ra, cr_fallback, callback) {
+    make_internal_ri(acpiList);
+    var ri_list = [];
+    get_ri_list_sri(request, response, acpiList, ri_list, 0, function (code) {
+        if (code !== '200') {
+            callback(code);
+            return;
+        }
+
+        db_sql.select_acp_in(request.db_connection, ri_list, function (err, results_acp) {
+            if (err) {
+                console.log('query error: ' + results_acp.message);
+                callback('500-1');
+                return;
+            }
+
+            if (results_acp.length == 0) {
+                callback(request.headers['x-m2m-origin'] == cr ? '1' : '0');
+                return;
+            }
+
+            var from = request.headers['x-m2m-origin'];
+
+            for (var i = 0; i < results_acp.length; i++) {
+                // 깨진 acp 행 하나가 그 ACP 를 참조하는 모든 요청을 죽이면 안 된다.
+                // parse_acp_rule 은 던지지 않고 null 을 준다.
+                var ruleObj = parse_acp_rule(results_acp[i][field], field, results_acp[i].ri);
+                if (ruleObj === null) {
+                    continue;
+                }
+
+                if (!ruleObj.hasOwnProperty('acr')) {
+                    // pv 는 여기서 생성자와 비교하고 끝낸다. pvs 에는 이 분기가
+                    // 없어서 그냥 다음 acp 로 넘어갔다 — 동작을 바꾸지 않는다.
+                    if (cr_fallback) {
+                        callback(from == cr ? '1' : '0');
+                        return;
+                    }
+                    continue;
+                }
+
+                var acr_keys = Object.keys(ruleObj.acr || {});
+                for (var j = 0; j < acr_keys.length; j++) {
+                    try {
+                        if (evaluate_acr(ruleObj.acr[acr_keys[j]], request, from, access_value, use_ra)) {
+                            callback('1');
+                            return;
+                        }
+                    }
+                    catch (e) {
+                        console.log('[security_check_action ' + field + '] ' + e);
+                        callback('500-1');
+                        return;
+                    }
+                }
+            }
+
+            results_acp = null;
+            callback('0');
+        });
+    });
+}
+
+// pv  — 일반 리소스 접근. remoteaddress 헤더를 보고, acr 없는 규칙에서 cr 로 끝낸다.
 function security_check_action_pv(request, response, acpiList, cr, access_value, callback) {
-    make_internal_ri(acpiList);
-    var ri_list = [];
-    get_ri_list_sri(request, response, acpiList, ri_list, 0, function (code) {
-        if(code === '200') {
-            db_sql.select_acp_in(request.db_connection, ri_list, function (err, results_acp) {
-                if (!err) {
-                    if (results_acp.length == 0) {
-                        if (request.headers['x-m2m-origin'] == cr) {
-                            callback('1');
-                        }
-                        else {
-                            callback('0');
-                        }
-                    }
-                    else {
-                        for (var i = 0; i < results_acp.length; i++) {
-                            // 아래 try 는 :45 에서야 열리므로 이 파싱과 hasOwnProperty 는
-                            // 보호 밖이었다. 여기는 DB 콜백 안이라 던지면 잡을 곳이 없고,
-                            // 깨진 acp 행 하나가 그 ACP 를 참조하는 모든 요청을 죽인다.
-                            // JSON.parse('null') 은 던지지 않고 null 을 돌려주므로
-                            // 다음 줄 hasOwnProperty 에서 터지는 쪽이 더 찾기 어렵다.
-                            //
-                            // 정상 생성 경로는 JSON.stringify 로 넣지만, pv 는 생성 시
-                            // 타입 검사를 전혀 하지 않는다(pvs 만 acr 를 확인한다).
-                            // 읽을 수 없는 권한은 "권한 없음"으로 다룬다 — 판단할 수
-                            // 없는 규칙을 통과시키면 안 된다.
-                            var pvObj = parse_acp_rule(results_acp[i].pv, 'pv', results_acp[i].ri);
-                            if (pvObj === null) {
-                                continue;
-                            }
-                            var from = request.headers['x-m2m-origin'];
-                            if (pvObj.hasOwnProperty('acr')) {
-                                for (var index in pvObj.acr) {
-                                    if (pvObj.acr.hasOwnProperty(index)) {
-                                        try {
-                                            var acip_permit = 0;
-                                            var actw_permit = 0;
-                                            var acor_permit = 0;
-                                            if (pvObj.acr[index].hasOwnProperty('acco')) {
-                                                var acco = pvObj.acr[index].acco;
-                                                var acco_idx = 99;
-                                                for (acco_idx in acco) {
-                                                    if (acco.hasOwnProperty(acco_idx)) {
-                                                        if (acco[acco_idx].hasOwnProperty('acip')) {
-                                                            if (acco[acco_idx].acip.hasOwnProperty('ipv4')) {
-                                                                var ipv4_idx = 99;
-                                                                for (ipv4_idx in acco[acco_idx].acip['ipv4']) {
-                                                                    if (acco[acco_idx].acip['ipv4'].hasOwnProperty(ipv4_idx)) {
-                                                                        if (request.headers.hasOwnProperty('remoteaddress')) {
-                                                                            client_ipv4 = request.headers.remoteaddress;
-                                                                        }
-                                                                        else if (request.connection.remoteAddress == '::1') {
-                                                                            var client_ipv4 = ip.address();
-                                                                        }
-                                                                        else {
-                                                                            client_ipv4 = request.connection.remoteAddress.replace('::ffff:', '');
-                                                                        }
-
-                                                                        if (acco[acco_idx].acip['ipv4'][ipv4_idx] == client_ipv4) {
-                                                                            acip_permit = 1;
-                                                                            break;
-                                                                        }
-                                                                    }
-                                                                }
-
-                                                                // ipv4 목록이 비어 있으면(= 제한이 없으면) 허용한다.
-                                                                // 원래 여기가 ipv6_idx 를 보고 있었다. 두 가지로 틀린다.
-                                                                //   - 첫 평가에서는 ipv6_idx 가 아직 대입 전이라 undefined 다.
-                                                                //     var 는 함수 스코프로 호이스팅되므로 선언은 아래에 있어도
-                                                                //     참조 자체는 되지만 값이 없다. undefined == 99 는 거짓이라
-                                                                //     이 기본 허용 분기가 한 번도 실행되지 않았다.
-                                                                //   - 앞선 acco 항목이 ipv6 분기를 탔다면 그때의 인덱스가 남아,
-                                                                //     이번 ipv4 판정이 이전 항목의 결과에 오염된다.
-                                                                if (ipv4_idx == 99) {
-                                                                    acip_permit = 1;
-                                                                }
-                                                            }
-                                                            else if (acco[acco_idx].acip.hasOwnProperty('ipv6')) {
-                                                                var ipv6_idx = 99;
-                                                                for (ipv6_idx in acco[acco_idx].acip['ipv6']) {
-                                                                    if (acco[acco_idx].acip['ipv6'].hasOwnProperty(ipv6_idx)) {
-                                                                        if (acco[acco_idx].acip['ipv6'][ipv6_idx] == request.connection.remoteAddress) {
-                                                                            acip_permit = 1;
-                                                                            break;
-                                                                        }
-                                                                    }
-                                                                }
-
-                                                                if (ipv6_idx == 99) {
-                                                                    acip_permit = 1;
-                                                                }
-                                                            }
-                                                            else {
-                                                                acip_permit = 1;
-                                                            }
-                                                        }
-                                                        else {
-                                                            acip_permit = 1;
-                                                        }
-
-                                                        if (acco[acco_idx].hasOwnProperty('actw')) {
-                                                            var actw_cur = [];
-                                                            actw_cur[5] = moment().utc().day();
-                                                            actw_cur[4] = moment().utc().month() + 1;
-                                                            actw_cur[3] = moment().utc().date();
-                                                            actw_cur[2] = moment().utc().hour();
-                                                            actw_cur[1] = moment().utc().minute();
-                                                            actw_cur[0] = moment().utc().second();
-                                                            // 판정은 actw_matches() 가 한다 — 그 주석에 예전 동작과
-                                                            // 무엇이 반대였는지 적어 두었다.
-                                                            var actw_idx = 99;
-                                                            for (actw_idx in acco[acco_idx].actw) {
-                                                                if (acco[acco_idx].actw.hasOwnProperty(actw_idx)) {
-                                                                    if (actw_matches(acco[acco_idx].actw[actw_idx], actw_cur)) {
-                                                                        actw_permit = 1;
-                                                                        break;
-                                                                    }
-                                                                }
-                                                            }
-
-                                                            if (actw_idx == 99) {
-                                                                actw_permit = 1;
-                                                            }
-                                                        }
-                                                        else {
-                                                            actw_permit = 1;
-                                                        }
-
-                                                        if (actw_permit == 1 && acip_permit == 1) {
-                                                            break;
-                                                        }
-                                                    }
-                                                }
-
-                                                if (acco_idx == 99) {
-                                                    acip_permit = 1;
-                                                    actw_permit = 1;
-                                                }
-                                            }
-                                            else {
-                                                acip_permit = 1;
-                                                actw_permit = 1;
-                                            }
-
-                                            if (acip_permit == 1 && actw_permit == 1) {
-                                                if (pvObj.acr[index].hasOwnProperty('acor')) {
-                                                    var re = new RegExp('^' + from + '$');
-                                                    for (var acor_idx in pvObj.acr[index].acor) {
-                                                        if (pvObj.acr[index].acor.hasOwnProperty(acor_idx)) {
-                                                            if (pvObj.acr[index].acor[acor_idx].match(re) || pvObj.acr[index].acor[acor_idx] == 'all' || pvObj.acr[index].acor[acor_idx] == '*') {
-                                                                console.log('%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%', access_value);
-
-                                                                if ((pvObj.acr[index].acop.toString() & access_value) == access_value) {
-                                                                    acor_permit = 1;
-                                                                    break;
-                                                                }
-                                                            }
-                                                        }
-                                                    }
-                                                }
-                                                else {
-                                                    acor_permit = 1;
-                                                }
-                                            }
-
-                                            if (acip_permit == 1 && actw_permit == 1 && acor_permit == 1) {
-                                                callback('1');
-                                                return;
-                                            }
-                                        }
-                                        catch (e) {
-                                            console.log('[security_check_action_pvs]' + e);
-                                            callback('500-1');
-                                            return;
-                                        }
-                                    }
-                                }
-                            }
-                            else {
-                                if (request.headers['x-m2m-origin'] == cr) {
-                                    callback('1');
-                                    return;
-                                }
-                                else {
-                                    callback('0');
-                                    return;
-                                }
-                            }
-                        }
-                        callback('0');
-                    }
-                }
-                else {
-                    console.log('query error: ' + results_acp.message);
-                    callback('500-1');
-                }
-            });
-        }
-        else {
-            callback(code);
-        }
-    });
+    security_check_action(request, response, acpiList, cr, access_value,
+                          'pv', true, true, callback);
 }
 
+// pvs — ACP 자신에 대한 접근. 인자 순서가 pv 와 달랐다(cr 과 access_value 가
+// 뒤바뀌어 있었다). 호출부를 그대로 두려고 시그니처는 유지한다.
 function security_check_action_pvs(request, response, acpiList, access_value, cr, callback) {
-    make_internal_ri(acpiList);
-    var ri_list = [];
-    get_ri_list_sri(request, response, acpiList, ri_list, 0, function (code) {
-        if(code === '200') {
-            db_sql.select_acp_in(request.db_connection, ri_list, function (err, results_acp) {
-                if (!err) {
-                    if (results_acp.length == 0) {
-                        if (request.headers['x-m2m-origin'] == cr) {
-                            callback('1');
-                        }
-                        else {
-                            callback('0');
-                        }
-                    }
-                    else {
-                        for (var i = 0; i < results_acp.length; i++) {
-                            // pv 쪽과 같은 이유로 보호한다. pvs 는 생성 시 acr 존재를
-                            // 확인하므로 pv 보다는 안전하지만, 마이그레이션이나 수동
-                            // 편집으로 들어온 행까지 막아주지는 않는다.
-                            var pvsObj = parse_acp_rule(results_acp[i].pvs, 'pvs', results_acp[i].ri);
-                            if (pvsObj === null) {
-                                continue;
-                            }
-                            var from = request.headers['x-m2m-origin'];
-                            for (var index in pvsObj.acr) {
-                                if (pvsObj.acr.hasOwnProperty(index)) {
-                                    try {
-                                        var acip_permit = 0;
-                                        var actw_permit = 0;
-                                        var acor_permit = 0;
-                                        if (pvsObj.acr[index].hasOwnProperty('acco')) {
-                                            var acco = pvsObj.acr[index].acco;
-                                            var acco_idx = 99;
-                                            for (acco_idx in acco) {
-                                                if (acco.hasOwnProperty(acco_idx)) {
-                                                    if (acco[acco_idx].hasOwnProperty('acip')) {
-                                                        if (acco[acco_idx].acip.hasOwnProperty('ipv4')) {
-                                                            var ipv4_idx = 99;
-                                                            for (ipv4_idx in acco[acco_idx].acip['ipv4']) {
-                                                                if (acco[acco_idx].acip['ipv4'].hasOwnProperty(ipv4_idx)) {
-                                                                    if (request.connection.remoteAddress == '::1') {
-                                                                        var client_ipv4 = ip.address();
-                                                                    }
-                                                                    else {
-                                                                        client_ipv4 = request.connection.remoteAddress.replace('::ffff:', '');
-                                                                    }
-                                                                    if (acco[acco_idx].acip['ipv4'][ipv4_idx] == client_ipv4) {
-                                                                        acip_permit = 1;
-                                                                        break;
-                                                                    }
-                                                                }
-                                                            }
-
-                                                            // pv 쪽과 같은 오참조였다 — ipv4 분기인데 ipv6_idx 를 봤다.
-                                                            // 첫 평가에서는 undefined 라 이 기본 허용이 죽고, 앞선 acco
-                                                            // 항목이 ipv6 분기를 탔다면 그 값에 오염된다.
-                                                            if (ipv4_idx == 99) {
-                                                                acip_permit = 1;
-                                                            }
-                                                        }
-                                                        else if (acco[acco_idx].acip.hasOwnProperty('ipv6')) {
-                                                            var ipv6_idx = 99;
-                                                            for (ipv6_idx in acco[acco_idx].acip['ipv6']) {
-                                                                if (acco[acco_idx].acip['ipv6'].hasOwnProperty(ipv6_idx)) {
-                                                                    if (acco[acco_idx].acip['ipv6'][ipv6_idx] == request.connection.remoteAddress) {
-                                                                        acip_permit = 1;
-                                                                        break;
-                                                                    }
-                                                                }
-                                                            }
-
-                                                            if (ipv6_idx == 99) {
-                                                                acip_permit = 1;
-                                                            }
-                                                        }
-                                                        else {
-                                                            acip_permit = 1;
-                                                        }
-                                                    }
-                                                    else {
-                                                        acip_permit = 1;
-                                                    }
-
-                                                    if (acco[acco_idx].hasOwnProperty('actw')) {
-                                                        var actw_cur = [];
-                                                        actw_cur[5] = moment().utc().day();
-                                                        actw_cur[4] = moment().utc().month() + 1;
-                                                        actw_cur[3] = moment().utc().date();
-                                                        actw_cur[2] = moment().utc().hour();
-                                                        actw_cur[1] = moment().utc().minute();
-                                                        actw_cur[0] = moment().utc().second();
-                                                        // pv 쪽과 같은 판정이다 — actw_matches() 주석에 예전 동작과
-                                                        // 무엇이 반대였는지 적어 두었다.
-                                                        var actw_idx = 99;
-                                                        for (actw_idx in acco[acco_idx].actw) {
-                                                            if (acco[acco_idx].actw.hasOwnProperty(actw_idx)) {
-                                                                if (actw_matches(acco[acco_idx].actw[actw_idx], actw_cur)) {
-                                                                    actw_permit = 1;
-                                                                    break;
-                                                                }
-                                                            }
-                                                        }
-
-                                                        if (actw_idx == 99) {
-                                                            actw_permit = 1;
-                                                        }
-                                                    }
-                                                    else {
-                                                        actw_permit = 1;
-                                                    }
-
-                                                    if (actw_permit == 1 && acip_permit == 1) {
-                                                        break;
-                                                    }
-                                                }
-                                            }
-
-                                            if (acco_idx == 99) {
-                                                acip_permit = 1;
-                                                actw_permit = 1;
-                                            }
-                                        }
-                                        else {
-                                            acip_permit = 1;
-                                            actw_permit = 1;
-                                        }
-
-                                        if (acip_permit == 1 && actw_permit == 1) {
-                                            if (pvsObj.acr[index].hasOwnProperty('acor')) {
-                                                var re = new RegExp('^' + from + '$');
-                                                for (var acor_idx in pvsObj.acr[index].acor) {
-                                                    if (pvsObj.acr[index].acor.hasOwnProperty(acor_idx)) {
-                                                        if (pvsObj.acr[index].acor[acor_idx].match(re) || pvsObj.acr[index].acor[acor_idx] == 'all' || pvsObj.acr[index].acor[acor_idx] == '*') {
-                                                            if ((pvsObj.acr[index].acop.toString() & access_value) == access_value) {
-                                                                acor_permit = 1;
-                                                                break;
-                                                            }
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                            else {
-                                                acor_permit = 1;
-                                            }
-                                        }
-
-                                        if (acip_permit == 1 && actw_permit == 1 && acor_permit == 1) {
-                                            results_acp = null;
-                                            callback('1');
-                                            return;
-                                        }
-                                    }
-                                    catch (e) {
-                                        console.log('[security_check_action_pvs]' + e);
-                                        callback('500-1');
-                                        return;
-                                    }
-                                }
-                            }
-                        }
-                        callback('0');
-                    }
-                }
-                else {
-                    console.log('query error: ' + results_acp.message);
-                    callback('500-1');
-                }
-            });
-        }
-        else {
-            callback(code);
-        }
-    });
+    security_check_action(request, response, acpiList, cr, access_value,
+                          'pvs', false, false, callback);
 }
+
 
 function security_default_check_action(request, response, cr, access_value, callback) {
     if(useaccesscontrolpolicy == 'enable') {
