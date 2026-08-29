@@ -119,8 +119,209 @@ export interface WriteInfo {
   superuser: boolean
 }
 
+export interface AcpConfig {
+  /** 'observe' 면 거부가 허용으로 나간다 — 켠 채로 두면 ACP 가 무력해진다. */
+  observeMode: string
+  /** 'creator' 면 생성자와 수퍼유저만 처음 acpi 를 붙일 수 있다. */
+  attachPolicy: string
+  defaultPolicy: string
+  audit: string
+  denyLog: string
+}
+
 export interface SessionInfo {
   ok: boolean
   backend: string
   write: WriteInfo
+  acp: AcpConfig
+}
+
+// ── ACP ────────────────────────────────────────────────────────────────────
+
+export interface AcpProblem {
+  severity: 'error' | 'warn'
+  rule: string
+  path: string
+  message: string
+}
+
+export interface AcpListRow {
+  ri: string
+  pi: string
+  rn: string
+  ct: string
+  lt: string
+  et: string
+  acpi: string
+}
+
+export interface AcpDetail {
+  ri: string
+  rn: string
+  pi: string
+  ct: string
+  lt: string
+  et: string
+  acpi: string
+  pv: unknown
+  pvs: unknown
+  pv_parsed: AcpPrivileges | null
+  pvs_parsed: AcpPrivileges | null
+  /** lookup 에만 있고 acp 본문이 없는 반쪽. 참조하는 리소스의 잠금이 조용히 풀린다. */
+  body_missing: boolean
+}
+
+export interface AcpRule {
+  acor?: string[]
+  acop?: number | string
+  acco?: unknown[]
+}
+
+export interface AcpPrivileges {
+  acr?: AcpRule[]
+}
+
+export interface AcpRef {
+  ri: string
+  ty: number
+  rn: string
+  pi: string
+  acpi: string
+  raw: string
+  normalized: string
+}
+
+export interface AcpRefs {
+  refs: AcpRef[]
+  refsTruncated: boolean
+  scanned: number
+  capped: boolean
+  broken: number
+  unresolved: string[]
+  nextRi: string | null
+}
+
+export interface AcpMacpRefs {
+  refs: { ri: string; macp: string }[]
+  broken: number
+}
+
+export interface AcpDetailResponse {
+  detail: AcpDetail
+  /** null 이면 확인하지 못한 것이다 — 0건이 아니다. */
+  refs: AcpRefs | null
+  refsError: string | null
+  macpRefs: AcpMacpRefs | null
+  macpError: string | null
+  problems: AcpProblem[]
+}
+
+export interface AcpLintRow {
+  ri: string
+  rn: string
+  ct: string
+  lt: string
+  et: string
+  problems: AcpProblem[]
+}
+
+export interface AcpLintPage {
+  rows: AcpLintRow[]
+  more: boolean
+  nextRi: string | null
+  counts: { error: number; warn: number; clean: number }
+}
+
+export interface AcpRefLintRow {
+  ri: string
+  ty: number
+  rn: string
+  acpi: string
+  problems: AcpProblem[]
+}
+
+export interface AcpRefLintPage {
+  rows: AcpRefLintRow[]
+  counts: { error: number; warn: number; clean: number }
+  scanned: number
+  capped: boolean
+  broken: number
+  unresolved: string[]
+}
+
+export type AcpOp =
+  | 'CREATE'
+  | 'CREATE_SUB'
+  | 'RETRIEVE'
+  | 'UPDATE'
+  | 'DELETE'
+  | 'NOTIFY'
+  | 'DISCOVERY'
+
+export const ACP_OPS: AcpOp[] = [
+  'CREATE',
+  'CREATE_SUB',
+  'RETRIEVE',
+  'UPDATE',
+  'DELETE',
+  'NOTIFY',
+  'DISCOVERY',
+]
+
+export interface AcpVerdict {
+  origin: string
+  op: AcpOp
+  allowed: boolean
+  code: string
+  /** superuser | creator | acr | no_acr_cr | no_acp_row | exhausted | eval_error | default_policy */
+  decided_by: string
+  acp_ri: string | null
+}
+
+export interface AcpSimulation {
+  ri: string
+  ty: number
+  cr: string
+  /** own | inherited | override | none */
+  source: string
+  inherited_from?: string | null
+  acpi: string[]
+  matrix: AcpVerdict[]
+  warnings: { rule: string; message: string }[]
+}
+
+export interface AcpAuditRow {
+  id: number
+  ts: string
+  op: string
+  ri: string
+  ty: number
+  origin: string
+  cr: string
+  before: string | null
+  after: string | null
+}
+
+export interface AcpAuditPage {
+  rows: AcpAuditRow[]
+  more: boolean
+  nextId: number | null
+}
+
+export interface AcpValidation {
+  code: string | null
+  path: string | null
+  warnings: { rule: string; path: string; message: string }[]
+}
+
+/** decided_by 값을 사람이 읽을 말로. 판정 근거가 곧 "어떻게 고쳐야 하나" 다. */
+export const DECIDED_BY_LABEL: Record<string, string> = {
+  superuser: '수퍼유저 — ACP 를 보지 않고 통과',
+  creator: '생성자 — ACP 와 무관하게 통과',
+  acr: 'ACP 규칙이 허용',
+  no_acr_cr: 'pv 에 acr 이 없어 생성자만 통과',
+  no_acp_row: '참조한 ACP 본문이 없음',
+  exhausted: '맞는 규칙이 없음',
+  eval_error: '평가 중 오류',
+  default_policy: 'acpi 가 없어 기본 정책',
 }

@@ -1,4 +1,12 @@
 import type {
+  AcpAuditPage,
+  AcpDetailResponse,
+  AcpLintPage,
+  AcpListRow,
+  AcpOp,
+  AcpRefLintPage,
+  AcpSimulation,
+  AcpValidation,
   ExpiredPage,
   ExpiredSummary,
   Job,
@@ -130,6 +138,58 @@ export function orphanPage(opts: { limit?: number; afterRi?: string | null; scan
   if (opts.afterRi) q.set('afterRi', opts.afterRi)
   if (opts.scanCap) q.set('scanCap', String(opts.scanCap))
   return get<OrphanPage>(`/api/orphans?${q.toString()}`)
+}
+
+// ── ACP ────────────────────────────────────────────────────────────────────
+
+export function acpList(opts: { limit?: number; afterRi?: string | null } = {}) {
+  const q = new URLSearchParams()
+  q.set('limit', String(opts.limit ?? 100))
+  if (opts.afterRi) q.set('afterRi', opts.afterRi)
+  return get<{ rows: AcpListRow[]; more: boolean; nextRi: string | null }>(`/api/acp?${q}`)
+}
+
+export function acpDetail(ri: string) {
+  return get<AcpDetailResponse>(`/api/acp/detail?ri=${encodeURIComponent(ri)}`)
+}
+
+export function acpLint(opts: { limit?: number; afterRi?: string | null } = {}) {
+  const q = new URLSearchParams()
+  q.set('limit', String(opts.limit ?? 200))
+  if (opts.afterRi) q.set('afterRi', opts.afterRi)
+  return get<AcpLintPage>(`/api/acp/lint?${q}`)
+}
+
+export function acpLintRefs(opts: { maxRefs?: number; afterRi?: string | null } = {}) {
+  const q = new URLSearchParams()
+  if (opts.maxRefs) q.set('maxRefs', String(opts.maxRefs))
+  if (opts.afterRi) q.set('afterRi', opts.afterRi)
+  return get<AcpRefLintPage>(`/api/acp/lint-refs?${q}`)
+}
+
+/**
+ * @param acpiOverride 저장하지 않은 상태로 물어본다 — "이 ACP 를 떼면?" 미리보기.
+ *   빈 배열도 의미가 있으므로 undefined 와 구분해서 넘긴다.
+ */
+export function acpSimulate(body: {
+  ri: string
+  origins: string[]
+  ops: AcpOp[]
+  acpiOverride?: string[]
+}) {
+  return post<AcpSimulation>('/api/acp/simulate', body)
+}
+
+export function acpValidate(field: 'pv' | 'pvs', value: unknown) {
+  return post<AcpValidation>('/api/acp/validate', { field, value })
+}
+
+export function acpAudit(opts: { ri?: string; limit?: number; afterId?: number | null } = {}) {
+  const q = new URLSearchParams()
+  q.set('limit', String(opts.limit ?? 50))
+  if (opts.ri) q.set('ri', opts.ri)
+  if (opts.afterId) q.set('afterId', String(opts.afterId))
+  return get<AcpAuditPage>(`/api/acp/audit?${q}`)
 }
 
 /** 'YYYYMMDDThhmmss' → '2025-06-01 00:00' */
