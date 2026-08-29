@@ -78,6 +78,10 @@ var db = require(path.join(ROOT, 'mobius', 'db'));
 var db_sql = require(path.join(ROOT, 'mobius', 'sql_action'));
 var responder = require(path.join(ROOT, 'mobius', 'responder'));
 
+var acp_simulate = require(path.join(ROOT, 'mobius', 'acp_simulate'));
+var acp_lint = require(path.join(ROOT, 'mobius', 'acp_lint'));
+var acp_rules = require(path.join(ROOT, 'mobius', 'acp'));
+
 var jobs = require('./jobs');
 var cse_client = require('./cse');
 
@@ -217,6 +221,17 @@ app.get('/api/session', function (req, res) {
             enabled: cse !== null,
             target: cse ? (CSE_HOST + ':' + CSE_PORT) : null,
             superuser: CSE_ORIGIN === SUPER_USER
+        },
+        // ACP 관련 설정. **콘솔이 읽는 것은 conf.json 이지 워커의 실제 상태가
+        // 아니다.** 워커는 자기 프로세스 메모리에 이 값을 들고 있고 콘솔은 거기
+        // 닿을 수 없다 — conf 를 고친 뒤 재기동하지 않았다면 어긋난다.
+        // 화면은 이것을 "설정값 기준" 이라고 밝힌다.
+        acp: {
+            observeMode: conf.acpObserveMode || 'off',
+            attachPolicy: conf.acpiAttachPolicy || 'open',
+            defaultPolicy: conf.defaultAccessPolicy || 'disable',
+            audit: conf.acpAudit || 'on',
+            denyLog: conf.acpDenyLog || 'sample'
         }
     });
 });
@@ -326,6 +341,171 @@ app.get('/api/orphans', function (req, res) {
                 scanCapped: page.scanCapped,
                 typeNames: responder.typeRsrc
             });
+        });
+    });
+});
+
+// ── ACP (권한) ────────────────────────────────────────────────────────────
+//
+// 배포 실측(2026-08-29)에서 ACP 리소스는 1개, acpi 가 채워진 리소스는 2개였고
+// 그중 하나가 없는 ACP 를 가리켜 수퍼유저 말고는 아무도 못 쓰는 상태였다.
+// 화면의 목적은 "권한을 예쁘게 보여 주는 것" 이 아니라 **잘못 걸린 것을
+// 찾아내고, 걸기 전에 결과를 미리 보는 것** 이다.
+
+/** ACP 목록. ty 등치라 idx_lookup_ty 를 탄다. */
+app.get('/api/acp', function (req, res) {
+    var limit = Math.min(parseInt(req.query.limit, 10) || 100, 500);
+    with_connection(res, function (conn, done) {
+        db_sql.select_acp_list(conn, { limit: limit, afterRi: req.query.afterRi || '' },
+            function (err, r) {
+                done();
+                if (err) { return res.status(500).json({ error: String((r && r.message) || err) }); }
+                res.json(r);
+            });
+    });
+});
+
+/**
+ * ACP 하나의 전부: 본문 + 이것을 쓰는 리소스 + 그룹 macp 참조.
+ *
+ * scan_macp_refs 를 함께 부르는 이유가 있다. fanOutPoint 는 acpi 가 아니라
+ * grp.macp 로 판정하므로, 삭제 영향 분석에서 이걸 빠뜨리면 그룹 팬아웃이
+ * 조용히 잠긴다.
+ */
+app.get('/api/acp/detail', function (req, res) {
+    var ri = req.query.ri;
+    if (!ri) { return res.status(400).json({ error: 'ri 가 필요하다' }); }
+    with_connection(res, function (conn, done) {
+        db_sql.select_acp_detail(conn, ri, function (err, detail) {
+            if (err) { done(); return res.status(500).json({ error: String((detail && detail.message) || err) }); }
+            if (!detail) { done(); return res.status(404).json({ error: 'ACP 를 찾을 수 없다' }); }
+
+            // 두 스캔은 각각 실패할 수 있다. 하나가 실패했다고 페이지 전체를
+            // 500 으로 만들지 않되, **실패를 0건으로 보여 주지도 않는다.**
+            // "그룹 참조 0건" 은 ACP 를 지워도 된다는 신호로 읽히므로, 확인하지
+            // 못한 것을 확인해서 없는 것처럼 말하면 안 된다.
+            // (SQLite 백엔드에는 grp 테이블 자체가 없어 실제로 자주 실패한다.)
+            db_sql.scan_acpi_refs(conn, { acpRi: ri }, function (err2, refs) {
+                var refsErr = err2 ? String((refs && refs.message) || err2) : null;
+                db_sql.scan_macp_refs(conn, { acpRi: ri }, function (err3, macp) {
+                    done();
+                    var macpErr = err3 ? String((macp && macp.message) || err3) : null;
+                    // 이 ACP 의 문제도 함께 준다. 상세를 보면서 "이건 왜
+                    // 안 먹지" 를 다른 화면으로 옮겨 가서 찾게 하지 않는다.
+                    var problems = acp_lint._problems_of(detail.pv, 'pv', ri)
+                        .concat(acp_lint._problems_of(detail.pvs, 'pvs', ri));
+                    res.json({
+                        detail: detail,
+                        refs: refsErr ? null : refs,
+                        refsError: refsErr,
+                        macpRefs: macpErr ? null : macp,
+                        macpError: macpErr,
+                        problems: problems
+                    });
+                });
+            });
+        });
+    });
+});
+
+/** ACP 본문 검사. 콘솔의 첫 화면이 이 목록이다. */
+app.get('/api/acp/lint', function (req, res) {
+    var limit = Math.min(parseInt(req.query.limit, 10) || 200, 500);
+    with_connection(res, function (conn, done) {
+        acp_lint.lint_acp(conn, { limit: limit, afterRi: req.query.afterRi || '' },
+            function (err, r) {
+                done();
+                if (err) { return res.status(500).json({ error: String((r && r.message) || err) }); }
+                res.json(r);
+            });
+    });
+});
+
+/** acpi 참조 검사 — 없는 ACP 를 가리키는 리소스(dangling)를 찾는다. */
+app.get('/api/acp/lint-refs', function (req, res) {
+    with_connection(res, function (conn, done) {
+        acp_lint.lint_acpi_refs(conn, {
+            batch: Math.min(parseInt(req.query.batch, 10) || 5000, 20000),
+            scanCap: Math.min(parseInt(req.query.scanCap, 10) || 200000, 2000000),
+            maxRefs: Math.min(parseInt(req.query.maxRefs, 10) || 500, 2000),
+            afterRi: req.query.afterRi || ''
+        }, function (err, r) {
+            done();
+            if (err) { return res.status(500).json({ error: String((r && r.message) || err) }); }
+            res.json(r);
+        });
+    });
+});
+
+/**
+ * 권한 시뮬레이터.
+ *
+ * **콘솔은 자기 자신을 검증받지 않는다.** adminOrigin 이 superUser 라
+ * security.js 가 무조건 통과시키므로, HTTP 로 왕복해도 정책을 검증할 수 없다.
+ * 시뮬레이터는 security.js 의 평가 함수를 그대로 쓴다.
+ */
+app.post('/api/acp/simulate', function (req, res) {
+    var b = req.body || {};
+    if (!b.ri) { return res.status(400).json({ error: 'ri 가 필요하다' }); }
+    if (!Array.isArray(b.origins) || b.origins.length === 0) {
+        return res.status(400).json({ error: 'origins 가 필요하다' });
+    }
+    if (!Array.isArray(b.ops) || b.ops.length === 0) {
+        return res.status(400).json({ error: 'ops 가 필요하다' });
+    }
+    with_connection(res, function (conn, done) {
+        var opts = { ri: b.ri, origins: b.origins, ops: b.ops };
+        if (b.ip) { opts.ip = b.ip; }
+        // 저장하지 않은 상태로 물어보기. 이것이 "잠그기 전에 미리 본다" 다.
+        if (Array.isArray(b.acpiOverride)) { opts.acpiOverride = b.acpiOverride; }
+        if (Array.isArray(b.acpRowsOverride)) { opts.acpRowsOverride = b.acpRowsOverride; }
+        acp_simulate.simulate_many(conn, opts, function (err, r) {
+            done();
+            if (err) {
+                // 상한 초과는 사용자 입력 문제이지 서버 오류가 아니다. 조용히
+                // 자르지 않고 거절한 것을 그대로 전한다.
+                if (r && r.code === 'TOO_MANY') { return res.status(400).json(r); }
+                return res.status(500).json({ error: String((r && r.message) || err) });
+            }
+            res.json(r);
+        });
+    });
+});
+
+/** 저장 전 검사. DB 를 보지 않는 동기 순수 함수라 커넥션이 필요 없다. */
+app.post('/api/acp/validate', function (req, res) {
+    var b = req.body || {};
+    var field = (b.field === 'pvs') ? 'pvs' : 'pv';
+    if (!b.value || typeof b.value !== 'object') {
+        return res.status(400).json({ error: 'value 가 필요하다' });
+    }
+    // 서버도 같은 함수로 막지만, 응답의 msg 는 정적이라 어느 값이 문제인지
+    // 담지 못한다. path 는 이 함수만 준다.
+    res.json(acp_rules.validate_privileges(b.value, field));
+});
+
+/** 변경 이력. 최신순이라 커서는 "이 id 보다 작은 것" 이다. */
+app.get('/api/acp/audit', function (req, res) {
+    var limit = Math.min(parseInt(req.query.limit, 10) || 50, 200);
+    with_connection(res, function (conn, done) {
+        db_sql.select_acp_audit(conn, {
+            ri: req.query.ri || undefined,
+            op: req.query.op || undefined,
+            limit: limit,
+            afterId: req.query.afterId ? parseInt(req.query.afterId, 10) : undefined
+        }, function (err, r) {
+            done();
+            if (err) {
+                // 007 마이그레이션 전이면 테이블이 없다. 500 으로 두면 화면이
+                // "서버가 고장났다" 로 읽는다 — 무엇을 해야 하는지 알려 준다.
+                return res.status(503).json({
+                    error: 'acp_audit 테이블을 읽을 수 없다. ' +
+                           '마이그레이션이 적용되지 않았을 수 있다: ' +
+                           'node tools/migrate.js --apply mysql --only 007-acp-audit-table',
+                    detail: String((r && r.message) || err)
+                });
+            }
+            res.json(r);
         });
     });
 });
