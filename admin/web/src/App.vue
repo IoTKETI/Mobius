@@ -2,6 +2,14 @@
 import { ref, onMounted } from 'vue'
 import { session, login, logout, AuthError } from './api'
 import ExpiredView from './views/ExpiredView.vue'
+import OrphanView from './views/OrphanView.vue'
+
+type Tab = 'expired' | 'orphans'
+const TABS: { id: Tab; label: string }[] = [
+  { id: 'expired', label: '만료된 리소스' },
+  { id: 'orphans', label: '고아 리소스' },
+]
+const tab = ref<Tab>('expired')
 
 const authed = ref(false)
 const backend = ref('')
@@ -63,13 +71,27 @@ onMounted(probe)
   <template v-else>
     <header>
       <strong>Mobius 관리 콘솔</strong>
+      <nav>
+        <button
+          v-for="t in TABS"
+          :key="t.id"
+          class="tab"
+          :class="{ on: tab === t.id }"
+          @click="tab = t.id"
+        >
+          {{ t.label }}
+        </button>
+      </nav>
+      <span class="spacer" />
       <span class="pill">{{ backend }}</span>
       <span class="pill readonly">조회 전용</span>
-      <span class="spacer" />
       <button @click="doLogout">로그아웃</button>
     </header>
     <main>
-      <ExpiredView />
+      <!-- 탭을 떠났다가 돌아오면 다시 읽는다. 두 화면 모두 무거운 스캔을
+           하므로 캐시해 두면 낡은 숫자를 사실처럼 보여 주게 된다. -->
+      <ExpiredView v-if="tab === 'expired'" />
+      <OrphanView v-else-if="tab === 'orphans'" />
     </main>
   </template>
 </template>
@@ -118,6 +140,24 @@ header strong {
   color: var(--text-strong);
 }
 .spacer { flex: 1; }
+
+nav { display: flex; gap: 0.25rem; margin-left: 0.6rem; }
+.tab {
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--muted);
+  padding: 0.4rem 0.85rem;
+  border-radius: 8px;
+  font-size: 0.95rem;
+}
+.tab:hover:not(.on) { background: var(--accent-wash); color: var(--accent-strong); }
+.tab.on {
+  background: var(--accent-wash);
+  border-color: var(--accent);
+  color: var(--accent-strong);
+  font-weight: 600;
+}
+
 .pill {
   font-size: 0.8rem;
   padding: 0.2rem 0.65rem;

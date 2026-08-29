@@ -1,4 +1,4 @@
-import type { ExpiredPage, ExpiredSummary } from './types'
+import type { ExpiredPage, ExpiredSummary, OrphanPage, OrphanSummary } from './types'
 
 export class AuthError extends Error {}
 
@@ -47,6 +47,18 @@ export function expiredPage(opts: {
   if (opts.afterEt) q.set('afterEt', opts.afterEt)
   if (opts.afterRi) q.set('afterRi', opts.afterRi)
   return get<ExpiredPage>(`/api/expired?${q.toString()}`)
+}
+
+export function orphanSummary(cap = 5000) {
+  return get<OrphanSummary>(`/api/orphans/summary?cap=${cap}`)
+}
+
+export function orphanPage(opts: { limit?: number; afterRi?: string | null; scanCap?: number }) {
+  const q = new URLSearchParams()
+  q.set('limit', String(opts.limit ?? 50))
+  if (opts.afterRi) q.set('afterRi', opts.afterRi)
+  if (opts.scanCap) q.set('scanCap', String(opts.scanCap))
+  return get<OrphanPage>(`/api/orphans?${q.toString()}`)
 }
 
 /** 'YYYYMMDDThhmmss' → '2025-06-01 00:00' */

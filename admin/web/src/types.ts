@@ -36,6 +36,34 @@ export interface ExpiredSummary {
   typeNames: Record<string, string>
 }
 
+export interface OrphanRow {
+  ri: string
+  /** 부모 경로. 이 값이 lookup 에 없어서 고아다. */
+  pi: string
+  ty: number
+  rn: string
+  ct: string
+  lt: string
+  et: string
+}
+
+export interface OrphanPage {
+  rows: OrphanRow[]
+  more: boolean
+  nextRi: string | null
+  /** 이 응답을 만들려고 훑은 행 수. */
+  scanned: number
+  /** 훑기 상한에 걸렸는가. 걸렸으면 뒤에 더 있을 수 있다. */
+  scanCapped: boolean
+  typeNames: Record<string, string>
+}
+
+export interface OrphanSummary {
+  cap: number
+  count: number
+  capped: boolean
+}
+
 /** 자동 정리에서 제외되는 타입 — 방치하면 계속 쌓이는 쪽이다. */
 export const NEVER_AUTO_DELETED = new Set([2, 3, 5])
 

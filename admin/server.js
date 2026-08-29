@@ -224,6 +224,56 @@ app.get('/api/expired', function (req, res) {
     });
 });
 
+/**
+ * 고아 리소스 요약. 부모(pi)가 lookup 에 없는 행의 수를 상한 안에서 센다.
+ *
+ * 고아는 이 서버의 **정상 실패 모드**다. DELETE 는 루트 행만 지우고 200 을
+ * 돌려준 뒤 자손을 배경에서 지우는데(delete_descendants_background), 그 도중
+ * 프로세스가 죽거나 커넥션을 못 빌리거나 대형 서브트리가 타임아웃에 걸리면
+ * 남은 자손이 통째로 고아가 된다. lite 는 이 정리의 자동 실행을 일부러 빼고
+ * 관리자 판단으로 넘겼다 — 5,740만 행에서 한 패스가 배치 11,000회이고 그동안
+ * 커넥션 하나를 계속 붙잡기 때문이다.
+ */
+app.get('/api/orphans/summary', function (req, res) {
+    var cap = Math.min(parseInt(req.query.cap, 10) || 5000, 50000);
+    with_connection(res, function (conn, done) {
+        db_sql.count_orphan_lookup(conn, cap, function (err, result) {
+            done();
+            if (err) { return res.status(500).json({ error: String((result && result.message) || err) }); }
+            res.json({ cap: cap, count: result.count, capped: result.capped });
+        });
+    });
+});
+
+/**
+ * 고아 리소스 목록. ri 키셋 페이징.
+ *
+ * scanCapped 가 오면 "훑기 상한에 걸렸다" 는 뜻이다 — 고아가 드물면 한 쪽을
+ * 채우려고 테이블 끝까지 갈 수 있어 상한을 둔다. 화면은 그 사실을 숨기지 않는다.
+ */
+app.get('/api/orphans', function (req, res) {
+    var limit = Math.min(parseInt(req.query.limit, 10) || 50, 200);
+    var scanCap = Math.min(parseInt(req.query.scanCap, 10) || 200000, 2000000);
+    with_connection(res, function (conn, done) {
+        db_sql.select_orphan_page(conn, {
+            limit: limit,
+            afterRi: req.query.afterRi || null,
+            scanCap: scanCap
+        }, function (err, page) {
+            done();
+            if (err) { return res.status(500).json({ error: String((page && page.message) || err) }); }
+            res.json({
+                rows: page.rows,
+                more: page.more,
+                nextRi: page.nextRi,
+                scanned: page.scanned,
+                scanCapped: page.scanCapped,
+                typeNames: responder.typeRsrc
+            });
+        });
+    });
+});
+
 // ── 정적 파일 ─────────────────────────────────────────────────────────────
 var WEB_DIST = path.join(__dirname, 'web', 'dist');
 if (fs.existsSync(WEB_DIST)) {
