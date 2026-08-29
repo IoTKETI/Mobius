@@ -146,14 +146,15 @@ test('lookup_* 가 security.check 를 직접 부르지 않는다', function () {
     const path = require('node:path');
     const src = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8');
 
-    // authorize_and_run 안의 1곳 + fanOutPoint 4곳 = 5곳.
+    // 두 곳만 남아야 한다.
+    //   authorize_and_run  일반 리소스 접근 (대상의 acpi 로 판정)
+    //   run_fanout         fanOutPoint (그룹의 macp 로 판정, 거부 코드도 403-5)
     //
-    // fopt 쪽은 아직 안 모았다. 판정 대상이 다르고(그룹의 macp), 거부 코드도
-    // 403-5 로 다르며, 권한이 있을 때 하는 일이 메서드마다 다르다 —
-    // POST 는 본문 파싱이 끼어든다. 같은 부류의 중복이지만 별도 작업이다.
+    // 판정 대상과 거부 코드가 다르므로 둘은 합치지 않는다. 그 둘 말고
+    // 어딘가에서 직접 부르기 시작하면 파이프라인이 다시 흩어지는 것이다.
     const calls = (src.match(/security\.check\(/g) || []).length;
-    assert.strictEqual(calls, 5,
-        'security.check 호출이 ' + calls + '곳이다 — lookup_* 파이프라인이 다시 흩어졌는지 확인할 것');
+    assert.strictEqual(calls, 2,
+        'security.check 호출이 ' + calls + '곳이다 — 파이프라인이 다시 흩어졌는지 확인할 것');
 });
 
 test('죽은 캐시 cache_security_check 가 되살아나지 않았다', function () {
