@@ -87,6 +87,20 @@ var REASON = {
     // 예전에는 ty_arr[1] 이 undefined 인 채 .replace 를 불러 워커가 죽었다.
     '400-55': { code: RSC.BAD_REQUEST, msg: "ty parameter of Content-Type has no value" },
 
+    // ── ACP 가드레일 ──────────────────────────────────────────────────
+    // 잘못된 ACP 는 조용히 저장됐다가 나중에 403 이나 500 으로 나타난다.
+    // 그때는 어느 값이 문제였는지 알 방법이 없으므로 쓰는 시점에 막는다.
+    // msg 는 정적이라 어느 원소가 문제인지 담지 못한다 — 그건 detail 로
+    // 로그에만 남고, 관리 콘솔은 acp.validate_privileges 를 직접 불러 위치를 얻는다.
+    '400-56': { code: RSC.BAD_REQUEST, msg: "privileges must be a JSON object", detail: 'acp: privileges shape' },
+    '400-57': { code: RSC.BAD_REQUEST, msg: "acop must be an integer from 0 to 63", detail: 'acp: acop' },
+    '400-58': { code: RSC.BAD_REQUEST, msg: "acor entries must be strings", detail: 'acp: acor' },
+    '400-59': { code: RSC.BAD_REQUEST, msg: "actw must have six cron fields (sec min hour day month weekday)", detail: 'acp: actw' },
+    '400-60': { code: RSC.BAD_REQUEST, msg: "acip cannot carry both ipv4 and ipv6", detail: 'acp: acip' },
+    '400-61': { code: RSC.BAD_REQUEST, msg: "acpi entries must be strings", detail: 'acpi: element type' },
+    '400-62': { code: RSC.BAD_REQUEST, msg: "acpi is too long to store (200 characters when serialized)", detail: 'acpi: length' },
+    '400-63': { code: RSC.BAD_REQUEST, msg: "acpi refers to an accessControlPolicy that does not exist", detail: 'acpi: dangling' },
+
     '403-1': { code: RSC.AE_NOT_ALLOWED, msg: "AE-ID is not allowed" },
     '403-2': { code: RSC.TARGET_NOT_SUBSCRIBABLE, msg: "this resource type cannot be created under the parent resource" },
     '403-3': { code: RSC.ACCESS_DENIED, msg: "ACCESS DENIED" },

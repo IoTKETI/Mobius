@@ -70,12 +70,20 @@ global.retention_policies = Array.isArray(conf.retentionPolicies) ? conf.retenti
 global.outbound_timeout_ms = (typeof conf.outboundTimeoutMs === 'number' && conf.outboundTimeoutMs > 0)
     ? conf.outboundTimeoutMs : 0;
 
-global.usepxywsport = '7577';
-global.usepxymqttport = '7578';
+// 보조 포트도 conf 로 뺀다. csebaseport 만 옮겨서는 두 번째 인스턴스를 띄울 수
+// 없다 — 이 다섯이 하드코딩이라 프록시가 EADDRINUSE 로 죽는다. 그러면 요청이
+// 조용히 먼저 뜬 인스턴스로 가서, 고친 코드를 검증한다고 믿는 동안 남의
+// 서버를 재고 있게 된다(실제로 겪었다). 기본값은 전부 지금 값 그대로다.
+function port_of(v, dflt) {
+    return (v === undefined || v === null || String(v) === '') ? dflt : String(v);
+}
 
-global.use_sgn_man_port = '7599';
-global.use_cnt_man_port = '7583';
-global.use_hit_man_port = '7594';
+global.usepxywsport = port_of(conf.pxyWsPort, '7577');
+global.usepxymqttport = port_of(conf.pxyMqttPort, '7578');
+
+global.use_sgn_man_port = port_of(conf.sgnManPort, '7599');
+global.use_cnt_man_port = port_of(conf.cntManPort, '7583');
+global.use_hit_man_port = port_of(conf.hitManPort, '7594');
 
 global.use_mqtt_broker = 'localhost'; // mqttbroker for mobius
 
@@ -85,7 +93,36 @@ if (use_secure === 'enable') {
     use_mqtt_port = '8883';
 }
 
-global.useaccesscontrolpolicy = 'disable';
+// 이름과 달리 "ACP 를 쓰느냐" 가 아니라 **acpi 가 없는 리소스의 기본 정책**이다.
+//   'disable' (지금 / 운영 대원칙) — 생성·조회·탐색은 누구나, 수정·삭제는 생성자만
+//   'enable'                       — 전부 생성자만
+// 대원칙대로면 'disable' 이 정답이라 바꿀 일이 없다. conf 로 빼되 기본값은 그대로.
+global.useaccesscontrolpolicy = conf.defaultAccessPolicy || 'disable';
+
+// ACP 관측. 기본값은 전부 현재 동작과 같다 — 늘어나는 것은 로그 줄뿐이다.
+//   acpObserveMode 'observe' 로 켜면 **거부가 허용으로 나간다.** 잠그기 전에
+//   무엇이 막힐지 하루쯤 보고 끄기 위한 것이고, 켠 채로 두면 ACP 가 무력해진다.
+global.acp_observe_mode = conf.acpObserveMode || 'off';
+require('./mobius/acp_observe').configure({
+    mode: global.acp_observe_mode,
+    denyLog: conf.acpDenyLog || 'sample',
+    rate: (typeof conf.acpDenyLogRate === 'number') ? conf.acpDenyLogRate : 5
+});
+if (global.acp_observe_mode === 'observe') {
+    console.log('[acp] 관찰 모드다 — ACP 거부가 허용으로 나간다. 확인이 끝나면 반드시 끈다.');
+}
+
+// ACP 가 안 걸린 리소스에 누가 처음 acpi 를 붙일 수 있는가.
+//   'open'    (기본 / 현재 동작) 인증된 아무나. 붙는 순간 잠기고 로그만 남는다
+//   'creator' 그 리소스의 생성자와 수퍼유저만
+// 지금 바로 'creator' 로 켜면 acpi 를 붙이던 정상 요청이 거부되기 시작한다.
+// acpi_attach 로그를 하루 본 뒤에 정한다.
+global.acpi_attach_policy = (conf.acpiAttachPolicy === 'creator') ? 'creator' : 'open';
+
+// ACP·acpi 변경 이력(acp_audit 테이블). acp 에 cr 컬럼이 없어 "누가 만들었는가"
+// 를 답할 다른 근거가 없다. 마이그레이션 007 전에는 insert 가 실패하지만
+// best-effort 라 요청은 정상 처리된다.
+global.acp_audit = (conf.acpAudit === 'off') ? 'off' : 'on';
 
 global.wdt = require('./wdt');
 

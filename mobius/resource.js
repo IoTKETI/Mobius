@@ -41,6 +41,7 @@ var tm = require('./tm');
 var tr = require('./tr');
 
 var security = require('./security');
+var acp_observe = require('./acp_observe');
 var db = require('./db_action');
 var db_sql = require('./sql_action');
 var cnt_man = require('./cnt_man');
@@ -229,7 +230,10 @@ update_opt_attr_list.nod = ['acpi', 'et', 'lbl', 'aa', 'at', 'daci', 'ni', 'mgca
 update_opt_attr_list.smd = ['acpi', 'et', 'lbl', 'aa', 'at', 'dcrp', 'soe', 'dsp', 'or', 'rels'];
 update_opt_attr_list.mms =['acpi', 'et', 'lbl', 'aa', 'at', 'stid', 'asd', 'osd', 'sst'];
 update_opt_attr_list.tm = ['acpi', 'et', 'lbl', 'daci', 'tctl', 'tmr', 'tmh'];
-update_opt_attr_list.tr = ['acpi', 'et', 'lbl', 'cr', 'tctl'];
+// cr 이 옵션 목록에 있었다. update_body 는 본문 속성을 전부 그대로 옮기므로
+// PUT {"m2m:tr":{"cr":"남"}} 하나로 소유권이 넘어갔다 — creator_bypasses 가
+// 들어온 뒤로는 그것이 곧 권한 탈취다. 다른 타입은 전부 np 목록에 있다.
+update_opt_attr_list.tr = ['acpi', 'et', 'lbl', 'tctl'];
 
 update_opt_attr_list.fwr = ['acpi', 'et', 'lbl', 'daci', 'dc', 'cmlk', 'vr', 'fwnnam', 'url', 'ud', 'uds'];
 update_opt_attr_list.bat = ['acpi', 'et', 'lbl', 'daci', 'dc', 'cmlk', 'btl', 'bts'];
@@ -1141,6 +1145,25 @@ function build_resource(request, response, callback) {
 
 exports.create = function (request, response, callback) {
     var rootnm = request.headers.rootnm;
+
+    // acpi 를 실제로 보낸 요청에만 붙는다. 안 보내면 질의가 한 번도 안 나간다
+    // (배포 34,313 비-CIN 행 중 acpi 가 채워진 것은 2건이다).
+    var body = request.bodyObj && request.bodyObj[rootnm] ? request.bodyObj[rootnm] : {};
+    if (!body.hasOwnProperty('acpi')) {
+        build_and_create();
+        return;
+    }
+    validate_acpi(request, response, body.acpi, function (code, normalized) {
+        if (code) {
+            callback(code);
+            return;
+        }
+        // 정규화한 값으로 갈아끼운다. build_resource 가 이 값을 그대로 쓴다.
+        body.acpi = normalized;
+        build_and_create();
+    });
+
+    function build_and_create() {
     build_resource(request, response, function (code) {
         if(code === '200') {
             var resource_Obj = request.resourceObj;
@@ -1161,6 +1184,14 @@ exports.create = function (request, response, callback) {
 
             create_action(request, response, (code) => {
                 if(code === '200') {
+                    var made = request.resourceObj[rootnm];
+                    if (request.ty == '1') {
+                        record_acp_change(request, 'acp_create', null,
+                            { pv: made.pv, pvs: made.pvs }, made.ri, request.ty, made.cr);
+                    }
+                    record_acp_change(request, 'acpi_set', [], acpi_of(made),
+                        made.ri, request.ty, made.cr);
+
                     _this.remove_no_value(request, request.resourceObj);
 
                     if(request.ty != 23) {
@@ -1215,6 +1246,7 @@ exports.create = function (request, response, callback) {
             callback(code);
         }
     });
+    }
 };
 
 // discovery 요청 파라미터를 정규화한다.
@@ -2223,16 +2255,127 @@ function create_resource(request, response, ty, body_Obj, resource_Obj, callback
     }
 }
 
-function check_acp_update_acpi(request, response, acpi, cr, callback) {
-    // when update acpi check pvs of acp
+// acpi 직렬화 길이 한도. lookup.acpi 가 varchar(200) 이다.
+// ri 가 22자면 7개(176자)까지 들어가고 8개는 201자라 넘친다.
+var ACPI_MAX_JSON = 200;
+
+/**
+ * acpi 를 검증하고 내부 ri 표기로 정규화한다.
+ *
+ * 지금까지 acpi 는 존재·타입·개수 무엇도 검사하지 않고 클라이언트 원문 그대로
+ * 저장됐다. 그 결과가 셋이다.
+ *
+ *   - 없는 ACP 를 가리켜도 200 이다. 그러면 잠금이 "생성자만 통과" 로 조용히
+ *     풀리는데 아무 로그도 없다. 배포의 /Mobius/sch8 이 그 상태다.
+ *   - 8개째부터 varchar(200) 을 넘겨 400 이 아니라 **HTTP 500** 이 난다.
+ *     500 은 서버 오류라 운영자가 원인을 못 찾는다.
+ *   - 숫자를 넣으면 make_internal_ri 의 .split 이 TypeError 를 던져 워커가 죽는다.
+ *   - 절대/SP상대/CSE상대 세 표기가 그대로 저장돼 역참조 조회가 조용히 어긋난다.
+ *
+ * **새로 쓰는 값만 본다.** 이미 저장된 acpi 는 건드리지 않는다.
+ *
+ * @param callback callback(null, normalized) 통과 / callback(code) 거부
+ */
+global.validate_acpi = function (request, response, acpi, callback) {
+    if (!Array.isArray(acpi)) {
+        callback('400-8');
+        return;
+    }
+    for (var i = 0; i < acpi.length; i++) {
+        if (typeof acpi[i] !== 'string') {
+            callback('400-61');
+            return;
+        }
+    }
+    if (acpi.length === 0) {
+        callback(null, []);
+        return;
+    }
+
+    var given = acpi.slice();
+    make_internal_ri(given);
+
+    var ri_list = [];
+    get_ri_list_sri(request, response, given, ri_list, 0, function (code) {
+        if (code !== '200') {
+            callback(code);
+            return;
+        }
+
+        // 중복은 거부하지 않고 조용히 없앤다 — mid 의 remove_duplicated_mid 와 같은 취급.
+        var normalized = [];
+        for (var j = 0; j < ri_list.length; j++) {
+            if (normalized.indexOf(ri_list[j]) === -1) {
+                normalized.push(ri_list[j]);
+            }
+        }
+
+        if (JSON.stringify(normalized).length > ACPI_MAX_JSON) {
+            callback('400-62');
+            return;
+        }
+
+        db_sql.select_acp_in(request.db_connection, normalized, function (err, rows) {
+            if (err) {
+                callback('500-1');
+                return;
+            }
+            var found = {};
+            for (var k = 0; k < rows.length; k++) { found[rows[k].ri] = true; }
+
+            var missing = normalized.filter(function (r) { return !found[r]; });
+            if (missing.length > 0) {
+                // 어느 것이 없는지는 응답에 못 담는다(msg 가 정적이다). 로그에 남긴다.
+                console.log('[acp] reject 400-63 — 없는 ACP 를 가리킨다: ' + missing.join(', '));
+                callback('400-63');
+                return;
+            }
+
+            callback(null, normalized);
+        });
+    });
+};
+
+/**
+ * acpi 를 바꿀 권한이 있는가.
+ *
+ * @param acpi     **지금 걸려 있는** acpi. 새로 걸 것이 아니다.
+ * @param newAcpi  새로 걸 acpi (관측용). 없으면 관측만 건너뛴다.
+ */
+function check_acp_update_acpi(request, response, acpi, cr, newAcpi, callback) {
+    if (typeof newAcpi === 'function') { callback = newAcpi; newAcpi = undefined; }
+
+    // 이미 ACP 가 걸려 있으면 그 ACP 의 pvs 가 정한다. oneM2M 의 selfPrivileges 다.
     if (acpi.length > 0) {
         security.check(request, response, '1', acpi, '4', cr, function (code) {
             callback(code);
         });
+        return;
     }
-    else {
-        callback('1');
+
+    // 여기가 문제의 자리다. **지금은 인증된 아무나** ACP 가 안 걸린 남의
+    // 리소스에 자기 ACP 를 붙여 잠글 수 있다(실측: HTTP 200, 그 뒤 생성자
+    // 조회가 403). 붙이는 순간 잠기고, 그 사실이 아무 데도 안 남는다.
+    //
+    // 그렇다고 지금 바로 막으면 acpi 를 붙이던 정상 요청이 거부되기 시작한다.
+    // 스위치와 관측을 먼저 넣고, 켜는 것은 로그를 본 뒤에 정한다.
+    var from = request.headers['x-m2m-origin'];
+    var target_ri = request.url ? request.url.split('?')[0] : '';
+
+    if (newAcpi !== undefined && newAcpi !== null && newAcpi.length > 0) {
+        acp_observe.record('acpi_attach', {
+            ri: target_ri, ty: request.ty, origin: from, cr: cr,
+            before: [], after: newAcpi
+        });
     }
+
+    if (global.acpi_attach_policy === 'creator') {
+        var is_su = (from === usesuperuser || from === ('/' + usesuperuser));
+        callback((is_su || (cr && from === cr)) ? '1' : '0');
+        return;
+    }
+
+    callback('1');
 }
 
 function update_resource(request, response, callback) {
@@ -2272,6 +2415,23 @@ function update_resource(request, response, callback) {
                                 return;
                             }
                         }
+                        // pv/pvs 는 acp 의 **옵션** 속성이라 아래 mandatory 분기의
+                        // pvs 검사에 영영 닿지 않았다(update_m_attr_list.acp 가 []).
+                        // 그래서 pvs 를 {} 로 바꾸는 UPDATE 가 그대로 통과했고,
+                        // acp 테이블에 cr 컬럼이 없어 그 순간 수퍼유저 말고는
+                        // 아무도 그 ACP 를 못 고치게 됐다.
+                        else if (attr === 'pv' || attr === 'pvs') {
+                            var v = acp.validate_privileges(body_Obj[rootnm][attr], attr);
+                            for (var wi = 0; wi < v.warnings.length; wi++) {
+                                console.log('[acp] warn ' + v.warnings[wi].rule + ' at ' +
+                                    v.warnings[wi].path + ' — ' + v.warnings[wi].message);
+                            }
+                            if (v.code !== null) {
+                                console.log('[acp] reject ' + v.code + ' at ' + v.path);
+                                callback(v.code);
+                                return;
+                            }
+                        }
                     }
                     else {
                         if (update_m_attr_list[rootnm].includes(attr)) {
@@ -2294,13 +2454,30 @@ function update_resource(request, response, callback) {
             }
         }
 
-        if(body_Obj[rootnm].hasOwnProperty('acpi')) {
-            var updateAcpiList = resource_Obj[rootnm].acpi;
+        if (!body_Obj[rootnm].hasOwnProperty('acpi')) {
+            run_acp_check([]);
+            return;
         }
-        else {
-            updateAcpiList = [];
-        }
-        check_acp_update_acpi(request, response, updateAcpiList, resource_Obj[rootnm].cr, function (code) {
+
+        // **지금 걸려 있는** acpi 로 권한을 본다. 새로 걸 ACP 가 아니다 —
+        // 새 값으로 보면 "내가 만든 ACP 를 붙이겠다" 가 언제나 통과한다.
+        // resource_Obj 는 아직 DB 에서 읽은 그대로다(update_body 는 뒤에 돈다).
+        var existingAcpi = resource_Obj[rootnm].acpi;
+
+        // acpi 만 바꾸는 PUT 도 여기를 지난다 — app.js 가 건너뛰는 것은
+        // authorize_and_run(대상 리소스 권한)이지 update_resource 가 아니다.
+        validate_acpi(request, response, body_Obj[rootnm].acpi, function (code, normalized) {
+            if (code) {
+                callback(code);
+                return;
+            }
+            // update_body 가 body 값을 그대로 옮기므로 여기만 갈아끼우면 된다.
+            body_Obj[rootnm].acpi = normalized;
+            run_acp_check(existingAcpi, normalized);
+        });
+
+        function run_acp_check(updateAcpiList, newAcpi) {
+        check_acp_update_acpi(request, response, updateAcpiList, resource_Obj[rootnm].cr, newAcpi, function (code) {
             if (code === '1') {
                 update_body(rootnm, body_Obj, resource_Obj); // (attr == 'aa' || attr == 'poa' || attr == 'lbl' || attr == 'acpi' || attr == 'srt' || attr == 'nu' || attr == 'mid' || attr == 'macp')
 
@@ -2324,10 +2501,41 @@ function update_resource(request, response, callback) {
                 callback(code);
             }
         });
+        }
     }
     else {
         callback('405-5');
     }
+}
+
+// acpi / pv / pvs 가 실제로 바뀐 경우에만 이력을 남긴다.
+//
+// **응답을 지연시키지 않는다.** setImmediate 로 뒤로 미루고, 실패해도 요청에는
+// 영향이 없다(insert_acp_audit 이 best-effort 다). 감사 때문에 운영이 멈추면
+// 감사부터 꺼진다.
+function record_acp_change(request, op, before, after, ri, ty, cr) {
+    if (global.acp_audit === 'off') { return; }
+    if (JSON.stringify(before) === JSON.stringify(after)) { return; }
+    var conn = request.db_connection;
+    setImmediate(function () {
+        db_sql.insert_acp_audit(conn, {
+            op: op, ri: ri, ty: ty,
+            origin: request.headers ? request.headers['x-m2m-origin'] : undefined,
+            cr: cr, before: before, after: after
+        });
+    });
+}
+
+function acpi_of(obj) {
+    if (!obj) { return []; }
+    var v = obj.acpi;
+    if (Array.isArray(v)) { return v; }
+    if (typeof v !== 'string' || v === '') { return []; }
+    try {
+        var o = JSON.parse(v);
+        return Array.isArray(o) ? o : [];
+    }
+    catch (e) { return []; }
 }
 
 exports.update = function (request, response, callback) {
@@ -2342,10 +2550,24 @@ exports.update = function (request, response, callback) {
         updateObj[rootnm].cr = updateObj[rootnm].cb;
     }
 
+    // update_resource 가 resourceObj 를 새로 만들기 전에 옛 값을 붙잡는다.
+    var before_acpi = acpi_of(updateObj[rootnm]);
+    var before_pv = updateObj[rootnm].pv;
+    var before_pvs = updateObj[rootnm].pvs;
+
     update_resource(request, response, function (code) {
         if(code === '200') {
             update_action(request, response, function (code) {
                 if (code == '200') {
+                    var now = request.resourceObj[rootnm];
+                    record_acp_change(request, 'acpi_set', before_acpi, acpi_of(now),
+                        now.ri, ty, now.cr);
+                    if (ty == 1) {
+                        record_acp_change(request, 'acp_update',
+                            { pv: before_pv, pvs: before_pvs },
+                            { pv: now.pv, pvs: now.pvs }, now.ri, ty, now.cr);
+                    }
+
                     _this.remove_no_value(request, request.resourceObj);
 
                     sgn.check(request, request.resourceObj[rootnm], 1, function (code) {
@@ -2576,6 +2798,17 @@ exports.delete = function (request, response, callback) {
 
     delete_action(request, response, function (code) {
         if (code === '200') {
+            var gone = request.resourceObj[rootnm];
+            // DELETE 에는 Content-Type 의 ty 가 없어 request.ty 가 비어 있을 수
+            // 있다. 지우는 리소스 자신의 ty 를 먼저 본다.
+            var gone_ty = (gone && gone.ty !== undefined) ? gone.ty : ty;
+            if (gone_ty == '1') {
+                // ACP 를 지우면 그것을 참조하던 리소스는 "생성자만 통과" 로
+                // 조용히 풀린다. 무엇이 사라졌는지 남겨야 되돌릴 수 있다.
+                record_acp_change(request, 'acp_delete',
+                    { pv: gone.pv, pvs: gone.pvs }, null, gone.ri, gone_ty, gone.cr);
+            }
+
             _this.remove_no_value(request, request.resourceObj);
 
             sgn.check(request, request.resourceObj[rootnm], 4, function (code) {

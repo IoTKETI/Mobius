@@ -2052,15 +2052,24 @@ exports.select_acp_cnt = function (connection, loop, uri_arr, callback) {
                 return;
             }
 
-            callback(err, results[0].acpi);
+            // 세 번째 인자로 **어느 조상에서 찾았는지**를 준다. 상속으로 판정한
+            // 사실이 지금까지 어디에도 남지 않아, AE 의 ACP 를 고쳐도 왜 안
+            // 먹는지(중간 컨테이너가 덮어썼다) 를 알 수 없었다.
+            // 기존 호출부는 두 인자만 받으므로 그대로 둬도 된다.
+            callback(err, results[0].acpi, pi);
         });
 };
 
 // 예전에는 IN 목록을 JSON.stringify 한 뒤 대괄호만 떼어 SQL 에 붙였다.
 // acpi 는 클라이언트가 주는 값이라 따옴표가 섞이면 SQL 구조가 깨진다.
 // whereIn 은 원소마다 바인딩을 만든다.
+// 평가 순서가 결과를 바꾸므로 옵티마이저에 맡기지 않는다. pv 에 acr 이 없는
+// ACP 를 만나면 security.js 가 그 자리에서 평가를 끝내고 뒤 ACP 를 안 본다.
+// ORDER BY 가 없을 때 실측한 것: 요청 순서가 [dev, aaa_empty] 인데 반환은
+// [aaa_empty, dev] 로 뒤집혀, ACP 이름만 바꿔도 권한이 사라졌다.
 exports.select_acp_in = function (connection, acpiList, callback) {
-    facade.run(facade.k('acp').select('*').whereIn('ri', acpiList || []), connection, callback);
+    facade.run(facade.k('acp').select('*').whereIn('ri', acpiList || []).orderBy('ri', 'asc'),
+        connection, callback);
 };
 
 exports.select_sub = function (connection, pi, callback) {
@@ -3550,6 +3559,351 @@ exports.delete_lookup_et = function (connection, et, limit, callback) {
 //
 // 겸사겸사 수동 이스케이프(esc)를 걷어냈다. `\` 와 `'` 만 다루는 불완전한
 // 것이었고, ri/pi 는 클라이언트가 정한 rn 을 담으므로 2차 주입 통로였다.
+// ── ACP 조회 (관리 콘솔용) ────────────────────────────────────────────
+//
+// 전부 읽기 전용이다. 무엇도 지우거나 고치지 않고 목록만 돌려준다 — 되돌릴
+// 수 없는 조작은 관리자가 화면을 보고 정한다.
+//
+// **lookup.acpi 에는 인덱스가 없다.** JSON 문자열이라 SQL 로 역질의도 안 된다
+// (`acpi like '%...%'` 는 선행 와일드카드라 인덱스를 못 탄다 — 배포 lookup 은
+// 5,740만 행이므로 절대 쓰지 않는다). 그래서 역참조는 not_cin 술어로 CIN
+// 3,400만 행을 빼고 남는 34,313 행만 키셋으로 훑으며 앱에서 대조한다.
+
+var ACP_LIST_MAX = 500;
+var ACP_SCAN_BATCH = 2000;
+var ACP_SCAN_CAP = 200000;
+var ACP_REFS_MAX = 1000;
+
+/**
+ * ACP 리소스 목록. ty 등치라 idx_lookup_ty 를 탄다.
+ *
+ * @param opts { limit=100(상한 500), afterRi='' }
+ * @returns callback(null, { rows:[{ri,pi,rn,ct,lt,et,acpi}], more, nextRi })
+ */
+exports.select_acp_list = function (connection, opts, callback) {
+    if (typeof opts === 'function') { callback = opts; opts = {}; }
+    var o = opts || {};
+    var limit = Math.min(Math.max(parseInt(o.limit, 10) || 100, 1), ACP_LIST_MAX);
+    var after = o.afterRi || '';
+
+    var qb = facade.k('lookup')
+        .select('ri', 'pi', 'rn', 'ct', 'lt', 'et', 'acpi')
+        .where('ty', 1)
+        .where('ri', '>', after)
+        .orderBy('ri', 'asc')
+        .limit(limit + 1);          // 한 줄 더 읽어 more 를 판단한다
+
+    facade.run(qb, connection, function (err, rows) {
+        if (err) { return callback(err, rows); }
+        rows = rows || [];
+        var more = rows.length > limit;
+        if (more) { rows = rows.slice(0, limit); }
+        callback(null, {
+            rows: rows,
+            more: more,
+            // **반환된 마지막 행**의 ri 다. 잘라낸 limit+1 번째를 쓰면 한 줄이 샌다.
+            nextRi: rows.length ? rows[rows.length - 1].ri : null
+        });
+    });
+};
+
+/**
+ * ACP 한 건의 상세 — lookup 행과 acp 본문을 함께 준다.
+ *
+ * @returns callback(null, {ri,rn,pi,ct,lt,et,pv,pvs,pv_parsed,pvs_parsed}) 또는 null
+ */
+exports.select_acp_detail = function (connection, ri, callback) {
+    facade.run(facade.k('lookup').select('ri', 'pi', 'rn', 'ty', 'ct', 'lt', 'et', 'acpi').where({ ri: ri }),
+        connection, function (err, lrows) {
+            if (err) { return callback(err, lrows); }
+            if (!lrows || lrows.length === 0) { return callback(null, null); }
+
+            facade.run(facade.k('acp').select('ri', 'pv', 'pvs').where({ ri: ri }), connection,
+                function (err2, arows) {
+                    if (err2) { return callback(err2, arows); }
+                    var a = (arows && arows[0]) ? arows[0] : { pv: null, pvs: null };
+                    var out = lrows[0];
+                    out.pv = a.pv;
+                    out.pvs = a.pvs;
+                    out.pv_parsed = safe_json(a.pv);
+                    out.pvs_parsed = safe_json(a.pvs);
+                    // acp 행이 없으면 lookup 에만 남은 반쪽이다. 평가에서는
+                    // "참조한 ACP 를 못 찾음" 으로 취급돼 잠금이 조용히 풀린다.
+                    out.body_missing = !arows || arows.length === 0;
+                    callback(null, out);
+                });
+        });
+};
+
+function safe_json(s) {
+    if (s === null || s === undefined) { return null; }
+    if (typeof s === 'object') { return s; }
+    try { return JSON.parse(s); }
+    catch (e) { return null; }
+}
+
+// acpi 원소를 make_internal_ri 와 같은 규칙으로 접는다. 스캔 중에는 DB 를 더
+// 부르지 않는다 — 3만 행에 한 건씩 질의하면 N+1 이 된다.
+function fold_acpi_entry(v) {
+    if (typeof v !== 'string') { return null; }
+    if (v.indexOf(usespid + usecseid + '/') === 0) { return v.replace(usespid + usecseid + '/', '/'); }
+    if (v.indexOf(usecseid + '/' + usecsebase + '/') === 0) { return v.replace(usecseid + '/', '/'); }
+    if (v.indexOf(usecsebase) === 0) { return '/' + v; }
+    return v;
+}
+
+/**
+ * 어떤 리소스가 이 ACP 를 쓰는가 — 풀스캔 없이.
+ *
+ * ACP 를 지우면 그것을 참조하던 리소스는 "생성자만 통과" 로 조용히 풀린다.
+ * 삭제 전 영향 분석을 할 수단이 지금까지 없었다.
+ *
+ * @param opts { acpRi=null(전부), tys=null, batch, scanCap, maxRefs, afterRi }
+ * @returns callback(null, { refs, refsTruncated, byAcp, scanned, capped, broken, unresolved, nextRi })
+ */
+exports.scan_acpi_refs = function (connection, opts, callback) {
+    if (typeof opts === 'function') { callback = opts; opts = {}; }
+    var o = opts || {};
+    var target = o.acpRi ? fold_acpi_entry(o.acpRi) : null;
+    var batch = Math.min(Math.max(parseInt(o.batch, 10) || ACP_SCAN_BATCH, 1), 10000);
+    var cap = parseInt(o.scanCap, 10) || ACP_SCAN_CAP;
+    var maxRefs = parseInt(o.maxRefs, 10) || ACP_REFS_MAX;
+
+    var refs = [];
+    var byAcp = {};
+    var unresolved = {};
+    var scanned = 0;
+    var broken = 0;
+    var truncated = false;
+
+    function scan(after) {
+        var qb = facade.k('lookup')
+            .select('ri', 'ty', 'pi', 'rn', 'acpi')
+            // CIN 3,400만 행을 뺀다. MySQL 은 생성 컬럼 not_cin(idx_lookup_pi_notcin),
+            // SQLite 는 ty <> 4 로 같은 뜻을 낸다.
+            .whereRaw(facade.notCinPredicate('lookup'))
+            .where('ri', '>', after)
+            .orderBy('ri', 'asc')
+            .limit(batch);
+        if (Array.isArray(o.tys) && o.tys.length > 0) { qb = qb.whereIn('ty', o.tys); }
+
+        facade.run(qb, connection, function (err, rows) {
+            if (err) { return callback(err, rows); }
+            rows = rows || [];
+            if (rows.length === 0) { return done(null); }
+
+            var next = rows[rows.length - 1].ri;
+            for (var i = 0; i < rows.length; i++) {
+                scanned++;
+                var raw = rows[i].acpi;
+                if (raw === null || raw === undefined || raw === '' || raw === '[]') { continue; }
+
+                var list = safe_json(raw);
+                if (!Array.isArray(list)) { broken++; continue; }
+
+                var folded = [];
+                var hit = (target === null);
+                for (var j = 0; j < list.length; j++) {
+                    var f = fold_acpi_entry(list[j]);
+                    if (f === null) { broken++; continue; }
+                    if (f.charAt(0) !== '/') { unresolved[f] = 1; }
+                    folded.push(f);
+                    if (target !== null && f === target) { hit = true; }
+                }
+                if (!hit || folded.length === 0) { continue; }
+
+                for (var k = 0; k < folded.length; k++) {
+                    byAcp[folded[k]] = (byAcp[folded[k]] || 0) + 1;
+                }
+                if (refs.length < maxRefs) {
+                    refs.push({ ri: rows[i].ri, ty: rows[i].ty, rn: rows[i].rn, pi: rows[i].pi,
+                                acpi: folded, raw: String(raw),
+                                normalized: JSON.stringify(folded) === String(raw) });
+                }
+                else {
+                    truncated = true;
+                }
+            }
+
+            if (scanned >= cap) { return done(next, true); }
+            setImmediate(scan, next);
+        });
+    }
+
+    function done(next, capped) {
+        callback(null, {
+            refs: refs,
+            refsTruncated: truncated,
+            byAcp: byAcp,
+            scanned: scanned,
+            capped: !!capped,
+            broken: broken,
+            unresolved: Object.keys(unresolved),
+            nextRi: capped ? next : null
+        });
+    }
+
+    scan(o.afterRi || '');
+};
+
+/**
+ * sri 표기로 적힌 acpi 원소를 내부 ri 로 푼다. scan_acpi_refs 의 unresolved 용.
+ */
+exports.resolve_acpi_entries = function (connection, entries, callback) {
+    var list = (entries || []).filter(function (e) { return typeof e === 'string'; });
+    if (list.length === 0) { return callback(null, { map: {} }); }
+
+    facade.run(facade.k('lookup').select('ri', 'sri').whereIn('sri', list), connection,
+        function (err, rows) {
+            if (err) { return callback(err, rows); }
+            var bySri = {};
+            (rows || []).forEach(function (r) { bySri[r.sri] = r.ri; });
+            var map = {};
+            list.forEach(function (e) { map[e] = bySri[e] || null; });
+            callback(null, { map: map });
+        });
+};
+
+/**
+ * 그룹의 macp 참조. fanOutPoint 는 acpi 가 아니라 grp.macp 로 판정하므로,
+ * ACP 삭제 전 참조 확인이 여기를 빠뜨리면 그룹 팬아웃이 조용히 잠긴다.
+ * macp 는 mediumtext 라 acpi 의 7개 한계가 적용되지 않는다.
+ */
+exports.scan_macp_refs = function (connection, opts, callback) {
+    if (typeof opts === 'function') { callback = opts; opts = {}; }
+    var target = (opts && opts.acpRi) ? fold_acpi_entry(opts.acpRi) : null;
+
+    facade.run(facade.k('grp').select('ri', 'macp'), connection, function (err, rows) {
+        if (err) { return callback(err, rows); }
+        var refs = [];
+        var byAcp = {};
+        var broken = 0;
+
+        (rows || []).forEach(function (r) {
+            var list = safe_json(r.macp);
+            if (!Array.isArray(list)) {
+                if (r.macp !== null && r.macp !== undefined && r.macp !== '') { broken++; }
+                return;
+            }
+            var folded = [];
+            var hit = (target === null);
+            list.forEach(function (v) {
+                var f = fold_acpi_entry(v);
+                if (f === null) { broken++; return; }
+                folded.push(f);
+                if (target !== null && f === target) { hit = true; }
+            });
+            if (!hit || folded.length === 0) { return; }
+            folded.forEach(function (f) { byAcp[f] = (byAcp[f] || 0) + 1; });
+            refs.push({ ri: r.ri, macp: folded });
+        });
+
+        callback(null, { refs: refs, byAcp: byAcp, broken: broken });
+    });
+};
+
+// ── ACP 변경 이력 ─────────────────────────────────────────────────────
+//
+// acp 테이블에는 cr 컬럼이 없어 ACP 를 누가 만들었는지 어디에도 남지 않고,
+// acpi 를 바꾸면 옛 값이 사라진다. 삭제와 달리 "목록을 다시 조회하면 드러난다"
+// 가 성립하지 않아 되돌릴 근거가 없다.
+//
+// 쓰기는 best-effort 다. 이력 저장이 실패해도 본 요청을 실패시키지 않는다 —
+// 감사 때문에 운영이 멈추면 감사부터 꺼진다.
+
+var AUDIT_LIST_MAX = 200;
+
+/**
+ * @param entry { op, ri, ty, origin, cr, before, after }
+ *        op 는 'acpi_set' | 'acp_create' | 'acp_update' | 'acp_delete'
+ */
+exports.insert_acp_audit = function (connection, entry, callback) {
+    var cb = callback || function () {};
+    if (global.acp_audit === 'off') { return cb(null); }
+
+    var e = entry || {};
+    var row;
+    try {
+        row = {
+            ts: moment().utc().format('YYYYMMDDTHHmmss'),
+            op: String(e.op || ''),
+            ri: String(e.ri || ''),
+            ty: parseInt(e.ty, 10) || 0,
+            origin: e.origin === undefined ? null : String(e.origin),
+            cr: e.cr === undefined || e.cr === null ? null : String(e.cr),
+            before_val: e.before === undefined ? null : JSON.stringify(e.before),
+            after_val: e.after === undefined ? null : JSON.stringify(e.after)
+        };
+    }
+    catch (ex) {
+        console.error('[acp_audit] 항목을 만들 수 없다: ' + (ex.message || ex));
+        return cb(null);
+    }
+
+    facade.run(facade.k('acp_audit').insert(row), connection, function (err, res) {
+        if (err) {
+            // 마이그레이션 007 전이면 테이블이 없다. 그래도 요청은 정상 처리한다.
+            console.error('[acp_audit] 이력을 남기지 못했다 (' + row.op + ' ' + row.ri + '): ' +
+                ((res && res.message) || ''));
+        }
+        cb(null);
+    });
+};
+
+/**
+ * @param opts { ri=null, op=null, limit=50(상한 200), afterId=null }
+ * @returns callback(null, { rows, more, nextId })
+ */
+exports.select_acp_audit = function (connection, opts, callback) {
+    if (typeof opts === 'function') { callback = opts; opts = {}; }
+    var o = opts || {};
+    var limit = Math.min(Math.max(parseInt(o.limit, 10) || 50, 1), AUDIT_LIST_MAX);
+
+    var qb = facade.k('acp_audit')
+        .select('id', 'ts', 'op', 'ri', 'ty', 'origin', 'cr', 'before_val', 'after_val')
+        .orderBy('id', 'desc')
+        .limit(limit + 1);
+    if (o.ri) { qb = qb.where({ ri: o.ri }); }
+    if (o.op) { qb = qb.where({ op: o.op }); }
+    // 최신순이므로 커서는 "이 id 보다 작은 것" 이다.
+    if (o.afterId) { qb = qb.where('id', '<', o.afterId); }
+
+    facade.run(qb, connection, function (err, rows) {
+        if (err) { return callback(err, rows); }
+        rows = rows || [];
+        var more = rows.length > limit;
+        if (more) { rows = rows.slice(0, limit); }
+        rows.forEach(function (r) {
+            r.before = safe_json(r.before_val);
+            r.after = safe_json(r.after_val);
+            if (r.before === null && r.before_val !== null) { r.before = r.before_val; }
+            if (r.after === null && r.after_val !== null) { r.after = r.after_val; }
+        });
+        callback(null, {
+            rows: rows,
+            more: more,
+            nextId: rows.length ? rows[rows.length - 1].id : null
+        });
+    });
+};
+
+/**
+ * 오래된 이력을 지운다. **자동으로 돌지 않는다** — 관리자가 부른다.
+ * @param opts { beforeTs, limit=1000 }
+ */
+exports.prune_acp_audit = function (connection, opts, callback) {
+    var o = opts || {};
+    if (!o.beforeTs) {
+        return callback(true, { message: 'beforeTs 가 필요하다 — 전체 삭제를 실수로 부르지 않게 한다' });
+    }
+    var limit = Math.min(Math.max(parseInt(o.limit, 10) || 1000, 1), 100000);
+    facade.run(facade.k('acp_audit').where('ts', '<', o.beforeTs).limit(limit).del(),
+        connection, function (err, res) {
+            if (err) { return callback(err, res); }
+            callback(null, { deleted: (res && res.affectedRows) || 0 });
+        });
+};
+
 /**
  * 고아 행이 몇 개인지 센다. 아무것도 바꾸지 않는다.
  *

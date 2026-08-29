@@ -21,7 +21,8 @@ test('사유 94개가 있다', function () {
     // 400-4("not parse your body")는 check_resource_supported 가 파싱 실패를
     // 전부 이 하나로 뭉개던 코드였다. 파싱이 한 곳으로 모이면서
     // 400-5(XML) / 400-6(CBOR) / 400-7(JSON) 이 그대로 나가게 되어 쓰이지 않는다.
-    assert.strictEqual(Object.keys(reason.REASON).length, 94);
+    // ACP 가드레일 8건(400-56 ~ 400-63)을 더해 102 가 됐다.
+    assert.strictEqual(Object.keys(reason.REASON).length, 102);
 });
 
 test('모든 사유의 code 가 RSC 카탈로그의 실제 항목이다', function () {
@@ -37,7 +38,7 @@ test('모든 사유의 code 가 RSC 카탈로그의 실제 항목이다', functi
 
 test('toLegacyTable 이 app.js 가 쓰던 형태를 만든다', function () {
     const t = reason.toLegacyTable();
-    assert.strictEqual(Object.keys(t).length, 94);
+    assert.strictEqual(Object.keys(t).length, 102);
 
     Object.keys(t).forEach(function (k) {
         const row = t[k];
@@ -201,11 +202,10 @@ test('내부 식별자가 든 사유가 하나도 없다 (D20)', function () {
     assert.deepStrictEqual(leaked, [], '응답 문구에 내부 식별자가 남아 있다: ' + leaked.join(', '));
 });
 
-test('detail 은 8건에 붙어 있고 전부 문자열이다', function () {
+test('detail 은 16건에 붙어 있고 전부 문자열이다', function () {
     const withDetail = Object.keys(reason.REASON).filter(function (k) { return reason.REASON[k].detail; });
-    // 404-1 에서 걷어내 8건이 됐다. 이 테스트는 이름은 8 인데 단언은 9 였다 —
-    // detail 을 하나 늘리면서 숫자를 안 고친 흔적이다.
-    assert.strictEqual(withDetail.length, 8);
+    // 404-1 에서 걷어내 8건이 됐고, ACP 가드레일 8건을 더해 16건이다.
+    assert.strictEqual(withDetail.length, 16);
     withDetail.forEach(function (k) {
         assert.strictEqual(typeof reason.REASON[k].detail, 'string', k);
     });
@@ -312,7 +312,17 @@ test('detail 을 가진 사유는 드물게 나는 것들뿐이다', function ()
         '400-20',  // Content-Type 누락
         '403-5',   // fanOutPoint 접근 거부
         '409-6',   // aei 중복 등록
-        '500-4'    // 리소스 생성 실패 — 드물고 진단이 필요하다
+        '500-4',   // 리소스 생성 실패 — 드물고 진단이 필요하다
+        // ACP 가드레일. msg 가 정적이라 어느 값이 문제인지 응답에 담지 못한다.
+        // ACP 를 손대는 요청 자체가 드물어(배포에 ACP 1개) 로그를 채우지 않는다.
+        '400-56',  // pv/pvs 가 객체가 아님
+        '400-57',  // acop 이 없거나 0~63 밖
+        '400-58',  // acor 원소가 문자열이 아님
+        '400-59',  // actw 가 6자리가 아님
+        '400-60',  // acip 에 ipv4 와 ipv6 가 동시에
+        '400-61',  // acpi 원소가 문자열이 아님
+        '400-62',  // acpi 가 varchar(200) 을 넘김
+        '400-63'   // acpi 가 없는 ACP 를 가리킴
     ];
     const withDetail = Object.keys(reason.REASON)
         .filter(function (k) { return reason.REASON[k].detail != null; });

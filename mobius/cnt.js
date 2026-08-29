@@ -146,7 +146,11 @@ exports.build_cnt = function(request, response, resource_Obj, body_Obj, callback
 
     resource_Obj[rootnm].li = (body_Obj[rootnm].li) ? body_Obj[rootnm].li : '';
     resource_Obj[rootnm].or = (body_Obj[rootnm].or) ? body_Obj[rootnm].or : '';
-    resource_Obj[rootnm].cr = (body_Obj[rootnm].cr) ? body_Obj[rootnm].cr : request.headers['x-m2m-origin'];
+    // cr 은 서버가 정한다. 본문 값을 받으면 남의 이름으로 리소스를 만들 수 있고
+    // (실측: 201 로 통과하고 cr 이 피해자 ID 로 저장됐다), security.js 의
+    // creator_bypasses 가 cr 로 접근을 허용하므로 그것이 곧 권한 위조가 된다.
+    // 본문에 cr 을 실어 보내는 것 자체는 oneM2M 상 허용이라 거부하지 않고 무시한다.
+    resource_Obj[rootnm].cr = request.headers['x-m2m-origin'];
 
     resource_Obj[rootnm].cni = 0;
     resource_Obj[rootnm].cbs = 0;

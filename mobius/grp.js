@@ -249,7 +249,8 @@ exports.build_grp = function(request, response, resource_Obj, body_Obj, callback
     resource_Obj[rootnm].mnm = body_Obj[rootnm].mnm;
     resource_Obj[rootnm].mid = remove_duplicated_mid(body_Obj[rootnm].mid);
 
-    resource_Obj[rootnm].cr = (body_Obj[rootnm].cr) ? body_Obj[rootnm].cr : request.headers['x-m2m-origin'];
+    // cr 은 서버가 정한다 — 이유는 mobius/cnt.js 의 같은 자리 주석 참조.
+    resource_Obj[rootnm].cr = request.headers['x-m2m-origin'];
     resource_Obj[rootnm].macp = (body_Obj[rootnm].macp) ? body_Obj[rootnm].macp : [];
     resource_Obj[rootnm].mt = (body_Obj[rootnm].mt) ? body_Obj[rootnm].mt : '0';
     resource_Obj[rootnm].csy = (body_Obj[rootnm].csy) ? body_Obj[rootnm].csy : '1'; // default : ABANDON_MEMBER
