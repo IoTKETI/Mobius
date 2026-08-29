@@ -1,4 +1,5 @@
 server.log
 headers.log
 size-filter.log
+acp-leak.log
 *.json
