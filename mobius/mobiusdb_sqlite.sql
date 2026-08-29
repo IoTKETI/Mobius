@@ -37,6 +37,24 @@ CREATE TABLE IF NOT EXISTS acp (
   FOREIGN KEY (ri) REFERENCES lookup(ri) ON DELETE CASCADE
 );
 
+-- acp_audit — ACP 와 acpi 변경 이력.
+-- acp 테이블에 cr 컬럼이 없어 "누가 만들었는가" 를 답할 다른 근거가 없고,
+-- acpi 를 바꾸면 옛 값이 사라져 되돌릴 수도 없다.
+-- lookup 에 FK 를 걸지 않는다 — 리소스를 지운 뒤에도 이력은 남아야 한다.
+CREATE TABLE IF NOT EXISTS acp_audit (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  ts TEXT NOT NULL,
+  op TEXT NOT NULL,
+  ri TEXT NOT NULL,
+  ty INTEGER NOT NULL,
+  origin TEXT,
+  cr TEXT,
+  before_val TEXT,
+  after_val TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_acp_audit_ri ON acp_audit (ri);
+CREATE INDEX IF NOT EXISTS idx_acp_audit_ts ON acp_audit (ts);
+
 -- cb (CSEBase)
 CREATE TABLE IF NOT EXISTS cb (
   ri TEXT PRIMARY KEY,

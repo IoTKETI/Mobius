@@ -3720,6 +3720,108 @@ exports.scan_macp_refs = function (connection, opts, callback) {
     });
 };
 
+// ── ACP 변경 이력 ─────────────────────────────────────────────────────
+//
+// acp 테이블에는 cr 컬럼이 없어 ACP 를 누가 만들었는지 어디에도 남지 않고,
+// acpi 를 바꾸면 옛 값이 사라진다. 삭제와 달리 "목록을 다시 조회하면 드러난다"
+// 가 성립하지 않아 되돌릴 근거가 없다.
+//
+// 쓰기는 best-effort 다. 이력 저장이 실패해도 본 요청을 실패시키지 않는다 —
+// 감사 때문에 운영이 멈추면 감사부터 꺼진다.
+
+var AUDIT_LIST_MAX = 200;
+
+/**
+ * @param entry { op, ri, ty, origin, cr, before, after }
+ *        op 는 'acpi_set' | 'acp_create' | 'acp_update' | 'acp_delete'
+ */
+exports.insert_acp_audit = function (connection, entry, callback) {
+    var cb = callback || function () {};
+    if (global.acp_audit === 'off') { return cb(null); }
+
+    var e = entry || {};
+    var row;
+    try {
+        row = {
+            ts: moment().utc().format('YYYYMMDDTHHmmss'),
+            op: String(e.op || ''),
+            ri: String(e.ri || ''),
+            ty: parseInt(e.ty, 10) || 0,
+            origin: e.origin === undefined ? null : String(e.origin),
+            cr: e.cr === undefined || e.cr === null ? null : String(e.cr),
+            before_val: e.before === undefined ? null : JSON.stringify(e.before),
+            after_val: e.after === undefined ? null : JSON.stringify(e.after)
+        };
+    }
+    catch (ex) {
+        console.error('[acp_audit] 항목을 만들 수 없다: ' + (ex.message || ex));
+        return cb(null);
+    }
+
+    facade.run(facade.k('acp_audit').insert(row), connection, function (err, res) {
+        if (err) {
+            // 마이그레이션 007 전이면 테이블이 없다. 그래도 요청은 정상 처리한다.
+            console.error('[acp_audit] 이력을 남기지 못했다 (' + row.op + ' ' + row.ri + '): ' +
+                ((res && res.message) || ''));
+        }
+        cb(null);
+    });
+};
+
+/**
+ * @param opts { ri=null, op=null, limit=50(상한 200), afterId=null }
+ * @returns callback(null, { rows, more, nextId })
+ */
+exports.select_acp_audit = function (connection, opts, callback) {
+    if (typeof opts === 'function') { callback = opts; opts = {}; }
+    var o = opts || {};
+    var limit = Math.min(Math.max(parseInt(o.limit, 10) || 50, 1), AUDIT_LIST_MAX);
+
+    var qb = facade.k('acp_audit')
+        .select('id', 'ts', 'op', 'ri', 'ty', 'origin', 'cr', 'before_val', 'after_val')
+        .orderBy('id', 'desc')
+        .limit(limit + 1);
+    if (o.ri) { qb = qb.where({ ri: o.ri }); }
+    if (o.op) { qb = qb.where({ op: o.op }); }
+    // 최신순이므로 커서는 "이 id 보다 작은 것" 이다.
+    if (o.afterId) { qb = qb.where('id', '<', o.afterId); }
+
+    facade.run(qb, connection, function (err, rows) {
+        if (err) { return callback(err, rows); }
+        rows = rows || [];
+        var more = rows.length > limit;
+        if (more) { rows = rows.slice(0, limit); }
+        rows.forEach(function (r) {
+            r.before = safe_json(r.before_val);
+            r.after = safe_json(r.after_val);
+            if (r.before === null && r.before_val !== null) { r.before = r.before_val; }
+            if (r.after === null && r.after_val !== null) { r.after = r.after_val; }
+        });
+        callback(null, {
+            rows: rows,
+            more: more,
+            nextId: rows.length ? rows[rows.length - 1].id : null
+        });
+    });
+};
+
+/**
+ * 오래된 이력을 지운다. **자동으로 돌지 않는다** — 관리자가 부른다.
+ * @param opts { beforeTs, limit=1000 }
+ */
+exports.prune_acp_audit = function (connection, opts, callback) {
+    var o = opts || {};
+    if (!o.beforeTs) {
+        return callback(true, { message: 'beforeTs 가 필요하다 — 전체 삭제를 실수로 부르지 않게 한다' });
+    }
+    var limit = Math.min(Math.max(parseInt(o.limit, 10) || 1000, 1), 100000);
+    facade.run(facade.k('acp_audit').where('ts', '<', o.beforeTs).limit(limit).del(),
+        connection, function (err, res) {
+            if (err) { return callback(err, res); }
+            callback(null, { deleted: (res && res.affectedRows) || 0 });
+        });
+};
+
 /**
  * 고아 행이 몇 개인지 센다. 아무것도 바꾸지 않는다.
  *

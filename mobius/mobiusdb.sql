@@ -33,6 +33,34 @@ CREATE TABLE `acp` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
+-- Table structure for table `acp_audit`
+--
+-- ACP 와 acpi 변경 이력. acp 테이블에 cr 컬럼이 없어 "누가 만들었는가" 를
+-- 답할 다른 근거가 없고, acpi 를 바꾸면 옛 값이 사라져 되돌릴 수도 없다.
+-- lookup 에 FK 를 걸지 않는다 — 리소스를 지운 뒤에도 이력은 남아야 한다.
+-- 마이그레이션: migrations/007-acp-audit-table.js
+--
+
+DROP TABLE IF EXISTS `acp_audit`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `acp_audit` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `ts` varchar(21) NOT NULL,
+  `op` varchar(16) NOT NULL,
+  `ri` varchar(200) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
+  `ty` int unsigned NOT NULL,
+  `origin` varchar(45) DEFAULT NULL,
+  `cr` varchar(45) DEFAULT NULL,
+  `before_val` text,
+  `after_val` text,
+  PRIMARY KEY (`id`),
+  KEY `idx_acp_audit_ri` (`ri`),
+  KEY `idx_acp_audit_ts` (`ts`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
 -- Table structure for table `ae`
 --
 

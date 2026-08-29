@@ -119,6 +119,11 @@ if (global.acp_observe_mode === 'observe') {
 // acpi_attach 로그를 하루 본 뒤에 정한다.
 global.acpi_attach_policy = (conf.acpiAttachPolicy === 'creator') ? 'creator' : 'open';
 
+// ACP·acpi 변경 이력(acp_audit 테이블). acp 에 cr 컬럼이 없어 "누가 만들었는가"
+// 를 답할 다른 근거가 없다. 마이그레이션 007 전에는 insert 가 실패하지만
+// best-effort 라 요청은 정상 처리된다.
+global.acp_audit = (conf.acpAudit === 'off') ? 'off' : 'on';
+
 global.wdt = require('./wdt');
 
 

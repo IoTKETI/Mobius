@@ -1178,6 +1178,14 @@ exports.create = function (request, response, callback) {
 
             create_action(request, response, (code) => {
                 if(code === '200') {
+                    var made = request.resourceObj[rootnm];
+                    if (request.ty == '1') {
+                        record_acp_change(request, 'acp_create', null,
+                            { pv: made.pv, pvs: made.pvs }, made.ri, request.ty, made.cr);
+                    }
+                    record_acp_change(request, 'acpi_set', [], acpi_of(made),
+                        made.ri, request.ty, made.cr);
+
                     _this.remove_no_value(request, request.resourceObj);
 
                     if(request.ty != 23) {
@@ -2494,6 +2502,36 @@ function update_resource(request, response, callback) {
     }
 }
 
+// acpi / pv / pvs 가 실제로 바뀐 경우에만 이력을 남긴다.
+//
+// **응답을 지연시키지 않는다.** setImmediate 로 뒤로 미루고, 실패해도 요청에는
+// 영향이 없다(insert_acp_audit 이 best-effort 다). 감사 때문에 운영이 멈추면
+// 감사부터 꺼진다.
+function record_acp_change(request, op, before, after, ri, ty, cr) {
+    if (global.acp_audit === 'off') { return; }
+    if (JSON.stringify(before) === JSON.stringify(after)) { return; }
+    var conn = request.db_connection;
+    setImmediate(function () {
+        db_sql.insert_acp_audit(conn, {
+            op: op, ri: ri, ty: ty,
+            origin: request.headers ? request.headers['x-m2m-origin'] : undefined,
+            cr: cr, before: before, after: after
+        });
+    });
+}
+
+function acpi_of(obj) {
+    if (!obj) { return []; }
+    var v = obj.acpi;
+    if (Array.isArray(v)) { return v; }
+    if (typeof v !== 'string' || v === '') { return []; }
+    try {
+        var o = JSON.parse(v);
+        return Array.isArray(o) ? o : [];
+    }
+    catch (e) { return []; }
+}
+
 exports.update = function (request, response, callback) {
     var rootnm = request.headers.rootnm;
     var updateObj = request.targetObject;
@@ -2506,10 +2544,24 @@ exports.update = function (request, response, callback) {
         updateObj[rootnm].cr = updateObj[rootnm].cb;
     }
 
+    // update_resource 가 resourceObj 를 새로 만들기 전에 옛 값을 붙잡는다.
+    var before_acpi = acpi_of(updateObj[rootnm]);
+    var before_pv = updateObj[rootnm].pv;
+    var before_pvs = updateObj[rootnm].pvs;
+
     update_resource(request, response, function (code) {
         if(code === '200') {
             update_action(request, response, function (code) {
                 if (code == '200') {
+                    var now = request.resourceObj[rootnm];
+                    record_acp_change(request, 'acpi_set', before_acpi, acpi_of(now),
+                        now.ri, ty, now.cr);
+                    if (ty == 1) {
+                        record_acp_change(request, 'acp_update',
+                            { pv: before_pv, pvs: before_pvs },
+                            { pv: now.pv, pvs: now.pvs }, now.ri, ty, now.cr);
+                    }
+
                     _this.remove_no_value(request, request.resourceObj);
 
                     sgn.check(request, request.resourceObj[rootnm], 1, function (code) {
@@ -2716,6 +2768,17 @@ exports.delete = function (request, response, callback) {
 
     delete_action(request, response, function (code) {
         if (code === '200') {
+            var gone = request.resourceObj[rootnm];
+            // DELETE 에는 Content-Type 의 ty 가 없어 request.ty 가 비어 있을 수
+            // 있다. 지우는 리소스 자신의 ty 를 먼저 본다.
+            var gone_ty = (gone && gone.ty !== undefined) ? gone.ty : ty;
+            if (gone_ty == '1') {
+                // ACP 를 지우면 그것을 참조하던 리소스는 "생성자만 통과" 로
+                // 조용히 풀린다. 무엇이 사라졌는지 남겨야 되돌릴 수 있다.
+                record_acp_change(request, 'acp_delete',
+                    { pv: gone.pv, pvs: gone.pvs }, null, gone.ri, gone_ty, gone.cr);
+            }
+
             _this.remove_no_value(request, request.resourceObj);
 
             sgn.check(request, request.resourceObj[rootnm], 4, function (code) {
