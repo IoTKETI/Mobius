@@ -77,7 +77,15 @@ var db_facade = require('./mobius/db');
 // ������ �����մϴ�.
 var app = express();
 
-global.cache_resource_url = {};
+// 리소스 경로 캐시. 예전에는 여기 있던 무제한 객체였다.
+//
+// 두 가지가 달라졌다.
+//   1) 상한(LRU). conf.json 의 cacheLimit 으로 조정한다.
+//   2) 삭제/수정 시 cluster IPC 로 **전 워커에** 무효화를 브로드캐스트한다.
+//      이게 없으면 워커 A 가 지운 리소스를 워커 B~N 이 계속 200 으로 돌려준다
+//      — check_resource_from_url 이 캐시 히트 시 그 행으로 바로 응답을 만들기
+//      때문이다. 배포는 워커 25개라 삭제 한 건이 24개 워커에 남는다.
+global.cache_man = require('./mobius/cache_man');
 global.cache_security_check = {};
 
 app.use(cors());
@@ -238,6 +246,10 @@ var use_clustering = 1;
 var worker_init_count = 0;
 if (use_clustering) {
     if (cluster.isMaster) {
+        // 워커가 보낸 캐시 무효화를 다른 워커에 중계한다. fork 보다 먼저 걸어야
+        // 일찍 뜬 워커의 첫 무효화를 놓치지 않는다.
+        cache_man.install_master(cluster);
+
         // 결과 코드·사유 카탈로그 자체 점검. 마스터에서 한 번만 돈다.
         // 문제가 있어도 기동을 막지 않는다 — 운영 배포에서 서버가 안 뜨는 쪽이
         // 카탈로그 흠결보다 위험하다. 배포 시점 로그에서 눈에 띄게 하는 것이 목적이다.
@@ -329,6 +341,11 @@ if (use_clustering) {
         });
     }
     else {
+        // 마스터가 중계한 무효화를 받고, 자기 무효화를 올려보낸다.
+        // DB 연결 콜백 *밖* 에 둔다 — 연결이 늦거나 실패해도 이 워커가 다른
+        // 워커의 무효화는 받아야 한다.
+        cache_man.install_worker();
+
         db.connect(usedbhost, 3306, 'root', usedbpass, (rsc) => {
             if (rsc === '1') {
                 // 파사드 연결 실패가 서버 기동 자체를 막으면 안 된다.
@@ -1266,10 +1283,16 @@ function lookup_delete(request, response, callback) {
 }
 
 function check_resource_from_url(connection, ri, sri, callback) {
-    if(cache_resource_url.hasOwnProperty(ri)) {
-        callback(cache_resource_url[ri], 200);
+    var cached = cache_man.get(ri);
+    if (cached !== undefined) {
+        callback(cached, 200);
     }
     else {
+        // 질의를 던지기 *전* 세대를 잡아 둔다. 그 사이 이 키(또는 조상)가
+        // 무효화되면 아래에서 캐시에 넣지 않는다 — 무효화가 도착한 뒤 도착한
+        // stale 응답이 캐시를 다시 오염시키는 창을 막는다. 서브트리 삭제는
+        // 자손 삭제가 배경에서 도는 동안 행이 아직 DB 에 있으므로 이 창이 넓다.
+        var gen = cache_man.generation();
         db_sql.select_resource_from_url(connection, ri, sri, (err, results) => {
             if (err) {
                 callback(null, 500);
@@ -1292,7 +1315,7 @@ function check_resource_from_url(connection, ri, sri, callback) {
                     callback(null, 501);
                 }
                 else {
-                    cache_resource_url[ri] = JSON.parse(JSON.stringify(results[0]));
+                    cache_man.set_if_unchanged(ri, JSON.parse(JSON.stringify(results[0])), gen);
                     callback(results[0], 200);
                 }
             }
@@ -2261,9 +2284,7 @@ app.put('*', onem2mParser, (request, response) => {
                                                                 if ((request.query.fu == 2) && (request.query.rcn == 0 || request.query.rcn == 1)) {
                                                                     lookup_update(request, response, (code) => {
                                                                         if (code === '200') {
-                                                                            if(cache_resource_url.hasOwnProperty(request.url)) {
-                                                                                delete cache_resource_url[request.url];
-                                                                            }
+                                                                            cache_man.invalidate(request.url);
 
                                                                             settle.result('200', '2004', '');
                                                                         }
@@ -2401,19 +2422,13 @@ app.delete('*', onem2mParser, (request, response) => {
                                             if ((request.query.fu == 2) && (request.query.rcn == 0 || request.query.rcn == 1)) {
                                                 lookup_delete(request, response, (code) => {
                                                     if (code === '200') {
-                                                        if(cache_resource_url.hasOwnProperty(request.url)) {
-                                                            delete cache_resource_url[request.url];
-                                                        }
-
-                                                        if(cache_resource_url.hasOwnProperty(request.pi + '/la')) {
-                                                            delete cache_resource_url[request.pi + '/la'];
-                                                        }
-
-                                                        Object.keys(cache_resource_url).forEach((_url) => {
-                                                            if(_url.includes(request.url+'/')) {
-                                                                delete cache_resource_url[_url];
-                                                            }
-                                                        });
+                                                        // 자기 자신 + 부모의 /la + 자손을 한 번에 걷고 전 워커에 알린다.
+                                                        //
+                                                        // 예전 자손 스윕은 `_url.includes(request.url + '/')` 였다 —
+                                                        // 앵커가 없는 부분 문자열 검사라 경로 중간에 우연히 같은
+                                                        // 조각이 들어간 무관한 키까지 지웠다. keys_for 는 접두어로
+                                                        // 앵커해서 형제(`/Mobius/ae12`)를 건드리지 않는다.
+                                                        cache_man.invalidate(request.url);
 
                                                         settle.result('200', '2002', '');
                                                     }

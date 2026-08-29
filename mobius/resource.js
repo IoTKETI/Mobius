@@ -44,6 +44,9 @@ var security = require('./security');
 var db = require('./db_action');
 var db_sql = require('./sql_action');
 var cnt_man = require('./cnt_man');
+// global.cache_man 이 아니라 직접 require 한다 — app.js 의 로드 순서에
+// 의존하지 않게 하려는 것이다. 같은 모듈 인스턴스를 공유한다.
+var cache_man = require('./cache_man');
 var db_errors = require('./db/errors');
 var defaults = require('./defaults');
 var rid = require('./rid');
@@ -395,9 +398,8 @@ function create_action(request, response, callback) {
 
                 // st 가 바뀌었으니 부모의 캐시된 응답을 버려야 한다. 안 그러면
                 // 조회는 옛 st 를 계속 돌려준다 (CIN/SUB 분기는 이미 이렇게 한다).
-                if (cache_resource_url.hasOwnProperty(request.targetObject[cnt_parent_rootnm].ri)) {
-                    delete cache_resource_url[request.targetObject[cnt_parent_rootnm].ri];
-                }
+                // 자기 자신만 바뀌었으므로 자손 스윕은 하지 않는다.
+                cache_man.invalidate_self(request.targetObject[cnt_parent_rootnm].ri);
 
                 callback('200');
             }
@@ -423,13 +425,18 @@ function create_action(request, response, callback) {
                 var targetObject = JSON.parse(JSON.stringify(request.targetObject));
                 var cs = parseInt(resource_Obj[rootnm].cs);
 
-                cache_resource_url[resource_Obj[rootnm].pi + '/la'] = resource_Obj[rootnm];
-
                 cnt_man.schedule(targetObject[parent_rootnm], cs);
 
-                if(cache_resource_url.hasOwnProperty(targetObject[parent_rootnm].ri)) {
-                    delete cache_resource_url[targetObject[parent_rootnm].ri];
-                }
+                // CIN 삽입에서 바뀌는 것은 부모 CNT 행의 st/cni 뿐이다.
+                // 자손(그 CNT 아래 CIN 들)은 그대로 유효하므로 자손 스윕을 하지
+                // 않는다 — 이 경로는 이 서버에서 가장 뜨거운 쓰기라, 스윕을 하면
+                // 무효화 한 번이 store 전체 순회가 되고 그 비용이 워커 수만큼
+                // 곱해진다.
+                //
+                // 예전에는 여기서 `<pi>/la` 키를 쓰기도 했다. 읽는 쪽이 없어
+                // (유일한 독자는 app.js 의 주석 처리된 블록) 죽은 쓰기였고,
+                // 무효화가 되쏘여 오면 어차피 지워졌다.
+                cache_man.invalidate_self(targetObject[parent_rootnm].ri);
                 targetObject = null;
 
                 results = null;
@@ -755,9 +762,8 @@ function create_action(request, response, callback) {
                 var parentObj = request.targetObject;
                 parentObj[parent_rootnm].subl.push(resource_Obj[rootnm]);
 
-                if(cache_resource_url.hasOwnProperty(parentObj[parent_rootnm].ri)) {
-                    delete cache_resource_url[parentObj[parent_rootnm].ri];
-                }
+                // subl 이 바뀐 것은 부모 행 자신이다. 자손은 그대로 유효하다.
+                cache_man.invalidate_self(parentObj[parent_rootnm].ri);
 
                 db_sql.update_lookup(request.db_connection, parentObj[parent_rootnm], (err, results) => {
                     // else 가 없었다. 부모 lookup 갱신이 실패하면 콜백이 사라져
@@ -2336,6 +2342,27 @@ var leaf_ty_list = ['1', '4', '9', '23'];
 // R4 방식 비동기 subtree 삭제: 응답은 루트 행 삭제 직후 나가고,
 // 자손은 별도 커넥션으로 백그라운드 삭제한다. 도중에 프로세스가 죽어
 // 고아 행이 남으면 delete_orphan_lookup(기동 시/일 1회)이 정리한다.
+// 캐스케이드가 끝난 뒤 한 번 더 캐시를 훑는다.
+//
+// 왜 필요한가: DELETE 는 루트 행만 지우고 200 을 돌려준 뒤 자손 삭제를 배경으로
+// 넘긴다. 그 사이(실측 10~20ms, 대형 서브트리는 훨씬 길다) 자손을 조회하면
+// 캐시는 비어 있고 DB 에는 행이 **아직 있으므로**, 정당하게 읽어서 다시 캐시에
+// 넣는다. 그 직후 캐스케이드가 행을 지우면 그 캐시를 무효화할 사람이 아무도
+// 없다 — 그 워커는 영원히 200 을 돌려준다.
+//
+// 세대 카운터로는 못 막는다. 채움이 무효화보다 *나중에* 시작했으므로 정당한
+// 채움으로 판정되기 때문이다. 그래서 끝난 뒤 살아 있는 store 를 다시 훑는다.
+// invalidate 는 브로드캐스트하므로 다른 워커가 캐시한 것도 함께 걷힌다.
+//
+// 실패 경로에서도 부른다 — 반쯤 지워진 상태가 오히려 낡은 캐시를 남기기 쉽다.
+function sweep_cache_after_cascade(root_ri) {
+    try {
+        cache_man.invalidate(root_ri);
+    } catch (e) {
+        console.error('[delete_descendants] 캐스케이드 후 캐시 스윕 실패: ' + (e.message || e));
+    }
+}
+
 function delete_descendants_background(root_ri, attempt) {
     attempt = attempt || 1;
 
@@ -2379,6 +2406,7 @@ function delete_descendants_background(root_ri, attempt) {
                               '). 자손이 통째로 고아로 남는다.');
                 console.timeEnd('delete_descendants ' + root_ri);
                 if (connection) connection.release();
+                sweep_cache_after_cascade(root_ri);
                 return;
             }
             for (var i = 0; i < result_ri.length; i++) {
@@ -2399,6 +2427,7 @@ function delete_descendants_background(root_ri, attempt) {
                 }
                 console.timeEnd('delete_descendants ' + root_ri);
                 if (connection) connection.release();
+                sweep_cache_after_cascade(root_ri);
             });
         });
     }
@@ -2429,9 +2458,10 @@ function delete_action(request, response, callback) {
                                     var parent_rootnm = Object.keys(request.targetObject)[0];
                                     makeObject(request.targetObject[parent_rootnm]);
 
-                                    if(cache_resource_url.hasOwnProperty(request.targetObject[parent_rootnm].ri)) {
-                                        delete cache_resource_url[request.targetObject[parent_rootnm].ri];
-                                    }
+                                    // 자식이 하나 사라져 부모의 st/subl 이 바뀐다.
+                                    // 지워진 자식 자신과 그 자손은 app.js 의
+                                    // DELETE 경로에서 이미 걷었다.
+                                    cache_man.invalidate_self(request.targetObject[parent_rootnm].ri);
 
                                     if (resource_Obj[rootnm].ty == '23') {
                                         if(resource_Obj[rootnm].hasOwnProperty('su')) {
