@@ -22,6 +22,7 @@ var coap = require('coap');
 var js2xmlparser = require('js2xmlparser');
 var xmlbuilder = require('xmlbuilder');
 var fs = require('fs');
+var db = require('./db_action');
 var db_sql = require('./sql_action');
 var cbor = require("cbor");
 var merge = require('merge');
@@ -477,6 +478,28 @@ function sgn_action(connection, rootnm, check_value, subl, req_count, noti_Obj, 
     }
 }
 
+// 이 알림이 DB 를 만져야 하는가.
+//
+// get_nu_arr 은 nu 가 URL 이 아니라 ID 형식일 때만 조회한다
+// (sub_nu.protocol == null). 대부분의 배포는 nu 에 URL 을 쓰므로 그런 경우
+// 커넥션을 아예 빌리지 않는다 — 알림마다 풀에서 하나씩 더 빼면
+// 워커당 100 인 한도가 금방 빡빡해진다.
+function needs_connection(subl) {
+    if (!Array.isArray(subl)) {
+        return false;
+    }
+    for (var i = 0; i < subl.length; i++) {
+        var nu_arr = subl[i] ? subl[i].nu : null;
+        if (!Array.isArray(nu_arr)) { continue; }
+        for (var j = 0; j < nu_arr.length; j++) {
+            if (url.parse(String(nu_arr[j])).protocol == null) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
 exports.check = function(request, notiObj, check_value, callback) {
     var rootnm = request.headers.rootnm;
 
@@ -492,28 +515,62 @@ exports.check = function(request, notiObj, check_value, callback) {
     var noti_Str = JSON.stringify(notiObj);
     var noti_Obj = JSON.parse(noti_Str);
 
-    var parentObj = JSON.parse(JSON.stringify(request.targetObject))[Object.keys(request.targetObject)[0]];
-    var subl = request.targetObject[Object.keys(request.targetObject)[0]].subl;
+    // 대상 객체 전체를 깊은 복제한 뒤 그중 하나만 꺼내 쓰고 있었다.
+    // 요청마다 도는 자리라 그만큼이 그대로 낭비다. sgn_action 이 parentObj 를
+    // 읽기만 하므로 복제 없이 넘긴다.
+    var target_root = Object.keys(request.targetObject)[0];
+    var parentObj = request.targetObject[target_root];
+    var subl = parentObj.subl;
 
-
-    console.log('###########################################', parentObj.ri, subl);
-
-
-    if(check_value == 256 || check_value == 128) { // verification
-        sgn_action(request.db_connection, rootnm, check_value, subl, 0, noti_Obj, request.usebodytype, parentObj, function (code) {
-            callback(code);
-        });
-    }
-    else {
+    if(check_value != 256 && check_value != 128) {
         var noti_ri = noti_Obj.ri;
         noti_Obj.ri = noti_Obj.sri;
         delete noti_Obj.sri;
         noti_Obj.pi = noti_Obj.spi;
         delete noti_Obj.spi;
+    }
 
-        sgn_action(request.db_connection, rootnm, check_value, subl, 0, noti_Obj, request.usebodytype, parentObj, function (code) {
+    // 요청 커넥션을 쓰면 안 된다.
+    //
+    // 호출부 네 곳이 전부 빈 콜백으로 부르고 곧바로 응답을 내보낸다 —
+    // 정산이 connection.release() 를 하고 나서도 여기 질의가 계속 돈다.
+    // 반납된 커넥션은 풀로 돌아가 다른 요청에 넘어가므로, 알림 질의가
+    // 남의 트랜잭션(checkAndPurge 의 SELECT ... FOR UPDATE) 안에서 실행될 수 있다.
+    // 크래시가 아니라 조용한 뒤섞임이라 로그에 아무것도 남지 않는다.
+    //
+    // 실측으로 확인했다 — nu 를 ID 형식으로 둔 구독에 CIN 3건을 넣으니
+    // 반납 후 질의가 6건 찍혔다(get_ri_sri, select_resource_from_url).
+    run_with_own_connection(subl, function (connection, release) {
+        sgn_action(connection, rootnm, check_value, subl, 0, noti_Obj, request.usebodytype, parentObj, function (code) {
+            release();
             callback(code);
         });
-    }
+    }, callback);
 };
+
+// DB 가 필요하면 자기 커넥션을 빌려 넘기고, 아니면 null 로 진행한다.
+// release 는 몇 번 불려도 한 번만 반납한다.
+function run_with_own_connection(subl, body, on_giveup) {
+    if (global.usesqlite === 'true' || !needs_connection(subl)) {
+        body(null, function () {});
+        return;
+    }
+
+    db.getConnection(function (code, connection) {
+        if (code !== '200') {
+            // 알림은 fire-and-forget 이다. 여기서 매달리거나 재시도하면
+            // 풀이 고갈된 상황을 더 악화시킨다. 남기고 포기한다.
+            console.error('[sgn] 커넥션을 못 빌려 알림의 ID 해석을 건너뛴다 (풀 고갈?)');
+            on_giveup('200');
+            return;
+        }
+
+        var released = false;
+        body(connection, function () {
+            if (released) { return; }
+            released = true;
+            connection.release();
+        });
+    });
+}
 
