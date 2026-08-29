@@ -1138,6 +1138,25 @@ function build_resource(request, response, callback) {
 
 exports.create = function (request, response, callback) {
     var rootnm = request.headers.rootnm;
+
+    // acpi 를 실제로 보낸 요청에만 붙는다. 안 보내면 질의가 한 번도 안 나간다
+    // (배포 34,313 비-CIN 행 중 acpi 가 채워진 것은 2건이다).
+    var body = request.bodyObj && request.bodyObj[rootnm] ? request.bodyObj[rootnm] : {};
+    if (!body.hasOwnProperty('acpi')) {
+        build_and_create();
+        return;
+    }
+    validate_acpi(request, response, body.acpi, function (code, normalized) {
+        if (code) {
+            callback(code);
+            return;
+        }
+        // 정규화한 값으로 갈아끼운다. build_resource 가 이 값을 그대로 쓴다.
+        body.acpi = normalized;
+        build_and_create();
+    });
+
+    function build_and_create() {
     build_resource(request, response, function (code) {
         if(code === '200') {
             var resource_Obj = request.resourceObj;
@@ -1212,6 +1231,7 @@ exports.create = function (request, response, callback) {
             callback(code);
         }
     });
+    }
 };
 
 // discovery 요청 파라미터를 정규화한다.
@@ -2220,6 +2240,87 @@ function create_resource(request, response, ty, body_Obj, resource_Obj, callback
     }
 }
 
+// acpi 직렬화 길이 한도. lookup.acpi 가 varchar(200) 이다.
+// ri 가 22자면 7개(176자)까지 들어가고 8개는 201자라 넘친다.
+var ACPI_MAX_JSON = 200;
+
+/**
+ * acpi 를 검증하고 내부 ri 표기로 정규화한다.
+ *
+ * 지금까지 acpi 는 존재·타입·개수 무엇도 검사하지 않고 클라이언트 원문 그대로
+ * 저장됐다. 그 결과가 셋이다.
+ *
+ *   - 없는 ACP 를 가리켜도 200 이다. 그러면 잠금이 "생성자만 통과" 로 조용히
+ *     풀리는데 아무 로그도 없다. 배포의 /Mobius/sch8 이 그 상태다.
+ *   - 8개째부터 varchar(200) 을 넘겨 400 이 아니라 **HTTP 500** 이 난다.
+ *     500 은 서버 오류라 운영자가 원인을 못 찾는다.
+ *   - 숫자를 넣으면 make_internal_ri 의 .split 이 TypeError 를 던져 워커가 죽는다.
+ *   - 절대/SP상대/CSE상대 세 표기가 그대로 저장돼 역참조 조회가 조용히 어긋난다.
+ *
+ * **새로 쓰는 값만 본다.** 이미 저장된 acpi 는 건드리지 않는다.
+ *
+ * @param callback callback(null, normalized) 통과 / callback(code) 거부
+ */
+global.validate_acpi = function (request, response, acpi, callback) {
+    if (!Array.isArray(acpi)) {
+        callback('400-8');
+        return;
+    }
+    for (var i = 0; i < acpi.length; i++) {
+        if (typeof acpi[i] !== 'string') {
+            callback('400-61');
+            return;
+        }
+    }
+    if (acpi.length === 0) {
+        callback(null, []);
+        return;
+    }
+
+    var given = acpi.slice();
+    make_internal_ri(given);
+
+    var ri_list = [];
+    get_ri_list_sri(request, response, given, ri_list, 0, function (code) {
+        if (code !== '200') {
+            callback(code);
+            return;
+        }
+
+        // 중복은 거부하지 않고 조용히 없앤다 — mid 의 remove_duplicated_mid 와 같은 취급.
+        var normalized = [];
+        for (var j = 0; j < ri_list.length; j++) {
+            if (normalized.indexOf(ri_list[j]) === -1) {
+                normalized.push(ri_list[j]);
+            }
+        }
+
+        if (JSON.stringify(normalized).length > ACPI_MAX_JSON) {
+            callback('400-62');
+            return;
+        }
+
+        db_sql.select_acp_in(request.db_connection, normalized, function (err, rows) {
+            if (err) {
+                callback('500-1');
+                return;
+            }
+            var found = {};
+            for (var k = 0; k < rows.length; k++) { found[rows[k].ri] = true; }
+
+            var missing = normalized.filter(function (r) { return !found[r]; });
+            if (missing.length > 0) {
+                // 어느 것이 없는지는 응답에 못 담는다(msg 가 정적이다). 로그에 남긴다.
+                console.log('[acp] reject 400-63 — 없는 ACP 를 가리킨다: ' + missing.join(', '));
+                callback('400-63');
+                return;
+            }
+
+            callback(null, normalized);
+        });
+    });
+};
+
 function check_acp_update_acpi(request, response, acpi, cr, callback) {
     // when update acpi check pvs of acp
     if (acpi.length > 0) {
@@ -2269,6 +2370,23 @@ function update_resource(request, response, callback) {
                                 return;
                             }
                         }
+                        // pv/pvs 는 acp 의 **옵션** 속성이라 아래 mandatory 분기의
+                        // pvs 검사에 영영 닿지 않았다(update_m_attr_list.acp 가 []).
+                        // 그래서 pvs 를 {} 로 바꾸는 UPDATE 가 그대로 통과했고,
+                        // acp 테이블에 cr 컬럼이 없어 그 순간 수퍼유저 말고는
+                        // 아무도 그 ACP 를 못 고치게 됐다.
+                        else if (attr === 'pv' || attr === 'pvs') {
+                            var v = acp.validate_privileges(body_Obj[rootnm][attr], attr);
+                            for (var wi = 0; wi < v.warnings.length; wi++) {
+                                console.log('[acp] warn ' + v.warnings[wi].rule + ' at ' +
+                                    v.warnings[wi].path + ' — ' + v.warnings[wi].message);
+                            }
+                            if (v.code !== null) {
+                                console.log('[acp] reject ' + v.code + ' at ' + v.path);
+                                callback(v.code);
+                                return;
+                            }
+                        }
                     }
                     else {
                         if (update_m_attr_list[rootnm].includes(attr)) {
@@ -2291,12 +2409,24 @@ function update_resource(request, response, callback) {
             }
         }
 
-        if(body_Obj[rootnm].hasOwnProperty('acpi')) {
-            var updateAcpiList = resource_Obj[rootnm].acpi;
+        if (!body_Obj[rootnm].hasOwnProperty('acpi')) {
+            run_acp_check([]);
+            return;
         }
-        else {
-            updateAcpiList = [];
-        }
+
+        // acpi 만 바꾸는 PUT 도 여기를 지난다 — app.js 가 건너뛰는 것은
+        // authorize_and_run(대상 리소스 권한)이지 update_resource 가 아니다.
+        validate_acpi(request, response, body_Obj[rootnm].acpi, function (code, normalized) {
+            if (code) {
+                callback(code);
+                return;
+            }
+            body_Obj[rootnm].acpi = normalized;
+            resource_Obj[rootnm].acpi = normalized;
+            run_acp_check(normalized);
+        });
+
+        function run_acp_check(updateAcpiList) {
         check_acp_update_acpi(request, response, updateAcpiList, resource_Obj[rootnm].cr, function (code) {
             if (code === '1') {
                 update_body(rootnm, body_Obj, resource_Obj); // (attr == 'aa' || attr == 'poa' || attr == 'lbl' || attr == 'acpi' || attr == 'srt' || attr == 'nu' || attr == 'mid' || attr == 'macp')
@@ -2321,6 +2451,7 @@ function update_resource(request, response, callback) {
                 callback(code);
             }
         });
+        }
     }
     else {
         callback('405-5');
