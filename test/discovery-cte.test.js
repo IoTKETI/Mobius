@@ -353,10 +353,32 @@ test('골격 컬럼 이름은 sk_ 접두사를 쓴다', function (t, done) {
     const h = tap('mysql');
     run(h, { ty: '3', lbl: 'status', lim: 20 }, guard(done, function (code, ris, seen) {
         const sql = seen[0].sql;
-        assert.match(sql, /select ri as sk_ri, 0 as sk_lvl/);
+        assert.match(sql, /select ri.* as sk_ri, 0 as sk_lvl/);
         assert.ok(/lbl like/.test(sql), 'lbl 필터가 빠졌다');
         // 골격이 내보내는 이름은 sk_ri / sk_lvl 둘뿐이어야 한다.
         assert.ok(!/skel s on r\.pi = s\.ri\b/.test(sql), '골격이 ri 를 그대로 내보낸다');
+        done();
+    }));
+});
+
+// --- 11) 골격 컬럼은 비교용 콜레이션으로 만들어진다 --------------------------
+//
+// 조인할 때만 콜레이션을 붙이면 골격 안에 대소문자만 다른 경로가 그대로 남는다
+// (lookup.ri 는 utf8mb3_bin 이라 UNION 이 서로 다른 행으로 본다). 그러면 같은
+// 자식이 중복으로 나오고 호출부가 found_Obj[ri] 로 합치면서 응답이 lim 보다
+// 적어진다. 배포 서버 실측(2026-08-29): 골격 30,855행 중 61행이 중복이었고
+// ty=3 lim=2000 이 1,960건만 돌려줬다. 골격 컬럼을 ci 로 선언하면 2,000건이다.
+
+test('MySQL 은 골격 컬럼에 콜레이션을 붙이고 조인 조건에는 안 붙인다', function (t, done) {
+    const h = tap('mysql');
+    run(h, { ty: '3', lim: 20 }, guard(done, function (code, ris, seen) {
+        const sql = seen[0].sql;
+        assert.match(sql, /select ri collate utf8mb3_general_ci as sk_ri/,
+            '앵커의 골격 컬럼에 콜레이션이 없다');
+        assert.match(sql, /select l\.ri collate utf8mb3_general_ci, s\.sk_lvl/,
+            '재귀항의 골격 컬럼에 콜레이션이 없다');
+        assert.ok(!/s\.sk_ri collate/.test(sql),
+            '조인 조건에 콜레이션이 남아 있다 - 그러면 UNION 이 중복을 못 지운다');
         done();
     }));
 });

@@ -1618,8 +1618,8 @@ function build_descendant_sql(ri, query, query_where, cur_lim) {
         var guard = (max_lvl === null) ? '' : ' and s.sk_lvl < ' + max_lvl;
         for (var i = 0; i < NONLEAF_TY.length; i++) {
             branches += '\n  union\n' +
-                '  select l.ri, s.sk_lvl + 1 from lookup l' +
-                ' join skel s on l.pi = s.sk_ri' + C +
+                '  select l.ri' + C + ', s.sk_lvl + 1 from lookup l' +
+                ' join skel s on l.pi = s.sk_ri' +
                 " where l.ty = '" + NONLEAF_TY[i] + "'" + guard;
         }
     }
@@ -1631,12 +1631,23 @@ function build_descendant_sql(ri, query, query_where, cur_lim) {
     var timeout = facade.statementTimeoutHint(DISCOVERY_TIMEOUT_MS);
     var lead = 'select ' + (timeout ? '/*+ ' + timeout + ' */ ' : '');
 
+    // 골격 컬럼을 처음부터 비교용 콜레이션으로 만든다.
+    //
+    // 조인할 때만 붙이면(s.sk_ri collate ...) 골격 안에 대소문자만 다른 경로가
+    // 그대로 남는다. lookup.ri 는 utf8mb3_bin 이라 UNION 이 그것들을 서로 다른
+    // 행으로 보기 때문이다. 그러면 같은 자식이 그 수만큼 중복으로 나오고,
+    // 호출부가 found_Obj[ri] 로 합치면서 응답이 lim 보다 적어진다.
+    //
+    // 배포 서버 실측(2026-08-29): 골격 30,855행 중 61행이 대소문자만 다른
+    // 중복이었고, ty=3 lim=2000 요청이 2,000행을 받아 1,960건만 돌려줬다.
+    // 골격 컬럼을 ci 로 선언하면 UNION 이 원천에서 지운다 — 골격 30,794행,
+    // 응답 2,000건, ty=3 전체도 정확히 30,281건(컨테이너 수와 일치).
     var sql =
         'with recursive skel as (\n' +
-        '  select ri as sk_ri, 0 as sk_lvl from lookup where ri = ?' + branches + '\n' +
+        '  select ri' + C + ' as sk_ri, 0 as sk_lvl from lookup where ri = ?' + branches + '\n' +
         ')\n' +
         lead + 'r.* from lookup r' + hint +
-        ' join skel s on r.pi = s.sk_ri' + C + '\n' +
+        ' join skel s on r.pi = s.sk_ri\n' +
         ' where 1 = 1' + query_where;
 
     if (max_lvl !== null) { sql += ' and s.sk_lvl <= ' + max_lvl; }
