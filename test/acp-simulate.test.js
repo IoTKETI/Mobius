@@ -109,6 +109,38 @@ test('수퍼유저는 ACP 를 하나도 보지 않는다 — 경고를 함께 �
     });
 });
 
+test('절대 표기로 저장된 정상 참조를 dangling 으로 보지 않는다', function (t, done) {
+    // 실제 판정 경로는 make_internal_ri 로 접고 get_ri_list_sri 로 sri 를 푼다.
+    // 그 단계를 건너뛰면 절대·SP상대 표기로 저장된 정상 참조가 전부
+    // dangling 으로 보여, 콘솔 첫 화면이 "이 ACP 가 없다" 고 거짓말을 한다.
+    const abs = '//ketiabc.com/Mobius2/Mobius/acp1';
+    const h = tap(target(cnt('c1', [abs], 'Cowner')).concat([[acpRow('/Mobius/acp1', 'Cteam')]]));
+    h.sim.simulate(null, { ri: '/Mobius/c1', origin: 'Cteam', op: 'RETRIEVE' }, function (err, r) {
+        assert.ok(!err, JSON.stringify(r));
+        assert.strictEqual(r.allowed, true);
+        assert.deepStrictEqual(r.warnings, [], '경고가 있으면 안 된다: ' + JSON.stringify(r.warnings));
+        assert.deepStrictEqual(r.resolved,
+            [{ given: abs, ri: '/Mobius/acp1', exists: true }],
+            '원문과 푼 값을 둘 다 보여 줘야 한다');
+        done();
+    });
+});
+
+test('sri 로 저장된 참조는 풀어서 본다', function (t, done) {
+    // 질의 3: resolve_acpi_entries, 질의 4: select_acp_in
+    const h = tap(target(cnt('c1', ['acp1short'], 'Cowner'))
+        .concat([[{ ri: '/Mobius/acp1', sri: 'acp1short' }],
+                 [acpRow('/Mobius/acp1', 'Cteam')]]));
+    h.sim.simulate(null, { ri: '/Mobius/c1', origin: 'Cteam', op: 'RETRIEVE' }, function (err, r) {
+        assert.ok(!err, JSON.stringify(r));
+        assert.strictEqual(r.allowed, true);
+        assert.deepStrictEqual(r.warnings, []);
+        assert.strictEqual(r.resolved[0].given, 'acp1short');
+        assert.strictEqual(r.resolved[0].ri, '/Mobius/acp1');
+        done();
+    });
+});
+
 test('없는 ACP 를 가리키면 dangling 경고를 준다', function (t, done) {
     const h = tap(target(cnt('c1', ['/Mobius/gone'], 'Cowner')).concat([[]]));
     h.sim.simulate(null, { ri: '/Mobius/c1', origin: 'Cother', op: 'RETRIEVE' }, function (err, r) {

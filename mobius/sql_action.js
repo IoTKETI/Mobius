@@ -3610,6 +3610,15 @@ function fold_acpi_entry(v) {
  * 없으면 절대·SP상대 표기를 못 접어 역참조가 조용히 어긋난다. 죽지는 않지만
  * 결과가 틀리므로, 부르는 쪽(관리 콘솔 등)이 확인할 수 있게 내보낸다.
  */
+// acpi 목록을 내부 ri 표기로 접는다. 실제 판정 경로(make_internal_ri)와 같은
+// 규칙이되 전역에 의존하지 않는다 — 관리 콘솔은 app.js 를 require 하지 않는다.
+exports.fold_acpi_list = function (list) {
+    return (list || []).map(function (v) {
+        var f = fold_acpi_entry(v);
+        return f === null ? v : f;
+    });
+};
+
 exports.acp_ri_context = function () {
     var missing = ['usecsebase', 'usecseid', 'usespid'].filter(function (n) { return g(n) === ''; });
     return { ok: missing.length === 0, missing: missing,

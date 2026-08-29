@@ -189,20 +189,37 @@ exports.simulate = function (connection, params, callback) {
         }
 
         function finish(source, from, acpi_list) {
-            var wanted = acpi_list.slice();
+            var given = acpi_list.slice();
+
+            // **실제 판정 경로와 같게 표기를 먼저 푼다.**
+            // security_check_action 은 make_internal_ri 로 접고 get_ri_list_sri 로
+            // sri 를 ri 로 바꾼 뒤 조회한다. 그 단계를 건너뛰면 절대·SP상대·sri
+            // 표기로 저장된 **정상 참조가 전부 dangling 으로 보인다** — 콘솔의
+            // 첫 화면이 "이 ACP 가 없다" 고 거짓말을 하게 된다.
+            var folded = db_sql.fold_acpi_list(given);
+            var need = folded.filter(function (v) { return typeof v === 'string' && v.charAt(0) !== '/'; });
+
+            if (need.length === 0) { return lookup_rows(folded); }
+            db_sql.resolve_acpi_entries(connection, need, function (errR, res) {
+                if (errR) { return callback(errR, res); }
+                var map = (res && res.map) ? res.map : {};
+                lookup_rows(folded.map(function (v) { return map[v] || v; }));
+            });
+
+            function lookup_rows(wanted) {
             db_sql.select_acp_in(connection, wanted, function (err3, rows2) {
                 if (err3) { return callback(err3, rows2); }
 
                 var have = {};
                 (rows2 || []).forEach(function (r) { have[r.ri] = r; });
 
-                var resolved = wanted.map(function (w) {
+                var resolved = wanted.map(function (w, i) {
                     var exists = !!have[w];
                     if (!exists) {
                         warn(warnings, 'dangling', w,
                             '이 ACP 가 없다 — 잠금이 풀려 생성자만 통과한다');
                     }
-                    return { given: w, ri: w, exists: exists };
+                    return { given: given[i], ri: w, exists: exists };
                 });
 
                 var use_rows = rows2 || [];
@@ -243,6 +260,7 @@ exports.simulate = function (connection, params, callback) {
                     warnings: warnings
                 }));
             });
+            }
         }
     });
 };
