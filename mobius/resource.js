@@ -1514,6 +1514,20 @@ exports.retrieve = function (request, response, callback) {
                                         search_info.offset + search_info.rows);
                                 }
 
+                                // lbl 로 찾으면서 ty 를 안 주면 CIN 을 뺀다.
+                                // like 는 인덱스를 못 타서 안 빼면 후보가
+                                // 1억4,560만 행이 되고 30초 상한에 걸린다.
+                                //
+                                // **조용히 좁히지 않는다.** CIN 의 레이블은
+                                // 실제로 쓰이므로, 안 찾아본 것과 없는 것을
+                                // 구별할 수 있어야 한다. 찾으려면 ty=4 를 주고
+                                // 대상을 좁힌다.
+                                if (search_info && search_info.skippedCin) {
+                                    response.header('X-M2M-Partial-Scope', 'ty!=4');
+                                    console.log('[discovery] lbl 검색에 ty 가 없어 CIN 을 뺐다 ' +
+                                        '(찾으려면 ty=4 와 더 좁은 대상) url=' + request.url);
+                                }
+
                                 if (Object.keys(foundObj).length >= 1) {
                                     for (var index in foundObj) {
                                         if (foundObj.hasOwnProperty(index)) {

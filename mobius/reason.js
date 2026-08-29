@@ -153,6 +153,12 @@ var REASON = {
     '500-2': { code: RSC.SUBSCRIPTION_VERIFICATION_INITIATION_FAILED, msg: "SUBSCRIPTION_VERIFICATION_INITIATION_FAILED" },
     '500-4': { code: RSC.INTERNAL_SERVER_ERROR, msg: "resource could not be created", detail: 'create_action: insert failed' },
     '500-5': { code: RSC.INTERNAL_SERVER_ERROR, msg: "DB Error : No Connection Pool" },
+    // 탐색이 문장 상한에 걸린 경우. DB 고장이 아니라 "이 범위를 감당 못 한다" 다.
+    // 예전에는 500 "database error" 로 뭉개져서 호출자가 무엇을 고쳐야 할지
+    // 알 수 없었다 — 30초를 기다린 끝에 받는 응답이 그것뿐이었다.
+    '500-6': { code: RSC.INTERNAL_SERVER_ERROR,
+               msg: "discovery took too long — narrow the target or add a ty filter",
+               detail: 'search_lookup: statement timeout' },
     '501-2': { code: RSC.NOT_IMPLEMENTED, msg: "this resource type is not supported by the SQLite backend" }
 };
 
