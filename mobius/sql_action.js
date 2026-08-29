@@ -1474,7 +1474,7 @@ exports.search_lookup_parents = function(connection, query, pi, cur_lim, count, 
 
 // 자손 수집이 훑지 않는 타입. 리프(4=cin, 23=sub, 17=req)와
 // 별도 경로로 다루는 것(1=acp, 9=grp)이다.
-const PRESEARCH_SKIP_TY = ['1', '9', '23', '4', '17'];
+const PRESEARCH_SKIP_TY = ['1', '9', '23', '4'];
 
 // 하위(비-리프 타입) 자손을 재귀 CTE 한 번으로 수집.
 //

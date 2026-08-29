@@ -756,7 +756,6 @@ var typeRsrc = {
     "13": "mgo",
     "14": "nod",
     "16": "csr",
-    "17": "req",
     "23": "sub",
     "24": "smd",
     "27": "mms",
@@ -1777,43 +1776,9 @@ exports.response_result = function(request, response, status, rsc, cap, callback
 
         _this.typeCheckforJson(body_Obj);
 
-        if(rootnm === 'req') {
-            // req(ty=17)는 더 이상 만들어지지 않는다 — 논블로킹을 지원하지 않게
-            // 되면서 생성 경로를 걷어냈다. 다만 기존 배포에는 예전에 만들어진
-            // 행이 lookup 과 req 테이블에 남아 있을 수 있고, URI 를 알면 직접
-            // 조회된다(discovery 에는 더 이상 안 뜬다 — ty_list 에서 뺐다).
-            // migrations/003-drop-req-table.js 를 돌리기 전까지는 이 경로가 살아 있다.
-            //
-            // pc 는 그 요청의 결과다. 결과가 없으면 비어 있는데, 예전에는 방어
-            // 없이 JSON.parse 를 불러 String(undefined) 가
-            // '"undefined" is not valid JSON' 으로 터졌다 — 응답 전송과 커넥션
-            // 반납 전이라 워커가 죽고 커넥션이 샜다.
-            var req_obj = body_Obj['m2m:' + rootnm];
-            var pc_parsed = null;
-            if (typeof req_obj.pc === 'string' && req_obj.pc !== '') {
-                try {
-                    pc_parsed = JSON.parse(req_obj.pc);
-                }
-                catch (e) {
-                    console.error('[response_result] req 의 pc 를 읽을 수 없다: ' + e.message);
-                }
-            }
-            else if (req_obj.pc != null && typeof req_obj.pc === 'object') {
-                pc_parsed = req_obj.pc;
-            }
-
-            if (pc_parsed == null) {
-                // 결과가 아직 없다. pc 는 선택 속성이므로 빼고 내보낸다 —
-                // 빈 객체를 넣으면 "결과가 비어 있다" 는 뜻이 되어 거짓말이 된다.
-                delete req_obj.pc;
-            }
-            else {
-                req_obj.pc = pc_parsed;
-                if(Object.keys(req_obj.pc)[0] === 'm2m:uril') {
-                    req_obj.pc['m2m:uril'] = req_obj.pc['m2m:uril'].split(' ');
-                }
-            }
-        }
+        // req(ty=17)의 pc 를 특별 취급하던 분기는 걷어냈다. 논블로킹을 지원하지
+        // 않게 되면서 이 리소스를 만드는 경로도, 저장할 테이블도 없어졌다.
+        // (migrations/003-drop-req-table.js)
 
         var bodyString = JSON.stringify(body_Obj);
 
