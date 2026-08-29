@@ -959,6 +959,21 @@ function build_resource(request, response, callback) {
     }
 
     if (ty_list.includes(request.ty.toString())) {
+        // ty_list 에는 있는데 속성표에는 없는 타입이 있다 — cb(5)와 mgo(13)다.
+        // 그대로 두면 create_np_attr_list[rootnm] 이 undefined 이고
+        // .includes 가 TypeError 를 낸다. 여기는 db.getConnection 콜백 안이라
+        // uncaughtException 핸들러도 없어 워커가 죽고 빌린 커넥션도 새어 나간다.
+        //
+        // 실측: POST /Mobius/<nod> 에 {"m2m:mgo":{...}} 하나로 워커가 죽었다.
+        // mgo 는 추상 타입이라 표가 없는 것이 맞다 — 구체 타입(fwr/bat/dvi/dvc/rbo)
+        // 에는 표가 있다. 즉 이것은 '표를 채워야 할 누락' 이 아니라
+        // '도달하면 안 되는 조합' 이므로 거절이 옳다.
+        if (!create_np_attr_list.hasOwnProperty(rootnm)) {
+            console.log('[build_resource] 속성표가 없는 리소스 이름이다: ' + rootnm + ' (ty=' + request.ty + ')');
+            callback('409-4');
+            return;
+        }
+
         var mandatory_check_count = 0;
 
         // check Not_Present and check Option and check Mandatory
@@ -2221,6 +2236,19 @@ function update_resource(request, response, callback) {
     resource_Obj[rootnm] = request.targetObject[Object.keys(request.targetObject)[0]];
 
     if (ty_list.includes(request.ty.toString())) {
+        // build_resource 와 같은 이유의 방어다. UPDATE 쪽이 더 넓다 —
+        // CREATE 는 부모-자식 검증이 cb 를 먼저 막아 주지만 UPDATE 에는
+        // 그런 관문이 없다.
+        //
+        // 실측: PUT /Mobius/<아무 리소스> 에 {"m2m:cb":{"lbl":["x"]}} 하나로
+        // 워커가 죽었다. 본문을 {"m2m:cb":{"acpi":[...]}} 로 하면
+        // updates_beyond_acpi 가 ACP 검사까지 건너뛰므로 인증만 되면 누구나 할 수 있었다.
+        if (!update_np_attr_list.hasOwnProperty(rootnm)) {
+            console.log('[update_resource] 속성표가 없는 리소스 이름이다: ' + rootnm + ' (ty=' + request.ty + ')');
+            callback('409-4');
+            return;
+        }
+
         var mandatory_check_count = 0;
 
         // check Not Present and check Option and check Mandatory

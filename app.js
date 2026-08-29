@@ -55,6 +55,9 @@ var sgn = require('./mobius/sgn');
 var reason = require('./mobius/reason');
 var RSC = require('./mobius/rsc').RSC;
 
+// ty 결정의 단일 진실원 (§9.1)
+var type_resolver = require('./mobius/type_resolver');
+
 // 아웃바운드 요청 타임아웃 (D16)
 var outbound = require('./mobius/outbound');
 
@@ -699,7 +702,29 @@ global.make_json_arraytype = function (body_Obj) {
     }
 };
 
+// 요청 본문을 딱 한 번 읽는다.
+//
+// 예전에는 같은 본문을 두 번 파싱했다 — check_resource_supported 가
+// make_json_obj 로 한 번, parse_body_format 이 parse_to_json 으로 또 한 번.
+// 두 파싱이 서로 다른 정규화를 적용해서(앞은 원문 키, 뒤는 접두를 뗀 키),
+// 그 어긋남이 몇몇 400 판정을 우연히 만들어 내고 있었다.
+//
+// 이제 한 번만 읽고, 정규화 전 원문 키를 request.rawRootKey 에 남긴다.
+// ty 결정은 원문 키로 한다 — 옛 check_resource_supported 와 같은 입력이라
+// 판정이 그대로 보존된다.
 function parse_to_json(request, response, callback) {
+    if (request.bodyParsed) {
+        callback('200');
+        return;
+    }
+
+    function settle(result) {
+        request.rawRootKey = Object.keys(result)[0];
+        request.bodyObj = result;
+        make_short_nametype(request.bodyObj);
+        return true;
+    }
+
     if (request.usebodytype === 'xml') {
         try {
             var parser = new xml2js.Parser({explicitArray: false});
@@ -708,11 +733,11 @@ function parse_to_json(request, response, callback) {
                     callback('400-5');
                 }
                 else {
-                    request.bodyObj = result;
-                    make_short_nametype(request.bodyObj);
+                    settle(result);
                     make_json_arraytype(request.bodyObj);
 
                     request.headers.rootnm = Object.keys(request.bodyObj)[0];
+                    request.bodyParsed = true;
                     callback('200');
                 }
             });
@@ -729,11 +754,11 @@ function parse_to_json(request, response, callback) {
                     callback('400-6');
                 }
                 else {
-                    request.bodyObj = result;
-                    make_short_nametype(request.bodyObj);
+                    settle(result);
                     //make_json_arraytype(request.bodyObj);
 
                     request.headers.rootnm = Object.keys(request.bodyObj)[0];
+                    request.bodyParsed = true;
                     callback('200');
                 }
             });
@@ -744,14 +769,14 @@ function parse_to_json(request, response, callback) {
     }
     else {
         try {
-            request.bodyObj = JSON.parse(request.body.toString());
-            make_short_nametype(request.bodyObj);
+            settle(JSON.parse(request.body.toString()));
 
             if (Object.keys(request.bodyObj)[0] == 'undefined') {
                 callback('400-7');
             }
             else {
                 request.headers.rootnm = Object.keys(request.bodyObj)[0];
+                request.bodyParsed = true;
                 callback('200');
             }
         }
@@ -1504,6 +1529,13 @@ function check_xm2m_headers(request, callback) {
     }
 
     request.ty = '99';
+
+    // Content-Type 이 실제로 ty 를 실어 왔는지. '99' 는 기본값이라
+    // "ty=99 를 명시했다" 와 "ty 가 아예 없다" 를 구분하지 못한다.
+    // 뒤에서 본문 유래 ty 와 대조할 때 이 둘은 전혀 다르게 다뤄야 한다 —
+    // 없으면 대조하지 않고 본문이 이긴다(WS·MQTT 는 PUT 에 ty 를 안 붙인다).
+    request.ty_hint = null;
+
     if (request.headers.hasOwnProperty('content-type')) {
         var content_type = request.headers['content-type'].split(';');
         for (var i in content_type) {
@@ -1523,6 +1555,7 @@ function check_xm2m_headers(request, callback) {
                         return;
                     }
                     request.ty = ty_arr[1].replace(' ', '');
+                    request.ty_hint = request.ty;
                     content_type = null;
                     break;
                 }
@@ -1612,40 +1645,28 @@ function check_xm2m_headers(request, callback) {
     callback('200');
 }
 
+// 본문에서 리소스 타입을 정한다. 여기가 CREATE·UPDATE 의 ty 결정 지점이다.
+//
+// 예전에는 이 함수가 본문을 따로 한 번 더 파싱하고, typeRsrc 를 직접
+// 역탐색하고, Content-Type 의 ty 를 조용히 덮어썼다. 덮어쓰기 때문에
+// application/json;ty=3 에 {"m2m:ae":...} 를 보내면 AE 가 201 로 만들어졌다.
+// 이제 파싱은 parse_to_json 한 곳, 타입 판정은 type_resolver 한 곳이다.
 function check_resource_supported(request, response, callback) {
-    make_json_obj(request.usebodytype, request.body, (err, body) => {
-        try {
-            var arr_rootnm = Object.keys(body)[0].split(':');
-
-            if(arr_rootnm[0] === 'hd') {
-                var rootnm = Object.keys(body)[0].replace('hd:', 'hd_');
-            }
-            else {
-                rootnm = Object.keys(body)[0].replace('m2m:', '');
-            }
-
-            var checkCount = 0;
-            for (var key in responder.typeRsrc) {
-                if (responder.typeRsrc.hasOwnProperty(key)) {
-                    if (responder.typeRsrc[key] == rootnm) {
-                        request.ty = key;
-                        break;
-                    }
-                    checkCount++;
-                }
-            }
-            body = null;
-
-            if (checkCount >= Object.keys(responder.typeRsrc).length) {
-                callback('400-3');
-            }
-            else {
-                callback('200');
-            }
+    parse_to_json(request, response, (code) => {
+        if (code !== '200') {
+            callback(code);
+            return;
         }
-        catch (e) {
-            callback('400-4');
+
+        // 정규화 전 원문 키로 판정한다 — 옛 코드와 같은 입력이다.
+        var resolved = type_resolver.resolve(request.rawRootKey, request.ty_hint);
+        if (resolved.rsc !== '200') {
+            callback(resolved.rsc);
+            return;
         }
+
+        request.ty = resolved.ty;
+        callback('200');
     });
 }
 
@@ -1659,7 +1680,12 @@ function get_target_url(request, response, callback) {
     var absolute_url_arr = absolute_url.split('/');
 
     console.log('\n' + request.method + ' : ' + request.url);
-    request.bodyObj = {};
+    // GET/DELETE 는 본문이 없어 여기가 bodyObj 의 유일한 생산 지점이다.
+    // POST/PUT 은 이 앞의 check_resource_supported 에서 이미 파싱했으므로
+    // 덮어쓰면 안 된다 — 그러면 파싱이 다시 두 번이 된다.
+    if (!request.bodyParsed) {
+        request.bodyObj = {};
+    }
 
     request.option = '';
     request.sri = absolute_url_arr[1].split('?')[0];
@@ -1806,33 +1832,34 @@ function check_allowed_app_ids(request, callback) {
 }
 
 function check_type_update_resource(request, callback) {
-    for (var ty_idx in responder.typeRsrc) {
-        if (responder.typeRsrc.hasOwnProperty(ty_idx)) {
-            if ((ty_idx == 4) && (responder.typeRsrc[ty_idx] == Object.keys(request.bodyObj)[0])) {
-                callback('405-7');
-                return;
-            }
-            else if ((ty_idx != 4) && (responder.typeRsrc[ty_idx] == Object.keys(request.bodyObj)[0])) {
-                if ((ty_idx == 17) && (responder.typeRsrc[ty_idx] == Object.keys(request.bodyObj)[0])) {
-                    callback('405-8');
-                    return;
-                }
-                else {
-                    request.ty = ty_idx;
-                    break;
-                }
-            }
-            else if (ty_idx == 13) {
-                for (var mgo_idx in responder.mgoType) {
-                    if (responder.mgoType.hasOwnProperty(mgo_idx)) {
-                        if ((responder.mgoType[mgo_idx] == Object.keys(request.bodyObj)[0])) {
-                            request.ty = ty_idx;
-                            break;
-                        }
-                    }
-                }
-            }
+    // 여기에 ty 결정 알고리즘이 한 벌 더 있었다 — check_resource_supported 와
+    // 다른 방식으로 같은 일을 했다. 두 벌이라 한쪽만 mgoType 을 알았다.
+    // 이제 둘 다 type_resolver 를 쓴다.
+    var body_root = Object.keys(request.bodyObj)[0];
+    var resolved = type_resolver.resolve(body_root, null);
+
+    if (resolved.rsc === '200') {
+        if (resolved.ty === '4') {
+            callback('405-7');      // contentInstance 는 수정할 수 없다
+            return;
         }
+        if (resolved.ty === '17') {
+            // typeRsrc 에서 17(req) 이 빠진 뒤로 도달하지 않는다.
+            // req 리소스가 되살아나면 다시 필요하므로 남겨 둔다.
+            callback('405-8');
+            return;
+        }
+        request.ty = resolved.ty;
+    }
+
+    // 본문 루트와 ty 가 어긋나는지. POST 는 check_allowed_app_ids 가 같은
+    // 검사를 하는데 PUT 에는 없었다. 그래서 접두 없는 본문({"cnt":...})은
+    // rootnm 이 undefined 인 채로, 속성표가 없는 타입({"m2m:cb":...})은
+    // 그대로 resource.update 까지 흘러가 워커를 죽였다. 실측으로 확인한
+    // 크래시 두 종이 여기서 막힌다.
+    if (responder.typeRsrc[request.ty] != body_root) {
+        callback('400-42');
+        return;
     }
 
     if (url.parse(request.targetObject[Object.keys(request.targetObject)[0]].ri).pathname == ('/' + usecsebase)) {
