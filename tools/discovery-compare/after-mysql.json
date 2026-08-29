@@ -1,0 +1,245 @@
+{
+  "all": {
+    "status": 200,
+    "uril": [
+      "Mobius/disc_ae/cntA",
+      "Mobius/disc_ae/cntA/4-20260829024311148016000",
+      "Mobius/disc_ae/cntA/4-20260829024311151016000",
+      "Mobius/disc_ae/cntA/4-20260829024311155016000",
+      "Mobius/disc_ae/cntA/cntA1",
+      "Mobius/disc_ae/cntA/cntA1/4-20260829024311162016000",
+      "Mobius/disc_ae/cntA/cntA1/4-20260829024311165016000",
+      "Mobius/disc_ae/cntA/cntA1/cntA2",
+      "Mobius/disc_ae/cntA/cntA1/cntA2/4-20260829024311172016000",
+      "Mobius/disc_ae/cntA/cntA1/cntA2/4-20260829024311176016000",
+      "Mobius/disc_ae/cntB",
+      "Mobius/disc_ae/cntB/4-20260829024311183016000"
+    ]
+  },
+  "ty3": {
+    "status": 200,
+    "uril": [
+      "Mobius/disc_ae/cntA",
+      "Mobius/disc_ae/cntA/cntA1",
+      "Mobius/disc_ae/cntA/cntA1/cntA2",
+      "Mobius/disc_ae/cntB"
+    ]
+  },
+  "ty4": {
+    "status": 200,
+    "uril": [
+      "Mobius/disc_ae/cntA/4-20260829024311148016000",
+      "Mobius/disc_ae/cntA/4-20260829024311151016000",
+      "Mobius/disc_ae/cntA/4-20260829024311155016000",
+      "Mobius/disc_ae/cntA/cntA1/4-20260829024311162016000",
+      "Mobius/disc_ae/cntA/cntA1/4-20260829024311165016000",
+      "Mobius/disc_ae/cntA/cntA1/cntA2/4-20260829024311172016000",
+      "Mobius/disc_ae/cntA/cntA1/cntA2/4-20260829024311176016000",
+      "Mobius/disc_ae/cntB/4-20260829024311183016000"
+    ]
+  },
+  "ty3-lvl1": {
+    "status": 200,
+    "uril": [
+      "Mobius/disc_ae/cntA",
+      "Mobius/disc_ae/cntB"
+    ]
+  },
+  "ty3-lvl2": {
+    "status": 200,
+    "uril": [
+      "Mobius/disc_ae/cntA",
+      "Mobius/disc_ae/cntA/cntA1",
+      "Mobius/disc_ae/cntB"
+    ]
+  },
+  "ty3-lvl3": {
+    "status": 200,
+    "uril": [
+      "Mobius/disc_ae/cntA",
+      "Mobius/disc_ae/cntA/cntA1",
+      "Mobius/disc_ae/cntA/cntA1/cntA2",
+      "Mobius/disc_ae/cntB"
+    ]
+  },
+  "lvl1": {
+    "status": 200,
+    "uril": [
+      "Mobius/disc_ae/cntA",
+      "Mobius/disc_ae/cntB"
+    ]
+  },
+  "lvl2": {
+    "status": 200,
+    "uril": [
+      "Mobius/disc_ae/cntA",
+      "Mobius/disc_ae/cntA/4-20260829024311148016000",
+      "Mobius/disc_ae/cntA/4-20260829024311151016000",
+      "Mobius/disc_ae/cntA/4-20260829024311155016000",
+      "Mobius/disc_ae/cntA/cntA1",
+      "Mobius/disc_ae/cntB",
+      "Mobius/disc_ae/cntB/4-20260829024311183016000"
+    ]
+  },
+  "ty3-lim2": {
+    "status": 200,
+    "uril": [
+      "Mobius/disc_ae/cntA",
+      "Mobius/disc_ae/cntB"
+    ]
+  },
+  "ty3-lim2-ofst1": {
+    "status": 200,
+    "uril": [
+      "Mobius/disc_ae/cntA",
+      "Mobius/disc_ae/cntA/cntA1"
+    ]
+  },
+  "ty3-lim2-ofst2": {
+    "status": 200,
+    "uril": [
+      "Mobius/disc_ae/cntA/cntA1",
+      "Mobius/disc_ae/cntA/cntA1/cntA2"
+    ]
+  },
+  "ty3-ofst99": {
+    "status": 200,
+    "uril": []
+  },
+  "ty4-lim3": {
+    "status": 200,
+    "uril": [
+      "Mobius/disc_ae/cntA/4-20260829024311148016000",
+      "Mobius/disc_ae/cntA/4-20260829024311151016000",
+      "Mobius/disc_ae/cntA/4-20260829024311155016000"
+    ]
+  },
+  "ty4-lim3-ofst3": {
+    "status": 200,
+    "uril": [
+      "Mobius/disc_ae/cntA/cntA1/4-20260829024311162016000",
+      "Mobius/disc_ae/cntA/cntA1/4-20260829024311165016000",
+      "Mobius/disc_ae/cntB/4-20260829024311183016000"
+    ]
+  },
+  "lbl-tagX": {
+    "status": 200,
+    "uril": [
+      "Mobius/disc_ae/cntA",
+      "Mobius/disc_ae/cntA/cntA1/cntA2"
+    ]
+  },
+  "lbl-tagY": {
+    "status": 200,
+    "uril": [
+      "Mobius/disc_ae/cntA/cntA1",
+      "Mobius/disc_ae/cntB"
+    ]
+  },
+  "ty3-lbl-tagX": {
+    "status": 200,
+    "uril": [
+      "Mobius/disc_ae/cntA",
+      "Mobius/disc_ae/cntA/cntA1/cntA2"
+    ]
+  },
+  "rn-cntA1": {
+    "status": 200,
+    "uril": [
+      "Mobius/disc_ae/cntA/cntA1"
+    ]
+  },
+  "ty3-rn-cntB": {
+    "status": 200,
+    "uril": [
+      "Mobius/disc_ae/cntB"
+    ]
+  },
+  "cra-past": {
+    "status": 200,
+    "uril": [
+      "Mobius/disc_ae/cntA",
+      "Mobius/disc_ae/cntA/cntA1",
+      "Mobius/disc_ae/cntA/cntA1/cntA2",
+      "Mobius/disc_ae/cntB"
+    ]
+  },
+  "crb-future": {
+    "status": 200,
+    "uril": [
+      "Mobius/disc_ae/cntA",
+      "Mobius/disc_ae/cntA/cntA1",
+      "Mobius/disc_ae/cntA/cntA1/cntA2",
+      "Mobius/disc_ae/cntB"
+    ]
+  },
+  "crb-past": {
+    "status": 200,
+    "uril": []
+  },
+  "rcn4": {
+    "status": 200,
+    "uril": [
+      "Mobius/disc_ae/cntA",
+      "Mobius/disc_ae/cntA/cntA1",
+      "Mobius/disc_ae/cntA/cntA1/cntA2",
+      "Mobius/disc_ae/cntB"
+    ]
+  },
+  "from-cnt": {
+    "status": 200,
+    "uril": [
+      "Mobius/disc_ae/cntA/cntA1",
+      "Mobius/disc_ae/cntA/cntA1/cntA2"
+    ]
+  },
+  "from-cnt-ty4": {
+    "status": 200,
+    "uril": [
+      "Mobius/disc_ae/cntA/4-20260829024311148016000",
+      "Mobius/disc_ae/cntA/4-20260829024311151016000",
+      "Mobius/disc_ae/cntA/4-20260829024311155016000",
+      "Mobius/disc_ae/cntA/cntA1/4-20260829024311162016000",
+      "Mobius/disc_ae/cntA/cntA1/4-20260829024311165016000",
+      "Mobius/disc_ae/cntA/cntA1/cntA2/4-20260829024311172016000",
+      "Mobius/disc_ae/cntA/cntA1/cntA2/4-20260829024311176016000"
+    ]
+  },
+  "from-cnt-lvl1": {
+    "status": 200,
+    "uril": [
+      "Mobius/disc_ae/cntA/cntA1"
+    ]
+  },
+  "cse-ty2": {
+    "status": 200,
+    "uril": [
+      "Mobius/AE_PhH1776225724",
+      "Mobius/LeakTestAE_1776230160552",
+      "Mobius/TestAE",
+      "Mobius/UserInfos",
+      "Mobius/ae_1776221683",
+      "Mobius/ae_lm_1776230573206",
+      "Mobius/ae_lm_1776230949049",
+      "Mobius/ae_lm_1776232291754",
+      "Mobius/ae_lt_1776230573206",
+      "Mobius/ae_lt_1776230949049",
+      "Mobius/ae_lt_1776231299378",
+      "Mobius/ae_ns_1776231590443",
+      "Mobius/ae_test",
+      "Mobius/disc_ae",
+      "Mobius/test-ae",
+      "Mobius/testAE"
+    ]
+  },
+  "la-cnt": {
+    "status": 200,
+    "cin_rn": "4-20260829024311155016000",
+    "con": "v2"
+  },
+  "ol-cnt": {
+    "status": 200,
+    "cin_rn": "4-20260829024311148016000",
+    "con": "v0"
+  }
+}
