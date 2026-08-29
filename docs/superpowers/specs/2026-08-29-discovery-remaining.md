@@ -93,7 +93,39 @@ SQL 이 준 행 수를 안 넘긴다. 그래서 호출부는 "SQL 이 정확히 
 
 </details>
 
-## 3. `sza` / `szb` / `cty` 가 HTTP 500 을 낸다
+## 3. `sza` / `szb` / `cty` — **완료 (2026-08-29 배포)**
+
+셋 중 하나라도 있으면 `cin` 을 조인한다:
+`join cin c on c.pi = r.pi and c.ri = r.ri`. 조인 키를 (pi, ri) 둘 다로 잡아
+`cin_ri_idx(pi, ri, cs)` 가 `cs` 까지 담게 했다 — `sza`/`szb` 만 쓰면 cin 행을
+읽지 않는다. `cnf` 는 인덱스에 없어 행 접근이 필요하다.
+
+`cs` 는 MySQL 이 int, SQLite 가 TEXT 라 SQLite 에서만 캐스팅한다. 안 하면
+어느 쪽에도 수치 affinity 가 없어 정수가 늘 텍스트보다 작다고 판정되고,
+`10 <= cs` 가 모든 행에서 참이 되어 필터가 무력해진다.
+
+성능도 같이 잡아야 했다. `cs`/`cnf` 는 contentInstance 에만 있으므로:
+- 요청 `ty` 에 4 가 없으면 답이 있을 수 없다 → 질의를 아예 안 던진다
+- `ty` 를 안 줘도 `where r.ty = '4'` 를 명시한다 → (pi, ty) 인덱스가 CIN 만 집는다
+
+배포 서버 실측:
+
+| 질의 | 전 | 후 |
+|---|---|---|
+| `fu=1&ty=3&sza=10` | 30,048ms / **500** | 68ms / 200 (0건) |
+| `fu=1&ty=3&szb=100000` | 30,044ms / **500** | 31ms / 200 (0건) |
+| `fu=1&ty=3&cty=...` | 9,207ms / 500 | 70ms / 200 |
+| `fu=1&ty=4&sza=100` (컨테이너 안) | — | 82ms / 5건 |
+
+`cnf` 는 클라이언트가 준 contentInfo 를 그대로 저장하므로(예 `text/plain:0`)
+정확 일치로 본다. 배포 서버는 표본 2만 건이 전부 빈 문자열이라 `cty` 를 쓰는
+클라이언트는 없는 것으로 보인다.
+
+검증 도구: `tools/discovery-compare/size-filter.js` (12케이스, 두 백엔드).
+
+<details>
+<summary>원래 문제 설명</summary>
+
 
 oneM2M discovery 필터다 — contentInstance 를 크기(`sza`=sizeAbove,
 `szb`=sizeBelow)와 형식(`cty`=contentType)으로 거른다. `build_search_query` 가
@@ -108,6 +140,8 @@ discovery 경로를 안 탄다), `fu=1&...&sza=100` 이나 `fu=2&rcn=4&...&sza=1
 
 고칠 방향: `cin` 과 조인. `sza`/`szb` 는 커버링 인덱스 `cin_ri_idx(pi, ri, cs)`
 로 싸고, `cnf` 만 행 접근이 필요해 비용 등급이 다르다.
+
+</details>
 
 ## 4. discovery 결과에 리소스별 ACP 검사가 없다
 
