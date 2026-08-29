@@ -70,7 +70,10 @@ create_np_attr_list.grp = ['ty', 'ri', 'pi', 'ct', 'lt', 'st', 'cnm', 'mtv', 'ss
 create_np_attr_list.nod = ['ty', 'ri', 'pi', 'ct', 'lt', 'st'];
 create_np_attr_list.smd = ['ty', 'ri', 'pi', 'ct', 'lt', 'st', 'soe'];
 create_np_attr_list.mms =['ty', 'ri', 'pi', 'ct', 'lt', 'st', 'sid'];
-create_np_attr_list.req = ['rn', 'ty', 'ri', 'et', 'pi', 'ct', 'lt', 'acpi', 'lbl', 'st', 'daci', 'op', 'tg', 'org', 'rid', 'mi', 'pc', 'rs', 'ors'];
+// req(17)의 속성표는 걷어냈다. 논블로킹을 지원하지 않게 되면서 이 리소스를
+// 만드는 경로가 없고(ty_list / typeRsrc 에서 빠졌다), app.js 가 ty=17 요청을
+// 405-2 로 막는다. 테이블도 migrations/003 이 지웠다.
+// 표만 남겨 두면 "만들 수 있는 타입" 으로 읽힌다.
 
 create_np_attr_list.fwr = ['ty', 'ri', 'pi', 'ct', 'lt', 'st', 'uds'];
 create_np_attr_list.bat = ['ty', 'ri', 'pi', 'ct', 'lt', 'st'];
@@ -100,7 +103,6 @@ create_m_attr_list.grp = ['mnm', 'mid'];
 create_m_attr_list.nod = ['ni'];
 create_m_attr_list.smd = ['dcrp', 'dsp'];
 create_m_attr_list.mms =['soid', 'asd'];
-create_m_attr_list.req = [];
 
 create_m_attr_list.fwr = ['mgd', 'vr', 'fwnnam', 'url', 'ud'];
 create_m_attr_list.bat = ['mgd', 'btl', 'bts'];
@@ -130,7 +132,6 @@ create_opt_attr_list.grp = ['rn', 'acpi', 'et', 'lbl', 'aa', 'at', 'daci', 'mt',
 create_opt_attr_list.nod = ['rn', 'acpi', 'et', 'lbl', 'aa', 'at', 'daci', 'hcl', 'mgca'];
 create_opt_attr_list.smd = ['rn', 'acpi', 'et', 'lbl', 'aa', 'at', 'cr', 'or', 'rels'];
 create_opt_attr_list.mms =['rn', 'acpi', 'et', 'lbl', 'aa', 'at', 'stid', 'osd', 'sst'];
-create_opt_attr_list.req = [];
 
 create_opt_attr_list.fwr = ['rn', 'acpi', 'et', 'lbl', 'daci', 'objs', 'obps', 'dc', 'cmlk'];
 create_opt_attr_list.bat = ['rn', 'acpi', 'et', 'lbl', 'daci', 'objs', 'obps', 'dc', 'cmlk'];
@@ -2277,8 +2278,6 @@ exports.update = function (request, response, callback) {
 
 // 리프 타입(하위 리소스를 가질 수 없는 ty)은 background subtree 삭제가 필요 없다.
 // 자식을 가질 수 없는 타입. 여기에 없으면 삭제 시 자식 탐색을 예약한다.
-// '17'(req)은 더 이상 만들어지지 않지만, 기존 배포에 남은 행을 지울 때
-// 헛된 탐색을 걸지 않도록 남겨 둔다.
 var leaf_ty_list = ['1', '4', '9', '23'];
 
 // R4 방식 비동기 subtree 삭제: 응답은 루트 행 삭제 직후 나가고,
