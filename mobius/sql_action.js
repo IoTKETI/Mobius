@@ -1183,6 +1183,22 @@ exports.select_resource_from_url = function (connection, ri, sri, callback) {
         }
 
         var table = responder.typeRsrc[comm_Obj[0].ty];
+        if (!table) {
+            // 이 CSE 가 다루지 않는 타입이다. 지원을 걷어낸 타입의 옛 행이
+            // lookup 에 남아 있으면 여기로 온다.
+            //
+            // 예전에는 undefined 를 그대로 테이블 이름 자리에 넣어 깨진 질의를
+            // 만들었고 500 "database error" 가 나갔다 — 원인을 짐작할 수 없는
+            // 응답이다.
+            //
+            // lookup 행만 돌려준다. 지우거나 비우지 않는 이유는 호출부가 ty 를
+            // 보고 "지원하지 않는 타입" 이라고 답할 수 있어야 하기 때문이다.
+            // 빈 배열로 만들면 그냥 404 가 되어 이유가 사라진다.
+            console.error('[select_resource_from_url] 지원하지 않는 타입의 행: ty=' +
+                          comm_Obj[0].ty + ' ' + comm_Obj[0].ri);
+            callback(null, [comm_Obj[0]]);
+            return;
+        }
 
         facade.run(facade.k(table).select('*').where({ ri: comm_Obj[0].ri }), connection,
             function (err2, spec_Obj) {

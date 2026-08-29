@@ -1267,6 +1267,19 @@ function check_resource_from_url(connection, ri, sri, callback) {
                 if (results.length === 0) {
                     callback(null, 404);
                 }
+                else if (!responder.typeRsrc.hasOwnProperty(String(results[0].ty))) {
+                    // lookup 에 있는데 그 타입을 이 CSE 가 다루지 않는 경우다.
+                    // 지원을 걷어낸 타입의 옛 행이 남아 있으면 여기로 온다
+                    // (예: req/ty=17 — 논블로킹을 접으면서 제거했다).
+                    //
+                    // 예전에는 그대로 흘려보내 typeRsrc[ty] 가 undefined 인 채
+                    // 테이블 이름 자리에 들어갔고, 깨진 질의가 500
+                    // "database error" 로 나갔다. 원인을 짐작할 수 없는 응답이다.
+                    // 지원하지 않는 타입이라고 답한다.
+                    console.log('[check_resource_from_url] 지원하지 않는 타입의 행: ty=' +
+                                results[0].ty + ' ' + ri);
+                    callback(null, 501);
+                }
                 else {
                     cache_resource_url[ri] = JSON.parse(JSON.stringify(results[0]));
                     callback(results[0], 200);
@@ -1721,6 +1734,10 @@ function get_target_url(request, response, callback) {
         }
         else if (status == 500) {
             callback('500-1');
+        }
+        else if (status == 501) {
+            // 이 CSE 가 다루지 않는 타입의 행이다. check_resource_from_url 주석 참고.
+            callback('405-3');
         }
         else {
             if (targetObject) {
