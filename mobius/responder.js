@@ -25,6 +25,14 @@ var coap = require('coap');
 
 var db_sql = require('./sql_action');
 var outbound = require('./outbound');
+var accept_hdr = require('./accept');
+
+// 형식 -> 응답 Content-Type. accept.js 의 SUPPORTED 와 짝이다.
+var CONTENT_TYPE = {
+    json: 'application/json',
+    xml:  'application/xml',
+    cbor: 'application/cbor'
+};
 
 
 var _this = this;
@@ -106,19 +114,13 @@ function apply_headers(request, response, rsc) {
     if (h.hasOwnProperty('x-m2m-rvi')) { response.header('X-M2M-RVI', h['x-m2m-rvi']); }
     if (h.hasOwnProperty('locale'))    { response.header('Locale',    h['locale']); }
 
-    var accept = (typeof h.accept === 'string') ? h.accept : '';
-    if (accept.includes('xml')) {
-        request.usebodytype = 'xml';
-        response.header('Content-Type', 'application/xml');
-    }
-    else if (accept.includes('cbor')) {
-        request.usebodytype = 'cbor';
-        response.header('Content-Type', 'application/cbor');
-    }
-    else {
-        request.usebodytype = 'json';
-        response.header('Content-Type', 'application/json');
-    }
+    // Accept 를 제대로 읽는다. 예전에는 accept.includes('xml') 한 줄이라
+    // 브라우저 기본값(application/xhtml+xml 이 들어 있다)이 XML 로 걸렸고,
+    // "application/json, application/xml" 도 순서를 무시하고 XML 이었다.
+    // 판정은 mobius/accept.js 한 곳에 있다 — 앞으로 세울 거절 관문도 같은
+    // 눈으로 봐야 두 곳이 갈리지 않는다.
+    request.usebodytype = accept_hdr.pick(h.accept);
+    response.header('Content-Type', CONTENT_TYPE[request.usebodytype]);
 
     response.header('X-M2M-RSC', rsc);
 }
