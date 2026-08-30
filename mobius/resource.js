@@ -2450,7 +2450,7 @@ exports.delete = function (request, response, callback) {
     request.resourceObj = JSON.parse(JSON.stringify(request.targetObject));
     var rootnm = Object.keys(request.resourceObj)[0];
 
-    // DELETE 에는 본문이 없어 request.ty 가 없다(app.js check_xm2m_headers 주석).
+    // DELETE 에는 본문이 없어 request.ty 가 null 이다(app.js check_xm2m_headers).
     // 지우는 대상 자신의 ty 를 쓴다 — retrieve 와 같은 방식이다.
     //
     // 예전에는 request.ty 를 넘겼는데 그 값이 기본값 '99' 였고 typeRsrc['99']

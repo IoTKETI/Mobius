@@ -107,48 +107,50 @@ test('목록에 없는 ty 는 목록만 보고 막는다 — 타입별 분기가
     // 더했는데(ty=17 -> 405-2), 그러면 타입을 뺄 때마다 여기도 고쳐야 하고
     // 빠뜨리면 build_resource 까지 내려가서야 걸린다.
     const s = src('app.js');
-    assert.ok(/request\.ty_hint != null && !ty_list\.includes\(String\(request\.ty_hint\)\)/.test(s),
+    assert.ok(/request\.ty != null && !ty_list\.includes\(String\(request\.ty\)\)/.test(s),
         'ty_list 기반 관문이 없다');
     for (const ty of GONE_TY) {
         assert.ok(!new RegExp("request\\.ty == '" + ty + "'").test(s),
             'ty=' + ty + ' 를 위한 개별 분기가 남아 있다 — 목록으로 충분하다');
     }
     // ty=5(CSEBase)는 목록에 **있지만** 남이 만들 수 없다. 다른 사유라 따로 둔다.
-    assert.ok(/request\.ty_hint == '5'[\s\S]{0,60}405-1/.test(s),
+    assert.ok(/request\.ty == '5'[\s\S]{0,60}405-1/.test(s),
         'CSEBase 생성을 막는 분기가 사라졌다');
 });
 
-test('헤더 관문은 ty_hint 만 본다 — 센티널로 빈칸을 메우지 않는다', function () {
-    // 알림 POST 와 WS/MQTT PUT 은 Content-Type 에 ty 를 안 붙인다. "안 줬다" 를
-    // 값으로 표현하면(예전의 request.ty = '99') 그 값이 목록에 없어서 정상
-    // 요청이 전부 막히거나, 목록에 넣으면 이번엔 typeRsrc 의 실제 키('rsp')와
-    // 겹쳐 DELETE 의 headers.rootnm 까지 오염된다. "안 줬다" 는 null 이어야 한다.
+test('"ty 를 안 줬다" 는 null 이다 — 타입 값으로 표시하지 않는다', function () {
+    // WS/MQTT 의 PUT 은 Content-Type 에 ty 를 안 붙인다. "안 줬다" 를 타입
+    // 값으로 표시하면 둘 중 하나가 된다. 목록 밖 값('99')이면 관문이 정상
+    // 요청을 막고, 목록 안 값이면 그 타입인 척한다. 실제로 '99' 는 typeRsrc 의
+    // 키('rsp')여서 DELETE 의 headers.rootnm 이 'rsp' 로 새어 나갔다.
+    // null 은 어떤 타입 값과도 겹치지 않는다.
     const s = src('app.js');
-    assert.ok(!/request\.ty = '99'/.test(s),
-        "센티널 request.ty = '99' 가 되살아났다 — typeRsrc['99'] 는 'rsp' 다");
+    assert.ok(/^\s*request\.ty = null;/m.test(s),
+        '기본값이 null 이 아니다 — "안 줬다" 는 값이 아니라 null 이어야 한다');
+    assert.ok(!/request\.ty = '\d/.test(s),
+        'request.ty 에 리터럴 타입 값을 미리 넣는 곳이 있다 — 센티널이 되살아났다');
 
+    // 관문은 null 검사로 "안 줬다" 를 걸러야 한다. 그냥 목록 대조만 하면
+    // ty 없는 요청이 전부 막힌다.
     const gate = s.match(/ty 를 명시했으면[\s\S]{0,900}?\n        \}/);
     assert.ok(gate, '관문을 못 찾았다');
-    assert.ok(!/!ty_list\.includes\(String\(request\.ty\)\)/.test(gate[0]),
-        'request.ty 로 판단하면 ty 없는 알림 POST 가 전부 막힌다');
-
-    // 헤더 구간(해석 전)에서 request.ty 를 읽으면 undefined 를 본다.
-    // 그 구간의 판단은 전부 ty_hint 여야 한다.
-    const head = s.slice(s.indexOf('function check_xm2m_headers'),
-                         s.indexOf('function check_resource_supported'))
-                  .split('\n').filter((l) => !/^\s*\/\//.test(l)).join('\n');
-    assert.ok(!/request\.ty[^_a-zA-Z]/.test(head),
-        'check_xm2m_headers 가 아직 request.ty 를 읽는다 — 여기서는 ty_hint 다');
-    assert.ok(/request\.ty_hint == '5'[\s\S]{0,60}405-1/.test(head),
-        'CSEBase 생성을 막는 분기가 ty_hint 를 보지 않는다');
+    assert.ok(/request\.ty != null &&/.test(gate[0]),
+        '관문에 null 검사가 없다 — ty 없는 PUT 이 전부 막힌다');
 });
 
-test('request.ty 대입은 해석 지점 두 곳뿐이다', function () {
-    // request.ty 는 "서버가 본문까지 보고 확정한 타입" 이다. 확정 전에
-    // 값을 넣어 두면 그 값이 곧 거짓말이 된다 — '99' 가 그랬다.
+test('ty 를 담는 필드는 request.ty 하나뿐이다', function () {
+    // 헤더가 말한 ty 와 확정된 ty 를 따로 들 이유가 없다. type_resolver 가
+    // 헤더 값을 뒤집지 않기 때문이다 — 어긋나면 400-42 로 끊고, 맞으면 본문
+    // 쪽으로 정밀해질 뿐이다(ty=28 + hd:dooLk -> 98). 필드를 둘로 나누면
+    // "지금 어느 쪽을 읽어야 하나" 를 매번 따져야 한다.
+    for (const f of ['app.js', 'mobius/resource.js', 'mobius/type_resolver.js',
+                     'mobius/responder.js', 'mobius/sgn.js']) {
+        assert.ok(!/request\.ty_hint/.test(src(f)),
+            f + ' 에 request.ty_hint 가 남아 있다 — 필드는 request.ty 하나다');
+    }
+
+    // resolve 에 넘기는 것은 그 시점의 request.ty(= 헤더가 말한 값)여야 한다.
     const s = src('app.js');
-    const writes = (s.match(/^\s*request\.ty = /gm) || []).length;
-    assert.strictEqual(writes, 2,
-        'request.ty 대입이 ' + writes + '곳이다 — check_resource_supported 와 ' +
-        'check_type_update_resource 의 resolve 결과 두 곳이어야 한다');
+    assert.ok(/type_resolver\.resolve\(request\.rawRootKey, request\.ty\)/.test(s),
+        'resolve 에 헤더 유래 ty 를 안 넘긴다 — 불일치 대조가 사라진다');
 });
