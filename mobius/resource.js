@@ -21,6 +21,7 @@ var moment = require('moment');
 var fs = require('fs');
 
 var sgn = require('./sgn');
+var subl_entry = require('./subl');
 var responder = require('./responder');
 var csr = require('./csr');
 var cnt = require('./cnt');
@@ -743,11 +744,15 @@ function create_action(request, response, callback) {
         db_sql.insert_sub(request.db_connection, resource_Obj[rootnm], (err, results) => {
             if (!err) {
                 var parent_rootnm = Object.keys(request.targetObject)[0];
-                var parentObj = request.targetObject;
-                parentObj[parent_rootnm].subl.push(resource_Obj[rootnm]);
+                var parentObj = request.targetObject[parent_rootnm];
 
-                db_sql.update_lookup(request.db_connection, parentObj[parent_rootnm], (err, results) => {
-                    // else 가 없었다. 부모 lookup 갱신이 실패하면 콜백이 사라져
+                // push 만 하던 자리다. 같은 ri 가 이미 있는지 안 봤으므로,
+                // 삭제가 실패해 남은 유령 위에 다시 만들면 같은 구독이 목록에
+                // 두 번 실렸다. upsert 는 같은 ri 를 하나만 남긴다.
+                parentObj.subl = subl_entry.upsert(parentObj.subl, resource_Obj[rootnm]);
+
+                db_sql.update_subl(request.db_connection, parentObj.ri, parentObj.subl, (err, results) => {
+                    // else 가 없었다. 부모 갱신이 실패하면 콜백이 사라져
                     // 응답도 connection.release() 도 없이 요청이 매달렸다.
                     // 데드락, 락 타임아웃, 커넥션 끊김, SQLITE_BUSY 에서 실제로 난다.
                     //
@@ -757,8 +762,9 @@ function create_action(request, response, callback) {
                         callback('200');
                     }
                     else {
-                        console.log('[create_action] sub 의 부모 lookup 갱신 실패: ' +
-                                    ((results && (results.driverCode || results.code)) || '?'));
+                        console.error('[create_action] sub 의 부모 subl 갱신 실패: ' +
+                                      ((results && (results.driverCode || results.code)) || '?') +
+                                      ' 부모=' + parentObj.ri + ' sub=' + resource_Obj[rootnm].ri);
                         callback('500-1');
                     }
                 });
@@ -1770,21 +1776,21 @@ function update_action(request, response, callback) {
 
                     makeObject(results_comm[0]);
                     var parentObj = results_comm[0];
-                    for(var idx in parentObj.subl) {
-                        if(parentObj.subl.hasOwnProperty(idx)) {
-                            if(parentObj.subl[idx].ri == resource_Obj[rootnm].ri) {
-                                parentObj.subl[idx] = resource_Obj[rootnm];
-                                break;
-                            }
-                        }
-                    }
-                    db_sql.update_lookup(request.db_connection, parentObj, function (err, results) {
+
+                    // 첫 항목만 갈아 끼우고 break 하던 자리다. 같은 ri 가 두 개면
+                    // 뒤엣것은 옛 nu 를 그대로 들고 계속 발송했다 — 배포에서
+                    // "subl 과 sub 의 nu 가 다른" 194건이 이것이다.
+                    // upsert 는 첫 자리에 새 것을 놓고 나머지 같은 ri 를 버린다.
+                    parentObj.subl = subl_entry.upsert(parentObj.subl, resource_Obj[rootnm]);
+
+                    db_sql.update_subl(request.db_connection, parentObj.ri, parentObj.subl, function (err, results) {
                         if (!err) {
                             callback('200');
                         }
                         else {
-                            console.log('[update_action] sub 의 부모 lookup 갱신 실패: ' +
-                                        ((results && (results.driverCode || results.code)) || '?'));
+                            console.error('[update_action] sub 의 부모 subl 갱신 실패: ' +
+                                          ((results && (results.driverCode || results.code)) || '?') +
+                                          ' 부모=' + parentObj.ri + ' sub=' + resource_Obj[rootnm].ri);
                             callback('500-1');
                         }
                     });
@@ -2373,16 +2379,30 @@ function delete_action(request, response, callback) {
                                         }
 
                                         var parentObj = request.targetObject[parent_rootnm];
-                                        for(var idx in parentObj.subl) {
-                                            if(parentObj.subl.hasOwnProperty(idx)) {
-                                                if(parentObj.subl[idx].ri == resource_Obj[rootnm].ri) {
-                                                    parentObj.subl.splice(idx, 1);
-                                                }
-                                            }
-                                        }
 
-                                        db_sql.update_lookup(request.db_connection, parentObj, function (err, results) {
-                                        });
+                                        // for-in 으로 돌면서 splice 하던 자리다. 뒤 원소가 앞으로
+                                        // 당겨지며 건너뛰어, 같은 ri 가 두 개면 하나만 지워졌다 —
+                                        // 배포의 "중복 1,481묶음" 이 지워지지 않고 남는 이유다.
+                                        // without 은 같은 ri 를 전부 뺀다.
+                                        parentObj.subl = subl_entry.without(parentObj.subl, resource_Obj[rootnm].ri);
+
+                                        db_sql.update_subl(request.db_connection, parentObj.ri, parentObj.subl,
+                                            function (err, results) {
+                                                // 콜백이 비어 있었다. 여기가 실패하면 sub 행은 이미
+                                                // FK CASCADE 로 사라졌는데 목록에는 항목이 남아
+                                                // **영구히 알림을 계속 보내는 유령**이 된다.
+                                                // 배포의 유령 9,475건이 이 경로로도 생긴다.
+                                                //
+                                                // 응답은 이미 200 으로 나가야 한다 — 리소스는 지워졌다.
+                                                // 대신 무엇이 남았는지 반드시 남긴다. 그래야 감사가
+                                                // 그 부모를 짚을 수 있다.
+                                                if (err) {
+                                                    console.error('[delete_action] sub 의 부모 subl 갱신 실패 — ' +
+                                                        '유령이 남는다: ' +
+                                                        ((results && (results.driverCode || results.code)) || '?') +
+                                                        ' 부모=' + parentObj.ri + ' sub=' + resource_Obj[rootnm].ri);
+                                                }
+                                            });
 
                                         // update_lookup 은 st 를 obj.st 그대로 다시 쓴다(대입).
                                         // 자식이 지워졌으니 부모 stateTag 는 올라가야 한다.

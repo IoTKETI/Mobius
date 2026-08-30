@@ -144,3 +144,136 @@ test('needs_connection 도 같은 눈으로 읽는다', function () {
     assert.ok(/subl_entry\.read\(subl\[i\]\)/.test(body),
         'needs_connection 이 sgn_action 과 다른 눈으로 subl 을 읽는다');
 });
+
+/* ── 배열 조작: 같은 ri 는 하나만 ─────────────────────────────────── */
+//
+// 세 경로가 각자 다르게 배열을 만지다가 전부 다른 방식으로 틀렸다.
+//   생성  push 만 하고 같은 ri 가 있는지 안 봤다        -> 중복이 생긴다
+//   수정  첫 항목만 갈아 끼우고 break 했다              -> 나머지는 옛 nu 로 발송
+//   삭제  for-in 중 splice 라 뒤 원소를 건너뛰었다       -> 중복이 안 지워진다
+// 이제 셋 다 아래 두 함수만 쓴다.
+
+const subl = require('../mobius/subl');
+
+function e(ri, nu) {
+    return { ri: ri, nu: [nu || ('http://x/' + ri)], enc: { net: ['3'] }, nct: '1' };
+}
+function ris(list) { return list.map(function (x) { return x.ri; }); }
+
+test('upsert — 없던 ri 는 끝에 붙는다', function () {
+    const out = subl.upsert([e('a'), e('b')], e('c'));
+    assert.deepStrictEqual(ris(out), ['a', 'b', 'c']);
+});
+
+test('upsert — 있던 ri 는 그 자리에서 갈린다 (순서 유지)', function () {
+    // sgn_action 이 이 순서대로 발송한다. 이유 없이 순서를 바꾸지 않는다.
+    const out = subl.upsert([e('a'), e('b'), e('c')], e('b', 'http://new/b'));
+    assert.deepStrictEqual(ris(out), ['a', 'b', 'c']);
+    assert.deepStrictEqual(out[1].nu, ['http://new/b']);
+});
+
+test('upsert — 중복이 있으면 하나로 접힌다', function () {
+    // 삭제 실패로 유령이 남은 위에 다시 만드는 상황이다.
+    const out = subl.upsert([e('a'), e('b'), e('c'), e('b')], e('b', 'http://new/b'));
+    assert.deepStrictEqual(ris(out), ['a', 'b', 'c']);
+    assert.deepStrictEqual(out[1].nu, ['http://new/b'],
+        '남은 하나가 새 값이어야 한다 — 옛 nu 가 남으면 그리로 계속 보낸다');
+});
+
+test('upsert — 중복 세 개도 하나로 접힌다', function () {
+    const out = subl.upsert([e('b'), e('b'), e('b')], e('b', 'http://new/b'));
+    assert.strictEqual(out.length, 1);
+    assert.deepStrictEqual(out[0].nu, ['http://new/b']);
+});
+
+test('upsert — 원본을 건드리지 않는다', function () {
+    const src = [e('a'), e('b')];
+    const out = subl.upsert(src, e('b', 'http://new/b'));
+    assert.strictEqual(src.length, 2);
+    assert.deepStrictEqual(src[1].nu, ['http://x/b'], '원본이 바뀌었다');
+    assert.notStrictEqual(out, src);
+});
+
+test('upsert — 배열이 아니면 빈 것으로 본다', function () {
+    assert.deepStrictEqual(ris(subl.upsert(null, e('a'))), ['a']);
+    assert.deepStrictEqual(ris(subl.upsert('[]', e('a'))), ['a']);
+    assert.deepStrictEqual(ris(subl.upsert(undefined, e('a'))), ['a']);
+});
+
+test('upsert — ri 없는 항목은 넣지 않는다', function () {
+    const src = [e('a')];
+    assert.deepStrictEqual(ris(subl.upsert(src, null)), ['a']);
+    assert.deepStrictEqual(ris(subl.upsert(src, { nu: ['http://x'] })), ['a']);
+});
+
+test('without — 같은 ri 를 전부 뺀다', function () {
+    // 옛 코드는 for-in 중 splice 라 하나만 지웠다. 그게 배포의
+    // "중복 1,481묶음" 이 계속 남아 있는 이유다.
+    const out = subl.without([e('a'), e('b'), e('b'), e('c'), e('b')], 'b');
+    assert.deepStrictEqual(ris(out), ['a', 'c']);
+});
+
+test('without — 연달아 붙은 중복도 전부 뺀다', function () {
+    // splice 로 건너뛰는 실패가 가장 잘 드러나는 배치다.
+    assert.deepStrictEqual(ris(subl.without([e('b'), e('b')], 'b')), []);
+    assert.deepStrictEqual(ris(subl.without([e('a'), e('b'), e('b'), e('b')], 'b')), ['a']);
+});
+
+test('without — 옛 splice 방식과 결과가 다르다', function () {
+    // 이 테스트가 통과하는 한, 옛 코드로 되돌리면 위 테스트들이 깨진다.
+    const src = [e('b'), e('b'), e('c')];
+    const legacy = src.slice();
+    for (var idx in legacy) {                       // 옛 코드 그대로
+        if (legacy.hasOwnProperty(idx)) {
+            if (legacy[idx].ri === 'b') { legacy.splice(idx, 1); }
+        }
+    }
+    assert.deepStrictEqual(ris(legacy), ['b', 'c'], '옛 방식이 더는 건너뛰지 않는다면 전제를 확인할 것');
+    assert.deepStrictEqual(ris(subl.without(src, 'b')), ['c']);
+});
+
+test('without — 없는 ri 면 그대로', function () {
+    assert.deepStrictEqual(ris(subl.without([e('a'), e('b')], 'zz')), ['a', 'b']);
+});
+
+test('without — 원본을 건드리지 않는다', function () {
+    const src = [e('a'), e('b')];
+    const out = subl.without(src, 'b');
+    assert.strictEqual(src.length, 2);
+    assert.strictEqual(out.length, 1);
+});
+
+/* ── 쓰기 경로가 실제로 이 함수들만 쓰는가 ────────────────────────── */
+
+test('resource.js 의 세 경로가 직접 push/splice 하지 않는다', function () {
+    const RES = fs.readFileSync(path.join(ROOT, 'mobius', 'resource.js'), 'utf8');
+    assert.ok(!/\.subl\.push\(/.test(RES),
+        'subl 에 직접 push 하는 자리가 생겼다 — 같은 ri 검사가 빠진다');
+    assert.ok(!/\.subl\.splice\(/.test(RES),
+        'subl 에 직접 splice 하는 자리가 생겼다 — 순회 중 splice 는 건너뛴다');
+    assert.strictEqual((RES.match(/subl_entry\.upsert\(/g) || []).length, 2,
+        'upsert 호출부는 생성·수정 두 곳이다');
+    assert.strictEqual((RES.match(/subl_entry\.without\(/g) || []).length, 1,
+        'without 호출부는 삭제 한 곳이다');
+});
+
+test('update_lookup 은 subl 을 쓰지 않는다', function () {
+    // 이 함수를 부르는 래퍼가 20여 개다. subl 을 여기 두면 부모 컨테이너에
+    // PUT 한 번만 해도 요청 시작 시점의 목록으로 되감긴다.
+    const SQL = fs.readFileSync(path.join(ROOT, 'mobius', 'sql_action.js'), 'utf8');
+    const at = SQL.indexOf('exports.update_lookup = function');
+    assert.ok(at > 0, 'update_lookup 이 사라졌다');
+    const body = SQL.slice(at, SQL.indexOf('\n};', at) + 3);
+    assert.ok(!/subl:/.test(body),
+        'update_lookup 이 다시 subl 을 쓴다 — 구독과 무관한 갱신이 목록을 덮는다');
+
+    assert.ok(/exports\.update_subl = function/.test(SQL),
+        'update_subl 이 없다');
+});
+
+test('update_subl 호출부는 세 곳뿐이다', function () {
+    const RES = fs.readFileSync(path.join(ROOT, 'mobius', 'resource.js'), 'utf8');
+    assert.strictEqual((RES.match(/db_sql\.update_subl\(/g) || []).length, 3,
+        'update_subl 호출부가 늘었다 — 늘리지 말 것. 여러 곳에서 목록을 ' +
+        '절대값으로 덮는 것이 배포의 어긋남을 만든 구조다');
+});

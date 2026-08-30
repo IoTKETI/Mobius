@@ -58,4 +58,60 @@ function read(entry) {
              nct: entry.nct, nec: entry.nec, net: enc.net, nu: nu };
 }
 
+/**
+ * 항목을 넣거나 갈아 끼운다. **같은 ri 는 하나만 남는다.**
+ *
+ * 세 경로가 각자 다르게 배열을 만지다가 전부 다른 방식으로 틀렸다.
+ *
+ *   생성  push 만 하고 같은 ri 가 이미 있는지 안 봤다. 삭제가 실패해 남은
+ *         유령 위에 새로 만들면 같은 ri 가 두 개가 된다.
+ *   수정  첫 항목만 갈아 끼우고 break 했다. 중복이 있으면 나머지는 옛 nu 를
+ *         그대로 들고 계속 발송한다 — 배포의 "낡은 nu 194건" 이 이것이다.
+ *   삭제  for-in 으로 돌면서 splice 했다. 뒤 원소가 앞으로 당겨지며 건너뛰어
+ *         같은 ri 가 두 개면 하나만 지워진다 — "중복 1,481묶음" 이 안 없어지는
+ *         이유다.
+ *
+ * 자리는 지킨다. 이미 있던 ri 면 그 첫 자리에 새 것을 놓고 나머지 같은 ri 는
+ * 버린다. 없던 ri 만 끝에 붙인다. sgn_action 이 이 순서대로 발송하므로
+ * 이유 없이 순서를 바꾸지 않는다.
+ *
+ * 원본을 건드리지 않고 새 배열을 준다.
+ */
+function upsert(list, entry) {
+    var src = Array.isArray(list) ? list : [];
+    if (!entry || typeof entry !== 'object' || typeof entry.ri !== 'string') {
+        return src.slice();
+    }
+
+    var out = [];
+    var placed = false;
+    for (var i = 0; i < src.length; i++) {
+        var it = src[i];
+        if (it && it.ri === entry.ri) {
+            if (!placed) { out.push(entry); placed = true; }
+            continue;                       // 같은 ri 의 나머지는 버린다
+        }
+        out.push(it);
+    }
+    if (!placed) { out.push(entry); }
+    return out;
+}
+
+/**
+ * 이 ri 의 항목을 **전부** 뺀다. 하나만 빼면 중복이 남는다.
+ * 원본을 건드리지 않고 새 배열을 준다.
+ */
+function without(list, ri) {
+    var src = Array.isArray(list) ? list : [];
+    var out = [];
+    for (var i = 0; i < src.length; i++) {
+        var it = src[i];
+        if (it && it.ri === ri) { continue; }
+        out.push(it);
+    }
+    return out;
+}
+
 exports.read = read;
+exports.upsert = upsert;
+exports.without = without;

@@ -2388,6 +2388,15 @@ exports.update_cb_poa_csi = function (connection, poa, csi, srt, ri, callback) {
 // 동시에 두 워커가 부르면 하나가 다른 하나를 덮는다. stateTag 를 올리는 일은
 // update_parent_st(증분식)가 맡는다.
 
+// subl 은 여기서 쓰지 않는다. update_subl 로만 쓴다.
+//
+// 예전에는 이 함수가 subl 을 **절대값으로** 같이 덮었다. 그런데 이 함수를
+// 부르는 래퍼가 update_cnt / update_ae / update_acp 등 20여 개다. 즉 부모
+// 컨테이너에 PUT 한 번만 해도 그 요청이 시작될 때 읽은 subl 스냅샷으로
+// 되감겼다 — 그 사이 다른 워커가 만든 구독은 사라진다.
+//
+// 구독과 무관한 갱신이 구독 목록을 건드릴 이유가 없다. 떼어 놓으면 subl 을
+// 쓸 수 있는 곳이 구독 생성·수정·삭제 세 곳뿐이 된다.
 exports.update_lookup = function (connection, obj, callback) {
     facade.run(facade.k('lookup').update({
         lt: obj.lt,
@@ -2396,9 +2405,27 @@ exports.update_lookup = function (connection, obj, callback) {
         st: obj.st,
         lbl: JSON.stringify(obj.lbl),
         at: JSON.stringify(obj.at),
-        aa: JSON.stringify(obj.aa),
-        subl: JSON.stringify(obj.subl)
+        aa: JSON.stringify(obj.aa)
     }).where({ ri: obj.ri }), connection, function (err, results) {
+        callback(err, results);
+    });
+};
+
+/**
+ * 부모의 발송 목록만 쓴다. 다른 컬럼은 건드리지 않는다.
+ *
+ * 호출부는 구독 생성(resource.js create_action ty=23), 수정(update_action
+ * ty=23), 삭제(delete_action ty=23) 세 곳뿐이다. 늘리지 말 것 — 이 컬럼을
+ * 여러 곳에서 절대값으로 덮는 것이 배포의 어긋남(유령 9,475 / 침묵 21)을
+ * 만든 구조다.
+ *
+ * 배열은 mobius/subl.js 의 upsert / without 로 만든다. 직접 push·splice 하지
+ * 않는다 — 그 두 함수가 "같은 ri 는 하나만" 을 지킨다.
+ */
+exports.update_subl = function (connection, ri, list, callback) {
+    facade.run(facade.k('lookup').update({
+        subl: JSON.stringify(Array.isArray(list) ? list : [])
+    }).where({ ri: ri }), connection, function (err, results) {
         callback(err, results);
     });
 };
