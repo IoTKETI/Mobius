@@ -41,9 +41,14 @@ test('sgn 이 자기 커넥션을 빌리고 반납한다', function () {
 
 test('needs_connection 은 nu 형식으로 판정한다', function () {
     // sgn.js 는 export 하지 않으므로 같은 판정을 소스에서 확인한다.
-    assert.ok(/function needs_connection\(/.test(SGN),
+    const at = SGN.indexOf('function needs_connection(');
+    assert.ok(at > 0,
         'DB 필요 여부 판정이 없다 — 알림마다 커넥션을 빌리고 있는지 확인할 것');
-    assert.ok(/url\.parse\(String\(nu_arr\[j\]\)\)\.protocol == null/.test(SGN),
+
+    // 변수 이름이 아니라 판정 자체를 본다. 이름은 바뀔 수 있다
+    // (nu_arr -> subl.read 가 돌려주는 ss.nu 로 옮긴 적이 있다).
+    const body = SGN.slice(at, SGN.indexOf('\n}', at) + 2);
+    assert.ok(/url\.parse\(String\([^)]+\)\)\.protocol == null/.test(body),
         '판정 조건이 get_nu_arr 의 조건(protocol == null)과 어긋난다');
 });
 

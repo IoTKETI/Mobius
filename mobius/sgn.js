@@ -29,6 +29,7 @@ var merge = require('merge');
 
 var responder = require('./responder');
 var poa_util = require('./poa');
+var subl_entry = require('./subl');
 
 var sgn_man = require('./sgn_man');
 
@@ -407,12 +408,22 @@ function sgn_action(connection, rootnm, check_value, subl, req_count, noti_Obj, 
         return;
     }
 
-    var results_ss = subl[req_count];
+    var results_ss = subl_entry.read(subl[req_count]);
+    if (!results_ss) {
+        var broken = subl[req_count];
+        console.error('[sgn] subl 항목을 읽을 수 없어 건너뛴다 — 부모=' +
+                      ((parentObj && parentObj.ri) || '?') + ' 항목 ' + req_count +
+                      ' sub=' + ((broken && broken.ri) || '?'));
+        sgn_action(connection, rootnm, check_value, subl, ++req_count, noti_Obj, sub_bodytype, parentObj, function (code) {
+            callback(code);
+        });
+        return;
+    }
+
     var notiObj = merge({}, noti_Obj);
 
     var nct = results_ss.nct;
-    var enc_Obj = results_ss.enc;
-    var net_arr = JSON.parse(JSON.stringify(enc_Obj.net));
+    var net_arr = JSON.parse(JSON.stringify(results_ss.net));
     var nu_arr = JSON.parse(JSON.stringify(results_ss.nu));
 
     var xm2mri = require('shortid').generate();
@@ -538,10 +549,13 @@ function needs_connection(subl) {
         return false;
     }
     for (var i = 0; i < subl.length; i++) {
-        var nu_arr = subl[i] ? subl[i].nu : null;
-        if (!Array.isArray(nu_arr)) { continue; }
-        for (var j = 0; j < nu_arr.length; j++) {
-            if (url.parse(String(nu_arr[j])).protocol == null) {
+        // sgn_action 과 같은 눈으로 읽어야 한다. 예전에는 여기서만
+        // Array.isArray 로 걸러서, nu 가 문자열인 항목은 커넥션을 안 빌리고도
+        // 발송 경로로 들어갔다 — ID 형식이면 get_ri_sri(null, ...) 에서 죽는다.
+        var ss = subl_entry.read(subl[i]);
+        if (!ss) { continue; }
+        for (var j = 0; j < ss.nu.length; j++) {
+            if (url.parse(String(ss.nu[j])).protocol == null) {
                 return true;
             }
         }
