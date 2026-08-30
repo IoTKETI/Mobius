@@ -2223,6 +2223,22 @@ function acpi_of(obj) {
 exports.update = function (request, response, callback) {
     var rootnm = request.headers.rootnm;
     var updateObj = request.targetObject;
+
+    // rootnm 은 **본문**의 루트 이름이고 updateObj 는 **대상 행**의 타입으로
+    // 키가 잡힌 객체다. 둘이 어긋나면 updateObj[rootnm] 이 undefined 다.
+    //
+    // app.js 의 check_type_update_resource 관문은 이것을 못 잡는다. 거기서
+    // 대조하는 request.ty 는 방금 그 본문에서 뽑은 값이라 본문끼리 비교하는
+    // 항등식이기 때문이다. 그래서 대상이 AE 인데 {"m2m:cnt":{...}} 를 PUT 하면
+    // 바로 아래 updateObj['cnt'].aei 에서 워커가 죽었다 — 요청 한 줄로
+    // 재현되고, 본문이 acpi 만 건드리면 ACP 검사도 건너뛴다.
+    if (!updateObj[rootnm]) {
+        console.log('[update] 본문 루트(' + rootnm + ')가 대상 행의 타입(' +
+                    Object.keys(updateObj).join(',') + ')과 다르다: ' + request.url);
+        callback('400-42');
+        return;
+    }
+
     var ty = updateObj[Object.keys(updateObj)[0]].ty;
 
     if(ty == 2) {

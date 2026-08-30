@@ -438,7 +438,19 @@ function sgn_action(connection, rootnm, check_value, subl, req_count, noti_Obj, 
         node['m2m:sgn'].nev.rep['m2m:' + responder.mgoType[notiObj.mgd]] = JSON.parse(JSON.stringify(notiObj));
     }
     else if(rootnm == 'fcnt') {
-        if (notiObj.cnd.includes('org.onem2m.home.device.')) {
+        // cnd 가 없을 수 있다. 요청 URL 에 #attr 필터가 붙으면 remove_no_value 가
+        // 지정한 속성만 남기고 나머지를 지운다(resource.js 의 hash 분기) — cnd 도
+        // 같이 사라진다. 그 객체가 그대로 여기로 온다.
+        //
+        // 그러면 아래 .includes 가 undefined 위에서 돌아 워커가 죽었다. 이 코드는
+        // db 커넥션을 빌린 채라 죽으면 커넥션도 함께 샜다. create·update 는
+        // 예전부터 이 입력에 죽었고, DELETE 는 headers.rootnm 이 늘 'rsp' 로
+        // 잡히는 바람에 이 분기에 오지 않아 우연히 가려져 있었다. 그 우회를
+        // 걷어내면서(resource.js 의 set_rootnm) DELETE 도 같이 드러났다.
+        //
+        // 아래 == 비교들은 undefined 라도 그냥 false 라 안전하다. 던지는 것은
+        // .includes 하나뿐이므로 그것만 막는다.
+        if (typeof notiObj.cnd === 'string' && notiObj.cnd.includes('org.onem2m.home.device.')) {
             node['m2m:sgn'].nev.rep['m2m:' + rootnm] = JSON.parse(JSON.stringify(notiObj));
         }
         else if (notiObj.cnd == 'org.onem2m.home.moduleclass.doorlock') {
@@ -464,6 +476,12 @@ function sgn_action(connection, rootnm, check_value, subl, req_count, noti_Obj, 
         }
         else if (notiObj.cnd == 'org.onem2m.home.moduleclass.brightness') {
             node['m2m:sgn'].nev.rep['hd:' + rootnm.replace('fcnt', 'brigs')] = JSON.parse(JSON.stringify(notiObj));
+        }
+        else {
+            // 아는 cnd 가 아니거나 cnd 가 없다. 예전에는 여기서 아무것도 안 담아
+            // nev.rep 가 {} 인 채로 알림이 나갔다 — 구독자는 무엇이 바뀌었는지
+            // 알 수 없다. 표준 이름으로라도 실어 보낸다.
+            node['m2m:sgn'].nev.rep['m2m:' + rootnm] = JSON.parse(JSON.stringify(notiObj));
         }
     }
     else if(rootnm.includes('hd_')) {
