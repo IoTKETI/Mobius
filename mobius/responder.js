@@ -25,14 +25,6 @@ var coap = require('coap');
 
 var db_sql = require('./sql_action');
 var outbound = require('./outbound');
-var accept_hdr = require('./accept');
-
-// 형식 -> 응답 Content-Type. accept.js 의 SUPPORTED 와 짝이다.
-var CONTENT_TYPE = {
-    json: 'application/json',
-    xml:  'application/xml',
-    cbor: 'application/cbor'
-};
 
 
 var _this = this;
@@ -98,14 +90,30 @@ exports.mgoType = mgoType;
  * 바인딩에도 없다. 다섯 중 둘만 하고 있었으니 어느 쪽이든 통일해야 했고,
  * 규격에 없는 쪽을 뺐다.
  *
- * ── Accept 가 없으면 json 으로 정하는 이유 ─────────────────────────
- * 관측된 동작이 그렇다. app.js 의 check_xm2m_headers 가 요청의 Content-Type
- * 에서 usebodytype 을 정하지만, XML 본문을 Accept 없이 PUT 하면 응답은
- * JSON 으로 나간다 — 실측으로 확인했다. 그 값이 응답까지 살아남지 않는다.
- * 그래서 여기서 json 으로 못박는 것이 기존 동작을 그대로 옮기는 것이다.
+ * ── 응답은 언제나 json 이다. Accept 를 보지 않는다 ─────────────────
+ * 이 CSE 는 json 만 만든다. 그러니 무엇을 요구받든 json 으로 답한다.
  *
- * Content-Type 은 Accept 가 없어도 언제나 명시한다. 예전에 sendError 는
- * 안 세워서, JSON 본문을 Content-Type 없이 내보내고 있었다.
+ * 예전에는 `accept.includes('xml')` 로 형식을 정했는데, 부분 문자열 검사라
+ * 두 가지가 어긋나 있었다. 실측한 그대로다:
+ *
+ *   Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*&#47;*;q=0.8
+ *     -> XML. **브라우저로 Mobius 를 열면 XML 이 나왔다.**
+ *             application/xhtml+xml 의 'xml' 에 걸린 것이다.
+ *   Accept: application/json, application/xml
+ *     -> XML. json 을 먼저 적었는데도 그렇다. 순서도 q값도 보지 않았다.
+ *   Accept: application/cbor
+ *     -> 헤더는 application/cbor 인데 본문은 JSON 이었다.
+ *
+ * 이것을 "Accept 를 제대로 파싱한다" 로 고칠 수도 있었지만, json 만 만드는
+ * 서버에는 협상할 것이 없다. 분기를 지우는 쪽이 같은 결과를 더 적은 코드로
+ * 낸다. 클라이언트가 xml 을 요구해도 json 을 준다 — 물어봤을 뿐이고 우리는
+ * 그것을 만들지 않는다.
+ *
+ * 요청 **본문**이 xml/cbor 인 것은 다른 이야기다. 그쪽은 보낸 사람이 명확히
+ * 정한 것이므로 진입 관문에서 400 으로 거절한다.
+ *
+ * Content-Type 은 언제나 명시한다. 예전에 sendError 는 안 세워서 JSON 본문을
+ * Content-Type 없이 내보내고 있었다.
  */
 function apply_headers(request, response, rsc) {
     var h = request.headers || {};
@@ -114,14 +122,8 @@ function apply_headers(request, response, rsc) {
     if (h.hasOwnProperty('x-m2m-rvi')) { response.header('X-M2M-RVI', h['x-m2m-rvi']); }
     if (h.hasOwnProperty('locale'))    { response.header('Locale',    h['locale']); }
 
-    // Accept 를 제대로 읽는다. 예전에는 accept.includes('xml') 한 줄이라
-    // 브라우저 기본값(application/xhtml+xml 이 들어 있다)이 XML 로 걸렸고,
-    // "application/json, application/xml" 도 순서를 무시하고 XML 이었다.
-    // 판정은 mobius/accept.js 한 곳에 있다 — 앞으로 세울 거절 관문도 같은
-    // 눈으로 봐야 두 곳이 갈리지 않는다.
-    request.usebodytype = accept_hdr.pick(h.accept);
-    response.header('Content-Type', CONTENT_TYPE[request.usebodytype]);
-
+    request.usebodytype = 'json';
+    response.header('Content-Type', 'application/json');
     response.header('X-M2M-RSC', rsc);
 }
 
@@ -1045,14 +1047,6 @@ exports.response_result = function(request, response, status, rsc, cap, callback
         // 논블로킹(rt=1/2)은 지원하지 않는다 — app.js 의 check_request_query_rt 가
         // 405-4 로 막으므로 여기까지 오는 요청은 모두 블로킹이다.
         // 예전에는 여기서 rt 로 갈라져 한쪽이 req 리소스에 결과를 적었다.
-        if (request.usebodytype == 'json') {
-        }
-        else if (request.usebodytype == 'cbor') {
-            bodyString = cbor.encode(body_Obj).toString('hex');
-        }
-        else {
-            bodyString = _this.convertXml(rootnm, body_Obj);
-        }
 
         response.status(parseInt(status, 10)).end(bodyString);
 
@@ -1102,39 +1096,6 @@ exports.response_rcn3_result = function(request, response, status, rsc, cap, cal
     // 논블로킹(rt=1/2)은 지원하지 않는다 — app.js 의 check_request_query_rt 가
     // 405-4 로 막으므로 여기까지 오는 요청은 모두 블로킹이다.
     // 예전에는 여기서 rt 로 갈라져 한쪽이 req 리소스에 결과를 적었다.
-    if (request.usebodytype == 'json') {
-    }
-    else if (request.usebodytype == 'cbor') {
-        bodyString = cbor.encode(body_Obj).toString('hex');
-    }
-    else {
-        var xml_root = xmlbuilder.create('m2m:' + rce_nm, {version: '1.0', encoding: 'UTF-8', standalone: true},
-            {pubID: null, sysID: null}, {
-                allowSurrogateChars: false,
-                skipNullAttributes: false,
-                headless: false,
-                ignoreDecorators: false,
-                stringify: {}
-            }
-        ).att('xmlns:m2m', 'http://www.onem2m.org/xml/protocols').att('xmlns:xsi', 'http://www.w3.org/2001/XMLSchema-instance');
-
-        for (var rce in body_Obj) {
-            if (body_Obj.hasOwnProperty(rce)) {
-                for (var index in body_Obj[rce]) {
-                    if (body_Obj[rce].hasOwnProperty(index)) {
-                        if (index == 'uri') {
-                            var xml = xml_root.ele(index, body_Obj[rce][index]);
-                        }
-                        else {
-                            xml = xml_root.ele(index, '');
-                            xmlAction(xml, body_Obj[rce][index]);
-                        }
-                    }
-                }
-            }
-        }
-        bodyString = xml.end({pretty: false, indent: '  ', newline: '\n'}).toString();
-    }
 
     response.status(parseInt(status, 10)).end(bodyString);
 
@@ -1180,25 +1141,6 @@ exports.search_result = function(request, response, status, rsc, cap, callback) 
 
         var bodyString = JSON.stringify(body_Obj);
 
-        if (request.usebodytype == 'json') {
-        }
-        else if (request.usebodytype == 'cbor') {
-            bodyString = cbor.encode(body_Obj).toString('hex');
-        }
-        else {
-            body_Obj['m2m:' + rootnm] = body_Obj['m2m:' + rootnm].toString().replace(/,/g, ' ');
-            var xml = xmlbuilder.create('m2m:' + rootnm, {version: '1.0', encoding: 'UTF-8', standalone: true},
-                {pubID: null, sysID: null}, {
-                    allowSurrogateChars: false,
-                    skipNullAttributes: false,
-                    headless: false,
-                    ignoreDecorators: false,
-                    stringify: {}
-                }
-            ).att('xmlns:m2m', 'http://www.onem2m.org/xml/protocols').att('xmlns:xsi', 'http://www.w3.org/2001/XMLSchema-instance');
-            xml.txt(body_Obj['m2m:' + rootnm]);
-            bodyString = xml.end({pretty: false, indent: '  ', newline: '\n'}).toString();
-        }
 
         response.status(parseInt(status, 10)).end(bodyString);
 
@@ -1259,19 +1201,6 @@ exports.search_result = function(request, response, status, rsc, cap, callback) 
         // 논블로킹(rt=1/2)은 지원하지 않는다 — app.js 의 check_request_query_rt 가
         // 405-4 로 막으므로 여기까지 오는 요청은 모두 블로킹이다.
         // 예전에는 여기서 rt 로 갈라져 한쪽이 req 리소스에 결과를 적었다.
-        if (request.usebodytype == 'json') {
-        }
-        else if (request.usebodytype == 'cbor') {
-            bodyString = cbor.encode(body_Obj['m2m:' + rootnm]).toString('hex');
-        }
-        else {
-            if(rootnm == 'agr') {
-                bodyString = _this.convertXml2(rootnm, body_Obj['m2m:' + rootnm]);
-            }
-            else {
-                bodyString = _this.convertXml2(rootnm, body_Obj);
-            }
-        }
 
         response.status(parseInt(status, 10)).end(bodyString);
 
@@ -1301,15 +1230,7 @@ function sendError(request, response, httpStatus, rsc, dbg_string, callback) {
 
     apply_headers(request, response, rsc);
 
-    if (request.usebodytype == 'json') {
         var bodyString = JSON.stringify(body_Obj);
-    }
-    else if (request.usebodytype == 'cbor') {
-        bodyString = cbor.encode(body_Obj).toString('hex');
-    }
-    else {
-        bodyString = _this.convertXml('dbg', body_Obj);
-    }
 
     body_Obj = null;
 
