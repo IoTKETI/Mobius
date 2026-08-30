@@ -50,15 +50,24 @@ global.usedbpass = conf.dbpass;
 global.usesuperuser = (typeof conf.superUser === 'string' && conf.superUser !== '')
     ? conf.superUser : 'Sponde';
 
-if (process.argv[2] === 'sqlite') {
-    global.usesqlite = 'true';
-}
-else if (process.argv[2] === 'mysql') {
-    global.usesqlite = 'false';
-}
-else {
-    global.usesqlite = conf.usesqlite;
-}
+// 쓸 DB 를 **이름**으로 고른다. 어댑터는 mobius/db/<이름>.js 다.
+//
+//   node mobius.js postgres        인자로
+//   conf.json 의 "db": "postgres"  설정으로
+//
+// 예전에는 usesqlite 라는 boolean 이었다. boolean 으로는 세 번째 백엔드를
+// 말할 방법이 아예 없다 — 그래서 DB 를 하나 더 붙이려면 선택자부터 고쳐야 했다.
+// 모르는 이름이면 파사드가 로그를 남기고 mysql 로 간다(mobius/db/index.js).
+global.usedb = process.argv[2] || conf.db ||
+    ((conf.usesqlite === 'true' || conf.usesqlite === true) ? 'sqlite' : 'mysql');
+
+// **한시적 별칭.** 아직 usesqlite 를 직접 읽는 곳이 코어에 여섯 군데 남아 있다
+// (cnt_man 2, db_action 1, resource 1, sgn 1, sql_action 1). 그것들이 파사드나
+// 어댑터로 옮겨가면 이 줄을 지운다 — test/usesqlite-single-reader.test.js 가
+// 남은 수를 세고 있다.
+//
+// 파생값이라 usedb 와 어긋날 수 없다. 진실원은 usedb 하나다.
+global.usesqlite = (global.usedb === 'sqlite') ? 'true' : 'false';
 
 // 컨테이너 경로별 기본 보관 정책 (선택). 형식은 mobius/cnt.js 상단 주석 참조.
 // 정의하지 않으면 규칙 없이 Mobius 기본값이 쓰인다.

@@ -11,18 +11,57 @@
 
 var knexFactory = require('knex');
 
-var ADAPTERS = {
-    mysql: require('./mysql'),
-    sqlite: require('./sqlite')
-};
+// 어댑터는 이 디렉터리의 파일이다 — mobius/db/<이름>.js.
+// **새 백엔드는 파일 하나를 여기 두면 등록된다.** 이 목록을 고칠 필요가 없다.
+// 무엇을 갖춰야 하는지는 test/db-adapter-contract.test.js 가 알려준다 —
+// 파일을 두고 그 테스트를 돌리면 빠진 것이 이름으로 나온다.
+//
+// index.js 와 errors.js 는 어댑터가 아니다.
+var ADAPTERS = (function () {
+    var fs = require('fs');
+    var path = require('path');
+    var out = {};
+    fs.readdirSync(__dirname).forEach(function (f) {
+        if (!/\.js$/.test(f)) { return; }
+        var name = f.replace(/\.js$/, '');
+        if (name === 'index' || name === 'errors') { return; }
+        out[name] = require('./' + name);
+    });
+    return out;
+})();
 
 var adapter = null;
 var knexInstance = null;
 var connectCalled = false;
 
+// 기본 백엔드. global.usedb 가 없거나 모르는 이름이면 이것을 쓴다.
+var DEFAULT_BACKEND = 'mysql';
+
 function pick() {
-    return global.usesqlite === 'true' ? ADAPTERS.sqlite : ADAPTERS.mysql;
+    // 선택자는 **이름**이다. 예전에는 global.usesqlite 라는 boolean 이었는데,
+    // boolean 으로는 세 번째 백엔드를 말할 방법이 아예 없었다.
+    //
+    // usedb 가 없으면 옛 boolean 에서 유추한다. 아직 usesqlite 를 직접 세워
+    // 백엔드를 바꾸는 곳이 있다(테스트 다수). 그것들이 옮겨가면 이 갈래를 지운다.
+    //
+    // 모르는 이름이면 기본값으로 간다 — 오타 하나로 기동이 막히는 것보다,
+    // 로그를 남기고 아는 백엔드로 도는 편이 낫다.
+    var name = global.usedb;
+    if (!name) {
+        name = (global.usesqlite === 'true' || global.usesqlite === true)
+            ? 'sqlite' : DEFAULT_BACKEND;
+    }
+    if (ADAPTERS[name]) { return ADAPTERS[name]; }
+
+    console.error('[db] 모르는 백엔드 "' + name + '" — ' + DEFAULT_BACKEND +
+                  ' 로 간다. 쓸 수 있는 것: ' + Object.keys(ADAPTERS).join(', '));
+    return ADAPTERS[DEFAULT_BACKEND];
 }
+
+// 이 파사드가 아는 백엔드 이름들. 도구와 테스트가 쓴다.
+exports.backends = function () {
+    return Object.keys(ADAPTERS).sort();
+};
 
 // Knex 는 순수 SQL 생성기다 — knexFactory() 는 DB 에 접속하지 않는다.
 // 빌더에 필요한 건 방언 이름뿐이고, 방언은 pick() 만으로 정해진다.

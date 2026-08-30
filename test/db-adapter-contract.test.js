@@ -21,10 +21,20 @@ const path = require('node:path');
 
 const ROOT = path.join(__dirname, '..');
 
-const ADAPTERS = {
-    mysql: require('../mobius/db/mysql'),
-    sqlite: require('../mobius/db/sqlite')
-};
+// **디렉터리에 있는 어댑터를 전부 검사한다.** 목록을 손으로 적지 않는다 —
+// mobius/db/postgres.js 를 두는 순간 이 테스트가 그것도 검사하고, 빠진 것을
+// 이름으로 알려준다. 그게 "파일 하나 두면 붙는다" 의 실제 모습이다.
+const ADAPTERS = (function () {
+    const dir = path.join(ROOT, 'mobius', 'db');
+    const out = {};
+    for (const f of fs.readdirSync(dir)) {
+        if (!f.endsWith('.js')) { continue; }
+        const name = f.replace(/\.js$/, '');
+        if (name === 'index' || name === 'errors') { continue; }
+        out[name] = require(path.join(dir, name));
+    }
+    return out;
+})();
 
 // 파사드(mobius/db/index.js)가 adapter.<이름> 으로 부르는 것 전부.
 // 아래 '파사드가 실제로 쓰는 것과 목록이 일치한다' 테스트가 이 목록을
@@ -121,12 +131,58 @@ for (const [name, a] of Object.entries(ADAPTERS)) {
     });
 }
 
-test('두 어댑터의 표면이 같다 — 한쪽에만 있는 export 가 없다', function () {
+test('어댑터들의 표면이 같다 — 한쪽에만 있는 export 가 없다', function () {
     // 표면이 갈리면 코어가 "이 백엔드면 이것도 있다" 를 알아야 한다.
     // 그 순간 코어가 백엔드를 아는 것이고, 목적이 깨진다.
-    const keys = (a) => Object.keys(a).sort();
-    assert.deepStrictEqual(keys(ADAPTERS.mysql), keys(ADAPTERS.sqlite),
-        '두 어댑터가 내보내는 것이 다르다');
+    //
+    // 값이 같아야 한다는 뜻은 아니다 — 백엔드마다 동작이 다른 것은 정상이고
+    // 그게 어댑터가 있는 이유다. 같아야 하는 것은 **이름의 집합**뿐이다.
+    const names = Object.keys(ADAPTERS);
+    const base = Object.keys(ADAPTERS[names[0]]).sort();
+    for (const n of names.slice(1)) {
+        assert.deepStrictEqual(Object.keys(ADAPTERS[n]).sort(), base,
+            n + ' 어댑터가 내보내는 것이 ' + names[0] + ' 와 다르다');
+    }
+});
+
+test('파사드가 디렉터리의 어댑터를 전부 등록한다', function () {
+    // 손으로 적은 목록이면 파일을 두고도 등록을 빠뜨린다.
+    delete require.cache[require.resolve('../mobius/db')];
+    const db = require('../mobius/db');
+    assert.deepStrictEqual(db.backends(), Object.keys(ADAPTERS).sort(),
+        '디렉터리의 어댑터와 파사드가 아는 백엔드가 다르다');
+    delete require.cache[require.resolve('../mobius/db')];
+});
+
+test('백엔드는 이름으로 고른다 — boolean 이 아니다', function () {
+    // usesqlite 같은 boolean 으로는 세 번째 백엔드를 말할 방법이 아예 없다.
+    // 선택자가 이름이어야 파일 하나로 붙는다.
+    const src = fs.readFileSync(path.join(ROOT, 'mobius/db/index.js'), 'utf8');
+    assert.ok(/global\.usedb/.test(src), '파사드가 이름으로 백엔드를 고르지 않는다');
+
+    const m = fs.readFileSync(path.join(ROOT, 'mobius.js'), 'utf8');
+    assert.ok(/global\.usedb\s*=/.test(m), 'mobius.js 가 global.usedb 를 정하지 않는다');
+
+    // usedb 가 진실원이고 usesqlite 는 거기서 파생된 한시적 별칭이어야 한다.
+    // 둘을 따로 정하면 어긋난다.
+    assert.ok(/global\.usesqlite = \(global\.usedb === 'sqlite'\)/.test(m),
+        'usesqlite 가 usedb 에서 파생되지 않는다 — 두 선택자가 갈라진다');
+});
+
+test('모르는 이름은 기동을 막지 않는다', function () {
+    // 오타 하나로 서버가 안 뜨는 것보다, 로그를 남기고 기본 백엔드로 도는 편이 낫다.
+    const saved = { usedb: global.usedb, usesqlite: global.usesqlite };
+    delete require.cache[require.resolve('../mobius/db')];
+    try {
+        global.usedb = '없는디비';
+        const db = require('../mobius/db');
+        assert.strictEqual(db.can('없는_능력'), false, '모르는 백엔드에서 can() 이 던졌다');
+        assert.strictEqual(typeof db.pathCollate(), 'string', '기본 백엔드로 안 떨어졌다');
+    } finally {
+        global.usedb = saved.usedb;
+        global.usesqlite = saved.usesqlite;
+        delete require.cache[require.resolve('../mobius/db')];
+    }
 });
 
 test('파사드가 실제로 쓰는 것과 위 목록이 일치한다', function () {
