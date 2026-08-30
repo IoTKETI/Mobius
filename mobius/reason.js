@@ -122,7 +122,6 @@ var REASON = {
     '404-8': { code: RSC.NOT_FOUND, msg: "AE for notification has no point of access" },
 
     '405-1': { code: RSC.OPERATION_NOT_ALLOWED, msg: "CSEBase can not be created by others" },
-    '405-2': { code: RSC.OPERATION_NOT_ALLOWED, msg: "req is not supported when post request" },
     '405-3': { code: RSC.OPERATION_NOT_ALLOWED, msg: "requested resource type is not supported" },
     '405-4': { code: RSC.OPERATION_NOT_ALLOWED, msg: "rt query is not supported" },
     '405-5': { code: RSC.OPERATION_NOT_ALLOWED, msg: "creating this resource is not supported" },

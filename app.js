@@ -1541,13 +1541,23 @@ function check_xm2m_headers(request, callback) {
         request.headers['x-m2m-rvi'] = uservi;
     }
 
-    request.ty = '99';
-
-    // Content-Type 이 실제로 ty 를 실어 왔는지. '99' 는 기본값이라
-    // "ty=99 를 명시했다" 와 "ty 가 아예 없다" 를 구분하지 못한다.
-    // 뒤에서 본문 유래 ty 와 대조할 때 이 둘은 전혀 다르게 다뤄야 한다 —
-    // 없으면 대조하지 않고 본문이 이긴다(WS·MQTT 는 PUT 에 ty 를 안 붙인다).
-    request.ty_hint = null;
+    // request.ty — 이 요청이 만들거나 고칠 리소스의 타입. 안 줬으면 null.
+    //
+    // 값은 아래 순서로 정해지고, **뒤집히지 않는다.**
+    //   1. Content-Type 의 ty=N  (바로 아래)
+    //   2. 본문 루트 이름         (type_resolver.resolve)
+    // 둘이 어긋나면 resolve 가 400-42 로 끊는다. 일치하면 본문 쪽으로
+    // 정밀해질 뿐이다(ty=28 + hd:dooLk -> 98). 그래서 "헤더가 말한 것" 과
+    // "확정된 것" 을 따로 들 이유가 없다 — 한 필드면 된다.
+    //
+    // null 은 "안 줬다" 다. 예전에는 '99' 로 표시했는데 그것이 typeRsrc 의
+    // 실제 키('rsp')여서 "안 줬다" 와 "rsp 타입이다" 가 같은 값이 됐다.
+    // 그 겹침 때문에 DELETE 의 headers.rootnm 이 'rsp' 로 새어 나갔다.
+    // null 은 어떤 타입 값과도 겹치지 않는다.
+    //
+    // GET·DELETE 는 본문이 없어 null 로 남는다. 그 둘은 request.ty 를 읽지
+    // 않는다 — 대상 행에 이미 ty 가 있다(mobius/resource.js retrieve/delete).
+    request.ty = null;
 
     if (request.headers.hasOwnProperty('content-type')) {
         var content_type = request.headers['content-type'].split(';');
@@ -1568,20 +1578,33 @@ function check_xm2m_headers(request, callback) {
                         return;
                     }
                     request.ty = ty_arr[1].replace(' ', '');
-                    request.ty_hint = request.ty;
                     content_type = null;
                     break;
                 }
             }
         }
 
+        // ty=5(CSEBase)는 **목록에 있지만** 남이 만들 수 없다.
+        // "지원하지 않는다" 와 "지원하지만 만들 수 없다" 는 다른 사유라 따로 본다.
         if (request.ty == '5') {
             callback('405-1');
             return;
         }
 
-        if (request.ty == '17') {
-            callback('405-2');
+        // ty 를 명시했으면 이 CSE 가 다루는 타입인지 여기서 본다.
+        //
+        // 예전에는 지원을 걷어낸 타입마다 분기를 하나씩 더했다(ty=17 -> 405-2).
+        // 그러면 타입을 뺄 때마다 여기도 같이 고쳐야 하고, 빠뜨리면 이 관문을
+        // 그냥 지나 build_resource(resource.js) 까지 내려가서야 걸린다 —
+        // 그 사이에 커넥션을 빌리고 대상을 조회한 뒤다.
+        //
+        // 판단 근거는 ty_list 하나여야 한다. 목록에서 빼면 여기서 막힌다.
+        //
+        // null 이면 "헤더에 ty 가 없었다" 는 뜻이라 거를 것이 없다 — WS/MQTT 의
+        // PUT 은 ty 를 안 붙인다. 그건 본문을 읽고 resolve 가 정한다.
+        if (request.ty != null && !ty_list.includes(String(request.ty))) {
+            console.log('[check_xm2m_headers] 지원하지 않는 ty: ' + request.ty);
+            callback('400-3');
             return;
         }
 
@@ -1602,6 +1625,7 @@ function check_xm2m_headers(request, callback) {
     // Check X-M2M-Origin Header
     if (request.headers.hasOwnProperty('x-m2m-origin')) {
         if (request.headers['x-m2m-origin'] === '') {
+            // 아직 본문을 안 읽었다 — 헤더가 선언한 것으로만 판단한다.
             if (request.ty == '2' || request.ty == '16') {
                 request.headers['x-m2m-origin'] = 'S';
             }
@@ -1650,11 +1674,11 @@ function check_xm2m_headers(request, callback) {
         }
     }
 
-    if (!responder.typeRsrc.hasOwnProperty(request.ty)) {
-        callback('405-3');
-        return;
-    }
-
+    // 여기 있던 `typeRsrc.hasOwnProperty(request.ty)` 관문(405-3)은 걷어냈다.
+    // 통과하지 못할 값이 도달할 수 없어 사문이었다 — 헤더로 온 ty 는 바로 위
+    // ty_list 관문이 400-3 으로 끊고, 본문으로 온 ty 는 type_resolver 가
+    // typeRsrc 키에서만 만들어 준다(mobius/type_resolver.js).
+    // 대상 행의 타입이 이 CSE 소관인지는 get_target_url 이 본다(app.js 405-3).
     callback('200');
 }
 
@@ -1672,7 +1696,9 @@ function check_resource_supported(request, response, callback) {
         }
 
         // 정규화 전 원문 키로 판정한다 — 옛 코드와 같은 입력이다.
-        var resolved = type_resolver.resolve(request.rawRootKey, request.ty_hint);
+        // 지금 request.ty 에 든 것은 헤더가 말한 값(없으면 null)이다. resolve 가
+        // 본문과 대조해 확정값을 돌려주고, 어긋나면 400-42 로 끊는다.
+        var resolved = type_resolver.resolve(request.rawRootKey, request.ty);
         if (resolved.rsc !== '200') {
             callback(resolved.rsc);
             return;

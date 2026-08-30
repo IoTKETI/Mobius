@@ -53,16 +53,20 @@ exports.normalize_root_name = function (key) {
  * 본문 루트 이름과 Content-Type 의 ty 로 리소스 타입을 정한다.
  *
  * @param {string} root_key   본문 최상위 키 원문 ('m2m:cnt', 'hd:dooLk', 'cnt' ...)
- * @param {string|null} ty_hint  Content-Type 의 ty 값. 헤더에 ty 가 없었으면 null
+ * @param {string|null} header_ty  Content-Type 의 ty 값. 헤더에 없었으면 null
  * @returns {{rsc: string, ty: string|null, rootnm: string|null}}
  *
  * ty 는 반드시 문자열이다. typeRsrc 의 키가 문자열이고, resource.js 가
  * rid.next_rn(request.ty) 로 ri 접두 문자열을 만들기 때문이다.
  *
- * ty_hint 가 null 이면 대조하지 않고 본문이 이긴다. WS·MQTT 는 PUT 에
+ * header_ty 를 **뒤집지 않는다.** 어긋나면 400-42 로 끊고, 맞으면 본문 쪽
+ * 값을 돌려준다(별칭 정밀화: ty=28 + hd:dooLk -> '98'). 그래서 호출부는
+ * request.ty 한 필드에 넣었다 꺼내 써도 값이 모순되지 않는다.
+ *
+ * header_ty 가 null 이면 대조하지 않고 본문이 이긴다. WS·MQTT 는 PUT 에
  * ty 를 붙이지 않으므로(pxy_ws.js, pxy_mqtt.js) 이 경로가 필요하다.
  */
-exports.resolve = function (root_key, ty_hint) {
+exports.resolve = function (root_key, header_ty) {
     var rootnm = exports.normalize_root_name(root_key);
 
     var ty = null;
@@ -86,7 +90,7 @@ exports.resolve = function (root_key, ty_hint) {
         return { rsc: '400-3', ty: null, rootnm: null };
     }
 
-    if (ty_hint != null && ty_hint !== '' && canonical(ty_hint) !== canonical(ty)) {
+    if (header_ty != null && header_ty !== '' && canonical(header_ty) !== canonical(ty)) {
         return { rsc: '400-42', ty: null, rootnm: null };
     }
 

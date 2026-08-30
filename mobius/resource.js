@@ -2220,6 +2220,22 @@ function acpi_of(obj) {
 exports.update = function (request, response, callback) {
     var rootnm = request.headers.rootnm;
     var updateObj = request.targetObject;
+
+    // rootnm 은 **본문**의 루트 이름이고 updateObj 는 **대상 행**의 타입으로
+    // 키가 잡힌 객체다. 둘이 어긋나면 updateObj[rootnm] 이 undefined 다.
+    //
+    // app.js 의 check_type_update_resource 관문은 이것을 못 잡는다. 거기서
+    // 대조하는 request.ty 는 방금 그 본문에서 뽑은 값이라 본문끼리 비교하는
+    // 항등식이기 때문이다. 그래서 대상이 AE 인데 {"m2m:cnt":{...}} 를 PUT 하면
+    // 바로 아래 updateObj['cnt'].aei 에서 워커가 죽었다 — 요청 한 줄로
+    // 재현되고, 본문이 acpi 만 건드리면 ACP 검사도 건너뛴다.
+    if (!updateObj[rootnm]) {
+        console.log('[update] 본문 루트(' + rootnm + ')가 대상 행의 타입(' +
+                    Object.keys(updateObj).join(',') + ')과 다르다: ' + request.url);
+        callback('400-42');
+        return;
+    }
+
     var ty = updateObj[Object.keys(updateObj)[0]].ty;
 
     if(ty == 2) {
@@ -2460,19 +2476,29 @@ function delete_action(request, response, callback) {
 }
 
 exports.delete = function (request, response, callback) {
-    var ty = request.ty;
-
-    _this.set_rootnm(request, ty);
-
     request.resourceObj = JSON.parse(JSON.stringify(request.targetObject));
     var rootnm = Object.keys(request.resourceObj)[0];
+
+    // DELETE 에는 본문이 없어 request.ty 가 null 이다(app.js check_xm2m_headers).
+    // 지우는 대상 자신의 ty 를 쓴다 — retrieve 와 같은 방식이다.
+    //
+    // 예전에는 request.ty 를 넘겼는데 그 값이 기본값 '99' 였고 typeRsrc['99']
+    // 가 'rsp' 라 headers.rootnm 이 늘 'rsp' 였다. 실측으로 확인한 결과 두 가지:
+    //
+    //  1) remove_no_value 가 resource_Obj['rsp'] 를 도느라 한 바퀴도 안 돌았다.
+    //     그래서 숫자→문자열 변환이 빠졌고, 뒤이은 typeCheckforJson 이 0 을
+    //     "값 없음" 으로 보고 지웠다 — cnt 를 지우면 응답에서 st/cni/cbs 가
+    //     통째로 빠졌다(GET 응답에는 있다).
+    //  2) sgn.check 가 headers.rootnm 을 그대로 쓰므로(mobius/sgn.js:553, 473)
+    //     삭제 알림이 표준에 없는 nev.rep['m2m:rsp'] 를 실어 날랐다.
+    var ty = request.resourceObj[rootnm].ty;
+
+    _this.set_rootnm(request, ty);
 
     delete_action(request, response, function (code) {
         if (code === '200') {
             var gone = request.resourceObj[rootnm];
-            // DELETE 에는 Content-Type 의 ty 가 없어 request.ty 가 비어 있을 수
-            // 있다. 지우는 리소스 자신의 ty 를 먼저 본다.
-            var gone_ty = (gone && gone.ty !== undefined) ? gone.ty : ty;
+            var gone_ty = ty;   // 위에서 대상 행에서 읽은 값이다
             // ACP 를 지우면 그것을 참조하던 리소스는 "생성자만 통과" 로 조용히
             // 풀린다. 무엇이 사라졌는지 남겨야 되돌릴 수 있다.
             // 커넥션이 살아 있는 동안 남긴다 — 응답 뒤에는 반납된다.
