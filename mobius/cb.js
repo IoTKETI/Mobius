@@ -55,11 +55,20 @@ function cb_create_action(connection, callback) {
 
     resource_Obj[rootnm].csi = usecseid;
 
-    // CSEBase 가 클라이언트에 알리는 지원 리소스 타입이다.
-    // '17'(req)을 뺐다 — 논블로킹을 지원하지 않게 되면서 만들 수 없는 타입이 됐다.
-    // 지원하지 않는 것을 목록에 두면 클라이언트가 시도했다가 405 를 받는다.
-    //resource_Obj[rootnm].srt = ty_list;
-    resource_Obj[rootnm].srt = ['1', '2', '3', '4', '5', '9', '10', '13', '14', '16', '23'];
+    // CSEBase 가 클라이언트에 알리는 지원 리소스 타입.
+    //
+    // **ty_list 를 그대로 쓴다.** 예전에는 손으로 적은 부분집합이었고, 그래서
+    // smd(24) / mms(27) / fcnt(28) / hd_*(91~98) 를 실제로는 만들 수 있는데
+    // 광고하지 않았다 — 목록을 믿는 클라이언트는 쓸 수 있는 것을 안 쓴다.
+    //
+    // 반대 방향(광고했는데 못 만드는 것)도 이제 생길 수 없다. app.js 의
+    // check_xm2m_headers 가 같은 ty_list 로 요청을 거르므로 둘이 갈라지지 않는다.
+    //
+    // 복사본을 넘긴다 — 호출부가 배열을 만지면 전역이 오염된다.
+    //
+    // 길이 주의: 직렬화하면 105자다. cb.srt 는 varchar(255) 여야 한다
+    // (migrations/009). 좁으면 STRICT_TRANS_TABLES 에서 CSEBase 갱신이 실패한다.
+    resource_Obj[rootnm].srt = ty_list.slice();
 
     resource_Obj[rootnm].poa = [];
     resource_Obj[rootnm].poa.push('http://' + ip.address() + ':' + usecsebaseport);

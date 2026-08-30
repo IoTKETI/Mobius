@@ -1695,7 +1695,13 @@ exports.response_result = function(request, response, status, rsc, cap, callback
             delete body_Obj[rootnm];
         }
         else if(rootnm == 'fcnt') {
-            if (body_Obj[rootnm].cnd.includes('org.onem2m.home.device.')) {
+            // cnd 가 없을 수 있다. 요청 URL 에 #attr 필터가 붙으면 remove_no_value 가
+            // 지정한 속성만 남기고 나머지를 지운다(resource.js 의 hash 분기).
+            // GET /…/{fcnt}#lbl 하나로 여기서 워커가 죽었다 — undefined 위에서
+            // .includes 가 돌았다. 아래 == 비교들은 undefined 라도 false 라 안전하고,
+            // 던지는 것은 .includes 하나뿐이다.
+            if (typeof body_Obj[rootnm].cnd === 'string' &&
+                body_Obj[rootnm].cnd.includes('org.onem2m.home.device.')) {
                 body_Obj['m2m:' + rootnm] = body_Obj[rootnm];
                 delete body_Obj[rootnm];
             }
@@ -1729,6 +1735,12 @@ exports.response_result = function(request, response, status, rsc, cap, callback
             }
             else if (body_Obj[rootnm].cnd == 'org.onem2m.home.moduleclass.brightness') {
                 body_Obj['hd:' + rootnm.replace('fcnt', 'brigs')] = body_Obj[rootnm];
+                delete body_Obj[rootnm];
+            }
+            else {
+                // 아는 cnd 가 아니거나 cnd 가 없다. 예전에는 아무 분기도 안 타서
+                // 접두 없는 'fcnt' 키가 그대로 응답에 실렸다 — 표준 본문이 아니다.
+                body_Obj['m2m:' + rootnm] = body_Obj[rootnm];
                 delete body_Obj[rootnm];
             }
         }

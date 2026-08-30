@@ -82,16 +82,59 @@ var db_facade = require('./mobius/db');
 // ������ �����մϴ�.
 var app = express();
 
-// 리소스 경로 캐시. 예전에는 여기 있던 무제한 객체였다.
+// cache_resource_url 은 걷어냈다. 다시 넣지 말 것 — 아래를 먼저 읽을 것.
 //
-// 두 가지가 달라졌다.
-//   1) 상한(LRU). conf.json 의 cacheLimit 으로 조정한다.
-//   2) 삭제/수정 시 cluster IPC 로 **전 워커에** 무효화를 브로드캐스트한다.
-//      이게 없으면 워커 A 가 지운 리소스를 워커 B~N 이 계속 200 으로 돌려준다
-//      — check_resource_from_url 이 캐시 히트 시 그 행으로 바로 응답을 만들기
-//      때문이다. 배포는 워커 25개라 삭제 한 건이 24개 워커에 남는다.
-global.cache_man = require('./mobius/cache_man');
-// cache_security_check 는 걷어냈다 — 쓰기만 하고 읽는 곳이 없어
+// URL 로 찾은 리소스를 워커별 객체에 무한히 쌓아 두던 캐시다. TTL 도 크기
+// 제한도 없었고, 무효화는 자기 워커 것만 지웠다(워커 16개, 전파 없음).
+//
+// ── 왜 없앴나 (1) 낡은 읽기가 구독을 지웠다 ──────────────────────────
+// 캐시가 낡은 부모 행을 주면 그 사본의 subl 도 낡는다. 거기에 새 구독을
+// 얹어 절대값으로 되쓰면 그 사이 남이 만든 구독이 통째로 사라진다.
+// 배포 실측: 유령 9,475건, 중복 1,481묶음, 낡은 nu 194건, 침묵 21건.
+//
+// (예전 주석은 이것을 "캐시된 객체를 참조로 돌려줘서 request.targetObject 가
+//  공유된다" 고 적었는데 틀렸다. get_target_url 이 JSON.parse(JSON.stringify())
+//  로 깊은 복사를 한다 — 2.4.30 부터 그렇다. 기구는 별칭이 아니라 낡은
+//  읽기였다. 인과는 같지만 근거를 틀리게 적으면 다음 사람이 헛다리를 짚는다.)
+//
+// ── 왜 없앴나 (2) 캐시 키와 무효화 키가 다르다 ───────────────────────
+// 이쪽이 더 무겁다. **지워진 리소스가 200 으로 계속 나간다.**
+//
+//     캐시 키    request.ri     클라이언트가 보낸 URL 그대로
+//     무효화 키  request.url    DB 행의 정규 ri (targetObject[rootnm].ri)
+//
+// 그리고 responder 의 typeCheckAction 은 모든 응답의 ri 자리에 sri(비구조
+// ID)를 넣는다. 즉 **서버가 알려준 주소**로 다시 조회하면 캐시 키가 별칭이
+// 되고, 그 별칭은 어떤 무효화로도 지워지지 않는다. TTL 도 없고 상한(5만)이
+// 비-CIN 리소스 수(배포 34,243)보다 커서 축출도 안 온다.
+//
+// origin/lite 를 그대로 띄워 재현했다. 컨테이너를 만들고, 응답이 알려준 ri
+// 로 40번 GET 한 뒤, 구조화 경로로 DELETE 하고, 다시 그 주소로 40번:
+//
+//     캐시 있음   삭제 후 200 이 40/40
+//     캐시 없음   삭제 후 404 가 40/40
+//
+// 같은 논리로 acpi 를 회수해도 낡은 값으로 인가를 판정한다. 성능
+// 최적화가 접근 제어의 입력을 낡게 만드는 형태다.
+//
+// ── 없애는 값 ───────────────────────────────────────────────────────
+// 배포 실측: 요청 최대 25.9/초, 캐시 미스 1.5/초. 전부 DB 로 보내면 질의가
+// 253.8 -> 302.8/초(+19%), 요청당 0.6~1.2ms. 실행계획은 index_merge 로
+// rows=2, 버퍼풀 적중률 99.969% — 포화와 거리가 먼 자원이다.
+//
+// 그 적중률 94% 도 액면대로 볼 것이 아니다. 미스율 1.5/25.9 = 5.79% 가
+// 워커 16개에서 무효화가 자기 것만 지울 때의 기대값 1/16 = 6.25% 와 거의
+// 같다. 적중이 높은 이유가 무효화가 고장나 있어서다. 제대로 고치면 그
+// 적중은 대부분 사라진다.
+//
+// ── 다시 넣으려면 ───────────────────────────────────────────────────
+// 최소한 이 셋을 먼저 풀 것. 셋 다 안 풀면 위 재현이 그대로 돌아온다.
+//   1) 캐시 키와 무효화 키를 같은 것으로 맞출 것 (별칭 포함)
+//   2) 워커 간 무효화 전파
+//   3) 적중률을 무효화가 고쳐진 상태에서 다시 잴 것
+// test/no-resource-cache.test.js 가 이 자리를 지킨다.
+//
+// cache_security_check 도 같은 이유로 걷어냈다 — 쓰기만 하고 읽는 곳이 없어
 // origin·ri 로 키가 무한히 쌓이는 메모리 누수였다.
 
 app.use(cors());
@@ -256,12 +299,7 @@ if (use_clustering) {
         // 핸들러가 던지면 마스터가 죽고 아래 워커 재기동 로직까지 함께
         // 사라진다 — 리스닝 포트가 전부 없어진다. 마스터는 요청 상태를
         // 들고 있지 않으므로 살아남는 쪽이 낫다. 자세한 근거는 backstop.js.
-        // 가장 먼저 건다 — 아래에서 무엇이 던지든 이게 이미 걸려 있어야 한다.
         backstop.install('master');
-
-        // 워커가 보낸 캐시 무효화를 다른 워커에 중계한다. fork 보다 먼저 걸어야
-        // 일찍 뜬 워커의 첫 무효화를 놓치지 않는다.
-        cache_man.install_master(cluster);
 
         // 결과 코드·사유 카탈로그 자체 점검. 마스터에서 한 번만 돈다.
         // 문제가 있어도 기동을 막지 않는다 — 운영 배포에서 서버가 안 뜨는 쪽이
@@ -359,11 +397,6 @@ if (use_clustering) {
         // 빠진다. 죽으면 소켓이 닫혀 커넥션이 회수되고 위의 cluster.on('exit')
         // 가 다시 띄운다 — 오늘과 같은 회복에 진단만 더한다.
         backstop.install('worker');
-
-        // 마스터가 중계한 무효화를 받고, 자기 무효화를 올려보낸다.
-        // DB 연결 콜백 *밖* 에 둔다 — 연결이 늦거나 실패해도 이 워커가 다른
-        // 워커의 무효화는 받아야 한다.
-        cache_man.install_worker();
 
         db.connect(usedbhost, 3306, 'root', usedbpass, (rsc) => {
             if (rsc === '1') {
@@ -1325,44 +1358,32 @@ function lookup_delete(request, response, callback) {
 }
 
 function check_resource_from_url(connection, ri, sri, callback) {
-    var cached = cache_man.get(ri);
-    if (cached !== undefined) {
-        callback(cached, 200);
-    }
-    else {
-        // 질의를 던지기 *전* 세대를 잡아 둔다. 그 사이 이 키(또는 조상)가
-        // 무효화되면 아래에서 캐시에 넣지 않는다 — 무효화가 도착한 뒤 도착한
-        // stale 응답이 캐시를 다시 오염시키는 창을 막는다. 서브트리 삭제는
-        // 자손 삭제가 배경에서 도는 동안 행이 아직 DB 에 있으므로 이 창이 넓다.
-        var gen = cache_man.generation();
-        db_sql.select_resource_from_url(connection, ri, sri, (err, results) => {
-            if (err) {
-                callback(null, 500);
-            }
-            else {
-                if (results.length === 0) {
-                    callback(null, 404);
-                }
-                else if (!responder.typeRsrc.hasOwnProperty(String(results[0].ty))) {
-                    // lookup 에 있는데 그 타입을 이 CSE 가 다루지 않는 경우다.
-                    // 지원을 걷어낸 타입의 옛 행이 남아 있으면 여기로 온다
-                    // (예: req/ty=17 — 논블로킹을 접으면서 제거했다).
-                    //
-                    // 예전에는 그대로 흘려보내 typeRsrc[ty] 가 undefined 인 채
-                    // 테이블 이름 자리에 들어갔고, 깨진 질의가 500
-                    // "database error" 로 나갔다. 원인을 짐작할 수 없는 응답이다.
-                    // 지원하지 않는 타입이라고 답한다.
-                    console.log('[check_resource_from_url] 지원하지 않는 타입의 행: ty=' +
-                                results[0].ty + ' ' + ri);
-                    callback(null, 501);
-                }
-                else {
-                    cache_man.set_if_unchanged(ri, JSON.parse(JSON.stringify(results[0])), gen);
-                    callback(results[0], 200);
-                }
-            }
-        });
-    }
+    db_sql.select_resource_from_url(connection, ri, sri, (err, results) => {
+        if (err) {
+            callback(null, 500);
+        }
+        else if (results.length === 0) {
+            callback(null, 404);
+        }
+        else if (!responder.typeRsrc.hasOwnProperty(String(results[0].ty))) {
+            // lookup 에 있는데 그 타입을 이 CSE 가 다루지 않는 경우다.
+            // 지원을 걷어낸 타입의 옛 행이 남아 있으면 여기로 온다
+            // (예: req/ty=17 — 논블로킹을 접으면서 제거했다).
+            //
+            // 예전에는 그대로 흘려보내 typeRsrc[ty] 가 undefined 인 채
+            // 테이블 이름 자리에 들어갔고, 깨진 질의가 500
+            // "database error" 로 나갔다. 원인을 짐작할 수 없는 응답이다.
+            // 지원하지 않는 타입이라고 답한다.
+            console.log('[check_resource_from_url] 지원하지 않는 타입의 행: ty=' +
+                        results[0].ty + ' ' + ri);
+            callback(null, 501);
+        }
+        else {
+            // 캐시하지 않는다. 여기서 돌려주는 객체는 이 요청만의 것이고,
+            // 호출부가 makeObject 로 제자리에서 고쳐도 남의 요청에 안 남는다.
+            callback(results[0], 200);
+        }
+    });
 }
 
 function get_resource_from_url(connection, ri, sri, option, callback) {
@@ -1376,51 +1397,34 @@ function get_resource_from_url(connection, ri, sri, option, callback) {
             makeObject(targetObject[rootnm]);
 
             if (option == '/latest') {
-                // if(cache_resource_url.hasOwnProperty(ri + '/la')) {
-                //
-                //     ty = cache_resource_url[ri + '/la'].ty;
-                //     targetObject = {};
-                //     targetObject[responder.typeRsrc[ty]] = JSON.parse(JSON.stringify(cache_resource_url[ri + '/la']));
-                //     rootnm = Object.keys(targetObject)[0];
-                //     makeObject(targetObject[rootnm]);
-                //
-                //     console.log(targetObject);
-                //
-                //     callback(targetObject, 200);
-                // }
-                // else {
-                    var la_id = 'select_latest_resource ' + targetObject[rootnm].ri + ' - ' + require('shortid').generate();
-                    console.time(la_id);
-                    var latestObj = [];
-                    db_sql.select_latest_resource(connection, targetObject[rootnm], 0, latestObj, (code) => {
-                        console.timeEnd(la_id);
-                        if (code === '200') {
-                            if (latestObj.length == 1) {
+                var la_id = 'select_latest_resource ' + targetObject[rootnm].ri + ' - ' + require('shortid').generate();
+                console.time(la_id);
+                var latestObj = [];
+                db_sql.select_latest_resource(connection, targetObject[rootnm], 0, latestObj, (code) => {
+                    console.timeEnd(la_id);
+                    if (code === '200') {
+                        if (latestObj.length == 1) {
 
-                                let strLatestObj = JSON.stringify(latestObj[0]).replace('RowDataPacket ', '');
+                            let strLatestObj = JSON.stringify(latestObj[0]).replace('RowDataPacket ', '');
 
-                                latestObj[0] = JSON.parse(strLatestObj);
+                            latestObj[0] = JSON.parse(strLatestObj);
 
-                                targetObject = {};
-                                targetObject[responder.typeRsrc[latestObj[0].ty]] = latestObj[0];
-                                makeObject(targetObject[Object.keys(targetObject)[0]]);
+                            targetObject = {};
+                            targetObject[responder.typeRsrc[latestObj[0].ty]] = latestObj[0];
+                            makeObject(targetObject[Object.keys(targetObject)[0]]);
 
-                                //cache_resource_url[latestObj[0].pi + '/la'] = targetObject[Object.keys(targetObject)[0]];
-                                //console.log(cache_resource_url);
-
-                                callback(targetObject);
-                            }
-                            else {
-                                callback(null, 404);
-                                return '0';
-                            }
+                            callback(targetObject);
                         }
                         else {
-                            callback(null, 500);
+                            callback(null, 404);
                             return '0';
                         }
-                    });
-                // }
+                    }
+                    else {
+                        callback(null, 500);
+                        return '0';
+                    }
+                });
             }
             else if (option == '/oldest') {
                 var oldestObj = [];
@@ -1573,13 +1577,23 @@ function check_xm2m_headers(request, callback) {
         request.headers['x-m2m-rvi'] = uservi;
     }
 
-    request.ty = '99';
-
-    // Content-Type 이 실제로 ty 를 실어 왔는지. '99' 는 기본값이라
-    // "ty=99 를 명시했다" 와 "ty 가 아예 없다" 를 구분하지 못한다.
-    // 뒤에서 본문 유래 ty 와 대조할 때 이 둘은 전혀 다르게 다뤄야 한다 —
-    // 없으면 대조하지 않고 본문이 이긴다(WS·MQTT 는 PUT 에 ty 를 안 붙인다).
-    request.ty_hint = null;
+    // request.ty — 이 요청이 만들거나 고칠 리소스의 타입. 안 줬으면 null.
+    //
+    // 값은 아래 순서로 정해지고, **뒤집히지 않는다.**
+    //   1. Content-Type 의 ty=N  (바로 아래)
+    //   2. 본문 루트 이름         (type_resolver.resolve)
+    // 둘이 어긋나면 resolve 가 400-42 로 끊는다. 일치하면 본문 쪽으로
+    // 정밀해질 뿐이다(ty=28 + hd:dooLk -> 98). 그래서 "헤더가 말한 것" 과
+    // "확정된 것" 을 따로 들 이유가 없다 — 한 필드면 된다.
+    //
+    // null 은 "안 줬다" 다. 예전에는 '99' 로 표시했는데 그것이 typeRsrc 의
+    // 실제 키('rsp')여서 "안 줬다" 와 "rsp 타입이다" 가 같은 값이 됐다.
+    // 그 겹침 때문에 DELETE 의 headers.rootnm 이 'rsp' 로 새어 나갔다.
+    // null 은 어떤 타입 값과도 겹치지 않는다.
+    //
+    // GET·DELETE 는 본문이 없어 null 로 남는다. 그 둘은 request.ty 를 읽지
+    // 않는다 — 대상 행에 이미 ty 가 있다(mobius/resource.js retrieve/delete).
+    request.ty = null;
 
     if (request.headers.hasOwnProperty('content-type')) {
         var content_type = request.headers['content-type'].split(';');
@@ -1600,20 +1614,33 @@ function check_xm2m_headers(request, callback) {
                         return;
                     }
                     request.ty = ty_arr[1].replace(' ', '');
-                    request.ty_hint = request.ty;
                     content_type = null;
                     break;
                 }
             }
         }
 
+        // ty=5(CSEBase)는 **목록에 있지만** 남이 만들 수 없다.
+        // "지원하지 않는다" 와 "지원하지만 만들 수 없다" 는 다른 사유라 따로 본다.
         if (request.ty == '5') {
             callback('405-1');
             return;
         }
 
-        if (request.ty == '17') {
-            callback('405-2');
+        // ty 를 명시했으면 이 CSE 가 다루는 타입인지 여기서 본다.
+        //
+        // 예전에는 지원을 걷어낸 타입마다 분기를 하나씩 더했다(ty=17 -> 405-2).
+        // 그러면 타입을 뺄 때마다 여기도 같이 고쳐야 하고, 빠뜨리면 이 관문을
+        // 그냥 지나 build_resource(resource.js) 까지 내려가서야 걸린다 —
+        // 그 사이에 커넥션을 빌리고 대상을 조회한 뒤다.
+        //
+        // 판단 근거는 ty_list 하나여야 한다. 목록에서 빼면 여기서 막힌다.
+        //
+        // null 이면 "헤더에 ty 가 없었다" 는 뜻이라 거를 것이 없다 — WS/MQTT 의
+        // PUT 은 ty 를 안 붙인다. 그건 본문을 읽고 resolve 가 정한다.
+        if (request.ty != null && !ty_list.includes(String(request.ty))) {
+            console.log('[check_xm2m_headers] 지원하지 않는 ty: ' + request.ty);
+            callback('400-3');
             return;
         }
 
@@ -1634,6 +1661,7 @@ function check_xm2m_headers(request, callback) {
     // Check X-M2M-Origin Header
     if (request.headers.hasOwnProperty('x-m2m-origin')) {
         if (request.headers['x-m2m-origin'] === '') {
+            // 아직 본문을 안 읽었다 — 헤더가 선언한 것으로만 판단한다.
             if (request.ty == '2' || request.ty == '16') {
                 request.headers['x-m2m-origin'] = 'S';
             }
@@ -1682,11 +1710,11 @@ function check_xm2m_headers(request, callback) {
         }
     }
 
-    if (!responder.typeRsrc.hasOwnProperty(request.ty)) {
-        callback('405-3');
-        return;
-    }
-
+    // 여기 있던 `typeRsrc.hasOwnProperty(request.ty)` 관문(405-3)은 걷어냈다.
+    // 통과하지 못할 값이 도달할 수 없어 사문이었다 — 헤더로 온 ty 는 바로 위
+    // ty_list 관문이 400-3 으로 끊고, 본문으로 온 ty 는 type_resolver 가
+    // typeRsrc 키에서만 만들어 준다(mobius/type_resolver.js).
+    // 대상 행의 타입이 이 CSE 소관인지는 get_target_url 이 본다(app.js 405-3).
     callback('200');
 }
 
@@ -1704,7 +1732,9 @@ function check_resource_supported(request, response, callback) {
         }
 
         // 정규화 전 원문 키로 판정한다 — 옛 코드와 같은 입력이다.
-        var resolved = type_resolver.resolve(request.rawRootKey, request.ty_hint);
+        // 지금 request.ty 에 든 것은 헤더가 말한 값(없으면 null)이다. resolve 가
+        // 본문과 대조해 확정값을 돌려주고, 어긋나면 400-42 로 끊는다.
+        var resolved = type_resolver.resolve(request.rawRootKey, request.ty);
         if (resolved.rsc !== '200') {
             callback(resolved.rsc);
             return;
@@ -2260,8 +2290,6 @@ app.put('*', onem2mParser, (request, response) => {
                                                                 if ((request.query.fu == 2) && (request.query.rcn == 0 || request.query.rcn == 1)) {
                                                                     lookup_update(request, response, (code) => {
                                                                         if (code === '200') {
-                                                                            cache_man.invalidate(request.url);
-
                                                                             settle.result('200', '2004', '');
                                                                         }
                                                                         else {
@@ -2361,14 +2389,6 @@ app.delete('*', onem2mParser, (request, response) => {
                                             if ((request.query.fu == 2) && (request.query.rcn == 0 || request.query.rcn == 1)) {
                                                 lookup_delete(request, response, (code) => {
                                                     if (code === '200') {
-                                                        // 자기 자신 + 부모의 /la + 자손을 한 번에 걷고 전 워커에 알린다.
-                                                        //
-                                                        // 예전 자손 스윕은 `_url.includes(request.url + '/')` 였다 —
-                                                        // 앵커가 없는 부분 문자열 검사라 경로 중간에 우연히 같은
-                                                        // 조각이 들어간 무관한 키까지 지웠다. keys_for 는 접두어로
-                                                        // 앵커해서 형제(`/Mobius/ae12`)를 건드리지 않는다.
-                                                        cache_man.invalidate(request.url);
-
                                                         settle.result('200', '2002', '');
                                                     }
                                                     else {

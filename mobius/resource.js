@@ -21,6 +21,7 @@ var moment = require('moment');
 var fs = require('fs');
 
 var sgn = require('./sgn');
+var subl_entry = require('./subl');
 var responder = require('./responder');
 var csr = require('./csr');
 var cnt = require('./cnt');
@@ -42,11 +43,9 @@ var security = require('./security');
 var acp_observe = require('./acp_observe');
 var acp_filter = require('./acp_filter');
 var db = require('./db_action');
+var db_facade = require('./db');
 var db_sql = require('./sql_action');
 var cnt_man = require('./cnt_man');
-// global.cache_man 이 아니라 직접 require 한다 — app.js 의 로드 순서에
-// 의존하지 않게 하려는 것이다. 같은 모듈 인스턴스를 공유한다.
-var cache_man = require('./cache_man');
 var db_errors = require('./db/errors');
 var defaults = require('./defaults');
 var rid = require('./rid');
@@ -318,10 +317,13 @@ global.make_internal_ri = function (resource_Obj) {
     }
 };
 
-// SQLite 백엔드가 실제로 다룰 수 있는 리소스 타입.
-// mobius/mobiusdb_sqlite.sql 의 테이블과 sql_action.js 의 usesqlite 분기가 함께
-// 존재하는 타입만 들어간다. 새 타입을 SQLite 로 지원하려면 스키마에 테이블을 추가하고
-// 해당 insert_/select_/update_/delete_ 함수에 분기를 넣은 뒤 여기에 등록한다.
+// 제한이 있는 백엔드(지금은 SQLite)가 실제로 다룰 수 있는 리소스 타입.
+// mobius/mobiusdb_sqlite.sql 에 본문 테이블이 있고, 그 타입의 본문 insert 가
+// 파사드를 타는 것만 들어간다. 새 타입을 지원하려면 스키마에 테이블을 추가하고
+// 여기에 등록한다.
+//
+// (예전 주석은 "sql_action.js 의 usesqlite 분기가 함께 존재하는 타입" 이라고
+//  적었는데, 그 분기는 delete_oldest 하나만 남아 더는 판별식이 아니다.)
 //
 //   1=acp  2=ae  3=cnt  4=cin  5=cb  23=sub
 var SQLITE_SUPPORTED_TY = ['1', '2', '3', '4', '5', '23'];
@@ -330,7 +332,10 @@ var SQLITE_SUPPORTED_TY = ['1', '2', '3', '4', '5', '23'];
 // 내부에서 insert_lookup 을 먼저 실행하므로, 그대로 흘려보내면 lookup 행만 남고
 // 본문 insert 가 실패해 고아 행이 생긴다. 그 고아 행은 이후 discovery 를 깨뜨린다.
 function check_db_support(ty) {
-    if (global.usesqlite !== 'true') {
+    // 제한이 없는 백엔드(MySQL)는 그냥 통과한다. 이 게이트는 501 을 내보내므로
+    // 반드시 fail-open 이어야 한다 — capabilities 극성 설명은 db/sqlite.js 참고.
+    // can() 은 던지지 않는 계약이다(db/index.js).
+    if (!db_facade.can('limitedResourceTypes')) {
         return true;
     }
     return SQLITE_SUPPORTED_TY.indexOf(String(ty)) >= 0;
@@ -398,11 +403,6 @@ function create_action(request, response, callback) {
                     request.targetObject[cnt_parent_rootnm], function () {
                     });
 
-                // st 가 바뀌었으니 부모의 캐시된 응답을 버려야 한다. 안 그러면
-                // 조회는 옛 st 를 계속 돌려준다 (CIN/SUB 분기는 이미 이렇게 한다).
-                // 자기 자신만 바뀌었으므로 자손 스윕은 하지 않는다.
-                cache_man.invalidate_self(request.targetObject[cnt_parent_rootnm].ri);
-
                 callback('200');
             }
             else {
@@ -429,16 +429,6 @@ function create_action(request, response, callback) {
 
                 cnt_man.schedule(targetObject[parent_rootnm], cs);
 
-                // CIN 삽입에서 바뀌는 것은 부모 CNT 행의 st/cni 뿐이다.
-                // 자손(그 CNT 아래 CIN 들)은 그대로 유효하므로 자손 스윕을 하지
-                // 않는다 — 이 경로는 이 서버에서 가장 뜨거운 쓰기라, 스윕을 하면
-                // 무효화 한 번이 store 전체 순회가 되고 그 비용이 워커 수만큼
-                // 곱해진다.
-                //
-                // 예전에는 여기서 `<pi>/la` 키를 쓰기도 했다. 읽는 쪽이 없어
-                // (유일한 독자는 app.js 의 주석 처리된 블록) 죽은 쓰기였고,
-                // 무효화가 되쏘여 오면 어차피 지워졌다.
-                cache_man.invalidate_self(targetObject[parent_rootnm].ri);
                 targetObject = null;
 
                 results = null;
@@ -761,14 +751,20 @@ function create_action(request, response, callback) {
         db_sql.insert_sub(request.db_connection, resource_Obj[rootnm], (err, results) => {
             if (!err) {
                 var parent_rootnm = Object.keys(request.targetObject)[0];
-                var parentObj = request.targetObject;
-                parentObj[parent_rootnm].subl.push(resource_Obj[rootnm]);
+                var parentObj = request.targetObject[parent_rootnm];
 
-                // subl 이 바뀐 것은 부모 행 자신이다. 자손은 그대로 유효하다.
-                cache_man.invalidate_self(parentObj[parent_rootnm].ri);
-
-                db_sql.update_lookup(request.db_connection, parentObj[parent_rootnm], (err, results) => {
-                    // else 가 없었다. 부모 lookup 갱신이 실패하면 콜백이 사라져
+                // 목록을 여기서 만들지 않는다. update_subl 이 부모 행을 잠그고
+                // **그 안에서 읽은** 배열에 이 함수를 적용한다.
+                //
+                // 예전에는 request.targetObject 의 부모 사본에 push 했다. 그
+                // 사본은 요청이 시작될 때 읽은 것이라, 그 사이 같은 부모에
+                // 다른 구독이 생기면 절대값 UPDATE 가 그것을 지웠다.
+                // 수정·삭제는 그 자리에서 부모를 다시 읽는데 생성만 안 읽었다.
+                var entry = subl_entry.pack(resource_Obj[rootnm]);
+                db_sql.update_subl(request.db_connection, parentObj.ri, function (list) {
+                    return subl_entry.upsert(list, entry);
+                }, (err, results) => {
+                    // else 가 없었다. 부모 갱신이 실패하면 콜백이 사라져
                     // 응답도 connection.release() 도 없이 요청이 매달렸다.
                     // 데드락, 락 타임아웃, 커넥션 끊김, SQLITE_BUSY 에서 실제로 난다.
                     //
@@ -778,8 +774,9 @@ function create_action(request, response, callback) {
                         callback('200');
                     }
                     else {
-                        console.log('[create_action] sub 의 부모 lookup 갱신 실패: ' +
-                                    ((results && (results.driverCode || results.code)) || '?'));
+                        console.error('[create_action] sub 의 부모 subl 갱신 실패: ' +
+                                      ((results && (results.driverCode || results.code)) || '?') +
+                                      ' 부모=' + parentObj.ri + ' sub=' + resource_Obj[rootnm].ri);
                         callback('500-1');
                     }
                 });
@@ -1791,21 +1788,22 @@ function update_action(request, response, callback) {
 
                     makeObject(results_comm[0]);
                     var parentObj = results_comm[0];
-                    for(var idx in parentObj.subl) {
-                        if(parentObj.subl.hasOwnProperty(idx)) {
-                            if(parentObj.subl[idx].ri == resource_Obj[rootnm].ri) {
-                                parentObj.subl[idx] = resource_Obj[rootnm];
-                                break;
-                            }
-                        }
-                    }
-                    db_sql.update_lookup(request.db_connection, parentObj, function (err, results) {
+
+                    // 첫 항목만 갈아 끼우고 break 하던 자리다. 같은 ri 가 두 개면
+                    // 뒤엣것은 옛 nu 를 그대로 들고 계속 발송했다 — 배포에서
+                    // "subl 과 sub 의 nu 가 다른" 194건이 이것이다.
+                    // upsert 는 첫 자리에 새 것을 놓고 나머지 같은 ri 를 버린다.
+                    var entry = subl_entry.pack(resource_Obj[rootnm]);
+                    db_sql.update_subl(request.db_connection, parentObj.ri, function (list) {
+                        return subl_entry.upsert(list, entry);
+                    }, function (err, results) {
                         if (!err) {
                             callback('200');
                         }
                         else {
-                            console.log('[update_action] sub 의 부모 lookup 갱신 실패: ' +
-                                        ((results && (results.driverCode || results.code)) || '?'));
+                            console.error('[update_action] sub 의 부모 subl 갱신 실패: ' +
+                                          ((results && (results.driverCode || results.code)) || '?') +
+                                          ' 부모=' + parentObj.ri + ' sub=' + resource_Obj[rootnm].ri);
                             callback('500-1');
                         }
                     });
@@ -2229,6 +2227,22 @@ function acpi_of(obj) {
 exports.update = function (request, response, callback) {
     var rootnm = request.headers.rootnm;
     var updateObj = request.targetObject;
+
+    // rootnm 은 **본문**의 루트 이름이고 updateObj 는 **대상 행**의 타입으로
+    // 키가 잡힌 객체다. 둘이 어긋나면 updateObj[rootnm] 이 undefined 다.
+    //
+    // app.js 의 check_type_update_resource 관문은 이것을 못 잡는다. 거기서
+    // 대조하는 request.ty 는 방금 그 본문에서 뽑은 값이라 본문끼리 비교하는
+    // 항등식이기 때문이다. 그래서 대상이 AE 인데 {"m2m:cnt":{...}} 를 PUT 하면
+    // 바로 아래 updateObj['cnt'].aei 에서 워커가 죽었다 — 요청 한 줄로
+    // 재현되고, 본문이 acpi 만 건드리면 ACP 검사도 건너뛴다.
+    if (!updateObj[rootnm]) {
+        console.log('[update] 본문 루트(' + rootnm + ')가 대상 행의 타입(' +
+                    Object.keys(updateObj).join(',') + ')과 다르다: ' + request.url);
+        callback('400-42');
+        return;
+    }
+
     var ty = updateObj[Object.keys(updateObj)[0]].ty;
 
     if(ty == 2) {
@@ -2289,27 +2303,6 @@ var leaf_ty_list = ['1', '4', '9', '23'];
 // R4 방식 비동기 subtree 삭제: 응답은 루트 행 삭제 직후 나가고,
 // 자손은 별도 커넥션으로 백그라운드 삭제한다. 도중에 프로세스가 죽어
 // 고아 행이 남으면 delete_orphan_lookup(기동 시/일 1회)이 정리한다.
-// 캐스케이드가 끝난 뒤 한 번 더 캐시를 훑는다.
-//
-// 왜 필요한가: DELETE 는 루트 행만 지우고 200 을 돌려준 뒤 자손 삭제를 배경으로
-// 넘긴다. 그 사이(실측 10~20ms, 대형 서브트리는 훨씬 길다) 자손을 조회하면
-// 캐시는 비어 있고 DB 에는 행이 **아직 있으므로**, 정당하게 읽어서 다시 캐시에
-// 넣는다. 그 직후 캐스케이드가 행을 지우면 그 캐시를 무효화할 사람이 아무도
-// 없다 — 그 워커는 영원히 200 을 돌려준다.
-//
-// 세대 카운터로는 못 막는다. 채움이 무효화보다 *나중에* 시작했으므로 정당한
-// 채움으로 판정되기 때문이다. 그래서 끝난 뒤 살아 있는 store 를 다시 훑는다.
-// invalidate 는 브로드캐스트하므로 다른 워커가 캐시한 것도 함께 걷힌다.
-//
-// 실패 경로에서도 부른다 — 반쯤 지워진 상태가 오히려 낡은 캐시를 남기기 쉽다.
-function sweep_cache_after_cascade(root_ri) {
-    try {
-        cache_man.invalidate(root_ri);
-    } catch (e) {
-        console.error('[delete_descendants] 캐스케이드 후 캐시 스윕 실패: ' + (e.message || e));
-    }
-}
-
 function delete_descendants_background(root_ri, attempt) {
     attempt = attempt || 1;
 
@@ -2353,7 +2346,6 @@ function delete_descendants_background(root_ri, attempt) {
                               '). 자손이 통째로 고아로 남는다.');
                 console.timeEnd('delete_descendants ' + root_ri);
                 if (connection) connection.release();
-                sweep_cache_after_cascade(root_ri);
                 return;
             }
             for (var i = 0; i < result_ri.length; i++) {
@@ -2374,7 +2366,6 @@ function delete_descendants_background(root_ri, attempt) {
                 }
                 console.timeEnd('delete_descendants ' + root_ri);
                 if (connection) connection.release();
-                sweep_cache_after_cascade(root_ri);
             });
         });
     }
@@ -2405,11 +2396,6 @@ function delete_action(request, response, callback) {
                                     var parent_rootnm = Object.keys(request.targetObject)[0];
                                     makeObject(request.targetObject[parent_rootnm]);
 
-                                    // 자식이 하나 사라져 부모의 st/subl 이 바뀐다.
-                                    // 지워진 자식 자신과 그 자손은 app.js 의
-                                    // DELETE 경로에서 이미 걷었다.
-                                    cache_man.invalidate_self(request.targetObject[parent_rootnm].ri);
-
                                     if (resource_Obj[rootnm].ty == '23') {
                                         if(resource_Obj[rootnm].hasOwnProperty('su')) {
                                             if(resource_Obj[rootnm].su != '') {
@@ -2422,24 +2408,44 @@ function delete_action(request, response, callback) {
                                         }
 
                                         var parentObj = request.targetObject[parent_rootnm];
-                                        for(var idx in parentObj.subl) {
-                                            if(parentObj.subl.hasOwnProperty(idx)) {
-                                                if(parentObj.subl[idx].ri == resource_Obj[rootnm].ri) {
-                                                    parentObj.subl.splice(idx, 1);
-                                                }
+                                        var gone_ri = resource_Obj[rootnm].ri;
+
+                                        // for-in 으로 돌면서 splice 하던 자리다. 뒤 원소가 앞으로
+                                        // 당겨지며 건너뛰어, 같은 ri 가 두 개면 하나만 지워졌다 —
+                                        // 배포의 "중복 1,481묶음" 이 지워지지 않고 남는 이유다.
+                                        // without 은 같은 ri 를 전부 뺀다.
+                                        //
+                                        // **이 갱신을 기다린 뒤에 응답한다.** update_subl 은 MySQL 에서
+                                        // 트랜잭션을 연다. 예전처럼 던져 놓고 곧바로 응답하면, 응답에서
+                                        // connection.release() 까지가 한 tick 안에서 끝나므로 커넥션이
+                                        // **열린 트랜잭션째** 풀로 돌아간다. 다음 요청이 남의 트랜잭션
+                                        // 안에서 돌게 되고, 하필 delete_oldest 의 SELECT ... FOR UPDATE 와
+                                        // 겹치면 반쪽 상태가 커밋된다. 크래시가 아니라 조용한 뒤섞임이라
+                                        // 로그에 아무것도 안 남는다(mobius/db/index.js 의 같은 주석 참고).
+                                        db_sql.update_subl(request.db_connection, parentObj.ri, function (list) {
+                                            return subl_entry.without(list, gone_ri);
+                                        }, function (err, results) {
+                                            // 콜백이 비어 있었다. 여기가 실패하면 sub 행은 이미
+                                            // FK CASCADE 로 사라졌는데 목록에는 항목이 남아
+                                            // **영구히 알림을 계속 보내는 유령**이 된다.
+                                            //
+                                            // 응답은 200 이 맞다 — 리소스는 지워졌다. 대신 무엇이
+                                            // 남았는지 반드시 남긴다. 그래야 감사가 그 부모를 짚는다.
+                                            if (err) {
+                                                console.error('[delete_action] sub 의 부모 subl 갱신 실패 — ' +
+                                                    '유령이 남는다: ' +
+                                                    ((results && (results.driverCode || results.code)) || '?') +
+                                                    ' 부모=' + parentObj.ri + ' sub=' + gone_ri);
                                             }
-                                        }
 
-                                        db_sql.update_lookup(request.db_connection, parentObj, function (err, results) {
+                                            // update_lookup 은 st 를 obj.st 그대로 다시 쓴다(대입).
+                                            // 자식이 지워졌으니 부모 stateTag 는 올라가야 한다.
+                                            db_sql.update_parent_st(request.db_connection,
+                                                request.targetObject[parent_rootnm], function () {
+                                                });
+
+                                            callback('200');
                                         });
-
-                                        // update_lookup 은 st 를 obj.st 그대로 다시 쓴다(대입).
-                                        // 자식이 지워졌으니 부모 stateTag 는 올라가야 한다.
-                                        db_sql.update_parent_st(request.db_connection,
-                                            request.targetObject[parent_rootnm], function () {
-                                            });
-
-                                        callback('200');
                                     }
                                     else if (resource_Obj[rootnm].ty == '4') {
                                         // 부모는 위 select_lookup 으로 이미 조회했다.
@@ -2477,19 +2483,29 @@ function delete_action(request, response, callback) {
 }
 
 exports.delete = function (request, response, callback) {
-    var ty = request.ty;
-
-    _this.set_rootnm(request, ty);
-
     request.resourceObj = JSON.parse(JSON.stringify(request.targetObject));
     var rootnm = Object.keys(request.resourceObj)[0];
+
+    // DELETE 에는 본문이 없어 request.ty 가 null 이다(app.js check_xm2m_headers).
+    // 지우는 대상 자신의 ty 를 쓴다 — retrieve 와 같은 방식이다.
+    //
+    // 예전에는 request.ty 를 넘겼는데 그 값이 기본값 '99' 였고 typeRsrc['99']
+    // 가 'rsp' 라 headers.rootnm 이 늘 'rsp' 였다. 실측으로 확인한 결과 두 가지:
+    //
+    //  1) remove_no_value 가 resource_Obj['rsp'] 를 도느라 한 바퀴도 안 돌았다.
+    //     그래서 숫자→문자열 변환이 빠졌고, 뒤이은 typeCheckforJson 이 0 을
+    //     "값 없음" 으로 보고 지웠다 — cnt 를 지우면 응답에서 st/cni/cbs 가
+    //     통째로 빠졌다(GET 응답에는 있다).
+    //  2) sgn.check 가 headers.rootnm 을 그대로 쓰므로(mobius/sgn.js:553, 473)
+    //     삭제 알림이 표준에 없는 nev.rep['m2m:rsp'] 를 실어 날랐다.
+    var ty = request.resourceObj[rootnm].ty;
+
+    _this.set_rootnm(request, ty);
 
     delete_action(request, response, function (code) {
         if (code === '200') {
             var gone = request.resourceObj[rootnm];
-            // DELETE 에는 Content-Type 의 ty 가 없어 request.ty 가 비어 있을 수
-            // 있다. 지우는 리소스 자신의 ty 를 먼저 본다.
-            var gone_ty = (gone && gone.ty !== undefined) ? gone.ty : ty;
+            var gone_ty = ty;   // 위에서 대상 행에서 읽은 값이다
             // ACP 를 지우면 그것을 참조하던 리소스는 "생성자만 통과" 로 조용히
             // 풀린다. 무엇이 사라졌는지 남겨야 되돌릴 수 있다.
             // 커넥션이 살아 있는 동안 남긴다 — 응답 뒤에는 반납된다.
