@@ -1646,15 +1646,15 @@ function check_xm2m_headers(request, callback) {
             return;
         }
 
-        if (request.headers['content-type'].includes('xml')) {
-            request.usebodytype = 'xml';
-        }
-        else if (request.headers['content-type'].includes('cbor')) {
-            request.usebodytype = 'cbor';
-        }
-        else {
-            request.usebodytype = 'json';
-        }
+        // 언제나 json 이다. 앞의 json_only 미들웨어가 xml/cbor 본문을 이미
+        // 400 으로 끊었으므로 여기 오는 요청은 전부 json 이다.
+        //
+        // 예전에는 content-type 문자열에 'xml' 이 들어 있는지 **부분 문자열**로
+        // 봤다. 그래서 `application/json;ty=3;note=xmlish` 같은 정상 요청이
+        // usebodytype='xml' 이 되어 parse_to_json 이 400-5("valid XML 이
+        // 아니다")를 냈다. 실측으로 재현했다. 관문은 세미콜론 앞의 MIME 만
+        // 보므로 그런 오탐이 없다.
+        request.usebodytype = 'json';
     }
     else {
         request.usebodytype = 'json';
@@ -1972,6 +1972,53 @@ app.use((req, res, next) => {
     res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, X-M2M-RI, X-M2M-RVI, X-M2M-RSC, Accept, X-M2M-Origin, Locale');
     res.header('Access-Control-Expose-Headers', 'Origin, X-Requested-With, Content-Type, X-M2M-RI, X-M2M-RVI, X-M2M-RSC, Accept, X-M2M-Origin, Locale');
     (req.method == 'OPTIONS') ? res.sendStatus(200) : next();
+});
+
+/**
+ * 이 CSE 는 json 만 다룬다. 요청 **본문**이 xml/cbor 이면 여기서 끊는다.
+ *
+ * ── 왜 여기인가 ─────────────────────────────────────────────────────
+ * 네 라우트(POST/GET/PUT/DELETE)는 전부 request.on('end') 안에서
+ * db.getConnection 을 먼저 부르고 그 콜백에서 check_xm2m_headers 를 부른다.
+ * POST 는 커넥션을 두 번 빌린다(set_hit 용 + 본 처리용). 미들웨어에서 끊으면
+ * **커넥션을 한 번도 빌리지 않고** 끝난다.
+ *
+ * ── Accept 는 보지 않는다 ───────────────────────────────────────────
+ * 응답 형식은 거절할 일이 아니다. 무엇을 요구받든 json 으로 답한다
+ * (responder 의 apply_headers). 브라우저 기본 Accept 에는
+ * application/xml 이 들어 있으므로, 그것까지 거절하면 브라우저로 열기만 해도
+ * 400 이 된다. 막으려는 것은 **일부러 xml 로 보낸 본문**이다.
+ *
+ * ── 판정은 MIME 타입만 본다 ─────────────────────────────────────────
+ * 세미콜론 앞만 잘라 비교한다. 부분 문자열로 보면
+ * `application/json;ty=2;note=xmlish` 같은 정상 요청이 걸린다 — 실제로 지금
+ * parse_to_json 이 그 값을 xml 로 보고 400-5("valid XML 이 아니다")를 낸다.
+ *
+ * ── 이 거절이 곧 계측이다 ───────────────────────────────────────────
+ * 요청 경로의 xml/cbor 사용량은 지금까지 기록이 없었다(hit 테이블은 프로토콜
+ * 별로만 센다). 400-64 의 detail 이 console.error 로 찍히므로, 이 로그가
+ * 비어 있으면 xml/cbor 코드를 지워도 되는 근거가 된다.
+ */
+var JSON_ONLY_DENY = /^(application|text)\/(.*\+)?(xml|cbor)$/;
+
+app.use((req, res, next) => {
+    var ct = req.headers['content-type'];
+    if (typeof ct !== 'string' || ct === '') { return next(); }
+
+    var mime = ct.split(';')[0].trim().toLowerCase();
+    if (!JSON_ONLY_DENY.test(mime)) { return next(); }
+
+    console.error('[json_only] ' + req.method + ' ' + req.url +
+                  '  Content-Type: ' + mime +
+                  '  origin=' + (req.headers['x-m2m-origin'] || '?'));
+
+    // 응답은 json 이다 — "json 을 쓰라" 는 안내를 xml 로 보내면 앞뒤가 안 맞는다.
+    var r = reason.get('400-64');
+    if (req.headers['x-m2m-ri'] !== undefined) { res.header('X-M2M-RI', req.headers['x-m2m-ri']); }
+    if (req.headers['x-m2m-rvi'] !== undefined) { res.header('X-M2M-RVI', req.headers['x-m2m-rvi']); }
+    res.header('Content-Type', 'application/json');
+    res.header('X-M2M-RSC', String(r.code));
+    res.status(400).end(JSON.stringify({ 'm2m:dbg': r.msg }));
 });
 
 // var heapdump = require('heapdump');

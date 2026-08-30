@@ -16,7 +16,7 @@ const reason = require('../mobius/reason');
 const rsc = require('../mobius/rsc');
 const ROOT = path.join(__dirname, '..');
 
-test('사유 99개가 있다', function () {
+test('사유 100개가 있다', function () {
     // 501-1 과 400-4 를 걷어내고, 301-5 / 404-8 을 더했다.
     // 400-4("not parse your body")는 check_resource_supported 가 파싱 실패를
     // 전부 이 하나로 뭉개던 코드였다. 파싱이 한 곳으로 모이면서
@@ -26,7 +26,8 @@ test('사유 99개가 있다', function () {
     // 참조를 잃어 함께 빠져 100 이 됐다.
     // ty 관문을 ty_list 기반으로 바꾸며 405-2("req is not supported when post
     // request")가 참조를 잃어 99 가 됐다 — 타입별 사유가 아니라 목록으로 막는다.
-    assert.strictEqual(Object.keys(reason.REASON).length, 99);
+    // json 만 지원하기로 하면서 400-64 를 더해 100 이 됐다.
+    assert.strictEqual(Object.keys(reason.REASON).length, 100);
 });
 
 test('모든 사유의 code 가 RSC 카탈로그의 실제 항목이다', function () {
@@ -42,7 +43,7 @@ test('모든 사유의 code 가 RSC 카탈로그의 실제 항목이다', functi
 
 test('toLegacyTable 이 app.js 가 쓰던 형태를 만든다', function () {
     const t = reason.toLegacyTable();
-    assert.strictEqual(Object.keys(t).length, 99);
+    assert.strictEqual(Object.keys(t).length, 100);
 
     Object.keys(t).forEach(function (k) {
         const row = t[k];
@@ -206,10 +207,11 @@ test('내부 식별자가 든 사유가 하나도 없다 (D20)', function () {
     assert.deepStrictEqual(leaked, [], '응답 문구에 내부 식별자가 남아 있다: ' + leaked.join(', '));
 });
 
-test('detail 은 17건에 붙어 있고 전부 문자열이다', function () {
+test('detail 은 18건에 붙어 있고 전부 문자열이다', function () {
     const withDetail = Object.keys(reason.REASON).filter(function (k) { return reason.REASON[k].detail; });
     // 404-1 에서 걷어내 8건이 됐고, ACP 가드레일 8건을 더해 16건이다.
-    assert.strictEqual(withDetail.length, 17);
+    // json 전용 관문(400-64)을 더해 18건이다 — 그 detail 로그가 곧 계측이다.
+    assert.strictEqual(withDetail.length, 18);
     withDetail.forEach(function (k) {
         assert.strictEqual(typeof reason.REASON[k].detail, 'string', k);
     });
@@ -327,7 +329,12 @@ test('detail 을 가진 사유는 드물게 나는 것들뿐이다', function ()
         '400-61',  // acpi 원소가 문자열이 아님
         '400-62',  // acpi 가 varchar(200) 을 넘김
         '400-63',  // acpi 가 없는 ACP 를 가리킴
-        '500-6'    // 탐색이 문장 상한에 걸림 — 드물고 진단이 필요하다
+        '500-6',   // 탐색이 문장 상한에 걸림 — 드물고 진단이 필요하다
+        // json 전용 관문. 여기 detail 이 붙은 이유는 진단이 아니라 **계측**이다 —
+        // 요청 경로에 xml/cbor 가 얼마나 오는지 기록이 없어서, 이 로그가
+        // 비어 있는 것이 곧 xml/cbor 코드를 지워도 된다는 근거가 된다.
+        // 배포의 구독은 이미 ct=xml 이 0건이라 흔하게 날 사유가 아니다.
+        '400-64'   // 요청 본문이 xml/cbor
     ];
     const withDetail = Object.keys(reason.REASON)
         .filter(function (k) { return reason.REASON[k].detail != null; });
