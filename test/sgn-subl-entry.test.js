@@ -376,3 +376,125 @@ test('쓰기 경로가 pack 을 거친다', function () {
     assert.ok(!/subl_entry\.upsert\(parentObj\.subl,\s*resource_Obj\[rootnm\]\)/.test(RES),
         'pack 없이 리소스를 통째로 넣는 자리가 남아 있다');
 });
+
+/* ── 읽기-고치기-쓰기가 한 자리에서 일어나는가 ──────────────────── */
+//
+// 예전에는 호출부가 **완성된 배열**을 넘겼다. 그 배열은 요청이 시작될 때 읽은
+// 부모 사본에서 나온 것이라, 읽은 뒤 쓰기까지 사이에 다른 요청이 같은 부모를
+// 고치면 절대값 UPDATE 가 그것을 통째로 지웠다.
+//
+// 두 방향으로 샌다:
+//   같은 부모에 구독 둘을 동시에 만들면 나중 UPDATE 가 앞의 것을 지운다.
+//   sub 행은 남고 응답도 201 인데 발송기는 subl 만 보므로 먼저 만든 구독이
+//   영원히 알림을 못 받는다 — 배포의 "침묵 21건".
+//
+//   삭제와 겹치면 낡은 사본이 지워진 구독을 되살린다 — "유령".
+//
+// 워커 16개라서 생기는 문제가 아니다. 읽기와 쓰기가 DB 콜백 경계로 쪼개져
+// 있어 워커 하나 안에서도 두 요청이 교차하면 난다.
+
+test('update_subl 은 배열이 아니라 함수를 받는다', function () {
+    const SQL = fs.readFileSync(path.join(ROOT, 'mobius', 'sql_action.js'), 'utf8');
+    const at = SQL.indexOf('exports.update_subl = function');
+    assert.ok(at > 0, 'update_subl 이 사라졌다');
+    const sig = SQL.slice(at, SQL.indexOf('\n', at));
+    assert.ok(/\(connection, ri, mutate, callback\)/.test(sig),
+        'update_subl 이 완성된 배열을 받는 형태로 돌아갔다 — 낡은 사본을 쓰게 된다: ' + sig.trim());
+});
+
+test('update_subl 이 락 안에서 읽는다', function () {
+    const SQL = fs.readFileSync(path.join(ROOT, 'mobius', 'sql_action.js'), 'utf8');
+    const at = SQL.indexOf('exports.update_subl = function');
+    const body = SQL.slice(at, SQL.indexOf('\n};', at) + 3);
+
+    assert.ok(/\.select\('subl'\)/.test(body),
+        'update_subl 이 현재 목록을 읽지 않는다');
+    assert.ok(/forUpdate\(\)/.test(body),
+        '행을 잠그지 않는다 — 동시 생성에서 하나가 사라진다');
+    assert.ok(/facade\.can\('rowLock'\)/.test(body),
+        'rowLock 능력 검사가 없다 — SQLite 에서 knex 가 던진다');
+    assert.ok(/facade\.can\('transaction'\)/.test(body),
+        '트랜잭션 능력 검사가 없다 — SQLite 는 트랜잭션을 지원하지 않는다');
+    assert.ok(/mutate\(list\)/.test(body),
+        '읽은 목록에 mutate 를 적용하지 않는다');
+});
+
+test('세 호출부가 전부 함수를 넘긴다', function () {
+    const RES = fs.readFileSync(path.join(ROOT, 'mobius', 'resource.js'), 'utf8');
+    const calls = RES.match(/db_sql\.update_subl\([^,]+,[^,]+,\s*function\s*\(list\)/g) || [];
+    assert.strictEqual(calls.length, 3,
+        'update_subl 에 함수를 넘기는 호출부가 3곳이 아니다 (' + calls.length + '곳) — ' +
+        '배열을 넘기는 자리가 남아 있으면 그 경로만 낡은 사본을 쓴다');
+
+    // 넘기는 함수는 upsert / without 만 쓴다
+    assert.strictEqual((RES.match(/return subl_entry\.upsert\(list,/g) || []).length, 2,
+        'upsert 를 쓰는 호출부는 생성·수정 두 곳이다');
+    assert.strictEqual((RES.match(/return subl_entry\.without\(list,/g) || []).length, 1,
+        'without 을 쓰는 호출부는 삭제 한 곳이다');
+
+    // 호출부가 부모 사본의 subl 을 직접 만지지 않는다
+    assert.ok(!/parentObj\.subl\s*=\s*subl_entry\./.test(RES),
+        '호출부가 부모 사본의 subl 을 미리 만든다 — 그 사본은 낡았을 수 있다');
+});
+
+test('삭제는 subl 갱신을 기다린 뒤 응답한다', function () {
+    // update_subl 이 MySQL 에서 트랜잭션을 연다. 던져 놓고 곧바로 응답하면
+    // 응답에서 connection.release() 까지가 한 tick 안이라 커넥션이 열린
+    // 트랜잭션째 풀로 돌아간다. 다음 요청이 남의 트랜잭션 안에서 돈다.
+    const RES = fs.readFileSync(path.join(ROOT, 'mobius', 'resource.js'), 'utf8');
+    const at = RES.indexOf("return subl_entry.without(list,");
+    assert.ok(at > 0, '삭제 경로의 update_subl 호출을 못 찾았다');
+
+    // 그 호출의 콜백 안에서 callback('200') 이 불려야 한다
+    const after = RES.slice(at, at + 2200);
+    const cbAt = after.indexOf("callback('200')");
+    assert.ok(cbAt > 0,
+        "삭제 경로가 update_subl 콜백 밖에서 응답한다 — 열린 트랜잭션째 커넥션이 반납된다");
+    assert.ok(after.indexOf('update_parent_st') > 0 && after.indexOf('update_parent_st') < cbAt,
+        'update_parent_st 가 응답보다 뒤로 밀렸다');
+});
+
+/* ── SQLite 의 알려진 한계를 못박는다 ─────────────────────────────── */
+//
+// update_subl 은 MySQL 에서 트랜잭션 + FOR UPDATE 로 부모 행을 잡고 읽는다.
+// SQLite 는 그 둘을 다 지원하지 않아 잠금 없이 읽고 쓴다 — 같은 부모에
+// 구독을 동시에 만들면 하나가 사라진다.
+//
+// 실측 (같은 부모에 구독 12개 동시 생성 x 6회):
+//     MySQL  잠그기 전  sub 72 / subl 9   -> 63 침묵
+//     MySQL  잠근 뒤    sub 72 / subl 72  -> 0
+//     SQLite 잠금 없음  sub 72 / subl 20  -> 52 침묵
+//
+// 이 테스트는 "고쳤다" 가 아니라 "알고 있다" 를 지킨다. 어댑터가 나중에
+// transaction 을 지원하게 되면 이 테스트가 깨지고, 그때 위 주석과 함께
+// 다시 판단하면 된다.
+
+test('sqlite 어댑터는 아직 트랜잭션·행잠금을 선언하지 않는다', function () {
+    const cap = require('../mobius/db/sqlite').capabilities;
+    assert.strictEqual(cap.transaction, false,
+        'sqlite 가 트랜잭션을 지원하게 됐다 — update_subl 의 SQLite 한계 주석과 ' +
+        '이 테스트를 다시 볼 것. 지원한다면 동시 생성 유실이 사라진다');
+    assert.strictEqual(cap.rowLock, false,
+        'sqlite 가 행잠금을 지원하게 됐다 — 같은 곳을 다시 볼 것');
+});
+
+test('update_subl 이 능력 없는 백엔드에서도 돈다', function () {
+    // 능력이 없으면 트랜잭션 없이 그냥 읽고 쓴다. 던지지 않는 것이 중요하다 —
+    // 여기서 던지면 SQLite 배포의 구독 생성이 통째로 막힌다.
+    const SQL = fs.readFileSync(path.join(ROOT, 'mobius', 'sql_action.js'), 'utf8');
+    const at = SQL.indexOf('exports.update_subl = function');
+    const body = SQL.slice(at, SQL.indexOf('\n};', at) + 3);
+    assert.ok(/else\s*\{\s*\n?\s*apply\(connection, callback\);/.test(body),
+        '트랜잭션을 못 쓰는 백엔드용 경로가 없다 — SQLite 에서 구독 생성이 막힌다');
+    assert.ok(/if \(facade\.can\('rowLock'\)\) \{ qb = qb\.forUpdate\(\); \}/.test(body),
+        'forUpdate 를 무조건 붙이면 SQLite 에서 knex 가 던진다');
+});
+
+test('SQLite 한계가 문서에 남아 있다', function () {
+    // 주석이 사라지면 다음 사람이 "고쳐졌다" 고 오해한다.
+    const SQL = fs.readFileSync(path.join(ROOT, 'mobius', 'sql_action.js'), 'utf8');
+    const at = SQL.indexOf('exports.update_subl = function');
+    const doc = SQL.slice(Math.max(0, at - 3000), at);
+    assert.ok(/SQLite 는 아직 막지 못한다/.test(doc),
+        'update_subl 의 SQLite 한계 설명이 사라졌다');
+});

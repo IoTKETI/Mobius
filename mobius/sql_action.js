@@ -2412,22 +2412,102 @@ exports.update_lookup = function (connection, obj, callback) {
 };
 
 /**
- * 부모의 발송 목록만 쓴다. 다른 컬럼은 건드리지 않는다.
+ * 부모의 발송 목록을 **읽은 자리에서 고쳐 쓴다.** 다른 컬럼은 안 건드린다.
+ *
+ *   update_subl(connection, ri, mutate, callback)
+ *   mutate(list) -> 새 list          list 는 지금 DB 에 있는 배열이다
  *
  * 호출부는 구독 생성(resource.js create_action ty=23), 수정(update_action
- * ty=23), 삭제(delete_action ty=23) 세 곳뿐이다. 늘리지 말 것 — 이 컬럼을
- * 여러 곳에서 절대값으로 덮는 것이 배포의 어긋남(유령 9,475 / 침묵 21)을
- * 만든 구조다.
+ * ty=23), 삭제(delete_action ty=23) 세 곳뿐이다. 늘리지 말 것.
  *
- * 배열은 mobius/subl.js 의 upsert / without 로 만든다. 직접 push·splice 하지
- * 않는다 — 그 두 함수가 "같은 ri 는 하나만" 을 지킨다.
+ * ── 왜 배열을 받지 않고 함수를 받나 ─────────────────────────────────
+ * 예전에는 호출부가 완성된 배열을 넘겼다. 그 배열은 요청이 시작될 때 읽은
+ * 부모의 사본에서 나온 것이라, 읽은 뒤 쓰기까지의 사이에 다른 요청이 같은
+ * 부모를 고치면 그 변경이 통째로 날아갔다. 절대값 UPDATE 라 병합이 없다.
+ *
+ * 창이 좁아 보이지만 무증상이고 영구적이다. 두 방향으로 샌다:
+ *   같은 부모에 구독 두 개를 동시에 만들면 나중 UPDATE 가 앞의 것을 지운다.
+ *   sub 행은 남아 있고 응답도 201 이지만, 발송기는 subl 만 보므로 먼저 만든
+ *   구독은 영원히 알림을 못 받는다 — 배포의 "침묵 21건".
+ *
+ *   삭제와 겹치면 낡은 사본이 지워진 구독을 되살린다. sub 행은 FK CASCADE 로
+ *   없는데 목록에만 남아 계속 발송한다 — "유령".
+ *
+ * 워커가 16개라서 생기는 문제가 아니다. 읽기와 쓰기가 DB 콜백 경계로
+ * 쪼개져 있어 **워커 하나 안에서도** 두 요청이 이벤트 루프에서 교차하면 난다.
+ *
+ * 그래서 읽기를 여기로 들여왔다. MySQL 은 트랜잭션 + SELECT ... FOR UPDATE 로
+ * 그 부모 행을 잡고 읽는다.
+ *
+ * 실측 — 같은 부모에 구독 12개를 동시에 만들기를 6회, MySQL:
+ *     잠그기 전   sub 행 72 / subl 항목 9    -> 63개가 침묵
+ *     잠근 뒤     sub 행 72 / subl 항목 72   -> 0
+ *
+ * 대기(FOR UPDATE)를 쓴다. delete_oldest 는 NOWAIT 로 즉시 스킵하지만 그쪽은
+ * CIN 유입마다 도는 자리라 락 컨보이가 문제였다. 구독 생성은 배포 기준 월
+ * 150건이라 줄을 서도 된다 — 스킵하면 목록 갱신이 조용히 사라진다.
+ *
+ * ── SQLite 는 아직 막지 못한다 ──────────────────────────────────────
+ * mobius/db/sqlite.js 가 transaction / rowLock 을 둘 다 false 로 선언한다.
+ * 워커당 핸들이 하나뿐이라 비동기 호출이 겹치면 서로 다른 논리적 트랜잭션이
+ * 같은 핸들에서 뒤섞이기 때문이다. BEGIN IMMEDIATE 로 파일 락을 잡는 것도
+ * 답이 아니다 — 그 사이 같은 핸들로 나가는 **무관한 질의까지** 그 트랜잭션에
+ * 끌려들어가고, 롤백하면 남의 삽입이 함께 사라진다.
+ *
+ * 그래서 SQLite 에서는 잠금 없이 읽고 쓴다. 같은 부모에 구독을 동시에 만들면
+ * 하나가 사라진다 — 위와 같은 시험에서 72개 중 52개를 잃었다. 고치려면
+ * 어댑터에 핸들 풀이나 직렬화 큐가 필요하다(sqlite.js 가 "후속 작업" 으로
+ * 적어 둔 것). 배포는 MySQL 이고 SQLite 는 임베디드 규모라 여기서 멈춘다.
+ * **모른 채 두지 않는다** — test/sgn-subl-entry.test.js 가 이 한계를 못박는다.
  */
-exports.update_subl = function (connection, ri, list, callback) {
-    facade.run(facade.k('lookup').update({
-        subl: JSON.stringify(Array.isArray(list) ? list : [])
-    }).where({ ri: ri }), connection, function (err, results) {
-        callback(err, results);
-    });
+exports.update_subl = function (connection, ri, mutate, callback) {
+    function apply(conn, done) {
+        var qb = facade.k('lookup').select('subl').where({ ri: ri });
+        if (facade.can('rowLock')) { qb = qb.forUpdate(); }
+
+        facade.run(qb, conn, function (err, rows) {
+            if (err) { return done(err, rows); }
+            if (!rows || rows.length === 0) {
+                // 부모 행이 없다. 자식이 지워지는 중이거나 이미 지워졌다.
+                // 성공으로 두면 호출부가 목록이 갱신된 줄 안다.
+                return done('404', { code: '404-1', message: 'parent gone: ' + ri });
+            }
+
+            var list = [];
+            var raw = rows[0].subl;
+            if (raw !== null && raw !== undefined && String(raw) !== '') {
+                try {
+                    var parsed = JSON.parse(String(raw));
+                    if (Array.isArray(parsed)) { list = parsed; }
+                    else {
+                        console.error('[update_subl] subl 이 배열이 아니다 — 새로 만든다: ' + ri);
+                    }
+                }
+                catch (e) {
+                    // 못 읽는 목록은 발송기도 못 쓴다(subl.read 가 항목마다
+                    // 걸러낸다). 여기서 새로 만드는 것이 수리다. 다만 무엇을
+                    // 잃는지 모르므로 반드시 남긴다.
+                    console.error('[update_subl] subl 을 읽을 수 없어 새로 만든다: ' + ri +
+                                  ' (' + e.message + ')');
+                }
+            }
+
+            var next;
+            try { next = mutate(list); }
+            catch (e2) { return done(e2, { code: '500-4', message: e2.message }); }
+            if (!Array.isArray(next)) { next = []; }
+
+            facade.run(facade.k('lookup').update({ subl: JSON.stringify(next) })
+                             .where({ ri: ri }), conn, done);
+        });
+    }
+
+    if (facade.can('transaction')) {
+        facade.transaction(connection, apply, callback);
+    }
+    else {
+        apply(connection, callback);
+    }
 };
 
 // 이전에는 db.getResult 를 무조건 호출해 SQLite 모드에서도 MySQL 로 나갔다.

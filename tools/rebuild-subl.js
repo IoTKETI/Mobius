@@ -55,14 +55,18 @@ var PARENT_TYPES = ['1', '2', '3', '5', '9', '14', '16', '23'];
 var WRITE_BATCH = 50;
 
 var backendArg = null;
+var argv = process.argv.slice(2);
 
 function usage() {
     console.log('사용법:');
     console.log('  node tools/rebuild-subl.js [mysql|sqlite]            미리보기');
     console.log('  node tools/rebuild-subl.js --apply [mysql|sqlite]    실제로 쓴다');
     console.log('  ... --log <경로>                                     바뀐 내용을 남긴다');
+    console.log('  ... --force                                          읽을 수 없는 sub 행이 있어도 진행');
     console.log('');
     console.log('미리보기가 기본이다. --apply 없이는 아무것도 쓰지 않는다.');
+    console.log('nu 나 enc 를 읽을 수 없는 sub 행이 있으면 --apply 를 막는다 —');
+    console.log('그대로 두면 그 구독이 목록에 안 들어가 영영 알림을 못 받는다.');
     process.exit(2);
 }
 
@@ -86,26 +90,40 @@ function connect(cb) {
 }
 
 // sub 행 하나를 subl 항목으로. nu / enc 는 반드시 푼다.
+//
+// 못 푸는 행은 **조용히 빈 값으로 바꾸지 않는다.** 그러면 그 구독은 저장은
+// 되는데 보낼 주소가 없어 영영 알림이 안 간다 — 침묵을 고치러 와서 새 침묵을
+// 만드는 꼴이다. 여기 걸리는 것이 있으면 세어서 보고하고, --apply 를 막는다.
+var bad = [];
+
 function entryOf(row) {
-    function loose(v, fallback) {
-        if (v === null || v === undefined) { return fallback; }
+    function loose(v, what) {
+        if (v === null || v === undefined) { return undefined; }
         if (typeof v !== 'string') { return v; }
-        try { return JSON.parse(v); } catch (e) { return fallback; }
+        try { return JSON.parse(v); }
+        catch (e) { bad.push({ ri: row.ri, what: what, raw: String(v).slice(0, 80) }); return undefined; }
     }
+    var nu  = loose(row.nu,  'nu');
+    var enc = loose(row.enc, 'enc');
+
+    if (!Array.isArray(nu)) {
+        bad.push({ ri: row.ri, what: 'nu', raw: '배열이 아니다: ' + JSON.stringify(nu).slice(0, 60) });
+        return null;
+    }
+    if (!enc || typeof enc !== 'object' || !Array.isArray(enc.net)) {
+        bad.push({ ri: row.ri, what: 'enc', raw: 'net 배열이 없다: ' + JSON.stringify(enc).slice(0, 60) });
+        return null;
+    }
+
     return subl_entry.pack({
-        ri:  row.ri,
-        nu:  loose(row.nu, []),
-        enc: loose(row.enc, { net: [] }),
-        nct: row.nct,
-        nec: row.nec,
-        cr:  row.cr
+        ri: row.ri, nu: nu, enc: enc,
+        nct: row.nct, nec: row.nec, cr: row.cr
     });
 }
 
 function num(n) { return Number(n).toLocaleString(); }
 
 function main() {
-    var argv = process.argv.slice(2);
     if (argv.indexOf('--help') >= 0 || argv.indexOf('-h') >= 0) { usage(); }
     if (argv.indexOf('sqlite') >= 0) { backendArg = 'sqlite'; }
     else if (argv.indexOf('mysql') >= 0) { backendArg = 'mysql'; }
@@ -222,6 +240,29 @@ function main() {
                     console.log('  부모 lookup 행 없는 sub: ' + stat.parentMissing + '건 (이상하다 — 확인할 것)');
                 }
                 console.log('');
+
+                // sub 행인데 항목으로 못 만든 것. 그대로 두면 그 구독은 목록에
+                // 안 들어가 영영 알림을 못 받는다 — 새 침묵이다.
+                if (bad.length) {
+                    console.log('=== 읽을 수 없는 sub 행 ' + num(bad.length) + '건 ===');
+                    bad.slice(0, 8).forEach(function (b) {
+                        console.log('  ' + b.ri + '  [' + b.what + ']  ' + b.raw);
+                    });
+                    if (bad.length > 8) { console.log('  ... 외 ' + num(bad.length - 8) + '건'); }
+                    console.log('');
+                    console.log('  이 구독들은 다시 만든 목록에 **안 들어간다**. 그대로 적용하면');
+                    console.log('  영영 알림을 못 받는다. 먼저 이 행들을 고칠 것.');
+                    console.log('');
+                    if (apply) {
+                        console.log('적용하지 않았다. --force 를 붙이면 이 행들을 빼고 진행한다.');
+                        if (argv.indexOf('--force') < 0) {
+                            try { db.release(conn); } catch (e) {}
+                            return process.exit(1);
+                        }
+                        console.log('(--force 가 있으므로 진행한다)');
+                        console.log('');
+                    }
+                }
 
                 if (plan.length === 0) {
                     console.log('바꿀 것이 없다.');
