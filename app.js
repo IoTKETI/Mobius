@@ -1583,13 +1583,27 @@ function check_xm2m_headers(request, callback) {
             }
         }
 
+        // ty=5(CSEBase)는 **목록에 있지만** 남이 만들 수 없다.
+        // "지원하지 않는다" 와 "지원하지만 만들 수 없다" 는 다른 사유라 따로 본다.
         if (request.ty == '5') {
             callback('405-1');
             return;
         }
 
-        if (request.ty == '17') {
-            callback('405-2');
+        // ty 를 명시했으면 이 CSE 가 다루는 타입인지 여기서 본다.
+        //
+        // 예전에는 지원을 걷어낸 타입마다 분기를 하나씩 더했다(ty=17 -> 405-2).
+        // 그러면 타입을 뺄 때마다 여기도 같이 고쳐야 하고, 빠뜨리면 이 관문을
+        // 그냥 지나 build_resource(resource.js) 까지 내려가서야 걸린다 —
+        // 그 사이에 커넥션을 빌리고 대상을 조회한 뒤다.
+        //
+        // 판단 근거는 ty_list 하나여야 한다. 목록에서 빼면 여기서 막힌다.
+        //
+        // ty_hint 를 본다. request.ty 는 기본값이 '99' 라 "명시하지 않았다" 와
+        // "99 라고 적었다" 를 구분하지 못한다 — 알림 POST 는 ty 를 안 붙인다.
+        if (request.ty_hint != null && !ty_list.includes(String(request.ty_hint))) {
+            console.log('[check_xm2m_headers] 지원하지 않는 ty: ' + request.ty_hint);
+            callback('400-3');
             return;
         }
 

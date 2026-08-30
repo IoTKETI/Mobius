@@ -96,7 +96,7 @@ CREATE TABLE `cb` (
   `ri` varchar(200) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
   `cst` varchar(45) NOT NULL,
   `csi` varchar(45) NOT NULL,
-  `srt` varchar(100) NOT NULL,
+  `srt` varchar(255) NOT NULL,
   `poa` varchar(200) NOT NULL,
   `nl` varchar(45) NOT NULL,
   `ncp` varchar(45) NOT NULL,

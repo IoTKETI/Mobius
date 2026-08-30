@@ -52,13 +52,32 @@ test('속성표에 req / tm / tr 이 없다', function () {
     }
 });
 
-test('CSEBase 가 광고하는 srt 에 17 / 38 / 39 가 없다', function () {
-    const m = src('mobius/cb.js').match(/\.srt = \[([^\]]*)\]/);
-    assert.ok(m, 'srt 를 못 찾았다');
-    const list = m[1].split(',').map((s) => s.trim().replace(/'/g, ''));
-    for (const ty of GONE_TY) {
-        assert.ok(list.indexOf(ty) < 0, 'srt 에 ' + ty + ' 가 있다');
-    }
+test('CSEBase 가 광고하는 srt 는 ty_list 그대로다', function () {
+    // 손으로 적은 부분집합이었다. smd(24) / mms(27) / fcnt(28) / hd_*(91~98) 를
+    // 실제로는 만들 수 있는데 광고하지 않아, 목록을 믿는 클라이언트는 쓸 수
+    // 있는 것을 안 썼다. 두 목록이 갈라지면 어느 쪽이든 거짓말이 된다.
+    const s = src('mobius/cb.js');
+    assert.ok(/\.srt = ty_list\.slice\(\)/.test(s),
+        'srt 가 ty_list 를 그대로 쓰지 않는다 — 손으로 적은 목록은 갈라진다');
+    assert.ok(!/\.srt = \[/.test(s), 'srt 에 리터럴 목록이 남아 있다');
+    // GONE_TY 는 ty_list 에 없으므로(위 테스트) srt 에도 자동으로 없다.
+});
+
+test('srt 직렬화 길이가 cb.srt 컬럼 폭 안에 들어간다', function () {
+    // 넘치면 STRICT_TRANS_TABLES 에서 CSEBase 갱신이 실패한다. 타입을 더
+    // 넣다가 넘기면 배포가 아니라 여기서 먼저 걸려야 한다.
+    // (csr.poa 가 varchar(200) 을 넘겨 깨진 JSON 이 됐던 것과 같은 종류다.)
+    const m = src('mobius/mobiusdb.sql').match(/`srt` varchar\((\d+)\)/);
+    assert.ok(m, 'cb.srt 선언을 못 찾았다');
+    const width = parseInt(m[1], 10);
+
+    const t = src('mobius/resource.js').match(/global\.ty_list = \[([^\]]*)\]/);
+    const list = t[1].split(',').map((x) => x.trim().replace(/'/g, ''));
+    const len = JSON.stringify(list).length;
+
+    assert.ok(len <= width,
+        'srt 직렬화가 ' + len + '자인데 컬럼은 varchar(' + width + ') 다 — ' +
+        '마이그레이션으로 넓혀야 한다');
 });
 
 test('tm.js / tr.js 를 부르는 곳이 없다', function () {
@@ -83,8 +102,29 @@ test('스키마 파일에 req / tm / tr 테이블이 없다', function () {
     }
 });
 
-test('ty=17 요청은 여전히 막는다', function () {
-    // 목록에서 뺐다고 요청이 통과하면 안 된다. app.js 가 405-2 로 막는다.
-    assert.ok(/request\.ty == '17'[\s\S]{0,80}405-2/.test(src('app.js')),
-        'ty=17 을 막는 분기가 사라졌다');
+test('목록에 없는 ty 는 목록만 보고 막는다 — 타입별 분기가 아니다', function () {
+    // 목록에서 뺐다고 요청이 통과하면 안 된다. 예전에는 타입마다 분기를 하나씩
+    // 더했는데(ty=17 -> 405-2), 그러면 타입을 뺄 때마다 여기도 고쳐야 하고
+    // 빠뜨리면 build_resource 까지 내려가서야 걸린다.
+    const s = src('app.js');
+    assert.ok(/request\.ty_hint != null && !ty_list\.includes\(String\(request\.ty_hint\)\)/.test(s),
+        'ty_list 기반 관문이 없다');
+    for (const ty of GONE_TY) {
+        assert.ok(!new RegExp("request\\.ty == '" + ty + "'").test(s),
+            'ty=' + ty + ' 를 위한 개별 분기가 남아 있다 — 목록으로 충분하다');
+    }
+    // ty=5(CSEBase)는 목록에 **있지만** 남이 만들 수 없다. 다른 사유라 따로 둔다.
+    assert.ok(/request\.ty == '5'[\s\S]{0,60}405-1/.test(s),
+        'CSEBase 생성을 막는 분기가 사라졌다');
+});
+
+test('ty_hint 를 본다 — request.ty 는 기본값이 99 라 구분이 안 된다', function () {
+    // 알림 POST 는 Content-Type 에 ty 를 안 붙인다. request.ty 로 판단하면
+    // 기본값 '99' 가 목록에 없어서 정상 알림이 전부 막힌다.
+    const s = src('app.js');
+    assert.ok(/request\.ty = '99'/.test(s), '기본값 전제가 바뀌었다');
+    const gate = s.match(/ty 를 명시했으면[\s\S]{0,900}?\n        \}/);
+    assert.ok(gate, '관문을 못 찾았다');
+    assert.ok(!/!ty_list\.includes\(String\(request\.ty\)\)/.test(gate[0]),
+        'request.ty 로 판단하면 ty 없는 알림 POST 가 전부 막힌다');
 });
