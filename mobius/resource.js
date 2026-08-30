@@ -42,6 +42,7 @@ var security = require('./security');
 var acp_observe = require('./acp_observe');
 var acp_filter = require('./acp_filter');
 var db = require('./db_action');
+var db_facade = require('./db');
 var db_sql = require('./sql_action');
 var cnt_man = require('./cnt_man');
 var db_errors = require('./db/errors');
@@ -315,10 +316,13 @@ global.make_internal_ri = function (resource_Obj) {
     }
 };
 
-// SQLite 백엔드가 실제로 다룰 수 있는 리소스 타입.
-// mobius/mobiusdb_sqlite.sql 의 테이블과 sql_action.js 의 usesqlite 분기가 함께
-// 존재하는 타입만 들어간다. 새 타입을 SQLite 로 지원하려면 스키마에 테이블을 추가하고
-// 해당 insert_/select_/update_/delete_ 함수에 분기를 넣은 뒤 여기에 등록한다.
+// 제한이 있는 백엔드(지금은 SQLite)가 실제로 다룰 수 있는 리소스 타입.
+// mobius/mobiusdb_sqlite.sql 에 본문 테이블이 있고, 그 타입의 본문 insert 가
+// 파사드를 타는 것만 들어간다. 새 타입을 지원하려면 스키마에 테이블을 추가하고
+// 여기에 등록한다.
+//
+// (예전 주석은 "sql_action.js 의 usesqlite 분기가 함께 존재하는 타입" 이라고
+//  적었는데, 그 분기는 delete_oldest 하나만 남아 더는 판별식이 아니다.)
 //
 //   1=acp  2=ae  3=cnt  4=cin  5=cb  23=sub
 var SQLITE_SUPPORTED_TY = ['1', '2', '3', '4', '5', '23'];
@@ -327,7 +331,10 @@ var SQLITE_SUPPORTED_TY = ['1', '2', '3', '4', '5', '23'];
 // 내부에서 insert_lookup 을 먼저 실행하므로, 그대로 흘려보내면 lookup 행만 남고
 // 본문 insert 가 실패해 고아 행이 생긴다. 그 고아 행은 이후 discovery 를 깨뜨린다.
 function check_db_support(ty) {
-    if (global.usesqlite !== 'true') {
+    // 제한이 없는 백엔드(MySQL)는 그냥 통과한다. 이 게이트는 501 을 내보내므로
+    // 반드시 fail-open 이어야 한다 — capabilities 극성 설명은 db/sqlite.js 참고.
+    // can() 은 던지지 않는 계약이다(db/index.js).
+    if (!db_facade.can('limitedResourceTypes')) {
         return true;
     }
     return SQLITE_SUPPORTED_TY.indexOf(String(ty)) >= 0;
