@@ -4075,9 +4075,33 @@ var SUB_AUDIT_REASON = {
     NU_EMPTY:      'nu_empty',        // nu 가 비었거나 읽을 수 없다
     NU_UNRESOLVED: 'nu_unresolved',   // ID 형식인데 그 리소스가 없다 <- 받을 놈이 사라짐
     NU_NO_POA:     'nu_no_poa',       // 리소스는 있는데 보낼 주소가 없다
-    NU_BAD_SCHEME: 'nu_bad_scheme'    // http/https/coap/ws/mqtt 가 아니다
+    NU_BAD_SCHEME: 'nu_bad_scheme',   // http/https/coap/ws/mqtt 가 아니다
+    MQTT_TOPIC_UNREGISTERED: 'mqtt_topic_unregistered'  // 토픽의 AE-ID 가 등록돼 있지 않다
 };
 exports.SUB_AUDIT_REASON = SUB_AUDIT_REASON;
+
+/**
+ * 사유의 확신 등급.
+ *
+ *   broken   그 자체로 보낼 수 없다. 근거가 DB 안에서 닫힌다.
+ *   suspect  못 보낼 가능성이 높지만 DB 만으로는 단정할 수 없다.
+ *            **삭제 후보로 바로 올리면 안 된다.**
+ *
+ * 관리 UI 가 이 둘을 섞으면 멀쩡한 구독을 지우게 된다.
+ */
+var SUB_AUDIT_SEVERITY = {
+    no_sub_row:               'broken',
+    nu_empty:                 'broken',
+    nu_unresolved:            'broken',
+    nu_no_poa:                'broken',
+    nu_bad_scheme:            'broken',
+    // MQTT 토픽을 AE 로 등록하지 않고 듣기만 하는 클라이언트가 있을 수 있다.
+    // 배포 표본에서 mobmon_* 같은 이름이 그렇게 보인다. 등록이 없다는 것은
+    // 강한 신호지만 증거는 아니다 — MQTT 3.1.1 에는 구독자 존재를 발신자가
+    // 알 방법이 없다.
+    mqtt_topic_unregistered:  'suspect'
+};
+exports.SUB_AUDIT_SEVERITY = SUB_AUDIT_SEVERITY;
 
 var SUB_AUDIT_BATCH = 500;
 var SUB_AUDIT_CAP = 20000;
@@ -4113,15 +4137,51 @@ exports.audit_subscriptions = function (connection, opts, callback) {
     var maxFindings = parseInt(o.maxFindings, 10) || SUB_AUDIT_MAX_FINDINGS;
     var after = (o.after === undefined || o.after === null) ? '' : String(o.after);
 
+    // targets: 이 리소스들을 가리키는 구독만 보고한다.
+    //
+    // 관리 UI 가 AE 를 지우기 전에 "이걸 지우면 누구의 알림이 끊기는가" 를
+    // 물을 때 쓴다. 지금 삭제 다이얼로그는 자손만 경고하고, 그 AE 를 nu 로
+    // 가리키는 남의 구독은 말하지 않는다.
+    //
+    // 배포의 nu 는 100% URL 형식이라 ID 매칭만으로는 아무것도 안 잡힌다.
+    // mqtt 토픽의 AE-ID(mqtt://host/<AE-ID>)까지 봐야 한다.
+    var targets = null;
+    if (Array.isArray(o.targets) && o.targets.length > 0) {
+        targets = {};
+        o.targets.forEach(function (t) {
+            var s = String(t);
+            targets[s] = true;
+            // 구조화 경로로 줘도, ID 로 줘도 걸리게 한다.
+            var tail = s.split('/').filter(Boolean).pop();
+            if (tail) { targets[tail] = true; }
+        });
+    }
+
+    // 이 발견이 targets 에 걸리는가. targets 가 없으면 전부 통과.
+    function inTargets(hit) {
+        if (targets === null) { return true; }
+        for (var i = 0; i < hit.length; i++) {
+            if (hit[i] && targets[hit[i]]) { return true; }
+        }
+        return false;
+    }
+
     var findings = [];
     var byReason = {};
+    var bySeverity = {};
     var scanned = 0;
     var truncated = false;
 
-    function note(ri, pi, nu, reason, detail) {
+    // hit: 이 발견이 가리키는 대상 후보들(구조화 경로 / AE-ID 등).
+    //      targets 필터가 이것으로 판정한다.
+    function note(ri, pi, nu, reason, detail, hit) {
+        if (!inTargets(hit || [])) { return; }
+        var sev = SUB_AUDIT_SEVERITY[reason] || 'broken';
         byReason[reason] = (byReason[reason] || 0) + 1;
+        bySeverity[sev] = (bySeverity[sev] || 0) + 1;
         if (findings.length >= maxFindings) { truncated = true; return; }
-        findings.push({ ri: ri, pi: pi, nu: nu, reason: reason, detail: detail || '' });
+        findings.push({ ri: ri, pi: pi, nu: nu, reason: reason,
+                        severity: sev, detail: detail || '' });
     }
 
     function done(next, capped) {
@@ -4131,6 +4191,9 @@ exports.audit_subscriptions = function (connection, opts, callback) {
             scanned: scanned,
             capped: !!capped,
             byReason: byReason,
+            // broken 과 suspect 를 갈라서 준다. 관리 UI 가 섞으면
+            // 멀쩡한 구독을 지우게 된다.
+            bySeverity: bySeverity,
             // 상한에 걸렸을 때만 이어보기 커서를 준다. 조용히 자르지 않는다.
             next: capped ? next : null
         });
@@ -4157,7 +4220,8 @@ exports.audit_subscriptions = function (connection, opts, callback) {
             if (!target) {
                 // **여기가 "받을 놈이 사라진" 구독이다.**
                 // AE 가 등록을 해제하면 그 AE 를 nu 로 가진 구독이 전부 여기 걸린다.
-                note(p.ri, p.pi, p.nu, SUB_AUDIT_REASON.NU_UNRESOLVED, '대상: ' + p.target_path);
+                note(p.ri, p.pi, p.nu, SUB_AUDIT_REASON.NU_UNRESOLVED, '대상: ' + p.target_path,
+                     [p.target_path, p.head]);
                 return;
             }
             if (!POA_TABLE[String(target.ty)]) {
@@ -4169,10 +4233,44 @@ exports.audit_subscriptions = function (connection, opts, callback) {
             }
             var poa = poa_util.parse(target.poa, '[audit] ' + target.ri);
             if (poa === null || poa.length === 0) {
-                note(p.ri, p.pi, p.nu, SUB_AUDIT_REASON.NU_NO_POA, '대상: ' + target.ri);
+                note(p.ri, p.pi, p.nu, SUB_AUDIT_REASON.NU_NO_POA, '대상: ' + target.ri,
+                     [target.ri, target.sri]);
             }
         });
         next();
+    }
+
+    // mqtt nu 에서 sgn_man 이 토픽에 쓰는 AE-ID 를 뽑는다.
+    //
+    // sgn_man.request_noti_mqtt 와 **같은 방식**이라야 판정이 갈리지 않는다:
+    //   var aeid = url.parse(nu).pathname.replace('/', '').split('?')[0];
+    // 첫 슬래시 하나만 뗀다. 그래서 'UMACAIR/KETI_3D_LTE' 처럼 슬래시가 남는
+    // 값도 그대로 AE-ID 자리에 들어간다 — 실제로 배포에 그런 값이 있다.
+    function mqtt_topic_id(parsed) {
+        if (!parsed.pathname) { return ''; }
+        return parsed.pathname.replace('/', '').split('?')[0];
+    }
+
+    // 토픽의 AE-ID 들이 실제 등록된 AE 인지 한 번에 확인한다.
+    function resolve_aeids(wantAei, pendingMqtt, next) {
+        var keys = Object.keys(wantAei);
+        if (keys.length === 0) { return next(); }
+
+        // ae.aei 는 UNIQUE 인덱스가 있다(mobiusdb.sql 의 aei_UNIQUE).
+        facade.run(facade.k('ae').select('aei').whereIn('aei', keys),
+            connection, function (err, rows) {
+                if (err) { return callback(true, rows); }
+
+                var known = {};
+                (rows || []).forEach(function (r) { known[r.aei] = true; });
+
+                pendingMqtt.forEach(function (p) {
+                    if (known[p.topic]) { return; }
+                    note(p.ri, p.pi, p.nu, SUB_AUDIT_REASON.MQTT_TOPIC_UNREGISTERED,
+                         '토픽 ' + p.topic + ' 로 등록된 AE 가 없다', [p.topic]);
+                });
+                next();
+            });
     }
 
     // 대상을 두 단계로, 페이지 단위 배치로 확인한다.
@@ -4296,10 +4394,12 @@ exports.audit_subscriptions = function (connection, opts, callback) {
                     var have = {};
                     (subs || []).forEach(function (s) { have[s.ri] = s; });
 
-                    // 이 페이지에서 확인해야 할 ID 형식 nu 를 모은다.
+                    // 이 페이지에서 확인해야 할 것을 모은다.
                     // 구독마다 따로 조회하면 구독 수만큼 왕복이 된다.
-                    var want = {};
+                    var want = {};          // ID 형식 nu 의 첫 조각
                     var pending = [];
+                    var wantAei = {};       // mqtt 토픽의 AE-ID
+                    var pendingMqtt = [];
 
                     ri_list.forEach(function (ri) {
                         var row = by_ri[ri];
@@ -4333,6 +4433,31 @@ exports.audit_subscriptions = function (connection, opts, callback) {
                                                head: split.head, abs: split.abs });
                                 return;
                             }
+                            if (parsed.protocol === 'mqtt:') {
+                                // MQTT 는 발송 결과로 판정할 수 없다 — QoS0 라
+                                // 브로커 도달조차 모르고, MQTT 3.1.1 에 구독자
+                                // 존재를 발신자에게 알릴 수단이 없다.
+                                //
+                                // 대신 DB 로 한 가지는 볼 수 있다. sgn_man 은
+                                // nu 의 경로 첫 조각을 AE-ID 로 삼아
+                                // /oneM2M/req/<cseid>/<AE-ID>/<bodytype> 로 publish 한다.
+                                // 그 AE-ID 가 등록돼 있지 않으면 아무도 안 들을
+                                // 가능성이 높다.
+                                //
+                                // **단정은 아니다.** AE 로 등록하지 않고 토픽만
+                                // 듣는 클라이언트가 있을 수 있어 suspect 로 둔다.
+                                // 배포 실측: 3,452건 중 1,028건(29.8%)이 여기 걸리고,
+                                // mobmon_* 같은 이름은 모니터링 도구로 보인다.
+                                var topic = mqtt_topic_id(parsed);
+                                if (topic === '') {
+                                    note(ri, row.pi, nu, SUB_AUDIT_REASON.NU_EMPTY,
+                                         'mqtt nu 에 토픽이 없다');
+                                    return;
+                                }
+                                wantAei[topic] = true;
+                                pendingMqtt.push({ ri: ri, pi: row.pi, nu: nu, topic: topic });
+                                return;
+                            }
                             if (SUB_NU_SCHEMES.indexOf(parsed.protocol) < 0) {
                                 note(ri, row.pi, nu, SUB_AUDIT_REASON.NU_BAD_SCHEME, parsed.protocol);
                             }
@@ -4341,8 +4466,13 @@ exports.audit_subscriptions = function (connection, opts, callback) {
                         });
                     });
 
-                    if (pending.length === 0) { return advance(last); }
-                    resolve_targets(want, pending, function () { advance(last); });
+                    // ID 형식 확인 -> mqtt 토픽 확인 -> 다음 페이지
+                    function afterIds() {
+                        if (pendingMqtt.length === 0) { return advance(last); }
+                        resolve_aeids(wantAei, pendingMqtt, function () { advance(last); });
+                    }
+                    if (pending.length === 0) { return afterIds(); }
+                    resolve_targets(want, pending, afterIds);
                 });
         });
     }
