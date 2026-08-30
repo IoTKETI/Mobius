@@ -749,7 +749,7 @@ function create_action(request, response, callback) {
                 // push 만 하던 자리다. 같은 ri 가 이미 있는지 안 봤으므로,
                 // 삭제가 실패해 남은 유령 위에 다시 만들면 같은 구독이 목록에
                 // 두 번 실렸다. upsert 는 같은 ri 를 하나만 남긴다.
-                parentObj.subl = subl_entry.upsert(parentObj.subl, resource_Obj[rootnm]);
+                parentObj.subl = subl_entry.upsert(parentObj.subl, subl_entry.pack(resource_Obj[rootnm]));
 
                 db_sql.update_subl(request.db_connection, parentObj.ri, parentObj.subl, (err, results) => {
                     // else 가 없었다. 부모 갱신이 실패하면 콜백이 사라져
@@ -1781,7 +1781,7 @@ function update_action(request, response, callback) {
                     // 뒤엣것은 옛 nu 를 그대로 들고 계속 발송했다 — 배포에서
                     // "subl 과 sub 의 nu 가 다른" 194건이 이것이다.
                     // upsert 는 첫 자리에 새 것을 놓고 나머지 같은 ri 를 버린다.
-                    parentObj.subl = subl_entry.upsert(parentObj.subl, resource_Obj[rootnm]);
+                    parentObj.subl = subl_entry.upsert(parentObj.subl, subl_entry.pack(resource_Obj[rootnm]));
 
                     db_sql.update_subl(request.db_connection, parentObj.ri, parentObj.subl, function (err, results) {
                         if (!err) {

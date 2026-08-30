@@ -112,6 +112,46 @@ function without(list, ri) {
     return out;
 }
 
+/**
+ * sub 리소스에서 **발송에 필요한 것만** 남긴다.
+ *
+ * 예전에는 리소스 객체를 통째로 심었다 — 항목당 약 30개 필드다:
+ *   rn ty pi ri ct lt st et nu acpi lbl at aa subl enc exc gpi nfu bn rl psn
+ *   pn nsp ln nct nec su cr spi sri
+ *
+ * 그런데 발송기가 읽는 것은 아래 6개뿐이다. read() 가 sgn_action 에 넘기는
+ * 것이 정확히 이것이고, 나머지 24개는 저장소 어디에서도 subl 항목으로부터
+ * 읽히지 않는다. exc 는 sgn_action_send 시그니처로 전달되기만 하고 아무도
+ * 읽지 않는다.
+ *
+ * 배포 기준 subl 은 7.79MB 다. 리소스마다 이 컬럼이 실려 다니고, 부모를
+ * 읽을 때마다 파싱된다. 안 읽는 필드를 24개 지고 다닐 이유가 없다.
+ *
+ * ── 형식이 섞여도 되는 이유 ─────────────────────────────────────────
+ * 6필드는 옛 형식의 **부분집합**이다. read() 는 두 형식을 다 읽으므로
+ * 롤링 배포 중 워커가 섞여도, 한 배열에 두 형식이 섞여 있어도 발송은 같다.
+ * 옛 워커도 이 6개를 읽어 쓰던 것이라 6필드 항목을 정상 처리한다.
+ * 그래서 형식 표시(version)를 두지 않는다 — 둘 다 그냥 읽힌다.
+ *
+ * 기존 항목은 그 구독이 다시 만들어지거나 수정될 때 자연히 줄어든다.
+ * 한 번에 줄이려면 sub 테이블에서 subl 을 다시 만들면 된다.
+ */
+function pack(sub) {
+    if (!sub || typeof sub !== 'object') { return null; }
+    return {
+        ri:  sub.ri,      // 알림의 sur 로 나간다
+        nu:  sub.nu,      // 발송 방법 (protocol / host / path / query)
+        enc: sub.enc,     // 발송 이벤트 (net)
+        nct: sub.nct,     // 알림 내용 형식
+        nec: sub.nec,     // 알림에 실어 보내는 값
+        cr:  sub.cr       // 소유자 — 정리·감사의 근거
+    };
+}
+
 exports.read = read;
 exports.upsert = upsert;
 exports.without = without;
+exports.pack = pack;
+
+// 발송기가 읽는 필드. 테스트와 감사가 이 목록을 본다.
+exports.FIELDS = ['ri', 'nu', 'enc', 'nct', 'nec', 'cr'];

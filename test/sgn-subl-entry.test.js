@@ -277,3 +277,102 @@ test('update_subl 호출부는 세 곳뿐이다', function () {
         'update_subl 호출부가 늘었다 — 늘리지 말 것. 여러 곳에서 목록을 ' +
         '절대값으로 덮는 것이 배포의 어긋남을 만든 구조다');
 });
+
+/* ── 6필드 축약 ───────────────────────────────────────────────────── */
+//
+// 예전에는 sub 리소스를 통째로 심었다 — 항목당 약 30개 필드. 그런데 발송기가
+// 읽는 것은 6개뿐이고 나머지 24개는 저장소 어디에서도 subl 항목으로부터
+// 읽히지 않는다. 배포 기준 subl 이 7.79MB 다.
+
+// insert_sub 가 받는 것과 같은 모양의 완전한 sub 리소스
+function fullSub() {
+    return {
+        rn: 's1', ty: '23', pi: '/Mobius/ae/cnt', ri: '/Mobius/ae/cnt/s1',
+        ct: '20260830T101112', lt: '20260830T101112', st: 0, et: '20280830T101112',
+        nu: ['mqtt://h/AE?ct=json'], acpi: [], lbl: [], at: [], aa: [], subl: [],
+        enc: { net: ['1', '2', '3', '4'] }, exc: '100', gpi: '', nfu: '', bn: {},
+        rl: '', psn: '', pn: '', nsp: '', ln: '', nct: '1', nec: '', su: '',
+        cr: 'Sip3jTShhxs', spi: '3-2024', sri: '23-2026'
+    };
+}
+
+test('pack — 6개 필드만 남는다', function () {
+    const p = subl.pack(fullSub());
+    assert.deepStrictEqual(Object.keys(p).sort(), subl.FIELDS.slice().sort());
+});
+
+test('pack — 남긴 값이 원본과 같다', function () {
+    const f = fullSub();
+    const p = subl.pack(f);
+    assert.strictEqual(p.ri, f.ri);
+    assert.deepStrictEqual(p.nu, f.nu);
+    assert.deepStrictEqual(p.enc, f.enc);
+    assert.strictEqual(p.nct, f.nct);
+    assert.strictEqual(p.nec, f.nec);
+    assert.strictEqual(p.cr, f.cr);
+});
+
+test('pack — 결과를 read 가 읽는다', function () {
+    // 이게 깨지면 저장은 되는데 발송이 안 된다. 조용히 사라지는 부류다.
+    const r = read_sub(subl.pack(fullSub()));
+    assert.ok(r, 'pack 한 것을 read 가 못 읽는다');
+    assert.deepStrictEqual(r.nu, ['mqtt://h/AE?ct=json']);
+    assert.deepStrictEqual(r.net, ['1', '2', '3', '4']);
+    assert.strictEqual(r.ri, '/Mobius/ae/cnt/s1');
+    assert.strictEqual(r.cr, 'Sip3jTShhxs');
+});
+
+test('pack — 발송기가 읽는 값이 통째 심을 때와 같다', function () {
+    // 축약 전후로 발송 판단이 달라지면 안 된다.
+    const f = fullSub();
+    const before = read_sub(f);
+    const after  = read_sub(subl.pack(f));
+    assert.deepStrictEqual(after.nu, before.nu);
+    assert.deepStrictEqual(after.net, before.net);
+    assert.strictEqual(after.ri, before.ri);
+    assert.strictEqual(after.nct, before.nct);
+    assert.strictEqual(after.nec, before.nec);
+    assert.strictEqual(after.cr, before.cr);
+});
+
+test('pack — 크기가 실제로 준다', function () {
+    const f = fullSub();
+    const big = JSON.stringify(f).length;
+    const small = JSON.stringify(subl.pack(f)).length;
+    assert.ok(small < big / 2,
+        '축약이 절반도 못 줄인다: ' + big + ' -> ' + small);
+});
+
+test('pack — 객체가 아니면 null', function () {
+    assert.strictEqual(subl.pack(null), null);
+    assert.strictEqual(subl.pack(undefined), null);
+    assert.strictEqual(subl.pack('x'), null);
+    assert.strictEqual(subl.pack(7), null);
+});
+
+test('두 형식이 한 배열에 섞여도 둘 다 읽힌다', function () {
+    // 롤링 배포 중 옛 워커는 통째로, 새 워커는 6필드로 쓴다.
+    const mixed = [fullSub(), subl.pack(fullSub())];
+    mixed[1].ri = '/Mobius/ae/cnt/s2';
+    const read = mixed.map(read_sub);
+    assert.ok(read[0] && read[1], '섞인 배열에서 못 읽는 항목이 있다');
+    assert.deepStrictEqual(read[0].nu, read[1].nu);
+    assert.deepStrictEqual(read[0].net, read[1].net);
+});
+
+test('upsert 는 형식을 가리지 않고 같은 ri 를 접는다', function () {
+    // 옛 워커가 통째로 심어 둔 것 위에 새 워커가 6필드로 갈아 끼우는 상황
+    const out = subl.upsert([fullSub()], subl.pack(
+        Object.assign(fullSub(), { nu: ['http://new/x'] })));
+    assert.strictEqual(out.length, 1, '형식이 다르면 같은 ri 를 못 알아본다');
+    assert.deepStrictEqual(out[0].nu, ['http://new/x']);
+    assert.deepStrictEqual(Object.keys(out[0]).sort(), subl.FIELDS.slice().sort());
+});
+
+test('쓰기 경로가 pack 을 거친다', function () {
+    const RES = fs.readFileSync(path.join(ROOT, 'mobius', 'resource.js'), 'utf8');
+    assert.strictEqual((RES.match(/subl_entry\.pack\(/g) || []).length, 2,
+        'pack 호출부는 생성·수정 두 곳이다 — 안 거치면 30필드가 그대로 실린다');
+    assert.ok(!/subl_entry\.upsert\(parentObj\.subl,\s*resource_Obj\[rootnm\]\)/.test(RES),
+        'pack 없이 리소스를 통째로 넣는 자리가 남아 있다');
+});
