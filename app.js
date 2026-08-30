@@ -224,7 +224,7 @@ function reconcile_counters(is_continuation) {
             // cnt 는 3만 행대라 2000행을 읽는 것 자체는 싸다.
             { limit: 2000, cursor: reconcile_cursor, budgetMs: 30000 },
             (err, report) => {
-                connection.release();
+                db.release(connection);
 
                 if (err) {
                     console.log('[reconcile_counters] error', report);
@@ -380,7 +380,7 @@ if (use_clustering) {
                                     }, 5000);
                                 }
 
-                                connection.release();
+                                db.release(connection);
                             });
                         });
                     }
@@ -424,7 +424,7 @@ if (use_clustering) {
                                     console.log(JSON.stringify(rsp));
                                     //noti_mqtt_begin();
 
-                                    connection.release();
+                                    db.release(connection);
                                 });
                             });
                         }
@@ -441,7 +441,7 @@ if (use_clustering) {
                                     console.log(JSON.stringify(rsp));
                                     //noti_mqtt_begin();
 
-                                    connection.release();
+                                    db.release(connection);
                                 });
                             });
                         }
@@ -510,7 +510,7 @@ else {
                             });
                         }
 
-                        connection.release();
+                        db.release(connection);
                     });
                 }
                 else {
@@ -1130,7 +1130,9 @@ function check_grp(request, response, callback) {
 // 정산기는 mobius/settle.js 에 있다. 여기서는 response_error_result 를 엮어
 // 넘기기만 한다 — 그 함수가 reason 카탈로그와 responder.respond 를 잇고 있다.
 function make_settler(request, response, connection) {
-    return settle_mod.make(request, response, connection, response_error_result);
+    // 반납하는 법을 주입한다 — settle.js 가 db_action 을 알면 파사드를
+    // 우회하는 파일이 하나 늘고, 커넥션 원천을 옮길 때 같이 고칠 곳이 늘어난다.
+    return settle_mod.make(request, response, connection, response_error_result, db.release);
 }
 
 function response_error_result(request, response, code, callback) {
@@ -2011,7 +2013,7 @@ app.post('*', onem2mParser, (request, response) => {
             if (code === '200') {
                 db_sql.set_hit(connection, binding, (err, results) => {
                     results = null;
-                    connection.release();
+                    db.release(connection);
                 });
             }
         });
@@ -2232,7 +2234,7 @@ app.get('*', onem2mParser, (request, response) => {
                         });
                     }
                     else if (code === '201') {
-                        connection.release();
+                        db.release(connection);
                         response.header('Content-Type', 'application/json');
                         response.status(200).end(JSON.stringify(result, null, 4));
                         result = null;
