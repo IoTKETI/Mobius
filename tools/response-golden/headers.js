@@ -147,7 +147,19 @@ function collect(PORT, OUT) {
             ['409 la 에 POST',  'POST', CNT + '/la', '{"m2m:cin":{"con":"x"}}', J + ';ty=4', {}],
             ['PUT json',        'PUT', CNT, { 'm2m:cnt': { lbl: ['a'] } }, J, { Accept: J }],
             ['PUT xml',         'PUT', CNT, { 'm2m:cnt': { lbl: ['b'] } }, J, { Accept: 'application/xml' }],
-            ['POST rcn3',       'POST', CNT + '?rcn=3', { 'm2m:cin': { con: 'v2' } }, J + ';ty=4', { Accept: J }]
+            ['POST rcn3',       'POST', CNT + '?rcn=3', { 'm2m:cin': { con: 'v2' } }, J + ';ty=4', { Accept: J }],
+
+            // Accept 가 없을 때 무엇으로 답하는가.
+            //
+            // usebodytype 은 **요청의** Content-Type 에서 온다(app.js 의
+            // check_xm2m_headers). Accept 가 없으면 response_result 는 그 값을
+            // 그대로 두고(= 보낸 형식으로 답한다), search_result 와
+            // response_rcn3_result 는 json 으로 덮는다. 같은 서버가 경로에 따라
+            // 다르게 답하는 자리이므로 반드시 찍어 둔다.
+            ['xml 본문 accept 없음',  'PUT', CNT, '<m2m:cnt xmlns:m2m="http://www.onem2m.org/xml/protocols"><lbl>c</lbl></m2m:cnt>',
+                                       'application/xml', {}],
+            ['discovery accept 없음', 'GET', AE + '?fu=1&rcn=6', null, null, {}],
+            ['404 accept 없음',       'GET', AE + '/nope', null, null, {}]
         ];
 
         var i = 0;

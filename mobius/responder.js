@@ -71,6 +71,59 @@ exports.typeRsrc = typeRsrc;
 exports.mgoType = mgoType;
 
 /**
+ * 응답 헤더를 세우고 이 응답의 직렬화 형식을 정한다.
+ *
+ * 이 일을 하는 코드가 다섯 벌 있었다 — response_result 의 진입부와 그 안의
+ * rt=3 분기, response_rcn3_result, search_result, sendError. 복붙으로 늘어난
+ * 것인데 이미 세 갈래로 갈려 있었다.
+ *
+ *   Accept 에코        response_result / sendError 만 했다. discovery 와
+ *                      rcn=3 은 안 했다. 같은 서버가 요청 경로에 따라 다르게
+ *                      답하고 있었다.
+ *   Accept 없을 때     response_result / sendError 는 Content-Type 을 아예
+ *                      안 세웠고, 나머지 셋은 json 으로 명시했다.
+ *   헤더 이름          'X-M2M-RI' 리터럴, chk 소문자, chk.toUpperCase() 세 가지.
+ *                      전선에서는 같지만 소스가 셋으로 갈려 있었다.
+ *
+ * ── Accept 에코를 없앤 이유 ─────────────────────────────────────────
+ * Accept 는 HTTP 의 **요청** 헤더다. 응답에 되돌려주라는 조항이 oneM2M HTTP
+ * 바인딩에도 없다. 다섯 중 둘만 하고 있었으니 어느 쪽이든 통일해야 했고,
+ * 규격에 없는 쪽을 뺐다.
+ *
+ * ── Accept 가 없으면 json 으로 정하는 이유 ─────────────────────────
+ * 관측된 동작이 그렇다. app.js 의 check_xm2m_headers 가 요청의 Content-Type
+ * 에서 usebodytype 을 정하지만, XML 본문을 Accept 없이 PUT 하면 응답은
+ * JSON 으로 나간다 — 실측으로 확인했다. 그 값이 응답까지 살아남지 않는다.
+ * 그래서 여기서 json 으로 못박는 것이 기존 동작을 그대로 옮기는 것이다.
+ *
+ * Content-Type 은 Accept 가 없어도 언제나 명시한다. 예전에 sendError 는
+ * 안 세워서, JSON 본문을 Content-Type 없이 내보내고 있었다.
+ */
+function apply_headers(request, response, rsc) {
+    var h = request.headers || {};
+
+    if (h.hasOwnProperty('x-m2m-ri'))  { response.header('X-M2M-RI',  h['x-m2m-ri']); }
+    if (h.hasOwnProperty('x-m2m-rvi')) { response.header('X-M2M-RVI', h['x-m2m-rvi']); }
+    if (h.hasOwnProperty('locale'))    { response.header('Locale',    h['locale']); }
+
+    var accept = (typeof h.accept === 'string') ? h.accept : '';
+    if (accept.includes('xml')) {
+        request.usebodytype = 'xml';
+        response.header('Content-Type', 'application/xml');
+    }
+    else if (accept.includes('cbor')) {
+        request.usebodytype = 'cbor';
+        response.header('Content-Type', 'application/cbor');
+    }
+    else {
+        request.usebodytype = 'json';
+        response.header('Content-Type', 'application/json');
+    }
+
+    response.header('X-M2M-RSC', rsc);
+}
+
+/**
  * 배열이어야 하는 컬럼 값을 배열로 읽는다. 절대 던지지 않는다.
  *
  * 응답을 만드는 도중이라 여기서 예외가 나면 응답 전송도 커넥션 반납도 못 한다.
@@ -879,36 +932,7 @@ var operation = {
 exports.response_result = function(request, response, status, rsc, cap, callback) {
     var body_Obj = request.resourceObj;
 
-    if(request.headers.hasOwnProperty('x-m2m-ri')) {
-        response.header('X-M2M-RI', request.headers['x-m2m-ri']);
-    }
-
-    if(request.headers.hasOwnProperty('x-m2m-rvi')) {
-        response.header('X-M2M-RVI', request.headers['x-m2m-rvi']);
-    }
-
-    if(request.headers.hasOwnProperty('accept')) {
-        response.header('Accept', request.headers['accept']);
-
-        if(request.headers['accept'].includes('xml')) {
-            request.usebodytype = 'xml';
-            response.header('Content-Type', 'application/xml');
-        }
-        else if(request.headers['accept'].includes('cbor')) {
-            request.usebodytype = 'cbor';
-            response.header('Content-Type', 'application/cbor');
-        }
-        else {
-            request.usebodytype = 'json';
-            response.header('Content-Type', 'application/json');
-        }
-    }
-
-    if(request.headers.hasOwnProperty('locale')) {
-        response.header('Locale', request.headers['locale']);
-    }
-
-    response.header('X-M2M-RSC', rsc);
+    apply_headers(request, response, rsc);
 
     if (request.query.rcn == 0 && Object.keys(body_Obj)[0] != 'dbg') {
         if (request.query.rt == 3) {
@@ -937,40 +961,9 @@ exports.response_result = function(request, response, status, rsc, cap, callback
         }
     }
     else {
-        if (request.query.rt == 3) {
-            var check_header = ['x-m2m-ri', 'x-m2m-rvi', 'locale', 'accept'];
-            for(var idx in check_header) {
-                if(check_header.hasOwnProperty(idx)) {
-                    var chk = check_header[idx];
-                    if (request.headers.hasOwnProperty(chk)) {
-                        if (chk === 'x-m2m-ri' || chk === 'x-m2m-rvi' || chk === 'locale') {
-                            response.header(chk, request.headers[chk]);
-                        }
-                        else if (chk === 'accept') {
-                            if (request.headers[chk].includes('xml')) {
-                                request.usebodytype = 'xml';
-                                response.header('Content-Type', 'application/xml');
-                            }
-                            else if (request.headers[chk].includes('cbor')) {
-                                request.usebodytype = 'cbor';
-                                response.header('Content-Type', 'application/cbor');
-                            }
-                            else {
-                                request.usebodytype = 'json';
-                                response.header('Content-Type', 'application/json');
-                            }
-                        }
-                    }
-                    else {
-                        if (chk === 'accept') {
-                            request.usebodytype = 'json';
-                            response.header('Content-Type', 'application/json');
-                        }
-                    }
-                }
-            }
-            response.header('X-M2M-RSC', rsc);
-        }
+        // 여기서 헤더를 다시 세우던 자리다. 이 함수 진입부에서 이미
+        // apply_headers 가 돌았고, 그 사이에 헤더를 건드리는 코드가 없다.
+        // 같은 값을 두 번 쓰던 것이라 걷어냈다.
 
         var rootnm = Object.keys(body_Obj)[0];
 
@@ -1079,41 +1072,7 @@ exports.response_rcn3_result = function(request, response, status, rsc, cap, cal
     var body_Obj = request.resourceObj;
 
     if (request.query.rt == 3) {
-        var check_header = ['x-m2m-ri', 'x-m2m-rvi', 'locale', 'accept'];
-
-        for(var idx in check_header) {
-            var chk = check_header[idx];
-            if(request.headers.hasOwnProperty(chk)) {
-                if(chk === 'x-m2m-ri' || chk === 'x-m2m-rvi') {
-                    response.header(chk.toUpperCase(), request.headers[chk]);
-                }
-                else if(chk === 'locale') {
-                    response.header(chk, request.headers[chk]);
-                }
-                else if(chk === 'accept') {
-                    if(request.headers[chk].includes('xml')) {
-                        request.usebodytype = 'xml';
-                        response.header('Content-Type', 'application/xml');
-                    }
-                    else if(request.headers[chk].includes('cbor')) {
-                        request.usebodytype = 'cbor';
-                        response.header('Content-Type', 'application/cbor');
-                    }
-                    else {
-                        request.usebodytype = 'json';
-                        response.header('Content-Type', 'application/json');
-                    }
-                }
-            }
-            else {
-                if(chk === 'accept') {
-                    request.usebodytype = 'json';
-                    response.header('Content-Type', 'application/json');
-                }
-            }
-        }
-
-        response.header('X-M2M-RSC', rsc);
+        apply_headers(request, response, rsc);
     }
 
     var rootnm = request.headers.rootnm;
@@ -1197,41 +1156,7 @@ exports.search_result = function(request, response, status, rsc, cap, callback) 
     var body_Obj = request.resourceObj;
 
     if (request.query.rt == 3) {
-        var check_header = ['x-m2m-ri', 'x-m2m-rvi', 'locale', 'accept'];
-
-        for(var idx in check_header) {
-            var chk = check_header[idx];
-            if(request.headers.hasOwnProperty(chk)) {
-                if(chk === 'x-m2m-ri' || chk === 'x-m2m-rvi') {
-                    response.header(chk.toUpperCase(), request.headers[chk]);
-                }
-                else if(chk === 'locale') {
-                    response.header(chk, request.headers[chk]);
-                }
-                else if(chk === 'accept') {
-                    if(request.headers[chk].includes('xml')) {
-                        request.usebodytype = 'xml';
-                        response.header('Content-Type', 'application/xml');
-                    }
-                    else if(request.headers[chk].includes('cbor')) {
-                        request.usebodytype = 'cbor';
-                        response.header('Content-Type', 'application/cbor');
-                    }
-                    else {
-                        request.usebodytype = 'json';
-                        response.header('Content-Type', 'application/json');
-                    }
-                }
-            }
-            else {
-                if(chk === 'accept') {
-                    request.usebodytype = 'json';
-                    response.header('Content-Type', 'application/json');
-                }
-            }
-        }
-
-        response.header('X-M2M-RSC', rsc);
+        apply_headers(request, response, rsc);
     }
 
     if (Object.keys(body_Obj)[0] == 'rsp') {
@@ -1372,36 +1297,7 @@ function sendError(request, response, httpStatus, rsc, dbg_string, callback) {
     var body_Obj = {};
     body_Obj['m2m:dbg'] = dbg_string;
 
-    if(request.headers.hasOwnProperty('x-m2m-ri')) {
-        response.header('X-M2M-RI', request.headers['x-m2m-ri']);
-    }
-
-    if(request.headers.hasOwnProperty('x-m2m-rvi')) {
-        response.header('X-M2M-RVI', request.headers['x-m2m-rvi']);
-    }
-
-    if(request.headers.hasOwnProperty('accept')) {
-        response.header('Accept', request.headers['accept']);
-
-        if(request.headers['accept'].includes('xml')) {
-            request.usebodytype = 'xml';
-            response.header('Content-Type', 'application/xml');
-        }
-        else if(request.headers['accept'].includes('cbor')) {
-            request.usebodytype = 'cbor';
-            response.header('Content-Type', 'application/cbor');
-        }
-        else {
-            request.usebodytype = 'json';
-            response.header('Content-Type', 'application/json');
-        }
-    }
-
-    if(request.headers.hasOwnProperty('locale')) {
-        response.header('Locale', request.headers['locale']);
-    }
-
-    response.header('X-M2M-RSC', rsc);
+    apply_headers(request, response, rsc);
 
     if (request.usebodytype == 'json') {
         var bodyString = JSON.stringify(body_Obj);
