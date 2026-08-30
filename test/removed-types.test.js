@@ -114,17 +114,41 @@ test('목록에 없는 ty 는 목록만 보고 막는다 — 타입별 분기가
             'ty=' + ty + ' 를 위한 개별 분기가 남아 있다 — 목록으로 충분하다');
     }
     // ty=5(CSEBase)는 목록에 **있지만** 남이 만들 수 없다. 다른 사유라 따로 둔다.
-    assert.ok(/request\.ty == '5'[\s\S]{0,60}405-1/.test(s),
+    assert.ok(/request\.ty_hint == '5'[\s\S]{0,60}405-1/.test(s),
         'CSEBase 생성을 막는 분기가 사라졌다');
 });
 
-test('ty_hint 를 본다 — request.ty 는 기본값이 99 라 구분이 안 된다', function () {
-    // 알림 POST 는 Content-Type 에 ty 를 안 붙인다. request.ty 로 판단하면
-    // 기본값 '99' 가 목록에 없어서 정상 알림이 전부 막힌다.
+test('헤더 관문은 ty_hint 만 본다 — 센티널로 빈칸을 메우지 않는다', function () {
+    // 알림 POST 와 WS/MQTT PUT 은 Content-Type 에 ty 를 안 붙인다. "안 줬다" 를
+    // 값으로 표현하면(예전의 request.ty = '99') 그 값이 목록에 없어서 정상
+    // 요청이 전부 막히거나, 목록에 넣으면 이번엔 typeRsrc 의 실제 키('rsp')와
+    // 겹쳐 DELETE 의 headers.rootnm 까지 오염된다. "안 줬다" 는 null 이어야 한다.
     const s = src('app.js');
-    assert.ok(/request\.ty = '99'/.test(s), '기본값 전제가 바뀌었다');
+    assert.ok(!/request\.ty = '99'/.test(s),
+        "센티널 request.ty = '99' 가 되살아났다 — typeRsrc['99'] 는 'rsp' 다");
+
     const gate = s.match(/ty 를 명시했으면[\s\S]{0,900}?\n        \}/);
     assert.ok(gate, '관문을 못 찾았다');
     assert.ok(!/!ty_list\.includes\(String\(request\.ty\)\)/.test(gate[0]),
         'request.ty 로 판단하면 ty 없는 알림 POST 가 전부 막힌다');
+
+    // 헤더 구간(해석 전)에서 request.ty 를 읽으면 undefined 를 본다.
+    // 그 구간의 판단은 전부 ty_hint 여야 한다.
+    const head = s.slice(s.indexOf('function check_xm2m_headers'),
+                         s.indexOf('function check_resource_supported'))
+                  .split('\n').filter((l) => !/^\s*\/\//.test(l)).join('\n');
+    assert.ok(!/request\.ty[^_a-zA-Z]/.test(head),
+        'check_xm2m_headers 가 아직 request.ty 를 읽는다 — 여기서는 ty_hint 다');
+    assert.ok(/request\.ty_hint == '5'[\s\S]{0,60}405-1/.test(head),
+        'CSEBase 생성을 막는 분기가 ty_hint 를 보지 않는다');
+});
+
+test('request.ty 대입은 해석 지점 두 곳뿐이다', function () {
+    // request.ty 는 "서버가 본문까지 보고 확정한 타입" 이다. 확정 전에
+    // 값을 넣어 두면 그 값이 곧 거짓말이 된다 — '99' 가 그랬다.
+    const s = src('app.js');
+    const writes = (s.match(/^\s*request\.ty = /gm) || []).length;
+    assert.strictEqual(writes, 2,
+        'request.ty 대입이 ' + writes + '곳이다 — check_resource_supported 와 ' +
+        'check_type_update_resource 의 resolve 결과 두 곳이어야 한다');
 });
