@@ -82,8 +82,23 @@ var db_facade = require('./mobius/db');
 // ������ �����մϴ�.
 var app = express();
 
-global.cache_resource_url = {};
-// cache_security_check 는 걷어냈다 — 쓰기만 하고 읽는 곳이 없어
+// cache_resource_url 은 걷어냈다.
+//
+// URL 로 찾은 리소스를 워커별 객체에 무한히 쌓아 두던 캐시다. TTL 도 크기
+// 제한도 없었고, 무엇보다 **캐시된 객체를 참조로 돌려줬다** — 그래서
+// request.targetObject 가 워커 안의 모든 요청이 공유하는 객체였다.
+//
+// 한 요청이 건드린 것이 다음 요청에 남는다. 부모의 subl 이 대표적이다:
+// 낡은 subl 을 든 워커가 거기에 새 구독을 얹어 쓰면서 지워진 구독이
+// 되살아났다. 배포 실측으로 유령 9,475건, 중복 1,481묶음, 침묵 21건이다.
+// 워커가 16개인데 무효화는 자기 것만 지우므로 구조적으로 못 고친다.
+//
+// 없애는 값: 배포 실측 기준 요청 최대 26/초, 캐시 미스 1.5/초(적중률 94%).
+// 전부 DB 로 보내면 질의가 253.8 -> 302.8/초(+19%), 요청당 0.6~1.2ms 가
+// 붙는다. 실행계획은 index_merge 로 rows=2 이고 버퍼풀 적중률은 99.969% 다.
+// 그 값을 내고 정합성을 산다.
+//
+// cache_security_check 도 같은 이유로 걷어냈다 — 쓰기만 하고 읽는 곳이 없어
 // origin·ri 로 키가 무한히 쌓이는 메모리 누수였다.
 
 app.use(cors());
@@ -1307,38 +1322,32 @@ function lookup_delete(request, response, callback) {
 }
 
 function check_resource_from_url(connection, ri, sri, callback) {
-    if(cache_resource_url.hasOwnProperty(ri)) {
-        callback(cache_resource_url[ri], 200);
-    }
-    else {
-        db_sql.select_resource_from_url(connection, ri, sri, (err, results) => {
-            if (err) {
-                callback(null, 500);
-            }
-            else {
-                if (results.length === 0) {
-                    callback(null, 404);
-                }
-                else if (!responder.typeRsrc.hasOwnProperty(String(results[0].ty))) {
-                    // lookup 에 있는데 그 타입을 이 CSE 가 다루지 않는 경우다.
-                    // 지원을 걷어낸 타입의 옛 행이 남아 있으면 여기로 온다
-                    // (예: req/ty=17 — 논블로킹을 접으면서 제거했다).
-                    //
-                    // 예전에는 그대로 흘려보내 typeRsrc[ty] 가 undefined 인 채
-                    // 테이블 이름 자리에 들어갔고, 깨진 질의가 500
-                    // "database error" 로 나갔다. 원인을 짐작할 수 없는 응답이다.
-                    // 지원하지 않는 타입이라고 답한다.
-                    console.log('[check_resource_from_url] 지원하지 않는 타입의 행: ty=' +
-                                results[0].ty + ' ' + ri);
-                    callback(null, 501);
-                }
-                else {
-                    cache_resource_url[ri] = JSON.parse(JSON.stringify(results[0]));
-                    callback(results[0], 200);
-                }
-            }
-        });
-    }
+    db_sql.select_resource_from_url(connection, ri, sri, (err, results) => {
+        if (err) {
+            callback(null, 500);
+        }
+        else if (results.length === 0) {
+            callback(null, 404);
+        }
+        else if (!responder.typeRsrc.hasOwnProperty(String(results[0].ty))) {
+            // lookup 에 있는데 그 타입을 이 CSE 가 다루지 않는 경우다.
+            // 지원을 걷어낸 타입의 옛 행이 남아 있으면 여기로 온다
+            // (예: req/ty=17 — 논블로킹을 접으면서 제거했다).
+            //
+            // 예전에는 그대로 흘려보내 typeRsrc[ty] 가 undefined 인 채
+            // 테이블 이름 자리에 들어갔고, 깨진 질의가 500
+            // "database error" 로 나갔다. 원인을 짐작할 수 없는 응답이다.
+            // 지원하지 않는 타입이라고 답한다.
+            console.log('[check_resource_from_url] 지원하지 않는 타입의 행: ty=' +
+                        results[0].ty + ' ' + ri);
+            callback(null, 501);
+        }
+        else {
+            // 캐시하지 않는다. 여기서 돌려주는 객체는 이 요청만의 것이고,
+            // 호출부가 makeObject 로 제자리에서 고쳐도 남의 요청에 안 남는다.
+            callback(results[0], 200);
+        }
+    });
 }
 
 function get_resource_from_url(connection, ri, sri, option, callback) {
@@ -1352,51 +1361,34 @@ function get_resource_from_url(connection, ri, sri, option, callback) {
             makeObject(targetObject[rootnm]);
 
             if (option == '/latest') {
-                // if(cache_resource_url.hasOwnProperty(ri + '/la')) {
-                //
-                //     ty = cache_resource_url[ri + '/la'].ty;
-                //     targetObject = {};
-                //     targetObject[responder.typeRsrc[ty]] = JSON.parse(JSON.stringify(cache_resource_url[ri + '/la']));
-                //     rootnm = Object.keys(targetObject)[0];
-                //     makeObject(targetObject[rootnm]);
-                //
-                //     console.log(targetObject);
-                //
-                //     callback(targetObject, 200);
-                // }
-                // else {
-                    var la_id = 'select_latest_resource ' + targetObject[rootnm].ri + ' - ' + require('shortid').generate();
-                    console.time(la_id);
-                    var latestObj = [];
-                    db_sql.select_latest_resource(connection, targetObject[rootnm], 0, latestObj, (code) => {
-                        console.timeEnd(la_id);
-                        if (code === '200') {
-                            if (latestObj.length == 1) {
+                var la_id = 'select_latest_resource ' + targetObject[rootnm].ri + ' - ' + require('shortid').generate();
+                console.time(la_id);
+                var latestObj = [];
+                db_sql.select_latest_resource(connection, targetObject[rootnm], 0, latestObj, (code) => {
+                    console.timeEnd(la_id);
+                    if (code === '200') {
+                        if (latestObj.length == 1) {
 
-                                let strLatestObj = JSON.stringify(latestObj[0]).replace('RowDataPacket ', '');
+                            let strLatestObj = JSON.stringify(latestObj[0]).replace('RowDataPacket ', '');
 
-                                latestObj[0] = JSON.parse(strLatestObj);
+                            latestObj[0] = JSON.parse(strLatestObj);
 
-                                targetObject = {};
-                                targetObject[responder.typeRsrc[latestObj[0].ty]] = latestObj[0];
-                                makeObject(targetObject[Object.keys(targetObject)[0]]);
+                            targetObject = {};
+                            targetObject[responder.typeRsrc[latestObj[0].ty]] = latestObj[0];
+                            makeObject(targetObject[Object.keys(targetObject)[0]]);
 
-                                //cache_resource_url[latestObj[0].pi + '/la'] = targetObject[Object.keys(targetObject)[0]];
-                                //console.log(cache_resource_url);
-
-                                callback(targetObject);
-                            }
-                            else {
-                                callback(null, 404);
-                                return '0';
-                            }
+                            callback(targetObject);
                         }
                         else {
-                            callback(null, 500);
+                            callback(null, 404);
                             return '0';
                         }
-                    });
-                // }
+                    }
+                    else {
+                        callback(null, 500);
+                        return '0';
+                    }
+                });
             }
             else if (option == '/oldest') {
                 var oldestObj = [];
@@ -2236,10 +2228,6 @@ app.put('*', onem2mParser, (request, response) => {
                                                                 if ((request.query.fu == 2) && (request.query.rcn == 0 || request.query.rcn == 1)) {
                                                                     lookup_update(request, response, (code) => {
                                                                         if (code === '200') {
-                                                                            if(cache_resource_url.hasOwnProperty(request.url)) {
-                                                                                delete cache_resource_url[request.url];
-                                                                            }
-
                                                                             settle.result('200', '2004', '');
                                                                         }
                                                                         else {
@@ -2339,20 +2327,6 @@ app.delete('*', onem2mParser, (request, response) => {
                                             if ((request.query.fu == 2) && (request.query.rcn == 0 || request.query.rcn == 1)) {
                                                 lookup_delete(request, response, (code) => {
                                                     if (code === '200') {
-                                                        if(cache_resource_url.hasOwnProperty(request.url)) {
-                                                            delete cache_resource_url[request.url];
-                                                        }
-
-                                                        if(cache_resource_url.hasOwnProperty(request.pi + '/la')) {
-                                                            delete cache_resource_url[request.pi + '/la'];
-                                                        }
-
-                                                        Object.keys(cache_resource_url).forEach((_url) => {
-                                                            if(_url.includes(request.url+'/')) {
-                                                                delete cache_resource_url[_url];
-                                                            }
-                                                        });
-
                                                         settle.result('200', '2002', '');
                                                     }
                                                     else {

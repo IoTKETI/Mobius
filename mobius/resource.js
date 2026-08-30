@@ -395,12 +395,6 @@ function create_action(request, response, callback) {
                     request.targetObject[cnt_parent_rootnm], function () {
                     });
 
-                // st 가 바뀌었으니 부모의 캐시된 응답을 버려야 한다. 안 그러면
-                // 조회는 옛 st 를 계속 돌려준다 (CIN/SUB 분기는 이미 이렇게 한다).
-                if (cache_resource_url.hasOwnProperty(request.targetObject[cnt_parent_rootnm].ri)) {
-                    delete cache_resource_url[request.targetObject[cnt_parent_rootnm].ri];
-                }
-
                 callback('200');
             }
             else {
@@ -425,13 +419,8 @@ function create_action(request, response, callback) {
                 var targetObject = JSON.parse(JSON.stringify(request.targetObject));
                 var cs = parseInt(resource_Obj[rootnm].cs);
 
-                cache_resource_url[resource_Obj[rootnm].pi + '/la'] = resource_Obj[rootnm];
-
                 cnt_man.schedule(targetObject[parent_rootnm], cs);
 
-                if(cache_resource_url.hasOwnProperty(targetObject[parent_rootnm].ri)) {
-                    delete cache_resource_url[targetObject[parent_rootnm].ri];
-                }
                 targetObject = null;
 
                 results = null;
@@ -756,10 +745,6 @@ function create_action(request, response, callback) {
                 var parent_rootnm = Object.keys(request.targetObject)[0];
                 var parentObj = request.targetObject;
                 parentObj[parent_rootnm].subl.push(resource_Obj[rootnm]);
-
-                if(cache_resource_url.hasOwnProperty(parentObj[parent_rootnm].ri)) {
-                    delete cache_resource_url[parentObj[parent_rootnm].ri];
-                }
 
                 db_sql.update_lookup(request.db_connection, parentObj[parent_rootnm], (err, results) => {
                     // else 가 없었다. 부모 lookup 갱신이 실패하면 콜백이 사라져
@@ -2375,10 +2360,6 @@ function delete_action(request, response, callback) {
                                     request.targetObject[responder.typeRsrc[ty]] = results[0];
                                     var parent_rootnm = Object.keys(request.targetObject)[0];
                                     makeObject(request.targetObject[parent_rootnm]);
-
-                                    if(cache_resource_url.hasOwnProperty(request.targetObject[parent_rootnm].ri)) {
-                                        delete cache_resource_url[request.targetObject[parent_rootnm].ri];
-                                    }
 
                                     if (resource_Obj[rootnm].ty == '23') {
                                         if(resource_Obj[rootnm].hasOwnProperty('su')) {
