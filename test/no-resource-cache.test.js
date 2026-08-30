@@ -70,3 +70,50 @@ test('/la 캐시 적재가 없다', function () {
     assert.ok(!/\+\s*['"]\/la['"]\s*\]\s*=/.test(src),
         "resource.js 에 '/la' 캐시 적재가 다시 생겼다");
 });
+
+/* ── 별칭 키가 무효화를 빠져나가던 구멍 ──────────────────────────── */
+//
+// 캐시를 다시 넣으려는 사람이 반드시 알아야 할 것이다.
+//
+//     캐시 키    request.ri     클라이언트가 보낸 URL 그대로
+//     무효화 키  request.url    DB 행의 정규 ri
+//
+// 그리고 responder 가 모든 응답의 ri 자리에 sri(비구조 ID)를 넣으므로,
+// **서버가 알려준 주소**로 다시 조회하면 캐시 키가 별칭이 된다. 그 별칭은
+// 어떤 무효화로도 지워지지 않는다.
+//
+// origin/lite 를 그대로 띄워 재현했다 (2026-08-31, 로컬 MySQL, 워커 16개):
+//     캐시 있음   컨테이너 삭제 후 별칭 GET x40 -> 200 이 40/40
+//     캐시 없음   같은 시험                      -> 404 가 40/40
+// acpi 를 회수해도 같은 일이 난다 — 낡은 값으로 인가를 판정한다.
+
+test('응답이 ri 자리에 sri 를 넣는다 (별칭 주소가 생기는 이유)', function () {
+    // 이 성질이 없어지면 위 구멍의 전제도 사라진다. 그때 다시 판단할 것.
+    const RES = read('mobius/responder.js');
+    assert.ok(/index2 == 'sri'[\s\S]{0,120}body_Obj\.ri = body_Obj\[index2\]/.test(RES),
+        'responder 가 더는 ri 자리에 sri 를 넣지 않는다 — ' +
+        'app.js 의 캐시 주석과 이 테스트의 전제를 다시 볼 것');
+});
+
+test('무효화 키가 요청 URL 이 아니라 행의 ri 였다', function () {
+    // 캐시가 없는 지금은 무효화 호출부 자체가 없다. 다시 생긴다면
+    // 캐시 키와 같은 것으로 맞춰야 한다.
+    const APP = code_only(read('app.js'));
+    const setsUrlFromRow = /request\.url = request\.targetObject\[[^\]]+\]\.ri/.test(APP);
+    assert.ok(setsUrlFromRow,
+        'request.url 을 행의 ri 로 채우는 자리가 사라졌다 — 캐시 주석의 전제를 확인할 것');
+
+    // 그 값을 캐시 무효화에 쓰는 코드가 다시 생기면 별칭이 새어 나간다.
+    assert.ok(!/invalidate\(request\.url\)/.test(APP),
+        '행의 ri 로 캐시를 무효화하는 코드가 생겼다 — ' +
+        '캐시 키는 request.ri(요청 URL)이므로 별칭은 안 지워진다. ' +
+        'app.js 상단의 "다시 넣으려면" 을 읽을 것');
+});
+
+test('캐시를 다시 넣을 때 지켜야 할 것이 문서로 남아 있다', function () {
+    const APP = read('app.js');
+    assert.ok(/다시 넣으려면/.test(APP),
+        'app.js 의 캐시 재도입 조건 설명이 사라졌다 — 재현 근거가 함께 사라진다');
+    assert.ok(/별칭/.test(APP),
+        '별칭 키 문제 설명이 사라졌다');
+});
