@@ -32,7 +32,19 @@ exports.capabilities = {
     // SQLite 에는 문장 단위 시간 상한을 거는 힌트가 없다.
     // (sqlite3_progress_handler 로 중단시킬 수는 있으나 node-sqlite3 가
     //  노출하지 않고, 임베디드 규모라 필요하지도 않다.)
-    statementTimeout: false
+    statementTimeout: false,
+
+    // 이 백엔드는 일부 리소스 타입만 받는다. 조건은 둘이다 —
+    // mobiusdb_sqlite.sql 에 본문 테이블이 있을 것, 그리고 그 타입의 본문
+    // insert 가 파사드를 탈 것. 목록 자체는 resource.js 의
+    // SQLITE_SUPPORTED_TY 에 있다(그 게이트가 쓰는 유일한 곳이라 거기 둔다).
+    //
+    // **극성 주의**: 키가 **없는 쪽**이 "제한 없음" 이다. can() 은 없는 키를
+    // false 로 돌려주므로(db/index.js) MySQL 은 아무것도 안 적어도 통과한다.
+    // 반대로 "지원 타입" 을 키로 나열하는 방식이면 MySQL 쪽에서 하나만
+    // 빠뜨려도 정상 CREATE 가 501 로 나간다. 501 을 내보내는 게이트는
+    // fail-open 이어야 한다.
+    limitedResourceTypes: true
 };
 
 exports.statementTimeoutHint = function () { return null; };

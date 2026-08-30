@@ -172,8 +172,18 @@ exports.transaction = function (conn, body, callback) {
     });
 };
 
+// capabilities 는 어댑터의 **정적 데이터**다. 연결이 필요 없고, 어느 어댑터인지는
+// pick() 만으로 정해진다. 그래서 connect() 전에도 옳게 답할 수 있다.
+//
+// assertReady() 도 builder() 도 부르지 않는다. 둘 다 던질 수 있기 때문이다 —
+// assertReady 는 connect 전이면 무조건, builder 는 knexFactory 가 실패하면.
+// 이 함수의 호출부는 요청마다 도는 동기 게이트(resource.js 의 check_db_support)라,
+// 여기서 던지면 그 예외가 db.getConnection 콜백 안에서 터져 워커가 죽고
+// 빌린 커넥션이 샌다. capabilities 를 읽는 데 knex 인스턴스는 필요 없다.
+//
+// **계약: 이 함수는 던지지 않는다.**
 exports.can = function (name) {
-    assertReady();
+    adapter = adapter || pick();
     return adapter.capabilities[name] === true;
 };
 
