@@ -18,9 +18,10 @@ var util = require('util');
 var merge = require('merge');
 
 var db = require('./db_action');
-var sqlite = require('./db_sqlite');
 
-// 전환된 함수는 이 파사드를 쓴다. 전환이 끝나면 위 두 줄은 삭제한다.
+// 전환된 함수는 이 파사드를 쓴다. 전환이 끝나면 위 한 줄은 삭제한다.
+// db_sqlite 를 직접 부르던 마지막 자리(delete_oldest 의 sqlite 갈래)가
+// 사라지면서 그 require 도 같이 뺐다.
 var facade = require('./db');
 
 // 구독 도달성 감사(audit_subscriptions)가 nu 와 poa 를 읽는다.
@@ -2119,221 +2120,97 @@ exports.select_st = function (connection, ri, callback) {
 function delete_oldest(connection, obj, count, callback) {
     var del_id = 'delete_oldest (' + count + ') ' + obj.ri + ' - ' + require('shortid').generate() + '';
     console.time(del_id);
-    if (global.usesqlite === 'true') {
-        var pre_update_executor = function (cb_pre) {
-            if (obj.ty == '4' || parseInt(obj.ty, 10) == 4 || obj.ty == '3') {
-                var child_ty = parseInt(obj.ty, 10) + 1;
-                var find_sql = util.format("SELECT l.ri, c.cs FROM lookup l LEFT JOIN cin c ON l.ri = c.ri WHERE l.pi = '%s' AND l.ty = '%s' ORDER BY l.ct ASC, l.ri ASC LIMIT %s", obj.ri, child_ty, count);
-                var sqlite = require('./db_sqlite');
-                sqlite.getResult(find_sql, connection, function (err, rows) {
-                    if (!err && rows && rows.length > 0) {
-                        var total_cs = 0;
-                        var total_cnt = rows.length;
-                        for (var i = 0; i < rows.length; i++) {
-                            total_cs += parseInt(rows[i].cs || 0, 10);
-                        }
-                        var update_sql = util.format("UPDATE cnt SET cni = cni - %s, cbs = cbs - %s WHERE ri = '%s'", total_cnt, total_cs, obj.ri);
-                        sqlite.getResult(update_sql, connection, function (err2, res2) {
-                            // 자식(CIN)이 지워졌으니 부모 stateTag 도 올라가야 한다.
-                            // CIN 생성(cnt_man)과 단건 삭제(update_parent_by_delete)는
-                            // 이미 올리는데 보존 정책 purge 만 빠져 있었다.
-                            var st_sql = util.format("UPDATE lookup SET st = st + 1 WHERE ri = '%s'", obj.ri);
-                            sqlite.getResult(st_sql, connection, function () {
-                                cb_pre();
-                            });
-                        });
-                    } else {
-                        cb_pre();
-                    }
-                });
-            } else {
-                cb_pre();
-            }
-        };
 
-        pre_update_executor(function () {
-            var sql = util.format('delete from lookup where ri in (select ri from lookup where pi = \'%s\' and ty = \'%s\' order by ct asc, ri asc limit %s)', obj.ri, parseInt(obj.ty, 10) + 1, count);
-            var sqlite = require('./db_sqlite');
-            sqlite.getResult(sql, connection, function (err, results) {
-                console.timeEnd(del_id);
-                // MySQL 경로와 같은 규약: 두 번째 인자는 실제 삭제 건수.
-                // 객체를 그대로 넘기면 0건 삭제여도 truthy 라 호출자가 재귀한다.
-                var deleted = 0;
-                if (!err && results) deleted = results.changes || results.affectedRows || 0;
-                callback(err, deleted);
-            });
-        });
-    }
-    else {
-        // MySQL: 트랜잭션 + FOR UPDATE로 클러스터 동시 실행 race condition 방지
-        var child_ty = parseInt(obj.ty, 10) + 1;
-        var mni = parseInt(obj.mni, 10);
-        var mbs = parseInt(obj.mbs, 10);
+    var child_ty = String(parseInt(obj.ty, 10) + 1);
 
-        connection.beginTransaction(function (txErr) {
-            if (txErr) {
-                console.error('[delete_oldest] beginTransaction error:', txErr.message);
+    // 1) 지울 후보를 고른다. ct 가 같을 수 있으므로 ri 로 동점을 깬다 —
+    //    안 그러면 LIMIT 이 매번 다른 집합을 골라 센 것과 지운 것이 갈린다.
+    facade.run(facade.k('lookup as l')
+        .leftJoin('cin as c', 'l.ri', 'c.ri')
+        .select('l.ri as ri', 'c.cs as cs')
+        .where({ 'l.pi': obj.ri, 'l.ty': child_ty })
+        .orderBy([{ column: 'l.ct', order: 'asc' }, { column: 'l.ri', order: 'asc' }])
+        .limit(count), connection, function (err, rows) {
+
+        if (err) {
+            console.timeEnd(del_id);
+            return callback(err, rows);
+        }
+        if (!rows || rows.length === 0) {
+            // 지울 것이 없다. 호출자가 재귀하지 않도록 0 을 준다.
+            console.timeEnd(del_id);
+            return callback(null, 0);
+        }
+
+        var del_ri = rows.map(function (r) { return r.ri; });
+
+        // 2) 센 집합을 그대로 지운다. 다시 고르지 않는다 —
+        //    예전에 "고른 집합" 과 "지운 집합" 이 달라져 카운터 보정이 틀어졌다.
+        //    lookup 을 지우면 FK(cin_ri ON DELETE CASCADE)로 cin 본문이 따라 지워진다.
+        facade.run(facade.k('lookup').whereIn('ri', del_ri).del(),
+            connection, function (err2, res2) {
+            if (err2) {
                 console.timeEnd(del_id);
-                callback(txErr);
-                return;
+                return callback(err2, res2);
             }
 
-            // cnt 행 잠금 (FOR UPDATE NOWAIT).
-            // 락이 잡혀 있다 = 다른 워커가 같은 컨테이너를 purge 중이라는 뜻이고,
-            // 그 패스가 실측 재카운트로 초과분 전체를 지우므로 여기서는 즉시 스킵한다.
-            // 예전 FOR UPDATE(대기)는 mni 정상상태에서 매 insert마다 워커들이
-            // 줄을 서서 락 컨보이를 만들었고, 대기가 50초를 넘으면 같은 행을 쓰는
-            // cnt_man flush가 ER_LOCK_WAIT_TIMEOUT으로 죽었다 (2026-08-25 실측 390건).
-            var lock_sql = util.format("SELECT cni, cbs FROM cnt WHERE ri = '%s' FOR UPDATE NOWAIT", obj.ri);
-            db.getResult(lock_sql, connection, function (err, lockRows) {
-                if (err) {
-                    connection.rollback(function () {});
+            // 3) 부모 카운터를 **실측으로** 되돌린다.
+            //
+            //    상대 감산(cni = cni - N)이 아니라 절대 대입이다. 그래야 과거에
+            //    쌓인 드리프트가 정리할 때마다 스스로 낫는다 — 배포 실측으로
+            //    컨테이너 30,278개 중 1,659개(5.5%)가 어긋나 있었다.
+            //
+            //    cin_ri_idx(pi, ri, cs) 커버링 인덱스만 읽는다. lookup 을 조인하면
+            //    자식 수만큼 cin 에 랜덤 접근해서 114,627행 기준 7.178s 대 0.142s 였다.
+            //
+            //    정리하는 주체가 마스터 하나뿐이므로(purge_sweep) 이 재집계와
+            //    대입 사이에 다른 purge 가 끼어들 수 없다. 예전에는 워커 25개가
+            //    동시에 정리해서 트랜잭션 + SELECT ... FOR UPDATE NOWAIT 로
+            //    서로를 막아야 했고, **잠금이 없는 백엔드는 그 알고리즘을 쓸 수
+            //    없어 아예 다른 갈래를 들고 있었다.** 주체를 하나로 만들자
+            //    그 사슬이 통째로 사라졌다.
+            //
+            //    끼어들 수 있는 것은 CIN 생성의 증분(update_parent_counters)뿐인데,
+            //    그것이 이 재집계와 대입 사이에 착지하면 그 한 건을 잃는다.
+            //    reconcile 이 하루 안에 바로잡고, 다음 purge 도 같은 방식으로
+            //    고친다. 잃는 것이 1건이고 고칠 경로가 둘이라 잠금을 들이지 않는다.
+            facade.run(facade.k('cin')
+                .count('* as n')
+                .sum({ s: facade.raw('coalesce(cs, 0)') })
+                .where({ pi: obj.ri }), connection, function (err3, cnt_rows) {
+
+                var deleted = rows.length;
+
+                if (err3 || !cnt_rows || !cnt_rows.length) {
+                    // 재집계에 실패해도 삭제는 이미 끝났다. 카운터는
+                    // reconcile 이 잡는다. 삭제 건수는 정직하게 보고한다.
+                    console.error('[delete_oldest] 재집계 실패 ri=' + obj.ri +
+                                  ' — 카운터는 reconcile 이 잡는다');
                     console.timeEnd(del_id);
-                    if (lockRows && (lockRows.code === 'ER_LOCK_NOWAIT' || lockRows.errno === 3572)) {
-                        console.log('[delete_oldest] busy (other worker purging), skip');
-                        callback(null);
-                    }
-                    else {
-                        callback(lockRows);
-                    }
-                    return;
-                }
-                if (!lockRows || lockRows.length === 0) {
-                    connection.rollback(function () {});
-                    console.timeEnd(del_id);
-                    callback(new Error('cnt row not found'));
-                    return;
+                    return callback(null, deleted);
                 }
 
-                // 실제 CIN 카운트 재조회 (잠금 후 최신값)
-                // cin_ri_idx(pi, ri, cs) 커버링 인덱스만 읽는다. 예전의
-                // lookup LEFT JOIN cin 형태는 결과가 같지만 자식 수만큼 cin 테이블에
-                // 랜덤 접근해서, 버퍼 풀에 없으면 락을 쥔 채 수십 초가 걸렸다.
-                // (114,627행 실측: LEFT JOIN 7.178s vs 아래 0.142s)
-                // cnt.cni/cnt.cbs 를 대신 쓰면 더 싸지만, 그 값은 실제와 최대 100%까지
-                // 어긋나 있어 삭제 판단 근거로 쓸 수 없다.
-                var recount_sql = util.format(
-                    "SELECT COUNT(*) AS n, IFNULL(SUM(cs),0) AS s FROM cin WHERE pi = '%s'",
-                    obj.ri);
-                db.getResult(recount_sql, connection, function (err2, rcRows) {
-                    if (err2 || !rcRows || rcRows.length === 0) {
-                        connection.rollback(function () {});
+                var actual_cni = parseInt(cnt_rows[0].n || 0, 10);
+                var actual_cbs = parseInt(cnt_rows[0].s || 0, 10);
+
+                facade.run(facade.k('cnt')
+                    .update({ cni: actual_cni, cbs: actual_cbs })
+                    .where({ ri: obj.ri }), connection, function (err4) {
+                    if (err4) {
+                        console.error('[delete_oldest] cnt 보정 실패 ri=' + obj.ri);
+                    }
+
+                    // 자식이 사라졌으니 부모 stateTag 를 올린다.
+                    facade.run(facade.k('lookup')
+                        .update({ st: facade.raw('st + 1') })
+                        .where({ ri: obj.ri }), connection, function () {
                         console.timeEnd(del_id);
-                        callback(err2);
-                        return;
-                    }
-
-                    var actual_cni = parseInt(rcRows[0].n || 0, 10);
-                    var actual_cbs = parseInt(rcRows[0].s || 0, 10);
-
-                    if (actual_cni <= mni && actual_cbs <= mbs) {
-                        // 다른 워커가 이미 정리 완료. 저장값이 실측과 어긋나 있으면
-                        // (재시작으로 유실된 디바운스 델타, 과거 flush 실패 누적)
-                        // 락을 쥔 김에 실측값으로 보정하고 종료 — 드리프트 자가 치유.
-                        var stored_cni = parseInt(lockRows[0].cni, 10);
-                        var stored_cbs = parseInt(lockRows[0].cbs, 10);
-                        var finish_clean = function () {
-                            connection.commit(function () {
-                                console.log('[delete_oldest] already clean (actual_cni=' + actual_cni + ' <= mni=' + mni + '), skip');
-                                console.timeEnd(del_id);
-                                callback(null);
-                            });
-                        };
-                        if (stored_cni !== actual_cni || stored_cbs !== actual_cbs) {
-                            var heal_sql = util.format(
-                                "UPDATE cnt SET cni = %s, cbs = %s WHERE ri = '%s'",
-                                actual_cni, actual_cbs, obj.ri);
-                            db.getResult(heal_sql, connection, function () {
-                                console.log('[delete_oldest] healed drift: cni ' + stored_cni + '->' + actual_cni + ' cbs ' + stored_cbs + '->' + actual_cbs);
-                                finish_clean();
-                            });
-                        }
-                        else {
-                            finish_clean();
-                        }
-                        return;
-                    }
-
-                    var plan = _this.purge_plan(actual_cni, actual_cbs, mni, mbs);
-                    var need_cnt = plan.need_cnt;
-                    var need_cs = plan.need_cs;
-                    var candidates = plan.candidates;
-
-                    console.log('[delete_oldest] tx delete: actual_cni=' + actual_cni + ' mni=' + mni +
-                        ' actual_cbs=' + actual_cbs + ' mbs=' + mbs +
-                        ' need_cnt=' + need_cnt + ' need_cs=' + need_cs + ' candidates=' + candidates);
-
-                    var find_sql = util.format(
-                        "SELECT l.ri, c.cs FROM lookup l LEFT JOIN cin c ON l.ri = c.ri WHERE l.pi = '%s' AND l.ty = '%s' ORDER BY l.ct ASC, l.ri ASC LIMIT %s",
-                        obj.ri, child_ty, candidates);
-                    db.getResult(find_sql, connection, function (err3, rows) {
-                        if (err3 || !rows || rows.length === 0) {
-                            connection.rollback(function () {});
-                            console.timeEnd(del_id);
-                            callback(err3);
-                            return;
-                        }
-
-                        // 개수·용량 조건이 모두 충족되는 지점까지만 자른다.
-                        var total_cs = 0;
-                        var total_cnt = 0;
-                        var del_ri = [];
-                        for (var i = 0; i < rows.length; i++) {
-                            total_cs += parseInt(rows[i].cs || 0, 10);
-                            total_cnt++;
-                            del_ri.push(connection.escape(rows[i].ri));
-                            if (total_cnt >= need_cnt && total_cs >= need_cs) break;
-                        }
-
-                        // cni/cbs 는 상대 감산(cni = cni - n)이 아니라 실측 기반
-                        // 절대값을 쓴다. 어차피 이 트랜잭션이 실측 재카운트를 이미
-                        // 했으므로 공짜이고, 재시작·과거 flush 실패로 누적된 드리프트가
-                        // 매 purge마다 자가 치유된다.
-                        // (커밋 후 도착하는 디바운스 델타만큼의 오차는 남지만 ~1초분으로 유계)
-                        //
-                        // lookup.st 는 증분이다. 자식(CIN)이 지워졌으니 부모 stateTag 가
-                        // 올라가야 하는데 보존 정책 purge 만 빠져 있었다. st 는 변경
-                        // 카운터라 실측값이 없으므로 절대값으로 쓸 수 없다.
-                        // MySQL 은 다중 테이블 UPDATE 를 쓸 수 있어 왕복이 늘지 않는다.
-                        var update_sql = util.format(
-                            "UPDATE cnt, lookup SET cnt.cni = %s, cnt.cbs = %s, " +
-                            "lookup.st = lookup.st + 1 WHERE cnt.ri = '%s' AND lookup.ri = '%s'",
-                            actual_cni - total_cnt, actual_cbs - total_cs, obj.ri, obj.ri);
-                        db.getResult(update_sql, connection, function (err4) {
-                            if (err4) {
-                                connection.rollback(function () {});
-                                console.timeEnd(del_id);
-                                callback(err4);
-                                return;
-                            }
-
-                            // 위에서 고른 바로 그 행들을 지운다.
-                            // 예전 "DELETE ... LIMIT n" 은 ORDER BY 가 없어 임의의 n건을
-                            // 지웠다. 집계한 집합과 지운 집합이 달라져 cnt 보정값이 틀어졌고,
-                            // 오래된 것 대신 최신 데이터가 지워질 수 있었다.
-                            var del_sql = "DELETE FROM lookup WHERE ri IN (" + del_ri.join(',') + ")";
-                            db.getResult(del_sql, connection, function (err5, results) {
-                                if (err5) {
-                                    connection.rollback(function () {});
-                                    console.timeEnd(del_id);
-                                    callback(err5);
-                                    return;
-                                }
-                                connection.commit(function (commitErr) {
-                                    var deleted = (results && results.affectedRows) ? results.affectedRows : 0;
-                                    console.log('[delete_oldest] committed: deleted=' + deleted);
-                                    console.timeEnd(del_id);
-                                    // 두 번째 인자가 호출자의 재귀 여부를 정한다.
-                                    // 진행 없이 반환하는 다른 경로들은 undefined 를 넘긴다.
-                                    callback(commitErr, commitErr ? 0 : deleted);
-                                });
-                            });
-                        });
+                        callback(null, deleted);
                     });
                 });
             });
         });
-    }
+    });
 }
 
 
@@ -3269,9 +3146,165 @@ exports.reconcile_cnt_counters = function (connection, opts, callback) {
     });
 };
 
-// update_parent_by_insert 는 여기 있었다. 호출부가 하나도 없었다 —
-// CIN 삽입 시 부모 카운터를 올리는 일은 cnt_man 이 debounce 배치로 완전히
-// 대체했다 (resource.js 의 cnt_man.schedule 이 유일한 경로다).
+// CIN 하나가 생겼을 때 부모 컨테이너의 카운터를 올린다.
+//
+// ── 왜 인라인인가 (예전에는 debounce 배치였다) ──────────────────────────
+//
+// cnt_man 이라는 모듈이 pi 별로 델타를 메모리에 모아 1초 debounce 로 flush 했다.
+// 쓰기 증폭을 줄이려는 것이었는데, 배포 실측이 그 전제를 무너뜨렸다:
+//
+//     전체 요청량   308,425/일 = 3.6건/초   (모든 메서드·모든 타입 합계)
+//     컨테이너 수   30,284개
+//
+// CIN 생성은 그 부분집합이므로 카운터 행 하나가 받는 쓰기는 초당 1건에도
+// 한참 못 미친다. **묶을 것이 없다.** 대신 debounce 는 대가를 치르고 있었다:
+//
+//   - 델타가 순수 인메모리이고 종료 훅이 없어, 재시작하면 최대 11초분이
+//     사라졌다. 배포 드리프트(컨테이너 30,278개 중 1,659개 = 5.5%)의 원인 중
+//     하나가 이것이다.
+//   - flush 마다 풀에서 커넥션을 따로 빌렸다.
+//   - debounce 창의 첫 CIN 시점 사본으로 한도를 판정해, 그 사이 클라이언트가
+//     mni 를 낮춰도 옛 값을 봤다.
+//
+// 그래서 요청 커넥션에서 그 자리에서 올린다. 문장 두 개, 둘 다 PK 인덱스다.
+//
+// ── 왜 두 문장인가 ─────────────────────────────────────────────────────
+//
+// 예전 MySQL 코드는 `update cnt, lookup set ...` 다중 테이블 UPDATE 였다.
+// 그것은 크로스 조인이라 **두 행이 다 있을 때만** 갱신된다 — cnt 행 없는
+// lookup 고아에서 st 만 오르는 것을 막는 성질이다.
+//
+// 같은 의미를 백엔드 중립으로 쓰는 방법이 바로 아래 update_parent_st 에 있다:
+// whereExists 가드. 그것을 그대로 쓴다. 다중 테이블 UPDATE 는 MySQL 전용이고,
+// 그 하나 때문에 이 파일에 usesqlite 분기가 남아 있었다.
+// 한도를 넘긴 컨테이너를 찾는다. 보존 정책 스윕의 첫 단계다.
+//
+// ── 왜 스윕인가 (예전에는 CIN 삽입마다 판정했다) ────────────────────────
+//
+// 예전에는 CIN 이 들어올 때마다 그 컨테이너의 한도를 그 자리에서 판정하고,
+// 넘었으면 그 요청을 처리하던 워커가 삭제까지 했다. 워커가 25개이므로
+// **같은 컨테이너를 여러 워커가 동시에 정리**할 수 있었고, 그래서
+// delete_oldest 는 트랜잭션 + SELECT ... FOR UPDATE NOWAIT 로 서로를
+// 막아야 했다. 그 잠금이 다시 락 컨보이를 만들어 ER_LOCK_WAIT_TIMEOUT 이
+// 390건 났고(2026-08-25 실측), NOWAIT 으로 바꾼 것이 그 대응이었다.
+//
+// **그리고 잠금이 없는 백엔드는 그 알고리즘을 쓸 수 없어서 SQLite 는 아예
+// 다른 갈래를 갖고 있었다.** 코어에 usesqlite 분기가 남은 마지막 이유다.
+//
+// 정리하는 주체를 하나로 만들면 그 사슬이 뿌리에서 끊긴다. 워커 경쟁이
+// 없으니 행 잠금이 필요 없고, 잠금이 없으니 백엔드를 가를 이유가 없다.
+//
+// 비용은 실측했다 — 배포 서버에서 이 질의가 **13ms**, cnt 30,284행 전수.
+// 한 번에 걸리는 컨테이너는 14개였다. 컬럼끼리 비교라 인덱스를 못 타지만
+// 그 규모에서는 문제가 되지 않는다.
+// 보존 정책 스윕 한 바퀴. 한도를 넘긴 컨테이너를 찾아 오래된 자식부터 지운다.
+//
+// **마스터에서만 돈다** (app.js). 정리하는 주체가 하나라는 것이 이 설계의
+// 전부다 — 그래야 delete_oldest 가 잠금 없이 단순해진다.
+//
+// 한 컨테이너를 완전히 정리하지 않고 한 바퀴에 MAX_PURGE_PER_PASS 만큼만
+// 지운다. 남으면 다음 바퀴가 이어서 한다. 삭제 I/O 가 상한이라 한 번에
+// 많이 지워도 총 시간은 같고, 그 사이 다른 컨테이너가 밀리기만 한다.
+exports.purge_sweep = function (connection, opts, callback) {
+    var o = opts || {};
+    var limit = o.limit || 100;
+    var report = { scanned: 0, purged: 0, deleted: 0, failed: 0 };
+
+    _this.select_over_limit(connection, limit, function (err, rows) {
+        if (err) { return callback(err, rows); }
+        report.scanned = rows.length;
+        if (!rows.length) { return callback(null, report); }
+
+        var i = 0;
+        (function next() {
+            if (i >= rows.length) { return callback(null, report); }
+            var r = rows[i];
+            i++;
+
+            // SQLite 스키마는 이 다섯이 TEXT 라 문자열로 온다. 숫자로 바꿔야
+            // purge_plan 의 비교와 뺄셈이 맞는다 ('9' > '10' 이 참이 되는 문제).
+            var cni = parseInt(r.cni || 0, 10);
+            var cbs = parseInt(r.cbs || 0, 10);
+            var mni = parseInt(r.mni || 0, 10);
+            var mbs = parseInt(r.mbs || 0, 10);
+
+            var plan = _this.purge_plan(cni, cbs, mni, mbs);
+            var count = plan.est_count < 1 ? 1 : plan.est_count;
+
+            console.log('[purge_sweep] ri=' + r.ri + ' cni=' + cni + '/' + mni +
+                        ' cbs=' + cbs + '/' + mbs + ' -> ' + count + '건');
+
+            delete_oldest(connection, { ri: r.ri, ty: r.ty }, count, function (e, deleted) {
+                if (e) {
+                    report.failed++;
+                    console.error('[purge_sweep] 실패 ri=' + r.ri + ' : ' +
+                                  ((deleted && deleted.message) || deleted));
+                } else if (deleted) {
+                    report.purged++;
+                    report.deleted += deleted;
+                }
+                next();
+            });
+        })();
+    });
+};
+
+// 한도를 넘긴 컨테이너 목록. cnt 는 배포 실측 30,284행이라 전수 스캔해도 싸다.
+//
+// ty 는 cnt 에 없다 — lookup 에만 있다. delete_oldest 가 자식 타입을 ty+1 로
+// 구하므로 조인해서 가져온다. (cnt.ri 는 lookup.ri 를 참조하는 PK 라 1:1 이다.)
+//
+// 비교는 numericExpr 로 감싼다. MySQL 은 cni/mni 가 bigint 라 그냥 되지만
+// SQLite 스키마는 전부 TEXT 라서 `cni > mni` 가 사전순이 된다 —
+// '9' > '10' 이 참이 되어 한도 안인 컨테이너를 정리 대상으로 잡는다.
+exports.select_over_limit = function (connection, limit, callback) {
+    var n = parseInt(limit, 10);
+    if (!(n > 0)) { n = 100; }
+
+    var num = function (col) { return facade.numericExpr(col); };
+
+    facade.run(facade.k('cnt')
+        .join('lookup', 'lookup.ri', 'cnt.ri')
+        .select('cnt.ri as ri', 'lookup.ty as ty',
+                'cnt.cni as cni', 'cnt.cbs as cbs',
+                'cnt.mni as mni', 'cnt.mbs as mbs')
+        .where(function () {
+            this.whereRaw(num('cnt.cni') + ' > ' + num('cnt.mni'))
+                .orWhereRaw(num('cnt.cbs') + ' > ' + num('cnt.mbs'));
+        })
+        .limit(n), connection, callback);
+};
+
+exports.update_parent_counters = function (connection, pi, cs, callback) {
+    var n = (typeof cs === 'number' && isFinite(cs)) ? cs : 0;
+
+    facade.run(facade.k('cnt').update({
+        cni: facade.raw('cni + 1'),
+        cbs: facade.raw('cbs + ?', [n])
+    }).where({ ri: pi }), connection, function (err, results) {
+        if (err) {
+            // 카운터가 어긋나도 CIN 은 이미 저장됐다. 요청을 실패시키지 않는다 —
+            // reconcile 이 하루 안에 실측으로 바로잡는다.
+            console.error('[update_parent_counters] cnt 갱신 실패 pi=' + pi +
+                          ' : ' + ((results && results.message) || results));
+            return callback(err, results);
+        }
+
+        // 자식이 생겼으니 부모 stateTag 를 올린다. cnt 행이 있을 때만 —
+        // 위 UPDATE 와 같은 조건이어야 둘이 갈라지지 않는다.
+        facade.run(facade.k('lookup')
+            .update({ st: facade.raw('st + 1') })
+            .where({ ri: pi })
+            .whereExists(facade.k('cnt').select('*').whereRaw('cnt.ri = ?', [pi])),
+            connection, function (err2, r2) {
+            if (err2) {
+                console.error('[update_parent_counters] st 갱신 실패 pi=' + pi +
+                              ' : ' + ((r2 && r2.message) || r2));
+            }
+            callback(err2, r2);
+        });
+    });
+};
 
 // 이전에는 MySQL 전용 다중 테이블 UPDATE(`update cnt, lookup set ...`)를
 // db.getResult 로 보냈다. db_action.getResult 는 usesqlite 와 무관하게 항상

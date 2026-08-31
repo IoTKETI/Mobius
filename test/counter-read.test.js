@@ -20,6 +20,9 @@ function freshDb(useSqlite) {
     return require(DB);
 }
 
+// rows 는 배열이거나 함수다. delete_oldest 가 파사드로 넘어오면서 select 가
+// 두 종류(카운터 조회 / 후보 조회)가 됐고, 하나의 배열로는 둘 다 답할 수 없다.
+// 함수를 주면 SQL 을 보고 골라 답할 수 있다.
 function tapAdapter(useSqlite, rows) {
     const db = freshDb(useSqlite);
     const adapter = require(path.join(DB, useSqlite ? 'sqlite.js' : 'mysql.js'));
@@ -27,7 +30,10 @@ function tapAdapter(useSqlite, rows) {
 
     adapter.execute = function (conn, sql, bindings, cb) {
         seen.push({ sql: sql, bindings: bindings });
-        if (/^select/i.test(sql)) { return cb(null, rows === undefined ? [] : rows); }
+        if (/^select/i.test(sql)) {
+            const r = (typeof rows === 'function') ? rows(sql, bindings) : rows;
+            return cb(null, r === undefined ? [] : r);
+        }
         cb(null, { affectedRows: 1, insertId: 0 });
     };
     adapter.begin = function (h, cb) { seen.push({ sql: 'BEGIN' }); cb(null); };
@@ -149,26 +155,32 @@ test('get_cni_count: cnt 행이 없으면 0 을 돌려준다', function (t, done
         }));
 });
 
+// 카운터 조회인지 purge 후보 조회인지 SQL 로 가른다.
+// 후보 조회는 delete_oldest 가 `lookup as l` 로 시작하는 유일한 질의다.
+const isCandidateQuery = (sql) => /`lookup` as `l`/.test(sql);
+
+// 카운터 행은 counters 로 답하고, purge 후보는 없다고 답하는 라우터.
+function counterOnly(counters) {
+    return function (sql) { return isCandidateQuery(sql) ? [] : counters; };
+}
+
 // mni/mbs 는 예전에 호출자의 메모리 객체(obj.mni/obj.mbs)에서 왔다. cnt_man 은
 // debounce 창의 첫 CIN 시점 사본을 들고 있으므로, 그 사이 클라이언트가 mni 를
 // 낮추면 옛 값으로 한도를 판정했다. 이제 DB 최신값을 쓴다.
 test('get_cni_count: mni/mbs 를 DB 최신값으로 판정한다', function (t, done) {
     // DB 는 mni=5 인데 호출자 객체는 낡은 mni=100 을 들고 있다.
     // cni(7) > mni(5) 이므로 purge 가 시도돼야 한다. obj.mni=100 을 썼다면 안 돈다.
-    //
-    // delete_oldest 는 아직 구 경로(legacy)라 파사드 tap 에는 안 잡힌다.
-    // 그래서 LEGACY_ 기록으로 판정한다.
-    const { sql_action, seen } = tapAdapter(true, [{ cni: 7, cbs: 70, st: 3, mni: 5, mbs: 1000 }]);
+    const { sql_action, seen } = tapAdapter(true,
+        counterOnly([{ cni: 7, cbs: 70, st: 3, mni: 5, mbs: 1000 }]));
 
     sql_action.get_cni_count({}, { ri: '/M/c1', ty: '3', mni: 100, mbs: 1000 },
         guard(done, function (cni, cbs, st) {
-            const purgeTried = seen.some(function (s) {
-                return /^LEGACY_/.test(s.sql) && /cin|lookup/i.test(s.legacySql || '');
-            });
+            assertNoLegacy(seen);
+            const purgeTried = seen.some(function (s) { return isCandidateQuery(s.sql); });
             assert.ok(purgeTried, 'DB 의 mni=5 를 썼다면 purge 가 시도돼야 한다: ' +
                 JSON.stringify(seen.map(function (s) { return s.sql; })));
 
-            // delete_oldest 가 아무것도 못 지웠으면(스텁이 후보 0건) 재조회 없이
+            // delete_oldest 가 아무것도 못 지웠으면(후보 0건) 재조회 없이
             // 방금 읽은 값을 그대로 돌려준다 — 배포본의 라이브락 수정(204f7a4).
             assert.strictEqual(cni, 7, '지운 게 없으면 읽은 값을 그대로 돌려준다');
             assert.strictEqual(cbs, 70);
@@ -178,10 +190,12 @@ test('get_cni_count: mni/mbs 를 DB 최신값으로 판정한다', function (t, 
 });
 
 // 배포본 204f7a4 의 핵심: delete_oldest 가 진행 없이 성공처럼 반환하는 경로
-// (NOWAIT 스킵 / 이미 정리됨 / 후보 0건)에서 재귀하면 라이브락이 된다.
+// (예전엔 NOWAIT 스킵 / 이미 정리됨 / 후보 0건, 지금은 후보 0건 하나)에서
+// 재귀하면 라이브락이 된다.
 // 실측 장애: load 1085, 동시 쿼리 1243건, 락 타임아웃 3330건.
 test('get_cni_count: 지운 게 없으면 재조회하지 않는다 (라이브락 방지)', function (t, done) {
-    const { sql_action, seen } = tapAdapter(true, [{ cni: 99, cbs: 990, st: 1, mni: 5, mbs: 50 }]);
+    const { sql_action, seen } = tapAdapter(true,
+        counterOnly([{ cni: 99, cbs: 990, st: 1, mni: 5, mbs: 50 }]));
 
     sql_action.get_cni_count({}, { ri: '/M/c1', ty: '3', mni: 5, mbs: 50 },
         guard(done, function () {
@@ -189,13 +203,53 @@ test('get_cni_count: 지운 게 없으면 재조회하지 않는다 (라이브�
             const reads = seen.filter(function (s) { return /^select .*`cni`/i.test(s.sql); });
             assert.strictEqual(reads.length, 1,
                 '지운 게 없는데 재조회했다 (' + reads.length + '회)');
+            // 후보가 0건이면 삭제도 안 나가야 한다.
+            const deletes = seen.filter(function (s) { return /^delete/i.test(s.sql); });
+            assert.deepStrictEqual(deletes, [], '후보 0건인데 삭제가 나갔다');
+            done();
+        }));
+});
+
+// delete_oldest 가 실제로 지웠을 때는 재조회한다 — 위 테스트의 반대편이다.
+// 둘 다 있어야 "지웠으면 재조회, 아니면 안 함" 이 고정된다.
+test('get_cni_count: 지운 게 있으면 재조회한다', function (t, done) {
+    // 첫 조회는 한도 초과(cni=7 > mni=5), 재조회는 한도 안(cni=4).
+    // 후보 조회는 1건을 주고, 삭제 후 재집계는 cin 집계 질의로 답한다.
+    let reads = 0;
+    const { sql_action, seen } = tapAdapter(true, function (sql) {
+        if (isCandidateQuery(sql)) { return [{ ri: '/M/c1/cin1', cs: 30 }]; }
+        if (/count\(/i.test(sql)) { return [{ n: 4, s: 40 }]; }   // 삭제 후 실측
+        reads += 1;
+        return reads === 1
+            ? [{ cni: 7, cbs: 70, st: 3, mni: 5, mbs: 1000 }]
+            : [{ cni: 4, cbs: 40, st: 4, mni: 5, mbs: 1000 }];
+    });
+
+    sql_action.get_cni_count({}, { ri: '/M/c1', ty: '3', mni: 5, mbs: 1000 },
+        guard(done, function (cni, cbs, st) {
+            assertNoLegacy(seen);
+            assert.strictEqual(reads, 2, '지웠는데 재조회하지 않았다');
+            assert.strictEqual(cni, 4, '재조회한 값을 돌려줘야 한다');
+            assert.strictEqual(cbs, 40);
+            assert.strictEqual(st, 4);
+
+            // 지운 집합을 그대로 지워야 한다 — 다시 고르면 센 것과 갈린다.
+            const del = seen.find(function (s) { return /^delete/i.test(s.sql); });
+            assert.ok(del, '삭제가 안 나갔다');
+            assert.ok(del.bindings.indexOf('/M/c1/cin1') >= 0,
+                '고른 ri 를 바인딩으로 지워야 한다: ' + JSON.stringify(del.bindings));
             done();
         }));
 });
 
 test('get_cni_count: purge 가 수렴하지 않아도 무한 재귀하지 않는다', function (t, done) {
-    // 항상 한도 초과 상태를 돌려준다 = delete_oldest 가 못 줄이는 상황.
-    const { sql_action } = tapAdapter(true, [{ cni: 99, cbs: 990, st: 1, mni: 5, mbs: 50 }]);
+    // 후보는 늘 있고(= 지웠다고 보고) 카운터는 안 줄어드는 상황.
+    // 실제로는 카운터 드리프트나 다른 워커와의 경합에서 나온다.
+    const { sql_action } = tapAdapter(true, function (sql) {
+        if (isCandidateQuery(sql)) { return [{ ri: '/M/stuck/cin1', cs: 10 }]; }
+        if (/count\(/i.test(sql)) { return [{ n: 99, s: 990 }]; }
+        return [{ cni: 99, cbs: 990, st: 1, mni: 5, mbs: 50 }];
+    });
     const t0 = Date.now();
     sql_action.get_cni_count({}, { ri: '/M/stuck', ty: '3', mni: 5, mbs: 50 },
         guard(done, function (cni, cbs, st) {

@@ -145,7 +145,17 @@ global.usepxywsport = port_of(conf.pxyWsPort, '7577');
 global.usepxymqttport = port_of(conf.pxyMqttPort, '7578');
 
 global.use_sgn_man_port = port_of(conf.sgnManPort, '7599');
-global.use_cnt_man_port = port_of(conf.cntManPort, '7583');
+// cntManPort 는 여기 있었다. 2019년의 cnt_man 은 그 포트에서 도는 별도 HTTP
+// 마이크로서비스였는데, 그 코드는 오래전에 주석 처리됐고 자기 자신에게
+// PUT /cnt 를 보내던 호출부도 제거됐다. 읽는 코드가 0건인 죽은 설정이었다.
+
+// 보존 정책 스윕 주기(ms). 마스터에서만 도는 타이머다.
+//
+// 이 값이 곧 **"한도를 얼마나 넘겨도 되는가"** 다. 짧으면 초과가 줄고 스윕이
+// 자주 돌지만, 찾는 질의가 배포 실측 13ms(cnt 30,284행)라 1초로 잡아도 부담이
+// 없다. 예전 debounce 방식도 최대 10초를 허용했으므로 같은 수준에서 시작한다.
+global.purge_sweep_ms = (typeof conf.purgeSweepMs === 'number' && conf.purgeSweepMs >= 1000)
+    ? conf.purgeSweepMs : 10000;
 global.use_hit_man_port = port_of(conf.hitManPort, '7594');
 
 global.use_mqtt_broker = 'localhost'; // mqttbroker for mobius

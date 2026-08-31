@@ -26,10 +26,15 @@ const ROOT = path.join(__dirname, '..');
 // 남은 둘은 성격이 다르다. **진짜로 백엔드마다 동작이 다른 곳**이고, 없앨 것이
 // 아니라 어댑터 메서드로 옮길 것이다. 그러면 코어에는 분기가 없고 각 어댑터가
 // 자기 방식대로 구현한다 — 세 번째 백엔드가 와도 if 가 늘지 않는다.
+// **목표 달성.** 이제 파사드 하나뿐이다.
+//
+// 마지막 둘(cnt_man 의 카운터 갱신, sql_action 의 delete_oldest)은 "백엔드마다
+// 동작이 달라야 한다" 는 이유로 남아 있었는데, 다시 보니 그 차이는 백엔드가
+// 아니라 **정리 주체가 여럿이라는 것**에서 나왔다. 워커 25개가 동시에 정리하니
+// 행 잠금이 필요했고, 잠금이 없는 백엔드는 그 알고리즘을 못 써서 갈렸다.
+// 정리를 마스터 하나로 옮기자 잠금이 필요 없어지고 갈래도 사라졌다.
 const ALLOWED = [
-    'mobius/db/index.js',      // 최종 목적지 — 여기 하나만 남아야 한다
-    'mobius/cnt_man.js',       // 카운터 갱신: MySQL 은 한 문장, SQLite 는 두 문장
-    'mobius/sql_action.js'     // delete_oldest: 알고리즘 자체가 다르다
+    'mobius/db/index.js'       // 백엔드를 아는 유일한 곳
 ];
 
 // mobius.js 는 usesqlite 를 **세팅**하는 곳이라 대상이 아니다.
@@ -110,6 +115,25 @@ test('501 게이트는 fail-open 이다 — 제한을 선언한 백엔드만 거
     assert.strictEqual(mysql.capabilities.limitedResourceTypes, undefined,
         'mysql 이 limitedResourceTypes 를 선언했다 — 제한 없음은 키가 없는 것이다');
     assert.strictEqual(sqlite.capabilities.limitedResourceTypes, true);
+});
+
+test('501 게이트는 타입별 빌더보다 먼저 선다', function () {
+    // create_action 안의 게이트만으로는 늦다. build_resource 아래의 타입별
+    // 빌더(build_grp 등)가 먼저 DB 를 치고, 그 실패가 500 "database error" 로
+    // 뭉개져 나간다. 실측: SQLite 에서 grp 생성이 501 대신 500 이었다
+    // (build_grp -> update_route -> `select * from csr`, 그 테이블이 없다).
+    const src = fs.readFileSync(path.join(ROOT, 'mobius/resource.js'), 'utf8');
+    const at_create = src.indexOf('exports.create = function');
+    assert.ok(at_create > 0, 'exports.create 를 못 찾았다');
+
+    const body = src.slice(at_create, src.indexOf('\nexports.', at_create + 10));
+    const at_gate = body.indexOf('check_db_support');
+    const at_build = body.indexOf('build_resource(');
+
+    assert.ok(at_gate >= 0, 'exports.create 가 check_db_support 를 부르지 않는다');
+    assert.ok(at_build >= 0, 'exports.create 에서 build_resource 를 못 찾았다');
+    assert.ok(at_gate < at_build,
+        '게이트가 build_resource 뒤에 있다 — 타입별 빌더가 먼저 DB 를 친다');
 });
 
 test('SQLITE_SUPPORTED_TY 는 스키마에 테이블이 있는 타입만 담는다', function () {

@@ -202,6 +202,51 @@ var reconcile_failed = [];
 // 동작하지 않았다. 조각 사이를 1분으로 두면 한 바퀴가 20분 안에 끝난다.
 var RECONCILE_GAP_MS = 60 * 1000;
 
+// 보존 정책 스윕. mni/mbs 를 넘긴 컨테이너에서 오래된 자식을 지운다.
+//
+// **마스터에서만 돈다.** 그것이 이 설계의 전부다.
+//
+// 예전에는 CIN 이 들어올 때마다 그 요청을 처리하던 워커가 한도를 판정하고
+// 삭제까지 했다. 워커가 25개라 같은 컨테이너를 여러 워커가 동시에 정리했고,
+// 그래서 delete_oldest 는 트랜잭션 + SELECT ... FOR UPDATE NOWAIT 로 서로를
+// 막아야 했다. 그 잠금이 다시 락 컨보이를 만들었고(ER_LOCK_WAIT_TIMEOUT
+// 390건, 2026-08-25 실측), **잠금이 없는 백엔드는 그 알고리즘을 쓸 수 없어
+// SQLite 는 아예 다른 갈래를 갖고 있었다.**
+//
+// 정리 주체를 하나로 만들자 그 사슬이 뿌리에서 끊겼다 — 경쟁이 없으니 잠금이
+// 필요 없고, 잠금이 없으니 백엔드를 가를 이유가 없다.
+//
+// 비용은 실측했다: 찾는 질의가 배포 서버에서 13ms(cnt 30,284행 전수), 한 번에
+// 걸리는 컨테이너가 14개였다.
+var purge_running = false;
+
+function purge_sweep_tick() {
+    if (purge_running) { return; }   // 한 바퀴가 도는 중이면 넘어간다
+    purge_running = true;
+
+    db.getConnection((code, connection) => {
+        if (code !== '200') {
+            purge_running = false;
+            console.error('[purge_sweep] 커넥션을 못 빌렸다 — 다음 주기에 다시 한다');
+            return;
+        }
+        db_sql.purge_sweep(connection, { limit: 100 }, (err, report) => {
+            db.release(connection);
+            purge_running = false;
+            if (err) {
+                console.error('[purge_sweep] 실패: ' + ((report && report.message) || report));
+                return;
+            }
+            // 할 일이 없으면 조용하다. 10초마다 한 줄씩 찍으면 로그가 밀린다.
+            if (report.scanned > 0) {
+                console.log('[purge_sweep] 초과 ' + report.scanned + '개 중 ' +
+                            report.purged + '개 정리, ' + report.deleted + '건 삭제' +
+                            (report.failed ? ', 실패 ' + report.failed : ''));
+            }
+        });
+    });
+}
+
 // is_continuation 은 이어 돌기가 스스로 부를 때만 true 다.
 // 24시간 타이머는 한 바퀴가 도는 중이면 그냥 넘어간다 — 안 그러면 두 흐름이
 // 같은 reconcile_cursor 를 각자 전진시켜 컨테이너를 건너뛴다.
@@ -366,6 +411,11 @@ if (use_clustering) {
 
                                 reconcile_counters();
                                 setInterval(reconcile_counters, (24) * (60) * (60) * (1000));
+
+                                // 보존 정책 스윕. 주기가 곧 "한도를 얼마나 넘겨도
+                                // 되는가" 의 손잡이다. 예전 debounce 도 최대 10초를
+                                // 허용했으므로 같은 수준에서 시작한다.
+                                setInterval(purge_sweep_tick, global.purge_sweep_ms);
 
                                 require('./pxy_mqtt');
                                 require('./pxy_coap');

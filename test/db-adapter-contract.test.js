@@ -241,7 +241,14 @@ test('새 백엔드를 붙이려면 코어를 몇 군데 고쳐야 하는가', f
     //       둘 다 db_action 을 직접 require 했지만, 애초에 저장소 어디서도
     //       require 되지 않는 죽은 파일이라 실제 우회는 아니었다.
     //       이 테스트는 파일을 셀 뿐 실행 여부를 보지 않는다.
-    assert.strictEqual(bypass.length, 5,
+    //
+    // 5 -> 4 (2026-08-31). cnt_man.js 를 지웠다. 카운터 갱신은 CIN 삽입과 같은
+    //       커넥션에서 SQL 한 방으로 하고(update_parent_counters), mni/mbs 정리는
+    //       마스터의 주기 스윕(purge_sweep)이 맡는다. 별도 프로세스도, 디바운스
+    //       버퍼도, 두 번째 커넥션 원천도 필요 없어졌다.
+    //       같은 커밋에서 sql_action 의 죽은 db_sqlite require 도 뺐지만,
+    //       sql_action 은 아직 db_action 을 require 하므로 수는 그대로 4다.
+    assert.strictEqual(bypass.length, 4,
         '파사드를 우회해 커넥션을 얻는 파일이 ' + bypass.length + '개다:\n  ' +
         bypass.join('\n  ') + '\n(줄었으면 이 숫자를 내리고, 늘었으면 되돌릴 것)');
 });

@@ -45,7 +45,6 @@ var acp_filter = require('./acp_filter');
 var db = require('./db_action');
 var db_facade = require('./db');
 var db_sql = require('./sql_action');
-var cnt_man = require('./cnt_man');
 var db_errors = require('./db/errors');
 var defaults = require('./defaults');
 var rid = require('./rid');
@@ -424,15 +423,24 @@ function create_action(request, response, callback) {
 
         db_sql.insert_cin(request.db_connection, resource_Obj[rootnm], (err, results) => {
             if (!err) {
-                var targetObject = JSON.parse(JSON.stringify(request.targetObject));
-                var cs = parseInt(resource_Obj[rootnm].cs);
+                var cs = parseInt(resource_Obj[rootnm].cs, 10);
+                var parent_ri = request.targetObject[parent_rootnm].ri;
 
-                cnt_man.schedule(targetObject[parent_rootnm], cs);
-
-                targetObject = null;
-
-                results = null;
-                callback('200');
+                // 부모 카운터를 그 자리에서 올린다. 문장 두 개, 둘 다 PK 인덱스다.
+                //
+                // 예전에는 cnt_man 이 pi 별 델타를 메모리에 모아 1초 debounce 로
+                // flush 했다. 배포 실측이 그 전제를 무너뜨렸다 — 전체 요청이
+                // 초당 3.6건이고 컨테이너가 30,284개라 묶을 것이 없었다. 대신
+                // 델타가 인메모리라 재시작하면 최대 11초분이 사라졌다.
+                //
+                // 한도 정리는 여기서 하지 않는다. 마스터의 purge 스윕이 맡는다
+                // (app.js). 정리 주체가 하나여야 delete_oldest 가 잠금 없이
+                // 단순해지고, 그래야 백엔드를 가를 이유가 사라진다.
+                db_sql.update_parent_counters(request.db_connection, parent_ri, cs,
+                    function () {
+                        results = null;
+                        callback('200');
+                    });
             }
             else {
                 if (db_errors.isDuplicateKey(results)) {
@@ -1041,6 +1049,24 @@ function build_resource(request, response, callback) {
 
 exports.create = function (request, response, callback) {
     var rootnm = request.headers.rootnm;
+
+    // **게이트는 여기다.** create_action 에도 같은 검사가 있지만 그것만으로는
+    // 늦다 — build_resource 아래의 타입별 빌더가 먼저 DB 를 친다.
+    //
+    // 실측(등가성 하네스, SQLite): grp(9) 생성이 501 이 아니라 500 "database
+    // error" 로 나갔다. build_grp -> update_route -> select_csr_like 가
+    // `select * from csr` 를 쏘는데 mobiusdb_sqlite.sql 에는 csr 테이블이 없다.
+    // 그 실패는 로그도 안 남기고 500-1 로 뭉개져서, 클라이언트는 "이 백엔드가
+    // 이 타입을 안 받는다" 대신 "DB 가 고장났다" 를 듣는다.
+    //
+    // 예전에는 안 보였다. db_action.getResult 가 usesqlite 와 무관하게 항상
+    // MySQL 로 나갔기 때문이다(241f553 에서 파사드로 옮기며 사라진 동작).
+    // 즉 SQLite 모드에서 grp 를 만들면 조용히 MySQL 의 csr 을 읽고 있었다.
+    if (!check_db_support(request.ty)) {
+        console.log('[create] ty=' + request.ty + ' is not supported by this backend');
+        callback('501-2');
+        return;
+    }
 
     // acpi 를 실제로 보낸 요청에만 붙는다. 안 보내면 질의가 한 번도 안 나간다
     // (배포 34,313 비-CIN 행 중 acpi 가 채워진 것은 2건이다).

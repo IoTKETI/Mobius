@@ -83,6 +83,20 @@ var SCHEMA = {
         help: "이름과 달리 'ACP 를 쓰느냐' 가 아니다. disable = 생성·조회·탐색은 " +
               '누구나 / 수정·삭제는 생성자만. enable = 전부 생성자만.'
     },
+    purgeSweepMs: {
+        group: '저장소',
+        type: 'number', integer: true, dflt: 10000,
+        // 1초 미만은 받지 않는다. 찾는 질의가 13ms 라 부담은 아니지만, 더
+        // 짧게 잡을 이유도 없고 오타로 10 을 넣으면 초당 100회가 된다.
+        valid: function (v) { return v >= 1000; },
+        validHint: '1000 이상 (ms)',
+        apply: 'restart',
+        label: '보존 정책 스윕 주기(ms)',
+        help: '이 값이 곧 **한도를 얼마나 넘겨도 되는가** 다. mni/mbs 를 넘긴 ' +
+              '컨테이너를 찾아 오래된 자식을 지우는 주기이고, 마스터에서만 돈다. ' +
+              '찾는 질의는 배포 실측 13ms(컨테이너 30,284개 전수)라 짧게 잡아도 ' +
+              '부담이 없다.'
+    },
     outboundTimeoutMs: {
         group: '요청 처리',
         type: 'number', dflt: 0,
@@ -167,7 +181,6 @@ var SCHEMA = {
     pxyWsPort:   { group: '네트워크', type: 'string', dflt: '7577', exposed: false, apply: 'restart', label: 'WS 프록시 포트' },
     pxyMqttPort: { group: '네트워크', type: 'string', dflt: '7578', exposed: false, apply: 'restart', label: 'MQTT 프록시 포트' },
     sgnManPort:  { group: '네트워크', type: 'string', dflt: '7599', exposed: false, apply: 'restart', label: '알림 관리 포트' },
-    cntManPort:  { group: '네트워크', type: 'string', dflt: '7583', exposed: false, apply: 'restart', label: '컨테이너 관리 포트' },
     hitManPort:  { group: '네트워크', type: 'string', dflt: '7594', exposed: false, apply: 'restart', label: '히트 관리 포트' },
 
     // ── 노출 안 함: 곧 사라진다 ──────────────────────────────────────

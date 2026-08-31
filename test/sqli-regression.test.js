@@ -194,62 +194,61 @@ test('예약어 lock 도 빌더가 인용한다', function () {
     }
 });
 
-// ── cnt_man 의 카운터 갱신 ────────────────────────────────────────────
+// ── 부모 카운터 갱신 ────────────────────────────────────────────────
 
-test('cnt_man 이 pi 를 문자열로 박지 않는다', function () {
+// 함수 본문만 떼어 온다. 주석은 뺀다 — 왜 이렇게 바꿨는지 설명하느라
+// 옛 형태(usesqlite, FOR UPDATE ...)를 그대로 인용하기 때문이다.
+function bodyOf(name) {
+    const fs = require('node:fs');
+    const src = fs.readFileSync(path.join(__dirname, '..', 'mobius', 'sql_action.js'), 'utf8');
+    const at = src.indexOf(name);
+    assert.ok(at > 0, name + ' 을 못 찾았다');
+    let end = src.indexOf('\nexports.', at + name.length);
+    if (end < 0) { end = src.length; }
+    return src.slice(at, end).split('\n')
+        .filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l)).join('\n');
+}
+
+test('카운터 갱신이 pi 를 문자열로 박지 않는다', function () {
     // pi 는 대상 컨테이너의 ri 이고, 그 ri 는 클라이언트가 준 rn 에서 만들어진다
     // (resource.js 의 build_resource). 따옴표가 든 rn 으로 컨테이너를 만들고
-    // 그 아래 cin 을 넣으면, flush 가 그 ri 를 SQL 에 박던 2차 주입이었다.
-    const fs = require('node:fs');
-    const src = fs.readFileSync(path.join(__dirname, '..', 'mobius', 'cnt_man.js'), 'utf8');
-    // 주석은 세지 않는다 — 왜 이렇게 바꿨는지 설명하느라 옛 형태를 인용한다.
-    const code = src.split('\n').filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l)).join('\n');
+    // 그 아래 cin 을 넣으면, 카운터 갱신이 그 ri 를 SQL 에 박던 2차 주입이었다.
+    const body = bodyOf('exports.update_parent_counters');
 
-    assert.ok(!/util\.format/.test(code),
-        'cnt_man 에 util.format 이 남아 있다 — 값은 바인딩으로 넘길 것');
-    assert.ok(!/%s/.test(code),
-        'cnt_man 에 %s 문자열 결합이 남아 있다');
-    assert.ok(/db_facade\.raw\(/.test(code),
-        'cnt_man 이 파사드 raw + 바인딩을 쓰지 않는다');
+    assert.ok(!/util\.format/.test(body), '카운터 갱신에 util.format 이 남아 있다');
+    assert.ok(!/%s/.test(body), '카운터 갱신에 %s 문자열 결합이 남아 있다');
+    assert.ok(/facade\.k\('cnt'\)/.test(body), '빌더를 쓰지 않는다');
 });
 
-test('cnt_man 의 문장 모양이 백엔드별로 유지된다', function () {
-    // MySQL 은 다중 테이블 UPDATE 한 문장이라 두 행이 **다 있을 때만** 갱신된다.
-    // 두 문장으로 쪼개면 cnt 행 없는 lookup 고아에서 st 만 올라, 그 컨테이너의
-    // 조회 응답과 알림에 실리는 st 가 달라진다. 모양을 바꾸지 않는 것이 계약이다.
-    const fs = require('node:fs');
-    const src = fs.readFileSync(path.join(__dirname, '..', 'mobius', 'cnt_man.js'), 'utf8');
+test('카운터 갱신에 백엔드 분기가 없다', function () {
+    // 예전에는 MySQL 다중 테이블 UPDATE 와 SQLite 두 문장으로 갈려 있었다.
+    // whereExists 가드가 같은 의미를 백엔드 중립으로 낸다 — update_parent_st
+    // 가 이미 그 형태로 프로덕션에서 돈다.
+    const body = bodyOf('exports.update_parent_counters');
 
-    assert.ok(/update cnt, lookup set/.test(src),
-        'MySQL 쪽 다중 테이블 UPDATE 가 사라졌다 — 고아 lookup 에서 st 만 오르게 된다');
-    assert.ok(/update cnt set cni = cni \+ \?/.test(src),
-        'SQLite 쪽 cnt UPDATE 가 사라졌다');
-    assert.ok(/update lookup set st = st \+ \?/.test(src),
-        'SQLite 쪽 lookup UPDATE 가 사라졌다');
+    assert.ok(!/usesqlite/.test(body), '카운터 갱신에 usesqlite 분기가 있다');
+    assert.ok(/whereExists/.test(body),
+        'cnt 행이 있을 때만 st 를 올리는 가드가 없다 — 고아 lookup 의 st 가 오른다');
 });
 
-test('cnt_man 의 raw 가 바인딩으로 나간다 (양쪽 백엔드)', function () {
-    // 따옴표가 든 ri 를 넣어도 SQL 구조가 안 깨지는지 빌더 수준에서 확인한다.
-    const EVIL_RI = "/Mobius/x'); drop table cnt; --";
-    for (const sqlite of [true, false]) {
-        const db = freshDb(sqlite);
-        db.connect('h', 1, 'u', 'p', function () {});
-        const n = db.raw('update cnt set cni = cni + ?, cbs = cbs + ? where ri = ?',
-            [1, 2, EVIL_RI]).toSQL().toNative();
-        assert.ok(n.sql.indexOf('drop table') < 0,
-            (sqlite ? 'SQLite' : 'MySQL') + ': SQL 본문에 값이 박혔다 — ' + n.sql);
-        assert.ok(n.bindings.indexOf(EVIL_RI) >= 0, '값이 바인딩에 없다');
-    }
+test('카운터 갱신이 NaN 을 걸러낸다', function () {
+    // cs 는 resource.js 가 parseInt 로 넘기므로 값이 없으면 NaN 이다.
+    // 그대로 바인딩하면 NOT NULL 을 위반해 그 컨테이너의 갱신이 통째로 실패한다.
+    const body = bodyOf('exports.update_parent_counters');
+    assert.ok(/isFinite\(cs\)/.test(body), 'cs 를 수로 검사하지 않는다');
 });
 
-test('cnt_man 이 NaN 델타를 걸러낸다', function () {
-    // resource.js 가 parseInt(cs) 로 넘기므로 cs 가 없으면 NaN 이다. 그대로
-    // 누적되면 entry.cbs 가 영구히 NaN 이고, 그 pi 의 flush 가 매번 통째로
-    // 실패해 cni/st 증가까지 잃는다.
-    const fs = require('node:fs');
-    const src = fs.readFileSync(path.join(__dirname, '..', 'mobius', 'cnt_man.js'), 'utf8');
-    assert.ok(/isFinite\(cs\)/.test(src),
-        'schedule 이 cs 를 수로 검사하지 않는다 — NaN 하나가 그 컨테이너의 카운터를 영구히 멈춘다');
+test('delete_oldest 가 빌더로 나가고 분기가 없다', function () {
+    // 정리 주체가 마스터 하나가 되면서 트랜잭션·행잠금이 필요 없어졌고,
+    // 그래서 백엔드를 가를 이유도 사라졌다.
+    const body = bodyOf('function delete_oldest');
+
+    assert.ok(!/usesqlite/.test(body), 'delete_oldest 에 usesqlite 분기가 남아 있다');
+    assert.ok(!/util\.format/.test(body), 'delete_oldest 에 문자열 조립이 남아 있다');
+    assert.ok(!/beginTransaction|FOR UPDATE/i.test(body),
+        '정리 주체가 하나인데 트랜잭션·행잠금이 남아 있다');
+    assert.ok(/whereIn\('ri', del_ri\)/.test(body),
+        '센 집합을 그대로 지우지 않는다 — 고른 것과 지운 것이 갈리면 카운터가 틀어진다');
 });
 
 test('sql_action 에 WHERE 없는 update 가 없다', function () {

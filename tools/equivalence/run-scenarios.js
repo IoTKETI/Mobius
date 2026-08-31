@@ -145,8 +145,17 @@ async function main() {
         }));
     }
 
-    // mni=3 이므로 오래된 것이 정리되어야 한다. 디바운스(1초) + 정리 대기.
-    await new Promise(function (r) { setTimeout(r, 3000); });
+    // mni=3 이므로 오래된 것이 정리되어야 한다.
+    //
+    // **정리는 삽입과 동기가 아니다.** 마스터의 보존 정책 스윕(purge_sweep)이
+    // global.purge_sweep_ms(기본 10초)마다 돌면서 한도를 넘긴 컨테이너를
+    // 정리한다. 그래서 여기서 기다려야 하는 시간은 그 주기보다 길어야 한다 —
+    // 3초로 두었더니 스윕의 위상에 따라 정리된 채로도, 안 된 채로도 잡혔다
+    // (SQLite 는 통과하고 MySQL 은 cni=5 로 잡혔다. 코드 차이가 아니라 타이밍이다).
+    //
+    // 예전에는 CIN 을 넣던 워커가 그 자리에서 정리해서 1초 디바운스면 됐다.
+    // 그 구조를 버린 이유는 app.js 의 purge_sweep_tick 주석에 있다.
+    await new Promise(function (r) { setTimeout(r, 13000); });
     await step('cnt-after-purge', () => call('GET', '/' + CSE + '/' + AE + '/c2'));
     await step('cin-latest', () => call('GET', '/' + CSE + '/' + AE + '/c2/la'));
     await step('cin-oldest', () => call('GET', '/' + CSE + '/' + AE + '/c2/ol'));
