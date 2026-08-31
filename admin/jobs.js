@@ -21,6 +21,22 @@ var MAX_FINISHED = 20;      // 끝난 작업 보관 개수
 var MAX_FAILURES = 200;     // 작업당 보관할 실패 상세 개수
 var DEFAULT_CONCURRENCY = 4;
 
+/**
+ * 취소한 뒤 진행 중이던 항목의 답을 기다려 주는 시간.
+ *
+ * 기다리는 것 자체는 옳다 — 그 삭제는 실제로 진행 중이고, 답을 받으면 결과를
+ * 정확히 기록할 수 있다. 문제는 **무한정** 기다리는 것이다.
+ *
+ * worker 가 콜백을 영영 안 부르면 running 이 0 이 되지 않아 작업이 끝나지
+ * 않고, `jobs.active()` 가 계속 그 작업을 돌려준다. 그러면 서버 제어의
+ * guard_busy 가 Mobius 정지·재기동을 **영구히** 막는다. 취소는 그 상황의
+ * 탈출구인데, 지금까지는 취소도 같은 카운터를 기다려 함께 갇혔다.
+ *
+ * 45초는 CSE 클라이언트의 요청 타임아웃(30초)보다 넉넉하다. 정상적인 항목은
+ * 그 안에 반드시 답한다 — 유예가 발동하면 그것 자체가 비정상 신호다.
+ */
+var CANCEL_GRACE_MS = 45000;
+
 var active = null;          // 지금 도는 작업 (하나뿐)
 var finished = [];          // 최근 것이 앞
 
@@ -122,12 +138,17 @@ exports.start = function (spec) {
     var keyOf = spec.keyOf || function (t) { return String(t); };
     var worker = spec.worker;
     var concurrency = spec.concurrency > 0 ? spec.concurrency : DEFAULT_CONCURRENCY;
+    // 시험이 45초를 실제로 기다리지 않게 열어 둔다. 호출부는 넘기지 않는다.
+    var graceMs = spec.cancelGraceMs > 0 ? spec.cancelGraceMs : CANCEL_GRACE_MS;
 
     var next = 0;
     var running = 0;
     var stopped = false;
+    var inflight = [];          // 아직 답이 안 온 대상. 유예가 끝나면 이들을 기록한다.
+    var graceTimer = null;
 
     function finishJob() {
+        if (graceTimer !== null) { clearTimeout(graceTimer); graceTimer = null; }
         if (job.state === 'running') {
             job.state = job.cancelRequested ? 'cancelled' : 'done';
         }
@@ -137,15 +158,40 @@ exports.start = function (spec) {
         retire(job);
     }
 
+    /**
+     * 취소했는데 유예 안에 답하지 않은 항목들. **실패가 아니라 모름이다** —
+     * 그 삭제는 서버에서 끝났을 수도, 안 끝났을 수도 있다. 관리자가 목록을
+     * 다시 조회하면 어느 쪽인지 드러난다.
+     */
+    function abandonInflight() {
+        graceTimer = null;
+        if (stopped) { return; }
+        stopped = true;
+        inflight.forEach(function (t) {
+            job._record(keyOf(t), 'skipped',
+                        '취소 시점에 응답을 기다리던 중이었다 (' + (graceMs / 1000) +
+                        '초 유예 초과) — 처리됐는지 알 수 없다');
+        });
+        inflight = [];
+        finishJob();
+    }
+
     function pump() {
         if (stopped) { return; }
 
         if (job.cancelRequested && running === 0) { stopped = true; return finishJob(); }
         if (next >= targets.length && running === 0) { stopped = true; return finishJob(); }
 
+        // 취소했는데 아직 도는 항목이 있다. 답을 기다리되 영원히는 아니다.
+        if (job.cancelRequested && running > 0 && graceTimer === null) {
+            graceTimer = setTimeout(abandonInflight, graceMs);
+            if (typeof graceTimer.unref === 'function') { graceTimer.unref(); }
+        }
+
         while (!job.cancelRequested && running < concurrency && next < targets.length) {
             var target = targets[next++];
             running++;
+            inflight.push(target);
             (function (t) {
                 var settled = false;
                 worker(t, function (outcome, reason) {
@@ -153,6 +199,11 @@ exports.start = function (spec) {
                     // 100% 를 넘는다. 여기서 막는다.
                     if (settled) { return; }
                     settled = true;
+                    // 유예가 끝나 이미 기록하고 끝낸 작업에 늦게 온 답은 버린다.
+                    // 여기서 안 막으면 processed 가 total 을 넘는다.
+                    if (stopped) { return; }
+                    var at = inflight.indexOf(t);
+                    if (at >= 0) { inflight.splice(at, 1); }
                     job._record(keyOf(t), outcome, reason);
                     running--;
                     // 재귀 대신 다음 틱으로 넘긴다. worker 가 동기로 끝나는 경우
@@ -162,6 +213,9 @@ exports.start = function (spec) {
             }(target));
         }
     }
+
+    // exports.cancel 이 취소 직후 한 번 돌리기 위해 잡는다. view() 에는 안 나간다.
+    job._poke = pump;
 
     // 호출자가 job 을 받아 응답을 보낸 뒤에 돌기 시작한다.
     setImmediate(pump);
@@ -193,6 +247,10 @@ exports.list = function () {
 exports.cancel = function (id) {
     if (active && active.id === id) {
         active.cancelRequested = true;
+        // 취소 즉시 한 번 돌린다. worker 들이 전부 답을 안 주고 있으면 pump 를
+        // 부를 사람이 아무도 없어 유예 타이머가 무장되지 않는다 — 그러면
+        // **취소 자체가 같이 갇힌다.** 탈출구가 갇히면 탈출구가 아니다.
+        if (typeof active._poke === 'function') { active._poke(); }
         return true;
     }
     return false;
