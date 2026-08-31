@@ -1909,32 +1909,21 @@ app.post('*', onem2mParser, (request, response) => {
                                                                 }
                                                                 else if (code === 'notify') {
                                                                     check_ae_notify(request, response, (code, res) => {
-                                                                        if (code === '200') {
-                                                                            settle.raw('ae notify', function () {
-
-                                                                                if (res.headers['content-type']) {
-                                                                                    response.header('Content-Type', res.headers['content-type']);
-                                                                                }
-                                                                                if (res.headers['x-m2m-ri']) {
-                                                                                    response.header('X-M2M-RI', res.headers['x-m2m-ri']);
-                                                                                }
-                                                                                if (res.headers['x-m2m-rvi']) {
-                                                                                    response.header('X-M2M-RVI', res.headers['x-m2m-rvi']);
-                                                                                }
-                                                                                if (res.headers['x-m2m-rsc']) {
-                                                                                    response.header('X-M2M-RSC', res.headers['x-m2m-rsc']);
-                                                                                }
-                                                                                if (res.headers['content-location']) {
-                                                                                    response.header('Content-Location', res.headers['content-location']);
-                                                                                }
-
-                                                                                response.statusCode = res.statusCode;
-                                                                                response.send(res.body);
-                                                                            });
-                                                                        }
-                                                                        else {
+                                                                        if (code !== '200') {
                                                                             settle.error(code);
+                                                                            return;
                                                                         }
+                                                                        // 상류가 json 이 아닌 것을 주면 흘려보내지 않는다.
+                                                                        // 이 경로는 settle.raw 라 apply_headers 를 우회하므로
+                                                                        // "응답은 언제나 json" 이 여기서는 안 걸린다.
+                                                                        if (!relay_headers(response, res, 'ae notify')) {
+                                                                            settle.error('500-7');
+                                                                            return;
+                                                                        }
+                                                                        settle.raw('ae notify', function () {
+                                                                            response.statusCode = res.statusCode;
+                                                                            response.send(res.body);
+                                                                        });
                                                                     });
                                                                 }
                                                                 else {
@@ -2268,6 +2257,83 @@ function check_notification(request, response, callback) {
     }
 }
 
+/**
+ * 상류(원격 CSE · AE)로 나가는 요청의 헤더를 다듬는다.
+ *
+ * 두 경로(check_ae_notify -> notify_http, check_csr -> forward_http)가
+ * **클라이언트의 헤더를 그대로** 상류에 넘긴다. 거기에는 클라이언트의
+ * Accept 도 들어 있다.
+ *
+ * 그런데 이 CSE 는 json 만 읽고 json 만 만든다 — xml/cbor 처리를 전부
+ * 걷어냈다. 클라이언트가 `Accept: application/xml` 을 보냈다고 상류에
+ * 그것을 그대로 물어보면, 돌아온 xml 을 우리가 다룰 방법이 없다.
+ *
+ * **우리가 감당할 수 있는 것을 묻는다.**
+ */
+function outbound_headers(headers) {
+    var h = {};
+    Object.keys(headers || {}).forEach(function (k) { h[k] = headers[k]; });
+    // 대소문자가 섞여 들어올 수 있다. 우리 것만 남기고 지운다.
+    Object.keys(h).forEach(function (k) {
+        if (k.toLowerCase() === 'accept') { delete h[k]; }
+    });
+    h['Accept'] = 'application/json';
+    return h;
+}
+
+/**
+ * 상류 응답의 헤더를 우리 응답으로 옮긴다.
+ *
+ * ── Content-Type 만 다르게 다룬다 ───────────────────────────────────────
+ * 예전에는 상류가 준 Content-Type 을 그대로 복사했다. 이 두 경로는
+ * settle.raw 를 지나 responder.apply_headers 를 **우회**하므로, "응답은
+ * 언제나 json" 이라는 선언이 여기서는 안 걸렸다. 상류가 xml 을 주면
+ * 그것이 그대로 우리 응답으로 나갔다.
+ *
+ * 선택지가 셋이었다:
+ *   그대로 복사   정직하지만 **우리가 xml 을 내보낸 것**이 된다
+ *   json 이라 붙임 더 나쁘다 — 내용과 이름이 어긋난다
+ *   흘려보내지 않음  <- 이것을 고른다
+ *
+ * 상류가 json 이 아닌 것을 주면 그 응답을 만들어 줄 방법이 없다. 끊는다.
+ * 나가는 요청에 Accept: application/json 을 붙이므로 규격을 지키는 상류라면
+ * 여기 걸리지 않는다. 걸리면 상류가 그것을 무시한 것이고, 그 사실이
+ * 로그에 남아야 한다.
+ *
+ * @returns true 면 옮겼다. false 면 옮기지 않았고 호출자가 오류로 끝내야 한다.
+ */
+var RELAY_JSON_OK = /^(application|text)\/(.*\+)?json\b/;
+
+function relay_headers(response, res, label) {
+    var ct = res.headers['content-type'];
+
+    if (ct) {
+        var mime = String(ct).split(';')[0].trim().toLowerCase();
+        if (!RELAY_JSON_OK.test(mime)) {
+            console.error('[' + label + '] 상류가 json 이 아닌 것을 보냈다: ' + mime +
+                          ' — 흘려보내지 않는다');
+            return false;
+        }
+        response.header('Content-Type', ct);
+    }
+    // Content-Type 이 아예 없으면 본문도 없다고 보고 그대로 진행한다.
+    // 있는데 형식이 안 맞는 경우만 끊는다.
+
+    // 받는 이름은 소문자(node 가 그렇게 준다), 내보내는 이름은 표기 그대로.
+    // 재조립하지 않고 표로 둔다 — HTTP 헤더는 대소문자를 안 가리지만,
+    // 로그와 골든 하네스에 찍히는 이름이 예전과 달라지면 대조가 어긋난다.
+    var RELAY = {
+        'x-m2m-ri':         'X-M2M-RI',
+        'x-m2m-rvi':        'X-M2M-RVI',
+        'x-m2m-rsc':        'X-M2M-RSC',
+        'content-location': 'Content-Location'
+    };
+    Object.keys(RELAY).forEach(function (k) {
+        if (res.headers[k]) { response.header(RELAY[k], res.headers[k]); }
+    });
+    return true;
+}
+
 function check_ae_notify(request, response, callback) {
     // 이 콜백은 응답 전송과 커넥션 반납을 함께 한다. 두 번 불리면 워커가 죽는다.
     callback = once(callback, 'check_ae_notify');
@@ -2319,7 +2385,9 @@ function check_ae_notify(request, response, callback) {
                 }
 
                 console.log('send notification to ' + chosen.href);
-                notify_http(chosen.hostname, chosen.port, chosen.path, request.method, request.headers, request.body, (code, res) => {
+                // 클라이언트의 헤더를 그대로 넘기되 Accept 만 바꾼다 —
+                // 우리가 다룰 수 있는 것을 물어야 한다. outbound_headers 참조.
+                notify_http(chosen.hostname, chosen.port, chosen.path, request.method, outbound_headers(request.headers), request.body, (code, res) => {
                     callback(code, res);
                 });
             }
@@ -2401,7 +2469,8 @@ function check_csr(request, response, callback) {
 
                 console.log('csebase forwarding to ' + point.forwardcbname);
 
-                forward_http(point.forwardcbhost, point.forwardcbport, request.url, request.method, request.headers, request.body, (code, _res) => {
+                // Accept 를 json 으로 바꿔 보낸다. outbound_headers 참조.
+                forward_http(point.forwardcbhost, point.forwardcbport, request.url, request.method, outbound_headers(request.headers), request.body, (code, _res) => {
                     if (code === '200') {
                         // 예전에는 JSON.parse(JSON.stringify(_res)) 였다. _res 는
                         // http.IncomingMessage 이고 socket -> _httpMessage -> agent 로
@@ -2419,24 +2488,14 @@ function check_csr(request, response, callback) {
                             statusCode: _res.statusCode
                         };
                         _res = null;
-                        if (res.headers.hasOwnProperty('content-type')) {
-                            response.setHeader('Content-Type', res.headers['content-type']);
-                        }
 
-                        if (res.headers.hasOwnProperty('x-m2m-ri')) {
-                            response.setHeader('X-M2M-RI', res.headers['x-m2m-ri']);
-                        }
-
-                        if (res.headers.hasOwnProperty('x-m2m-rvi')) {
-                            response.setHeader('X-M2M-RVI', res.headers['x-m2m-rvi']);
-                        }
-
-                        if (res.headers.hasOwnProperty('x-m2m-rsc')) {
-                            response.setHeader('X-M2M-RSC', res.headers['x-m2m-rsc']);
-                        }
-
-                        if (res.headers.hasOwnProperty('content-location')) {
-                            response.setHeader('Content-Location', res.headers['content-location']);
+                        // 상류가 json 이 아닌 것을 주면 흘려보내지 않는다.
+                        // 이 경로는 settle.raw 로 응답을 직접 내보내므로
+                        // responder.apply_headers 를 거치지 않는다 — "응답은
+                        // 언제나 json" 이 여기서는 안 걸린다.
+                        if (!relay_headers(response, res, 'csr forward')) {
+                            callback('500-7');
+                            return;
                         }
 
                         response.body = res.body;

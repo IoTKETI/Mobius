@@ -164,6 +164,18 @@ var REASON = {
     '500-6': { code: RSC.INTERNAL_SERVER_ERROR,
                msg: "discovery took too long — narrow the target or add a ty filter",
                detail: 'search_lookup: statement timeout' },
+    // 상류(원격 CSE 나 AE)가 json 이 아닌 것을 돌려준 경우.
+    //
+    // 이 CSE 는 json 만 만든다고 선언했다. 상류의 응답을 그대로 흘려보내면
+    // **우리가 xml 을 내보낸 것**이 된다. 형식만 json 이라고 붙이면 더 나쁘다 —
+    // 내용과 이름이 어긋난다. 그래서 흘려보내지 않고 여기서 끊는다.
+    //
+    // 나가는 요청에 Accept: application/json 을 붙이므로, 규격을 지키는
+    // 상류라면 이 사유는 나지 않는다. 나면 상류가 그것을 무시한 것이다.
+    // detail 에 실제로 받은 형식이 남는다 — 어느 상대가 그러는지 알아야 한다.
+    '500-7': { code: RSC.INTERNAL_SERVER_ERROR,
+               msg: "upstream returned a body this CSE cannot relay",
+               detail: 'relay: non-json content-type' },
     '501-2': { code: RSC.NOT_IMPLEMENTED, msg: "this resource type is not supported by the SQLite backend" }
 };
 
