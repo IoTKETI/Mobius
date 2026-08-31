@@ -17,13 +17,14 @@
  *   3. **비밀은 값을 내보내지 않는다.** dbpass·superUser·adminPassword 는
  *      화면에 값이 뜨면 안 된다. 있는지 없는지만 말한다.
  *
- * **스키마는 잠정이다.** 코어가 설정 스키마 모듈(키·타입·기본값·유효값·
- * 적용시점)을 만들어 넘기기로 했다. 오면 SCHEMA 를 그것으로 갈아끼운다 —
- * 이 파일의 읽기/쓰기 기계는 스키마와 무관하게 그대로 쓴다.
+ * **스키마는 코어가 준다**(`mobius/conf_schema`). 그 표는 mobius.js 가 실제로
+ * 읽는 것과 양방향으로 대조되므로(코어의 test/conf-schema.test.js) 손으로 적은
+ * 표처럼 갈라지지 않는다. 이 파일은 읽기/쓰기 기계만 맡는다.
  */
 
 var fs = require('fs');
 var path = require('path');
+var schema = require(path.join(__dirname, '..', 'mobius', 'conf_schema'));
 
 /**
  * 적용 시점.
@@ -38,79 +39,19 @@ var path = require('path');
  */
 var APPLY = { RUNTIME: 'runtime', RELOAD: 'reload', RESTART: 'restart' };
 
-/** 화면에 내보내는 키. 여기 없는 키는 읽지도 쓰지도 않는다. */
-var SCHEMA = {
-    acpObserveMode: {
-        type: 'enum', values: ['off', 'observe'], def: 'off', apply: APPLY.RELOAD,
-        label: 'ACP 관찰 모드',
-        help: 'observe 면 ACP 평가로 난 거부가 허용으로 나갑니다. 잠그기 전 하루만 켭니다.',
-        danger: function (v) { return v === 'observe'; }
-    },
-    acpiAttachPolicy: {
-        type: 'enum', values: ['open', 'creator'], def: 'open', apply: APPLY.RUNTIME,
-        label: 'acpi 부착 정책',
-        help: 'open 이면 인증된 아무나 남의 리소스에 자기 ACP 를 붙일 수 있습니다. creator 면 생성자와 수퍼유저만 가능합니다.'
-    },
-    acpDiscoveryFilter: {
-        type: 'enum', values: ['on', 'off'], def: 'on', apply: APPLY.RUNTIME,
-        label: '탐색 결과 ACP 필터',
-        help: 'off 면 잠근 리소스의 경로가 상위 탐색 결과에 그대로 나옵니다(내용은 아니고 경로·이름·트리 구조).',
-        danger: function (v) { return v === 'off'; }
-    },
-    acpAudit: {
-        type: 'enum', values: ['on', 'off'], def: 'on', apply: APPLY.RUNTIME,
-        label: 'ACP 변경 이력',
-        help: 'off 면 누가 언제 무엇을 걸었는지 남지 않습니다. 이력 화면이 빈 목록이 됩니다.'
-    },
-    defaultAccessPolicy: {
-        type: 'enum', values: ['disable', 'enable'], def: 'disable', apply: APPLY.RUNTIME,
-        label: '기본 접근 정책',
-        help: 'acpi 가 없는 리소스의 정책입니다. disable 이 대원칙(생성·조회는 누구나)과 일치합니다.',
-        danger: function (v) { return v === 'enable'; }
-    },
-    acpDenyLog: {
-        type: 'enum', values: ['off', 'sample', 'all'], def: 'sample', apply: APPLY.RELOAD,
-        label: 'ACP 거부 로그',
-        help: 'sample 은 워커당 초당 몇 줄만 남깁니다 — 기록이 전수가 아닙니다.'
-    },
-    acpDenyLogRate: {
-        type: 'int', min: 0, max: 1000, def: 5, apply: APPLY.RELOAD,
-        label: '거부 로그 초당 줄 수',
-        help: '워커당입니다. 배포는 워커 25개라 전체는 이 값의 25배까지 납니다.'
-    },
-    db: {
-        type: 'enum', values: null, def: 'mysql', apply: APPLY.RESTART,
-        label: 'DB 백엔드',
-        help: '유효값은 mobius/db 의 어댑터 목록에서 받습니다 — 어댑터를 추가하면 저절로 늘어납니다.',
-        valuesFrom: 'db.backends'
-    },
-    outboundTimeoutMs: {
-        type: 'int', min: 0, max: 600000, def: 0, apply: APPLY.RESTART,
-        label: '외부 요청 타임아웃(ms)',
-        help: '0 이면 끕니다. 켜려면 3000 이상 — 알림 발송과 원격 CSE 포워딩의 ' +
-              '응답 대기 한도라, 낮추면 정상 알림이 실패로 기록되기 시작합니다.',
-        // 0(끔) 아니면 3초 이상. 그 사이 값은 "켰는데 정상 응답을 못 기다리는"
-        // 상태라 끄는 것보다 나쁘다 — 멀쩡한 알림이 실패로 쌓인다.
-        //
-        // **3000 은 실측 근거가 없다.** 배포에서 알림 응답 시간 분포를 잰 적이
-        // 없고, 코어 세션의 경험적 판단을 그대로 받은 값이다. 분포를 재면
-        // 이 숫자만 바꾼다 — 그러라고 범위가 아니라 훅으로 뺐다.
-        check: function (v) {
-            if (v === 0) { return null; }
-            if (v < 3000) {
-                return 'outboundTimeoutMs 는 0(끔) 이거나 3000 이상이어야 한다 — ' +
-                       '그 사이 값은 정상 알림을 실패로 만든다';
-            }
-            return null;
-        }
-    },
-    retentionPolicies: {
-        type: 'json', def: [], apply: APPLY.RESTART,
-        label: '보존 정책',
-        help: '규칙 배열입니다. 형식은 mobius/cnt.js 상단 주석에 있습니다.',
-        readonly: true   // 단순 필드가 아니다. 지금은 보여 주기만 한다
-    }
-};
+/**
+ * 화면에 내보내는 키는 코어 스키마가 정한다. 여기서 목록을 다시 적지 않는다 —
+ * 손으로 적은 표는 갈라지고, 그때 화면은 없는 설정을 그리거나 있는 설정을
+ * 숨긴다.
+ *
+ * **다만 쓰기 관문은 여기서 다시 세운다.** conf_schema.validate() 는 노출
+ * 목록에 없는 키에 대해 {ok:true} 를 돌려준다(실측: validate('dbpass','x')
+ * -> ok:true). 검증을 통째로 위임하면 비밀 키가 그대로 써진다. 그래서
+ * exposed() 에 있는 키인지 먼저 보고, 값 검증만 스키마에 맡긴다.
+ */
+function isWritable(key) {
+    return schema.exposed().indexOf(key) >= 0;
+}
 
 /**
  * 값을 절대 내보내지 않는 키. **있는지 없는지만** 말한다.
@@ -122,59 +63,72 @@ var SCHEMA = {
 var SECRET = ['dbpass', 'superUser', 'adminPassword', 'adminOrigin'];
 
 /**
- * 화면에 아예 올리지 않는 키.
+ * 콘솔 자신의 설정 키.
  *
- * 포트·주소는 바꾸면 콘솔이 자기 발밑을 무너뜨린다. usesqlite 는 곧 사라진다 —
- * db 키가 진실원이 되면서 파생된 한시적 별칭이라, 화면에 올리면 지울 때 같이
- * 깨진다.
+ * conf.json 하나에 Mobius 것과 콘솔 것이 같이 산다. 코어 스키마는 **mobius.js 가
+ * 읽는 것**만 알므로 이 키들을 모른다 — 넣어 주지 않으면 화면이 "모르는 키"
+ * 라고 표시한다(다른 세션이 넣은 것처럼 보인다).
+ *
+ * 화면에서 고치지는 않는다. adminPort/adminHost 를 바꾸면 콘솔이 자기가 듣던
+ * 자리를 옮기는 것이고, adminCsePort 를 바꾸면 쓰기 대상이 바뀐다 — 잘못 넣으면
+ * 다음 재기동에 화면으로 돌아올 길이 없다.
  */
-var HIDDEN = ['usesqlite', 'csebaseport', 'adminPort', 'adminHost',
-              'adminCseHost', 'adminCsePort', 'pxyWsPort', 'pxyMqttPort',
-              'sgnManPort', 'cntManPort', 'hitManPort'];
+var CONSOLE_KEYS = ['adminPort', 'adminHost', 'adminCseHost', 'adminCsePort'];
 
-function ConfStore(file, opts) {
+/**
+ * 값을 바꾸면 특히 위험한 것. 화면이 눈에 띄게 표시한다.
+ *
+ * 스키마의 help 에도 설명이 있지만, 문장을 읽어야 알 수 있는 것과 색으로 바로
+ * 보이는 것은 다르다. 여기 있는 것은 **켠 채로 두면 보안이 무력해지는** 값이다.
+ */
+var DANGER = {
+    acpObserveMode: function (v) { return v === 'observe'; },
+    acpDiscoveryFilter: function (v) { return v === 'off'; },
+    defaultAccessPolicy: function (v) { return v === 'enable'; }
+};
+
+function ConfStore(file) {
     this.file = file;
-    this.backends = (opts && opts.backends) || function () { return []; };
 }
 
 ConfStore.prototype._read = function () {
     return JSON.parse(fs.readFileSync(this.file, 'utf8'));
 };
 
-/** 이 키의 유효값. db 처럼 코어에서 받아야 하는 것이 있다. */
-ConfStore.prototype._valuesOf = function (key) {
-    var s = SCHEMA[key];
-    if (!s) { return null; }
-    if (s.valuesFrom === 'db.backends') { return this.backends(); }
-    return s.values;
-};
-
 /**
  * 화면에 줄 것. **비밀은 값 없이 존재 여부만 나간다.**
+ *
+ * 항목의 모양은 코어 describe() 를 그대로 쓰고, 파일 상태(있는가·무엇인가)만
+ * 얹는다. 라벨·도움말·유효값을 여기서 다시 쓰지 않는다.
  */
 ConfStore.prototype.view = function () {
     var conf = this._read();
-    var self = this;
-    var items = Object.keys(SCHEMA).map(function (key) {
-        var s = SCHEMA[key];
-        var raw = conf[key];
+    var desc = schema.describe();
+
+    var items = Object.keys(desc).map(function (key) {
+        var s = desc[key];
         var set = Object.prototype.hasOwnProperty.call(conf, key);
+        var eff = set ? conf[key] : s.dflt;
+        var isDanger = typeof DANGER[key] === 'function' && !!DANGER[key](eff);
         return {
             key: key,
             label: s.label,
             help: s.help,
             type: s.type,
             apply: s.apply,
-            readonly: !!s.readonly,
-            values: self._valuesOf(key),
-            min: s.min, max: s.max,
-            def: s.def,
+            // describe() 가 reloadWith 를 안 실어 준다. _SCHEMA 에는 있으므로
+            // 여기서 집어 온다 — 화면이 "무엇을 다시 불러야 하는가" 를
+            // 말하려면 필요하다. describe() 에 들어오면 이 줄을 지운다.
+            reloadWith: (schema._SCHEMA[key] || {}).reloadWith || null,
+            readOnly: !!s.readOnly,
+            choices: schema.choices(key),
+            validHint: s.validHint,
+            dflt: s.dflt,
             // 파일에 없으면 기본값이 쓰인다. 그 사실을 화면이 구분해야 한다.
-            fileValue: set ? raw : null,
+            fileValue: set ? conf[key] : null,
             usingDefault: !set,
-            effective: set ? raw : s.def,
-            danger: typeof s.danger === 'function'
-                ? !!s.danger(set ? raw : s.def) : false
+            effective: eff,
+            danger: isDanger
         };
     });
 
@@ -187,41 +141,25 @@ ConfStore.prototype.view = function () {
         };
     });
 
-    // 스키마에도 비밀에도 숨김에도 없는 키. 다른 세션이 넣은 것일 수 있다.
-    var known = Object.keys(SCHEMA).concat(SECRET, HIDDEN);
+    // 코어가 아는 키에도, 비밀에도, 콘솔 자신의 키에도 없는 것.
+    // 다른 세션이 넣었을 수 있다.
+    var known = schema.all().concat(SECRET, CONSOLE_KEYS);
     var unknown = Object.keys(conf).filter(function (k) { return known.indexOf(k) < 0; });
 
     return { items: items, secrets: secrets, unknownKeys: unknown, file: this.file };
 };
 
-/** 한 값이 스키마에 맞는가. 맞으면 null, 아니면 사유 문자열. */
+/**
+ * 이 키를 이 값으로 고쳐도 되는가. 되면 null, 아니면 사유.
+ *
+ * **관문이 둘이다.** 먼저 노출 키인지 보고, 그 다음 값을 스키마에 맡긴다.
+ * 스키마의 validate() 는 모르는 키에 {ok:true} 를 주므로(실측) 첫 관문이
+ * 없으면 dbpass 가 그대로 써진다.
+ */
 ConfStore.prototype.validate = function (key, value) {
-    var s = SCHEMA[key];
-    if (!s) { return '고칠 수 없는 키다: ' + key; }
-    if (s.readonly) { return '이 키는 화면에서 고치지 않는다: ' + key; }
-
-    if (s.type === 'enum') {
-        var vals = this._valuesOf(key);
-        if (!Array.isArray(vals) || vals.length === 0) {
-            return '유효값 목록을 얻지 못했다: ' + key;
-        }
-        if (vals.indexOf(value) < 0) {
-            return key + ' 의 값이 아니다 (' + vals.join(' / ') + ')';
-        }
-        return null;
-    }
-    if (s.type === 'int') {
-        if (typeof value !== 'number' || !isFinite(value) || Math.floor(value) !== value) {
-            return key + ' 는 정수여야 한다';
-        }
-        if (s.min !== undefined && value < s.min) { return key + ' 는 ' + s.min + ' 이상이어야 한다'; }
-        if (s.max !== undefined && value > s.max) { return key + ' 는 ' + s.max + ' 이하여야 한다'; }
-        // 범위만으로 못 거르는 것이 있다. outboundTimeoutMs 처럼 "끄거나, 켜려면
-        // 충분히 크거나" 인 값이 그렇다.
-        if (typeof s.check === 'function') { return s.check(value); }
-        return null;
-    }
-    return '지원하지 않는 타입: ' + s.type;
+    if (!isWritable(key)) { return '화면에서 고칠 수 없는 키다: ' + key; }
+    var v = schema.validate(key, value);
+    return v.ok ? null : (key + ': ' + v.reason);
 };
 
 /**
@@ -284,6 +222,6 @@ ConfStore.prototype._writeAtomic = function (obj) {
 
 exports.ConfStore = ConfStore;
 exports.APPLY = APPLY;
-exports.SCHEMA = SCHEMA;
 exports.SECRET = SECRET;
-exports.HIDDEN = HIDDEN;
+exports.CONSOLE_KEYS = CONSOLE_KEYS;
+exports.DANGER = DANGER;

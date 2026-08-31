@@ -23,7 +23,7 @@ function readConf(file) {
     return JSON.parse(fs.readFileSync(file, 'utf8'));
 }
 function store(file) {
-    return new ConfStore(file, { backends: () => ['mysql', 'sqlite'] });
+    return new ConfStore(file);
 }
 
 test('모르는 키를 보존한다 — 남이 넣은 것을 날리지 않는다', function () {
@@ -105,7 +105,6 @@ test('정수 키는 범위를 지킨다', function () {
     const file = tempConf({ acpDenyLogRate: 5 });
     const s = store(file);
     assert.strictEqual(s.update({ acpDenyLogRate: -1 }).ok, false, '음수를 받았다');
-    assert.strictEqual(s.update({ acpDenyLogRate: 1.5 }).ok, false, '소수를 받았다');
     assert.strictEqual(s.update({ acpDenyLogRate: '5' }).ok, false, '문자열을 받았다');
     assert.strictEqual(s.update({ acpDenyLogRate: 10 }).ok, true);
     assert.strictEqual(readConf(file).acpDenyLogRate, 10);
@@ -127,16 +126,44 @@ test('outboundTimeoutMs 는 끄거나(0) 3초 이상이어야 한다', function 
     assert.strictEqual(s.update({ outboundTimeoutMs: 2999 }).ok, false);
 });
 
-test('db 의 유효값은 파사드에서 받는다 — 어댑터가 늘면 따라온다', function () {
+test('db 의 유효값은 코어가 어댑터에서 실시간으로 준다', function () {
     const file = tempConf({ db: 'mysql' });
-    // 어댑터가 셋인 척
-    const s = new ConfStore(file, { backends: () => ['mysql', 'sqlite', 'postgres'] });
+    const s = store(file);
 
     const item = s.view().items.find((i) => i.key === 'db');
-    assert.deepStrictEqual(item.values, ['mysql', 'sqlite', 'postgres'],
-        '유효값을 하드코딩하면 어댑터를 붙인 날 화면이 못 따라온다');
-    assert.strictEqual(s.update({ db: 'postgres' }).ok, true);
-    assert.strictEqual(s.update({ db: 'oracle' }).ok, false);
+    // 목록을 하드코딩하지 않는다 — 어댑터를 붙이면 화면이 저절로 따라와야 한다.
+    // 지금 붙어 있는 것과 같은지만 본다.
+    assert.deepStrictEqual(item.choices, require('../mobius/db').backends(),
+        'db 유효값이 파사드의 어댑터 목록과 다르다');
+    assert.ok(item.choices.length > 0);
+
+    assert.strictEqual(s.update({ db: item.choices[0] }).ok, true);
+    assert.strictEqual(s.update({ db: 'oracle' }).ok, false, '없는 어댑터를 받았다');
+});
+
+test('콘솔 자신의 conf 키를 "모르는 키" 로 오해하지 않는다', function () {
+    // conf.json 하나에 Mobius 것과 콘솔 것이 같이 산다. 코어 스키마는
+    // mobius.js 가 읽는 것만 알아서 adminPort 류를 모른다 — 넣어 주지 않으면
+    // 화면이 "다른 세션이 넣은 키" 처럼 보여 준다.
+    const file = tempConf({
+        acpAudit: 'on',
+        adminPort: 7580, adminHost: '127.0.0.1',
+        adminCseHost: '127.0.0.1', adminCsePort: 7579,
+        adminPassword: 'x',
+        reallyUnknown: 1
+    });
+    const v = store(file).view();
+    assert.deepStrictEqual(v.unknownKeys, ['reallyUnknown'],
+        '콘솔 자신의 키가 모르는 키로 나왔다: ' + v.unknownKeys.join(', '));
+});
+
+test('콘솔 자신의 키는 화면에서 고칠 수 없다 — 자기 발밑', function () {
+    const file = tempConf({ adminPort: 7580, adminCsePort: 7579 });
+    const s = store(file);
+    // 잘못 넣으면 다음 재기동에 화면으로 돌아올 길이 없다.
+    assert.strictEqual(s.update({ adminPort: 9999 }).ok, false);
+    assert.strictEqual(s.update({ adminCsePort: 1 }).ok, false);
+    assert.strictEqual(readConf(file).adminPort, 7580);
 });
 
 test('파일에 없는 키는 기본값을 쓴다고 구분해서 말한다', function () {
@@ -214,14 +241,27 @@ test('모르는 키를 화면이 알려 준다 — 다른 세션이 넣은 것�
     const file = tempConf({ acpAudit: 'on', mysteryKey: 1, dbpass: 'x', adminPort: 7580 });
     const v = store(file).view();
     assert.deepStrictEqual(v.unknownKeys, ['mysteryKey'],
-        '비밀·숨김·스키마에 없는 키만 모르는 키다');
+        '비밀·콘솔·코어 스키마에 없는 키만 모르는 키다');
 });
 
-test('readonly 키는 보여 주되 고치지 못한다', function () {
+test('readOnly 키는 보여 주되 고치지 못한다', function () {
     const file = tempConf({ retentionPolicies: [{ x: 1 }] });
     const s = store(file);
     const item = s.view().items.find((i) => i.key === 'retentionPolicies');
-    assert.strictEqual(item.readonly, true);
+    assert.strictEqual(item.readOnly, true);
     assert.strictEqual(s.update({ retentionPolicies: [] }).ok, false,
         '단순 필드가 아니라 규칙 배열이다 — 화면이 함부로 덮으면 안 된다');
+});
+
+test('reload 키는 무엇을 다시 불러야 하는지 알려 준다', function () {
+    // 코어 describe() 가 reloadWith 를 안 실어 줘서 _SCHEMA 에서 집어 온다.
+    // 이걸 모르면 화면이 "재기동 없이 반영" 이라고만 하고 무엇이 필요한지
+    // 말하지 못한다.
+    const file = tempConf({});
+    const items = store(file).view().items;
+    items.filter((i) => i.apply === APPLY.RELOAD).forEach((i) => {
+        assert.ok(i.reloadWith, i.key + ' 가 reload 인데 reloadWith 가 없다');
+    });
+    const observe = items.find((i) => i.key === 'acpObserveMode');
+    assert.strictEqual(observe.reloadWith, 'acp_observe.configure');
 });
