@@ -187,7 +187,15 @@ wdt.set_wdt(ws_tid, 2, _this.ws_watchdog);
 function ws_message_handler(message) {
     var _this = this;
     if(message.type === 'utf8') {
-        console.log(message.utf8Data.toString());
+        // 예전에는 프레임을 통째로 찍었다. 맥락도 없이 본문만 나갔다.
+        // CLAUDE.md 가 금지한다 — 프레임마다 본문을 덤프하면 운영 로그가
+        // 밀려 장애 분석이 불가능해진다. 본문에 센서 값이나 개인정보가
+        // 들어갈 수도 있다.
+        //
+        // pxy_mqtt 는 같은 자리에 NOPRINT 가드가 있어 이미 꺼져 있었는데,
+        // 이 파일은 그 가드도 없고 global.NOPRINT 를 세우지도 않았다.
+        console.log('-----> [pxy_ws] ' + this.protocol +
+                    '  ' + message.utf8Data.length + '자');
 
         var protocol_arr = this.protocol.split('.');
         var bodytype = protocol_arr[protocol_arr.length-1];
@@ -204,7 +212,11 @@ function ws_message_handler(message) {
     else if(message.type === 'binary') {
         // Buffer.from('80', 'hex').toString('utf8');
         // Buffer.from(message).toString('hex');
-        console.log(message.binaryData.toString('hex'));
+        //
+        // 예전에는 프레임 전체를 hex 로 찍었다. utf8 쪽보다 나쁘다 —
+        // 바이트당 두 글자라 로그가 본문의 두 배로 불어난다.
+        console.log('-----> [pxy_ws] ' + this.protocol +
+                    '  binary ' + message.binaryData.length + '바이트');
 
         //var data = Buffer.from(message);
 

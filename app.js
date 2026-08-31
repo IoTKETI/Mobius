@@ -2511,8 +2511,11 @@ function notify_http(hostname, port, path, method, headers, bodyString, callback
         callback('404-7');
     });
 
-    console.log(method + ' - ' + path);
-    console.log(bodyString);
+    // 본문을 통째로 찍던 것을 걷어냈다. 앞서 이 함수의 **응답** 쪽은 고쳤는데
+    // 나가는 쪽을 놓쳤다. 같은 이유다 — 요청마다 본문을 덤프하면 운영 로그가
+    // 밀려 장애 분석이 불가능해진다(CLAUDE.md).
+    console.log('[notify_http] -----> ' + method + ' ' + path +
+                '  ' + (bodyString ? bodyString.length : 0) + '자');
 
     // write data to request body
     if ((method.toLowerCase() == 'get') || (method.toLowerCase() == 'delete')) {
@@ -2565,9 +2568,14 @@ function forward_http(forwardcbhost, forwardcbport, f_url, f_method, f_headers, 
         callback('404-3');
     });
 
-    console.log(f_method + ' - ' + f_url);
-    console.log(f_headers);
-    console.log(f_body);
+    // 셋 다 걷어냈다. 본문 덤프는 위와 같은 이유이고, `console.log(f_headers)`
+    // 는 더 나쁘다 — 그 안에 **X-M2M-Origin 이 평문으로 남는다.** 그 값이
+    // 수퍼유저(모든 ACP 검사를 건너뛰는 마스터 키)일 수 있다.
+    //
+    // 이 함수의 **응답** 쪽 헤더 덤프는 앞서 같은 이유로 걷어냈는데
+    // 나가는 쪽을 놓쳤다.
+    console.log('[forward_http] -----> ' + f_method + ' ' + f_url +
+                '  ' + (f_body ? f_body.length : 0) + '자');
 
     // write data to request body
     if ((f_method.toLowerCase() == 'get') || (f_method.toLowerCase() == 'delete')) {

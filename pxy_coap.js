@@ -201,8 +201,15 @@ function coap_message_handler(request, response) {
             });
 
             res.on('end', function () {
-                console.log('<----- [pxy_coap]');
-                console.log(responseBody);
+                // 예전에는 여기서 응답 본문을 통째로 찍었다. CLAUDE.md 가
+                // 금지한다 — 요청마다 본문을 덤프하면 운영 로그가 밀려
+                // 장애 분석이 불가능해진다. 본문에 센서 값이나 개인정보가
+                // 들어갈 수도 있다.
+                //
+                // 진단에 필요한 것만 남긴다. 무엇이 잘못됐는지는 rsc 로 알고,
+                // 얼마나 큰 응답이었는지는 길이로 안다.
+                console.log('<----- [pxy_coap] rsc=' + (res.headers['x-m2m-rsc'] || '?') +
+                            '  ' + responseBody.length + '자');
 
                 var rsc = new Buffer(2);
                 rsc.writeUInt16BE(parseInt(res.headers['x-m2m-rsc'], 'hex'), 0);
@@ -234,8 +241,15 @@ function coap_message_handler(request, response) {
             });
 
             res.on('end', function () {
-                console.log('<----- [pxy_coap]');
-                console.log(responseBody);
+                // 예전에는 여기서 응답 본문을 통째로 찍었다. CLAUDE.md 가
+                // 금지한다 — 요청마다 본문을 덤프하면 운영 로그가 밀려
+                // 장애 분석이 불가능해진다. 본문에 센서 값이나 개인정보가
+                // 들어갈 수도 있다.
+                //
+                // 진단에 필요한 것만 남긴다. 무엇이 잘못됐는지는 rsc 로 알고,
+                // 얼마나 큰 응답이었는지는 길이로 안다.
+                console.log('<----- [pxy_coap] rsc=' + (res.headers['x-m2m-rsc'] || '?') +
+                            '  ' + responseBody.length + '자');
 
                 var rsc = new Buffer(2);
                 rsc.writeUInt16BE(parseInt(res.headers['x-m2m-rsc'], 'hex'), 0);
@@ -265,8 +279,9 @@ function coap_message_handler(request, response) {
     });
 
     var bodyString = request.payload.toString();
-    console.log('-----> [pxy_coap]');
-    console.log(bodyString);
+    // 요청 본문도 통째로 찍지 않는다. 위 응답 쪽과 같은 이유다.
+    console.log('-----> [pxy_coap] ' + request.method + ' ' + request.url +
+                '  ' + bodyString.length + '자');
 
     // write data to request body
     req.write(bodyString);
