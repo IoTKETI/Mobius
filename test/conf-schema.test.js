@@ -58,6 +58,26 @@ test('표에만 있고 아무도 안 읽는 키가 없다', function () {
         '\n코드에서 없어졌으면 표에서도 지울 것');
 });
 
+test('모든 항목이 분류를 밝힌다', function () {
+    // 분류를 화면 쪽에 적으면 표를 두 벌 드는 셈이라 결국 갈라진다.
+    // 라벨·도움말·유효값과 같은 곳에서 와야 한다.
+    for (const k of schema.all()) {
+        const g = schema.get(k).group;
+        assert.ok(typeof g === 'string' && g.length > 0, k + ' 에 group 이 없다');
+    }
+});
+
+test('분류 이름이 늘어나는 것은 의도된 선택이어야 한다', function () {
+    // 오타로 '권한 ' 같은 새 묶음이 생기면 화면에 빈 칸이 하나 더 뜬다.
+    // 새 분류를 정말 만들 때는 이 목록도 같이 늘린다.
+    const KNOWN = ['권한', '요청 처리', '저장소', '네트워크'];
+    const used = [...new Set(schema.all().map((k) => schema.get(k).group))].sort();
+    const unknown = used.filter((g) => KNOWN.indexOf(g) < 0);
+    assert.deepStrictEqual(unknown, [],
+        '모르는 분류가 생겼다: ' + unknown.join(', ') +
+        '\n오타가 아니라 정말 새 분류라면 이 테스트의 KNOWN 에도 더할 것');
+});
+
 test('모든 항목이 적용 시점을 밝힌다', function () {
     // 이 구분이 화면에서 가장 중요하다. 'reload' 를 '즉시' 로 표시하면
     // 관리자가 관찰 모드를 껐다고 믿고 넘어간다.
@@ -86,7 +106,7 @@ test("'reload' 는 무엇을 다시 불러야 하는지 밝힌다", function () 
 
 test('describe() 가 소비자에게 필요한 필드를 전부 준다', function () {
     // 화면이 쓰는 유일한 진입점이다. 내부 표에만 있고 여기 없으면 없는 것과 같다.
-    const NEED = ['type', 'dflt', 'choices', 'validHint', 'integer',
+    const NEED = ['type', 'dflt', 'choices', 'validHint', 'integer', 'group',
                   'apply', 'reloadWith', 'readOnly', 'label', 'help'];
     for (const [k, v] of Object.entries(schema.describe())) {
         for (const f of NEED) {

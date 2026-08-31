@@ -31,6 +31,7 @@
 var SCHEMA = {
     // ── 노출: 운영 정책 ──────────────────────────────────────────────
     acpObserveMode: {
+        group: '권한',
         type: 'enum', valid: ['off', 'observe'], dflt: 'off',
         apply: 'reload', reloadWith: 'acp_observe.configure',
         label: 'ACP 관찰 모드',
@@ -38,18 +39,21 @@ var SCHEMA = {
               '막힐지 보기 위한 것이고, 켠 채로 두면 ACP 가 무력해진다.'
     },
     acpDenyLog: {
+        group: '권한',
         type: 'enum', valid: ['off', 'sample', 'all'], dflt: 'sample',
         apply: 'reload', reloadWith: 'acp_observe.configure',
         label: 'ACP 거부 로그',
         help: 'all 은 거부마다 한 줄이다. 거부가 많으면 로그가 밀린다.'
     },
     acpDenyLogRate: {
+        group: '권한',
         type: 'number', min: 0, integer: true, dflt: 5,
         apply: 'reload', reloadWith: 'acp_observe.configure',
         label: 'ACP 거부 로그 초당 상한',
         help: "acpDenyLog 가 'sample' 일 때만 쓴다."
     },
     acpiAttachPolicy: {
+        group: '권한',
         type: 'enum', valid: ['open', 'creator'], dflt: 'open',
         apply: 'runtime',
         label: 'acpi 최초 부착 권한',
@@ -57,12 +61,14 @@ var SCHEMA = {
               "creator 로 바꾸면 acpi 를 붙이던 정상 요청이 거부되기 시작한다."
     },
     acpAudit: {
+        group: '권한',
         type: 'enum', valid: ['on', 'off'], dflt: 'on',
         apply: 'runtime',
         label: 'ACP 변경 이력',
         help: 'acp 테이블에 cr 컬럼이 없어 "누가 만들었는가" 를 답할 다른 근거가 없다.'
     },
     acpDiscoveryFilter: {
+        group: '권한',
         type: 'enum', valid: ['on', 'off'], dflt: 'on',
         apply: 'runtime',
         label: 'discovery ACP 필터',
@@ -70,6 +76,7 @@ var SCHEMA = {
               '(이름·구조·CIN 개수·생성 시각). 관리자는 잠갔다고 생각하는데 아니다.'
     },
     defaultAccessPolicy: {
+        group: '권한',
         type: 'enum', valid: ['disable', 'enable'], dflt: 'disable',
         apply: 'runtime',
         label: 'acpi 없는 리소스의 기본 정책',
@@ -77,6 +84,7 @@ var SCHEMA = {
               '누구나 / 수정·삭제는 생성자만. enable = 전부 생성자만.'
     },
     outboundTimeoutMs: {
+        group: '요청 처리',
         type: 'number', dflt: 0,
         // 0 은 "지정 안 함"(mobius/outbound.js 의 기본 10초를 쓴다) 이다.
         // 그 외에는 하한을 둔다 — 낮추면 **정상 알림이 실패로 기록되기 시작한다.**
@@ -88,7 +96,10 @@ var SCHEMA = {
               '느린 상대 하나가 DB 풀 커넥션을 영구 점유한다.'
     },
     maxBodyBytes: {
-        type: 'number', dflt: 10 * 1024 * 1024,
+        group: '요청 처리',
+        // 바이트 수라 정수여야 한다. 화면이 MB 로 받아 환산하는데, 소수 MB 를
+        // 그대로 곱하면 4194304.5 같은 값이 파일에 남는다.
+        type: 'number', integer: true, dflt: 10 * 1024 * 1024,
         // 하한은 감이 아니라 실측이다. 배포 DB 의 cin.con 을 키 공간 양끝에서
         // 400만 행 표본했다:
         //
@@ -117,6 +128,7 @@ var SCHEMA = {
               '값을 내려서 정상 쓰기가 막히면 [body_limit] 로그에 크기가 남는다.'
     },
     retentionPolicies: {
+        group: '저장소',
         type: 'array', dflt: [],
         apply: 'restart', readOnly: true,
         label: '컨테이너 보관 정책',
@@ -124,6 +136,7 @@ var SCHEMA = {
               '지금은 보여 주기만 한다.'
     },
     db: {
+        group: '저장소',
         type: 'enum', dflt: 'mysql',
         // 유효값을 하드코딩하지 않는다. 어댑터 파일(mobius/db/<이름>.js)을 두면
         // 이 목록이 자동으로 늘어난다 — 화면 선택지도 같이 늘어난다.
@@ -135,11 +148,13 @@ var SCHEMA = {
 
     // ── 노출 안 함: 비밀 ─────────────────────────────────────────────
     dbpass: {
+        group: '저장소',
         type: 'string', dflt: '', secret: true, exposed: false, apply: 'restart',
         label: 'DB 비밀번호',
         help: '값을 화면으로 내보내지 않는다. 길이도 주지 않는다.'
     },
     superUser: {
+        group: '권한',
         type: 'string', dflt: 'Sponde', secret: true, exposed: false, apply: 'restart',
         label: '수퍼유저 Origin',
         help: '이 값을 X-M2M-Origin 에 넣으면 **모든 ACP 검사를 건너뛴다.** ' +
@@ -147,16 +162,17 @@ var SCHEMA = {
     },
 
     // ── 노출 안 함: 바꾸면 깨진다 ────────────────────────────────────
-    csebaseport: { type: 'string', dflt: '7579', exposed: false, apply: 'restart',
+    csebaseport: { group: '네트워크', type: 'string', dflt: '7579', exposed: false, apply: 'restart',
         label: 'CSEBase 포트', help: '바꾸면 등록된 AE 의 poa 가 전부 어긋난다.' },
-    pxyWsPort:   { type: 'string', dflt: '7577', exposed: false, apply: 'restart', label: 'WS 프록시 포트' },
-    pxyMqttPort: { type: 'string', dflt: '7578', exposed: false, apply: 'restart', label: 'MQTT 프록시 포트' },
-    sgnManPort:  { type: 'string', dflt: '7599', exposed: false, apply: 'restart', label: '알림 관리 포트' },
-    cntManPort:  { type: 'string', dflt: '7583', exposed: false, apply: 'restart', label: '컨테이너 관리 포트' },
-    hitManPort:  { type: 'string', dflt: '7594', exposed: false, apply: 'restart', label: '히트 관리 포트' },
+    pxyWsPort:   { group: '네트워크', type: 'string', dflt: '7577', exposed: false, apply: 'restart', label: 'WS 프록시 포트' },
+    pxyMqttPort: { group: '네트워크', type: 'string', dflt: '7578', exposed: false, apply: 'restart', label: 'MQTT 프록시 포트' },
+    sgnManPort:  { group: '네트워크', type: 'string', dflt: '7599', exposed: false, apply: 'restart', label: '알림 관리 포트' },
+    cntManPort:  { group: '네트워크', type: 'string', dflt: '7583', exposed: false, apply: 'restart', label: '컨테이너 관리 포트' },
+    hitManPort:  { group: '네트워크', type: 'string', dflt: '7594', exposed: false, apply: 'restart', label: '히트 관리 포트' },
 
     // ── 노출 안 함: 곧 사라진다 ──────────────────────────────────────
     usesqlite: {
+        group: '저장소',
         type: 'string', dflt: 'false', exposed: false, deprecated: true, apply: 'restart',
         label: '(구) SQLite 사용 여부',
         help: "db 키로 대체되었다. boolean 이라 세 번째 백엔드를 말할 수 없어 " +
@@ -263,6 +279,9 @@ exports.describe = function () {
             choices: exports.choices(k),
             validHint: s.validHint || null,
             integer: s.integer === true,
+            // 화면이 항목을 묶는 기준. 분류를 화면 쪽에 적으면 표를 두 벌 드는
+            // 셈이라 결국 갈라진다 — 라벨·도움말과 같은 곳에서 온다.
+            group: s.group,
             apply: s.apply,
             // apply === 'reload' 일 때 무엇을 다시 불러야 하는지. 이게 없으면
             // 화면이 "재기동 없이 반영된다" 까지만 말하고 그 방법은 못 말한다.
