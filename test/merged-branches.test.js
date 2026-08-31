@@ -220,11 +220,49 @@ test('전환한 함수들에 usesqlite 분기가 남아 있지 않다', function
     });
 });
 
-test('호출부 없는 함수 2개가 제거되었다', function () {
+test('호출부 없는 함수들이 제거되었다', function () {
     const fs = require('node:fs');
     const src = fs.readFileSync(path.join(__dirname, '..', 'mobius', 'sql_action.js'), 'utf8');
-    assert.strictEqual(/^exports\.select_count_ri\s*=/m.test(src), false,
-        'select_count_ri 가 남아 있다 (호출부 0)');
-    assert.strictEqual(/^exports\.delete_ri_lookup_in\s*=/m.test(src), false,
-        'delete_ri_lookup_in 이 남아 있다 (호출부 0, MySQL 전용 DELETE ... LIMIT)');
+
+    // 파사드 전환 중에 발견한 것들. 옮기는 것보다 지우는 것이 맞다 —
+    // 죽은 코드를 옮기면 유지할 표면만 늘고 목표에는 보탬이 없다.
+    const gone = {
+        select_count_ri: '호출부 0',
+        delete_ri_lookup_in: '호출부 0, MySQL 전용 DELETE ... LIMIT',
+        select_grp_lookup: '호출부 0 — 그룹 조회는 select_resource_from_url 이 한다',
+        select_grp: '호출부 0',
+        select_sub: '호출부 0 — 알림은 lookup.subl 캐시를 읽는다',
+        select_st: '호출부 0 — st 는 select_cni_parent 가 함께 읽는다'
+    };
+
+    for (const [name, why] of Object.entries(gone)) {
+        assert.strictEqual(new RegExp('^exports\\.' + name + '\\s*=', 'm').test(src), false,
+            name + ' 가 남아 있다 (' + why + ')');
+    }
+});
+
+test('살아 있는 csr 조회 둘은 파사드를 쓴다', function () {
+    // 이 둘은 update_route(app.js)가 fanOutPoint 와 그룹 생성마다 부른다.
+    // SQLite 스키마에는 csr 테이블이 아예 없어서, 이 경로가 SQLite 에서
+    // grp 생성을 500 으로 만들었다(게이트를 앞당겨 막았다).
+    const fs = require('node:fs');
+    const src = fs.readFileSync(path.join(__dirname, '..', 'mobius', 'sql_action.js'), 'utf8');
+
+    for (const n of ['select_csr_like', 'select_csr']) {
+        const i = src.indexOf('exports.' + n + ' = function');
+        assert.ok(i >= 0, n + ' 를 못 찾았다');
+        const body = src.slice(i, src.indexOf('\nexports.', i + 10));
+        assert.ok(/facade\.k\('csr'\)/.test(body), n + ' 가 파사드를 안 쓴다');
+        assert.strictEqual(body.indexOf('util.format'), -1,
+            n + ' 에 문자열 조립이 남아 있다');
+    }
+
+    // LIKE 패턴도 바인딩이어야 한다. 예전에는 cb 를 패턴에 이어 붙였다.
+    delete require.cache[require.resolve('../mobius/db')];
+    global.usedb = 'mysql';
+    const facade = require('../mobius/db');
+    const q = facade.k('csr').select('*').where('ri', 'like', '/Mobius/%').toSQL().toNative();
+    assert.ok(/like \?/.test(q.sql), 'LIKE 값이 SQL 에 인라인됐다: ' + q.sql);
+    assert.deepStrictEqual(q.bindings, ['/Mobius/%']);
+    delete require.cache[require.resolve('../mobius/db')];
 });

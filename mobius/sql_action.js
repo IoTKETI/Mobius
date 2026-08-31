@@ -683,21 +683,23 @@ exports.select_resource_from_url = function (connection, ri, sri, callback) {
     });
 };
 
+// 등록된 원격 CSE 목록. update_route(app.js)가 fanOutPoint 와 그룹 생성마다 부른다.
+//
+// cb 는 usecsebase(설정값)라 지금은 안전하지만, LIKE 패턴에 문자열을 이어
+// 붙이고 있었다. 바인딩으로 옮기면 그 질문 자체가 없어진다.
+// 와일드카드는 값 쪽에 둔다 — 패턴 문자(%)는 바인딩된 값 안에서만 뜻을 갖는다.
+//
+// 여기 있던 `if (!Array.isArray(results_csr.poa)) results_csr.poa = []` 는 뺐다.
+// results_csr 는 **행 배열**이라 그 .poa 는 언제나 undefined 였고, 배열 객체에
+// 속성 하나를 붙인 뒤 아무도 읽지 않았다(호출부는 results_csr[i].poa 를 본다).
+// 실패했을 때는 에러 객체에 .poa 를 붙이고 있었다.
 exports.select_csr_like = function (connection, cb, callback) {
-    var sql = util.format("select * from csr where ri like \'/%s/%%\'", cb);
-    db.getResult(sql, connection, function (err, results_csr) {
-        if (!Array.isArray(results_csr.poa)) {
-            results_csr.poa = [];
-        }
-        callback(err, results_csr);
-    });
+    facade.run(facade.k('csr').select('*').where('ri', 'like', '/' + cb + '/%'),
+        connection, callback);
 };
 
 exports.select_csr = function (connection, ri, callback) {
-    var sql = util.format("select * from csr where ri = \'%s\'", ri);
-    db.getResult(sql, connection, function (err, results_csr) {
-        callback(err, results_csr);
-    });
+    facade.run(facade.k('csr').select('*').where({ ri: ri }), connection, callback);
 };
 
 exports.select_ae = function (connection, ri, callback) {
@@ -1503,21 +1505,9 @@ exports.select_ri_lookup = function (connection, ri, callback) {
         });
 };
 
-exports.select_grp_lookup = function (connection, ri, callback) {
-    console.time('select_group ' + ri);
-    var sql = util.format("select * from lookup where ri = \'%s\' and ty = '9'", ri);
-    db.getResult(sql, connection, function (err, group_Obj) {
-        console.timeEnd('select_group ' + ri);
-        callback(err, group_Obj);
-    });
-};
-
-exports.select_grp = function (connection, ri, callback) {
-    var sql = util.format("select * from grp where ri = \'%s\'", ri);
-    db.getResult(sql, connection, function (err, grp_Obj) {
-        callback(err, grp_Obj);
-    });
-};
+// select_grp_lookup 과 select_grp 은 여기 있었다. 저장소 어디서도 부르지
+// 않아 지웠다 — 그룹 조회는 select_resource_from_url 이 lookup 을 통해 한다.
+// (같은 이유로 앞서 select_count_ri 와 delete_ri_lookup_in 을 지웠다.)
 
 exports.select_acp = function (connection, ri, callback) {
     facade.run(facade.k('acp').select('*').where({ ri: ri }), connection, callback);
@@ -1581,14 +1571,9 @@ exports.select_acp_in = function (connection, acpiList, callback) {
         connection, callback);
 };
 
-exports.select_sub = function (connection, pi, callback) {
-    console.time('select_sub');
-    var sql = util.format('select * from sub where pi = \'%s\'', pi);
-    db.getResult(sql, connection, function (err, results_ss) {
-        console.timeEnd('select_sub');
-        callback(err, results_ss);
-    });
-};
+// select_sub 은 여기 있었다. 호출부가 없어 지웠다 — 알림 경로는 sub 테이블을
+// pi 로 뒤지지 않고 부모 lookup 의 subl 컬럼에 캐시된 항목을 읽는다
+// (sgn.js 의 sgn_action -> subl_entry.read).
 
 exports.select_cb = function (connection, ri, callback) {
     facade.run(facade.k('cb').select('*').where({ ri: ri }), connection, function (err, results_cb) {
@@ -1613,13 +1598,8 @@ exports.select_cni_parent = function (connection, ri, callback) {
     facade.run(qb, connection, callback);
 };
 
-exports.select_st = function (connection, ri, callback) {
-    var sql = util.format("select ri, st from lookup where ri = \'%s\'", ri);
-
-    db.getResult(sql, connection, function (err, results_st) {
-        callback(err, results_st);
-    });
-};
+// select_st 는 여기 있었다. 호출부가 없어 지웠다 — st 는 select_cni_parent 가
+// lookup 조인으로 함께 읽는다.
 
 // 한 컨테이너에서 오래된 자식을 지운다. **마스터의 purge_sweep 만 부른다.**
 //
