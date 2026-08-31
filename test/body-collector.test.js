@@ -225,6 +225,20 @@ test("aborted 면 next 를 안 부르고 리스너를 뗀다", function () {
     assert.strictEqual(nexted, false);
 });
 
+test('끝난 뒤 늦게 오는 error 가 워커를 죽이지 않는다', function () {
+    // EventEmitter 는 'error' 를 듣는 이가 없으면 **던진다.**
+    // 본문을 다 읽은 뒤에도 소켓은 살아 있으므로(응답을 아직 안 보냈다)
+    // 늦은 오류가 올 수 있다. 리스너를 전부 떼면 그 하나가 uncaught 가 된다.
+    const req = make_req();
+    body.collect(req, make_res(), function () {});
+    req.emit('data', Buffer.from('{}', 'utf8'));
+    req.emit('end');
+
+    assert.ok(req.listenerCount('error') > 0,
+        'error 리스너를 떼면 늦은 소켓 오류가 워커를 죽인다');
+    assert.doesNotThrow(function () { req.emit('error', new Error('늦게 온 오류')); });
+});
+
 test('error 도 같은 방식으로 끝난다', function () {
     const req = make_req();
     let nexted = false;
@@ -243,7 +257,153 @@ test('end 는 두 번 와도 next 를 한 번만 부른다', function () {
     assert.strictEqual(n, 1);
 });
 
-/* ── 5. app.js 가 이 모듈만 쓰는지 ───────────────────────────────────── */
+/* ── 5. 응답 본문 읽기 (body.read) ───────────────────────────────────── */
+
+// 아웃바운드 응답 스트림 흉내. 요청 스트림과 이벤트 이름이 같다.
+function make_res_stream() {
+    const s = new EventEmitter();
+    s.destroyed = false;
+    s.destroy = function () { this.destroyed = true; };
+    return s;
+}
+
+test('read: 멀티바이트가 조각 경계에 걸려도 온전하다', function () {
+    // fopt.js / grp.js 가 이 결함을 갖고 있었다 — setEncoding 이 주석이었다.
+    const text = '온도 25도';
+    const buf = Buffer.from(text, 'utf8');
+    const res = make_res_stream();
+    let got, err;
+    body.read(res, function (e, t) { err = e; got = t; });
+
+    res.emit('data', buf.slice(0, 1));      // '온' 3바이트 중 1바이트만
+    res.emit('data', buf.slice(1));
+    res.emit('end');
+
+    assert.strictEqual(err, null);
+    assert.strictEqual(got, text);
+});
+
+test('read: 바이트 하나씩 흘려도 온전하다', function () {
+    const text = '팬아웃 멤버 응답 🚀';
+    const buf = Buffer.from(text, 'utf8');
+    const res = make_res_stream();
+    let got;
+    body.read(res, function (e, t) { got = t; });
+    for (let i = 0; i < buf.length; i++) { res.emit('data', buf.slice(i, i + 1)); }
+    res.emit('end');
+    assert.strictEqual(got, text);
+});
+
+test('read: 본문이 없으면 빈 문자열이다', function () {
+    const res = make_res_stream();
+    let err = 'unset', got;
+    body.read(res, function (e, t) { err = e; got = t; });
+    res.emit('end');
+    assert.strictEqual(err, null);
+    assert.strictEqual(got, '');
+});
+
+test('read: 상한을 넘으면 err 를 주고 스트림을 파기한다', function () {
+    // 요청 쪽과 달리 여기서는 파기해도 된다 — 우리가 보낸 요청의 답이고
+    // 상대에게 돌려줄 응답이 없다.
+    const res = make_res_stream();
+    let err, got = 'unset';
+    silence(function () { body.read(res, function (e, t) { err = e; got = t; }); });
+
+    const piece = Buffer.alloc(1024 * 1024, 0x61);
+    silence(function () {
+        for (let i = 0; i < 11; i++) { res.emit('data', piece); }
+    });
+
+    assert.ok(err instanceof Error, '상한 초과가 err 로 와야 한다');
+    assert.match(err.message, /exceeds/);
+    assert.strictEqual(got, undefined, '실패했으면 본문을 주면 안 된다');
+    assert.strictEqual(res.destroyed, true, '스트림을 파기해야 한다');
+});
+
+test('read: 중간에 끊기면 err 를 준다 — 빈 문자열로 덮지 않는다', function () {
+    // 조용히 '' 로 덮으면 "멤버 응답을 못 읽었다" 와 "빈 응답을 받았다" 가
+    // 구분되지 않는다. 팬아웃 집계가 그 차이를 알아야 한다.
+    const res = make_res_stream();
+    let err, got = 'unset';
+    body.read(res, function (e, t) { err = e; got = t; });
+    res.emit('data', Buffer.from('절반만', 'utf8'));
+    res.emit('aborted');
+
+    assert.ok(err instanceof Error);
+    assert.strictEqual(got, undefined);
+});
+
+test('read: 스트림 오류도 err 로 온다', function () {
+    const res = make_res_stream();
+    let err;
+    body.read(res, function (e) { err = e; });
+    res.emit('error', new Error('ECONNRESET'));
+    assert.ok(err instanceof Error);
+    assert.strictEqual(err.message, 'ECONNRESET');
+});
+
+test('read: 콜백은 정확히 한 번만 불린다', function () {
+    const res = make_res_stream();
+    let n = 0;
+    body.read(res, function () { n++; });
+    res.emit('end');
+    res.emit('end');
+    res.emit('error', new Error('늦게 온 오류'));
+    res.emit('aborted');
+    assert.strictEqual(n, 1);
+});
+
+test('read: 상한은 요청 쪽과 같은 손잡이를 쓴다', function () {
+    const saved = global.max_body_bytes;
+    try {
+        global.max_body_bytes = 8;
+        const res = make_res_stream();
+        let err;
+        silence(function () { body.read(res, function (e) { err = e; }); });
+        silence(function () { res.emit('data', Buffer.alloc(9, 0x61)); });
+        assert.ok(err instanceof Error, 'global.max_body_bytes 를 안 본다');
+    }
+    finally {
+        if (saved === undefined) { delete global.max_body_bytes; }
+        else { global.max_body_bytes = saved; }
+    }
+});
+
+/* ── 6. 아웃바운드 응답을 직접 모으는 자리가 남아 있지 않은지 ───────── */
+
+test('응답 본문을 직접 모으는 자리가 남아 있지 않다', function () {
+    const fs = require('node:fs');
+    const path = require('node:path');
+    const cp = require('node:child_process');
+    const ROOT = path.join(__dirname, '..');
+
+    const files = cp.execSync('git ls-files "*.js"', { cwd: ROOT }).toString()
+        .split(/\r?\n/).filter(Boolean)
+        .filter((f) => f.indexOf('test/') !== 0 && f.indexOf('tools/') !== 0);
+
+    const bad = [];
+    for (const f of files) {
+        const lines = fs.readFileSync(path.join(ROOT, f), 'utf8').split(/\r?\n/);
+        lines.forEach((l, i) => {
+            if (/^\s*(\/\/|\*|\/\*)/.test(l)) { return; }          // 주석
+            if (!/\+=\s*(chunk|c|data|d)\b/.test(l)) { return; }
+            if (/\.length\s*;?\s*$/.test(l)) { return; }           // size += chunk.length
+            // setEncoding 이 **주석이 아닌 상태로** 위에 있는가.
+            // fopt.js / grp.js 는 그 줄이 `//res.setEncoding(...)` 이라 안 걸렸고,
+            // 그래서 8년 동안 조용히 깨지고 있었다. 주석은 세지 않는다.
+            const near = lines.slice(Math.max(0, i - 7), i);
+            const guarded = near.some((w) => /^\s*res\.setEncoding\(/.test(w));
+            if (!guarded) { bad.push(f + ':' + (i + 1) + '  ' + l.trim()); }
+        });
+    }
+
+    assert.deepStrictEqual(bad, [],
+        '스트림 조각을 직접 이어붙이는 자리가 있다 — mobius/body 의 read() 를 쓸 것:\n  ' +
+        bad.join('\n  '));
+});
+
+/* ── 7. app.js 가 이 모듈만 쓰는지 ───────────────────────────────────── */
 
 test('app.js 에 수동 본문 수집기가 남아 있지 않다', function () {
     const fs = require('node:fs');
@@ -256,8 +416,13 @@ test('app.js 에 수동 본문 수집기가 남아 있지 않다', function () {
     assert.strictEqual(collectors.length, 0,
         'app.js 가 요청 본문을 직접 모으고 있다 — mobius/body 로 보내라');
 
-    assert.match(src, /require\('\.\/mobius\/body'\)\.collect/,
+    // 형태는 자유롭게 두되(`.collect` 를 바로 떼든, 모듈을 통째로 받든)
+    // **출처가 mobius/body 여야 한다**는 것만 잠근다. app.js 가 응답 쪽에서도
+    // body.read 를 쓰게 되면서 모듈 전체를 받는 형태로 바뀌었다.
+    assert.match(src, /require\('\.\/mobius\/body'\)/,
         'app.js 가 수집기를 mobius/body 에서 가져와야 한다');
+    assert.match(src, /body\.collect/,
+        'app.js 의 라우트가 body.collect 를 미들웨어로 써야 한다');
 
     // body-parser 는 이제 안 쓴다. 되살리면 type 문자열 함정이 그대로 돌아온다.
     assert.doesNotMatch(src, /require\('body-parser'\)/,

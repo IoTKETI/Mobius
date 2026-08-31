@@ -18,6 +18,7 @@ var url = require('url');
 var xml2js = require('xml2js');
 var xmlbuilder = require('xmlbuilder');
 var util = require('util');
+var body = require('./body');
 var responder = require('./responder');
 var http = require('http');
 var https = require('https');
@@ -56,13 +57,13 @@ exports.request_post = function(uri, bodyString) {
         }
     };
 
-    var bodyStr = '';
-
     var req = http.request(options, function (res) {
-        res.on('data', function (chunk) {
-            bodyStr += chunk;
-        });
-
+        // 예전에는 `bodyStr += chunk` 로 응답을 통째로 모았는데 **아무도 읽지
+        // 않았다.** 상태코드만 로그로 찍고 버렸다. 시맨틱 브로커가 큰 응답을
+        // 주면 그만큼 메모리를 쓰고 그대로 버리는 셈이었다.
+        //
+        // 이제 모으지 않는다. 스트림은 흘려보내야 소켓이 닫히므로 resume() 한다.
+        res.resume();
         res.on('end', function () {
             console.log('----> [smd.request_post()] response for smd  ' + res.statusCode);
         });
@@ -95,14 +96,16 @@ exports.request_get_discovery = function(request, response, callback) {
         }
     };
 
-    var bodyStr = '';
-
     var req = http.request(options, function (res) {
-        res.on('data', function (chunk) {
-            bodyStr += chunk;
-        });
-
-        res.on('end', function () {
+        body.read(res, function (rerr, bodyStr) {
+            if (rerr) {
+                // 브로커 응답을 못 읽었다. 예전에는 이 경우가 없어서 깨진
+                // bodyStr 로 그대로 진행했다 — 빈 문자열을 split(',') 하면
+                // [''] 이 되어 "결과 1건" 처럼 보인다.
+                console.error('[smd.request_get_discovery] 브로커 응답을 받지 못했다: ' + rerr.message);
+                callback('404-2');
+                return;
+            }
             console.log('----> [smd.request_post()] response for smd  ' + res.statusCode);
 
             // 예전에는 여기서 callback(response, res.statusCode, bodyStr) 을 먼저

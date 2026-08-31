@@ -160,11 +160,20 @@ function collect(request, response, next) {
         detach();
     }
 
+    // data 와 end 만 뗀다. **error 리스너는 남겨 둔다.**
+    //
+    // EventEmitter 는 'error' 를 듣는 이가 하나도 없으면 던진다. 본문을 다
+    // 읽은 뒤에도 소켓은 살아 있으므로(응답을 아직 안 보냈다) 늦은 오류가
+    // 올 수 있고, 그 하나가 uncaught exception 이 되어 워커를 죽인다.
+    // backstop 이 마스터는 살리지만 그 요청은 사라진다.
+    //
+    // 실측: end 뒤에 removeListener 를 다 하면 listenerCount('error') 가 0 이
+    // 되고, 그 상태에서 emit('error') 는 곧바로 던진다.
+    //
+    // 남은 리스너는 done 을 보고 즉시 돌아가므로 next() 가 두 번 불리지 않는다.
     function detach() {
         request.removeListener('data', on_data);
         request.removeListener('end', on_end);
-        request.removeListener('aborted', on_gone);
-        request.removeListener('error', on_gone);
     }
 
     request.on('data', on_data);
@@ -172,8 +181,107 @@ function collect(request, response, next) {
     request.on('aborted', on_gone);
     request.on('error', on_gone);
 }
+/**
+ * **응답** 본문을 모아 문자열로 준다. 서버가 내보낸 요청의 답을 읽는 자리다.
+ *
+ *     read(res, function (err, text) { ... })
+ *
+ * 위의 collect() 와 같은 결함이 응답 쪽에도 있었다. 여섯 자리다:
+ *
+ *     app.js         notify_http     AE 알림 전달
+ *     app.js         forward_http    remoteCSE 포워딩
+ *     mobius/fopt.js fopt_member     팬아웃 멤버 응답  <- 가장 트래픽이 많다
+ *     mobius/grp.js  check_member    그룹 멤버 검증
+ *     mobius/smd.js  request_post / request_get_discovery
+ *
+ * ── setEncoding 이 있으면 안전한데, 왜 헬퍼인가 ─────────────────────────
+ * `res.setEncoding('utf8')` 를 걸면 Node 가 StringDecoder 를 붙여 불완전한
+ * 바이트열을 다음 조각까지 버퍼링한다. 그래서 프록시 3종의 열 자리는 멀쩡하다.
+ *
+ * 그런데 fopt.js 와 grp.js 는 **그 줄이 주석 처리되어 있다**:
+ *
+ *     //res.setEncoding('utf8');
+ *     res.on('data', function (chunk) { responseBody += chunk; });
+ *
+ * 한 줄 주석으로 조용히 깨지는 구조라면, 그 한 줄을 되살리는 것보다 부를 것을
+ * 하나로 만드는 편이 낫다. 다음 사람이 또 주석 처리할 수 있다.
+ *
+ * setEncoding 과 Buffer.concat 은 **결과가 같다.** 바이트마다 갈라 보내는
+ * 시험으로 확인했다 — CBOR 바이너리·EUC-KR·정상 UTF-8·단독 0xFF 네 경우 모두
+ * 두 방식의 결과가 바이트 단위로 동일했다. 둘 다 U+FFFD 로 치환한다.
+ * 즉 이 헬퍼로 바꾸는 것이 기존 setEncoding 자리의 동작을 바꾸지 않는다.
+ *
+ * ── 크기 상한을 여기서도 거는 이유 ──────────────────────────────────────
+ * outbound.js 의 타임아웃은 `req.setTimeout()` 이고 그것은 **유휴** 타이머다.
+ * 상대가 조금씩 계속 보내면 타이머가 매번 초기화되어 영영 안 끊긴다.
+ * 실측: 타임아웃 1000ms 로 걸어도 0.3초마다 흘리는 상대에게서 12.5초 동안
+ * 168KB 를 받고 끊기지 않았다. 즉 응답 본문은 지금 **무제한으로 쌓인다.**
+ *
+ * 요청 쪽과 같은 상한(global.max_body_bytes)을 쓴다. 손잡이가 둘이면 관리자가
+ * 어느 쪽을 돌렸는지 헷갈리고, 두 값의 크기 성격도 다르지 않다.
+ *
+ * ── 계약 ────────────────────────────────────────────────────────────────
+ * cb(err, text) 를 **정확히 한 번** 부른다.
+ *   err 가 null 이면 text 는 완성된 문자열이다
+ *   상한 초과 / 스트림 오류 / 중간 끊김이면 err 에 Error 가 온다
+ *
+ * 호출부가 err 를 무시하고 text 를 쓰면 undefined 를 만난다. 그게 의도다 —
+ * 실패를 조용히 빈 문자열로 덮으면, 멤버 응답을 못 읽은 것과 빈 응답을 받은
+ * 것이 구분되지 않는다.
+ */
+function read(res, cb) {
+    var chunks = [];
+    var size = 0;
+    var done = false;
+
+    function finish(err, text) {
+        if (done) { return; }
+        done = true;
+        chunks = null;
+        // data 와 end 만 뗀다. **error 리스너는 남겨 둔다** —
+        // EventEmitter 는 'error' 를 듣는 이가 하나도 없으면 던진다. 끝난 뒤
+        // 늦게 오는 소켓 오류 하나가 uncaught exception 이 되어 워커를 죽인다
+        // (backstop 이 마스터는 살리지만 그 요청은 사라진다).
+        // 남은 리스너는 done 을 보고 즉시 돌아가므로 값이 두 번 나가지 않는다.
+        res.removeListener('data', on_data);
+        res.removeListener('end', on_end);
+        cb(err, text);
+    }
+
+    function on_data(chunk) {
+        if (done) { return; }
+        size += chunk.length;
+        if (size > limit()) {
+            // 여기서는 요청 쪽과 달리 스트림을 파기해도 된다. 우리가 보낸
+            // 요청의 답이고, 우리는 상대에게 돌려줄 응답이 없다.
+            chunks = null;
+            try { res.destroy(); } catch (e) { /* 이미 닫혔을 수 있다 */ }
+            finish(new Error('response body exceeds ' + limit() + ' bytes'));
+            return;
+        }
+        chunks.push(chunk);
+    }
+
+    function on_end() {
+        if (done) { return; }
+        // 조각을 다 모은 뒤 **한 번만** 디코드한다. 경계가 글자를 가르지 못한다.
+        finish(null, Buffer.concat(chunks, size).toString('utf8'));
+    }
+
+    function on_gone() { finish(new Error('response aborted')); }
+    function on_err(e) { finish(e instanceof Error ? e : new Error(String(e))); }
+
+    res.on('data', on_data);
+    res.on('end', on_end);
+    res.on('aborted', on_gone);
+    res.on('error', on_err);
+}
+
 // Express 미들웨어. app.js 의 네 라우트가 이것 하나를 쓴다.
 exports.collect = collect;
+
+// 아웃바운드 응답 읽기. 위 read() 머리말 참조.
+exports.read = read;
 
 // 테스트가 기본값을 확인할 수 있게 열어 둔다. 런타임에는 안 쓴다.
 exports.DEFAULT_LIMIT = BODY_LIMIT_DEFAULT;

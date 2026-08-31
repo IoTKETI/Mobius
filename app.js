@@ -1937,7 +1937,8 @@ function check_type_delete_resource(request, callback) {
 
 // 요청 본문 수집기. 왜 별도 모듈인지는 mobius/body.js 머리말 참조 —
 // 요약하면 app.js 는 require 만 해도 포트를 열어서 단위 테스트가 못 부른다.
-var onem2mParser = require('./mobius/body').collect;
+var body = require('./mobius/body');
+var onem2mParser = body.collect;
 
 //////// contribution code
 // Kevin Lee, Executive Director, Unibest INC, Owner of Howchip.com
@@ -2658,16 +2659,31 @@ function notify_http(hostname, port, path, method, headers, bodyString, callback
     };
 
     var req = http.request(options, (res) => {
-        var fullBody = '';
-        res.on('data', (chunk) => {
-            fullBody += chunk.toString();
-        });
-
-        res.on('end', () => {
-            console.log('--------------------------------------------------------------------------');
-            console.log(fullBody);
-            console.log('[notify_http response : ' + res.statusCode + ']');
-
+        // ── 결함 둘을 함께 고친다 ──────────────────────────────────────
+        //
+        // (1) 모은 본문을 **아무 데도 넣지 않았다.**
+        //     여기서 callback('200', res) 로 넘긴 res 의 .body 를
+        //     app.js 의 check_ae_notify 콜백이 `response.send(res.body)` 로
+        //     원 요청자에게 내보낸다(2116 부근). 그런데 res.body 는 여기서
+        //     세워진 적이 없다 — 언제나 undefined 였다.
+        //     Express 의 send(undefined) 는 content-length: 0 을 보낸다.
+        //     즉 **AE 알림 응답의 본문이 통째로 사라지고 있었다.**
+        //     쌍둥이인 forward_http 는 res.body = fullBody 를 한다.
+        //
+        // (2) 조각마다 따로 디코드해서 멀티바이트가 깨졌다.
+        //     mobius/body.js 의 read() 가 다 모은 뒤 한 번만 디코드한다.
+        //
+        // 본문을 통째로 로그에 찍던 것도 걷어냈다. CLAUDE.md 가 금지한다 —
+        // 요청마다 응답 본문을 덤프하면 운영 로그가 밀려 장애 분석이 안 된다.
+        // 상태코드와 길이만 남긴다. 진단에 필요한 것은 그것으로 충분하다.
+        body.read(res, (err, fullBody) => {
+            if (err) {
+                console.error('[notify_http] 알림 응답을 받지 못했다: ' + err.message);
+                callback('404-7');
+                return;
+            }
+            res.body = fullBody;
+            console.log('[notify_http] ' + res.statusCode + '  ' + fullBody.length + '자');
             callback('200', res);
         });
     });
@@ -2703,20 +2719,24 @@ function forward_http(forwardcbhost, forwardcbport, f_url, f_method, f_headers, 
     };
 
     var req = http.request(options, (res) => {
-        var fullBody = '';
-
-        res.on('data', (chunk) => {
-            fullBody += chunk.toString();
-        });
-
-        res.on('end', () => {
+        body.read(res, (err, fullBody) => {
+            if (err) {
+                console.error('[forward_http] 원격 응답을 받지 못했다: ' + err.message);
+                callback('404-7');
+                return;
+            }
             res.body = fullBody;
 
-            console.log('--------------------------------------------------------------------------');
-            console.log(res.url);
-            console.log(res.headers);
-            console.log(res.body);
-            console.log('[Forward response : ' + res.statusCode + ']');
+            // 예전에는 여기서 res.headers 객체와 res.body 를 통째로 찍었다.
+            // 두 가지가 문제였다:
+            //
+            //   본문 덤프  CLAUDE.md 가 금지한다 — 요청마다 응답 본문을 찍으면
+            //              운영 로그가 밀려 장애 분석이 불가능해진다
+            //   헤더 덤프  X-M2M-Origin 이 그대로 남는다. 그 값이
+            //              수퍼유저(모든 ACP 를 건너뛰는 마스터 키)일 수 있다
+            //
+            // 진단에 필요한 것만 남긴다.
+            console.log('[forward_http] ' + res.statusCode + '  ' + fullBody.length + '자  ' + f_url);
 
             callback('200', res);
         });

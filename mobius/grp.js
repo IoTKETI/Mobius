@@ -21,6 +21,7 @@ var http = require('http');
 var util = require('util');
 var moment = require('moment');
 
+var body = require('./body');
 var responder = require('./responder');
 
 var db_sql = require('./sql_action');
@@ -136,14 +137,28 @@ function check_member(request, response, req_count, cse_poa, callback) {
                         }
                     };
 
-                    var responseBody = '';
                     var req = http.request(options, function (res) {
-                        //res.setEncoding('utf8');
-                        res.on('data', function (chunk) {
-                            responseBody += chunk;
-                        });
-
-                        res.on('end', function () {
+                        // 여기도 `//res.setEncoding('utf8');` 가 주석 처리된 채
+                        // `responseBody += chunk` 로 모으고 있었다. fopt.js 와
+                        // 같은 결함이다 — 조각마다 따로 디코드되어 멤버 응답의
+                        // 멀티바이트가 U+FFFD 로 깨진다.
+                        //
+                        // 이쪽은 check_mt 가 멤버 **타입**만 보므로 지금까지
+                        // 실해가 드러나지 않았을 것이다. 타입은 숫자다.
+                        // 그래도 고친다 — 한 줄 주석으로 조용히 깨지는 구조를
+                        // 남겨 두면 다음에 본문을 쓸 때 같은 일이 난다.
+                        body.read(res, function (err, responseBody) {
+                            if (err) {
+                                // 멤버 응답을 못 읽었다. 유효 멤버로 세지 않고
+                                // 다음 멤버로 간다 — statusCode 가 200 이 아닐 때와
+                                // 같은 처리다.
+                                console.error('[grp check_member] 멤버 응답을 받지 못했다: ' +
+                                              ri + ' — ' + err.message);
+                                check_member(request, response, ++req_count, cse_poa, function (code) {
+                                    callback(code);
+                                });
+                                return;
+                            }
                             if (res.statusCode == 200) {
                                 check_mt(request, responseBody, function (rsc) {
                                     if (rsc == '1') {

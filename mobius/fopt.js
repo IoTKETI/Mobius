@@ -21,6 +21,7 @@ var xml2js = require('xml2js');
 var xmlbuilder = require('xmlbuilder');
 var moment = require('moment');
 
+var body = require('./body');
 var responder = require('./responder');
 var resource = require('./resource');
 
@@ -112,14 +113,27 @@ function request_to_member(request, hostname, port, ri, agr, callback) {
         headers: request.headers
     };
 
-    var responseBody = '';
     var req = http.request(options, function (res) {
-        //res.setEncoding('utf8');
-        res.on('data', function (chunk) {
-            responseBody += chunk;
-        });
-
-        res.on('end', function () {
+        // 예전에는 여기서 `responseBody += chunk` 로 모았고, 바로 위의
+        // `//res.setEncoding('utf8');` 는 **주석 처리되어 있었다.**
+        // 그래서 조각마다 따로 디코드되어 멤버 응답의 한글이 깨졌다.
+        //
+        // 실측 재현 — 멤버가 보낸 con 이 "온도 25도, 습도 60%" 일 때:
+        //     JSON.parse : 성공
+        //     con        : "���도 25도, 습도 60%"
+        //
+        // **파싱이 성공한다**는 것이 고약하다. U+FFFD 는 JSON 문자열로 멀쩡하니
+        // 에러가 나지 않고, 틀린 값이 그대로 집계(agr)에 들어간다.
+        // 팬아웃 결과를 받는 쪽은 무엇이 틀렸는지 알 방법이 없다.
+        body.read(res, function (err, responseBody) {
+            if (err) {
+                // 상한 초과·중간 끊김·스트림 오류. 멤버 하나의 실패가 그룹
+                // 전체를 막지 않는다는 아래 방침을 그대로 따른다.
+                console.error('[fopt_member] 멤버 응답을 받지 못해 결과에서 제외한다: ' +
+                              ri + ' — ' + err.message);
+                callback('200');
+                return;
+            }
             check_body(res, request.usebodytype, responseBody, function (rsc, retrieve_Obj) {
                 if (rsc == '1') {
                     agr[retrieve_Obj.fr] = JSON.parse(JSON.stringify(retrieve_Obj));
