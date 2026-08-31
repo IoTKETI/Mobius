@@ -35,7 +35,16 @@ test('표가 mobius.js 가 읽는 키를 전부 담는다', function () {
 
     assert.deepStrictEqual(missing, [],
         'mobius.js 가 읽는데 표에 없는 키가 있다: ' + missing.join(', ') +
-        '\n표에 없으면 콘솔이 그 설정의 존재조차 모른다');
+        '\n' +
+        '\n표에 없으면 관리 콘솔이 그 설정의 존재조차 모른다 — 콘솔은 자체 목록을' +
+        '\n들지 않고 conf_schema.describe() 를 그대로 쓰므로, 표에 없는 키는' +
+        '\n화면에 입력칸이 아예 안 생긴다.' +
+        '\n' +
+        '\n**conf 키를 추가하는 커밋이 표도 같이 채워야 한다.** 나중으로 미루면' +
+        '\n그 사이에 이 테스트가 빨간 채로 남고, 다른 세션의 작업까지 막는다.' +
+        '\nmobius/conf_schema.js 에 아래를 채워 넣을 것:' +
+        '\n  type / dflt / valid / apply(runtime|reload|restart) / label / help' +
+        '\n  화면에 안 띄울 것이면 exposed:false, 비밀이면 secret:true');
 });
 
 test('표에만 있고 아무도 안 읽는 키가 없다', function () {
