@@ -234,6 +234,46 @@ test('본문 insert 가 실패하면 lookup 행을 되돌린다', function () {
         'lookup 되돌리기가 없다 — 고아 행이 남는다. 나간 SQL:\n  ' + seen.join('\n  '));
 });
 
+// 실측으로 잡은 회귀. 이 테스트가 없었으면 배포에 나갔다.
+//
+// lcp 의 loi/lost 는 create_np_attr_list 에 있어 **클라이언트가 보낼 수 없고**,
+// build_lcp 도 채우지 않아 언제나 undefined 다. 빌더는 undefined 를 NULL 로
+// 보내는데 그 컬럼들이 NOT NULL 이라 insert 가 통째로 실패했다 — 옛 코드는
+// util.format('%s') 로 문자열 "undefined" 를 저장하며 성공하던 자리다.
+//
+// 로컬 MySQL 에 실제로 만들어 보고서야 드러났다(500 "resource could not be
+// created"). SQL 모양만 대조하는 위 테스트들은 이것을 못 잡는다 — 컬럼은
+// 맞고 **값**이 틀렸기 때문이다.
+test('안 채운 속성이 있어도 insert 가 나간다 (NOT NULL 컬럼)', function () {
+    // loi / lost 를 일부러 뺀다.
+    const seen = capture('insert_lcp', {
+        ri: '/M/lcp1', pi: '/M', ty: '10', ct: '20260101T000000',
+        los: '1', lou: 'u', lot: '1', lor: 'r', lon: 'n'
+    });
+    const body = seen.filter(function (s) { return /insert into `lcp`/.test(s.sql); })[0];
+    assert.ok(body, 'lcp insert 가 안 나갔다');
+
+    assert.strictEqual(body.bindings.indexOf(undefined), -1,
+        'undefined 가 바인딩에 들어갔다 — NOT NULL 컬럼에서 실패한다: ' +
+        JSON.stringify(body.bindings));
+    assert.strictEqual(body.bindings.indexOf(null), -1,
+        'null 이 바인딩에 들어갔다 — NOT NULL 컬럼에서 실패한다: ' +
+        JSON.stringify(body.bindings));
+});
+
+test('UPDATE 도 안 채운 속성을 NULL 로 보내지 않는다', function () {
+    const seen = capture('update_csr', {
+        ri: '/M/csr1', lt: '20260101T000000', st: 1,
+        poa: ['http://a']            // mei/tri/rr/nl 을 뺀다
+    });
+    const body = seen.filter(function (s) { return /update `csr` set/.test(s.sql); })[0];
+    assert.ok(body, 'csr update 가 안 나갔다');
+    assert.strictEqual(body.bindings.indexOf(undefined), -1,
+        'undefined 가 바인딩에 들어갔다: ' + JSON.stringify(body.bindings));
+    assert.strictEqual(body.bindings.indexOf(null), -1,
+        'null 이 바인딩에 들어갔다: ' + JSON.stringify(body.bindings));
+});
+
 test('JSON 컬럼은 문자열로 바인딩된다', function () {
     const seen = capture('insert_csr', {
         ri: '/M/csr1', pi: '/M', ty: '16', ct: '20260101T000000',

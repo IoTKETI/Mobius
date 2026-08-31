@@ -143,15 +143,18 @@ update_fwr  update_bat  update_dvi  update_dvc  update_rbo
 update_nod  update_csr  update_smd  update_mms
 ```
 
-**(다) SELECT 9개** — 난이도가 갈린다
+**(다) SELECT 9개** — 난이도가 갈린다   ← **2026-09-01 완료**
 
 ```
-쉬움 (6):  select_csr  select_csr_like  select_grp  select_grp_lookup
-           select_sub  select_st
-어려움 (3): select_in_ri_list       IN 목록 동적 조립
-           search_lookup_parents )  discovery 재귀 CTE — 가장 큰 덩어리
-           build_search_query    )
+살아 있어서 옮긴 것 (2):  select_csr  select_csr_like
+호출부가 0이라 지운 것 (4): select_grp  select_grp_lookup  select_sub  select_st
+남은 것 (3):  select_in_ri_list       IN 목록 동적 조립
+             search_lookup_parents )  discovery 재귀 CTE — 가장 큰 덩어리
+             build_search_query    )
 ```
+
+여섯 중 넷이 죽은 코드였다. 옮기는 것보다 지우는 것이 맞다 — 죽은 코드를
+옮기면 유지할 표면만 늘고 목표에는 보탬이 없다.
 
 **(라) `set_tuning` 1개 — 옮기지 않는다.** `SET GLOBAL` 은 MySQL 서버 운영
 튜닝이라 백엔드 중립이 아니다. 이미 `db.can('serverTuning')` 게이트 뒤에 있어
@@ -164,11 +167,14 @@ update_nod  update_csr  update_smd  update_mms
 
 ### 진행 순서
 
-1. **(가)+(나) 29개를 한 묶음으로** — 같은 모양의 반복이라 한 번에 옮기고
-   등가성으로 검증. 전체의 74%. 끝나면 **94/104 (90%)**.
-2. **(다)의 쉬운 6개** — 개별 전환.
-3. **(다)의 discovery 3개** — 재귀 CTE. 별도 회차 크기.
+1. ~~**(가)+(나) 29개를 한 묶음으로**~~ — **완료 2026-09-01** (`2cc44cc`).
+   표 2개 + 생성자 2개. 733줄 -> 158줄.
+2. ~~**(다)의 쉬운 6개**~~ — **완료 2026-09-01** (`baf88db`). 2개 전환, 4개 삭제.
+3. **(다)의 discovery 3개** — 재귀 CTE. 별도 회차 크기. ← **다음**
 4. 그 뒤 10·11번은 정리 성격.
+
+**현재 96/100 (96%).** `node tools/classify-sql.js mobius/sql_action.js` 로 재라.
+(그 도구는 한때 표로 대입된 29개를 세지 못해 전환율을 부풀렸다. 고쳤다.)
 
 ### 왜 이 작업이 가치 있나
 

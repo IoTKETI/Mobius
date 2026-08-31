@@ -24,6 +24,22 @@ heads.forEach(function (h, i) {
     h.end = (i + 1 < heads.length) ? heads[i + 1].start : lines.length;
 });
 
+// **표로 대입되는 함수도 센다.**
+//
+// BODY_TABLES / BODY_UPDATES 처럼 표를 두고 exports[name] = 생성자(...) 로
+// 만드는 것들은 위 정규식에 안 걸린다. 그것을 빼먹으면 29개 함수가 생성자
+// 2개로 접혀 전환율이 부풀려진다 — 실제로 63% -> 95% 로 뛰었는데 그중 상당
+// 부분이 "함수가 사라진" 착시였다. 표의 키를 세어 되돌려 놓는다.
+//
+// 이 함수들은 정의상 전부 파사드를 쓴다(생성자가 하나뿐이다).
+var tableAssigned = [];
+var src2 = lines.join('\n');
+(src2.match(/^var (BODY_\w+) = \{[\s\S]*?^\};/gm) || []).forEach(function (block) {
+    (block.match(/^\s{4}([a-zA-Z_0-9]+)\s*:/gm) || []).forEach(function (k) {
+        tableAssigned.push(k.trim().replace(':', ''));
+    });
+});
+
 // 주석 줄은 세지 않는다 — 주석 안의 SQL 예시에 걸리면 숫자가 거짓이 된다.
 function isComment(l) { return /^\s*(\/\/|\*|\/\*)/.test(l); }
 
@@ -57,17 +73,25 @@ heads.forEach(function (h) {
     if (d.length) { dialect.push({ name: h.name, what: d }); }
 });
 
-var emitting = facade.length + hand.length + both.length;
+// 표로 대입된 것들은 생성자 2개로 접혀 있으므로, 생성자를 빼고 표의 키 수를
+// 더한다. 안 그러면 "함수가 사라진" 착시가 전환율로 새어 든다.
+var GENERATORS = ['make_body_insert', 'make_body_update'];
+var facadeCount = facade.filter(function (n) {
+    return GENERATORS.indexOf(n) < 0;
+}).length + tableAssigned.length;
+
+var emitting = facadeCount + hand.length + both.length;
 
 console.log('파일: ' + P);
-console.log('함수 총계: ' + heads.length);
-console.log('  파사드만        : ' + facade.length);
+console.log('함수 총계(표 대입 포함): ' + (heads.length - GENERATORS.length + tableAssigned.length));
+console.log('  파사드만        : ' + facadeCount +
+            (tableAssigned.length ? '  (표로 대입된 ' + tableAssigned.length + '개 포함)' : ''));
 console.log('  손으로 쓴 SQL만 : ' + hand.length);
 console.log('  섞임            : ' + both.length);
 console.log('  SQL 없음        : ' + none.length);
 console.log('');
-console.log('전환율: ' + facade.length + ' / ' + emitting + ' (' +
-            Math.round(facade.length / emitting * 100) + '%)  — SQL 을 내는 함수 기준');
+console.log('전환율: ' + facadeCount + ' / ' + emitting + ' (' +
+            Math.round(facadeCount / emitting * 100) + '%)  — SQL 을 내는 함수 기준');
 console.log('');
 
 if (dialect.length === 0) {

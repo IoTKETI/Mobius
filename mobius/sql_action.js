@@ -559,9 +559,29 @@ function make_body_insert(name, table, cols, json_cols) {
                 // JSON 컬럼의 || [] 는 insert_ae / insert_cnt 와 같은 규약이다.
                 // 예전 코드는 JSON.stringify(undefined) 에 .replace 를 걸어
                 // TypeError 를 냈다 — DB 콜백 안이라 워커가 죽는 자리다.
-                row[c] = (json_cols.indexOf(c) >= 0)
-                    ? JSON.stringify(obj[c] || [])
-                    : obj[c];
+                if (json_cols.indexOf(c) >= 0) {
+                    row[c] = JSON.stringify(obj[c] || []);
+                    return;
+                }
+                // **undefined 를 빈 문자열로 둔다.** 빌더는 undefined 를 NULL 로
+                // 보내는데, 이 테이블들의 컬럼은 대부분 NOT NULL 이라 그대로
+                // 실패한다. 실측: lcp 생성이 500 이 됐다 — loi/lost 는
+                // create_np_attr_list 에 있어 클라이언트가 보낼 수 없고
+                // build_lcp 도 채우지 않아 언제나 undefined 다.
+                //
+                // 옛 코드는 util.format('%s') 라 문자열 "undefined" 를 저장하며
+                // 성공했다. 그 값을 그대로 재현하지는 않는다 — 빈 문자열이
+                // 덜 나쁘고, "안 채운 속성" 이라는 뜻도 더 정확하다.
+                //
+                // null 도 같이 막는다. 클라이언트가 {"ni": null} 을 보내면
+                // build_resource(resource.js)의 속성 검사는 "속성이 있다" 로
+                // 세어 통과시키고, 그 null 이 그대로 NOT NULL 컬럼에 닿는다.
+                // 옛 코드는 문자열 'null' 을 저장하며 201 을 줬다.
+                //
+                // 제대로 된 수정은 각 타입의 build_* 가 자기 속성을 채우는
+                // 것이다(예: build_lcp 가 loi/lost 를 정한다). 그것은 값의
+                // 의미를 정하는 일이라 이 전환의 범위가 아니다.
+                row[c] = (obj[c] === undefined || obj[c] === null) ? '' : obj[c];
             });
 
             facade.run(facade.k(table).insert(row), connection, function (err2, results2) {
@@ -2299,7 +2319,13 @@ function make_body_update(name, table, cols, json_cols) {
                 // 생성 쪽과 달리 || [] 를 붙이지 않는다. 옛 코드가
                 // JSON.stringify(obj.x) 를 그대로 썼고, 여기서 기본값을
                 // 만들어 주면 "안 보낸 속성" 이 빈 배열로 덮인다.
-                row[c] = (json_cols.indexOf(c) >= 0) ? JSON.stringify(obj[c]) : obj[c];
+                if (json_cols.indexOf(c) >= 0) {
+                    row[c] = JSON.stringify(obj[c]);
+                    return;
+                }
+                // 생성 쪽과 같은 이유로 undefined/null 을 빈 문자열로 둔다 —
+                // 빌더가 NULL 로 보내면 NOT NULL 컬럼에서 그대로 실패한다.
+                row[c] = (obj[c] === undefined || obj[c] === null) ? '' : obj[c];
             });
 
             facade.run(facade.k(table).update(row).where({ ri: obj.ri }), connection,
