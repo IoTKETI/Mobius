@@ -12,6 +12,7 @@
 
 var responder = require('./responder');
 var reason = require('./reason');
+var log_safe = require('./log_safe');
 /**
  * 요청 본문을 모아 request.body 에 **문자열**로 넣는다.
  *
@@ -103,7 +104,7 @@ function limit() {
 function too_large(request, response, size) {
     console.error('[body_limit] ' + request.method + ' ' + request.url +
                   '  ' + size + ' > ' + limit() + ' bytes' +
-                  '  origin=' + (request.headers['x-m2m-origin'] || '?'));
+                  '  origin=' + log_safe.origin(request.headers['x-m2m-origin']));
     var r = reason.get('413-1');
     responder.respond(request, response, { code: r.code, dbg: r.msg }, function () {});
 }

@@ -1803,6 +1803,7 @@ function check_type_delete_resource(request, callback) {
 // 요청 본문 수집기. 왜 별도 모듈인지는 mobius/body.js 머리말 참조 —
 // 요약하면 app.js 는 require 만 해도 포트를 열어서 단위 테스트가 못 부른다.
 var body = require('./mobius/body');
+var log_safe = require('./mobius/log_safe');
 var onem2mParser = body.collect;
 
 //////// contribution code
@@ -1852,7 +1853,7 @@ app.use((req, res, next) => {
 
     console.error('[json_only] ' + req.method + ' ' + req.url +
                   '  Content-Type: ' + mime +
-                  '  origin=' + (req.headers['x-m2m-origin'] || '?'));
+                  '  origin=' + log_safe.origin(req.headers['x-m2m-origin']));
 
     // 응답은 다른 모든 에러와 같은 문으로 나간다.
     //

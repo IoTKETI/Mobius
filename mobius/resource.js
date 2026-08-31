@@ -14,6 +14,7 @@
  * @author Il Yeup Ahn [iyahn@keti.re.kr]
  */
 
+var log_safe = require('./log_safe');
 var url = require('url');
 var http = require('http');
 var https = require('https');
@@ -1398,7 +1399,7 @@ exports.retrieve = function (request, response, callback) {
                                 console.log('[acp] discovery filtered removed=' + fstat.removed +
                                     ' kept=' + fstat.kept + ' evaluated=' + fstat.evaluated +
                                     ' queries=' + fstat.queries +
-                                    ' origin=' + request.headers['x-m2m-origin'] +
+                                    ' origin=' + log_safe.origin(request.headers['x-m2m-origin']) +
                                     ' url=' + request.url);
                             }
                             {

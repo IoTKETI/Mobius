@@ -19,6 +19,9 @@
 //   - **로그를 초당 몇 줄로 끊는다.** 잘못 걸린 ACP 하나가 25개 워커에서
 //     초당 수천 줄을 쏟으면 디스크가 먼저 죽는다.
 
+// 로그에 수퍼유저 origin 을 적지 않는다. mobius/log_safe.js 머리말 참조.
+var log_safe = require('./log_safe');
+
 var DEFAULTS = { mode: 'off', denyLog: 'sample', rate: 5, keep: 200 };
 
 var cfg = { mode: DEFAULTS.mode, denyLog: DEFAULTS.denyLog, rate: DEFAULTS.rate, keep: DEFAULTS.keep };
@@ -129,7 +132,7 @@ exports.record = function (kind, info) {
         push_recent({ at: new Date().toISOString(), kind: kind, info: i });
         if (kind === 'acpi_attach' && may_log()) {
             console.log('[acp] attach ri=' + (i.ri || '-') + ' ty=' + (i.ty || '-') +
-                ' origin=' + (i.origin || '-') + ' cr=' + (i.cr || '-') +
+                ' origin=' + log_safe.origin(i.origin) + ' cr=' + (i.cr || '-') +
                 ' before=' + JSON.stringify(i.before || []) +
                 ' after=' + JSON.stringify(i.after || []));
         }
@@ -231,7 +234,7 @@ function line_info(request, t) {
 function format(request, t) {
     var i = line_info(request, t);
     var s = 'op=' + i.op + ' ty=' + (i.ty === undefined ? '-' : i.ty) +
-        ' origin=' + (i.origin || '-') + ' url=' + (i.url || '-') +
+        ' origin=' + log_safe.origin(i.origin) + ' url=' + (i.url || '-') +
         ' by=' + i.by;
     if (i.acp) { s += ' acp=' + i.acp + ' field=' + (i.field || '-') + ' acr=' + (i.acr === null ? '-' : i.acr); }
     if (i.source) { s += ' source=' + i.source; }
