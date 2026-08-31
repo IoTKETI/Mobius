@@ -20,14 +20,10 @@ var https = require('https');
 var express = require('express');
 var mqtt = require('mqtt');
 var util = require('util');
-var xml2js = require('xml2js');
-var js2xmlparser = require('js2xmlparser');
 var url = require('url');
-var xmlbuilder = require('xmlbuilder');
 var moment = require('moment');
 var RSC = require('./mobius/rsc').RSC;
 var ip = require("ip");
-var cbor = require('cbor');
 
 var responder = require('./mobius/responder');
 
@@ -562,79 +558,23 @@ function mqtt_response(resp_topic, rsc, op, to, fr, rqi, inpc, bodytype) {
 
     var cache_key = op.toString() + to.toString() + rqi.toString();
 
-    if (bodytype == 'xml') {
-        var bodyString = responder.convertXmlMqtt('rsp', rsp_message['m2m:rsp']);
-
-        /*rsp_message['m2m:rsp']['@'] = {
-            "xmlns:m2m": "http://www.onem2m.org/xml/protocols",
-            "xmlns:xsi": "http://www.w3.org/2001/XMLSchema-instance"
-        };
-
-        for(var prop in rsp_message['m2m:rsp'].pc) {
-            if (rsp_message['m2m:rsp'].pc.hasOwnProperty(prop)) {
-                for(var prop2 in rsp_message['m2m:rsp'].pc[prop]) {
-                    if (rsp_message['m2m:rsp'].pc[prop].hasOwnProperty(prop2)) {
-                        if(prop2 == 'rn') {
-                            rsp_message['m2m:rsp'].pc[prop]['@'] = {rn : rsp_message['m2m:rsp'].pc[prop][prop2]};
-                            delete rsp_message['m2m:rsp'].pc[prop][prop2];
-                        }
-                        for(var prop3 in rsp_message['m2m:rsp'].pc[prop][prop2]) {
-                            if (rsp_message['m2m:rsp'].pc[prop][prop2].hasOwnProperty(prop3)) {
-                                if(prop3 == 'rn') {
-                                    rsp_message['m2m:rsp'].pc[prop][prop2]['@'] = {rn : rsp_message['m2m:rsp'].pc[prop][prop2][prop3]};
-                                    delete rsp_message['m2m:rsp'].pc[prop][prop2][prop3];
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        var bodyString = js2xmlparser.parse("m2m:rsp", rsp_message['m2m:rsp']);
-*/
+    try {
         if(message_cache.hasOwnProperty(cache_key)) {
-            message_cache[cache_key].rsp = bodyString.toString();
+            message_cache[cache_key].rsp = JSON.stringify(rsp_message['m2m:rsp']);
         }
         else {
             message_cache[cache_key] = {};
-            message_cache[cache_key].rsp = bodyString.toString();
+            message_cache[cache_key].rsp = JSON.stringify(rsp_message['m2m:rsp']);
         }
 
-        pxymqtt_client.publish(resp_topic, bodyString.toString());
+        pxymqtt_client.publish(resp_topic, message_cache[cache_key].rsp);
     }
-    else if(bodytype === 'cbor') {
-        bodyString = cbor.encode(rsp_message['m2m:rsp']).toString('hex');
-
-        if(message_cache.hasOwnProperty(cache_key)) {
-            message_cache[cache_key].rsp = bodyString.toString();
-        }
-        else {
-            message_cache[cache_key] = {};
-            message_cache[cache_key].rsp = bodyString.toString();
-        }
-
-        pxymqtt_client.publish(resp_topic, bodyString);
-    }
-    else { // 'json'
-        try {
-            if(message_cache.hasOwnProperty(cache_key)) {
-                message_cache[cache_key].rsp = JSON.stringify(rsp_message['m2m:rsp']);
-            }
-            else {
-                message_cache[cache_key] = {};
-                message_cache[cache_key].rsp = JSON.stringify(rsp_message['m2m:rsp']);
-            }
-
-            pxymqtt_client.publish(resp_topic, message_cache[cache_key].rsp);
-        }
-        catch (e) {
-            console.log(e.message);
-            delete message_cache[cache_key];
-            var dbg = {};
-            dbg['m2m:dbg'] = '[mqtt_response]' + e.message;
-            pxymqtt_client.publish(resp_topic, JSON.stringify(dbg));
-        }
+    catch (e) {
+        console.log(e.message);
+        delete message_cache[cache_key];
+        var dbg = {};
+        dbg['m2m:dbg'] = '[mqtt_response]' + e.message;
+        pxymqtt_client.publish(resp_topic, JSON.stringify(dbg));
     }
 }
 

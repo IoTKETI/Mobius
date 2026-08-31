@@ -19,18 +19,14 @@ var http = require('http');
 var https = require('https');
 var express = require('express');
 var util = require('util');
-var xml2js = require('xml2js');
-var js2xmlparser = require('js2xmlparser');
 // 결과 코드는 카탈로그에서 가져온다 — 여기에 숫자를 직접 적지 않는다.
 // (ws_response 가 parseInt 로 정규화하므로 예전 숫자 리터럴도 동작은 했다.
 //  값이 흩어져 있던 것이 문제였지 버그는 아니었다.)
 var RSC = require('./mobius/rsc').RSC;
 var url = require('url');
-var xmlbuilder = require('xmlbuilder');
 var moment = require('moment');
 var ip = require("ip");
 var events = require('events');
-var cbor = require('cbor');
 
 var WebSocketServer = require('websocket').server;
 
@@ -422,45 +418,7 @@ function ws_response(ws_conn, rsc, to, fr, rqi, inpc, bodytype) {
     rsp_message['m2m:rsp'].rvi = uservi;
     rsp_message['m2m:rsp'].pc = inpc;
 
-    if (bodytype === 'xml') {
-        rsp_message['m2m:rsp']['@'] = {
-            "xmlns:m2m": "http://www.onem2m.org/xml/protocols",
-            "xmlns:xsi": "http://www.w3.org/2001/XMLSchema-instance"
-        };
-
-        for(var prop in rsp_message['m2m:rsp'].pc) {
-            if (rsp_message['m2m:rsp'].pc.hasOwnProperty(prop)) {
-                for(var prop2 in rsp_message['m2m:rsp'].pc[prop]) {
-                    if (rsp_message['m2m:rsp'].pc[prop].hasOwnProperty(prop2)) {
-                        if(prop2 == 'rn') {
-                            rsp_message['m2m:rsp'].pc[prop]['@'] = {rn : rsp_message['m2m:rsp'].pc[prop][prop2]};
-                            delete rsp_message['m2m:rsp'].pc[prop][prop2];
-                        }
-                        for(var prop3 in rsp_message['m2m:rsp'].pc[prop][prop2]) {
-                            if (rsp_message['m2m:rsp'].pc[prop][prop2].hasOwnProperty(prop3)) {
-                                if(prop3 == 'rn') {
-                                    rsp_message['m2m:rsp'].pc[prop][prop2]['@'] = {rn : rsp_message['m2m:rsp'].pc[prop][prop2][prop3]};
-                                    delete rsp_message['m2m:rsp'].pc[prop][prop2][prop3];
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        var bodyString = js2xmlparser.parse("m2m:rsp", rsp_message['m2m:rsp']);
-
-        ws_conn.sendUTF(bodyString.toString());
-    }
-    else if (bodytype === 'cbor') { // 'cbor'
-        bodyString = cbor.encode(rsp_message['m2m:rsp']).toString('hex');
-        var bytearray = Buffer.from(bodyString, 'hex');
-        ws_conn.send(bytearray);
-    }
-    else { // 'json'
-        ws_conn.sendUTF(JSON.stringify(rsp_message['m2m:rsp']));
-    }
+    ws_conn.sendUTF(JSON.stringify(rsp_message['m2m:rsp']));
 }
 
 function http_retrieve_CSEBase(callback) {
