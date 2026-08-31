@@ -14,8 +14,6 @@
  * @author Il Yeup Ahn [iyahn@keti.re.kr]
  */
 
-var xml2js = require('xml2js');
-var xmlbuilder = require('xmlbuilder');
 var util = require('util');
 var ip = require('ip');
 var http = require('http');

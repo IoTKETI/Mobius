@@ -18,20 +18,24 @@ const test = require('node:test');
 const assert = require('node:assert');
 const fs = require('node:fs');
 const path = require('node:path');
-const cbor = require('cbor');
-
 const ROOT = path.join(__dirname, '..');
 
-// ── 전제: 라이브러리가 정말 그렇게 동작하는가 ────────────────────────
+// ── 전제: 파서가 성공해도 최상위가 객체인 것은 아니다 ────────────────
 //
-// 이 테스트의 근거다. cbor 버전이 올라가 동작이 바뀌면 여기서 먼저 깨진다.
+// 이 파일 전체의 근거다.
+//
+// 예전에는 이 자리에 cbor 로 같은 것을 보였다 — `cbor.decodeFirst('f6')` 이
+// 오류 없이 null 을 준다는 것. 그 분기가 json 전용이 되며 사라졌고(2026-08-31)
+// cbor 패키지도 의존성에서 뺐다. **교훈은 json 에도 그대로 있다.**
 
-test('cbor.decodeFirst 는 f6 을 오류 없이 null 로 읽는다', function (t, done) {
-    cbor.decodeFirst('f6', function (err, result) {
-        assert.strictEqual(err, null, 'err 가 붙으면 가드 없이도 걸러진다');
-        assert.strictEqual(result, null, '이 null 이 그대로 호출부로 흘러갔다');
-        done();
-    });
+test('JSON.parse 는 오류 없이 객체가 아닌 것을 준다', function () {
+    // 셋 다 던지지 않는다. 그대로 Object.keys 에 넣으면 그때 던진다 —
+    // 그 자리가 DB 콜백이나 응답 직렬화 도중이라 잡을 곳이 없다.
+    assert.strictEqual(JSON.parse('null'), null, '이 null 이 호출부로 흘러갔다');
+    assert.strictEqual(JSON.parse('3'), 3);
+    assert.strictEqual(JSON.parse('"문자열"'), '문자열');
+
+    assert.throws(function () { return Object.keys(JSON.parse('null')); }, TypeError);
 });
 
 test('빈 Buffer 는 isBuffer 를 통과하고 [0] 이 undefined 다', function () {
@@ -47,7 +51,11 @@ test('빈 Buffer 는 isBuffer 를 통과하고 [0] 이 undefined 다', function 
 // app.js 는 require 하면 cluster.fork() 와 listen 이 돌아 함수를 직접
 // 부를 수 없다. 소스에 가드가 남아 있는지로 확인한다.
 
-test('make_json_obj 의 세 분기가 모두 결과를 검증한다', function () {
+test('make_json_obj 가 결과를 검증하고서 성공을 알린다', function () {
+    // 예전 이름은 '세 분기가 모두' 였다. json 전용이 되면서 분기가 하나만
+    // 남았다(2026-08-31). **시험의 뜻은 그대로다** — 파서가 성공했다고
+    // 최상위가 객체인 것은 아니다. JSON.parse('null') 은 null 을,
+    // JSON.parse('3') 은 숫자를 준다. 그대로 Object.keys 에 넣으면 던진다.
     const src = fs.readFileSync(path.join(ROOT, 'app.js'), 'utf8');
 
     assert.ok(/function usable_object\(/.test(src),
@@ -59,12 +67,12 @@ test('make_json_obj 의 세 분기가 모두 결과를 검증한다', function (
     const end = src.indexOf('\nfunction ', start);
     const body = src.slice(start, end > 0 ? end : start + 4000);
 
-    // xml / cbor / json 세 분기에서 성공을 알리기 전에 검사해야 한다.
     const guards = (body.match(/usable_object\(/g) || []).length;
-    assert.ok(guards >= 3,
-        'make_json_obj 의 결과 검증이 ' + guards + '곳이다 — 세 분기 전부 있어야 한다');
+    assert.ok(guards >= 1,
+        'make_json_obj 에 결과 검증이 하나도 없다 — 파서 결과를 그대로 믿고 있다');
 
     // 검증 없이 성공을 알리는 형태가 남아 있으면 안 된다.
+    // 분기를 다시 늘리더라도 이 불변식은 유지되어야 한다.
     const raw_success = (body.match(/^\s*callback\('1', result\);/gm) || []).length;
     const checked = (body.match(/usable_object\(result\)/g) || []).length;
     assert.ok(checked >= raw_success,
@@ -81,13 +89,24 @@ test('parse_to_json 의 settle 이 최상위 객체 여부를 본다', function 
     assert.ok(/function settle\(result\) \{\s*\r?\n\s*if \(!usable_object\(result\)\)/.test(body),
         'settle 이 Object.keys 앞에서 결과를 검사하지 않는다 — 워커가 죽던 자리다');
 
-    // 세 분기가 settle 실패를 각자의 코드로 받아야 한다.
-    for (const code of ['400-5', '400-6', '400-7']) {
-        assert.ok(body.indexOf("callback('" + code + "')") > 0,
-            code + ' 분기가 사라졌다');
-    }
-    assert.ok(/if \(!settle\(/.test(body) && /else if \(!settle\(result\)\)/.test(body),
+    // json 분기가 settle 실패를 자기 코드로 받아야 한다.
+    //
+    // 예전에는 셋이었다 — 400-5(xml) / 400-6(cbor) / 400-7(json).
+    // json 전용이 되면서 앞의 둘은 참조를 잃어 사유 카탈로그에서도 빠졌다
+    // (2026-08-31). 남은 것은 400-7 하나다.
+    assert.ok(body.indexOf("callback('400-7')") > 0,
+        'json 분기가 settle 실패를 400-7 로 받지 않는다');
+
+    // settle 은 boolean 을 돌려준다. 그 값을 안 보면 검사한 의미가 없다.
+    assert.ok(/if \(!settle\(/.test(body),
         'settle 의 반환값을 보지 않는 호출부가 있다');
+
+    // 되살아나면 안 되는 것: 사유 카탈로그에서 뺀 코드를 여기서 다시 쓰는 것.
+    // reason.get('400-5') 는 이제 null 이라 respond 가 터진다.
+    for (const gone of ['400-5', '400-6']) {
+        assert.strictEqual(body.indexOf("callback('" + gone + "')"), -1,
+            gone + ' 이 되살아났다 — 그 사유는 카탈로그에 없어 respond 가 터진다');
+    }
 });
 
 test('CoAP 옵션 267 이 길이를 확인한 뒤 인덱싱한다', function () {

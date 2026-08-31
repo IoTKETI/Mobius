@@ -16,7 +16,7 @@ const reason = require('../mobius/reason');
 const rsc = require('../mobius/rsc');
 const ROOT = path.join(__dirname, '..');
 
-test('사유 98개가 있다', function () {
+test('사유 96개가 있다', function () {
     // 501-1 과 400-4 를 걷어내고, 301-5 / 404-8 을 더했다.
     // 400-4("not parse your body")는 check_resource_supported 가 파싱 실패를
     // 전부 이 하나로 뭉개던 코드였다. 파싱이 한 곳으로 모이면서
@@ -33,7 +33,9 @@ test('사유 98개가 있다', function () {
     // 참조를 잃어 다시 100 이 됐다.
     // 시맨틱 브로커를 걷어내며 400-41("BAD REQUEST") 과 404-2 가 참조를
     // 잃어 98 이 됐다 — 둘 다 브로커 응답 상태코드를 옮기던 자리였다.
-    assert.strictEqual(Object.keys(reason.REASON).length, 98);
+    // xml/cbor 를 걷어내며 400-5("valid XML 이 아니다")와 400-6(CBOR)도
+    // 참조를 잃어 96 이 됐다. 400-7(json 루트 태그 불일치)은 남는다.
+    assert.strictEqual(Object.keys(reason.REASON).length, 96);
 });
 
 test('모든 사유의 code 가 RSC 카탈로그의 실제 항목이다', function () {
@@ -49,7 +51,7 @@ test('모든 사유의 code 가 RSC 카탈로그의 실제 항목이다', functi
 
 test('toLegacyTable 이 app.js 가 쓰던 형태를 만든다', function () {
     const t = reason.toLegacyTable();
-    assert.strictEqual(Object.keys(t).length, 98);
+    assert.strictEqual(Object.keys(t).length, 96);
 
     Object.keys(t).forEach(function (k) {
         const row = t[k];
@@ -213,12 +215,13 @@ test('내부 식별자가 든 사유가 하나도 없다 (D20)', function () {
     assert.deepStrictEqual(leaked, [], '응답 문구에 내부 식별자가 남아 있다: ' + leaked.join(', '));
 });
 
-test('detail 은 19건에 붙어 있고 전부 문자열이다', function () {
+test('detail 은 17건에 붙어 있고 전부 문자열이다', function () {
     const withDetail = Object.keys(reason.REASON).filter(function (k) { return reason.REASON[k].detail; });
     // 404-1 에서 걷어내 8건이 됐고, ACP 가드레일 8건을 더해 16건이다.
     // json 전용 관문(400-64)을 더해 18건이다 — 그 detail 로그가 곧 계측이다.
     // 본문 크기 상한(413-1)을 더해 19건이다 — 이쪽도 계측이다.
-    assert.strictEqual(withDetail.length, 19);
+    // xml/cbor 를 걷어내며 400-5 / 400-6 이 빠져 17건이 됐다.
+    assert.strictEqual(withDetail.length, 17);
     withDetail.forEach(function (k) {
         assert.strictEqual(typeof reason.REASON[k].detail, 'string', k);
     });
@@ -318,8 +321,6 @@ test('detail 을 가진 사유는 드물게 나는 것들뿐이다', function ()
     // 새로 detail 을 붙일 때 "이게 흔한 사유인가"를 한 번 더 생각하게 한다.
     // 늘리려면 이 목록에 근거와 함께 추가한다.
     const ALLOWED = [
-        '400-5',   // 본문이 XML 이 아님 — 클라이언트 결함
-        '400-6',   // 본문이 CBOR 이 아님 — 클라이언트 결함
         '400-7',   // 루트 태그 불일치 — 클라이언트 결함
         '400-19',  // ty 없는 POST 에 알림 본문이 없음
         '400-20',  // Content-Type 누락

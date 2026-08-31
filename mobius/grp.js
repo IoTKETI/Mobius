@@ -15,8 +15,6 @@
  */
 
 var url = require('url');
-var xml2js = require('xml2js');
-var xmlbuilder = require('xmlbuilder');
 var http = require('http');
 var util = require('util');
 var moment = require('moment');
@@ -29,61 +27,36 @@ var outbound = require('./outbound');
 var once = require('./once');
 
 function check_mt(request, res_body, callback) {
-    var body_type = request.usebodytype;
     var mt = request.mt;
 
-    if (body_type == 'xml') {
-        var parser = new xml2js.Parser({explicitArray: false});
-        parser.parseString(res_body, function (err, result) {
-            if (!err) {
-                for (var prop in result) {
-                    if(result.hasOwnProperty(prop)) {
-                        if (result[prop].ty == mt) {
-                            result = null;
-                            callback('1');
-                            return;
-                        }
-                    }
-                }
-                result = null;
-                callback('0');
-            }
-            else {
-                result = null;
-                callback('0');
-            }
-        });
+    // 원격 CSE 가 준 응답 본문이라 JSON 이 아닐 수 있다 — 앞단 프록시의 HTML
+    // 오류 페이지, 잘린 응답, Accept 를 무시한 XML 등. 게다가 이 분기는
+    // cbor 요청도 함께 삼키는데, check_member 는 Accept: application/cbor 로
+    // GET 하므로 그때는 확정적으로 던진다.
+    //
+    // 여기는 res.on('end') 안이라 던지면 잡을 곳이 없어 워커가 죽는다.
+    // 멤버 타입을 확인하지 못한 것이므로 '0'(불일치)으로 다룬다.
+    var result;
+    try {
+        result = JSON.parse(res_body);
     }
-    else { // json
-        // 원격 CSE 가 준 응답 본문이라 JSON 이 아닐 수 있다 — 앞단 프록시의 HTML
-        // 오류 페이지, 잘린 응답, Accept 를 무시한 XML 등. 게다가 이 분기는
-        // cbor 요청도 함께 삼키는데, check_member 는 Accept: application/cbor 로
-        // GET 하므로 그때는 확정적으로 던진다.
-        //
-        // 여기는 res.on('end') 안이라 던지면 잡을 곳이 없어 워커가 죽는다.
-        // 멤버 타입을 확인하지 못한 것이므로 '0'(불일치)으로 다룬다.
-        var result;
-        try {
-            result = JSON.parse(res_body);
-        }
-        catch (e) {
-            console.error('[grp check_mt] 멤버 응답이 JSON 이 아니다: ' + e.message);
-            callback('0');
-            return;
-        }
-
-        for (var prop in result) {
-            if(result.hasOwnProperty(prop)) {
-                if (result[prop].ty == mt) {
-                    result = null;
-                    callback('1');
-                    return;
-                }
-            }
-        }
-        result = null;
+    catch (e) {
+        console.error('[grp check_mt] 멤버 응답이 JSON 이 아니다: ' + e.message);
         callback('0');
+        return;
     }
+
+    for (var prop in result) {
+        if(result.hasOwnProperty(prop)) {
+            if (result[prop].ty == mt) {
+                result = null;
+                callback('1');
+                return;
+            }
+        }
+    }
+    result = null;
+    callback('0');
 }
 
 function check_member(request, response, req_count, cse_poa, callback) {
@@ -131,7 +104,9 @@ function check_member(request, response, req_count, cse_poa, callback) {
                         method: 'get',
                         headers: {
                             'X-M2M-RI': require('shortid').generate(),
-                            'Accept': 'application/' + request.usebodytype,
+                            // 이 CSE 는 json 만 만들고 json 만 읽는다. 예전에는 여기에
+                            // request.usebodytype 을 이어 붙였는데 그 값도 언제나 'json' 이었다.
+                            'Accept': 'application/json',
                             'X-M2M-Origin': request.headers['x-m2m-origin'],
                             'X-M2M-RVI': uservi
                         }

@@ -50,28 +50,17 @@ test('typeRsrc 에 17 이 없다', function () {
         'req 타입이 되살아났다 — 만들 수 없는 타입은 표에 두지 않는다');
 });
 
-// ── cbor 디코드 실패 ─────────────────────────────────────────────────
+// ── 여기 있던 cbor 시험을 걷어냈다 (2026-08-31) ──────────────────────
 //
-// make_json_obj 의 cbor 분기는 디코드 에러에서 로그만 찍고 콜백을 부르지 않았다.
-// xml/json 분기는 실패를 '0' 으로 알린다. 여기만 빠져 있었다.
-
-test('cbor 디코드가 실패해도 콜백은 불려야 한다', function () {
-    const cbor = require('cbor');
-    return new Promise(function (resolve, reject) {
-        let called = 0;
-        // 고쳐진 뒤의 형태 — err 분기에서도 콜백을 부른다
-        cbor.decodeFirst(Buffer.from('이건 cbor 가 아니다', 'utf8'), function (err) {
-            called++;
-            if (err) {
-                assert.strictEqual(called, 1, '콜백은 정확히 한 번');
-                resolve();
-            }
-            else {
-                reject(new Error('이 입력은 디코드에 실패해야 한다 — 테스트 전제가 깨졌다'));
-            }
-        });
-    });
-});
+// "cbor 디코드가 실패해도 콜백은 불려야 한다" 였다. make_json_obj 의 cbor
+// 분기가 디코드 에러에서 로그만 찍고 콜백을 안 불러 요청이 매달리던 것을
+// 고치고 넣은 시험이다.
+//
+// json 전용이 되며 그 분기가 사라졌고 cbor 패키지도 의존성에서 뺐다.
+// **지키던 코드가 없어졌으므로 시험도 없앤다.**
+//
+// 같은 부류(파서가 성공해도 결과가 쓸 수 있는 것은 아니다)는
+// test/decode-guard.test.js 가 json 으로 계속 지킨다.
 
 // ── 배열 컬럼과 pv/pvs (P2 에서 고친 것의 재확인) ────────────────────
 //

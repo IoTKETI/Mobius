@@ -17,8 +17,6 @@
 var util = require('util');
 var url = require('url');
 var http = require('http');
-var xml2js = require('xml2js');
-var xmlbuilder = require('xmlbuilder');
 var moment = require('moment');
 
 var body = require('./body');
@@ -29,72 +27,46 @@ var db_sql = require('./sql_action');
 var outbound = require('./outbound');
 var once = require('./once');
 
-function check_body(res, body_type, res_body, callback) {
+// body_type 인자를 걷어냈다 (2026-08-31). json 전용이 되면서 이 함수의
+// xml 분기가 죽었고, 넘어오던 값도 언제나 request.usebodytype = 'json' 이었다.
+function check_body(res, res_body, callback) {
     var retrieve_Obj = {};
 
-    if (body_type == 'xml') {
-        var parser = new xml2js.Parser({explicitArray: false});
-        parser.parseString(res_body, function (err, result) {
-            if (!err) {
-                for (var prop in result) {
-                    if(result.hasOwnProperty(prop)) {
-                        if (result[prop]['$'] != null) {
-                            if (result[prop]['$'].rn != null) {
-                                result[prop].rn = result[prop]['$'].rn;
-                            }
-                            delete result[prop]['$'];
-                        }
-                        retrieve_Obj.fr = res.req.path;
-                        retrieve_Obj.rsc = res.headers['x-m2m-rsc'];
-                        retrieve_Obj.pc = result;
-                    }
-                }
-                callback('1', retrieve_Obj);
-                return '1';
-            }
-            else {
-                callback('0');
-                return '0';
-            }
-        });
+    // 멤버가 준 응답 본문이다. JSON 이 아닐 수 있다 — 앞단 프록시의 HTML
+    // 오류 페이지, 빈 본문, 잘린 응답 등. 여기는 res.on('end') 안이라
+    // 던지면 잡을 곳이 없어 uncaught exception 이 되고 워커가 죽는다.
+    var result;
+    try {
+        result = JSON.parse(res_body);
     }
-    else { // json
-        // 멤버가 준 응답 본문이다. JSON 이 아닐 수 있다 — 앞단 프록시의 HTML
-        // 오류 페이지, 빈 본문, 잘린 응답 등. 여기는 res.on('end') 안이라
-        // 던지면 잡을 곳이 없어 uncaught exception 이 되고 워커가 죽는다.
-        var result;
-        try {
-            result = JSON.parse(res_body);
-        }
-        catch (e) {
-            console.error('[fopt check_body] 멤버 응답이 JSON 이 아니다 (' + res.req.path + '): ' + e.message);
-            callback('0');
-            return '0';
-        }
-
-        if(res.req.path.charAt(0) == '/') {
-            retrieve_Obj.fr = res.req.path.replace('/', '');
-        }
-        else {
-            retrieve_Obj.fr = res.req.path;
-        }
-
-        if(res.headers.hasOwnProperty('x-m2m-rsc')) {
-            retrieve_Obj.rsc = res.headers['x-m2m-rsc'];
-        }
-
-        if(res.headers.hasOwnProperty('x-m2m-ri')) {
-            retrieve_Obj.rqi = res.headers['x-m2m-ri'];
-        }
-
-        if(res.headers.hasOwnProperty('x-m2m-rvi')) {
-            retrieve_Obj.rvi = res.headers['x-m2m-rvi'];
-        }
-
-        retrieve_Obj.pc = result;
-        callback('1', retrieve_Obj);
-        return '1';
+    catch (e) {
+        console.error('[fopt check_body] 멤버 응답이 JSON 이 아니다 (' + res.req.path + '): ' + e.message);
+        callback('0');
+        return '0';
     }
+
+    if(res.req.path.charAt(0) == '/') {
+        retrieve_Obj.fr = res.req.path.replace('/', '');
+    }
+    else {
+        retrieve_Obj.fr = res.req.path;
+    }
+
+    if(res.headers.hasOwnProperty('x-m2m-rsc')) {
+        retrieve_Obj.rsc = res.headers['x-m2m-rsc'];
+    }
+
+    if(res.headers.hasOwnProperty('x-m2m-ri')) {
+        retrieve_Obj.rqi = res.headers['x-m2m-ri'];
+    }
+
+    if(res.headers.hasOwnProperty('x-m2m-rvi')) {
+        retrieve_Obj.rvi = res.headers['x-m2m-rvi'];
+    }
+
+    retrieve_Obj.pc = result;
+    callback('1', retrieve_Obj);
+    return '1';
 }
 
 function request_to_member(request, hostname, port, ri, agr, callback) {
@@ -134,7 +106,7 @@ function request_to_member(request, hostname, port, ri, agr, callback) {
                 callback('200');
                 return;
             }
-            check_body(res, request.usebodytype, responseBody, function (rsc, retrieve_Obj) {
+            check_body(res, responseBody, function (rsc, retrieve_Obj) {
                 if (rsc == '1') {
                     agr[retrieve_Obj.fr] = JSON.parse(JSON.stringify(retrieve_Obj));
                     retrieve_Obj = null;

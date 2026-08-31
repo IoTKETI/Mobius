@@ -22,13 +22,11 @@ var http = require('http');
 var express = require('express');
 var morgan = require('morgan');
 var util = require('util');
-var xml2js = require('xml2js');
 var url = require('url');
 var ip = require('ip');
 var crypto = require('crypto');
 var fileStreamRotator = require('file-stream-rotator');
 var https = require('https');
-var cbor = require('cbor');
 var moment = require('moment');
 
 const cors = require('cors');
@@ -610,58 +608,9 @@ function usable_object(v) {
 
 global.make_json_obj = function (bodytype, str, callback) {
     try {
-        if (bodytype === 'xml') {
-            var message = str;
-            var parser = new xml2js.Parser({explicitArray: false});
-            parser.parseString(message.toString(), (err, result) => {
-                if (err) {
-                    console.log('[mqtt make json obj] xml2js parser error]');
-                    callback('0');
-                }
-                else {
-                    for (var prop in result) {
-                        if (result.hasOwnProperty(prop)) {
-                            for (var attr in result[prop]) {
-                                if (result[prop].hasOwnProperty(attr)) {
-                                    if (attr == '$') {
-                                        delete result[prop][attr];
-                                    }
-                                    else if (attr == 'pc') {
-                                        make_json_arraytype(result[prop][attr]);
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    if (!usable_object(result)) { callback('0'); return; }
-                    callback('1', result);
-                }
-            });
-        }
-        else if (bodytype === 'cbor') {
-            cbor.decodeFirst(str, (err, result) => {
-                if (err) {
-                    // 예전에는 로그만 찍고 콜백을 부르지 않았다. 그러면 요청이
-                    // 영원히 매달리고 커넥션도 반납되지 않는다 — 크래시가 아니라
-                    // cluster 재시작도 안 걸리는 조용한 고갈이다.
-                    // xml/json 분기는 실패를 '0' 으로 알린다. 여기만 빠져 있었다.
-                    console.error('[make_json_obj] cbor 를 읽을 수 없다: ' + err.message);
-                    callback('0');
-                }
-                else if (!usable_object(result)) {
-                    console.error('[make_json_obj] cbor 최상위가 객체가 아니다: ' + JSON.stringify(result));
-                    callback('0');
-                }
-                else {
-                    callback('1', result);
-                }
-            });
-        }
-        else {
-            var result = JSON.parse(str);
-            if (!usable_object(result)) { callback('0'); return; }
-            callback('1', result);
-        }
+        var result = JSON.parse(str);
+        if (!usable_object(result)) { callback('0'); return; }
+        callback('1', result);
     }
     catch (e) {
         console.error(e.message);
@@ -669,96 +618,10 @@ global.make_json_obj = function (bodytype, str, callback) {
     }
 };
 
-global.make_json_arraytype = function (body_Obj) {
-    for (var prop in body_Obj) {
-        if (body_Obj.hasOwnProperty(prop)) {
-            for (var attr in body_Obj[prop]) {
-                if (body_Obj[prop].hasOwnProperty(attr)) {
-                    if (attr == 'srv' || attr == 'aa' || attr == 'at' || attr == 'poa' || attr == 'lbl' || attr == 'acpi' || attr == 'srt' || attr == 'nu' || attr == 'mid' || attr == 'macp' || attr == 'rels') {
-                        if (body_Obj[prop][attr]) {
-                            body_Obj[prop][attr] = body_Obj[prop][attr].split(' ');
-                        }
-                        if (body_Obj[prop][attr] == '') {
-                            body_Obj[prop][attr] = [];
-                        }
-                        if (body_Obj[prop][attr] == '[]') {
-                            body_Obj[prop][attr] = [];
-                        }
-                    }
-                    else if (attr == 'enc') {
-                        if (body_Obj[prop][attr]) {
-                            if (body_Obj[prop][attr].net) {
-                                if (!Array.isArray(body_Obj[prop][attr].net)) {
-                                    body_Obj[prop][attr].net = body_Obj[prop][attr].net.split(' ');
-                                }
-                            }
-                        }
-                    }
-                    else if (attr == 'pv' || attr == 'pvs') {
-                        if (body_Obj[prop][attr]) {
-                            if (body_Obj[prop][attr].acr) {
-                                if (!Array.isArray(body_Obj[prop][attr].acr)) {
-                                    temp = body_Obj[prop][attr].acr;
-                                    body_Obj[prop][attr].acr = [];
-                                    body_Obj[prop][attr].acr[0] = temp;
-                                }
-
-                                for (var acr_idx in body_Obj[prop][attr].acr) {
-                                    if (body_Obj[prop][attr].acr.hasOwnProperty(acr_idx)) {
-                                        if (body_Obj[prop][attr].acr[acr_idx].acor) {
-                                            body_Obj[prop][attr].acr[acr_idx].acor = body_Obj[prop][attr].acr[acr_idx].acor.split(' ');
-                                        }
-
-                                        if (body_Obj[prop][attr].acr[acr_idx].hasOwnProperty('acco')) {
-                                            if (!Array.isArray(body_Obj[prop][attr].acr[acr_idx].acco)) {
-                                                temp = body_Obj[prop][attr].acr[acr_idx].acco;
-                                                body_Obj[prop][attr].acr[acr_idx].acco = [];
-                                                body_Obj[prop][attr].acr[acr_idx].acco[0] = temp;
-                                            }
-
-                                            var acco = body_Obj[prop][attr].acr[acr_idx].acco;
-                                            for (var acco_idx in acco) {
-                                                if (acco.hasOwnProperty(acco_idx)) {
-                                                    if (acco[acco_idx].hasOwnProperty('acip')) {
-                                                        if (acco[acco_idx].acip.hasOwnProperty('ipv4')) {
-                                                            if (getType(acco[acco_idx].acip['ipv4']) == 'string') {
-                                                                acco[acco_idx].acip['ipv4'] = acco[acco_idx].acip.ipv4.split(' ');
-                                                            }
-                                                        }
-                                                        else if (acco[acco_idx].acip.hasOwnProperty('ipv6')) {
-                                                            if (getType(acco[acco_idx].acip['ipv6']) == 'string') {
-                                                                acco[acco_idx].acip['ipv6'] = acco[acco_idx].acip.ipv6.split(' ');
-                                                            }
-                                                        }
-                                                    }
-                                                    if (acco[acco_idx].hasOwnProperty('actw')) {
-                                                        if (getType(acco[acco_idx].actw) == 'string') {
-                                                            temp = acco[acco_idx].actw;
-                                                            acco[acco_idx]['actw'] = [];
-                                                            acco[acco_idx].actw[0] = temp;
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-
-                            if (body_Obj[prop][attr].acr == '') {
-                                body_Obj[prop][attr].acr = [];
-                            }
-
-                            if (body_Obj[prop][attr].acr == '[]') {
-                                body_Obj[prop][attr].acr = [];
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-};
+// make_json_arraytype 을 걷어냈다 (2026-08-31).
+// XML 파서가 만든 결과에서 "원소가 하나면 배열이 아니라 값" 이 되는 것을
+// 배열로 되돌리는 함수였다. 호출처가 xml 분기 둘뿐이라 함께 죽었다.
+// JSON.parse 는 배열을 배열로 주므로 json 경로에는 필요가 없다.
 
 // 요청 본문을 딱 한 번 읽는다.
 //
@@ -793,71 +656,23 @@ function parse_to_json(request, response, callback) {
         return true;
     }
 
-    if (request.usebodytype === 'xml') {
-        try {
-            var parser = new xml2js.Parser({explicitArray: false});
-            parser.parseString(request.body.toString(), (err, result) => {
-                if (err) {
-                    callback('400-5');
-                }
-                else if (!settle(result)) {
-                    callback('400-5');
-                }
-                else {
-                    make_json_arraytype(request.bodyObj);
+    try {
+        if (!settle(JSON.parse(request.body.toString()))) {
+            callback('400-7');
+            return;
+        }
 
-                    request.headers.rootnm = Object.keys(request.bodyObj)[0];
-                    request.bodyParsed = true;
-                    callback('200');
-                }
-            });
-        }
-        catch (e) {
-            callback('400-5');
-        }
-    }
-    else if (request.usebodytype === 'cbor') {
-        try {
-            var encoded = request.body;
-            cbor.decodeFirst(encoded, (err, result) => {
-                if (err) {
-                    callback('400-6');
-                }
-                else if (!settle(result)) {
-                    callback('400-6');
-                }
-                else {
-                    //make_json_arraytype(request.bodyObj);
-
-                    request.headers.rootnm = Object.keys(request.bodyObj)[0];
-                    request.bodyParsed = true;
-                    callback('200');
-                }
-            });
-        }
-        catch (e) {
-            callback('400-6');
-        }
-    }
-    else {
-        try {
-            if (!settle(JSON.parse(request.body.toString()))) {
-                callback('400-7');
-                return;
-            }
-
-            if (Object.keys(request.bodyObj)[0] == 'undefined') {
-                callback('400-7');
-            }
-            else {
-                request.headers.rootnm = Object.keys(request.bodyObj)[0];
-                request.bodyParsed = true;
-                callback('200');
-            }
-        }
-        catch (e) {
+        if (Object.keys(request.bodyObj)[0] == 'undefined') {
             callback('400-7');
         }
+        else {
+            request.headers.rootnm = Object.keys(request.bodyObj)[0];
+            request.bodyParsed = true;
+            callback('200');
+        }
+    }
+    catch (e) {
+        callback('400-7');
     }
 }
 
