@@ -20,6 +20,19 @@ var url = require('url');
 var DEFAULT_TIMEOUT_MS = 30000;
 
 /**
+ * 응답 본문 상한. 코어 `mobius/body.js` 의 `read()` 가 전역이 없을 때 쓰는
+ * 기본값과 **같은 수**로 맞춰 둔다.
+ *
+ * 언젠가 `read()` 로 갈아탈 때 동작이 달라지지 않게 하려는 것이다. 콘솔은
+ * `global.max_body_bytes` 를 세팅하지 않으므로 그쪽도 이 값으로 떨어진다.
+ *
+ * 상한 자체가 필요한 이유는 따로 있다. 상대가 끝없이 보내면 `buf` 가 끝없이
+ * 자란다. 상대가 localhost 의 Mobius 라 확률은 낮지만, 끊긴 응답을 고치면서
+ * 배운 것이 **"평소엔 아무 증상이 없다"** 는 쪽이 제일 비싸다는 것이었다.
+ */
+var MAX_BODY_BYTES = 10 * 1024 * 1024;
+
+/**
  * @param opts.host / opts.port  Mobius 주소
  * @param opts.origin            X-M2M-Origin. ACP 를 통과할 수 있어야 한다.
  * @param opts.rvi               X-M2M-RVI (기본 '2a')
@@ -74,8 +87,32 @@ Client.prototype.request = function (method, path, body, callback) {
         path: url.parse(path).path, headers: headers
     }, function (res) {
         var buf = '';
+        var size = 0;
         res.setEncoding('utf8');
-        res.on('data', function (c) { buf += c; });
+        res.on('data', function (c) {
+            if (settled) { return; }
+            size += Buffer.byteLength(c);
+            if (size > MAX_BODY_BYTES) {
+                buf = '';
+                // **먼저 결과를 확정하고 나서 끊는다.** res.destroy() 는
+                // 'aborted' 를 동기로 뿜는다. 끊고 나서 settle 하면 아래 cut()
+                // 이 먼저 이겨 "끊겼다" 가 나가고 상한 초과가 묻힌다 —
+                // 실측으로 그렇게 나왔다(31ms 만에 aborted).
+                //
+                // 사유가 묻히면 관리자가 엉뚱한 데를 본다. 끊긴 것은 망의 문제고
+                // 상한 초과는 우리가 건 한도다. 조치가 다르다.
+                settle({
+                    ok: false, status: res.statusCode,
+                    rsc: res.headers['x-m2m-rsc'] || null,
+                    error: '응답 본문이 상한을 넘었다 (' + MAX_BODY_BYTES + ' 바이트)'
+                });
+                // 우리가 보낸 요청의 답이고 상대에게 돌려줄 응답이 없으므로
+                // 스트림을 끊어도 된다.
+                try { res.destroy(); } catch (e) { /* 이미 닫혔을 수 있다 */ }
+                return;
+            }
+            buf += c;
+        });
         res.on('end', function () {
             var parsed = null;
             if (buf) { try { parsed = JSON.parse(buf); } catch (e) { parsed = buf; } }

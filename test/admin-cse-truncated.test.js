@@ -113,6 +113,27 @@ test('정상 응답은 그대로 통과한다 — 대조군', function (t, done)
     });
 });
 
+test('상한을 넘는 응답은 끊고 콜백을 준다', function (t, done) {
+    // 코어 read() 와 같은 10MB 다. 갈아탈 때 동작이 달라지지 않게 맞춰 뒀다.
+    // 상대가 끝없이 보내면 buf 가 끝없이 자라던 자리다.
+    probe(function (req, res) {
+        res.writeHead(200, { 'Content-Type': 'application/json', 'X-M2M-RSC': '2000' });
+        var mb = Buffer.alloc(1024 * 1024, 'x').toString();
+        var sent = 0;
+        (function push() {
+            if (res.writableEnded || sent > 12) { return; }
+            sent++;
+            if (res.write(mb)) { setImmediate(push); }
+            else { res.once('drain', push); }
+        })();
+    }, function (r, calls) {
+        assert.strictEqual(calls, 1, '콜백은 정확히 한 번');
+        assert.strictEqual(r.ok, false);
+        assert.match(r.error, /상한을 넘었다/);
+        done();
+    });
+});
+
 test('끊긴 응답이 와도 일괄 작업이 끝난다', function (t, done) {
     // 이 결함이 비쌌던 진짜 이유. cse 가 콜백을 안 부르면 jobs 의 running 이
     // 안 줄고 pump() 가 다시 돌지 않는다 — 작업이 영영 'running' 이다.
