@@ -18,66 +18,52 @@ const draft = ref<Record<string, unknown>>({})
 const items = computed(() => data.value?.items ?? [])
 
 /**
- * 설정을 묶는 분류.
+ * 묶음을 무슨 순서로 보일 것인가. **소속은 코어가 정한다**(`describe().group`) —
+ * 여기서 다시 적으면 표가 두 벌이 되어 언젠가 갈라진다. 순서와 설명 문구만
+ * 화면의 몫이다.
  *
- * **잠정이다.** 라벨·도움말·유효값은 코어 스키마에서 그대로 받는데 분류만
- * 여기서 적고 있다 — 표를 두 벌 드는 셈이라 코어에 `group` 필드를 요청해 뒀다.
- * 오면 이 표를 지운다.
- *
- * 그때까지도 **새 키가 화면에서 사라지지 않게** 한다. 여기 없는 키는 숨기지
- * 않고 '기타' 로 모은다 — 분류표가 낡았다는 신호이지, 설정이 없다는 뜻이
- * 아니기 때문이다.
+ * 여기 없는 묶음도 뒤에 그대로 붙는다. 코어가 새 분류를 만들었을 때 화면에서
+ * 조용히 빠지는 것이 순서가 틀리는 것보다 나쁘다.
  */
-const GROUPS: { id: string; label: string; desc: string; keys: string[] }[] = [
-  {
-    id: 'acp',
-    label: '권한 (ACP)',
-    desc: '누가 무엇을 할 수 있는가. 잘못 두면 보호가 조용히 사라집니다.',
-    keys: [
-      'acpObserveMode',
-      'acpDiscoveryFilter',
-      'defaultAccessPolicy',
-      'acpiAttachPolicy',
-      'acpAudit',
-      'acpDenyLog',
-      'acpDenyLogRate',
-    ],
-  },
-  {
-    id: 'request',
-    label: '요청 처리',
-    desc: '들어오는 요청과 나가는 요청의 한도.',
-    keys: ['maxBodyBytes', 'outboundTimeoutMs'],
-  },
-  {
-    id: 'storage',
-    label: '저장소',
-    desc: '어디에 저장하고 얼마나 보관하는가.',
-    keys: ['db', 'retentionPolicies'],
-  },
-]
+const GROUP_ORDER = ['권한', '요청 처리', '저장소']
+const GROUP_DESC: Record<string, string> = {
+  '권한': '누가 무엇을 할 수 있는가. 잘못 두면 보호가 조용히 사라집니다.',
+  '요청 처리': '들어오는 요청과 나가는 요청의 한도.',
+  '저장소': '어디에 저장하고 얼마나 보관하는가.',
+}
+/** 코어가 group 을 안 준 키가 갈 곳. 숨기지 않는다. */
+const UNGROUPED = '기타'
 
 const grouped = computed(() => {
-  const byKey = new Map(items.value.map((i) => [i.key, i]))
-  const used = new Set<string>()
-  const out = GROUPS.map((g) => {
-    const list = g.keys.map((k) => byKey.get(k)).filter((x): x is ConfItem => !!x)
-    list.forEach((i) => used.add(i.key))
-    return { ...g, items: list }
-  }).filter((g) => g.items.length > 0)
+  const bucket = new Map<string, ConfItem[]>()
+  items.value.forEach((i) => {
+    const g = (i.group || '').trim() || UNGROUPED
+    if (!bucket.has(g)) bucket.set(g, [])
+    bucket.get(g)!.push(i)
+  })
 
-  // 분류표에 없는 키. 숨기지 않는다.
-  const rest = items.value.filter((i) => !used.has(i.key))
-  if (rest.length) {
-    out.push({
-      id: 'other',
-      label: '기타',
-      desc: '분류표에 아직 없는 설정입니다. 코어에 새로 생긴 것일 수 있습니다.',
-      keys: [],
-      items: rest,
-    })
-  }
-  return out
+  const names = [...bucket.keys()].sort((a, b) => {
+    // 아는 순서 먼저, 모르는 것은 뒤에 이름순. 기타는 언제나 맨 끝.
+    if (a === UNGROUPED) return 1
+    if (b === UNGROUPED) return -1
+    const ia = GROUP_ORDER.indexOf(a)
+    const ib = GROUP_ORDER.indexOf(b)
+    if (ia >= 0 && ib >= 0) return ia - ib
+    if (ia >= 0) return -1
+    if (ib >= 0) return 1
+    return a.localeCompare(b, 'ko')
+  })
+
+  return names.map((name) => ({
+    id: name,
+    label: name,
+    desc:
+      GROUP_DESC[name] ??
+      (name === UNGROUPED
+        ? '코어가 분류를 주지 않은 설정입니다. 새로 생긴 것일 수 있습니다.'
+        : ''),
+    items: bucket.get(name)!,
+  }))
 })
 
 /** 바꾼 것만 보낸다 — 안 만진 키를 파일에 새로 쓰지 않는다. */

@@ -255,6 +255,18 @@ test('readOnly 키는 보여 주되 고치지 못한다', function () {
         '단순 필드가 아니라 규칙 배열이다 — 화면이 함부로 덮으면 안 된다');
 });
 
+test('모든 항목이 분류를 갖는다 — 화면에서 조용히 빠지지 않게', function () {
+    // 소속은 코어가 정한다(describe().group). 화면은 순서만 정하는데,
+    // group 이 비면 '기타' 로 가고 그건 "코어가 분류를 안 줬다" 는 신호다.
+    // 조용히 사라지는 것보다 낫지만, 여기서 잡아 두면 더 빨리 안다.
+    const file = tempConf({});
+    const missing = store(file).view().items
+        .filter((i) => !i.group)
+        .map((i) => i.key);
+    assert.deepStrictEqual(missing, [],
+        '코어 스키마가 group 을 안 준 키가 있다: ' + missing.join(', '));
+});
+
 test('reload 키는 무엇을 다시 불러야 하는지 알려 준다', function () {
     // 코어 describe() 가 reloadWith 를 안 실어 줘서 _SCHEMA 에서 집어 온다.
     // 이걸 모르면 화면이 "재기동 없이 반영" 이라고만 하고 무엇이 필요한지

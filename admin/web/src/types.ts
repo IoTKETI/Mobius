@@ -151,6 +151,8 @@ export interface ConfItem {
   reloadWith: string | null
   integer: boolean
   readOnly: boolean
+  /** 코어가 정한 분류. 화면은 순서와 설명만 정한다. */
+  group: string | null
   /** enum 이면 유효값. 아니면 null */
   choices: string[] | null
   validHint: string | null

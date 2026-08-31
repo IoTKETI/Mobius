@@ -119,6 +119,8 @@ ConfStore.prototype.view = function () {
             // reload 인 키는 무엇을 다시 불러야 하는지 함께 온다.
             reloadWith: s.reloadWith || null,
             integer: !!s.integer,
+            // 소속은 코어가 정한다. 화면은 순서와 설명만 정한다.
+            group: s.group || null,
             readOnly: !!s.readOnly,
             choices: schema.choices(key),
             validHint: s.validHint,
