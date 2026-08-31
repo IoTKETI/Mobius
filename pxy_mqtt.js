@@ -179,13 +179,43 @@ function reg_req_sub() {
 
 function mqtt_message_handler(topic, message) {
     var topic_arr = topic.split("/");
-    if(topic_arr[5] != null) {
-        var bodytype = (topic_arr[5] == 'xml') ? topic_arr[5] : ((topic_arr[5] == 'json') ? topic_arr[5] : ((topic_arr[5] == 'cbor') ? topic_arr[5] : 'json'));
+
+    // 토픽의 마지막 조각이 형식이다 — /oneM2M/req/{발신}/{수신}/{ct}.
+    //
+    // 이 CSE 는 json 만 다룬다. xml·cbor 로 오면 거절한다. 여기서 끊으면
+    // xml2js·cbor 디코드도, 코어로 나가는 HTTP 요청도 없다.
+    //
+    // 코어의 json_only 미들웨어로는 이걸 못 잡는다. 이 프록시가 가장자리에서
+    // 본문을 풀어 **json 으로 다시 싸서** 코어에 올리기 때문이다(mqtt_request 가
+    // Content-Type 을 application/vnd.onem2m-res+json 으로 고정한다). 그래서
+    // 관문이 여기 따로 있어야 한다.
+    //
+    // 미지의 조각은 예전처럼 json 으로 떨어뜨린다. 거절 대상은 xml 과 cbor 두
+    // 리터럴뿐이다.
+    if (topic_arr[5] === 'xml' || topic_arr[5] === 'cbor') {
+        // 응답 토픽은 요청 토픽에서 만든다. req -> resp, reg_req -> reg_resp.
+        // 형식 조각은 json 으로 바꿔 답한다 — "json 을 쓰라" 는 안내를 xml
+        // 토픽으로 보내면 앞뒤가 안 맞는다.
+        var deny_topic = (topic_arr[2] === 'reg_req') ? '/oneM2M/reg_resp/' : '/oneM2M/resp/';
+        deny_topic += topic_arr[3] + '/' + topic_arr[4] + '/json';
+
+        console.error('[json_only] mqtt ' + topic + ' — json 만 받는다');
+        try {
+            pxymqtt_client.publish(deny_topic, JSON.stringify({
+                'm2m:rsp': { rsc: 4000, rqi: '', pc: { 'm2m:dbg': 'only json is supported' } }
+            }));
+        }
+        catch (e) {
+            // 발행이 실패해도 여기서 던지면 안 된다 — 이 핸들러는 cluster
+            // 마스터에서 돌고, 던지면 워커 재시작 로직까지 위험해진다.
+            console.error('[json_only] mqtt 거절 응답 발행 실패: ' + e.message);
+        }
+        return;
     }
-    else {
-        bodytype = defaultbodytype;
-        topic_arr[5] = defaultbodytype;
-    }
+
+    // 여기까지 왔으면 json 이다. 미지의 조각도 json 으로 본다 — 예전과 같다.
+    var bodytype = 'json';
+    if (topic_arr[5] == null) { topic_arr[5] = 'json'; }
 
     if((topic_arr[1] == 'oneM2M' && topic_arr[2] == 'resp' && ((topic_arr[3].replace(':', '/') == usecseid) || (topic_arr[3] == usecseid.replace('/', ''))))) {
         make_json_obj(bodytype, message.toString(), function(rsc, jsonObj) {

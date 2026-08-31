@@ -19,12 +19,9 @@ var url = require('url');
 var http = require('http');
 var https = require('https');
 var coap = require('coap');
-var js2xmlparser = require('js2xmlparser');
-var xmlbuilder = require('xmlbuilder');
 var fs = require('fs');
 var db = require('./db_action');
 var db_sql = require('./sql_action');
-var cbor = require("cbor");
 var merge = require('merge');
 
 var responder = require('./responder');
@@ -32,81 +29,6 @@ var poa_util = require('./poa');
 var subl_entry = require('./subl');
 
 var sgn_man = require('./sgn_man');
-
-function make_xml_noti_message(pc, xm2mri, callback) {
-    try {
-        var noti_message = {};
-        noti_message['m2m:rqp'] = {};
-        noti_message['m2m:rqp'].op = 5; // notification
-        //noti_message['m2m:rqp'].net = pc['m2m:sgn'].net;
-        //noti_message['m2m:rqp'].to = pc['m2m:sgn'].sur;
-        noti_message['m2m:rqp'].fr = usecseid;
-        noti_message['m2m:rqp'].rqi = xm2mri;
-        noti_message['m2m:rqp'].pc = pc;
-
-        if(noti_message['m2m:rqp'].pc.hasOwnProperty('m2m:sgn')) {
-            if(noti_message['m2m:rqp'].pc['m2m:sgn'].hasOwnProperty('nev')) {
-                for(var prop in noti_message['m2m:rqp'].pc['m2m:sgn'].nev.rep) {
-                    if (noti_message['m2m:rqp'].pc['m2m:sgn'].nev.rep.hasOwnProperty(prop)) {
-                        for(var prop2 in noti_message['m2m:rqp'].pc['m2m:sgn'].nev.rep[prop]) {
-                            if (noti_message['m2m:rqp'].pc['m2m:sgn'].nev.rep[prop].hasOwnProperty(prop2)) {
-                                if(prop2 == 'rn') {
-                                    noti_message['m2m:rqp'].pc['m2m:sgn'].nev.rep[prop]['@'] = {rn : noti_message['m2m:rqp'].pc['m2m:sgn'].nev.rep[prop][prop2]};
-                                    delete noti_message['m2m:rqp'].pc['m2m:sgn'].nev.rep[prop][prop2];
-                                    break;
-                                }
-                                else {
-                                    for (var prop3 in noti_message['m2m:rqp'].pc['m2m:sgn'].nev.rep[prop][prop2]) {
-                                        if (noti_message['m2m:rqp'].pc['m2m:sgn'].nev.rep[prop][prop2].hasOwnProperty(prop3)) {
-                                            if (prop3 == 'rn') {
-                                                noti_message['m2m:rqp'].pc['m2m:sgn'].nev.rep[prop][prop2]['@'] = {rn: noti_message['m2m:rqp'].pc['m2m:sgn'].nev.rep[prop][prop2][prop3]};
-                                                delete noti_message['m2m:rqp'].pc['m2m:sgn'].nev.rep[prop][prop2][prop3];
-                                                break;
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        noti_message['m2m:rqp']['@'] = {
-            "xmlns:m2m": "http://www.onem2m.org/xml/protocols",
-            "xmlns:xsi": "http://www.w3.org/2001/XMLSchema-instance"
-        };
-
-        var xmlString = js2xmlparser.parse("m2m:rqp", noti_message['m2m:rqp']);
-
-        callback(xmlString);
-    }
-    catch (e) {
-        console.log('[make_xml_noti_message] xml parsing error');
-        callback(e.message);
-        return "";
-    }
-}
-
-function make_cbor_noti_message(pc, xm2mri) {
-    try {
-        var noti_message = {};
-        noti_message['m2m:rqp'] = {};
-        noti_message['m2m:rqp'].op = 5; // notification
-        //noti_message['m2m:rqp'].net = pc['m2m:sgn'].net;
-        //noti_message['m2m:rqp'].to = pc['m2m:sgn'].sur;
-        noti_message['m2m:rqp'].fr = usecseid;
-        noti_message['m2m:rqp'].rqi = xm2mri;
-
-        noti_message['m2m:rqp'].pc = pc;
-
-        return cbor.encode(noti_message['m2m:rqp']).toString('hex');
-    }
-    catch (e) {
-        console.log('[make_cbor_noti_message] cbor parsing error');
-    }
-}
 
 function make_json_noti_message(nu, pc, xm2mri, short_flag) {
     try {
@@ -136,56 +58,41 @@ function make_json_noti_message(nu, pc, xm2mri, short_flag) {
     }
 }
 
-function make_body_string_for_noti(protocol, nu, node, sub_bodytype, xm2mri, short_flag, callback) {
-    if (sub_bodytype == 'xml') {
-        if (protocol == 'http:' || protocol == 'https:' || protocol == 'coap:') {
-            try {
-                var bodyString = responder.convertXmlSgn(Object.keys(node)[0], node[Object.keys(node)[0]]);
-            }
-            catch (e) {
-                bodyString = "";
-            }
-            callback(bodyString);
-        }
-        else if (protocol == 'ws:' || protocol == 'mqtt:') {
-            make_xml_noti_message(node, xm2mri, function (bodyString) {
-                callback(bodyString);
-            });
+/**
+ * 알림 본문을 만든다. **언제나 json 이다.**
+ *
+ * 예전에는 xml / cbor 도 만들었고, 그 형식이 두 곳에서 정해졌다:
+ *   1) 알림을 유발한 **요청**의 Content-Type
+ *      (sgn.check 가 request.usebodytype 을 그대로 넘겼다)
+ *   2) 구독 nu 의 ?ct= 파라미터 (nu 마다 1) 을 덮었다)
+ *
+ * 1) 이 특히 이상했다 — 남이 XML 로 CIN 을 하나 넣으면 그 컨테이너를 구독한
+ * 사람들의 알림이 전부 XML 로 나갔다. 받는 쪽이 요청한 적 없는 형식이다.
+ *
+ * 배포 실측: 구독 3,452건 중 nu 에 ct 를 안 붙인 것이 66건이고, 그 66건의
+ * 알림 형식이 남의 요청에 따라 흔들리고 있었다. MQTT 는 형식이 토픽 이름에
+ * 들어가므로(/oneM2M/req/<cse>/<AE-ID>/<형식>) 형식이 흔들리면 받는 쪽이
+ * 아예 못 받는다. ct=xml 인 구독은 0건이라 이 변경으로 잃는 것은 없고,
+ * ct 없는 66건은 오히려 결정적이 된다.
+ */
+function make_body_string_for_noti(protocol, nu, node, xm2mri, short_flag, callback) {
+    // http / https / coap 은 알림 본문을 그대로 싣는다.
+    if (protocol === 'http:' || protocol === 'https:' || protocol === 'coap:') {
+        callback(JSON.stringify(node));
+        return;
+    }
 
-        }
-        else {
-            callback('');
-        }
+    // ws / mqtt 는 oneM2M 요청 프리미티브(m2m:rqp)로 감싸서 보낸다.
+    if (protocol === 'ws:' || protocol === 'mqtt:') {
+        callback(make_json_noti_message(nu, node, xm2mri, short_flag));
+        return;
     }
-    else if (sub_bodytype == 'cbor') {
-        if (protocol == 'http:' || protocol == 'https:' || protocol == 'coap:') {
-            bodyString = cbor.encode(node).toString('hex');
-            callback(bodyString);
-        }
-        else if (protocol == 'ws:' || protocol == 'mqtt:') {
-            bodyString = make_cbor_noti_message(node, xm2mri);
-            callback(bodyString);
-        }
-        else {
-            callback('');
-        }
-    }
-    else { // defaultbodytype == 'json')
-        if (protocol == 'http:' || protocol == 'https:' || protocol == 'coap:') {
-            bodyString = JSON.stringify(node);
-            callback(bodyString);
-        }
-        else if (protocol == 'ws:' || protocol == 'mqtt:') {
-            bodyString = make_json_noti_message(nu, node, xm2mri, short_flag);
-            callback(bodyString);
-        }
-        else {
-            callback('');
-        }
-    }
+
+    // 아는 스킴이 아니다. 빈 본문을 주면 호출부가 보내지 않고 남긴다.
+    callback('');
 }
 
-function sgn_action_send(nu_arr, req_count, sub_bodytype, node, short_flag, check_value, ss_cr, ss_ri, xm2mri, exc, parentObj, callback) {
+function sgn_action_send(nu_arr, req_count, node, short_flag, check_value, ss_cr, ss_ri, xm2mri, exc, parentObj, callback) {
     if(nu_arr.length <= req_count) {
         callback('200');
         return;
@@ -199,7 +106,6 @@ function sgn_action_send(nu_arr, req_count, sub_bodytype, node, short_flag, chec
     //
     // 실측: nu = ['http://a/?rcn=9', 'http://b/'] 로 두면 b 도 축약본을 받았다.
     // 요청하지도 않은 형식·내용이 가는 것이고, 로그에는 아무것도 남지 않는다.
-    var this_bodytype = sub_bodytype;
     var this_node = node;
     var this_short = short_flag;
 
@@ -207,15 +113,9 @@ function sgn_action_send(nu_arr, req_count, sub_bodytype, node, short_flag, chec
         var sub_nu_query_arr = sub_nu.query.split('&');
         for (var prop in sub_nu_query_arr) {
             if (sub_nu_query_arr.hasOwnProperty(prop)) {
-                if (sub_nu_query_arr[prop].split('=')[0] == 'ct') {
-                    if (sub_nu_query_arr[prop].split('=')[1] == 'xml') {
-                        this_bodytype = 'xml';
-                    }
-                    else {
-                        this_bodytype = 'json';
-                    }
-                }
-                else if (sub_nu_query_arr[prop].split('=')[0] == 'rcn') {
+                // ct= 는 더 읽지 않는다. 알림은 언제나 json 이다
+                // (make_body_string_for_noti 의 설명 참고).
+                if (sub_nu_query_arr[prop].split('=')[0] == 'rcn') {
                     if (sub_nu_query_arr[prop].split('=')[1] == '9') {
                         // 여기서만 복제한다. 대부분의 nu 는 옵션이 없으므로
                         // 매번 복제하면 알림마다 그만큼이 그대로 낭비다.
@@ -269,11 +169,11 @@ function sgn_action_send(nu_arr, req_count, sub_bodytype, node, short_flag, chec
 
     this_node['m2m:sgn'].rvi = uservi;
 
-    make_body_string_for_noti(sub_nu.protocol, nu, this_node, this_bodytype, xm2mri, this_short, function (bodyString) {
+    make_body_string_for_noti(sub_nu.protocol, nu, this_node, xm2mri, this_short, function (bodyString) {
         if (bodyString === '') { // parse error
             // 어느 구독인지 없으면 이 줄로 아무것도 못 한다.
             console.error('[noti] fail - sub=' + (ss_ri || '?') + ' nu=' + nu +
-                          ' (본문을 ' + this_bodytype + ' 로 만들지 못했다)');
+                          ' (본문을 만들지 못했다)');
         }
         else {
             // ss_ri 는 이 함수가 이미 인자로 들고 있던 값이다 — 추가 조회가 없다.
@@ -281,11 +181,11 @@ function sgn_action_send(nu_arr, req_count, sub_bodytype, node, short_flag, chec
             // 역추적할 수 없었다. 관리 UI 가 물어볼 첫 번째 질문이 그것이다.
             setTimeout(function (nu, bodytype, xm2mri, bodyString, ri) {
                 sgn_man.post(nu, bodytype, xm2mri, bodyString, ri);
-            }, parseInt(1 + Math.random() * 10), nu, this_bodytype, xm2mri, bodyString, ss_ri);
+            }, parseInt(1 + Math.random() * 10), nu, 'json', xm2mri, bodyString, ss_ri);
         }
 
         // 다음 nu 에는 **원래 값**을 넘긴다. 이 nu 의 옵션이 번지면 안 된다.
-        sgn_action_send(nu_arr, ++req_count, sub_bodytype, node, short_flag, check_value, ss_cr, ss_ri, xm2mri, exc, parentObj, function (code) {
+        sgn_action_send(nu_arr, ++req_count, node, short_flag, check_value, ss_cr, ss_ri, xm2mri, exc, parentObj, function (code) {
             callback(code);
         });
     });
@@ -402,7 +302,7 @@ function get_nu_arr(connection, nu_arr, req_count, callback, sub_ri) {
     }
 }
 
-function sgn_action(connection, rootnm, check_value, subl, req_count, noti_Obj, sub_bodytype, parentObj, callback) {
+function sgn_action(connection, rootnm, check_value, subl, req_count, noti_Obj, parentObj, callback) {
     if(subl.length <= req_count) {
         callback('200');
         return;
@@ -414,7 +314,7 @@ function sgn_action(connection, rootnm, check_value, subl, req_count, noti_Obj, 
         console.error('[sgn] subl 항목을 읽을 수 없어 건너뛴다 — 부모=' +
                       ((parentObj && parentObj.ri) || '?') + ' 항목 ' + req_count +
                       ' sub=' + ((broken && broken.ri) || '?'));
-        sgn_action(connection, rootnm, check_value, subl, ++req_count, noti_Obj, sub_bodytype, parentObj, function (code) {
+        sgn_action(connection, rootnm, check_value, subl, ++req_count, noti_Obj, parentObj, function (code) {
             callback(code);
         });
         return;
@@ -515,19 +415,19 @@ function sgn_action(connection, rootnm, check_value, subl, req_count, noti_Obj, 
             get_nu_arr(connection, nu_arr, 0, function (code) {
                 if(code == '200') {
                     if (nct == 2 || nct == 1) {
-                        setTimeout(function (nu_arr, count, sub_bodytype, node, short_flag, check_value, cr, ri, xm2mri, exc, parentObj) {
-                            sgn_action_send(nu_arr, count, sub_bodytype, node, short_flag, check_value, results_ss.cr, results_ss.ri, xm2mri, results_ss.exc, parentObj, function (code) {
+                        setTimeout(function (nu_arr, count, node, short_flag, check_value, cr, ri, xm2mri, exc, parentObj) {
+                            sgn_action_send(nu_arr, count, node, short_flag, check_value, results_ss.cr, results_ss.ri, xm2mri, results_ss.exc, parentObj, function (code) {
                                 console.log('[sgn_action_send] - ' + code);
                             });
-                        }, parseInt(1 + Math.random() * 10), nu_arr, 0, sub_bodytype, node, short_flag, check_value, results_ss.cr, results_ss.ri, xm2mri, results_ss.exc, parentObj);
+                        }, parseInt(1 + Math.random() * 10), nu_arr, 0, node, short_flag, check_value, results_ss.cr, results_ss.ri, xm2mri, results_ss.exc, parentObj);
 
-                        sgn_action(connection, rootnm, check_value, subl, ++req_count, noti_Obj, sub_bodytype, parentObj, function (code) {
+                        sgn_action(connection, rootnm, check_value, subl, ++req_count, noti_Obj, parentObj, function (code) {
                             callback(code);
                         });
                     }
                     else {
                         console.log('nct except 2 (All Attribute) do not support');
-                        sgn_action(connection, rootnm, check_value, subl, ++req_count, noti_Obj, sub_bodytype, parentObj, function (code) {
+                        sgn_action(connection, rootnm, check_value, subl, ++req_count, noti_Obj, parentObj, function (code) {
                             callback(code);
                         });
                     }
@@ -539,7 +439,7 @@ function sgn_action(connection, rootnm, check_value, subl, req_count, noti_Obj, 
                     // 두 번 일어난 부류다(get_nu_arr 의 두 조기 반환).
                     console.error('[noti] sub=' + results_ss.ri +
                                   ' nu 해석이 200 이 아닌 코드를 줬다: ' + code);
-                    sgn_action(connection, rootnm, check_value, subl, ++req_count, noti_Obj, sub_bodytype, parentObj, function (code) {
+                    sgn_action(connection, rootnm, check_value, subl, ++req_count, noti_Obj, parentObj, function (code) {
                         callback(code);
                     });
                 }
@@ -550,7 +450,7 @@ function sgn_action(connection, rootnm, check_value, subl, req_count, noti_Obj, 
 
     // net_arr에 check_value가 없는 경우에도 다음 subl로 진행
     if (!matched) {
-        sgn_action(connection, rootnm, check_value, subl, ++req_count, noti_Obj, sub_bodytype, parentObj, function (code) {
+        sgn_action(connection, rootnm, check_value, subl, ++req_count, noti_Obj, parentObj, function (code) {
             callback(code);
         });
     }
@@ -622,7 +522,7 @@ exports.check = function(request, notiObj, check_value, callback) {
     // 실측으로 확인했다 — nu 를 ID 형식으로 둔 구독에 CIN 3건을 넣으니
     // 반납 후 질의가 6건 찍혔다(get_ri_sri, select_resource_from_url).
     run_with_own_connection(subl, function (connection, release) {
-        sgn_action(connection, rootnm, check_value, subl, 0, noti_Obj, request.usebodytype, parentObj, function (code) {
+        sgn_action(connection, rootnm, check_value, subl, 0, noti_Obj, parentObj, function (code) {
             release();
             callback(code);
         });

@@ -99,6 +99,17 @@ var REASON = {
     '400-62': { code: RSC.BAD_REQUEST, msg: "acpi is too long to store (200 characters when serialized)", detail: 'acpi: length' },
     '400-63': { code: RSC.BAD_REQUEST, msg: "acpi refers to an accessControlPolicy that does not exist", detail: 'acpi: dangling' },
 
+    // 이 CSE 는 json 만 다룬다. 요청 본문이 xml/cbor 이면 여기서 끊는다.
+    //
+    // 응답 쪽은 거절하지 않는다 — Accept 로 무엇을 요구받든 json 으로 답한다.
+    // 물어봤을 뿐이고 우리는 그것을 만들지 않는다. 브라우저 기본 Accept 에는
+    // application/xml 이 들어 있으므로, 그것까지 거절하면 브라우저로 열기만
+    // 해도 400 이 된다.
+    //
+    // detail 은 응답에 안 나가고 responder.respond 가 console.error 로 찍는다.
+    // 어떤 형식이 왔는지가 거기 남으므로 이 사유의 로그가 곧 계측이다.
+    '400-64': { code: RSC.BAD_REQUEST, msg: "only json is supported; send the request body as application/json", detail: 'json_only' },
+
     '403-1': { code: RSC.AE_NOT_ALLOWED, msg: "AE-ID is not allowed" },
     '403-2': { code: RSC.TARGET_NOT_SUBSCRIBABLE, msg: "this resource type cannot be created under the parent resource" },
     '403-3': { code: RSC.ACCESS_DENIED, msg: "ACCESS DENIED" },
