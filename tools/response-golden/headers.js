@@ -28,6 +28,19 @@ var fs = require('fs');
 
 var VOLATILE = /^(date|content-length|etag|connection|keep-alive|x-m2m-ri)$/;
 
+/*
+ * 헤더 값이 이 모양이면 무언가를 잘못 문자열로 만든 것이다.
+ *
+ * 실제로 당했다. json 전용 관문이 `X-M2M-RSC: [object Object]` 를 내보냈다 —
+ * reason 항목의 `code` 는 숫자가 아니라 rsc.js 의 카탈로그 객체인데
+ * `String(r.code)` 를 했다. 관문 케이스('xml 본문 accept 없음')는 이 표에
+ * 이미 있었고 값도 찍히고 있었는데, 눈으로 훑다 놓쳤다.
+ *
+ * 대조(diff)만으로는 못 잡는 부류다. **전에도 후에도 똑같이 틀리면** 차이가
+ * 0 이다. 그래서 대조와 별개로 값 자체를 본다.
+ */
+var GARBAGE = /^(\[object [A-Za-z]+\]|undefined|null|NaN)$/;
+
 /* ── 대조 ──────────────────────────────────────────────────────────── */
 
 function diff(beforePath, afterPath) {
@@ -159,7 +172,14 @@ function collect(PORT, OUT) {
             ['xml 본문 accept 없음',  'PUT', CNT, '<m2m:cnt xmlns:m2m="http://www.onem2m.org/xml/protocols"><lbl>c</lbl></m2m:cnt>',
                                        'application/xml', {}],
             ['discovery accept 없음', 'GET', AE + '?fu=1&rcn=6', null, null, {}],
-            ['404 accept 없음',       'GET', AE + '/nope', null, null, {}]
+            ['404 accept 없음',       'GET', AE + '/nope', null, null, {}],
+
+            // json 전용 관문. 위 'xml 본문' 이 이미 하나 밟지만, 관문은 셋을
+            // 구분해야 한다 — 거절하는 MIME 둘과, 이름에 xml 이 섞였을 뿐인
+            // 정상 요청 하나. 마지막 것이 400 이 되면 부분 문자열로 되돌아간 것이다.
+            ['cbor 본문 거절',   'PUT', CNT, 'a1', 'application/vnd.onem2m-res+cbor', {}],
+            ['xml+접미사 거절',  'PUT', CNT, '<x/>', 'application/vnd.onem2m-res+xml;ty=3', {}],
+            ['json 인데 xml 글자', 'PUT', CNT, { 'm2m:cnt': { lbl: ['d'] } }, J + ';ty=3;note=xmlish', {}]
         ];
 
         var i = 0;
@@ -175,14 +195,23 @@ function collect(PORT, OUT) {
         req('AE 삭제', 'DELETE', AE, null, null, { Accept: J }, function () {
             fs.writeFileSync(OUT, JSON.stringify(rows, null, 2));
             console.log('응답 ' + rows.length + '건을 ' + OUT + ' 에 기록\n');
+            var bad = [];
             rows.forEach(function (r) {
                 var h = r.headers || {};
+                Object.keys(h).forEach(function (k) {
+                    if (GARBAGE.test(h[k])) { bad.push(r.label + '  ' + k + ': ' + h[k]); }
+                });
                 console.log('  ' + String(r.status || 'ERR').padStart(3) + '  ' +
-                            (r.label + '                    ').slice(0, 20) +
+                            (r.label + '                      ').slice(0, 22) +
                             '  ct=' + (h['content-type'] || '-') +
                             '  rsc=' + (h['x-m2m-rsc'] || '-') +
                             (h.accept !== undefined ? '  accept에코=' + h.accept : ''));
             });
+            if (bad.length) {
+                console.log('\n헤더에 망가진 값 ' + bad.length + '건 — 무언가를 잘못 문자열로 만들었다:');
+                bad.forEach(function (b) { console.log('  ' + b); });
+                process.exit(1);
+            }
             process.exit(0);
         });
     }
