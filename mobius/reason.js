@@ -60,7 +60,6 @@ var REASON = {
     '400-25': { code: RSC.BAD_REQUEST, msg: "attribute is not defined" },
     '400-26': { code: RSC.BAD_REQUEST, msg: "attribute is 'Mandatory' attribute" },
     '400-27': { code: RSC.BAD_REQUEST, msg: "expiration time is in the past" },
-    '400-28': { code: RSC.BAD_REQUEST, msg: "ASN CSE can not have child CSE (remoteCSE)" },
     '400-29': { code: RSC.BAD_REQUEST, msg: "mni is a negative value" },
     '400-30': { code: RSC.BAD_REQUEST, msg: "mbs is a negative value" },
     '400-31': { code: RSC.BAD_REQUEST, msg: "mia is a negative value" },

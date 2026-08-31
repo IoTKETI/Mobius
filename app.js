@@ -373,12 +373,6 @@ if (use_clustering) {
                                 require('./pxy_coap');
                                 require('./pxy_ws');
 
-                                if (usecsetype == 'mn' || usecsetype == 'asn') {
-                                    global.refreshIntervalId = setInterval(() => {
-                                        csr_custom.emit('register_remoteCSE');
-                                    }, 5000);
-                                }
-
                                 db.release(connection);
                             });
                         });
@@ -481,12 +475,6 @@ else {
                                 console.log('mobius server (' + ip.address() + ') running at ' + usecsebaseport + ' port');
                                 require('./pxy_mqtt');
                                 //noti_mqtt_begin();
-
-                                if (usecsetype === 'mn' || usecsetype === 'asn') {
-                                    global.refreshIntervalId = setInterval(() => {
-                                        csr_custom.emit('register_remoteCSE');
-                                    }, 5000);
-                                }
                             });
                         }
                         else {
@@ -500,12 +488,6 @@ else {
                                 console.log('mobius server (' + ip.address() + ') running at ' + usecsebaseport + ' port');
                                 require('./pxy_mqtt');
                                 //noti_mqtt_begin();
-
-                                if (usecsetype === 'mn' || usecsetype === 'asn') {
-                                    global.refreshIntervalId = setInterval(() => {
-                                        csr_custom.emit('register_remoteCSE');
-                                    }, 5000);
-                                }
                             });
                         }
 
@@ -1211,10 +1193,8 @@ function lookup_create(request, response, callback) {
                 else if ((request.ty == 9) && (parentObj.ty == 5 || parentObj.ty == 16 || parentObj.ty == 2)) { // group
                 }
                 else if ((request.ty == 16) && (parentObj.ty == 5)) { // remoteCSE
-                    if (usecsetype == 'asn' && request.headers.csr == null) {
-                        callback('400-28');
-                        return;
-                    }
+                    // 여기 있던 검사는 ASN-CSE 전용이었다. 이 CSE 는 IN 이고
+                    // ASN/MN 모드는 제거했다(2026-08-31). 400-28 도 함께 빠졌다.
                 }
                 else if ((request.ty == 10) && (parentObj.ty == 5)) { // locationPolicy
                 }

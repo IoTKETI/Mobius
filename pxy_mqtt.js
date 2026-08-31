@@ -18,7 +18,6 @@ var fs = require('fs');
 var http = require('http');
 var https = require('https');
 var express = require('express');
-var bodyParser = require('body-parser');
 var mqtt = require('mqtt');
 var util = require('util');
 var xml2js = require('xml2js');
@@ -640,182 +639,22 @@ function mqtt_response(resp_topic, rsc, op, to, fr, rqi, inpc, bodytype) {
 }
 
 // for notification
-var onem2mParser = bodyParser.text(
-    {
-        limit: '1mb',
-        type: 'application/onem2m-resource+xml;application/xml;application/json;application/vnd.onem2m-res+xml;application/vnd.onem2m-res+json'
-    }
-);
+// mqtt_app 의 HTTP 라우트 셋을 걷어냈다 (2026-08-31).
+//
+//   POST /notification   호출처 0곳 — 저장소 어디서도 부르지 않았다
+//   POST /register_csr   mobius/asn.js · mn.js 만 불렀다
+//   GET  /get_cb         〃
+//
+// ASN/MN-CSE 모드를 포기하면서 그 둘이 사라졌으므로 부르는 코드가 없다.
+// 셋 다 request.headers.bodytype 을 읽었는데, 그 헤더를 **세우는 코드는
+// 저장소에 없었다** — 토픽 끝에 undefined 가 붙는 상태였다.
+//
+// mqtt_app 자체와 그 위의 http 서버는 남긴다. listen() 콜백이
+// mqtt_state 를 init -> connect 로 넘기는 유일한 자리라(위 mqtt_watchdog),
+// 서버를 지우면 MQTT 가 통째로 죽는다. 라우트만 없앤 빈 서버다.
 
-mqtt_app.post('/notification', onem2mParser, function(request, response, next) {
-    var fullBody = '';
-    request.on('data', function(chunk) {
-        fullBody += chunk.toString();
-    });
-    request.on('end', function() {
-        request.body = fullBody;
-
-        try {
-            var aeid = url.parse(request.headers.nu).pathname.replace('/', '').split('?')[0];
-            NOPRINT==='true'?NOPRINT='true':console.log('[pxy_mqtt] - ' + aeid);
-
-            if (aeid == '') {
-                NOPRINT==='true'?NOPRINT='true':console.log('aeid of notification url is none');
-                return;
-            }
-
-            if (mqtt_state == 'ready') {
-                var noti_topic = util.format('/oneM2M/req/%s/%s/%s', usecseid.replace('/', ''), aeid, request.headers.bodytype);
-
-                var rqi = request.headers['x-m2m-ri'];
-                resp_mqtt_rqi_arr.push(rqi);
-                http_response_q[rqi] = response;
-
-                pxymqtt_client.publish(noti_topic, request.body);
-                NOPRINT==='true'?NOPRINT='true':console.log('<---- ' + noti_topic);
-            }
-            else {
-                NOPRINT==='true'?NOPRINT='true':console.log('pxymqtt is not ready');
-            }
-        }
-        catch (e) {
-            NOPRINT==='true'?NOPRINT='true':console.log(e.message);
-            var rsp_Obj = {};
-            rsp_Obj['rsp'] = {};
-            rsp_Obj['rsp'].dbg = 'notificationUrl does not support : ' + request.headers.nu;
-            response.header('X-M2M-RSC', '4000');
-            response.status(400).end(JSON.stringify(rsp_Obj));
-        }
-    });
-});
-
-mqtt_app.post('/register_csr', onem2mParser, function(request, response, next) {
-    var fullBody = '';
-    request.on('data', function(chunk) {
-        fullBody += chunk.toString();
-    });
-    request.on('end', function() {
-        request.body = fullBody;
-
-        var cseid = (request.headers.cseid == null) ? '' : request.headers.cseid;
-
-        if (cseid == '') {
-            NOPRINT==='true'?NOPRINT='true':console.log('cseid of register url is none');
-            return;
-        }
-
-        if (mqtt_state == 'ready') {
-            var reg_req_topic = util.format('/oneM2M/reg_req/%s/%s/%s', usecseid.replace('/', ':'), cseid.replace('/', ':'), request.headers.bodytype);
-
-            var rqi = request.headers['x-m2m-ri'];
-
-            // 요청 본문은 바깥에서 온 것이라 JSON 이 아닐 수 있다. 여기는
-            // request.on('end') 안이라 던지면 잡을 곳이 없고, pxy_mqtt 를
-            // require 한 cluster 마스터가 죽어 워커 재시작 로직까지 사라진다.
-            // 같은 파일의 /notification 핸들러는 이미 try 로 감싸고 있다.
-            var pc;
-            try {
-                pc = JSON.parse(request.body);
-            }
-            catch (e) {
-                console.error('[pxy_mqtt /register_csr] 요청 본문이 JSON 이 아니다: ' + e.message);
-                response.header('X-M2M-RSC', RSC.BAD_REQUEST.rsc);
-                response.status(RSC.BAD_REQUEST.http).end(JSON.stringify({ 'm2m:dbg': 'request body is not valid JSON' }));
-                return;
-            }
-
-            // 파싱에 성공한 뒤에야 응답을 대기 목록에 넣는다. 실패 경로에서
-            // 넣어두면 응답이 영영 오지 않아 목록에 쌓인다.
-            resp_mqtt_rqi_arr.push(rqi);
-            http_response_q[rqi] = response;
-
-            var req_message = {};
-            req_message['m2m:rqp'] = {};
-            req_message['m2m:rqp'].op = '1'; // post
-            req_message['m2m:rqp'].to = request.headers.csebasename; // CSEBase Relative
-            req_message['m2m:rqp'].fr = request.headers['x-m2m-origin'];
-            req_message['m2m:rqp'].rqi = rqi;
-            req_message['m2m:rqp'].ty = '16';
-
-            req_message['m2m:rqp'].pc = pc;
-
-            if (request.headers.bodytype == 'xml') {
-                req_message['m2m:rqp']['@'] = {
-                    "xmlns:m2m": "http://www.onem2m.org/xml/protocols",
-                    "xmlns:xsi": "http://www.w3.org/2001/XMLSchema-instance"
-                };
-
-                var xmlString = js2xmlparser.parse("m2m:rqp", req_message['m2m:rqp']);
-
-                pxymqtt_client.publish(reg_req_topic, xmlString);
-                NOPRINT==='true'?NOPRINT='true':console.log('<---- ' + reg_req_topic);
-            }
-            else { // 'json'
-                pxymqtt_client.publish(reg_req_topic, JSON.stringify(req_message['m2m:rqp']));
-                NOPRINT==='true'?NOPRINT='true':console.log('<---- ' + reg_req_topic);
-            }
-        }
-        else {
-            NOPRINT==='true'?NOPRINT='true':console.log('pxymqtt is not ready');
-        }
-    });
-});
-
-mqtt_app.get('/get_cb', onem2mParser, function(request, response, next) {
-    var fullBody = '';
-    request.on('data', function(chunk) {
-        fullBody += chunk.toString();
-    });
-    request.on('end', function() {
-        request.body = fullBody;
-
-        var cseid = (request.headers.cseid == null) ? '' : request.headers.cseid;
-
-        if (cseid == '') {
-            NOPRINT==='true'?NOPRINT='true':console.log('cseid of register url is none');
-            return;
-        }
-
-        if (mqtt_state == 'ready') {
-            var reg_req_topic = util.format('/oneM2M/reg_req/%s/%s/%s', usecseid.replace('/', ':'), cseid.replace('/', ':'), request.headers.bodytype);
-
-            var rqi = request.headers['x-m2m-ri'];
-            resp_mqtt_rqi_arr.push(rqi);
-            http_response_q[rqi] = response;
-
-            var pc = '';
-
-            var req_message = {};
-            req_message['m2m:rqp'] = {};
-            req_message['m2m:rqp'].op = '2'; // get
-            req_message['m2m:rqp'].to = request.headers.csebasename; // CSEBase Relative
-            req_message['m2m:rqp'].fr = request.headers['x-m2m-origin'];
-            req_message['m2m:rqp'].rqi = rqi;
-            req_message['m2m:rqp'].ty = '16';
-
-            req_message['m2m:rqp'].pc = pc;
-
-            if (request.headers.bodytype == 'xml') {
-                req_message['m2m:rqp']['@'] = {
-                    "xmlns:m2m": "http://www.onem2m.org/xml/protocols",
-                    "xmlns:xsi": "http://www.w3.org/2001/XMLSchema-instance"
-                };
-
-                var xmlString = js2xmlparser.parse("m2m:rqp", req_message['m2m:rqp']);
-
-                pxymqtt_client.publish(reg_req_topic, xmlString);
-                NOPRINT==='true'?NOPRINT='true':console.log('<---- ' + reg_req_topic);
-            }
-            else { // 'json'
-                pxymqtt_client.publish(reg_req_topic, JSON.stringify(req_message['m2m:rqp']));
-                NOPRINT==='true'?NOPRINT='true':console.log('<---- ' + reg_req_topic);
-            }
-        }
-        else {
-            NOPRINT==='true'?NOPRINT='true':console.log('pxymqtt is not ready');
-        }
-    });
-});
+// 여기 있던 forward_mqtt 도 지웠다 — 호출처가 0곳이었고, 본문을 언제나
+// XML 로 만들어 publish 했다. json 전용이 된 지금은 되살릴 수도 없다.
 
 
 function http_retrieve_CSEBase(callback) {
@@ -876,24 +715,3 @@ function http_retrieve_CSEBase(callback) {
     req.end();
 }
 
-function forward_mqtt(forward_cseid, op, to, fr, rqi, ty, nm, inpc) {
-    var forward_message = {};
-    forward_message.op = op;
-    forward_message.to = to;
-    forward_message.fr = fr;
-    forward_message.rqi = rqi;
-    forward_message.ty = ty;
-    forward_message.nm = nm;
-    forward_message.pc = inpc;
-
-    forward_message['@'] = {
-        "xmlns:m2m": "http://www.onem2m.org/xml/protocols",
-        "xmlns:xsi": "http://www.w3.org/2001/XMLSchema-instance"
-    };
-
-    var xmlString = js2xmlparser.parse("m2m:rqp", forward_message);
-
-    var forward_topic = util.format('/oneM2M/req/%s/%s', usecseid.replace('/', ':'), forward_cseid);
-
-    pxymqtt_client.publish(forward_topic, xmlString);
-}

@@ -16,7 +16,7 @@ const reason = require('../mobius/reason');
 const rsc = require('../mobius/rsc');
 const ROOT = path.join(__dirname, '..');
 
-test('사유 101개가 있다', function () {
+test('사유 100개가 있다', function () {
     // 501-1 과 400-4 를 걷어내고, 301-5 / 404-8 을 더했다.
     // 400-4("not parse your body")는 check_resource_supported 가 파싱 실패를
     // 전부 이 하나로 뭉개던 코드였다. 파싱이 한 곳으로 모이면서
@@ -29,7 +29,9 @@ test('사유 101개가 있다', function () {
     // json 만 지원하기로 하면서 400-64 를 더해 100 이 됐다.
     // 요청 본문 크기 상한(413-1)을 더해 101 이 됐다 — 상한이 선언만 되고
     // 실제로는 걸리지 않던 것을 고치면서 생겼다.
-    assert.strictEqual(Object.keys(reason.REASON).length, 101);
+    // ASN/MN-CSE 모드를 포기하며 400-28("ASN CSE can not have child CSE")이
+    // 참조를 잃어 다시 100 이 됐다.
+    assert.strictEqual(Object.keys(reason.REASON).length, 100);
 });
 
 test('모든 사유의 code 가 RSC 카탈로그의 실제 항목이다', function () {
@@ -45,7 +47,7 @@ test('모든 사유의 code 가 RSC 카탈로그의 실제 항목이다', functi
 
 test('toLegacyTable 이 app.js 가 쓰던 형태를 만든다', function () {
     const t = reason.toLegacyTable();
-    assert.strictEqual(Object.keys(t).length, 101);
+    assert.strictEqual(Object.keys(t).length, 100);
 
     Object.keys(t).forEach(function (k) {
         const row = t[k];
