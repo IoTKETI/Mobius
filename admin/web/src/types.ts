@@ -136,6 +136,28 @@ export interface SessionInfo {
   acp: AcpConfig
 }
 
+// ── Mobius 기동·정지 ───────────────────────────────────────────────────────
+
+export interface ServerStatus {
+  /** CSE 포트가 열려 있는가 */
+  running: boolean
+  port: number
+  /** 'pm2' 면 pm2 에 맡긴다. 'detached' 면 콘솔이 독립 프로세스로 띄운다 */
+  mode: 'pm2' | 'detached'
+  pm2Name: string | null
+  /** 이 콘솔이 띄운 것으로 기록돼 있고 그 pid 가 살아 있는가 */
+  ours: boolean
+  pid: number | null
+  startedAt: string | null
+  /**
+   * 포트는 열렸는데 이 콘솔이 띄운 것이 아니다.
+   * 이때는 정지·재기동을 하지 않는다 — 남의 프로세스를 죽이지 않는다.
+   */
+  foreign: boolean
+  /** 도는 일괄 작업. 있으면 정지·재기동이 막힌다 */
+  busyJob: { id: string; title: string; processed: number; total: number } | null
+}
+
 // ── 설정 (conf.json) ───────────────────────────────────────────────────────
 
 /** 저장하면 언제 반영되는가. 이걸 말하지 않는 설정 화면은 거짓말을 한다. */

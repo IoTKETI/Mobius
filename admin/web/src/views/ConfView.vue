@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { confView, confSave } from '../api'
+import ServerControl from '../components/ServerControl.vue'
 import type { ConfItem, ConfView as ConfViewData, WriteInfo } from '../types'
 
 defineProps<{ write: WriteInfo }>()
@@ -77,6 +78,11 @@ const patch = computed(() => {
   return out
 })
 const dirtyKeys = computed(() => Object.keys(patch.value))
+
+/** 방금 저장한 것 중 재기동이 필요한 값이 있었는가. */
+const savedNeedsRestart = computed(() =>
+  items.value.some((i) => savedKeys.value.includes(i.key) && i.apply === 'restart'),
+)
 
 async function load() {
   loading.value = true
@@ -172,6 +178,10 @@ onMounted(load)
 <template>
   <section>
     <h2>서버 설정</h2>
+
+    <!-- 설정 저장이 곧 적용이 아니라는 것이 이 화면의 약점이었다. 여기서
+         재기동할 수 있으면 "저장 -> 재기동" 한 흐름으로 닫힌다. -->
+    <ServerControl @changed="load" />
     <p class="lead">
       <code>conf.json</code> 의 값입니다. 여기 없는 키는 화면에서 고치지 않습니다 —
       비밀(<code>dbpass</code> 등)과 포트·주소는 잘못 넣으면 되돌릴 길이 없습니다.
@@ -209,6 +219,9 @@ onMounted(load)
     <p v-if="savedKeys.length" class="banner ok">
       저장했습니다 — {{ savedKeys.join(', ') }}.
       <strong>반영은 위 설명대로입니다.</strong>
+      <template v-if="savedNeedsRestart">
+        재기동이 필요한 값이 있습니다 — 위 <strong>재기동</strong> 버튼을 쓰세요.
+      </template>
     </p>
 
     <div v-for="g in grouped" :key="g.id" class="group">

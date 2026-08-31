@@ -382,6 +382,80 @@ app.post('/api/conf', function (req, res) {
     res.json({ ok: true, changed: r.changed });
 });
 
+// ── Mobius 기동·정지 ──────────────────────────────────────────────────────
+//
+// 콘솔은 Mobius 의 부모가 되지 않는다(detached + unref). 그래서 콘솔을
+// 재시작해도 Mobius 는 그대로 돈다.
+//
+// **콘솔만 아는 것이 하나 있다 — 지금 도는 일괄 작업.** 사람이 SSH 로 내리면
+// 그걸 모르고 삭제 작업을 끊는다. 여기서는 막을 수 있다.
+
+var process_ctl = require('./process_ctl');
+var ctl = new process_ctl.ProcessCtl({
+    root: ROOT,
+    host: CSE_HOST,
+    port: CSE_PORT,
+    // 이름만 받는다. 실행할 명령을 conf 에서 받으면, conf 를 화면에서 고칠 수
+    // 있는 이상 콘솔 비밀번호 하나가 임의 명령 실행이 된다.
+    pm2Name: (typeof conf.adminPm2Name === 'string' && conf.adminPm2Name !== '')
+        ? conf.adminPm2Name : null
+});
+
+app.get('/api/server/status', function (req, res) {
+    ctl.status(function (err, st) {
+        if (err) { return res.status(500).json({ error: String(err.message || err) }); }
+        var active = jobs.active();
+        st.busyJob = active ? { id: active.id, title: active.title,
+                                processed: active.processed, total: active.total } : null;
+        res.json(st);
+    });
+});
+
+/**
+ * 정지·재기동은 도는 작업이 있으면 거부한다.
+ *
+ * 일괄 삭제가 도는 중에 CSE 를 내리면 남은 대상은 처리되지 않고, 작업은
+ * 실패로 끝난다. 되돌릴 수 없는 연산이라 중간에 끊는 판단을 사람이 하게 한다.
+ */
+function guard_busy(res) {
+    var active = jobs.active();
+    if (active) {
+        res.status(409).json({
+            error: '일괄 작업이 도는 중이다 — 끝나거나 취소된 뒤에 한다',
+            job: { id: active.id, title: active.title,
+                   processed: active.processed, total: active.total }
+        });
+        return false;
+    }
+    return true;
+}
+
+function run_ctl(res, fn, args) {
+    fn.call(ctl, function (err, r) {
+        if (err) {
+            // 못 한 것을 한 것처럼 말하지 않는다. 사유 코드를 그대로 전한다.
+            var code = (err.code === 'ALREADY_RUNNING' || err.code === 'NOT_RUNNING' ||
+                        err.code === 'NOT_OURS') ? 409 : 500;
+            return res.status(code).json({ error: err.message, code: err.code });
+        }
+        res.json(r);
+    });
+}
+
+app.post('/api/server/start', function (req, res) {
+    run_ctl(res, ctl.start);
+});
+
+app.post('/api/server/stop', function (req, res) {
+    if (!guard_busy(res)) { return; }
+    run_ctl(res, ctl.stop);
+});
+
+app.post('/api/server/restart', function (req, res) {
+    if (!guard_busy(res)) { return; }
+    run_ctl(res, ctl.restart);
+});
+
 // ── ACP (권한) ────────────────────────────────────────────────────────────
 //
 // 배포 실측(2026-08-29)에서 ACP 리소스는 1개, acpi 가 채워진 리소스는 2개였고
