@@ -44,7 +44,7 @@ var SCHEMA = {
         help: 'all 은 거부마다 한 줄이다. 거부가 많으면 로그가 밀린다.'
     },
     acpDenyLogRate: {
-        type: 'number', min: 0, dflt: 5,
+        type: 'number', min: 0, integer: true, dflt: 5,
         apply: 'reload', reloadWith: 'acp_observe.configure',
         label: 'ACP 거부 로그 초당 상한',
         help: "acpDenyLog 가 'sample' 일 때만 쓴다."
@@ -172,11 +172,26 @@ exports.choices = function (key) {
 exports.validate = function (key, value) {
     var s = SCHEMA[key];
     if (!s) { return { ok: false, reason: '모르는 키다' }; }
+
+    // **노출 대상이 아니면 여기서 끊는다.**
+    //
+    // 이 함수를 "설정 저장 경로의 관문" 이라고 설명해 놓고 노출 여부는 안 보고
+    // 있었다. 그러면 validate 만 믿고 위임한 호출부에서 dbpass / superUser 가
+    // 그냥 써진다. superUser 는 그 값을 X-M2M-Origin 에 넣으면 모든 ACP 검사를
+    // 건너뛰는 값이다 — 콘솔이 그것을 쓸 수 있으면 콘솔이 곧 마스터 키다.
+    //
+    // 관문이 하나뿐이라고 말했으면 그 하나가 전부 막아야 한다.
+    if (s.exposed === false) { return { ok: false, reason: '노출 대상이 아니다' }; }
     if (s.readOnly) { return { ok: false, reason: '읽기 전용이다' }; }
 
     if (s.type === 'number') {
         if (typeof value !== 'number' || !isFinite(value)) {
             return { ok: false, reason: '수가 아니다' };
+        }
+        // 정수여야 하는 값에 소수가 들어가면 당장 안 깨져도 다음에 읽는
+        // 사람이 헷갈린다. 화면은 정수 입력칸을 그려 놓고 저장은 1.5 를 받는다.
+        if (s.integer && Math.floor(value) !== value) {
+            return { ok: false, reason: '정수여야 한다' };
         }
         if (typeof s.min === 'number' && value < s.min) {
             return { ok: false, reason: s.min + ' 이상이어야 한다' };
@@ -218,7 +233,11 @@ exports.describe = function () {
             dflt: s.dflt,
             choices: exports.choices(k),
             validHint: s.validHint || null,
+            integer: s.integer === true,
             apply: s.apply,
+            // apply === 'reload' 일 때 무엇을 다시 불러야 하는지. 이게 없으면
+            // 화면이 "재기동 없이 반영된다" 까지만 말하고 그 방법은 못 말한다.
+            reloadWith: s.reloadWith || null,
             readOnly: s.readOnly === true,
             label: s.label,
             help: s.help || ''

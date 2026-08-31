@@ -16,15 +16,49 @@
 
 var fs = require('fs');
 
+// conf.json 읽기.
+//
+// **읽기 실패를 쓰기로 갚지 않는다.** 예전에는 try 하나로 "없음" 과 "깨짐" 을
+// 같이 잡아, 어느 쪽이든 기본값 3개로 파일을 **덮어썼다.** 그래서 파싱이 한 번
+// 실패하면 운영 설정이 통째로 날아갔다. 실측(관리 콘솔 세션):
+//
+//   원본 8개 (csebaseport dbpass adminPassword superUser acpObserveMode
+//             acpiAttachPolicy db retentionPolicies)
+//   반쪽 파일을 한 번 읽힌 뒤 -> 3개만 남음
+//   dbpass 가 하드코딩 기본값으로 바뀌고, adminPassword 소실로 콘솔도 못 뜬다
+//
+// 도달 경로가 실재한다. 워커 25개가 각자 기동 때 이 파일을 읽는데, backstop 이
+// 예외에서 워커를 죽이면 cluster 가 다시 띄운다. 그 순간 누군가 conf.json 을
+// 제자리에서 쓰고 있으면 그 워커가 반쪽 JSON 을 읽는다.
+//
+// 이제 둘을 가른다.
+//   파일이 없다   최초 실행이다. 기본값으로 만들어 준다.
+//   파싱이 깨졌다 **건드리지 않는다.** 크게 남기고 기본값으로 진행한다 —
+//                 사람이 파일을 고쳐 다시 띄울 수 있어야 한다.
 var conf = {};
-try {
-    conf = JSON.parse(fs.readFileSync('conf.json', 'utf8'));
-}
-catch (e) {
-    conf.csebaseport = "7579";
-    conf.dbpass = "dksdlfduq2";
-    conf.usesqlite = "false";
+var DEFAULT_CONF = {
+    csebaseport: "7579",
+    dbpass: "dksdlfduq2",
+    usesqlite: "false"
+};
+
+if (!fs.existsSync('conf.json')) {
+    conf = JSON.parse(JSON.stringify(DEFAULT_CONF));
     fs.writeFileSync('conf.json', JSON.stringify(conf, null, 4), 'utf8');
+    console.log('[conf] conf.json 이 없어 기본값으로 만들었다');
+}
+else {
+    try {
+        conf = JSON.parse(fs.readFileSync('conf.json', 'utf8'));
+    }
+    catch (e) {
+        // 덮어쓰지 않는다. 여기서 쓰면 남의 설정을 지운다.
+        conf = JSON.parse(JSON.stringify(DEFAULT_CONF));
+        console.error('[conf] conf.json 을 읽지 못했다: ' + ((e && e.message) || e));
+        console.error('[conf] **파일은 그대로 둔다.** 기본값으로 진행하지만 ' +
+                      'dbpass 가 달라 DB 연결이 실패할 가능성이 높다. ' +
+                      '파일을 고치고 다시 띄울 것.');
+    }
 }
 
 global.defaultbodytype = 'json';
