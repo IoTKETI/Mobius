@@ -106,6 +106,8 @@ test('정수 키는 범위를 지킨다', function () {
     const s = store(file);
     assert.strictEqual(s.update({ acpDenyLogRate: -1 }).ok, false, '음수를 받았다');
     assert.strictEqual(s.update({ acpDenyLogRate: '5' }).ok, false, '문자열을 받았다');
+    // 화면이 정수 입력칸을 그리는 값이다. 코어가 integer 플래그를 붙여 막는다.
+    assert.strictEqual(s.update({ acpDenyLogRate: 1.5 }).ok, false, '소수를 받았다');
     assert.strictEqual(s.update({ acpDenyLogRate: 10 }).ok, true);
     assert.strictEqual(readConf(file).acpDenyLogRate, 10);
 });

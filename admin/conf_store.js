@@ -44,10 +44,10 @@ var APPLY = { RUNTIME: 'runtime', RELOAD: 'reload', RESTART: 'restart' };
  * 손으로 적은 표는 갈라지고, 그때 화면은 없는 설정을 그리거나 있는 설정을
  * 숨긴다.
  *
- * **다만 쓰기 관문은 여기서 다시 세운다.** conf_schema.validate() 는 노출
- * 목록에 없는 키에 대해 {ok:true} 를 돌려준다(실측: validate('dbpass','x')
- * -> ok:true). 검증을 통째로 위임하면 비밀 키가 그대로 써진다. 그래서
- * exposed() 에 있는 키인지 먼저 보고, 값 검증만 스키마에 맡긴다.
+ * **쓰기 관문은 여기서도 세운다.** 코어의 validate() 가 이제 노출 여부를
+ * 보지만(c19ca51 에서 고쳤다 — 그전에는 validate('dbpass','x') 가 ok 였다),
+ * 그 하나에만 기대지 않는다. 비밀 키가 써지는 사고는 되돌릴 수 없고, 관문
+ * 하나가 바뀌는 것은 남의 파일 한 줄이다. 두 겹으로 둔다.
  */
 function isWritable(key) {
     return schema.exposed().indexOf(key) >= 0;
@@ -116,10 +116,9 @@ ConfStore.prototype.view = function () {
             help: s.help,
             type: s.type,
             apply: s.apply,
-            // describe() 가 reloadWith 를 안 실어 준다. _SCHEMA 에는 있으므로
-            // 여기서 집어 온다 — 화면이 "무엇을 다시 불러야 하는가" 를
-            // 말하려면 필요하다. describe() 에 들어오면 이 줄을 지운다.
-            reloadWith: (schema._SCHEMA[key] || {}).reloadWith || null,
+            // reload 인 키는 무엇을 다시 불러야 하는지 함께 온다.
+            reloadWith: s.reloadWith || null,
+            integer: !!s.integer,
             readOnly: !!s.readOnly,
             choices: schema.choices(key),
             validHint: s.validHint,
@@ -153,8 +152,8 @@ ConfStore.prototype.view = function () {
  * 이 키를 이 값으로 고쳐도 되는가. 되면 null, 아니면 사유.
  *
  * **관문이 둘이다.** 먼저 노출 키인지 보고, 그 다음 값을 스키마에 맡긴다.
- * 스키마의 validate() 는 모르는 키에 {ok:true} 를 주므로(실측) 첫 관문이
- * 없으면 dbpass 가 그대로 써진다.
+ * 코어도 노출 여부를 보게 됐지만 겹쳐 둔다 — 잘못 통과하면 비밀이 파일에
+ * 써지고, 그건 되돌릴 수 없다.
  */
 ConfStore.prototype.validate = function (key, value) {
     if (!isWritable(key)) { return '화면에서 고칠 수 없는 키다: ' + key; }
