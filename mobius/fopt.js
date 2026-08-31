@@ -20,6 +20,7 @@ var http = require('http');
 var moment = require('moment');
 
 var body = require('./body');
+var outbound_headers = require('./outbound_headers');
 var responder = require('./responder');
 var resource = require('./resource');
 
@@ -82,7 +83,11 @@ function request_to_member(request, hostname, port, ri, agr, callback) {
         port: port,
         path: ri + ri_prefix,
         method: request.method,
-        headers: request.headers
+        // 클라이언트의 Accept 를 원격 멤버에게 그대로 묻지 않는다.
+        // 규격을 지키는 상대가 그것을 존중해 XML 을 주면 check_body 의
+        // JSON.parse 가 실패하고, 그 멤버는 로그 한 줄만 남기고 집계에서
+        // **조용히 빠진다.** 받는 쪽은 멤버가 빠진 것을 알 수 없다.
+        headers: outbound_headers(request.headers)
     };
 
     var req = http.request(options, function (res) {

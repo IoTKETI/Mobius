@@ -2321,16 +2321,10 @@ function check_notification(request, response, callback) {
  *
  * **우리가 감당할 수 있는 것을 묻는다.**
  */
-function outbound_headers(headers) {
-    var h = {};
-    Object.keys(headers || {}).forEach(function (k) { h[k] = headers[k]; });
-    // 대소문자가 섞여 들어올 수 있다. 우리 것만 남기고 지운다.
-    Object.keys(h).forEach(function (k) {
-        if (k.toLowerCase() === 'accept') { delete h[k]; }
-    });
-    h['Accept'] = 'application/json';
-    return h;
-}
+// app.js 의 지역 함수였던 것을 mobius/outbound_headers.js 로 뺐다 —
+// fopt.js 도 같은 규칙이 필요해서다. 머리말은 그 파일에 있다.
+var outbound_headers = require('./mobius/outbound_headers');
+
 
 /**
  * 상류 응답의 헤더를 우리 응답으로 옮긴다.

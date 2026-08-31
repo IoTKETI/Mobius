@@ -28,19 +28,36 @@ const os = require('node:os');
 
 const ROOT = path.join(__dirname, '..');
 
-// app.js 에서 outbound_headers ~ check_ae_notify 직전까지를 떼어 낸다.
+// outbound_headers 는 이제 모듈이다. 그냥 부른다.
+//
+// 처음에는 app.js 의 지역 함수라 소스를 떼어다 평가했다. fopt.js 도 같은
+// 규칙이 필요해지면서 mobius/outbound_headers.js 로 나왔다.
+const outbound_headers = require('../mobius/outbound_headers');
+
+// relay_headers 는 아직 app.js 안에 있다. app.js 는 require 하는 순간
+// cluster.fork() 와 listen 이 돌아 부를 수 없어, 그 함수만 소스로 떼어 낸다.
+//
+// 소스가 옮겨지거나 이름이 바뀌면 이 시험이 "못 찾음" 으로 실패한다.
+// 그것도 신호다 — 이 규칙이 어디로 갔는지 다음 사람이 찾게 된다.
 const helpers = (function () {
     const src = fs.readFileSync(path.join(ROOT, 'app.js'), 'utf8');
-    const s = src.indexOf('function outbound_headers(');
-    assert.ok(s > 0, 'app.js 에서 outbound_headers 를 못 찾았다');
+    const s = src.indexOf('function relay_headers(');
+    assert.ok(s > 0, 'app.js 에서 relay_headers 를 못 찾았다');
     const e = src.indexOf('function check_ae_notify(', s);
     assert.ok(e > s, 'app.js 에서 check_ae_notify 를 못 찾았다 — 잘라 낼 끝을 모른다');
 
+    // relay_headers 는 위에 선언된 RELAY_JSON_OK 를 쓴다. 함께 떼어 낸다.
+    const reStart = src.indexOf('var RELAY_JSON_OK');
+    assert.ok(reStart > 0 && reStart < s, 'RELAY_JSON_OK 를 못 찾았다');
+
     const tmp = path.join(os.tmpdir(), 'mobius-relay-extract-' + process.pid + '.js');
     fs.writeFileSync(tmp,
-        src.slice(s, e) +
-        '\nmodule.exports = { outbound_headers, relay_headers };\n', 'utf8');
-    try { return require(tmp); }
+        src.slice(reStart, e) +
+        '\nmodule.exports = { relay_headers };\n', 'utf8');
+    try {
+        const m = require(tmp);
+        return { outbound_headers, relay_headers: m.relay_headers };
+    }
     finally { try { fs.unlinkSync(tmp); } catch (x) { /* 지워지든 말든 */ } }
 })();
 
@@ -157,5 +174,35 @@ test('두 경로가 상류 헤더를 직접 복사하지 않는다', function ()
 
     const outs = (src.match(/outbound_headers\(request\.headers\)/g) || []).length;
     assert.strictEqual(outs, 2,
-        'outbound_headers 호출부가 ' + outs + '곳이다 — 두 아웃바운드 모두 거쳐야 한다');
+        'app.js 의 outbound_headers 호출부가 ' + outs + '곳이다 — ae notify 와 csr forward 둘이어야 한다');
+});
+
+test('상대에게 나가는 요청은 전부 Accept 를 json 으로 고정한다', function () {
+    // 이 시험이 없어서 fopt.js 한 자리가 빠진 채로 남았다.
+    // app.js 두 곳만 고치고 "끝났다" 고 적었는데, 팬아웃도 원격 CSE 에
+    // 요청을 보낸다는 것을 놓쳤다.
+    //
+    // 규격을 지키는 원격이 클라이언트의 Accept: application/xml 을 존중해
+    // XML 을 주면, fopt 의 check_body 가 JSON.parse 에 실패하고 **그 멤버는
+    // 집계에서 조용히 빠진다.** 받는 쪽은 빠진 것을 알 수 없다.
+    const sites = [
+        ['app.js',            /outbound_headers\(request\.headers\)/,        'notify_http · forward_http'],
+        ['mobius/fopt.js',    /headers:\s*outbound_headers\(request\.headers\)/, 'request_to_member (팬아웃)'],
+        // grp.js 는 헤더 객체를 새로 만들며 Accept 를 직접 적는다.
+        // 형태는 다르지만 결과가 같으므로 그 형태를 그대로 인정한다.
+        ['mobius/grp.js',     /'Accept':\s*'application\/json'/,             'check_member (그룹 검증)']
+    ];
+
+    for (const [f, pat, label] of sites) {
+        const src = fs.readFileSync(path.join(ROOT, f), 'utf8');
+        assert.match(src, pat,
+            f + ' (' + label + ') 이 나가는 요청의 Accept 를 json 으로 고정하지 않는다');
+    }
+
+    // 클라이언트 헤더를 **통째로** 넘기는 자리가 남아 있으면 안 된다.
+    for (const f of ['mobius/fopt.js', 'mobius/grp.js']) {
+        const src = fs.readFileSync(path.join(ROOT, f), 'utf8');
+        assert.doesNotMatch(src, /^\s*headers:\s*request\.headers\s*$/m,
+            f + ' 이 클라이언트 헤더를 통째로 상대에게 넘긴다 — outbound_headers 를 거칠 것');
+    }
 });
