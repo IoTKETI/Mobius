@@ -111,6 +111,22 @@ test('정수 키는 범위를 지킨다', function () {
     assert.strictEqual(readConf(file).acpDenyLogRate, 10);
 });
 
+test('outboundTimeoutMs 는 끄거나(0) 3초 이상이어야 한다', function () {
+    // 알림 발송과 원격 CSE 포워딩의 응답 대기 한도다. 켰는데 너무 짧으면
+    // 정상 알림이 실패로 기록되기 시작한다 — 끄는 것보다 나쁘다.
+    const file = tempConf({ outboundTimeoutMs: 0 });
+    const s = store(file);
+
+    assert.strictEqual(s.update({ outboundTimeoutMs: 0 }).ok, true, '0 은 끄는 것이라 허용');
+    assert.strictEqual(s.update({ outboundTimeoutMs: 5000 }).ok, true);
+    assert.strictEqual(s.update({ outboundTimeoutMs: 3000 }).ok, true, '경계값 3000 은 허용');
+
+    const bad = s.update({ outboundTimeoutMs: 500 });
+    assert.strictEqual(bad.ok, false, '0.5초를 받았다 — 정상 알림이 실패로 쌓인다');
+    assert.ok(/3000/.test(bad.errors[0]), '왜 안 되는지 알려 줘야 한다: ' + bad.errors[0]);
+    assert.strictEqual(s.update({ outboundTimeoutMs: 2999 }).ok, false);
+});
+
 test('db 의 유효값은 파사드에서 받는다 — 어댑터가 늘면 따라온다', function () {
     const file = tempConf({ db: 'mysql' });
     // 어댑터가 셋인 척

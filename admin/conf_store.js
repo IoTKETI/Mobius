@@ -82,7 +82,18 @@ var SCHEMA = {
     outboundTimeoutMs: {
         type: 'int', min: 0, max: 600000, def: 0, apply: APPLY.RESTART,
         label: '외부 요청 타임아웃(ms)',
-        help: '0 이면 끕니다. 알림 등 밖으로 나가는 요청에 걸립니다.'
+        help: '0 이면 끕니다. 켜려면 3000 이상 — 알림 발송과 원격 CSE 포워딩의 ' +
+              '응답 대기 한도라, 낮추면 정상 알림이 실패로 기록되기 시작합니다.',
+        // 0(끔) 아니면 3초 이상. 그 사이 값은 "켰는데 정상 응답을 못 기다리는"
+        // 상태라 끄는 것보다 나쁘다 — 멀쩡한 알림이 실패로 쌓인다.
+        check: function (v) {
+            if (v === 0) { return null; }
+            if (v < 3000) {
+                return 'outboundTimeoutMs 는 0(끔) 이거나 3000 이상이어야 한다 — ' +
+                       '그 사이 값은 정상 알림을 실패로 만든다';
+            }
+            return null;
+        }
     },
     retentionPolicies: {
         type: 'json', def: [], apply: APPLY.RESTART,
@@ -196,6 +207,9 @@ ConfStore.prototype.validate = function (key, value) {
         }
         if (s.min !== undefined && value < s.min) { return key + ' 는 ' + s.min + ' 이상이어야 한다'; }
         if (s.max !== undefined && value > s.max) { return key + ' 는 ' + s.max + ' 이하여야 한다'; }
+        // 범위만으로 못 거르는 것이 있다. outboundTimeoutMs 처럼 "끄거나, 켜려면
+        // 충분히 크거나" 인 값이 그렇다.
+        if (typeof s.check === 'function') { return s.check(value); }
         return null;
     }
     return '지원하지 않는 타입: ' + s.type;
