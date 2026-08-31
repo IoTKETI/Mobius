@@ -252,11 +252,32 @@ function read(res, cb) {
         if (done) { return; }
         size += chunk.length;
         if (size > limit()) {
-            // 여기서는 요청 쪽과 달리 스트림을 파기해도 된다. 우리가 보낸
-            // 요청의 답이고, 우리는 상대에게 돌려줄 응답이 없다.
             chunks = null;
-            try { res.destroy(); } catch (e) { /* 이미 닫혔을 수 있다 */ }
+            // ── 순서가 중요하다. **먼저 확정하고 나서 끊는다.** ──────────
+            //
+            // 처음에는 destroy() 를 먼저 했다. 그러면 사유가 틀리게 나간다 —
+            // res.destroy() 가 'aborted' 를 **동기로** 뿜으므로 on_gone 의
+            // 'response aborted' 가 먼저 done 을 잡고, 그 다음 줄의 exceeds
+            // 메시지는 `if (done) return` 에 막힌다.
+            //
+            // 실측(진짜 소켓, 상한 256KB):
+            //     err = 'response aborted'      <- 상한 초과인데 이렇게 나갔다
+            //     'response body exceeds N bytes' 는 도달 불가능했다
+            //
+            // 내 단위 시험은 이걸 못 잡았다. 가짜 스트림의 destroy 가 내가
+            // 짠 스텁이라 'aborted' 를 안 뿜기 때문이다. 관리 콘솔 세션이
+            // 자기 코드에서 같은 것을 발견해 알려 줬다.
+            //
+            // 사유가 틀리면 조치가 갈린다. 끊긴 것은 망의 문제고 상한 초과는
+            // **우리가 건 한도**다. 게다가 maxBodyBytes 는 관리 UI 에 노출된
+            // 값이라, 운영자가 그것을 낮춘 뒤 로그에서 'response aborted' 만
+            // 보면 자기가 방금 바꾼 설정과 연결짓지 못한다.
             finish(new Error('response body exceeds ' + limit() + ' bytes'));
+
+            // 확정한 뒤에 끊는다. 여기서 나는 'aborted' 는 done 에 막혀
+            // 조용히 버려진다 — 그게 맞다. 우리가 보낸 요청의 답이고
+            // 상대에게 돌려줄 응답이 없으므로 파기해도 된다.
+            try { res.destroy(); } catch (e) { /* 이미 닫혔을 수 있다 */ }
             return;
         }
         chunks.push(chunk);

@@ -260,10 +260,24 @@ test('end 는 두 번 와도 next 를 한 번만 부른다', function () {
 /* ── 5. 응답 본문 읽기 (body.read) ───────────────────────────────────── */
 
 // 아웃바운드 응답 스트림 흉내. 요청 스트림과 이벤트 이름이 같다.
+//
+// **destroy() 는 'aborted' 를 동기로 뿜는다.** Node 가 그렇게 하기 때문이다.
+//
+// 처음에는 이 스텁이 destroyed 플래그만 세웠다. 그래서 read() 의 상한 초과
+// 사유가 도달 불가능한 상태였는데도 이 파일의 시험이 전부 통과했다 —
+// 진짜 소켓에서는 destroy() 가 뿜은 'aborted' 가 먼저 done 을 잡아
+// 'response aborted' 가 나가고 있었다. 관리 콘솔 세션이 자기 코드에서
+// 같은 것을 발견해 알려 줬다.
+//
+// 가짜가 진짜보다 순한 순간 시험은 거짓말을 한다. 진짜에 맞춘다.
 function make_res_stream() {
     const s = new EventEmitter();
     s.destroyed = false;
-    s.destroy = function () { this.destroyed = true; };
+    s.destroy = function () {
+        if (this.destroyed) { return; }
+        this.destroyed = true;
+        this.emit('aborted');
+    };
     return s;
 }
 
@@ -444,6 +458,50 @@ test('read: 중간에 끊긴 응답에서 콜백이 반드시 온다 (진짜 소
     }
     finally {
         await new Promise(function (r) { srv.s.close(r); });
+    }
+});
+
+test('read: 상한 초과 사유가 진짜 소켓에서도 상한 초과라고 나온다', async function () {
+    // 위 스텁 시험과 별개로 진짜 소켓으로 한 번 더 본다.
+    // 이 결함은 "가짜가 진짜보다 순해서" 숨었던 것이라, 진짜로도 확인해 둔다.
+    const http = require('node:http');
+    const saved = global.max_body_bytes;
+    global.max_body_bytes = 128 * 1024;
+
+    const piece = Buffer.alloc(64 * 1024, 0x61);
+    const srv = http.createServer(function (req, res) {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        let n = 0;
+        (function push() {
+            if (n++ > 20 || res.destroyed || res.writableEnded) { try { res.end(); } catch (e) {} return; }
+            if (!res.write(piece)) { res.once('drain', push); }
+            else { setImmediate(push); }
+        })();
+        res.on('error', function () {});
+    });
+
+    try {
+        const port = await new Promise(function (r) {
+            srv.listen(0, '127.0.0.1', function () { r(srv.address().port); });
+        });
+        const out = await new Promise(function (resolve) {
+            const req = http.request({ host: '127.0.0.1', port: port, path: '/' }, function (res) {
+                body.read(res, function (err, text) { resolve({ err: err, text: text }); });
+            });
+            req.on('error', function (e) { resolve({ err: e, text: undefined }); });
+            req.end();
+        });
+
+        assert.ok(out.err instanceof Error);
+        assert.match(out.err.message, /exceeds/,
+            '상한 초과인데 "' + out.err.message + '" 이라고 한다 — ' +
+            'res.destroy() 를 finish() 보다 먼저 부르면 aborted 가 사유를 덮는다');
+        assert.strictEqual(out.text, undefined);
+    }
+    finally {
+        await new Promise(function (r) { srv.close(r); });
+        if (saved === undefined) { delete global.max_body_bytes; }
+        else { global.max_body_bytes = saved; }
     }
 });
 
