@@ -2012,13 +2012,18 @@ app.use((req, res, next) => {
                   '  Content-Type: ' + mime +
                   '  origin=' + (req.headers['x-m2m-origin'] || '?'));
 
-    // 응답은 json 이다 — "json 을 쓰라" 는 안내를 xml 로 보내면 앞뒤가 안 맞는다.
+    // 응답은 다른 모든 에러와 같은 문으로 나간다.
+    //
+    // 처음엔 헤더를 여기서 손으로 세웠는데, `reason` 항목의 code 는 숫자가
+    // 아니라 rsc.js 의 카탈로그 **객체**다. String(r.code) 가
+    // `X-M2M-RSC: [object Object]` 를 내보냈고 배포에서 잡혔다. 값을 꺼내
+    // 쓰는 대신 진입점을 쓴다 — respond() 가 RI·RVI·Locale 에코, Content-Type,
+    // RSC, 본문까지 한 번에 맞춘다.
+    //
+    // detail 은 위에서 이미 더 자세히 찍었으므로 넘기지 않는다. 넘기면
+    // `[BAD_REQUEST] json_only` 가 한 줄 더 붙어 계측만 흐려진다.
     var r = reason.get('400-64');
-    if (req.headers['x-m2m-ri'] !== undefined) { res.header('X-M2M-RI', req.headers['x-m2m-ri']); }
-    if (req.headers['x-m2m-rvi'] !== undefined) { res.header('X-M2M-RVI', req.headers['x-m2m-rvi']); }
-    res.header('Content-Type', 'application/json');
-    res.header('X-M2M-RSC', String(r.code));
-    res.status(400).end(JSON.stringify({ 'm2m:dbg': r.msg }));
+    responder.respond(req, res, { code: r.code, dbg: r.msg }, function () {});
 });
 
 // var heapdump = require('heapdump');

@@ -25,7 +25,12 @@ test('sgn 이 요청 커넥션을 쓰지 않는다', function () {
 
 test('sgn 이 자기 커넥션을 빌리고 반납한다', function () {
     assert.ok(/db\.getConnection\(/.test(SGN), 'sgn 이 커넥션을 빌리지 않는다');
-    assert.ok(/connection\.release\(\)/.test(SGN), 'sgn 이 커넥션을 반납하지 않는다');
+    // 핸들에 직접 부르는 형태(connection.release())와 파사드에 맡기는 형태
+    // (db.release(connection)) 둘 다 받는다. 뒤쪽이 지금 형태다 — 핸들에 직접
+    // 부르는 것은 "MySQL 풀 커넥션" 이라는 가정이고, 커넥션 원천이 파사드로
+    // 옮겨진 뒤로는 다른 백엔드의 핸들이 올 수 있다(SQLite 싱글턴에는 release 가 없다).
+    assert.ok(/connection\.release\(\)|db\.release\(connection\)/.test(SGN),
+        'sgn 이 커넥션을 반납하지 않는다');
 
     // 반납은 정확히 한 번이어야 한다. 두 번 반납하면 풀이 같은 커넥션을
     // 두 번 내주고, 두 요청이 같은 소켓을 공유하게 된다.

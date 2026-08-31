@@ -74,6 +74,17 @@ exports.purge_plan = function (cni, cbs, mni, mbs) {
 };
 
 exports.set_tuning = function (connection, callback) {
+    // SET GLOBAL 은 MySQL 서버 운영 튜닝이다. 백엔드 중립이 아니라서
+    // 다른 백엔드로 보내면 구문 에러 네 줄만 남는다.
+    //
+    // 지금까지는 getResult 가 무조건 MySQL 로 나갔기 때문에, **SQLite 모드로
+    // 돌려도 이 네 문장이 진짜 MySQL 서버 설정을 바꾸고 있었다.**
+    if (!facade.can('serverTuning')) {
+        console.log('[set_tuning] 이 백엔드는 서버 튜닝을 지원하지 않는다 — 건너뛴다');
+        callback(null, null);
+        return;
+    }
+
     var sql = util.format('set global max_connections = 2000');
     db.getResult(sql, connection, function (err, results) {
         if (err) {

@@ -14,88 +14,31 @@
  * @author Il Yeup Ahn [iyahn@keti.re.kr]
  */
 
-var sqlite3 = require('sqlite3').verbose();
-
-// 파사드(mobius/db/sqlite.js)와 반드시 같은 규칙으로 경로를 정해야 한다.
-// 서로 다른 파일을 열면 전환된 함수와 안 된 함수가 다른 DB 를 보게 된다.
-var DB_PATH = process.env.MOBIUS_SQLITE_PATH || './mobius.db';
-
-var db = null;
+// **파사드 위의 껍데기다.** 자기 sqlite 핸들을 갖지 않는다.
+//
+// 예전에는 여기서 sqlite3.Database 를 직접 열었다. 그런데 파사드의 sqlite
+// 어댑터(mobius/db/sqlite.js)도 같은 파일을 연다 — **한 프로세스에 같은 DB
+// 파일 핸들이 둘 열려 있었다.** (기동 로그에 'Connected to the mobius
+// database.' 와 '[db/sqlite] connected' 가 나란히 찍혔다.)
+//
+// 스키마 초기화도 두 번 돌았고, 전환된 함수와 안 된 함수가 서로 다른 핸들로
+// 같은 파일에 썼다. 커넥션 원천을 파사드로 옮기면서 이 모듈의 핸들은
+// 아무도 열어 주지 않게 되었고, 그래서 남은 두 호출부(cnt_man 의 카운터
+// 갱신, sql_action 의 delete_oldest)가 'sqlite is not connected' 로 깨졌다.
+//
+// 핸들을 되살리는 대신 파사드로 태운다 — 핸들이 하나가 되고, 남은 두
+// 호출부가 어댑터 메서드로 옮겨가면 이 파일은 사라진다.
+var facade = require('./db');
 
 exports.connect = function (callback) {
-    db = new sqlite3.Database(DB_PATH, (err) => {
-        if (err) {
-            console.error(err.message);
-        }
-        else {
-            console.log('Connected to the mobius database.');
-            db.configure('busyTimeout', 50000);
-            db.run('PRAGMA foreign_keys = ON'); // Enable Foreign Key Support
-
-            var fs = require('fs');
-            var path = require('path');
-            try {
-                var schemaPath = path.join(__dirname, 'mobiusdb_sqlite.sql');
-                var schema = fs.readFileSync(schemaPath, 'utf8');
-                db.exec(schema, (err) => {
-                    if (err) console.error('SQLite Schema Init Error:', err);
-                    else console.log('SQLite Schema Initialized');
-                });
-            } catch (e) {
-                console.error('Failed to read schema file:', e);
-            }
-        }
-        callback('1');
-    });
+    // 파사드가 이미 열었다. 옛 호출부 호환을 위해 성공만 알린다.
+    callback('1');
 };
 
 exports.getConnection = function (callback) {
-    if (db) {
-        callback('200', db);
-    }
-    else {
-        callback('500-5');
-    }
+    facade.getConnection(callback);
 };
 
 exports.getResult = function (query, connection, callback) {
-    if (db == null) {
-        console.error("sqlite is not connected");
-        return '0';
-    }
-
-    // Check if query is SELECT or others (INSERT, UPDATE, DELETE)
-    // For simpler implementation in pilot phase, we use all, run based on generic guess or caller context if needed.
-    // However, sqlite3 has .all() for SELECT and .run() for others usually.
-    // We can try to guess from query string.
-
-    var query_trim = query.trim().toUpperCase();
-    if (query_trim.startsWith('SELECT') || query_trim.startsWith('WITH')) {
-        db.all(query, [], (err, rows) => {
-            if (err) {
-                callback(true, err);
-            }
-            else {
-                callback(null, rows);
-            }
-        });
-    }
-    else {
-        db.run(query, [], function (err) {
-            if (err) {
-                if (err.code === 'SQLITE_CONSTRAINT') {
-                    err.code = 'ER_DUP_ENTRY';
-                }
-                callback(true, err);
-            }
-            else {
-                // Mimic MySQL result format for affectedRows, etc if necessary
-                var result = {
-                    affectedRows: this.changes,
-                    insertId: this.lastID
-                };
-                callback(null, result);
-            }
-        });
-    }
+    facade.execRaw(query, connection, callback);
 };

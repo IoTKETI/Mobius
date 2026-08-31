@@ -55,7 +55,8 @@ const KNOWN_CAPABILITIES = [
     'transaction',           // begin/commit/rollback 이 진짜인가
     'rowLock',               // SELECT ... FOR UPDATE 가 되는가
     'statementTimeout',      // 문장 하나에 시간 상한을 걸 수 있는가
-    'limitedResourceTypes'   // 일부 리소스 타입만 받는가 (없으면 = 제한 없음)
+    'limitedResourceTypes',  // 일부 리소스 타입만 받는가 (없으면 = 제한 없음)
+    'serverTuning'           // SET GLOBAL 로 서버 파라미터를 바꿀 수 있는가
 ];
 
 for (const [name, a] of Object.entries(ADAPTERS)) {
@@ -228,7 +229,12 @@ test('새 백엔드를 붙이려면 코어를 몇 군데 고쳐야 하는가', f
     }).sort();
 
     // 오늘의 수. 줄이면 이 숫자를 함께 내린다. 늘리면 실패한다.
-    assert.strictEqual(bypass.length, 8,
+    //
+    // 8 -> 7: db_action 이 자기 MySQL 풀을 버리고 파사드 위의 껍데기가 되었다.
+    // 아직 db_action 을 require 하는 파일들이 남아 있지만, 그것들이 얻는
+    // 커넥션은 이제 파사드가 고른 백엔드의 것이다. 그 require 들이 파사드
+    // 직접 호출로 바뀌면 이 수는 계속 내려간다.
+    assert.strictEqual(bypass.length, 7,
         '파사드를 우회해 커넥션을 얻는 파일이 ' + bypass.length + '개다:\n  ' +
         bypass.join('\n  ') + '\n(줄었으면 이 숫자를 내리고, 늘었으면 되돌릴 것)');
 });

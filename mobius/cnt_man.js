@@ -64,29 +64,21 @@ function flush(pi) {
     if (!entry) return;
     pendingUpdates.delete(pi);
 
-    if (global.usesqlite === 'true') {
-        var sqlite = require('./db_sqlite');
-        sqlite.getConnection(function (code, connection) {
-            if (code !== '200') {
-                console.error('[cnt_man] flush: sqlite connection error');
-                return;
-            }
-            updateCntAndCheck(connection, pi, entry, function () {
-                // sqlite는 싱글톤이므로 release 불필요
-            });
+    // 커넥션은 파사드가 준다 — 어느 백엔드인지 여기서 알 필요가 없다.
+    // 반납도 마찬가지다. 풀이 없는 백엔드에서는 반납이 no-op 이다.
+    var db = require('./db_action');
+    db.getConnection(function (code, connection) {
+        if (code !== '200') {
+            // 델타를 이미 Map 에서 뺐다. 못 쓰면 그대로 잃는다 — 다음 CIN 이
+            // 오면 다시 쌓이지만 이번 분량은 하루 1회 reconcile 까지 어긋난다.
+            console.error('[cnt_man] flush: 커넥션을 못 빌려 델타를 잃는다 pi=' + pi +
+                          ' (cni=' + entry.cni + ' cbs=' + entry.cbs + ' st=' + entry.st + ')');
+            return;
+        }
+        updateCntAndCheck(connection, pi, entry, function () {
+            db.release(connection);
         });
-    } else {
-        var db = require('./db_action');
-        db.getConnection(function (code, connection) {
-            if (code !== '200') {
-                console.error('[cnt_man] flush: mysql connection error');
-                return;
-            }
-            updateCntAndCheck(connection, pi, entry, function () {
-                connection.release();
-            });
-        });
-    }
+    });
 }
 
 function updateCntAndCheck(connection, pi, entry, done) {

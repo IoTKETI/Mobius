@@ -2306,10 +2306,10 @@ var leaf_ty_list = ['1', '4', '9', '23'];
 function delete_descendants_background(root_ri, attempt) {
     attempt = attempt || 1;
 
-    if (global.usesqlite === 'true') {
-        run(null);
-    }
-    else {
+    // 커넥션은 파사드가 준다. 예전에는 SQLite 면 run(null) 로 갔는데, 그것은
+    // 커넥션 원천이 MySQL 풀로 고정되어 있어 SQLite 모드가 그 풀을 안 건드리게
+    // 하려던 우회였다. 원천이 파사드로 옮겨졌으니 그 우회가 필요 없다.
+    {
         db.getConnection(function (code, connection) {
             if (code === '200') {
                 run(connection);
@@ -2345,7 +2345,7 @@ function delete_descendants_background(root_ri, attempt) {
                               ' 의 자손 목록을 만들지 못했다 (code=' + code +
                               '). 자손이 통째로 고아로 남는다.');
                 console.timeEnd('delete_descendants ' + root_ri);
-                if (connection) connection.release();
+                if (connection) db.release(connection);
                 return;
             }
             for (var i = 0; i < result_ri.length; i++) {
@@ -2365,7 +2365,7 @@ function delete_descendants_background(root_ri, attempt) {
                                   ', 대상 ' + pi_list.length + '개). 남은 것은 고아가 된다.');
                 }
                 console.timeEnd('delete_descendants ' + root_ri);
-                if (connection) connection.release();
+                if (connection) db.release(connection);
             });
         });
     }
