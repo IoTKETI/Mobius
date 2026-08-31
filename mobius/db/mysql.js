@@ -11,6 +11,9 @@ exports.knexClient = 'mysql';
 exports.schemaFile = 'mobiusdb.sql';
 
 exports.capabilities = {
+    // SET GLOBAL 로 서버 파라미터를 바꿀 수 있다. 임베디드 백엔드에는 없는 개념이다.
+    serverTuning: true,
+
     transaction: true,
     rowLock: true,         // SELECT ... FOR UPDATE [NOWAIT]
 

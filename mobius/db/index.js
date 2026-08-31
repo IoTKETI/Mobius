@@ -139,6 +139,29 @@ exports.run = function (qb, conn, callback, opts) {
     }, opts);
 };
 
+// **한시적 진입점.** 이미 완성된 SQL 문자열을 그 백엔드의 어댑터로 보낸다.
+//
+// knex 를 거치지 않는다. raw() 를 쓰면 knex 가 문자열의 '?' 를 바인딩 자리로
+// 해석하는데, 이 경로로 오는 SQL 은 값이 이미 문자열에 박혀 있다(옛 util.format
+// 조립). 지금 두 백엔드는 그 해석이 항등이라 무해하지만, 다른 방언은 '?' 를
+// 자기 자리표시자로 바꾼다 — 그러면 데이터 안의 물음표가 변조된다.
+// 이 작업의 목적이 "다른 DB 붙이기" 라 그 함정을 아예 피한다.
+//
+// **새 코드는 쓰지 마라.** k() / run() 을 써라. 이 함수의 호출부는
+// db_action.getResult 하나여야 하고, 그 위의 생 SQL 이 빌더로 옮겨가면 지운다.
+exports.execRaw = function (sql, conn, callback, opts) {
+    try {
+        assertReady();
+    } catch (e) {
+        return callback(true, adapter ? adapter.normalizeError(e)
+                                      : { code: 'UNKNOWN', message: e.message });
+    }
+    adapter.execute(conn, sql, [], function (err, raw) {
+        if (err) { return callback(true, adapter.normalizeError(err)); }
+        callback(null, adapter.normalizeResult(raw));
+    }, opts);
+};
+
 // 트랜잭션 본문을 실행한다. 능력이 없는 백엔드에서는 트랜잭션 없이 본문만 돈다
 // (조용한 no-op 이 아니라 connect() 에서 이미 경고를 남겼다).
 //

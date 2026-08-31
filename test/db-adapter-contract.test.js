@@ -55,7 +55,8 @@ const KNOWN_CAPABILITIES = [
     'transaction',           // begin/commit/rollback 이 진짜인가
     'rowLock',               // SELECT ... FOR UPDATE 가 되는가
     'statementTimeout',      // 문장 하나에 시간 상한을 걸 수 있는가
-    'limitedResourceTypes'   // 일부 리소스 타입만 받는가 (없으면 = 제한 없음)
+    'limitedResourceTypes',  // 일부 리소스 타입만 받는가 (없으면 = 제한 없음)
+    'serverTuning'           // SET GLOBAL 로 서버 파라미터를 바꿀 수 있는가
 ];
 
 for (const [name, a] of Object.entries(ADAPTERS)) {
