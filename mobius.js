@@ -114,6 +114,28 @@ global.retention_policies = Array.isArray(conf.retentionPolicies) ? conf.retenti
 global.outbound_timeout_ms = (typeof conf.outboundTimeoutMs === 'number' && conf.outboundTimeoutMs > 0)
     ? conf.outboundTimeoutMs : 0;
 
+// 요청 본문의 최대 바이트. 넘으면 본문을 다 받기 전에 413 으로 끊는다.
+//
+// ── 왜 필요한가 ─────────────────────────────────────────────────────────
+// 상한이 **하나도 없었다.** app.js 와 pxy_mqtt.js 에 bodyParser 로 5mb / 1mb 를
+// 선언해 뒀지만, 둘 다 type 문자열이 어떤 MIME 과도 매칭되지 않아 죽어 있었다.
+// 실측: 6MB 본문이 201 로 통과한다. 보내는 쪽이 원하는 만큼 워커 메모리를 쓴다.
+//
+// ── 기본값을 10MB 로 잡은 근거 ──────────────────────────────────────────
+// 배포 DB 의 cin.con 을 키 공간 양끝에서 400만 행 표본했다:
+//
+//     뒤쪽 200만 행   평균 1,285 B   최대 4,058,640 B   5MB 초과 0건
+//     앞쪽 200만 행   평균 6,889 B   최대 2,311,121 B   5MB 초과 0건
+//
+// 1MB 를 넘는 것은 전부 base64 JPEG 이었다(/Mobius/plat4_1/img 등).
+// 최대 실측치가 4.06MB 라 원래 의도값이던 5MB 는 여유가 23% 뿐이다 —
+// 그 컨테이너가 이미지를 계속 넣고 있어 조금만 커져도 걸린다. 2.5배를 둔다.
+//
+// con 컬럼은 MySQL 에서 longtext 라 DB 는 상한 역할을 못 한다. 여기가 유일한
+// 방어선이다.
+global.max_body_bytes = (typeof conf.maxBodyBytes === 'number' && conf.maxBodyBytes > 0)
+    ? conf.maxBodyBytes : 10 * 1024 * 1024;
+
 // 보조 포트도 conf 로 뺀다. csebaseport 만 옮겨서는 두 번째 인스턴스를 띄울 수
 // 없다 — 이 다섯이 하드코딩이라 프록시가 EADDRINUSE 로 죽는다. 그러면 요청이
 // 조용히 먼저 뜬 인스턴스로 가서, 고친 코드를 검증한다고 믿는 동안 남의

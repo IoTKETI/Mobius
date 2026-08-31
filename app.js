@@ -20,7 +20,6 @@ process.env.NODE_ENV = 'production';
 var fs = require('fs');
 var http = require('http');
 var express = require('express');
-var bodyParser = require('body-parser');
 var morgan = require('morgan');
 var util = require('util');
 var xml2js = require('xml2js');
@@ -1956,12 +1955,9 @@ function check_type_delete_resource(request, callback) {
     }
 }
 
-var onem2mParser = bodyParser.text(
-    {
-        limit: '5mb',
-        type: 'application/onem2m-resource+xml;application/xml;application/json;application/vnd.onem2m-res+xml;application/vnd.onem2m-res+json'
-    }
-);
+// 요청 본문 수집기. 왜 별도 모듈인지는 mobius/body.js 머리말 참조 —
+// 요약하면 app.js 는 require 만 해도 포트를 열어서 단위 테스트가 못 부른다.
+var onem2mParser = require('./mobius/body').collect;
 
 //////// contribution code
 // Kevin Lee, Executive Director, Unibest INC, Owner of Howchip.com
@@ -2052,101 +2048,58 @@ app.use((req, res, next) => {
 
 // remoteCSE, ae, cnt
 app.post('*', onem2mParser, (request, response) => {
-    var fullBody = '';
-    request.on('data', (chunk) => {
-        fullBody += chunk.toString();
+    var binding = request.headers['binding'] || 'H';   // request 참조를 동기 시점으로 이동
+    db.getConnection((code, connection) => {
+        if (code === '200') {
+            db_sql.set_hit(connection, binding, (err, results) => {
+                results = null;
+                db.release(connection);
+            });
+        }
     });
+    // db.getConnection((code, connection) => {
+    //     if (code === '200') {
+    //         if (!request.headers.hasOwnProperty('binding')) {
+    //             request.headers['binding'] = 'H';
+    //         }
 
-    request.on('end', () => {
-        request.body = fullBody;
+    //         db_sql.set_hit(connection, request.headers['binding'], (err, results) => {
+    //             results = null;
 
-        var binding = request.headers['binding'] || 'H';   // request 참조를 동기 시점으로 이동
-        db.getConnection((code, connection) => {
-            if (code === '200') {
-                db_sql.set_hit(connection, binding, (err, results) => {
-                    results = null;
-                    db.release(connection);
-                });
-            }
-        });
-        // db.getConnection((code, connection) => {
-        //     if (code === '200') {
-        //         if (!request.headers.hasOwnProperty('binding')) {
-        //             request.headers['binding'] = 'H';
-        //         }
+    //             connection.release();
+    //         });
+    //     }
+    // });
 
-        //         db_sql.set_hit(connection, request.headers['binding'], (err, results) => {
-        //             results = null;
+    db.getConnection((code, connection) => {
+        if (code === '200') {
+            request.db_connection = connection;
+            var settle = make_settler(request, response, connection);
 
-        //             connection.release();
-        //         });
-        //     }
-        // });
-
-        db.getConnection((code, connection) => {
-            if (code === '200') {
-                request.db_connection = connection;
-                var settle = make_settler(request, response, connection);
-
-                check_xm2m_headers(request, (code) => {
-                    if (code === '200') {
-                        if (request.body !== "") {
-                            check_resource_supported(request, response, (code) => {
-                                if (code === '200') {
-                                    get_target_url(request, response, (code) => {
-                                        if (code === '200') {
-                                            if (request.option !== '/fopt') {
-                                                parse_body_format(request, response, (code) => {
-                                                    if (code === '200') {
-                                                        check_allowed_app_ids(request, (code) => {
-                                                            if (code === '200') {
-                                                                var rootnm = Object.keys(request.targetObject)[0];
-                                                                var absolute_url = request.targetObject[rootnm].ri;
-                                                                check_notification(request, response, (code) => {
-                                                                    if (code === 'post') {
-                                                                        request.url = absolute_url;
-                                                                        if ((request.query.fu == 2) && (request.query.rcn == 0 || request.query.rcn == 1 || request.query.rcn == 2 || request.query.rcn == 3)) {
-                                                                            lookup_create(request, response, (code) => {
-                                                                                if (code === '201') {
-                                                                                    settle.result('201', '2001', '');
-                                                                                }
-                                                                                else if (code === '201-3') {
-                                                                                    settle.rcn3('201', '2001', '');
-                                                                                }
-                                                                                else {
-                                                                                    settle.error(code);
-                                                                                }
-                                                                            });
-                                                                        }
-                                                                        else {
-                                                                            code = '400-43';
-                                                                            settle.error(code);
-                                                                        }
-                                                                    }
-                                                                    else if (code === 'notify') {
-                                                                        check_ae_notify(request, response, (code, res) => {
-                                                                            if (code === '200') {
-                                                                                settle.raw('ae notify', function () {
-
-                                                                                    if (res.headers['content-type']) {
-                                                                                        response.header('Content-Type', res.headers['content-type']);
-                                                                                    }
-                                                                                    if (res.headers['x-m2m-ri']) {
-                                                                                        response.header('X-M2M-RI', res.headers['x-m2m-ri']);
-                                                                                    }
-                                                                                    if (res.headers['x-m2m-rvi']) {
-                                                                                        response.header('X-M2M-RVI', res.headers['x-m2m-rvi']);
-                                                                                    }
-                                                                                    if (res.headers['x-m2m-rsc']) {
-                                                                                        response.header('X-M2M-RSC', res.headers['x-m2m-rsc']);
-                                                                                    }
-                                                                                    if (res.headers['content-location']) {
-                                                                                        response.header('Content-Location', res.headers['content-location']);
-                                                                                    }
-
-                                                                                    response.statusCode = res.statusCode;
-                                                                                    response.send(res.body);
-                                                                                });
+            check_xm2m_headers(request, (code) => {
+                if (code === '200') {
+                    if (request.body !== "") {
+                        check_resource_supported(request, response, (code) => {
+                            if (code === '200') {
+                                get_target_url(request, response, (code) => {
+                                    if (code === '200') {
+                                        if (request.option !== '/fopt') {
+                                            parse_body_format(request, response, (code) => {
+                                                if (code === '200') {
+                                                    check_allowed_app_ids(request, (code) => {
+                                                        if (code === '200') {
+                                                            var rootnm = Object.keys(request.targetObject)[0];
+                                                            var absolute_url = request.targetObject[rootnm].ri;
+                                                            check_notification(request, response, (code) => {
+                                                                if (code === 'post') {
+                                                                    request.url = absolute_url;
+                                                                    if ((request.query.fu == 2) && (request.query.rcn == 0 || request.query.rcn == 1 || request.query.rcn == 2 || request.query.rcn == 3)) {
+                                                                        lookup_create(request, response, (code) => {
+                                                                            if (code === '201') {
+                                                                                settle.result('201', '2001', '');
+                                                                            }
+                                                                            else if (code === '201-3') {
+                                                                                settle.rcn3('201', '2001', '');
                                                                             }
                                                                             else {
                                                                                 settle.error(code);
@@ -2154,29 +2107,48 @@ app.post('*', onem2mParser, (request, response) => {
                                                                         });
                                                                     }
                                                                     else {
+                                                                        code = '400-43';
                                                                         settle.error(code);
                                                                     }
-                                                                });
-                                                            }
-                                                            else {
-                                                                settle.error(code);
-                                                            }
-                                                        });
-                                                    }
-                                                    else {
-                                                        settle.error(code);
-                                                    }
-                                                });
-                                            }
-                                            else { // if (request.option === '/fopt') {
-                                                run_fanout(request, response, settle, '1', true);
-                                            }
-                                        }
-                                        else if (code === '301-1') {
-                                            check_csr(request, response, (code) => {
-                                                if (code === '301-2') {
-                                                    settle.raw('csr forward', function () {
-                                                        response.status(response.statusCode).end(response.body);
+                                                                }
+                                                                else if (code === 'notify') {
+                                                                    check_ae_notify(request, response, (code, res) => {
+                                                                        if (code === '200') {
+                                                                            settle.raw('ae notify', function () {
+
+                                                                                if (res.headers['content-type']) {
+                                                                                    response.header('Content-Type', res.headers['content-type']);
+                                                                                }
+                                                                                if (res.headers['x-m2m-ri']) {
+                                                                                    response.header('X-M2M-RI', res.headers['x-m2m-ri']);
+                                                                                }
+                                                                                if (res.headers['x-m2m-rvi']) {
+                                                                                    response.header('X-M2M-RVI', res.headers['x-m2m-rvi']);
+                                                                                }
+                                                                                if (res.headers['x-m2m-rsc']) {
+                                                                                    response.header('X-M2M-RSC', res.headers['x-m2m-rsc']);
+                                                                                }
+                                                                                if (res.headers['content-location']) {
+                                                                                    response.header('Content-Location', res.headers['content-location']);
+                                                                                }
+
+                                                                                response.statusCode = res.statusCode;
+                                                                                response.send(res.body);
+                                                                            });
+                                                                        }
+                                                                        else {
+                                                                            settle.error(code);
+                                                                        }
+                                                                    });
+                                                                }
+                                                                else {
+                                                                    settle.error(code);
+                                                                }
+                                                            });
+                                                        }
+                                                        else {
+                                                            settle.error(code);
+                                                        }
                                                     });
                                                 }
                                                 else {
@@ -2184,83 +2156,8 @@ app.post('*', onem2mParser, (request, response) => {
                                                 }
                                             });
                                         }
-                                        else {
-                                            settle.error(code);
-                                        }
-                                    });
-                                }
-                                else {
-                                    settle.error(code);
-                                }
-                            });
-                        }
-                        else {
-                            settle.error('400-40');
-                        }
-                    }
-                    else {
-                        settle.error(code);
-                    }
-                });
-            }
-            else {
-                // 커넥션을 못 빌린 경로다 — 반납할 것이 없어 null 을 넘긴다.
-                make_settler(request, response, null).error(code);
-            }
-        });
-    });
-});
-
-app.get('*', onem2mParser, (request, response) => {
-    var fullBody = '';
-    request.on('data', (chunk) => {
-        fullBody += chunk.toString();
-    });
-
-    request.on('end', () => {
-        request.body = fullBody;
-
-        db.getConnection((code, connection) => {
-            if (code === '200') {
-                request.db_connection = connection;
-                var settle = make_settler(request, response, connection);
-
-                extra_api_action(connection, request.url, (code, result) => {
-                    if (code === '200') {
-                        if (!request.headers.hasOwnProperty('binding')) {
-                            request.headers['binding'] = 'H';
-                        }
-
-                        db_sql.set_hit(request.db_connection, request.headers['binding'], (err, results) => {
-                            results = null;
-                        });
-
-                        check_xm2m_headers(request, (code) => {
-                            if (code === '200') {
-                                get_target_url(request, response, (code) => {
-                                    if (code === '200') {
-                                        if (request.option !== '/fopt') {
-                                            var rootnm = Object.keys(request.targetObject)[0];
-                                            request.url = request.targetObject[rootnm].ri;
-                                            if ((request.query.fu == 1 || request.query.fu == 2) && (request.query.rcn == 1 || request.query.rcn == 4 || request.query.rcn == 5 || request.query.rcn == 6 || request.query.rcn == 7)) {
-                                                lookup_retrieve(request, response, (code) => {
-                                                    if (code === '200') {
-                                                        settle.result('200', '2000', '');
-                                                    }
-                                                    else if (code === '200-1') {
-                                                        settle.search('200', '2000', '');
-                                                    }
-                                                    else {
-                                                        settle.error(code);
-                                                    }
-                                                });
-                                            }
-                                            else {
-                                                settle.error('400-44');
-                                            }
-                                        }
-                                        else { //if (request.option === '/fopt') {
-                                            run_fanout(request, response, settle, (request.query.fu == 1) ? '32' : '2', false);
+                                        else { // if (request.option === '/fopt') {
+                                            run_fanout(request, response, settle, '1', true);
                                         }
                                     }
                                     else if (code === '301-1') {
@@ -2285,100 +2182,71 @@ app.get('*', onem2mParser, (request, response) => {
                             }
                         });
                     }
-                    else if (code === '201') {
-                        db.release(connection);
-                        response.header('Content-Type', 'application/json');
-                        response.status(200).end(JSON.stringify(result, null, 4));
-                        result = null;
-                    }
                     else {
-                        settle.error(code);
+                        settle.error('400-40');
                     }
-                });
-            }
-            else {
-                // 커넥션을 못 빌린 경로다 — 반납할 것이 없어 null 을 넘긴다.
-                make_settler(request, response, null).error(code);
-            }
-        });
+                }
+                else {
+                    settle.error(code);
+                }
+            });
+        }
+        else {
+            // 커넥션을 못 빌린 경로다 — 반납할 것이 없어 null 을 넘긴다.
+            make_settler(request, response, null).error(code);
+        }
     });
 });
 
+app.get('*', onem2mParser, (request, response) => {
+    db.getConnection((code, connection) => {
+        if (code === '200') {
+            request.db_connection = connection;
+            var settle = make_settler(request, response, connection);
 
-app.put('*', onem2mParser, (request, response) => {
-    var fullBody = '';
-    request.on('data', (chunk) => {
-        fullBody += chunk.toString();
-    });
+            extra_api_action(connection, request.url, (code, result) => {
+                if (code === '200') {
+                    if (!request.headers.hasOwnProperty('binding')) {
+                        request.headers['binding'] = 'H';
+                    }
 
-    request.on('end', () => {
-        request.body = fullBody;
+                    db_sql.set_hit(request.db_connection, request.headers['binding'], (err, results) => {
+                        results = null;
+                    });
 
-        db.getConnection((code, connection) => {
-            if (code === '200') {
-                request.db_connection = connection;
-                var settle = make_settler(request, response, connection);
-
-                if (!request.headers.hasOwnProperty('binding')) {
-                    request.headers['binding'] = 'H';
-                }
-
-                db_sql.set_hit(request.db_connection, request.headers['binding'], (err, results) => {
-                    results = null;
-                });
-
-                check_xm2m_headers(request, (code) => {
-                    if (code === '200') {
-                        if (request.body !== "") {
-                            check_resource_supported(request, response, (code) => {
+                    check_xm2m_headers(request, (code) => {
+                        if (code === '200') {
+                            get_target_url(request, response, (code) => {
                                 if (code === '200') {
-                                    get_target_url(request, response, (code) => {
-                                        if (code === '200') {
-                                            if (request.option !== '/fopt') {
-                                                parse_body_format(request, response, (code) => {
-                                                    if (code === '200') {
-                                                        check_type_update_resource(request, (code) => {
-                                                            if (code === '200') {
-                                                                var rootnm = Object.keys(request.targetObject)[0];
-                                                                request.url = request.targetObject[rootnm].ri;
-                                                                if ((request.query.fu == 2) && (request.query.rcn == 0 || request.query.rcn == 1)) {
-                                                                    lookup_update(request, response, (code) => {
-                                                                        if (code === '200') {
-                                                                            settle.result('200', '2004', '');
-                                                                        }
-                                                                        else {
-                                                                            settle.error(code);
-                                                                        }
-                                                                    });
-                                                                }
-                                                                else {
-                                                                    settle.error('400-45');
-                                                                }
-                                                            }
-                                                            else {
-                                                                settle.error(code);
-                                                            }
-                                                        });
-                                                    }
-                                                    else {
-                                                        settle.error(code);
-                                                    }
-                                                });
-                                            }
-                                            else { // if (request.option === '/fopt') {
-                                                run_fanout(request, response, settle, '4', true);
-                                            }
-                                        }
-                                        else if (code === '301-1') {
-                                            check_csr(request, response, (code) => {
-                                                if (code === '301-2') {
-                                                    settle.raw('csr forward', function () {
-                                                        response.status(response.statusCode).end(response.body);
-                                                    });
+                                    if (request.option !== '/fopt') {
+                                        var rootnm = Object.keys(request.targetObject)[0];
+                                        request.url = request.targetObject[rootnm].ri;
+                                        if ((request.query.fu == 1 || request.query.fu == 2) && (request.query.rcn == 1 || request.query.rcn == 4 || request.query.rcn == 5 || request.query.rcn == 6 || request.query.rcn == 7)) {
+                                            lookup_retrieve(request, response, (code) => {
+                                                if (code === '200') {
+                                                    settle.result('200', '2000', '');
+                                                }
+                                                else if (code === '200-1') {
+                                                    settle.search('200', '2000', '');
                                                 }
                                                 else {
                                                     settle.error(code);
                                                 }
+                                            });
+                                        }
+                                        else {
+                                            settle.error('400-44');
+                                        }
+                                    }
+                                    else { //if (request.option === '/fopt') {
+                                        run_fanout(request, response, settle, (request.query.fu == 1) ? '32' : '2', false);
+                                    }
+                                }
+                                else if (code === '301-1') {
+                                    check_csr(request, response, (code) => {
+                                        if (code === '301-2') {
+                                            settle.raw('csr forward', function () {
+                                                response.status(response.statusCode).end(response.body);
                                             });
                                         }
                                         else {
@@ -2392,82 +2260,95 @@ app.put('*', onem2mParser, (request, response) => {
                             });
                         }
                         else {
-                            settle.error('400-40');
+                            settle.error(code);
                         }
-                    }
-                    else {
-                        settle.error(code);
-                    }
-                });
-            }
-            else {
-                // 커넥션을 못 빌린 경로다 — 반납할 것이 없어 null 을 넘긴다.
-                make_settler(request, response, null).error(code);
-            }
-        });
+                    });
+                }
+                else if (code === '201') {
+                    db.release(connection);
+                    response.header('Content-Type', 'application/json');
+                    response.status(200).end(JSON.stringify(result, null, 4));
+                    result = null;
+                }
+                else {
+                    settle.error(code);
+                }
+            });
+        }
+        else {
+            // 커넥션을 못 빌린 경로다 — 반납할 것이 없어 null 을 넘긴다.
+            make_settler(request, response, null).error(code);
+        }
     });
 });
 
-app.delete('*', onem2mParser, (request, response) => {
-    var fullBody = '';
-    request.on('data', (chunk) => {
-        fullBody += chunk.toString();
-    });
 
-    request.on('end', () => {
-        request.body = fullBody;
+app.put('*', onem2mParser, (request, response) => {
+    db.getConnection((code, connection) => {
+        if (code === '200') {
+            request.db_connection = connection;
+            var settle = make_settler(request, response, connection);
 
-        db.getConnection((code, connection) => {
-            if (code === '200') {
-                request.db_connection = connection;
-                var settle = make_settler(request, response, connection);
+            if (!request.headers.hasOwnProperty('binding')) {
+                request.headers['binding'] = 'H';
+            }
 
-                if (!request.headers.hasOwnProperty('binding')) {
-                    request.headers['binding'] = 'H';
-                }
+            db_sql.set_hit(request.db_connection, request.headers['binding'], (err, results) => {
+                results = null;
+            });
 
-                db_sql.set_hit(request.db_connection, request.headers['binding'], (err, results) => {
-                    results = null;
-                });
-
-                check_xm2m_headers(request, (code) => {
-                    if (code === '200') {
-                        get_target_url(request, response, (code) => {
+            check_xm2m_headers(request, (code) => {
+                if (code === '200') {
+                    if (request.body !== "") {
+                        check_resource_supported(request, response, (code) => {
                             if (code === '200') {
-                                if (request.option !== '/fopt') {
-                                    check_type_delete_resource(request, (code) => {
-                                        if (code === '200') {
-                                            var rootnm = Object.keys(request.targetObject)[0];
-                                            request.url = request.targetObject[rootnm].ri;
-                                            request.pi = request.targetObject[rootnm].pi;
-                                            if ((request.query.fu == 2) && (request.query.rcn == 0 || request.query.rcn == 1)) {
-                                                lookup_delete(request, response, (code) => {
-                                                    if (code === '200') {
-                                                        settle.result('200', '2002', '');
-                                                    }
-                                                    else {
-                                                        settle.error(code);
-                                                    }
+                                get_target_url(request, response, (code) => {
+                                    if (code === '200') {
+                                        if (request.option !== '/fopt') {
+                                            parse_body_format(request, response, (code) => {
+                                                if (code === '200') {
+                                                    check_type_update_resource(request, (code) => {
+                                                        if (code === '200') {
+                                                            var rootnm = Object.keys(request.targetObject)[0];
+                                                            request.url = request.targetObject[rootnm].ri;
+                                                            if ((request.query.fu == 2) && (request.query.rcn == 0 || request.query.rcn == 1)) {
+                                                                lookup_update(request, response, (code) => {
+                                                                    if (code === '200') {
+                                                                        settle.result('200', '2004', '');
+                                                                    }
+                                                                    else {
+                                                                        settle.error(code);
+                                                                    }
+                                                                });
+                                                            }
+                                                            else {
+                                                                settle.error('400-45');
+                                                            }
+                                                        }
+                                                        else {
+                                                            settle.error(code);
+                                                        }
+                                                    });
+                                                }
+                                                else {
+                                                    settle.error(code);
+                                                }
+                                            });
+                                        }
+                                        else { // if (request.option === '/fopt') {
+                                            run_fanout(request, response, settle, '4', true);
+                                        }
+                                    }
+                                    else if (code === '301-1') {
+                                        check_csr(request, response, (code) => {
+                                            if (code === '301-2') {
+                                                settle.raw('csr forward', function () {
+                                                    response.status(response.statusCode).end(response.body);
                                                 });
                                             }
                                             else {
-                                                settle.error('400-46');
+                                                settle.error(code);
                                             }
-                                        }
-                                        else {
-                                            settle.error(code);
-                                        }
-                                    });
-                                }
-                                else { // if (request.option === '/fopt') {
-                                    run_fanout(request, response, settle, '8', false);
-                                }
-                            }
-                            else if (code === '301-1') {
-                                check_csr(request, response, (code) => {
-                                    if (code === '301-2') {
-                                        settle.raw('csr forward', function () {
-                                            response.status(response.statusCode).end(response.body);
                                         });
                                     }
                                     else {
@@ -2481,15 +2362,94 @@ app.delete('*', onem2mParser, (request, response) => {
                         });
                     }
                     else {
-                        settle.error(code);
+                        settle.error('400-40');
                     }
-                });
+                }
+                else {
+                    settle.error(code);
+                }
+            });
+        }
+        else {
+            // 커넥션을 못 빌린 경로다 — 반납할 것이 없어 null 을 넘긴다.
+            make_settler(request, response, null).error(code);
+        }
+    });
+});
+
+app.delete('*', onem2mParser, (request, response) => {
+    db.getConnection((code, connection) => {
+        if (code === '200') {
+            request.db_connection = connection;
+            var settle = make_settler(request, response, connection);
+
+            if (!request.headers.hasOwnProperty('binding')) {
+                request.headers['binding'] = 'H';
             }
-            else {
-                // 커넥션을 못 빌린 경로다 — 반납할 것이 없어 null 을 넘긴다.
-                make_settler(request, response, null).error(code);
-            }
-        });
+
+            db_sql.set_hit(request.db_connection, request.headers['binding'], (err, results) => {
+                results = null;
+            });
+
+            check_xm2m_headers(request, (code) => {
+                if (code === '200') {
+                    get_target_url(request, response, (code) => {
+                        if (code === '200') {
+                            if (request.option !== '/fopt') {
+                                check_type_delete_resource(request, (code) => {
+                                    if (code === '200') {
+                                        var rootnm = Object.keys(request.targetObject)[0];
+                                        request.url = request.targetObject[rootnm].ri;
+                                        request.pi = request.targetObject[rootnm].pi;
+                                        if ((request.query.fu == 2) && (request.query.rcn == 0 || request.query.rcn == 1)) {
+                                            lookup_delete(request, response, (code) => {
+                                                if (code === '200') {
+                                                    settle.result('200', '2002', '');
+                                                }
+                                                else {
+                                                    settle.error(code);
+                                                }
+                                            });
+                                        }
+                                        else {
+                                            settle.error('400-46');
+                                        }
+                                    }
+                                    else {
+                                        settle.error(code);
+                                    }
+                                });
+                            }
+                            else { // if (request.option === '/fopt') {
+                                run_fanout(request, response, settle, '8', false);
+                            }
+                        }
+                        else if (code === '301-1') {
+                            check_csr(request, response, (code) => {
+                                if (code === '301-2') {
+                                    settle.raw('csr forward', function () {
+                                        response.status(response.statusCode).end(response.body);
+                                    });
+                                }
+                                else {
+                                    settle.error(code);
+                                }
+                            });
+                        }
+                        else {
+                            settle.error(code);
+                        }
+                    });
+                }
+                else {
+                    settle.error(code);
+                }
+            });
+        }
+        else {
+            // 커넥션을 못 빌린 경로다 — 반납할 것이 없어 null 을 넘긴다.
+            make_settler(request, response, null).error(code);
+        }
     });
 });
 

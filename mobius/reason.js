@@ -109,6 +109,9 @@ var REASON = {
     // detail 은 응답에 안 나가고 responder.respond 가 console.error 로 찍는다.
     // 어떤 형식이 왔는지가 거기 남으므로 이 사유의 로그가 곧 계측이다.
     '400-64': { code: RSC.BAD_REQUEST, msg: "only json is supported; send the request body as application/json", detail: 'json_only' },
+    // 본문을 다 받기 전에 끊는다. 실제 상한값은 로그(detail)에만 남긴다 —
+    // 응답에 적으면 "얼마까지 되는지" 를 물어보지 않고 알아낼 수 있게 된다.
+    '413-1':  { code: RSC.CONTENT_TOO_LARGE, msg: "request body is too large", detail: 'body_limit' },
 
     '403-1': { code: RSC.AE_NOT_ALLOWED, msg: "AE-ID is not allowed" },
     '403-2': { code: RSC.TARGET_NOT_SUBSCRIBABLE, msg: "this resource type cannot be created under the parent resource" },
