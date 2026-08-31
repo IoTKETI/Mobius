@@ -35,6 +35,18 @@ var cbor = require('cbor');
 
 var WebSocketServer = require('websocket').server;
 
+// 받아 주는 WebSocket 서브프로토콜. 이 CSE 는 json 만 다룬다.
+//
+// 축약형(onem2m.json)도 넣는다 — 예전에도 목록에는 있었지만, accept 에
+// 'onem2m.r2.0.json' 을 주는 바람에 라이브러리가 던져서 한 번도 동작하지
+// 않았다. 이제 클라이언트가 요청한 이름을 그대로 accept 하므로 실제로 된다.
+//
+// onem2m.r2.0.xml / onem2m.xml / onem2m.r2.0.cbor / onem2m.cbor 은 뺐다.
+var WS_SUBPROTOCOL = {
+    'onem2m.r2.0.json': true,
+    'onem2m.json':      true
+};
+
 var _server = null;
 
 var _this = this;
@@ -118,47 +130,56 @@ exports.ws_watchdog = function() {
                     return;
                 }
 
-                if(request.requestedProtocols.length) {
-                    for (var index in request.requestedProtocols) {
-                        if (request.requestedProtocols.hasOwnProperty(index)) {
-                            if (request.requestedProtocols[index] === 'onem2m.r2.0.xml' || request.requestedProtocols[index] === 'onem2m.xml') {
-                                let connection = request.accept('onem2m.r2.0.xml', request.origin);
-                                console.log((new Date()) + ' Connection accepted. (xml)');
-                                connection.on('message', ws_message_handler);
-                                connection.on('close', function (reasonCode, description) {
-                                    console.log((new Date()) + ' Peer ' + connection.remoteAddress + ' disconnected.');
-                                });
-                                break;
-                            }
-                            else if (request.requestedProtocols[index] === 'onem2m.r2.0.cbor' || request.requestedProtocols[index] === 'onem2m.cbor') {
-                                let connection = request.accept('onem2m.r2.0.cbor', request.origin);
-                                console.log((new Date()) + ' Connection accepted. (cbor)');
-                                connection.on('message', ws_message_handler);
-                                connection.on('close', function (reasonCode, description) {
-                                    console.log((new Date()) + ' Peer ' + connection.remoteAddress + ' disconnected.');
-                                });
-                                break;
-                            }
-                            else if (request.requestedProtocols[index] === 'onem2m.r2.0.json' || request.requestedProtocols[index] === 'onem2m.json') {
-                                let connection = request.accept('onem2m.r2.0.json', request.origin);
-                                console.log((new Date()) + ' Connection accepted. (json)');
-                                connection.on('message', ws_message_handler);
-                                connection.on('close', function (reasonCode, description) {
-                                    console.log((new Date()) + ' Peer ' + connection.remoteAddress + ' disconnected.');
-                                });
-                                break;
-                            }
-                            else {
-                                request.reject();
-                                console.log((new Date()) + ' requestedProtocols is not supported.');
-                            }
-                        }
+                // 이 CSE 는 json 만 다룬다. xml·cbor 서브프로토콜은 받지 않는다.
+                //
+                // ── 예전 코드의 결함 두 가지 (둘 다 실측으로 재현했다) ──────
+                //
+                // (1) 축약형 이름을 요청하면 던졌다.
+                //     클라이언트가 'onem2m.xml' 을 요청했는데 서버가
+                //     'onem2m.r2.0.xml' 로 accept 했다. websocket 라이브러리는
+                //     클라이언트가 요청하지 않은 이름을 주면 던진다:
+                //       Error: Specified protocol was not requested by the client.
+                //     xml·cbor·json 세 분기가 전부 같은 상태였다. **축약형은
+                //     한 번도 동작한 적이 없다.**
+                //
+                // (2) 지원하지 않는 것을 먼저 적으면 두 번 응답했다.
+                //     else 에서 reject 한 뒤 break 가 없어 루프가 계속 돌았고,
+                //     뒤에 유효한 이름이 있으면 accept 가 또 불렸다:
+                //       Error: WebSocketRequest may only be accepted or rejected one time.
+                //     ['onem2m.bogus', 'onem2m.r2.0.json'] 으로 재현된다.
+                //
+                // 프록시는 cluster.isMaster 안에서 require 되므로 여기서 던지면
+                // 마스터가 위험하다. 지금은 backstop 이 마스터를 살려 두지만
+                // 그 요청은 깨지고 로그만 지저분해진다.
+                //
+                // 그래서 **고르기와 응답을 분리한다** — 루프에서는 고르기만 하고,
+                // accept 든 reject 든 루프 밖에서 정확히 한 번 한다. accept 에는
+                // 클라이언트가 요청한 이름을 그대로 준다.
+                var chosen = null;
+                for (var pi = 0; pi < request.requestedProtocols.length; pi++) {
+                    if (WS_SUBPROTOCOL[request.requestedProtocols[pi]]) {
+                        chosen = request.requestedProtocols[pi];
+                        break;
                     }
                 }
-                else {
-                    request.reject();
-                    console.log((new Date()) + ' requestedProtocols is empty.');
+
+                if (chosen === null) {
+                    // 400 을 쓴다. 403(기본값)은 "원점이 거부됐다" 로 읽히는데
+                    // 여기는 형식 문제다. 이유를 헤더에 담아 되돌린다 —
+                    // 핸드셰이크 단계라 본문을 실을 자리가 없다.
+                    request.reject(400, 'only json is supported',
+                                   { 'X-M2M-RSC': '4000' });
+                    console.log((new Date()) + ' 지원하지 않는 서브프로토콜: [' +
+                                request.requestedProtocols.join(', ') + '] — json 만 받는다');
+                    return;
                 }
+
+                let connection = request.accept(chosen, request.origin);
+                console.log((new Date()) + ' Connection accepted. (' + chosen + ')');
+                connection.on('message', ws_message_handler);
+                connection.on('close', function (reasonCode, description) {
+                    console.log((new Date()) + ' Peer ' + connection.remoteAddress + ' disconnected.');
+                });
             });
         }
     }

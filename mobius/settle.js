@@ -40,8 +40,19 @@ var responder = require('./responder');
  *                    (app.js 의 response_error_result). 그 함수가 reason 카탈로그와
  *                    responder.respond 를 엮고 있어 여기서 직접 만들지 않는다.
  */
-exports.make = function (request, response, connection, on_error) {
+exports.make = function (request, response, connection, on_error, release) {
     var settled = false;
+
+    // 반납하는 법을 **주입받는다.** 이 모듈이 db_action 을 require 하면
+    // 파사드를 우회하는 파일이 하나 늘고, test/db-adapter-contract.test.js 가
+    // 그 수를 세고 있다. 정산기는 "반납한다" 만 알면 되고 "무엇으로 반납하는지"
+    // 는 몰라야 한다 — 그게 백엔드를 바꿔 끼울 수 있게 하는 조건이다.
+    //
+    // 기본값은 지금과 같은 덕타이핑이다. 인자를 안 주는 호출부(테스트 포함)가
+    // 그대로 돈다.
+    release = release || function (c) {
+        if (c && typeof c.release === 'function') { c.release(); }
+    };
 
     function claim(what) {
         if (settled) {
@@ -55,7 +66,7 @@ exports.make = function (request, response, connection, on_error) {
     }
 
     function finish() {
-        if (connection) { connection.release(); }
+        if (connection) { release(connection); }
     }
 
     return {

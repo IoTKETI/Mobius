@@ -101,6 +101,24 @@ exports.getConnection = function (callback) {
     });
 };
 
+// 커넥션 반납. 코어가 handle.release() 를 직접 부르던 것을 여기로 모은다.
+//
+// 왜 모으는가: handle 에 release 가 있다는 것은 **MySQL 풀 커넥션이라는 가정**이다.
+// SQLite 어댑터가 돌려주는 것은 sqlite3.Database 이고 거기엔 release 가 없다
+// (그래서 db/sqlite.js 가 어댑터 쪽에 release 를 따로 둔다). 커넥션 원천을
+// 파사드로 옮기려면 그 가정이 한 곳에만 있어야 한다.
+//
+// **아직 파사드에 위임하지 않는다.** 지금 커넥션 원천은 아래 getConnection 의
+// mysql_pool 이라, 파사드 어댑터가 sqlite 로 잡혀 있으면 facade.release 가
+// no-op 이 되어(db/sqlite.js) 진짜 MySQL 커넥션이 풀로 안 돌아간다.
+// 원천과 배출은 반드시 같은 커밋에서 함께 옮긴다.
+//
+// 덕타이핑 가드는 지금 항상 참이다(lease.js 가 씌운 래퍼에도 release 가 있다).
+// 원천을 옮기는 커밋에서 이 함수 본문만 facade.release 로 바꾼다.
+exports.release = function (conn) {
+    if (conn && typeof conn.release === 'function') { conn.release(); }
+};
+
 exports.getResult = function (query, connection, callback) {
     if (mysql_pool == null) {
         console.error("mysql is not connected");

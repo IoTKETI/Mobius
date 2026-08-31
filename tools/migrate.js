@@ -139,11 +139,18 @@ function main() {
     try { conf = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'conf.json'), 'utf8')); }
     catch (e) { /* 없으면 기본값 */ }
 
-    global.usesqlite = backendArg ? String(backendArg === 'sqlite')
-                                  : (conf.usesqlite || 'false');
-    var backend = global.usesqlite === 'true' ? 'sqlite' : 'mysql';
+    global.usedb = backendArg || conf.db ||
+        ((conf.usesqlite === 'true' || conf.usesqlite === true) ? 'sqlite' : 'mysql');
+    global.usesqlite = (global.usedb === 'sqlite') ? 'true' : 'false';   // 한시적 별칭
 
     var db = require(path.join(__dirname, '..', 'mobius', 'db'));
+    var backend = global.usedb;
+
+    if (db.backends().indexOf(backend) < 0) {
+        console.error('모르는 백엔드 "' + backend + '". 쓸 수 있는 것: ' +
+                      db.backends().join(', '));
+        process.exit(1);
+    }
 
     console.log('백엔드: ' + backend);
     console.log('');

@@ -111,13 +111,17 @@ test('nu 옵션이 뒤따르는 nu 로 번지지 않는다', function () {
     const body = SGN.slice(at, end > 0 ? end : SGN.length);
 
     // nu 마다 자기 값을 써야 한다.
-    for (const local of ['this_bodytype', 'this_node', 'this_short']) {
+    //
+    // this_bodytype 은 없어졌다 — 알림은 언제나 json 이라 nu 의 ct= 를 더
+    // 읽지 않는다(make_body_string_for_noti 의 설명 참고). 번짐이 문제였던
+    // 것은 형식만이 아니라 rcn=9(축약본)도 마찬가지라 그쪽은 그대로 지킨다.
+    for (const local of ['this_node', 'this_short']) {
         assert.ok(body.indexOf('var ' + local) > 0,
             local + ' 이 없다 — nu 별 값을 쓰지 않고 파라미터를 덮어쓰는지 확인할 것');
     }
 
     // 재귀에는 원래 값을 넘겨야 한다. this_* 를 넘기면 다시 번진다.
-    assert.ok(/sgn_action_send\(nu_arr, \+\+req_count, sub_bodytype, node, short_flag,/.test(body),
+    assert.ok(/sgn_action_send\(nu_arr, \+\+req_count, node, short_flag,/.test(body),
         '재귀가 이 nu 의 값을 다음으로 넘긴다 — 옵션이 번진다');
 });
 
@@ -143,7 +147,7 @@ test('본문 조립과 발송이 nu 별 값을 쓴다', function () {
     const end = SGN.indexOf('\nfunction ', at + 10);
     const body = SGN.slice(at, end > 0 ? end : SGN.length);
 
-    assert.ok(/make_body_string_for_noti\(sub_nu\.protocol, nu, this_node, this_bodytype, xm2mri, this_short,/.test(body),
+    assert.ok(/make_body_string_for_noti\(sub_nu\.protocol, nu, this_node, xm2mri, this_short,/.test(body),
         '본문 조립이 공유 값을 쓴다');
     // ri 는 구독 ri 다. 알림 로그에 어느 구독인지가 없어서 실패를 역추적할 수
     // 없었다 — 관리 UI 가 물어볼 첫 질문이 그것이다. ss_ri 가 이미 인자로

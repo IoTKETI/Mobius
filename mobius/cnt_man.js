@@ -16,7 +16,7 @@
  */
 
 var db_sql = require('./sql_action');
-var util = require('util');
+var db_facade = require('./db');
 
 var pendingUpdates = new Map();
 var DEBOUNCE_MS = 1000;
@@ -27,6 +27,13 @@ var MAX_WAIT_MS = 10000;
 
 exports.schedule = function (parentObj, cs) {
     var pi = parentObj.ri;
+
+    // cs 는 resource.js 가 parseInt(resource_Obj[rootnm].cs) 로 넘긴다 —
+    // cs 가 없거나 수가 아니면 NaN 이다. 그대로 누적하면 entry.cbs 가 **영구히**
+    // NaN 이 되고, 그 pi 의 flush 는 매번 통째로 실패한다(NaN 은 바인딩에서
+    // NULL 이 되어 NOT NULL 을 위반하고, 예전 %d 형식에서는 문장이 깨졌다).
+    // 그러면 cbs 뿐 아니라 cni/st 증가까지 같이 잃는다. cbs 델타 하나만 버린다.
+    if (typeof cs !== 'number' || !isFinite(cs)) { cs = 0; }
 
     if (pendingUpdates.has(pi)) {
         var existing = pendingUpdates.get(pi);
@@ -88,19 +95,30 @@ function updateCntAndCheck(connection, pi, entry, done) {
     // 매 flush 1줄이지만 활성 컨테이너당 초단위로 쌓인다 - 필요 시만 활성
     // console.log('[cnt_man] flush: pi=' + pi + ' delta(cni=' + entry.cni + ' cbs=' + entry.cbs + ') parentObj.mni=' + entry.parentObj.mni + ' parentObj.ty=' + entry.parentObj.ty);
 
+    // 값은 전부 바인딩으로 나간다. 예전에는 util.format 의 %s 로 pi 를 그대로
+    // 문자열에 박았는데, pi 는 대상 컨테이너의 ri 이고 그 ri 는 클라이언트가 준
+    // rn 에서 만들어진다(resource.js 의 build_resource). 즉 요청 본문이 따옴표를
+    // 넣으면 여기서 SQL 구조가 깨지는 2차 주입이었다.
+    //
+    // 문장 모양은 백엔드별로 **그대로 둔다.** MySQL 쪽은 다중 테이블 UPDATE 라
+    // 두 행이 다 있을 때만 갱신되는데(크로스 조인이라 한쪽이 없으면 0행),
+    // 두 문장으로 쪼개면 cnt 행 없는 lookup 고아에서 st 만 오른다. 그러면
+    // 그 컨테이너의 조회 응답과 알림에 실리는 st 가 달라진다.
+    // SQLite 에는 다중 테이블 UPDATE 가 없어 두 문장이어야 한다.
     if (global.usesqlite === 'true') {
-        var sqlite = require('./db_sqlite');
         // 상대값(delta) 증분: 동시 다중 워커가 flush해도 경쟁 조건 없음
-        var sql_update_cnt = util.format("UPDATE cnt SET cni = cni + %d, cbs = cbs + %d WHERE ri = '%s'", entry.cni, entry.cbs, pi);
-        sqlite.getResult(sql_update_cnt, connection, function (err, result) {
+        db_facade.run(db_facade.raw(
+            'update cnt set cni = cni + ?, cbs = cbs + ? where ri = ?',
+            [entry.cni, entry.cbs, pi]), connection, function (err, result) {
             if (err) {
                 console.error('[cnt_man] flush update cnt error:', pi, result);
                 console.timeEnd(flush_id);
                 done();
                 return;
             }
-            var sql_update_lookup = util.format("UPDATE lookup SET st = st + %d WHERE ri = '%s'", entry.st, pi);
-            sqlite.getResult(sql_update_lookup, connection, function (err, result) {
+            db_facade.run(db_facade.raw(
+                'update lookup set st = st + ? where ri = ?',
+                [entry.st, pi]), connection, function (err, result) {
                 if (err) {
                     console.error('[cnt_man] flush update lookup error:', pi, result);
                 }
@@ -111,10 +129,11 @@ function updateCntAndCheck(connection, pi, entry, done) {
             });
         });
     } else {
-        var db = require('./db_action');
         // 상대값(delta) 증분: 동시 다중 워커가 flush해도 경쟁 조건 없음
-        var sql = util.format("UPDATE cnt, lookup SET cnt.cni = cnt.cni + %d, cnt.cbs = cnt.cbs + %d, lookup.st = lookup.st + %d WHERE cnt.ri = '%s' AND lookup.ri = '%s'", entry.cni, entry.cbs, entry.st, pi, pi);
-        db.getResult(sql, connection, function (err, result) {
+        db_facade.run(db_facade.raw(
+            'update cnt, lookup set cnt.cni = cnt.cni + ?, cnt.cbs = cnt.cbs + ?, ' +
+            'lookup.st = lookup.st + ? where cnt.ri = ? and lookup.ri = ?',
+            [entry.cni, entry.cbs, entry.st, pi, pi]), connection, function (err, result) {
             if (err) {
                 console.error('[cnt_man] flush update error:', pi, result);
             }

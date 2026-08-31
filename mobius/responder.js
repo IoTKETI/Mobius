@@ -31,718 +31,6 @@ var _this = this;
 
 
 
-var attrLname = {
-    "acpi": "accessControlPolicyIDs",
-    "aa":   "announcedAttribute",
-    "at":   "announceTo",
-    "ct":   "creationTime",
-    "et":   "expirationTime",
-    "lbl":  "labels",
-    "lt":   "lastModifiedTime",
-    "pi":   "parentID",
-    "ri":   "resourceID",
-    "ty":  "resourceType",
-    "st":   "stateTag",
-    "rn":   "resourceName",
-    "pv":   "privileges",
-    "pvs":  "selfPrivileges",
-    "api":  "App-ID",
-    "aei":  "AE-ID",
-    "apn":  "appName",
-    "poa":  "pointOfAccess",
-    "or":   "ontologyRef",
-    "nl":   "nodeLink",
-    "cr":   "creator",
-    "mni":  "maxNrOfInstances",
-    "mbs":  "maxByteSize",
-    "mia":  "maxInstanceAge",
-    "cni":  "currentNrOfInstances",
-    "cbs":  "currentByteSize",
-    "li":   "locationID",
-    "cnf":  "contentInfo",
-    "cs":   "contentSize",
-    "pc":  "primitiveContent ",
-    "con":  "content",
-    "cst":  "cseType",
-    "csi":  "CSE-ID",
-    "srt":  "supportedResourceType",
-    "ncp":  "notificationCongestionPolicy",
-    "sr":   "source",
-    "tg":   "target",
-    "ls":   "lifespan",
-    "ec":  "eventCat",
-    "dmd":  "deliveryMetaData",
-    "arq":  "aggregatedRequest",
-    "evi":  "eventID",
-    "evs":  "evenStart",
-    "eve":  "eventEnd",
-    "opt":  "operationType",
-    "ds":   "dataSize",
-    "exs":  "execStatus",
-    "exr":  "execResult",
-    "exd":  "execDisable",
-    "ext":  "execTarget",
-    "exm":  "execMode",
-    "exf":  "execFrequency",
-    "exy":  "execDelay",
-    "exn":  "execNumber",
-    "exra": "execReqArgs",
-    "exe":  "execEnable",
-    "mt":   "memberType",
-    "cnm":  "currentNrOfMembers",
-    "mnm":  "maxNrOfMembers",
-    "mid":  "memberIDs",
-    "macp": "membersAccessControlPolicyIDs",
-    "mtv":  "memberTypeValidated",
-    "csy":  "consistencyStrategy",
-    "gn":   "groupName",
-    "los":  "locationSource",
-    "lou":  "locationUpdatePeriod",
-    "lot":  "locationTargetId",
-    "lor":  "locationServer",
-    "loi":  "locationContainerID",
-    "lon":  "locationContainerName",
-    "lost": "locationStatus",
-    "svr":  "serviceRoles",
-    "dc":   "description",
-    "cmt":  "cmdType",
-    "mgd":  "mgmtDefinition",
-    "obis": "objectIDs",
-    "obps": "objectPaths",
-    "ni":   "nodeID",
-    "hcl":  "hostedCSELink",
-    "cb":   "CSEBase",
-    "mei":  "M2M-Ext-ID",
-    "tri":  "Trigger-Recipient-ID",
-    "rr":   "requestReachability",
-    "og":   "originator",
-    "mi":   "metaInformation",
-    "rs":   "requestStatus",
-    "ol":   "operationResult",
-    "opn":  "operation",
-    "rid":  "requestID",
-    "se":   "scheduleElement",
-    "di":   "deviceIdentifier",
-    "rlk":  "ruleLinks",
-    "sci":  "statsCollectID",
-    "cei":  "collectingEntityID",
-    "cdi":  "collectedEntityID",
-    "ss":   "devStatus",
-    "srs":  "statsRuleStatus",
-    "sm":   "statModel",
-    "cp":   "collectPeriod",
-    "enc":  "eventNotificationCriteria",
-    "exc":  "expirationCounter",
-    "nu":   "notificationURI",
-    "gpi":  "groupID",
-    "bn":   "batchNotify",
-    "rl":   "rateLimit",
-    "psn":  "preSubscriptionNotify",
-    "pn":   "pendingNotification",
-    "nsp":  "notificationStoragePriority",
-    "ln":   "latestNotify",
-    "nct":  "notificationContentType",
-    "nec":  "notificationEventCat",
-    "su":   "subscriberURI",
-    "vr":   "version",
-    "url":  "URL",
-    "ud":   "update",
-    "uds":  "updateStatus",
-    "in":   "install",
-    "un":   "uninstall",
-    "ins":  "installStatus",
-    "act":  "activate",
-    "dea":  "deactivate",
-    "acts": "activeStatus",
-    "mma":  "memAvailable",
-    "mmt":  "memTotal",
-    "ant":  "areaNwkType",
-    "ldv":  "listOfDevices",
-    "dvd":  "devId",
-    "dvt":  "devType",
-    "awi":  "areaNwkId",
-    "sli":  "sleepInterval",
-    "sld":  "sleepDuration",
-    "lnh":  "listOfNeighbors",
-    "btl":  "batteryLevel",
-    "bts":  "batteryStatus",
-    "dlb":  "deviceLabel",
-    "man":  "manufacturer",
-    "mod":  "model",
-    "dty":  "deviceType",
-    "fwv":  "fwVersion",
-    "swv":  "swVersion",
-    "hwv":  "hwVersion",
-    "can":  "capabilityName",
-    "att":  "attached",
-    "cas":  "capabilityActionStatus",
-    "ena":  "enable",
-    "dis":  "disable",
-    "cus":  "currentState",
-    "rbo":  "reboot",
-    "far":  "factoryReset",
-    "lgt":  "logTypeId",
-    "lgd":  "logData",
-    "lgs":  "logActionStatus",
-    "lgst": "logStatus",
-    "lga":  "logStart",
-    "lgo":  "logStop",
-    "fwnnam":"firmwareNames",
-    "swn":  "softwareName",
-    "cpn":  "cmdhPolicyName",
-    "cmlk": "mgmtLink",
-    "acmlk":"activeCmdhPolicyLink",
-    "od":   "order",
-    "dev":  "defEcValue",
-    "ror":  "requestOrigin",
-    "rct":  "requestContext",
-    "rctn":  "requestContextNotification",
-    "rch":  "requestCharacteristics",
-    "aecs": "applicableEventCategories",
-    "aec":  "applicableEventCategory",
-    "dqet": "defaultRequestExpTime",
-    "dset": "defaultResultExpTime",
-    "doet": "defaultOpExecTime",
-    "drp":  "defaultRespPersistence",
-    "dda":  "defaultDelAggregation",
-    "lec":  "limitsEventCategory",
-    "lqet": "limitsRequestExpTime",
-    "lset": "limitsResultExpTime",
-    "loet": "limitsOpExecTime",
-    "lrp":  "limitsRespPersistence",
-    "lda":  "limitsDelAggregation",
-    "ttn":  "targetNetwork",
-    "mrv":  "minReqVolume",
-    "bop":  "backOffParameters",
-    "ohc":  "otherConditions",
-    "mbfs": "maxBufferSize",
-    "sgp":  "storagePriority",
-    "apci": "applicableCredIDs",
-    "aai":  "allowedApp-IDs",
-    "aae":  "allowedAEs",
-    "rsp": "responsePrimitive",
-    "dsp": "descriptor",
-    "dcrp": "descriptorRepresenation",
-    "soe": "semanticOpExec",
-    "rels": "relatedSemantics",
-    "sid":"sessionID",
-    "soid":"sessionOriginatorID",
-    "stid":"SessionTargetID",
-    "asd":"acceptedSessionDescription",
-    "osd":"offeredSessionDescriptions",
-    "sst":"sessionState",
-    "crb" :"createdBefore",
-    "cra" :"createdAfter",
-    "ms"  :"modifiedSince",
-    "us"  :"unmodifiedSince",
-    "sts" :"stateTagSmaller",
-    "stb" :"stateTagBigger",
-    "exb" :"expireBefore",
-    "exa" :"expireAfter",
-    "sza" :"sizeAbove",
-    "szb" :"sizeBelow",
-    "cty" :"contentType",
-    "lim" :"limit",
-    "ofst":"offset",
-    "lvl" :"level",
-    "atr" :"attribute",
-    "net" :"notificationEventType",
-    "om"  :"operationMonitor",
-    "rep" :"representation",
-    "fu"  :"filterUsage",
-    "ect" :"eventCatType",
-    "ecn" :"eventCatNo",
-    "num" :"number",
-    "dur" :"duration",
-    "sgn" :"notification",
-    "nev" :"notificationEvent",
-    "vrq" :"verificationRequest",
-    "sud" :"subscriptionDeletion",
-    "sur" :"subscriptionReference",
-    "nfu" :"notificationForwardingURI",
-    "op"  :"operation",
-    "aci" :"accessId",
-    "msd" :"MSISDN",
-    "acn" :"action",
-    "sus" :"status",
-    "ch"  :"childResource",
-    "acr" :"accessControlRule",
-    "acor":"accessControlOriginators",
-    "acop":"accessControlOperations",
-    "acco":"accessControlContexts",
-    "actw":"accessControlWindow",
-    "acip":"accessControlIpAddresses",
-    "ipv4":"ipv4Addresses",
-    "ipv6":"ipv6Addresses",
-    "aclr":"accessControlLocationRegion",
-    "accc":"countryCode",
-    "accr":"circRegion",
-    "nm"  :"name",
-    "val" :"value",
-    "typ" :"type",
-    "mnn" :"maxNrOfNotify",
-    "tww" :"timeWindow",
-    "sce" :"scheduleEntry",
-    "agn" :"aggregatedNotification",
-    "atrl":"attributeList",
-    "agr" :"aggregatedResponse",
-    "uril":"URIList",
-    "any":"anyArg",
-    "ftyp":"fileType",
-    "unm":"username",
-    "pwd":"password",
-    "fsi":"filesize",
-    "tgf":"targetFile",
-    "dss":"delaySeconds",
-    "surl":"successURL",
-    "stt":"startTime",
-    "cpt":"completeTime",
-    "uuid":"UUID",
-    "eer":"executionEnvRef",
-    "vr*":"version",
-    "rst":"reset",
-    "uld":"upload",
-    "dld":"download",
-    "swin":"softwareInstall",
-    "swup":"softwareUpdate",
-    "swun":"softwareUninstall",
-    "tcop":"tracingOption",
-    "tcin":"tracingInfo",
-    "rtv":"responseTypeValue"
-};
-
-var attrSname = {
-    "accessControlPolicyIDs"       :"acpi",
-    "announcedAttribute"           :"aa",
-    "announceTo"                   :"at",
-    "creationTime"                 :"ct",
-    "expirationTime"               :"et",
-    "labels"                       :"lbl",
-    "lastModifiedTime"             :"lt",
-    "parentID"                     :"pi",
-    "resourceID"                   :"ri",
-    "resourceType"                 :"ty*",
-    "stateTag"                     :"st",
-    "resourceName"                 :"rn",
-    "privileges"                   :"pv",
-    "selfPrivileges"               :"pvs",
-    "App-ID"                       :"api",
-    "AE-ID"                        :"aei",
-    "appName"                      :"apn",
-    "pointOfAccess"                :"poa",
-    "ontologyRef"                  :"or",
-    "nodeLink"                     :"nl",
-    "creator"                      :"cr",
-    "maxNrOfInstances"             :"mni",
-    "maxByteSize"                  :"mbs",
-    "maxInstanceAge"               :"mia",
-    "currentNrOfInstances"         :"cni",
-    "currentByteSize"              :"cbs",
-    "locationID"                   :"li",
-    "contentInfo"                  :"cnf",
-    "contentSize"                  :"cs",
-    "primitiveContent "            :"pc*",
-    "content"                      :"con",
-    "cseType"                      :"cst",
-    "CSE-ID"                       :"csi",
-    "supportedResourceType"        :"srt",
-    "notificationCongestionPolicy" :"ncp",
-    "source"                       :"sr",
-    "target"                       :"tg",
-    "lifespan"                     :"ls",
-    "eventCat"                     :"ec*",
-    "deliveryMetaData"             :"dmd",
-    "aggregatedRequest"            :"arq",
-    "aggregatedResponse"           :"agr",
-    "eventID"                      :"evi",
-    "notificationEventType"        :"net",
-    "evenStart"                    :"evs",
-    "eventEnd"                     :"eve",
-    "operationType"                :"opt",
-    "dataSize"                     :"ds",
-    "execStatus"                   :"exs",
-    "execResult"                   :"exr",
-    "execDisable"                  :"exd",
-    "execTarget"                   :"ext",
-    "execMode"                     :"exm",
-    "execFrequency"                :"exf",
-    "execDelay"                    :"exy",
-    "execNumber"                   :"exn",
-    "execReqArgs"                  :"exra",
-    "execEnable"                   :"exe",
-    "memberType"                   :"mt",
-    "currentNrOfMembers"           :"cnm",
-    "maxNrOfMembers"               :"mnm",
-    "memberIDs"                    :"mid",
-    "membersAccessControlPolicyIDs":"macp",
-    "memberTypeValidated"          :"mtv",
-    "consistencyStrategy"          :"csy",
-    "groupName"                    :"gn",
-    "locationSource"               :"los",
-    "locationUpdatePeriod"         :"lou",
-    "locationTargetId"             :"lot",
-    "locationServer"               :"lor",
-    "locationContainerID"          :"loi",
-    "locationContainerName"        :"lon",
-    "locationStatus"               :"lost",
-    "serviceRoles"                 :"svr",
-    "description"                  :"dc",
-    "cmdType"                      :"cmt",
-    "mgmtDefinition"               :"mgd",
-    "objectIDs"                    :"obis",
-    "objectPaths"                  :"obps",
-    "nodeID"                       :"ni",
-    "hostedCSELink"                :"hcl",
-    "CSEBase"                      :"cb",
-    "M2M-Ext-ID"                   :"mei",
-    "Trigger-Recipient-ID"         :"tri",
-    "requestReachability"          :"rr",
-    "originator"                   :"og",
-    "metaInformation"              :"mi",
-    "requestStatus"                :"rs",
-    "operationResult"              :"ol",
-    "operation"                    :"opn",
-    "requestID"                    :"rid",
-    "scheduleElement"              :"se",
-    "deviceIdentifier"             :"di",
-    "ruleLinks"                    :"rlk",
-    "statsCollectID"               :"sci",
-    "collectingEntityID"           :"cei",
-    "collectedEntityID"            :"cdi",
-    "devStatus"                    :"ss",
-    "statsRuleStatus"              :"srs",
-    "statModel"                    :"sm",
-    "collectPeriod"                :"cp",
-    "eventNotificationCriteria"    :"enc",
-    "expirationCounter"            :"exc",
-    "notificationURI"              :"nu",
-    "groupID"                      :"gpi",
-    "notificationForwardingURI"    :"nfu",
-    "batchNotify"                  :"bn",
-    "rateLimit"                    :"rl",
-    "preSubscriptionNotify"        :"psn",
-    "pendingNotification"          :"pn",
-    "notificationStoragePriority"  :"nsp",
-    "latestNotify"                 :"ln",
-    "notificationContentType"      :"nct",
-    "notificationEventCat"         :"nec",
-    "subscriberURI"                :"su",
-    "version"                      :"vr",
-    "URL"                          :"url",
-    "update"                       :"ud",
-    "updateStatus"                 :"uds",
-    "install"                      :"in",
-    "uninstall"                    :"un",
-    "installStatus"                :"ins",
-    "activate"                     :"act",
-    "deactivate"                   :"dea",
-    "activeStatus"                 :"acts",
-    "memAvailable"                 :"mma",
-    "memTotal"                     :"mmt",
-    "areaNwkType"                  :"ant",
-    "listOfDevices"                :"ldv",
-    "devId"                        :"dvd",
-    "devType"                      :"dvt",
-    "areaNwkId"                    :"awi",
-    "sleepInterval"                :"sli",
-    "sleepDuration"                :"sld",
-    "listOfNeighbors"              :"lnh",
-    "batteryLevel"                 :"btl",
-    "batteryStatus"                :"bts",
-    "deviceLabel"                  :"dlb",
-    "manufacturer"                 :"man",
-    "model"                        :"mod",
-    "deviceType"                   :"dty",
-    "fwVersion"                    :"fwv",
-    "swVersion"                    :"swv",
-    "hwVersion"                    :"hwv",
-    "capabilityName"               :"can",
-    "attached"                     :"att",
-    "capabilityActionStatus"       :"cas",
-    "enable"                       :"ena",
-    "disable"                      :"dis",
-    "currentState"                 :"cus",
-    "reboot"                       :"rbo",
-    "factoryReset"                 :"far",
-    "logTypeId"                    :"lgt",
-    "logData"                      :"lgd",
-    "logActionStatus"              :"lgs",
-    "logStatus"                    :"lgst",
-    "logStart"                     :"lga",
-    "logStop"                      :"lgo",
-    "firmwareNames"                :"fwnnam",
-    "softwareName"                 :"swn",
-    "cmdhPolicyName"               :"cpn",
-    "mgmtLink"                     :"cmlk",
-    "activeCmdhPolicyLink"         :"acmlk",
-    "order"                        :"od",
-    "defEcValue"                   :"dev",
-    "requestOrigin"                :"ror",
-    "requestContext"               :"rct",
-    "requestContextNotification"   :"rctn",
-    "requestCharacteristics"       :"rch",
-    "applicableEventCategories"    :"aecs",
-    "applicableEventCategory"      :"aec",
-    "defaultRequestExpTime"        :"dqet",
-    "defaultResultExpTime"         :"dset",
-    "defaultOpExecTime"            :"doet",
-    "defaultRespPersistence"       :"drp",
-    "defaultDelAggregation"        :"dda",
-    "limitsEventCategory"          :"lec",
-    "limitsRequestExpTime"         :"lqet",
-    "limitsResultExpTime"          :"lset",
-    "limitsOpExecTime"             :"loet",
-    "limitsRespPersistence"        :"lrp",
-    "limitsDelAggregation"         :"lda",
-    "targetNetwork"                :"ttn",
-    "minReqVolume"                 :"mrv",
-    "backOffParameters"            :"bop",
-    "otherConditions"              :"ohc",
-    "maxBufferSize"                :"mbfs",
-    "storagePriority"              :"sgp",
-    "applicableCredIDs"            :"apci",
-    "allowedApp-IDs"               :"aai",
-    "allowedAEs"                   :"aae",
-    "singleNotification":  "sgn",
-    "responsePrimitive":"rsp",
-    "descriptor":"dsp",
-    "descriptorRepresenation": "dcrp",
-    "semanticOpExec": "soe",
-    "relatedSemantics": "rels",
-    "sessionID":"sid",
-    "sessionOriginatorID":"soid",
-    "SessionTargetID":"stid",
-    "acceptedSessionDescription":"asd",
-    "offeredSessionDescriptions":"osd",
-    "sessionState":"sst",
-    "accessControWindow":"actw",
-    "createdBefore":"crb",
-    "createdAfter":"cra",
-    "modifiedSince":"ms",
-    "unmodifiedSince":"us",
-    "stateTagSmaller":"sts",
-    "stateTagBigger":"stb",
-    "expireBefore":"exb",
-    "expireAfter":"exa",
-    "sizeAbove":"sza",
-    "sizeBelow":"szb",
-    "contentType":"cty",
-    "limit":"lim",
-    "offset":"ofst",
-    "level":"lvl",
-    "attribute":"atr",
-    "operationMonitor":"om",
-    "representation":"rep",
-    "filterUsage":"fu",
-    "eventCatType":"ect",
-    "eventCatNo":"ecn",
-    "number":"num",
-    "duration":"dur",
-    "notification":"sgn",
-    "notificationEvent":"nev",
-    "verificationRequest":"vrq",
-    "subscriptionDeletion":"sud",
-    "subscriptionReference":"sur",
-    "accessId":"aci",
-    "MSISDN":"msd",
-    "action":"acn",
-    "status":"sus",
-    "childResource":"ch",
-    "accessControlRule":"acr",
-    "accessControlOriginators":"acor",
-    "accessControlOperations":"acop",
-    "accessControlContexts":"acco",
-    "accessControlWindow":"actw",
-    "accessControlIpAddresses":"acip",
-    "ipv4Addresses":"ipv4",
-    "ipv6Addresses":"ipv6",
-    "accessControlLocationRegion":"aclr",
-    "countryCode":"accc",
-    "circRegion":"accr",
-    "name":"nm*",
-    "value":"val",
-    "type":"typ",
-    "maxNrOfNotify":"mnn",
-    "timeWindow":"tww",
-    "scheduleEntry":"sce",
-    "aggregatedNotification":"agn",
-    "attributeList":"atrl",
-    "URIList":"uril",
-    "anyArg":"any",
-    "fileType":"ftyp",
-    "username":"unm",
-    "password":"pwd",
-    "filesize":"fsi",
-    "targetFile":"tgf",
-    "delaySeconds":"dss",
-    "successURL":"surl",
-    "startTime":"stt",
-    "completeTime":"cpt",
-    "UUID":"uuid",
-    "executionEnvRef":"eer",
-    "reset":"rst",
-    "upload":"uld",
-    "download":"dld",
-    "softwareInstall":"swin",
-    "softwareUpdate":"swup",
-    "softwareUninstall":"swun",
-    "tracingOption":"tcop",
-    "tracingInfo":"tcin",
-    "responseTypeValue":"rtv",
-    "firmwarename":"fwnnam"
-};
-
-var rceLname = {
-    "cb" : "CSEBase",
-    "ae" : "AE",
-    "csr": "remoteCSE",
-    "cnt": "container",
-    "cin": "contentInstance",
-    "sub": "subscription",
-    "uril" :"URIList",
-    "smd":"semanticDescriptor",
-    "rsp": "responsePrimitive",
-    "acp":"accessControlPolicy",
-    "acpA":"accessControlPolicyAnnc",
-    "aeA":"AEAnnc",
-    "cntA":"containerAnnc",
-    "la":"latest",
-    "ol":"oldest",
-    "cinA":"contentInstanceAnnc",
-    "dlv":"delivery",
-    "evcg":"eventConfig",
-    "exin":"execInstance",
-    "fopt":"fanOutPoint",
-    "grp":"group",
-    "grpA":"groupAnnc",
-    "lcp":"locationPolicy",
-    "lcpA":"locationPolicyAnnc",
-    "mssp":"m2mServiceSubscriptionProfile",
-    "mgc":"mgmtCmd",
-    "mgo":"mgmtObj",
-    "mgoA":"mgmtObjAnnc",
-    "nod":"node",
-    "nodA":"nodeAnnc",
-    "pch":"pollingChannel",
-    "pcu":"pollingChannelURI",
-    "csrA":"remoteCSEAnnc",
-    "req":"request",
-    "sch":"schedule",
-    "schA":"scheduleAnnc",
-    "asar":"serviceSubscribedAppRule",
-    "svsn":"serviceSubscribedNode",
-    "stcl":"statsCollect",
-    "stcg":"statsConfig",
-    "fwr":"firmware",
-    "fwrA":"firmwareAnnc",
-    "swr":"software",
-    "swrA":"softwareAnnc",
-    "mem":"memory",
-    "memA":"memoryAnnc",
-    "ani":"areaNwkInfo",
-    "aniA":"areaNwkInfoAnnc",
-    "andi":"areaNwkDeviceInfo",
-    "andiA":"areaNwkDeviceInfoAnnc",
-    "bat":"battery",
-    "batA":"batteryAnnc",
-    "dvi":"deviceInfo",
-    "dviA":"deviceInfoAnnc",
-    "dvc":"deviceCapability",
-    "dvcA":"deviceCapabilityAnnc",
-    "rbo":"reboot",
-    "rboA":"rebootAnnc",
-    "evl":"eventLog",
-    "evlA":"eventLogAnnc",
-    "cmp":"cmdhPolicy",
-    "acmp":"activeCmdhPolicy",
-    "cmdf":"cmdhDefaults",
-    "cmdv":"cmdhDefEcValue",
-    "cmpv":"cmdhEcDefParamValues",
-    "cml":"cmdhLimits",
-    "cmnr":"cmdhNetworkAccessRules",
-    "cmwr":"cmdhNwAccessRule",
-    "cmbf":"cmdhBuffer",
-    "mms": "multimediaSession",
-    "rce":"resource",
-    "uri":"URI",
-    "fwnnam":"firmwareName"
-};
-
-
-var rceSname = {
-    "CSEBase"           : "cb",
-    "AE"                : "ae",
-    "remoteCSE"         : "csr",
-    "container"         : "cnt",
-    "contentInstance"   : "cin",
-    "subscription"      : "sub",
-    "URIList"            :"uril",
-    "semanticDescriptor":"smd",
-    "responsePrimitive":"rsp",
-    "accessControlPolicy":"acp",
-    "accessControlPolicyAnnc":"acpA",
-    "AEAnnc":"aeA",
-    "containerAnnc":"cntA",
-    "latest":"la",
-    "oldest":"ol",
-    "contentInstanceAnnc":"cinA",
-    "delivery":"dlv",
-    "eventConfig":"evcg",
-    "execInstance":"exin",
-    "fanOutPoint":"fopt",
-    "group":"grp",
-    "groupAnnc":"grpA",
-    "locationPolicy":"lcp",
-    "locationPolicyAnnc":"lcpA",
-    "m2mServiceSubscriptionProfile":"mssp",
-    "mgmtCmd":"mgc",
-    "mgmtObj":"mgo",
-    "mgmtObjAnnc":"mgoA",
-    "node":"nod",
-    "nodeAnnc":"nodA",
-    "pollingChannel":"pch",
-    "pollingChannelURI":"pcu",
-    "remoteCSEAnnc":"csrA",
-    "request":"req",
-    "schedule":"sch",
-    "scheduleAnnc":"schA",
-    "serviceSubscribedAppRule":"asar",
-    "serviceSubscribedNode":"svsn",
-    "statsCollect":"stcl",
-    "statsConfig":"stcg",
-    "firmware":"fwr",
-    "firmwareAnnc":"fwrA",
-    "software":"swr",
-    "softwareAnnc":"swrA",
-    "memory":"mem",
-    "memoryAnnc":"memA",
-    "areaNwkInfo":"ani",
-    "areaNwkInfoAnnc":"aniA",
-    "areaNwkDeviceInfo":"andi",
-    "areaNwkDeviceInfoAnnc":"andiA",
-    "battery":"bat",
-    "batteryAnnc":"batA",
-    "deviceInfo":"dvi",
-    "deviceInfoAnnc":"dviA",
-    "deviceCapability":"dvc",
-    "deviceCapabilityAnnc":"dvcA",
-    "reboot":"rbo",
-    "rebootAnnc":"rboA",
-    "eventLog":"evl",
-    "eventLogAnnc":"evlA",
-    "cmdhPolicy":"cmp",
-    "activeCmdhPolicy":"acmp",
-    "cmdhDefaults":"cmdf",
-    "cmdhDefEcValue":"cmdv",
-    "cmdhEcDefParamValues":"cmpv",
-    "cmdhLimits":"cml",
-    "cmdhNetworkAccessRules":"cmnr",
-    "cmdhNwAccessRule":"cmwr",
-    "cmdhBuffer":"cmbf",
-    "multimediaSession": "mms",
-    "resource":"rce",
-    "URI":"uri"
-};
 
 
 var typeRsrc = {
@@ -781,10 +69,63 @@ var mgoType = {
 
 exports.typeRsrc = typeRsrc;
 exports.mgoType = mgoType;
-exports.rsrcSname = rceSname;
-exports.rsrcLname = rceLname;
-exports.attrLname = attrLname;
-exports.attrSname = attrSname;
+
+/**
+ * 응답 헤더를 세우고 이 응답의 직렬화 형식을 정한다.
+ *
+ * 이 일을 하는 코드가 다섯 벌 있었다 — response_result 의 진입부와 그 안의
+ * rt=3 분기, response_rcn3_result, search_result, sendError. 복붙으로 늘어난
+ * 것인데 이미 세 갈래로 갈려 있었다.
+ *
+ *   Accept 에코        response_result / sendError 만 했다. discovery 와
+ *                      rcn=3 은 안 했다. 같은 서버가 요청 경로에 따라 다르게
+ *                      답하고 있었다.
+ *   Accept 없을 때     response_result / sendError 는 Content-Type 을 아예
+ *                      안 세웠고, 나머지 셋은 json 으로 명시했다.
+ *   헤더 이름          'X-M2M-RI' 리터럴, chk 소문자, chk.toUpperCase() 세 가지.
+ *                      전선에서는 같지만 소스가 셋으로 갈려 있었다.
+ *
+ * ── Accept 에코를 없앤 이유 ─────────────────────────────────────────
+ * Accept 는 HTTP 의 **요청** 헤더다. 응답에 되돌려주라는 조항이 oneM2M HTTP
+ * 바인딩에도 없다. 다섯 중 둘만 하고 있었으니 어느 쪽이든 통일해야 했고,
+ * 규격에 없는 쪽을 뺐다.
+ *
+ * ── 응답은 언제나 json 이다. Accept 를 보지 않는다 ─────────────────
+ * 이 CSE 는 json 만 만든다. 그러니 무엇을 요구받든 json 으로 답한다.
+ *
+ * 예전에는 `accept.includes('xml')` 로 형식을 정했는데, 부분 문자열 검사라
+ * 두 가지가 어긋나 있었다. 실측한 그대로다:
+ *
+ *   Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*&#47;*;q=0.8
+ *     -> XML. **브라우저로 Mobius 를 열면 XML 이 나왔다.**
+ *             application/xhtml+xml 의 'xml' 에 걸린 것이다.
+ *   Accept: application/json, application/xml
+ *     -> XML. json 을 먼저 적었는데도 그렇다. 순서도 q값도 보지 않았다.
+ *   Accept: application/cbor
+ *     -> 헤더는 application/cbor 인데 본문은 JSON 이었다.
+ *
+ * 이것을 "Accept 를 제대로 파싱한다" 로 고칠 수도 있었지만, json 만 만드는
+ * 서버에는 협상할 것이 없다. 분기를 지우는 쪽이 같은 결과를 더 적은 코드로
+ * 낸다. 클라이언트가 xml 을 요구해도 json 을 준다 — 물어봤을 뿐이고 우리는
+ * 그것을 만들지 않는다.
+ *
+ * 요청 **본문**이 xml/cbor 인 것은 다른 이야기다. 그쪽은 보낸 사람이 명확히
+ * 정한 것이므로 진입 관문에서 400 으로 거절한다.
+ *
+ * Content-Type 은 언제나 명시한다. 예전에 sendError 는 안 세워서 JSON 본문을
+ * Content-Type 없이 내보내고 있었다.
+ */
+function apply_headers(request, response, rsc) {
+    var h = request.headers || {};
+
+    if (h.hasOwnProperty('x-m2m-ri'))  { response.header('X-M2M-RI',  h['x-m2m-ri']); }
+    if (h.hasOwnProperty('x-m2m-rvi')) { response.header('X-M2M-RVI', h['x-m2m-rvi']); }
+    if (h.hasOwnProperty('locale'))    { response.header('Locale',    h['locale']); }
+
+    request.usebodytype = 'json';
+    response.header('Content-Type', 'application/json');
+    response.header('X-M2M-RSC', rsc);
+}
 
 /**
  * 배열이어야 하는 컬럼 값을 배열로 읽는다. 절대 던지지 않는다.
@@ -1595,36 +936,7 @@ var operation = {
 exports.response_result = function(request, response, status, rsc, cap, callback) {
     var body_Obj = request.resourceObj;
 
-    if(request.headers.hasOwnProperty('x-m2m-ri')) {
-        response.header('X-M2M-RI', request.headers['x-m2m-ri']);
-    }
-
-    if(request.headers.hasOwnProperty('x-m2m-rvi')) {
-        response.header('X-M2M-RVI', request.headers['x-m2m-rvi']);
-    }
-
-    if(request.headers.hasOwnProperty('accept')) {
-        response.header('Accept', request.headers['accept']);
-
-        if(request.headers['accept'].includes('xml')) {
-            request.usebodytype = 'xml';
-            response.header('Content-Type', 'application/xml');
-        }
-        else if(request.headers['accept'].includes('cbor')) {
-            request.usebodytype = 'cbor';
-            response.header('Content-Type', 'application/cbor');
-        }
-        else {
-            request.usebodytype = 'json';
-            response.header('Content-Type', 'application/json');
-        }
-    }
-
-    if(request.headers.hasOwnProperty('locale')) {
-        response.header('Locale', request.headers['locale']);
-    }
-
-    response.header('X-M2M-RSC', rsc);
+    apply_headers(request, response, rsc);
 
     if (request.query.rcn == 0 && Object.keys(body_Obj)[0] != 'dbg') {
         if (request.query.rt == 3) {
@@ -1653,40 +965,9 @@ exports.response_result = function(request, response, status, rsc, cap, callback
         }
     }
     else {
-        if (request.query.rt == 3) {
-            var check_header = ['x-m2m-ri', 'x-m2m-rvi', 'locale', 'accept'];
-            for(var idx in check_header) {
-                if(check_header.hasOwnProperty(idx)) {
-                    var chk = check_header[idx];
-                    if (request.headers.hasOwnProperty(chk)) {
-                        if (chk === 'x-m2m-ri' || chk === 'x-m2m-rvi' || chk === 'locale') {
-                            response.header(chk, request.headers[chk]);
-                        }
-                        else if (chk === 'accept') {
-                            if (request.headers[chk].includes('xml')) {
-                                request.usebodytype = 'xml';
-                                response.header('Content-Type', 'application/xml');
-                            }
-                            else if (request.headers[chk].includes('cbor')) {
-                                request.usebodytype = 'cbor';
-                                response.header('Content-Type', 'application/cbor');
-                            }
-                            else {
-                                request.usebodytype = 'json';
-                                response.header('Content-Type', 'application/json');
-                            }
-                        }
-                    }
-                    else {
-                        if (chk === 'accept') {
-                            request.usebodytype = 'json';
-                            response.header('Content-Type', 'application/json');
-                        }
-                    }
-                }
-            }
-            response.header('X-M2M-RSC', rsc);
-        }
+        // 여기서 헤더를 다시 세우던 자리다. 이 함수 진입부에서 이미
+        // apply_headers 가 돌았고, 그 사이에 헤더를 건드리는 코드가 없다.
+        // 같은 값을 두 번 쓰던 것이라 걷어냈다.
 
         var rootnm = Object.keys(body_Obj)[0];
 
@@ -1766,14 +1047,6 @@ exports.response_result = function(request, response, status, rsc, cap, callback
         // 논블로킹(rt=1/2)은 지원하지 않는다 — app.js 의 check_request_query_rt 가
         // 405-4 로 막으므로 여기까지 오는 요청은 모두 블로킹이다.
         // 예전에는 여기서 rt 로 갈라져 한쪽이 req 리소스에 결과를 적었다.
-        if (request.usebodytype == 'json') {
-        }
-        else if (request.usebodytype == 'cbor') {
-            bodyString = cbor.encode(body_Obj).toString('hex');
-        }
-        else {
-            bodyString = _this.convertXml(rootnm, body_Obj);
-        }
 
         response.status(parseInt(status, 10)).end(bodyString);
 
@@ -1795,41 +1068,7 @@ exports.response_rcn3_result = function(request, response, status, rsc, cap, cal
     var body_Obj = request.resourceObj;
 
     if (request.query.rt == 3) {
-        var check_header = ['x-m2m-ri', 'x-m2m-rvi', 'locale', 'accept'];
-
-        for(var idx in check_header) {
-            var chk = check_header[idx];
-            if(request.headers.hasOwnProperty(chk)) {
-                if(chk === 'x-m2m-ri' || chk === 'x-m2m-rvi') {
-                    response.header(chk.toUpperCase(), request.headers[chk]);
-                }
-                else if(chk === 'locale') {
-                    response.header(chk, request.headers[chk]);
-                }
-                else if(chk === 'accept') {
-                    if(request.headers[chk].includes('xml')) {
-                        request.usebodytype = 'xml';
-                        response.header('Content-Type', 'application/xml');
-                    }
-                    else if(request.headers[chk].includes('cbor')) {
-                        request.usebodytype = 'cbor';
-                        response.header('Content-Type', 'application/cbor');
-                    }
-                    else {
-                        request.usebodytype = 'json';
-                        response.header('Content-Type', 'application/json');
-                    }
-                }
-            }
-            else {
-                if(chk === 'accept') {
-                    request.usebodytype = 'json';
-                    response.header('Content-Type', 'application/json');
-                }
-            }
-        }
-
-        response.header('X-M2M-RSC', rsc);
+        apply_headers(request, response, rsc);
     }
 
     var rootnm = request.headers.rootnm;
@@ -1857,39 +1096,6 @@ exports.response_rcn3_result = function(request, response, status, rsc, cap, cal
     // 논블로킹(rt=1/2)은 지원하지 않는다 — app.js 의 check_request_query_rt 가
     // 405-4 로 막으므로 여기까지 오는 요청은 모두 블로킹이다.
     // 예전에는 여기서 rt 로 갈라져 한쪽이 req 리소스에 결과를 적었다.
-    if (request.usebodytype == 'json') {
-    }
-    else if (request.usebodytype == 'cbor') {
-        bodyString = cbor.encode(body_Obj).toString('hex');
-    }
-    else {
-        var xml_root = xmlbuilder.create('m2m:' + rce_nm, {version: '1.0', encoding: 'UTF-8', standalone: true},
-            {pubID: null, sysID: null}, {
-                allowSurrogateChars: false,
-                skipNullAttributes: false,
-                headless: false,
-                ignoreDecorators: false,
-                stringify: {}
-            }
-        ).att('xmlns:m2m', 'http://www.onem2m.org/xml/protocols').att('xmlns:xsi', 'http://www.w3.org/2001/XMLSchema-instance');
-
-        for (var rce in body_Obj) {
-            if (body_Obj.hasOwnProperty(rce)) {
-                for (var index in body_Obj[rce]) {
-                    if (body_Obj[rce].hasOwnProperty(index)) {
-                        if (index == 'uri') {
-                            var xml = xml_root.ele(index, body_Obj[rce][index]);
-                        }
-                        else {
-                            xml = xml_root.ele(index, '');
-                            xmlAction(xml, body_Obj[rce][index]);
-                        }
-                    }
-                }
-            }
-        }
-        bodyString = xml.end({pretty: false, indent: '  ', newline: '\n'}).toString();
-    }
 
     response.status(parseInt(status, 10)).end(bodyString);
 
@@ -1913,41 +1119,7 @@ exports.search_result = function(request, response, status, rsc, cap, callback) 
     var body_Obj = request.resourceObj;
 
     if (request.query.rt == 3) {
-        var check_header = ['x-m2m-ri', 'x-m2m-rvi', 'locale', 'accept'];
-
-        for(var idx in check_header) {
-            var chk = check_header[idx];
-            if(request.headers.hasOwnProperty(chk)) {
-                if(chk === 'x-m2m-ri' || chk === 'x-m2m-rvi') {
-                    response.header(chk.toUpperCase(), request.headers[chk]);
-                }
-                else if(chk === 'locale') {
-                    response.header(chk, request.headers[chk]);
-                }
-                else if(chk === 'accept') {
-                    if(request.headers[chk].includes('xml')) {
-                        request.usebodytype = 'xml';
-                        response.header('Content-Type', 'application/xml');
-                    }
-                    else if(request.headers[chk].includes('cbor')) {
-                        request.usebodytype = 'cbor';
-                        response.header('Content-Type', 'application/cbor');
-                    }
-                    else {
-                        request.usebodytype = 'json';
-                        response.header('Content-Type', 'application/json');
-                    }
-                }
-            }
-            else {
-                if(chk === 'accept') {
-                    request.usebodytype = 'json';
-                    response.header('Content-Type', 'application/json');
-                }
-            }
-        }
-
-        response.header('X-M2M-RSC', rsc);
+        apply_headers(request, response, rsc);
     }
 
     if (Object.keys(body_Obj)[0] == 'rsp') {
@@ -1969,25 +1141,6 @@ exports.search_result = function(request, response, status, rsc, cap, callback) 
 
         var bodyString = JSON.stringify(body_Obj);
 
-        if (request.usebodytype == 'json') {
-        }
-        else if (request.usebodytype == 'cbor') {
-            bodyString = cbor.encode(body_Obj).toString('hex');
-        }
-        else {
-            body_Obj['m2m:' + rootnm] = body_Obj['m2m:' + rootnm].toString().replace(/,/g, ' ');
-            var xml = xmlbuilder.create('m2m:' + rootnm, {version: '1.0', encoding: 'UTF-8', standalone: true},
-                {pubID: null, sysID: null}, {
-                    allowSurrogateChars: false,
-                    skipNullAttributes: false,
-                    headless: false,
-                    ignoreDecorators: false,
-                    stringify: {}
-                }
-            ).att('xmlns:m2m', 'http://www.onem2m.org/xml/protocols').att('xmlns:xsi', 'http://www.w3.org/2001/XMLSchema-instance');
-            xml.txt(body_Obj['m2m:' + rootnm]);
-            bodyString = xml.end({pretty: false, indent: '  ', newline: '\n'}).toString();
-        }
 
         response.status(parseInt(status, 10)).end(bodyString);
 
@@ -2048,19 +1201,6 @@ exports.search_result = function(request, response, status, rsc, cap, callback) 
         // 논블로킹(rt=1/2)은 지원하지 않는다 — app.js 의 check_request_query_rt 가
         // 405-4 로 막으므로 여기까지 오는 요청은 모두 블로킹이다.
         // 예전에는 여기서 rt 로 갈라져 한쪽이 req 리소스에 결과를 적었다.
-        if (request.usebodytype == 'json') {
-        }
-        else if (request.usebodytype == 'cbor') {
-            bodyString = cbor.encode(body_Obj['m2m:' + rootnm]).toString('hex');
-        }
-        else {
-            if(rootnm == 'agr') {
-                bodyString = _this.convertXml2(rootnm, body_Obj['m2m:' + rootnm]);
-            }
-            else {
-                bodyString = _this.convertXml2(rootnm, body_Obj);
-            }
-        }
 
         response.status(parseInt(status, 10)).end(bodyString);
 
@@ -2088,46 +1228,9 @@ function sendError(request, response, httpStatus, rsc, dbg_string, callback) {
     var body_Obj = {};
     body_Obj['m2m:dbg'] = dbg_string;
 
-    if(request.headers.hasOwnProperty('x-m2m-ri')) {
-        response.header('X-M2M-RI', request.headers['x-m2m-ri']);
-    }
+    apply_headers(request, response, rsc);
 
-    if(request.headers.hasOwnProperty('x-m2m-rvi')) {
-        response.header('X-M2M-RVI', request.headers['x-m2m-rvi']);
-    }
-
-    if(request.headers.hasOwnProperty('accept')) {
-        response.header('Accept', request.headers['accept']);
-
-        if(request.headers['accept'].includes('xml')) {
-            request.usebodytype = 'xml';
-            response.header('Content-Type', 'application/xml');
-        }
-        else if(request.headers['accept'].includes('cbor')) {
-            request.usebodytype = 'cbor';
-            response.header('Content-Type', 'application/cbor');
-        }
-        else {
-            request.usebodytype = 'json';
-            response.header('Content-Type', 'application/json');
-        }
-    }
-
-    if(request.headers.hasOwnProperty('locale')) {
-        response.header('Locale', request.headers['locale']);
-    }
-
-    response.header('X-M2M-RSC', rsc);
-
-    if (request.usebodytype == 'json') {
         var bodyString = JSON.stringify(body_Obj);
-    }
-    else if (request.usebodytype == 'cbor') {
-        bodyString = cbor.encode(body_Obj).toString('hex');
-    }
-    else {
-        bodyString = _this.convertXml('dbg', body_Obj);
-    }
 
     body_Obj = null;
 
