@@ -4239,12 +4239,17 @@ function parse_json_array(raw) {
 /**
  * 알림을 보낼 수 없는 구독을 찾는다. DB 쓰기 0.
  *
- * @param opts { batch, scanCap, maxFindings, after }
+ * @param opts { batch, scanCap, maxFindings, after, targets }
  *        after 는 앞선 호출의 result.next 를 **그대로** 넘긴다.
  * @returns callback(null, {
- *            findings: [{ ri, pi, nu, reason, detail }],
- *            findingsTruncated, scanned, capped, byReason, next })
+ *            findings: [{ ri, pi, nu, reason, severity, detail }],
+ *            findingsTruncated, scanned, capped, byReason, bySeverity, next })
  *          next 가 null 이면 다 훑은 것이다.
+ *
+ * severity 는 SUB_AUDIT_SEVERITY 가 정한다 — broken / suspect 두 값이다.
+ * **삭제 후보에는 broken 만 올린다.** 위 표의 주석을 읽을 것.
+ * 이 계약을 읽는 쪽(관리 콘솔)이 자체 기준을 만들면 코어와 콘솔이 서로 다른
+ * 기준으로 "지워도 되는 구독" 을 말하게 된다.
  */
 exports.audit_subscriptions = function (connection, opts, callback) {
     if (typeof opts === 'function') { callback = opts; opts = {}; }
