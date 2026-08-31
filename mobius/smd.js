@@ -14,17 +14,12 @@
  * @author Il Yeup Ahn [iyahn@keti.re.kr]
  */
 
-var url = require('url');
-var xml2js = require('xml2js');
-var xmlbuilder = require('xmlbuilder');
-var util = require('util');
-var body = require('./body');
-var responder = require('./responder');
-var http = require('http');
-var https = require('https');
-var fs = require('fs');
-var outbound = require('./outbound');
-
+// require 가 하나도 없다. 브로커 호출을 걷어내고 나니 build_smd 는
+// 넘겨받은 객체의 필드를 옮겨 담기만 한다 — 순수 함수다.
+//
+// 예전에는 열 개를 require 했다(url · xml2js · xmlbuilder · util · body ·
+// responder · http · https · fs · outbound). 전부 브로커로 나가는 HTTP
+// 요청과 그 응답 처리에 쓰던 것이라 함께 죽었다.
 
 exports.build_smd = function(request, response, resource_Obj, body_Obj, callback) {
     var rootnm = request.headers.rootnm;
@@ -45,177 +40,19 @@ exports.build_smd = function(request, response, resource_Obj, body_Obj, callback
     callback('200');
 };
 
-
-exports.request_post = function(uri, bodyString) {
-    var options = {
-        hostname: usesemanticbroker,
-        port: 7591,
-        path: '',
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        }
-    };
-
-    var req = http.request(options, function (res) {
-        // 예전에는 `bodyStr += chunk` 로 응답을 통째로 모았는데 **아무도 읽지
-        // 않았다.** 상태코드만 로그로 찍고 버렸다. 시맨틱 브로커가 큰 응답을
-        // 주면 그만큼 메모리를 쓰고 그대로 버리는 셈이었다.
-        //
-        // 이제 모으지 않는다. 스트림은 흘려보내야 소켓이 닫히므로 resume() 한다.
-        res.resume();
-        res.on('end', function () {
-            console.log('----> [smd.request_post()] response for smd  ' + res.statusCode);
-        });
-    });
-
-    // 응답이 오지 않으면 요청을 끊는다. 파기하면 아래 error 핸들러가 뒷정리를 한다.
-    outbound.arm(req, 'smd post');
-    req.on('error', function (e) {
-        console.log('[smd.request_post()] problem with request: ' + e.message);
-    });
-
-    req.on('close', function() {
-        console.log('[smd.request_post()] close()');
-    });
-
-    console.log('<---- [smd.request_post()] request for smd');
-    req.write(bodyString);
-    req.end();
-};
-
-
-exports.request_get_discovery = function(request, response, callback) {
-    var options = {
-        hostname: usesemanticbroker,
-        port: 7591,
-        path: '',
-        method: 'GET',
-        headers: {
-            'smf': encodeURI(request.query.smf)
-        }
-    };
-
-    var req = http.request(options, function (res) {
-        body.read(res, function (rerr, bodyStr) {
-            if (rerr) {
-                // 브로커 응답을 못 읽었다. 예전에는 이 경우가 없어서 깨진
-                // bodyStr 로 그대로 진행했다 — 빈 문자열을 split(',') 하면
-                // [''] 이 되어 "결과 1건" 처럼 보인다.
-                console.error('[smd.request_get_discovery] 브로커 응답을 받지 못했다: ' + rerr.message);
-                callback('404-2');
-                return;
-            }
-            console.log('----> [smd.request_post()] response for smd  ' + res.statusCode);
-
-            // 예전에는 여기서 callback(response, res.statusCode, bodyStr) 을 먼저
-            // 부르고 return 없이 아래로 내려가, 콜백이 반드시 두 번 불렸다.
-            //
-            // 이 콜백의 첫 인자는 결과 코드 문자열이어야 하는데 Express 의
-            // response 객체가 들어갔다. 상위(resource.js -> app.js)는 그것을
-            // 모르는 코드로 보고 500 을 내보낸 뒤 커넥션을 반납하고
-            // request/response 를 null 로 비운다. 그 다음 아래의 정상 코드가
-            // 두 번째로 도착해 null 을 역참조했다 — 잘못된 500 을 보낸 뒤
-            // 워커가 죽는 순서였다.
-            //
-            // 아래 분기가 세 경우를 모두 덮으므로 그 호출을 걷어낸다.
-            var ri_list = bodyStr.split(',');
-            if (res.statusCode == 200) {
-                make_cse_relative(ri_list);
-                request.headers.rootnm = 'uril';
-                request.resourceObj = {};
-                request.resourceObj.uril = {};
-                request.resourceObj.uril = ri_list;
-
-                callback('200-1');
-            }
-            else {
-                if(res.statusCode == 400) {
-                    callback('400-41');
-                }
-                else {
-                    callback('404-2');
-                }
-            }
-        });
-    });
-
-    // 응답이 오지 않으면 요청을 끊는다. 파기하면 아래 error 핸들러가 뒷정리를 한다.
-    outbound.arm(req, 'smd discovery');
-    req.on('error', function (e) {
-        console.log('[smd.request_post()] problem with request: ' + e.message);
-
-        callback('404-2');
-    });
-
-    req.on('close', function() {
-        console.log('[smd.request_post()] close()');
-    });
-
-    console.log('<---- [smd.request_post()] request for smd');
-    req.write('');
-    req.end();
-};
-
-// exports.modify_sd = function(request, response, resource_Obj, body_Obj, callback) {
-//     var rootnm = request.headers.rootnm;
+// ── 여기 있던 시맨틱 브로커 호출 둘을 걷어냈다 (2026-08-31) ────────────
 //
-//     // check M
-//     for (var attr in update_m_attr_list[rootnm]) {
-//         if (update_m_attr_list[rootnm].hasOwnProperty(attr)) {
-//             if (body_Obj[rootnm].includes(attr)) {
-//             }
-//             else {
-//                 body_Obj = {};
-//                 body_Obj['dbg'] = 'BAD REQUEST: ' + attr + ' is \'Mandatory\' attribute';
-//                 responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-//                 callback('0', resource_Obj);
-//                 return '0';
-//             }
-//         }
-//     }
+//     request_post           ty=24 생성 후 브로커로 POST (fire-and-forget)
+//     request_get_discovery  ?fu=1&smf= 로 브로커에 시맨틱 탐색을 위임
 //
-//     // check NP and body
-//     for (attr in body_Obj[rootnm]) {
-//         if (body_Obj[rootnm].hasOwnProperty(attr)) {
-//             if (update_np_attr_list[rootnm].includes(attr)) {
-//                 body_Obj = {};
-//                 body_Obj['dbg'] = 'BAD REQUEST: ' + attr + ' is \'Not Present\' attribute';
-//                 responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-//                 callback('0', resource_Obj);
-//                 return '0';
-//             }
-//             else {
-//                 if (update_opt_attr_list[rootnm].includes(attr)) {
-//                 }
-//                 else {
-//                     body_Obj = {};
-//                     body_Obj['dbg'] = 'NOT FOUND: ' + attr + ' attribute is not defined';
-//                     responder.response_result(request, response, 404, body_Obj, 4004, request.url, body_Obj['dbg']);
-//                     callback('0', resource_Obj);
-//                     return '0';
-//                 }
-//             }
-//         }
-//     }
+// 사용자가 브로커를 쓰지 않기로 했다. 주소가 mobius.js 에
+// usesemanticbroker = 사설 IP 로 박혀 있었는데, 그것은 CLAUDE.md 의
+// 배포 종속 값 금지 규약 위반이기도 했다. 포트 7591 도 하드코딩이었다.
 //
-//     update_body(rootnm, body_Obj, resource_Obj); // (attr == 'aa' || attr == 'poa' || attr == 'lbl' || attr == 'acpi' || attr == 'srt' || attr == 'nu' || attr == 'mid' || attr == 'macp')
+// 배포 실측: semanticDescriptor 리소스 0건, 그 주소는 닿지도 않는다.
+// 즉 request_post 는 매번 조용히 실패했고, smf 탐색은 아웃바운드
+// 타임아웃(기본 10초)을 다 쓰고 404-2 를 냈다.
 //
-//     resource_Obj[rootnm].st = (parseInt(resource_Obj[rootnm].st, 10) + 1).toString();
-//
-//     var cur_d = new Date();
-//     resource_Obj[rootnm].lt = cur_d.toISOString().replace(/-/, '').replace(/-/, '').replace(/:/, '').replace(/:/, '').replace(/\..+/, '');
-//
-//     if (resource_Obj[rootnm].et != '') {
-//         if (resource_Obj[rootnm].et < resource_Obj[rootnm].ct) {
-//             body_Obj = {};
-//             body_Obj['dbg'] = 'expiration time is before now';
-//             responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-//             callback('0', resource_Obj);
-//             return '0';
-//         }
-//     }
-//
-//     callback('1', resource_Obj);
-// };
-
+// **ty=24 자체는 그대로다.** 생성·조회·수정·삭제 전부 영향이 없다.
+// build_smd 가 위에 남아 있고 smd 테이블도 스키마에 그대로다.
+// 브로커를 다시 쓸 일이 생기면 그때 주소를 conf 로 빼서 새로 만든다.

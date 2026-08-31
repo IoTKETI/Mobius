@@ -69,7 +69,6 @@ var REASON = {
     '400-35': { code: RSC.BAD_REQUEST, msg: "mgmtDefinition does not match the mgmtObj resource" },
     '400-36': { code: RSC.BAD_REQUEST, msg: "resource type is not supported for create" },
     '400-40': { code: RSC.BAD_REQUEST, msg: "body is empty" },
-    '400-41': { code: RSC.BAD_REQUEST, msg: "BAD REQUEST" },
     '400-42': { code: RSC.BAD_REQUEST, msg: "ty does not match the body" },
     '400-43': { code: RSC.BAD_REQUEST, msg: "rcn or fu query is not supported at POST request" },
     '400-44': { code: RSC.BAD_REQUEST, msg: "rcn or fu query is not supported at GET request" },
@@ -124,7 +123,6 @@ var REASON = {
     // 평범한 404 마다 에러 로그가 쌓였다. 어느 함수가 냈는지는 코드를 보면
     // 바로 알 수 있어(get_target_url 한 곳뿐) 진단에 detail 이 필요 없다.
     '404-1': { code: RSC.NOT_FOUND, msg: "resource does not exist" },
-    '404-2': { code: RSC.NOT_FOUND, msg: "RESOURCE DOES NOT FOUND" },
     '404-3': { code: RSC.NOT_FOUND, msg: "CSEBase was not found" },
     '404-4': { code: RSC.NOT_FOUND, msg: "group resource does not exist" },
     '404-5': { code: RSC.NOT_FOUND, msg: "response did not come from fanOutPoint" },

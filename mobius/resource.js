@@ -1102,9 +1102,10 @@ exports.create = function (request, response, callback) {
                         response.header('Content-Location', request.resourceObj[rootnm].ri.replace('/', ''));
                     }
 
-                    if (rootnm == 'smd') {
-                        smd.request_post(request.url, JSON.stringify(request.resourceObj));
-                    }
+                    // 여기서 시맨틱 브로커로 POST 하던 것을 걷어냈다 (2026-08-31).
+                    // 사용자가 브로커를 쓰지 않기로 했다. semanticDescriptor(ty=24)
+                    // 리소스 자체는 그대로 만들어지고 저장된다 — 이 호출은
+                    // fire-and-forget 이라 응답 코드에 영향을 준 적도 없다.
 
                     // req(ty=17) 를 만들었을 때 202 를 돌려주던 분기는 걷어냈다.
                     // 논블로킹을 지원하지 않게 되면서 req 를 만드는 경로가 없고,
@@ -1325,11 +1326,18 @@ exports.retrieve = function (request, response, callback) {
 
         callback('200');
     }
-    else if (request.query.fu == 1 && (request.query.smf)) {
-        smd.request_get_discovery(request, response, function (code) {
-            callback(code);
-        });
-    }
+    // 여기 있던 smf(시맨틱 필터) 분기를 걷어냈다 (2026-08-31).
+    //
+    // 외부 시맨틱 브로커에 물어보는 경로였는데, 사용자가 그 브로커를 쓰지
+    // 않기로 했다. 주소가 mobius.js 에 사설 IP 로 박혀 있었고 배포에서
+    // 닿지도 않았다 — 이 분기로 들어오면 아웃바운드 타임아웃(기본 10초)을
+    // 다 쓰고 404-2 가 나갔다.
+    //
+    // 이제 ?smf= 가 와도 그 파라미터를 무시하고 **일반 discovery 로 떨어진다.**
+    // 400 을 주지 않는 이유: smf 는 oneM2M 표준 파라미터이고, 우리가 그
+    // 기능을 제공하지 않는 것이지 요청이 잘못된 것이 아니다. 거절하면
+    // 지금까지 10초 뒤 404 를 받던 클라이언트가 즉시 400 을 받게 되는데,
+    // 어느 쪽도 원하는 답이 아니라면 결과를 주는 쪽이 낫다.
     else {
         request.headers.rootnm = 'agr';
 

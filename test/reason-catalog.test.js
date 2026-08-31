@@ -16,7 +16,7 @@ const reason = require('../mobius/reason');
 const rsc = require('../mobius/rsc');
 const ROOT = path.join(__dirname, '..');
 
-test('사유 100개가 있다', function () {
+test('사유 98개가 있다', function () {
     // 501-1 과 400-4 를 걷어내고, 301-5 / 404-8 을 더했다.
     // 400-4("not parse your body")는 check_resource_supported 가 파싱 실패를
     // 전부 이 하나로 뭉개던 코드였다. 파싱이 한 곳으로 모이면서
@@ -31,7 +31,9 @@ test('사유 100개가 있다', function () {
     // 실제로는 걸리지 않던 것을 고치면서 생겼다.
     // ASN/MN-CSE 모드를 포기하며 400-28("ASN CSE can not have child CSE")이
     // 참조를 잃어 다시 100 이 됐다.
-    assert.strictEqual(Object.keys(reason.REASON).length, 100);
+    // 시맨틱 브로커를 걷어내며 400-41("BAD REQUEST") 과 404-2 가 참조를
+    // 잃어 98 이 됐다 — 둘 다 브로커 응답 상태코드를 옮기던 자리였다.
+    assert.strictEqual(Object.keys(reason.REASON).length, 98);
 });
 
 test('모든 사유의 code 가 RSC 카탈로그의 실제 항목이다', function () {
@@ -47,7 +49,7 @@ test('모든 사유의 code 가 RSC 카탈로그의 실제 항목이다', functi
 
 test('toLegacyTable 이 app.js 가 쓰던 형태를 만든다', function () {
     const t = reason.toLegacyTable();
-    assert.strictEqual(Object.keys(t).length, 100);
+    assert.strictEqual(Object.keys(t).length, 98);
 
     Object.keys(t).forEach(function (k) {
         const row = t[k];
@@ -249,7 +251,7 @@ test('selfCheck 가 실제로 문제를 잡는다', function () {
 
     // 2) 중복 문구
     const savedMsg = reason.REASON['400-40'].msg;
-    reason.REASON['400-40'].msg = reason.REASON['400-41'].msg;
+    reason.REASON['400-40'].msg = reason.REASON['400-1'].msg;
     assert.ok(reason.selfCheck().some(function (p) { return /같은 문구/.test(p); }),
         '중복 문구를 못 잡는다');
     reason.REASON['400-40'].msg = savedMsg;
@@ -278,7 +280,7 @@ test('selfCheck 가 실제로 문제를 잡는다', function () {
 test('reportSelfCheck 는 문제가 있어도 던지지 않는다', function () {
     // 기동을 막으면 안 된다. 운영 배포에서 서버가 안 뜨는 쪽이 더 위험하다.
     const savedMsg = reason.REASON['400-40'].msg;
-    reason.REASON['400-40'].msg = reason.REASON['400-41'].msg;
+    reason.REASON['400-40'].msg = reason.REASON['400-1'].msg;
 
     const origErr = console.error, origLog = console.log;
     const lines = [];
