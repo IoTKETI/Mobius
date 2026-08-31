@@ -93,12 +93,19 @@ test('can() 은 connect() 전에도 던지지 않는다', function () {
 
     const saved = global.usesqlite;
     try {
-        for (const [backend, expected] of [['true', true], ['false', false]]) {
+        for (const [backend, limited] of [['true', true], ['false', false]]) {
             delete require.cache[require.resolve('../mobius/db')];
             global.usesqlite = backend;
             const db = require('../mobius/db');
-            assert.strictEqual(db.can('limitedResourceTypes'), expected,
-                'usesqlite=' + backend + ' 에서 limitedResourceTypes 가 틀렸다');
+            const allowed = db.supportedResourceTypes();
+            if (limited) {
+                assert.ok(Array.isArray(allowed),
+                    'usesqlite=' + backend + ' 이 지원 타입 목록을 안 준다');
+            }
+            else {
+                assert.strictEqual(allowed, null,
+                    'usesqlite=' + backend + ' 이 제한을 선언했다 — null 이어야 한다');
+            }
             assert.strictEqual(db.can('없는_능력'), false, '없는 키는 false 여야 한다');
         }
     } finally {
@@ -108,13 +115,45 @@ test('can() 은 connect() 전에도 던지지 않는다', function () {
 });
 
 test('501 게이트는 fail-open 이다 — 제한을 선언한 백엔드만 거른다', function () {
-    // 극성이 뒤집히면 정상 CREATE 가 501 로 나간다. mysql 어댑터는 이 키를
-    // 적지 않는 것으로 "제한 없음" 을 표현한다.
+    // 극성이 뒤집히면 정상 CREATE 가 501 로 나간다. **목록이 아닌 것**이
+    // "제한 없음" 이다 — mysql 은 null 을 적고, 아예 빠뜨린 어댑터도 같다.
     const mysql = require('../mobius/db/mysql');
     const sqlite = require('../mobius/db/sqlite');
-    assert.strictEqual(mysql.capabilities.limitedResourceTypes, undefined,
-        'mysql 이 limitedResourceTypes 를 선언했다 — 제한 없음은 키가 없는 것이다');
-    assert.strictEqual(sqlite.capabilities.limitedResourceTypes, true);
+    assert.strictEqual(mysql.supportedResourceTypes, null,
+        'mysql 이 지원 타입 목록을 선언했다 — 제한 없음은 null 이다');
+    assert.ok(Array.isArray(sqlite.supportedResourceTypes),
+        'sqlite 가 지원 타입 목록을 선언하지 않았다');
+
+    // 값을 아예 안 적은 어댑터도 fail-open 이어야 한다.
+    delete require.cache[require.resolve('../mobius/db')];
+    const saved = global.usedb;
+    try {
+        global.usedb = 'mysql';
+        const db = require('../mobius/db');
+        const real = mysql.supportedResourceTypes;
+        delete mysql.supportedResourceTypes;
+        assert.strictEqual(db.supportedResourceTypes(), null,
+            '선언을 빠뜨린 어댑터가 제한 있음으로 읽혔다 — 정상 CREATE 가 501 이 된다');
+        mysql.supportedResourceTypes = real;
+    } finally {
+        global.usedb = saved;
+        delete require.cache[require.resolve('../mobius/db')];
+    }
+});
+
+test('지원 타입 목록은 어댑터가 갖는다 — 코어에 백엔드 이름이 없다', function () {
+    // 예전에는 resource.js 에 SQLITE_SUPPORTED_TY 가 있었다. 코어에, 한 백엔드
+    // 이름을 달고. 그러면 다른 백엔드가 다른 부분집합을 지원할 때 코어를
+    // 고쳐야 하고, "어댑터 파일 하나로 붙는다" 가 깨진다.
+    // **주석은 빼고 본다.** 왜 옮겼는지 설명하느라 옛 이름을 인용하기 때문이다.
+    // (이 저장소에서 소스 스캔 테스트가 자기 주석에 걸린 적이 여러 번 있다.)
+    const src = fs.readFileSync(path.join(ROOT, 'mobius/resource.js'), 'utf8');
+    const core = src.split('\n').filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l)).join('\n');
+
+    assert.strictEqual(/SQLITE_SUPPORTED_TY/.test(core), false,
+        'resource.js 에 SQLITE_SUPPORTED_TY 가 되살아났다 — 목록은 어댑터가 갖는다');
+    assert.strictEqual(/\b(SQLITE|MYSQL|POSTGRES)_[A-Z_]+\s*=/.test(core), false,
+        'resource.js 에 백엔드 이름이 붙은 상수가 있다');
 });
 
 test('501 게이트는 타입별 빌더보다 먼저 선다', function () {
@@ -136,20 +175,53 @@ test('501 게이트는 타입별 빌더보다 먼저 선다', function () {
         '게이트가 build_resource 뒤에 있다 — 타입별 빌더가 먼저 DB 를 친다');
 });
 
-test('SQLITE_SUPPORTED_TY 는 스키마에 테이블이 있는 타입만 담는다', function () {
-    const src = fs.readFileSync(path.join(ROOT, 'mobius/resource.js'), 'utf8');
-    const m = src.match(/var SQLITE_SUPPORTED_TY = \[([^\]]*)\]/);
-    assert.ok(m, 'SQLITE_SUPPORTED_TY 를 못 찾았다');
-    const list = m[1].split(',').map((s) => s.trim().replace(/'/g, '')).filter(Boolean);
-
+test('어댑터의 지원 타입 목록은 그 어댑터 스키마에 테이블이 있는 것만 담는다', function () {
+    // 어댑터가 선언한 목록과 그 어댑터의 스키마 파일을 대조한다.
+    // 목록에 있는데 테이블이 없으면 CREATE 가 501 이 아니라 500 으로 깨진다.
     const responder = require('../mobius/responder');
-    const schema = fs.readFileSync(path.join(ROOT, 'mobius/mobiusdb_sqlite.sql'), 'utf8');
+    const dir = path.join(ROOT, 'mobius', 'db');
 
-    for (const ty of list) {
-        const table = responder.typeRsrc[ty];
-        assert.ok(table, 'ty=' + ty + ' 가 typeRsrc 에 없다');
-        const re = new RegExp('CREATE TABLE (IF NOT EXISTS )?`?' + table + '`?\\s*\\(', 'i');
-        assert.ok(re.test(schema),
-            'ty=' + ty + '(' + table + ') 가 목록에 있는데 mobiusdb_sqlite.sql 에 테이블이 없다');
+    for (const f of fs.readdirSync(dir)) {
+        if (!f.endsWith('.js') || f === 'index.js' || f === 'errors.js') { continue; }
+        const adapter = require(path.join(dir, f));
+        const list = adapter.supportedResourceTypes;
+        if (!Array.isArray(list)) { continue; }   // 제한 없음
+
+        const schema = fs.readFileSync(path.join(ROOT, 'mobius', adapter.schemaFile), 'utf8');
+        for (const ty of list) {
+            const table = responder.typeRsrc[ty];
+            assert.ok(table, adapter.name + ': ty=' + ty + ' 가 typeRsrc 에 없다');
+            const re = new RegExp('CREATE TABLE (IF NOT EXISTS )?`?' + table + '`?\\s*\\(', 'i');
+            assert.ok(re.test(schema),
+                adapter.name + ': ty=' + ty + '(' + table + ') 가 지원 목록에 있는데 ' +
+                adapter.schemaFile + ' 에 테이블이 없다');
+        }
+    }
+});
+
+test('제한 없는 백엔드는 스키마에 모든 타입의 테이블이 있다', function () {
+    // 제한을 선언하지 않았다는 것은 "다 받는다" 는 뜻이다. 그런데 스키마에
+    // 테이블이 없으면 CREATE 가 500 으로 깨진다 — 501 로 거절되지도 않는다.
+    // (SQLite 의 grp 가 그랬다: 목록에 없어 501 이 맞는데, 게이트가 늦어
+    //  csr 조회가 먼저 돌아 500 이 나갔다.)
+    const responder = require('../mobius/responder');
+    const dir = path.join(ROOT, 'mobius', 'db');
+
+    for (const f of fs.readdirSync(dir)) {
+        if (!f.endsWith('.js') || f === 'index.js' || f === 'errors.js') { continue; }
+        const adapter = require(path.join(dir, f));
+        if (Array.isArray(adapter.supportedResourceTypes)) { continue; }   // 제한 있음
+
+        const schema = fs.readFileSync(path.join(ROOT, 'mobius', adapter.schemaFile), 'utf8');
+        const missing = [];
+        for (const ty of global.ty_list || []) {
+            const table = responder.typeRsrc[ty];
+            if (!table) { continue; }   // 추상 타입(mgo 등)은 본문 테이블이 없다
+            const re = new RegExp('CREATE TABLE (IF NOT EXISTS )?`?' + table + '`?\\s*\\(', 'i');
+            if (!re.test(schema)) { missing.push(ty + '(' + table + ')'); }
+        }
+        assert.deepStrictEqual(missing, [],
+            adapter.name + ' 이 제한을 선언하지 않았는데 ' + adapter.schemaFile +
+            ' 에 테이블이 없는 타입이 있다: ' + missing.join(', '));
     }
 });

@@ -1,6 +1,10 @@
 'use strict';
-// db_action.getResult / db_sqlite.getResult 를 감싸 실행되는 SQL 을 기록한다.
-// 동작은 바꾸지 않는다 — 원본을 그대로 호출하고 기록만 덧붙인다.
+// 실행되는 SQL 을 기록한다. 동작은 바꾸지 않는다 — 원본을 그대로 호출하고
+// 기록만 덧붙인다.
+//
+// 예전에는 두 곳을 감쌌다: 구 경로(db_action.getResult / db_sqlite.getResult)와
+// 어댑터의 execute. 전환이 끝나 **모든 SQL 이 어댑터의 execute 를 지나므로**
+// 한 곳만 감싼다. 구 경로 두 파일은 삭제됐다.
 //
 // 워커마다 프로세스가 다르므로 pid 별 파일에 쓴다. collect.js 가 합친다.
 
@@ -14,23 +18,7 @@ function install() {
     const file = path.join(OUT_DIR, 'sql-' + process.pid + '.jsonl');
     const stream = fs.createWriteStream(file, { flags: 'a' });
 
-    function wrap(mod, backend) {
-        if (!mod || typeof mod.getResult !== 'function' || mod.__tapped) { return; }
-        const orig = mod.getResult;
-        mod.getResult = function (query, connection, callback) {
-            try {
-                stream.write(JSON.stringify({ backend: backend, sql: String(query) }) + '\n');
-            } catch (e) { /* 기록 실패가 요청을 막으면 안 된다 */ }
-            return orig.call(mod, query, connection, callback);
-        };
-        mod.__tapped = true;
-    }
-
-    wrap(require('../../mobius/db_action'), 'mysql');
-    wrap(require('../../mobius/db_sqlite'), 'sqlite');
-
-    // 전환된 함수는 db.run -> mobius/db/<backend>.execute 로 간다.
-    // 이 경로도 잡아야 전환 전후를 같은 기준으로 비교할 수 있다.
+    // db.run / db.execRaw 는 전부 mobius/db/<backend>.execute 로 간다.
     function wrapExecute(mod, backend) {
         if (!mod || typeof mod.execute !== 'function' || mod.__tapped_execute) { return; }
         const orig = mod.execute;

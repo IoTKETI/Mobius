@@ -39,16 +39,9 @@ function tapAdapter(useSqlite) {
     // 구 경로도 막아 둔다. db_action.getResult 는 mysql_pool 이 null 이면
     // 콜백을 부르지 않고 그냥 return 해서 테스트가 영원히 멈춘다. 스텁을 두면
     // 미전환 함수가 "구 경로로 샜다"는 사실로 빠르게 드러난다.
-    const legacyMysql = require(path.join(__dirname, '..', 'mobius', 'db_action.js'));
-    legacyMysql.getResult = function (sql, conn, cb) {
-        seen.push({ sql: 'LEGACY_MYSQL', legacySql: sql });
-        cb(null, { affectedRows: 0 });
-    };
-    const legacySqlite = require(path.join(__dirname, '..', 'mobius', 'db_sqlite.js'));
-    legacySqlite.getResult = function (sql, conn, cb) {
-        seen.push({ sql: 'LEGACY_SQLITE', legacySql: sql });
-        cb(null, []);
-    };
+    // 구 경로(db_action / db_sqlite)의 getResult 를 가로채 "그쪽으로 샜는가"
+    // 를 보던 자리다. 두 파일을 지웠으므로(2026-09-01) 샐 곳이 없다.
+    // 되살아나지 않았는지는 test/db-adapter-contract.test.js 가 본다.
 
     delete require.cache[require.resolve(path.join(__dirname, '..', 'mobius', 'sql_action.js'))];
     const sql_action = require(path.join(__dirname, '..', 'mobius', 'sql_action.js'));

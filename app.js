@@ -69,12 +69,14 @@ var settle_mod = require('./mobius/settle');
 // DB 의 poa 컬럼을 안전하게 배열로 읽는다
 var poa_util = require('./mobius/poa');
 
-var db = require('./mobius/db_action');
+// DB 파사드. 예전에는 db_action.js 라는 껍데기를 한 겹 거쳤는데, 그것이
+// 파사드 위에 아무것도 더하지 않게 되어 지웠다(임대 장부는 파사드로 옮겼다).
+var db = require('./mobius/db');
 var db_sql = require('./mobius/sql_action');
 
-// 전환된 sql_action 함수들이 쓰는 새 DB 파사드.
-// 전환이 끝나면(구 db_action/db_sqlite 삭제 시) 위 db 를 이것으로 대체한다.
-var db_facade = require('./mobius/db');
+// db_facade 라는 두 번째 이름이 있었다. 전환 중에는 "구 경로(db)" 와
+// "새 파사드(db_facade)" 를 구분할 필요가 있었지만 이제 같은 것이라 합쳤다.
+var db_facade = db;
 
 // ������ �����մϴ�.
 var app = express();

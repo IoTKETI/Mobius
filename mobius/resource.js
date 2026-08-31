@@ -43,8 +43,10 @@ var fcnt = require('./fcnt');
 var security = require('./security');
 var acp_observe = require('./acp_observe');
 var acp_filter = require('./acp_filter');
-var db = require('./db_action');
-var db_facade = require('./db');
+// DB 파사드. 예전에는 db_action.js 라는 껍데기를 한 겹 거쳤다.
+var db = require('./db');
+// db_facade 라는 두 번째 이름이 있었다. 이제 같은 것이라 합쳤다.
+var db_facade = db;
 var db_sql = require('./sql_action');
 var db_errors = require('./db/errors');
 var defaults = require('./defaults');
@@ -317,28 +319,23 @@ global.make_internal_ri = function (resource_Obj) {
     }
 };
 
-// 제한이 있는 백엔드(지금은 SQLite)가 실제로 다룰 수 있는 리소스 타입.
-// mobius/mobiusdb_sqlite.sql 에 본문 테이블이 있고, 그 타입의 본문 insert 가
-// 파사드를 타는 것만 들어간다. 새 타입을 지원하려면 스키마에 테이블을 추가하고
-// 여기에 등록한다.
-//
-// (예전 주석은 "sql_action.js 의 usesqlite 분기가 함께 존재하는 타입" 이라고
-//  적었는데, 그 분기는 delete_oldest 하나만 남아 더는 판별식이 아니다.)
-//
-//   1=acp  2=ae  3=cnt  4=cin  5=cb  23=sub
-var SQLITE_SUPPORTED_TY = ['1', '2', '3', '4', '5', '23'];
-
 // 지원하지 않는 타입은 여기서 막아야 한다. create_action 아래의 insert_* 는
 // 내부에서 insert_lookup 을 먼저 실행하므로, 그대로 흘려보내면 lookup 행만 남고
 // 본문 insert 가 실패해 고아 행이 생긴다. 그 고아 행은 이후 discovery 를 깨뜨린다.
+//
+// **목록은 어댑터가 갖는다.** 예전에는 여기 SQLITE_SUPPORTED_TY 라는 이름으로
+// 있었다 — 코어에, 한 백엔드 이름을 달고. 그래서 다른 백엔드가 다른 부분집합을
+// 지원하려면 이 파일을 고쳐야 했고, 그것은 "어댑터 파일 하나로 붙는다" 가
+// 깨지는 자리였다.
 function check_db_support(ty) {
-    // 제한이 없는 백엔드(MySQL)는 그냥 통과한다. 이 게이트는 501 을 내보내므로
-    // 반드시 fail-open 이어야 한다 — capabilities 극성 설명은 db/sqlite.js 참고.
-    // can() 은 던지지 않는 계약이다(db/index.js).
-    if (!db_facade.can('limitedResourceTypes')) {
+    // 제한이 없는 백엔드(MySQL)는 null 을 준다 — 그냥 통과한다.
+    // 이 게이트는 501 을 내보내므로 반드시 fail-open 이어야 한다.
+    // supportedResourceTypes() 는 던지지 않는 계약이다(db/index.js).
+    var allowed = db_facade.supportedResourceTypes();
+    if (allowed === null) {
         return true;
     }
-    return SQLITE_SUPPORTED_TY.indexOf(String(ty)) >= 0;
+    return allowed.indexOf(String(ty)) >= 0;
 }
 
 function create_action(request, response, callback) {

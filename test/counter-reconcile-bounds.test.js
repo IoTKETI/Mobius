@@ -47,10 +47,9 @@ function tapAdapter(steps, useSqlite) {
 
     // db_action / db_sqlite 는 이 경로에서 안 쓰지만, 모듈 로드시 풀이 없으면
     // 콜백을 안 부르고 멈추는 함수가 있어 미리 막아 둔다.
-    require(path.join(ROOT, 'mobius', 'db_action.js')).getResult =
-        function (sql, conn, cb) { cb(null, []); };
-    require(path.join(ROOT, 'mobius', 'db_sqlite.js')).getResult =
-        function (sql, conn, cb) { cb(null, []); };
+    // 구 경로(db_action / db_sqlite)의 getResult 를 가로채 "그쪽으로 샜는가"
+    // 를 보던 자리다. 두 파일을 지웠으므로(2026-09-01) 샐 곳이 없다.
+    // 되살아나지 않았는지는 test/db-adapter-contract.test.js 가 본다.
 
     delete require.cache[require.resolve(path.join(ROOT, 'mobius', 'sql_action.js'))];
     return { sql_action: require(path.join(ROOT, 'mobius', 'sql_action.js')), seen: seen };

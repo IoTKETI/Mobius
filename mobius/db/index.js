@@ -11,6 +11,10 @@
 
 var knexFactory = require('knex');
 
+// 임대 장부. 반납되지 않는 커넥션을 드러내는 유일한 수단이라, 취득처를
+// 파사드로 모으면서 이것도 같이 옮겼다(예전에는 db_action 에 붙어 있었다).
+var lease = require('../lease');
+
 // 어댑터는 이 디렉터리의 파일이다 — mobius/db/<이름>.js.
 // **새 백엔드는 파일 하나를 여기 두면 등록된다.** 이 목록을 고칠 필요가 없다.
 // 무엇을 갖춰야 하는지는 test/db-adapter-contract.test.js 가 알려준다 —
@@ -98,9 +102,42 @@ exports.connect = function (host, port, user, password, callback) {
     adapter.connect({ host: host, port: port, user: user, password: password }, callback);
 };
 
+// 커넥션 취득. **임대 장부를 여기서 씌운다.**
+//
+// 예전에는 db_action.getConnection 이 이 일을 했다. 그 파일이 파사드 위의
+// 껍데기가 되면서 남은 실제 로직이 이 둘뿐이었고, 취득처가 파사드인 이상
+// 장부도 여기 있는 것이 맞다 — 코어가 파사드를 직접 부르기 시작하면
+// 껍데기를 지나지 않아 장부에서 빠지기 때문이다.
+//
+// **try 범위에 주의.** adapter.getConnection 은 백엔드에 따라 콜백을
+// **동기로** 부른다(SQLite 어댑터가 그렇다). 그러면 요청 처리 사슬 전체가
+// 이 try 안에서 돌게 되는데, 거기서 난 예외까지 삼키면 응답도 정산도 없이
+// 요청이 영구히 매달린다 — 크래시보다 나쁘다. 지금은 워커가 죽으면
+// backstop 이 소켓을 닫아 커넥션이 회수되고 cluster 가 다시 띄운다.
+//
+// 그래서 **콜백에 들어간 뒤의 예외는 그대로 올려보낸다.** 여기서 정규화할
+// 것은 취득 자체가 동기로 던지는 경우(연결 전 호출)뿐이다.
 exports.getConnection = function (callback) {
-    assertReady();
-    adapter.getConnection(callback);
+    var entered = false;
+    try {
+        assertReady();
+        adapter.getConnection(function (code, connection) {
+            entered = true;
+            if (code !== '200' || !connection) {
+                callback('500-5');
+                return;
+            }
+            // 반납되지 않는 커넥션을 드러내기 위한 장부다. 동작은 바꾸지
+            // 않는다 — release 를 감싸 장부만 지우고 원래 release 를 그대로
+            // 부른다. 핸들에 release 가 없으면(SQLite 싱글턴) lease 가 알아서
+            // 비켜간다. 그쪽은 풀이 없어 고갈될 것도 없다. mobius/lease.js 참고.
+            callback('200', lease.track(connection));
+        });
+    } catch (e) {
+        if (entered) { throw e; }   // 요청 사슬의 예외다 — 삼키면 안 된다
+        console.error('[db.getConnection] ' + ((e && e.message) || e));
+        callback('500-5');
+    }
 };
 
 exports.release = function (handle) {
@@ -243,6 +280,22 @@ exports.transaction = function (conn, body, callback) {
 // 여기서 던지면 그 예외가 db.getConnection 콜백 안에서 터져 워커가 죽고
 // 빌린 커넥션이 샌다. capabilities 를 읽는 데 knex 인스턴스는 필요 없다.
 //
+// 이 백엔드가 받는 리소스 타입. **제한이 없으면 null 이다.**
+//
+// 어댑터가 supportedResourceTypes 를 선언하지 않는 것이 "제한 없음" 이다.
+// 코어의 게이트(resource.js 의 check_db_support)가 501 을 내보내므로 반드시
+// fail-open 이어야 한다 — 모든 백엔드가 목록을 적게 하면 하나만 빠뜨려도
+// 정상 CREATE 가 501 이 된다.
+//
+// can() 과 같은 이유로 던지지 않는다. CREATE 요청마다 도는 동기 게이트라
+// 여기서 던지면 그 예외가 db.getConnection 콜백 안에서 터져 워커가 죽고
+// 빌린 커넥션이 샌다.
+exports.supportedResourceTypes = function () {
+    adapter = adapter || pick();
+    var list = adapter.supportedResourceTypes;
+    return Array.isArray(list) ? list : null;
+};
+
 // **계약: 이 함수는 던지지 않는다.**
 exports.can = function (name) {
     adapter = adapter || pick();

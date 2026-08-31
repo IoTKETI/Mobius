@@ -20,7 +20,8 @@ var http = require('http');
 var https = require('https');
 var coap = require('coap');
 var fs = require('fs');
-var db = require('./db_action');
+// DB 파사드. 예전에는 db_action.js 라는 껍데기를 한 겹 거쳤다.
+var db = require('./db');
 var db_sql = require('./sql_action');
 var merge = require('merge');
 

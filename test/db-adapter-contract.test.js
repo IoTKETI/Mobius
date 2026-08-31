@@ -47,7 +47,10 @@ const REQUIRED_FUNCTIONS = [
     'noHashJoinHint', 'notCinPredicate', 'notCinIndexName', 'numericExpr'
 ];
 
-const REQUIRED_VALUES = ['name', 'knexClient', 'capabilities'];
+// supportedResourceTypes: 이 백엔드가 받는 리소스 타입 목록, 또는 null(제한 없음).
+// 값이 없어도(undefined) 파사드가 null 로 읽는다 — 501 게이트는 fail-open 이라야
+// 하기 때문이다. 그래도 표면을 같게 두려고 두 어댑터 모두 적는다.
+const REQUIRED_VALUES = ['name', 'knexClient', 'capabilities', 'supportedResourceTypes'];
 
 // 파사드가 db.can(...) 으로 묻는 능력. 어댑터는 아는 것만 true 로 적고,
 // 모르는 것은 **적지 않는다** — can() 이 없는 키를 false 로 준다.
@@ -202,6 +205,23 @@ test('파사드가 실제로 쓰는 것과 위 목록이 일치한다', function
         '파사드가 쓰는데 계약 목록에 없다: ' + undeclared.join(', '));
 });
 
+test('파사드를 우회하는 길이 아예 없다', function () {
+    // 이 저장소의 목표는 "새 백엔드를 mobius/db/<이름>.js 파일 하나로 붙이는
+    // 것" 이다. 그러려면 커넥션을 얻는 길이 파사드 하나여야 한다.
+    //
+    // db_action.js / db_sqlite.js 가 그 두 번째 길이었다. 처음엔 자기 드라이버를
+    // 들고 있어서(MySQL 풀 / sqlite 핸들) 어느 백엔드를 골랐든 요청 경로가 늘
+    // MySQL 에서 커넥션을 받았고, 나중에는 파사드 위의 껍데기가 되었다가,
+    // 마지막 실제 로직(임대 장부)이 파사드로 옮겨가면서 지워졌다.
+    //
+    // **두 파일이 되살아나면 안 된다.** 껍데기 한 겹이 다시 생기면 그 위에
+    // 백엔드별 분기가 다시 붙는다 — 실제로 그랬던 자리다.
+    for (const f of ['db_action.js', 'db_sqlite.js']) {
+        assert.strictEqual(fs.existsSync(path.join(ROOT, 'mobius', f)), false,
+            'mobius/' + f + ' 이 되살아났다');
+    }
+});
+
 test('새 백엔드를 붙이려면 코어를 몇 군데 고쳐야 하는가', function () {
     // 목적은 "어댑터 하나만 쓰면 되는 것" 이다. 코어가 백엔드 이름을 알면
     // 그만큼 더 고쳐야 한다. 지금 남은 곳을 세어 둔다 — 줄어들기만 해야 한다.
@@ -246,9 +266,15 @@ test('새 백엔드를 붙이려면 코어를 몇 군데 고쳐야 하는가', f
     //       커넥션에서 SQL 한 방으로 하고(update_parent_counters), mni/mbs 정리는
     //       마스터의 주기 스윕(purge_sweep)이 맡는다. 별도 프로세스도, 디바운스
     //       버퍼도, 두 번째 커넥션 원천도 필요 없어졌다.
-    //       같은 커밋에서 sql_action 의 죽은 db_sqlite require 도 뺐지만,
-    //       sql_action 은 아직 db_action 을 require 하므로 수는 그대로 4다.
-    assert.strictEqual(bypass.length, 4,
+    //
+    // 4 -> 0 (2026-09-01). **db_action.js / db_sqlite.js 를 지웠다.**
+    //       마지막까지 남아 있던 실제 로직은 임대 장부(lease)뿐이었고 그것을
+    //       파사드의 getConnection 으로 옮겼다. 취득처가 파사드인 이상 장부도
+    //       거기 있는 것이 맞다 — 코어가 파사드를 직접 부르기 시작하면
+    //       껍데기를 지나지 않아 장부에서 빠지기 때문이다.
+    //
+    //       이제 커넥션을 얻는 길은 mobius/db 하나뿐이다.
+    assert.strictEqual(bypass.length, 0,
         '파사드를 우회해 커넥션을 얻는 파일이 ' + bypass.length + '개다:\n  ' +
         bypass.join('\n  ') + '\n(줄었으면 이 숫자를 내리고, 늘었으면 되돌릴 것)');
 });

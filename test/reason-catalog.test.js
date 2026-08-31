@@ -120,10 +120,18 @@ test('문구에 결과 코드 접두어가 붙어 있지 않다', function () {
 
 test('아무도 참조하지 않는 사유가 없다', function () {
     // 501-1 이 그랬다. 코드 리터럴을 전수 조사해 대조한다.
-    const files = ['app.js'].concat(
-        fs.readdirSync(path.join(ROOT, 'mobius'))
-            .filter(function (f) { return f.endsWith('.js') && f !== 'reason.js'; })
-            .map(function (f) { return 'mobius/' + f; }));
+    //
+    // **하위 디렉터리도 본다.** mobius/ 최상위만 훑고 있었는데, 커넥션 취득이
+    // db_action.js 에서 mobius/db/index.js 로 옮겨가면서 500-5 를 내는 곳이
+    // 스캔 범위 밖으로 나갔다. 그러면 살아 있는 사유가 "고아" 로 잡힌다.
+    const files = ['app.js'];
+    (function walk(rel) {
+        for (const e of fs.readdirSync(path.join(ROOT, rel), { withFileTypes: true })) {
+            const r = rel + '/' + e.name;
+            if (e.isDirectory()) { walk(r); }
+            else if (e.name.endsWith('.js') && e.name !== 'reason.js') { files.push(r); }
+        }
+    })('mobius');
     const used = new Set();
     files.forEach(function (f) {
         let s;

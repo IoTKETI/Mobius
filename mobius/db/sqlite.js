@@ -34,18 +34,28 @@ exports.capabilities = {
     //  노출하지 않고, 임베디드 규모라 필요하지도 않다.)
     statementTimeout: false,
 
-    // 이 백엔드는 일부 리소스 타입만 받는다. 조건은 둘이다 —
-    // mobiusdb_sqlite.sql 에 본문 테이블이 있을 것, 그리고 그 타입의 본문
-    // insert 가 파사드를 탈 것. 목록 자체는 resource.js 의
-    // SQLITE_SUPPORTED_TY 에 있다(그 게이트가 쓰는 유일한 곳이라 거기 둔다).
-    //
-    // **극성 주의**: 키가 **없는 쪽**이 "제한 없음" 이다. can() 은 없는 키를
-    // false 로 돌려주므로(db/index.js) MySQL 은 아무것도 안 적어도 통과한다.
-    // 반대로 "지원 타입" 을 키로 나열하는 방식이면 MySQL 쪽에서 하나만
-    // 빠뜨려도 정상 CREATE 가 501 로 나간다. 501 을 내보내는 게이트는
-    // fail-open 이어야 한다.
-    limitedResourceTypes: true
+    // 리소스 타입 제한은 capabilities 가 아니라 아래 supportedResourceTypes 가
+    // 말한다. boolean 으로 두면 "제한이 있다" 와 "무엇을 받는가" 가 두 파일에
+    // 나뉘어 어긋난다 — 실제로 목록이 resource.js 에 있었다.
 };
+
+// 이 백엔드가 실제로 다룰 수 있는 리소스 타입.
+//
+// 조건은 둘이다 — mobiusdb_sqlite.sql 에 본문 테이블이 있을 것, 그리고 그
+// 타입의 본문 insert 가 파사드를 탈 것. 새 타입을 지원하려면 스키마에
+// 테이블을 추가하고 여기에 등록한다. **어댑터 파일 안에서 끝난다.**
+//
+// 예전에는 이 목록이 resource.js 에 SQLITE_SUPPORTED_TY 라는 이름으로 있었다.
+// 코어에, 그것도 한 백엔드 이름을 달고 있었으므로 다른 백엔드가 다른
+// 부분집합을 지원하려면 코어를 고쳐야 했다 — "파일 하나로 붙는다" 가 깨지는
+// 자리였다.
+//
+// **극성 주의**: 이 값을 **선언하지 않는 것**이 "제한 없음" 이다(MySQL 이
+// 그렇다). 반대로 모든 백엔드가 지원 목록을 적게 하면, 하나만 빠뜨려도
+// 정상 CREATE 가 501 로 나간다. 501 을 내보내는 게이트는 fail-open 이어야 한다.
+//
+//   1=acp  2=ae  3=cnt  4=cin  5=cb  23=sub
+exports.supportedResourceTypes = ['1', '2', '3', '4', '5', '23'];
 
 exports.statementTimeoutHint = function () { return null; };
 

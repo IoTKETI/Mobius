@@ -78,18 +78,23 @@ test('SQLite 파일을 여는 곳은 어댑터 하나뿐이다', function () {
     // 확인할 것도 하나로 줄었다 — 파일을 여는 곳이 어댑터뿐인가.
     const facadeSrc = fs.readFileSync(
         pathmod.join(__dirname, '..', 'mobius', 'db', 'sqlite.js'), 'utf8');
-    const legacySrc = fs.readFileSync(
-        pathmod.join(__dirname, '..', 'mobius', 'db_sqlite.js'), 'utf8');
 
     assert.match(facadeSrc, /process\.env\.MOBIUS_SQLITE_PATH\s*\|\|\s*'\.\/mobius\.db'/,
         'mobius/db/sqlite.js 가 경로 규칙을 벗어났다');
 
-    // 주석은 세지 않는다 — 왜 이렇게 바꿨는지 설명하느라 옛 형태를 인용한다.
-    const legacyCode = legacySrc.split('\n')
-        .filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l)).join('\n');
+    // 예전에는 mobius/db_sqlite.js 가 자기 sqlite3 핸들을 여는지도 봤다.
+    // 그 파일을 지웠으므로(2026-09-01) 파일이 없는 것이 곧 조건이다.
+    assert.strictEqual(
+        fs.existsSync(pathmod.join(__dirname, '..', 'mobius', 'db_sqlite.js')), false,
+        'mobius/db_sqlite.js 가 되살아났다 — 같은 파일에 핸들이 둘이 될 수 있다');
 
-    assert.ok(!/sqlite3/.test(legacyCode),
-        'mobius/db_sqlite.js 가 다시 자기 핸들을 연다 — 같은 파일에 핸들이 둘이 된다');
-    assert.ok(!/mobius\.db/.test(legacyCode),
-        'mobius/db_sqlite.js 가 경로를 다시 안다 — 여는 곳은 어댑터뿐이어야 한다');
+    // 어댑터 말고 sqlite3 를 require 하는 코어 파일이 없어야 한다.
+    const mobiusDir = pathmod.join(__dirname, '..', 'mobius');
+    for (const f of fs.readdirSync(mobiusDir)) {
+        if (!f.endsWith('.js')) { continue; }
+        const src = fs.readFileSync(pathmod.join(mobiusDir, f), 'utf8');
+        const code = src.split('\n').filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l)).join('\n');
+        assert.ok(!/require\(['"]sqlite3['"]\)/.test(code),
+            'mobius/' + f + ' 이 sqlite3 를 직접 연다 — 여는 곳은 어댑터뿐이어야 한다');
+    }
 });

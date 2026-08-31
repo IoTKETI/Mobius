@@ -30,6 +30,16 @@ exports.capabilities = {
 
 // 문장 단위 시간 상한을 거는 힌트를 만든다. 능력이 없으면 null 을 준다.
 // knex 의 .hintComment() 에 넣는다.
+// 이 백엔드는 리소스 타입을 가리지 않는다. mobiusdb.sql 에 모든 본문 테이블이
+// 있다(test/usesqlite-single-reader.test.js 가 대조한다).
+//
+// **null 이 "제한 없음" 이다.** 목록을 적으면 그 목록에 없는 타입의 CREATE 가
+// 501 로 나간다. 501 을 내보내는 게이트는 fail-open 이어야 하므로, 새 어댑터가
+// 이 값을 아예 빠뜨려도(undefined) 파사드는 제한 없음으로 읽는다.
+// 여기서 굳이 null 을 적는 것은 어댑터들의 export 표면을 같게 두기 위해서다 —
+// 한쪽에만 있는 export 가 생기면 코어가 "이 백엔드면 이것도 있다" 를 알게 된다.
+exports.supportedResourceTypes = null;
+
 exports.statementTimeoutHint = function (ms) {
     var n = parseInt(ms, 10);
     if (!(n > 0)) { return null; }

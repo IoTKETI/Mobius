@@ -42,26 +42,27 @@ function tapAdapter(useSqlite, rows) {
 
     db.connect('h', 1, 'u', 'p', function () {});
 
-    const legacyMysql = require(path.join(__dirname, '..', 'mobius', 'db_action.js'));
-    legacyMysql.getResult = function (sql, conn, cb) {
-        seen.push({ sql: 'LEGACY_MYSQL', legacySql: sql });
-        cb(null, []);
-    };
-    const legacySqlite = require(path.join(__dirname, '..', 'mobius', 'db_sqlite.js'));
-    legacySqlite.getResult = function (sql, conn, cb) {
-        seen.push({ sql: 'LEGACY_SQLITE', legacySql: sql });
-        cb(null, []);
-    };
+    // 구 경로(db_action.getResult / db_sqlite.getResult)를 가로채 "샜는지" 를
+    // 보던 자리다. 그 두 파일이 없어졌으므로 가로챌 것도 없다 —
+    // 아래 assertNoLegacy 는 이제 그 파일들이 되살아나지 않았는지만 본다.
 
     delete require.cache[require.resolve(path.join(__dirname, '..', 'mobius', 'sql_action.js'))];
     const sql_action = require(path.join(__dirname, '..', 'mobius', 'sql_action.js'));
     return { sql_action: sql_action, seen: seen };
 }
 
+// 구 경로가 되살아나지 않았는지 본다.
+//
+// 예전에는 db_action / db_sqlite 의 getResult 를 가로채 "그쪽으로 샌 질의"를
+// 셌다. 두 파일을 지운 지금은 파일 자체가 없는지를 확인하는 것이 같은 일이고
+// 더 강하다 — 하나라도 되살아나면 코어가 다시 파사드를 우회할 수 있다.
 function assertNoLegacy(seen) {
-    const leaked = seen.filter(function (s) { return /^LEGACY_/.test(s.sql); });
-    assert.deepStrictEqual(leaked.map(function (s) { return s.legacySql; }), [],
-        '구 경로로 샌 쿼리가 있다');
+    const fs = require('node:fs');
+    for (const f of ['db_action.js', 'db_sqlite.js']) {
+        assert.strictEqual(
+            fs.existsSync(path.join(__dirname, '..', 'mobius', f)), false,
+            'mobius/' + f + ' 이 되살아났다 — 파사드를 우회하는 길이 다시 생겼다');
+    }
 }
 
 function guard(done, fn) {

@@ -45,16 +45,9 @@ function tapAdapter(useSqlite, selectRows) {
 
     db.connect('h', 1, 'u', 'p', function () {});
 
-    const legacyMysql = require(path.join(__dirname, '..', 'mobius', 'db_action.js'));
-    legacyMysql.getResult = function (sql, conn, cb) {
-        seen.push({ sql: 'LEGACY_MYSQL', legacySql: sql });
-        cb(null, []);
-    };
-    const legacySqlite = require(path.join(__dirname, '..', 'mobius', 'db_sqlite.js'));
-    legacySqlite.getResult = function (sql, conn, cb) {
-        seen.push({ sql: 'LEGACY_SQLITE', legacySql: sql });
-        cb(null, []);
-    };
+    // 구 경로(db_action / db_sqlite)의 getResult 를 가로채 "그쪽으로 샜는가"
+    // 를 보던 자리다. 두 파일을 지웠으므로(2026-09-01) 샐 곳이 없다.
+    // 되살아나지 않았는지는 test/db-adapter-contract.test.js 가 본다.
 
     delete require.cache[require.resolve(path.join(__dirname, '..', 'mobius', 'sql_action.js'))];
     return { sql_action: require(path.join(__dirname, '..', 'mobius', 'sql_action.js')), seen: seen };

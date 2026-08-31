@@ -17,11 +17,10 @@ var moment = require('moment');
 var util = require('util');
 var merge = require('merge');
 
-var db = require('./db_action');
-
-// 전환된 함수는 이 파사드를 쓴다. 전환이 끝나면 위 한 줄은 삭제한다.
-// db_sqlite 를 직접 부르던 마지막 자리(delete_oldest 의 sqlite 갈래)가
-// 사라지면서 그 require 도 같이 뺐다.
+// var db = require('./db_action') 이 여기 있었다. 마지막 db.getResult 호출이
+// 사라지면서(손으로 쓴 SQL 0개) 죽은 require 가 되어 지웠다. db_action.js 와
+// db_sqlite.js 자체도 같은 커밋에서 없앴다 — 파사드 위에 아무것도 더하지
+// 않는 껍데기였고, 유일하게 남아 있던 임대 장부는 파사드로 옮겼다.
 var facade = require('./db');
 
 // 구독 도달성 감사(audit_subscriptions)가 nu 와 poa 를 읽는다.
