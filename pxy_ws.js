@@ -18,7 +18,6 @@ var fs = require('fs');
 var http = require('http');
 var https = require('https');
 var express = require('express');
-var bodyParser = require('body-parser');
 var util = require('util');
 var xml2js = require('xml2js');
 var js2xmlparser = require('js2xmlparser');

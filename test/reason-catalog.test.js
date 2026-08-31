@@ -27,6 +27,10 @@ test('사유 100개가 있다', function () {
     // ty 관문을 ty_list 기반으로 바꾸며 405-2("req is not supported when post
     // request")가 참조를 잃어 99 가 됐다 — 타입별 사유가 아니라 목록으로 막는다.
     // json 만 지원하기로 하면서 400-64 를 더해 100 이 됐다.
+    // 요청 본문 크기 상한(413-1)을 더해 101 이 됐다 — 상한이 선언만 되고
+    // 실제로는 걸리지 않던 것을 고치면서 생겼다.
+    // ASN/MN-CSE 모드를 포기하며 400-28("ASN CSE can not have child CSE")이
+    // 참조를 잃어 다시 100 이 됐다.
     assert.strictEqual(Object.keys(reason.REASON).length, 100);
 });
 
@@ -207,11 +211,12 @@ test('내부 식별자가 든 사유가 하나도 없다 (D20)', function () {
     assert.deepStrictEqual(leaked, [], '응답 문구에 내부 식별자가 남아 있다: ' + leaked.join(', '));
 });
 
-test('detail 은 18건에 붙어 있고 전부 문자열이다', function () {
+test('detail 은 19건에 붙어 있고 전부 문자열이다', function () {
     const withDetail = Object.keys(reason.REASON).filter(function (k) { return reason.REASON[k].detail; });
     // 404-1 에서 걷어내 8건이 됐고, ACP 가드레일 8건을 더해 16건이다.
     // json 전용 관문(400-64)을 더해 18건이다 — 그 detail 로그가 곧 계측이다.
-    assert.strictEqual(withDetail.length, 18);
+    // 본문 크기 상한(413-1)을 더해 19건이다 — 이쪽도 계측이다.
+    assert.strictEqual(withDetail.length, 19);
     withDetail.forEach(function (k) {
         assert.strictEqual(typeof reason.REASON[k].detail, 'string', k);
     });
@@ -334,7 +339,14 @@ test('detail 을 가진 사유는 드물게 나는 것들뿐이다', function ()
         // 요청 경로에 xml/cbor 가 얼마나 오는지 기록이 없어서, 이 로그가
         // 비어 있는 것이 곧 xml/cbor 코드를 지워도 된다는 근거가 된다.
         // 배포의 구독은 이미 ct=xml 이 0건이라 흔하게 날 사유가 아니다.
-        '400-64'   // 요청 본문이 xml/cbor
+        '400-64',  // 요청 본문이 xml/cbor
+        // 본문 크기 상한. 여기 detail 이 붙은 이유도 계측이다 — 상한이 지금까지
+        // 선언만 되고 한 번도 걸린 적이 없어서, 실제로 얼마나 큰 본문이 오는지
+        // 아무도 모른다. 이 로그에 크기가 남는다.
+        //
+        // 응답 본문(msg)에는 상한값을 적지 않는다. 적으면 "얼마까지 되는지" 를
+        // 물어보지 않고 알아낼 수 있게 된다. 로그에만 남긴다.
+        '413-1'    // 요청 본문이 상한을 넘음
     ];
     const withDetail = Object.keys(reason.REASON)
         .filter(function (k) { return reason.REASON[k].detail != null; });

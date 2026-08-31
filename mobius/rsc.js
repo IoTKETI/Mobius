@@ -66,6 +66,23 @@ var RSC = {
     ALREADY_EXISTS:     { name: 'ALREADY_EXISTS',     rsc: '4105', http: 409, coap: '4.03' },
     AEI_DUPLICATED:     { name: 'AEI_DUPLICATED',     rsc: '4106', http: 409, coap: null },
 
+    // ── 413 ──────────────────────────────────────────────────────────────
+    // oneM2M 에는 "본문이 너무 크다" 에 해당하는 rsc 가 없다. 그래서 rsc 는
+    // BAD_REQUEST 와 같은 4000 이고 http 만 413 이다 — oneM2M 은 "잘못된 요청"
+    // 이라고만 말할 수 있고, HTTP 는 왜 잘못됐는지까지 말할 수 있다.
+    //
+    // (http, rsc) 쌍은 유일하므로 아래 selfCheck 의 중복 검사를 통과한다.
+    // CONFLICT_OPERATION 이 OPERATION_NOT_ALLOWED 와 rsc 를 공유하는 것과 같은 꼴이다.
+    //
+    // coap 은 4.13(Request Entity Too Large)이 아니라 **4.00** 이다. CoAP 에
+    // 그 코드가 있긴 하지만, 이 표의 불변식은 "같은 rsc 는 같은 coap" 이고
+    // (test/rsc-catalog.test.js 가 강제한다) 4000 은 이미 4.00 에 묶여 있다.
+    // 처음에 4.13 을 넣었다가 그 테스트에 걸렸다.
+    //
+    // 즉 "본문이 크다" 를 말할 수 있는 것은 HTTP 뿐이다. oneM2M 과 CoAP 은
+    // "잘못된 요청" 까지만 말한다. 그것이 이 세 값이 갈리는 이유다.
+    CONTENT_TOO_LARGE: { name: 'CONTENT_TOO_LARGE', rsc: '4000', http: 413, coap: '4.00' },
+
     // ── 423 / 500 / 501 ──────────────────────────────────────────────────
     LOCKED:                { name: 'LOCKED',                rsc: '4230', http: 423, coap: null },
     INTERNAL_SERVER_ERROR: { name: 'INTERNAL_SERVER_ERROR', rsc: '5000', http: 500, coap: '5.00' },
