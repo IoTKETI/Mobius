@@ -175,3 +175,39 @@ test('결과가 비면 입력한 ri 를, 있으면 찾은 ri 를 쓴다', functi
     assert.strictEqual(resolve_ri(null, [], '/Mobius/x'), '/Mobius/x');
     assert.strictEqual(resolve_ri(null, [{ ri: '/Mobius/찾음' }], '/Mobius/x'), '/Mobius/찾음');
 });
+
+// ── responder 의 숨은 의존 ────────────────────────────────────────────────
+//
+// mobius/responder.js 의 require 는 `var db_sql = require('./sql_action');`
+// 하나뿐인데, **db_sql 이라는 이름은 그 파일 어디에도 안 나온다.**
+// 죽은 require 로 보여서 정리하다 지우기 쉽다.
+//
+// 그런데 그 require 에는 부수효과가 있다 — sql_action.js 가 로드되면서
+// `global.getType` 과 `global.max_lim` 을 설치한다. responder 의
+// typeCheckAction 이 ACP 의 pv/pvs 를 다룰 때 getType 을 부른다.
+//
+// XML 직렬화 514줄을 걷어내면서 responder 의 require 열 개가 진짜로 죽어
+// 함께 지웠다. 그때 이 줄까지 쓸어담을 뻔했다. 실측으로 확인했다 —
+// 그 줄을 빼고 responder 만 로드하면 global.getType 이 undefined 다.
+//
+// 이 시험은 "왜 안 쓰는 require 가 있느냐" 는 다음 질문에 대한 답이다.
+test('responder 를 로드하면 global.getType 이 설치된다 (db_sql require 의 부수효과)', function () {
+    assert.strictEqual(typeof global.getType, 'function',
+        'mobius/responder.js 의 sql_action require 를 지웠는가? ' +
+        '그 줄이 global.getType 을 설치한다 — 이름이 안 쓰인다고 지우면 ' +
+        'typeCheckAction 의 pv/pvs 처리가 TypeError 로 죽는다');
+
+    // 실제로 동작하는지도 본다. 설치만 되고 망가져 있으면 의미가 없다.
+    assert.strictEqual(global.getType('{"a":1}'), 'string_object');
+    assert.strictEqual(global.getType({ a: 1 }), 'object');
+});
+
+test('responder 소스에 sql_action require 가 남아 있다', function () {
+    // 위 시험은 다른 테스트가 먼저 sql_action 을 로드하면 통과해 버린다.
+    // 소스를 직접 봐서 그 우연에 기대지 않게 한다.
+    const fs = require('node:fs');
+    const path = require('node:path');
+    const src = fs.readFileSync(path.join(__dirname, '..', 'mobius', 'responder.js'), 'utf8');
+    assert.match(src, /require\('\.\/sql_action'\)/,
+        'responder.js 에서 sql_action require 가 사라졌다 — global.getType 이 안 설치된다');
+});
