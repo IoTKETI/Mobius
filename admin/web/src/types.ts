@@ -136,6 +136,49 @@ export interface SessionInfo {
   acp: AcpConfig
 }
 
+// ── 설정 (conf.json) ───────────────────────────────────────────────────────
+
+/** 저장하면 언제 반영되는가. 이걸 말하지 않는 설정 화면은 거짓말을 한다. */
+export type ConfApply = 'runtime' | 'reload' | 'restart'
+
+export interface ConfItem {
+  key: string
+  label: string
+  help: string
+  type: string
+  apply: ConfApply
+  /** reload 인 키가 무엇을 다시 불러야 하는지. 예: 'acp_observe.configure' */
+  reloadWith: string | null
+  integer: boolean
+  readOnly: boolean
+  /** enum 이면 유효값. 아니면 null */
+  choices: string[] | null
+  validHint: string | null
+  dflt: unknown
+  /** 파일에 적힌 값. 없으면 null */
+  fileValue: unknown
+  /** 파일에 없어 기본값이 쓰이는 상태인가 */
+  usingDefault: boolean
+  effective: unknown
+  /** 켠 채로 두면 보안이 무력해지는 값인가 */
+  danger: boolean
+}
+
+export interface ConfView {
+  items: ConfItem[]
+  /** 값은 절대 오지 않는다. 있는지 없는지만. */
+  secrets: { key: string; present: boolean }[]
+  /** 코어 스키마에도 비밀에도 콘솔 키에도 없는 것 */
+  unknownKeys: string[]
+  file: string
+  /**
+   * "지금 도는 서버의 값" 을 알 수 있는가.
+   * false 면 화면은 파일 값만 말하고 그 한계를 밝혀야 한다 — 워커마다 값이
+   * 다를 수 있어서(되살아난 워커만 새 conf 를 읽는다) 한 줄로 말하면 거짓이 된다.
+   */
+  runtimeKnown: boolean
+}
+
 // ── ACP ────────────────────────────────────────────────────────────────────
 
 export interface AcpProblem {

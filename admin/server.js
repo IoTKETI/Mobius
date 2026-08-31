@@ -345,6 +345,43 @@ app.get('/api/orphans', function (req, res) {
     });
 });
 
+// ── 설정 (conf.json) ──────────────────────────────────────────────────────
+//
+// 스키마는 코어(mobius/conf_schema)가 준다. 여기는 파일을 안전하게 읽고 쓰는
+// 일만 한다 — 모르는 키 보존, 원자적 쓰기, 비밀 미노출.
+
+var conf_store = require('./conf_store');
+var store = new conf_store.ConfStore(path.join(ROOT, 'conf.json'));
+
+app.get('/api/conf', function (req, res) {
+    try {
+        var v = store.view();
+        // **화면이 "지금 도는 서버의 값" 을 말하면 안 된다.** conf 는 기동 시
+        // 읽히고 cluster.fork() 가 엔트리를 재실행하므로, 되살아난 워커만 새
+        // 파일을 읽어 워커마다 값이 갈릴 수 있다. 워커별 조회 계약이 오기
+        // 전까지는 파일 값만 보여 주고 그 사실을 화면이 밝힌다.
+        v.runtimeKnown = false;
+        res.json(v);
+    } catch (e) {
+        res.status(500).json({ error: 'conf.json 을 읽을 수 없다: ' + String(e.message || e) });
+    }
+});
+
+app.post('/api/conf', function (req, res) {
+    var patch = (req.body && req.body.patch) || null;
+    if (!patch || typeof patch !== 'object') {
+        return res.status(400).json({ error: 'patch 가 필요하다' });
+    }
+    var r;
+    try {
+        r = store.update(patch);
+    } catch (e) {
+        return res.status(500).json({ error: 'conf.json 을 쓸 수 없다: ' + String(e.message || e) });
+    }
+    if (!r.ok) { return res.status(400).json({ error: '값이 올바르지 않다', problems: r.errors }); }
+    res.json({ ok: true, changed: r.changed });
+});
+
 // ── ACP (권한) ────────────────────────────────────────────────────────────
 //
 // 배포 실측(2026-08-29)에서 ACP 리소스는 1개, acpi 가 채워진 리소스는 2개였고

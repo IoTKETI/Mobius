@@ -8,6 +8,7 @@ import type {
   AcpRefLintPage,
   AcpSimulation,
   AcpValidation,
+  ConfView,
   ExpiredPage,
   ExpiredSummary,
   Job,
@@ -139,6 +140,20 @@ export function orphanPage(opts: { limit?: number; afterRi?: string | null; scan
   if (opts.afterRi) q.set('afterRi', opts.afterRi)
   if (opts.scanCap) q.set('scanCap', String(opts.scanCap))
   return get<OrphanPage>(`/api/orphans?${q.toString()}`)
+}
+
+// ── 설정 (conf.json) ───────────────────────────────────────────────────────
+
+export function confView() {
+  return get<ConfView>('/api/conf')
+}
+
+/** 보낸 키만 바뀐다. 하나라도 유효하지 않으면 아무것도 안 쓴다. */
+export function confSave(patch: Record<string, unknown>) {
+  return post<{ ok: boolean; changed: { key: string; from: unknown; to: unknown }[] }>(
+    '/api/conf',
+    { patch },
+  )
 }
 
 // ── ACP ────────────────────────────────────────────────────────────────────
