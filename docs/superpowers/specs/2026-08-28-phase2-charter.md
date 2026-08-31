@@ -37,24 +37,75 @@
 
 ---
 
-## 2. 현황
+## 2. 현황 (2026-08-31 갱신)
+
+### 목표를 다시 적는다
+
+원래 표현은 "`global.usesqlite` 를 읽는 곳을 한 곳으로" 였는데, 그것은 대리
+지표였다. 사용자가 바로잡아 준 진짜 목표는 이것이다.
+
+> **MySQL·SQLite 말고 다른 DB 를 붙일 때 최소한만 고쳐도 되게 한다.**
+
+둘은 다르다. 전자를 좇으면 "두 백엔드가 같은 결과를 내야 한다" 로 기울어
+등가성을 커밋마다 게이트로 걸게 되는데, **백엔드마다 동작이 다른 것은 정상**
+이고 그게 어댑터가 있는 이유다. 지켜야 할 것은 하나뿐이다 — 프로덕션(MySQL)이
+안 깨질 것. SQLite 는 *돌면* 된다.
+
+완료 조건도 그래서 바뀐다: **`mobius/db/postgres.js` 를 쓰면 끝. 다른 곳은
+안 건드린다.**
+
+### 지표
 
 | 지표 | 최초 | 현재 |
 |------|------|------|
-| `global.usesqlite` (sql_action.js) | 44 | **14** |
-| 파사드 사용처 | 0 | 38+ |
-| 단위 테스트 | **0** | **127 pass / 0 fail** |
+| `global.usesqlite` (코어 전체) | 44+ | **2** |
+| 파사드를 우회해 커넥션을 얻는 파일 | 8 | **5** |
+| 어댑터 등록 방식 | 손으로 적은 표 | **디렉터리 자동 인식** |
+| 백엔드 선택자 | `usesqlite` boolean | **이름** (`usedb`) |
+| 단위 테스트 | 0 | **773 pass / 0 fail** |
 | 등가성 하네스 | 없음 | 32단계, 양쪽 백엔드 |
 
-남은 분기 12개의 성격:
+### 무엇이 실제로 달라졌나
 
-| 유형 | 수 | 대상 |
-|------|-----|------|
-| executor-only | 2 | `select_latest_resource`, `select_oldest_resource` (도구 오분류 — 실제로는 SQL 이 다름) |
-| **real** | 8 | `insert_lookup`, `insert_ae`, `insert_cnt`, `insert_cin`, `insert_sub`, `select_st`, `update_ae`, `update_cnt` |
-| **sqlite-only** | 2 | `search_parents_lookup`, `search_lookup` (discovery 재귀 CTE) |
+**어댑터는 파일 하나다.** `mobius/db/<이름>.js` 를 두면 파사드가 자동으로
+등록하고, `test/db-adapter-contract.test.js` 가 그 파일도 검사해 **빠진 것을
+이름으로 알려준다.** 목록을 고칠 필요가 없다.
 
-**기계적으로 합칠 수 있는 것은 전부 소진했다.** 남은 12개는 하나하나 판단이 필요하다.
+**선택자가 이름이다.** 예전에는 `usesqlite` boolean 이라 **세 번째 백엔드를
+말할 방법이 아예 없었다.** 이제 `node mobius.js postgres` 나 `conf.json` 의
+`"db": "postgres"` 로 고른다.
+
+**커넥션 원천이 파사드 하나다.** 예전에는 `db_action` 이 자기 MySQL 풀을
+들고 있어서, 어느 백엔드를 골랐든 요청 경로가 늘 MySQL 에서 커넥션을 받았다.
+실측으로 확인한 증상 — MySQL 을 닿지 않는 주소에 두고 SQLite 모드로 띄우면
+`listen` 에 도달하지 못했다(MySQL 에러조차 안 찍혔다. `acquireTimeout` 이
+50초라 조용히 매달렸다). 지금은 뜬다.
+
+**sqlite 핸들이 하나다.** `db_sqlite.js` 와 파사드 어댑터가 같은 파일을 각자
+열어 한 프로세스에 핸들이 둘이었고 스키마 초기화도 두 번 돌았다.
+
+### 남은 2개 — 없앨 것이 아니라 옮길 것
+
+| 위치 | 무엇이 다른가 |
+|------|--------------|
+| `mobius/cnt_man.js:100` | 카운터 갱신. MySQL 은 다중 테이블 UPDATE 한 문장, SQLite 는 두 문장 |
+| `mobius/sql_action.js:2122` | `delete_oldest`. **알고리즘 자체가 다르다** — MySQL 은 트랜잭션 + 행 잠금, SQLite 는 잠금 없이 |
+
+둘 다 **진짜로 백엔드마다 동작이 다른 곳**이다. 통일할 대상이 아니라 어댑터
+메서드로 옮길 대상이다. 그러면 코어에는 분기가 없고 각 어댑터가 자기 방식대로
+구현한다 — 세 번째 백엔드가 와도 `if` 가 늘지 않는다.
+
+`delete_oldest` 는 추가로 핸들의 드라이버 API 를 직접 쓴다
+(`beginTransaction` / `commit` / `rollback` / `escape`). `.escape()` 는
+sqlite3 에도 pg 에도 없다. 이 함수가 살아 있는 한 `sql_action.js` 는
+`usesqlite` 리더로 남는다.
+
+### 이 단계에서 그만두는 이유
+
+프로덕션은 MySQL 이다. 남은 둘을 옮겨서 얻는 것은 "세 번째 백엔드를 붙일 수
+있게 되는 것" 이고, 위험은 전부 SQLite 모드에 몰려 있다. SQLite 를 실제로
+쓰기로 할 때 이어서 하면 된다 — 그때까지 `test/usesqlite-single-reader.test.js`
+가 남은 수를 세고 있으므로 몰래 늘어나지 않는다.
 
 ---
 
