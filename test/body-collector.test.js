@@ -370,6 +370,83 @@ test('read: 상한은 요청 쪽과 같은 손잡이를 쓴다', function () {
     }
 });
 
+/* ── 5-2. 진짜 소켓으로 끊어 본다 ────────────────────────────────────── */
+
+// 위의 가짜 스트림 시험은 내가 'aborted' 를 직접 emit 한다. 실제 Node 가
+// 그 이벤트를 정말 주는지는 확인하지 못한다.
+//
+// 이 세 경우는 관리 콘솔 세션(mobius-fd)이 **자기 코드에서 실제로 당한** 것이다.
+// 그쪽은 res 에 'data'/'end' 만 달아 두었고, 응답이 이미 성립한 뒤의 오류는
+// req 가 아니라 **res 로 가기** 때문에 콜백이 영영 안 왔다. 작업 엔진의
+// running 이 안 줄어 서버 제어가 통째로 잠겼다.
+//
+// 팬아웃도 같은 모양이다 — 콜백이 안 오면 그 멤버에서 사슬이 멈추고
+// DB 커넥션이 묶인다. 그래서 raw TCP 로 진짜 끊어 본다.
+function truncating_server(cb) {
+    const net = require('node:net');
+    const srv = net.createServer(function (sock) {
+        let buf = '';
+        sock.on('error', function () {});
+        sock.on('data', function (c) {
+            buf += c.toString();
+            if (buf.indexOf('\r\n\r\n') < 0) { return; }
+            const path = (buf.match(/^GET (\S+)/) || [])[1] || '/';
+            if (path === '/half') {
+                // 100바이트를 약속하고 30바이트만 준다
+                sock.write('HTTP/1.1 200 OK\r\nContent-Length: 100\r\n\r\n' + 'x'.repeat(30));
+            }
+            else if (path === '/chunked') {
+                // 종료 청크(0\r\n\r\n) 없이 끊는다
+                sock.write('HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n5\r\nhello\r\n');
+            }
+            else {
+                sock.write('HTTP/1.1 200 OK\r\nContent-Length: 100\r\n\r\n');
+            }
+            setTimeout(function () { sock.destroy(); }, 30);
+        });
+    });
+    srv.listen(0, '127.0.0.1', function () { cb(srv, srv.address().port); });
+}
+
+function read_from(port, path) {
+    const http = require('node:http');
+    return new Promise(function (resolve) {
+        const req = http.request({ host: '127.0.0.1', port: port, path: path }, function (res) {
+            body.read(res, function (err, text) { resolve({ err: err, text: text }); });
+        });
+        // 응답이 성립한 뒤의 오류는 여기로 오지 않는다. 그래도 달아 둔다 —
+        // 안 달면 EventEmitter 가 던진다.
+        req.on('error', function (e) { resolve({ err: e, text: undefined, viaReq: true }); });
+        req.end();
+    });
+}
+
+test('read: 중간에 끊긴 응답에서 콜백이 반드시 온다 (진짜 소켓)', async function () {
+    const { promisify } = require('node:util');
+    const srv = await new Promise(function (r) { truncating_server(function (s, p) { r({ s, p }); }); });
+
+    try {
+        for (const [path, label] of [
+            ['/half',         'Content-Length 를 약속하고 절반만 보내고 끊음'],
+            ['/chunked',      'chunked 를 종료 청크 없이 끊음'],
+            ['/headers-only', '헤더만 보내고 끊음']
+        ]) {
+            const out = await Promise.race([
+                read_from(srv.p, path),
+                new Promise(function (r) { setTimeout(function () { r({ timedOut: true }); }, 4000); })
+            ]);
+            assert.ok(!out.timedOut,
+                label + ' — 콜백이 안 왔다. 부르는 쪽이 영영 매달린다');
+            assert.ok(out.err instanceof Error, label + ' — err 로 알려야 한다');
+            assert.strictEqual(out.text, undefined,
+                label + ' — 잘린 본문을 정상처럼 주면 안 된다');
+        }
+    }
+    finally {
+        await new Promise(function (r) { srv.s.close(r); });
+    }
+});
+
 /* ── 6. 아웃바운드 응답을 직접 모으는 자리가 남아 있지 않은지 ───────── */
 
 test('응답 본문을 직접 모으는 자리가 남아 있지 않다', function () {
