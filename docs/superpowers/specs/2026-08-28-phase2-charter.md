@@ -103,7 +103,81 @@ npm test
 
 ## 3. 남은 거리 — 다음에 할 일
 
-### 우선순위 1. `sql_action.js` 의 손으로 쓴 SQL 39개 전환
+### 전체 작업 목록 (2026-08-31 확정)
+
+| # | 작업 | 상태 |
+|---|------|------|
+| 1 | 공통 함수(파사드) — `mobius/db/index.js` | **완료** |
+| 2 | 백엔드를 파일 하나로 — `mobius/db/<이름>.js` 자동 인식 | **완료** |
+| 3 | 선택자를 이름으로 (`usedb`) | **완료** |
+| 4 | 코어의 `if (usesqlite)` 제거 | **완료** (44+ → 1) |
+| 5 | 커넥션 원천을 파사드 하나로 | **완료** |
+| 6 | 어댑터 계약을 테스트로 못박기 | **완료** |
+| 7 | 스키마 마이그레이션 수단 | **완료** (9건 운영 적용) |
+| 8 | 회귀 검증 수단 | **완료** (테스트 800 / 등가성 32단계) |
+| **9** | **질의 104개를 공통 함수로 옮기기** | **65/104 (63%)** ← 진행 중 |
+| 10 | 스키마 두 벌의 어긋남 정리 | 미착수 |
+| 11 | `db_action.js`/`db_sqlite.js` 껍데기 제거 | 미착수 (이름만 오도, 기능은 무해) |
+
+**1~8 이 "구조"이고 끝났다. 9 가 "내용"이다. 요구를 만족하려면 9가 100%.**
+
+### 9번의 남은 39개 — 전부 `sql_action.js` 안에 있다
+
+직접 SQL 은 이 파일 하나에만 있다(확인:
+`grep -rn "util\.format(\s*[\"'](select|insert|update|delete)" --include=*.js .`
+→ `sql_action.js` 외에는 테스트뿐).
+
+**(가) 본문 INSERT 20개** — 기계적, 같은 모양의 반복
+
+```
+insert_grp  insert_lcp  insert_fcnt  insert_csr  insert_smd  insert_mms
+insert_fwr  insert_bat  insert_dvi   insert_dvc  insert_rbo  insert_nod
+insert_hd_bat  insert_hd_tempe  insert_hd_brigs  insert_hd_color
+insert_hd_dooLK  insert_hd_binSh  insert_hd_fauDn  insert_hd_colSn
+```
+
+**(나) 본문 UPDATE 9개** — 같은 테이블들, 같은 모양
+
+```
+update_fwr  update_bat  update_dvi  update_dvc  update_rbo
+update_nod  update_csr  update_smd  update_mms
+```
+
+**(다) SELECT 9개** — 난이도가 갈린다
+
+```
+쉬움 (6):  select_csr  select_csr_like  select_grp  select_grp_lookup
+           select_sub  select_st
+어려움 (3): select_in_ri_list       IN 목록 동적 조립
+           search_lookup_parents )  discovery 재귀 CTE — 가장 큰 덩어리
+           build_search_query    )
+```
+
+**(라) `set_tuning` 1개 — 옮기지 않는다.** `SET GLOBAL` 은 MySQL 서버 운영
+튜닝이라 백엔드 중립이 아니다. 이미 `db.can('serverTuning')` 게이트 뒤에 있어
+다른 백엔드로는 나가지 않는다. **어댑터 능력으로 처리된 정답 사례다.**
+
+방언 종속 구문은 (라) 하나뿐. 나머지 38개는 **표준 SQL 을 문자열로 조립**할
+뿐이라 옮기는 작업 자체는 위험하지 않다. 다만 파사드를 안 거치므로 바인딩·
+에러 정규화·타임아웃이 적용되지 않고, 다음에 누가 방언 구문을 하나 넣으면
+조용히 갈라진다.
+
+### 진행 순서
+
+1. **(가)+(나) 29개를 한 묶음으로** — 같은 모양의 반복이라 한 번에 옮기고
+   등가성으로 검증. 전체의 74%. 끝나면 **94/104 (90%)**.
+2. **(다)의 쉬운 6개** — 개별 전환.
+3. **(다)의 discovery 3개** — 재귀 CTE. 별도 회차 크기.
+4. 그 뒤 10·11번은 정리 성격.
+
+### 왜 이 작업이 가치 있나
+
+지금까지 65개를 옮기며 **결함이 20건** 나왔다(5절). 옮기는 작업은 부수적으로
+버그를 드러낸다 — 함수를 열어 보면 대개 뭔가 깨져 있었다.
+
+---
+
+### 참고: 옮기는 방법
 
 이것이 목표까지 남은 **거의 전부**다.
 

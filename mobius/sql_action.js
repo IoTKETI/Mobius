@@ -494,473 +494,101 @@ exports.insert_cin = function (connection, obj, callback) {
     });
 };
 
-exports.insert_grp = function (connection, obj, callback) {
-    console.time('insert_grp ' + obj.ri);
-    _this.insert_lookup(connection, obj, function (err, results) {
-        if (!err) {
-            var sql = util.format('insert into grp (ri, cr, mt, cnm, mnm, mid, macp, mtv, csy, gn) ' +
-                'value (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
-                obj.ri, obj.cr, obj.mt, obj.cnm, obj.mnm, JSON.stringify(obj.mid).replace(/\"/g, '\\"').replace(/\'/g, '\\\''), JSON.stringify(obj.macp).replace(/\"/g, '\\"').replace(/\'/g, '\\\''), obj.mtv, obj.csy, obj.gn);
-            db.getResult(sql, connection, function (err, results) {
-                if (!err) {
-                    console.timeEnd('insert_grp ' + obj.ri);
-                    callback(err, results);
-                }
-                else {
-                    sql = util.format("delete from lookup where ri = \'%s\'", obj.ri);
-                    db.getResult(sql, connection, function () {
-                        callback(err, results);
-                    });
-                }
-            });
-        }
-        else {
-            callback(err, results);
-        }
-    });
+// ---------------------------------------------------------------------------
+// 본문 테이블 하나짜리 리소스의 생성
+//
+// 스무 곳이 전부 같은 모양이었다:
+//   lookup 에 넣는다 -> 본문 테이블에 넣는다 -> 본문이 실패하면 lookup 을 되돌린다.
+//
+// 다른 것은 **테이블 이름과 컬럼 목록뿐**이고, 스무 개 전부 **컬럼 이름이 곧
+// obj 의 키**다(소스에서 값 순서를 뽑아 대조해 확인했다). 그래서 표로 적고
+// 함수는 하나만 둔다. 새 리소스 타입은 표에 한 줄이다.
+//
+// 옮기기 전에는 스무 곳이 각자 util.format 으로 SQL 을 조립했다. 그 형태의
+// 진짜 문제는 방언이 아니라 **값이 SQL 문자열 안으로 들어간다**는 것이었다 —
+// JSON 컬럼마다 .replace(/"/g,'\\"').replace(/'/g,"\\'") 를 손으로 붙이고
+// 있었고 하나만 빠져도 SQL Injection 이다(이 저장소에서 이미 3건 나왔다).
+// 바인딩을 쓰면 그 이스케이프가 통째로 사라진다.
+//
+// 예약어도 사라진다. 예전에는 컬럼을 fcnt.lock / mgo.mod / smd.or 처럼
+// 테이블로 한정해 예약어를 피했는데, 그건 MySQL 이 봐 주는 것이지 표준이
+// 아니다. 빌더가 방언에 맞게 식별자를 인용한다.
+//
+//   [테이블, 컬럼(공백 구분), JSON 으로 저장할 컬럼]
+var BODY_TABLES = {
+    insert_grp:      ['grp',  'ri cr mt cnm mnm mid macp mtv csy gn', 'mid macp'],
+    insert_lcp:      ['lcp',  'ri los lou lot lor loi lon lost'],
+    insert_fcnt:     ['fcnt', 'ri cnd cr'],
+
+    // hd_* 여덟은 전부 fcnt 테이블이고 가운데 컬럼 하나만 다르다.
+    insert_hd_dooLK: ['fcnt', 'ri cnd lock cr'],
+    insert_hd_bat:   ['fcnt', 'ri cnd lvl cr'],
+    insert_hd_tempe: ['fcnt', 'ri cnd curT0 cr'],
+    insert_hd_binSh: ['fcnt', 'ri cnd powerSe cr'],
+    insert_hd_fauDn: ['fcnt', 'ri cnd sus cr'],
+    insert_hd_colSn: ['fcnt', 'ri cnd colSn cr'],
+    insert_hd_brigs: ['fcnt', 'ri cnd brigs cr'],
+    insert_hd_color: ['fcnt', 'ri cnd red green blue cr'],
+
+    // mgo 족.
+    insert_fwr:      ['mgo',  'ri mgd objs obps dc vr fwnnam url ud uds', 'uds'],
+    insert_bat:      ['mgo',  'ri mgd objs obps dc btl bts'],
+    insert_dvi:      ['mgo',  'ri mgd objs obps dc dbl man mod dty fwv swv hwv'],
+    insert_dvc:      ['mgo',  'ri mgd objs obps dc can att cas cus ena dis', 'cas'],
+    insert_rbo:      ['mgo',  'ri mgd objs obps dc rbo far'],
+
+    insert_nod:      ['nod',  'ri ni hcl mgca'],
+    insert_csr:      ['csr',  'ri cst poa cb csi mei tri rr nl srv', 'poa srv'],
+    insert_smd:      ['smd',  'ri cr dsp dcrp soe rels or', 'rels'],
+    insert_mms:      ['mms',  'ri sid soid stid asd osd sst']
 };
 
-exports.insert_lcp = function (connection, obj, callback) {
-    console.time('insert_lcp ' + obj.ri);
-    _this.insert_lookup(connection, obj, function (err, results) {
-        if (!err) {
-            var sql = util.format('insert into lcp (ri, los, lou, lot, lor, loi, lon, lost) ' +
-                'value (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
-                obj.ri, obj.los, obj.lou, obj.lot, obj.lor, obj.loi, obj.lon, obj.lost);
-            db.getResult(sql, connection, function (err, results) {
-                if (!err) {
-                    console.timeEnd('insert_lcp ' + obj.ri);
-                    callback(err, results);
-                }
-                else {
-                    sql = util.format("delete from lookup where ri = \'%s\'", obj.ri);
-                    db.getResult(sql, connection, function () {
-                        callback(err, results);
-                    });
-                }
-            });
-        }
-        else {
-            callback(err, results);
-        }
-    });
-};
+function make_body_insert(name, table, cols, json_cols) {
+    return function (connection, obj, callback) {
+        var label = name + ' ' + obj.ri;
+        console.time(label);
 
-exports.insert_fcnt = function (connection, obj, callback) {
-    console.time('insert_fcnt ' + obj.ri);
-    _this.insert_lookup(connection, obj, function (err, results) {
-        if (!err) {
-            var sql = util.format('insert into fcnt (ri, cnd, cr) ' +
-                'value (\'%s\', \'%s\', \'%s\')',
-                obj.ri, obj.cnd, obj.cr);
-            db.getResult(sql, connection, function (err, results) {
-                if (!err) {
-                    console.timeEnd('insert_fcnt ' + obj.ri);
-                    callback(err, results);
-                }
-                else {
-                    sql = util.format("delete from lookup where ri = \'%s\'", obj.ri);
-                    db.getResult(sql, connection, function () {
-                        callback(err, results);
-                    });
-                }
-            });
-        }
-        else {
-            callback(err, results);
-        }
-    });
-};
+        _this.insert_lookup(connection, obj, function (err, results) {
+            if (err) {
+                callback(err, results);
+                return;
+            }
 
-exports.insert_hd_dooLK = function (connection, obj, callback) {
-    console.time('insert_hd_dooLK ' + obj.ri);
-    _this.insert_lookup(connection, obj, function (err, results) {
-        if (!err) {
-            var sql = util.format('insert into fcnt (ri, cnd, fcnt.lock, cr) ' +
-                'value (\'%s\', \'%s\', \'%s\', \'%s\')',
-                obj.ri, obj.cnd, obj.lock, obj.cr);
-            db.getResult(sql, connection, function (err, results) {
-                if (!err) {
-                    console.timeEnd('insert_hd_dooLK ' + obj.ri);
-                    callback(err, results);
-                }
-                else {
-                    sql = util.format("delete from lookup where ri = \'%s\'", obj.ri);
-                    db.getResult(sql, connection, function () {
-                        callback(err, results);
-                    });
-                }
+            var row = {};
+            cols.forEach(function (c) {
+                // JSON 컬럼의 || [] 는 insert_ae / insert_cnt 와 같은 규약이다.
+                // 예전 코드는 JSON.stringify(undefined) 에 .replace 를 걸어
+                // TypeError 를 냈다 — DB 콜백 안이라 워커가 죽는 자리다.
+                row[c] = (json_cols.indexOf(c) >= 0)
+                    ? JSON.stringify(obj[c] || [])
+                    : obj[c];
             });
-        }
-        else {
-            callback(err, results);
-        }
-    });
-};
 
-exports.insert_hd_bat = function (connection, obj, callback) {
-    console.time('insert_hd_bat ' + obj.ri);
-    _this.insert_lookup(connection, obj, function (err, results) {
-        if (!err) {
-            var sql = util.format('insert into fcnt (ri, cnd, fcnt.lvl, cr) ' +
-                'value (\'%s\', \'%s\', \'%s\', \'%s\')',
-                obj.ri, obj.cnd, obj.lvl, obj.cr);
-            db.getResult(sql, connection, function (err, results) {
-                if (!err) {
-                    console.timeEnd('insert_hd_bat ' + obj.ri);
-                    callback(err, results);
+            facade.run(facade.k(table).insert(row), connection, function (err2, results2) {
+                if (!err2) {
+                    console.timeEnd(label);
+                    callback(err2, results2);
+                    return;
                 }
-                else {
-                    sql = util.format("delete from lookup where ri = \'%s\'", obj.ri);
-                    db.getResult(sql, connection, function () {
-                        callback(err, results);
-                    });
-                }
-            });
-        }
-        else {
-            callback(err, results);
-        }
-    });
-};
 
-exports.insert_hd_tempe = function (connection, obj, callback) {
-    console.time('insert_hd_tempe ' + obj.ri);
-    _this.insert_lookup(connection, obj, function (err, results) {
-        if (!err) {
-            var sql = util.format('insert into fcnt (ri, cnd, fcnt.curT0, cr) ' +
-                'value (\'%s\', \'%s\', \'%s\', \'%s\')',
-                obj.ri, obj.cnd, obj.curT0, obj.cr);
-            db.getResult(sql, connection, function (err, results) {
-                if (!err) {
-                    console.timeEnd('insert_hd_tempe ' + obj.ri);
-                    callback(err, results);
-                }
-                else {
-                    sql = util.format("delete from lookup where ri = \'%s\'", obj.ri);
-                    db.getResult(sql, connection, function () {
-                        callback(err, results);
+                // 본문 insert 가 실패하면 lookup 행이 고아로 남는다. 되돌린다.
+                // 그 고아 행은 이후 discovery 를 깨뜨린다.
+                facade.run(facade.k('lookup').where({ ri: obj.ri }).del(), connection,
+                    function () {
+                        console.timeEnd(label);
+                        callback(err2, results2);
                     });
-                }
             });
-        }
-        else {
-            callback(err, results);
-        }
-    });
-};
+        });
+    };
+}
 
-exports.insert_hd_binSh = function (connection, obj, callback) {
-    console.time('insert_hd_binSh ' + obj.ri);
-    _this.insert_lookup(connection, obj, function (err, results) {
-        if (!err) {
-            var sql = util.format('insert into fcnt (ri, cnd, fcnt.powerSe, cr) ' +
-                'value (\'%s\', \'%s\', \'%s\', \'%s\')',
-                obj.ri, obj.cnd, obj.powerSe, obj.cr);
-            db.getResult(sql, connection, function (err, results) {
-                if (!err) {
-                    console.timeEnd('insert_hd_binSh ' + obj.ri);
-                    callback(err, results);
-                }
-                else {
-                    sql = util.format("delete from lookup where ri = \'%s\'", obj.ri);
-                    db.getResult(sql, connection, function () {
-                        callback(err, results);
-                    });
-                }
-            });
-        }
-        else {
-            callback(err, results);
-        }
-    });
-};
-
-exports.insert_hd_fauDn = function (connection, obj, callback) {
-    console.time('insert_hd_fauDn ' + obj.ri);
-    _this.insert_lookup(connection, obj, function (err, results) {
-        if (!err) {
-            var sql = util.format('insert into fcnt (ri, cnd, fcnt.sus, cr) ' +
-                'value (\'%s\', \'%s\', \'%s\', \'%s\')',
-                obj.ri, obj.cnd, obj.sus, obj.cr);
-            db.getResult(sql, connection, function (err, results) {
-                if (!err) {
-                    console.timeEnd('insert_hd_fauDn ' + obj.ri);
-                    callback(err, results);
-                }
-                else {
-                    sql = util.format("delete from lookup where ri = \'%s\'", obj.ri);
-                    db.getResult(sql, connection, function () {
-                        callback(err, results);
-                    });
-                }
-            });
-        }
-        else {
-            callback(err, results);
-        }
-    });
-};
-
-exports.insert_hd_colSn = function (connection, obj, callback) {
-    console.time('insert_hd_colSn ' + obj.ri);
-    _this.insert_lookup(connection, obj, function (err, results) {
-        if (!err) {
-            var sql = util.format('insert into fcnt (ri, cnd, fcnt.colSn, cr) ' +
-                'value (\'%s\', \'%s\', \'%s\', \'%s\')',
-                obj.ri, obj.cnd, obj.colSn, obj.cr);
-            db.getResult(sql, connection, function (err, results) {
-                if (!err) {
-                    console.timeEnd('insert_hd_colSn ' + obj.ri);
-                    callback(err, results);
-                }
-                else {
-                    sql = util.format("delete from lookup where ri = \'%s\'", obj.ri);
-                    db.getResult(sql, connection, function () {
-                        callback(err, results);
-                    });
-                }
-            });
-        }
-        else {
-            callback(err, results);
-        }
-    });
-};
-
-exports.insert_hd_brigs = function (connection, obj, callback) {
-    console.time('insert_hd_brigs ' + obj.ri);
-    _this.insert_lookup(connection, obj, function (err, results) {
-        if (!err) {
-            var sql = util.format('insert into fcnt (ri, cnd, fcnt.brigs, cr) ' +
-                'value (\'%s\', \'%s\', \'%s\', \'%s\')',
-                obj.ri, obj.cnd, obj.brigs, obj.cr);
-            db.getResult(sql, connection, function (err, results) {
-                if (!err) {
-                    console.timeEnd('insert_hd_brigs ' + obj.ri);
-                    callback(err, results);
-                }
-                else {
-                    sql = util.format("delete from lookup where ri = \'%s\'", obj.ri);
-                    db.getResult(sql, connection, function () {
-                        callback(err, results);
-                    });
-                }
-            });
-        }
-        else {
-            callback(err, results);
-        }
-    });
-};
-
-exports.insert_hd_color = function (connection, obj, callback) {
-    console.time('insert_hd_color ' + obj.ri);
-    _this.insert_lookup(connection, obj, function (err, results) {
-        if (!err) {
-            var sql = util.format('insert into fcnt (ri, cnd, fcnt.red, fcnt.green, fcnt.blue, cr) ' +
-                'value (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
-                obj.ri, obj.cnd, obj.red, obj.green, obj.blue, obj.cr);
-            db.getResult(sql, connection, function (err, results) {
-                if (!err) {
-                    console.timeEnd('insert_hd_color ' + obj.ri);
-                    callback(err, results);
-                }
-                else {
-                    sql = util.format("delete from lookup where ri = \'%s\'", obj.ri);
-                    db.getResult(sql, connection, function () {
-                        callback(err, results);
-                    });
-                }
-            });
-        }
-        else {
-            callback(err, results);
-        }
-    });
-};
-
-exports.insert_fwr = function (connection, obj, callback) {
-    console.time('insert_fwr ' + obj.ri);
-    _this.insert_lookup(connection, obj, function (err, results) {
-        if (!err) {
-            var sql = util.format('insert into mgo (ri, mgd, objs, obps, dc, vr, fwnnam, url, ud, uds) ' +
-                'value (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
-                obj.ri, obj.mgd, obj.objs, obj.obps, obj.dc, obj.vr, obj.fwnnam, obj.url, obj.ud, JSON.stringify(obj.uds).replace(/\"/g, '\\"').replace(/\'/g, '\\\''));
-            db.getResult(sql, connection, function (err, results) {
-                if (!err) {
-                    console.timeEnd('insert_fwr ' + obj.ri);
-                    callback(err, results);
-                }
-                else {
-                    sql = util.format("delete from lookup where ri = \'%s\'", obj.ri);
-                    db.getResult(sql, connection, function () {
-                        callback(err, results);
-                    });
-                }
-            });
-        }
-        else {
-            callback(err, results);
-        }
-    });
-};
-
-exports.insert_bat = function (connection, obj, callback) {
-    console.time('insert_bat ' + obj.ri);
-    _this.insert_lookup(connection, obj, function (err, results) {
-        if (!err) {
-            var sql = util.format('insert into mgo (ri, mgd, objs, obps, dc, btl, bts) ' +
-                'value (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
-                obj.ri, obj.mgd, obj.objs, obj.obps, obj.dc, obj.btl, obj.bts);
-            db.getResult(sql, connection, function (err, results) {
-                if (!err) {
-                    console.timeEnd('insert_bat ' + obj.ri);
-                    callback(err, results);
-                }
-                else {
-                    sql = util.format("delete from lookup where ri = \'%s\'", obj.ri);
-                    db.getResult(sql, connection, function () {
-                        callback(err, results);
-                    });
-                }
-            });
-        }
-        else {
-            callback(err, results);
-        }
-    });
-};
-
-exports.insert_dvi = function (connection, obj, callback) {
-    console.time('insert_dvi ' + obj.ri);
-    _this.insert_lookup(connection, obj, function (err, results) {
-        if (!err) {
-            var sql = util.format('insert into mgo (ri, mgd, objs, obps, dc, dbl, man, mgo.mod, dty, fwv, swv, hwv) ' +
-                'value (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
-                obj.ri, obj.mgd, obj.objs, obj.obps, obj.dc, obj.dbl, obj.man, obj.mod, obj.dty, obj.fwv, obj.swv, obj.hwv);
-            db.getResult(sql, connection, function (err, results) {
-                if (!err) {
-                    console.timeEnd('insert_dvi ' + obj.ri);
-                    callback(err, results);
-                }
-                else {
-                    sql = util.format("delete from lookup where ri = \'%s\'", obj.ri);
-                    db.getResult(sql, connection, function () {
-                        callback(err, results);
-                    });
-                }
-            });
-        }
-        else {
-            callback(err, results);
-        }
-    });
-};
-
-exports.insert_dvc = function (connection, obj, callback) {
-    console.time('insert_dvc ' + obj.ri);
-    _this.insert_lookup(connection, obj, function (err, results) {
-        if (!err) {
-            var sql = util.format('insert into mgo (ri, mgd, objs, obps, dc, can, att, cas, cus, ena, dis) ' +
-                'value (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
-                obj.ri, obj.mgd, obj.objs, obj.obps, obj.dc, obj.can, obj.att, JSON.stringify(obj.cas).replace(/\"/g, '\\"').replace(/\'/g, '\\\''), obj.cus, obj.ena, obj.dis);
-            db.getResult(sql, connection, function (err, results) {
-                if (!err) {
-                    console.timeEnd('insert_dvc ' + obj.ri);
-                    callback(err, results);
-                }
-                else {
-                    sql = util.format("delete from lookup where ri = \'%s\'", obj.ri);
-                    db.getResult(sql, connection, function () {
-                        callback(err, results);
-                    });
-                }
-            });
-        }
-        else {
-            callback(err, results);
-        }
-    });
-};
-
-exports.insert_rbo = function (connection, obj, callback) {
-    console.time('insert_rbo ' + obj.ri);
-    _this.insert_lookup(connection, obj, function (err, results) {
-        if (!err) {
-            var sql = util.format('insert into mgo (ri, mgd, objs, obps, dc, rbo, far) ' +
-                'value (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
-                obj.ri, obj.mgd, obj.objs, obj.obps, obj.dc, obj.rbo, obj.far);
-            db.getResult(sql, connection, function (err, results) {
-                if (!err) {
-                    console.timeEnd('insert_rbo ' + obj.ri);
-                    callback(err, results);
-                }
-                else {
-                    sql = util.format("delete from lookup where ri = \'%s\'", obj.ri);
-                    db.getResult(sql, connection, function () {
-                        callback(err, results);
-                    });
-                }
-            });
-        }
-        else {
-            callback(err, results);
-        }
-    });
-};
-
-exports.insert_nod = function (connection, obj, callback) {
-    console.time('insert_nod ' + obj.ri);
-    _this.insert_lookup(connection, obj, function (err, results) {
-        if (!err) {
-            var sql = util.format('insert into nod (ri, ni, hcl, mgca) ' +
-                'value (\'%s\', \'%s\', \'%s\', \'%s\')',
-                obj.ri, obj.ni, obj.hcl, obj.mgca);
-            db.getResult(sql, connection, function (err, results) {
-                if (!err) {
-                    console.timeEnd('insert_nod ' + obj.ri);
-                    callback(err, results);
-                }
-                else {
-                    sql = util.format("delete from lookup where ri = \'%s\'", obj.ri);
-                    db.getResult(sql, connection, function () {
-                        callback(err, results);
-                    });
-                }
-            });
-        }
-        else {
-            callback(err, results);
-        }
-    });
-};
-
-exports.insert_csr = function (connection, obj, callback) {
-    console.time('insert_csr ' + obj.ri);
-    _this.insert_lookup(connection, obj, function (err, results) {
-        if (!err) {
-            var sql = util.format('insert into csr (ri, cst, poa, cb, csi, mei, tri, rr, nl, srv) ' +
-                'value (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
-                obj.ri, obj.cst, JSON.stringify(obj.poa).replace(/\"/g, '\\"').replace(/\'/g, '\\\''), obj.cb, obj.csi, obj.mei, obj.tri, obj.rr, obj.nl, JSON.stringify(obj.srv).replace(/\"/g, '\\"').replace(/\'/g, '\\\''));
-            db.getResult(sql, connection, function (err, results) {
-                if (!err) {
-                    console.timeEnd('insert_csr ' + obj.ri);
-                    callback(err, results);
-                }
-                else {
-                    sql = util.format("delete from lookup where ri = \'%s\'", obj.ri);
-                    db.getResult(sql, connection, function () {
-                        callback(err, results);
-                    });
-                }
-            });
-        }
-        else {
-            callback(err, results);
-        }
-    });
-};
+Object.keys(BODY_TABLES).forEach(function (name) {
+    var t = BODY_TABLES[name];
+    exports[name] = make_body_insert(
+        name, t[0], t[1].split(' '), (t[2] || '').split(' ').filter(Boolean));
+});
+// ---------------------------------------------------------------------------
 
 exports.insert_sub = function (connection, obj, callback) {
     console.time('insert_sub ' + obj.ri);
@@ -1006,64 +634,6 @@ exports.insert_sub = function (connection, obj, callback) {
     });
 };
 
-exports.insert_smd = function (connection, obj, callback) {
-    console.time('insert_smd ' + obj.ri);
-    _this.insert_lookup(connection, obj, function (err, results) {
-        if (!err) {
-            var sql = util.format('insert into smd (ri, cr, dsp, dcrp, soe, rels, smd.or) ' +
-                'value (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
-                obj.ri, obj.cr, obj.dsp, obj.dcrp, obj.soe, JSON.stringify(obj.rels).replace(/\"/g, '\\"').replace(/\'/g, '\\\''), obj.or);
-            db.getResult(sql, connection, function (err, results) {
-                if (!err) {
-                    console.timeEnd('insert_smd ' + obj.ri);
-                    callback(err, results);
-                }
-                else {
-                    sql = util.format("delete from lookup where ri = \'%s\'", obj.ri);
-                    db.getResult(sql, connection, function () {
-                        callback(err, results);
-                    });
-                }
-            });
-        }
-        else {
-            callback(err, results);
-        }
-    });
-};
-
-exports.insert_mms =function (connection, obj, callback) {
-    console.time('insert_mms ' + obj.ri);
-    _this.insert_lookup(connection, obj, function (err, results) {
-        if (!err) {
-            var sql = util.format('insert into mms (ri, sid, soid, stid, asd, osd, sst) ' +
-                'value (\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\', \'%s\')',
-                obj.ri, obj.sid, obj.soid, obj.stid, obj.asd, obj.osd, obj.sst);
-            db.getResult(sql, connection, function (err, results) {
-                if (!err) {
-                    console.timeEnd('insert_mms ' + obj.ri);
-                    callback(err, results);
-                }
-                else {
-                    sql = util.format("delete from lookup where ri = \'%s\'", obj.ri);
-                    db.getResult(sql, connection, function () {
-                        callback(err, results);
-                    });
-                }
-            });
-        }
-        else {
-            callback(err, results);
-        }
-    });
-};
-
-// 공통 속성(lookup) 한 행과 타입별 테이블 한 행을 합쳐 돌려준다.
-//
-// 두 분기를 합치면서 SQLite 쪽의 가드를 채택했다. MySQL 분기는
-// merge(comm_Obj[0], spec_Obj[0]) 를 무조건 불렀는데, 타입별 행이 없으면
-// spec_Obj[0] 이 undefined 라 결과가 깨졌다. lookup 행만 있고 타입 행이 없는
-// 상태는 subtree 삭제 도중에 실제로 생긴다.
 exports.select_resource_from_url = function (connection, ri, sri, callback) {
     var qb = facade.k('lookup').select('*')
         .where({ ri: ri })
@@ -2706,161 +2276,68 @@ exports.update_hd_color = function (connection, obj, callback) {
     });
 };
 
-exports.update_fwr = function (connection, obj, callback) {
-    console.time('update_fwr ' + obj.ri);
-    _this.update_lookup(connection, obj, function (err, results) {
-        if (!err) {
-            var sql2 = util.format('update mgo set dc = \'%s\', vr = \'%s\', fwnnam = \'%s\', url = \'%s\', ud = \'%s\', uds = \'%s\' where ri = \'%s\'',
-                obj.dc, obj.vr, obj.fwnnam, obj.url, obj.ud, JSON.stringify(obj.uds), obj.ri);
-            db.getResult(sql2, connection, function (err, results) {
-                if (!err) {
-                    console.timeEnd('update_fwr ' + obj.ri);
-                    callback(err, results);
-                }
-                else {
-                    callback(err, results);
-                }
-            });
-        }
-        else {
-            callback(err, results);
-        }
-    });
+// ---------------------------------------------------------------------------
+// 본문 테이블 하나짜리 리소스의 수정
+//
+// 생성(BODY_TABLES)과 짝이다. 아홉 곳이 전부 같은 모양이었다:
+//   lookup 을 고치고 -> 본문 테이블을 고친다.
+//
+// 생성과 달리 되돌리기가 없다. 옛 코드도 그랬다 — 본문 UPDATE 가 실패하면
+// lookup 의 lt/st 만 바뀐 채로 남는다. 여기서 고치지 않는다. 트랜잭션 없이
+// 두 문장을 묶을 방법이 없고, 그것은 이 전환의 범위가 아니다.
+//
+// **컬럼 목록이 생성과 다르다.** 생성은 전체 컬럼, 수정은 바꿀 수 있는
+// 컬럼만이다 (예: mgo 는 생성이 mgd/objs/obps 까지 넣지만 수정은 안 건드린다).
+// 그래서 표를 따로 둔다.
+//
+//   [테이블, set 할 컬럼(공백 구분), JSON 으로 저장할 컬럼]
+var BODY_UPDATES = {
+    update_fwr: ['mgo', 'dc vr fwnnam url ud uds', 'uds'],
+    update_bat: ['mgo', 'dc btl bts'],
+    update_dvi: ['mgo', 'dc dbl man mod dty fwv swv hwv'],
+    update_dvc: ['mgo', 'dc can att cas cus ena dis', 'cas'],
+    update_rbo: ['mgo', 'dc rbo far'],
+    update_nod: ['nod', 'ni mgca'],
+    update_csr: ['csr', 'poa mei tri rr nl', 'poa'],
+    update_smd: ['smd', 'dsp dcrp soe rels or', 'rels'],
+    update_mms: ['mms', 'stid asd osd sst']
 };
 
-exports.update_bat = function (connection, obj, callback) {
-    console.time('update_bat ' + obj.ri);
-    _this.update_lookup(connection, obj, function (err, results) {
-        if (!err) {
-            var sql2 = util.format('update mgo set dc = \'%s\', btl = \'%s\', bts = \'%s\' where ri = \'%s\'', obj.dc, obj.btl, obj.bts, obj.ri);
-            db.getResult(sql2, connection, function (err, results) {
-                if (!err) {
-                    console.timeEnd('update_bat ' + obj.ri);
-                    callback(err, results);
-                }
-                else {
-                    callback(err, results);
-                }
-            });
-        }
-        else {
-            callback(err, results);
-        }
-    });
-};
+function make_body_update(name, table, cols, json_cols) {
+    return function (connection, obj, callback) {
+        var label = name + ' ' + obj.ri;
+        console.time(label);
 
-exports.update_dvi = function (connection, obj, callback) {
-    console.time('update_dvi ' + obj.ri);
-    _this.update_lookup(connection, obj, function (err, results) {
-        if (!err) {
-            var sql2 = util.format('update mgo set dc = \'%s\', dbl = \'%s\', man = \'%s\', mgo.mod = \'%s\', dty = \'%s\', fwv = \'%s\', swv = \'%s\', hwv = \'%s\' where ri = \'%s\'',
-                obj.dc, obj.dbl, obj.man, obj.mod, obj.dty, obj.fwv, obj.swv, obj.hwv, obj.ri);
-            db.getResult(sql2, connection, function (err, results) {
-                if (!err) {
-                    console.timeEnd('update_dvi ' + obj.ri);
-                    callback(err, results);
-                }
-                else {
-                    callback(err, results);
-                }
-            });
-        }
-        else {
-            callback(err, results);
-        }
-    });
-};
+        _this.update_lookup(connection, obj, function (err, results) {
+            if (err) {
+                callback(err, results);
+                return;
+            }
 
-exports.update_dvc = function (connection, obj, callback) {
-    console.time('update_dvc ' + obj.ri);
-    _this.update_lookup(connection, obj, function (err, results) {
-        if (!err) {
-            var sql2 = util.format('update mgo set dc = \'%s\', can = \'%s\', att = \'%s\', cas = \'%s\', cus = \'%s\', ena = \'%s\', dis = \'%s\' where ri = \'%s\'',
-                obj.dc, obj.can, obj.att, JSON.stringify(obj.cas), obj.cus, obj.ena, obj.dis, obj.ri);
-            db.getResult(sql2, connection, function (err, results) {
-                if (!err) {
-                    console.timeEnd('update_dvc ' + obj.ri);
-                    callback(err, results);
-                }
-                else {
-                    callback(err, results);
-                }
+            var row = {};
+            cols.forEach(function (c) {
+                // 생성 쪽과 달리 || [] 를 붙이지 않는다. 옛 코드가
+                // JSON.stringify(obj.x) 를 그대로 썼고, 여기서 기본값을
+                // 만들어 주면 "안 보낸 속성" 이 빈 배열로 덮인다.
+                row[c] = (json_cols.indexOf(c) >= 0) ? JSON.stringify(obj[c]) : obj[c];
             });
-        }
-        else {
-            callback(err, results);
-        }
-    });
-};
 
-exports.update_rbo = function (connection, obj, callback) {
-    console.time('update_rbo ' + obj.ri);
-    _this.update_lookup(connection, obj, function (err, results) {
-        if (!err) {
-            var sql2 = util.format('update mgo set dc = \'%s\', rbo = \'%s\', far = \'%s\' where ri = \'%s\'',
-                obj.dc, obj.rbo, obj.far, obj.ri);
-            db.getResult(sql2, connection, function (err, results) {
-                if (!err) {
-                    console.timeEnd('update_rbo ' + obj.ri);
-                    callback(err, results);
-                }
-                else {
-                    callback(err, results);
-                }
-            });
-        }
-        else {
-            callback(err, results);
-        }
-    });
-};
+            facade.run(facade.k(table).update(row).where({ ri: obj.ri }), connection,
+                function (err2, results2) {
+                    console.timeEnd(label);
+                    callback(err2, results2);
+                });
+        });
+    };
+}
 
-exports.update_nod = function (connection, obj, callback) {
-    console.time('update_nod ' + obj.ri);
-    _this.update_lookup(connection, obj, function (err, results) {
-        if (!err) {
-            var sql2 = util.format('update nod set ni = \'%s\', mgca = \'%s\' where ri = \'%s\'', obj.ni, obj.mgca, obj.ri);
-            db.getResult(sql2, connection, function (err, results) {
-                if (!err) {
-                    console.timeEnd('update_nod ' + obj.ri);
-                    callback(err, results);
-                }
-                else {
-                    callback(err, results);
-                }
-            });
-        }
-        else {
-            callback(err, results);
-        }
-    });
-};
+Object.keys(BODY_UPDATES).forEach(function (name) {
+    var t = BODY_UPDATES[name];
+    exports[name] = make_body_update(
+        name, t[0], t[1].split(' '), (t[2] || '').split(' ').filter(Boolean));
+});
+// ---------------------------------------------------------------------------
 
-exports.update_csr = function (connection, obj, callback) {
-    console.time('update_csr ' + obj.ri);
-    _this.update_lookup(connection, obj, function (err, results) {
-        if (!err) {
-            var sql2 = util.format('update csr set poa = \'%s\', mei = \'%s\', tri = \'%s\', rr = \'%s\', nl = \'%s\' where ri = \'%s\'',
-                JSON.stringify(obj.poa), obj.mei, obj.tri, obj.rr, obj.nl, obj.ri);
-            db.getResult(sql2, connection, function (err, results) {
-                if (!err) {
-                    console.timeEnd('update_csr ' + obj.ri);
-                    callback(err, results);
-                }
-                else {
-                    callback(err, results);
-                }
-            });
-        }
-        else {
-            callback(err, results);
-        }
-    });
-};
-
-// 이전에는 db.getResult 를 무조건 호출해 SQLite 모드에서 구독 갱신이 유실됐다
-// (2차에서 수정). 여기서는 lookup 과 sub 두 문장을 한 트랜잭션으로 묶는다 —
-// 반쪽만 반영되면 리소스 메타데이터와 알림 설정이 어긋난다.
 exports.update_sub = function (connection, obj, callback) {
     console.time('update_sub ' + obj.ri);
     facade.transaction(connection, function (conn, finish) {
@@ -2892,58 +2369,6 @@ exports.update_sub = function (connection, obj, callback) {
     });
 };
 
-exports.update_smd = function (connection, obj, callback) {
-    console.time('update_smd ' + obj.ri);
-    _this.update_lookup(connection, obj, function (err, results) {
-        if (!err) {
-            var sql2 = util.format('update smd set dsp = \'%s\', dcrp = \'%s\', soe = \'%s\', rels = \'%s\', smd.or = \'%s\' where ri = \'%s\'',
-                obj.dsp, obj.dcrp, obj.soe, JSON.stringify(obj.rels), obj.or, obj.ri);
-            db.getResult(sql2, connection, function (err, results) {
-                if (!err) {
-                    console.timeEnd('update_smd ' + obj.ri);
-                    callback(err, results);
-                }
-                else {
-                    callback(err, results);
-                }
-            });
-        }
-        else {
-            callback(err, results);
-        }
-    });
-};
-
-exports.update_mms =function (connection, obj, callback) {
-    console.time('update_mms ' + obj.ri);
-    _this.update_lookup(connection, obj, function (err, results) {
-        if (!err) {
-            var sql2 = util.format('update mms set stid = \'%s\', asd = \'%s\', osd = \'%s\', sst = \'%s\' where ri = \'%s\'',
-                obj.stid, obj.asd, obj.osd, obj.sst, obj.ri);
-            db.getResult(sql2, connection, function (err, results) {
-                if (!err) {
-                    console.timeEnd('update_mms ' + obj.ri);
-                    callback(err, results);
-                }
-                else {
-                    callback(err, results);
-                }
-            });
-        }
-        else {
-            callback(err, results);
-        }
-    });
-};
-
-
-// 컨테이너의 cni/cbs 를 절대값으로 고쳐 쓴다. 정합 맞추기(reconcile_cnt_counters)
-// 전용이다 — 평상시 카운터 유지는 전부 증분(cnt_man / delete_oldest /
-// update_parent_by_delete)이 담당한다.
-//
-// lookup.st 는 일부러 건드리지 않는다. st 는 변경 카운터라 실제 데이터에서
-// 다시 계산할 수 없고, 정합 맞추기가 올리면 없던 구독 알림이 나간다.
-// (예전에는 다중 테이블 UPDATE 를 그대로 옮기느라 st 까지 대입했다.)
 exports.update_cnt_cni = function (connection, obj, callback) {
     var cni_id = 'update_cnt_cni ' + obj.ri + ' - ' + require('shortid').generate();
     console.time(cni_id);

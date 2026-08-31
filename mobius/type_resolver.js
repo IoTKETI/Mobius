@@ -82,11 +82,19 @@ exports.resolve = function (root_key, header_ty) {
     if (ty === null) {
         // mgmtObj 구체 타입(fwr/bat/dvi/dvc/rbo)이 여기로 온다. typeRsrc 에는
         // 13:"mgo" 만 있고 구체 타입은 responder.mgoType 에 따로 있다.
-        // 하위 계층은 이미 ty=13 + rootnm='fwr' 을 전제로 쓰여 있으나
-        // (mgo.js 의 build_mgo, resource.js 의 mgd 분기, sql_action 의 insert_fwr),
-        // sql_action 의 mgo 계열 10개가 아직 이스케이프 없는 문자열 조립이라
-        // 여기서 열어 주면 요청 본문이 그대로 SQL 에 들어간다.
-        // 파사드 전환이 끝날 때까지 종전대로 400-3 으로 둔다.
+        // 하위 계층은 이미 ty=13 + rootnm='fwr' 을 전제로 쓰여 있다
+        // (mgo.js 의 build_mgo, resource.js 의 mgd 분기, sql_action 의 insert_fwr).
+        //
+        // **막아 둔 이유는 해소됐다.** 원래 근거는 "sql_action 의 mgo 계열
+        // 10개가 이스케이프 없는 문자열 조립이라 여기서 열어 주면 요청 본문이
+        // 그대로 SQL 에 들어간다" 였는데, 그 열 함수(insert/update ×
+        // fwr·bat·dvi·dvc·rbo)는 이제 BODY_TABLES / BODY_UPDATES 를 통해
+        // 바인딩으로 나간다. 값이 SQL 문자열에 들어가지 않는다.
+        //
+        // 그래도 **열지 않는다.** 여는 것은 지금까지 거절되던 리소스 타입을
+        // 받기 시작하는 동작 변경이고, 그 아래 경로(build_mgo 의 mgd 분기,
+        // mgo 테이블의 스키마, 조회·수정·삭제)는 한 번도 실제로 밟힌 적이
+        // 없다. 열려면 그 경로를 먼저 검증해야 한다 — 별도 판단 사항이다.
         return { rsc: '400-3', ty: null, rootnm: null };
     }
 
