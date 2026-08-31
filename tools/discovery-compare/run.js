@@ -20,7 +20,19 @@ if (!OUT) {
     process.exit(1);
 }
 
-const HOST = '127.0.0.1', PORT = 7579, CB = '/Mobius';
+// 포트는 conf.json 에서 읽는다. 7579 로 고정돼 있었는데 이 저장소의 conf 는
+// 7679 라, 서버는 정상으로 떠 있는데 도구가 "서버가 뜨지 않았다" 로 죽었다.
+// MOBIUS_PORT 로 덮어쓸 수 있다.
+const PORT = (function () {
+    if (process.env.MOBIUS_PORT) { return parseInt(process.env.MOBIUS_PORT, 10); }
+    try {
+        var c = JSON.parse(fs.readFileSync(path.join(ROOT, 'conf.json'), 'utf8'));
+        var p = parseInt(c.csebaseport, 10);
+        if (p > 0) { return p; }
+    } catch (e) { /* 없으면 기본값 */ }
+    return 7579;
+})();
+const HOST = '127.0.0.1', CB = '/Mobius';
 const AE = 'disc_ae';
 const SU = 'Sponde';
 

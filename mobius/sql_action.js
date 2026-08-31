@@ -965,83 +965,9 @@ function size_filter_excludes_all(query) {
     return tys.indexOf('4') < 0;
 }
 exports.size_filter_excludes_all = size_filter_excludes_all;
-/*
-exports.search_lookup_parents = function(connection, query, pi, cur_lim, count, found_Obj, callback) {
-    if(count >= Object.keys(responder.typeRsrc).length-1) {
-        callback('1', found_Obj);
-        return;
-    }
-
-    build_search_query(query, function (query_where) {
-        var query_where_1 = '(pi like \'' + pi + '%\' and ri like \'' + pi + '/%\')';
-
-        if(query.lvl != null) {
-            query_where_1 = '(pi like \'' + pi + '%\' and pi not like \'' + pi;
-            for(var l = 0; l < query.lvl; l++) {
-                query_where_1 += '/%'
-            }
-            query_where_1 += '\' and ri like \'' + pi + '/%\')';
-        }
-
-        if (query.la != null) {
-            if (query.la != null) {
-                cur_lim = parseInt(query.la, 10);
-
-                var before_ct = moment().subtract(Math.pow(3, count), 'minutes').utc().format('YYYYMMDDTHHmmss');
-
-                query_where += ' and ';
-                query_where += util.format(' (\'%s\' < ct) ', before_ct);
-            }
-
-            var sql = 'select * from (select * from lookup where ' + query_where_1 + ' ' + query_where + ') b join cin as a on b.ri = a.ri limit ' + cur_lim;
-        }
-        else {
-            var num = Object.keys(responder.typeRsrc)[count];
-            sql = 'select * from (select * from lookup where ' + query_where_1 + ' ' + query_where + ') b join ' + responder.typeRsrc[num] + ' as a on b.ri = a.ri limit ' + cur_lim;
-        }
-
-        if (query.ofst != null) {
-            sql += ' offset ' + query.ofst;
-        }
-
-        db.getResult(sql, connection, function (err, result_lookup_ri) {
-            if (!err) {
-                if (result_lookup_ri.length > 0) {
-                    result_lookup_ri = result_lookup_ri.reverse();
-                    for (var idx in result_lookup_ri) {
-                        if (result_lookup_ri.hasOwnProperty(idx)) {
-                            found_Obj[result_lookup_ri[idx].ri] = result_lookup_ri[idx];
-                            if(Object.keys(found_Obj).length >= cur_lim) {
-                                break;
-                            }
-                        }
-                    }
-
-                    if(Object.keys(found_Obj).length >= cur_lim) {
-                        _this.search_lookup_parents(connection, query, pi, cur_lim, Object.keys(responder.typeRsrc).length, found_Obj, function (rsc, found_Obj) {
-                            callback(rsc, found_Obj);
-                        });
-                    }
-                    else {
-                        _this.search_lookup_parents(connection, query, pi, cur_lim, ++count, found_Obj, function (rsc, found_Obj) {
-                            callback(rsc, found_Obj);
-                        });
-                    }
-                }
-                else {
-                    _this.search_lookup_parents(connection, query, pi, cur_lim, ++count, found_Obj, function (rsc, found_Obj) {
-                        callback(rsc, found_Obj);
-                    });
-                }
-            }
-            else {
-                console.log('[search_lookup_parents] - Database error');
-                callback('0');
-            }
-        });
-    });
-};
-*/
+// search_lookup_parents 는 여기 있었다. 재귀 CTE 로 옮기면서(340b436)
+// 쓰이지 않게 되어 주석 처리해 둔 것을, 76줄짜리 죽은 주석으로 남길
+// 이유가 없어 지웠다. 필요하면 git 이 갖고 있다.
 
 // 자손 수집이 훑지 않는 타입. 리프(4=cin, 23=sub, 17=req)와
 // 별도 경로로 다루는 것(1=acp, 9=grp)이다.
@@ -1817,8 +1743,16 @@ exports.select_in_ri_list = function (connection, tbl, ri_list, ri_index, found_
         }
     }
 
-    var sql = util.format("select * from " + tbl + " where ri in (" + JSON.stringify(cur_ri).replace('[', '').replace(']', '') + ")");
-    db.getResult(sql, connection, function (err, search_Obj) {
+    // 예전에는 IN 목록을 JSON.stringify 로 만들었다:
+    //   where ri in ("a","b")
+    // MySQL 은 큰따옴표를 문자열로 받아 주지만 **표준 SQL 에서 그것은
+    // 식별자**다. 다른 백엔드에서는 "그런 컬럼이 없다" 가 된다.
+    // 게다가 값이 SQL 안으로 들어가 이스케이프에 의존한다.
+    // whereIn 은 방언에 맞게 인용하고 값은 바인딩으로 나간다.
+    //
+    // tbl 은 responder.typeRsrc 의 값이라 내부에서만 온다(클라이언트 입력이
+    // 아니다). 그래도 식별자는 빌더가 인용하게 둔다.
+    facade.run(facade.k(tbl).select('*').whereIn('ri', cur_ri), connection, function (err, search_Obj) {
         if (!err) {
             for (var i = 0; i < search_Obj.length; i++) {
                 found_Obj.push(search_Obj[i]);

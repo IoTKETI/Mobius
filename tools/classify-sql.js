@@ -14,9 +14,29 @@ var LIST = process.argv.indexOf('--list') >= 0;
 
 var lines = fs.readFileSync(P, 'utf8').split('\n');
 
+// 블록 주석(/* ... */) 안의 줄을 표시해 둔다.
+//
+// 안 하면 주석 처리된 함수를 살아 있는 것으로 센다. 실제로
+// search_lookup_parents(76줄, 재귀 CTE 전환 때 주석 처리)가 "손으로 쓴 SQL"
+// 로 잡혀 남은 일이 하나 더 있는 것처럼 보였다.
+// 줄머리 * 만 거르는 것으로는 부족하다 — 주석 안의 코드 줄은 그렇게 안 생겼다.
+var inBlock = new Array(lines.length).fill(false);
+(function () {
+    var open = false;
+    lines.forEach(function (l, i) {
+        var t = l.trim();
+        if (!open && /^\/\*/.test(t) && !/\*\//.test(t)) { open = true; inBlock[i] = true; return; }
+        if (open) {
+            inBlock[i] = true;
+            if (/\*\//.test(t)) { open = false; }
+        }
+    });
+})();
+
 // 함수 경계. exports.foo = function 과 function foo( 둘 다 잡는다.
 var heads = [];
 lines.forEach(function (l, i) {
+    if (inBlock[i]) { return; }
     var m = l.match(/^(?:exports\.([a-zA-Z_0-9]+)\s*=\s*function|function\s+([a-zA-Z_0-9]+)\s*\()/);
     if (m) { heads.push({ name: m[1] || m[2], start: i }); }
 });
