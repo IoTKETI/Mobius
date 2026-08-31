@@ -17,6 +17,69 @@ const draft = ref<Record<string, unknown>>({})
 
 const items = computed(() => data.value?.items ?? [])
 
+/**
+ * 설정을 묶는 분류.
+ *
+ * **잠정이다.** 라벨·도움말·유효값은 코어 스키마에서 그대로 받는데 분류만
+ * 여기서 적고 있다 — 표를 두 벌 드는 셈이라 코어에 `group` 필드를 요청해 뒀다.
+ * 오면 이 표를 지운다.
+ *
+ * 그때까지도 **새 키가 화면에서 사라지지 않게** 한다. 여기 없는 키는 숨기지
+ * 않고 '기타' 로 모은다 — 분류표가 낡았다는 신호이지, 설정이 없다는 뜻이
+ * 아니기 때문이다.
+ */
+const GROUPS: { id: string; label: string; desc: string; keys: string[] }[] = [
+  {
+    id: 'acp',
+    label: '권한 (ACP)',
+    desc: '누가 무엇을 할 수 있는가. 잘못 두면 보호가 조용히 사라집니다.',
+    keys: [
+      'acpObserveMode',
+      'acpDiscoveryFilter',
+      'defaultAccessPolicy',
+      'acpiAttachPolicy',
+      'acpAudit',
+      'acpDenyLog',
+      'acpDenyLogRate',
+    ],
+  },
+  {
+    id: 'request',
+    label: '요청 처리',
+    desc: '들어오는 요청과 나가는 요청의 한도.',
+    keys: ['maxBodyBytes', 'outboundTimeoutMs'],
+  },
+  {
+    id: 'storage',
+    label: '저장소',
+    desc: '어디에 저장하고 얼마나 보관하는가.',
+    keys: ['db', 'retentionPolicies'],
+  },
+]
+
+const grouped = computed(() => {
+  const byKey = new Map(items.value.map((i) => [i.key, i]))
+  const used = new Set<string>()
+  const out = GROUPS.map((g) => {
+    const list = g.keys.map((k) => byKey.get(k)).filter((x): x is ConfItem => !!x)
+    list.forEach((i) => used.add(i.key))
+    return { ...g, items: list }
+  }).filter((g) => g.items.length > 0)
+
+  // 분류표에 없는 키. 숨기지 않는다.
+  const rest = items.value.filter((i) => !used.has(i.key))
+  if (rest.length) {
+    out.push({
+      id: 'other',
+      label: '기타',
+      desc: '분류표에 아직 없는 설정입니다. 코어에 새로 생긴 것일 수 있습니다.',
+      keys: [],
+      items: rest,
+    })
+  }
+  return out
+})
+
 /** 바꾼 것만 보낸다 — 안 만진 키를 파일에 새로 쓰지 않는다. */
 const patch = computed(() => {
   const out: Record<string, unknown> = {}
@@ -162,9 +225,22 @@ onMounted(load)
       <strong>반영은 위 설명대로입니다.</strong>
     </p>
 
-    <div v-if="items.length" class="items">
+    <div v-for="g in grouped" :key="g.id" class="group">
+      <div class="ghead">
+        <h3>{{ g.label }}</h3>
+        <span class="gcount">{{ g.items.length }}</span>
+        <span
+          v-if="g.items.some((x) => x.danger)"
+          class="gdanger"
+          :title="'위험한 값으로 설정된 항목이 있습니다'"
+        >주의</span>
+        <span v-if="g.items.some((x) => dirtyKeys.includes(x.key))" class="gdirty">수정됨</span>
+      </div>
+      <p class="gdesc">{{ g.desc }}</p>
+
+      <div class="items">
       <div
-        v-for="i in items"
+        v-for="i in g.items"
         :key="i.key"
         class="item"
         :class="{ danger: i.danger, dirty: dirtyKeys.includes(i.key) }"
@@ -249,6 +325,7 @@ onMounted(load)
           이 값은 켠 채로 두면 보호가 무력해집니다.
         </p>
       </div>
+      </div>
     </div>
 
     <div v-if="data?.unknownKeys?.length" class="banner warnbox">
@@ -312,6 +389,23 @@ h3 { margin: 0 0 0.4rem; font-size: 1rem; color: var(--text-strong); }
 .banner p { margin: 0.5rem 0 0; }
 .banner .unknown { color: var(--danger); }
 .prob { margin-top: 0.3rem; color: var(--danger); }
+
+.group { margin-bottom: 1.8rem; max-width: 92ch; }
+.ghead { display: flex; align-items: baseline; gap: 0.5rem; }
+.ghead h3 { margin: 0; font-size: 1.15rem; color: var(--text-strong); }
+.gcount {
+  font-size: 0.78rem; color: var(--muted);
+  border: 1px solid var(--border); border-radius: 999px; padding: 0.02rem 0.45rem;
+}
+.gdanger {
+  font-size: 0.75rem; font-weight: 700; color: #fff;
+  background: var(--danger); border-radius: 4px; padding: 0.05rem 0.4rem;
+}
+.gdirty {
+  font-size: 0.75rem; font-weight: 700; color: #fff;
+  background: var(--accent); border-radius: 4px; padding: 0.05rem 0.4rem;
+}
+.gdesc { margin: 0.25rem 0 0.7rem; font-size: 0.92rem; color: var(--muted); }
 
 .items { display: grid; gap: 0.8rem; max-width: 92ch; }
 .item {
