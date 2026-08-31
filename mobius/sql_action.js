@@ -726,23 +726,25 @@ exports.select_ae = function (connection, ri, callback) {
     facade.run(facade.k('ae').select('*').where({ ri: ri }), connection, callback);
 };
 
-// --- SQL Injection 방어 (한국전자기술연구원 취약점 보고서, Mobius <=2.5.15) ---
-// discovery 필터 파라미터를 문자열 concat으로 WHERE 절에 넣기 전에 정규화한다.
-// - 숫자 컨텍스트(따옴표 없이 삽입)는 부호 없는 정수만 허용, 아니면 해당 필터를 무시(fail-safe)
-// - 문자열 컨텍스트(따옴표로 감싸 삽입)는 SQL 리터럴 이스케이프 (MySQL/SQLite 공통 안전)
-function esc_sql_str(v) {
-    return String(v).replace(/[\\'\x00\n\r\x1a]/g, function (c) {
-        switch (c) {
-            case '\\': return '\\\\';
-            case '\'': return '\'\'';
-            case '\x00': return '\\0';
-            case '\n': return '\\n';
-            case '\r': return '\\r';
-            case '\x1a': return '\\Z';
-        }
-    });
-}
-
+// --- discovery 파라미터 정규화 ---
+//
+// 원래는 SQL Injection 방어였다 (한국전자기술연구원 취약점 보고,
+// Mobius <=2.5.15). 필터 값을 문자열 concat 으로 WHERE 에 넣고 있어서,
+// 넣기 전에 값마다 SQL 리터럴 이스케이프를 걸었다.
+//
+// **그 이스케이프는 없앴다.** build_search_query 가 값을 이름 바인딩으로
+// 넘기므로 값이 SQL 문자열에 들어가지 않는다. 이스케이프를 남겨 두면
+// 이중으로 걸려 `it's` 를 찾는 요청이 `it''s` 를 찾게 된다.
+// 이스케이프는 하나만 빠져도 뚫리고 방언마다 규칙이 다르다 — 바인딩이
+// 그 문제를 통째로 없앤다.
+//
+// 숫자 검증은 남긴다. 그 값들은 바인딩이 아니라 여전히 SQL 에 직접 들어가거나
+// (limit / offset / sk_lvl) 분기 판단에 쓰인다:
+//   sza / szb   바인딩이지만 parseInt 로 수가 되어야 비교가 성립한다
+//   la / ofst   limit / offset 리터럴
+//   lvl         재귀 깊이 상한 리터럴
+//   ty          requested_ty_list / size_filter_excludes_all 이 읽는다
+// 정수가 아니면 해당 필터를 **버린다**(fail-safe) — 예전과 같다.
 function sanitize_discovery_query(query) {
     if (!query || typeof query !== 'object') {
         return;
@@ -764,115 +766,89 @@ function sanitize_discovery_query(query) {
         }
     }
 
-    // 문자열 컨텍스트: 따옴표로 감싸 삽입되는 파라미터는 이스케이프
-    ['lbl', 'rn', 'cty', 'cra', 'crb', 'ms', 'us', 'exa', 'exb', 'sts', 'stb'].forEach(function (k) {
-        if (query[k] == null) {
-            return;
-        }
-        query[k] = Array.isArray(query[k]) ? query[k].map(esc_sql_str) : esc_sql_str(query[k]);
-    });
+    // lbl / rn / cty / cra / crb / ms / us / exa / exb / sts / stb 은
+    // 손대지 않는다. 전부 바인딩으로 나가므로 값 그대로 써야 맞다.
 }
 exports.sanitize_discovery_query = sanitize_discovery_query;
 
-function build_search_query(query, callback) {
-    var query_where = '';
-    var query_count = 0;
+/**
+ * discovery 필터를 WHERE 조각으로 만든다.
+ *
+ * **클라이언트 값은 전부 이름 바인딩으로 나간다.** 예전에는 util.format 으로
+ * SQL 문자열에 직접 이어 붙였고, 그래서 sanitize_discovery_query 가 값마다
+ * 손으로 이스케이프해야 했다(한국전자기술연구원 취약점 보고, Mobius <=2.5.15).
+ * 이스케이프는 하나만 빠져도 뚫리고, 방언마다 규칙이 다르다.
+ *
+ * **위치 바인딩(?)이 아니라 이름 바인딩(:name)이어야 한다.** 값 안에 물음표가
+ * 있으면 knex 가 그것까지 자리표로 세어 "Expected N bindings, saw N+1" 로
+ * 죽는다. 물음표는 리소스 이름이나 라벨에 얼마든지 들어가는 평범한 글자다
+ * (재현: ?fu=1&rn=what%3F -> HTTP 500). 이름 바인딩은 :name 만 찾는다.
+ * 골격 CTE 의 :root_ri 도 같은 이유로 이름 바인딩이다.
+ *
+ * 돌려주는 것: { where, bindings }
+ *   where     ' and ...' 로 시작하는 조각 (없으면 빈 문자열)
+ *   bindings  { q_xxx: 값 }  — 호출부가 :root_ri 와 합쳐 넘긴다
+ */
+function build_search_query(query) {
+    var where = '';
+    var b = {};
+    var n = 0;
+    // 이름은 겹치면 안 된다. 라벨/타입이 여럿일 수 있어 일련번호를 붙인다.
+    function bind(v) {
+        var k = 'q' + (n++);
+        b[k] = v;
+        return ':' + k;
+    }
+
     if (query.lbl != null) {
-        query_where = ' and ';
+        // lbl 은 JSON 배열을 담은 문자열이라 like 로 찾는다. 패턴 전체를
+        // 값으로 넘긴다 — 와일드카드가 바인딩 안에 있어야 값의 %가 패턴으로
+        // 해석되지 않는다.
+        //
+        // 분기 조건은 예전 그대로 둔다. lbl 이 'a,b' 같은 **문자열**이면
+        // 아래 else 가 query.lbl.length 로 문자열 길이를 돌아 글자 하나씩을
+        // 라벨로 본다 — 원래 있던 결함이고 여기서 고치지 않는다.
+        // (lbl=a&lbl=b 로 오면 배열이라 정상이다.)
+        var like = function (v) { return '%"%' + v + '%"%'; };
         if (query.lbl.toString().split(',')[1] == null) {
-            query_where += util.format(' lbl like \'%%\"%%%s%%\"%%\'', query.lbl);
+            where += ' and lbl like ' + bind(like(query.lbl));
         }
         else {
             // 라벨 여러 개는 OR 로 묶는다. 괄호가 없으면 뒤에 오는 필터가
             // 마지막 라벨에만 걸린다 — AND 가 OR 보다 세다:
             //   and lbl~a or lbl~b and ty=3  ->  (lbl~a) or ((lbl~b) and ty=3)
             // 그러면 ty 를 줘도 첫 라벨은 타입 상관없이 다 딸려 나온다.
-            query_where += ' (';
+            var parts = [];
             for (var i = 0; i < query.lbl.length; i++) {
-                query_where += util.format(' lbl like \'%%\"%%%s%%\"%%\'', query.lbl[i]);
-
-                if (i < query.lbl.length - 1) {
-                    query_where += ' or ';
-                }
+                parts.push('lbl like ' + bind(like(query.lbl[i])));
             }
-            query_where += ') ';
+            where += ' and (' + parts.join(' or ') + ')';
         }
-        query_count++;
     }
 
-    var ty_str = '';
     if (query.ty != null) {
-        ty_str = ' and ';
-        query_where += ' and ';
-
-        if (query.ty.toString().split(',').length == 1) {
-            query_where += util.format('ty = \'%s\'', query.ty);
-            ty_str += util.format('ty = \'%s\'', query.ty);
+        // 타입은 **등치**여야 한다. MySQL 재귀 CTE 안에서는 ref 접근만 되고
+        // range 가 안 되어, ty in (...) 이나 ty < 4 로 쓰면 인덱스가 pi 까지만
+        // 듣고 나머지는 필터가 된다 (배포 실측 6,961ms vs 434ms).
+        // 값은 예전 리터럴과 같게 문자열로 넘긴다.
+        var tys = Array.isArray(query.ty) ? query.ty : String(query.ty).split(',');
+        if (tys.length === 1) {
+            where += ' and ty = ' + bind(String(tys[0]));
         }
         else {
-            query_where += ' (';
-            ty_str += ' (';
-            for (i = 0; i < query.ty.length; i++) {
-                query_where += util.format('ty = \'%s\'', query.ty[i]);
-                ty_str += util.format('ty = \'%s\'', query.ty[i]);
-                if (i < query.ty.length - 1) {
-                    query_where += ' or ';
-                    ty_str += ' or ';
-                }
-            }
-            query_where += ') ';
-            ty_str += ') ';
+            var ors = tys.map(function (t) { return 'ty = ' + bind(String(t)); });
+            where += ' and (' + ors.join(' or ') + ')';
         }
-        query_count++;
     }
 
-    if (query.cra != null) {
-        query_where += ' and ';
-        query_where += util.format('\'%s\' <= ct', query.cra);
-        query_count++;
-    }
-
-    if (query.crb != null) {
-        query_where += ' and ';
-        query_where += util.format(' ct < \'%s\'', query.crb);
-        query_count++;
-    }
-
-    if (query.ms != null) {
-        query_where += ' and ';
-        query_where += util.format('\'%s\' <= lt', query.ms);
-        query_count++;
-    }
-
-    if (query.us != null) {
-        query_where += ' and ';
-        query_where += util.format(' lt < \'%s\'', query.us);
-        query_count++;
-    }
-
-    if (query.exa != null) {
-        query_where += ' and ';
-        query_where += util.format('\'%s\' <= et', query.exa);
-        query_count++;
-    }
-
-    if (query.exb != null) {
-        query_where += ' and ';
-        query_where += util.format(' et < \'%s\'', query.exb);
-        query_count++;
-    }
-
-    if (query.sts != null) {
-        query_where += ' and ';
-        query_where += util.format(' st < \'%s\'', query.sts);
-        query_count++;
-    }
-
-    if (query.stb != null) {
-        query_where += ' and ';
-        query_where += util.format('\'%s\' <= st', query.stb);
-        query_count++;
-    }
+    if (query.cra != null) { where += ' and ' + bind(query.cra) + ' <= ct'; }
+    if (query.crb != null) { where += ' and ct < ' + bind(query.crb); }
+    if (query.ms != null) { where += ' and ' + bind(query.ms) + ' <= lt'; }
+    if (query.us != null) { where += ' and lt < ' + bind(query.us); }
+    if (query.exa != null) { where += ' and ' + bind(query.exa) + ' <= et'; }
+    if (query.exb != null) { where += ' and et < ' + bind(query.exb); }
+    if (query.sts != null) { where += ' and st < ' + bind(query.sts); }
+    if (query.stb != null) { where += ' and ' + bind(query.stb) + ' <= st'; }
 
     // sza / szb / cty 는 contentInstance 의 속성을 본다 — cs(contentSize) 와
     // cnf(contentInfo) 다. 그 둘은 lookup 이 아니라 cin 에 있으므로 별칭 c 로
@@ -882,35 +858,26 @@ function build_search_query(query, callback) {
     // 예전에는 별칭 없이 cs / cnf 라고 써서 lookup 에 붙였고, lookup 에는 그
     // 컬럼이 없으니 SQL 준비 단계에서 깨져 **항상 HTTP 500** 이었다.
     // 8년 전 mobiusdb.sql 에서 두 컬럼을 뺄 때 이쪽을 안 고쳤다.
+    //
+    // 크기는 수로 비교한다 — cs 는 MySQL 이 int, SQLite 가 TEXT 다.
     if (query.sza != null) {
-        query_where += ' and ';
-        // cs 는 MySQL 이 int, SQLite 가 TEXT 라 비교 전에 수로 맞춘다.
-        query_where += util.format('%s <= %s', query.sza, facade.numericExpr('c.cs'));
-        query_count++;
+        where += ' and ' + bind(parseInt(query.sza, 10)) + ' <= ' + facade.numericExpr('c.cs');
     }
-
     if (query.szb != null) {
-        query_where += ' and ';
-        query_where += util.format('%s < %s', facade.numericExpr('c.cs'), query.szb);
-        query_count++;
+        where += ' and ' + facade.numericExpr('c.cs') + ' < ' + bind(parseInt(query.szb, 10));
     }
 
-    if (query.rn != null) {
-        query_where += ' and ';
-        query_where += util.format('rn = \'%s\'', query.rn);
-        query_count++;
-    }
+    if (query.rn != null) { where += ' and rn = ' + bind(query.rn); }
 
     if (query.cty != null) {
-        query_where += ' and ';
         // cnf 에는 클라이언트가 준 contentInfo 가 그대로 들어간다
         // (예: 'application/json:0'). 정확 일치로 본다.
-        query_where += util.format('c.cnf = \'%s\'', query.cty);
-        query_count++;
+        where += ' and c.cnf = ' + bind(query.cty);
     }
 
-    callback(query_where);
+    return { where: where, bindings: b };
 }
+exports._build_search_query = build_search_query;
 
 // sza / szb / cty 는 cin 의 속성을 본다. 하나라도 있으면 조인해야 한다.
 function needs_cin_join(query) {
@@ -1149,10 +1116,12 @@ exports.descendant_max_lvl = descendant_max_lvl;
 
 // ri 아래 자손을 한 문장으로 뽑는 SQL 을 만든다. {sql, bindings} 를 준다.
 //
-// query_where 는 build_search_query 가 만든 조각으로 이미 이스케이프돼 있고
-// (sanitize_discovery_query), 컬럼을 alias 없이 부른다. 골격 CTE 는 컬럼을
-// sk_ri / sk_lvl 로 이름 붙여 그 조각과 절대 겹치지 않게 한다.
-function build_descendant_sql(ri, query, query_where, cur_lim) {
+// search 는 build_search_query 가 만든 { where, bindings } 다. where 안의
+// 클라이언트 값은 전부 :qN 이름 바인딩이라 SQL 문자열에 값이 들어가지 않는다.
+// 컬럼은 alias 없이 부르므로, 골격 CTE 는 컬럼을 sk_ri / sk_lvl 로 이름 붙여
+// 그 조각과 절대 겹치지 않게 한다.
+function build_descendant_sql(ri, query, search, cur_lim) {
+    var query_where = search.where;
     var C = facade.pathCollate();
     var max_lvl = descendant_max_lvl(query);
 
@@ -1283,7 +1252,14 @@ function build_descendant_sql(ri, query, query_where, cur_lim) {
     // limit / offset 을 같이 돌려준다. 호출부가 "결과가 잘렸는가" 를 판정하고
     // 다음 오프셋을 계산하는 데 쓴다 (X-M2M-CTS / X-M2M-CTO).
     // 여기서 계산한 값을 그대로 넘겨야 판정이 SQL 과 어긋나지 않는다.
-    return { sql: sql, bindings: { root_ri: ri }, limit: lim, offset: ofst || 0,
+    // 골격의 :root_ri 와 필터의 :qN 을 합쳐 넘긴다. 이름이 겹치지 않게
+    // 필터 쪽은 q 로 시작한다.
+    var bindings = { root_ri: ri };
+    Object.keys(search.bindings).forEach(function (k) {
+        bindings[k] = search.bindings[k];
+    });
+
+    return { sql: sql, bindings: bindings, limit: lim, offset: ofst || 0,
              // 이 요청에서 CIN 을 뺐는가. 호출부가 응답에 표시하고 로그에 남긴다 —
              // 조용히 좁히면 "없다" 와 "안 찾아봤다" 를 구별할 수 없다.
              skippedCin: skip_cin };
@@ -1303,10 +1279,12 @@ exports.build_descendant_sql = build_descendant_sql;
 // DB 가 실제로 건너뛴 만큼이어야 하므로 응답 건수가 아니라 이 값을 써야 한다.
 // 안 그러면 클라이언트가 다음 페이지에서 고아 수만큼 앞을 다시 읽는다.
 exports.search_lookup = function (connection, ri, query, cur_lim, pi_list, pi_index, found_Obj, skipped, cni, cur_d, loop_cnt, callback, search_tid) {
-    sanitize_discovery_query(query); // SQL Injection 방어
+    // 숫자로 쓰이는 파라미터만 거른다. 문자열 값은 이제 바인딩으로 나가므로
+    // 이스케이프하지 않는다 (build_search_query 주석 참고).
+    sanitize_discovery_query(query);
 
-    build_search_query(query, function (query_where) {
-        var q = build_descendant_sql(ri, query, query_where, cur_lim);
+    (function (search) {
+        var q = build_descendant_sql(ri, query, search, cur_lim);
 
         // 답이 있을 수 없는 조합이면 DB 를 건드리지 않는다.
         // (크기·형식 필터 + ty=4 를 뺀 타입 지정 — 위 함수 주석 참고)
@@ -1359,7 +1337,7 @@ exports.search_lookup = function (connection, ri, query, cur_lim, pi_list, pi_in
             callback('200', { rows: rows.length, limit: q.limit, offset: q.offset,
                               skippedCin: q.skippedCin });
         });
-    });
+    })(build_search_query(query));
 };
 
 // 부모 아래에서 타입으로 거른 뒤 생성순 양 끝 하나를 고른다. la / ol 이 쓴다.

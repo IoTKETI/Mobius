@@ -374,9 +374,15 @@ test('두 백엔드가 같은 CTE 골격을 만든다', function (t, done) {
 test('lbl 패턴이 대괄호에 붙어 있지 않다', function (t, done) {
     const h = tap('mysql');
     run(h, { lbl: 'tagX', lim: 20 }, guard(done, function (code, ris, seen) {
-        assert.ok(!/lbl like '\[/.test(seen[0].sql),
-            'lbl 패턴이 대괄호로 시작한다 - 들여쓴 JSON 을 못 맞춘다: ' + seen[0].sql);
-        assert.match(seen[0].sql, /lbl like '%"%tagX%"%'/);
+        // 패턴은 이제 **바인딩 값**이다. SQL 에는 자리표만 남는다.
+        assert.match(seen[0].sql, /lbl like \?/, 'lbl 이 바인딩이 아니다: ' + seen[0].sql);
+        const pat = seen[0].bindings.filter(function (v) {
+            return typeof v === 'string' && v.indexOf('tagX') >= 0;
+        })[0];
+        assert.ok(pat, 'lbl 패턴이 바인딩에 없다: ' + JSON.stringify(seen[0].bindings));
+        assert.ok(pat.indexOf('[') !== 0,
+            'lbl 패턴이 대괄호로 시작한다 — 들여쓴 JSON 을 못 맞춘다: ' + pat);
+        assert.strictEqual(pat, '%"%tagX%"%');
         done();
     }));
 });
@@ -400,7 +406,9 @@ test('라벨이 여러 개면 OR 그룹을 괄호로 묶는다', function (t, do
 test('라벨이 하나면 괄호를 만들지 않는다', function (t, done) {
     const h = tap('mysql');
     run(h, { lbl: 'a', ty: '3', lim: 20 }, guard(done, function (code, ris, seen) {
-        assert.match(seen[0].sql, /and\s+lbl like '%"%a%"%'/);
+        assert.match(seen[0].sql, /and lbl like \?/, seen[0].sql);
+        assert.ok(seen[0].bindings.indexOf('%"%a%"%') >= 0,
+            '라벨 패턴이 바인딩에 없다: ' + JSON.stringify(seen[0].bindings));
         done();
     }));
 });
@@ -418,7 +426,11 @@ test('sza 를 주면 cin 을 조인하고 c.cs 로 비교한다', function (t, d
         const sql = seen[0].sql;
         assert.match(sql, /join cin c on c\.pi = r\.pi and c\.ri = r\.ri/,
             'cin 조인이 없다');
-        assert.match(sql, /10 <= c\.cs/, 'cs 를 별칭 없이 쓴다 — lookup 에는 없는 컬럼이다');
+        // 크기는 바인딩이고, 비교 대상은 반드시 **별칭 붙은** c.cs 여야 한다.
+        // lookup 에는 cs 컬럼이 없어 별칭을 빼면 SQL 준비 단계에서 깨진다.
+        assert.match(sql, /\? <= c\.cs/, 'cs 를 별칭 없이 쓰거나 값을 인라인했다: ' + sql);
+        assert.ok(seen[0].bindings.indexOf(10) >= 0,
+            'sza 가 수로 바인딩되지 않았다: ' + JSON.stringify(seen[0].bindings));
         done();
     }));
 });
@@ -430,8 +442,14 @@ test('szb / cty 도 마찬가지다', function (t, done) {
             const sql = seen[0].sql;
             assert.strictEqual((sql.match(/join cin c/g) || []).length, 1,
                 'cin 을 두 번 조인한다');
-            assert.match(sql, /c\.cs < 100/);
-            assert.match(sql, /c\.cnf = 'application\/json:0'/);
+            assert.match(sql, /c\.cs < \?/, sql);
+            assert.match(sql, /c\.cnf = \?/, sql);
+            assert.ok(seen[0].bindings.indexOf(100) >= 0, 'szb 가 수로 안 왔다');
+            assert.ok(seen[0].bindings.indexOf('application/json:0') >= 0,
+                'cty 가 바인딩에 없다: ' + JSON.stringify(seen[0].bindings));
+            // 값이 SQL 에 남아 있으면 안 된다.
+            assert.strictEqual(sql.indexOf('application/json:0'), -1,
+                'cty 값이 SQL 에 인라인됐다: ' + sql);
             done();
         }));
 });
@@ -451,8 +469,11 @@ test('셋 다 없으면 cin 을 조인하지 않는다', function (t, done) {
 test('SQLite 는 cs 를 수로 캐스팅한다', function (t, done) {
     const h = tap('sqlite');
     run(h, { ty: '4', sza: 10, lim: 20 }, guard(done, function (code, ris, seen) {
-        assert.match(seen[0].sql, /10 <= CAST\(c\.cs AS INTEGER\)/,
+        assert.match(seen[0].sql, /\? <= CAST\(c\.cs AS INTEGER\)/,
             'SQLite 에서 캐스팅 없이 비교하면 필터가 아무 일도 안 한다');
+        assert.ok(seen[0].bindings.indexOf(10) >= 0,
+            'sza 가 수로 바인딩되지 않았다 — 문자열이면 캐스팅해도 비교가 어긋난다: ' +
+            JSON.stringify(seen[0].bindings));
         done();
     }));
 });
@@ -544,7 +565,8 @@ test('루트 ri 는 바인딩으로 넘어간다', function (t, done) {
     const h = tap('mysql');
     const evil = "/M' or 1=1 --";
     run(h, { ty: '3', lim: 20 }, guard(done, function (code, ris, seen) {
-        assert.deepStrictEqual(seen[0].bindings, [evil], '루트 ri 가 바인딩이 아니다');
+        // ty 도 이제 바인딩이라 배열이 [루트, ty] 다. 루트가 첫 자리인지 본다.
+        assert.strictEqual(seen[0].bindings[0], evil, '루트 ri 가 첫 바인딩이 아니다');
         assert.ok(seen[0].sql.indexOf(evil) === -1, 'ri 가 SQL 에 박혔다');
         done();
     }), evil);
@@ -562,18 +584,25 @@ test('lim / ofst 는 정수로만 들어간다', function (t, done) {
 
 // --- 7.5) 필터 값에 물음표가 있어도 죽지 않는다 ------------------------------
 //
-// query_where 는 클라이언트가 준 값을 문자열 리터럴로 품는다. 위치 바인딩(?)을
-// 쓰면 knex 가 그 물음표까지 자리표로 세어 "Expected 1 bindings, saw 2" 로
+// 필터 값은 전부 **이름 바인딩**(:qN)으로 나간다. 위치 바인딩(?)을 쓰면
+// knex 가 값 안의 물음표까지 자리표로 세어 "Expected N bindings, saw N+1" 로
 // 죽는다. 물음표는 리소스 이름·라벨에 얼마든지 들어갈 수 있는 평범한 글자다.
-// 이름 바인딩(:root_ri)을 쓰면 knex 가 리터럴 물음표를 건드리지 않는다.
+// 이름 바인딩은 :name 만 찾으므로 리터럴 물음표를 건드리지 않는다.
+//
+// knex 가 최종적으로 내보내는 것은 위치 자리표 ? 와 값 배열이다.
+// 값이 SQL 에 남아 있지 않은지까지 본다.
 
 test('rn 값에 물음표가 있어도 질의가 나간다', function (t, done) {
     const h = tap('mysql');
     run(h, { rn: 'what?', lim: 10 }, guard(done, function (code, ris, seen) {
         assert.strictEqual(code, '200', '물음표 하나에 500 이 났다');
         assert.strictEqual(seen.length, 1, '질의가 안 나갔다');
-        assert.ok(seen[0].sql.indexOf("rn = 'what?'") !== -1, '필터가 빠졌다: ' + seen[0].sql);
-        assert.deepStrictEqual(seen[0].bindings, ['/M'], '루트 ri 바인딩이 어긋났다');
+        assert.match(seen[0].sql, /rn = \?/, '필터가 빠졌다: ' + seen[0].sql);
+        assert.strictEqual(seen[0].bindings[0], '/M', '루트 ri 가 첫 바인딩이 아니다');
+        assert.ok(seen[0].bindings.indexOf('what?') >= 0,
+            'rn 값이 바인딩에 없다: ' + JSON.stringify(seen[0].bindings));
+        assert.strictEqual(seen[0].sql.indexOf('what?'), -1,
+            'rn 값이 SQL 에 인라인됐다: ' + seen[0].sql);
         done();
     }));
 });
@@ -582,7 +611,11 @@ test('lbl 값에 물음표가 여러 개 있어도 된다', function (t, done) {
     const h = tap('mysql');
     run(h, { lbl: 'a?b?c', ty: '3', lim: 10 }, guard(done, function (code, ris, seen) {
         assert.strictEqual(code, '200');
-        assert.deepStrictEqual(seen[0].bindings, ['/M']);
+        assert.strictEqual(seen[0].bindings[0], '/M');
+        assert.ok(seen[0].bindings.indexOf('%"%a?b?c%"%') >= 0,
+            '라벨 패턴이 바인딩에 없다: ' + JSON.stringify(seen[0].bindings));
+        assert.strictEqual(seen[0].sql.indexOf('a?b?c'), -1,
+            '라벨 값이 SQL 에 인라인됐다: ' + seen[0].sql);
         done();
     }));
 });
@@ -590,9 +623,13 @@ test('lbl 값에 물음표가 여러 개 있어도 된다', function (t, done) {
 test('루트 ri 는 이름 바인딩으로 넘어간다', function (t, done) {
     const h = tap('mysql');
     run(h, { ty: '3', lim: 10 }, guard(done, function (code, ris, seen) {
-        // knex 가 :root_ri 를 위치 자리표로 바꿔 내보낸다
+        // knex 가 :root_ri / :qN 을 위치 자리표로 바꿔 내보낸다
         assert.ok(seen[0].sql.indexOf(':root_ri') === -1, ':root_ri 가 치환되지 않았다');
-        assert.deepStrictEqual(seen[0].bindings, ['/M']);
+        assert.ok(!/:q\d/.test(seen[0].sql),
+            '필터 이름 바인딩이 치환되지 않았다: ' + seen[0].sql);
+        assert.strictEqual(seen[0].bindings[0], '/M', '루트 ri 가 첫 바인딩이 아니다');
+        // ty 도 바인딩이다. 순서는 SQL 안의 자리표 순서를 따른다.
+        assert.deepStrictEqual(seen[0].bindings, ['/M', '3']);
         done();
     }));
 });
@@ -772,4 +809,77 @@ test('SQLite 도 같은 뜻을 낸다 (ty <> 4)', function (t, done) {
         assert.ok(/ty.{0,3}<>.{0,3}4/.test(outer), outer);
         done();
     }));
+});
+
+// --- 9) discovery 필터 값은 SQL 에 들어가지 않는다 ---------------------------
+//
+// 예전에는 util.format 으로 값을 SQL 문자열에 이어 붙였고, 그래서
+// sanitize_discovery_query 가 값마다 손으로 이스케이프해야 했다
+// (한국전자기술연구원 취약점 보고, Mobius <=2.5.15).
+//
+// 이스케이프는 **하나만 빠져도 뚫리고** 방언마다 규칙이 다르다. 이제 값이
+// 전부 이름 바인딩으로 나가므로 그 문제 자체가 없다. 이 테스트가 그것을
+// 못박는다 — 필터를 하나 더 만들 때 값을 문자열로 붙이면 여기서 걸린다.
+
+const FILTERS = [
+    ['lbl', "a'b"], ['rn', "x' or '1'='1"], ['cty', "t'--"],
+    ['cra', "2026' or 1=1 --"], ['crb', "2026'"], ['ms', "2026'"], ['us', "2026'"],
+    ['exa', "2026'"], ['exb', "2026'"], ['sts', "1'"], ['stb', "1'"]
+];
+
+for (const [key, evil] of FILTERS) {
+    test('필터 값이 SQL 에 안 들어간다: ' + key, function (t, done) {
+        const h = tap('mysql');
+        const q = { lim: 10 };
+        q[key] = evil;
+        run(h, q, guard(done, function (code, ris, seen) {
+            assert.strictEqual(code, '200', key + ' 에 500 이 났다');
+            assert.strictEqual(seen.length, 1, '질의가 안 나갔다');
+
+            assert.strictEqual(seen[0].sql.indexOf(evil), -1,
+                key + ' 값이 SQL 에 들어갔다: ' + seen[0].sql);
+
+            // 값은 바인딩에 **그대로** 있어야 한다. 이스케이프가 남아 있으면
+            // 이중 적용이라 찾는 문자열이 달라진다 (it's -> it''s).
+            const found = seen[0].bindings.some(function (v) {
+                return typeof v === 'string' && v.indexOf(evil) >= 0;
+            });
+            assert.ok(found, key + ' 값이 바인딩에 원본 그대로 없다 (이중 이스케이프?): ' +
+                JSON.stringify(seen[0].bindings));
+            done();
+        }));
+    });
+}
+
+test('sanitize 는 문자열 값을 더 이상 건드리지 않는다', function () {
+    // 이스케이프를 남겨 두면 바인딩에 이중으로 걸려 `it's` 를 찾는 요청이
+    // `it''s` 를 찾게 된다.
+    delete require.cache[require.resolve('../mobius/sql_action')];
+    const sql_action = require('../mobius/sql_action');
+
+    const q = { lbl: "it's", rn: 'a\\b', cty: 'x\ny' };
+    sql_action.sanitize_discovery_query(q);
+
+    assert.strictEqual(q.lbl, "it's", 'lbl 이 변형됐다: ' + q.lbl);
+    assert.strictEqual(q.rn, 'a\\b', 'rn 이 변형됐다: ' + q.rn);
+    assert.strictEqual(q.cty, 'x\ny', 'cty 가 변형됐다: ' + JSON.stringify(q.cty));
+});
+
+test('sanitize 는 숫자 파라미터를 여전히 거른다', function () {
+    // 이쪽은 바인딩이 아니거나(limit/offset/sk_lvl 리터럴) 분기 판단에 쓰인다.
+    delete require.cache[require.resolve('../mobius/sql_action')];
+    const sql_action = require('../mobius/sql_action');
+
+    const q = { sza: '1 or 1=1', szb: 'x', la: '5;drop', ofst: '-1', lvl: 'a',
+                ty: "3' or '1'='1" };
+    sql_action.sanitize_discovery_query(q);
+
+    for (const k of ['sza', 'szb', 'la', 'ofst', 'lvl', 'ty']) {
+        assert.strictEqual(q[k], undefined, k + ' 가 안 걸러졌다: ' + q[k]);
+    }
+
+    const ok = { sza: '10', ty: '3,4' };
+    sql_action.sanitize_discovery_query(ok);
+    assert.strictEqual(ok.sza, '10', '정상 값이 걸러졌다');
+    assert.strictEqual(ok.ty, '3,4', '정상 ty 목록이 걸러졌다');
 });
