@@ -73,52 +73,24 @@ exports.purge_plan = function (cni, cbs, mni, mbs) {
     };
 };
 
-exports.set_tuning = function (connection, callback) {
-    // SET GLOBAL 은 MySQL 서버 운영 튜닝이다. 백엔드 중립이 아니라서
-    // 다른 백엔드로 보내면 구문 에러 네 줄만 남는다.
-    //
-    // 지금까지는 getResult 가 무조건 MySQL 로 나갔기 때문에, **SQLite 모드로
-    // 돌려도 이 네 문장이 진짜 MySQL 서버 설정을 바꾸고 있었다.**
-    if (!facade.can('serverTuning')) {
-        console.log('[set_tuning] 이 백엔드는 서버 튜닝을 지원하지 않는다 — 건너뛴다');
-        callback(null, null);
-        return;
-    }
-
-    var sql = util.format('set global max_connections = 2000');
-    db.getResult(sql, connection, function (err, results) {
-        if (err) {
-            //callback(err, results);
-            //return;
-            console.log(results.message);
-        }
-        sql = util.format('set global innodb_flush_log_at_trx_commit=0');
-        db.getResult(sql, connection, function (err, results) {
-            if (err) {
-                //callback(err, results);
-                //return;
-                console.log(results.message);
-            }
-            sql = util.format('set global sync_binlog=0');
-            db.getResult(sql, connection, function (err, results) {
-                if (err) {
-                    //callback(err, results);
-                    //return;
-                    console.log(results.message);
-                }
-                sql = util.format('set global transaction_isolation=\'READ-UNCOMMITTED\'');
-                db.getResult(sql, connection, function (err, results) {
-                    if (err) {
-                        //callback(err, results);
-                        //return;
-                        console.log(results.message);
-                    }
-                    callback(err, results);
-                });
-            });
-        });
-    });
-};
+// set_tuning 은 여기 있었다. MySQL 인스턴스의 **전역** 설정 네 개를
+// 기동할 때마다 SET GLOBAL 로 바꾸는 함수였다:
+//
+//   max_connections = 2000
+//   innodb_flush_log_at_trx_commit = 0        커밋 유실 1초 허용
+//   sync_binlog = 0                           binlog fsync 안 함
+//   transaction_isolation = READ-UNCOMMITTED  인스턴스 전체 더티 리드
+//
+// 애플리케이션이 할 일이 아니다. 배포 서버의 my.cnf 는
+// innodb_flush_log_at_trx_commit = 1 / max_connections = 300 이라고 적어
+// 두었는데 이 함수가 부팅마다 뒤집고 있었다 — 설정 파일과 도는 값이 달랐다.
+//
+// 값은 그대로 두고 자리만 옮겼다 (2026-09-01, 배포 서버에 SET PERSIST).
+// 자세한 것은 app.js 의 호출부 자리 주석 참고.
+//
+// 파사드의 capabilities.serverTuning 은 이 함수 하나를 위한 것이었다.
+// 어댑터 선언은 남겨 둔다 — 서버 파라미터를 바꿀 일이 또 생기면 같은
+// 관문을 쓰면 되고, 지금 지우면 그 관문이 있었다는 사실이 사라진다.
 
 exports.get_hit_all = function (connection, callback) {
     var until = moment().utc().subtract(1, 'year').format('YYYYMMDD');

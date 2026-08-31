@@ -392,11 +392,28 @@ if (use_clustering) {
                 }
                 db.getConnection((code, connection) => {
                     if (code === '200') {
-                        db_sql.set_tuning(connection, (err, results) => {
-                            if (err) {
-                                console.log('[set_tuning] error');
-                            }
-
+                        // set_tuning 이 여기 있었다. 기동할 때마다 MySQL 인스턴스의
+                        // **전역** 설정 네 개를 바꿨다:
+                        //
+                        //   max_connections = 2000
+                        //   innodb_flush_log_at_trx_commit = 0   커밋 유실 1초 허용
+                        //   sync_binlog = 0                      binlog fsync 안 함
+                        //   transaction_isolation = READ-UNCOMMITTED
+                        //
+                        // 애플리케이션이 할 일이 아니다. 배포 서버의 my.cnf 는
+                        // innodb_flush_log_at_trx_commit = 1 / max_connections = 300
+                        // 이라고 적어 두었는데 이 코드가 부팅마다 뒤집고 있었다 —
+                        // DBA 가 보는 설정과 도는 설정이 달랐다.
+                        //
+                        // 값은 그대로 두고 자리만 옮겼다. 2026-09-01 배포 서버에서
+                        // SET PERSIST 로 MySQL 자신의 설정에 기록했다
+                        // (/var/lib/mysql/mysqld-auto.cnf, 재시작 후에도 유지).
+                        // 확인: select * from performance_schema.persisted_variables
+                        //
+                        // 새 서버를 세울 때는 my.cnf 에 적거나 같은 SET PERSIST 를
+                        // 한 번 돌리면 된다. 애플리케이션은 이제 SUPER 권한이
+                        // 필요 없다.
+                        {
                             console.log('CPU Count:', cpuCount);
                             for (var i = 0; i < cpuCount; i++) {
                                 worker[i] = cluster.fork();
@@ -423,7 +440,7 @@ if (use_clustering) {
 
                                 db.release(connection);
                             });
-                        });
+                        }
                     }
                     else {
                         console.log('[db.connect] No Connection');
