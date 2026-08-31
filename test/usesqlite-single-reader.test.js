@@ -18,13 +18,18 @@ const path = require('node:path');
 const ROOT = path.join(__dirname, '..');
 
 // 아직 usesqlite 를 읽어도 되는 파일. 커밋이 하나 지울 때마다 여기서도 지운다.
+//
+// 커넥션 원천이 파사드로 옮겨가면서 넷이 한꺼번에 사라졌다 — db_action(기동),
+// cnt_man(취득), resource(취득), sgn(취득). 넷 다 "내가 sqlite 인가" 를 묻고
+// 있었지만 진짜 질문은 "커넥션을 누가 주나" 하나였다.
+//
+// 남은 둘은 성격이 다르다. **진짜로 백엔드마다 동작이 다른 곳**이고, 없앨 것이
+// 아니라 어댑터 메서드로 옮길 것이다. 그러면 코어에는 분기가 없고 각 어댑터가
+// 자기 방식대로 구현한다 — 세 번째 백엔드가 와도 if 가 늘지 않는다.
 const ALLOWED = [
     'mobius/db/index.js',      // 최종 목적지 — 여기 하나만 남아야 한다
-    'mobius/cnt_man.js',       // flush 의 커넥션 취득 + 다중 테이블 UPDATE
-    'mobius/db_action.js',     // 기동 시 레거시 sqlite 핸들 열기
-    'mobius/resource.js',      // delete_descendants_background 의 커넥션 정책
-    'mobius/sgn.js',           // run_with_own_connection 의 커넥션 정책
-    'mobius/sql_action.js'     // delete_oldest — 유일하게 알고리즘이 다르다
+    'mobius/cnt_man.js',       // 카운터 갱신: MySQL 은 한 문장, SQLite 는 두 문장
+    'mobius/sql_action.js'     // delete_oldest: 알고리즘 자체가 다르다
 ];
 
 // mobius.js 는 usesqlite 를 **세팅**하는 곳이라 대상이 아니다.

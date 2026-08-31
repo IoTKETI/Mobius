@@ -61,10 +61,11 @@ global.usesuperuser = (typeof conf.superUser === 'string' && conf.superUser !== 
 global.usedb = process.argv[2] || conf.db ||
     ((conf.usesqlite === 'true' || conf.usesqlite === true) ? 'sqlite' : 'mysql');
 
-// **한시적 별칭.** 아직 usesqlite 를 직접 읽는 곳이 코어에 여섯 군데 남아 있다
-// (cnt_man 2, db_action 1, resource 1, sgn 1, sql_action 1). 그것들이 파사드나
-// 어댑터로 옮겨가면 이 줄을 지운다 — test/usesqlite-single-reader.test.js 가
-// 남은 수를 세고 있다.
+// **한시적 별칭.** 아직 usesqlite 를 직접 읽는 곳이 코어에 두 군데 남아 있다 —
+// cnt_man 의 카운터 갱신과 sql_action 의 delete_oldest. 둘 다 **진짜로 백엔드마다
+// 동작이 다른 곳**이라 없앨 것이 아니라 어댑터 메서드로 옮길 것이다. 그러면
+// 코어에는 분기가 없고 각 어댑터가 자기 방식대로 구현한다.
+// 그때 이 줄을 지운다 — test/usesqlite-single-reader.test.js 가 남은 수를 센다.
 //
 // 파생값이라 usedb 와 어긋날 수 없다. 진실원은 usedb 하나다.
 global.usesqlite = (global.usedb === 'sqlite') ? 'true' : 'false';

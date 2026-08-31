@@ -632,7 +632,11 @@ exports.check = function(request, notiObj, check_value, callback) {
 // DB 가 필요하면 자기 커넥션을 빌려 넘기고, 아니면 null 로 진행한다.
 // release 는 몇 번 불려도 한 번만 반납한다.
 function run_with_own_connection(subl, body, on_giveup) {
-    if (global.usesqlite === 'true' || !needs_connection(subl)) {
+    // 예전에는 여기에 `global.usesqlite === 'true' ||` 가 붙어 있었다.
+    // 커넥션 원천이 MySQL 풀로 고정이라 SQLite 모드가 그 풀을 안 건드리게
+    // 하려던 우회였다. 원천이 파사드로 옮겨졌으니 필요 없다.
+    // 남은 조건은 하나 — 이 알림에 DB 조회가 필요한가.
+    if (!needs_connection(subl)) {
         body(null, function () {});
         return;
     }
@@ -650,7 +654,10 @@ function run_with_own_connection(subl, body, on_giveup) {
         body(connection, function () {
             if (released) { return; }
             released = true;
-            connection.release();
+            // 핸들에 직접 부르지 않는다 — 그건 "MySQL 풀 커넥션" 이라는 가정이다.
+            // 커넥션 원천이 파사드로 옮겨진 뒤로 여기에 다른 백엔드의 핸들이
+            // 올 수 있다(SQLite 싱글턴에는 release 가 없다).
+            db.release(connection);
         });
     });
 }
