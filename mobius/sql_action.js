@@ -2079,11 +2079,21 @@ function delete_oldest(connection, obj, count, callback) {
     var child_ty = String(parseInt(obj.ty, 10) + 1);
     var mni = parseInt(obj.mni, 10);
     var mbs = parseInt(obj.mbs, 10);
-    var has_limits = isFinite(mni) && isFinite(mbs);
 
     function done(err, n) {
         console.timeEnd(del_id);
         callback(err, n);
+    }
+
+    // 한도를 모르면 **아무것도 지우지 않는다.** 한도가 없으면 무엇이 초과분인지
+    // 정의되지 않으므로, 여기서 넘어가면 count 만큼을 근거 없이 지우게 된다.
+    // 관문이 조용히 꺼지는 경로를 남기지 않는다 — mni 가 NULL 이거나 문자열이
+    // 아니거나 해서 NaN 이 되는 순간이 정확히 그 경로다.
+    // (배포 실측: cnt 30,306행 중 mni/mbs 가 NULL 인 것은 0건. 그래도 닫는다.)
+    if (!isFinite(mni) || !isFinite(mbs)) {
+        console.error('[delete_oldest] 한도를 모른다 — 지우지 않는다 ri=' + obj.ri +
+                      ' mni=' + obj.mni + ' mbs=' + obj.mbs);
+        return done(null, 0);
     }
 
     // 1) 실측한다. 여기서 나온 값만 삭제 판단의 근거다.
@@ -2103,14 +2113,23 @@ function delete_oldest(connection, obj, count, callback) {
         // 2) 한도 안이면 지우지 않는다. 저장값이 어긋나 있었으면 실측으로
         //    고쳐 두고 끝낸다 — 드리프트 자가 치유. 이 관문이 없으면
         //    "cnt.cni 가 부풀어 있다" 가 곧 "멀쩡한 데이터를 지운다" 가 된다.
-        if (has_limits && actual_cni <= mni && actual_cbs <= mbs) {
+        if (actual_cni <= mni && actual_cbs <= mbs) {
             facade.run(facade.k('cnt')
                 .update({ cni: actual_cni, cbs: actual_cbs })
                 .where({ ri: obj.ri })
                 .andWhere(function () {
                     this.whereNot('cni', actual_cni).orWhereNot('cbs', actual_cbs);
                 }), connection, function (eh, rh) {
-                if (!eh && rh && rh.affectedRows) {
+                if (eh) {
+                    // 보정이 실패하면 저장값이 부풀어 있는 채로 남고,
+                    // select_over_limit 이 저장값으로 고르므로 이 컨테이너가
+                    // 다음 주기에 또 잡힌다 — 그리고 매번 전수 실측을 다시 돈다.
+                    // 로그가 없으면 "초과 N개 중 0개 정리" 만 반복되어 원인을
+                    // 짚을 단서가 없다. 이 함수의 다른 실패 경로와 같은 규약이다.
+                    console.error('[delete_oldest] 드리프트 보정 실패 ri=' + obj.ri +
+                                  ' : ' + ((rh && rh.message) || rh));
+                }
+                else if (rh && rh.affectedRows) {
                     console.log('[delete_oldest] 이미 한도 안 — 드리프트만 보정했다 ri=' +
                                 obj.ri + ' cni->' + actual_cni + ' cbs->' + actual_cbs);
                 }
@@ -2121,10 +2140,10 @@ function delete_oldest(connection, obj, count, callback) {
 
         // 3) 실측값으로 다시 계획한다. purge_sweep 이 저장값으로 잡아 준
         //    count 는 상한으로만 쓴다.
-        var plan = has_limits ? _this.purge_plan(actual_cni, actual_cbs, mni, mbs) : null;
-        var need_cnt = plan ? plan.need_cnt : count;
-        var need_cs = plan ? plan.need_cs : 0;
-        var candidates = plan ? plan.candidates : count;
+        var plan = _this.purge_plan(actual_cni, actual_cbs, mni, mbs);
+        var need_cnt = plan.need_cnt;
+        var need_cs = plan.need_cs;
+        var candidates = plan.candidates;
         if (candidates < 1) { candidates = 1; }
         if (candidates > count) { candidates = count; }
 
@@ -2167,10 +2186,17 @@ function delete_oldest(connection, obj, count, callback) {
                 //    배포 실측으로 컨테이너 30,278개 중 1,659개(5.5%)가
                 //    어긋나 있었다. 실측을 이미 했으므로 왕복이 늘지 않는다.
                 //
-                //    끼어들 수 있는 것은 CIN 생성의 증분(update_parent_counters)
-                //    뿐인데, 그것이 위 실측과 이 대입 사이에 착지하면 그 건을
-                //    잃는다. reconcile 이 하루 안에 바로잡고 다음 purge 도 같은
-                //    방식으로 고친다. 그래서 잠금을 들이지 않는다.
+                //    **알고 받아들이는 오차가 하나 있다.** 위 실측(1단계)과 이
+                //    대입 사이에 CIN 생성의 증분(update_parent_counters)이
+                //    착지하면 그만큼 덮인다. 그 창은 실측 + 후보 선택 + 삭제,
+                //    100건 기준 배포 실측 0.26초 + 질의 둘이다.
+                //
+                //    방향은 안전한 쪽이다 — 저장값이 실제보다 **작아지므로**
+                //    과다 삭제가 아니라 과소 삭제다. 다만 그래서 **다음 스윕이
+                //    이것을 못 잡는다**: select_over_limit 은 저장값으로
+                //    고르는데 그 값이 한도 밑이라 목록에 안 들어온다.
+                //    잡는 것은 reconcile_cnt_counters 뿐이다(기동 시 + 일 1회).
+                //    한 자릿수 오차가 최대 한 바퀴 남는 것이라 잠금을 들이지 않는다.
                 var new_cni = actual_cni - deleted;
                 var new_cbs = actual_cbs - total_cs;
                 if (new_cni < 0) { new_cni = 0; }
@@ -3214,8 +3240,19 @@ exports.purge_sweep = function (connection, opts, callback) {
             // purge_plan 의 비교와 뺄셈이 맞는다 ('9' > '10' 이 참이 되는 문제).
             var cni = parseInt(r.cni || 0, 10);
             var cbs = parseInt(r.cbs || 0, 10);
-            var mni = parseInt(r.mni || 0, 10);
-            var mbs = parseInt(r.mbs || 0, 10);
+
+            // **한도에는 `|| 0` 을 쓰지 않는다.** mni 가 NULL 일 때 0 이 되면
+            // 그것은 "한도 0" 즉 **자식을 전부 지우라**는 뜻이 된다. 모르는 값을
+            // 가장 파괴적인 값으로 번역하는 셈이다. NaN 으로 두면 delete_oldest 가
+            // "한도를 모른다" 로 보고 한 건도 지우지 않는다.
+            var mni = parseInt(r.mni, 10);
+            var mbs = parseInt(r.mbs, 10);
+            if (!isFinite(mni) || !isFinite(mbs)) {
+                report.failed++;
+                console.error('[purge_sweep] 한도가 비어 있다 — 건너뛴다 ri=' + r.ri +
+                              ' mni=' + r.mni + ' mbs=' + r.mbs);
+                return next();
+            }
 
             var plan = _this.purge_plan(cni, cbs, mni, mbs);
             var count = plan.est_count < 1 ? 1 : plan.est_count;

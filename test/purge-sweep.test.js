@@ -291,6 +291,43 @@ test('관문: 실측이 진짜 초과면 초과분만 지운다', function (t, d
     });
 });
 
+test('관문: 한도를 모르면 한 건도 안 지운다', function (t, done) {
+    // select_over_limit 이 mni/mbs 를 안 주거나 NULL 이면 parseInt 가 NaN 이 된다.
+    // 그때 관문이 조용히 꺼지면 count 만큼을 근거 없이 지운다.
+    // delete_oldest 는 exports 가 아니라 purge_sweep 을 통해서만 닿으므로,
+    // select_over_limit 을 잠깐 갈아끼워 mni 없는 행을 흘려보낸다.
+    const orig = sql_action.select_over_limit;
+    sql_action.select_over_limit = function (c, lim, cb) {
+        cb(null, [{ ri: '/M/nolimit', ty: 3, cni: 9, cbs: 90, mni: null, mbs: null }]);
+    };
+
+    // cin.pi 는 cnt.ri 를 참조한다 — cnt 행이 없으면 자식 삽입이 FK 로 막힌다.
+    // 저장값은 아무거나 좋다. 위 스텁이 select_over_limit 을 대신하므로
+    // delete_oldest 에는 mni/mbs 가 null 로 들어간다.
+    const rows = [
+        lookupRow('/M/nolimit', '/M', '3', '20260101T000400'),
+        cntRow('/M/nolimit', 9, 90, 1000000, 1000000)
+    ];
+    for (let i = 0; i < 4; i++) {
+        const ri = '/M/nolimit/c' + i;
+        rows.push(lookupRow(ri, '/M/nolimit', '4', '20260101T0004' + (10 + i)));
+        rows.push(cinRow(ri, '/M/nolimit', 10));
+    }
+
+    seed(rows, function (err) {
+        if (err) { sql_action.select_over_limit = orig; return done(err); }
+        sql_action.purge_sweep(conn, { limit: 100 }, function (e, report) {
+            sql_action.select_over_limit = orig;
+            try {
+                assert.strictEqual(e, null);
+                assert.strictEqual(report.deleted, 0,
+                    '한도를 모르는데 ' + report.deleted + '건을 지웠다');
+                done();
+            } catch (x) { done(x); }
+        });
+    });
+});
+
 test('관문: 용량 초과는 실제 cs 를 누적해 필요한 만큼만 자른다', function (t, done) {
     // cs 를 일부러 고르지 않게 둔다 — 오래된 둘이 크고 나머지는 작다.
     //   [200, 200, 50, 50, 50, 50] = 600,  mbs = 350  ->  250 바이트를 비워야 한다.
