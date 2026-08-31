@@ -883,3 +883,126 @@ test('sanitize 는 숫자 파라미터를 여전히 거른다', function () {
     assert.strictEqual(ok.sza, '10', '정상 값이 걸러졌다');
     assert.strictEqual(ok.ty, '3,4', '정상 ty 목록이 걸러졌다');
 });
+
+// --- 10) ty 목록 분해 ---------------------------------------------------------
+//
+// ty 는 배열(ty=3&ty=4)로도 콤마 문자열(ty=3,4)로도 온다.
+//
+// 예전 코드는 query.ty.toString().split(',').length 로 분기해 놓고
+// query.ty[i] 로 돌았다. 문자열이면 그게 **글자 인덱스**라
+//   ty = '3' or ty = ',' or ty = '4'
+// 가 나왔다. 쉼표 절은 int 컬럼에서 0 으로 변환돼 아무것도 안 맞았으므로
+// 결과는 우연히 맞았지만, 쓸모없는 절이 하나 붙어 있었다.
+//
+// 지금은 split(',') 결과로 돈다. **결과는 같고 절만 없어진다.**
+// 이 테스트가 그 상태를 못박는다.
+
+test('ty 가 콤마 문자열이어도 값만 분해한다', function (t, done) {
+    const h = tap('mysql');
+    run(h, { ty: '3,4', lim: 10 }, guard(done, function (code, ris, seen) {
+        assert.strictEqual(code, '200');
+        const b = seen[0].bindings;
+        // 루트 ri + ty 두 개. 쉼표가 값으로 들어가면 안 된다.
+        assert.ok(b.indexOf('3') >= 0, "ty '3' 이 바인딩에 없다: " + JSON.stringify(b));
+        assert.ok(b.indexOf('4') >= 0, "ty '4' 가 바인딩에 없다: " + JSON.stringify(b));
+        assert.strictEqual(b.indexOf(','), -1,
+            '쉼표가 ty 값으로 들어갔다 — 글자 단위로 돌고 있다: ' + JSON.stringify(b));
+
+        // ty 절은 정확히 두 개여야 한다.
+        const outer = seen[0].sql.slice(seen[0].sql.indexOf(SKEL_END));
+        assert.strictEqual((outer.match(/ty = \?/g) || []).length, 2,
+            'ty 절 개수가 2가 아니다: ' + outer);
+        done();
+    }));
+});
+
+test('ty 가 배열이면 그대로 분해한다', function (t, done) {
+    const h = tap('mysql');
+    run(h, { ty: ['3', '4'], lim: 10 }, guard(done, function (code, ris, seen) {
+        const b = seen[0].bindings;
+        assert.ok(b.indexOf('3') >= 0 && b.indexOf('4') >= 0, JSON.stringify(b));
+        assert.strictEqual(b.indexOf(','), -1);
+        done();
+    }));
+});
+
+test('ty 하나면 괄호를 만들지 않는다', function (t, done) {
+    // 등치 하나여야 인덱스가 (pi, ty) 범위를 탄다. 괄호가 붙어도 계획은
+    // 같지만, 하나일 때 OR 그룹을 만들지 않는 것이 예전 동작이다.
+    const h = tap('mysql');
+    run(h, { ty: '3', lim: 10 }, guard(done, function (code, ris, seen) {
+        const outer = seen[0].sql.slice(seen[0].sql.indexOf(SKEL_END));
+        assert.match(outer, /and ty = \?/, outer);
+        assert.ok(!/\(ty = \? or/.test(outer), '하나인데 OR 그룹을 만들었다: ' + outer);
+        done();
+    }));
+});
+
+// --- 11) 스칼라가 아닌 필터 값은 버린다 --------------------------------------
+//
+// 배포 직전 검토가 잡은 회귀. 이스케이프를 없애면서 옛 esc_sql_str 이
+// **겸하고 있던 String(v) 강제**까지 같이 사라졌다.
+//
+// express 는 query parser 기본값이 'extended'(qs)라 ?cra[x]=1 이 객체
+// { x: '1' } 가 된다. 그 객체를 바인딩하면 node-mysql 의 SqlString 이
+// objectToValues 로 펼쳐 백틱 식별자를 SQL 에 써 넣는다:
+//
+//   ?rn[x]=1   ->  and rn = `x` = '1'      ER_BAD_FIELD_ERROR -> 500
+//   ?cra[x]=1  ->  and `x` = '1' <= ct     문법은 맞고 0 <= ct 가 참이라
+//                                          **필터가 통째로 무력화**된다
+//
+// 두 번째가 더 나쁘다 — 에러 없이 전건이 나간다.
+
+test('객체형 필터 값은 버린다 (필터 무력화 방지)', function (t, done) {
+    const h = tap('mysql');
+    // cra 가 객체면 그 필터를 버려야 한다. 남으면 SQL 에 식별자가 박힌다.
+    run(h, { cra: { x: '1' }, ty: '3', lim: 10 }, guard(done, function (code, ris, seen) {
+        assert.strictEqual(code, '200');
+        const sql = seen[0].sql;
+        assert.ok(!/<= ct/.test(sql), 'cra 필터가 살아남았다: ' + sql);
+        assert.ok(!/`x`/.test(sql), '객체 키가 식별자로 SQL 에 박혔다: ' + sql);
+        seen[0].bindings.forEach(function (v) {
+            assert.notStrictEqual(typeof v, 'object', '객체가 바인딩됐다: ' + JSON.stringify(v));
+        });
+        done();
+    }));
+});
+
+test('객체형 rn 도 버린다', function (t, done) {
+    const h = tap('mysql');
+    run(h, { rn: { x: '1' }, ty: '3', lim: 10 }, guard(done, function (code, ris, seen) {
+        assert.strictEqual(code, '200', '500 이 났다');
+        assert.ok(!/rn = /.test(seen[0].sql), 'rn 필터가 살아남았다: ' + seen[0].sql);
+        done();
+    }));
+});
+
+test('lbl 은 배열을 허용한다 (라벨 여럿은 정상 요청)', function (t, done) {
+    const h = tap('mysql');
+    run(h, { lbl: ['a', 'b'], ty: '3', lim: 10 }, guard(done, function (code, ris, seen) {
+        const b = seen[0].bindings;
+        assert.ok(b.indexOf('%"%a%"%') >= 0 && b.indexOf('%"%b%"%') >= 0,
+            '라벨 배열이 버려졌다: ' + JSON.stringify(b));
+        done();
+    }));
+});
+
+test('lbl 배열 안에 객체가 섞이면 버린다', function (t, done) {
+    const h = tap('mysql');
+    run(h, { lbl: ['a', { x: 1 }], ty: '3', lim: 10 }, guard(done, function (code, ris, seen) {
+        assert.strictEqual(code, '200');
+        assert.ok(!/lbl like/.test(seen[0].sql), 'lbl 필터가 살아남았다: ' + seen[0].sql);
+        done();
+    }));
+});
+
+test('정상 스칼라 값은 그대로 통과한다', function (t, done) {
+    const h = tap('mysql');
+    run(h, { rn: 'abc', cra: '20260101T000000', ty: '3', lim: 10 },
+        guard(done, function (code, ris, seen) {
+            const b = seen[0].bindings;
+            assert.ok(b.indexOf('abc') >= 0, 'rn 이 버려졌다: ' + JSON.stringify(b));
+            assert.ok(b.indexOf('20260101T000000') >= 0, 'cra 가 버려졌다: ' + JSON.stringify(b));
+            done();
+        }));
+});

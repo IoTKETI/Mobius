@@ -766,8 +766,43 @@ function sanitize_discovery_query(query) {
         }
     }
 
-    // lbl / rn / cty / cra / crb / ms / us / exa / exb / sts / stb 은
-    // 손대지 않는다. 전부 바인딩으로 나가므로 값 그대로 써야 맞다.
+    // 문자열 필터는 **값 자체는 손대지 않지만 타입은 본다.**
+    //
+    // 이스케이프는 없앴다(바인딩이 하므로). 그런데 옛 esc_sql_str 이
+    // String(v) 를 겸하고 있어서, 그것을 지우자 문자열이 아닌 값이 그대로
+    // 바인딩까지 흘러갔다.
+    //
+    // express 는 query parser 기본값이 'extended'(qs)라 ?cra[x]=1 이 객체
+    // { x: '1' } 가 된다. 그 객체를 바인딩하면 node-mysql 의 SqlString 이
+    // objectToValues 로 펼쳐 `x` = '1' 을 SQL 에 써 넣는다:
+    //
+    //   ?rn[x]=1    ->  and rn = `x` = '1'        ER_BAD_FIELD_ERROR -> 500
+    //   ?cra[x]=1   ->  and `x` = '1' <= ct       문법은 맞다. 0 <= ct 가 참이라
+    //                                             **cra 필터가 통째로 무력화**된다
+    //
+    // 두 번째가 더 나쁘다 — 에러 없이 전건이 나간다. 옛 코드는 String(v) 덕에
+    // '[object Object]' 가 되어 0건이었다(정답은 아니지만 fail-safe 였다).
+    //
+    // 그래서 스칼라가 아니면 그 필터를 **버린다**. 숫자 쪽과 같은 fail-safe 다.
+    // lbl 만 배열을 허용한다 — 라벨 여럿(lbl=a&lbl=b)이 정상 요청이고
+    // build_search_query 가 OR 그룹으로 묶는다.
+    var isScalar = function (v) {
+        return typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean';
+    };
+
+    ['rn', 'cty', 'cra', 'crb', 'ms', 'us', 'exa', 'exb', 'sts', 'stb'].forEach(function (k) {
+        if (query[k] == null) { return; }
+        if (!isScalar(query[k])) { delete query[k]; }
+    });
+
+    if (query.lbl != null) {
+        if (Array.isArray(query.lbl)) {
+            if (!query.lbl.every(isScalar)) { delete query.lbl; }
+        }
+        else if (!isScalar(query.lbl)) {
+            delete query.lbl;
+        }
+    }
 }
 exports.sanitize_discovery_query = sanitize_discovery_query;
 
@@ -802,8 +837,13 @@ function build_search_query(query) {
 
     if (query.lbl != null) {
         // lbl 은 JSON 배열을 담은 문자열이라 like 로 찾는다. 패턴 전체를
-        // 값으로 넘긴다 — 와일드카드가 바인딩 안에 있어야 값의 %가 패턴으로
-        // 해석되지 않는다.
+        // 값으로 넘긴다.
+        //
+        // **주의: 이것이 값 안의 % 를 막아 주지는 않는다.** LIKE 는 패턴
+        // 피연산자가 바인딩이어도 그 안의 % / _ 를 와일드카드로 해석한다.
+        // ?lbl=a%b 는 전환 전후 모두 lbl like '%"%a%b%"%' 로 나간다.
+        // 막으려면 값에서 % / _ 를 이스케이프하고 ESCAPE 절을 붙여야 하는데,
+        // 그건 동작 변경이라 여기서 하지 않는다.
         //
         // 분기 조건은 예전 그대로 둔다. lbl 이 'a,b' 같은 **문자열**이면
         // 아래 else 가 query.lbl.length 로 문자열 길이를 돌아 글자 하나씩을
@@ -1192,13 +1232,17 @@ function build_descendant_sql(ri, query, search, cur_lim) {
     // 중복이었고, ty=3 lim=2000 요청이 2,000행을 받아 1,960건만 돌려줬다.
     // 골격 컬럼을 ci 로 선언하면 UNION 이 원천에서 지운다 — 골격 30,794행,
     // 응답 2,000건, ty=3 전체도 정확히 30,281건(컨테이너 수와 일치).
-    // 바인딩은 **이름**으로 준다. 위치 바인딩(?)을 쓰면 안 된다 —
-    // query_where 는 클라이언트가 준 값을 문자열 리터럴로 품고 있고, 그 값에
-    // 물음표가 하나라도 있으면 knex 가 그것까지 자리표로 세어
-    // "Expected 1 bindings, saw 2" 로 죽는다. 물음표는 리소스 이름이나
-    // 라벨에 얼마든지 들어갈 수 있는 평범한 글자다
-    // (로컬 재현: ?fu=1&rn=what%3F -> HTTP 500).
-    // 이름 바인딩에서는 knex 가 :name 만 찾으므로 리터럴 물음표를 건드리지 않는다.
+    // 바인딩은 **이름**으로 준다. 위치 바인딩(?)을 쓰면 안 된다.
+    //
+    // 근거가 두 번 바뀌었으니 지금 상태로 적는다. 원래는 query_where 가
+    // 클라이언트 값을 문자열 리터럴로 품고 있어서, 그 값의 물음표를 knex 가
+    // 자리표로 세어 "Expected 1 bindings, saw 2" 로 죽었다
+    // (재현: ?fu=1&rn=what%3F -> HTTP 500). 그 값들은 이제 :qN 바인딩이라
+    // SQL 본문에 물음표가 남지 않는다.
+    //
+    // **지금의 근거는 이것 하나다: 골격의 :root_ri 와 필터의 :qN 을 한 문장에
+    // 섞어야 한다.** 위치 바인딩으로는 두 곳에서 만든 조각의 순서를 맞출 수
+    // 없다. 이름이면 knex 가 등장 순서대로 알아서 편다.
     // 두 방언(mysql / sqlite3) 모두 확인했다.
     // sza / szb / cty 를 쓰면 cin 을 조인한다. 그 값(cs / cnf)은 lookup 에 없다.
     //
