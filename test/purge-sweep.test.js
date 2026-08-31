@@ -195,3 +195,144 @@ test('스윕: 한도 안이면 아무것도 안 한다', function (t, done) {
         } catch (x) { done(x); }
     });
 });
+
+// --- 삭제 전 실측 관문 --------------------------------------------------------
+//
+// **이 저장소에서 가장 위험한 자리다.** 삭제 건수의 근거가 저장값(cnt.cni)이면,
+// 저장값이 부풀어 있을 때 한도 안에 있는 살아 있는 CIN 을 지운다. lookup 삭제는
+// FK(cin_ri ON DELETE CASCADE)라 cin 본문까지 되돌릴 수 없이 사라진다.
+//
+// 부풀 수 있다는 것은 추측이 아니다 — sql_action 이 스스로 적어 두었다:
+// delete_lookup_et 과 delete_descendants_background 가 lookup 을 지우면서
+// cnt 를 감산하지 않는다.
+//
+// 한때 실측을 삭제 **뒤로** 옮긴 판이 있었고(짧아 보였다), 이 테스트가 없었다.
+
+test('관문: 저장 cni 가 부풀어 있어도 한도 안이면 한 건도 안 지운다', function (t, done) {
+    // 실제 자식 5건, mni=10 (한도 안). 그런데 cnt.cni 는 50 으로 부풀어 있다.
+    // 저장값만 믿으면 40건을 지우려 들고, 후보가 5건뿐이니 **전부** 지운다.
+    const rows = [
+        lookupRow('/M/drift', '/M', '3', '20260101T000100'),
+        cntRow('/M/drift', 50, 500, 10, 1000000)          // 저장값이 실제(5)보다 크다
+    ];
+    for (let i = 0; i < 5; i++) {
+        const ri = '/M/drift/c' + i;
+        rows.push(lookupRow(ri, '/M/drift', '4', '20260101T0001' + (10 + i)));
+        rows.push(cinRow(ri, '/M/drift', 10));
+    }
+
+    seed(rows, function (err) {
+        if (err) { return done(err); }
+        sql_action.purge_sweep(conn, { limit: 100 }, function (e, report) {
+            if (e) { return done(new Error('스윕 실패: ' + JSON.stringify(report))); }
+            try {
+                assert.strictEqual(report.scanned, 1, '부풀린 저장값으로 잡히긴 해야 한다');
+                assert.strictEqual(report.deleted, 0,
+                    '한도 안(5 <= 10)인데 ' + report.deleted + '건을 지웠다 — 실측 관문이 없다');
+            } catch (x) { return done(x); }
+
+            const db = require('../mobius/db');
+            db.execRaw("select count(*) as n from lookup where pi = '/M/drift' and ty = 4",
+                conn, function (e2, left) {
+                    try {
+                        assert.strictEqual(parseInt(left[0].n, 10), 5, '자식이 사라졌다');
+                        done();
+                    } catch (x) { done(x); }
+                });
+        });
+    });
+});
+
+test('관문: 그 김에 어긋난 저장값을 실측으로 고쳐 둔다', function (t, done) {
+    const db = require('../mobius/db');
+    db.execRaw("select cni, cbs from cnt where ri = '/M/drift'", conn, function (e, rows) {
+        try {
+            assert.strictEqual(e, null);
+            assert.strictEqual(parseInt(rows[0].cni, 10), 5,
+                '드리프트가 그대로다 — 다음 스윕이 또 헛돈다');
+            assert.strictEqual(parseInt(rows[0].cbs, 10), 50);
+            done();
+        } catch (x) { done(x); }
+    });
+});
+
+test('관문: 실측이 진짜 초과면 초과분만 지운다', function (t, done) {
+    // 실제 자식 8건, mni=3. 초과 5건만 지워야 한다.
+    // 저장값은 일부러 100 으로 부풀려 둔다 — 그 값으로 지우면 8건 전부 사라진다.
+    const rows = [
+        lookupRow('/M/over2', '/M', '3', '20260101T000200'),
+        cntRow('/M/over2', 100, 1000, 3, 1000000)
+    ];
+    for (let i = 0; i < 8; i++) {
+        const ri = '/M/over2/c' + i;
+        rows.push(lookupRow(ri, '/M/over2', '4', '20260101T0002' + (10 + i)));
+        rows.push(cinRow(ri, '/M/over2', 10));
+    }
+
+    seed(rows, function (err) {
+        if (err) { return done(err); }
+        sql_action.purge_sweep(conn, { limit: 100 }, function (e, report) {
+            if (e) { return done(new Error('스윕 실패: ' + JSON.stringify(report))); }
+            try {
+                assert.strictEqual(report.deleted, 5,
+                    '초과분은 5건인데 ' + report.deleted + '건을 지웠다');
+            } catch (x) { return done(x); }
+
+            const db = require('../mobius/db');
+            db.execRaw("select cni, cbs from cnt where ri = '/M/over2'", conn,
+                function (e2, c) {
+                    try {
+                        assert.strictEqual(parseInt(c[0].cni, 10), 3, '남은 수가 한도와 다르다');
+                        assert.strictEqual(parseInt(c[0].cbs, 10), 30);
+                        done();
+                    } catch (x) { done(x); }
+                });
+        });
+    });
+});
+
+test('관문: 용량 초과는 실제 cs 를 누적해 필요한 만큼만 자른다', function (t, done) {
+    // cs 를 일부러 고르지 않게 둔다 — 오래된 둘이 크고 나머지는 작다.
+    //   [200, 200, 50, 50, 50, 50] = 600,  mbs = 350  ->  250 바이트를 비워야 한다.
+    //
+    // purge_plan 은 실제 cs 를 볼 수 없어 평균으로 추정한다:
+    //   avg_cs = ceil(600/6) = 100,  by_size = ceil(250/100) = 3  ->  est_count 3
+    // 그런데 오래된 둘만 지워도 400 바이트가 비어 충분하다. 후보의 cs 를
+    // 누적해 자르지 않고 est_count 만큼 지우면 **한 건을 더 지운다.**
+    //
+    // 그 자르기 루프가 이 변경에서 한 번 사라졌었다. cs 를 SELECT 해 놓고
+    // 한 번도 읽지 않는 코드가 그 흔적이었다.
+    const cs_list = [200, 200, 50, 50, 50, 50];
+    const rows = [
+        lookupRow('/M/bytes', '/M', '3', '20260101T000300'),
+        cntRow('/M/bytes', 6, 600, 1000000, 350)
+    ];
+    cs_list.forEach(function (cs, i) {
+        const ri = '/M/bytes/c' + i;
+        rows.push(lookupRow(ri, '/M/bytes', '4', '20260101T0003' + (10 + i)));
+        rows.push(cinRow(ri, '/M/bytes', cs));
+    });
+
+    seed(rows, function (err) {
+        if (err) { return done(err); }
+        sql_action.purge_sweep(conn, { limit: 100 }, function (e, report) {
+            if (e) { return done(new Error('스윕 실패: ' + JSON.stringify(report))); }
+            try {
+                assert.strictEqual(report.deleted, 2,
+                    'cs 를 누적해 잘랐다면 2건이다 (지운 건수 ' + report.deleted +
+                    ') — 3건이면 추정치를 그대로 쓴 것이다');
+            } catch (x) { return done(x); }
+
+            const db = require('../mobius/db');
+            db.execRaw("select cni, cbs from cnt where ri = '/M/bytes'", conn,
+                function (e2, c) {
+                    try {
+                        assert.strictEqual(parseInt(c[0].cni, 10), 4);
+                        assert.strictEqual(parseInt(c[0].cbs, 10), 200,
+                            'cbs 가 한도(350) 안으로 안 내려왔다');
+                        done();
+                    } catch (x) { done(x); }
+                });
+        });
+    });
+});

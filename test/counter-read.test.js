@@ -164,99 +164,82 @@ function counterOnly(counters) {
     return function (sql) { return isCandidateQuery(sql) ? [] : counters; };
 }
 
-// mni/mbs 는 예전에 호출자의 메모리 객체(obj.mni/obj.mbs)에서 왔다. cnt_man 은
-// debounce 창의 첫 CIN 시점 사본을 들고 있으므로, 그 사이 클라이언트가 mni 를
-// 낮추면 옛 값으로 한도를 판정했다. 이제 DB 최신값을 쓴다.
-test('get_cni_count: mni/mbs 를 DB 최신값으로 판정한다', function (t, done) {
-    // DB 는 mni=5 인데 호출자 객체는 낡은 mni=100 을 들고 있다.
-    // cni(7) > mni(5) 이므로 purge 가 시도돼야 한다. obj.mni=100 을 썼다면 안 돈다.
+// --- get_cni_count 는 절대 지우지 않는다 --------------------------------------
+//
+// 이 함수의 유일한 호출부는 resource.js 의 update_action(ty=='3'), 즉 컨테이너
+// PUT 이고 **워커 25개**가 처리한다. 예전에는 여기서 한도 정리까지 했다.
+//
+// 그런데 delete_oldest 는 "정리 주체가 마스터 하나" 라는 전제로 트랜잭션과
+// SELECT ... FOR UPDATE NOWAIT 를 걷어냈다. 이 호출이 남아 있으면 전제가
+// 거짓이고, 마스터가 한도까지 내려놓은 직후 낡은 cni 를 든 워커가 재확인 없이
+// 다음 100건을 더 지운다 — lookup 삭제는 FK CASCADE 라 cin 본문까지 사라진다.
+//
+// 그래서 정리를 뺐다. 아래 셋이 그것을 못박는다.
+
+test('get_cni_count: 한도를 크게 넘겨도 삭제 질의를 내지 않는다', function (t, done) {
+    // cni=99 가 mni=5 를 스무 배 넘긴다. 예전 구현이라면 여기서 지웠다.
     const { sql_action, seen } = tapAdapter(true,
-        counterOnly([{ cni: 7, cbs: 70, st: 3, mni: 5, mbs: 1000 }]));
-
-    sql_action.get_cni_count({}, { ri: '/M/c1', ty: '3', mni: 100, mbs: 1000 },
-        guard(done, function (cni, cbs, st) {
-            assertNoLegacy(seen);
-            const purgeTried = seen.some(function (s) { return isCandidateQuery(s.sql); });
-            assert.ok(purgeTried, 'DB 의 mni=5 를 썼다면 purge 가 시도돼야 한다: ' +
-                JSON.stringify(seen.map(function (s) { return s.sql; })));
-
-            // delete_oldest 가 아무것도 못 지웠으면(후보 0건) 재조회 없이
-            // 방금 읽은 값을 그대로 돌려준다 — 배포본의 라이브락 수정(204f7a4).
-            assert.strictEqual(cni, 7, '지운 게 없으면 읽은 값을 그대로 돌려준다');
-            assert.strictEqual(cbs, 70);
-            assert.strictEqual(st, 3);
-            done();
-        }));
-});
-
-// 배포본 204f7a4 의 핵심: delete_oldest 가 진행 없이 성공처럼 반환하는 경로
-// (예전엔 NOWAIT 스킵 / 이미 정리됨 / 후보 0건, 지금은 후보 0건 하나)에서
-// 재귀하면 라이브락이 된다.
-// 실측 장애: load 1085, 동시 쿼리 1243건, 락 타임아웃 3330건.
-test('get_cni_count: 지운 게 없으면 재조회하지 않는다 (라이브락 방지)', function (t, done) {
-    const { sql_action, seen } = tapAdapter(true,
-        counterOnly([{ cni: 99, cbs: 990, st: 1, mni: 5, mbs: 50 }]));
+        [{ cni: 99, cbs: 990, st: 1, mni: 5, mbs: 50 }]);
 
     sql_action.get_cni_count({}, { ri: '/M/c1', ty: '3', mni: 5, mbs: 50 },
-        guard(done, function () {
-            // 저장값 조회(select_cni_parent)는 딱 한 번이어야 한다.
-            const reads = seen.filter(function (s) { return /^select .*`cni`/i.test(s.sql); });
-            assert.strictEqual(reads.length, 1,
-                '지운 게 없는데 재조회했다 (' + reads.length + '회)');
-            // 후보가 0건이면 삭제도 안 나가야 한다.
-            const deletes = seen.filter(function (s) { return /^delete/i.test(s.sql); });
-            assert.deepStrictEqual(deletes, [], '후보 0건인데 삭제가 나갔다');
-            done();
-        }));
-});
-
-// delete_oldest 가 실제로 지웠을 때는 재조회한다 — 위 테스트의 반대편이다.
-// 둘 다 있어야 "지웠으면 재조회, 아니면 안 함" 이 고정된다.
-test('get_cni_count: 지운 게 있으면 재조회한다', function (t, done) {
-    // 첫 조회는 한도 초과(cni=7 > mni=5), 재조회는 한도 안(cni=4).
-    // 후보 조회는 1건을 주고, 삭제 후 재집계는 cin 집계 질의로 답한다.
-    let reads = 0;
-    const { sql_action, seen } = tapAdapter(true, function (sql) {
-        if (isCandidateQuery(sql)) { return [{ ri: '/M/c1/cin1', cs: 30 }]; }
-        if (/count\(/i.test(sql)) { return [{ n: 4, s: 40 }]; }   // 삭제 후 실측
-        reads += 1;
-        return reads === 1
-            ? [{ cni: 7, cbs: 70, st: 3, mni: 5, mbs: 1000 }]
-            : [{ cni: 4, cbs: 40, st: 4, mni: 5, mbs: 1000 }];
-    });
-
-    sql_action.get_cni_count({}, { ri: '/M/c1', ty: '3', mni: 5, mbs: 1000 },
         guard(done, function (cni, cbs, st) {
             assertNoLegacy(seen);
-            assert.strictEqual(reads, 2, '지웠는데 재조회하지 않았다');
-            assert.strictEqual(cni, 4, '재조회한 값을 돌려줘야 한다');
-            assert.strictEqual(cbs, 40);
-            assert.strictEqual(st, 4);
 
-            // 지운 집합을 그대로 지워야 한다 — 다시 고르면 센 것과 갈린다.
-            const del = seen.find(function (s) { return /^delete/i.test(s.sql); });
-            assert.ok(del, '삭제가 안 나갔다');
-            assert.ok(del.bindings.indexOf('/M/c1/cin1') >= 0,
-                '고른 ri 를 바인딩으로 지워야 한다: ' + JSON.stringify(del.bindings));
-            done();
-        }));
-});
+            const deletes = seen.filter(function (s) { return /^delete/i.test(s.sql); });
+            assert.deepStrictEqual(deletes, [],
+                '한도 초과에서 삭제가 나갔다 — 정리는 마스터 스윕의 일이다');
 
-test('get_cni_count: purge 가 수렴하지 않아도 무한 재귀하지 않는다', function (t, done) {
-    // 후보는 늘 있고(= 지웠다고 보고) 카운터는 안 줄어드는 상황.
-    // 실제로는 카운터 드리프트나 다른 워커와의 경합에서 나온다.
-    const { sql_action } = tapAdapter(true, function (sql) {
-        if (isCandidateQuery(sql)) { return [{ ri: '/M/stuck/cin1', cs: 10 }]; }
-        if (/count\(/i.test(sql)) { return [{ n: 99, s: 990 }]; }
-        return [{ cni: 99, cbs: 990, st: 1, mni: 5, mbs: 50 }];
-    });
-    const t0 = Date.now();
-    sql_action.get_cni_count({}, { ri: '/M/stuck', ty: '3', mni: 5, mbs: 50 },
-        guard(done, function (cni, cbs, st) {
-            assert.ok(Date.now() - t0 < 5000, '상한 안에서 끝나야 한다');
-            assert.strictEqual(cni, 99, '수렴 실패 시 마지막으로 읽은 값을 돌려준다');
+            // 후보 조회조차 하면 안 된다. 그것이 delete_oldest 로 들어갔다는 뜻이다.
+            const candidates = seen.filter(function (s) { return isCandidateQuery(s.sql); });
+            assert.deepStrictEqual(candidates.map(function (s) { return s.sql; }), [],
+                'delete_oldest 로 들어갔다 — get_cni_count 는 읽기만 해야 한다');
+
+            assert.strictEqual(cni, 99, '읽은 값을 그대로 돌려준다');
             assert.strictEqual(cbs, 990);
             assert.strictEqual(st, 1);
             done();
         }));
+});
+
+test('get_cni_count: 질의는 딱 한 번이다', function (t, done) {
+    // 예전에는 purge 후 재조회하며 최대 MAX_PURGE_ROUNDS(10) 회 재귀했다.
+    // 요청 경로에서 도는 코드라 그 자체가 지연이었다.
+    const { sql_action, seen } = tapAdapter(true,
+        [{ cni: 99, cbs: 990, st: 1, mni: 5, mbs: 50 }]);
+
+    sql_action.get_cni_count({}, { ri: '/M/c1', ty: '3', mni: 5, mbs: 50 },
+        guard(done, function () {
+            assert.strictEqual(seen.length, 1,
+                '질의가 ' + seen.length + '개다 — O(1) 이어야 한다: ' +
+                JSON.stringify(seen.map(function (s) { return s.sql; })));
+            done();
+        }));
+});
+
+test('delete_oldest 의 호출자는 purge_sweep 하나다', function () {
+    // 이것이 "정리 주체는 마스터 하나" 의 실행 가능한 형태다. 잠금을 되돌리지
+    // 않는 한 이 불변식이 깨지면 안 된다 — 깨지면 워커가 잠금 없이 지운다.
+    const fs = require('node:fs');
+    const src = fs.readFileSync(
+        path.join(__dirname, '..', 'mobius', 'sql_action.js'), 'utf8');
+
+    const callers = src.split('\n')
+        .map(function (l, i) { return { n: i + 1, l: l }; })
+        .filter(function (x) {
+            return !/^\s*(\/\/|\*|\/\*)/.test(x.l) && /\bdelete_oldest\(/.test(x.l) &&
+                   !/^function delete_oldest/.test(x.l.trim());
+        });
+
+    assert.strictEqual(callers.length, 1,
+        'delete_oldest 호출부가 ' + callers.length + '곳이다 (1곳이어야 한다):\n  ' +
+        callers.map(function (x) { return x.n + ': ' + x.l.trim(); }).join('\n  '));
+
+    // 그 하나가 purge_sweep 안에 있어야 한다.
+    const at_sweep = src.indexOf('exports.purge_sweep');
+    const at_end = src.indexOf('\nexports.', at_sweep + 10);
+    const line_at = src.slice(0, src.indexOf(callers[0].l)).split('\n').length;
+    const sweep_start = src.slice(0, at_sweep).split('\n').length;
+    const sweep_end = src.slice(0, at_end).split('\n').length;
+    assert.ok(line_at > sweep_start && line_at < sweep_end,
+        '유일한 호출부가 purge_sweep 밖에 있다 (줄 ' + line_at + ')');
 });

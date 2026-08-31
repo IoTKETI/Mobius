@@ -42,17 +42,16 @@ const max_search_count = 2000;
 // 상한이라 패스를 키워도 총 시간은 같고 락 점유만 길어진다.
 const MAX_PURGE_PER_PASS = 100;
 
-// get_cni_count 는 purge 후 재조회하며 재귀한다. delete_oldest 가 카운터를
-// 못 줄이면 무한히 돌기 때문에 상한을 둔다. 한 패스에 최대 100건을 지우므로
-// 10회면 1000건까지 정리된다 — 그보다 많이 밀렸다면 드리프트를 의심해야 한다.
-const MAX_PURGE_ROUNDS = 10;
+// MAX_PURGE_ROUNDS 는 여기 있었다. get_cni_count 가 purge 후 재조회하며
+// 재귀했기 때문에 필요한 상한이었는데, get_cni_count 가 순수 읽기가 되면서
+// 그 재귀 자체가 없어졌다.
 
 // 이번 패스에서 얼마나 지워야 하는지 계산한다.
 //   need_cnt   개수 한도까지 지워야 할 건수
 //   need_cs    용량 한도까지 지워야 할 바이트
 //   candidates 조회할 후보 행 수. 용량 초과는 몇 건이 필요한지 미리 알 수 없어
 //              상한만큼 가져온 뒤 호출부에서 누적하며 자른다.
-//   est_count  실제 cs 를 볼 수 없는 경로(SQLite)용 평균 기반 추정 건수
+//   est_count  실제 cs 를 볼 수 없는 경로용 평균 기반 추정 건수
 // 용량 초과 시 무조건 1건만 지우던 예전 동작은 초과량과 무관해 수렴하지 못했다.
 exports.purge_plan = function (cni, cbs, mni, mbs) {
     var need_cnt = (cni > mni) ? (cni - mni) : 0;
@@ -409,92 +408,30 @@ global.getType = function (p) {
     return type;
 };
 
-// 컨테이너의 현재 cni/cbs/st 를 돌려주고, 한도를 넘었으면 오래된 것부터 지운다.
+// 컨테이너의 현재 cni/cbs/st 를 돌려준다. **읽기만 한다.**
 //
 // 예전에는 매번 cin 을 전부 세는 O(n) 집계를 돌렸다. 저장된 cnt.cni/cbs 를
 // 못 믿었기 때문인데, 그 불신에는 근거가 있었다 — 감소 경로가 깨져 있어서
 // CIN 을 지워도 cni 가 안 줄었다 (update_cnt_by_delete 의 cs 인자 누락, ea40cbc).
+// 지금은 저장값을 유지하는 주체가 전부 증분이거나 실측 절대 대입이라 믿을 수 있고,
+// 드리프트는 reconcile_cnt_counters 가 주기적으로 잡는다.
 //
-// 지금은 저장값을 유지하는 세 주체가 전부 증분이라 동시성에도 안전하다:
-//   cnt_man flush          cni = cni + δ
-//   delete_oldest          cni = cni - N
-//   update_parent_by_delete cni = cni - 1
-// 그래서 저장값을 읽는다. 드리프트는 reconcile_cnt_counters 가 주기적으로 잡는다.
+// **여기 있던 한도 정리(checkAndPurge -> delete_oldest)를 뺐다.**
 //
-// mni/mbs 도 이제 DB 에서 읽는다. 예전에는 호출자의 메모리 객체에서 왔는데,
-// cnt_man 은 debounce 창의 첫 CIN 시점 사본을 들고 있어서 그 사이 클라이언트가
-// mni 를 낮추면 옛 값으로 한도를 판정했다.
+// 이 함수의 유일한 호출부는 resource.js 의 update_action(ty=='3'), 즉 컨테이너
+// PUT 이고 그것은 **워커 25개**가 처리한다. 그런데 한도 정리는 마스터의
+// purge_sweep 이 맡기로 했고, 그 "정리 주체가 하나" 라는 전제 위에서
+// delete_oldest 의 트랜잭션과 SELECT ... FOR UPDATE NOWAIT 를 걷어냈다.
+// 즉 이 호출이 남아 있는 한 전제가 거짓이고, 잠금을 뺀 것이 위험해진다.
 //
-// depth 는 재귀 상한이다. purge 후 재조회하는 구조라, delete_oldest 가 실제로
-// 카운터를 못 줄이면 (지울 행이 없거나 감산이 실패하면) 무한히 돈다.
-// 예전 구조도 같은 위험이 있었다 — 실측 COUNT 를 읽어도 지운 게 없으면
-// 같은 값이 나오므로 마찬가지였다.
-exports.get_cni_count = function (connection, obj, callback, depth) {
-    depth = depth || 0;
-
-    function checkAndPurge(connection, cni, cbs, st, mni, mbs, obj, callback) {
-        if (cni > mni || cbs > mbs) {
-            // 정리할 때만 로그를 남긴다. 매 flush 마다 찍으면 로그가 폭주해
-            // pm2-logrotate 보관분(20분)이 다 밀려나 장애 분석이 불가능해진다.
-            console.log('[checkAndPurge] ri=' + obj.ri + ' cni=' + cni + ' mni=' + mni + ' cbs=' + cbs + ' mbs=' + mbs);
-            var count = _this.purge_plan(cni, cbs, mni, mbs).est_count;
-            if (count < 1) count = 1;
-
-            console.log('[checkAndPurge] delete_oldest count=' + count);
-            delete_oldest(connection, obj, count, function (err, deleted) {
-                // 실제로 지운 게 있을 때만 재조회·재귀한다. delete_oldest 는
-                // NOWAIT 스킵 / 이미 정리됨 / 후보 0건 세 경로에서 진행 없이
-                // 성공처럼 반환하는데, 예전에는 그걸 구분하지 않고 무조건
-                // 재귀해서 cni 가 그대로인 채 같은 사이클을 초당 474회 돌았다.
-                // 워커 26개가 같은 cnt 행을 두고 NOWAIT 경합을 하니 대부분
-                // 스킵으로 떨어져 라이브락이 됐고, 한 바퀴마다 10만행
-                // COUNT+SUM 이 돌아 mysqld 가 21코어를 먹었다.
-                // (2026-08-27 실측: load 1085, 동시 쿼리 1243건, 그중 99%가
-                //  MUL3/disarm 집계. 같은 cnt 행을 기다리던 cnt_man flush 는
-                //  ER_LOCK_WAIT_TIMEOUT 3330건.)
-                // 지운 건수가 있으면 cni 는 반드시 줄어드므로 재귀는 종료한다.
-                if (!deleted) {
-                    callback(cni, cbs, st);
-                    return;
-                }
-
-                // 위의 !deleted 가 정상 종료 조건이고, 이건 그래도 안 줄어드는
-                // 경우의 최후 방어다. 지웠다고 보고했는데 카운터가 안 줄면
-                // (드리프트, 다른 워커와의 경합) 무한히 돌 수 있다.
-                if (depth + 1 >= MAX_PURGE_ROUNDS) {
-                    console.error('[get_cni_count] purge 가 ' + MAX_PURGE_ROUNDS +
-                        '회 안에 수렴하지 않았다 — ri=' + obj.ri +
-                        ' cni=' + cni + ' mni=' + mni + ' cbs=' + cbs + ' mbs=' + mbs +
-                        ' (카운터 드리프트 의심, reconcile_cnt_counters 확인)');
-                    callback(cni, cbs, st);
-                    return;
-                }
-                // 삭제 후 재조회로 정확한 최종값 반환
-                _this.get_cni_count(connection, obj, function (cni2, cbs2, st2) {
-                    callback(cni2, cbs2, st2);
-                }, depth + 1);
-            });
-        }
-        else {
-            // 여기 있던 드리프트 보정(UPDATE cnt SET cni=<실측> WHERE cni<>...)은
-            // 뺐다. 그 코드는 cni/cbs 가 select_count_ri 의 **실측값**이라는 전제로
-            // 쓰였는데, 이제 select_cni_parent 가 읽는 **저장값**이다. 같은 값을
-            // 같은 값과 비교하므로 WHERE 가 절대 맞지 않아 영구 no-op 이면서
-            // flush 마다 쿼리를 한 번 더 쓰는 코드가 된다.
-            //
-            // 실측 재집계를 없앤 이유는 O(n) 이기 때문이다 — CIN 100k 기준
-            // 7.2ms, 그리고 이 저장소의 운영 배포에는 CIN 이 593만 건인 컨테이너가
-            // 있다. 그 집계가 매 flush 마다 도는 것이 2026-08-27 장애의 직접 원인이었다.
-            //
-            // 드리프트는 두 곳이 잡는다:
-            //   delete_oldest        purge 트랜잭션 안에서 실측 재카운트로 절대 보정
-            //   reconcile_cnt_counters  기동 시 + 일 1회 전수 보정
-            // 남는 구멍은 "버스트로 어긋난 뒤 조용해진 컨테이너"이고,
-            // 다음 reconcile 까지 최대 하루 어긋난 채로 있는다.
-            callback(cni, cbs, st);
-        }
-    }
-
+// 구체적으로: 마스터가 컨테이너를 한도까지 내려놓은 직후, 낡은 cni 를 들고
+// 진입한 워커가 재확인 없이 다음 100건을 더 지운다. lookup 삭제는
+// FK(cin_ri ON DELETE CASCADE)라 cin 본문까지 되돌릴 수 없이 사라진다.
+//
+// 정리를 여기서 빼면 한도 강제가 삽입/수정과 동기가 아니게 되지만, 그것은
+// 이 설계가 이미 받아들인 것이다 — 스윕 주기(global.purge_sweep_ms) 안의
+// 최종적 정리다. 요청 경로에서 최대 10라운드를 돌던 재귀도 함께 사라진다.
+exports.get_cni_count = function (connection, obj, callback) {
     _this.select_cni_parent(connection, obj.ri, function (err, rows) {
         if (err || !rows || rows.length !== 1) {
             callback(0, 0, 0);
@@ -502,13 +439,10 @@ exports.get_cni_count = function (connection, obj, callback, depth) {
         }
 
         var r = rows[0];
-        checkAndPurge(connection,
+        callback(
             parseInt(r.cni || 0, 10),
             parseInt(r.cbs || 0, 10),
-            (r.st == null) ? 0 : parseInt(r.st, 10),
-            parseInt(r.mni || 0, 10),
-            parseInt(r.mbs || 0, 10),
-            obj, callback);
+            (r.st == null) ? 0 : parseInt(r.st, 10));
     });
 };
 
@@ -2117,95 +2051,150 @@ exports.select_st = function (connection, ri, callback) {
     });
 };
 
+// 한 컨테이너에서 오래된 자식을 지운다. **마스터의 purge_sweep 만 부른다.**
+//
+// 순서가 이 함수의 전부다: **실측 -> 판단 -> 삭제.** 저장값(cnt.cni/cbs)으로는
+// 지울지 말지를 정하지 않는다.
+//
+// 한때 실측을 삭제 **뒤로** 옮긴 판이 있었다(더 짧아 보였다). 그러면 삭제
+// 건수의 유일한 근거가 저장값이 되는데, 저장값은 실제보다 클 수 있다 —
+// 이 파일이 스스로 적어 둔 원인이 둘이다: delete_lookup_et 과
+// delete_descendants_background 가 lookup 을 지우면서 cnt 를 감산하지 않는다.
+// 그러면 **한도 안에 있는 컨테이너에서 살아 있는 CIN 을 지운다.** lookup 삭제는
+// FK(cin_ri ON DELETE CASCADE)라 cin 본문까지 되돌릴 수 없이 사라진다.
+//
+// 실측은 cin_ri_idx(pi, ri, cs) 커버링 인덱스만 읽는다. lookup 을 조인하면
+// 자식 수만큼 cin 에 랜덤 접근해서 114,627행 기준 7.178s 대 0.142s 였다.
+// 12만 8천 행 컨테이너 실측 0.114s — 관문 값으로 충분히 싸다.
+//
+// 트랜잭션과 SELECT ... FOR UPDATE NOWAIT 는 없다. 그것들은 워커 25개가
+// 동시에 정리하기 때문에 있었고, **잠금이 없는 백엔드는 그 알고리즘을 못 써서
+// 아예 다른 갈래를 들고 있었다.** 정리 주체를 마스터 하나로 만들어 없앴다.
+// 그 전제는 get_cni_count 에서 정리를 걷어내면서 비로소 참이 되었다 —
+// 그전에는 컨테이너 PUT 이 워커에서 같은 함수를 부르고 있었다.
 function delete_oldest(connection, obj, count, callback) {
     var del_id = 'delete_oldest (' + count + ') ' + obj.ri + ' - ' + require('shortid').generate() + '';
     console.time(del_id);
 
     var child_ty = String(parseInt(obj.ty, 10) + 1);
+    var mni = parseInt(obj.mni, 10);
+    var mbs = parseInt(obj.mbs, 10);
+    var has_limits = isFinite(mni) && isFinite(mbs);
 
-    // 1) 지울 후보를 고른다. ct 가 같을 수 있으므로 ri 로 동점을 깬다 —
-    //    안 그러면 LIMIT 이 매번 다른 집합을 골라 센 것과 지운 것이 갈린다.
-    facade.run(facade.k('lookup as l')
-        .leftJoin('cin as c', 'l.ri', 'c.ri')
-        .select('l.ri as ri', 'c.cs as cs')
-        .where({ 'l.pi': obj.ri, 'l.ty': child_ty })
-        .orderBy([{ column: 'l.ct', order: 'asc' }, { column: 'l.ri', order: 'asc' }])
-        .limit(count), connection, function (err, rows) {
+    function done(err, n) {
+        console.timeEnd(del_id);
+        callback(err, n);
+    }
 
-        if (err) {
-            console.timeEnd(del_id);
-            return callback(err, rows);
+    // 1) 실측한다. 여기서 나온 값만 삭제 판단의 근거다.
+    facade.run(facade.k('cin')
+        .count('* as n')
+        .sum({ s: facade.raw('coalesce(cs, 0)') })
+        .where({ pi: obj.ri }), connection, function (err0, rc) {
+
+        if (err0 || !rc || !rc.length) {
+            console.error('[delete_oldest] 실측 실패 ri=' + obj.ri + ' — 아무것도 지우지 않는다');
+            return done(err0 || true, rc);
         }
-        if (!rows || rows.length === 0) {
-            // 지울 것이 없다. 호출자가 재귀하지 않도록 0 을 준다.
-            console.timeEnd(del_id);
-            return callback(null, 0);
-        }
 
-        var del_ri = rows.map(function (r) { return r.ri; });
+        var actual_cni = parseInt(rc[0].n || 0, 10);
+        var actual_cbs = parseInt(rc[0].s || 0, 10);
 
-        // 2) 센 집합을 그대로 지운다. 다시 고르지 않는다 —
-        //    예전에 "고른 집합" 과 "지운 집합" 이 달라져 카운터 보정이 틀어졌다.
-        //    lookup 을 지우면 FK(cin_ri ON DELETE CASCADE)로 cin 본문이 따라 지워진다.
-        facade.run(facade.k('lookup').whereIn('ri', del_ri).del(),
-            connection, function (err2, res2) {
-            if (err2) {
-                console.timeEnd(del_id);
-                return callback(err2, res2);
-            }
-
-            // 3) 부모 카운터를 **실측으로** 되돌린다.
-            //
-            //    상대 감산(cni = cni - N)이 아니라 절대 대입이다. 그래야 과거에
-            //    쌓인 드리프트가 정리할 때마다 스스로 낫는다 — 배포 실측으로
-            //    컨테이너 30,278개 중 1,659개(5.5%)가 어긋나 있었다.
-            //
-            //    cin_ri_idx(pi, ri, cs) 커버링 인덱스만 읽는다. lookup 을 조인하면
-            //    자식 수만큼 cin 에 랜덤 접근해서 114,627행 기준 7.178s 대 0.142s 였다.
-            //
-            //    정리하는 주체가 마스터 하나뿐이므로(purge_sweep) 이 재집계와
-            //    대입 사이에 다른 purge 가 끼어들 수 없다. 예전에는 워커 25개가
-            //    동시에 정리해서 트랜잭션 + SELECT ... FOR UPDATE NOWAIT 로
-            //    서로를 막아야 했고, **잠금이 없는 백엔드는 그 알고리즘을 쓸 수
-            //    없어 아예 다른 갈래를 들고 있었다.** 주체를 하나로 만들자
-            //    그 사슬이 통째로 사라졌다.
-            //
-            //    끼어들 수 있는 것은 CIN 생성의 증분(update_parent_counters)뿐인데,
-            //    그것이 이 재집계와 대입 사이에 착지하면 그 한 건을 잃는다.
-            //    reconcile 이 하루 안에 바로잡고, 다음 purge 도 같은 방식으로
-            //    고친다. 잃는 것이 1건이고 고칠 경로가 둘이라 잠금을 들이지 않는다.
-            facade.run(facade.k('cin')
-                .count('* as n')
-                .sum({ s: facade.raw('coalesce(cs, 0)') })
-                .where({ pi: obj.ri }), connection, function (err3, cnt_rows) {
-
-                var deleted = rows.length;
-
-                if (err3 || !cnt_rows || !cnt_rows.length) {
-                    // 재집계에 실패해도 삭제는 이미 끝났다. 카운터는
-                    // reconcile 이 잡는다. 삭제 건수는 정직하게 보고한다.
-                    console.error('[delete_oldest] 재집계 실패 ri=' + obj.ri +
-                                  ' — 카운터는 reconcile 이 잡는다');
-                    console.timeEnd(del_id);
-                    return callback(null, deleted);
+        // 2) 한도 안이면 지우지 않는다. 저장값이 어긋나 있었으면 실측으로
+        //    고쳐 두고 끝낸다 — 드리프트 자가 치유. 이 관문이 없으면
+        //    "cnt.cni 가 부풀어 있다" 가 곧 "멀쩡한 데이터를 지운다" 가 된다.
+        if (has_limits && actual_cni <= mni && actual_cbs <= mbs) {
+            facade.run(facade.k('cnt')
+                .update({ cni: actual_cni, cbs: actual_cbs })
+                .where({ ri: obj.ri })
+                .andWhere(function () {
+                    this.whereNot('cni', actual_cni).orWhereNot('cbs', actual_cbs);
+                }), connection, function (eh, rh) {
+                if (!eh && rh && rh.affectedRows) {
+                    console.log('[delete_oldest] 이미 한도 안 — 드리프트만 보정했다 ri=' +
+                                obj.ri + ' cni->' + actual_cni + ' cbs->' + actual_cbs);
                 }
+                done(null, 0);
+            });
+            return;
+        }
 
-                var actual_cni = parseInt(cnt_rows[0].n || 0, 10);
-                var actual_cbs = parseInt(cnt_rows[0].s || 0, 10);
+        // 3) 실측값으로 다시 계획한다. purge_sweep 이 저장값으로 잡아 준
+        //    count 는 상한으로만 쓴다.
+        var plan = has_limits ? _this.purge_plan(actual_cni, actual_cbs, mni, mbs) : null;
+        var need_cnt = plan ? plan.need_cnt : count;
+        var need_cs = plan ? plan.need_cs : 0;
+        var candidates = plan ? plan.candidates : count;
+        if (candidates < 1) { candidates = 1; }
+        if (candidates > count) { candidates = count; }
+
+        // 4) 후보를 고른다. ct 가 같을 수 있으므로 ri 로 동점을 깬다 —
+        //    안 그러면 LIMIT 이 매번 다른 집합을 골라 센 것과 지운 것이 갈린다.
+        facade.run(facade.k('lookup as l')
+            .leftJoin('cin as c', 'l.ri', 'c.ri')
+            .select('l.ri as ri', 'c.cs as cs')
+            .where({ 'l.pi': obj.ri, 'l.ty': child_ty })
+            .orderBy([{ column: 'l.ct', order: 'asc' }, { column: 'l.ri', order: 'asc' }])
+            .limit(candidates), connection, function (err, rows) {
+
+            if (err) { return done(err, rows); }
+            if (!rows || rows.length === 0) { return done(null, 0); }
+
+            // 5) **필요한 만큼만 자른다.** 개수와 용량 조건이 둘 다 채워지는
+            //    지점에서 멈춘다. 후보를 통째로 지우면 용량 초과 정리에서
+            //    필요 이상으로 지운다 — est_count 는 평균 cs 기반 추정이라
+            //    실제 cs 가 평균보다 작으면 과대 추정된다. cs 를 SELECT 해
+            //    놓고 쓰지 않던 것이 그 결함이었다.
+            var total_cs = 0;
+            var del_ri = [];
+            for (var i = 0; i < rows.length; i++) {
+                total_cs += parseInt(rows[i].cs || 0, 10);
+                del_ri.push(rows[i].ri);
+                if (del_ri.length >= need_cnt && total_cs >= need_cs) { break; }
+            }
+            if (del_ri.length === 0) { return done(null, 0); }
+
+            // 6) 센 집합을 그대로 지운다. 다시 고르지 않는다 —
+            //    예전에 "고른 집합" 과 "지운 집합" 이 달라져 카운터 보정이 틀어졌다.
+            facade.run(facade.k('lookup').whereIn('ri', del_ri).del(),
+                connection, function (err2, res2) {
+                if (err2) { return done(err2, res2); }
+
+                var deleted = del_ri.length;
+
+                // 7) 카운터는 실측에서 뺀 절대값이다. 상대 감산이 아니라서
+                //    과거에 쌓인 드리프트가 정리할 때마다 스스로 낫는다 —
+                //    배포 실측으로 컨테이너 30,278개 중 1,659개(5.5%)가
+                //    어긋나 있었다. 실측을 이미 했으므로 왕복이 늘지 않는다.
+                //
+                //    끼어들 수 있는 것은 CIN 생성의 증분(update_parent_counters)
+                //    뿐인데, 그것이 위 실측과 이 대입 사이에 착지하면 그 건을
+                //    잃는다. reconcile 이 하루 안에 바로잡고 다음 purge 도 같은
+                //    방식으로 고친다. 그래서 잠금을 들이지 않는다.
+                var new_cni = actual_cni - deleted;
+                var new_cbs = actual_cbs - total_cs;
+                if (new_cni < 0) { new_cni = 0; }
+                if (new_cbs < 0) { new_cbs = 0; }   // cbs 는 bigint unsigned 다
 
                 facade.run(facade.k('cnt')
-                    .update({ cni: actual_cni, cbs: actual_cbs })
-                    .where({ ri: obj.ri }), connection, function (err4) {
+                    .update({ cni: new_cni, cbs: new_cbs })
+                    .where({ ri: obj.ri }), connection, function (err4, r4) {
                     if (err4) {
-                        console.error('[delete_oldest] cnt 보정 실패 ri=' + obj.ri);
+                        console.error('[delete_oldest] cnt 보정 실패 ri=' + obj.ri +
+                                      ' : ' + ((r4 && r4.message) || r4));
                     }
 
                     // 자식이 사라졌으니 부모 stateTag 를 올린다.
+                    // 실패하면 자식은 없는데 st 는 그대로다 — 캐시를 든
+                    // 클라이언트가 변경을 놓치므로 조용히 넘기지 않는다.
                     facade.run(facade.k('lookup')
                         .update({ st: facade.raw('st + 1') })
-                        .where({ ri: obj.ri }), connection, function () {
-                        console.timeEnd(del_id);
-                        callback(null, deleted);
+                        .where({ ri: obj.ri }), connection, function (err5, r5) {
+                        if (err5) {
+                            console.error('[delete_oldest] st 갱신 실패 ri=' + obj.ri +
+                                          ' : ' + ((r5 && r5.message) || r5));
+                        }
+                        done(null, deleted);
                     });
                 });
             });
@@ -3232,9 +3221,14 @@ exports.purge_sweep = function (connection, opts, callback) {
             var count = plan.est_count < 1 ? 1 : plan.est_count;
 
             console.log('[purge_sweep] ri=' + r.ri + ' cni=' + cni + '/' + mni +
-                        ' cbs=' + cbs + '/' + mbs + ' -> ' + count + '건');
+                        ' cbs=' + cbs + '/' + mbs + ' -> 최대 ' + count + '건');
 
-            delete_oldest(connection, { ri: r.ri, ty: r.ty }, count, function (e, deleted) {
+            // mni/mbs 를 함께 넘긴다. delete_oldest 는 이 둘로 **실측을 판정**해서
+            // 한도 안이면 한 건도 지우지 않는다. 위 cni/cbs 는 저장값이라
+            // 실제보다 클 수 있고(delete_lookup_et 등이 감산하지 않는다),
+            // 그것만 믿으면 멀쩡한 컨테이너를 비운다. count 는 상한일 뿐이다.
+            delete_oldest(connection, { ri: r.ri, ty: r.ty, mni: mni, mbs: mbs },
+                count, function (e, deleted) {
                 if (e) {
                     report.failed++;
                     console.error('[purge_sweep] 실패 ri=' + r.ri + ' : ' +
