@@ -86,6 +86,35 @@ Client.prototype.request = function (method, path, body, callback) {
                 body: parsed
             });
         });
+
+        // 본문이 중간에 끊기면 'end' 가 오지 않는다. 그리고 그 에러는 req 가
+        // 아니라 **res 로 온다** — 여기서 받지 않으면 콜백이 영영 안 불린다.
+        //
+        // req.setTimeout 도 구해 주지 못한다. 소켓이 이미 파괴돼 타이머가
+        // 울리지 않는다. 실측으로 확인했다(test/admin-cse-truncated.test.js):
+        // Content-Length 를 약속하고 절반만 보내거나 chunked 를 종료 청크
+        // 없이 끊으면, 고치기 전에는 5초를 기다려도 콜백이 없었다.
+        //
+        // 그 대가가 큰 이유는 jobs.js 다. 작업 엔진은 콜백이 **두 번** 오는
+        // 것은 막지만 **안 오는 것**은 막지 못한다. running 이 안 줄어
+        // pump() 가 다시 돌지 않고 작업이 영영 'running' 으로 남는다.
+        // 그러면 guard_busy 가 Mobius 정지·재기동을 영구히 막는다.
+        function cut(reason) {
+            // 타임아웃과 같은 성격이다 — "실패" 가 아니라 **모름**이다.
+            // 서버가 삭제를 끝냈는지는 여기서 알 수 없다. 다만 상태줄은
+            // 이미 받았으므로 그건 버리지 않고 같이 돌려준다.
+            var rsc = res.headers['x-m2m-rsc'] || null;
+            settle({
+                ok: false,
+                status: res.statusCode,
+                rsc: rsc,
+                error: '응답 본문이 중간에 끊겼다 (' + reason + '). 서버는 ' +
+                       res.statusCode + (rsc ? '/' + rsc : '') +
+                       ' 까지 답했으나 처리가 끝났는지는 알 수 없다'
+            });
+        }
+        res.on('aborted', function () { cut('aborted'); });
+        res.on('error', function (e) { cut(e.message || String(e)); });
     });
 
     req.setTimeout(this.timeoutMs, function () {
