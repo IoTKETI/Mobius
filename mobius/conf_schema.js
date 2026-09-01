@@ -160,6 +160,36 @@ var SCHEMA = {
         help: '어댑터는 mobius/db/<이름>.js 다. 파일을 두면 목록에 나타난다.'
     },
 
+    dbConnectionLimit: {
+        group: '저장소',
+        type: 'number', integer: true, dflt: 100,
+        // 1 미만은 아무 요청도 못 받는다. 상한은 서버의 max_connections 와
+        // 프로세스 수로 정해지므로 화면이 계산해서 보여 줘야 한다(아래 help).
+        valid: function (v) { return v >= 1 && v <= 500; },
+        validHint: '1 ~ 500',
+        apply: 'restart',
+        label: 'DB 커넥션 풀 크기 (프로세스당)',
+        help: '**풀은 프로세스마다 하나씩 생긴다.** 배포는 워커 24 + 마스터 1 = 25 이므로 ' +
+              '앱이 요구할 수 있는 총량은 이 값 x 25 다. 지금 값 100 이면 2,500 인데 ' +
+              '배포의 max_connections 는 2,000 이라 이미 천장을 넘는다. ' +
+              '실측 Max_used_connections 는 59 다 — 실제로는 근처도 안 간다. ' +
+              '요청 하나가 최대 3개를 쥘 수 있다(POST 의 set_hit + 본 처리 + 알림).'
+    },
+    dbQueueLimit: {
+        group: '저장소',
+        type: 'number', integer: true, dflt: 0,
+        valid: function (v) { return v >= 0 && v <= 10000; },
+        validHint: '0 ~ 10000 (0 은 무제한 — 권장하지 않는다)',
+        apply: 'restart',
+        label: 'DB 커넥션 대기열 한도 (프로세스당)',
+        help: '풀이 가득 찼을 때 몇 개까지 대기시킬 것인가. ' +
+              '**0 은 무제한이고 그 큐에는 타임아웃이 없다** — 드라이버가 ' +
+              '`if (queueLimit && ...)` 로 검사해 0 이면 한도 분기를 건너뛰고, ' +
+              'acquireTimeout 은 큐 대기에 관여하지 않는다. 그래서 풀이 마르면 요청이 ' +
+              '응답도 에러도 없이 영원히 매달리고 워커도 죽지 않는다. ' +
+              '유한값이면 즉시 500 이 나가 장치가 재시도할 수 있고 로그에 흔적이 남는다.'
+    },
+
     // ── 노출 안 함: 비밀 ─────────────────────────────────────────────
     dbpass: {
         group: '저장소',

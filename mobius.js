@@ -158,6 +158,36 @@ global.purge_sweep_ms = (typeof conf.purgeSweepMs === 'number' && conf.purgeSwee
     ? conf.purgeSweepMs : 10000;
 global.use_hit_man_port = port_of(conf.hitManPort, '7594');
 
+// ── DB 커넥션 풀 ────────────────────────────────────────────────────────
+//
+// **기본값은 지금 배포에서 도는 값 그대로다.** 값을 정해서 conf.json 에 넣기
+// 전까지 동작이 바뀌지 않는다. 관리 콘솔 설정 화면에서 편집할 수 있게 표에
+// 올리는 것이 이 커밋의 목적이다 (mobius/conf_schema.js).
+//
+// 풀은 **프로세스마다** 하나씩 생긴다. 배포는 워커 24 + 마스터 1 = 25 이므로
+// 앱이 요구할 수 있는 총량은 dbConnectionLimit x 25 다. 지금 값 100 이면
+// 2,500 인데 배포의 max_connections 는 2,000 이라 이미 천장을 넘는다.
+// (배포 실측 Max_used_connections = 59 — 실제로는 근처도 안 간다.)
+global.use_db_connection_limit =
+    (typeof conf.dbConnectionLimit === 'number' && conf.dbConnectionLimit >= 1)
+        ? conf.dbConnectionLimit : 100;
+
+// 풀이 가득 찼을 때 대기열에 몇 개까지 쌓을 것인가.
+//
+// **0 은 "무제한" 이다 — 그리고 그 큐에는 타임아웃이 없다.**
+// node_modules/mysql/lib/Pool.js:222 가 `if (this.config.queueLimit && ...)`
+// 로 검사하므로 0 은 falsy 가 되어 한도 분기를 통째로 건너뛰고,
+// acquireTimeout 은 Pool.js 의 connect/changeUser/ping 에만 걸려 큐 대기에는
+// 관여하지 않는다. 그래서 풀이 마르면 요청이 **응답도 에러도 없이 영원히
+// 매달린다** — 워커도 죽지 않아 cluster 재기동도 안 걸린다.
+//
+// 유한값으로 두면 드라이버가 POOL_ENQUEUELIMIT 를 즉시 던지고 그 에러가
+// mobius/db/mysql.js 의 getConnection 을 지나 500-5 로 나간다. 관측 불가능한
+// 매달림이 관측 가능한 실패로 바뀐다.
+global.use_db_queue_limit =
+    (typeof conf.dbQueueLimit === 'number' && conf.dbQueueLimit >= 0)
+        ? conf.dbQueueLimit : 0;
+
 global.use_mqtt_broker = 'localhost'; // mqttbroker for mobius
 
 global.use_secure = 'disable';

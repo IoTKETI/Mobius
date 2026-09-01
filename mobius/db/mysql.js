@@ -113,11 +113,21 @@ exports.connect = function (conf, callback) {
         user: conf.user,
         password: conf.password,
         database: 'mobiusdb',
-        connectionLimit: 100,
+        // 풀 크기와 대기열 한도는 conf.json 으로 뺐다(mobius/conf_schema.js).
+        // 기본값은 예전에 박혀 있던 값 그대로라 설정을 안 넣으면 동작이 같다.
+        //
+        // **queueLimit 0 은 무제한이고 그 큐에는 타임아웃이 없다.**
+        // 아래 Pool.js:222 가 `if (this.config.queueLimit && ...)` 로 검사해
+        // 0 이면 한도 분기를 건너뛰고, acquireTimeout 은 connect/changeUser/ping
+        // 에만 걸려 큐 대기에는 관여하지 않는다. 풀이 마르면 요청이 응답도
+        // 에러도 없이 영원히 매달린다 — mobius.js 의 use_db_queue_limit 주석 참고.
+        connectionLimit: (typeof global.use_db_connection_limit === 'number')
+            ? global.use_db_connection_limit : 100,
         waitForConnections: true,
         debug: false,
         acquireTimeout: 50000,
-        queueLimit: 0
+        queueLimit: (typeof global.use_db_queue_limit === 'number')
+            ? global.use_db_queue_limit : 0
     });
     callback('1');
 };
