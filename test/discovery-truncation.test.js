@@ -20,7 +20,12 @@ const DB = path.join(ROOT, 'mobius', 'db');
 process.env.MOBIUS_SQLITE_PATH =
     path.join(require('node:os').tmpdir(), 'mobius-trunc-test.db');
 
-// SQL 의 limit/offset 을 그대로 흉내 낸다 — DB 가 하는 일을 대신한다.
+// SQL 의 limit 을 그대로 흉내 낸다 — DB 가 하는 일을 대신한다.
+//
+// discovery 는 문장이 둘이다: 골격(재귀 CTE)과 자식(pi IN (...)). 골격 질의는
+// 부모 하나만 돌려주면 되고, 자식 질의는 그 부모 아래 전체 집합을 준다.
+// **offset 은 SQL 에 없다** — 배치마다 건너뛰면 틀리므로 search_lookup 이
+// JS 에서 앞부분을 버린다. 그래서 자식 질의의 limit 은 (오프셋 + 한도) 다.
 function tap(total) {
     delete require.cache[require.resolve(DB)];
     delete require.cache[require.resolve(path.join(DB, 'mysql.js'))];
@@ -34,8 +39,21 @@ function tap(total) {
 
     adapter.connect = function (conf, cb) { cb('1'); };
     adapter.execute = function (conn, sql, bindings, cb) {
+        // 골격만 뽑는 문장(배치 경로)과 자식까지 한 문장으로 끝내는 예전
+        // 경로(ofst / la)를 가른다. 둘 다 `with recursive skel` 로 시작하므로
+        // 꼬리를 봐야 한다 — 골격 문장은 `sk_ri, sk_lvl from skel` 로 끝난다.
+        if (/from skel\s*$/i.test(sql)) {
+            return cb(null, [{ sk_ri: '/M', sk_lvl: 0 }]);
+        }
         const lim = /limit (\d+)/i.exec(sql);
         const ofs = /offset (\d+)/i.exec(sql);
+
+        // 오프셋 소진용 경계 있는 count. 안쪽 limit 이 경계다.
+        if (/count\(\*\) as n/i.test(sql)) {
+            const cap = lim ? parseInt(lim[1], 10) : all.length;
+            return cb(null, [{ n: Math.min(all.length, cap) }]);
+        }
+
         let rows = all.slice();
         if (ofs) { rows = rows.slice(parseInt(ofs[1], 10)); }
         if (lim) { rows = rows.slice(0, parseInt(lim[1], 10)); }

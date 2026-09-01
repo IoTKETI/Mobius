@@ -1,5 +1,7 @@
 'use strict';
-// discovery 는 MySQL / SQLite 모두 재귀 CTE **한 문장**으로 처리한다.
+// discovery 는 MySQL / SQLite 모두 **문장 둘**로 처리한다:
+//   1) 재귀 CTE 로 골격(부모가 될 수 있는 노드)을 뽑는다
+//   2) 그 골격을 4,000개씩 잘라 `pi in (:p0, ...)` 로 자식을 뽑는다
 //
 // 예전에는 MySQL 만 2단계였다: 레벨별로 부모를 모으고(search_parents_lookup),
 // 부모마다 'select * from lookup where pi = ?' 를 던졌다. 그 방식은
@@ -8,11 +10,19 @@
 //   - 부모 수만큼 왕복이 생겼다 (배포 서버 실측 4,080회 -> 묶어서 25회)
 // SQLite 는 이미 CTE 였으므로 CTE 로 통일했다.
 //
+// 그 다음에 골격과 자식을 한 문장으로 붙였다가 **다시 갈랐다.** 붙여 두면
+// pi 가 조인에서 오므로 MySQL 이 ref 접근을 골라 인덱스를 (pi, ty) 까지만
+// 쓰고 ct 를 ICP 로 스캔하며 거른다 — /Mobius/KETI_MUV/Mission_Data 가
+// 30초 상한에 걸려 하루 4건 500 이 났다. pi 를 상수 목록으로 주면 range 가
+// 되어 key_len 이 671(pi, ty, ct)이 되고 같은 요청이 126ms 다
+// (배포 실측 2026-09-01).
+//
 // 이 파일이 지키는 것:
 //   1) 재귀항의 ty 는 반드시 **등치**다 (인덱스 범위를 타려면 필수)
-//   2) lim / ofst 는 SQL 에 한 번만, 전역으로 붙는다
-//   3) lvl 은 골격 깊이로 내려간다
-//   4) 방언 차이(콜레이션 / 인덱스 강제 / 문장 타임아웃)는 어댑터가 낸다
+//   2) 왕복은 1 + ceil(부모수 / 4000) 회다 — 부모 수에 비례하면 안 된다
+//   3) lim / ofst 는 배치를 가로질러 **전역**으로 동작한다
+//   4) lvl 은 골격 깊이로 내려간다
+//   5) 방언 차이(콜레이션 / 인덱스 강제 / 문장 타임아웃)는 어댑터가 낸다
 const test = require('node:test');
 const assert = require('node:assert');
 const path = require('path');
@@ -23,15 +33,30 @@ const DB = path.join(ROOT, 'mobius', 'db');
 process.env.MOBIUS_SQLITE_PATH =
     path.join(require('node:os').tmpdir(), 'mobius-cte-test.db');
 
-// 전체 결과 집합. 어댑터는 SQL 의 limit/offset 을 이 집합에 적용한다 —
-// DB 가 하는 일을 그대로 흉내 내서, search_lookup 이 절을 제대로
-// 만들어 내보내는지만 검사한다.
+// 전체 결과 집합. 어댑터는 SQL 의 limit 을 이 집합에 적용한다 — DB 가 하는
+// 일을 그대로 흉내 내서, search_lookup 이 절을 제대로 만들어 내보내는지만
+// 검사한다. **offset 은 더 이상 SQL 에 없다** — 배치마다 건너뛰면 틀리므로
+// search_lookup 이 JS 에서 앞부분을 버린다.
 const ALL = [];
 for (let i = 0; i < 20; i++) {
     ALL.push({ ri: '/M/p' + Math.floor(i / 4) + '/c' + (i % 4), ty: 3, rn: 'c' + (i % 4) });
 }
 
-function tap(backend) {
+// 골격 질의가 돌려주는 것. sk_lvl 이 있어야 lvl 처리를 볼 수 있다.
+const SKEL_ROWS = [
+    { sk_ri: '/M', sk_lvl: 0 },
+    { sk_ri: '/M/p0', sk_lvl: 1 },
+    { sk_ri: '/M/p1', sk_lvl: 1 },
+    { sk_ri: '/M/p2', sk_lvl: 2 },
+    { sk_ri: '/M/p3', sk_lvl: 2 },
+    { sk_ri: '/M/p4', sk_lvl: 3 }
+];
+
+// opts.skeleton  골격 질의가 돌려줄 행 (기본 SKEL_ROWS)
+// opts.children  자식 질의가 돌려줄 행을 만드는 함수 (bindings, sql) -> rows
+function tap(backend, opts) {
+    opts = opts || {};
+    const skeleton = opts.skeleton || SKEL_ROWS;
     delete require.cache[require.resolve(DB)];
     delete require.cache[require.resolve(path.join(DB, 'mysql.js'))];
     delete require.cache[require.resolve(path.join(DB, 'sqlite.js'))];
@@ -42,10 +67,29 @@ function tap(backend) {
     const seen = [];
     adapter.execute = function (conn, sql, bindings, cb) {
         seen.push({ sql: sql, bindings: bindings });
+        // 골격만 뽑는 문장인지, 자식까지 한 문장으로 끝내는 예전 경로인지
+        // 가른다. 둘 다 `with recursive skel` 로 시작하므로 꼬리를 봐야 한다.
+        // 골격 문장은 `... sk_ri, sk_lvl from skel` 로 끝난다.
+        if (/from skel\s*$/i.test(sql)) { return cb(null, skeleton.slice()); }
+        // limit / offset 을 DB 가 하듯 적용한다. offset 을 무시하면 2페이지가
+        // 1페이지와 같아져서 페이징 결함을 못 잡는다.
         const lim = /limit (\d+)/i.exec(sql);
-        const ofs = /offset (\d+)/i.exec(sql);
-        let rows = ALL.slice();
-        if (ofs) { rows = rows.slice(parseInt(ofs[1], 10)); }
+        const off = /offset (\d+)/i.exec(sql);
+        let rows = opts.children ? opts.children(bindings, sql) : ALL.slice();
+
+        // 오프셋 소진용 경계 있는 count. 안쪽 limit 이 경계다.
+        if (/count\(\*\) as n/i.test(sql)) {
+            const cap = lim ? parseInt(lim[1], 10) : rows.length;
+            return cb(null, [{ n: Math.min(rows.length, cap) }]);
+        }
+
+        // **두 경로에 서로 다른 순서를 준다.** 실제 DB 가 그렇기 때문이다 —
+        // 배치 경로는 range 접근이라 pi 오름차순이고, 예전 한 문장은 조인
+        // 순서다. 여기서 같은 순서를 주면 "경로가 갈려 페이지가 어긋나는"
+        // 결함을 테스트가 못 잡는다. 실제로 그 결함이 배포까지 나갔다.
+        if (/with recursive skel as/i.test(sql)) { rows = rows.slice().reverse(); }
+
+        if (off) { rows = rows.slice(parseInt(off[1], 10)); }
         if (lim) { rows = rows.slice(0, parseInt(lim[1], 10)); }
         cb(null, rows);
     };
@@ -64,8 +108,44 @@ function guard(done, fn) {
     };
 }
 
-// 골격 CTE 가 끝나는 지점. SQL 을 골격/바깥으로 가르는 데 쓴다.
+// 골격 CTE 의 마지막 select 가 시작되는 지점. 골격 문장을 재귀부/꼬리로
+// 가르는 데 쓴다.
 const SKEL_END = ')\nselect';
+
+// 경로가 둘이라 문장 모양이 셋이다. 어느 것을 보는지 이름으로 밝힌다.
+//
+//   골격 문장    `with recursive skel ... sk_ri, sk_lvl from skel`   (배치 경로)
+//   자식 문장    `... where r.pi in (:p0, ...)`                      (배치 경로)
+//   단일 문장    `with recursive skel ... join skel s on r.pi = ...` (ofst / la)
+//
+// ofst 나 la 가 있으면 배치 경로를 쓰지 않으므로 골격/자식 문장이 아예 없다.
+const isSkel = (s) => /from skel\s*$/i.test(s.sql);
+const isChild = (s) => /r\.pi in \(/i.test(s.sql);
+const isOneShot = (s) => /with recursive skel as/i.test(s.sql) && !isSkel(s);
+function skelStmt(seen) {
+    const s = seen.filter(isSkel)[0];
+    assert.ok(s, '골격 질의가 없다');
+    return s;
+}
+function childStmt(seen) {
+    const s = seen.filter(isChild)[0];
+    assert.ok(s, '자식 질의가 없다');
+    return s;
+}
+function oneShotStmt(seen) {
+    const s = seen.filter(isOneShot)[0];
+    assert.ok(s, '단일 문장 질의가 없다 (ofst / la 는 예전 경로를 써야 한다)');
+    return s;
+}
+const allSql = (seen) => seen.map((s) => s.sql).join('\n');
+const allBindings = (seen) => seen.reduce((a, s) => a.concat(s.bindings), []);
+
+// 자식 질의 하나가 받은 부모 수. IN 목록의 자리표를 센다.
+function parentCount(sql) {
+    const m = /r\.pi in \(([^)]*)\)/.exec(sql);
+    assert.ok(m, 'r.pi in (...) 이 없다: ' + sql);
+    return m[1].split(',').length;
+}
 
 // 옛 시그니처를 그대로 쓴다 (resource.js 호출부와 같은 형태).
 function run(t, query, cb, root) {
@@ -76,15 +156,20 @@ function run(t, query, cb, root) {
         });
 }
 
-// --- 1) 왕복이 한 번인가 -----------------------------------------------------
+// --- 1) 왕복은 부모 수에 비례하지 않는다 -------------------------------------
+//
+// 이 테스트는 "부모마다 던지던 시절" 로의 회귀를 막으려고 있다.
+// 이제 왕복은 **1(골격) + ceil(부모수 / 4000)** 회다. 보통 요청은 2회다.
 
-test('discovery 는 질의를 한 번만 던진다', function (t, done) {
+test('discovery 는 골격 1회 + 배치 수만큼만 던진다', function (t, done) {
     const h = tap('mysql');
     run(h, { ty: '3', lim: 20 }, guard(done, function (code, ris, seen) {
         assert.strictEqual(code, '200');
-        assert.strictEqual(seen.length, 1,
+        // 부모 6개는 배치 하나다 -> 골격 1 + 자식 1
+        assert.strictEqual(seen.length, 2,
             '부모마다 던지던 시절로 돌아갔다: ' + seen.length + '회');
-        assert.match(seen[0].sql, /with recursive skel as/i);
+        assert.match(seen[0].sql, /with recursive skel as/i, '첫 질의가 골격이 아니다');
+        assert.ok(!isSkel(seen[1]), '둘째 질의가 자식이 아니다');
         done();
     }));
 });
@@ -102,7 +187,7 @@ test('discovery 는 질의를 한 번만 던진다', function (t, done) {
 test('골격 재귀는 UNION 분기를 하나만 만든다', function (t, done) {
     const h = tap('mysql');
     run(h, { ty: '3', lim: 20 }, guard(done, function (code, ris, seen) {
-        const sql = seen[0].sql;
+        const sql = skelStmt(seen).sql;
         const skel = sql.slice(0, sql.indexOf(SKEL_END));
         assert.strictEqual((skel.match(/union/gi) || []).length, 1,
             '분기가 하나가 아니다 — 타입마다 분기하던 시절로 돌아갔다');
@@ -113,7 +198,8 @@ test('골격 재귀는 UNION 분기를 하나만 만든다', function (t, done) 
 test('골격 조건에 범위나 IN 이 들어가지 않는다', function (t, done) {
     const h = tap('mysql');
     run(h, { ty: '3', lim: 20 }, guard(done, function (code, ris, seen) {
-        const skel = seen[0].sql.slice(0, seen[0].sql.indexOf(SKEL_END));
+        const sql = skelStmt(seen).sql;
+        const skel = sql.slice(0, sql.indexOf(SKEL_END));
         assert.ok(!/l\.ty\s+in\s*\(/i.test(skel), '재귀항에 ty IN (...) 이 있다');
         assert.ok(!/l\.ty\s*[<>]\s*\d/.test(skel),
             '재귀항에 ty 범위 조건이 있다 — MySQL 은 재귀 안에서 range 를 못 쓴다');
@@ -122,12 +208,26 @@ test('골격 조건에 범위나 IN 이 들어가지 않는다', function (t, do
     }));
 });
 
+test('골격은 sk_ri / sk_lvl 만 내보낸다', function (t, done) {
+    // 자식은 별도 문장이 이 목록을 pi IN (...) 으로 받는다.
+    const h = tap('mysql');
+    run(h, { ty: '3', lim: 20 }, guard(done, function (code, ris, seen) {
+        const sql = skelStmt(seen).sql;
+        assert.match(sql, /\*\/ sk_ri, sk_lvl from skel$/,
+            '골격 꼬리가 sk_ri, sk_lvl 이 아니다: ' + sql);
+        assert.ok(!/from lookup r/.test(sql), '골격 문장에 자식 질의가 붙어 있다');
+        assert.ok(!/limit/i.test(sql), '골격에 limit 이 붙었다 — 골격은 자르지 않는다');
+        done();
+    }));
+});
+
 test('SQLite 는 가상 컬럼 없이 조건을 그대로 쓴다', function (t, done) {
     const h = tap('sqlite');
     run(h, { ty: '3', lim: 20 }, guard(done, function (code, ris, seen) {
-        const skel = seen[0].sql.slice(0, seen[0].sql.indexOf(SKEL_END));
+        const sql = skelStmt(seen).sql;
+        const skel = sql.slice(0, sql.indexOf(SKEL_END));
         // SQLite 에는 INVISIBLE 컬럼이 없어 not_cin 을 만들면 select * 에 샌다.
-        assert.ok(!/not_cin/.test(seen[0].sql), 'SQLite 에 not_cin 이 들어갔다');
+        assert.ok(!/not_cin/.test(allSql(seen)), 'SQLite 에 not_cin 이 들어갔다');
         assert.match(skel, /where l\.ty <> 4/);
         assert.strictEqual((skel.match(/union/gi) || []).length, 1);
         done();
@@ -148,10 +248,24 @@ test('ofst 없이 전체를 받는다', function (t, done) {
     }));
 });
 
-test('ofst 는 SQL 에 한 번만, 전역으로 붙는다', function (t, done) {
+test('ofst 가 있어도 배치 경로를 쓴다 — 경로가 갈리면 페이지가 어긋난다', function (t, done) {
+    // **이 테스트가 막는 결함.** 한때 ofst 가 있으면 예전 한 문장으로 보냈다.
+    // 그러면 같은 페이징의 1페이지(ofst 없음)와 2페이지(ofst 있음)가 서로 다른
+    // 경로를 타고, 두 경로는 행 순서가 다르다 — 배치는 range 접근이라 pi
+    // 오름차순이고 예전 경로는 조인 순서다. offset N 이 1페이지가 준 것과 다른
+    // N 건을 건너뛴다.
+    //
+    // 배포 실측(2026-09-01): ty=3 자손 2,806건을 페이징으로 모으니 2,558건에
+    // 중복 248건이었다. 248건이 조용히 빠졌다.
     const h = tap('mysql');
     run(h, { ty: '3', lim: 20, ofst: 6 }, guard(done, function (code, ris, seen) {
-        assert.strictEqual((seen[0].sql.match(/offset/gi) || []).length, 1);
+        assert.ok(seen.some(isChild),
+            'ofst 요청이 배치 경로를 안 썼다 — 페이지 순서가 갈린다');
+        assert.ok(!seen.some(isOneShot),
+            'ofst 요청이 예전 한 문장으로 갔다 — 1페이지와 순서가 어긋난다');
+        // 오프셋은 DB 가 건너뛴다. JS 가 앞을 버리면 버릴 행까지 실어 온다.
+        assert.ok(!/limit 26/.test(allSql(seen)),
+            '한도가 (오프셋 + 한도) 로 부풀었다: ' + allSql(seen));
         assert.strictEqual(ris.length, 14, 'ofst=6 이면 14건: ' + ris.length);
         assert.deepStrictEqual(ris, ALL.slice(6).map((r) => r.ri));
         done();
@@ -159,10 +273,10 @@ test('ofst 는 SQL 에 한 번만, 전역으로 붙는다', function (t, done) {
 });
 
 test('부모가 가진 자식보다 큰 ofst 도 정상 동작한다', function (t, done) {
-    // 부모당 자식은 4개뿐이다. 예전 구현에서 ofst=10 은 전부 0건을 만들었다.
     const h = tap('mysql');
     run(h, { ty: '3', lim: 20, ofst: 10 }, guard(done, function (code, ris) {
-        assert.strictEqual(ris.length, 10, 'ofst=10 이면 10건 (예전엔 0건): ' + ris.length);
+        assert.strictEqual(ris.length, 10, 'ofst=10 이면 10건: ' + ris.length);
+        assert.deepStrictEqual(ris, ALL.slice(10).map((r) => r.ri));
         done();
     }));
 });
@@ -174,16 +288,56 @@ test('페이지가 겹치지 않는다', function (t, done) {
         run(b, { ty: '3', lim: 7, ofst: 7 }, guard(done, function (c2, p2) {
             assert.deepStrictEqual(p1, ALL.slice(0, 7).map((r) => r.ri));
             assert.deepStrictEqual(p2, ALL.slice(7, 14).map((r) => r.ri));
-            assert.strictEqual(p1.filter((x) => p2.indexOf(x) !== -1).length, 0, '두 페이지가 겹친다');
+            assert.strictEqual(p1.filter((x) => p2.indexOf(x) !== -1).length, 0,
+                '두 페이지가 겹친다');
             done();
         }));
     }));
 });
 
-test('ofst 가 0 이면 offset 절을 붙이지 않는다', function (t, done) {
+// **이 테스트가 배포에서 터진 결함을 잡는다.**
+//
+// 페이지를 끝까지 넘겨 모은 결과가 전체 집합과 정확히 같아야 한다. 한 건이라도
+// 겹치거나 빠지면 실패한다. 배포 실측(2026-09-01)으로 ty=3 자손 2,806건이
+// 2,558건 + 중복 248건으로 나왔던 것이 바로 이 조건 위반이다.
+//
+// 원인은 ofst 유무로 경로가 갈린 것이었다. 경로마다 행 순서가 달라
+// offset N 이 앞 페이지가 준 것과 다른 N 건을 건너뛰었다.
+test('끝까지 페이지를 넘기면 전체와 정확히 일치한다 (겹침도 누락도 없다)', function (t, done) {
+    const PAGE = 3;
+    const expected = ALL.map((r) => r.ri);
+    const got = [];
+    const seenSet = new Set();
+    let dup = 0;
+
+    function page(ofst) {
+        const h = tap('mysql');
+        run(h, { ty: '3', lim: PAGE, ofst: ofst }, guard(done, function (code, ris) {
+            assert.strictEqual(code, '200');
+            ris.forEach((x) => {
+                if (seenSet.has(x)) { dup++; }
+                seenSet.add(x);
+                got.push(x);
+            });
+            // 한도를 못 채웠으면 마지막 페이지다.
+            if (ris.length < PAGE || ofst + ris.length >= expected.length + PAGE) {
+                assert.strictEqual(dup, 0, '페이지가 겹친다: 중복 ' + dup + '건');
+                assert.deepStrictEqual(got, expected,
+                    '모은 결과가 전체와 다르다 — ' + got.length + '건 / 정답 ' +
+                    expected.length + '건');
+                return done();
+            }
+            page(ofst + ris.length);
+        }));
+    }
+    page(0);
+});
+
+test('ofst 가 0 이면 배치 경로를 쓰고 한도가 그대로 lim 이다', function (t, done) {
     const h = tap('mysql');
     run(h, { ty: '3', lim: 20, ofst: 0 }, guard(done, function (code, ris, seen) {
-        assert.ok(!/offset/i.test(seen[0].sql), 'ofst=0 에 offset 절이 붙었다');
+        assert.ok(!/offset/i.test(allSql(seen)), 'offset 절이 붙었다');
+        assert.match(childStmt(seen).sql, /limit 20$/, childStmt(seen).sql);
         done();
     }));
 });
@@ -192,12 +346,20 @@ test('ofst 가 0 이면 offset 절을 붙이지 않는다', function (t, done) {
 //
 // 골격 루트가 sk_lvl=0 이고 그 자식이 결과 depth 1 이다.
 // lvl=N 이면 결과는 depth N 까지 -> 부모는 sk_lvl <= N-1 까지만 필요하다.
+//
+// 이제 상한은 두 곳에서 걸린다:
+//   - 재귀 분기의 `s.sk_lvl < max_lvl` 가 골격이 더 깊이 내려가는 것을 막고
+//   - 마지막 한 레벨은 search_lookup 이 부모 목록에서 JS 로 걷어낸다
+// (골격 문장은 sk_lvl 을 그대로 내보내므로 바깥 where 가 없다.)
+// SKEL_ROWS 는 레벨별로 1 / 2 / 2 / 1 개다.
 
 test('lvl=1 이면 재귀 분기를 아예 만들지 않는다', function (t, done) {
     const h = tap('mysql');
     run(h, { ty: '3', lim: 20, lvl: '1' }, guard(done, function (code, ris, seen) {
-        assert.ok(!/union/i.test(seen[0].sql), 'lvl=1 인데 재귀 분기가 있다');
-        assert.ok(/s\.sk_lvl <= 0/.test(seen[0].sql), 'sk_lvl <= 0 이 없다');
+        assert.ok(!/union/i.test(skelStmt(seen).sql), 'lvl=1 인데 재귀 분기가 있다');
+        // max_lvl=0 -> 루트만 부모다
+        assert.strictEqual(parentCount(childStmt(seen).sql), 1,
+            'sk_lvl=0 만 남기지 않았다');
         done();
     }));
 });
@@ -205,8 +367,10 @@ test('lvl=1 이면 재귀 분기를 아예 만들지 않는다', function (t, do
 test('lvl=3 이면 골격을 2레벨까지만 훑는다', function (t, done) {
     const h = tap('mysql');
     run(h, { ty: '3', lim: 20, lvl: '3' }, guard(done, function (code, ris, seen) {
-        assert.ok(/s\.sk_lvl < 2/.test(seen[0].sql), '재귀 상한이 없다');
-        assert.ok(/s\.sk_lvl <= 2/.test(seen[0].sql), '결과 깊이 상한이 없다');
+        assert.ok(/s\.sk_lvl < 2/.test(skelStmt(seen).sql), '재귀 상한이 없다');
+        // max_lvl=2 -> sk_lvl 0,1,1,2,2 다섯 개가 부모다 (sk_lvl=3 은 빠진다)
+        assert.strictEqual(parentCount(childStmt(seen).sql), 5,
+            '결과 깊이 상한이 부모 목록에 반영되지 않았다');
         done();
     }));
 });
@@ -214,8 +378,9 @@ test('lvl=3 이면 골격을 2레벨까지만 훑는다', function (t, done) {
 test('lvl 이 없으면 깊이 상한을 걸지 않는다', function (t, done) {
     const h = tap('mysql');
     run(h, { ty: '3', lim: 20 }, guard(done, function (code, ris, seen) {
-        assert.ok(!/sk_lvl <=/.test(seen[0].sql), 'lvl 없이 깊이 상한이 붙었다');
-        assert.ok(!/sk_lvl </.test(seen[0].sql), 'lvl 없이 재귀 상한이 붙었다');
+        assert.ok(!/sk_lvl </.test(skelStmt(seen).sql), 'lvl 없이 재귀 상한이 붙었다');
+        assert.strictEqual(parentCount(childStmt(seen).sql), SKEL_ROWS.length,
+            'lvl 없이 부모가 걸러졌다');
         done();
     }));
 });
@@ -237,11 +402,16 @@ test('descendant_max_lvl 이 lvl-1 을 준다', function () {
 // 컨테이너가 404 -> 수정 후 200). ct 는 초 단위라 ri 를 타이브레이커로 쓴다.
 
 test('la 는 ct desc, ri desc 로 정렬해 N건을 뽑는다', function (t, done) {
+    // la 는 **전역** 정렬이라 배치로 나눌 수 없다 — 조기 종료를 못 하고
+    // 모든 배치 결과를 메모리에 쌓아 다시 정렬해야 해서 왕복만 늘고 이득이
+    // 없다. 그래서 예전 한 문장을 그대로 쓴다.
     const h = tap('mysql');
     run(h, { la: '5' }, guard(done, function (code, ris, seen) {
-        assert.match(seen[0].sql, /order by r\.ct desc, r\.ri desc/i);
-        assert.match(seen[0].sql, /limit 5/i);
-        assert.ok(!/[0-9]+ minutes|between/i.test(seen[0].sql), '시간 창 재시도가 남아 있다');
+        const sql = oneShotStmt(seen).sql;
+        assert.match(sql, /order by r\.ct desc, r\.ri desc/i);
+        assert.match(sql, /limit 5/i);
+        assert.ok(!/[0-9]+ minutes|between/i.test(sql), '시간 창 재시도가 남아 있다');
+        // 한 문장이다. 부모마다 창을 넓혀 가며 재시도하지 않는다.
         assert.strictEqual(seen.length, 1, 'la 가 여러 번 질의한다: ' + seen.length);
         done();
     }));
@@ -252,14 +422,16 @@ test('la 는 ct desc, ri desc 로 정렬해 N건을 뽑는다', function (t, don
 test('MySQL 은 콜레이션 / 인덱스 강제 / 문장 타임아웃을 붙인다', function (t, done) {
     const h = tap('mysql');
     run(h, { ty: '3', lim: 20 }, guard(done, function (code, ris, seen) {
-        const sql = seen[0].sql;
         // lookup.pi 는 utf8mb3_general_ci, lookup.ri 는 utf8mb3_bin 이다.
         // 명시하지 않으면 ER_CANT_AGGREGATE_2COLLATIONS 로 죽는다.
-        assert.match(sql, /collate utf8mb3_general_ci/);
+        assert.match(skelStmt(seen).sql, /collate utf8mb3_general_ci/);
         // PRIMARY(pi, ri, ty) 를 고르면 ty 가 범위에서 빠져 부모마다 CIN 을
         // 전부 읽는다 (배포 서버 실측: lbl 필터가 60초 초과 -> 강제 시 840ms).
-        assert.match(sql, /force index \(idx_lookup_pi_ty_ct\)/);
-        assert.match(sql, /MAX_EXECUTION_TIME\(\d+\)/);
+        assert.match(childStmt(seen).sql, /force index \(idx_lookup_pi_ty_ct\)/);
+        // 상한은 **두 문장 모두** 걸려야 한다. 하나만 걸면 나머지가 커넥션을
+        // 무제한으로 붙잡는다.
+        assert.match(skelStmt(seen).sql, /MAX_EXECUTION_TIME\(\d+\)/);
+        assert.match(childStmt(seen).sql, /MAX_EXECUTION_TIME\(\d+\)/);
         done();
     }));
 });
@@ -279,15 +451,15 @@ test('MySQL 은 콜레이션 / 인덱스 강제 / 문장 타임아웃을 붙인�
 test('재귀항에도 인덱스를 고정한다', function (t, done) {
     const h = tap('mysql');
     run(h, { ty: '3', lim: 20 }, guard(done, function (code, ris, seen) {
-        const sql = seen[0].sql;
-        const skel = sql.slice(0, sql.indexOf(')\nselect'));
-        // 재귀항은 (pi, not_cin), 바깥 질의는 (pi, ty, ct) 를 쓴다
+        const sql = skelStmt(seen).sql;
+        const skel = sql.slice(0, sql.indexOf(SKEL_END));
+        // 재귀항은 (pi, not_cin), 자식 질의는 (pi, ty, ct) 를 쓴다
         assert.match(skel, /from lookup l force index \(idx_lookup_pi_notcin\)/,
             '재귀항에 인덱스가 고정되지 않았다');
         assert.ok(!/from lookup l join/.test(skel), '힌트 없는 재귀 분기가 있다');
-        assert.match(sql.slice(sql.indexOf(')\nselect')),
+        assert.match(childStmt(seen).sql,
             /from lookup r force index \(idx_lookup_pi_ty_ct\)/,
-            '바깥 질의에 인덱스가 고정되지 않았다');
+            '자식 질의에 인덱스가 고정되지 않았다');
         done();
     }));
 });
@@ -313,10 +485,14 @@ test('골격이 쓰는 인덱스와 컬럼이 스키마에 선언돼 있다', fu
 test('해시 조인 금지 힌트를 붙인다', function (t, done) {
     const h = tap('mysql');
     run(h, { ty: '3', lim: 20 }, guard(done, function (code, ris, seen) {
-        assert.match(seen[0].sql, /NO_HASH_JOIN\(l, s\)/,
+        const sql = skelStmt(seen).sql;
+        assert.match(sql, /NO_HASH_JOIN\(l, s\)/,
             '해시 조인 금지 힌트가 없다 — 희소 타입 분기에서 반복마다 해시를 새로 만든다');
         // 힌트 두 개가 한 주석 안에 들어가야 한다
-        assert.match(seen[0].sql, /\/\*\+ MAX_EXECUTION_TIME\(\d+\) NO_HASH_JOIN\(l, s\) \*\//);
+        assert.match(sql, /\/\*\+ MAX_EXECUTION_TIME\(\d+\) NO_HASH_JOIN\(l, s\) \*\//);
+        // l / s 는 골격에만 있는 별칭이다. 자식 질의에 붙이면 뜻이 없다.
+        assert.ok(!/NO_HASH_JOIN/.test(childStmt(seen).sql),
+            '자식 질의에 골격 별칭 힌트가 붙었다');
         done();
     }));
 });
@@ -324,11 +500,9 @@ test('해시 조인 금지 힌트를 붙인다', function (t, done) {
 test('lvl=1 이면 재귀항이 없으니 힌트도 골격에 없다', function (t, done) {
     const h = tap('mysql');
     run(h, { ty: '3', lim: 20, lvl: '1' }, guard(done, function (code, ris, seen) {
-        const sql = seen[0].sql;
-        const skel = sql.slice(0, sql.indexOf(')\nselect'));
-        assert.ok(!/force index/.test(skel), 'lvl=1 인데 골격에 힌트가 붙었다');
-        // 바깥 질의에는 여전히 붙어야 한다
-        assert.match(sql.slice(sql.indexOf(')\nselect')), /force index \(idx_lookup_pi_ty_ct\)/);
+        assert.ok(!/force index/.test(skelStmt(seen).sql), 'lvl=1 인데 골격에 힌트가 붙었다');
+        // 자식 질의에는 여전히 붙어야 한다
+        assert.match(childStmt(seen).sql, /force index \(idx_lookup_pi_ty_ct\)/);
         done();
     }));
 });
@@ -336,7 +510,7 @@ test('lvl=1 이면 재귀항이 없으니 힌트도 골격에 없다', function 
 test('SQLite 는 MySQL 전용 문법을 붙이지 않는다', function (t, done) {
     const h = tap('sqlite');
     run(h, { ty: '3', lim: 20 }, guard(done, function (code, ris, seen) {
-        const sql = seen[0].sql;
+        const sql = allSql(seen);
         assert.ok(!/collate/i.test(sql), 'SQLite 에 콜레이션이 붙었다: ' + sql);
         assert.ok(!/force index/i.test(sql), 'SQLite 에 force index 가 붙었다');
         assert.ok(!/MAX_EXECUTION_TIME/i.test(sql), 'SQLite 에 MySQL 힌트가 붙었다');
@@ -345,7 +519,7 @@ test('SQLite 는 MySQL 전용 문법을 붙이지 않는다', function (t, done)
     }));
 });
 
-test('두 백엔드가 같은 CTE 골격을 만든다', function (t, done) {
+test('두 백엔드가 같은 문장 두 개를 만든다', function (t, done) {
     const m = tap('mysql');
     run(m, { ty: '3', lim: 20 }, guard(done, function (c1, r1, s1) {
         const q = tap('sqlite');
@@ -357,7 +531,8 @@ test('두 백엔드가 같은 CTE 골격을 만든다', function (t, done) {
                 .replace(/ force index \([^)]*\)/g, '')
                 .replace(/\/\*\+ [^*]*\*\/ /g, '')
                 .replace(/l\.not_cin = 1|l\.ty <> 4/g, '<NOT_CIN>');
-            assert.strictEqual(strip(s1[0].sql), strip(s2[0].sql),
+            assert.strictEqual(s1.length, s2.length, '문장 수가 다르다');
+            assert.strictEqual(strip(allSql(s1)), strip(allSql(s2)),
                 '방언 조각을 뺀 SQL 이 서로 다르다');
             done();
         }));
@@ -375,11 +550,12 @@ test('lbl 패턴이 대괄호에 붙어 있지 않다', function (t, done) {
     const h = tap('mysql');
     run(h, { lbl: 'tagX', lim: 20 }, guard(done, function (code, ris, seen) {
         // 패턴은 이제 **바인딩 값**이다. SQL 에는 자리표만 남는다.
-        assert.match(seen[0].sql, /lbl like \?/, 'lbl 이 바인딩이 아니다: ' + seen[0].sql);
-        const pat = seen[0].bindings.filter(function (v) {
+        const c = childStmt(seen);
+        assert.match(c.sql, /lbl like \?/, 'lbl 이 바인딩이 아니다: ' + c.sql);
+        const pat = c.bindings.filter(function (v) {
             return typeof v === 'string' && v.indexOf('tagX') >= 0;
         })[0];
-        assert.ok(pat, 'lbl 패턴이 바인딩에 없다: ' + JSON.stringify(seen[0].bindings));
+        assert.ok(pat, 'lbl 패턴이 바인딩에 없다: ' + JSON.stringify(c.bindings));
         assert.ok(pat.indexOf('[') !== 0,
             'lbl 패턴이 대괄호로 시작한다 — 들여쓴 JSON 을 못 맞춘다: ' + pat);
         assert.strictEqual(pat, '%"%tagX%"%');
@@ -394,7 +570,7 @@ test('lbl 패턴이 대괄호에 붙어 있지 않다', function (t, done) {
 test('라벨이 여러 개면 OR 그룹을 괄호로 묶는다', function (t, done) {
     const h = tap('mysql');
     run(h, { lbl: ['a', 'b'], ty: '3', lim: 20 }, guard(done, function (code, ris, seen) {
-        const sql = seen[0].sql;
+        const sql = childStmt(seen).sql;
         const m = /and\s+\(([^)]*lbl like[^)]*)\)/i.exec(sql);
         assert.ok(m, '라벨 OR 그룹에 괄호가 없다: ' + sql);
         assert.ok(/ or /.test(m[1]), '괄호 안에 or 가 없다: ' + m[1]);
@@ -406,9 +582,10 @@ test('라벨이 여러 개면 OR 그룹을 괄호로 묶는다', function (t, do
 test('라벨이 하나면 괄호를 만들지 않는다', function (t, done) {
     const h = tap('mysql');
     run(h, { lbl: 'a', ty: '3', lim: 20 }, guard(done, function (code, ris, seen) {
-        assert.match(seen[0].sql, /and lbl like \?/, seen[0].sql);
-        assert.ok(seen[0].bindings.indexOf('%"%a%"%') >= 0,
-            '라벨 패턴이 바인딩에 없다: ' + JSON.stringify(seen[0].bindings));
+        const c = childStmt(seen);
+        assert.match(c.sql, /and lbl like \?/, c.sql);
+        assert.ok(c.bindings.indexOf('%"%a%"%') >= 0,
+            '라벨 패턴이 바인딩에 없다: ' + JSON.stringify(c.bindings));
         done();
     }));
 });
@@ -423,14 +600,14 @@ test('라벨이 하나면 괄호를 만들지 않는다', function (t, done) {
 test('sza 를 주면 cin 을 조인하고 c.cs 로 비교한다', function (t, done) {
     const h = tap('mysql');
     run(h, { ty: '4', sza: 10, lim: 20 }, guard(done, function (code, ris, seen) {
-        const sql = seen[0].sql;
-        assert.match(sql, /join cin c on c\.pi = r\.pi and c\.ri = r\.ri/,
+        const c = childStmt(seen);
+        assert.match(c.sql, /join cin c on c\.pi = r\.pi and c\.ri = r\.ri/,
             'cin 조인이 없다');
         // 크기는 바인딩이고, 비교 대상은 반드시 **별칭 붙은** c.cs 여야 한다.
         // lookup 에는 cs 컬럼이 없어 별칭을 빼면 SQL 준비 단계에서 깨진다.
-        assert.match(sql, /\? <= c\.cs/, 'cs 를 별칭 없이 쓰거나 값을 인라인했다: ' + sql);
-        assert.ok(seen[0].bindings.indexOf(10) >= 0,
-            'sza 가 수로 바인딩되지 않았다: ' + JSON.stringify(seen[0].bindings));
+        assert.match(c.sql, /\? <= c\.cs/, 'cs 를 별칭 없이 쓰거나 값을 인라인했다: ' + c.sql);
+        assert.ok(c.bindings.indexOf(10) >= 0,
+            'sza 가 수로 바인딩되지 않았다: ' + JSON.stringify(c.bindings));
         done();
     }));
 });
@@ -439,17 +616,17 @@ test('szb / cty 도 마찬가지다', function (t, done) {
     const h = tap('mysql');
     run(h, { ty: '4', szb: 100, cty: 'application/json:0', lim: 20 },
         guard(done, function (code, ris, seen) {
-            const sql = seen[0].sql;
-            assert.strictEqual((sql.match(/join cin c/g) || []).length, 1,
+            const c = childStmt(seen);
+            assert.strictEqual((c.sql.match(/join cin c/g) || []).length, 1,
                 'cin 을 두 번 조인한다');
-            assert.match(sql, /c\.cs < \?/, sql);
-            assert.match(sql, /c\.cnf = \?/, sql);
-            assert.ok(seen[0].bindings.indexOf(100) >= 0, 'szb 가 수로 안 왔다');
-            assert.ok(seen[0].bindings.indexOf('application/json:0') >= 0,
-                'cty 가 바인딩에 없다: ' + JSON.stringify(seen[0].bindings));
+            assert.match(c.sql, /c\.cs < \?/, c.sql);
+            assert.match(c.sql, /c\.cnf = \?/, c.sql);
+            assert.ok(c.bindings.indexOf(100) >= 0, 'szb 가 수로 안 왔다');
+            assert.ok(c.bindings.indexOf('application/json:0') >= 0,
+                'cty 가 바인딩에 없다: ' + JSON.stringify(c.bindings));
             // 값이 SQL 에 남아 있으면 안 된다.
-            assert.strictEqual(sql.indexOf('application/json:0'), -1,
-                'cty 값이 SQL 에 인라인됐다: ' + sql);
+            assert.strictEqual(allSql(seen).indexOf('application/json:0'), -1,
+                'cty 값이 SQL 에 인라인됐다: ' + c.sql);
             done();
         }));
 });
@@ -457,7 +634,7 @@ test('szb / cty 도 마찬가지다', function (t, done) {
 test('셋 다 없으면 cin 을 조인하지 않는다', function (t, done) {
     const h = tap('mysql');
     run(h, { ty: '3', lbl: 'x', rn: 'y', lim: 20 }, guard(done, function (code, ris, seen) {
-        assert.ok(!/join cin/.test(seen[0].sql), '필요 없는데 cin 을 조인한다');
+        assert.ok(!/join cin/.test(allSql(seen)), '필요 없는데 cin 을 조인한다');
         done();
     }));
 });
@@ -469,11 +646,12 @@ test('셋 다 없으면 cin 을 조인하지 않는다', function (t, done) {
 test('SQLite 는 cs 를 수로 캐스팅한다', function (t, done) {
     const h = tap('sqlite');
     run(h, { ty: '4', sza: 10, lim: 20 }, guard(done, function (code, ris, seen) {
-        assert.match(seen[0].sql, /\? <= CAST\(c\.cs AS INTEGER\)/,
+        const c = childStmt(seen);
+        assert.match(c.sql, /\? <= CAST\(c\.cs AS INTEGER\)/,
             'SQLite 에서 캐스팅 없이 비교하면 필터가 아무 일도 안 한다');
-        assert.ok(seen[0].bindings.indexOf(10) >= 0,
+        assert.ok(c.bindings.indexOf(10) >= 0,
             'sza 가 수로 바인딩되지 않았다 — 문자열이면 캐스팅해도 비교가 어긋난다: ' +
-            JSON.stringify(seen[0].bindings));
+            JSON.stringify(c.bindings));
         done();
     }));
 });
@@ -481,7 +659,7 @@ test('SQLite 는 cs 를 수로 캐스팅한다', function (t, done) {
 test('MySQL 은 캐스팅하지 않는다 (이미 int 다)', function (t, done) {
     const h = tap('mysql');
     run(h, { ty: '4', sza: 10, lim: 20 }, guard(done, function (code, ris, seen) {
-        assert.ok(!/CAST\(c\.cs/.test(seen[0].sql), '불필요한 캐스팅이 붙었다');
+        assert.ok(!/CAST\(c\.cs/.test(allSql(seen)), '불필요한 캐스팅이 붙었다');
         done();
     }));
 });
@@ -504,7 +682,7 @@ test('needs_cin_join 이 셋을 정확히 가린다', function () {
 test('크기·형식 필터가 있으면 ty=4 를 명시한다', function (t, done) {
     const h = tap('mysql');
     run(h, { sza: 10, lim: 20 }, guard(done, function (code, ris, seen) {
-        assert.match(seen[0].sql, /where 1 = 1 and r\.ty = '4'/,
+        assert.match(childStmt(seen).sql, /\) and r\.ty = '4'/,
             "ty=4 를 안 박으면 인덱스가 CIN 만 집어내지 못한다");
         done();
     }));
@@ -513,7 +691,7 @@ test('크기·형식 필터가 있으면 ty=4 를 명시한다', function (t, do
 test('필터가 없으면 ty=4 를 박지 않는다', function (t, done) {
     const h = tap('mysql');
     run(h, { ty: '3', lim: 20 }, guard(done, function (code, ris, seen) {
-        assert.ok(!/r\.ty = '4'/.test(seen[0].sql), '엉뚱하게 ty=4 가 붙었다');
+        assert.ok(!/r\.ty = '4'/.test(allSql(seen)), '엉뚱하게 ty=4 가 붙었다');
         done();
     }));
 });
@@ -534,7 +712,7 @@ test('ty 가 4 를 안 포함하면 질의를 던지지 않는다', function (t,
 test('ty 에 4 가 섞여 있으면 질의를 던진다', function (t, done) {
     const h = tap('mysql');
     run(h, { ty: ['3', '4'], sza: 10, lim: 20 }, guard(done, function (code, ris, seen) {
-        assert.strictEqual(seen.length, 1, 'ty 에 4 가 있는데 건너뛰었다');
+        assert.strictEqual(seen.length, 2, 'ty 에 4 가 있는데 건너뛰었다');
         done();
     }));
 });
@@ -542,7 +720,7 @@ test('ty 에 4 가 섞여 있으면 질의를 던진다', function (t, done) {
 test('ty 를 안 주면 질의를 던진다 (CIN 도 후보다)', function (t, done) {
     const h = tap('mysql');
     run(h, { sza: 10, lim: 20 }, guard(done, function (code, ris, seen) {
-        assert.strictEqual(seen.length, 1);
+        assert.strictEqual(seen.length, 2);
         done();
     }));
 });
@@ -565,9 +743,9 @@ test('루트 ri 는 바인딩으로 넘어간다', function (t, done) {
     const h = tap('mysql');
     const evil = "/M' or 1=1 --";
     run(h, { ty: '3', lim: 20 }, guard(done, function (code, ris, seen) {
-        // ty 도 이제 바인딩이라 배열이 [루트, ty] 다. 루트가 첫 자리인지 본다.
-        assert.strictEqual(seen[0].bindings[0], evil, '루트 ri 가 첫 바인딩이 아니다');
-        assert.ok(seen[0].sql.indexOf(evil) === -1, 'ri 가 SQL 에 박혔다');
+        // 루트는 골격 질의의 유일한 바인딩이다.
+        assert.strictEqual(skelStmt(seen).bindings[0], evil, '루트 ri 가 첫 바인딩이 아니다');
+        assert.strictEqual(allSql(seen).indexOf(evil), -1, 'ri 가 SQL 에 박혔다');
         done();
     }), evil);
 });
@@ -576,8 +754,11 @@ test('lim / ofst 는 정수로만 들어간다', function (t, done) {
     const h = tap('mysql');
     run(h, { ty: '3', lim: '20; drop table lookup', ofst: '5 union select' },
         guard(done, function (code, ris, seen) {
-            assert.ok(!/drop table|union select/i.test(seen[0].sql),
-                '문자열이 그대로 들어갔다: ' + seen[0].sql);
+            // union 은 골격 CTE 에 정상적으로 있다. 자식 질의만 본다.
+            assert.ok(!/drop table|union select/i.test(childStmt(seen).sql),
+                '문자열이 그대로 들어갔다: ' + childStmt(seen).sql);
+            assert.match(childStmt(seen).sql, /limit 20$/,
+                'lim 이 정수로 잘리지 않았다: ' + childStmt(seen).sql);
             done();
         }));
 });
@@ -596,13 +777,14 @@ test('rn 값에 물음표가 있어도 질의가 나간다', function (t, done) 
     const h = tap('mysql');
     run(h, { rn: 'what?', lim: 10 }, guard(done, function (code, ris, seen) {
         assert.strictEqual(code, '200', '물음표 하나에 500 이 났다');
-        assert.strictEqual(seen.length, 1, '질의가 안 나갔다');
-        assert.match(seen[0].sql, /rn = \?/, '필터가 빠졌다: ' + seen[0].sql);
-        assert.strictEqual(seen[0].bindings[0], '/M', '루트 ri 가 첫 바인딩이 아니다');
-        assert.ok(seen[0].bindings.indexOf('what?') >= 0,
-            'rn 값이 바인딩에 없다: ' + JSON.stringify(seen[0].bindings));
-        assert.strictEqual(seen[0].sql.indexOf('what?'), -1,
-            'rn 값이 SQL 에 인라인됐다: ' + seen[0].sql);
+        assert.strictEqual(seen.length, 2, '질의가 안 나갔다');
+        const c = childStmt(seen);
+        assert.match(c.sql, /rn = \?/, '필터가 빠졌다: ' + c.sql);
+        assert.strictEqual(skelStmt(seen).bindings[0], '/M', '루트 ri 가 첫 바인딩이 아니다');
+        assert.ok(c.bindings.indexOf('what?') >= 0,
+            'rn 값이 바인딩에 없다: ' + JSON.stringify(c.bindings));
+        assert.strictEqual(allSql(seen).indexOf('what?'), -1,
+            'rn 값이 SQL 에 인라인됐다: ' + c.sql);
         done();
     }));
 });
@@ -611,11 +793,11 @@ test('lbl 값에 물음표가 여러 개 있어도 된다', function (t, done) {
     const h = tap('mysql');
     run(h, { lbl: 'a?b?c', ty: '3', lim: 10 }, guard(done, function (code, ris, seen) {
         assert.strictEqual(code, '200');
-        assert.strictEqual(seen[0].bindings[0], '/M');
-        assert.ok(seen[0].bindings.indexOf('%"%a?b?c%"%') >= 0,
-            '라벨 패턴이 바인딩에 없다: ' + JSON.stringify(seen[0].bindings));
-        assert.strictEqual(seen[0].sql.indexOf('a?b?c'), -1,
-            '라벨 값이 SQL 에 인라인됐다: ' + seen[0].sql);
+        assert.strictEqual(skelStmt(seen).bindings[0], '/M');
+        assert.ok(childStmt(seen).bindings.indexOf('%"%a?b?c%"%') >= 0,
+            '라벨 패턴이 바인딩에 없다: ' + JSON.stringify(childStmt(seen).bindings));
+        assert.strictEqual(allSql(seen).indexOf('a?b?c'), -1,
+            '라벨 값이 SQL 에 인라인됐다: ' + childStmt(seen).sql);
         done();
     }));
 });
@@ -623,13 +805,15 @@ test('lbl 값에 물음표가 여러 개 있어도 된다', function (t, done) {
 test('루트 ri 는 이름 바인딩으로 넘어간다', function (t, done) {
     const h = tap('mysql');
     run(h, { ty: '3', lim: 10 }, guard(done, function (code, ris, seen) {
-        // knex 가 :root_ri / :qN 을 위치 자리표로 바꿔 내보낸다
-        assert.ok(seen[0].sql.indexOf(':root_ri') === -1, ':root_ri 가 치환되지 않았다');
-        assert.ok(!/:q\d/.test(seen[0].sql),
-            '필터 이름 바인딩이 치환되지 않았다: ' + seen[0].sql);
-        assert.strictEqual(seen[0].bindings[0], '/M', '루트 ri 가 첫 바인딩이 아니다');
-        // ty 도 바인딩이다. 순서는 SQL 안의 자리표 순서를 따른다.
-        assert.deepStrictEqual(seen[0].bindings, ['/M', '3']);
+        // knex 가 :root_ri / :pN / :qN 을 위치 자리표로 바꿔 내보낸다
+        const sql = allSql(seen);
+        assert.ok(sql.indexOf(':root_ri') === -1, ':root_ri 가 치환되지 않았다');
+        assert.ok(!/:q\d/.test(sql), '필터 이름 바인딩이 치환되지 않았다: ' + sql);
+        assert.ok(!/:p\d/.test(sql), '부모 이름 바인딩이 치환되지 않았다: ' + sql);
+        // 골격은 루트 하나, 자식은 부모들 + ty 다.
+        assert.deepStrictEqual(skelStmt(seen).bindings, ['/M']);
+        assert.deepStrictEqual(childStmt(seen).bindings,
+            SKEL_ROWS.map((r) => r.sk_ri).concat(['3']));
         done();
     }));
 });
@@ -700,11 +884,11 @@ test('그 밖의 DB 오류는 메시지를 남긴다', function (t, done) {
 test('골격 컬럼 이름은 sk_ 접두사를 쓴다', function (t, done) {
     const h = tap('mysql');
     run(h, { ty: '3', lbl: 'status', lim: 20 }, guard(done, function (code, ris, seen) {
-        const sql = seen[0].sql;
-        assert.match(sql, /select ri.* as sk_ri, 0 as sk_lvl/);
-        assert.ok(/lbl like/.test(sql), 'lbl 필터가 빠졌다');
-        // 골격이 내보내는 이름은 sk_ri / sk_lvl 둘뿐이어야 한다.
-        assert.ok(!/skel s on r\.pi = s\.ri\b/.test(sql), '골격이 ri 를 그대로 내보낸다');
+        assert.match(skelStmt(seen).sql, /select ri.* as sk_ri, 0 as sk_lvl/);
+        assert.ok(/lbl like/.test(childStmt(seen).sql), 'lbl 필터가 빠졌다');
+        // 자식 질의는 골격을 조인하지 않는다 — 부모를 값으로 받는다.
+        assert.ok(!/join skel/.test(childStmt(seen).sql),
+            '자식 질의가 아직 골격을 조인한다 — 그러면 ct 가 키 범위에서 빠진다');
         done();
     }));
 });
@@ -720,7 +904,7 @@ test('골격 컬럼 이름은 sk_ 접두사를 쓴다', function (t, done) {
 test('MySQL 은 골격 컬럼에 콜레이션을 붙이고 조인 조건에는 안 붙인다', function (t, done) {
     const h = tap('mysql');
     run(h, { ty: '3', lim: 20 }, guard(done, function (code, ris, seen) {
-        const sql = seen[0].sql;
+        const sql = skelStmt(seen).sql;
         assert.match(sql, /select ri collate utf8mb3_general_ci as sk_ri/,
             '앵커의 골격 컬럼에 콜레이션이 없다');
         assert.match(sql, /select l\.ri collate utf8mb3_general_ci, s\.sk_lvl/,
@@ -745,12 +929,11 @@ test('MySQL 은 골격 컬럼에 콜레이션을 붙이고 조인 조건에는 �
 test('lbl 만 주면 CIN 을 빼고 (pi, not_cin) 을 쓴다', function (t, done) {
     const h = tap('mysql');
     run(h, { lbl: 'status', lim: 10 }, guard(done, function (code, ris, seen) {
-        const sql = seen[0].sql;
-        const outer = sql.slice(sql.indexOf('\n)\n'));
-        assert.ok(/idx_lookup_pi_notcin/.test(outer),
-            '바깥 질의가 (pi, not_cin) 을 안 쓴다: ' + outer);
-        assert.ok(/not_cin = 1/.test(outer), 'CIN 을 빼는 조건이 없다: ' + outer);
-        assert.ok(!/idx_lookup_pi_ty_ct/.test(outer),
+        const child = childStmt(seen).sql;
+        assert.ok(/idx_lookup_pi_notcin/.test(child),
+            '자식 질의가 (pi, not_cin) 을 안 쓴다: ' + child);
+        assert.ok(/r\.not_cin = 1/.test(child), 'CIN 을 빼는 조건이 없다: ' + child);
+        assert.ok(!/idx_lookup_pi_ty_ct/.test(child),
             'ty 인덱스를 쓰면 부모마다 CIN 을 전부 읽는다');
         done();
     }));
@@ -759,9 +942,9 @@ test('lbl 만 주면 CIN 을 빼고 (pi, not_cin) 을 쓴다', function (t, done
 test('ty 를 함께 주면 예전 그대로 (pi, ty, ct) 를 쓴다', function (t, done) {
     const h = tap('mysql');
     run(h, { ty: '3', lbl: 'status', lim: 10 }, guard(done, function (code, ris, seen) {
-        const outer = seen[0].sql.slice(seen[0].sql.indexOf('\n)\n'));
-        assert.ok(/idx_lookup_pi_ty_ct/.test(outer), outer);
-        assert.ok(!/not_cin = 1/.test(outer), 'ty 를 줬는데 CIN 을 뺐다');
+        const child = childStmt(seen).sql;
+        assert.ok(/idx_lookup_pi_ty_ct/.test(child), child);
+        assert.ok(!/r\.not_cin = 1/.test(child), 'ty 를 줬는데 CIN 을 뺐다');
         done();
     }));
 });
@@ -769,8 +952,8 @@ test('ty 를 함께 주면 예전 그대로 (pi, ty, ct) 를 쓴다', function (
 test('lbl 이 없으면 CIN 을 빼지 않는다', function (t, done) {
     const h = tap('mysql');
     run(h, { lim: 10 }, guard(done, function (code, ris, seen) {
-        const outer = seen[0].sql.slice(seen[0].sql.indexOf('\n)\n'));
-        assert.ok(!/not_cin = 1/.test(outer), 'lbl 도 없는데 CIN 을 뺐다: ' + outer);
+        const child = childStmt(seen).sql;
+        assert.ok(!/r\.not_cin = 1/.test(child), 'lbl 도 없는데 CIN 을 뺐다: ' + child);
         done();
     }));
 });
@@ -805,8 +988,8 @@ test('ty 를 주면 skippedCin 이 서지 않는다', function (t, done) {
 test('SQLite 도 같은 뜻을 낸다 (ty <> 4)', function (t, done) {
     const h = tap('sqlite');
     run(h, { lbl: 'status', lim: 10 }, guard(done, function (code, ris, seen) {
-        const outer = seen[0].sql.slice(seen[0].sql.indexOf('\n)\n'));
-        assert.ok(/ty.{0,3}<>.{0,3}4/.test(outer), outer);
+        const child = childStmt(seen).sql;
+        assert.ok(/r\.ty.{0,3}<>.{0,3}4/.test(child), child);
         done();
     }));
 });
@@ -834,18 +1017,18 @@ for (const [key, evil] of FILTERS) {
         q[key] = evil;
         run(h, q, guard(done, function (code, ris, seen) {
             assert.strictEqual(code, '200', key + ' 에 500 이 났다');
-            assert.strictEqual(seen.length, 1, '질의가 안 나갔다');
+            assert.strictEqual(seen.length, 2, '질의가 안 나갔다');
 
-            assert.strictEqual(seen[0].sql.indexOf(evil), -1,
-                key + ' 값이 SQL 에 들어갔다: ' + seen[0].sql);
+            assert.strictEqual(allSql(seen).indexOf(evil), -1,
+                key + ' 값이 SQL 에 들어갔다: ' + allSql(seen));
 
             // 값은 바인딩에 **그대로** 있어야 한다. 이스케이프가 남아 있으면
             // 이중 적용이라 찾는 문자열이 달라진다 (it's -> it''s).
-            const found = seen[0].bindings.some(function (v) {
+            const found = allBindings(seen).some(function (v) {
                 return typeof v === 'string' && v.indexOf(evil) >= 0;
             });
             assert.ok(found, key + ' 값이 바인딩에 원본 그대로 없다 (이중 이스케이프?): ' +
-                JSON.stringify(seen[0].bindings));
+                JSON.stringify(allBindings(seen)));
             done();
         }));
     });
@@ -901,17 +1084,17 @@ test('ty 가 콤마 문자열이어도 값만 분해한다', function (t, done) 
     const h = tap('mysql');
     run(h, { ty: '3,4', lim: 10 }, guard(done, function (code, ris, seen) {
         assert.strictEqual(code, '200');
-        const b = seen[0].bindings;
-        // 루트 ri + ty 두 개. 쉼표가 값으로 들어가면 안 된다.
+        const b = childStmt(seen).bindings;
+        // 부모들 + ty 두 개. 쉼표가 값으로 들어가면 안 된다.
         assert.ok(b.indexOf('3') >= 0, "ty '3' 이 바인딩에 없다: " + JSON.stringify(b));
         assert.ok(b.indexOf('4') >= 0, "ty '4' 가 바인딩에 없다: " + JSON.stringify(b));
         assert.strictEqual(b.indexOf(','), -1,
             '쉼표가 ty 값으로 들어갔다 — 글자 단위로 돌고 있다: ' + JSON.stringify(b));
 
         // ty 절은 정확히 두 개여야 한다.
-        const outer = seen[0].sql.slice(seen[0].sql.indexOf(SKEL_END));
-        assert.strictEqual((outer.match(/ty = \?/g) || []).length, 2,
-            'ty 절 개수가 2가 아니다: ' + outer);
+        const child = childStmt(seen).sql;
+        assert.strictEqual((child.match(/ty = \?/g) || []).length, 2,
+            'ty 절 개수가 2가 아니다: ' + child);
         done();
     }));
 });
@@ -919,7 +1102,7 @@ test('ty 가 콤마 문자열이어도 값만 분해한다', function (t, done) 
 test('ty 가 배열이면 그대로 분해한다', function (t, done) {
     const h = tap('mysql');
     run(h, { ty: ['3', '4'], lim: 10 }, guard(done, function (code, ris, seen) {
-        const b = seen[0].bindings;
+        const b = childStmt(seen).bindings;
         assert.ok(b.indexOf('3') >= 0 && b.indexOf('4') >= 0, JSON.stringify(b));
         assert.strictEqual(b.indexOf(','), -1);
         done();
@@ -931,9 +1114,9 @@ test('ty 하나면 괄호를 만들지 않는다', function (t, done) {
     // 같지만, 하나일 때 OR 그룹을 만들지 않는 것이 예전 동작이다.
     const h = tap('mysql');
     run(h, { ty: '3', lim: 10 }, guard(done, function (code, ris, seen) {
-        const outer = seen[0].sql.slice(seen[0].sql.indexOf(SKEL_END));
-        assert.match(outer, /and ty = \?/, outer);
-        assert.ok(!/\(ty = \? or/.test(outer), '하나인데 OR 그룹을 만들었다: ' + outer);
+        const child = childStmt(seen).sql;
+        assert.match(child, /and ty = \?/, child);
+        assert.ok(!/\(ty = \? or/.test(child), '하나인데 OR 그룹을 만들었다: ' + child);
         done();
     }));
 });
@@ -958,10 +1141,10 @@ test('객체형 필터 값은 버린다 (필터 무력화 방지)', function (t,
     // cra 가 객체면 그 필터를 버려야 한다. 남으면 SQL 에 식별자가 박힌다.
     run(h, { cra: { x: '1' }, ty: '3', lim: 10 }, guard(done, function (code, ris, seen) {
         assert.strictEqual(code, '200');
-        const sql = seen[0].sql;
+        const sql = allSql(seen);
         assert.ok(!/<= ct/.test(sql), 'cra 필터가 살아남았다: ' + sql);
         assert.ok(!/`x`/.test(sql), '객체 키가 식별자로 SQL 에 박혔다: ' + sql);
-        seen[0].bindings.forEach(function (v) {
+        allBindings(seen).forEach(function (v) {
             assert.notStrictEqual(typeof v, 'object', '객체가 바인딩됐다: ' + JSON.stringify(v));
         });
         done();
@@ -972,7 +1155,7 @@ test('객체형 rn 도 버린다', function (t, done) {
     const h = tap('mysql');
     run(h, { rn: { x: '1' }, ty: '3', lim: 10 }, guard(done, function (code, ris, seen) {
         assert.strictEqual(code, '200', '500 이 났다');
-        assert.ok(!/rn = /.test(seen[0].sql), 'rn 필터가 살아남았다: ' + seen[0].sql);
+        assert.ok(!/rn = /.test(allSql(seen)), 'rn 필터가 살아남았다: ' + allSql(seen));
         done();
     }));
 });
@@ -980,7 +1163,7 @@ test('객체형 rn 도 버린다', function (t, done) {
 test('lbl 은 배열을 허용한다 (라벨 여럿은 정상 요청)', function (t, done) {
     const h = tap('mysql');
     run(h, { lbl: ['a', 'b'], ty: '3', lim: 10 }, guard(done, function (code, ris, seen) {
-        const b = seen[0].bindings;
+        const b = childStmt(seen).bindings;
         assert.ok(b.indexOf('%"%a%"%') >= 0 && b.indexOf('%"%b%"%') >= 0,
             '라벨 배열이 버려졌다: ' + JSON.stringify(b));
         done();
@@ -991,7 +1174,7 @@ test('lbl 배열 안에 객체가 섞이면 버린다', function (t, done) {
     const h = tap('mysql');
     run(h, { lbl: ['a', { x: 1 }], ty: '3', lim: 10 }, guard(done, function (code, ris, seen) {
         assert.strictEqual(code, '200');
-        assert.ok(!/lbl like/.test(seen[0].sql), 'lbl 필터가 살아남았다: ' + seen[0].sql);
+        assert.ok(!/lbl like/.test(allSql(seen)), 'lbl 필터가 살아남았다: ' + allSql(seen));
         done();
     }));
 });
@@ -1000,9 +1183,186 @@ test('정상 스칼라 값은 그대로 통과한다', function (t, done) {
     const h = tap('mysql');
     run(h, { rn: 'abc', cra: '20260101T000000', ty: '3', lim: 10 },
         guard(done, function (code, ris, seen) {
-            const b = seen[0].bindings;
+            const b = childStmt(seen).bindings;
             assert.ok(b.indexOf('abc') >= 0, 'rn 이 버려졌다: ' + JSON.stringify(b));
             assert.ok(b.indexOf('20260101T000000') >= 0, 'cra 가 버려졌다: ' + JSON.stringify(b));
             done();
         }));
+});
+
+// --- 12) 부모는 배치로 나눠 IN 목록으로 넘긴다 --------------------------------
+//
+// 왜 IN 이어야 하는가: 조인으로 주면 MySQL 이 ref 접근을 골라 인덱스를
+// (pi, ty) 까지만 쓰고 ct 를 ICP 로 스캔하며 거른다. 상수 목록이면 range 가
+// 되어 key_len 이 671(pi, ty, ct)이 된다 — 배포 실측 30초 타임아웃 -> 126ms.
+//
+// 왜 나눠야 하는가: range_optimizer_max_mem_size 가 8MB 라, IN 목록이 그
+// 예산을 넘으면 MySQL 이 range 를 **포기하고** 전체 인덱스 스캔으로 떨어진다.
+// 경고도 에러도 없다.
+//   부모 2,000 / 5,000 / 8,000  -> range (추정 행 2,015 / 5,015 / 8,015)
+//   부모 10,000                 -> index 전체 스캔 (추정 행 61,947,616)
+// 전환점은 경로 문자열 길이에 따라 움직이므로 여유 2배를 두고 4,000 이다.
+
+// 부모를 n 개 가진 골격을 만든다.
+function bigSkeleton(n) {
+    const out = [];
+    for (let i = 0; i < n; i++) { out.push({ sk_ri: '/M/x' + i, sk_lvl: 1 }); }
+    return out;
+}
+
+test('자식 질의는 부모를 IN 목록으로 받고 값은 전부 바인딩이다', function (t, done) {
+    const h = tap('mysql');
+    run(h, { ty: '3', lim: 20 }, guard(done, function (code, ris, seen) {
+        const c = childStmt(seen);
+        assert.match(c.sql, /where r\.pi in \(\?(, \?)*\)/,
+            '부모가 IN 목록이 아니다: ' + c.sql);
+        // 경로가 SQL 문자열에 들어가면 안 된다 — 경로에 물음표가 들어간
+        // 실제 500 사례가 있다.
+        SKEL_ROWS.forEach(function (r) {
+            assert.strictEqual(c.sql.indexOf(r.sk_ri), -1,
+                '부모 경로가 SQL 에 인라인됐다: ' + c.sql);
+        });
+        assert.deepStrictEqual(c.bindings.slice(0, SKEL_ROWS.length),
+            SKEL_ROWS.map((r) => r.sk_ri), '부모가 바인딩 앞자리에 오지 않았다');
+        done();
+    }));
+});
+
+test('부모가 4,000을 넘으면 배치를 나눈다', function (t, done) {
+    // 4,001개면 자식 질의가 2회다 (4,000 + 1).
+    const h = tap('mysql', { skeleton: bigSkeleton(4001), children: () => [] });
+    run(h, { ty: '3', lim: 20 }, guard(done, function (code, ris, seen) {
+        assert.strictEqual(code, '200');
+        assert.strictEqual(seen.length, 3, '골격 1 + 자식 2 가 아니다: ' + seen.length);
+        assert.strictEqual(parentCount(seen[1].sql), 4000);
+        assert.strictEqual(parentCount(seen[2].sql), 1);
+        done();
+    }));
+});
+
+test('배치 크기는 4,000을 넘지 않는다', function (t, done) {
+    // 이 상한을 올리면 어느 날 경로가 길어졌다는 이유만으로 range 가
+    // 전체 인덱스 스캔으로 떨어진다 (위 표 참고). 그래서 못박는다.
+    const h = tap('mysql', { skeleton: bigSkeleton(9000), children: () => [] });
+    run(h, { ty: '3', lim: 20 }, guard(done, function (code, ris, seen) {
+        assert.strictEqual(seen.length, 4, '골격 1 + 자식 3 이 아니다: ' + seen.length);
+        seen.slice(1).forEach(function (s) {
+            assert.ok(parentCount(s.sql) <= 4000,
+                '배치가 4,000을 넘었다: ' + parentCount(s.sql));
+        });
+        assert.strictEqual(parentCount(seen[1].sql), 4000, '배치를 덜 채웠다');
+        done();
+    }));
+});
+
+test('배치 상수는 소스에 근거와 함께 4,000으로 박혀 있다', function () {
+    const src = fs.readFileSync(path.join(ROOT, 'mobius', 'sql_action.js'), 'utf8');
+    assert.match(src, /const DISCOVERY_PARENT_BATCH = 4000;/,
+        '배치 상수가 4,000이 아니다 — 8,000~10,000 사이에서 range 가 무너진다');
+    assert.match(src, /range_optimizer_max_mem_size/,
+        '왜 4,000인지의 근거가 사라졌다');
+});
+
+test('lim 을 채우면 남은 배치를 던지지 않는다', function (t, done) {
+    const h = tap('mysql', { skeleton: bigSkeleton(4001) });
+    run(h, { ty: '3', lim: 5 }, guard(done, function (code, ris, seen) {
+        assert.strictEqual(ris.length, 5);
+        assert.strictEqual(seen.length, 2,
+            '한도를 채웠는데 남은 배치를 던졌다: ' + seen.length);
+        done();
+    }));
+});
+
+// ofst / la 는 골격이 아무리 커도 배치로 가지 않는다. 배치 경로가 그 둘을
+// 감당하려면 (ofst + lim) 만큼을 배치마다 실어 와야 하는데, ofst 는 서버가
+// X-M2M-CTO 로 광고하는 값이라 정상 페이징이 그대로 그 경로를 밟는다.
+
+test('오프셋은 경계 있는 count 로 소진한다 — 경계 없는 count 는 금지', function (t, done) {
+    // 경계 없는 `select count(*)` 는 후보를 전부 훑는다. 배포 실측:
+    // ty=4(후보 2,282만)에서 경계 없음 25초 상한 초과 / 경계 있음 0.05초.
+    const h = tap('mysql', { skeleton: bigSkeleton(9001) });
+    run(h, { ty: '3', lim: 3, ofst: 2 }, guard(done, function (code, ris, seen) {
+        const counts = seen.filter((s) => /count\(\*\) as n/i.test(s.sql));
+        assert.ok(counts.length > 0, '오프셋이 있는데 count 질의가 없다');
+        counts.forEach((c) => {
+            assert.match(c.sql, /limit \d+\) t$/,
+                '경계 없는 count 다 — 후보를 전부 훑는다: ' + c.sql);
+            const cap = parseInt(/limit (\d+)\) t$/.exec(c.sql)[1], 10);
+            assert.strictEqual(cap, 3, '경계가 (남은오프셋 + 1) 이 아니다: ' + cap);
+        });
+        done();
+    }));
+});
+
+test('오프셋 안쪽 배치는 행을 하나도 받지 않는다', function (t, done) {
+    // 배치마다 4건씩 준다. ofst=6 이면 첫 배치(4건)는 통째로 건너뛰고,
+    // 둘째 배치에서 2건을 건너뛴 뒤 받는다.
+    const h = tap('mysql', {
+        skeleton: bigSkeleton(4001),
+        children: () => [{ ri: '/a' }, { ri: '/b' }, { ri: '/c' }, { ri: '/d' }]
+    });
+    run(h, { ty: '3', lim: 10, ofst: 6 }, guard(done, function (code, ris, seen) {
+        const fetches = seen.filter((s) => isChild(s) && !/count\(\*\) as n/i.test(s.sql));
+        assert.strictEqual(fetches.length, 1,
+            '오프셋 안쪽 배치에서도 행을 받았다: ' + fetches.length + '회');
+        assert.match(fetches[0].sql, /offset 2$/,
+            '남은 오프셋이 아니라 전역 오프셋을 그대로 걸었다: ' + fetches[0].sql);
+        done();
+    }));
+});
+
+test('골격이 커도 la 가 있으면 배치로 가지 않는다', function (t, done) {
+    const h = tap('mysql', { skeleton: bigSkeleton(9001) });
+    run(h, { la: '2' }, guard(done, function (code, ris, seen) {
+        assert.strictEqual(seen.length, 1,
+            '부모 9,001개에 la 가 있는데 배치로 갔다: ' + seen.length);
+        assert.ok(isOneShot(seen[0]), '단일 문장이 아니다');
+        done();
+    }));
+});
+
+test('부모가 0개면 자식 질의를 던지지 않는다', function (t, done) {
+    // 없는 ri 를 주면 골격이 비고, 더 칠 이유가 없다.
+    const h = tap('mysql', { skeleton: [] });
+    run(h, { ty: '3', lim: 20 }, guard(done, function (code, ris, seen) {
+        assert.strictEqual(code, '200');
+        assert.strictEqual(ris.length, 0);
+        assert.strictEqual(seen.length, 1, '부모가 없는데 자식을 찾았다: ' + seen.length);
+        done();
+    }));
+});
+
+test('배치가 실패하면 그 코드로 한 번만 콜백한다', function (t, done) {
+    const h = tap('mysql', { skeleton: bigSkeleton(4001), children: () => [] });
+    const adapter = require(path.join(DB, 'mysql.js'));
+    const orig = adapter.execute;
+    let n = 0;
+    adapter.execute = function (conn, sql, bindings, cb) {
+        n++;
+        if (n === 2) {   // 첫 배치에서 깨진다
+            const e = new Error('boom');
+            e.sqlMessage = 'batch failed';
+            return cb(e, null);
+        }
+        return orig.call(adapter, conn, sql, bindings, cb);
+    };
+    const logs = [];
+    const cerr = console.error;
+    console.error = function () { logs.push([].slice.call(arguments).join(' ')); };
+
+    let calls = 0;
+    const found = {};
+    h.sql_action.search_lookup(null, '/M', { ty: '3', lim: 20 }, 20, ['/M'], 0, found, 0,
+        '0', '2026-01-02 00:00:00', 0, function (code) {
+            calls++;
+            console.error = cerr;
+            try {
+                assert.strictEqual(code, '500-1');
+                assert.strictEqual(calls, 1, '콜백이 여러 번 불렸다');
+                assert.strictEqual(n, 2, '실패 뒤에도 남은 배치를 던졌다: ' + n);
+                assert.ok(logs.some((l) => /batch failed/.test(l)),
+                    '오류 메시지가 안 남았다: ' + JSON.stringify(logs));
+                done();
+            } catch (e) { done(e); }
+        });
 });
