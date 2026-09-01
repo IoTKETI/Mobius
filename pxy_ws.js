@@ -197,15 +197,13 @@ function ws_message_handler(message) {
         console.log('-----> [pxy_ws] ' + this.protocol +
                     '  ' + message.utf8Data.length + '자');
 
-        var protocol_arr = this.protocol.split('.');
-        var bodytype = protocol_arr[protocol_arr.length-1];
 
-        make_json_obj(bodytype, message.utf8Data.toString(), function(rsc, result) {
+        make_json_obj(message.utf8Data.toString(), function(rsc, result) {
             if(rsc == '1') {
-                ws_message_action(_this, bodytype, result);
+                ws_message_action(_this, result);
             }
             else {
-                ws_response(_this, RSC.BAD_REQUEST.rsc, '', '', '', 'to parsing error', bodytype);
+                ws_response(_this, RSC.BAD_REQUEST.rsc, '', '', '', 'to parsing error');
             }
         });
     }
@@ -222,34 +220,23 @@ function ws_message_handler(message) {
 
         //Array.prototype.map.call(new Uint8Array(data), x => ('00' + x.toString(16)).slice(-2)).join('').match(/[a-fA-F0-9]{2}/g).reverse().join('');
 
-        var protocol_arr = this.protocol.split('.');
-        var bodytype = protocol_arr[protocol_arr.length-1];
 
         var str = message.binaryData.toString('hex');
-        make_json_obj(bodytype, str, function(rsc, result) {
+        make_json_obj(str, function(rsc, result) {
             if(rsc == '1') {
-                ws_message_action(_this, bodytype, result);
+                ws_message_action(_this, result);
             }
             else {
-                ws_response(_this, RSC.BAD_REQUEST.rsc, '', '', '', 'to parsing error', bodytype);
+                ws_response(_this, RSC.BAD_REQUEST.rsc, '', '', '', 'to parsing error');
             }
         });
 
-        // var protocol_arr = this.protocol.split('.');
-        // var bodytype = protocol_arr[protocol_arr.length-1];
-        //
-        // make_json_obj(bodytype, message.utf8Data.toString(), function(rsc, result) {
-        //     if(rsc == '1') {
-        //         ws_message_action(_this, bodytype, result);
-        //     }
-        //     else {
-        //         ws_response(_this, 4000, '', '', '', 'to parsing error', bodytype);
-        //     }
-        // });
     }
 }
 
-function ws_message_action(ws_conn, bodytype, jsonObj) {
+// bodytype 인자를 걷어냈다 — 핸드셰이크가 json 서브프로토콜 둘만
+// 받으므로(WS_SUBPROTOCOL) 값이 언제나 json 이었다.
+function ws_message_action(ws_conn, jsonObj) {
     if (jsonObj['m2m:rqp'] != null) {
         console.log('m2m:rqp tag of ws message is removed');
 
@@ -261,7 +248,7 @@ function ws_message_action(ws_conn, bodytype, jsonObj) {
         // 이 오류 응답은 한 번도 나간 적이 없고, 대신 예외가 그대로 올라가
         // pxy_ws 를 require 한 cluster 마스터를 죽였다.
         // ws_response 의 inpc 인자는 객체로 쓰이므로 그대로 넘긴다.
-        ws_response(ws_conn, RSC.BAD_REQUEST.rsc, "", usecseid, "", res_body, bodytype);
+        ws_response(ws_conn, RSC.BAD_REQUEST.rsc, "", usecseid, "", res_body);
     }
     else {
         var op = (jsonObj.op == null) ? '' : jsonObj.op;
@@ -300,7 +287,7 @@ function ws_message_action(ws_conn, bodytype, jsonObj) {
 
         try {
             //if (to.split('/')[1].split('?')[0] == usecsebase) {
-                ws_binding(op, to, fr, rqi, ty, pc, bodytype, function (res, res_body) {
+                ws_binding(op, to, fr, rqi, ty, pc, function (res, res_body) {
                     if (res_body == '') {
                         res_body = '{}';
                     }
@@ -315,10 +302,10 @@ function ws_message_action(ws_conn, bodytype, jsonObj) {
                     catch (e) {
                         console.error('[pxy_ws] 응답 본문이 JSON 이 아니다 (' + to + '): ' + e.message);
                         ws_response(ws_conn, RSC.INTERNAL_SERVER_ERROR.rsc, to, usecseid, rqi,
-                                    { 'm2m:dbg': 'response body is not valid JSON' }, bodytype);
+                                    { 'm2m:dbg': 'response body is not valid JSON' });
                         return;
                     }
-                    ws_response(ws_conn, res.headers['x-m2m-rsc'], to, usecseid, rqi, pc_obj, bodytype);
+                    ws_response(ws_conn, res.headers['x-m2m-rsc'], to, usecseid, rqi, pc_obj);
                 });
             // }
             // else {
@@ -327,12 +314,12 @@ function ws_message_action(ws_conn, bodytype, jsonObj) {
         }
         catch (e) {
             console.error(e);
-            ws_response(ws_conn, RSC.INTERNAL_SERVER_ERROR.rsc, fr, usecseid, rqi, 'to parsing error', bodytype);
+            ws_response(ws_conn, RSC.INTERNAL_SERVER_ERROR.rsc, fr, usecseid, rqi, 'to parsing error');
         }
     }
 }
 
-function ws_binding(op, to, fr, rqi, ty, pc, bodytype, callback) {
+function ws_binding(op, to, fr, rqi, ty, pc, callback) {
     var content_type = 'application/vnd.onem2m-res+json';
 
     switch (op.toString()) {
@@ -418,7 +405,7 @@ function ws_binding(op, to, fr, rqi, ty, pc, bodytype, callback) {
     req.end();
 }
 
-function ws_response(ws_conn, rsc, to, fr, rqi, inpc, bodytype) {
+function ws_response(ws_conn, rsc, to, fr, rqi, inpc) {
     var rsp_message = {};
     rsp_message['m2m:rsp'] = {};
     //rsp_message['m2m:rsp'].rsc = rsc;

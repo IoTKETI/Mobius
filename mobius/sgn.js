@@ -180,9 +180,11 @@ function sgn_action_send(nu_arr, req_count, node, short_flag, check_value, ss_cr
             // ss_ri 는 이 함수가 이미 인자로 들고 있던 값이다 — 추가 조회가 없다.
             // 알림 로그에 구독 ri 가 없어서 "어느 구독이 실패했나" 를
             // 역추적할 수 없었다. 관리 UI 가 물어볼 첫 번째 질문이 그것이다.
-            setTimeout(function (nu, bodytype, xm2mri, bodyString, ri) {
-                sgn_man.post(nu, bodytype, xm2mri, bodyString, ri);
-            }, parseInt(1 + Math.random() * 10), nu, 'json', xm2mri, bodyString, ss_ri);
+            // 'json' 리터럴을 넘기던 bodytype 자리를 없앴다 (2026-09-01).
+            // 알림은 언제나 json 이고, 그 사실은 위 머리말이 이미 말한다.
+            setTimeout(function (nu, xm2mri, bodyString, ri) {
+                sgn_man.post(nu, xm2mri, bodyString, ri);
+            }, parseInt(1 + Math.random() * 10), nu, xm2mri, bodyString, ss_ri);
         }
 
         // 다음 nu 에는 **원래 값**을 넘긴다. 이 nu 의 옵션이 번지면 안 된다.

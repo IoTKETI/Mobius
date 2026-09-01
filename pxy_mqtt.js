@@ -209,11 +209,10 @@ function mqtt_message_handler(topic, message) {
     }
 
     // 여기까지 왔으면 json 이다. 미지의 조각도 json 으로 본다 — 예전과 같다.
-    var bodytype = 'json';
     if (topic_arr[5] == null) { topic_arr[5] = 'json'; }
 
     if((topic_arr[1] == 'oneM2M' && topic_arr[2] == 'resp' && ((topic_arr[3].replace(':', '/') == usecseid) || (topic_arr[3] == usecseid.replace('/', ''))))) {
-        make_json_obj(bodytype, message.toString(), function(rsc, jsonObj) {
+        make_json_obj(message.toString(), function(rsc, jsonObj) {
             if(rsc == '1') {
                 if(jsonObj['m2m:rsp'] == null) {
                     jsonObj['m2m:rsp'] = jsonObj;
@@ -263,7 +262,7 @@ function mqtt_message_handler(topic, message) {
                     resp_topic = '/oneM2M/reg_resp/';
                 }
                 resp_topic += (topic_arr[3] + '/' + topic_arr[4] + '/' + topic_arr[5]);
-                mqtt_response(resp_topic, 4000, '', '', '', '', 'to parsing error', bodytype);
+                mqtt_response(resp_topic, 4000, '', '', '', '', 'to parsing error');
             }
         });
     }
@@ -271,7 +270,7 @@ function mqtt_message_handler(topic, message) {
         NOPRINT==='true'?NOPRINT='true':console.log('----> [response_mqtt] - ' + topic);
         NOPRINT==='true'?NOPRINT='true':console.log(message.toString());
 
-        make_json_obj(bodytype, message.toString(), function(rsc, result) {
+        make_json_obj(message.toString(), function(rsc, result) {
             if(rsc == '1') {
                 if(result && result['m2m:rqp'] == null) {
                     result['m2m:rqp'] = result;
@@ -307,7 +306,7 @@ function mqtt_message_handler(topic, message) {
                     message_cache[cache_key].ttl = cache_ttl;
                     message_cache[cache_key].rsp = '';
 
-                    mqtt_message_action(topic_arr, bodytype, result);
+                    mqtt_message_action(topic_arr, result);
                 }
             }
             else {
@@ -316,12 +315,12 @@ function mqtt_message_handler(topic, message) {
                     resp_topic = '/oneM2M/reg_resp/';
                 }
                 resp_topic += (topic_arr[3] + '/' + topic_arr[4] + '/' + topic_arr[5]);
-                mqtt_response(resp_topic, 4000, '', '', '', '', 'to parsing error', bodytype);
+                mqtt_response(resp_topic, 4000, '', '', '', '', 'to parsing error');
             }
         });
     }
     else if(topic_arr[1] === 'oneM2M' && topic_arr[2] === 'reg_req' && ((topic_arr[4].replace(':', '/') == usecseid) || (topic_arr[4] == usecseid.replace('/', '')))) {
-        make_json_obj(bodytype, message.toString(), function(rsc, result) {
+        make_json_obj(message.toString(), function(rsc, result) {
             // 파싱에 실패하면 make_json_obj 는 callback('0') 만 부르므로 result 가
             // undefined 다. 예전에는 rsc 를 보기 전에 result['m2m:rqp'] 를 읽어,
             // 잘못된 MQTT 메시지 한 줄로 pxy_mqtt 를 require 한 cluster 마스터가
@@ -331,7 +330,7 @@ function mqtt_message_handler(topic, message) {
                 if(result && result['m2m:rqp'] == null) {
                     result['m2m:rqp'] = result;
                 }
-                mqtt_message_action(topic_arr, bodytype, result);
+                mqtt_message_action(topic_arr, result);
             }
             else {
                 var resp_topic = '/oneM2M/resp/';
@@ -339,7 +338,7 @@ function mqtt_message_handler(topic, message) {
                     resp_topic = '/oneM2M/reg_resp/';
                 }
                 resp_topic += (topic_arr[3] + '/' + topic_arr[4] + '/' + topic_arr[5]);
-                mqtt_response(resp_topic, 4000, '', '', '', '', 'to parsing error', bodytype);
+                mqtt_response(resp_topic, 4000, '', '', '', '', 'to parsing error');
             }
         });
     }
@@ -363,7 +362,9 @@ var cache_tid = require('shortid').generate();
 var outbound = require('./mobius/outbound');
 wdt.set_wdt(cache_tid, cache_keep, cache_ttl_manager);
 
-function mqtt_message_action(topic_arr, bodytype, jsonObj) {
+// bodytype 인자를 걷어냈다 — 관문(mqtt_message_handler 위)이 json 토픽만
+// 통과시키므로 값이 언제나 json 이었다.
+function mqtt_message_action(topic_arr, jsonObj) {
     if (jsonObj['m2m:rqp'] != null) {
         var op = (jsonObj['m2m:rqp'].op == null) ? '' : jsonObj['m2m:rqp'].op;
         var to = (jsonObj['m2m:rqp'].to == null) ? '' : jsonObj['m2m:rqp'].to;
@@ -411,7 +412,7 @@ function mqtt_message_action(topic_arr, bodytype, jsonObj) {
             resp_topic += (topic_arr[3] + '/' + topic_arr[4] + '/' + topic_arr[5]);
 
             //if (to.split('/')[1].split('?')[0] == usecsebase) {
-                mqtt_binding(op, to, fr, rqi, ty, pc, bodytype, function (res, res_body) {
+                mqtt_binding(op, to, fr, rqi, ty, pc, function (res, res_body) {
                     if (res_body == '') {
                         res_body = '{}';
                     }
@@ -426,12 +427,12 @@ function mqtt_message_action(topic_arr, bodytype, jsonObj) {
                     catch (e) {
                         console.error('[pxy_mqtt] 응답 본문이 JSON 이 아니다 (' + to + '): ' + e.message);
                         pc_obj = { 'm2m:dbg': 'response body is not valid JSON' };
-                        mqtt_response(resp_topic_rel1, RSC.INTERNAL_SERVER_ERROR.rsc, op, to, usecseid, rqi, pc_obj, bodytype);
-                        mqtt_response(resp_topic, RSC.INTERNAL_SERVER_ERROR.rsc, op, to, usecseid, rqi, pc_obj, bodytype);
+                        mqtt_response(resp_topic_rel1, RSC.INTERNAL_SERVER_ERROR.rsc, op, to, usecseid, rqi, pc_obj);
+                        mqtt_response(resp_topic, RSC.INTERNAL_SERVER_ERROR.rsc, op, to, usecseid, rqi, pc_obj);
                         return;
                     }
-                    mqtt_response(resp_topic_rel1, res.headers['x-m2m-rsc'], op, to, usecseid, rqi, pc_obj, bodytype);
-                    mqtt_response(resp_topic, res.headers['x-m2m-rsc'], op, to, usecseid, rqi, pc_obj, bodytype);
+                    mqtt_response(resp_topic_rel1, res.headers['x-m2m-rsc'], op, to, usecseid, rqi, pc_obj);
+                    mqtt_response(resp_topic, res.headers['x-m2m-rsc'], op, to, usecseid, rqi, pc_obj);
                 });
             //}
             ////else {
@@ -445,7 +446,7 @@ function mqtt_message_action(topic_arr, bodytype, jsonObj) {
                 resp_topic = '/oneM2M/reg_resp/';
             }
             resp_topic += (topic_arr[3] + '/' + topic_arr[4] + '/' + topic_arr[5]);
-            mqtt_response(resp_topic, 5000, op, fr, usecseid, rqi, 'to parsing error', bodytype);
+            mqtt_response(resp_topic, 5000, op, fr, usecseid, rqi, 'to parsing error');
         }
     }
     else {
@@ -456,11 +457,11 @@ function mqtt_message_action(topic_arr, bodytype, jsonObj) {
             resp_topic = '/oneM2M/reg_resp/';
         }
         resp_topic += (topic_arr[3] + '/' + topic_arr[4] + '/' + topic_arr[5]);
-        mqtt_response(resp_topic, 4000, "", "", usecseid, "", '\"m2m:dbg\":\"mqtt message tag is different : m2m:rqp\"', bodytype);
+        mqtt_response(resp_topic, 4000, "", "", usecseid, "", '\"m2m:dbg\":\"mqtt message tag is different : m2m:rqp\"');
     }
 }
 
-function mqtt_binding(op, to, fr, rqi, ty, pc, bodytype, callback) {
+function mqtt_binding(op, to, fr, rqi, ty, pc, callback) {
     var content_type = 'application/vnd.onem2m-res+json';
 
     switch (op.toString()) {
@@ -545,7 +546,7 @@ function mqtt_binding(op, to, fr, rqi, ty, pc, bodytype, callback) {
     req.end();
 }
 
-function mqtt_response(resp_topic, rsc, op, to, fr, rqi, inpc, bodytype) {
+function mqtt_response(resp_topic, rsc, op, to, fr, rqi, inpc) {
     var rsp_message = {};
     rsp_message['m2m:rsp'] = {};
     //rsp_message['m2m:rsp'].rsc = rsc;
