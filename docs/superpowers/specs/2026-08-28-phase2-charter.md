@@ -458,3 +458,86 @@ MySQL 201, 그리고 그로 인한 discovery 목록 차이.
 | `2026-08-29-acp-operating-model.md` | ACP 운영 모델 |
 | `2026-08-29-discovery-remaining.md` | discovery 재귀 CTE 남은 항목 |
 | `2026-08-29-acp-survey.md` | 운영 ACP 실태 조사 |
+
+---
+
+## 6. 작업 목록 (2026-09-01 갱신)
+
+원래 11개 항목은 전부 완료·배포됐다(2절). 그 뒤 배포 검증과 브랜치 조사에서
+드러난 것들을 여기 모은다. **순서는 아래 제안 순이다.**
+
+### 0. discovery 자식 조회 range 전환 — **완료 (`fa8250d`, 배포됨)**
+
+배포 실측 11.74초 → 0.22초. 페이징 정합 2,806건 / 중복 0.
+중간에 한 번 되돌렸다(`3eda078`) — `ofst` 유무로 경로가 갈려 페이지가
+어긋났고, 2,806건이 2,558건 + 중복 248건으로 나왔다. 지금은 경로가 하나다.
+
+### 1. superUser 설정 — 보안, 분 단위
+
+배포 `conf.json` 에 `superUser` 가 없어 하드코딩 기본값 `'Sponde'` 로 돈다.
+그 값을 `X-M2M-Origin` 에 넣으면 ACP 를 전면 우회한다(`mobius/security.js:562`).
+코드는 이미 `conf.superUser` 를 읽으므로 **설정에 값만 넣으면 끝난다.**
+`retentionPolicies` 도 비어 있다(4월부터 3개 키뿐 — 이번 작업이 만든 것이 아니다).
+
+### 2. `la` 전역 정렬 타임아웃 — 배포에서 500 이 나는 중
+
+`?fu=1&la=N` 을 큰 서브트리에 걸면 30초 상한에 걸려 500 이다.
+**이번 변경과 무관하다** — `build_descendant_sql` 이 `044f29a` 와 바이트 단위로
+같음을 확인했다(6,120자 일치).
+
+원인은 `ri` 타이브레이커다. 배포 실측(부모 하나, CIN 1,165만):
+
+    order by ct desc            Using index   (인덱스 역스캔, 즉시)
+    order by ct desc, ri desc   filesort      5.9초
+
+MySQL 인덱스가 `(pi, ty, ct)` 라 `ri` 가 없다. **SQLite 스키마는 이미
+`(pi, ty, ct, ri)` 다** — 두 백엔드가 비대칭이다.
+
+`ri` 타이브레이커는 없앨 수 없다. `ct` 가 초 단위라 동점이 흔하고, 없앴을 때
+`la` 가 10회 모두 진짜 최신이 아닌 건을 돌려준 실측이 있다(2026-08-28).
+
+선택지 둘:
+- **인덱스를 `(pi, ty, ct, ri)` 로 확장** — SQLite 와 같아진다. 다만 84GB
+  인덱스에 컬럼을 더하는 DDL 이라 비용을 먼저 재야 한다.
+- **부모별 top-N 을 `order by ct desc` 만으로 뽑고**(filesort 없음) 경계 `ct`
+  동점 행까지 더 받아 `ri` 타이브레이커를 JS 에서 적용.
+
+### 3. discovery 잔여 — 안내 응답
+
+타임아웃 시 500 대신 "대상이 너무 넓다, `lim`/`cra` 를 좁히거나 더 깊은 경로로"
+를 oneM2M 응답에 싣는다. 지금도 `m2m:dbg` 에 문구는 나가지만 코드가 500 이다.
+(골격 상한은 0번으로 필요가 줄었다 — 넣을지는 나중에 판단.)
+
+### 4. 브랜치 통합 — 미루면 비용이 커진다
+
+`lite` 에 미병합 4개. **넷 다 지금 병합하면 안 된다**(`git merge-tree` 실측).
+
+| 브랜치 | 충돌 | 판정 |
+|---|---|---|
+| `perf/request-flow-analysis` | 1 (`.gitignore`) | 병합 결과가 lite 와 동일 — 순이득 0 |
+| `tmp-confonly` | 3 | lite 의 하위집합 — 병합하면 126줄 삭제(회귀) |
+| `feat/admin-console-part0` | 10 | 인덱스 되살림 + `superuser` 대소문자 + ACP 우회 |
+| `feat/admin-console-part1` | **0 (깨끗)** | 그래서 위험 — 다른 세션이 작업 중 |
+
+**선행 결정 3건**: 인덱스 셋 / `adminOrigin` 채택 여부 / 리소스 캐시 부활 여부.
+
+### 5. `my.cnf` 정리 — root 필요
+
+`mysqld.cnf:100` 이 `innodb_flush_log_at_trx_commit = 1` 인데 실제 적용값은
+`SET PERSIST` 의 `0` 이다. 파일이 현실과 반대라 읽는 사람이 속는다.
+
+### 6. SQLite → MySQL 리소스 파리티
+
+타입 16개 / 테이블 8개. `fcnt` 먼저(28 + `hd_*` 여덟 = 아홉 타입이 한 번에).
+진척은 `test/usesqlite-single-reader.test.js` 가 자동 계측한다.
+가는 길에 기존 결함 3건(`lcp` 의 `cr` 누락 / `update_dvc` 시그니처 /
+`mgo` 400 게이트)을 함께 처리한다.
+
+### 7. 추상화 잔여 — 원래 목표 기준
+
+- `app.js` 의 포트 `3306`·사용자 `'root'` 하드코딩 3곳
+- `migrations/` 가 백엔드 종속 (9개 중 8개 `backends:['mysql']`, 007 은
+  `usesqlite` 를 직접 읽는다 — 단일리더 테스트 범위 밖이라 안 걸린다)
+- 스키마 `.sql` 이 어댑터 옆이 아님 → 실제로는 파일 두 개
+- 코어의 능력 분기 2개 (`sql_action.js` 의 rowLock / transaction — 후자는 중복)
+- MySQL errno(3024, 1176)를 코어가 직접 매칭
