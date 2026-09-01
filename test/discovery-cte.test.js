@@ -402,17 +402,39 @@ test('descendant_max_lvl 이 lvl-1 을 준다', function () {
 // 컨테이너가 404 -> 수정 후 200). ct 는 초 단위라 ri 를 타이브레이커로 쓴다.
 
 test('la 는 ct desc, ri desc 로 정렬해 N건을 뽑는다', function (t, done) {
-    // la 는 **전역** 정렬이라 배치로 나눌 수 없다 — 조기 종료를 못 하고
-    // 모든 배치 결과를 메모리에 쌓아 다시 정렬해야 해서 왕복만 늘고 이득이
-    // 없다. 그래서 예전 한 문장을 그대로 쓴다.
+    // presearch_action 이 la 요청에 ty=4 / lvl=1 을 박으므로 부모는 하나다.
+    // 배치 경로를 타고, 배치 안의 정렬이 곧 전역 정렬이다.
     const h = tap('mysql');
     run(h, { la: '5' }, guard(done, function (code, ris, seen) {
-        const sql = oneShotStmt(seen).sql;
+        const sql = childStmt(seen).sql;
         assert.match(sql, /order by r\.ct desc, r\.ri desc/i);
         assert.match(sql, /limit 5/i);
         assert.ok(!/[0-9]+ minutes|between/i.test(sql), '시간 창 재시도가 남아 있다');
-        // 한 문장이다. 부모마다 창을 넓혀 가며 재시도하지 않는다.
-        assert.strictEqual(seen.length, 1, 'la 가 여러 번 질의한다: ' + seen.length);
+        done();
+    }));
+});
+
+test('la 는 인덱스를 강제하지 않는다 — 강제하면 정렬이 filesort 가 된다', function (t, done) {
+    // 배포 실측(부모 하나, CIN 593만):
+    //   pi IN (...) + force index   ref     filesort   30초 상한 초과
+    //   pi IN (...) 강제 없음       range   정렬 없음  즉시
+    // 강제를 도로 넣으면 la 가 다시 30초 500 이 된다.
+    const h = tap('mysql');
+    run(h, { la: '5' }, guard(done, function (code, ris, seen) {
+        const sql = childStmt(seen).sql;
+        assert.ok(!/force index/i.test(sql),
+            'la 질의에 force index 가 붙었다 — 정렬이 filesort 로 밀린다: ' + sql);
+        done();
+    }));
+});
+
+test('la 가 아니면 인덱스를 그대로 강제한다', function (t, done) {
+    // 강제가 필요한 이유는 그대로다 — 정렬 없는 질의에서 옵티마이저가
+    // PRIMARY 를 골라 부모마다 CIN 을 전부 읽는 것을 막는다.
+    const h = tap('mysql');
+    run(h, { ty: '3', lim: 20 }, guard(done, function (code, ris, seen) {
+        assert.match(childStmt(seen).sql, /force index \(idx_lookup_pi_ty_ct\)/i,
+            'la 가 아닌데 인덱스 강제가 사라졌다');
         done();
     }));
 });
@@ -1311,12 +1333,17 @@ test('오프셋 안쪽 배치는 행을 하나도 받지 않는다', function (t
     }));
 });
 
-test('골격이 커도 la 가 있으면 배치로 가지 않는다', function (t, done) {
-    const h = tap('mysql', { skeleton: bigSkeleton(9001) });
+test('la 도 배치 경로를 탄다 — 골격을 조인하면 pi 가 상수가 아니다', function (t, done) {
+    // 예전 한 문장 경로는 골격을 조인하므로 pi 가 상수가 아니고, 그러면
+    // 인덱스 강제를 빼도 정렬이 filesort 로 밀린다(배포 실측).
+    // pi 를 IN 목록의 상수로 줘야 옵티마이저가 인덱스 역방향 range 를 쓴다.
+    const h = tap('mysql');
     run(h, { la: '2' }, guard(done, function (code, ris, seen) {
-        assert.strictEqual(seen.length, 1,
-            '부모 9,001개에 la 가 있는데 배치로 갔다: ' + seen.length);
-        assert.ok(isOneShot(seen[0]), '단일 문장이 아니다');
+        assert.ok(seen.some(isChild),
+            'la 가 배치 경로를 안 썼다 — pi 가 상수가 아니면 filesort 다');
+        assert.ok(!seen.some(isOneShot),
+            'la 가 예전 한 문장으로 갔다 — 그 모양은 filesort 를 피할 수 없다');
+        assert.match(childStmt(seen).sql, /r\.pi in \(/i, 'pi 가 상수 목록이 아니다');
         done();
     }));
 });

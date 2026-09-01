@@ -1314,6 +1314,23 @@ function build_children_sql(parents, query, search, lim, budget_ms, ofst, count_
     var hint = facade.indexHint(skip_cin ? facade.notCinIndexName() : 'idx_lookup_pi_ty_ct');
     var skip_cin_where = skip_cin ? (' and ' + facade.notCinPredicate('r')) : '';
 
+    // **la 는 인덱스를 강제하지 않는다.**
+    //
+    // la 는 `order by ct desc, ri desc limit N` 이라 정렬이 붙는다. 인덱스를
+    // 강제하면 MySQL 이 ref 접근을 골라 그 정렬을 filesort 로 처리한다 —
+    // 배포 실측(부모 하나, CIN 593만):
+    //
+    //   pi IN (...) + force index    ref     filesort    30초 상한 초과
+    //   pi IN (...) 강제 없음        range   정렬 없음   즉시
+    //
+    // 강제를 빼면 옵티마이저가 인덱스를 역방향 range 로 훑어 정렬이 사라진다.
+    // 강제가 필요했던 이유(옵티마이저가 PRIMARY 를 골라 CIN 을 전부 읽는 것)는
+    // 정렬이 없는 질의의 이야기라 la 에는 해당하지 않는다.
+    //
+    // pi 가 **상수**여야 한다는 조건도 같이 필요하다. 골격을 조인하면 상수가
+    // 아니라 강제를 빼도 filesort 다 — 그래서 la 도 이 배치 경로(pi IN)를 탄다.
+    if (query.la != null) { hint = ''; }
+
     var timeout = facade.statementTimeoutHint(budget_ms || DISCOVERY_TIMEOUT_MS);
     var lead = 'select ' + (timeout ? '/*+ ' + timeout + ' */ ' : '');
 
@@ -1365,6 +1382,14 @@ function build_children_sql(parents, query, search, lim, budget_ms, ofst, count_
               ' limit ' + Math.max(0, Math.floor(count_cap)) + ') t';
     }
     else {
+        // la 는 "최신 N건" 이다. ct 는 초 단위라 동점이 흔해 ri 로 가려야
+        // 안정적이다 — 없앴을 때 la 가 10회 모두 진짜 최신이 아닌 건을
+        // 돌려준 실측이 있다(2026-08-28). 위에서 인덱스 강제를 뺐으므로
+        // 옵티마이저가 이 정렬을 인덱스 역방향 스캔으로 처리한다.
+        //
+        // presearch_action 이 la 요청에 lvl=1 을 박으므로 부모는 언제나
+        // 하나다. 즉 이 정렬은 배치 안이 곧 전역이다.
+        if (query.la != null) { sql += ' order by r.ct desc, r.ri desc'; }
         sql += ' limit ' + Math.max(0, Math.floor(lim));
         if (ofst > 0) { sql += ' offset ' + Math.floor(ofst); }
     }
@@ -1653,25 +1678,17 @@ exports.search_lookup = function (connection, ri, query, cur_lim, pi_list, pi_in
     // **2,558건에 중복 248건** — 248건이 조용히 빠졌다.
     //
     // 그래서 ofst 는 배치 경로가 직접 처리한다(아래 next_batch 참고).
-    // la 만 예전 경로로 남는다. la 를 쓰는 클라이언트는 페이지를 넘어도 계속
-    // la 를 주므로 경로가 갈리지 않는다.
-    if (la_mode) {
-        var one = build_descendant_sql(ri, query, search, cur_lim);
-        return facade.run(facade.raw(one.sql, one.bindings), connection, function (err, res) {
-            if (err) { return bail(res); }
-            var rows = res || [];
-            for (var i = 0; i < rows.length; i++) {
-                found_Obj[rows[i].ri] = rows[i];
-            }
-            if (settled) { return; }
-            settled = true;
-            callback('200', { rows: rows.length, limit: one.limit, offset: one.offset,
-                              skippedCin: one.skippedCin });
-        });
-    }
+    //
+    // **la 도 배치 경로를 탄다.** 한때 예전 한 문장으로 보냈는데, 그 경로는
+    // 골격을 조인하므로 pi 가 상수가 아니고, 그러면 `order by ct desc, ri desc`
+    // 가 filesort 가 되어 30초 상한에 걸렸다(배포 실측, CIN 593만). pi 를 상수로
+    // 주고 인덱스 강제를 빼야 옵티마이저가 인덱스 역방향 range 로 정렬을
+    // 없앤다 — 그 둘을 build_children_sql 이 한다.
+    //
+    // presearch_action 이 la 요청에 ty=4 / lvl=1 을 박으므로 부모는 언제나
+    // 하나다. 배치가 하나뿐이라 배치 안의 정렬이 곧 전역 정렬이다.
 
-    // 여기부터는 la 가 없다. 전역 정렬을 맞출 일이 없으므로 배치를 순서대로
-    // 돌며 한도를 채우면 된다. 오프셋은 아래 next_batch 가 배치별로 소진한다.
+    // 여기부터 배치 경로다. 오프셋은 아래 next_batch 가 배치별로 소진한다.
     var skip = ofst;
     var need = lim;
     var taken = 0;
