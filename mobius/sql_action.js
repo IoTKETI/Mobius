@@ -1098,11 +1098,34 @@ exports.select_spec_ri = function (connection, found_Obj, count, callback) {
     next_table(0);
 };
 
-// discovery 는 두 백엔드 모두 재귀 CTE 하나로 처리한다.
+// discovery 는 두 백엔드 모두 재귀 CTE 로 골격을 만든 뒤, 그 골격을 부모
+// 목록으로 삼아 자식을 뽑는다. **문장은 둘이다.**
 //
 // 예전에는 MySQL 만 "레벨별로 부모를 모아 두고 부모마다 질의" 하는 2단계였다.
 // 그 방식은 레벨당 2,000개 상한이 있어 큰 트리에서 결과가 조용히 잘렸고,
-// 부모 수만큼 왕복이 생겼다. SQLite 는 이미 CTE 였으므로 CTE 로 통일한다.
+// 부모 수만큼 왕복이 생겼다. SQLite 는 이미 CTE 였으므로 CTE 로 통일했다.
+//
+// 그 다음 단계로 골격 CTE 와 자식 질의를 **한 문장으로 붙였다가 다시 갈랐다.**
+// 붙여 두면 pi 가 조인에서 오므로 MySQL 이 ref 접근을 골라 인덱스를
+// (pi, ty) 까지만 쓰고, ct 는 키 범위가 아니라 ICP 로 스캔하며 거른다:
+//
+//   EXPLAIN FORMAT=JSON (배포 실측 2026-09-01)
+//     table: r  access_type: ref  key: idx_lookup_pi_ty_ct
+//     used_key_parts: ["pi", "ty"]                 <- ct 가 없다
+//     index_condition: ('2026...' <= `r`.`ct`)     <- 스캔하며 거른다
+//
+// 그래서 부모마다 그 컨테이너의 CIN 인덱스 항목을 끝까지 훑었다.
+// /Mobius/KETI_MUV/Mission_Data 는 부모 2,806개에 CIN 2,282만 건이고
+// 가장 큰 컨테이너 하나가 593만 건이다 — 30초 상한에 걸려 하루 4건 500 이 났다.
+// lim 은 도움이 안 된다. cra 가 "지금" 이면 매칭이 0건이라 조기 종료가
+// 일어나지 않고 전부 훑는다 — **0건일 때가 가장 느리다.**
+//
+// pi 가 상수 목록이면 range 옵티마이저가 ct 까지 키 범위에 넣는다:
+//   join skel      ref    key_len 606 (pi, ty)       30,000ms 타임아웃
+//   LATERAL        ref    key_len 606                동일 — 안 된다
+//   pi IN (목록)   range  key_len 671 (pi, ty, ct)      126ms
+// 매칭 개수와 무관하다(부모당 O(그 부모의 행 수) -> O(log n)):
+//   cra=지금 0건 0.126초 / 오늘 343건 0.12초 / 전체(후보 2,282만) 0.42초
 //
 // 골격은 "CIN(ty=4) 이 아닌 자식" 을 따라 넓힌다. 조건의 표현은 백엔드마다
 // 다르므로 파사드가 낸다 — facade.notCinPredicate() / notCinIndexName() 참고.
@@ -1112,6 +1135,52 @@ exports.select_spec_ri = function (connection, found_Obj, count, callback) {
 // 오래 붙잡지 않도록 문장 단위 상한을 건다. 지원하지 않는 백엔드에서는 null 이라
 // 아무것도 붙지 않는다. 배포 서버 실측: 그런 질의는 현행 코드에서도 23초 걸린다.
 const DISCOVERY_TIMEOUT_MS = 30000;
+
+// 자식 질의 하나에 넣을 부모(IN 목록)의 최대 개수.
+//
+// **배치는 선택이 아니라 필수다 — 안 나누면 조용히 더 나빠진다.**
+// range_optimizer_max_mem_size 가 8MB 다. IN 목록이 그 예산을 넘으면 MySQL 은
+// range 를 **포기하고** 전체 인덱스 스캔으로 떨어진다. 경고도 에러도 없다.
+//
+//   부모 수    접근                옵티마이저 추정 행
+//   2,000      range                        2,015
+//   5,000      range                        5,015
+//   8,000      range                        8,015
+//   10,000     index (전체 스캔)       61,947,616     <- 여기서 무너진다
+//
+// 전환점은 8,000~10,000 사이이고 **경로 문자열 길이에 따라 움직인다.**
+// 그래서 여유 2배를 두고 4,000 으로 잡는다. 이 값을 올리면 어느 날 경로가
+// 길어졌다는 이유만으로 전체 스캔으로 떨어진다 — test/discovery-cte.test.js
+// 가 상한을 못박고 있다.
+//
+// CSE 루트 /Mobius 의 골격은 34,414 노드이므로 루트 최악 9배치다.
+// (골격 빌드 자체는 병목이 아니다 — 루트 34,414개가 0.32초다. 단
+//  force index (idx_lookup_pi_notcin) 를 빼면 25초를 넘긴다.)
+//
+// SQLite: 번들 sqlite3 3.44.2 에서 바인딩 999 / 5,000 / 32,766 개 전부 통과.
+// 4,000 은 양쪽 백엔드에서 안전하다.
+const DISCOVERY_PARENT_BATCH = 4000;
+
+// 배치 하나를 던질 가치가 있는 최소 남은 예산.
+const MIN_BATCH_BUDGET_MS = 100;
+
+// **예산은 부모 수가 아니라 range 조합 수다.**
+//
+// 위 표의 "부모 수" 는 ty 를 하나만 준 질의로 잰 값이다. ty 를 여러 개 주면
+// where 가 (ty = :q0 or ty = :q1 ...) 이 되고, 옵티마이저는 부모마다 ty 값
+// 수만큼 범위를 만든다 — 조합은 (부모 수 x ty 값 수)다. ty 를 넷 주면
+// 부모 4,000 개가 16,000 조합이 되어 위 표의 붕괴 지점을 훌쩍 넘는다.
+//
+// 그래서 배치를 ty 값 수로 나눈다. ty 를 안 주면 ty 술어가 없으므로 1 이다.
+function discovery_batch_size(query) {
+    var n = 1;
+    if (query.ty != null) {
+        var list = Array.isArray(query.ty) ? query.ty : String(query.ty).split(',');
+        n = list.filter(function (v) { return String(v).trim() !== ''; }).length || 1;
+    }
+    return Math.max(1, Math.floor(DISCOVERY_PARENT_BATCH / n));
+}
+exports.discovery_batch_size = discovery_batch_size;
 
 // lvl -> 골격을 몇 레벨까지 훑을지. null 이면 무제한.
 //
@@ -1125,12 +1194,193 @@ function descendant_max_lvl(query) {
 }
 exports.descendant_max_lvl = descendant_max_lvl;
 
-// ri 아래 자손을 한 문장으로 뽑는 SQL 을 만든다. {sql, bindings} 를 준다.
+// ri 아래 **골격**(자손 중 부모가 될 수 있는 노드)만 뽑는 SQL. {sql, bindings}.
 //
-// search 는 build_search_query 가 만든 { where, bindings } 다. where 안의
-// 클라이언트 값은 전부 :qN 이름 바인딩이라 SQL 문자열에 값이 들어가지 않는다.
-// 컬럼은 alias 없이 부르므로, 골격 CTE 는 컬럼을 sk_ri / sk_lvl 로 이름 붙여
-// 그 조각과 절대 겹치지 않게 한다.
+// 마지막에 sk_ri / sk_lvl 을 그대로 내보낸다. 자식은 별도 문장이 이 목록을
+// pi IN (...) 으로 받아 뽑는다 — 왜 나눴는지는 위 DISCOVERY_PARENT_BATCH
+// 주석 위의 설명을 볼 것.
+//
+// 컬럼 이름을 sk_ 로 접두하는 이유는 그대로다: build_search_query 는 컬럼을
+// alias 없이 부르므로(lbl, ty, ct ...) 골격이 ri / ty 같은 이름을 내보내면
+// 자식 질의의 where 가 모호해진다.
+// budget_ms 는 **이 문장 하나**에 걸 상한이다. 배치 경로는 문장이 여러 개라
+// DISCOVERY_TIMEOUT_MS 를 문장마다 새로 걸면 요청 전체 상한이 그 배수로 늘어난다
+// (루트 10문장 = 300초). 호출부가 남은 예산을 계산해 넘긴다.
+function build_skeleton_sql(ri, query, budget_ms) {
+    var C = facade.pathCollate();
+    var max_lvl = descendant_max_lvl(query);
+
+    // 재귀항에는 반드시 인덱스를 고정해야 한다.
+    //
+    // 안 걸면 옵티마이저가 클러스터드 PRIMARY(pi, ri, ty) 를 골라 pi 로만 찾고
+    // 나머지를 **필터**로 처리한다. 그러면 골격을 넓히려고 컨테이너를 훑을
+    // 때마다 그 컨테이너의 CIN 을 전부 읽는다. 어느 계획을 고르는지는 통계와
+    // 캐시 상태로 뒤집혀서, 같은 질의가 아침에 751ms 오후에 80초였고 배포
+    // 서버가 실제로 HTTP 500 을 내고 있었다.
+    var recur_hint = facade.indexHint(facade.notCinIndexName());
+
+    // 골격은 "CIN 이 아닌 자식" 을 따라 넓힌다 — 분기 하나면 된다.
+    //
+    // 예전에는 비-리프 타입마다 UNION 분기를 하나씩 만들었다(20개). MySQL 의
+    // 재귀 CTE 안에서는 ref(등치) 접근만 되고 range 가 안 되기 때문이다.
+    // 배포 서버 실측(2026-08-29, 전체 CSE 골격):
+    //   ty in (2,3,5)     인덱스는 pi 까지만, 나머지는 Filter      6,961ms
+    //   ty < 4 / ty > 4   인덱스를 고정해도 Filter 로 밀림       125,385ms
+    //   ty between        마찬가지                              77,060ms
+    //   ty = 'N' 등치 20개                                        4,856ms
+    // 골격 30,794노드 × 20 = 616,000회 탐색이 전체 CSE discovery 5초의 대부분이고,
+    // 그중 15개 타입은 이 배포에 행이 0개인데도 노드마다 찾아봤다.
+    //
+    // 이제 lookup 에 (pi, not_cin) 인덱스가 있다(migrations/004). not_cin 은
+    // (ty <> 4) 를 담은 가상 생성 컬럼이라 "CIN 이 아니다" 가 등치가 되고,
+    // 분기 하나로 끝난다 — 탐색 616,000 -> 34,243 회.
+    //
+    // ty <> 4 는 SUB / ACP / GRP 도 골격에 넣지만(30,794 -> 34,243) 배포 서버에서
+    // 자식을 가진 노드의 타입은 2 / 3 / 5 / 14 뿐이라 결과는 같다. 오히려 앞으로
+    // 어떤 타입이 자식을 갖게 되어도 목록을 고칠 필요가 없어 더 안전하다.
+    var branches = '';
+    // max_lvl 이 0 이면 직계 자식만 보면 되므로 재귀가 아예 필요 없다.
+    if (max_lvl === null || max_lvl > 0) {
+        var guard = (max_lvl === null) ? '' : ' and s.sk_lvl < ' + max_lvl;
+        branches = '\n  union\n' +
+            '  select l.ri' + C + ', s.sk_lvl + 1 from lookup l' + recur_hint +
+            ' join skel s on l.pi = s.sk_ri' +
+            ' where ' + facade.notCinPredicate('l') + guard;
+    }
+
+    var timeout = facade.statementTimeoutHint(budget_ms || DISCOVERY_TIMEOUT_MS);
+    // 해시 조인을 막는다. 옵티마이저가 재귀항에서 "작은 인덱스를 통째로 훑고
+    // 골격의 새 행으로 해시를 만드는" 계획을 고를 때가 있는데, 재귀는 반복마다
+    // 상대가 바뀌므로 그 해시를 매번 새로 만든다 (실측 15,584ms -> 4,856ms).
+    var nohash = facade.noHashJoinHint(['l', 's']);
+    var hints = [timeout, nohash].filter(Boolean).join(' ');
+    var lead = 'select ' + (hints ? '/*+ ' + hints + ' */ ' : '');
+
+    // 골격 컬럼을 처음부터 비교용 콜레이션으로 만든다.
+    //
+    // 조인할 때만 붙이면(s.sk_ri collate ...) 골격 안에 대소문자만 다른 경로가
+    // 그대로 남는다. lookup.ri 는 utf8mb3_bin 이라 UNION 이 그것들을 서로 다른
+    // 행으로 보기 때문이다. 그러면 같은 자식이 그 수만큼 중복으로 나오고,
+    // 호출부가 found_Obj[ri] 로 합치면서 응답이 lim 보다 적어진다.
+    //
+    // 배포 서버 실측(2026-08-29): 골격 30,855행 중 61행이 대소문자만 다른
+    // 중복이었고, ty=3 lim=2000 요청이 2,000행을 받아 1,960건만 돌려줬다.
+    // 골격 컬럼을 ci 로 선언하면 UNION 이 원천에서 지운다 — 골격 30,794행,
+    // 응답 2,000건, ty=3 전체도 정확히 30,281건(컨테이너 수와 일치).
+    //
+    // 루트는 **이름 바인딩**(:root_ri)이다. 위치 바인딩(?)을 쓰면 안 된다 —
+    // 값 안의 물음표를 knex 가 자리표로 세어 "Expected N bindings, saw N+1" 로
+    // 죽는다(재현: ?fu=1&rn=what%3F -> HTTP 500). 자식 질의의 :pN / :qN 도
+    // 같은 이유로 이름 바인딩이다.
+    var sql =
+        'with recursive skel as (\n' +
+        '  select ri' + C + ' as sk_ri, 0 as sk_lvl from lookup where ri = :root_ri' + branches + '\n' +
+        ')\n' +
+        lead + 'sk_ri, sk_lvl from skel';
+
+    // max_lvl 로 자르는 일은 호출부가 JS 에서 한다 (search_lookup 참고).
+    // 재귀 분기의 s.sk_lvl < max_lvl 가드가 이미 깊이를 막고 있고, 남는 것은
+    // 마지막 한 레벨을 부모 목록에서 빼는 일뿐이라 SQL 을 더 복잡하게 할
+    // 이유가 없다.
+    return { sql: sql, bindings: { root_ri: ri } };
+}
+exports.build_skeleton_sql = build_skeleton_sql;
+
+/**
+ * 골격의 한 배치를 부모로 삼아 자식을 뽑는 SQL. {sql, bindings} 를 준다.
+ *
+ * parents 는 이 배치의 sk_ri 문자열 배열이다. **값은 전부 이름 바인딩(:pN)
+ * 으로 나간다** — SQL 문자열에 경로를 넣으면 안 된다. 경로에 물음표가 들어간
+ * 실제 500 사례가 있다. 필터 쪽 이름(:qN)과 겹치지 않게 접두사를 나눈다.
+ *
+ * lim 은 이 배치에 걸 행 수다. **offset 절은 붙이지 않는다.** 배치마다
+ * offset 을 주면 배치 수만큼 건너뛰어 틀린다 — 전역 오프셋은 호출부가
+ * JS 에서 앞부분을 버리는 방식으로 처리한다(search_lookup 참고).
+ * 그래서 설계의 (parents, query, search, lim, ofst) 에서 ofst 인자를 뺐다.
+ */
+function build_children_sql(parents, query, search, lim, budget_ms) {
+    // 자식 질의는 (pi, ty, ct) 를 고정한다. 여기는 요청의 ty 로 거르는데,
+    // lbl 처럼 인덱스 밖 컬럼이 끼면 옵티마이저가 PRIMARY 를 골라 ty 를 범위에서
+    // 빼 버리고 부모마다 CIN 을 전부 읽는다 — 배포 서버에서 60초를 넘겼다.
+    //
+    // 타입을 안 고르고 lbl 로 찾는 경우는 (pi, not_cin) 을 쓴다. 그래야
+    // 부모마다 CIN 을 건너뛰고 비-CIN 자식만 읽는다 — like_filter_without_ty
+    // 주석 참고.
+    var skip_cin = like_filter_without_ty(query);
+    var hint = facade.indexHint(skip_cin ? facade.notCinIndexName() : 'idx_lookup_pi_ty_ct');
+    var skip_cin_where = skip_cin ? (' and ' + facade.notCinPredicate('r')) : '';
+
+    var timeout = facade.statementTimeoutHint(budget_ms || DISCOVERY_TIMEOUT_MS);
+    var lead = 'select ' + (timeout ? '/*+ ' + timeout + ' */ ' : '');
+
+    // sza / szb / cty 를 쓰면 cin 을 조인한다. 그 값(cs / cnf)은 lookup 에 없다.
+    //
+    // 조인 키를 (pi, ri) 둘 다로 잡는 이유: cin_ri_idx(pi, ri, cs) 가
+    // cs 까지 담고 있어서, sza / szb 만 쓰면 cin 행을 읽지 않고 인덱스만으로
+    // 끝난다. cnf 는 인덱스에 없어 행 접근이 필요하다.
+    // 두 컬럼 모두 lookup 쪽과 콜레이션이 같아 별도 지정이 필요 없다
+    // (pi 는 양쪽 general_ci, ri 는 양쪽 bin).
+    //
+    // inner join 이 맞다 — cs / cnf 가 없는 리소스(컨테이너 등)는 크기·형식으로
+    // 거를 대상이 아니므로 결과에서 빠져야 한다.
+    var cin_join = needs_cin_join(query)
+        ? ' join cin c on c.pi = r.pi and c.ri = r.ri' : '';
+
+    // 크기·형식 필터가 붙으면 결과는 반드시 ty=4 다 (cs / cnf 가 cin 에만 있다).
+    // 조인만으로도 결과는 같지만, 이 조건을 명시해야 (pi, ty) 인덱스가 CIN 만
+    // 집어낸다. 없으면 옵티마이저가 골격의 모든 자식을 후보로 놓고 cin 을
+    // 하나씩 찾아본다 — 249GB 테이블에 대한 임의 접근이라 매우 비싸다.
+    var cin_ty = needs_cin_join(query) ? " and r.ty = '4'" : '';
+
+    // 빈 목록은 `in ()` 이라는 문법 오류 SQL 이 된다. 호출부가 이미 막지만
+    // 이 함수는 export 돼 있으므로 여기서도 막는다 — null 을 주면 호출부가
+    // "던질 것이 없다" 를 알 수 있다.
+    if (!parents || parents.length === 0) { return null; }
+
+    var bindings = {};
+    var slots = [];
+    for (var i = 0; i < parents.length; i++) {
+        bindings['p' + i] = parents[i];
+        slots.push(':p' + i);
+    }
+
+    var sql = lead + 'r.* from lookup r' + hint + cin_join + '\n' +
+        ' where r.pi in (' + slots.join(', ') + ')' +
+        cin_ty + skip_cin_where + search.where;
+
+    // la 는 "최신 N건"이다. ct 는 초 단위라 동점이 흔해 ri 로 가려야
+    // 안정적이다 (select_edge_resource 와 같은 이유).
+    // 배치로 나뉘므로 이 정렬은 **배치 안에서만** 전역이 아니다 —
+    // 호출부가 배치 결과를 같은 기준으로 다시 정렬해 상위 N 을 고른다.
+    if (query.la != null) { sql += ' order by r.ct desc, r.ri desc'; }
+
+    // limit 은 리터럴이다. 값은 호출부가 정수로 계산해 준다
+    // (sanitize_discovery_query 가 la / ofst / lim 을 정수로 강제한다).
+    sql += ' limit ' + Math.max(0, Math.floor(lim));
+
+    // 필터의 :qN 을 합쳐 넘긴다. 이름이 겹치지 않게 부모는 p, 필터는 q 다.
+    Object.keys(search.bindings).forEach(function (k) {
+        bindings[k] = search.bindings[k];
+    });
+
+    return { sql: sql, bindings: bindings };
+}
+exports.build_children_sql = build_children_sql;
+
+// ── 예전의 한 문장 경로. ofst 나 la 가 있으면 이쪽을 쓴다 ────────────────
+//
+// 배치 경로(build_skeleton_sql + build_children_sql)는 **ofst 가 없고 la 도
+// 없는 요청에만** 쓴다. 나머지는 이 함수 그대로다. 이유는 둘이다.
+//
+//   ofst  전역 오프셋은 SQL 이 DB 안에서 건너뛴다. 배치로 나누면 그럴 수
+//         없어 JS 가 앞부분을 버려야 하는데, 그러려면 배치마다
+//         limit (ofst + lim) 을 걸어 **버릴 행까지 전부 실어 와야 한다.**
+//         ofst 는 서버가 X-M2M-CTO 로 광고하므로 정상 페이징이 그 경로를 밟는다.
+//   la    전역 정렬이라 조기 종료를 못 한다. 모든 배치를 던지고 결과를
+//         전부 메모리에 쌓아 다시 정렬해야 한다 — 왕복만 늘고 이득이 없다.
+//
+// 실측으로 확인된 타임아웃(2026-09-01, 배포 서버)은 전부 ofst 없는 요청이었다.
+// 그쪽만 바꾸면 위 두 문제가 애초에 생기지 않는다.
 function build_descendant_sql(ri, query, search, cur_lim) {
     var query_where = search.where;
     var C = facade.pathCollate();
@@ -1283,76 +1533,201 @@ exports.build_descendant_sql = build_descendant_sql;
 
 // 인자 목록은 예전 2단계 구현의 것을 그대로 둔다 — 호출부(resource.js)와
 // 테스트가 이 형태를 쓴다. pi_list / pi_index / skipped / cni / cur_d /
-// loop_cnt / search_tid 는 CTE 가 한 문장으로 끝내므로 더는 읽지 않는다.
+// loop_cnt / search_tid 는 여기서 더는 읽지 않는다.
 //
 // 콜백은 callback(code, info) 다. 성공하면 info 에
-//   { rows, limit, offset }   SQL 이 돌려준 행 수와 실제로 건 한도/오프셋
+//   { rows, limit, offset }   실제로 취한 행 수와 건 한도/오프셋
 // 이 담긴다. 호출부는 이것으로 "결과가 잘렸는가" 를 판정하고 다음 오프셋을
 // 계산한다 (X-M2M-CTS / X-M2M-CTO).
 //
 // **rows 는 select_spec_ri 가 고아 행을 걷어내기 전 수**다. 다음 오프셋은
 // DB 가 실제로 건너뛴 만큼이어야 하므로 응답 건수가 아니라 이 값을 써야 한다.
 // 안 그러면 클라이언트가 다음 페이지에서 고아 수만큼 앞을 다시 읽는다.
+//
+// ── 두 경로 ──────────────────────────────────────────────────────────────
+// **배치 경로는 ofst 가 없고 la 도 없는 요청에만 쓴다.** 나머지는 예전
+// 한 문장(build_descendant_sql) 그대로다 — 이유는 그 함수 위 주석에 있다.
+//
+// 배치 경로의 왕복은 골격 1회 + ceil(부모수 / 배치크기) 회다. 보통 요청은
+// 2회. **부모마다 던지던 시절(배포 실측 4,080회)로 돌아가면 안 된다.**
+//
+// ── 행 순서 ──────────────────────────────────────────────────────────────
+// 한 문장이던 시절의 순서는 (골격 순서 × 부모별 인덱스 순서)였다. 배치로
+// 나눈 뒤에는 배치 안에서 range 접근이 pi 오름차순으로 준다. 둘 다
+// **결정적**이라 결과가 빠지지는 않는다. ofst 가 있는 요청은 예전 경로를
+// 쓰므로 페이징 순서는 애초에 바뀌지 않는다.
 exports.search_lookup = function (connection, ri, query, cur_lim, pi_list, pi_index, found_Obj, skipped, cni, cur_d, loop_cnt, callback, search_tid) {
     // 숫자로 쓰이는 파라미터만 거른다. 문자열 값은 이제 바인딩으로 나가므로
     // 이스케이프하지 않는다 (build_search_query 주석 참고).
     sanitize_discovery_query(query);
 
-    (function (search) {
-        var q = build_descendant_sql(ri, query, search, cur_lim);
+    var search = build_search_query(query);
+    var max_lvl = descendant_max_lvl(query);
+    var la_mode = (query.la != null);
 
-        // 답이 있을 수 없는 조합이면 DB 를 건드리지 않는다.
-        // (크기·형식 필터 + ty=4 를 뺀 타입 지정 — 위 함수 주석 참고)
-        if (size_filter_excludes_all(query)) {
-            return callback('200', { rows: 0, limit: q.limit, offset: q.offset,
-                                     skippedCin: q.skippedCin });
+    // 실효 한도. la 가 있으면 그 값이 한도다.
+    var lim = parseInt(la_mode ? query.la : cur_lim, 10);
+    if (isNaN(lim) || lim < 0) { lim = max_search_count; }
+
+    var ofst = 0;
+    if (query.ofst != null) {
+        var o = parseInt(query.ofst, 10);
+        if (!isNaN(o) && o > 0) { ofst = o; }
+    }
+
+    var info = {
+        rows: 0, limit: lim, offset: ofst,
+        // 이 요청에서 CIN 을 뺐는가. 호출부가 응답에 표시하고 로그에 남긴다 —
+        // 조용히 좁히면 "없다" 와 "안 찾아봤다" 를 구별할 수 없다.
+        skippedCin: like_filter_without_ty(query)
+    };
+
+    // 답이 있을 수 없는 조합이면 DB 를 건드리지 않는다.
+    // (크기·형식 필터 + ty=4 를 뺀 타입 지정 — size_filter_excludes_all 주석 참고)
+    if (size_filter_excludes_all(query)) {
+        return callback('200', info);
+    }
+
+    // 콜백은 정확히 한 번이다. 배치 루프에서 두 번 부르기 쉽다.
+    var settled = false;
+
+    // 파사드 규약: 실패는 cb(true, errObj) 다 — 에러 객체는 **둘째** 인자로 온다
+    // (mobius/db/index.js 의 run 참고). 첫 인자를 에러로 착각하면 err 는 그냥
+    // boolean true 라서 err.code / err.message 가 전부 undefined 가 되고,
+    // 로그에 '[search_lookup] true' 한 줄만 남아 원인을 알 수 없게 된다.
+    function bail(res) {
+        if (settled) { return; }
+        settled = true;
+
+        // 문장 상한(MySQL ER_MAX_EXECUTION_TIME_EXCEEDED)은 DB 고장이
+        // 아니라 "이 질의가 감당 못 할 범위"라는 뜻이다. 구분해서 남긴다.
+        //
+        // 대표적인 형태가 ty 없이 lbl like '%..%' 다. 그러면 후보에
+        // CIN 이 전부 들어오는데(배포 서버 6,620만 행) LIKE 는 인덱스를
+        // 못 타므로 어떤 계획으로도 빠를 수 없다. 인덱스를 강제해도
+        // 안 해도 30초를 넘긴다(2026-08-29 실측). 예전 구현은 lbl 패턴이
+        // 아예 안 맞아 늘 빈 결과였다(커밋 83e8461).
+        if (res && (res.driverCode === 'ER_MAX_EXECUTION_TIME_EXCEEDED' || res.errno === 3024)) {
+            console.error('[search_lookup] statement timeout (' + DISCOVERY_TIMEOUT_MS +
+                          'ms) ri=' + ri + ' query=' + JSON.stringify(query) +
+                          ' — 대상을 좁히거나(더 깊은 경로) ty 를 함께 준다');
+            // 상한에 걸린 것은 DB 고장이 아니라 "이 범위를 감당 못 한다" 다.
+            // 500 "database error" 로 뭉개면 호출자가 무엇을 고쳐야 할지 모른다.
+            return callback('500-6');
         }
+        // 인덱스가 없으면 force index 때문에 discovery 가 **전부** 실패한다.
+        // 코드만 올리고 마이그레이션을 안 돌린 경우다 — 원인을 바로 알려준다.
+        // (새로 설치하면 mobiusdb.sql 이 만들어 주므로 이 경우는 업그레이드뿐)
+        else if (res && (res.driverCode === 'ER_KEY_DOES_NOT_EXITS' ||
+                         res.errno === 1176 ||
+                         /Key '[^']*' doesn't exist/i.test(res.sqlMessage || res.message || ''))) {
+            console.error('[search_lookup] 인덱스가 없다: ' +
+                          (res.sqlMessage || res.message) +
+                          ' — node tools/migrate.js --check mysql 로 확인하고 적용할 것');
+        }
+        else {
+            console.error('[search_lookup] ' + ((res && (res.sqlMessage || res.message)) || res));
+        }
+        return callback('500-1');
+    }
 
-        // 파사드 규약: 실패는 cb(true, errObj) 다 — 에러 객체는 **둘째** 인자로 온다
-        // (mobius/db/index.js 의 run 참고). 첫 인자를 에러로 착각하면 err 는 그냥
-        // boolean true 라서 err.code / err.message 가 전부 undefined 가 되고,
-        // 로그에 '[search_lookup] true' 한 줄만 남아 원인을 알 수 없게 된다.
-        facade.run(facade.raw(q.sql, q.bindings), connection, function (err, res) {
-            if (err) {
-                // 문장 상한(MySQL ER_MAX_EXECUTION_TIME_EXCEEDED)은 DB 고장이
-                // 아니라 "이 질의가 감당 못 할 범위"라는 뜻이다. 구분해서 남긴다.
-                //
-                // 대표적인 형태가 ty 없이 lbl like '%..%' 다. 그러면 후보에
-                // CIN 이 전부 들어오는데(배포 서버 6,620만 행) LIKE 는 인덱스를
-                // 못 타므로 어떤 계획으로도 빠를 수 없다. 인덱스를 강제해도
-                // 안 해도 30초를 넘긴다(2026-08-29 실측). 예전 구현은 lbl 패턴이
-                // 아예 안 맞아 늘 빈 결과였다(커밋 83e8461).
-                if (res && (res.driverCode === 'ER_MAX_EXECUTION_TIME_EXCEEDED' || res.errno === 3024)) {
-                    console.error('[search_lookup] statement timeout (' + DISCOVERY_TIMEOUT_MS +
-                                  'ms) ri=' + ri + ' query=' + JSON.stringify(query) +
-                                  ' — 대상을 좁히거나(더 깊은 경로) ty 를 함께 준다');
-                    // 상한에 걸린 것은 DB 고장이 아니라 "이 범위를 감당 못 한다" 다.
-                    // 500 "database error" 로 뭉개면 호출자가 무엇을 고쳐야 할지 모른다.
-                    return callback('500-6');
-                }
-                // 인덱스가 없으면 force index 때문에 discovery 가 **전부** 실패한다.
-                // 코드만 올리고 마이그레이션을 안 돌린 경우다 — 원인을 바로 알려준다.
-                // (새로 설치하면 mobiusdb.sql 이 만들어 주므로 이 경우는 업그레이드뿐)
-                else if (res && (res.driverCode === 'ER_KEY_DOES_NOT_EXITS' ||
-                                 res.errno === 1176 ||
-                                 /Key '[^']*' doesn't exist/i.test(res.sqlMessage || res.message || ''))) {
-                    console.error('[search_lookup] 인덱스가 없다: ' +
-                                  (res.sqlMessage || res.message) +
-                                  ' — node tools/migrate.js --check mysql 로 확인하고 적용할 것');
-                }
-                else {
-                    console.error('[search_lookup] ' + ((res && (res.sqlMessage || res.message)) || res));
-                }
-                return callback('500-1');
-            }
+    // ── 경로 선택 ────────────────────────────────────────────────────────
+    // 배치 경로는 **ofst 도 la 도 없을 때만** 쓴다. 둘 중 하나라도 있으면
+    // 예전 한 문장으로 간다 (build_descendant_sql 위 주석에 이유가 있다).
+    if (ofst > 0 || la_mode) {
+        var one = build_descendant_sql(ri, query, search, cur_lim);
+        return facade.run(facade.raw(one.sql, one.bindings), connection, function (err, res) {
+            if (err) { return bail(res); }
             var rows = res || [];
             for (var i = 0; i < rows.length; i++) {
                 found_Obj[rows[i].ri] = rows[i];
             }
-            callback('200', { rows: rows.length, limit: q.limit, offset: q.offset,
-                              skippedCin: q.skippedCin });
+            if (settled) { return; }
+            settled = true;
+            callback('200', { rows: rows.length, limit: one.limit, offset: one.offset,
+                              skippedCin: one.skippedCin });
         });
-    })(build_search_query(query));
+    }
+
+    // 여기부터는 ofst = 0, la 없음이 보장된다. 그래서 오프셋을 건너뛸 일도,
+    // 전역 정렬을 맞출 일도 없다 — 받은 순서대로 한도까지 채우면 끝이다.
+    var need = lim;
+    var taken = 0;
+
+    // **요청 하나의 DB 예산은 여전히 DISCOVERY_TIMEOUT_MS 다.**
+    // 문장이 1 + N 개가 되었으므로 문장마다 30초를 새로 걸면 요청 상한이
+    // 그 배수로 늘어난다(루트 10문장 = 300초). 남은 예산을 계산해 넘기고,
+    // 다 쓰면 상한에 걸린 것과 같이 취급한다.
+    var started = Date.now();
+    function budget_left() {
+        return DISCOVERY_TIMEOUT_MS - (Date.now() - started);
+    }
+    function out_of_budget() {
+        console.error('[search_lookup] statement timeout (' + DISCOVERY_TIMEOUT_MS +
+                      'ms) ri=' + ri + ' query=' + JSON.stringify(query) +
+                      ' — 대상을 좁히거나(더 깊은 경로) ty 를 함께 준다');
+        if (settled) { return; }
+        settled = true;
+        return callback('500-6');
+    }
+
+    var batch_size = discovery_batch_size(query);
+
+    function finish() {
+        if (settled) { return; }
+        settled = true;
+        info.rows = taken;
+        callback('200', info);
+    }
+
+    // 골격 질의의 결과. next_batch 가 여기서 배치를 잘라 간다.
+    var parents = [];
+
+    var skel = build_skeleton_sql(ri, query, budget_left());
+    facade.run(facade.raw(skel.sql, skel.bindings), connection, function (err, res) {
+        if (err) { return bail(res); }
+
+        // lvl 로 결과 깊이를 제한한 요청은 마지막 레벨의 노드가 부모가 될 수
+        // 없다. 재귀 분기의 s.sk_lvl < max_lvl 가드가 골격의 깊이를 이미
+        // 막았으므로 여기서는 한 레벨만 걷어내면 된다.
+        var srows = res || [];
+        for (var i = 0; i < srows.length; i++) {
+            if (max_lvl !== null && Number(srows[i].sk_lvl) > max_lvl) { continue; }
+            parents.push(srows[i].sk_ri);
+        }
+
+        // 부모가 0개면 DB 를 더 칠 이유가 없다 (없는 ri, 또는 lvl 로 전부 잘림).
+        if (parents.length === 0) { return finish(); }
+
+        next_batch(0);
+    });
+
+    function next_batch(start) {
+        if (settled) { return; }
+        // 한도를 채웠으면 남은 배치를 던지지 않는다 (조기 종료).
+        if (need === 0) { return finish(); }
+        if (start >= parents.length) { return finish(); }
+
+        // 예산이 거의 없으면 던지지 않는다. MAX_EXECUTION_TIME(3) 같은 값은
+        // 서버가 곧바로 3024 로 죽여서 결과는 같고 왕복만 버린다.
+        var left = budget_left();
+        if (left < MIN_BATCH_BUDGET_MS) { return out_of_budget(); }
+
+        var q = build_children_sql(parents.slice(start, start + batch_size),
+                                   query, search, need, left);
+        if (q === null) { return finish(); }
+
+        facade.run(facade.raw(q.sql, q.bindings), connection, function (err, res) {
+            if (err) { return bail(res); }
+            var rows = res || [];
+            for (var j = 0; j < rows.length && need > 0; j++) {
+                found_Obj[rows[j].ri] = rows[j];
+                taken++;
+                need--;
+            }
+            next_batch(start + batch_size);
+        });
+    }
 };
 
 // 부모 아래에서 타입으로 거른 뒤 생성순 양 끝 하나를 고른다. la / ol 이 쓴다.
