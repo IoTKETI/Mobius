@@ -486,28 +486,60 @@ MySQL 201, 그리고 그로 인한 discovery 목록 차이.
 이전 작업(쓰는 클라이언트 식별 → conf.json 에 값 추가 → 도구 이전 → 재기동)을
 돕는다. `mobius.js:78` 주석도 같은 이유로 기본값을 유지한다고 적고 있다.
 
-### 2. `la` 전역 정렬 타임아웃 — 배포에서 500 이 나는 중
+### 2. `la` 타임아웃 — **완료 (`e932e66` + `47340da`, 배포됨)**
 
-`?fu=1&la=N` 을 큰 서브트리에 걸면 30초 상한에 걸려 500 이다.
-**이번 변경과 무관하다** — `build_descendant_sql` 이 `044f29a` 와 바이트 단위로
-같음을 확인했다(6,120자 일치).
+`?fu=1&la=N` 이 큰 컨테이너에서 30초 500 이었다. 배포 실측 30초 → **0.065초**.
 
-원인은 `ri` 타이브레이커다. 배포 실측(부모 하나, CIN 1,165만):
+**정의(사용자 확인 2026-09-01): discovery 의 `la` 는 컨테이너에만 적용되고,
+그 컨테이너의 직속 CIN 중 최신 N 건을 준다.**
 
-    order by ct desc            Using index   (인덱스 역스캔, 즉시)
-    order by ct desc, ri desc   filesort      5.9초
+구현이 그 정의와 달랐다. `presearch_action` 이 `ty` 도 `lvl` 도 안 박아서
+골격 전체(컨테이너 2,806개)를 훑었고, CIN 이 아닌 리소스도 섞여 나왔다.
 
-MySQL 인덱스가 `(pi, ty, ct)` 라 `ri` 가 없다. **SQLite 스키마는 이미
-`(pi, ty, ct, ri)` 다** — 두 백엔드가 비대칭이다.
+고친 것은 둘이다.
 
-`ri` 타이브레이커는 없앨 수 없다. `ct` 가 초 단위라 동점이 흔하고, 없앴을 때
-`la` 가 10회 모두 진짜 최신이 아닌 건을 돌려준 실측이 있다(2026-08-28).
+1. `presearch_action` 이 `la` 요청에 `ty=4` / `lvl=1` 을 못박는다 → 부모가 하나
+2. 그것만으로는 여전히 filesort 였다. 배포에서 모양을 갈라 재 보니 **두 조건이
+   동시에** 필요했다:
 
-선택지 둘:
-- **인덱스를 `(pi, ty, ct, ri)` 로 확장** — SQLite 와 같아진다. 다만 84GB
-  인덱스에 컬럼을 더하는 DDL 이라 비용을 먼저 재야 한다.
-- **부모별 top-N 을 `order by ct desc` 만으로 뽑고**(filesort 없음) 경계 `ct`
-  동점 행까지 더 받아 `ri` 타이브레이커를 JS 에서 적용.
+   | 모양 | 접근 | 정렬 |
+   |---|---|---|
+   | CTE + join (+force 여부 무관) | const/ref | filesort |
+   | `pi IN (...)` + force index | ref | filesort |
+   | **`pi IN (...)`, 강제 없음** | **range** | **정렬 없음** |
+
+   `pi` 가 조인이 아니라 **상수**여야 하고, **인덱스를 강제하면 안 된다.**
+   강제가 필요했던 원래 이유(옵티마이저가 PRIMARY 를 골라 CIN 을 전부 읽는 것)는
+   *정렬이 없는* 질의의 이야기라 `la` 에는 해당하지 않는다.
+
+#### 검토했다가 기각한 것 — 인덱스 확장
+
+`(pi, ty, ct)` 를 `(pi, ty, ct, ri)` 로 넓히는 안을 검토했다. **기각.**
+두 가지가 드러났다.
+
+**(1) 그걸로는 안 고쳐진다.** 부모가 둘 이상이면 어떤 인덱스로도 filesort 다.
+인덱스는 한 `pi` 안에서만 순서를 알고, 여러 `pi` 범위를 병합하는 것은 인덱스가
+하는 일이 아니다. MySQL/SQLite 동일.
+
+**(2) 애초에 두 스키마는 이미 같은 인덱스다.** "비대칭" 이라고 적었던 것을
+바로잡는다 — 선언만 다르고 실제 구성은 같다.
+
+| | 선언 | 엔진이 덧붙이는 것 | 실제 구성 |
+|---|---|---|---|
+| MySQL | `(pi, ty, ct)` | PK 컬럼 `ri` (PK = `pi, ri, ty`) | `(pi, ty, ct, ri)` |
+| SQLite | `(pi, ty, ct, ri)` | rowid (`ri` 가 아니다) | `(pi, ty, ct, ri)` |
+
+InnoDB 는 보조 인덱스에 PK 컬럼을 자동으로 붙인다. SQLite 는 rowid 를 붙이는데
+`ri` 는 `TEXT PRIMARY KEY` 라 rowid 가 아니다. **그래서 SQLite 만 `ri` 를
+명시해야 같아진다.** 실측:
+
+    SQLite (pi, ty, ct, ri)   SEARCH USING COVERING INDEX               정렬 없음
+    SQLite (pi, ty, ct)       USE TEMP B-TREE FOR RIGHT PART OF ORDER BY  부분 정렬
+    MySQL  (pi, ty, ct)       range, Using index                        정렬 없음
+
+**어느 쪽도 바꾸지 말 것.** SQLite 에서 `ri` 를 빼면 부분 정렬이 생기고
+커버링도 잃는다. MySQL 에 `ri` 를 더하면 이미 있는 것을 중복으로 넣는 셈이라
+84GB 인덱스만 커진다.
 
 ### 3. discovery 잔여 — 안내 응답
 

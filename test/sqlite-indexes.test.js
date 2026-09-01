@@ -87,3 +87,46 @@ test('스키마를 실행하면 인덱스가 생기고 질의가 그걸 쓴다',
         });
     });
 });
+
+// --- 두 스키마의 인덱스 선언이 다른 것은 의도다 ------------------------------
+//
+// 6번 작업(SQLite 를 MySQL 과 같게)에서 이 차이를 "맞춰야 할 불일치" 로
+// 오인하기 쉬워 못박는다. **선언만 다르고 실제 구성은 같다.**
+//
+//   MySQL   (pi, ty, ct)       + PK 컬럼 ri  (PK = pi, ri, ty)  -> (pi,ty,ct,ri)
+//   SQLite  (pi, ty, ct, ri)   + rowid (ri 가 아니다)           -> (pi,ty,ct,ri)
+//
+// InnoDB 는 보조 인덱스에 PK 컬럼을 자동으로 붙인다. SQLite 는 rowid 를 붙이는데
+// ri 는 TEXT PRIMARY KEY 라 rowid 가 아니다 — 그래서 SQLite 만 명시해야 한다.
+//
+// 배포/로컬 실측(2026-09-01), `order by ct desc, ri desc`:
+//   SQLite (pi,ty,ct,ri)   SEARCH USING COVERING INDEX                 정렬 없음
+//   SQLite (pi,ty,ct)      USE TEMP B-TREE FOR RIGHT PART OF ORDER BY  부분 정렬
+//   MySQL  (pi,ty,ct)      range, Using index                          정렬 없음
+//
+// SQLite 에서 ri 를 빼면 부분 정렬이 생기고 커버링도 잃는다.
+// MySQL 에 ri 를 더하면 이미 있는 것을 중복으로 넣어 84GB 인덱스만 커진다.
+
+test('SQLite 는 idx_lookup_pi_ty_ct 에 ri 를 명시한다 (rowid 가 ri 가 아니다)', function () {
+    const sql = fs.readFileSync(SCHEMA, 'utf8');
+    const m = /CREATE INDEX[^;]*idx_lookup_pi_ty_ct[^;]*ON\s+lookup\s*\(([^)]*)\)/i.exec(sql);
+    assert.ok(m, 'SQLite 에 idx_lookup_pi_ty_ct 가 없다');
+    const cols = m[1].split(',').map((c) => c.trim());
+    assert.deepStrictEqual(cols, ['pi', 'ty', 'ct', 'ri'],
+        'SQLite 인덱스에서 ri 가 빠지면 order by ct,ri 가 부분 정렬이 된다: ' + m[1]);
+});
+
+test('MySQL 은 ri 를 명시하지 않는다 (PK 가 자동으로 붙인다)', function () {
+    const sql = fs.readFileSync(path.join(__dirname, '..', 'mobius', 'mobiusdb.sql'), 'utf8');
+    const m = /KEY\s+`?idx_lookup_pi_ty_ct`?\s*\(([^)]*)\)/i.exec(sql);
+    assert.ok(m, 'MySQL 에 idx_lookup_pi_ty_ct 가 없다');
+    const cols = m[1].split(',').map((c) => c.trim().replace(/`/g, ''));
+    assert.deepStrictEqual(cols, ['pi', 'ty', 'ct'],
+        'MySQL 인덱스에 ri 를 더했다 — PK(pi,ri,ty)가 이미 붙이므로 중복이다: ' + m[1]);
+
+    // 그 자동 부착이 성립하려면 PK 에 ri 가 있어야 한다.
+    const pk = /PRIMARY KEY\s*\(([^)]*)\)/i.exec(sql);
+    assert.ok(pk, 'lookup 의 PRIMARY KEY 를 못 찾았다');
+    assert.match(pk[1], /`?ri`?/,
+        'PK 에 ri 가 없다 — 그러면 MySQL 인덱스에도 ri 를 명시해야 한다');
+});
