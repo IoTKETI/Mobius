@@ -101,38 +101,34 @@ Mobius source codes are written in javascript. So they don't need any compilatio
 
 ### Database tuning on a new install
 
-Most settings apply by themselves. **One step is manual.**
+**Nothing to do.** A fresh install ends up in the same state as an existing one.
 
 | | What sets it | When |
 |---|---|---|
-| Connection pool (`dbConnectionLimit`, `dbQueueLimit`) | Built-in defaults | Automatic — every start |
-| SQLite (`journal_mode`, `synchronous`, busy timeout) | `mobius/db/sqlite.js` | Automatic — every connect |
-| **MySQL server settings** | `migrations/010-server-durability.js` | **Manual — run it once** |
+| Schema and indexes | `mobius/mobiusdb.sql` | On first connect |
+| Connection pool | Built-in defaults | Every start |
+| SQLite journal mode, sync, busy timeout | `mobius/db/sqlite.js` | Every connect |
+| MySQL server settings | `migrations/010-server-durability.js` | First start, once |
 
-MySQL server settings live in the database itself, not in `conf.json`, so
-starting Mobius cannot set them. Run the migration once after the database
-is reachable:
+The MySQL server settings — durability, isolation level and the connection
+ceiling — live in the database server itself, so the schema file cannot create
+them. Mobius applies them on first start and records that it did, then never
+touches them again. Change them afterwards and they stay changed.
+
+Only migrations that finish instantly run at startup. Anything that rebuilds an
+index is left alone and logged instead, because that can take many minutes on a
+large database. Apply those when you choose to:
 
 ```bash
-node tools/migrate.js --check mysql    # show what would change
+node tools/migrate.js --check mysql    # show what is pending
 node tools/migrate.js --apply mysql    # apply it
 ```
 
-This sets `innodb_flush_log_at_trx_commit=1`, `transaction_isolation=REPEATABLE-READ`
-and `max_connections=800` with `SET PERSIST`, so they survive a MySQL restart.
-It records itself in `schema_migrations` and is safe to run again.
+Running on SQLite? None of this applies — SQLite has no server to configure, and
+the pool settings are unused there.
 
-The migration needs `SYSTEM_VARIABLES_ADMIN` and `PERSIST_RO_VARIABLES_ADMIN`.
-The MySQL account in `conf.json` (`dbpass`) normally has both.
-
-**`transaction_isolation` does not affect connections that are already open.**
-Restart Mobius after applying so the pool picks up the new value.
-
-Running on SQLite? Skip this — SQLite has no server to configure, and
-`dbConnectionLimit` / `dbQueueLimit` are unused there (SQLite has no pool).
-
-Every value above can be changed later from the admin console; they are all
-declared in `mobius/conf_schema.js`, which the settings screen reads.
+All of these values are declared in `mobius/conf_schema.js`, which the admin
+console settings screen reads, so they can be changed from there.
 
 ## Mobius Docker Version
 We deploy Mobius as a Docker image using the virtualization open source tool Docker.

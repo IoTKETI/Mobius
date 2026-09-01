@@ -74,6 +74,10 @@ var poa_util = require('./mobius/poa');
 var db = require('./mobius/db');
 var db_sql = require('./mobius/sql_action');
 
+// 기동 시 즉시 끝나는 마이그레이션만 적용한다 (마스터에서만).
+// 새로 설치한 DB 가 지금 배포와 같은 상태로 뜨게 하는 것이 목적이다.
+var db_bootstrap = require('./mobius/db_bootstrap');
+
 // db_facade 라는 두 번째 이름이 있었다. 전환 중에는 "구 경로(db)" 와
 // "새 파사드(db_facade)" 를 구분할 필요가 있었지만 이제 같은 것이라 합쳤다.
 var db_facade = db;
@@ -412,10 +416,16 @@ if (use_clustering) {
                         // (/var/lib/mysql/mysqld-auto.cnf, 재시작 후에도 유지).
                         // 확인: select * from performance_schema.persisted_variables
                         //
-                        // 새 서버를 세울 때는 my.cnf 에 적거나 같은 SET PERSIST 를
-                        // 한 번 돌리면 된다. 애플리케이션은 이제 SUPER 권한이
-                        // 필요 없다.
-                        {
+                        // **새 서버는 이제 알아서 같은 값이 된다.**
+                        // migrations/010-server-durability.js 가 그 값을
+                        // SET PERSIST 로 넣고, 아래 db_bootstrap 이 기동 시
+                        // 한 번 적용한다. set_tuning 과 갈리는 지점은 "한 번" 이다 —
+                        // schema_migrations 에 기록돼 다시 돌지 않으므로,
+                        // 그 뒤 운영자가 값을 바꾸면 덮어쓰지 않는다.
+                        //
+                        // 즉시 끝나는 것만 자동으로 돈다(autoApply). 001 은 배포에서
+                        // 20.6분 걸렸다 — 그런 것이 기동 경로에 있으면 안 된다.
+                        db_bootstrap.run(() => {
                             console.log('CPU Count:', cpuCount);
                             for (var i = 0; i < cpuCount; i++) {
                                 worker[i] = cluster.fork();
@@ -442,7 +452,7 @@ if (use_clustering) {
 
                                 db.release(connection);
                             });
-                        }
+                        });
                     }
                     else {
                         console.log('[db.connect] No Connection');

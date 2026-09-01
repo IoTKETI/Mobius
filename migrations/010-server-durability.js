@@ -87,6 +87,17 @@ module.exports = {
     description: '내구성·격리수준·접속 상한을 SET PERSIST 로 고정 (새 설치가 같은 값으로 뜨게)',
     backends: ['mysql'],
 
+    // **기동 시 자동으로 적용해도 되는 마이그레이션이다.**
+    //
+    // SET PERSIST 세 문장뿐이라 데이터 양과 무관하게 즉시 끝난다(배포 실측
+    // 0.0초). 반면 001 은 lookup 5,740만 행에 인덱스를 만드느라 20.6분
+    // 걸렸다 — 그런 것은 이 표시를 달면 안 된다. 기동이 그만큼 멈춘다.
+    //
+    // 이 표시가 있는 것만 mobius/db_bootstrap.js 가 기동 시 적용한다.
+    // 한 번 적용되면 schema_migrations 에 남아 다시 돌지 않으므로, 그 뒤
+    // 운영자가 값을 바꾸면 덮어쓰지 않는다 — 옛 set_tuning 과 갈리는 지점이다.
+    autoApply: true,
+
     inspect: function (ctx, cb) {
         current(ctx, function (err, got) {
             if (err) { return cb(err, null); }
