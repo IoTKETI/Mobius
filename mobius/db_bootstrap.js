@@ -31,6 +31,56 @@
 
 var migrate = require('../tools/migrate');
 var db = require('./db');
+var pool_sizing = require('./pool_sizing');
+
+// max_connections 가 앱의 요구를 담는지 보고, 모자라면 올린다.
+//
+// **올리기만 한다.** 운영자나 관리 콘솔이 바닥 위로 올려 둔 값은 그대로
+// 둔다 — 높은 것은 해가 없고(MySQL 은 실제 접속만큼만 자원을 쓴다), 내리면
+// 그 여유를 쓰던 다른 클라이언트를 끊는다.
+//
+// 옛 set_tuning 과 갈리는 지점이 이것이다. 그쪽은 기동마다 2000 으로
+// **덮어썼고**, 그래서 운영자가 my.cnf 에 적어 둔 값이 무시됐다.
+// 여기는 바닥 미달일 때만 손댄다.
+//
+// 왜 마이그레이션이 아니라 기동마다인가: SET PERSIST 가 유실되면(DB 복구,
+// RESET PERSIST, 파일 손상) 값이 MySQL 기본값 151 로 떨어지는데, 그때
+// 마이그레이션은 이미 schema_migrations 에 기록돼 있어 다시 돌지 않는다.
+// 그러면 아무도 안 고친다.
+function ensure_max_connections(ctx, cb) {
+    if (ctx.backend !== 'mysql') { return cb(null); }
+
+    var floor = pool_sizing.currentFloor();
+
+    ctx.db.run(ctx.db.raw("select @@global.max_connections as n"), ctx.conn,
+        function (err, rows) {
+            if (err) {
+                console.error('[db_bootstrap] max_connections 를 읽지 못했다');
+                return cb(null);
+            }
+            var now = (rows && rows[0]) ? Number(rows[0].n) : 0;
+            if (now >= floor) { return cb(null); }
+
+            console.log('[db_bootstrap] max_connections ' + now + ' < 필요 ' + floor +
+                        ' (풀 ' + (global.use_db_connection_limit || 25) +
+                        ' x 프로세스 ' + pool_sizing.processCount() + ') — 올린다');
+
+            // SET PERSIST 는 바인딩을 못 받는다. floor 는 위에서 계산한 정수라
+            // 클라이언트 입력이 섞이지 않는다.
+            ctx.db.run(ctx.db.raw('SET PERSIST max_connections = ' + floor), ctx.conn,
+                function (serr, sres) {
+                    if (serr) {
+                        console.error('[db_bootstrap] max_connections 를 올리지 못했다: ' +
+                            ((sres && (sres.sqlMessage || sres.message)) || sres));
+                        console.error('    SET PERSIST 에는 SYSTEM_VARIABLES_ADMIN 이 필요하다');
+                    }
+                    else {
+                        console.log('[db_bootstrap] max_connections = ' + floor);
+                    }
+                    cb(null);
+                });
+        });
+}
 
 // 마스터에서만 돈다. 워커 24개가 동시에 같은 마이그레이션을 적용하려 들면
 // schema_migrations 의 PK 가 충돌하고, 그중 하나만 이기고 나머지는 에러를
@@ -83,11 +133,18 @@ exports.run = function (callback) {
                     console.log('    적용하려면: node tools/migrate.js --apply ' + ctx.backend);
                 }
 
-                if (auto.length === 0) { return finish(null); }
+                function then_floor(aerr2) {
+                    if (aerr2) { return finish(aerr2); }
+                    // 마이그레이션 뒤에 바닥을 본다. 010 이 방금 값을 넣었을
+                    // 수도 있으므로 그 결과 위에서 판단해야 한다.
+                    ensure_max_connections(ctx, function () { finish(null); });
+                }
+
+                if (auto.length === 0) { return then_floor(null); }
 
                 console.log('[db_bootstrap] 즉시 끝나는 마이그레이션 ' +
                             auto.length + '개를 적용한다');
-                migrate.apply(ctx, auto, function (aerr2) { finish(aerr2); });
+                migrate.apply(ctx, auto, then_floor);
             });
         });
     });

@@ -170,10 +170,26 @@ var SCHEMA = {
         apply: 'restart',
         label: 'DB 커넥션 풀 크기 (프로세스당)',
         help: '**풀은 프로세스마다 하나씩 생긴다.** 배포는 워커 24 + 마스터 1 = 25 이므로 ' +
-              '앱이 요구할 수 있는 총량은 이 값 x 25 다. 지금 값 100 이면 2,500 인데 ' +
-              '배포의 max_connections 는 2,000 이라 이미 천장을 넘는다. ' +
+              '앱이 요구할 수 있는 총량은 이 값 x 25 다. ' +
               '실측 Max_used_connections 는 59 다 — 실제로는 근처도 안 간다. ' +
-              '요청 하나가 최대 3개를 쥘 수 있다(POST 의 set_hit + 본 처리 + 알림).'
+              '요청 하나가 최대 3개를 쥘 수 있다(POST 의 set_hit + 본 처리 + 알림). ' +
+              '**MySQL 의 max_connections 는 이 값에서 따라온다** — 재기동 때 모자라면 ' +
+              'Mobius 가 바닥까지 올린다(올리기만 한다. 이미 크면 안 건드린다).',
+        // 화면이 입력값에 따라 "-> max_connections 최소 N 필요" 를 같이 그리라고
+        // 주는 재료다. 계산식을 화면에 적으면 서버가 실제로 거는 값과 갈린다 —
+        // 그래서 숫자만 넘기고 식은 mobius/pool_sizing.js 하나에 둔다.
+        //
+        // 화면 계산: ceil(v * processes * slack / roundTo) * roundTo
+        derived: function () {
+            var ps = require('./pool_sizing');
+            return {
+                of: 'max_connections',
+                processes: ps.processCount(),
+                slack: 1.2,
+                roundTo: 100,
+                floorNow: ps.currentFloor()
+            };
+        }
     },
     dbQueueLimit: {
         group: '저장소',
@@ -376,7 +392,14 @@ exports.describe = function () {
             reloadWith: s.reloadWith || null,
             readOnly: s.readOnly === true,
             label: s.label,
-            help: s.help || ''
+            help: s.help || '',
+            // 이 값이 서버 쪽 다른 값을 끌고 갈 때 그 관계를 숫자로 넘긴다.
+            // 던지면 설정 화면 전체가 안 뜨므로 삼킨다 — 항목 하나의 부가
+            // 정보가 없다고 나머지 16개를 못 그리게 할 이유가 없다.
+            derived: (function () {
+                if (typeof s.derived !== 'function') { return null; }
+                try { return s.derived(); } catch (e) { return null; }
+            })()
         };
     });
     return out;

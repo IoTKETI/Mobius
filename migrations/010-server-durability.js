@@ -56,10 +56,16 @@
 // 에서 항목만 지운다. 지금 값을 바꾸려면 SET GLOBAL 을 따로 불러야 하고,
 // transaction_isolation 은 그것도 이미 열린 커넥션에는 안 먹는다.
 
+// **max_connections 는 여기 없다.** 그것만 기본값이 위험해서(151) 유실되면
+// 앱이 즉시 고갈되는데, 마이그레이션은 한 번 돌고 기록되므로 유실을 못 고친다.
+// 그래서 mobius/db_bootstrap.js 가 **기동마다** 바닥을 확인해 모자랄 때만
+// 올린다. 소유자를 하나로 둔다 — 둘이 쓰면 어느 쪽이 이겼는지 알 수 없다.
+//
+// 아래 둘은 기본값이 이미 우리가 원하는 값이라(1 / REPEATABLE-READ) 유실돼도
+// 위험하지 않다. 한 번 넣으면 된다.
 var WANT = {
     innodb_flush_log_at_trx_commit: '1',
-    transaction_isolation: 'REPEATABLE-READ',
-    max_connections: '800'
+    transaction_isolation: 'REPEATABLE-READ'
 };
 
 // 값이 문자열인 것만 따옴표로 감싼다. 숫자에 따옴표를 씌우면 MySQL 이
@@ -83,6 +89,10 @@ function current(ctx, cb) {
 }
 
 module.exports = {
+    // 이 마이그레이션이 **거는** 값. 테스트가 max_connections 가 다시
+    // 들어오지 않았는지 여기로 확인한다(주석은 정규식으로 못 거른다).
+    _WANT: WANT,
+
     id: '010-server-durability',
     description: '내구성·격리수준·접속 상한을 SET PERSIST 로 고정 (새 설치가 같은 값으로 뜨게)',
     backends: ['mysql'],
@@ -109,6 +119,11 @@ module.exports = {
                     : ('  ' + k + ' ' + now + ' -> ' + WANT[k]));
             });
             lines.push('  sync_binlog ' + got.sync_binlog + ' (그대로 둔다)');
+            // 여기서 걸지는 않지만 사람이 상태를 보러 오는 자리라 같이 보여 준다.
+            // 이 값은 기동마다 mobius/db_bootstrap.js 가 본다.
+            lines.push('  max_connections ' + got.max_connections +
+                       ' / 필요 ' + require('../mobius/pool_sizing').currentFloor() +
+                       ' (기동 시 db_bootstrap 이 모자라면 올린다)');
             lines.push('  * transaction_isolation 은 이미 열린 커넥션에 안 먹는다 —' +
                        ' Mobius 재기동이 필요하다');
             cb(null, '\n' + lines.join('\n'));

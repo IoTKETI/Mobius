@@ -417,11 +417,22 @@ if (use_clustering) {
                         // 확인: select * from performance_schema.persisted_variables
                         //
                         // **새 서버는 이제 알아서 같은 값이 된다.**
-                        // migrations/010-server-durability.js 가 그 값을
-                        // SET PERSIST 로 넣고, 아래 db_bootstrap 이 기동 시
-                        // 한 번 적용한다. set_tuning 과 갈리는 지점은 "한 번" 이다 —
-                        // schema_migrations 에 기록돼 다시 돌지 않으므로,
-                        // 그 뒤 운영자가 값을 바꾸면 덮어쓰지 않는다.
+                        // 값마다 주인이 다르다:
+                        //
+                        //   flush_log / transaction_isolation
+                        //       migrations/010 이 SET PERSIST 로 **한 번** 넣는다.
+                        //       set_tuning 과 갈리는 지점이 "한 번" 이다 —
+                        //       schema_migrations 에 기록돼 다시 돌지 않으므로,
+                        //       그 뒤 운영자가 값을 바꾸면 덮어쓰지 않는다.
+                        //       유실돼도 MySQL 기본값이 곧 원하는 값이라 안전하다.
+                        //
+                        //   max_connections
+                        //       db_bootstrap 이 **기동마다** 바닥을 확인해
+                        //       모자랄 때만 올린다. 이것만 기본값(151)이 위험해서
+                        //       유실되면 앱이 즉시 고갈되는데, 마이그레이션은
+                        //       한 번 돌고 기록돼 그 유실을 못 고친다.
+                        //       바닥은 dbConnectionLimit x 프로세스 수에서
+                        //       계산한다(mobius/pool_sizing.js). 올리기만 한다.
                         //
                         // 즉시 끝나는 것만 자동으로 돈다(autoApply). 001 은 배포에서
                         // 20.6분 걸렸다 — 그런 것이 기동 경로에 있으면 안 된다.
