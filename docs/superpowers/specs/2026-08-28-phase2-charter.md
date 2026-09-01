@@ -461,7 +461,7 @@ MySQL 201, 그리고 그로 인한 discovery 목록 차이.
 
 ---
 
-## 6. 작업 목록 (2026-09-01 갱신)
+## 9. 작업 목록 (2026-09-01 갱신)
 
 원래 11개 항목은 전부 완료·배포됐다(2절). 그 뒤 배포 검증과 브랜치 조사에서
 드러난 것들을 여기 모은다. **순서는 아래 제안 순이다.**
@@ -541,24 +541,76 @@ InnoDB 는 보조 인덱스에 PK 컬럼을 자동으로 붙인다. SQLite 는 r
 커버링도 잃는다. MySQL 에 `ri` 를 더하면 이미 있는 것을 중복으로 넣는 셈이라
 84GB 인덱스만 커진다.
 
-### 3. discovery 잔여 — 안내 응답
+### 3. discovery 안내 응답 — **완료 (`522cd66`, 배포됨)**
 
-타임아웃 시 500 대신 "대상이 너무 넓다, `lim`/`cra` 를 좁히거나 더 깊은 경로로"
-를 oneM2M 응답에 싣는다. 지금도 `m2m:dbg` 에 문구는 나가지만 코드가 500 이다.
-(골격 상한은 0번으로 필요가 줄었다 — 넣을지는 나중에 판단.)
+`500-6`(탐색이 문장 상한에 걸림)을 `INTERNAL_SERVER_ERROR`(5000/HTTP 500)에서
+`BAD_REQUEST`(4000/HTTP 400)로 바꿨다. 서버가 고장난 것이 아니라 요청의 범위가
+감당 밖이고, 같은 요청을 다시 보내면 반드시 또 실패한다 — "재시도하면 될 수도
+있다" 를 뜻하는 5xx 는 30초를 태우는 재시도를 부른다.
 
-### 4. 브랜치 통합 — 미루면 비용이 커진다
+메시지도 할 수 있는 일을 다 적는다:
 
-`lite` 에 미병합 4개. **넷 다 지금 병합하면 안 된다**(`git merge-tree` 실측).
+    "discovery scope too large — narrow the target path,
+     add a ty filter, or use cra/crb to bound the time range"
 
-| 브랜치 | 충돌 | 판정 |
+**이 사유가 남은 자리는 하나뿐이다** — `cty` / `sza` / `szb` 처럼 cin 을
+조인하는 필터. 원인은 `cnf` 컬럼이다: 인덱스가 없고 **배포에서는 값이 비어
+있다**(표본 확인). 아무것도 못 맞춘 채 후보 2,282만 건을 전부 훑고 빈 결과를
+낸다 — `cra` 에서 본 "매칭 0건이 최악" 과 같은 패턴이다. 값이 비어 있으니
+인덱스로 풀 문제가 아니고 범위를 좁히는 것이 유일한 답이라, 안내가 맞다.
+
+#### 후속 후보 (별개 작업)
+
+지금은 30초를 태운 **뒤에** 안내한다. 골격 질의가 0.32초로 끝나므로 부모 수를
+미리 알 수 있고, 경계 있는 count(0.05초)로 후보 규모도 싸게 잴 수 있다.
+`needs_cin_join` 이면서 후보가 크면 **즉시** 거절할 수 있다. 실익은
+30초 커넥션 점유를 없애는 것이다.
+
+### 4. 브랜치 통합 — 결정 완료, 실행은 part1 대기
+
+`lite` 에 미병합 4개. **넷 다 지금 병합하지 않는다**(`git merge-tree` 실측).
+
+| 브랜치 | 텍스트 충돌 | 처분 |
 |---|---|---|
-| `perf/request-flow-analysis` | 1 (`.gitignore`) | 병합 결과가 lite 와 동일 — 순이득 0 |
-| `tmp-confonly` | 3 | lite 의 하위집합 — 병합하면 126줄 삭제(회귀) |
-| `feat/admin-console-part0` | 10 | 인덱스 되살림 + `superuser` 대소문자 + ACP 우회 |
-| `feat/admin-console-part1` | **0 (깨끗)** | 그래서 위험 — 다른 세션이 작업 중 |
+| `perf/request-flow-analysis` | 1 (`.gitignore`) | **폐기** — 병합 결과가 lite 와 동일(순이득 0). 내용은 아래에서 건졌다 |
+| `tmp-confonly` | 3 | **폐기** — lite 의 하위집합. 병합하면 16줄 추가 / 126줄 삭제(회귀) |
+| `feat/admin-console-part0` | 10 | **통째 병합 안 함.** 남는 값만 lite 위에서 새로 만든다 |
+| `feat/admin-console-part1` | **0 (깨끗)** | **대기.** 그래서 더 위험 — `git merge` 가 조용히 성공한다 |
 
-**선행 결정 3건**: 인덱스 셋 / `adminOrigin` 채택 여부 / 리소스 캐시 부활 여부.
+#### 선행 결정 3건 — **사용자 결정 완료 (2026-09-01)**
+
+**결정 1. 인덱스 셋은 lite 를 유지한다.**
+`part0` 이 되살리려는 `idx_lookup_pi(pi)`·`idx_lookup_ct(ct)` 는 lite 가 배포
+실측으로 지운 것이다(각각 읽기 0회 / 9.49GB, 40.6시간 0회 / 15.6GB). `part0`
+쪽을 채택하면 `test/schema-drift.test.js` 가 즉시 실패한다 — `part0` 에는
+`migrations/` 디렉터리 자체가 없어 반대 근거도 없다.
+
+**결정 2. 관리 콘솔은 기존 `superUser` 를 그대로 쓴다 — `adminOrigin` 은 안 만든다.**
+`part0` 은 `security.js` 에 `is_admin` 분기를 넣어 수퍼유저와 **동급의 마스터
+키를 하나 더** 만들었다. 키는 하나로 유지한다.
+
+> **관리 콘솔 작업(`feat/admin-console-part1`)에 영향이 있다.** 그쪽은 지금
+> `admin/conf_store.js` 와 `admin/cse.js` 가 `adminOrigin` 을 전제로 만들어져
+> 있다. 병합 전에 `superUser` 를 쓰도록 바꿔야 한다.
+
+또한 `part0` 의 `conf.superuser`(소문자)는 어느 쪽이든 버린다 — 운영 설정 키는
+`superUser` 이고, 소문자로 읽으면 설정값을 못 보고 기본값으로 조용히 떨어진다.
+
+**결정 3. 리소스 경로 캐시는 되살리지 않는다.**
+lite 가 배포 실측으로 제거한 것이다 — `subl` 항목 14,028 vs 실제 `sub` 행
+3,452(유령 9,475건). `part0` 의 `cache_man.js` 는 LRU + 클러스터 IPC 무효화까지
+갖췄지만 `get` 이 저장된 객체를 **참조로** 돌려줘 같은 실패 모드가 재현된다.
+(정정: 실제 원인은 참조 공유가 아니라 캐시 키와 무효화 키의 불일치로 인한
+낡은 읽기였다 — `app.js:84-137` 참고. 되살릴 때의 조건도 거기 있다.)
+
+#### 실행 순서
+
+1. `perf/request-flow-analysis` · `tmp-confonly` 폐기 (삭제는 사용자 판단)
+2. `part1` 세션이 손을 뗄 때까지 대기 → 그쪽에서 `origin/lite` 를 먼저 머지하고
+   `adminOrigin` 을 `superUser` 로 바꾼 뒤 → `part1` 병합
+3. `part0` 은 병합하지 않고 남는 값만 lite 위에서 새로 만든다:
+   `hit_ri` + `hit_man`, `mobius/db/index.js` 의 `conflictRef` 노출,
+   `acp_eval` 재추출(lite 의 creator 우회·trace·acp_observe 를 보존하는 형태)
 
 ### 5. `my.cnf` 정리 — root 필요
 
@@ -580,3 +632,43 @@ InnoDB 는 보조 인덱스에 PK 컬럼을 자동으로 붙인다. SQLite 는 r
 - 스키마 `.sql` 이 어댑터 옆이 아님 → 실제로는 파일 두 개
 - 코어의 능력 분기 2개 (`sql_action.js` 의 rowLock / transaction — 후자는 중복)
 - MySQL errno(3024, 1176)를 코어가 직접 매칭
+
+---
+
+## 10. 2026-08-26 성능 분석 문서 분류 (2026-09-01)
+
+`perf/request-flow-analysis` 를 폐기하기 전에 그 안의 12개 항목을 현재 코드와
+대조했다. **7개는 완전히 해소**, 5개는 곁가지만 남았다.
+
+**문서 자체는 저장소에 넣지 않는다.** 전제 구조가 사라진 항목이 절반이고,
+틀린 내용이 남아 있다 — 위치가 틀렸고(`db_action.js:32` 는 파일 자체가 없다),
+캐시 문제의 진단이 틀렸고, `while(count--)` 스핀은 `useCert` 하드코딩 때문에
+실행된 적 없는 죽은 코드였으며, "`disable` 이면 ACP 조회를 건너뛴다" 는 그대로
+적용하면 **지금 통과하는 요청을 거부로 바꾸는 잘못된 처방**이다.
+사유는 이미 코드와 테스트가 더 정확하게 갖고 있다.
+
+### 살아남은 5건
+
+| 항목 | 크기 | 근거 |
+|---|---|---|
+| MySQL 풀 `connectionLimit` 100 → 10~20 | 작음 | 아래 참조 |
+| POST 의 여분 커넥션 취득 제거 | 작음 | `app.js:1918-1927` 만 `getConnection` 을 따로 부른다. GET/PUT/DELETE 는 이미 `request.db_connection` 재사용 |
+| 요청당 stdout 3줄 + `shortid` 1회 제거 | 작음 | `app.js:1624`, `app.js:1697-1700`. morgan 이 이미 회전 파일로 access 로그를 남겨 중복이다. `sql_action` 의 타이머 30여 쌍은 배포 진단에 쓰이므로 삭제가 아니라 환경변수 게이트 |
+| SQLite `PRAGMA journal_mode=WAL` / `synchronous=NORMAL`, `verbose()` 제거 | 작음 | 저장소 전체에 `journal_mode` 가 0건. `app.js:335` 가 백엔드 무관하게 코어 수만큼 포크하므로 한 파일을 여러 프로세스가 여는 전제가 살아 있다 |
+| `select_acp_cnt` 재귀를 접두사 `IN (...)` 한 번으로 | 중간 | `sql_action.js:1919-1948`. 조상 단계마다 왕복 1회. creator 우회가 흔한 경로를 이미 걷어내 우선순위는 낮다 |
+
+#### 커넥션 풀 — 배포 실측 (2026-09-01)
+
+    max_connections        2,000      (MySQL 천장)
+    앱이 시도 가능한 최대   2,500      (25 프로세스 x connectionLimit 100)
+    Max_used_connections      59      (지금까지의 실제 최대)
+    Threads_connected         29      (측정 시점)
+
+워커는 싱글 스레드라 in-flight 요청당 최대 2개(POST 의 `set_hit` + 본 처리)밖에
+못 쥔다. 100 은 실제로 쓸 수 없는 수이고, 이론상 최대가 천장을 넘는다.
+`set_tuning` 이 `max_connections` 를 올리던 것도 사라져(`f4e26ec`) 이제
+애플리케이션이 천장을 통제하지 않는다.
+
+착수 순서: (1) POST 여분 커넥션 제거 → (2) 배포에서 `lease.stats()` 로 동시
+임대 최대치 측정 → (3) `connectionLimit` 하향. 이 셋이 한 묶음이다.
+`mobius/lease.js:8` 의 "풀 한도는 워커당 100" 주석도 함께 고쳐야 한다.
