@@ -160,17 +160,20 @@ global.use_hit_man_port = port_of(conf.hitManPort, '7594');
 
 // ── DB 커넥션 풀 ────────────────────────────────────────────────────────
 //
-// **기본값은 지금 배포에서 도는 값 그대로다.** 값을 정해서 conf.json 에 넣기
-// 전까지 동작이 바뀌지 않는다. 관리 콘솔 설정 화면에서 편집할 수 있게 표에
-// 올리는 것이 이 커밋의 목적이다 (mobius/conf_schema.js).
+// **기본값이 곧 권장값이다** — conf.json 이 없어도 이 값으로 뜬다.
+// 관리 콘솔 설정 화면은 mobius/conf_schema.js 의 표를 읽어 그린다.
+// **여기 기본값과 표의 dflt 는 반드시 같아야 한다** — 다르면 화면이 거짓말을
+// 한다. test/conf-schema.test.js 가 그 둘을 대조한다(실제로 25/100 으로
+// 갈라져 있던 것을 그 테스트가 잡았다).
 //
 // 풀은 **프로세스마다** 하나씩 생긴다. 배포는 워커 24 + 마스터 1 = 25 이므로
-// 앱이 요구할 수 있는 총량은 dbConnectionLimit x 25 다. 지금 값 100 이면
-// 2,500 인데 배포의 max_connections 는 2,000 이라 이미 천장을 넘는다.
+// 앱이 요구할 수 있는 총량은 dbConnectionLimit x 25 다. 25 면 625 이고
+// 배포의 max_connections 800 안에 들어온다. 예전 값 100 은 2,500 이라
+// 천장(당시 2,000)을 이미 넘고 있었다.
 // (배포 실측 Max_used_connections = 59 — 실제로는 근처도 안 간다.)
 global.use_db_connection_limit =
     (typeof conf.dbConnectionLimit === 'number' && conf.dbConnectionLimit >= 1)
-        ? conf.dbConnectionLimit : 100;
+        ? conf.dbConnectionLimit : 25;
 
 // 풀이 가득 찼을 때 대기열에 몇 개까지 쌓을 것인가.
 //

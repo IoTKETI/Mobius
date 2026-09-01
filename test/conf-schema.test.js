@@ -244,3 +244,72 @@ test('db 의 유효값 검사가 실제 어댑터를 따른다', function () {
     assert.strictEqual(schema.validate('db', 'oracle').ok, false,
         '없는 백엔드가 통과했다');
 });
+
+// --- 표의 기본값과 코드의 기본값이 같은가 ------------------------------------
+//
+// 표는 **콘솔 설정 화면의 계약**이다. 화면이 "기본값 25" 라고 보여 주는데
+// mobius.js 가 실제로는 100 으로 떨어지면, 관리자는 설정을 안 넣은 서버가
+// 25 로 돈다고 믿는다. 키 존재만 대조해서는 이 어긋남을 못 잡는다 —
+// 실제로 dbConnectionLimit 이 표 25 / 코드 100 으로 갈라져 있었다.
+//
+// mobius.js 가 기본값을 쓰는 모양은 둘이다:
+//     ? conf.<키> : <기본값>;      (타입 검사가 붙은 경우)
+//     conf.<키> || <기본값>;       (문자열)
+
+test('표의 dflt 와 mobius.js 의 기본값이 같다', function () {
+    // 표는 **콘솔 설정 화면의 계약**이다. 화면이 '기본값 25' 라고 보여 주는데
+    // mobius.js 가 실제로는 100 으로 떨어지면, 관리자는 설정을 안 넣은 서버가
+    // 25 로 돈다고 믿는다. 키 존재만 대조해서는 이 어긋남을 못 잡는다 —
+    // 실제로 dbConnectionLimit 이 표 25 / 코드 100 으로 갈라져 있었다.
+    const table = schema._SCHEMA;
+    const src = fs.readFileSync(path.join(ROOT, 'mobius.js'), 'utf8');
+
+    // 주석은 뺀다 — 근거를 적느라 같은 숫자를 인용한다.
+    const code = src.split('\n').filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l)).join('\n');
+
+    // mobius.js 가 기본값을 쓰는 세 가지 모양. 셋 다 정확히 이 키여야 하므로
+    // 키 뒤에 \\b 를 붙인다 — 안 그러면 conf.db 가 conf.dbConnectionLimit 에 걸린다.
+    const LIT = "('([^']*)'|\"([^\"]*)\"|-?\\d+(?:\\.\\d+)?)";
+    function shapes(key) {
+        const k = 'conf\\.' + key + '\\b';
+        return [
+            new RegExp('\\?\\s*' + k + '\\s*:\\s*' + LIT + '\\s*;'),   // ? conf.K : L;
+            new RegExp(k + '\\s*\\|\\|\\s*' + LIT + '\\s*;'),          // conf.K || L;
+            new RegExp('\\(\\s*' + k + '\\s*,\\s*' + LIT + '\\s*\\)')  // f(conf.K, L)
+        ];
+    }
+    function literalFor(key) {
+        for (const re of shapes(key)) {
+            const m = re.exec(code);
+            if (!m) { continue; }
+            if (m[2] !== undefined) { return m[2]; }
+            if (m[3] !== undefined) { return m[3]; }
+            return Number(m[1]);
+        }
+        return undefined;
+    }
+
+    const checked = [];
+    const bad = [];
+    for (const key of Object.keys(table)) {
+        const dflt = table[key].dflt;
+        if (dflt === undefined || dflt === null || typeof dflt === 'object') { continue; }
+        const got = literalFor(key);
+        if (got === undefined) { continue; }   // 이 모양이 아니면 못 본다
+        checked.push(key);
+        if (String(got) !== String(dflt)) {
+            bad.push(key + ': 표 ' + JSON.stringify(dflt) + ' vs 코드 ' + JSON.stringify(got));
+        }
+    }
+
+    assert.deepStrictEqual(bad, [],
+        '표와 코드의 기본값이 다르다 — 화면이 거짓말을 한다:\n  ' + bad.join('\n  '));
+
+    // 이 검사가 조용히 아무것도 안 보게 되는 것을 막는다.
+    const must = ['dbConnectionLimit', 'dbQueueLimit', 'sqliteJournalMode',
+                  'sqliteSynchronous', 'sqliteBusyTimeoutMs'];
+    const missed = must.filter((k) => checked.indexOf(k) < 0);
+    assert.deepStrictEqual(missed, [],
+        '이 키들의 기본값을 대조하지 못했다 — mobius.js 의 작성 모양이 바뀌었다: ' +
+        missed.join(', '));
+});

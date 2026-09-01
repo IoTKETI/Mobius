@@ -99,6 +99,41 @@ Eclipse Mosquitto™ is an open source (EPL/EDL licensed) message broker that im
 - [Mobius](https://github.com/IoTKETI/Mobius/archive/master.zip)<br/>
 Mobius source codes are written in javascript. So they don't need any compilation or installation before running.
 
+### Database tuning on a new install
+
+Most settings apply by themselves. **One step is manual.**
+
+| | What sets it | When |
+|---|---|---|
+| Connection pool (`dbConnectionLimit`, `dbQueueLimit`) | Built-in defaults | Automatic — every start |
+| SQLite (`journal_mode`, `synchronous`, busy timeout) | `mobius/db/sqlite.js` | Automatic — every connect |
+| **MySQL server settings** | `migrations/010-server-durability.js` | **Manual — run it once** |
+
+MySQL server settings live in the database itself, not in `conf.json`, so
+starting Mobius cannot set them. Run the migration once after the database
+is reachable:
+
+```bash
+node tools/migrate.js --check mysql    # show what would change
+node tools/migrate.js --apply mysql    # apply it
+```
+
+This sets `innodb_flush_log_at_trx_commit=1`, `transaction_isolation=REPEATABLE-READ`
+and `max_connections=800` with `SET PERSIST`, so they survive a MySQL restart.
+It records itself in `schema_migrations` and is safe to run again.
+
+The migration needs `SYSTEM_VARIABLES_ADMIN` and `PERSIST_RO_VARIABLES_ADMIN`.
+The MySQL account in `conf.json` (`dbpass`) normally has both.
+
+**`transaction_isolation` does not affect connections that are already open.**
+Restart Mobius after applying so the pool picks up the new value.
+
+Running on SQLite? Skip this — SQLite has no server to configure, and
+`dbConnectionLimit` / `dbQueueLimit` are unused there (SQLite has no pool).
+
+Every value above can be changed later from the admin console; they are all
+declared in `mobius/conf_schema.js`, which the settings screen reads.
+
 ## Mobius Docker Version
 We deploy Mobius as a Docker image using the virtualization open source tool Docker.
 
