@@ -193,3 +193,35 @@ test('resource.js 가 상수가 아니라 search_info 로 판정한다', functio
     assert.ok(!/X-M2M-CTO'[\s\S]{0,120}Object\.keys\(foundObj\)\.length/.test(src),
         'CTO 를 응답 건수로 계산하던 코드가 남아 있다');
 });
+
+// --- la 는 컨테이너의 직속 CIN 이다 ------------------------------------------
+//
+// 배포 실측(2026-09-01)으로 두 결함이 있었다:
+//   - 골격 전체(컨테이너 2,806개)를 훑어 여러 부모에 걸친 전역 정렬이 되고,
+//     filesort 로 30초 상한에 걸려 500 이 나갔다
+//   - ty 를 제한하지 않아 CIN 이 아닌 리소스(구독 등)도 결과에 섞였다
+//
+// presearch_action 이 ty=4 / lvl=1 을 못박으면 질의가 "부모 하나 + ty 고정"
+// 이 되어 인덱스가 정렬을 그대로 준다(MySQL Backward index scan, 0.00초).
+// 여러 부모에 걸친 ORDER BY 는 인덱스로 못 푼다 — MySQL/SQLite 둘 다.
+
+test('presearch_action 이 la 요청에 ty=4 와 lvl=1 을 못박는다', function () {
+    const fs = require('fs');
+    const src = fs.readFileSync(path.join(ROOT, 'mobius', 'resource.js'), 'utf8');
+
+    const at = src.indexOf('function presearch_action');
+    assert.ok(at > 0, 'presearch_action 을 못 찾았다');
+    const body = src.slice(at, src.indexOf('\nfunction ', at + 10));
+
+    // 주석은 빼고 본다 — 왜 이렇게 하는지 설명하느라 같은 문자열을 인용한다.
+    const code = body.split('\n').filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l)).join('\n');
+
+    const at_la = code.indexOf('request.query.la != null');
+    assert.ok(at_la > 0, 'la 분기가 없다');
+    const la_block = code.slice(at_la, at_la + 400);
+
+    assert.match(la_block, /request\.query\.ty\s*=\s*'4'/,
+        'la 인데 ty=4 를 안 박는다 — CIN 이 아닌 것도 섞여 나온다');
+    assert.match(la_block, /request\.query\.lvl\s*=\s*'1'/,
+        'la 인데 lvl=1 을 안 박는다 — 골격 전체를 훑어 30초 상한에 걸린다');
+});

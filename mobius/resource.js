@@ -1189,7 +1189,24 @@ function presearch_action(request, response, pi_list, found_parent_list, callbac
         request.query.lvl = '1';
     }
 
+    // la 는 "이 컨테이너의 최신 CIN N건" 이다.
+    //
+    // **컨테이너에만 적용되고, 대상은 그 컨테이너의 직속 CIN 이다.**
+    // 그래서 여기서 ty=4 와 lvl=1 을 못박는다. 그러면 질의가 "부모 하나 +
+    // ty 고정" 이 되어 인덱스가 정렬을 그대로 준다 — 배포 실측으로
+    // MySQL 이 Backward index scan 을 골라 0.00초다.
+    //
+    // 안 박으면 골격 전체를 훑고 **타입 무관하게** 최신 N 건을 고른다.
+    // 실제 결함이 둘이었다(배포 실측 2026-09-01):
+    //   - 컨테이너 2,806개에 걸친 전역 정렬이 되어 filesort -> 30초 상한 500
+    //   - CIN 이 아닌 리소스(구독 등)도 결과에 섞였다
+    // 여러 부모에 걸친 ORDER BY 는 인덱스로 못 푼다(MySQL/SQLite 동일).
+    //
+    // 컨테이너가 아닌 대상에 la 를 걸면 ty=4 + lvl=1 이 자연히 0건을 준다.
+    // "la 는 컨테이너에만 적용된다" 가 그대로 성립하므로 따로 분기하지 않는다.
     if (request.query.la != null) {
+        request.query.ty = '4';
+        request.query.lvl = '1';
         if (resource_Obj[rootnm].ty == '3') {
             request.query.cni = parseInt(resource_Obj[rootnm].cni, 10);
         }
