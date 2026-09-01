@@ -1393,3 +1393,33 @@ test('배치가 실패하면 그 코드로 한 번만 콜백한다', function (t
             } catch (e) { done(e); }
         });
 });
+
+// --- 탐색 범위 초과는 4xx 다 -------------------------------------------------
+//
+// 서버가 고장난 것이 아니라 요청의 범위가 감당 밖이다. 같은 요청을 다시
+// 보내면 반드시 또 실패하므로, "재시도하면 될 수도 있다" 를 뜻하는 5xx 는
+// 호출자를 오해시킨다 — 30초를 태우고 같은 응답을 받는 일이 반복된다.
+
+test('탐색 범위 초과(500-6)는 BAD_REQUEST 로 나간다', function () {
+    const reason = require(path.join(ROOT, 'mobius', 'reason.js'));
+    const rsc = require(path.join(ROOT, 'mobius', 'rsc.js'));
+
+    const r = reason.of ? reason.of('500-6') : null;
+    // reason 모듈의 조회 함수 이름이 무엇이든, 카탈로그에서 직접 찾는다.
+    const src = fs.readFileSync(path.join(ROOT, 'mobius', 'reason.js'), 'utf8');
+    const at = src.indexOf("'500-6':");
+    assert.ok(at > 0, '500-6 이 카탈로그에 없다');
+    const entry = src.slice(at, at + 300);
+
+    assert.match(entry, /code:\s*RSC\.BAD_REQUEST/,
+        '500-6 이 BAD_REQUEST 가 아니다 — 재시도해도 안 되는 요청에 5xx 를 주면 안 된다');
+    assert.ok(!/code:\s*RSC\.INTERNAL_SERVER_ERROR/.test(entry),
+        '500-6 이 INTERNAL_SERVER_ERROR 로 되돌아갔다');
+
+    // 무엇을 고쳐야 하는지가 메시지에 있어야 한다.
+    assert.match(entry, /narrow the target/i, '무엇을 좁히라는 안내가 없다');
+    assert.match(entry, /ty filter/i, 'ty 필터 안내가 없다');
+    assert.match(entry, /cra|crb/i, '시간 범위 안내가 없다');
+
+    assert.strictEqual(rsc.RSC.BAD_REQUEST.http, 400, 'BAD_REQUEST 가 400 이 아니다');
+});

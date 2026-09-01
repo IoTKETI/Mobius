@@ -161,8 +161,20 @@ var REASON = {
     // 탐색이 문장 상한에 걸린 경우. DB 고장이 아니라 "이 범위를 감당 못 한다" 다.
     // 예전에는 500 "database error" 로 뭉개져서 호출자가 무엇을 고쳐야 할지
     // 알 수 없었다 — 30초를 기다린 끝에 받는 응답이 그것뿐이었다.
-    '500-6': { code: RSC.INTERNAL_SERVER_ERROR,
-               msg: "discovery took too long — narrow the target or add a ty filter",
+    //
+    // **BAD_REQUEST 다(예전에는 INTERNAL_SERVER_ERROR).** 서버가 고장난 것이
+    // 아니라 요청의 범위가 감당 밖이다. 같은 요청을 다시 보내면 반드시 또
+    // 실패하므로, "재시도하면 될 수도 있다" 를 뜻하는 5xx 는 호출자를
+    // 오해시킨다 — 30초를 태우고 같은 응답을 받는 일이 반복된다.
+    // 고칠 사람은 호출자이고, 무엇을 고쳐야 하는지는 msg 에 있다.
+    //
+    // 이 사유가 남은 자리(2026-09-01 기준): cty / sza / szb 처럼 cin 을
+    // 조인하는 필터. 그 컬럼(cnf)에 인덱스가 없고 배포에서는 값이 비어 있어,
+    // 아무것도 맞추지 못한 채 후보를 전부 훑는다. 값이 비어 있으니 인덱스로
+    // 풀 문제가 아니다 — 범위를 좁히는 것이 유일한 답이다.
+    '500-6': { code: RSC.BAD_REQUEST,
+               msg: "discovery scope too large — narrow the target path, " +
+                    "add a ty filter, or use cra/crb to bound the time range",
                detail: 'search_lookup: statement timeout' },
     // 상류(원격 CSE 나 AE)가 json 이 아닌 것을 돌려준 경우.
     //
