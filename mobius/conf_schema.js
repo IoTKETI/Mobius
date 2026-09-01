@@ -162,7 +162,7 @@ var SCHEMA = {
 
     dbConnectionLimit: {
         group: '저장소',
-        type: 'number', integer: true, dflt: 100,
+        type: 'number', integer: true, dflt: 25,
         // 1 미만은 아무 요청도 못 받는다. 상한은 서버의 max_connections 와
         // 프로세스 수로 정해지므로 화면이 계산해서 보여 줘야 한다(아래 help).
         valid: function (v) { return v >= 1 && v <= 500; },
@@ -177,7 +177,7 @@ var SCHEMA = {
     },
     dbQueueLimit: {
         group: '저장소',
-        type: 'number', integer: true, dflt: 0,
+        type: 'number', integer: true, dflt: 50,
         valid: function (v) { return v >= 0 && v <= 10000; },
         validHint: '0 ~ 10000 (0 은 무제한 — 권장하지 않는다)',
         apply: 'restart',
@@ -186,8 +186,53 @@ var SCHEMA = {
               '**0 은 무제한이고 그 큐에는 타임아웃이 없다** — 드라이버가 ' +
               '`if (queueLimit && ...)` 로 검사해 0 이면 한도 분기를 건너뛰고, ' +
               'acquireTimeout 은 큐 대기에 관여하지 않는다. 그래서 풀이 마르면 요청이 ' +
-              '응답도 에러도 없이 영원히 매달리고 워커도 죽지 않는다. ' +
+              '응답도 에러도 없이 영원히 매달리고 워커도 죽지 않는다 — ' +
+              '이것이 "서버가 자주 멈춘다" 의 정체였다. ' +
               '유한값이면 즉시 500 이 나가 장치가 재시도할 수 있고 로그에 흔적이 남는다.'
+    },
+
+    // ── SQLite. MySQL 의 튜닝 네 값에 대응하는 것은 둘뿐이다 ──────────
+    //
+    //   innodb_flush_log_at_trx_commit  ->  sqliteSynchronous
+    //   max_connections / 풀 크기        ->  sqliteBusyTimeoutMs
+    //   sync_binlog                      ->  대응 없음 (binlog 가 없다)
+    //   transaction_isolation            ->  대응 없음 (언제나 직렬화)
+    //
+    // journal_mode 는 반대로 MySQL 에 대응이 없는데 여기서 가장 중요하다.
+    sqliteJournalMode: {
+        group: '저장소',
+        type: 'enum', dflt: 'WAL',
+        valid: ['WAL', 'DELETE', 'TRUNCATE', 'PERSIST', 'MEMORY', 'OFF'],
+        apply: 'restart',
+        label: 'SQLite 저널 모드',
+        help: '기본값 rollback journal(DELETE)은 **쓰는 동안 읽는 쪽을 전부 막는다.** ' +
+              '워커를 코어 수만큼 포크하므로 한 파일을 여러 프로세스가 연다 — ' +
+              'MySQL 에서 커넥션 풀이 말라 멈추던 것과 같은 자리다. ' +
+              'WAL 이면 읽기와 쓰기가 서로를 막지 않는다. ' +
+              '**이 값은 DB 파일에 영속된다** — 이미 만든 파일도 매 기동 다시 건다.'
+    },
+    sqliteSynchronous: {
+        group: '저장소',
+        type: 'enum', dflt: 'FULL',
+        valid: ['FULL', 'NORMAL', 'OFF', 'EXTRA'],
+        apply: 'restart',
+        label: 'SQLite 디스크 동기화',
+        help: 'MySQL 의 innodb_flush_log_at_trx_commit 에 해당한다. ' +
+              'FULL 은 커밋마다 굳힌다(= 1). WAL 과 함께 쓰면 NORMAL 도 응용 프로그램 ' +
+              '충돌에는 안전하지만 전원 장애에서 마지막 트랜잭션들을 잃는다. ' +
+              'OFF 는 잃을 수 있는 범위가 훨씬 넓다.'
+    },
+    sqliteBusyTimeoutMs: {
+        group: '저장소',
+        type: 'number', integer: true, dflt: 50000,
+        valid: function (v) { return v >= 0 && v <= 600000; },
+        validHint: '0 ~ 600000 (ms)',
+        apply: 'restart',
+        label: 'SQLite 잠금 대기 한도(ms)',
+        help: '다른 프로세스가 쓰는 중이면 얼마나 기다릴 것인가. ' +
+              'MySQL 의 커넥션 대기에 해당한다. SQLite 는 풀이 없고 ' +
+              '프로세스마다 핸들 하나를 공유하므로 dbConnectionLimit / ' +
+              'dbQueueLimit 은 SQLite 백엔드에서 쓰이지 않는다.'
     },
 
     // ── 노출 안 함: 비밀 ─────────────────────────────────────────────

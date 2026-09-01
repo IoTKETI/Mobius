@@ -102,6 +102,37 @@ exports.numericExpr = function (expr) {
     return 'CAST(' + expr + ' AS INTEGER)';
 };
 
+// 설정값을 읽는다. 전역이 없으면(테스트 등) 기본값을 쓴다.
+//
+// 값은 PRAGMA 문에 **그대로 들어가므로** 반드시 허용 목록으로 거른다.
+// PRAGMA 는 바인딩을 받지 않는다 — 자리표를 쓸 수 없다.
+var JOURNAL_MODES = ['WAL', 'DELETE', 'TRUNCATE', 'PERSIST', 'MEMORY', 'OFF'];
+var SYNC_MODES = ['FULL', 'NORMAL', 'OFF', 'EXTRA'];
+
+function pick_mode(value, allowed, fallback) {
+    var v = String(value == null ? '' : value).toUpperCase();
+    return allowed.indexOf(v) >= 0 ? v : fallback;
+}
+
+// 기본 WAL. 여러 프로세스가 한 파일을 여는 것이 이 배포의 전제다.
+function journal_mode() {
+    return pick_mode(global.use_sqlite_journal_mode, JOURNAL_MODES, 'WAL');
+}
+
+// 기본 FULL. MySQL 쪽에서 innodb_flush_log_at_trx_commit = 1 을 고른 것과
+// 같은 판단이다 — 이 코드에는 커밋 유실을 흡수할 장치가 없다.
+// WAL + NORMAL 은 응용 프로그램 충돌에는 안전하지만 전원 장애에서 꼬리를
+// 잃는다. 그 차이를 감수할 이유가 아직 없다.
+function synchronous() {
+    return pick_mode(global.use_sqlite_synchronous, SYNC_MODES, 'FULL');
+}
+
+// 잠긴 동안 얼마나 기다릴 것인가. MySQL 의 커넥션 대기에 해당한다.
+function busy_timeout_ms() {
+    var v = global.use_sqlite_busy_timeout_ms;
+    return (typeof v === 'number' && v >= 0) ? v : 50000;
+}
+
 exports.connect = function (conf, callback) {
     db = new sqlite3.Database(DB_PATH, function (err) {
         if (err) {
@@ -110,8 +141,29 @@ exports.connect = function (conf, callback) {
             return;
         }
         console.log('[db/sqlite] connected');
-        db.configure('busyTimeout', 50000);
+
+        // ── MySQL 튜닝 네 값에 대응하는 SQLite 설정 ──────────────────────
+        //
+        //   MySQL                             SQLite
+        //   innodb_flush_log_at_trx_commit    PRAGMA synchronous
+        //   sync_binlog                       (없다 — binlog 가 없다)
+        //   transaction_isolation             (없다 — 언제나 직렬화다)
+        //   max_connections / 풀 크기         busyTimeout (핸들이 하나뿐)
+        //
+        // journal_mode 는 MySQL 에 대응이 없지만 **여기서 가장 중요하다.**
+        // 기본값 rollback journal 은 쓰는 동안 읽는 쪽을 전부 막는다.
+        // app.js 가 백엔드와 무관하게 코어 수만큼 워커를 포크하므로
+        // (배포 기준 24개) 한 파일을 여러 프로세스가 여는 전제가 그대로다 —
+        // MySQL 쪽에서 커넥션 풀이 말라 멈추던 것과 같은 자리다.
+        // WAL 이면 읽기와 쓰기가 서로를 막지 않는다.
+        //
+        // **journal_mode 는 DB 파일에 영속된다.** 한 번 WAL 로 바꾸면 그
+        // 파일은 계속 WAL 이고, 반대로 이미 만들어진 파일은 이 코드를 넣어도
+        // 여기서 바꿔 주지 않으면 옛 모드 그대로다. 그래서 매 기동 건다.
+        db.configure('busyTimeout', busy_timeout_ms());
         db.run('PRAGMA foreign_keys = ON');
+        db.run('PRAGMA journal_mode = ' + journal_mode());
+        db.run('PRAGMA synchronous = ' + synchronous());
 
         try {
             var schema = fs.readFileSync(path.join(__dirname, '..', exports.schemaFile), 'utf8');

@@ -186,7 +186,26 @@ global.use_db_connection_limit =
 // 매달림이 관측 가능한 실패로 바뀐다.
 global.use_db_queue_limit =
     (typeof conf.dbQueueLimit === 'number' && conf.dbQueueLimit >= 0)
-        ? conf.dbQueueLimit : 0;
+        ? conf.dbQueueLimit : 50;
+
+// ── SQLite ──────────────────────────────────────────────────────────────
+//
+// MySQL 의 네 값에 대응하는 것은 둘뿐이다. binlog 가 없어 sync_binlog 에
+// 대응이 없고, SQLite 는 언제나 직렬화라 격리수준을 고를 일이 없다.
+//
+// journal_mode 는 MySQL 에 대응이 없지만 여기서 가장 중요하다 — 기본값인
+// rollback journal 은 쓰는 동안 읽는 쪽을 전부 막는다. 워커를 코어 수만큼
+// 포크하므로 한 파일을 여러 프로세스가 연다. WAL 이면 읽기와 쓰기가 서로를
+// 막지 않는다. **DB 파일에 영속되므로 이미 만든 파일은 매 기동 다시 건다.**
+global.use_sqlite_journal_mode = conf.sqliteJournalMode || 'WAL';
+
+// FULL 은 innodb_flush_log_at_trx_commit = 1 과 같은 판단이다.
+global.use_sqlite_synchronous = conf.sqliteSynchronous || 'FULL';
+
+// 잠긴 동안 얼마나 기다리나. MySQL 의 커넥션 대기에 해당한다.
+global.use_sqlite_busy_timeout_ms =
+    (typeof conf.sqliteBusyTimeoutMs === 'number' && conf.sqliteBusyTimeoutMs >= 0)
+        ? conf.sqliteBusyTimeoutMs : 50000;
 
 global.use_mqtt_broker = 'localhost'; // mqttbroker for mobius
 
