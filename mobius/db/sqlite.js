@@ -160,10 +160,27 @@ exports.connect = function (conf, callback) {
         // **journal_mode 는 DB 파일에 영속된다.** 한 번 WAL 로 바꾸면 그
         // 파일은 계속 WAL 이고, 반대로 이미 만들어진 파일은 이 코드를 넣어도
         // 여기서 바꿔 주지 않으면 옛 모드 그대로다. 그래서 매 기동 건다.
+        // **콜백을 반드시 준다.** 콜백 없는 db.run 이 실패하면 node-sqlite3 가
+        // Database 에 'error' 를 뿜는데, 듣는 이가 없으면 EventEmitter 규약대로
+        // **미처리 예외**가 되어 워커가 죽는다(실측 확인). 로그 한 줄로 끝날
+        // 일이 프로세스 사망이 된다.
+        //
+        // journal_mode 는 실제로 실패할 수 있다 — 다른 커넥션이 트랜잭션을
+        // 쥐고 있으면 전환이 거부된다. (유휴로 열려 있는 것만으로는 안 막힌다.)
+        // 그때도 기동은 계속해야 한다. 모드가 안 바뀐 것뿐이고, 다음 기동에
+        // 다시 시도한다.
+        function pragma(sql) {
+            db.run(sql, function (e) {
+                if (e) {
+                    console.error('[db/sqlite] ' + sql + ' 실패: ' + e.message);
+                }
+            });
+        }
+
         db.configure('busyTimeout', busy_timeout_ms());
-        db.run('PRAGMA foreign_keys = ON');
-        db.run('PRAGMA journal_mode = ' + journal_mode());
-        db.run('PRAGMA synchronous = ' + synchronous());
+        pragma('PRAGMA foreign_keys = ON');
+        pragma('PRAGMA journal_mode = ' + journal_mode());
+        pragma('PRAGMA synchronous = ' + synchronous());
 
         try {
             var schema = fs.readFileSync(path.join(__dirname, '..', exports.schemaFile), 'utf8');

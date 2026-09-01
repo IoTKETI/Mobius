@@ -130,3 +130,66 @@ test('MySQL 은 ri 를 명시하지 않는다 (PK 가 자동으로 붙인다)', 
     assert.match(pk[1], /`?ri`?/,
         'PK 에 ri 가 없다 — 그러면 MySQL 인덱스에도 ri 를 명시해야 한다');
 });
+
+// --- PRAGMA 실패가 워커를 죽이면 안 된다 --------------------------------------
+//
+// node-sqlite3 는 콜백 없는 db.run 이 실패하면 Database 에 'error' 를 뿜는다.
+// 듣는 이가 없으면 EventEmitter 규약대로 **미처리 예외**가 되어 프로세스가
+// 죽는다. 실측으로 확인했다 — 로그 한 줄로 끝날 일이 워커 사망이 된다.
+//
+// journal_mode 는 실제로 실패할 수 있다. 다른 커넥션이 트랜잭션을 쥐고 있으면
+// 전환이 거부된다(유휴로 열려 있는 것만으로는 안 막힌다). 그때도 기동은
+// 계속돼야 한다 — 모드가 안 바뀐 것뿐이고 다음 기동에 다시 시도한다.
+
+test('connect 의 PRAGMA 는 전부 콜백을 준다', function () {
+    const src = fs.readFileSync(path.join(__dirname, '..', 'mobius', 'db', 'sqlite.js'), 'utf8');
+    const code = src.split('\n').filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l)).join('\n');
+
+    // 콜백 없이 부르는 db.run 이 하나라도 있으면 안 된다.
+    // `db.run('...')` 뒤가 곧바로 `)` 로 닫히는 모양을 찾는다.
+    const bare = code.match(/db\.run\(\s*'[^']*'\s*\)/g) || [];
+    assert.deepStrictEqual(bare, [],
+        '콜백 없는 db.run 이 있다 — 실패하면 미처리 예외로 워커가 죽는다: ' +
+        bare.join(' / '));
+
+    // PRAGMA 세 개가 다 있어야 한다.
+    for (const p of ['foreign_keys', 'journal_mode', 'synchronous']) {
+        assert.ok(code.indexOf('PRAGMA ' + p) >= 0, 'PRAGMA ' + p + ' 가 없다');
+    }
+});
+
+test('PRAGMA 값은 허용 목록으로 거른다 (바인딩을 못 쓴다)', function () {
+    // PRAGMA 는 자리표를 받지 않아 값이 문에 그대로 들어간다.
+    // conf 에서 온 값을 그대로 이으면 그 자리가 주입 지점이 된다.
+    delete require.cache[require.resolve(path.join(__dirname, '..', 'mobius', 'db', 'sqlite.js'))];
+
+    const saved = {
+        j: global.use_sqlite_journal_mode,
+        s: global.use_sqlite_synchronous,
+        b: global.use_sqlite_busy_timeout_ms
+    };
+    try {
+        global.use_sqlite_journal_mode = 'WAL; drop table lookup; --';
+        global.use_sqlite_synchronous = 'nonsense';
+        global.use_sqlite_busy_timeout_ms = -1;
+
+        const src = fs.readFileSync(path.join(__dirname, '..', 'mobius', 'db', 'sqlite.js'), 'utf8');
+        const code = src.split('\n').filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l)).join('\n');
+
+        // 허용 목록이 코드에 실재해야 한다.
+        assert.match(code, /JOURNAL_MODES\s*=\s*\[/, '저널 모드 허용 목록이 없다');
+        assert.match(code, /SYNC_MODES\s*=\s*\[/, '동기화 모드 허용 목록이 없다');
+
+        // 그리고 PRAGMA 문이 그 목록을 지난 함수의 결과만 쓴다.
+        assert.match(code, /PRAGMA journal_mode = ' \+ journal_mode\(\)/,
+            'journal_mode() 를 안 거치고 값을 잇는다');
+        assert.match(code, /PRAGMA synchronous = ' \+ synchronous\(\)/,
+            'synchronous() 를 안 거치고 값을 잇는다');
+    }
+    finally {
+        global.use_sqlite_journal_mode = saved.j;
+        global.use_sqlite_synchronous = saved.s;
+        global.use_sqlite_busy_timeout_ms = saved.b;
+        delete require.cache[require.resolve(path.join(__dirname, '..', 'mobius', 'db', 'sqlite.js'))];
+    }
+});
