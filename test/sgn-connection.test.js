@@ -157,8 +157,16 @@ test('본문 조립과 발송이 nu 별 값을 쓴다', function () {
     // ri 는 구독 ri 다. 알림 로그에 어느 구독인지가 없어서 실패를 역추적할 수
     // 없었다 — 관리 UI 가 물어볼 첫 질문이 그것이다. ss_ri 가 이미 인자로
     // 들어와 있던 값이라 추가 조회는 없다.
-    assert.ok(/sgn_man\.post\(nu, bodytype, xm2mri, bodyString, ri\)/.test(body),
-        '발송이 nu 별 bodytype 과 구독 ri 를 함께 넘겨야 한다');
+    //
+    // 예전에는 여기 bodytype 도 있었다. 값이 언제나 'json' 리터럴이라
+    // 걷어냈다(2026-09-01) — 이 시험의 뜻은 "nu 별 값과 구독 ri 를 함께
+    // 넘긴다" 이지 형식을 넘긴다가 아니었다.
+    assert.ok(/sgn_man\.post\(nu, xm2mri, bodyString, ri\)/.test(body),
+        '발송이 nu 와 구독 ri 를 함께 넘겨야 한다');
+
+    // 형식이 인자로 되돌아오면 잡는다. 알림은 언제나 json 이다.
+    assert.doesNotMatch(body, /sgn_man\.post\([^)]*bodytype/,
+        'bodytype 인자가 되살아났다 — 알림 형식은 선택 가능한 것이 아니다');
 });
 
 // ── 알림 결과 판정 (관측 신호) ───────────────────────────────────────

@@ -675,7 +675,9 @@ function usable_object(v) {
     return v != null && typeof v === 'object' && !Array.isArray(v);
 }
 
-global.make_json_obj = function (bodytype, str, callback) {
+// bodytype 인자를 걷어냈다 (2026-09-01). json 전용이 되면서 xml/cbor
+// 분기가 사라졌고, 이 함수는 그 뒤로 인자를 한 번도 안 봤다.
+global.make_json_obj = function (str, callback) {
     try {
         var result = JSON.parse(str);
         if (!usable_object(result)) { callback('0'); return; }

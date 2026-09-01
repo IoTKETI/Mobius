@@ -93,20 +93,23 @@ function noti_result(kind, proto, nu, ri, detail) {
  *  Fire-and-forget 방식으로 알림 전송. ACK 대기/재시도 없음.
  *  파라미터: nu, bodytype, rqi, bodyString, ri(구독 ri — 로그 역추적용)
  * ─────────────────────────────────────────────────────────────────────── */
-exports.post = function (nu, bodytype, rqi, bodyString, ri) {
+// bodytype 인자를 걷어냈다 (2026-09-01). 알림은 언제나 json 이다 —
+// sgn.js 가 그 자리에 'json' 리터럴을 넘기고 있었다. 값이 하나뿐인
+// 인자는 형식이 아직 선택 가능한 것처럼 보이게 한다.
+exports.post = function (nu, rqi, bodyString, ri) {
     try {
         var sub_nu = url.parse(nu);
         if (sub_nu.protocol === 'http:' || sub_nu.protocol === 'https:') {
-            request_noti_http(nu, bodyString, bodytype, rqi, ri);
+            request_noti_http(nu, bodyString, rqi, ri);
         }
         else if (sub_nu.protocol === 'coap:') {
-            request_noti_coap(nu, bodyString, bodytype, rqi, ri);
+            request_noti_coap(nu, bodyString, rqi, ri);
         }
         else if (sub_nu.protocol === 'ws:') {
-            request_noti_ws(nu, bodyString, bodytype, rqi, ri);
+            request_noti_ws(nu, bodyString, rqi, ri);
         }
         else if (sub_nu.protocol === 'mqtt:') {
-            request_noti_mqtt(nu, bodyString, bodytype, rqi, ri);
+            request_noti_mqtt(nu, bodyString, rqi, ri);
         }
         else {
             // 네 분기 어디에도 안 걸리면 조용히 사라졌다. get_nu_arr 이 풀지 못한
@@ -120,7 +123,7 @@ exports.post = function (nu, bodytype, rqi, bodyString, ri) {
 };
 
 /* ─── HTTP / HTTPS ───────────────────────────────────────────────────── */
-function request_noti_http(nu, bodyString, bodytype, xm2mri, ri) {
+function request_noti_http(nu, bodyString, xm2mri, ri) {
     var parsed = url.parse(nu);
     var options = {
         hostname: parsed.hostname,
@@ -129,9 +132,9 @@ function request_noti_http(nu, bodyString, bodytype, xm2mri, ri) {
         method:   'POST',
         headers: {
             'X-M2M-RI':       xm2mri,
-            'Accept':         'application/' + bodytype,
+            'Accept':         'application/json',
             'X-M2M-Origin':   usecseid,
-            'Content-Type':   'application/' + bodytype,
+            'Content-Type':   'application/json',
             'Content-Length': Buffer.byteLength(bodyString)
         }
     };
@@ -192,7 +195,7 @@ function request_noti_http(nu, bodyString, bodytype, xm2mri, ri) {
 }
 
 /* ─── CoAP ───────────────────────────────────────────────────────────── */
-function request_noti_coap(nu, bodyString, bodytype, xm2mri, ri) {
+function request_noti_coap(nu, bodyString, xm2mri, ri) {
     var parsed = url.parse(nu);
     var options = {
         host:        parsed.hostname,
@@ -205,8 +208,8 @@ function request_noti_coap(nu, bodyString, bodytype, xm2mri, ri) {
         // boolean false 로 '고치면' 재전송이 사라진다.
         confirmable: 'false',
         options: {
-            'Accept':         'application/' + bodytype,
-            'Content-Type':   'application/' + bodytype,
+            'Accept':         'application/json',
+            'Content-Type':   'application/json',
             'Content-Length': Buffer.byteLength(bodyString)
         }
     };
@@ -237,14 +240,14 @@ function request_noti_coap(nu, bodyString, bodytype, xm2mri, ri) {
 }
 
 /* ─── MQTT ───────────────────────────────────────────────────────────── */
-function request_noti_mqtt(nu, bodyString, bodytype, xm2mri, ri) {
+function request_noti_mqtt(nu, bodyString, xm2mri, ri) {
     try {
         if (!sgn_mqtt_client) {
             noti_result(NOTI_FAIL, 'mqtt', nu, ri, 'client not ready');
             return;
         }
         var aeid       = url.parse(nu).pathname.replace('/', '').split('?')[0];
-        var noti_topic = '/oneM2M/req/' + usecseid.replace('/', '') + '/' + aeid + '/' + bodytype;
+        var noti_topic = '/oneM2M/req/' + usecseid.replace('/', '') + '/' + aeid + '/json';
         sgn_mqtt_client.publish(noti_topic, bodyString);
 
         // QoS 0 이라 브로커가 받았는지도 알 수 없고, 브로커가 받았다 해도
@@ -258,7 +261,7 @@ function request_noti_mqtt(nu, bodyString, bodytype, xm2mri, ri) {
 }
 
 /* ─── WebSocket ──────────────────────────────────────────────────────── */
-function request_noti_ws(nu, bodyString, bodytype, xm2mri, ri) {
+function request_noti_ws(nu, bodyString, xm2mri, ri) {
     if (use_secure !== 'disable') {
         noti_result(NOTI_FAIL, 'ws', nu, ri, 'secure ws not supported');
         return;
@@ -267,9 +270,10 @@ function request_noti_ws(nu, bodyString, bodytype, xm2mri, ri) {
     var WebSocketClient = require('websocket').client;
     var ws_client = new WebSocketClient();
 
+    // xml/cbor 서브프로토콜 분기를 걷어냈다. 도달할 수 없었다 —
+    // sgn.js 가 'json' 리터럴을 넘겼고, pxy_ws 의 WS_SUBPROTOCOL 도
+    // json 둘만 받으므로 상대가 우리면 그 이름으로는 붙지도 못한다.
     var subprotocol = 'onem2m.r2.0.json';
-    if      (bodytype === 'xml')  { subprotocol = 'onem2m.r2.0.xml';  }
-    else if (bodytype === 'cbor') { subprotocol = 'onem2m.r2.0.cbor'; }
 
     ws_client.connect(nu, subprotocol);
 
