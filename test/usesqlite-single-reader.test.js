@@ -34,11 +34,87 @@ const ROOT = path.join(__dirname, '..');
 // 행 잠금이 필요했고, 잠금이 없는 백엔드는 그 알고리즘을 못 써서 갈렸다.
 // 정리를 마스터 하나로 옮기자 잠금이 필요 없어지고 갈래도 사라졌다.
 const ALLOWED = [
-    'mobius/db/index.js'       // 백엔드를 아는 유일한 곳
+    'mobius/db/index.js',      // 백엔드를 아는 유일한 곳
+
+    // 007 이 SQLite 와 MySQL 에 서로 다른 DDL 을 낸다(헌장 7b). 러너가 ctx.backend
+    // 로 이미 알려 주는데도 전역을 직접 읽는다. 목록에 올리는 이유는 하나 —
+    // 범위를 migrations/ 로 넓히면서 이것이 드러났고, 고치는 것은 별도 판단이라
+    // (SQLite 를 마이그레이션 대상으로 볼 것인가) 지금 여기서 결정하지 않는다.
+    'migrations/007-acp-audit-table.js'
 ];
 
+// ── 백엔드 이름으로 갈라지는 자리 ───────────────────────────────────────
+//
+// usesqlite 하나만 보는 것으로는 부족하다. 그 술어를 통과하면서 코어가
+// 백엔드를 아는 방법이 셋 더 있다.
+//
+//   global.usedb 를 직접 읽는다
+//   'mysql' / 'sqlite' 같은 이름 리터럴과 견준다
+//   global.use_sqlite_* 처럼 백엔드 이름이 붙은 전역을 쓴다
+//
+// 실제로 이 구멍으로 넷이 들어왔다(헌장 7f~7i). 그중 db_bootstrap.js 의
+// `ctx.backend !== 'mysql'` 은 **이 테스트가 초록불인 채로** 들어왔다 —
+// 검사가 없는 것보다 나쁘다. 초록불이 "코어가 백엔드를 모른다" 의 근거로
+// 쓰이는데 아무것도 못 막고 있었기 때문이다.
+//
+// 아래는 **아직 안 고친 자리를 그대로 적어 둔 것**이다. 목록에 없는 자리가
+// 생기면 즉시 실패하고, 목록의 자리가 사라져도 실패한다(목록을 같이 지우라는 뜻).
+// 이 저장소가 SQLite 파리티 진척을 세는 방식과 같다 — 숫자가 줄면 알려준다.
+const KNOWN_NAME_SITES = {
+    // 백엔드 선택자를 세우는 곳. 여기가 원천이라 이름이 나오는 것이 맞다.
+    // 다만 93행은 pick() 과 **같은 폴백 규칙을 두 번째로 적은 것**이라
+    // 한쪽만 고치면 갈린다. 파사드에 물어야 한다.
+    'mobius.js': [92, 93, 102],
+
+    // 설정 표의 기본 백엔드. mobius/db/index.js 의 DEFAULT_BACKEND 와 같은 값을
+    // 두 번째로 적은 자리다.
+    'mobius/conf_schema.js': [154]
+};
+
+// 백엔드 이름이 붙은 전역(global.use_sqlite_*)을 코어가 직접 쓰는 자리.
+// 헌장 7g 다 — 튜닝 값을 갖는 새 백엔드는 코어 두 파일을 열어야 키를 넣을 수 있다.
+// 고치려면 어댑터가 자기 설정 항목을 내보내는 구조가 필요해서 따로 잡는다.
+const KNOWN_BACKEND_GLOBALS = {
+    'mobius.js': [203, 206, 209]
+};
+
+const NAME_LITERAL = /(['"])(mysql|sqlite|postgres|mariadb)\1/i;
+const USEDB = /global\.usedb\b/;
+const BACKEND_GLOBAL = /global\.use_(sqlite|mysql|postgres)_/;
+
+// migrations 의 `backends: ['mysql']` 은 결함이 아니다. 그 필드는 "이 마이그레이션이
+// 어느 백엔드용인가" 를 **선언**하는 자리라 이름이 곧 값이다. 러너가 그것을 읽어
+// 거른다. 다른 방법이 없으므로 술어에서 뺀다.
+const BACKENDS_DECL = /^\s*backends\s*:\s*\[/;
+
+function nameSites(rel, re) {
+    // 어댑터와 파사드는 백엔드를 알아도 된다 — 거기가 아는 자리다.
+    if (rel.startsWith('mobius/db/')) { return []; }
+
+    const out = [];
+    fs.readFileSync(path.join(ROOT, rel), 'utf8').split(/\r?\n/).forEach((l, i) => {
+        if (/^\s*(\/\/|\*|\/\*)/.test(l)) { return; }   // 주석은 세지 않는다
+        if (BACKENDS_DECL.test(l)) { return; }
+        if (re.test(l)) { out.push(i + 1); }
+    });
+    return out;
+}
+
 // mobius.js 는 usesqlite 를 **세팅**하는 곳이라 대상이 아니다.
-// tools/ 와 migrations/ 는 운영 코드가 아니다(백엔드를 인자로 고른다).
+// tools/ 는 운영 코드가 아니다(백엔드를 인자로 고른다).
+//
+// migrations/ 는 범위에 넣는다. 예전에는 뺐는데, 그래서 007 이 global.usesqlite
+// 를 직접 읽는 것을 이 테스트가 못 봤다 — 헌장이 "단일리더 테스트 범위 밖이라
+// 안 걸린다" 고 따로 적어 두어야 했을 정도다. 감시가 있는데 안 보는 것보다
+// 범위에 넣고 아는 예외로 두는 편이 낫다.
+function walkDir(out, rel) {
+    for (const e of fs.readdirSync(path.join(ROOT, rel), { withFileTypes: true })) {
+        const r = rel + '/' + e.name;
+        if (e.isDirectory()) { walkDir(out, r); }
+        else if (e.name.endsWith('.js')) { out.push(r); }
+    }
+}
+
 function sourceFiles() {
     const out = [];
     // 루트의 진입점들. 프록시(pxy_*)와 wdt 도 코어다 — 지금은 리더가 없지만
@@ -46,15 +122,8 @@ function sourceFiles() {
     for (const f of fs.readdirSync(ROOT)) {
         if (f.endsWith('.js') && f !== 'mobius.js') { out.push(f); }
     }
-    // mobius/ 아래 전부 (한 단계 하위 디렉터리 포함)
-    const walk = (rel) => {
-        for (const e of fs.readdirSync(path.join(ROOT, rel), { withFileTypes: true })) {
-            const r = rel + '/' + e.name;
-            if (e.isDirectory()) { walk(r); }
-            else if (e.name.endsWith('.js')) { out.push(r); }
-        }
-    };
-    walk('mobius');
+    walkDir(out, 'mobius');
+    walkDir(out, 'migrations');
     return out;
 }
 
@@ -75,6 +144,103 @@ test('global.usesqlite 를 읽는 파일은 허용 목록과 정확히 같다', 
         '허용 목록에 없는 파일이 global.usesqlite 를 읽는다 — 코어는 백엔드를 몰라야 한다');
     assert.deepStrictEqual(gone, [],
         '이 파일들에서 리더가 사라졌다. 허용 목록에서도 지워라: ' + gone.join(', '));
+});
+
+test('백엔드 이름으로 갈라지는 자리는 알려진 것뿐이다', function () {
+    // mobius.js 도 본다. 예전에는 "usesqlite 를 세팅하는 곳" 이라는 이유로
+    // 소스 목록에서 통째로 뺐는데, 그 면제가 use_sqlite_* 세 줄까지 덮어
+    // 헌장 7g 가 검사 밖에 있었다. 면제는 술어별로 좁게 준다.
+    const scan = sourceFiles().concat(['mobius.js']);
+    const bad = [];
+
+    for (const rel of scan) {
+        const known = KNOWN_NAME_SITES[rel] || [];
+        const hits = nameSites(rel, NAME_LITERAL).concat(nameSites(rel, USEDB))
+            .filter((n, i, a) => a.indexOf(n) === i).sort((a, b) => a - b);
+
+        for (const line of hits) {
+            if (known.indexOf(line) < 0) { bad.push(rel + ':' + line); }
+        }
+        for (const line of known) {
+            if (hits.indexOf(line) < 0) {
+                bad.push(rel + ':' + line + ' (목록이 낡았다 — 고쳤으면 목록에서 지워라)');
+            }
+        }
+    }
+
+    assert.deepStrictEqual(bad, [],
+        '코어가 백엔드 이름으로 갈라진다. 동작을 가르는 판단이면 db.can() 으로 묻고,\n' +
+        '이름 자체가 데이터인 자리면 db.backendName() 으로 파사드가 고른 것을 받아라.\n' +
+        '아직 고칠 수 없는 자리면 KNOWN_NAME_SITES 에 이유와 함께 적어라:\n  ' +
+        bad.join('\n  '));
+});
+
+test('백엔드 이름이 붙은 전역을 쓰는 자리도 알려진 것뿐이다', function () {
+    const scan = sourceFiles().concat(['mobius.js']);
+    const bad = [];
+
+    for (const rel of scan) {
+        const known = KNOWN_BACKEND_GLOBALS[rel] || [];
+        const hits = nameSites(rel, BACKEND_GLOBAL);
+
+        for (const line of hits) {
+            if (known.indexOf(line) < 0) { bad.push(rel + ':' + line); }
+        }
+        for (const line of known) {
+            if (hits.indexOf(line) < 0) {
+                bad.push(rel + ':' + line + ' (목록이 낡았다 — 고쳤으면 목록에서 지워라)');
+            }
+        }
+    }
+
+    assert.deepStrictEqual(bad, [],
+        '코어가 백엔드 이름이 붙은 전역을 쓴다. 튜닝 값은 어댑터가 갖고,\n' +
+        '설정 표는 어댑터가 내보낸 항목을 모으는 쪽이 맞다:\n  ' + bad.join('\n  '));
+});
+
+test('db_bootstrap 은 이름이 아니라 능력으로 서버 설정을 판단한다', function () {
+    // 이 자리가 **초록불인 채로** 들어왔던 구멍이다. 위 두 검사가 이제
+    // 잡지만, 여기서 한 번 더 못박는다 — 무엇을 물어야 하는지가 요점이라
+    // "이름이 없다" 보다 "can() 을 쓴다" 가 다음 사람에게 더 정확하다.
+    const src = fs.readFileSync(path.join(ROOT, 'mobius/db_bootstrap.js'), 'utf8');
+    const code = src.split('\n').filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l)).join('\n');
+
+    assert.match(code, /can\(\s*['"]serverTuning['"]\s*\)/,
+        "db_bootstrap 이 can('serverTuning') 을 묻지 않는다");
+});
+
+test('선언된 능력은 누군가 실제로 묻는다', function () {
+    // serverTuning 은 어댑터에 선언만 돼 있고 저장소 어디서도 묻지 않았다.
+    // 그래서 그 자리가 백엔드 이름 비교로 채워져 있었다 — 답이 이미 있는데
+    // 아무도 안 물어서 생긴 구멍이다. 능력을 새로 선언하면 소비자도 있어야 한다.
+    const mysql = require('../mobius/db/mysql');
+    const sqlite = require('../mobius/db/sqlite');
+    const declared = new Set(Object.keys(mysql.capabilities)
+        .concat(Object.keys(sqlite.capabilities)));
+
+    const scan = sourceFiles().concat(['mobius.js']);
+    const asked = new Set();
+    for (const rel of scan) {
+        const src = fs.readFileSync(path.join(ROOT, rel), 'utf8');
+        const code = src.split('\n').filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l)).join('\n');
+        let m;
+        const re = /\.can\(\s*['"]([a-zA-Z]+)['"]\s*\)/g;
+        while ((m = re.exec(code)) !== null) { asked.add(m[1]); }
+        // 파사드가 자기 안에서 쓰는 것도 소비다 (statementTimeoutHint 등).
+        for (const cap of declared) {
+            if (new RegExp('capabilities\\.' + cap + '\\b').test(code)) { asked.add(cap); }
+        }
+    }
+    // 파사드 자신은 범위 밖이라 따로 읽는다.
+    const facade = fs.readFileSync(path.join(ROOT, 'mobius/db/index.js'), 'utf8');
+    for (const cap of declared) {
+        if (new RegExp('capabilities\\.' + cap + '\\b').test(facade)) { asked.add(cap); }
+    }
+
+    const orphan = [...declared].filter((c) => !asked.has(c)).sort();
+    assert.deepStrictEqual(orphan, [],
+        '어댑터가 선언했는데 아무도 묻지 않는 능력이 있다: ' + orphan.join(', ') +
+        '\n선언만 있고 소비자가 없으면, 그 판단이 다른 곳에서 백엔드 이름 비교로 채워진다.');
 });
 
 test('파사드는 언제나 목록에 있다 — 여기가 유일한 리더가 되는 것이 목표다', function () {

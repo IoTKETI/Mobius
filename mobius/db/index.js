@@ -364,7 +364,28 @@ exports.numericExpr = function (expr) {
     return adapter.numericExpr ? adapter.numericExpr(expr) : expr;
 };
 
-// 테스트용. 운영 코드는 어느 백엔드인지 알 필요가 없다.
+// 지금 고른 백엔드의 이름.
+//
+// **동작을 가르는 데 쓰지 마라.** 그 자리는 can() 이다. 이름으로 갈라 놓으면
+// 새 백엔드가 붙을 때 그 갈래가 조용히 틀린 쪽으로 간다 — 능력으로 물으면
+// 어댑터가 스스로 답하므로 그런 일이 없다.
+//
+// 이름 **자체가 데이터**인 자리에만 쓴다. 지금은 둘뿐이다.
+//
+//   마이그레이션 필터링   migrations 의 backends: ['mysql'] 과 대조한다.
+//                         여기서는 이름이 곧 값이라 피할 방법이 없다.
+//   진단 로그·에러 메시지  운영자에게 어느 백엔드로 돌고 있는지 알려준다.
+//
+// 호출부가 global.usedb 를 직접 읽으면 안 되는 이유가 여기 있다. pick() 은
+// 모르는 이름을 기본값으로 되돌리므로(오타 하나로 기동이 막히지 않게), conf 에
+// "mysq1" 이라고 적혀 있으면 앱은 mysql 로 도는데 global.usedb 는 "mysq1" 이다.
+// 그 둘을 따로 읽으면 판단이 갈린다.
+exports.backendName = function () {
+    adapter = adapter || pick();
+    return adapter.name;
+};
+
+// 옛 이름. 테스트가 쓰고 있어 남겨 둔다.
 exports._adapterName = function () {
     return adapter ? adapter.name : null;
 };

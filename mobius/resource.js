@@ -345,7 +345,11 @@ function create_action(request, response, callback) {
     var body_Obj = {};
 
     if (!check_db_support(ty)) {
-        console.log('[create_action] ty=' + ty + ' is not supported by the sqlite backend');
+        // 백엔드 이름을 적지 않는다 — 여기 'the sqlite backend' 라고 적혀 있었다.
+        // 아래 create 의 같은 게이트(1065행 근처)는 'this backend' 라고 적어서
+        // 두 로그가 서로 달랐다. 어느 쪽이든 이 게이트는 어댑터가 지원 목록을
+        // 선언했을 때 걸리는 것이지 SQLite 라서 걸리는 것이 아니다.
+        console.log('[create_action] ty=' + ty + ' is not supported by this backend');
         callback('501-2');
         return;
     }

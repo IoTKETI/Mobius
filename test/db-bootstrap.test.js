@@ -152,6 +152,40 @@ test('기동 검사는 올리기만 한다', function () {
         'pool_sizing.currentFloor() 로 바닥을 구하지 않는다');
 });
 
+test('바닥 검사는 백엔드 이름이 아니라 능력으로 자기 차례를 정한다', function () {
+    // 이름으로 갈랐던 코드다. 두 가지가 틀렸다.
+    //   하나. 커넥션 상한을 가진 다른 백엔드가 붙으면 조용히 건너뛴다.
+    //   둘. conf 에 "db": "mysq1" 오타가 들어가면 파사드는 mysql 로 되돌려
+    //       앱이 정상으로 도는데(pick() 이 모르는 이름을 기본값으로 보낸다)
+    //       이 비교만 거짓이 되어 검사가 사라진다.
+    const src = fs.readFileSync(path.join(ROOT, 'mobius', 'db_bootstrap.js'), 'utf8');
+    const code = src.split('\n')
+        .filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l))
+        .join('\n');
+
+    assert.ok(!/backend\s*[!=]==?\s*['"]/.test(code),
+        '백엔드 이름을 문자열과 견준다 — 동작을 가르는 판단은 can() 으로 물어야 한다');
+    assert.match(code, /can\(\s*['"]serverTuning['"]\s*\)/,
+        "can('serverTuning') 을 묻지 않는다 — 어댑터에 이미 선언된 능력이다");
+
+    // 이름을 쓰는 자리가 하나 남는다: 마이그레이션 필터링이다. 거기서는
+    // 이름이 곧 데이터라 피할 수 없지만, global 을 직접 읽으면 파사드와
+    // 판단이 갈리므로 파사드가 고른 이름을 받아야 한다.
+    assert.ok(!/global\.usedb/.test(code),
+        'global.usedb 를 직접 읽는다 — pick() 과 규칙이 다른 두 번째 기본값이 생긴다');
+    assert.match(code, /db\.backendName\(\)/,
+        '파사드가 고른 백엔드 이름을 받지 않는다');
+});
+
+test('능력이 없는 백엔드에서는 SET 을 내지 않는다', function (t, done) {
+    // serverTuning 을 선언하지 않은 어댑터(sqlite)에서는 아예 안 돈다.
+    runBootstrap({ now: 10, pending: [], serverTuning: false }, function (ran) {
+        assert.ok(!ran.some((s) => /max_connections/.test(s)),
+            '능력이 없는데 서버 설정을 건드렸다: ' + JSON.stringify(ran));
+        done();
+    });
+});
+
 test('바닥은 풀 크기와 프로세스 수에서 계산된다', function () {
     const ps = require(path.join(ROOT, 'mobius', 'pool_sizing.js'));
 
@@ -193,6 +227,11 @@ function runBootstrap(opts, done) {
         getConnection: (cb) => cb('200', { fake: true }),
         release: () => {},
         raw: (sql) => sql,
+        // 바닥 검사는 백엔드 **이름**이 아니라 능력으로 자기 실행 여부를 정한다.
+        // opts.serverTuning 을 false 로 주면 그 갈래를 확인할 수 있다.
+        can: (name) => (name === 'serverTuning'
+            ? opts.serverTuning !== false : false),
+        backendName: () => opts.backend || 'mysql',
         run: (sql, conn, cb) => {
             ran.push(String(sql));
             if (/max_connections/.test(String(sql))) {

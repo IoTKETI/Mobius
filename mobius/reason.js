@@ -188,7 +188,13 @@ var REASON = {
     '500-7': { code: RSC.INTERNAL_SERVER_ERROR,
                msg: "upstream returned a body this CSE cannot relay",
                detail: 'relay: non-json content-type' },
-    '501-2': { code: RSC.NOT_IMPLEMENTED, msg: "this resource type is not supported by the SQLite backend" }
+    // 백엔드 이름을 말하지 않는다. 여기 "the SQLite backend" 라고 적혀 있었는데
+    // **틀린 문장이었다** — 이 사유는 SQLite 라서 나가는 것이 아니라, 어댑터가
+    // supportedResourceTypes 목록을 선언했고 요청한 타입이 그 목록에 없어서
+    // 나간다. 지금 그 목록을 선언한 어댑터가 sqlite 하나뿐이라 우연히 맞았을 뿐,
+    // 부분 지원 상태의 새 백엔드를 붙이면 클라이언트가 쓰지도 않는 DB 이름을 듣는다.
+    '501-2': { code: RSC.NOT_IMPLEMENTED,
+               msg: "this resource type is not supported by the configured storage backend" }
 };
 
 // app.js 가 쓰던 { key: [status, rsc, msg] } 형태를 그대로 만들어 준다.

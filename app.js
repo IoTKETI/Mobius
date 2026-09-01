@@ -1293,9 +1293,24 @@ function get_resource_from_url(connection, ri, sri, option, callback) {
                     if (code === '200') {
                         if (latestObj.length == 1) {
 
-                            let strLatestObj = JSON.stringify(latestObj[0]).replace('RowDataPacket ', '');
-
-                            latestObj[0] = JSON.parse(strLatestObj);
+                            // JSON 왕복으로 프로토타입을 벗긴다.
+                            //
+                            // 여기 `.replace('RowDataPacket ', '')` 가 붙어
+                            // 있었는데 **아무 일도 하지 않는 코드였다.**
+                            // JSON.stringify 는 생성자 이름을 출력에 넣지
+                            // 않으므로 그 부분 문자열은 결과에 존재할 수 없다.
+                            //
+                            // 실제로 필요했던 것은 왕복 자체다. 파사드가 행
+                            // 객체를 정규화하지 않고 그대로 통과시켜서, MySQL
+                            // 백엔드에서 여기 오는 것은 node-mysql 의
+                            // RowDataPacket 인스턴스다. 아래에서 이 객체를
+                            // 다시 담아 응답으로 내보내므로 평범한 객체여야 한다.
+                            //
+                            // 치환을 지우는 이유는 동작이 아니라 오해다 —
+                            // "코어가 어느 드라이버 위에 있는지 안다" 는 잘못된
+                            // 믿음이 코드로 남아 있으면, 다음 사람이 그것을
+                            // 근거로 진짜 드라이버 의존 코드를 더한다.
+                            latestObj[0] = JSON.parse(JSON.stringify(latestObj[0]));
 
                             targetObject = {};
                             targetObject[responder.typeRsrc[latestObj[0].ty]] = latestObj[0];

@@ -1657,9 +1657,13 @@ exports.search_lookup = function (connection, ri, query, cur_lim, pi_list, pi_in
         else if (res && (res.driverCode === 'ER_KEY_DOES_NOT_EXITS' ||
                          res.errno === 1176 ||
                          /Key '[^']*' doesn't exist/i.test(res.sqlMessage || res.message || ''))) {
+            // 복구 명령에 백엔드 이름을 박지 않는다 — '--check mysql' 이라고
+            // 적혀 있었다. migrate.js 는 백엔드 인자가 **선택**이라(142행이
+            // backendArg || conf.db 로 떨어진다) 안 적으면 설정을 따라간다.
+            // 이름을 박아 두면 다른 백엔드로 도는 서버에서 틀린 명령을 알려준다.
             console.error('[search_lookup] 인덱스가 없다: ' +
                           (res.sqlMessage || res.message) +
-                          ' — node tools/migrate.js --check mysql 로 확인하고 적용할 것');
+                          ' — node tools/migrate.js --check 로 확인하고 적용할 것');
         }
         else {
             console.error('[search_lookup] ' + ((res && (res.sqlMessage || res.message)) || res));

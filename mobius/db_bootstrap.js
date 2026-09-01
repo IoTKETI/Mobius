@@ -48,7 +48,21 @@ var pool_sizing = require('./pool_sizing');
 // 마이그레이션은 이미 schema_migrations 에 기록돼 있어 다시 돌지 않는다.
 // 그러면 아무도 안 고친다.
 function ensure_max_connections(ctx, cb) {
-    if (ctx.backend !== 'mysql') { return cb(null); }
+    // **이름이 아니라 능력으로 묻는다.**
+    //
+    // 여기 `ctx.backend !== 'mysql'` 이라고 적혀 있었다. 두 가지가 틀렸다.
+    //
+    // 하나. 커넥션 상한을 가진 다른 백엔드가 붙으면 조용히 건너뛴다. 그 백엔드에
+    // 상한이 있어도 아무도 안 본다 — 이름이 'mysql' 이 아니라는 이유로.
+    //
+    // 둘. conf 에 오타가 들어가면 두 경로가 갈린다. "db": "mysq1" 이라고 적으면
+    // 파사드는 경고를 찍고 mysql 어댑터로 붙어 앱이 정상으로 도는데(pick() 이
+    // 모르는 이름을 기본값으로 되돌린다), 이 비교만 거짓이 되어 바닥 검사가
+    // 사라진다. 앱은 MySQL 위에서 도는데 max_connections 는 151 인 상태다.
+    //
+    // 어댑터에는 이미 답이 선언돼 있다 — mysql.js 의 serverTuning: true 다.
+    // 그런데 저장소 어디에서도 그것을 묻지 않고 있었다.
+    if (!db.can('serverTuning')) { return cb(null); }
 
     var floor = pool_sizing.currentFloor();
 
@@ -103,7 +117,17 @@ exports.run = function (callback) {
             return callback(null);
         }
 
-        var ctx = { db: db, conn: connection, backend: global.usedb || 'mysql' };
+        // backend 는 파사드가 **실제로 고른** 이름이어야 한다.
+        //
+        // 여기 `global.usedb || 'mysql'` 이라고 적혀 있었다. 그것은 파사드의
+        // pick() 과 규칙이 다른 두 번째 기본값 결정이라, conf 에 오타가 있으면
+        // 마이그레이션 필터가 앱과 다른 백엔드를 기준으로 돈다.
+        //
+        // 이름을 여기서 쓰는 이유는 하나뿐이다 — migrate.pending() 이 각
+        // 마이그레이션의 backends: ['mysql'] 과 대조해야 하기 때문이다.
+        // 그 자리에서는 이름이 곧 데이터라 피할 방법이 없다. 동작을 가르는
+        // 판단(위 ensure_max_connections)은 능력으로 묻는다.
+        var ctx = { db: db, conn: connection, backend: db.backendName() };
 
         // 마이그레이션이 어떻게 끝났든 **언제나** 바닥 검사를 거쳐서 나간다.
         //
