@@ -612,6 +612,68 @@ lite 가 배포 실측으로 제거한 것이다 — `subl` 항목 14,028 vs 실
    `hit_ri` + `hit_man`, `mobius/db/index.js` 의 `conflictRef` 노출,
    `acp_eval` 재추출(lite 의 creator 우회·trace·acp_observe 를 보존하는 형태)
 
+### 4.5 DB 설정 — **완료 (`02ee92f` · `7e2c5b2` · `bdd6753` · `4ab8df5`, 배포됨)**
+
+사용자가 넣었던 튜닝 네 값을 다시 판단해 확정하고, 새 설치도 같은 값이 되게 했다.
+
+**넣었던 이유**(사용자): DB 가 느리고 커넥션 풀이 말라 서버가 자주 멈춰서.
+**그런데 멈춤의 원인은 그 네 값 어디에도 없었다** — `mysql` 드라이버의
+`queueLimit: 0` 이 만드는 **타임아웃 없는 무한 큐**였다. 풀이 차면 요청이
+응답도 에러도 없이 매달리고 워커도 안 죽는다. `acquireTimeout` 은 큐 대기에
+관여하지 않는다(`Pool.js` 의 connect/changeUser/ping 에만 걸린다).
+
+| 설정 | 전 | 지금 |
+|---|---|---|
+| `innodb_flush_log_at_trx_commit` | 0 | **1** |
+| `transaction_isolation` | READ-UNCOMMITTED | **REPEATABLE-READ** |
+| `max_connections` | 2000 | **800** |
+| `sync_binlog` | 0 | 0 (유지 — 기준 백업이 없어 지킬 대상이 없다) |
+| `dbConnectionLimit` | 100(하드코딩) | **25** → 총 625 |
+| `dbQueueLimit` | 0(무한 큐) | **50** |
+| SQLite `journal_mode` / `synchronous` | 없음 | **WAL** / **FULL** |
+
+**내구성을 켰는데 성능 영향이 없다** — 운영 `insert_cin` 중앙값 2.7ms,
+행 잠금 대기 0. SQLite 는 WAL/FULL 이 기존 기본값(DELETE/FULL)보다 오히려
+빠르다(스키마 19ms vs 44ms, 쓰기 100건 3ms vs 15ms).
+
+**새 설치도 같은 값이 된다.** 스키마는 `mobiusdb.sql` 이 이미 맞추고
+(`schema-drift` 테스트가 강제), SQLite 는 PRAGMA 를 connect 마다 걸며,
+MySQL 서버 설정만 `mobius/db_bootstrap.js` 가 기동 시 한 번 적용한다
+(`migrations/010`, `autoApply: true`). **`set_tuning` 과 갈리는 지점은
+"한 번" 이다** — 기록되므로 그 뒤 운영자가 바꾼 값을 덮어쓰지 않는다
+(배포에서 1200 으로 바꾸고 재기동해 유지되는 것을 확인).
+
+느린 마이그레이션은 절대 자동으로 돌지 않는다 — `autoApply` 를 밝힌 것만
+돈다. 001 은 배포에서 20.6분 걸렸다. `test/db-bootstrap.test.js` 가 강제한다.
+
+#### 함께 고친 결함 2건
+
+- **표와 코드의 기본값이 갈라져 있었다.** `conf_schema.js` 는
+  `dbConnectionLimit` 기본값을 25 라 적었는데 `mobius.js` 는 100 으로
+  떨어졌다 — 화면이 콘솔에 거짓말을 하고 있었다. 값을 대조하는 테스트를 넣었다.
+- **PRAGMA 실패가 워커를 죽였다**(mobius-fd 지적). 콜백 없는 `db.run` 이
+  실패하면 node-sqlite3 가 `'error'` 를 뿜고, 듣는 이가 없으면 미처리
+  예외가 된다. `journal_mode` 는 상대가 트랜잭션을 쥐면 실제로 실패한다.
+
+#### 워커 수를 콘솔에 알리는 건 — **안 하기로 함**
+
+콘솔이 `max_connections` 바닥(`dbConnectionLimit x 프로세스 수`)을 막으려면
+실제 워커 수가 필요하다는 요청이 있었다. DB 테이블까지 검토했다가 **기각**했다.
+
+- 콘솔은 같은 기계에 있으므로 `os.cpus().length + 1` 이 지금은 정답이다
+- 실측 `Max_used_connections` 59 / `max_connections` 800 — 여유 13배라
+  하드 바닥을 막을 실익이 없다
+- 관측값 기반 **경고**는 지금도 SELECT 로 된다(콘솔 쪽에서 처리)
+
+정말 필요해지면 그때 파일 하나(`{pid, workers, startedAt}`)면 된다 —
+테이블보다 싸고, 콘솔이 `pid` 로 생사를 직접 확인할 수 있어 낡음 판별도 쉽다.
+
+#### 남은 것
+
+`my.cnf` 가 여전히 현실과 다르다(아래 5번). 관리 콘솔의 DB 설정 화면은
+`mobius-fd` 가 계획을 세웠고(`2026-09-01-db-settings-console-plan.md`)
+사용자가 직접 진행한다.
+
 ### 5. `my.cnf` 정리 — root 필요
 
 `mysqld.cnf:100` 이 `innodb_flush_log_at_trx_commit = 1` 인데 실제 적용값은
