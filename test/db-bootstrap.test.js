@@ -170,6 +170,88 @@ test('바닥은 풀 크기와 프로세스 수에서 계산된다', function () 
     assert.strictEqual(ps.processCount(), require('node:os').cpus().length + 1);
 });
 
+// db_bootstrap 을 가짜 파사드 위에서 실제로 돌린다.
+//
+// 소스를 정규식으로 보는 검사는 "검사가 **언제** 도는가" 를 못 본다.
+// 실제로 한 번 이런 식으로 놓쳤다: 바닥 검사를 "적용할 마이그레이션이
+// 있을 때" 안에 두는 바람에, 이미 다 적용된 서버(=배포된 모든 서버)에서는
+// pending 이 0 이라 그 분기에 들어가지도 못했다. 배포 로그가 조용해서
+// 드러났다 — 그전까지 900개 테스트가 전부 통과했다.
+function runBootstrap(opts, done) {
+    const ROOTM = require('node:module');
+    const dbPath = require.resolve(path.join(ROOT, 'mobius', 'db', 'index.js'));
+    const migPath = require.resolve(path.join(ROOT, 'tools', 'migrate.js'));
+    const bootPath = require.resolve(path.join(ROOT, 'mobius', 'db_bootstrap.js'));
+
+    const saved = {};
+    for (const p of [dbPath, migPath, bootPath]) { saved[p] = require.cache[p]; }
+
+    const ran = [];
+    require.cache[dbPath] = new ROOTM.Module(dbPath);
+    require.cache[dbPath].loaded = true;
+    require.cache[dbPath].exports = {
+        getConnection: (cb) => cb('200', { fake: true }),
+        release: () => {},
+        raw: (sql) => sql,
+        run: (sql, conn, cb) => {
+            ran.push(String(sql));
+            if (/max_connections/.test(String(sql))) {
+                if (/^select/i.test(String(sql))) { return cb(null, [{ n: opts.now }]); }
+                return cb(null, { affectedRows: 0 });
+            }
+            cb(null, []);
+        }
+    };
+
+    require.cache[migPath] = new ROOTM.Module(migPath);
+    require.cache[migPath].loaded = true;
+    require.cache[migPath].exports = {
+        loadMigrations: () => [],
+        ensureTable: (ctx, cb) => cb(null),
+        appliedIds: (ctx, cb) => cb(null, []),
+        pending: () => opts.pending || [],       // 기본은 0개 — 배포된 서버의 상태
+        apply: (ctx, list, cb) => cb(null)
+    };
+
+    delete require.cache[bootPath];
+    const boot = require(bootPath);
+
+    const savedLimit = global.use_db_connection_limit;
+    const savedDb = global.usedb;
+    global.use_db_connection_limit = 25;
+    global.usedb = 'mysql';
+
+    boot.run(function () {
+        global.use_db_connection_limit = savedLimit;
+        global.usedb = savedDb;
+        for (const p of [dbPath, migPath, bootPath]) {
+            if (saved[p]) { require.cache[p] = saved[p]; } else { delete require.cache[p]; }
+        }
+        done(ran);
+    });
+}
+
+test('적용할 마이그레이션이 없어도 바닥 검사는 돈다', function (t, done) {
+    // 배포된 모든 서버가 이 상태다. 여기서 안 돌면 검사가 영영 안 도는 것과 같다.
+    runBootstrap({ now: 151, pending: [] }, function (ran) {
+        const set = ran.filter((s) => /SET PERSIST max_connections/.test(s));
+        assert.strictEqual(set.length, 1,
+            'pending 이 0 인데 바닥 검사가 안 돌았다 — 배포된 서버에서는 이 경로뿐이다\n' +
+            '실행된 SQL: ' + JSON.stringify(ran));
+        done();
+    });
+});
+
+test('바닥 이상이면 SET 을 내지 않는다', function (t, done) {
+    // 운영자가 올려 둔 값(1200)을 800 으로 끌어내리면 그 여유를 쓰던
+    // 다른 클라이언트가 끊긴다.
+    runBootstrap({ now: 1200, pending: [] }, function (ran) {
+        assert.ok(!ran.some((s) => /SET PERSIST/.test(s)),
+            '바닥보다 큰 값을 건드렸다 — 올리기만 해야 한다: ' + JSON.stringify(ran));
+        done();
+    });
+});
+
 test('설정 화면이 바닥을 그릴 재료를 받는다', function () {
     // 화면에 계산식을 적으면 서버가 실제로 거는 값과 갈린다. 숫자만 넘긴다.
     const d = require(path.join(ROOT, 'mobius', 'conf_schema.js')).describe();

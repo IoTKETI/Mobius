@@ -105,12 +105,20 @@ exports.run = function (callback) {
 
         var ctx = { db: db, conn: connection, backend: global.usedb || 'mysql' };
 
+        // 마이그레이션이 어떻게 끝났든 **언제나** 바닥 검사를 거쳐서 나간다.
+        //
+        // 이것을 "적용할 마이그레이션이 있을 때" 안에 두면 검사가 영영 안 돈다.
+        // 이미 다 적용된 서버(=배포된 모든 서버)는 pending 이 0 이라 그 분기에
+        // 들어가지도 못하기 때문이다. 그러면 SET PERSIST 유실을 고치겠다는
+        // 목적 자체가 사라진다 — 유실은 마이그레이션을 다 적용한 뒤에 온다.
         function finish(err) {
-            db.release(connection);
             if (err) {
                 console.error('[db_bootstrap] ' + ((err && err.message) || err));
             }
-            callback(null);   // 어떤 경우에도 기동은 계속한다
+            ensure_max_connections(ctx, function () {
+                db.release(connection);
+                callback(null);   // 어떤 경우에도 기동은 계속한다
+            });
         }
 
         migrate.ensureTable(ctx, function (terr) {
@@ -133,18 +141,11 @@ exports.run = function (callback) {
                     console.log('    적용하려면: node tools/migrate.js --apply ' + ctx.backend);
                 }
 
-                function then_floor(aerr2) {
-                    if (aerr2) { return finish(aerr2); }
-                    // 마이그레이션 뒤에 바닥을 본다. 010 이 방금 값을 넣었을
-                    // 수도 있으므로 그 결과 위에서 판단해야 한다.
-                    ensure_max_connections(ctx, function () { finish(null); });
-                }
-
-                if (auto.length === 0) { return then_floor(null); }
+                if (auto.length === 0) { return finish(null); }
 
                 console.log('[db_bootstrap] 즉시 끝나는 마이그레이션 ' +
                             auto.length + '개를 적용한다');
-                migrate.apply(ctx, auto, then_floor);
+                migrate.apply(ctx, auto, finish);
             });
         });
     });
