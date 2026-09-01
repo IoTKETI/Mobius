@@ -130,11 +130,17 @@ npm test
     단위 테스트                869
     방언 종속 구문             없음
 
-10번의 "어긋남" 은 재 보니 **의도된 부분집합**이었다 — MySQL 18 테이블 /
-SQLite 9 테이블이고, 없는 9개(csr fcnt grp lcp mgo mms nod smd sri)는
-SQLite 가 안 받는 타입들이다. 진짜 문제는 그 목록이 `resource.js` 에
-`SQLITE_SUPPORTED_TY` 라는 이름으로 있었다는 것이다 — 코어에, 한 백엔드
-이름을 달고. 어댑터의 `supportedResourceTypes` 로 옮겼다.
+10번의 "어긋남" 은 재 보니 **SQLite 가 개발 중이라 아직 안 맞춘 상태**였다.
+MySQL 18 테이블 / SQLite 9 테이블이고, 없는 9개(csr fcnt grp lcp mgo mms nod
+smd sri)가 SQLite 가 아직 못 받는 타입들이다.
+
+**목표는 MySQL 과 같게 맞추는 것이다** (사용자 확인, 2026-09-01). 그러니
+`supportedResourceTypes` 목록은 임시이고, 스키마에 테이블을 추가할 때마다
+줄어들다가 결국 `null`(제한 없음)이 된다.
+
+진짜 문제는 그 목록이 `resource.js` 에 `SQLITE_SUPPORTED_TY` 라는 이름으로
+있었다는 것이다 — 코어에, 한 백엔드 이름을 달고. 어댑터로 옮겼으니 이제
+스키마와 목록을 같은 파일 근처에서 함께 고친다.
 
 11번의 두 껍데기에 남아 있던 실제 로직은 **임대 장부** 하나였다. 취득처가
 파사드인데 장부가 껍데기에 있으면, 코어가 파사드를 직접 부르는 순간 장부에서
@@ -250,6 +256,74 @@ SQL 을 내는 함수 104개
 require 를 파사드 직접 호출로 바꾸면 두 파일을 지울 수 있다.
 
 **우선순위가 낮은 이유**: 이름만의 문제다. 1번을 하다 보면 자연히 사라진다.
+
+---
+
+## 3.5 다음 작업 — SQLite 를 MySQL 과 같게
+
+**이 헌장의 원래 범위(1~11번)는 끝났다.** 여기부터는 다음 회차다.
+
+사용자 확인(2026-09-01): SQLite 는 개발 중이고 **MySQL 과 같은 리소스를
+지원하는 것이 목표**다. 지금의 부분집합은 임시 상태다.
+
+### 남은 것은 스키마뿐이다 — 타입 16개, 테이블 8개
+
+본문 insert 는 전부 파사드를 탄다(손으로 쓴 SQL 0개). 그러니 SQLite 가 못 받는
+이유는 **테이블이 없어서** 하나다. `mobiusdb.sql` 과 대조한 결과:
+
+| 없는 테이블 | 타입 | 비고 |
+|---|---|---|
+| `grp` | 9 | `update_route` 가 `csr` 을 읽으므로 `csr` 과 함께 필요 |
+| `lcp` | 10 | **생성이 원래 깨져 있다** — `cr` 이 NOT NULL 인데 INSERT 목록에 없다 |
+| `mgo` | 13 | fwr/bat/dvi/dvc/rbo 공용. `type_resolver` 가 아직 400 으로 막는다 |
+| `nod` | 14 | |
+| `csr` | 16 | 원격 CSE 등록 |
+| `smd` | 24 | |
+| `mms` | 27 | |
+| `fcnt` | 28 | hd_*(91~98)도 이 테이블을 쓴다 |
+| `sri` | — | 레거시. 어느 타입도 안 쓴다 — **만들지 말 것** |
+
+hd_*(91~98) 여덟은 전부 `fcnt` 를 쓴다 — 그 테이블 하나로 아홉 타입이 열린다.
+`test/usesqlite-single-reader.test.js` 가 남은 수를 세고, 줄면 실패하며 새 수를 알려준다.
+
+### 순서 제안
+
+1. **`fcnt`** — hd_* 여덟 타입이 한꺼번에 열린다. 컬럼이 많아 가장 크지만
+   효과도 가장 크다.
+2. **`nod` + `csr` + `grp`** — `grp` 는 `csr` 없이는 500 이 난다.
+3. **`smd` + `mms`** — 단순하다.
+4. **`lcp`** — 넣기 전에 `cr` 결함을 먼저 고친다(아래).
+5. **`mgo`** — `type_resolver` 의 400 게이트를 여는 판단이 함께 필요하다.
+
+각 단계는 세 곳을 같이 고친다:
+
+    mobius/mobiusdb_sqlite.sql            테이블 (+ 필요한 인덱스)
+    mobius/db/sqlite.js                   supportedResourceTypes 에 타입 추가
+    tools/sqlite-indexes.js               인덱스를 늘렸다면
+
+`test/usesqlite-single-reader.test.js` 가 목록과 스키마를 대조하므로, 목록에만
+추가하고 테이블을 빠뜨리면 실패한다. 반대(테이블만 추가)는 안 걸리니 주의.
+
+### 함께 고쳐야 할 결함
+
+- **`lcp` 생성은 어느 백엔드에서도 안 된다.** `lcp` 테이블의 `cr` 이 NOT NULL
+  인데 `BODY_TABLES.insert_lcp` 의 컬럼 목록에 `cr` 이 없고, `build_lcp` 도
+  `cr` 을 설정하지 않는다(`cnt.js`/`grp.js` 는 한다). 옛 SQL 을 글자 그대로
+  돌려도 `ER_NO_DEFAULT_FOR_FIELD` 다 — 전환 이전부터 깨져 있었다.
+- **`update_dvc` 는 호출되는 순간 워커가 죽는다.** `resource.js` 가 16개
+  위치인자로 부르는데 서명은 `(connection, obj, callback)` 이다. 지금은
+  `type_resolver` 가 mgo 를 막아 도달 불가지만, 5번에서 문을 열면 즉시 터진다.
+- **`type_resolver` 의 mgo 400 게이트** — 막아 둔 근거("문자열 조립이라
+  주입이 된다")는 해소됐다. 여는 것은 별도 판단이고, 그 아래 경로
+  (`build_mgo` 의 mgd 분기, mgo 조회·수정·삭제)는 한 번도 밟힌 적이 없다.
+
+### 그 밖에 남은 것
+
+- **`my.cnf` 정리** — `innodb_flush_log_at_trx_commit = 1` / `max_connections = 300`
+  이 `mysqld-auto.cnf` 에 덮여 무의미하다. root 권한이 필요해 못 고쳤다.
+- **관리 UI 의 DB 설정 화면** — 이 작업들이 끝나면 착수(사용자 판단).
+  검토 결과는 `mobius-fd` 가 냈다: 읽기 화면(세 값의 어긋남 표시)을 먼저,
+  쓰기는 내구성 셋을 빼고, 감사 로그는 콘솔 인증이 먼저.
 
 ---
 

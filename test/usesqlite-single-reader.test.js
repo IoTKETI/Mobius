@@ -199,6 +199,19 @@ test('어댑터의 지원 타입 목록은 그 어댑터 스키마에 테이블�
     }
 });
 
+// ty -> **본문 테이블** 이름.
+//
+// responder.typeRsrc 는 테이블이 아니라 **루트 이름**을 준다. 대부분 같지만
+// (ae -> ae, cnt -> cnt) 둘이 갈리는 데가 있다:
+//   hd_*(91~98)  전부 fcnt 테이블을 쓴다 (sql_action 의 BODY_TABLES 참고)
+//   rsp(99)      리소스가 아니라 응답 봉투다 — 테이블이 없다
+//   mgo(13)      fwr/bat/dvi/dvc/rbo 가 공유하는 추상 타입
+function bodyTable(ty, rootnm) {
+    if (Number(ty) >= 91 && Number(ty) <= 98) { return 'fcnt'; }
+    if (String(ty) === '99') { return null; }
+    return rootnm;
+}
+
 test('제한 없는 백엔드는 스키마에 모든 타입의 테이블이 있다', function () {
     // 제한을 선언하지 않았다는 것은 "다 받는다" 는 뜻이다. 그런데 스키마에
     // 테이블이 없으면 CREATE 가 500 으로 깨진다 — 501 로 거절되지도 않는다.
@@ -214,8 +227,11 @@ test('제한 없는 백엔드는 스키마에 모든 타입의 테이블이 있�
 
         const schema = fs.readFileSync(path.join(ROOT, 'mobius', adapter.schemaFile), 'utf8');
         const missing = [];
-        for (const ty of global.ty_list || []) {
-            const table = responder.typeRsrc[ty];
+        // responder.typeRsrc 에서 뽑는다. global.ty_list 는 app.js 가 세우는데
+        // 이 테스트는 app.js 를 로드하지 않아 언제나 비어 있다 — 그러면 아무것도
+        // 검사하지 않고 통과한다.
+        for (const ty of Object.keys(responder.typeRsrc)) {
+            const table = bodyTable(ty, responder.typeRsrc[ty]);
             if (!table) { continue; }   // 추상 타입(mgo 등)은 본문 테이블이 없다
             const re = new RegExp('CREATE TABLE (IF NOT EXISTS )?`?' + table + '`?\\s*\\(', 'i');
             if (!re.test(schema)) { missing.push(ty + '(' + table + ')'); }
@@ -224,4 +240,55 @@ test('제한 없는 백엔드는 스키마에 모든 타입의 테이블이 있�
             adapter.name + ' 이 제한을 선언하지 않았는데 ' + adapter.schemaFile +
             ' 에 테이블이 없는 타입이 있다: ' + missing.join(', '));
     }
+});
+
+test('SQLite 가 MySQL 과 같아지기까지 남은 타입을 센다', function () {
+    // SQLite 백엔드는 개발 중이고 **MySQL 과 같은 타입을 전부 받는 것이
+    // 목표**다(사용자 확인 2026-09-01). 지금의 부분집합은 임시 상태다.
+    //
+    // 이 테스트는 막지 않는다 — 남은 것을 **보여 준다.** 목록이 줄어드는 것이
+    // 진척이고, 0 이 되면 sqlite 의 supportedResourceTypes 를 null 로 바꾸면
+    // 된다(그러면 위의 '제한 없는 백엔드는...' 테스트가 스키마를 검사한다).
+    const responder = require('../mobius/responder');
+    const sqlite = require('../mobius/db/sqlite');
+    const schema = fs.readFileSync(path.join(ROOT, 'mobius/mobiusdb_sqlite.sql'), 'utf8');
+    const mysqlSchema = fs.readFileSync(path.join(ROOT, 'mobius/mobiusdb.sql'), 'utf8');
+
+    const has = (s, t) =>
+        new RegExp('CREATE TABLE (IF NOT EXISTS )?\`?' + t + '\`?\\s*\\(', 'i').test(s);
+
+    // 타입 목록은 responder.typeRsrc 에서 뽑는다. global.ty_list 는 app.js 가
+    // 세우는데 이 테스트는 app.js 를 로드하지 않아 언제나 비어 있었다 —
+    // 그래서 "남은 것 0개" 라는 거짓 결과가 나왔다.
+    const missing = [];
+    const tables = new Set();
+    for (const ty of Object.keys(responder.typeRsrc)) {
+        if (sqlite.supportedResourceTypes.indexOf(String(ty)) >= 0) { continue; }
+        const table = bodyTable(ty, responder.typeRsrc[ty]);
+        if (!table) { continue; }                    // 응답 봉투 등 리소스가 아닌 것
+        if (!has(mysqlSchema, table)) { continue; }  // MySQL 에도 없으면 대상이 아니다
+        missing.push(ty + '(' + table + ')' + (has(schema, table) ? ' [테이블 있음]' : ''));
+        tables.add(table);
+    }
+
+    // 지금 알고 있는 상태. 줄면 이 두 수를 같이 내린다.
+    //
+    // 타입 수와 테이블 수가 다른 것은 hd_*(91~98) 여덟이 전부 fcnt 를 쓰기
+    // 때문이다 — fcnt 하나를 추가하면 아홉 타입이 한꺼번에 열린다.
+    const KNOWN_TYPES = 16;
+    const KNOWN_TABLES = 8;
+
+    assert.ok(missing.length <= KNOWN_TYPES,
+        'SQLite 미지원 타입이 늘었다 (' + missing.length + ' > ' + KNOWN_TYPES + '): ' +
+        missing.join(', '));
+
+    if (missing.length < KNOWN_TYPES) {
+        assert.fail('진척이다 — SQLite 미지원이 타입 ' + missing.length + '개 / 테이블 ' +
+            tables.size + '개로 줄었다. KNOWN_TYPES 를 ' + missing.length +
+            ', KNOWN_TABLES 를 ' + tables.size + ' 로 내려라.\n  남은 타입: ' +
+            missing.join(', ') + '\n  남은 테이블: ' + [...tables].sort().join(', '));
+    }
+    assert.strictEqual(tables.size, KNOWN_TABLES,
+        '추가해야 할 테이블 수가 ' + tables.size + ' 다 (알고 있던 값 ' + KNOWN_TABLES + '): ' +
+        [...tables].sort().join(', '));
 });
