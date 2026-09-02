@@ -77,6 +77,19 @@ exports.optimizerHintBlock = function (hints) {
 // 이다. 둘을 그냥 조인하면 ER_CANT_AGGREGATE_2COLLATIONS 로 죽는다.
 // 기존 코드가 쓰던 'where pi = ?' 는 pi 쪽 콜레이션(대소문자 무시)으로
 // 비교됐으므로, 조인으로 바꿔도 같은 결과가 나오도록 general_ci 를 쓴다.
+// ri 컬럼 자체의 콜레이션. **경로 비교용(pathCollate)과 다르다.**
+//
+// pathCollate 는 pi 와 ri 를 견주려고 대소문자를 무시하는 쪽(general_ci)에
+// 맞춘 것이다. 그런데 골격의 sk_ri 를 다른 테이블의 ri 와 조인할 때는
+// 그 반대가 필요하다 — lookup.ri 도 cnt.ri 도 utf8mb3_bin 이라, ci 로 캐스트된
+// 값을 그대로 조인하면 ER_CANT_AGGREGATE_2COLLATIONS 로 죽는다.
+//
+// 두 콜레이션이 한 스키마에 공존하는 것이 이 저장소의 사정이고, 그래서
+// "어느 쪽에 맞출 것인가" 를 자리마다 골라야 한다. 그 선택지를 어댑터가 준다.
+exports.riCollate = function () {
+    return ' collate utf8mb3_bin';
+};
+
 exports.pathCollate = function () {
     return ' collate utf8mb3_general_ci';
 };

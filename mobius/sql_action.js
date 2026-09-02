@@ -1312,11 +1312,44 @@ function build_skeleton_sql(ri, query, budget_ms) {
     // 값 안의 물음표를 knex 가 자리표로 세어 "Expected N bindings, saw N+1" 로
     // 죽는다(재현: ?fu=1&rn=what%3F -> HTTP 500). 자식 질의의 :pN / :qN 도
     // 같은 이유로 이름 바인딩이다.
+    // CIN 필터가 붙은 요청이면 **CIN 이 없는 부모를 골격에서 뺀다.**
+    //
+    // 골격의 재귀 조건은 `ty <> 4` 하나다 — "CIN 이 아닌 자식을 따라 넓힌다" 는
+    // 뜻이지 "CIN 을 가진 부모만 고른다" 가 아니다. 그래서 sza / szb 요청에도
+    // CIN 이 하나도 없는 컨테이너가 전부 부모 목록에 들어간다.
+    //
+    // 배포 실측 (/Mobius/KETI_MUV/Mission_Data):
+    //   골격 2,900개 중 cni > 0 은 642개 — 나머지 2,258개(78%)가 헛부모다
+    //   자식 질의  전체 골격 59ms  ->  cni>0 만 13ms   (lim=20)
+    //             전체 골격 86~104ms -> 41~48ms        (lim=2000)
+    //   골격 자체는 접는 비용이 0이다 (2,900행 38ms -> 749행 38ms)
+    //
+    // 비용이 스캔 행 수가 아니라 **부모(range) 개수에 선형**이라 그렇다.
+    // range 옵티마이저가 부모마다 범위를 만들고 시크를 한 번씩 한다.
+    //
+    // ── inner join 은 절대 안 된다 ─────────────────────────────────────
+    // cnt 에 행이 없는데 CIN 을 가진 컨테이너가 실재한다 — 배포에서
+    // /Mobius/National_Park/Drone_Data/Park_Drone/2023_06_22_T_08_03 이
+    // lookup 에 ty=3 으로 있고 cnt 조회는 0행인데 cin 은 475건이다.
+    // inner join 이면 그 부모가 조용히 사라져 답이 줄어든다.
+    // **모르면 남긴다** — `n.ri is null or n.cni > 0` 이다.
+    //
+    // ── 콜레이션 ────────────────────────────────────────────────────────
+    // sk_ri 는 위에서 pathCollate 로 캐스트돼 있다(재귀에서 pi 와 비교해야 한다).
+    // cnt.ri 는 lookup.ri 와 같은 원래 콜레이션이라, 조인하려면 되돌려야 한다.
+    // 안 맞추면 콜레이션이 섞여 죽는다. 어느 조각을 붙일지는 어댑터가 안다.
+    var tail = 'sk_ri, sk_lvl from skel';
+    if (needs_cin_join(query)) {
+        tail = 'sk_ri, sk_lvl from skel s' +
+               ' left join cnt n on n.ri = s.sk_ri' + facade.riCollate() +
+               ' where n.ri is null or n.cni > 0';
+    }
+
     var sql =
         'with recursive skel as (\n' +
         '  select ri' + C + ' as sk_ri, 0 as sk_lvl from lookup where ri = :root_ri' + branches + '\n' +
         ')\n' +
-        lead + 'sk_ri, sk_lvl from skel';
+        lead + tail;
 
     // max_lvl 로 자르는 일은 호출부가 JS 에서 한다 (search_lookup 참고).
     // 재귀 분기의 s.sk_lvl < max_lvl 가드가 이미 깊이를 막고 있고, 남는 것은

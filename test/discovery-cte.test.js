@@ -68,9 +68,16 @@ function tap(backend, opts) {
     adapter.execute = function (conn, sql, bindings, cb) {
         seen.push({ sql: sql, bindings: bindings });
         // 골격만 뽑는 문장인지, 자식까지 한 문장으로 끝내는 예전 경로인지
-        // 가른다. 둘 다 `with recursive skel` 로 시작하므로 꼬리를 봐야 한다.
-        // 골격 문장은 `... sk_ri, sk_lvl from skel` 로 끝난다.
-        if (/from skel\s*$/i.test(sql)) { return cb(null, skeleton.slice()); }
+        // 가른다. 둘 다 `with recursive skel` 로 시작하므로 무엇을 뽑는지를 봐야 한다.
+        //
+        // 예전에는 `from skel` 로 **끝나는지**를 봤는데, sza / szb 요청에서
+        // 골격 뒤에 부모 필터(left join cnt)가 붙으면서 그 패턴이 깨졌다.
+        // 그러면 골격 문장이 자식 분기로 들어가 canned 자식 행을 받고,
+        // 진짜 자식 질의는 골격 행을 부모로 못 받아 죽는다.
+        //
+        // 단일 문장은 skel 을 조인하되 `r.*` 를 뽑는다. 골격만이 sk_ri / sk_lvl 을
+        // 뽑는다 — 그 차이가 필터가 붙어도 흔들리지 않는 기준이다.
+        if (/\bsk_ri,\s*sk_lvl\s+from\s+skel\b/i.test(sql)) { return cb(null, skeleton.slice()); }
         // limit / offset 을 DB 가 하듯 적용한다. offset 을 무시하면 2페이지가
         // 1페이지와 같아져서 페이징 결함을 못 잡는다.
         const lim = /limit (\d+)/i.exec(sql);
@@ -119,7 +126,15 @@ const SKEL_END = ')\nselect';
 //   단일 문장    `with recursive skel ... join skel s on r.pi = ...` (ofst / la)
 //
 // ofst 나 la 가 있으면 배치 경로를 쓰지 않으므로 골격/자식 문장이 아예 없다.
-const isSkel = (s) => /from skel\s*$/i.test(s.sql);
+//
+// 골격은 **무엇을 뽑는가**로 가린다. 예전에는 `from skel` 로 **끝나는지**를
+// 봤는데, sza / szb 요청에서 골격 뒤에 부모 필터(left join cnt)가 붙으면서
+// 그 패턴이 깨졌다 — 골격이 단일 문장으로 오분류돼 테스트 여섯이 한꺼번에
+// "자식 질의가 없다" 로 죽었다.
+//
+// 단일 문장(build_descendant_sql)은 skel 을 조인하지만 `r.*` 를 뽑는다.
+// 골격만이 sk_ri / sk_lvl 을 뽑는다. 그 차이가 안정적인 기준이다.
+const isSkel = (s) => /\bsk_ri,\s*sk_lvl\s+from\s+skel\b/i.test(s.sql);
 const isChild = (s) => /r\.pi in \(/i.test(s.sql);
 const isOneShot = (s) => /with recursive skel as/i.test(s.sql) && !isSkel(s);
 function skelStmt(seen) {
@@ -708,6 +723,67 @@ test('cty 는 SQL 을 만들지 않는다 — 지원하지 않는 필터다', fu
         'cty 게이트가 사라졌다 — 30초를 태우고 500-6 이 나가던 시절로 돌아간다');
     assert.match(rcode, /'400-65'/,
         'cty 게이트가 400-65 를 안 쓴다');
+});
+
+test('크기 필터가 있으면 골격이 CIN 없는 부모를 뺀다', function (t, done) {
+    // 골격의 재귀 조건은 `ty <> 4` 하나다 — "CIN 이 아닌 자식을 따라 넓힌다" 는
+    // 뜻이지 "CIN 을 가진 부모만 고른다" 가 아니다. 그래서 sza / szb 요청에도
+    // CIN 이 하나도 없는 컨테이너가 전부 부모 목록에 들어갔다.
+    //
+    // 배포 실측 (/Mobius/KETI_MUV/Mission_Data): 골격 2,900개 중 cni>0 은
+    // 642개뿐이고 나머지 2,258개(78%)가 헛부모다. 자식 질의가 59ms -> 13ms 다.
+    // 비용이 스캔 행 수가 아니라 부모(range) 개수에 선형이라 그렇다.
+    const h = tap('mysql');
+    run(h, { sza: 100, lim: 20 }, guard(done, function (code, ris, seen) {
+        const sk = skelStmt(seen).sql;
+        assert.match(sk, /left join cnt\b/i,
+            '골격이 부모를 안 거른다 — CIN 없는 부모까지 자식 질의로 간다');
+        assert.match(sk, /n\.cni > 0/,
+            'cni 로 거르지 않는다');
+
+        // **inner join 이면 안 된다.** cnt 에 행이 없는데 CIN 을 가진
+        // 컨테이너가 실재한다 — 배포에서 한 컨테이너가 cnt 0행 / cin 475건이다.
+        // inner 면 그 부모가 조용히 사라져 답이 줄어든다. 모르면 남긴다.
+        assert.match(sk, /n\.ri is null or/i,
+            'cnt 에 행이 없는 부모를 버린다 — CIN 을 가진 컨테이너가 사라진다');
+        assert.ok(!/(?<!left )join cnt\b/i.test(sk),
+            'inner join 이다 — cnt 행이 없는 부모가 조용히 사라진다');
+        done();
+    }));
+});
+
+test('크기 필터가 없으면 골격을 건드리지 않는다', function (t, done) {
+    // 일반 discovery 의 골격은 그대로여야 한다. 부모를 거르는 것은
+    // CIN 속성을 보는 요청에서만 의미가 있고, 다른 요청에서는 cnt 조인이
+    // 순수한 추가 비용이다.
+    const h = tap('mysql');
+    run(h, { ty: '3', lim: 20 }, guard(done, function (code, ris, seen) {
+        assert.ok(!/join cnt\b/i.test(skelStmt(seen).sql),
+            '크기 필터가 없는데 골격이 cnt 를 조인한다');
+        done();
+    }));
+});
+
+test('부모 필터의 콜레이션은 어댑터가 정한다', function () {
+    // sk_ri 는 pathCollate 로 캐스트돼 있고 cnt.ri 는 원래 콜레이션이다.
+    // 그대로 조인하면 콜레이션이 섞여 죽는다. 되돌리는 조각은 방언이라
+    // 코어가 문자열로 적으면 안 된다.
+    const src = fs.readFileSync(path.join(ROOT, 'mobius', 'sql_action.js'), 'utf8');
+    const code = src.split('\n')
+        .filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l))
+        .join('\n');
+
+    assert.match(code, /facade\.riCollate\(\)/,
+        '부모 필터가 riCollate 를 안 쓴다');
+    assert.ok(!/collate utf8mb3/i.test(code),
+        '코어가 콜레이션 이름을 직접 적는다 — 어댑터가 줘야 한다');
+
+    // SQLite 는 붙일 조각이 없다. 붙으면 구문 오류다.
+    // MySQL 은 반대로 반드시 있어야 한다 — 없으면 콜레이션이 섞여 죽는다.
+    assert.strictEqual(require(path.join(DB, 'sqlite.js')).riCollate(), '',
+        'SQLite 에 콜레이션 조각이 붙는다 — 구문 오류가 난다');
+    assert.match(require(path.join(DB, 'mysql.js')).riCollate(), /collate/i,
+        'MySQL 에 콜레이션 조각이 없다 — cnt 와 조인할 때 죽는다');
 });
 
 test('needs_cin_join 이 둘을 정확히 가린다', function () {

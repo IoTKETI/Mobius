@@ -43,7 +43,7 @@ const REQUIRED_FUNCTIONS = [
     'connect', 'getConnection', 'release',
     'execute', 'normalizeError', 'normalizeResult',
     'begin', 'commit', 'rollback',
-    'statementTimeoutHint', 'pathCollate', 'indexHint',
+    'statementTimeoutHint', 'pathCollate', 'riCollate', 'indexHint',
     'noHashJoinHint', 'notCinPredicate', 'notCinIndexName', 'numericExpr',
 
     // 서버가 동시 접속을 최소 N 개까지 받게 한다. 그 개념이 없는 백엔드도

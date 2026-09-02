@@ -77,6 +77,10 @@ exports.optimizerHintBlock = function () { return ''; };
 // 구분하지만, 이는 이 스키마가 원래 갖고 있던 성질이라 그대로 둔다.
 exports.pathCollate = function () { return ''; };
 
+// SQLite 스키마는 pi 와 ri 를 같은(기본 BINARY) 콜레이션으로 만든다. 그래서
+// 붙일 조각이 없다 — pathCollate 와 같은 이유다. MySQL 쪽 주석 참고.
+exports.riCollate = function () { return ''; };
+
 // SQLite 에도 INDEXED BY 가 있으나 인덱스 이름이 MySQL 과 다르고,
 // 임베디드 규모에서는 옵티마이저를 강제할 이유가 없다.
 exports.indexHint = function () { return ''; };

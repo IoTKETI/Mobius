@@ -434,6 +434,18 @@ exports.pathCollate = function () {
     return adapter.pathCollate ? adapter.pathCollate() : '';
 };
 
+// ri 컬럼 **자체**의 콜레이션. pathCollate 와 반대쪽이다.
+//
+//   pathCollate  pi 와 ri 를 견주려고 대소문자를 무시하는 쪽에 맞춘다
+//   riCollate    ri 를 다른 테이블의 ri 와 조인할 때 원래 쪽으로 되돌린다
+//
+// 골격의 sk_ri 는 pathCollate 로 캐스트돼 있으므로, 그것을 cnt.ri 같은 다른
+// ri 와 조인하려면 이것으로 되돌려야 한다. 안 그러면 콜레이션이 섞여 죽는다.
+exports.riCollate = function () {
+    builder();
+    return adapter.riCollate ? adapter.riCollate() : '';
+};
+
 // 옵티마이저에게 인덱스를 강제하는 조각. 지원하지 않는 백엔드는 빈 문자열.
 // 이름은 MySQL 스키마의 인덱스명을 그대로 쓴다 — 다른 백엔드는 무시한다.
 exports.indexHint = function (name) {
