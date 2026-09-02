@@ -21,7 +21,7 @@ const EVIL = '{"acr":[{"acor":["a\'); drop table acp; --"],"acop":63}]}';
 
 test('update_acp 의 pv 는 바인딩으로 나간다 (MySQL)', function () {
     const db = freshDb(false);
-    db.connect('h', 1, 'u', 'p', function () {});
+    db.connect(function () {});
     const n = db.k('acp').update({ pv: EVIL, pvs: '{}' }).where({ ri: '/M/a' }).toSQL().toNative();
     assert.ok(n.sql.indexOf('drop table') < 0, 'SQL 본문에 값이 박히면 안 된다');
     assert.ok(n.bindings.indexOf(EVIL) >= 0, '값은 바인딩으로 가야 한다');
@@ -29,7 +29,7 @@ test('update_acp 의 pv 는 바인딩으로 나간다 (MySQL)', function () {
 
 test('update_acp 의 pv 는 바인딩으로 나간다 (SQLite)', function () {
     const db = freshDb(true);
-    db.connect('h', 1, 'u', 'p', function () {});
+    db.connect(function () {});
     const n = db.k('acp').update({ pv: EVIL, pvs: '{}' }).where({ ri: '/M/a' }).toSQL().toNative();
     assert.ok(n.sql.indexOf('drop table') < 0);
     assert.ok(n.bindings.indexOf(EVIL) >= 0);
@@ -37,7 +37,7 @@ test('update_acp 의 pv 는 바인딩으로 나간다 (SQLite)', function () {
 
 test('update_lookup 의 acpi/at/aa/subl 이 바인딩으로 나간다', function () {
     const db = freshDb(false);
-    db.connect('h', 1, 'u', 'p', function () {});
+    db.connect(function () {});
     const n = db.k('lookup').update({
         lt: '20260826T000000', acpi: EVIL, et: '20280826T000000', st: 1,
         lbl: '[]', at: '[]', aa: '[]', subl: '[]'
@@ -67,7 +67,7 @@ function tapAdapter(useSqlite) {
     adapter.commit = function (handle, callback) { callback(null); };
     adapter.rollback = function (handle, callback) { callback(null); };
 
-    db.connect('h', 1, 'u', 'p', function () {});
+    db.connect(function () {});
 
     // sql_action 이 파사드를 재사용하도록 캐시에서 지운 뒤 다시 로드한다.
     const SA = path.join(__dirname, '..', 'mobius', 'sql_action.js');
@@ -176,7 +176,7 @@ test('exports.update_sub 이 드라이버에 값을 바인딩으로 넘긴다 (S
 
 test('fcnt 갱신은 ri 로 대상을 한정한다', function () {
     const db = freshDb(false);
-    db.connect('h', 1, 'u', 'p', function () {});
+    db.connect(function () {});
     const n = db.k('fcnt').update({ lock: 'true' }).where({ ri: '/M/x/d' }).toSQL().toNative();
     assert.ok(/where/i.test(n.sql), 'where 절이 없으면 테이블 전체가 바뀐다: ' + n.sql);
     assert.ok(n.bindings.indexOf('/M/x/d') >= 0, 'ri 가 바인딩으로 가야 한다');
@@ -187,7 +187,7 @@ test('예약어 lock 도 빌더가 인용한다', function () {
     // 인용하므로 컬럼명만 넘기면 된다.
     for (const sqlite of [false, true]) {
         const db = freshDb(sqlite);
-        db.connect('h', 1, 'u', 'p', function () {});
+        db.connect(function () {});
         const n = db.k('fcnt').update({ lock: 'x' }).where({ ri: '/r' }).toSQL().toNative();
         assert.ok(/["`]lock["`]/.test(n.sql),
             (sqlite ? 'SQLite' : 'MySQL') + ': lock 이 인용되지 않았다 — ' + n.sql);

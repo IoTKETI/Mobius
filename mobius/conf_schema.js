@@ -219,13 +219,17 @@ var SCHEMA = {
     // 지금은 어댑터가 자기 confSchema 를 내보내고, 아래 SCHEMA 조립부가
     // **지금 고른 백엔드의 것만** 합친다.
 
+    // dbpass 가 여기 있었다. **mobius/db/mysql.js 의 confSchema 로 옮겼다.**
+    //
+    // 비밀번호는 연결 좌표이고, 연결 좌표는 백엔드의 것이다 — SQLite 에는 그
+    // 개념이 아예 없어서, 코어 표에 두면 SQLite 로 도는 배포의 관리 콘솔에
+    // 쓰지도 않는 칸이 뜬다(sqlite 저널 모드 세 칸이 MySQL 배포에 떴던 것과
+    // 같은 문제다).
+    //
+    // 키 이름과 정의는 한 글자도 안 바꿨다. 배포된 conf.json 이 이미 이
+    // 철자로 갖고 있어서, 소유자만 바뀌고 파일은 그대로 읽힌다.
+
     // ── 노출 안 함: 비밀 ─────────────────────────────────────────────
-    dbpass: {
-        group: '저장소',
-        type: 'string', dflt: '', secret: true, exposed: false, apply: 'restart',
-        label: 'DB 비밀번호',
-        help: '값을 화면으로 내보내지 않는다. 길이도 주지 않는다.'
-    },
     superUser: {
         group: '권한',
         type: 'string', dflt: 'Sponde', secret: true, exposed: false, apply: 'restart',

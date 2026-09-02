@@ -41,7 +41,7 @@ function tapCtx(useSqlite, selectRows) {
     adapter.commit = function (h, cb) { cb(null); };
     adapter.rollback = function (h, cb) { cb(null); };
 
-    db.connect('h', 1, 'u', 'p', function () {});
+    db.connect(function () {});
     return { ctx: { db: db, conn: {}, backend: useSqlite ? 'sqlite' : 'mysql' }, seen: seen };
 }
 

@@ -95,7 +95,25 @@ function assertReady() {
     }
 }
 
-exports.connect = function (host, port, user, password, callback) {
+// 연결한다. **좌표를 받지 않는다.**
+//
+// 예전 시그니처는 connect(host, port, user, password, cb) 였다. 그 넷은
+// MySQL 의 것이다 — 3306 은 MySQL 포트고 'root' 는 MySQL 계정이라 app.js
+// 6곳이 리터럴로 들고 있었다. SQLite 어댑터는 넷을 통째로 버렸다(본문에서
+// 한 번도 안 읽는 죽은 매개변수였다). URL 하나로 붙는 백엔드는 그 넷 어디에도
+// 담을 자리가 없다.
+//
+// 지금 좌표는 어댑터가 갖는다 — 안 바뀌는 것은 어댑터의 상수로, conf.json 에서
+// 오는 것은 applyConf 가 준 conf 에서 읽는다(sqlite 가 저널 모드를 읽는 것과
+// 같은 자리다). **그래서 applyConf 가 connect 보다 먼저 와야 한다.**
+// test/db-conf-wiring.test.js 가 그 순서를 지킨다.
+exports.connect = function (callback) {
+    // 옛 5인자 호출이 남으면 첫 인자(문자열)를 콜백으로 부르게 된다.
+    // 어댑터 안에서 나는 이름 없는 TypeError 대신 여기서 이름을 붙인다.
+    if (typeof callback !== 'function') {
+        throw new Error('[db] connect(callback) — 인자는 콜백 하나다');
+    }
+
     adapter = pick();
     knexInstance = null;   // 백엔드가 바뀌었을 수 있으니 빌더를 다시 만든다
     builder();
@@ -106,7 +124,7 @@ exports.connect = function (host, port, user, password, callback) {
                     'db.transaction() runs the body without one');
     }
 
-    adapter.connect({ host: host, port: port, user: user, password: password }, callback);
+    adapter.connect(callback);
 };
 
 // 커넥션 취득. **임대 장부를 여기서 씌운다.**

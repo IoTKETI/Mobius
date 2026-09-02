@@ -7,6 +7,30 @@ var path = require('path');
 
 var pool = null;
 
+// 이 백엔드가 붙는 자리. **설정 키가 아니다.**
+//
+// 값은 app.js 6곳과 mobius.js 에 리터럴로 박혀 있던 것 그대로다 — 코어에서
+// 여기로 자리만 옮겼다. 3306 은 MySQL 포트고 'root' 는 MySQL 계정이라,
+// 코어가 그 넷을 아는 순간 "코어는 무슨 DB 를 쓰는지 모른다" 가 깨진다.
+//
+// **설정으로 빼지 않는다.** 지금까지도 conf.json 으로 바꿀 통로가 아예 없었고
+// (mobius/conf_schema.js 에 host/port/user 항목 자체가 없다) 요구도 없었다.
+// 키를 만들면 (1) 콘솔에 "DB 를 다른 서버로 돌리는" 표면이 새로 생기고
+// (2) 그 키를 넣은 뒤 이 변경을 되돌리면 아무도 안 읽는 값이 되어 조용히
+// 옛 좌표로 돌아간다. 필요해지면 아래 confSchema 에 키를 더하면 되고,
+// 그러면 db=mysql 일 때만 콘솔에 뜬다(conf_schema.js 의 mergeBackendConf).
+var HOST = 'localhost';
+var PORT = 3306;
+var USER = 'root';
+
+// DB 이름. README 의 설치 절차가 이 이름으로 스키마를 넣으라고 안내하고,
+// mobiusdb.sql 에는 CREATE DATABASE / USE 가 없다 — 사람이 만든 DB 이름과
+// 여기가 맞아야 한다. 설정으로 빼려면 그 문서까지 같이 움직여야 한다.
+var DATABASE = 'mobiusdb';
+
+// applyConf 가 채운다 (mobius/db/sqlite.js 와 같은 모양)
+var conf = {};
+
 exports.name = 'mysql';
 exports.knexClient = 'mysql';
 
@@ -86,20 +110,31 @@ exports.optimizerHintBlock = function (hints) {
 // 이다. 둘을 그냥 조인하면 ER_CANT_AGGREGATE_2COLLATIONS 로 죽는다.
 // 기존 코드가 쓰던 'where pi = ?' 는 pi 쪽 콜레이션(대소문자 무시)으로
 // 비교됐으므로, 조인으로 바꿔도 같은 결과가 나오도록 general_ci 를 쓴다.
-// 이 어댑터가 conf.json 에서 **자기 것으로** 읽는 설정. 지금은 없다.
+// 이 어댑터가 conf.json 에서 **자기 것으로** 읽는 설정.
 //
-// 비어 있다고 "MySQL 은 설정이 없다" 는 뜻이 아니다. db / dbpass 는 백엔드를
-// 가리지 않는 키라 코어 표에 있는 것이 맞고, dbConnectionLimit / dbQueueLimit
-// 은 MySQL 전용이지만 mobius/pool_sizing.js 가 그 값으로 max_connections 바닥을
-// 계산하므로 코어도 읽어야 한다. 그 얽힘을 푸는 것은 별도 작업이다.
+// dbpass 가 여기로 왔다. 예전에는 코어 표(mobius/conf_schema.js)에 있었고
+// mobius.js 가 global.usedbpass 로 옮겨 app.js 6곳이 connect 인자로 넘겼다.
+// 비밀번호는 연결 좌표이고, 연결 좌표는 백엔드의 것이다 — SQLite 에는 그
+// 개념이 아예 없다. sqlite 어댑터가 저널 모드를 읽는 것과 같은 자리다.
 //
-// **함수와 값은 둘 다 있어야 한다** — 없으면 파사드가 "이 어댑터는 이것이
-// 없다" 를 알아야 하고, 그것을 알려면 다시 백엔드를 구분해야 한다.
-// test/db-adapter-contract.test.js 가 두 어댑터의 표면을 대조한다.
-exports.confSchema = {};
+// **키 이름은 그대로 둔다.** 배포된 conf.json 이 이미 이 철자로 갖고 있고,
+// 이름을 바꾸면 그 파일들이 전부 비밀번호를 잃는다.
+//
+// 풀 크기(dbConnectionLimit)와 대기열(dbQueueLimit)은 아직 코어 표에 있다.
+// MySQL 전용 값이지만 mobius/pool_sizing.js 가 그 값으로 max_connections
+// 바닥을 계산하므로 코어도 읽어야 한다. 그 얽힘을 푸는 것은 별도 작업이다.
+exports.confSchema = {
+    dbpass: {
+        group: '저장소',
+        type: 'string', dflt: '', secret: true, exposed: false, apply: 'restart',
+        label: 'DB 비밀번호',
+        help: '값을 화면으로 내보내지 않는다. 길이도 주지 않는다.'
+    }
+};
 
-exports.applyConf = function () {
-    // 읽을 자기 키가 없다. 풀 설정은 아직 전역으로 온다(mobius.js).
+// 코어가 읽은 conf 를 받는다. **어느 키를 볼지는 여기가 정한다.**
+exports.applyConf = function (c) {
+    conf = c || {};
 };
 
 // ri 컬럼 자체의 콜레이션. **경로 비교용(pathCollate)과 다르다.**
@@ -217,13 +252,22 @@ exports.ensureConnectionCeiling = function (floor, handle, callback) {
         });
 };
 
-exports.connect = function (conf, callback) {
+exports.connect = function (callback) {
+    var limit = (typeof global.use_db_connection_limit === 'number')
+        ? global.use_db_connection_limit : 100;
+    var queue = (typeof global.use_db_queue_limit === 'number')
+        ? global.use_db_queue_limit : 0;
+
     pool = mysql.createPool({
-        host: conf.host,
-        port: conf.port,
-        user: conf.user,
-        password: conf.password,
-        database: 'mobiusdb',
+        host: HOST,
+        port: PORT,
+        user: USER,
+        // 예전에는 mobius.js 가 conf.dbpass 를 global.usedbpass 로 옮기고
+        // app.js 가 그것을 인자로 넘겼다. 지금은 applyConf 가 준 **같은 conf
+        // 객체**에서 직접 읽는다. undefined 와 '' 는 드라이버에게 같은 값이다
+        // (node_modules/mysql/lib/ConnectionConfig.js: options.password || undefined).
+        password: (typeof conf.dbpass === 'string') ? conf.dbpass : '',
+        database: DATABASE,
         // 풀 크기와 대기열 한도는 conf.json 으로 뺐다(mobius/conf_schema.js).
         // 기본값은 예전에 박혀 있던 값 그대로라 설정을 안 넣으면 동작이 같다.
         //
@@ -232,14 +276,24 @@ exports.connect = function (conf, callback) {
         // 0 이면 한도 분기를 건너뛰고, acquireTimeout 은 connect/changeUser/ping
         // 에만 걸려 큐 대기에는 관여하지 않는다. 풀이 마르면 요청이 응답도
         // 에러도 없이 영원히 매달린다 — mobius.js 의 use_db_queue_limit 주석 참고.
-        connectionLimit: (typeof global.use_db_connection_limit === 'number')
-            ? global.use_db_connection_limit : 100,
+        connectionLimit: limit,
         waitForConnections: true,
         debug: false,
         acquireTimeout: 50000,
-        queueLimit: (typeof global.use_db_queue_limit === 'number')
-            ? global.use_db_queue_limit : 0
+        queueLimit: queue
     });
+
+    // **어디에 붙을 것인지 한 줄 남긴다. 비밀번호는 적지 않는다.**
+    //
+    // 좌표가 코어의 인자에서 사라졌으므로, 이 줄이 없으면 잘못된 자리로 붙는
+    // 사고가 '[db.connect] No Connection' 한 줄로만 드러난다. 지금까지 MySQL
+    // 경로는 기동 로그가 하나도 없었다(sqlite 는 'connected' 를 찍는다).
+    //
+    // createPool 은 소켓을 열지 않는다 — 이 줄은 "붙었다" 가 아니라 "이
+    // 좌표로 붙을 것이다" 다. 실제 실패는 첫 getConnection 에서 난다.
+    console.log('[db/mysql] pool ' + USER + '@' + HOST + ':' + PORT + '/' + DATABASE +
+                ' (풀 ' + limit + ', 대기열 ' + queue + ')');
+
     callback('1');
 };
 

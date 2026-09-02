@@ -40,7 +40,7 @@ function tapBy(answer) {
         seen.push({ sql: sql, bindings: bindings });
         cb(null, answer(sql, bindings) || []);
     };
-    db.connect('h', 1, 'u', 'p', function () {});
+    db.connect(function () {});
     return { sim: require(path.join(__dirname, '..', 'mobius', 'acp_simulate.js')), seen: seen };
 }
 
@@ -61,7 +61,7 @@ function tap(pages) {
         i++;
         cb(null, rows);
     };
-    db.connect('h', 1, 'u', 'p', function () {});
+    db.connect(function () {});
     return { sim: require(path.join(__dirname, '..', 'mobius', 'acp_simulate.js')), seen: seen };
 }
 

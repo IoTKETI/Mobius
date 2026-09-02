@@ -68,7 +68,7 @@ function capture(fnName, obj) {
         seen.push({ sql: sql, bindings: bindings });
         cb(null, { affectedRows: 1, insertId: 0 });
     };
-    db.connect('h', 1, 'u', 'p', function () {});
+    db.connect(function () {});
 
     const sql_action = require(path.join(ROOT, 'mobius', 'sql_action.js'));
     try {
@@ -217,7 +217,7 @@ test('본문 insert 가 실패하면 lookup 행을 되돌린다', function () {
         if (/insert into `grp`/.test(sql)) { return cb(new Error('boom')); }
         cb(null, { affectedRows: 1, insertId: 0 });
     };
-    db.connect('h', 1, 'u', 'p', function () {});
+    db.connect(function () {});
     const sql_action = require(path.join(ROOT, 'mobius', 'sql_action.js'));
 
     let done = false;

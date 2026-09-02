@@ -34,7 +34,7 @@ function tapAdapter(useSqlite) {
     adapter.commit = function (h, cb) { seen.push({ sql: 'COMMIT' }); cb(null); };
     adapter.rollback = function (h, cb) { seen.push({ sql: 'ROLLBACK' }); cb(null); };
 
-    db.connect('h', 1, 'u', 'p', function () {});
+    db.connect(function () {});
 
     // 구 경로도 막아 둔다. db_action.getResult 는 mysql_pool 이 null 이면
     // 콜백을 부르지 않고 그냥 return 해서 테스트가 영원히 멈춘다. 스텁을 두면

@@ -36,7 +36,7 @@ test('스윕: 준비 — 빈 SQLite 에 실제 스키마를 올린다', function
     global.usedb = 'sqlite';
 
     const db = require('../mobius/db');
-    db.connect('h', 0, 'u', 'p', function (code) {
+    db.connect(function (code) {
         try {
             assert.strictEqual(code, '1', 'SQLite 연결/스키마 초기화 실패');
             db.getConnection(function (c, handle) {

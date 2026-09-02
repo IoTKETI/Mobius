@@ -40,7 +40,7 @@ function tapAdapter(useSqlite, rows) {
     adapter.commit = function (h, cb) { seen.push({ sql: 'COMMIT' }); cb(null); };
     adapter.rollback = function (h, cb) { seen.push({ sql: 'ROLLBACK' }); cb(null); };
 
-    db.connect('h', 1, 'u', 'p', function () {});
+    db.connect(function () {});
 
     // 구 경로(db_action.getResult / db_sqlite.getResult)를 가로채 "샜는지" 를
     // 보던 자리다. 그 두 파일이 없어졌으므로 가로챌 것도 없다 —

@@ -34,7 +34,7 @@ function tap(rowsFor) {
     const adapter = require(path.join(DB, 'mysql.js'));
 
     const seen = [];
-    adapter.connect = function (conf, cb) { cb('1'); };
+    adapter.connect = function (cb) { cb('1'); };
     adapter.execute = function (conn, sql, bindings, cb) {
         // select * from `cnt` where `ri` in (?, ?, ...)
         const m = /from `([^`]+)`/i.exec(sql);
@@ -44,7 +44,7 @@ function tap(rowsFor) {
         if (rows instanceof Error) { return cb(rows, null); }
         cb(null, rows);
     };
-    db.connect('h', 1, 'u', 'p', function () {});
+    db.connect(function () {});
 
     delete require.cache[require.resolve(path.join(ROOT, 'mobius', 'sql_action.js'))];
     return { sql_action: require(path.join(ROOT, 'mobius', 'sql_action.js')), seen: seen };

@@ -111,6 +111,34 @@ for (const [name, a] of Object.entries(ADAPTERS)) {
         assert.ok(a.knexClient.length > 0, 'knexClient 가 비었다 — knex 가 방언을 못 고른다');
     });
 
+    test(name + ': confSchema 에 실은 키를 자기 소스에서 실제로 읽는다', function () {
+        // **선언은 곧 약속이다.** 어댑터가 confSchema 에 키를 실으면 설정 표가
+        // 그것을 싣고 관리 콘솔에 입력칸이 생긴다. 그런데 어댑터가 그 값을
+        // 안 읽으면 화면에 아무 효과 없는 칸이 뜬다.
+        //
+        // 코어 쪽은 test/conf-schema.test.js 가 mobius.js 소스를 훑어 이 방향을
+        // 막는다. 그러나 어댑터 키는 그 검사에서 **선언만으로 '읽는다' 로
+        // 인정된다** — 안 그러면 mobius.js 에 안 나오는 dbpass 가 죽은 키로
+        // 잡힌다. 그 인정의 대가를 여기서 치른다.
+        const src = fs.readFileSync(path.join(ROOT, 'mobius', 'db', name + '.js'), 'utf8')
+            // 주석이 검사를 만족시키면 안 된다. 실제로 그런 일이 있었다 —
+            // mobius.js 의 'conf.dbpass 는 연결 좌표다' 라는 설명 문장이
+            // conf-schema 가드를 통과시켰다.
+            .replace(/\/\*[\s\S]*?\*\//g, ' ')
+            .replace(/(^|[^:])\/\/[^\n]*/g, '$1');
+
+        const unread = Object.keys(a.confSchema || {}).filter(function (k) {
+            // confSchema 선언 자체(`  key: {`)는 읽기가 아니다. conf.<키> 형태로
+            // 실제로 값을 꺼내는 자리가 있어야 한다.
+            return src.indexOf('conf.' + k) < 0;
+        });
+
+        assert.deepStrictEqual(unread, [],
+            name + ' 어댑터가 confSchema 에 실었는데 conf.<키> 로 안 읽는 키: ' +
+            unread.join(', ') +
+            '\n표에 실으면 콘솔에 입력칸이 생긴다 — 안 읽으면 아무 효과 없는 칸이다.');
+    });
+
     test(name + ': capabilities 는 아는 키만 true/false 로 적는다', function () {
         assert.strictEqual(typeof a.capabilities, 'object');
         assert.ok(a.capabilities !== null);

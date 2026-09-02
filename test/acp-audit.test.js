@@ -30,7 +30,7 @@ const db_sql = require('../mobius/sql_action');
 let conn = null;
 
 test.before(function (t, done) {
-    db.connect('h', 1, 'u', 'p', function (rsc) {
+    db.connect(function (rsc) {
         assert.strictEqual(rsc, '1', 'SQLite 연결 실패 ' + rsc);
         db.getConnection(function (code, c) {
             assert.strictEqual(code, '200');

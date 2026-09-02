@@ -50,7 +50,7 @@ function tapAdapter(useSqlite) {
         }
     };
 
-    db.connect('h', 1, 'u', 'p', function () {});
+    db.connect(function () {});
 
     const SA = path.join(__dirname, '..', 'mobius', 'sql_action.js');
     delete require.cache[require.resolve(SA)];

@@ -18,37 +18,37 @@ function freshDb(useSqlite) {
 
 test('usesqlite 에 따라 어댑터를 고른다', function () {
     let db = freshDb(true);
-    db.connect('localhost', 3306, 'root', 'x', function () {});
+    db.connect(function () {});
     assert.strictEqual(db._adapterName(), 'sqlite');
 
     db = freshDb(false);
-    db.connect('localhost', 3306, 'root', 'x', function () {});
+    db.connect(function () {});
     assert.strictEqual(db._adapterName(), 'mysql');
 });
 
 test('빌더가 백엔드에 맞는 SQL 을 만든다', function () {
     let db = freshDb(false);
-    db.connect('localhost', 3306, 'root', 'x', function () {});
+    db.connect(function () {});
     let n = db.k('acp').insert({ ri: 'x', pv: 'p' }).toSQL().toNative();
     assert.match(n.sql, /^insert into `acp`/);
     assert.deepStrictEqual(n.bindings, ['p', 'x']);
 
     db = freshDb(true);
-    db.connect('localhost', 3306, 'root', 'x', function () {});
+    db.connect(function () {});
     n = db.k('acp').insert({ ri: 'x', pv: 'p' }).toSQL().toNative();
     assert.match(n.sql, /^insert into `acp`/);
 });
 
 test('upsert 가 백엔드별로 갈린다', function () {
     let db = freshDb(false);
-    db.connect('h', 1, 'u', 'p', function () {});
+    db.connect(function () {});
     let sql = db.k('hit').insert({ ct: '1', http: 1 })
         .onConflict('ct').merge({ http: db.raw('http + ?', [1]) })
         .toSQL().toNative().sql;
     assert.match(sql, /on duplicate key update/i);
 
     db = freshDb(true);
-    db.connect('h', 1, 'u', 'p', function () {});
+    db.connect(function () {});
     sql = db.k('hit').insert({ ct: '1', http: 1 })
         .onConflict('ct').merge({ http: db.raw('http + ?', [1]) })
         .toSQL().toNative().sql;
@@ -57,19 +57,19 @@ test('upsert 가 백엔드별로 갈린다', function () {
 
 test('rowLock 능력이 백엔드별로 다르다', function () {
     let db = freshDb(false);
-    db.connect('h', 1, 'u', 'p', function () {});
+    db.connect(function () {});
     assert.strictEqual(db.can('rowLock'), true);
     assert.strictEqual(db.can('transaction'), true);
 
     db = freshDb(true);
-    db.connect('h', 1, 'u', 'p', function () {});
+    db.connect(function () {});
     assert.strictEqual(db.can('rowLock'), false);
     assert.strictEqual(db.can('transaction'), false);
 });
 
 test('SQLite 에서 SELECT 는 배열, 쓰기는 객체를 돌려준다', function (t, done) {
     const db = freshDb(true);
-    db.connect('localhost', 3306, 'root', 'x', function (rsc) {
+    db.connect(function (rsc) {
         assert.strictEqual(rsc, '1');
         db.getConnection(function (code, conn) {
             assert.strictEqual(code, '200');
@@ -97,7 +97,7 @@ test('SQLite 에서 SELECT 는 배열, 쓰기는 객체를 돌려준다', functi
 
 test('제약 위반 에러가 중립 코드로 정규화된다', function (t, done) {
     const db = freshDb(true);
-    db.connect('localhost', 3306, 'root', 'x', function () {
+    db.connect(function () {
         db.getConnection(function (code, conn) {
             db.run(db.raw('create table if not exists t_dup (a text primary key)'), conn, function () {
                 db.run(db.k('t_dup').insert({ a: 'k' }), conn, function () {
@@ -117,7 +117,7 @@ test('제약 위반 에러가 중립 코드로 정규화된다', function (t, do
 
 test('transaction: 능력이 없으면 트랜잭션 없이 본문을 실행한다', function (t, done) {
     const db = freshDb(true);
-    db.connect('localhost', 3306, 'root', 'x', function () {
+    db.connect(function () {
         let ran = false;
         db.transaction(null, function (conn, finish) {
             ran = true;
@@ -133,7 +133,7 @@ test('transaction: 능력이 없으면 트랜잭션 없이 본문을 실행한�
 
 test('transaction: 본문의 에러 객체가 보존된다', function (t, done) {
     const db = freshDb(true);
-    db.connect('localhost', 3306, 'root', 'x', function () {
+    db.connect(function () {
         const boom = { code: 'DUPLICATE_KEY', message: 'boom' };
         db.transaction(null, function (conn, finish) {
             finish(true, boom);
@@ -147,7 +147,7 @@ test('transaction: 본문의 에러 객체가 보존된다', function (t, done) 
 
 test('transaction: 본문의 동기 예외를 잡아 콜백으로 넘긴다', function (t, done) {
     const db = freshDb(true);
-    db.connect('localhost', 3306, 'root', 'x', function () {
+    db.connect(function () {
         db.transaction(null, function () {
             throw new Error('sync boom');
         }, function (err, e) {
@@ -171,7 +171,7 @@ function capableDb(stubs) {
     mysql.commit = function (h, cb) { ops.push('commit'); cb(stubs.commitErr || null); };
     mysql.rollback = function (h, cb) { ops.push('rollback'); cb(stubs.rollbackErr || null); };
 
-    db.connect('h', 1, 'u', 'p', function () {});
+    db.connect(function () {});
     return { db: db, ops: ops };
 }
 
@@ -242,7 +242,7 @@ test('transaction: finish 를 두 번 불러도 한 번만 정산한다 (양쪽 
         assert.deepStrictEqual(ops, ['begin', 'commit'], 'commit 도 1회여야 한다');
 
         const sdb = freshDb(true);                    // sqlite = 무능력 경로
-        sdb.connect('localhost', 3306, 'root', 'x', function () {
+        sdb.connect(function () {
             let n = 0;
             sdb.transaction(null, function (conn, finish) {
                 finish(null, 'a');
@@ -304,7 +304,7 @@ test('미연결이어도 방언은 usesqlite 를 따른다', function () {
 
 test('연결 후에는 run() 이 정상 동작한다 (회귀 방지)', function (t, done) {
     const db = freshDb(true);
-    db.connect('localhost', 3306, 'root', 'x', function (rsc) {
+    db.connect(function (rsc) {
         assert.strictEqual(rsc, '1');
         db.getConnection(function (code, conn) {
             assert.strictEqual(code, '200');
@@ -329,7 +329,7 @@ test('연결 후에는 run() 이 정상 동작한다 (회귀 방지)', function 
 
 test('MySQL 은 문장 단위 상한을 힌트로 제공한다', function () {
     const db = freshDb(false);
-    db.connect('localhost', 3306, 'root', 'x', function () {});
+    db.connect(function () {});
 
     assert.strictEqual(db.can('statementTimeout'), true);
     assert.strictEqual(db.statementTimeoutHint(5000), 'MAX_EXECUTION_TIME(5000)');
@@ -337,7 +337,7 @@ test('MySQL 은 문장 단위 상한을 힌트로 제공한다', function () {
 
 test('SQLite 는 문장 단위 상한이 없다 — null 을 준다', function () {
     const db = freshDb(true);
-    db.connect('localhost', 3306, 'root', 'x', function () {});
+    db.connect(function () {});
 
     assert.strictEqual(db.can('statementTimeout'), false);
     assert.strictEqual(db.statementTimeoutHint(5000), null);
@@ -345,7 +345,7 @@ test('SQLite 는 문장 단위 상한이 없다 — null 을 준다', function (
 
 test('상한이 0 이하이거나 숫자가 아니면 힌트를 안 만든다', function () {
     const db = freshDb(false);
-    db.connect('localhost', 3306, 'root', 'x', function () {});
+    db.connect(function () {});
 
     [0, -1, null, undefined, 'x'].forEach(function (v) {
         assert.strictEqual(db.statementTimeoutHint(v), null, '입력 ' + v);
@@ -354,7 +354,7 @@ test('상한이 0 이하이거나 숫자가 아니면 힌트를 안 만든다', 
 
 test('힌트를 붙이면 SELECT 바로 뒤에 들어간다', function () {
     const db = freshDb(false);
-    db.connect('localhost', 3306, 'root', 'x', function () {});
+    db.connect(function () {});
 
     const sql = db.k('cin').count('* as n')
         .where({ pi: '/x' })

@@ -35,7 +35,7 @@ function tap(useSqlite, pages) {
         i++;
         cb(null, rows);
     };
-    db.connect('h', 1, 'u', 'p', function () {});
+    db.connect(function () {});
     return { sql_action: require(path.join(__dirname, '..', 'mobius', 'sql_action.js')), seen: seen };
 }
 

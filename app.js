@@ -80,7 +80,13 @@ var db_bootstrap = require('./mobius/db_bootstrap');
 
 // db_facade 라는 두 번째 이름이 있었다. 전환 중에는 "구 경로(db)" 와
 // "새 파사드(db_facade)" 를 구분할 필요가 있었지만 이제 같은 것이라 합쳤다.
-var db_facade = db;
+//
+// **그 별칭으로 connect 를 한 번 더 부르고 있었다.** 세 블록 전부
+// db.connect(...) 안에서 db_facade.connect(...) 를 다시 불렀는데, 둘이 같은
+// 객체이므로 같은 함수를 두 번 부른 것이다 — createPool 이 두 번 돌아
+// 첫 풀은 만들어지자마자 버려졌다. 무해했던 이유는 createPool 이 소켓도
+// 타이머도 만들지 않기 때문이다(node_modules/mysql/lib/Pool.js 의 생성자에
+// I/O 가 없다). 그래도 죽은 코드라 지웠고, 별칭도 같이 지웠다.
 
 // ������ �����մϴ�.
 var app = express();
@@ -380,22 +386,8 @@ if (use_clustering) {
             setTimeout(() => { cluster.fork(); }, RESPAWN_DELAY_MS);
         });
 
-        db.connect(usedbhost, 3306, 'root', usedbpass, (rsc) => {
+        db.connect((rsc) => {
             if (rsc == '1') {
-                // 파사드 연결 실패가 서버 기동 자체를 막으면 안 된다.
-                // 전환 안 된 함수들은 구 경로로 계속 동작하고, 전환된 함수는
-                // db.run() 이 콜백으로 에러를 돌려준다(워커는 죽지 않는다).
-                try {
-                    db_facade.connect(usedbhost, 3306, 'root', usedbpass, (rsc2) => {
-                        if (rsc2 !== '1') {
-                            console.error('[db_facade] connect failed (' + rsc2 +
-                                ') — 전환된 DB 함수는 전부 실패한다');
-                        }
-                    });
-                } catch (e) {
-                    console.error('[db_facade] connect threw (' + (e.message || e) +
-                        ') — 전환된 DB 함수는 전부 실패한다');
-                }
                 db.getConnection((code, connection) => {
                     if (code === '200') {
                         // set_tuning 이 여기 있었다. 기동할 때마다 MySQL 인스턴스의
@@ -470,6 +462,17 @@ if (use_clustering) {
                     }
                 });
             }
+            else {
+                // **연결 실패를 조용히 넘기지 않는다.**
+                //
+                // 예전에는 if (rsc == '1') 만 있고 else 가 없었다. 실패하면 이 블록이
+                // 통째로 안 돌고, 기동 로그에는 아무 말도 안 남았다 — 증상이
+                // '요청마다 500' 으로만 나타나 원인을 짚기 어려웠다.
+                //
+                // 좌표가 코어의 인자에서 사라진 뒤로는 더 중요하다. 무엇이 틀렸는지
+                // 보려면 어댑터가 찍는 [db/mysql] pool ... 줄과 이 줄을 같이 봐야 한다.
+                console.error('[db] connect 실패 (' + rsc + ') — DB 를 쓰는 요청은 전부 실패한다');
+            }
         });
     }
     else {
@@ -479,22 +482,8 @@ if (use_clustering) {
         // 가 다시 띄운다 — 오늘과 같은 회복에 진단만 더한다.
         backstop.install('worker');
 
-        db.connect(usedbhost, 3306, 'root', usedbpass, (rsc) => {
+        db.connect((rsc) => {
             if (rsc === '1') {
-                // 파사드 연결 실패가 서버 기동 자체를 막으면 안 된다.
-                // 전환 안 된 함수들은 구 경로로 계속 동작하고, 전환된 함수는
-                // db.run() 이 콜백으로 에러를 돌려준다(워커는 죽지 않는다).
-                try {
-                    db_facade.connect(usedbhost, 3306, 'root', usedbpass, (rsc2) => {
-                        if (rsc2 !== '1') {
-                            console.error('[db_facade] connect failed (' + rsc2 +
-                                ') — 전환된 DB 함수는 전부 실패한다');
-                        }
-                    });
-                } catch (e) {
-                    console.error('[db_facade] connect threw (' + (e.message || e) +
-                        ') — 전환된 DB 함수는 전부 실패한다');
-                }
                 // 데이터 상태 스위치를 읽는다. **워커도 읽어야 한다.**
                 //
                 // db_bootstrap.run 은 마스터 전용이다(마이그레이션 적용이 들어
@@ -543,26 +532,23 @@ if (use_clustering) {
                 });
                 });   // db_bootstrap.readDataSwitches
             }
+            else {
+                // **연결 실패를 조용히 넘기지 않는다.**
+                //
+                // 예전에는 if (rsc == '1') 만 있고 else 가 없었다. 실패하면 이 블록이
+                // 통째로 안 돌고, 기동 로그에는 아무 말도 안 남았다 — 증상이
+                // '요청마다 500' 으로만 나타나 원인을 짚기 어려웠다.
+                //
+                // 좌표가 코어의 인자에서 사라진 뒤로는 더 중요하다. 무엇이 틀렸는지
+                // 보려면 어댑터가 찍는 [db/mysql] pool ... 줄과 이 줄을 같이 봐야 한다.
+                console.error('[db] connect 실패 (' + rsc + ') — DB 를 쓰는 요청은 전부 실패한다');
+            }
         });
     }
 }
 else {
-    db.connect(usedbhost, 3306, 'root', usedbpass, (rsc) => {
+    db.connect((rsc) => {
         if (rsc == '1') {
-            // 파사드 연결 실패가 서버 기동 자체를 막으면 안 된다.
-            // 전환 안 된 함수들은 구 경로로 계속 동작하고, 전환된 함수는
-            // db.run() 이 콜백으로 에러를 돌려준다(워커는 죽지 않는다).
-            try {
-                db_facade.connect(usedbhost, 3306, 'root', usedbpass, (rsc2) => {
-                    if (rsc2 !== '1') {
-                        console.error('[db_facade] connect failed (' + rsc2 +
-                            ') — 전환된 DB 함수는 전부 실패한다');
-                    }
-                });
-            } catch (e) {
-                console.error('[db_facade] connect threw (' + (e.message || e) +
-                    ') — 전환된 DB 함수는 전부 실패한다');
-            }
             db.getConnection((code, connection) => {
                 if (code === '200') {
                     cb.create(connection, (rsp) => {
@@ -597,6 +583,17 @@ else {
                     console.log('[db.connect] No Connection');
                 }
             });
+        }
+        else {
+            // **연결 실패를 조용히 넘기지 않는다.**
+            //
+            // 예전에는 if (rsc == '1') 만 있고 else 가 없었다. 실패하면 이 블록이
+            // 통째로 안 돌고, 기동 로그에는 아무 말도 안 남았다 — 증상이
+            // '요청마다 500' 으로만 나타나 원인을 짚기 어려웠다.
+            //
+            // 좌표가 코어의 인자에서 사라진 뒤로는 더 중요하다. 무엇이 틀렸는지
+            // 보려면 어댑터가 찍는 [db/mysql] pool ... 줄과 이 줄을 같이 봐야 한다.
+            console.error('[db] connect 실패 (' + rsc + ') — DB 를 쓰는 요청은 전부 실패한다');
         }
     });
 }

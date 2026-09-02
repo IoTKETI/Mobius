@@ -41,7 +41,7 @@ function tapAdapter(useSqlite, selectRows) {
     adapter.commit = function (h, cb) { seen.push({ sql: 'COMMIT' }); cb(null); };
     adapter.rollback = function (h, cb) { seen.push({ sql: 'ROLLBACK' }); cb(null); };
 
-    db.connect('h', 1, 'u', 'p', function () {});
+    db.connect(function () {});
 
     // 구 경로(db_action / db_sqlite)의 getResult 를 가로채 "그쪽으로 샜는가"
     // 를 보던 자리다. 두 파일을 지웠으므로(2026-09-01) 샐 곳이 없다.

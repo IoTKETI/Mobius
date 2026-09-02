@@ -100,9 +100,9 @@ function tap(backend, opts) {
         if (lim) { rows = rows.slice(0, parseInt(lim[1], 10)); }
         cb(null, rows);
     };
-    adapter.connect = function (conf, cb) { cb('1'); };
+    adapter.connect = function (cb) { cb('1'); };
 
-    db.connect('h', 1, 'u', 'p', function () {});
+    db.connect(function () {});
 
     delete require.cache[require.resolve(path.join(ROOT, 'mobius', 'sql_action.js'))];
     return { sql_action: require(path.join(ROOT, 'mobius', 'sql_action.js')), seen: seen };

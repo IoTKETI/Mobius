@@ -17,8 +17,18 @@ const ROOT = path.join(__dirname, '..');
 const schema = require('../mobius/conf_schema');
 
 // mobius.js 가 conf.<키> 로 읽는 것 전부. conf.json 은 파일 이름이라 뺀다.
+// 주석을 걷어낸다. **이걸 안 하면 산문이 가드를 만족시킨다.**
+//
+// 실제로 그랬다 — dbpass 를 어댑터로 옮기면서 mobius.js 에 "conf.dbpass 는
+// 연결 좌표다" 라고 설명을 적었더니, 이 정규식이 그 문장을 읽고 "mobius.js 가
+// dbpass 를 읽는다" 고 판정해 아래 두 테스트가 **둘 다 통과했다.** 코드에서는
+// 이미 사라진 뒤였다.
+function stripComments(src) {
+    return src.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|[^:])\/\/[^\n]*/g, '$1');
+}
+
 function keysReadByMobius() {
-    const src = fs.readFileSync(path.join(ROOT, 'mobius.js'), 'utf8');
+    const src = stripComments(fs.readFileSync(path.join(ROOT, 'mobius.js'), 'utf8'));
     const out = new Set();
     const re = /conf\.([a-zA-Z_][\w]*)/g;
     let m;
@@ -28,8 +38,32 @@ function keysReadByMobius() {
     return [...out].sort();
 }
 
-test('표가 mobius.js 가 읽는 키를 전부 담는다', function () {
-    const read = keysReadByMobius();
+// 어댑터가 **자기 것으로** 선언한 키. 이것도 리더다.
+//
+// mobius.js 만 보면 안 되는 이유: 코어는 db.applyConf(conf) 로 conf 를 통째로
+// 넘기고, 어느 키를 볼지는 어댑터가 정한다. 그래서 mysql 어댑터가 읽는
+// dbpass 는 mobius.js 소스에 conf.dbpass 로 안 나타난다.
+//
+// **지금 고른 백엔드의 것만 본다.** 표(schema.all())가 고른 백엔드의 것만
+// 싣기 때문이다. 모든 어댑터를 보면 비대칭이 생겨 아래 '표가 전부 담는다'
+// 가 반대쪽에서 깨진다 — mysql 로 돌리는데 sqlite 의 세 키가 '읽히는데 표에
+// 없다' 로 잡힌다(실제로 그렇게 실패했다).
+//
+// 어댑터가 자기 표에 실은 키를 정말로 읽는지는 이쪽이 아니라
+// test/db-adapter-contract.test.js 가 어댑터별로 본다.
+function keysOwnedByAdapter() {
+    delete require.cache[require.resolve('../mobius/db')];
+    const keys = Object.keys(require('../mobius/db').confSchema() || {});
+    delete require.cache[require.resolve('../mobius/db')];
+    return keys.sort();
+}
+
+function keysReadBySomeone() {
+    return [...new Set(keysReadByMobius().concat(keysOwnedByAdapter()))].sort();
+}
+
+test('표가 코어와 어댑터가 읽는 키를 전부 담는다', function () {
+    const read = keysReadBySomeone();
     const known = schema.all();
     const missing = read.filter((k) => known.indexOf(k) < 0);
 
@@ -50,7 +84,7 @@ test('표가 mobius.js 가 읽는 키를 전부 담는다', function () {
 test('표에만 있고 아무도 안 읽는 키가 없다', function () {
     // 반대 방향도 막는다. 코드에서 사라진 설정이 표에 남아 있으면 화면이
     // 아무 효과도 없는 입력칸을 보여 준다.
-    const read = keysReadByMobius();
+    const read = keysReadBySomeone();
     const stale = schema.all().filter((k) => read.indexOf(k) < 0);
 
     assert.deepStrictEqual(stale, [],

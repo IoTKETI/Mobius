@@ -43,7 +43,7 @@ function tapAdapter(steps, useSqlite) {
     adapter.commit = function (h, cb) { cb(null); };
     adapter.rollback = function (h, cb) { cb(null); };
 
-    db.connect('h', 1, 'u', 'p', function () {});
+    db.connect(function () {});
 
     // db_action / db_sqlite 는 이 경로에서 안 쓰지만, 모듈 로드시 풀이 없으면
     // 콜백을 안 부르고 멈추는 함수가 있어 미리 막아 둔다.

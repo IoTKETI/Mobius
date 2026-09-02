@@ -259,7 +259,15 @@ function busy_timeout_ms() {
     return (typeof v === 'number' && v >= 0) ? v : 50000;
 }
 
-exports.connect = function (conf, callback) {
+// 좌표를 안 받는다. 예전 시그니처는 (conf, callback) 이었는데 그 conf 는
+// **한 번도 안 읽히는 죽은 매개변수**였다 — 파사드가 MySQL 의 host/port/
+// user/password 를 담아 넘겼고 이 백엔드에는 그런 개념이 없다.
+//
+// 더 나쁜 것은 그 이름이 모듈 스코프의 conf(applyConf 가 채우는 것)를
+// **가리고 있었다**는 점이다. 본문이 journal_mode() 같은 모듈 함수를 거쳐
+// 읽어서 지금까지 무해했을 뿐, 이 안에서 conf.sqliteJournalMode 를 직접
+// 읽는 줄을 하나 더하는 순간 조용히 undefined 가 됐을 자리다.
+exports.connect = function (callback) {
     // 드라이버를 여기서 적재한다. 실패는 **이 백엔드를 고른 경우에만** 난다.
     //
     // 예전에는 파일 최상단에서 적재해서, sqlite3 가 빌드 안 된 장비에서는

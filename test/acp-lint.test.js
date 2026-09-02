@@ -40,7 +40,7 @@ function tap(selectRows) {
         i++;
         cb(null, rows);
     };
-    db.connect('h', 1, 'u', 'p', function () {});
+    db.connect(function () {});
     return { lint: require(path.join(__dirname, '..', 'mobius', 'acp_lint.js')), seen: seen };
 }
 

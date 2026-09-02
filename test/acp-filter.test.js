@@ -39,7 +39,7 @@ function tapBy(answer) {
         seen.push({ sql: sql, bindings: bindings });
         cb(null, answer(sql, bindings) || []);
     };
-    db.connect('h', 1, 'u', 'p', function () {});
+    db.connect(function () {});
     return { f: require(path.join(__dirname, '..', 'mobius', 'acp_filter.js')), seen: seen };
 }
 
@@ -222,7 +222,7 @@ test('DB 오류는 삼키지 않는다 — 거르지 못한 결과를 내보내�
     global.usedb = 'mysql';
     const db = require(DB);
     require(path.join(DB, 'mysql.js')).execute = function (c, s, b, cb) { cb(new Error('boom')); };
-    db.connect('h', 1, 'u', 'p', function () {});
+    db.connect(function () {});
     const f = require(path.join(__dirname, '..', 'mobius', 'acp_filter.js'));
     f.filter_found(null, req('Cother'), '/Mobius/ae', found, function (err) {
         assert.ok(err, '오류를 올려야 한다');

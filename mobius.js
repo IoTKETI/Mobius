@@ -66,9 +66,15 @@ global.usecsebase = 'Mobius';
 global.usecseid = '/Mobius2';
 global.usecsebaseport = conf.csebaseport;
 
-global.usedbhost = 'localhost';
-global.usedbpass = conf.dbpass;
-
+// global.usedbhost / global.usedbpass 가 여기 있었다. **둘 다 지웠다.**
+//
+// 'localhost' 와 conf.dbpass 는 DB 연결 좌표다. 코어가 그것을 들고 app.js 가
+// connect(host, 3306, 'root', pass, cb) 로 넘기는 구조였는데, 3306 도 'root' 도
+// MySQL 의 것이라 코어가 백엔드를 아는 자리였다.
+//
+// 지금은 좌표를 어댑터가 갖는다 — 안 바뀌는 것(host/port/user/database)은
+// mobius/db/mysql.js 의 상수로, conf.json 에서 오는 것(dbpass)은 그 어댑터의
+// confSchema 로. 아래 213행의 db.applyConf(conf) 가 그것을 전달한다.
 // 이 값을 X-M2M-Origin 에 넣으면 security.check 가 맨 앞에서 통과시켜
 // 모든 ACP 검사를 건너뛴다. 사실상 마스터 키다.
 //

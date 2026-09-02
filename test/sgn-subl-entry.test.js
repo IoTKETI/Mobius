@@ -525,7 +525,7 @@ test('파사드의 무능력 경로가 하류 예외를 삼키지 않는다', fu
     try {
         global.usedb = 'sqlite';              // transaction 능력이 없는 백엔드
         const db = require('../mobius/db');
-        db.connect(null, null, null, null, function () {});
+        db.connect(function () {});
 
         let threw = null;
         try {

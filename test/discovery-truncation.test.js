@@ -37,7 +37,7 @@ function tap(total) {
     const all = [];
     for (let i = 0; i < total; i++) { all.push({ ri: '/M/c' + i, ty: 3 }); }
 
-    adapter.connect = function (conf, cb) { cb('1'); };
+    adapter.connect = function (cb) { cb('1'); };
     adapter.execute = function (conn, sql, bindings, cb) {
         // 골격만 뽑는 문장(배치 경로)과 자식까지 한 문장으로 끝내는 예전
         // 경로(ofst / la)를 가른다. 둘 다 `with recursive skel` 로 시작하므로
@@ -59,7 +59,7 @@ function tap(total) {
         if (lim) { rows = rows.slice(0, parseInt(lim[1], 10)); }
         cb(null, rows);
     };
-    db.connect('h', 1, 'u', 'p', function () {});
+    db.connect(function () {});
 
     delete require.cache[require.resolve(path.join(ROOT, 'mobius', 'sql_action.js'))];
     return require(path.join(ROOT, 'mobius', 'sql_action.js'));
@@ -149,9 +149,9 @@ test('실패하면 info 를 안 넘긴다', function (t, done) {
     global.usedb = 'mysql';
     const db = require(DB);
     const adapter = require(path.join(DB, 'mysql.js'));
-    adapter.connect = function (conf, cb) { cb('1'); };
+    adapter.connect = function (cb) { cb('1'); };
     adapter.execute = function (conn, sql, bindings, cb) { cb(new Error('boom'), null); };
-    db.connect('h', 1, 'u', 'p', function () {});
+    db.connect(function () {});
     delete require.cache[require.resolve(path.join(ROOT, 'mobius', 'sql_action.js'))];
     const sa = require(path.join(ROOT, 'mobius', 'sql_action.js'));
 

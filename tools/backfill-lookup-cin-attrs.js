@@ -88,7 +88,11 @@ process.on('SIGINT', function () {
 
 function human(n) { return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
 
-db.connect('localhost', 3306, 'root', conf.dbpass || '', function (rsc) {
+// **applyConf 가 connect 보다 먼저다.** 좌표(비밀번호 포함)는 어댑터가
+// conf 에서 직접 읽으므로, 이 줄이 없으면 어댑터의 conf 가 {} 로 남아
+// 빈 비밀번호로 붙는다. test/db-conf-wiring.test.js 가 이 순서를 지킨다.
+db.applyConf(conf);
+db.connect(function (rsc) {
     if (rsc !== '1') { console.error('DB 연결 실패: ' + rsc); process.exit(1); }
     db.getConnection(function (code, conn) {
         if (code !== '200') { console.error('커넥션 획득 실패: ' + code); process.exit(1); }
