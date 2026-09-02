@@ -81,6 +81,71 @@ function ensure_connection_ceiling(ctx, cb) {
     });
 }
 
+// 마이그레이션 기록을 읽어 **데이터 상태 스위치**를 세운다.
+//
+// ── 이것은 백엔드 분기가 아니다 ─────────────────────────────────────────
+// 코어가 "어느 DB 위에 있는가" 를 아는 것은 없앴다. 이것은 다른 종류다 —
+// "이 DB 의 데이터가 어느 상태인가" 이고, 그것은 코어가 알아야 한다.
+// 같은 MySQL 이라도 백필 전과 후에 할 수 있는 일이 다르기 때문이다.
+//
+// ── 왜 기동 때 한 번인가 ────────────────────────────────────────────────
+// 요청마다 물으면 그 자체가 비용이고, 중간에 값이 바뀌면 한 요청 안에서
+// 두 경로가 섞인다. 마이그레이션은 사람이 적용하는 것이고 그 뒤에는 재기동이
+// 따르므로, 기동 때 한 번 정하는 것으로 충분하다.
+//
+// ── 마스터만으로는 안 된다 ──────────────────────────────────────────────
+// run() 은 마스터에서만 불린다(워커 24개가 동시에 마이그레이션을 적용하려
+// 들면 안 되기 때문이다). 그런데 **discovery 는 워커에서 돈다.** 마스터에만
+// 스위치를 세우면 정작 쓰는 쪽이 못 받는다.
+//
+// 그래서 읽기 전용 부분을 따로 뺐다 — exports.readDataSwitches 다. 워커도
+// 그것을 부른다. schema_migrations 를 select 하는 것뿐이라 경합이 없다.
+//
+// 못 읽으면 false 로 남는다. **false 는 안전한 쪽이다** — 예전 경로(cin 조인)라
+// 느리지만 답이 맞다. 반대로 틀리는 일은 없다.
+function set_data_switches(applied) {
+    var has = function (id) { return applied.indexOf(id) >= 0; };
+
+    // lookup.cs / lookup.cnf 가 **전부** 채워졌는가.
+    //
+    // 012 는 "안 채워진 CIN 이 하나도 없다" 를 확인해야만 기록된다(적용을
+    // 거부한다). 그래서 이 기록이 있다는 것은 곧 discovery 가 lookup 의
+    // 두 컬럼을 믿어도 된다는 뜻이다.
+    //
+    // 없으면 false — 예전처럼 cin 을 조인한다. 느리지만 답이 맞다.
+    global.lookup_has_cin_attrs = has('012-lookup-cin-attrs-filled');
+
+    if (global.lookup_has_cin_attrs) {
+        console.log('[db_bootstrap] lookup.cs / cnf 백필 완료 — discovery 가 조인 없이 거른다');
+    }
+}
+
+// 데이터 상태 스위치만 읽는다. **워커가 부른다.**
+//
+// run() 은 마스터 전용이라(마이그레이션 적용이 들어 있다) 워커는 그것을
+// 못 부른다. 그런데 그 스위치를 실제로 쓰는 곳은 워커의 discovery 다.
+// 여기는 select 하나뿐이라 워커 24개가 동시에 불러도 문제가 없다.
+//
+// **어떤 실패에도 기동을 막지 않는다.** 못 읽으면 스위치가 false 로 남고,
+// false 는 예전 경로다 — 느리지만 답이 맞다.
+exports.readDataSwitches = function (callback) {
+    var done = function () { if (callback) { callback(null); } };
+
+    db.getConnection(function (code, connection) {
+        if (code !== '200' || !connection) { return done(); }
+
+        var ctx = { db: db, conn: connection, backend: db.backendName() };
+        migrate.ensureTable(ctx, function (terr) {
+            if (terr) { db.release(connection); return done(); }
+            migrate.appliedIds(ctx, function (aerr, applied) {
+                if (!aerr) { set_data_switches(applied || []); }
+                db.release(connection);
+                done();
+            });
+        });
+    });
+};
+
 // 마스터에서만 돈다. 워커 24개가 동시에 같은 마이그레이션을 적용하려 들면
 // schema_migrations 의 PK 가 충돌하고, 그중 하나만 이기고 나머지는 에러를
 // 낸다. 기동 로그가 그 에러로 덮인다.
@@ -136,6 +201,8 @@ exports.run = function (callback) {
 
             migrate.appliedIds(ctx, function (aerr, applied) {
                 if (aerr) { return finish(aerr); }
+
+                set_data_switches(applied || []);
 
                 var pending = migrate.pending(all, applied || [], ctx.backend);
                 if (pending.length === 0) { return finish(null); }

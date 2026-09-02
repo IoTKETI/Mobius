@@ -752,6 +752,87 @@ test('크기 필터가 있으면 골격이 CIN 없는 부모를 뺀다', functio
     }));
 });
 
+// ── 백필이 끝나면 조인이 사라진다 ────────────────────────────────────────
+//
+// lookup 에 cs 사본을 두었고(011 + 백필), 012 가 "안 채워진 CIN 이 하나도
+// 없다" 를 확인하면 db_bootstrap 이 global.lookup_has_cin_attrs 를 세운다.
+// 그때부터 discovery 는 cin 을 조인하지 않는다 — 배포 실측 3배 차이다.
+function withBackfilled(fn) {
+    const saved = global.lookup_has_cin_attrs;
+    global.lookup_has_cin_attrs = true;
+    try { return fn(); } finally { global.lookup_has_cin_attrs = saved; }
+}
+
+test('백필이 끝나면 cin 을 조인하지 않고 r.cs 로 거른다', function (t, done) {
+    withBackfilled(() => {
+        const h = tap('mysql');
+        run(h, { sza: 100, lim: 20 }, guard(done, function (code, ris, seen) {
+            const c = childStmt(seen).sql;
+            assert.ok(!/join cin\b/i.test(c),
+                '백필이 끝났는데 여전히 cin 을 조인한다: ' + c);
+            assert.match(c, /r\.cs/,
+                'lookup 의 사본(r.cs)을 안 본다');
+            assert.ok(!/c\.cs/.test(c),
+                'cin 의 원본(c.cs)을 본다 — 조인이 없으므로 별칭 c 가 없다');
+
+            // ty=4 는 남아야 한다. 조인이 없어진 뒤에는 이 절이 **유일하게**
+            // 후보를 CIN 으로 좁힌다.
+            assert.match(c, /r\.ty = '4'/,
+                "조인이 사라지면서 ty=4 도 같이 사라졌다 — 후보가 안 좁혀진다");
+            done();
+        }));
+    });
+});
+
+test('백필이 끝나도 부모 필터는 남는다', function (t, done) {
+    // 부모를 거르는 이득은 조인 여부와 무관하다 — 비용이 부모 개수에
+    // 선형이라 그렇다. needs_cin_join 으로 판단하면 여기서 조용히 꺼진다.
+    withBackfilled(() => {
+        const h = tap('mysql');
+        run(h, { sza: 100, lim: 20 }, guard(done, function (code, ris, seen) {
+            assert.match(skelStmt(seen).sql, /left join cnt\b/i,
+                '백필이 끝나자 부모 필터가 꺼졌다 — 헛부모가 다시 들어온다');
+            done();
+        }));
+    });
+});
+
+test('백필이 끝나도 답 없는 조합은 여전히 질의를 안 던진다', function (t, done) {
+    // "cs 는 CIN 에만 있으니 다른 타입만 찾으면 답이 없다" 는 사실은
+    // 그 값을 어느 테이블에서 읽든 같다. needs_cin_join 으로 물으면
+    // 백필 뒤 이 관문이 조용히 꺼진다.
+    withBackfilled(() => {
+        const h = tap('mysql');
+        run(h, { ty: '3', sza: 100, lim: 20 }, guard(done, function (code, ris, seen) {
+            assert.strictEqual(seen.length, 0,
+                'ty=3 + sza 인데 질의를 던졌다 — 답이 있을 수 없는 조합이다');
+            done();
+        }));
+    });
+});
+
+test('스위치의 기본값은 꺼짐이다 — 안전한 쪽', function () {
+    // 켜져 있으면 아직 안 채워진 행이 결과에서 조용히 사라진다.
+    // 에러도 안 나고 답만 줄어든다. 그래서 기본이 예전 경로여야 한다.
+    const sql = require(path.join(ROOT, 'mobius', 'sql_action.js'));
+    const saved = global.lookup_has_cin_attrs;
+    try {
+        delete global.lookup_has_cin_attrs;
+        assert.strictEqual(sql._lookup_has_cin_attrs(), false,
+            '전역이 없는데 참이다 — 백필 전에 켜지면 답이 조용히 줄어든다');
+
+        // truthy 로는 안 켜진다. === true 여야 한다.
+        global.lookup_has_cin_attrs = 'true';
+        assert.strictEqual(sql._lookup_has_cin_attrs(), false,
+            "문자열 'true' 에 켜진다 — 실수로 켜질 여지를 두면 안 된다");
+        global.lookup_has_cin_attrs = 1;
+        assert.strictEqual(sql._lookup_has_cin_attrs(), false, '1 에 켜진다');
+    } finally {
+        if (saved === undefined) { delete global.lookup_has_cin_attrs; }
+        else { global.lookup_has_cin_attrs = saved; }
+    }
+});
+
 test('크기 필터가 없으면 골격을 건드리지 않는다', function (t, done) {
     // 일반 discovery 의 골격은 그대로여야 한다. 부모를 거르는 것은
     // CIN 속성을 보는 요청에서만 의미가 있고, 다른 요청에서는 cnt 조인이

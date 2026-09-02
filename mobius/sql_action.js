@@ -879,21 +879,32 @@ function build_search_query(query) {
     if (query.sts != null) { where += ' and st < ' + bind(query.sts); }
     if (query.stb != null) { where += ' and ' + bind(query.stb) + ' <= st'; }
 
-    // sza / szb / cty 는 contentInstance 의 속성을 본다 — cs(contentSize) 와
-    // cnf(contentInfo) 다. 그 둘은 lookup 이 아니라 cin 에 있으므로 별칭 c 로
-    // 부른다. 호출부(build_descendant_sql)가 이 셋 중 하나라도 있으면
-    // cin 을 조인한다.
+    // sza / szb 는 contentInstance 의 크기(cs)를 본다.
     //
-    // 예전에는 별칭 없이 cs / cnf 라고 써서 lookup 에 붙였고, lookup 에는 그
-    // 컬럼이 없으니 SQL 준비 단계에서 깨져 **항상 HTTP 500** 이었다.
-    // 8년 전 mobiusdb.sql 에서 두 컬럼을 뺄 때 이쪽을 안 고쳤다.
+    // ── 어느 테이블의 cs 를 보는가 ──────────────────────────────────────
+    // 원본은 cin 에 있다. 그런데 lookup 에 사본을 두었고(011 + 백필),
+    // 사본을 보면 조인이 통째로 사라진다 — 배포 실측 3배 차이다.
+    //
+    // 사본을 믿어도 되는지는 **데이터 상태**가 정한다. 012 가 "안 채워진 CIN 이
+    // 하나도 없다" 를 확인해야만 적용되고, mobius/db_bootstrap.js 가 기동 때
+    // 그 기록을 보고 이 전역을 세운다.
+    //
+    // **없으면 예전 경로다.** 백필 전에 사본을 보면 아직 안 채워진 옛 CIN 이
+    // 조용히 사라진다(cs 가 null 이라 어떤 비교도 참이 안 된다). 에러도 안 나고
+    // 결과만 줄어든다. 그래서 기본값이 안전한 쪽이어야 한다.
+    //
+    // 예전에는 별칭 없이 cs 라고 써서 lookup 에 붙였고, 그때는 lookup 에 그
+    // 컬럼이 없어 SQL 준비 단계에서 깨져 **항상 HTTP 500** 이었다.
+    // 8년 전 mobiusdb.sql 에서 컬럼을 뺄 때 이쪽을 안 고친 것이었다.
+    // 지금은 컬럼이 다시 생겼으므로 그 이름이 옳다 — 다만 채워졌을 때만이다.
     //
     // 크기는 수로 비교한다 — cs 는 MySQL 이 int, SQLite 가 TEXT 다.
+    var cs_col = lookup_has_cin_attrs() ? 'r.cs' : 'c.cs';
     if (query.sza != null) {
-        where += ' and ' + bind(parseInt(query.sza, 10)) + ' <= ' + facade.numericExpr('c.cs');
+        where += ' and ' + bind(parseInt(query.sza, 10)) + ' <= ' + facade.numericExpr(cs_col);
     }
     if (query.szb != null) {
-        where += ' and ' + facade.numericExpr('c.cs') + ' < ' + bind(parseInt(query.szb, 10));
+        where += ' and ' + facade.numericExpr(cs_col) + ' < ' + bind(parseInt(query.szb, 10));
     }
 
     if (query.rn != null) { where += ' and rn = ' + bind(query.rn); }
@@ -906,14 +917,40 @@ function build_search_query(query) {
 }
 exports._build_search_query = build_search_query;
 
-// sza / szb 는 cin 의 속성(cs)을 본다. 하나라도 있으면 조인해야 한다.
+// lookup.cs / lookup.cnf 를 믿어도 되는가.
 //
-// cty 가 여기 있었다. 지원하지 않기로 해서 뺐다 — 그것이 보던 cnf 는
-// 인덱스에 없어 행 접근이 필요했고, 그래서 이 조인의 비용이 두 배로 갈렸다.
-// 지금 남은 cs 는 cin_ri_idx(pi, ri, cs) 에 담겨 있어 인덱스만으로 끝난다.
+// 011 이 컬럼을 만들고, tools/backfill-lookup-cin-attrs.js 가 옛 행을 채우고,
+// 012 가 "안 채워진 CIN 이 하나도 없다" 를 확인해야 이 전역이 참이 된다.
+// mobius/db_bootstrap.js 가 기동 때 마이그레이션 기록을 보고 세운다.
+//
+// **기본값이 거짓이어야 한다.** 참이면 아직 안 채워진 행이 discovery 결과에서
+// 조용히 사라진다 — 에러도 안 나고 답만 줄어든다. 거짓이면 예전처럼 cin 을
+// 조인한다: 느리지만 맞다.
+function lookup_has_cin_attrs() {
+    return global.lookup_has_cin_attrs === true;
+}
+exports._lookup_has_cin_attrs = lookup_has_cin_attrs;
+
+// cin 을 조인해야 하는가.
+//
+// sza / szb 는 CIN 의 크기를 본다. 그 값이 lookup 에도 있으면(백필 완료)
+// **조인이 통째로 필요 없다** — 배포 실측으로 3배 차이다.
+//
+// cty 가 여기 있었다. 지원하지 않기로 해서 뺐다(400-65).
 function needs_cin_join(query) {
+    if (lookup_has_cin_attrs()) { return false; }
     return query.sza != null || query.szb != null;
 }
+
+// 크기 필터가 붙은 요청인가. **조인 여부와 별개다.**
+//
+// 골격에서 CIN 없는 부모를 빼는 판단은 조인을 하든 안 하든 똑같이 이득이다
+// (부모 개수에 비용이 선형이라 그렇다). 그래서 needs_cin_join 과 나눈다 —
+// 백필이 끝나 조인이 사라져도 부모 필터는 계속 걸려야 한다.
+function has_size_filter(query) {
+    return query.sza != null || query.szb != null;
+}
+exports._has_size_filter = has_size_filter;
 exports.needs_cin_join = needs_cin_join;
 
 // 요청이 고른 ty 목록. 없으면 null (타입을 안 가린다).
@@ -980,7 +1017,10 @@ exports._like_filter_without_ty = like_filter_without_ty;
 // `fu=1&ty=3&sza=10` 이 컨테이너 30,281개마다 cin(249GB)을 찾아보고 0건을
 // 돌려주느라 30초 상한에 걸렸다. 질의를 아예 던지지 않는 게 맞다.
 function size_filter_excludes_all(query) {
-    if (!needs_cin_join(query)) { return false; }
+    // **has_size_filter 로 판단한다.** "cs 는 CIN 에만 있으니 다른 타입만
+    // 찾으면 답이 없다" 는 사실은 그 값을 어느 테이블에서 읽든 똑같다.
+    // needs_cin_join 으로 물으면 백필이 끝난 뒤 이 관문이 조용히 꺼진다.
+    if (!has_size_filter(query)) { return false; }
     var tys = requested_ty_list(query);
     if (tys === null) { return false; }   // ty 를 안 줬으면 CIN 도 후보다
     return tys.indexOf('4') < 0;
@@ -1338,8 +1378,11 @@ function build_skeleton_sql(ri, query, budget_ms) {
     // sk_ri 는 위에서 pathCollate 로 캐스트돼 있다(재귀에서 pi 와 비교해야 한다).
     // cnt.ri 는 lookup.ri 와 같은 원래 콜레이션이라, 조인하려면 되돌려야 한다.
     // 안 맞추면 콜레이션이 섞여 죽는다. 어느 조각을 붙일지는 어댑터가 안다.
+    // **needs_cin_join 이 아니라 has_size_filter 로 판단한다.**
+    // 부모를 거르는 이득은 조인 여부와 무관하다 — 비용이 부모 개수에
+    // 선형이라, 백필이 끝나 조인이 사라져도 이 필터는 계속 걸려야 한다.
     var tail = 'sk_ri, sk_lvl from skel';
-    if (needs_cin_join(query)) {
+    if (has_size_filter(query)) {
         tail = 'sk_ri, sk_lvl from skel s' +
                ' left join cnt n on n.ri = s.sk_ri' + facade.riCollate() +
                ' where n.ri is null or n.cni > 0';
@@ -1431,7 +1474,12 @@ function build_children_sql(parents, query, search, lim, budget_ms, ofst, count_
     // 조인만으로도 결과는 같지만, 이 조건을 명시해야 (pi, ty) 인덱스가 CIN 만
     // 집어낸다. 없으면 옵티마이저가 골격의 모든 자식을 후보로 놓고 cin 을
     // 하나씩 찾아본다 — 249GB 테이블에 대한 임의 접근이라 매우 비싸다.
-    var cin_ty = needs_cin_join(query) ? " and r.ty = '4'" : '';
+    // **has_size_filter 로 판단한다.** 조인이 사라져도 이 절은 남아야 한다.
+    //
+    // cs 는 CIN 에만 있다(다른 타입은 null). 조인이 있을 때는 조인만으로도
+    // 결과가 같지만, 조인이 없어진 뒤에는 이 절이 **유일하게** 후보를 CIN 으로
+    // 좁힌다. 없으면 (pi, ty) 인덱스가 골격의 모든 자식을 후보로 놓는다.
+    var cin_ty = has_size_filter(query) ? " and r.ty = '4'" : '';
 
     // 빈 목록은 `in ()` 이라는 문법 오류 SQL 이 된다. 호출부가 이미 막지만
     // 이 함수는 export 돼 있으므로 여기서도 막는다 — null 을 주면 호출부가
@@ -1612,7 +1660,12 @@ function build_descendant_sql(ri, query, search, cur_lim) {
     // 조인만으로도 결과는 같지만, 이 조건을 명시해야 (pi, ty) 인덱스가 CIN 만
     // 집어낸다. 없으면 옵티마이저가 골격의 모든 자식을 후보로 놓고 cin 을
     // 하나씩 찾아본다 — 249GB 테이블에 대한 임의 접근이라 매우 비싸다.
-    var cin_ty = needs_cin_join(query) ? " and r.ty = '4'" : '';
+    // **has_size_filter 로 판단한다.** 조인이 사라져도 이 절은 남아야 한다.
+    //
+    // cs 는 CIN 에만 있다(다른 타입은 null). 조인이 있을 때는 조인만으로도
+    // 결과가 같지만, 조인이 없어진 뒤에는 이 절이 **유일하게** 후보를 CIN 으로
+    // 좁힌다. 없으면 (pi, ty) 인덱스가 골격의 모든 자식을 후보로 놓는다.
+    var cin_ty = has_size_filter(query) ? " and r.ty = '4'" : '';
 
     var sql =
         'with recursive skel as (\n' +

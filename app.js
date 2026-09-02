@@ -495,6 +495,16 @@ if (use_clustering) {
                     console.error('[db_facade] connect threw (' + (e.message || e) +
                         ') — 전환된 DB 함수는 전부 실패한다');
                 }
+                // 데이터 상태 스위치를 읽는다. **워커도 읽어야 한다.**
+                //
+                // db_bootstrap.run 은 마스터 전용이다(마이그레이션 적용이 들어
+                // 있어 워커 24개가 동시에 들어오면 안 된다). 그런데 그 스위치를
+                // 실제로 쓰는 곳은 워커의 discovery 다 — 마스터에만 세우면
+                // 정작 쓰는 쪽이 못 받는다.
+                //
+                // 여기는 select 하나뿐이라 경합이 없고, 실패해도 기동을 막지
+                // 않는다. 못 읽으면 예전 경로로 돈다 — 느리지만 답이 맞다.
+                db_bootstrap.readDataSwitches(() => {
                 db.getConnection((code, connection) => {
                     if (code === '200') {
                         if (use_secure === 'disable') {
@@ -531,6 +541,7 @@ if (use_clustering) {
                         console.log('[db.connect] No Connection');
                     }
                 });
+                });   // db_bootstrap.readDataSwitches
             }
         });
     }
