@@ -9,7 +9,7 @@ The next version of Mobius is available on [Mobius4](https://github.com/iotketi/
 ## What's New
 
 ### SQLite Support
-Mobius now runs on SQLite as well as MySQL. SQLite requires no separate database server and creates its schema automatically at startup, which makes it suitable for embedded gateways, development and small deployments. Select the backend at launch (`node mobius.js sqlite`) or through the `usesqlite` option in `conf.json`. See [Configuration](#configuration).
+Mobius now runs on SQLite as well as MySQL. SQLite requires no separate database server and creates its schema automatically at startup, which makes it suitable for embedded gateways, development and small deployments. Select the backend at launch (`node mobius.js sqlite`) or through the `db` option in `conf.json`. See [Configuration](#configuration).
 
 The SQLite backend currently covers six resource types — CSEBase, AE, accessControlPolicy, container, contentInstance and subscription. Creating any other type while running on SQLite is rejected with `501 Not Implemented` (`X-M2M-RSC: 5001`) instead of being attempted, so the resource tree is never left in a partial state. Deployments that need group, flexContainer, node, remoteCSE, mgmtObj, semanticDescriptor or the transaction resources should run on MySQL.
 
@@ -156,7 +156,7 @@ npm install
 {
   "csebaseport": "7579", //Mobius HTTP hosting  port
   "dbpass": "*******",   //MySQL root password
-  "usesqlite": "false"   //"true" to use SQLite instead of MySQL
+  "db": "mysql"          //storage backend: "mysql" or "sqlite"
 }
 ```
 
@@ -185,7 +185,7 @@ Use node.js application execution command as below
 ```
 node mobius.js
 ```
-The database backend follows `usesqlite` in `conf.json`, and can be overridden on the command line:
+The database backend follows the `db` key in `conf.json`, and can be overridden on the command line:
 ```
 node mobius.js sqlite   // force SQLite
 node mobius.js mysql    // force MySQL

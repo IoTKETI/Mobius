@@ -57,9 +57,9 @@ const ROOT = path.join(__dirname, '..');
 // 생기면 즉시 실패하고, 목록의 자리가 사라져도 실패한다(목록을 같이 지우라는 뜻).
 // 이 저장소가 SQLite 파리티 진척을 세는 방식과 같다 — 숫자가 줄면 알려준다.
 const KNOWN_NAME_SITES = {
-    // 백엔드 선택자를 세우는 유일한 곳이자, 옛 conf 키(usesqlite)를 이름으로
-    // 번역하는 경계다. 원천이라 이름이 나오는 것이 맞다.
-    'mobius.js': [98, 99],
+    // 42  최초 실행 때 만들어 주는 conf.json 의 기본값
+    // 96  백엔드 선택자를 세우는 유일한 곳. 원천이라 이름이 나오는 것이 맞다
+    'mobius.js': [42, 96],
 
     // 설정 표의 기본 백엔드. mobius/db/index.js 의 DEFAULT_BACKEND 와 같은 값을
     // 두 번째로 적은 자리다(헌장 7g).
@@ -70,7 +70,7 @@ const KNOWN_NAME_SITES = {
 // 헌장 7g 다 — 튜닝 값을 갖는 새 백엔드는 코어 두 파일을 열어야 키를 넣을 수 있다.
 // 고치려면 어댑터가 자기 설정 항목을 내보내는 구조가 필요해서 따로 잡는다.
 const KNOWN_BACKEND_GLOBALS = {
-    'mobius.js': [210, 213, 216]
+    'mobius.js': [207, 210, 213]
 };
 
 const NAME_LITERAL = /(['"])(mysql|sqlite|postgres|mariadb)\1/i;
@@ -167,20 +167,21 @@ test('전역을 세우는 곳도 없다 — 읽는 이가 없으면 세우는 �
         'global.usesqlite 를 세우는 곳이 있다: ' + writers.join(', '));
 });
 
-test('conf.json 의 usesqlite 키는 경계에서 한 번만 번역된다', function () {
-    // 설정 파일 쪽 usesqlite 는 **살아 있다.** 배포된 conf.json 에 db 키가 없고
-    // usesqlite 만 있을 수 있어서, 그 파일을 못 쓰게 만들 이유가 없다.
+test('conf.json 의 usesqlite 키도 아무도 읽지 않는다', function () {
+    // 한 회차 전에는 이 자리에 "경계에서 한 번만 번역된다" 가 있었다.
+    // 옛 conf.json 호환이라는 이유로 진입점 넷에 번역을 남겨 뒀었다.
     //
-    // 다만 번역은 경계에서 한 번이어야 한다. 안쪽에서 다시 boolean 을 만들면
-    // 방금 지운 문제가 그대로 돌아온다. 그래서 conf.usesqlite 를 읽어도 되는
-    // 곳은 백엔드 이름을 정하는 **진입점**과, 그 키를 선언하는 설정 표뿐이다.
-    const ENTRY = ['mobius.js', 'tools/migrate.js',
-                   'tools/rebuild-subl.js', 'tools/snapshot-subl.js',
-                   'mobius/conf_schema.js'];
+    // 그것도 지웠다. **번역을 남기면 설정 키가 둘인 상태가 끝나지 않기**
+    // 때문이다 — 옛 이름이 계속 동작하는 한, 새로 쓰는 코드가 그것을 보고
+    // 따라 쓴다. 실제로 그렇게 007 과 tools 두 개가 옛 이름을 붙잡고 있었다.
+    //
+    // db 키가 그 자리를 완전히 대신한다. 옛 키가 남은 conf.json 은 설정 표에
+    // 없는 키라 "모르는 키" 로 걸린다 — 조용히 넘어가지 않는다.
     const bad = [];
+    const scan = sourceFiles().concat(['mobius.js', 'tools/migrate.js',
+                                       'tools/rebuild-subl.js', 'tools/snapshot-subl.js']);
 
-    for (const rel of sourceFiles()) {
-        if (ENTRY.indexOf(rel) >= 0) { continue; }
+    for (const rel of scan) {
         fs.readFileSync(path.join(ROOT, rel), 'utf8').split(/\r?\n/).forEach((l, i) => {
             if (/^\s*(\/\/|\*|\/\*)/.test(l)) { return; }
             if (/conf\.usesqlite/.test(l)) { bad.push(rel + ':' + (i + 1)); }
@@ -188,8 +189,8 @@ test('conf.json 의 usesqlite 키는 경계에서 한 번만 번역된다', func
     }
 
     assert.deepStrictEqual(bad, [],
-        '진입점이 아닌 곳에서 conf.usesqlite 를 읽는다: ' + bad.join(', ') + '\n' +
-        '이름으로 옮기는 번역은 백엔드를 정하는 자리에서 한 번만 한다.');
+        'conf.usesqlite 를 읽는 코드가 되살아났다: ' + bad.join(', ') + '\n' +
+        '선택자는 conf.json 의 db 키 하나다.');
 });
 
 test('백엔드 이름으로 갈라지는 자리는 알려진 것뿐이다', function () {

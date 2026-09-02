@@ -177,10 +177,11 @@ test('백엔드는 이름으로 고른다 — boolean 이 아니다', function (
     assert.ok(!/global\.usesqlite\s*=/.test(mCode),
         'global.usesqlite 별칭이 되살아났다 — 선택자는 이름 하나여야 한다');
 
-    // conf.json 쪽 usesqlite 는 남는다. 옛 설정 파일과의 호환이고,
-    // 경계에서 이름으로 한 번 번역된다.
-    assert.ok(/conf\.usesqlite/.test(mCode),
-        'conf.usesqlite 호환 번역이 사라졌다 — db 키가 없는 옛 conf.json 이 못 뜬다');
+    // conf.json 쪽 usesqlite 도 지웠다. **이름 자체가 코드에 없어야 한다.**
+    // 읽는 코드도, 번역하는 코드도, 남았는지 확인하는 코드도 두지 않는다 —
+    // 하나라도 남기면 설정 키가 둘인 상태가 끝나지 않는다.
+    assert.ok(!/conf\.usesqlite/.test(mCode),
+        'conf.usesqlite 를 읽는 코드가 되살아났다 — 선택자는 db 키 하나다');
 });
 
 test('모르는 이름은 기동을 막지 않는다', function () {

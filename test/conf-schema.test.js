@@ -150,7 +150,7 @@ test('validate 가 노출 대상이 아닌 키를 거절한다', function () {
     // 한다. 노출 여부를 안 보면, validate 만 믿고 위임한 호출부에서 비밀 키가
     // 그냥 써진다. superUser 는 그 값으로 모든 ACP 검사를 건너뛰는 값이다 —
     // 콘솔이 그것을 쓸 수 있으면 콘솔이 곧 마스터 키다.
-    for (const k of ['dbpass', 'superUser', 'csebaseport', 'pxyWsPort', 'usesqlite']) {
+    for (const k of ['dbpass', 'superUser', 'csebaseport', 'pxyWsPort']) {
         const r = schema.validate(k, 'x');
         assert.strictEqual(r.ok, false, k + ' 가 통과했다 — 노출 대상이 아닌데 써진다');
         assert.ok(r.reason.length > 0);
@@ -181,9 +181,19 @@ test('db 는 노출하고, 유효값을 어댑터에서 받는다', function () 
         'db 의 유효값이 파사드의 백엔드 목록과 다르다 — 하드코딩했는지 확인할 것');
 });
 
-test('usesqlite 는 노출하지 않는다 (곧 사라진다)', function () {
-    assert.ok(schema.exposed().indexOf('usesqlite') < 0);
-    assert.strictEqual(schema.get('usesqlite').deprecated, true);
+test('usesqlite 는 표에서 사라졌다 — 되살아나면 안 된다', function () {
+    // 이 자리에 "노출하지 않는다 (곧 사라진다)" 가 있었다. 사라졌다.
+    //
+    // 표에 다시 넣으면 관리 콘솔이 그것을 아는 설정으로 취급하고, 지웠다는
+    // 사실이 흐려진다. boolean 으로는 백엔드를 둘까지밖에 못 말하므로
+    // 되돌릴 값이 아니다 — db 키가 대신한다.
+    assert.strictEqual(schema.get('usesqlite'), null,
+        'usesqlite 가 설정 표에 되살아났다 — 선택자는 db 키 하나다');
+    assert.ok(schema.all().indexOf('usesqlite') < 0);
+
+    // 모르는 키라 저장도 막힌다. 옛 이름으로 값을 밀어 넣을 수 없어야 한다.
+    const r = schema.validate('usesqlite', 'true');
+    assert.strictEqual(r.ok, false);
 });
 
 test('validate 는 던지지 않고 이유를 돌려준다', function () {

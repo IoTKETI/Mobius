@@ -8,7 +8,7 @@
 // 백엔드는 mobius.js 와 같은 방식으로 고른다:
 //   node tools/migrate.js --check sqlite
 //   node tools/migrate.js --check mysql
-// 생략하면 conf.json 의 usesqlite 를 따른다.
+// 생략하면 conf.json 의 db 키를 따른다.
 //
 // ── 왜 필요한가 ──────────────────────────────────────────────────────────
 // 개발은 한 곳에서 하고 배포는 다른 서버에서 한다. 코드는 덮어쓰면 되지만
@@ -139,11 +139,12 @@ function main() {
     try { conf = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'conf.json'), 'utf8')); }
     catch (e) { /* 없으면 기본값 */ }
 
-    // conf.usesqlite 는 옛 설정 파일 호환이다. 경계에서 이름으로 한 번 번역하고
-    // 안쪽은 usedb 하나로 돈다. global.usesqlite 별칭이 여기 있었는데 지웠다 —
-    // boolean 은 백엔드를 둘까지만 말할 수 있어, 셋째가 붙으면 틀린 답을 낸다.
-    global.usedb = backendArg || conf.db ||
-        ((conf.usesqlite === 'true' || conf.usesqlite === true) ? 'sqlite' : 'mysql');
+    // 선택자는 db 키 하나다. 옛 usesqlite 는 읽지 않는다 — 조용히 번역해 주면
+    // 설정 키가 둘인 상태가 끝나지 않는다. mobius.js 가 그 키를 보면 알려 준다.
+    //
+    // 도구에서는 인자가 먼저다. 마이그레이션은 "이 백엔드에 적용하겠다" 를
+    // 사람이 명시적으로 말하는 자리라, 설정보다 손으로 준 것이 이긴다.
+    global.usedb = backendArg || conf.db || 'mysql';
 
     var db = require(path.join(__dirname, '..', 'mobius', 'db'));
     var backend = global.usedb;

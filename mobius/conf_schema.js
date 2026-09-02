@@ -272,17 +272,15 @@ var SCHEMA = {
     pxyWsPort:   { group: '네트워크', type: 'string', dflt: '7577', exposed: false, apply: 'restart', label: 'WS 프록시 포트' },
     pxyMqttPort: { group: '네트워크', type: 'string', dflt: '7578', exposed: false, apply: 'restart', label: 'MQTT 프록시 포트' },
     sgnManPort:  { group: '네트워크', type: 'string', dflt: '7599', exposed: false, apply: 'restart', label: '알림 관리 포트' },
-    hitManPort:  { group: '네트워크', type: 'string', dflt: '7594', exposed: false, apply: 'restart', label: '히트 관리 포트' },
+    hitManPort:  { group: '네트워크', type: 'string', dflt: '7594', exposed: false, apply: 'restart', label: '히트 관리 포트' }
 
-    // ── 노출 안 함: 곧 사라진다 ──────────────────────────────────────
-    usesqlite: {
-        group: '저장소',
-        type: 'string', dflt: 'false', exposed: false, deprecated: true, apply: 'restart',
-        label: '(구) SQLite 사용 여부',
-        help: "db 키로 대체되었다. boolean 이라 세 번째 백엔드를 말할 수 없어 " +
-              '이름 기반 선택자(db)로 옮겼다. 남아 있는 것은 옛 conf 호환뿐이고 ' +
-              '곧 지운다 — 화면에 올리면 지울 때 같이 깨진다.'
-    }
+    // usesqlite 가 여기 "곧 사라진다" 로 있었다. 사라졌다.
+    //
+    // boolean 이라 백엔드를 둘까지밖에 말할 수 없었고, 'false' 가 'mysql' 을
+    // 뜻하도록 되어 있어 세 번째 백엔드에서는 틀린 답을 냈다. db 키가 대신한다.
+    //
+    // 표에서 지우면 그 키를 쓰는 옛 conf.json 이 "표에 없는 키" 로 걸린다.
+    // 그것이 의도다 — mobius.js 가 기동 때 무엇으로 바꾸라고 알려 준다.
 };
 
 // 화면에 그릴 것만. 비밀·잠금 위험·폐기 예정은 뺀다.

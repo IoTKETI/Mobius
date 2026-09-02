@@ -75,11 +75,9 @@ function connect(cb) {
     try { conf = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'conf.json'), 'utf8')); }
     catch (e) { /* 없으면 기본값 */ }
 
-    // 선택자는 **이름**이다. 여기 global.usesqlite 불리언이 있었는데, 그것으로는
-    // 백엔드를 둘까지밖에 못 말한다 — 세 번째가 붙으면 'false' 가 'mysql' 을
-    // 뜻하게 되어 있어 틀린 답을 낸다.
-    global.usedb = backendArg || conf.db ||
-        ((conf.usesqlite === 'true' || conf.usesqlite === true) ? 'sqlite' : 'mysql');
+    // 선택자는 db 키 하나다. 여기 global.usesqlite 불리언과 conf.usesqlite
+    // 번역이 있었는데 둘 다 지웠다 — 불리언으로는 백엔드를 둘까지밖에 못 말한다.
+    global.usedb = backendArg || conf.db || 'mysql';
 
     var db = require(path.join(__dirname, '..', 'mobius', 'db'));
     // 파사드가 실제로 고른 것을 찍는다. 여기서 따로 계산하면 파사드가 모르는

@@ -39,7 +39,7 @@ var conf = {};
 var DEFAULT_CONF = {
     csebaseport: "7579",
     dbpass: "dksdlfduq2",
-    usesqlite: "false"
+    db: "mysql"
 };
 
 if (!fs.existsSync('conf.json')) {
@@ -89,14 +89,11 @@ global.usesuperuser = (typeof conf.superUser === 'string' && conf.superUser !== 
 // 예전에는 usesqlite 라는 boolean 이었다. boolean 으로는 세 번째 백엔드를
 // 말할 방법이 아예 없다 — 그래서 DB 를 하나 더 붙이려면 선택자부터 고쳐야 했다.
 // 모르는 이름이면 파사드가 로그를 남기고 mysql 로 간다(mobius/db/index.js).
-// conf.usesqlite 는 **여기서만** 읽는다. 옛 설정 파일과의 호환이다.
 //
-// 배포된 conf.json 에 db 키가 없고 usesqlite 만 있을 수 있다. 그 파일을
-// 못 쓰게 만들 이유는 없으므로, 경계에서 한 번 이름으로 번역하고 그 안쪽은
-// usedb 하나로 돈다. **번역은 여기가 유일한 자리다** — 안쪽 어디에서도
-// 다시 boolean 을 만들지 않는다.
-global.usedb = process.argv[2] || conf.db ||
-    ((conf.usesqlite === 'true' || conf.usesqlite === true) ? 'sqlite' : 'mysql');
+// **usesqlite 는 완전히 사라졌다.** 그 자리를 db 키가 대신한다.
+// 옛 이름을 읽는 코드도, 번역하는 코드도, 남았는지 확인하는 코드도 없다.
+// 설정 표(mobius/conf_schema.js)에도 없으므로 모르는 키로 걸린다.
+global.usedb = process.argv[2] || conf.db || 'mysql';
 
 // global.usesqlite 별칭이 여기 있었다. 지웠다.
 //
