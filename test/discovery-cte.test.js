@@ -221,6 +221,44 @@ test('lvl 이 있으면 골격을 만든다 — 깊이를 알 방법이 그것�
     }));
 });
 
+test('cra / crb 가 있으면 루트에서도 골격을 만든다 — ct 인덱스를 살린다', function (t, done) {
+    // **실제로 낸 회귀다.** 단축이 부모 제한을 버리면서 (pi, ty, ct) 인덱스도
+    // 같이 버려졌다. ct 는 그 인덱스의 세 번째 컬럼이라 pi 가 있어야 닿는다.
+    //
+    // 배포 EXPLAIN — 같은 ty=4 & cra 요청:
+    //   부모 제한 없음    type ref     key idx_lookup_ty         rows 29,993,764
+    //   부모 제한 + 힌트  type range   key idx_lookup_pi_ty_ct   rows 1
+    //
+    // 루트의 ty=4&cra 가 30초 상한에 걸렸다. ct 를 그 인덱스에 넣은 것 자체가
+    // la 를 빠르게 하려던 일이라, 단축이 그 성과를 되돌리면 안 된다.
+    const h = tap('mysql');
+    atRoot(h, { ty: '4', cra: '20260902T154550', lim: 20 }, guard(done, function (code, ris, seen) {
+        assert.ok(/with recursive skel/i.test(seen[0].sql),
+            'cra 가 있는데 골격을 안 만들었다 — ct 가 인덱스 밖으로 밀린다');
+        done();
+    }));
+});
+
+test('crb 도 마찬가지다 — 시간 상한만 걸어도 ct 가 범위를 좁힌다', function (t, done) {
+    const h = tap('mysql');
+    atRoot(h, { ty: '4', crb: '20260902T154550', lim: 20 }, guard(done, function (code, ris, seen) {
+        assert.ok(/with recursive skel/i.test(seen[0].sql),
+            'crb 가 있는데 골격을 안 만들었다');
+        done();
+    }));
+});
+
+test('시간 범위가 없으면 루트는 그대로 단축을 탄다', function (t, done) {
+    // 위 예외가 단축 자체를 죽이면 안 된다. ct 를 안 거는 요청은 골격이
+    // 아무것도 못 걸러 주므로 34,415개를 만드는 값이 없다.
+    const h = tap('mysql');
+    atRoot(h, { ty: '3', rn: 'Mission_Data', lim: 2000 }, guard(done, function (code, ris, seen) {
+        assert.ok(!/with recursive skel/i.test(seen[0].sql),
+            'ct 범위가 없는데 골격을 만들었다 — 단축이 죽었다');
+        done();
+    }));
+});
+
 test('CSEBase 가 아니면 예전대로 골격을 만든다', function (t, done) {
     // subtree 검색은 한정이 실제로 필요하다.
     const h = tap('mysql');

@@ -1952,8 +1952,28 @@ exports.search_lookup = function (connection, ri, query, cur_lim, pi_list, pi_in
     // ── 왜 lvl 이 있으면 안 되는가 ───────────────────────────────────────
     // lvl 은 깊이를 제한하는데, 그 제한은 골격이 sk_lvl 로 건다. 골격이 없으면
     // 깊이를 알 방법이 없다. 그래서 lvl 이 있으면 예전 경로로 간다.
+    //
+    // ── 왜 cra / crb 가 있으면 안 되는가 ─────────────────────────────────
+    // **부모 제한을 버리면 ct 를 담은 인덱스도 같이 버려진다.**
+    //
+    // idx_lookup_pi_ty_ct 는 (pi, ty, ct) 다. pi 가 있어야 ty 로 내려가고
+    // 그 다음에야 ct 가 범위를 좁힌다. pi 를 빼면 그 인덱스를 쓸 수 없어
+    // idx_lookup_ty(ty) 로 떨어지고, ct 는 인덱스가 아니라 행에서 보게 된다.
+    //
+    // 배포 EXPLAIN — 같은 요청(ty=4 & cra)을 두 경로로:
+    //
+    //   부모 제한 없음   type ref     key idx_lookup_ty         rows 29,993,764
+    //   부모 제한 + 힌트 type range   key idx_lookup_pi_ty_ct   rows 1
+    //
+    // 3,000만 대 1이다. 루트의 ty=4&cra 가 30초 상한에 걸렸다.
+    //
+    // ct 를 이 인덱스에 넣은 것 자체가 la 를 빠르게 하려고 한 일이다.
+    // 단축이 그 성과를 되돌리면 안 된다 — 시간 범위가 걸린 요청은 골격을
+    // 만드는 값을 한다. 골격 34,415개가 384ms 이고, 그 뒤 배치는 부모마다
+    // 범위 접근이라 거의 공짜다.
     var root_ri = '/' + (global.usecsebase || '');
-    var whole_tree = (ri === root_ri) && (max_lvl === null);
+    var has_ct_bound = (query.cra != null) || (query.crb != null);
+    var whole_tree = (ri === root_ri) && (max_lvl === null) && !has_ct_bound;
 
     if (whole_tree) {
         // 부모 제한 없이 **한 번만** 던진다. 배치로 나눌 이유가 없다 —
