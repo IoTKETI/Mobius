@@ -1663,19 +1663,30 @@ function update_action(request, response, callback) {
                 });
             }
             else if (resource_Obj[rootnm].mgd == 1008) {
-                db_sql.update_dvc(request.db_connection, resource_Obj[rootnm].lt, JSON.stringify(resource_Obj[rootnm].acpi), resource_Obj[rootnm].et, resource_Obj[rootnm].st, JSON.stringify(resource_Obj[rootnm].lbl),
-                    JSON.stringify(resource_Obj[rootnm].at), JSON.stringify(resource_Obj[rootnm].aa), resource_Obj[rootnm].ri,
-                    resource_Obj[rootnm].dc, resource_Obj[rootnm].can, resource_Obj[rootnm].att, JSON.stringify(resource_Obj[rootnm].cas), resource_Obj[rootnm].cus,
-                    resource_Obj[rootnm].ena, resource_Obj[rootnm].dis, function (err, results) {
-                        if (!err) {
-                            callback('200');
-                        }
-                        else {
-                            console.log('[update_action] ty=' + ty + ' error: ' +
-                                        (results.driverCode || results.code) + ' / ' + results.message);
-                            callback('500-1');
-                        }
-                    });
+                // **옛 위치인자 시그니처가 여기만 남아 있었다.**
+                //
+                // update_dvc 는 형제들(update_fwr/bat/dvi/rbo)과 같이
+                // (connection, obj, callback) 로 바뀌었는데 이 호출부만 안 고쳤다.
+                // 그래서 obj 자리에 lt 문자열이, callback 자리에 acpi JSON 문자열이
+                // 들어갔다. 재현 결과:
+                //
+                //   update_dvc undefined: 11ms          ← obj.ri 가 undefined
+                //   TypeError: callback is not a function
+                //
+                // 그 throw 는 update_lookup 의 콜백 **안**에서 난다. 실제 DB 는
+                // 비동기라 try 로 감쌀 수 있는 자리가 아니고, 곧장 미처리 예외가
+                // 되어 **워커가 죽는다.** mgd=1008(dvc) 를 PUT 하는 요청이
+                // 하나만 와도 그 워커가 내려간다.
+                db_sql.update_dvc(request.db_connection, resource_Obj[rootnm], function (err, results) {
+                    if (!err) {
+                        callback('200');
+                    }
+                    else {
+                        console.log('[update_action] ty=' + ty + ' error: ' +
+                                    (results.driverCode || results.code) + ' / ' + results.message);
+                        callback('500-1');
+                    }
+                });
             }
             else if (resource_Obj[rootnm].mgd == 1009) {
                 db_sql.update_rbo(request.db_connection, resource_Obj[rootnm], function (err, results) {

@@ -13,6 +13,7 @@
 const test = require('node:test');
 const assert = require('node:assert');
 const path = require('node:path');
+const fs = require('node:fs');
 const { execFileSync } = require('node:child_process');
 
 const ROOT = path.join(__dirname, '..');
@@ -301,4 +302,96 @@ test('값은 바인딩으로 나간다 — SQL 문자열에 인라인되지 않�
     assert.strictEqual(body.sql.indexOf(evil), -1,
         '값이 SQL 문자열에 들어갔다: ' + body.sql);
     assert.ok(body.bindings.indexOf(evil) >= 0, '값이 바인딩에 없다');
+});
+
+// --- 호출부 시그니처 -----------------------------------------------------------
+//
+// 표에서 만들어지는 빌더는 전부 (connection, obj, callback) 3인자다.
+// 옛 코드는 컬럼마다 위치인자를 받았고, 표로 옮기면서 호출부를 같이 고쳤다.
+//
+// **한 곳을 빠뜨렸었다.** mobius/resource.js 의 update_dvc 가 옛 모양 그대로
+// 16인자를 넘기고 있었다. 그러면 obj 자리에 lt 문자열이, callback 자리에
+// acpi JSON 문자열이 들어간다. 재현 결과:
+//
+//     update_dvc undefined: 11ms          <- obj.ri 가 undefined
+//     TypeError: callback is not a function
+//
+// 그 throw 는 update_lookup 의 콜백 안에서 난다. 실제 DB 는 비동기라
+// 미처리 예외가 되어 **워커가 죽는다.** 테스트 956개가 전부 초록이었다 —
+// mgd=1008(dvc) PUT 을 아무도 안 돌려 봤기 때문이다.
+//
+// 이름 목록을 손으로 적지 않는다. 소스의 표에서 뽑아야 새 빌더가 늘어도
+// 같이 검사된다.
+function generatedBuilderNames() {
+    const src = fs.readFileSync(path.join(ROOT, 'mobius', 'sql_action.js'), 'utf8');
+    const out = [];
+    for (const t of ['BODY_UPDATES', 'BODY_TABLES']) {
+        const m = src.match(new RegExp('var ' + t + ' = \\{([\\s\\S]*?)\\n\\};'));
+        if (!m) { continue; }
+        const re = /^\s{4}(\w+):/gm;
+        let x;
+        while ((x = re.exec(m[1])) !== null) { out.push(x[1]); }
+    }
+    return out;
+}
+
+// 괄호 짝을 세어 호출 하나를 통째로 잘라낸다. 정규식은 중첩을 못 센다 —
+// 인자 안에 JSON.stringify(...) 같은 호출이 들어 있어서 반드시 필요하다.
+function sliceCall(src, from) {
+    const open = src.indexOf('(', from);
+    let depth = 0, i = open;
+    for (; i < src.length; i++) {
+        if (src[i] === '(') { depth++; }
+        else if (src[i] === ')') { depth--; if (depth === 0) { break; } }
+    }
+    return src.slice(open + 1, i);
+}
+
+// 최상위 콤마만 센다. 문자열 안의 콤마와 중첩 괄호는 빼야 한다.
+function countArgs(s) {
+    let depth = 0, n = 1, inStr = null;
+    for (let i = 0; i < s.length; i++) {
+        const c = s[i];
+        if (inStr) { if (c === '\\') { i++; } else if (c === inStr) { inStr = null; } continue; }
+        if (c === '"' || c === "'" || c === '`') { inStr = c; continue; }
+        if ('([{'.indexOf(c) >= 0) { depth++; }
+        else if (')]}'.indexOf(c) >= 0) { depth--; }
+        else if (c === ',' && depth === 0) { n++; }
+    }
+    return n;
+}
+
+test('표에서 만들어지는 빌더의 호출부는 전부 3인자다', function () {
+    const names = generatedBuilderNames();
+    assert.ok(names.length >= 20,
+        '빌더를 ' + names.length + '개만 찾았다 — 표를 읽는 정규식이 낡았을 수 있다');
+
+    const FILES = ['mobius/resource.js', 'app.js', 'mobius/ae.js', 'mobius/cb.js',
+                   'mobius/grp.js', 'mobius/sgn.js'];
+    const bad = [];
+    let calls = 0;
+
+    for (const f of FILES) {
+        const p = path.join(ROOT, f);
+        if (!fs.existsSync(p)) { continue; }
+        const src = fs.readFileSync(p, 'utf8');
+        for (const name of names) {
+            const re = new RegExp('db_sql\\.' + name + '\\s*\\(', 'g');
+            let m;
+            while ((m = re.exec(src)) !== null) {
+                calls++;
+                const n = countArgs(sliceCall(src, m.index));
+                if (n !== 3) {
+                    const line = src.slice(0, m.index).split('\n').length;
+                    bad.push(f + ':' + line + ' ' + name + ' 이 인자 ' + n + '개');
+                }
+            }
+        }
+    }
+
+    assert.ok(calls > 0, '호출부를 하나도 못 찾았다 — 검사가 헛돈다');
+    assert.deepStrictEqual(bad, [],
+        '표에서 만들어지는 빌더는 (connection, obj, callback) 3인자다. ' +
+        '옛 위치인자로 부르면 callback 자리에 문자열이 들어가고, ' +
+        '그 TypeError 가 비동기 콜백 안에서 나 **워커가 죽는다**:\n  ' + bad.join('\n  '));
 });
