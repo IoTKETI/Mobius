@@ -42,3 +42,6 @@ id_rsa*
 *.pem
 *.key
 *.ppk
+
+# 백필 도구의 진행 상황. 배포마다 다르고 이력에 남을 값이 아니다.
+.backfill-lookup-cin-attrs.json
