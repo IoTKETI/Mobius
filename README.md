@@ -105,7 +105,7 @@ Mobius source codes are written in javascript. So they don't need any compilatio
 
 | | What sets it | When |
 |---|---|---|
-| Schema and indexes | `mobius/mobiusdb.sql` | On first connect |
+| Schema and indexes | `mobius/db/mobiusdb.sql` | On first connect |
 | Connection pool | Built-in defaults | Every start |
 | SQLite journal mode, sync, busy timeout | `mobius/db/sqlite.js` | Every connect |
 | MySQL server settings | `migrations/010-server-durability.js` | First start, once |
@@ -139,9 +139,9 @@ We deploy Mobius as a Docker image using the virtualization open source tool Doc
 - Import SQL script (MySQL only)<br/>
 After installation of MySQL server, you need the DB Schema for storing oneM2M resources in Mobius. You can find this file in the following Mobius source directory.
 ```
-[Mobius home]/mobius/mobiusdb.sql
+[Mobius home]/mobius/db/mobiusdb.sql
 ```
-When using SQLite this step is not needed. The schema in `[Mobius home]/mobius/mobiusdb_sqlite.sql` is applied automatically at startup.
+When using SQLite this step is not needed. The schema in `[Mobius home]/mobius/db/mobiusdb_sqlite.sql` is applied automatically at startup.
 - Run Mosquitto MQTT broker<br/>
 ```
 mosquitto -v

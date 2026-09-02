@@ -14,7 +14,8 @@ const os = require('node:os');
 const path = require('node:path');
 const sqlite3 = require('sqlite3');
 
-const SCHEMA = path.join(__dirname, '..', 'mobius', 'mobiusdb_sqlite.sql');
+// 경로는 어댑터가 밝힌다 — 여기서 디렉터리를 붙이지 않는다.
+const SCHEMA = require('../mobius/db/sqlite').schemaPath;
 
 const REQUIRED = [
     'idx_lookup_pi_ty_ct',
@@ -117,7 +118,7 @@ test('SQLite 는 idx_lookup_pi_ty_ct 에 ri 를 명시한다 (rowid 가 ri 가 �
 });
 
 test('MySQL 은 ri 를 명시하지 않는다 (PK 가 자동으로 붙인다)', function () {
-    const sql = fs.readFileSync(path.join(__dirname, '..', 'mobius', 'mobiusdb.sql'), 'utf8');
+    const sql = fs.readFileSync(require('../mobius/db/mysql').schemaPath, 'utf8');
     const m = /KEY\s+`?idx_lookup_pi_ty_ct`?\s*\(([^)]*)\)/i.exec(sql);
     assert.ok(m, 'MySQL 에 idx_lookup_pi_ty_ct 가 없다');
     const cols = m[1].split(',').map((c) => c.trim().replace(/`/g, ''));

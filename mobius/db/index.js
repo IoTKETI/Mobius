@@ -456,6 +456,19 @@ exports.applyConf = function (conf) {
     if (adapter.applyConf) { adapter.applyConf(conf); }
 };
 
+// 지금 고른 백엔드의 스키마 파일 경로. 절대경로다.
+//
+// 파일은 어댑터 옆(mobius/db/)에 산다. 예전에는 코어 디렉터리(mobius/)에
+// 있었고 어댑터는 맨 파일명만 밝혔다 — 그래서 읽는 쪽마다 'mobius' 를
+// 붙여야 했고, 새 백엔드는 자기 .sql 을 resource.js 옆에 두게 됐다.
+//
+// 코드가 실제로 읽는 것은 SQLite 뿐이다(기동할 때 exec 한다). MySQL 쪽은
+// 사람이 손으로 넣는 최초 설치용이라, 이 경로는 테스트와 도구가 쓴다.
+exports.schemaPath = function () {
+    adapter = adapter || pick();
+    return adapter.schemaPath;
+};
+
 // ri 컬럼 **자체**의 콜레이션. pathCollate 와 반대쪽이다.
 //
 //   pathCollate  pi 와 ri 를 견주려고 대소문자를 무시하는 쪽에 맞춘다

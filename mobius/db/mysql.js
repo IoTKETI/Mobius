@@ -3,12 +3,21 @@
 // 방언(플레이스홀더, 식별자 인용, upsert, 행 잠금)은 knex 가 처리하므로 여기 없다.
 
 var mysql = require('mysql');
+var path = require('path');
 
 var pool = null;
 
 exports.name = 'mysql';
 exports.knexClient = 'mysql';
-exports.schemaFile = 'mobiusdb.sql';
+
+// 이 백엔드의 스키마 파일. **절대경로다.**
+// 맨 파일명이 아닌 이유는 mobius/db/sqlite.js 의 같은 줄에 적어 뒀다.
+//
+// MySQL 은 이 파일을 코드가 읽지 않는다 — 최초 설치 때 사람이 손으로
+// 흘려 넣는다(README 참고). 그래도 어댑터가 경로를 밝히는 이유는 두 가지다.
+// 테스트가 "이 백엔드의 스키마" 를 물을 곳이 있어야 하고(schema-drift 등),
+// 어댑터들의 export 표면이 같아야 코어가 백엔드를 구분하지 않게 된다.
+exports.schemaPath = path.join(__dirname, 'mobiusdb.sql');
 
 exports.capabilities = {
     // serverTuning: true 가 여기 있었다. **불리언을 지우고 메서드로 바꿨다.**

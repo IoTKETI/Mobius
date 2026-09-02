@@ -586,7 +586,7 @@ test('재귀항에도 인덱스를 고정한다', function (t, done) {
 // 스키마와 질의가 어긋나면 전부 500 이 난다. 인덱스 이름과 컬럼 이름이
 // 스키마 파일에 실재하는지 검사한다.
 test('골격이 쓰는 인덱스와 컬럼이 스키마에 선언돼 있다', function () {
-    const my = fs.readFileSync(path.join(ROOT, 'mobius', 'mobiusdb.sql'), 'utf8');
+    const my = fs.readFileSync(require('../mobius/db/mysql').schemaPath, 'utf8');
     assert.match(my, /idx_lookup_pi_notcin/, 'mobiusdb.sql 에 인덱스 선언이 없다');
     assert.match(my, /`not_cin`[\s\S]{0,120}GENERATED ALWAYS AS \(`?ty`? <> 4\)/,
         'mobiusdb.sql 에 not_cin 생성 컬럼 선언이 없다');

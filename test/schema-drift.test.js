@@ -14,8 +14,10 @@ const path = require('node:path');
 
 const ROOT = path.join(__dirname, '..');
 const MIGRATIONS = path.join(ROOT, 'migrations');
-const MYSQL_SCHEMA = path.join(ROOT, 'mobius', 'mobiusdb.sql');
-const SQLITE_SCHEMA = path.join(ROOT, 'mobius', 'mobiusdb_sqlite.sql');
+// 경로는 어댑터가 밝힌다 — 여기서 디렉터리를 붙이지 않는다.
+// 붙이면 스키마 파일을 옮길 때 이 파일도 같이 고쳐야 한다.
+const MYSQL_SCHEMA = require('../mobius/db/mysql').schemaPath;
+const SQLITE_SCHEMA = require('../mobius/db/sqlite').schemaPath;
 
 // 마이그레이션 소스에서 인덱스를 만들거나(`ADD INDEX <이름> (`)
 // 지우는(`DROP INDEX <이름>`) 이름을 뽑는다.
@@ -81,7 +83,7 @@ test('마이그레이션이 만드는 인덱스는 mobiusdb.sql 에도 선언돼
 
     added.forEach(function (a) {
         assert.ok(schema.indexOf('`' + a.index + '`') !== -1,
-            a.migration + ' 이 ' + a.index + ' 를 만드는데 mobius/mobiusdb.sql 에 없다. ' +
+            a.migration + ' 이 ' + a.index + ' 를 만드는데 ' + MYSQL_SCHEMA + ' 에 없다. ' +
             '마이그레이션은 자동 실행되지 않으므로 신규 설치가 이 인덱스 없이 생성된다.');
     });
 });
@@ -95,7 +97,7 @@ test('마이그레이션이 지우는 인덱스는 mobiusdb.sql 에서도 빠져
 
     dropped.forEach(function (d) {
         assert.strictEqual(schema.indexOf('`' + d.index + '`'), -1,
-            d.migration + ' 이 ' + d.index + ' 를 지우는데 mobius/mobiusdb.sql 에 아직 있다. ' +
+            d.migration + ' 이 ' + d.index + ' 를 지우는데 ' + MYSQL_SCHEMA + ' 에 아직 있다. ' +
             '신규 설치가 이 인덱스를 다시 만들어 버린다.');
     });
 });

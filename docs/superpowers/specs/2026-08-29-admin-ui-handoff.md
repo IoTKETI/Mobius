@@ -171,7 +171,7 @@ node tools/migrate.js --apply
 적용 이력은 `schema_migrations` 테이블에 남는다.
 
 `test/schema-drift.test.js` 가 **마이그레이션이 추가/삭제하는 인덱스가
-`mobius/mobiusdb.sql` 과 어긋나지 않는지** 검사한다. 마이그레이션은 자동
+`mobius/db/mobiusdb.sql` 과 어긋나지 않는지** 검사한다. 마이그레이션은 자동
 실행되지 않으므로, 스키마 파일에 반영을 빠뜨리면 신규 설치만 옛 스키마로
 생성되어 조용히 갈라진다 (실제로 001 이 그랬다).
 

@@ -16,6 +16,9 @@ const path = require('node:path');
 const ROOT = path.join(__dirname, '..');
 const src = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8');
 
+// 스키마 파일은 어댑터가 경로를 밝힌다 — 여기서 디렉터리를 붙이지 않는다.
+const schema = (backend) => fs.readFileSync(require('../mobius/db/' + backend).schemaPath, 'utf8');
+
 const GONE_TY = ['17', '38', '39'];
 const GONE_NM = ['req', 'tm', 'tr'];
 
@@ -67,7 +70,7 @@ test('srt 직렬화 길이가 cb.srt 컬럼 폭 안에 들어간다', function (
     // 넘치면 STRICT_TRANS_TABLES 에서 CSEBase 갱신이 실패한다. 타입을 더
     // 넣다가 넘기면 배포가 아니라 여기서 먼저 걸려야 한다.
     // (csr.poa 가 varchar(200) 을 넘겨 깨진 JSON 이 됐던 것과 같은 종류다.)
-    const m = src('mobius/mobiusdb.sql').match(/`srt` varchar\((\d+)\)/);
+    const m = schema('mysql').match(/`srt` varchar\((\d+)\)/);
     assert.ok(m, 'cb.srt 선언을 못 찾았다');
     const width = parseInt(m[1], 10);
 
@@ -93,11 +96,11 @@ test('tm.js / tr.js 를 부르는 곳이 없다', function () {
 });
 
 test('스키마 파일에 req / tm / tr 테이블이 없다', function () {
-    for (const f of ['mobius/mobiusdb.sql', 'mobius/mobiusdb_sqlite.sql']) {
-        const s = src(f);
+    for (const backend of ['mysql', 'sqlite']) {
+        const s = schema(backend);
         for (const nm of GONE_NM) {
             const re = new RegExp('CREATE TABLE (IF NOT EXISTS )?`?' + nm + '`?\\s*\\(', 'i');
-            assert.ok(!re.test(s), f + ' 에 ' + nm + ' 테이블이 있다');
+            assert.ok(!re.test(s), backend + ' 스키마에 ' + nm + ' 테이블이 있다');
         }
     }
 });

@@ -65,7 +65,16 @@ var DB_PATH = process.env.MOBIUS_SQLITE_PATH || './mobius.db';
 
 exports.name = 'sqlite';
 exports.knexClient = 'sqlite3';
-exports.schemaFile = 'mobiusdb_sqlite.sql';
+
+// 이 백엔드의 스키마 파일. **절대경로다.**
+// 예전에는 맨 파일명('mobiusdb_sqlite.sql')이었고 파일은 mobius/ 에 있었다.
+// 그러면 소비자가 저마다 디렉터리를 붙여야 해서, "스키마가 어디 사는지" 를
+// 아는 곳이 12곳으로 흩어졌다(이 파일, 테스트 11곳). 파일을 옮기면 전부
+// 깨지고, 새 백엔드는 자기 .sql 을 코어 디렉터리에 두게 된다.
+//
+// 이제 경로를 여기서 끝낸다. 소비자는 이 값을 그대로 읽으면 되고,
+// 디렉터리를 아는 곳은 이 줄 하나다.
+exports.schemaPath = path.join(__dirname, 'mobiusdb_sqlite.sql');
 
 exports.capabilities = {
     transaction: false,
@@ -318,7 +327,7 @@ exports.connect = function (conf, callback) {
         pragma('PRAGMA synchronous = ' + synchronous());
 
         try {
-            var schema = fs.readFileSync(path.join(__dirname, '..', exports.schemaFile), 'utf8');
+            var schema = fs.readFileSync(exports.schemaPath, 'utf8');
             db.exec(schema, function (e) {
                 if (e) { console.error('[db/sqlite] schema init error: ' + e.message); }
                 else { console.log('[db/sqlite] schema initialized'); }

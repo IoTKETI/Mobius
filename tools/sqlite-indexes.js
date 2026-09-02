@@ -7,7 +7,7 @@
 // DB 경로를 안 주면 MOBIUS_SQLITE_PATH, 없으면 ./mobius.db 를 쓴다.
 //
 // ── 왜 필요한가 ──────────────────────────────────────────────────────────
-// mobius/mobiusdb_sqlite.sql 의 CREATE INDEX 는 서버가 기동할 때마다 실행된다
+// mobius/db/mobiusdb_sqlite.sql 의 CREATE INDEX 는 서버가 기동할 때마다 실행된다
 // (IF NOT EXISTS). 인덱스가 이미 있으면 즉시 지나가지만, **처음 한 번**은
 // 실제로 만들어야 하고 그동안 DB 가 쓰기 잠금 상태가 된다.
 //

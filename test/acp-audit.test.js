@@ -186,8 +186,8 @@ test('이력은 커넥션이 살아 있는 동안 남긴다 — 미루면 안 �
 test('마이그레이션과 두 스키마 파일이 같은 테이블을 만든다', function () {
     const ROOT = path.join(__dirname, '..');
     const mig = fs.readFileSync(path.join(ROOT, 'migrations', '007-acp-audit-table.js'), 'utf8');
-    const my = fs.readFileSync(path.join(ROOT, 'mobius', 'mobiusdb.sql'), 'utf8');
-    const lite = fs.readFileSync(path.join(ROOT, 'mobius', 'mobiusdb_sqlite.sql'), 'utf8');
+    const my = fs.readFileSync(require('../mobius/db/mysql').schemaPath, 'utf8');
+    const lite = fs.readFileSync(require('../mobius/db/sqlite').schemaPath, 'utf8');
     for (const [name, src] of [['migration', mig], ['mobiusdb.sql', my], ['sqlite', lite]]) {
         assert.ok(/acp_audit/.test(src), name + ' 에 acp_audit 이 없다');
         for (const col of ['ts', 'op', 'ri', 'ty', 'origin', 'cr', 'before_val', 'after_val']) {

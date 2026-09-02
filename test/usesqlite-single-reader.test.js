@@ -477,14 +477,14 @@ test('어댑터의 지원 타입 목록은 그 어댑터 스키마에 테이블�
         const list = adapter.supportedResourceTypes;
         if (!Array.isArray(list)) { continue; }   // 제한 없음
 
-        const schema = fs.readFileSync(path.join(ROOT, 'mobius', adapter.schemaFile), 'utf8');
+        const schema = fs.readFileSync(adapter.schemaPath, 'utf8');
         for (const ty of list) {
             const table = responder.typeRsrc[ty];
             assert.ok(table, adapter.name + ': ty=' + ty + ' 가 typeRsrc 에 없다');
             const re = new RegExp('CREATE TABLE (IF NOT EXISTS )?`?' + table + '`?\\s*\\(', 'i');
             assert.ok(re.test(schema),
                 adapter.name + ': ty=' + ty + '(' + table + ') 가 지원 목록에 있는데 ' +
-                adapter.schemaFile + ' 에 테이블이 없다');
+                adapter.schemaPath + ' 에 테이블이 없다');
         }
     }
 });
@@ -515,7 +515,7 @@ test('제한 없는 백엔드는 스키마에 모든 타입의 테이블이 있�
         const adapter = require(path.join(dir, f));
         if (Array.isArray(adapter.supportedResourceTypes)) { continue; }   // 제한 있음
 
-        const schema = fs.readFileSync(path.join(ROOT, 'mobius', adapter.schemaFile), 'utf8');
+        const schema = fs.readFileSync(adapter.schemaPath, 'utf8');
         const missing = [];
         // responder.typeRsrc 에서 뽑는다. global.ty_list 는 app.js 가 세우는데
         // 이 테스트는 app.js 를 로드하지 않아 언제나 비어 있다 — 그러면 아무것도
@@ -527,7 +527,7 @@ test('제한 없는 백엔드는 스키마에 모든 타입의 테이블이 있�
             if (!re.test(schema)) { missing.push(ty + '(' + table + ')'); }
         }
         assert.deepStrictEqual(missing, [],
-            adapter.name + ' 이 제한을 선언하지 않았는데 ' + adapter.schemaFile +
+            adapter.name + ' 이 제한을 선언하지 않았는데 ' + adapter.schemaPath +
             ' 에 테이블이 없는 타입이 있다: ' + missing.join(', '));
     }
 });
@@ -541,8 +541,8 @@ test('SQLite 가 MySQL 과 같아지기까지 남은 타입을 센다', function
     // 된다(그러면 위의 '제한 없는 백엔드는...' 테스트가 스키마를 검사한다).
     const responder = require('../mobius/responder');
     const sqlite = require('../mobius/db/sqlite');
-    const schema = fs.readFileSync(path.join(ROOT, 'mobius/mobiusdb_sqlite.sql'), 'utf8');
-    const mysqlSchema = fs.readFileSync(path.join(ROOT, 'mobius/mobiusdb.sql'), 'utf8');
+    const schema = fs.readFileSync(sqlite.schemaPath, 'utf8');
+    const mysqlSchema = fs.readFileSync(require('../mobius/db/mysql').schemaPath, 'utf8');
 
     const has = (s, t) =>
         new RegExp('CREATE TABLE (IF NOT EXISTS )?\`?' + t + '\`?\\s*\\(', 'i').test(s);

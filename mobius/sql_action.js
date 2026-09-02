@@ -187,7 +187,7 @@ exports.get_ri_sri = function (connection, sri, callback) {
 // 2. acpl 컬럼 — SQLite 스키마에만 있었고, 그 값을 채우려고 삽입 때마다
 //    acp 를 한 번 더 조회했다. 그런데 저장소 전체에서 acpl 을 **읽는 곳이
 //    하나도 없다**. MySQL 에는 컬럼 자체가 없다. 컬럼과 사전 조회를 함께
-//    걷어냈다 (mobius/mobiusdb_sqlite.sql 에서도 뺐다 — nullable 이라
+//    걷어냈다 (mobius/db/mobiusdb_sqlite.sql 에서도 뺐다 — nullable 이라
 //    기존 SQLite DB 에 그대로 남아 있어도 삽입에 지장이 없다).
 //
 // 겸사겸사 MySQL 갈래의 잠재 크래시도 없앴다. 예전에는 obj.acpi 가 undefined

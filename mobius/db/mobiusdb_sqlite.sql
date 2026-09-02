@@ -25,7 +25,7 @@ CREATE TABLE IF NOT EXISTS lookup (
   subl TEXT,
   -- CIN 의 contentSize / contentInfo 사본. discovery 의 sza / szb / cty 가 본다.
   -- 원본은 cin 에 있지만, discovery 가 lookup 을 훑으면서 거르므로 여기 두면
-  -- 후보마다 cin 을 찾아가지 않아도 된다. 이유는 mobius/mobiusdb.sql 의
+  -- 후보마다 cin 을 찾아가지 않아도 된다. 이유는 mobius/db/mobiusdb.sql 의
   -- 같은 컬럼 주석에 있다.
   --
   -- NULL 은 "모른다" 다 — CIN 이 아니거나, 아직 백필 안 된 행이다.

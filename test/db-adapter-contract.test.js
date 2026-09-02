@@ -18,6 +18,7 @@ const test = require('node:test');
 const assert = require('node:assert');
 const fs = require('node:fs');
 const path = require('node:path');
+const { execFileSync } = require('node:child_process');
 
 const ROOT = path.join(__dirname, '..');
 
@@ -68,8 +69,11 @@ const REQUIRED_FUNCTIONS = [
 // 설정 표(mobius/conf_schema.js)가 **지금 고른 백엔드의 것만** 합친다.
 // 없으면 빈 객체를 적는다 — supportedResourceTypes 에 mysql 이 null 을
 // 명시적으로 적는 것과 같은 이유로, 표면을 같게 두기 위해서다.
+// schemaPath: 이 백엔드의 설치용 스키마 파일. **절대경로이고 어댑터 옆에 산다.**
+// 예전에는 맨 파일명이라 읽는 쪽이 저마다 'mobius' 를 붙였고, 그래서 파일이
+// 어디 사는지 아는 곳이 12곳이었다.
 const REQUIRED_VALUES = ['name', 'knexClient', 'capabilities', 'supportedResourceTypes',
-    'confSchema'];
+    'confSchema', 'schemaPath'];
 
 // 파사드가 db.can(...) 으로 묻는 능력. 어댑터는 아는 것만 true 로 적고,
 // 모르는 것은 **적지 않는다** — can() 이 없는 키를 false 로 준다.
@@ -169,11 +173,42 @@ for (const [name, a] of Object.entries(ADAPTERS)) {
     });
 
     test(name + ': 스키마 파일을 밝히고 그 파일이 실제로 있다', function () {
-        assert.strictEqual(typeof a.schemaFile, 'string');
-        const p = path.join(ROOT, 'mobius', a.schemaFile);
-        assert.ok(fs.existsSync(p), a.schemaFile + ' 이 없다');
+        assert.strictEqual(typeof a.schemaPath, 'string');
+        assert.ok(fs.existsSync(a.schemaPath), a.schemaPath + ' 이 없다');
+    });
+
+    test(name + ': 스키마 경로가 절대경로이고 어댑터 옆에 있다', function () {
+        // 맨 파일명이면 읽는 쪽이 저마다 디렉터리를 붙인다. 그 순간 "스키마가
+        // 어디 사는지" 를 아는 곳이 흩어지고, 파일을 옮길 때 전부 깨진다.
+        // 실제로 그랬다 — 12곳이 'mobius' 를 손으로 붙이고 있었다.
+        assert.ok(path.isAbsolute(a.schemaPath),
+            name + ' 의 schemaPath 가 절대경로가 아니다: ' + a.schemaPath);
+
+        // 어댑터와 같은 디렉터리여야 한다. 코어 디렉터리에 두면 새 백엔드가
+        // 자기 .sql 을 resource.js 옆에 놓게 된다.
+        assert.strictEqual(path.dirname(a.schemaPath), path.join(ROOT, 'mobius', 'db'),
+            name + ' 의 스키마가 어댑터 디렉터리 밖에 있다: ' + a.schemaPath);
     });
 }
+
+test('스키마 .sql 은 mobius/db/ 밖에 없다', function () {
+    // 위 검사는 **등록된 어댑터**만 본다. 누군가 코어 디렉터리에 .sql 을
+    // 새로 두면 그 검사는 통과하고 규칙만 조용히 깨진다. 저장소 전체를 본다.
+    // --others 로 **아직 커밋 안 한 파일도** 본다. 추적된 것만 보면 새 백엔드의
+    // .sql 을 코어에 떨군 순간이 아니라 커밋한 뒤에야 걸린다 — 그때는 이미
+    // 리뷰가 지나간 뒤다. --exclude-standard 가 있어 .gitignore 로 걸러 둔
+    // 임시 덤프는 트집잡지 않는다.
+    const files = execFileSync(
+        'git', ['ls-files', '--cached', '--others', '--exclude-standard', '*.sql'],
+        { cwd: ROOT, encoding: 'utf8' })
+        .split('\n').map(s => s.trim()).filter(Boolean);
+
+    assert.ok(files.length > 0, 'git 이 .sql 을 하나도 안 돌려줬다 — 검사가 헛돈다');
+
+    const stray = files.filter(f => path.posix.dirname(f) !== 'mobius/db');
+    assert.deepStrictEqual(stray, [],
+        '스키마 파일이 mobius/db/ 밖에 있다. 어댑터 옆에 둬라: ' + stray.join(', '));
+});
 
 test('어댑터들의 표면이 같다 — 한쪽에만 있는 export 가 없다', function () {
     // 표면이 갈리면 코어가 "이 백엔드면 이것도 있다" 를 알아야 한다.
