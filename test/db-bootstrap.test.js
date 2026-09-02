@@ -31,7 +31,10 @@ test('자동 적용 대상은 명시적으로 밝힌 것뿐이다', function () 
     const auto = migrations().filter((m) => m.mod.autoApply === true);
     const names = auto.map((m) => m.mod.id);
 
-    assert.deepStrictEqual(names, ['010-server-durability'],
+    // 011 은 ALTER 지만 ALGORITHM=INSTANT 라 행 수와 무관하게 즉시 끝난다.
+    // 테이블을 다시 쓰지 않고 메타데이터만 바꾼다(MySQL 8.0.12+).
+    // 값을 채우는 일(012)은 성격이 완전히 달라 여기 들어오면 안 된다.
+    assert.deepStrictEqual(names, ['010-server-durability', '011-lookup-cin-attrs'],
         '자동 적용 목록이 바뀌었다: ' + names.join(', ') +
         '\n새로 추가하려면 그 마이그레이션이 **데이터 양과 무관하게 즉시** ' +
         '끝나는지 확인할 것. 001 은 배포에서 20.6분 걸렸다.');
@@ -40,7 +43,18 @@ test('자동 적용 대상은 명시적으로 밝힌 것뿐이다', function () 
 test('DDL 을 내는 마이그레이션에는 autoApply 가 없다', function () {
     // 인덱스 생성·삭제, 테이블 변경은 데이터 양에 비례한다. 기동 경로에
     // 두면 안 된다. SET PERSIST 처럼 서버 설정만 바꾸는 것은 예외다.
+    //
+    // **예외가 하나 더 있다: ALGORITHM=INSTANT 인 ALTER.**
+    //
+    // MySQL 8.0.12 부터 행 끝에 컬럼을 더하는 것은 테이블을 다시 쓰지 않고
+    // 메타데이터만 바꾼다. 행 수와 무관하게 즉시 끝나므로 이 가드가 막으려는
+    // 것(데이터가 쌓이면 기동이 멈춘다)에 해당하지 않는다.
+    //
+    // 예외를 **좁게** 연다 — 같은 문장에 algorithm=instant 가 적혀 있을 때만이다.
+    // 그것을 명시하면 조건이 안 맞을 때 서버가 거절하므로, 우리가 모르는 사이에
+    // 테이블 재작성이 시작되지 않는다. 안 적으면 조용히 INPLACE/COPY 로 떨어진다.
     const DDL = /\b(create\s+(table|index)|alter\s+table|drop\s+(table|index))\b/i;
+    const INSTANT = /algorithm\s*=\s*instant/i;
 
     for (const { file, mod } of migrations()) {
         if (mod.autoApply !== true) { continue; }
@@ -50,8 +64,44 @@ test('DDL 을 내는 마이그레이션에는 autoApply 가 없다', function ()
             .filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l))
             .join('\n');
 
-        assert.ok(!DDL.test(code),
-            file + ' 이 autoApply 인데 DDL 을 낸다 — 데이터가 쌓이면 기동이 멈춘다');
+        if (!DDL.test(code)) { continue; }
+
+        // DDL 이 있다면 ALTER 뿐이어야 한다. 만들고 지우는 것은 예외가 없다.
+        const heavy = /\b(create\s+(table|index)|drop\s+(table|index))\b/i;
+        assert.ok(!heavy.test(code),
+            file + ' 이 autoApply 인데 테이블·인덱스를 만들거나 지운다 —' +
+            ' 데이터가 쌓이면 기동이 멈춘다 (001 은 배포에서 20.6분 걸렸다)');
+
+        // **소스를 정규식으로 보면 안 된다.** 처음에 그렇게 썼다가
+        // `'ALGORITHM=INSTANT 를 못 쓰면...'` 이라는 **에러 메시지 문자열**에
+        // 걸려서, algorithm 절을 빼도 통과했다. 실제로 확인해 보고 알았다.
+        //
+        // 그래서 up() 을 가짜 ctx 로 돌려 **진짜로 나가는 SQL** 을 본다.
+        const sqls = [];
+        const ctx = {
+            conn: {},
+            db: {
+                raw: (s) => s,
+                run: (s, conn, cb) => {
+                    sqls.push(String(s));
+                    // information_schema 조회면 "컬럼이 없다" 로 답해 up() 이
+                    // 실제 ALTER 까지 가게 한다.
+                    if (/information_schema/i.test(String(s))) { return cb(null, []); }
+                    cb(null, { affectedRows: 1 });
+                }
+            }
+        };
+        mod.up(ctx, function () {});
+
+        const alters = sqls.filter((s) => /\balter\s+table\b/i.test(s));
+        assert.ok(alters.length > 0,
+            file + ' 이 ALTER 를 낸다고 했는데 up() 에서 안 나왔다');
+        for (const a of alters) {
+            assert.ok(INSTANT.test(a),
+                file + ' 의 ALTER 에 algorithm=instant 가 없다:\n  ' + a + '\n' +
+                '명시하지 않으면 서버가 조용히 INPLACE/COPY 로 떨어져' +
+                ' 6,190만 행 테이블을 통째로 다시 쓴다.');
+        }
     }
 });
 

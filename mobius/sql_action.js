@@ -211,7 +211,21 @@ exports.insert_lookup = function (connection, obj, callback) {
         aa: JSON.stringify(obj.aa || []),
         sri: obj.sri,
         spi: obj.spi,
-        subl: JSON.stringify(obj.subl || [])
+        subl: JSON.stringify(obj.subl || []),
+
+        // CIN 의 크기·형식 사본. discovery 의 sza / szb / cty 가 여기를 본다.
+        //
+        // 원본은 cin 에 있다. 그런데 discovery 는 lookup 인덱스를 훑으면서
+        // 거르므로, 이 둘만 다른 테이블에 있으면 후보마다 cin(249GB)을 한 번씩
+        // 찾아가야 한다. 배포 실측으로 그 차이가 3배다.
+        //
+        // **쓰기 비용은 0에 가깝다.** CIN 을 만들 때 이 lookup 행을 어차피
+        // 쓰고 있으므로 컬럼 둘이 느는 것뿐이다.
+        //
+        // CIN 이 아니면 null 이다 — contentSize 라는 개념이 없다.
+        // 0 으로 두면 본문이 빈 진짜 CIN 과 구분이 안 된다.
+        cs: (obj.ty == 4 && obj.cs != null) ? obj.cs : null,
+        cnf: (obj.ty == 4 && obj.cnf != null) ? obj.cnf : null
     }), connection, callback);
 };
 

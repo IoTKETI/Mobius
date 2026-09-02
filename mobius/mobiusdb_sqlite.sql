@@ -22,7 +22,19 @@ CREATE TABLE IF NOT EXISTS lookup (
   aa TEXT,
   sri TEXT,
   spi TEXT,
-  subl TEXT
+  subl TEXT,
+  -- CIN 의 contentSize / contentInfo 사본. discovery 의 sza / szb / cty 가 본다.
+  -- 원본은 cin 에 있지만, discovery 가 lookup 을 훑으면서 거르므로 여기 두면
+  -- 후보마다 cin 을 찾아가지 않아도 된다. 이유는 mobius/mobiusdb.sql 의
+  -- 같은 컬럼 주석에 있다.
+  --
+  -- NULL 은 "모른다" 다 — CIN 이 아니거나, 아직 백필 안 된 행이다.
+  -- 0 으로 두면 본문이 빈 진짜 CIN 과 구분이 안 된다.
+  --
+  -- MySQL 은 int / varchar(45) 다. SQLite 는 타입 친화라 INTEGER / TEXT 로 적되
+  -- 비교할 때 파사드가 numericExpr 로 CAST 를 씌운다(mobius/db/sqlite.js).
+  cs INTEGER,
+  cnf TEXT
   -- acpl 은 여기 있었다. SQLite 에만 있던 컬럼인데 저장소 어디서도 읽지
   -- 않았고, 그 값을 채우려고 리소스를 만들 때마다 acp 를 한 번 더 조회했다.
   -- MySQL 에는 애초에 없다. 기존 SQLite DB 에는 컬럼이 남아 있지만

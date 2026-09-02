@@ -330,6 +330,29 @@ CREATE TABLE `lookup` (
   `sri` varchar(45) NOT NULL,
   `spi` varchar(45) NOT NULL,
   `subl` mediumtext,
+  -- CIN 의 contentSize / contentInfo 사본. discovery 의 sza / szb / cty 가 본다.
+  --
+  -- ── 왜 여기에 두 벌로 두는가 ──────────────────────────────────────────
+  -- 원본은 cin 에 있다. 그런데 discovery 는 lookup 인덱스를 훑으면서 거르는데,
+  -- 이 두 값만 다른 테이블에 있어서 후보마다 cin 을 한 번씩 찾아가야 했다.
+  -- cin 은 249GB 이고 PRIMARY 가 곧 행이라, 한 건 확인하려고 평균 1.7KB 를
+  -- 읽는다. 배포 실측으로 그 차이가 3배다 (limit 5만: 조인 193ms / 여기 65ms).
+  --
+  -- 같은 문제를 ct 로 한 번 풀었다. /la(배포 트래픽의 28%, 1,318만 건)가
+  -- filesort 로 30초를 넘기던 것을 ct 를 인덱스에 넣어 해결했다. 이것은
+  -- 그 처방을 sza / szb / cty 에 적용한 것이다.
+  --
+  -- ── NULL 을 허용하는 이유 ────────────────────────────────────────────
+  -- 두 가지를 구분해야 한다.
+  --   CIN 이 아니다        contentSize 라는 개념이 없다 → NULL 이 맞다
+  --   아직 백필 안 됐다    값을 모른다 → NULL 이라야 "모른다" 를 표현한다
+  -- 기본값 0 으로 두면 cs=0 인 진짜 CIN(빈 본문)과 구분이 안 되고,
+  -- 백필 중인 행이 "크기 0" 인 척해서 조용히 틀린 답을 만든다.
+  --
+  -- **백필이 끝나기 전에는 읽기 경로가 이 컬럼을 쓰면 안 된다.**
+  -- migrations/012 가 끝나야 discovery 가 여기를 본다.
+  `cs` int DEFAULT NULL,
+  `cnf` varchar(45) DEFAULT NULL,
   -- discovery 골격 재귀용. "CIN(ty=4) 이 아니다" 를 등치로 물을 수 있게 한다.
   -- MySQL 의 재귀 CTE 안에서는 ref(등치) 접근만 되고 range 가 안 되기 때문에
   -- ty <> 4 를 그대로 쓰면 인덱스가 pi 까지만 잡히고 나머지는 필터로 밀린다
