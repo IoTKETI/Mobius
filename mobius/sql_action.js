@@ -1455,6 +1455,29 @@ function build_children_sql(parents, query, search, lim, budget_ms, ofst, count_
     // 아니라 강제를 빼도 filesort 다 — 그래서 la 도 이 배치 경로(pi IN)를 탄다.
     if (query.la != null) { hint = ''; }
 
+    // **부모를 제한하지 않으면 인덱스도 강제하지 않는다.**
+    //
+    // 위 두 후보(idx_lookup_pi_ty_ct, idx_lookup_pi_notcin)는 **둘 다 pi 로
+    // 시작한다.** 강제가 필요했던 이유는 `pi IN (...)` 이 있는데도 옵티마이저가
+    // PRIMARY 를 골라 부모마다 CIN 을 전부 읽는 것을 막으려는 것이었다.
+    // ALL_PARENTS 는 그 pi 술어 자체가 없다(where 1 = 1). 전제가 사라진다.
+    //
+    // 전제가 사라진 자리에 강제가 남으면 **쓸 수 있는 접두사가 없어서 MySQL 이
+    // 강제 인덱스를 아예 포기하고 풀 테이블 스캔으로 떨어진다.** 배포 EXPLAIN:
+    //
+    //   force index (idx_lookup_pi_ty_ct)   type ALL   key NULL             rows 59,987,529
+    //   강제 없음                           type ref   key idx_lookup_ty    rows      78,896
+    //
+    // 실제로 루트의 ty=3&rn=Mission_Data 가 30초 상한에 걸렸다. CSEBase 전체
+    // 검색 단축(아래 whole_tree)을 넣으면서 pi IN 을 없앴는데 힌트를 같이
+    // 안 뺀 것이 원인이다. 손으로 잰 73~150ms 는 힌트 없이 잰 값이었고,
+    // 실제로 나가는 SQL 에는 힌트가 붙어 있었다.
+    //
+    // ty 가 없는 요청(lbl 만 주는 것 등)에도 강제를 빼는 것이 맞다. 그때는
+    // 어느 인덱스도 안 맞아 어차피 스캔인데, pi 로 시작하는 인덱스를 강제하면
+    // 인덱스를 훑고 **다시 행까지 찾아가서** 맨 스캔보다 나쁘다.
+    if (parents === ALL_PARENTS) { hint = ''; }
+
     var timeout = facade.statementTimeoutHint(budget_ms || DISCOVERY_TIMEOUT_MS);
     var lead = 'select ' + facade.optimizerHints([timeout]);
 

@@ -253,6 +253,44 @@ test('ALL_PARENTS 는 빈 목록과 다르다', function () {
     assert.match(all.sql, /ty = /, '필터까지 사라졌다');
 });
 
+test('ALL_PARENTS 는 pi 로 시작하는 인덱스를 강제하지 않는다', function () {
+    // **실제로 낸 회귀다.** CSEBase 전체 검색 단축이 pi IN 을 없앴는데
+    // force index 는 그대로 뒀다. 강제 후보 두 개가 **둘 다 pi 로 시작**해서,
+    // pi 술어가 없으면 쓸 접두사가 없다. MySQL 은 강제를 포기하고 풀 테이블
+    // 스캔으로 떨어진다 — 배포 EXPLAIN 실측:
+    //
+    //   force index (idx_lookup_pi_ty_ct)   type ALL   key NULL            rows 59,987,529
+    //   강제 없음                           type ref   key idx_lookup_ty   rows      78,896
+    //
+    // 루트의 ty=3&rn=Mission_Data 가 30초 상한에 걸렸다.
+    const h = tap('mysql');
+    const sql = h.sql_action;
+
+    // ty 를 주는 경우와 안 주는 경우(lbl 만) 둘 다. 후자는 skip_cin 경로라
+    // 강제 후보가 idx_lookup_pi_notcin 으로 바뀌는데, 그것도 pi 로 시작한다.
+    const cases = [
+        { name: 'ty 필터', q: { ty: '3', rn: 'Mission_Data' } },
+        { name: 'lbl 만(skip_cin 경로)', q: { lbl: 'x*' } }
+    ];
+
+    for (const c of cases) {
+        const s = sql._build_search_query(c.q);
+        const all = sql.build_children_sql(sql.ALL_PARENTS, c.q, s, 20, 30000, 0, null);
+        assert.ok(all && all.sql, c.name + ': 질의를 안 만들었다');
+        assert.ok(!/force index/i.test(all.sql),
+            c.name + ': ALL_PARENTS 인데 인덱스를 강제한다 — pi 술어가 없어 ' +
+            '풀 테이블 스캔이 된다. SQL: ' + all.sql);
+    }
+
+    // 부모를 제한하는 보통 경로에서는 강제가 **남아 있어야** 한다.
+    // 그것이 없으면 옵티마이저가 PRIMARY 를 골라 부모마다 CIN 을 전부 읽는다.
+    const q2 = { ty: '3' };
+    const batch = sql.build_children_sql(['/Mobius/a'], q2, sql._build_search_query(q2),
+        20, 30000, 0, null);
+    assert.match(batch.sql, /force index \(idx_lookup_pi_ty_ct\)/i,
+        '부모 제한이 있는데 강제가 사라졌다 — 이쪽은 강제가 필요하다');
+});
+
 // --- 1) 왕복은 부모 수에 비례하지 않는다 -------------------------------------
 //
 // 이 테스트는 "부모마다 던지던 시절" 로의 회귀를 막으려고 있다.
