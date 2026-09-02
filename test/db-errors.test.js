@@ -202,3 +202,76 @@ test('SQLite 파일을 여는 곳은 어댑터 하나뿐이다', function () {
             'mobius/' + f + ' 이 sqlite3 를 직접 연다 — 여는 곳은 어댑터뿐이어야 한다');
     }
 });
+
+// --- sqlite3 네이티브 애드온은 쓸 때만 싣는다 -------------------------------
+//
+// 파사드는 디렉터리의 어댑터를 **전부** require 한다 — 그래야 "파일 하나를
+// 두면 붙는다" 가 성립한다. 그런데 sqlite.js 가 최상단에서 sqlite3 를
+// 적재하면, MySQL 로 도는 배포에서도 25개 프로세스가 전부 네이티브 애드온을
+// 싣는다. 한 번도 안 쓰면서.
+//
+// 배포 실측: 프로세스당 RSS 약 0.55MB, require 9.4~10.2ms + verbose() 0.7~0.9ms.
+// (25를 단순히 곱하면 안 된다 — 애드온 코드 페이지는 OS 가 공유한다.)
+// **요청당 이득은 0 이다** — 배포는 MySQL 이라 이 어댑터가 안 불린다.
+
+const SQLITE_ADAPTER = pathmod.join(__dirname, '..', 'mobius', 'db', 'sqlite.js');
+function adapterCode() {
+    return fs.readFileSync(SQLITE_ADAPTER, 'utf8').split('\n')
+        .filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l)).join('\n');
+}
+
+test('sqlite.js 는 최상단에서 sqlite3 를 적재하지 않는다', function () {
+    const code = adapterCode();
+
+    // **들여쓰기가 없는 줄만 본다.** 최상단이라는 뜻이다.
+    // `^\s*` 로 쓰면 load_driver 안의 적재까지 잡혀서, 옳게 고쳐 놓고도
+    // 테스트가 실패한다 (처음에 그렇게 썼다).
+    assert.ok(!/^var\s+\w+\s*=\s*require\(['"]sqlite3['"]\)/m.test(code),
+        'sqlite3 를 파일 최상단에서 적재한다 — MySQL 배포도 애드온을 싣게 된다');
+    assert.match(code, /function load_driver\(\)/,
+        '지연 적재 함수가 없다');
+
+    // 적재는 그 함수 안에서만 한다. 다른 데서 또 부르면 지연이 무의미해진다.
+    const requires = (code.match(/require\(['"]sqlite3['"]\)/g) || []).length;
+    assert.strictEqual(requires, 1,
+        'sqlite3 를 ' + requires + '곳에서 적재한다 — load_driver 하나여야 한다');
+});
+
+test('MySQL 로 파사드를 로드하면 sqlite3 가 안 실린다', function () {
+    const inCache = () => Object.keys(require.cache).filter((k) => /sqlite3/.test(k)).length;
+    const wipe = () => {
+        for (const p of Object.keys(require.cache)) {
+            if (/mobius[\\/]db[\\/]|sqlite3/.test(p)) { delete require.cache[p]; }
+        }
+    };
+
+    wipe();
+    const saved = global.usedb;
+    try {
+        global.usedb = 'mysql';
+        require(pathmod.join(__dirname, '..', 'mobius', 'db'));
+        assert.strictEqual(inCache(), 0,
+            'MySQL 인데 sqlite3 가 실렸다 — 25개 프로세스가 안 쓰는 애드온을 든다');
+    } finally {
+        global.usedb = saved;
+        wipe();
+    }
+});
+
+test('verbose 는 기본으로 켜 둔다 — 끄면 스택이 사라진다', function () {
+    // 끄면 에러 스택이 한 줄로 줄어 원인 추적이 사실상 불가능해진다.
+    // 실측: 켜면 10줄(호출 지점 포함), 끄면 1줄이고 JS 프레임이 하나도 없다.
+    // SQLite 는 개발용이라 그 스택이 곧 개발 편의다.
+    //
+    // 성능을 잴 때만 끈다 — 추적기가 질의마다 new Error 3회를 한다.
+    const code = adapterCode();
+
+    assert.match(code, /MOBIUS_SQLITE_VERBOSE/,
+        '성능 측정용으로 끌 방법이 없다');
+    // **끄는 쪽이 명시적이어야 한다.** truthy 검사로 만들면 환경변수가
+    // 비어 있기만 해도 꺼져서, 스택이 조용히 사라진다.
+    assert.match(code, /MOBIUS_SQLITE_VERBOSE\s*===\s*'0'/,
+        "'0' 과 엄격 비교하지 않는다 — 실수로 꺼지면 스택이 조용히 사라진다");
+    assert.match(code, /\.verbose\(\)/,
+        '기본 경로에서 verbose() 를 안 부른다');
+});

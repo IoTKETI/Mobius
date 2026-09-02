@@ -12,9 +12,51 @@
 //   knex 는 forUpdate() 를 자동 생략하지만 noWait() 은 예외를 던지므로
 //   호출부가 db.can('rowLock') 으로 검사해야 한다.
 
-var sqlite3 = require('sqlite3').verbose();
 var fs = require('fs');
 var path = require('path');
+
+// 드라이버는 **connect 할 때** 적재한다. 파일을 읽을 때가 아니다.
+//
+// ── 왜 미루나 ───────────────────────────────────────────────────────────
+// 파사드(mobius/db/index.js)는 디렉터리의 어댑터를 **전부** require 한다.
+// 그래야 "파일 하나를 두면 붙는다" 가 성립한다. 그런데 그러면 MySQL 로 도는
+// 배포에서도 이 파일이 로드되고, 최상단의 require('sqlite3') 가 네이티브
+// 애드온을 실제로 적재한다 — 25개 프로세스가 전부, 한 번도 안 쓰면서.
+//
+// 배포 실측 (같은 node_modules 를 보는 사본 둘로 10회씩):
+//   프로세스당 RSS 약 0.55MB (원본 중앙값 48.24MB / 뺀 쪽 47.69MB)
+//   프로세스당 require 9.4~10.2ms + verbose() 0.7~0.9ms
+//   require.cache 항목 4개 -> 0개
+//
+// 25 프로세스를 단순히 곱하면 14MB 지만 **그렇게 계산하면 안 된다** —
+// 네이티브 애드온의 코드 페이지는 OS 가 프로세스끼리 공유하므로 실제로
+// 아끼는 물리 메모리는 그보다 적다. 기동 CPU 는 프로세스당 약 10ms 다.
+//
+// 요청당 이득은 **0 이다.** 배포는 MySQL 이라 이 어댑터의 execute 가 한 번도
+// 안 불린다. 질의 성능이 좋아진다고 말하면 거짓말이다.
+//
+// 덤이 하나 있다: sqlite3 가 빌드되지 않은 장비에서도 MySQL 배포가 뜬다.
+// 지금은 파사드 로드 자체가 실패해 백엔드와 무관하게 기동이 죽는다.
+//
+// ── verbose() 는 켠 채로 둔다 ───────────────────────────────────────────
+// 끄면 에러 스택이 한 줄로 줄어 원인 추적이 사실상 불가능해진다.
+// 실측: 켜면 `--> in Database#all('select ... ', [...])` 와 호출 지점을 포함해
+// 7줄, 끄면 `Error: SQLITE_ERROR: no such table: x` 한 줄뿐이고 JS 프레임이
+// 하나도 안 남는다. SQLite 는 개발용이라 그 스택이 곧 개발 편의다.
+//
+// 성능을 잴 때만 MOBIUS_SQLITE_VERBOSE=0 으로 끈다 — 추적기가 질의마다
+// new Error 3회 + util.inspect 5회를 하므로(node_modules/sqlite3/lib/trace.js),
+// 켠 채로 재면 SQLite 가 실제보다 느리게 보인다
+// (실측 db.all 호출당 41.8~45.2us -> 18.9~22.2us).
+var sqlite3 = null;
+
+function load_driver() {
+    if (sqlite3) { return sqlite3; }
+    var mod = require('sqlite3');
+    // 기본은 켜짐. 명시적으로 '0' 일 때만 끈다.
+    sqlite3 = (process.env.MOBIUS_SQLITE_VERBOSE === '0') ? mod : mod.verbose();
+    return sqlite3;
+}
 
 var db = null;
 
@@ -159,6 +201,24 @@ function busy_timeout_ms() {
 }
 
 exports.connect = function (conf, callback) {
+    // 드라이버를 여기서 적재한다. 실패는 **이 백엔드를 고른 경우에만** 난다.
+    //
+    // 예전에는 파일 최상단에서 적재해서, sqlite3 가 빌드 안 된 장비에서는
+    // 백엔드와 무관하게 `require('mobius/db')` 자체가 던져 기동이 죽었다.
+    // 지금은 MySQL 로 뜨면 이 함수에 오지도 않는다.
+    //
+    // 증상이 "기동이 안 된다" 에서 "DB 연결이 안 된다" 로 바뀌므로,
+    // 원인을 잘못 짚지 않게 원문 메시지를 남긴다.
+    try {
+        load_driver();
+    } catch (e) {
+        console.error('[db/sqlite] sqlite3 를 못 불러왔다: ' + ((e && e.message) || e));
+        console.error('    네이티브 애드온이 이 장비에 빌드돼 있는지 확인할 것' +
+                      ' (npm rebuild sqlite3)');
+        callback('0');
+        return;
+    }
+
     db = new sqlite3.Database(DB_PATH, function (err) {
         if (err) {
             console.error('[db/sqlite] ' + err.message);
