@@ -618,6 +618,45 @@ API** 를 쓴다:
 관련 커밋: `36c2808`(테이블·SQL), `dd15b64`(파사드 이동), `eeeba05`(버퍼·flush),
 `eff4102`(리뷰 대응), `b5ef7f3`(수집 배선), `65146f5`(콜레이션), `2b57a8c`(고아 정리).
 
+### `hit_ri` 를 포팅할 때 다시 아플 것들 (2026-09-02)
+
+part0 워크트리를 정리하면서(`mobius-87`) 무시된 경로에 있던 그 세션의 기록이
+드러났다. **재생성이 안 되는 산문 둘**을 저장소로 옮겼다:
+
+    docs/superpowers/reports/2026-08-28-part0-collation-fix.md
+    docs/superpowers/reports/2026-08-28-part0-final-fix.md
+
+거기서 뽑은, **포팅할 때 다시 겪게 될 것들**이다. DDL 을 새로 쓰거나 모듈을
+다시 짜면 전부 잃는다.
+
+**① `hit_ri.ri` 의 콜레이션은 `lookup.ri` 와 같아야 한다.**
+
+    `ri` varchar(200) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL
+
+`delete_hit_ri_orphan` 이 `hit_ri.ri` 를 `lookup.ri` 에 조인한다. 콜레이션이
+어긋나면 **인덱스를 못 타고 조인이 조용히 느려지거나 안 맞는다.** 배포에서 이미
+같은 부류를 겪었다 — `lookup.pi` 가 `utf8mb3_general_ci`, `ri` 가 `utf8mb3_bin`
+이라 부모↔자식 조인이 인덱스를 못 탔다.
+
+**② 파사드 실패 규약을 writer 가 버리면 안 된다.**
+파사드는 실패 시 `callback(true, err)` 다. 두 번째 인자를 버리면 로그가
+`flush failed, will retry: true` 가 되어 **원인을 못 본다.** 실제로 그랬고,
+고친 뒤에야 `ER_NO_SUCH_TABLE: Table 'mobiusdb.hit_ri' doesn't exist` 가 보였다.
+
+**③ 되돌리기 버퍼에 상한이 필요하다.** `MAX_BUFFER_KEYS = 50000`. 넘으면 가장
+오래된 `ct` 부터 버린다(키가 `ri|ct` 이고 `ct` 가 `YYYYMMDD` 라 문자열 정렬이
+곧 시간 순). DB 가 오래 죽어 있으면 버퍼가 무한히 자라는 자리다.
+
+**④ 실패 로그를 조르지 않으면 하루 7만 줄이 된다.** 8워커 × 10초 주기 × 영구
+실패. 첫 실패 한 번, 이후 360회마다 한 번, 복구되면 한 줄.
+
+**⑤ 스키마가 두 곳에 있다.** `mobius/mobiusdb.sql`(신규 설치)과
+`docs/mysql-migration-2.7.md`(기존 설치). 한쪽만 고치면 신규와 기존이 갈린다.
+
+> 나머지 기록(SDD 진행 장부, 리뷰 diff 20여 개)은 옮기지 않았다. diff 는
+> 커밋에서 다시 만들 수 있고 장부는 진행 기록이다. 백업 위치는 `mobius-87`
+> 세션의 스크래치패드이고 임시 경로라 사라질 수 있다.
+
 ### §2 의 정정
 
 목표 ① 의 "최근 사용 여부" 를 **"선행 P0-2 미착수"** 라고 적었는데 틀렸다.
