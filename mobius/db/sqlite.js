@@ -181,9 +181,59 @@ function pick_mode(value, allowed, fallback) {
     return allowed.indexOf(v) >= 0 ? v : fallback;
 }
 
+// 이 어댑터가 conf.json 에서 읽는 값. **설정 표에 이 어댑터가 직접 싣는다.**
+//
+// 예전에는 mobius/conf_schema.js 가 세 키를 직접 들고 있었고, mobius.js 가
+// 그것을 global.use_sqlite_* 로 옮겼다. 코어 두 파일이 SQLite 전용 키 이름을
+// 아는 셈이라, 튜닝 값을 갖는 세 번째 백엔드를 붙이려면 그 둘을 열어야 했다.
+// "파일 하나를 두면 붙는다" 가 거기서 깨졌다.
+//
+// 부수 효과도 있었다 — 설정 표에 있으면 화면에 뜨므로, MySQL 로 도는 배포의
+// 관리 콘솔이 SQLite 저널 모드·디스크 동기화·잠금 대기 세 칸을 보여줬다.
+// 지금은 파사드가 **지금 고른 백엔드의 것만** 표에 싣는다.
+var conf = {};
+
+exports.confSchema = {
+    sqliteJournalMode: {
+        group: '저장소',
+        type: 'enum', dflt: 'WAL', valid: ['WAL', 'DELETE', 'TRUNCATE', 'PERSIST', 'MEMORY', 'OFF'],
+        apply: 'restart',
+        label: 'SQLite 저널 모드',
+        help: '기본값인 rollback journal(DELETE)은 쓰는 동안 읽는 쪽을 전부 막는다. ' +
+              '워커를 코어 수만큼 포크하므로 한 파일을 여러 프로세스가 연다. ' +
+              'WAL 이면 읽기와 쓰기가 서로를 막지 않는다. ' +
+              '**DB 파일에 영속되므로 이미 만든 파일도 매 기동 다시 건다.**'
+    },
+    sqliteSynchronous: {
+        group: '저장소',
+        type: 'enum', dflt: 'FULL', valid: ['FULL', 'NORMAL', 'OFF', 'EXTRA'],
+        apply: 'restart',
+        label: 'SQLite 디스크 동기화',
+        help: 'MySQL 의 innodb_flush_log_at_trx_commit 에 해당한다. FULL 은 그것을 ' +
+              '1 로 둔 것과 같은 판단이다 — 이 코드에는 커밋 유실을 흡수할 장치가 없다. ' +
+              'WAL + NORMAL 은 응용 프로그램 충돌에는 안전하지만 전원 장애에서 꼬리를 잃는다.'
+    },
+    sqliteBusyTimeoutMs: {
+        group: '저장소',
+        type: 'number', integer: true, dflt: 50000,
+        valid: function (v) { return v >= 0 && v <= 600000; },
+        validHint: '0 ~ 600000 (ms)',
+        apply: 'restart',
+        label: 'SQLite 잠금 대기 한도(ms)',
+        help: '다른 프로세스가 쓰는 중이면 얼마나 기다릴 것인가. ' +
+              'MySQL 의 커넥션 대기에 해당한다.'
+    }
+};
+
+// 코어가 conf 를 넘겨 준다. **어느 키를 읽을지는 여기가 정한다.**
+// 코어는 db.applyConf(conf) 한 줄만 알고, 키 이름은 하나도 모른다.
+exports.applyConf = function (c) {
+    conf = c || {};
+};
+
 // 기본 WAL. 여러 프로세스가 한 파일을 여는 것이 이 배포의 전제다.
 function journal_mode() {
-    return pick_mode(global.use_sqlite_journal_mode, JOURNAL_MODES, 'WAL');
+    return pick_mode(conf.sqliteJournalMode, JOURNAL_MODES, 'WAL');
 }
 
 // 기본 FULL. MySQL 쪽에서 innodb_flush_log_at_trx_commit = 1 을 고른 것과
@@ -191,12 +241,12 @@ function journal_mode() {
 // WAL + NORMAL 은 응용 프로그램 충돌에는 안전하지만 전원 장애에서 꼬리를
 // 잃는다. 그 차이를 감수할 이유가 아직 없다.
 function synchronous() {
-    return pick_mode(global.use_sqlite_synchronous, SYNC_MODES, 'FULL');
+    return pick_mode(conf.sqliteSynchronous, SYNC_MODES, 'FULL');
 }
 
 // 잠긴 동안 얼마나 기다릴 것인가. MySQL 의 커넥션 대기에 해당한다.
 function busy_timeout_ms() {
-    var v = global.use_sqlite_busy_timeout_ms;
+    var v = conf.sqliteBusyTimeoutMs;
     return (typeof v === 'number' && v >= 0) ? v : 50000;
 }
 

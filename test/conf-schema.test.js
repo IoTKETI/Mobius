@@ -316,10 +316,74 @@ test('표의 dflt 와 mobius.js 의 기본값이 같다', function () {
         '표와 코드의 기본값이 다르다 — 화면이 거짓말을 한다:\n  ' + bad.join('\n  '));
 
     // 이 검사가 조용히 아무것도 안 보게 되는 것을 막는다.
-    const must = ['dbConnectionLimit', 'dbQueueLimit', 'sqliteJournalMode',
-                  'sqliteSynchronous', 'sqliteBusyTimeoutMs'];
+    //
+    // sqlite* 세 키가 여기 있었다. 지금은 mobius.js 가 아니라 어댑터가 읽으므로
+    // 여기서 볼 수 없다 — 드리프트 위험도 그쪽으로 옮겨갔고, 아래 테스트가 본다.
+    const must = ['dbConnectionLimit', 'dbQueueLimit'];
     const missed = must.filter((k) => checked.indexOf(k) < 0);
     assert.deepStrictEqual(missed, [],
         '이 키들의 기본값을 대조하지 못했다 — mobius.js 의 작성 모양이 바뀌었다: ' +
         missed.join(', '));
+});
+
+test('어댑터가 선언한 기본값과 어댑터 코드의 폴백이 같다', function () {
+    // 백엔드 고유 설정은 어댑터가 갖는다(confSchema + applyConf). 그래서
+    // "표가 말하는 기본값" 과 "코드가 실제로 쓰는 폴백" 이 갈릴 자리도
+    // 어댑터 안으로 옮겨왔다. 갈리면 화면이 거짓말을 한다 —
+    // 값을 안 넣은 사용자에게 화면은 WAL 이라 하고 서버는 다른 것을 건다.
+    const sqlite = require('../mobius/db/sqlite');
+    const src = fs.readFileSync(
+        path.join(ROOT, 'mobius', 'db', 'sqlite.js'), 'utf8');
+    const code = src.split('\n')
+        .filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l))
+        .join('\n');
+
+    // 각 키의 폴백이 코드에 어떻게 적혀 있는지.
+    const FALLBACK = {
+        sqliteJournalMode:  /pick_mode\(conf\.sqliteJournalMode,\s*\w+,\s*'([^']+)'\)/,
+        sqliteSynchronous:  /pick_mode\(conf\.sqliteSynchronous,\s*\w+,\s*'([^']+)'\)/,
+        sqliteBusyTimeoutMs: /v\s*>=\s*0\)\s*\?\s*v\s*:\s*(\d+)/
+    };
+
+    const bad = [];
+    const checked = [];
+    for (const key of Object.keys(FALLBACK)) {
+        const decl = sqlite.confSchema[key];
+        assert.ok(decl, 'sqlite 어댑터가 ' + key + ' 를 선언하지 않는다');
+        const m = FALLBACK[key].exec(code);
+        if (!m) {
+            bad.push(key + ': 코드에서 폴백을 못 찾았다 — 작성 모양이 바뀌었다');
+            continue;
+        }
+        checked.push(key);
+        if (String(m[1]) !== String(decl.dflt)) {
+            bad.push(key + ': 선언 ' + JSON.stringify(decl.dflt) +
+                     ' vs 폴백 ' + JSON.stringify(m[1]));
+        }
+    }
+
+    assert.deepStrictEqual(bad, [],
+        '어댑터의 선언과 폴백이 다르다 — 화면이 거짓말을 한다:\n  ' + bad.join('\n  '));
+    assert.strictEqual(checked.length, 3, '세 키를 전부 대조하지 못했다');
+});
+
+test('설정 표가 지금 고른 백엔드의 키만 싣는다', function () {
+    // 전부 합치면 MySQL 로 도는 배포의 관리 콘솔에 SQLite 칸이 뜬다.
+    // 실제로 그랬다 — sqliteJournalMode / sqliteSynchronous / sqliteBusyTimeoutMs.
+    const keys = schema.all();
+    const saved = global.usedb;
+    try {
+        // 지금 테스트 환경의 백엔드가 무엇이든, 다른 백엔드의 키는 없어야 한다.
+        const sqliteKeys = Object.keys(require('../mobius/db/sqlite').confSchema);
+        const mysqlKeys = Object.keys(require('../mobius/db/mysql').confSchema);
+        const backend = require('../mobius/db').backendName();
+
+        const foreign = (backend === 'sqlite' ? mysqlKeys : sqliteKeys)
+            .filter((k) => keys.indexOf(k) >= 0);
+        assert.deepStrictEqual(foreign, [],
+            '지금 백엔드(' + backend + ')가 아닌 키가 표에 있다: ' + foreign.join(', ') +
+            '\n관리 콘솔이 쓰지도 않는 설정 칸을 보여주게 된다');
+    } finally {
+        global.usedb = saved;
+    }
 });

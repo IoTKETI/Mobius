@@ -66,12 +66,21 @@ const KNOWN_NAME_SITES = {
     'mobius/conf_schema.js': [154]
 };
 
-// 백엔드 이름이 붙은 전역(global.use_sqlite_*)을 코어가 직접 쓰는 자리.
-// 헌장 7g 다 — 튜닝 값을 갖는 새 백엔드는 코어 두 파일을 열어야 키를 넣을 수 있다.
-// 고치려면 어댑터가 자기 설정 항목을 내보내는 구조가 필요해서 따로 잡는다.
-const KNOWN_BACKEND_GLOBALS = {
-    'mobius.js': [207, 210, 213]
-};
+// 백엔드 이름이 붙은 전역(global.use_sqlite_* 등)을 코어가 직접 쓰는 자리.
+//
+// **비었다. 헌장 7g 가 끝났다.**
+//
+// mobius.js 가 global.use_sqlite_journal_mode / _synchronous / _busy_timeout_ms
+// 세 줄을 갖고 있었고, mobius/conf_schema.js 도 같은 세 키를 표에 들고 있었다.
+// 그래서 튜닝 값을 갖는 세 번째 백엔드를 붙이려면 코어 두 파일을 열어야 했다 —
+// "mobius/db/<이름>.js 파일 하나를 두면 붙는다" 가 거기서 깨졌다.
+//
+// 지금은 어댑터가 confSchema 로 자기 키를 내보내고 applyConf 로 직접 읽는다.
+// 코어는 db.applyConf(conf) 한 줄만 알고 키 이름은 하나도 모른다.
+//
+// 부수 효과 하나가 함께 사라졌다 — 표에 있으면 화면에 뜨므로, MySQL 로 도는
+// 배포의 관리 콘솔이 SQLite 저널 모드·동기화·잠금 대기 세 칸을 보여주고 있었다.
+const KNOWN_BACKEND_GLOBALS = {};
 
 const NAME_LITERAL = /(['"])(mysql|sqlite|postgres|mariadb)\1/i;
 const USEDB = /global\.usedb\b/;

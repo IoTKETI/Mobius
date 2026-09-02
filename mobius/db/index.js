@@ -434,6 +434,28 @@ exports.pathCollate = function () {
     return adapter.pathCollate ? adapter.pathCollate() : '';
 };
 
+// **지금 고른 백엔드가** conf.json 에서 읽는 설정 항목.
+//
+// 설정 표(mobius/conf_schema.js)가 이것을 자기 표에 합친다. 그래서 코어는
+// 어떤 백엔드가 어떤 키를 쓰는지 하나도 모른다 — 튜닝 값을 갖는 새 백엔드를
+// 붙일 때 코어를 안 열어도 된다.
+//
+// **지금 고른 것만** 준다. 전부 합치면 MySQL 로 도는 배포의 관리 콘솔에
+// SQLite 칸이 뜬다 — 실제로 그랬다.
+exports.confSchema = function () {
+    adapter = adapter || pick();
+    return adapter.confSchema || {};
+};
+
+// 코어가 읽은 conf 를 어댑터에 넘긴다. **어느 키를 볼지는 어댑터가 정한다.**
+//
+// 예전에는 mobius.js 가 global.use_sqlite_journal_mode 같은 이름을 직접
+// 만들었다. 코어가 SQLite 전용 키를 아는 자리였다.
+exports.applyConf = function (conf) {
+    adapter = adapter || pick();
+    if (adapter.applyConf) { adapter.applyConf(conf); }
+};
+
 // ri 컬럼 **자체**의 콜레이션. pathCollate 와 반대쪽이다.
 //
 //   pathCollate  pi 와 ri 를 견주려고 대소문자를 무시하는 쪽에 맞춘다

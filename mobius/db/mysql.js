@@ -77,6 +77,22 @@ exports.optimizerHintBlock = function (hints) {
 // 이다. 둘을 그냥 조인하면 ER_CANT_AGGREGATE_2COLLATIONS 로 죽는다.
 // 기존 코드가 쓰던 'where pi = ?' 는 pi 쪽 콜레이션(대소문자 무시)으로
 // 비교됐으므로, 조인으로 바꿔도 같은 결과가 나오도록 general_ci 를 쓴다.
+// 이 어댑터가 conf.json 에서 **자기 것으로** 읽는 설정. 지금은 없다.
+//
+// 비어 있다고 "MySQL 은 설정이 없다" 는 뜻이 아니다. db / dbpass 는 백엔드를
+// 가리지 않는 키라 코어 표에 있는 것이 맞고, dbConnectionLimit / dbQueueLimit
+// 은 MySQL 전용이지만 mobius/pool_sizing.js 가 그 값으로 max_connections 바닥을
+// 계산하므로 코어도 읽어야 한다. 그 얽힘을 푸는 것은 별도 작업이다.
+//
+// **함수와 값은 둘 다 있어야 한다** — 없으면 파사드가 "이 어댑터는 이것이
+// 없다" 를 알아야 하고, 그것을 알려면 다시 백엔드를 구분해야 한다.
+// test/db-adapter-contract.test.js 가 두 어댑터의 표면을 대조한다.
+exports.confSchema = {};
+
+exports.applyConf = function () {
+    // 읽을 자기 키가 없다. 풀 설정은 아직 전역으로 온다(mobius.js).
+};
+
 // ri 컬럼 자체의 콜레이션. **경로 비교용(pathCollate)과 다르다.**
 //
 // pathCollate 는 pi 와 ri 를 견주려고 대소문자를 무시하는 쪽(general_ci)에

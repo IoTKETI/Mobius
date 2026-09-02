@@ -200,19 +200,17 @@ global.use_db_queue_limit =
 // MySQL 의 네 값에 대응하는 것은 둘뿐이다. binlog 가 없어 sync_binlog 에
 // 대응이 없고, SQLite 는 언제나 직렬화라 격리수준을 고를 일이 없다.
 //
-// journal_mode 는 MySQL 에 대응이 없지만 여기서 가장 중요하다 — 기본값인
-// rollback journal 은 쓰는 동안 읽는 쪽을 전부 막는다. 워커를 코어 수만큼
-// 포크하므로 한 파일을 여러 프로세스가 연다. WAL 이면 읽기와 쓰기가 서로를
-// 막지 않는다. **DB 파일에 영속되므로 이미 만든 파일은 매 기동 다시 건다.**
-global.use_sqlite_journal_mode = conf.sqliteJournalMode || 'WAL';
-
-// FULL 은 innodb_flush_log_at_trx_commit = 1 과 같은 판단이다.
-global.use_sqlite_synchronous = conf.sqliteSynchronous || 'FULL';
-
-// 잠긴 동안 얼마나 기다리나. MySQL 의 커넥션 대기에 해당한다.
-global.use_sqlite_busy_timeout_ms =
-    (typeof conf.sqliteBusyTimeoutMs === 'number' && conf.sqliteBusyTimeoutMs >= 0)
-        ? conf.sqliteBusyTimeoutMs : 50000;
+// 백엔드 고유 설정은 **어댑터가 읽는다.**
+//
+// 여기 global.use_sqlite_journal_mode / _synchronous / _busy_timeout_ms 세 줄이
+// 있었다. 코어가 SQLite 전용 키 이름을 아는 자리였고, 설정 표
+// (mobius/conf_schema.js)도 같은 세 키를 직접 들고 있었다. 그래서 튜닝 값을
+// 갖는 세 번째 백엔드를 붙이려면 코어 두 파일을 열어야 했다 —
+// "mobius/db/<이름>.js 파일 하나를 두면 붙는다" 가 거기서 깨졌다.
+//
+// 지금은 conf 를 통째로 넘기고, **어느 키를 읽을지는 어댑터가 정한다.**
+// 코어는 키 이름을 하나도 모른다.
+require('./mobius/db').applyConf(conf);
 
 global.use_mqtt_broker = 'localhost'; // mqttbroker for mobius
 

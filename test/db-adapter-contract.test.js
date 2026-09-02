@@ -53,13 +53,23 @@ const REQUIRED_FUNCTIONS = [
 
     // 힌트 조각들을 SELECT 뒤에 넣을 한 덩어리로 감싼다. 감싸는 표기(`/*+ */`)
     // 자체가 방언이라 어댑터가 갖는다. 힌트가 없는 백엔드는 빈 문자열을 준다.
-    'optimizerHintBlock'
+    'optimizerHintBlock',
+
+    // 코어가 읽은 conf 를 받는다. **어느 키를 볼지는 어댑터가 정한다.**
+    // 예전에는 mobius.js 가 global.use_sqlite_journal_mode 같은 이름을 직접
+    // 만들었다 — 코어가 한 백엔드 전용 키를 아는 자리였다.
+    'applyConf'
 ];
 
 // supportedResourceTypes: 이 백엔드가 받는 리소스 타입 목록, 또는 null(제한 없음).
 // 값이 없어도(undefined) 파사드가 null 로 읽는다 — 501 게이트는 fail-open 이라야
 // 하기 때문이다. 그래도 표면을 같게 두려고 두 어댑터 모두 적는다.
-const REQUIRED_VALUES = ['name', 'knexClient', 'capabilities', 'supportedResourceTypes'];
+// confSchema: 이 백엔드가 conf.json 에서 자기 것으로 읽는 키의 표.
+// 설정 표(mobius/conf_schema.js)가 **지금 고른 백엔드의 것만** 합친다.
+// 없으면 빈 객체를 적는다 — supportedResourceTypes 에 mysql 이 null 을
+// 명시적으로 적는 것과 같은 이유로, 표면을 같게 두기 위해서다.
+const REQUIRED_VALUES = ['name', 'knexClient', 'capabilities', 'supportedResourceTypes',
+    'confSchema'];
 
 // 파사드가 db.can(...) 으로 묻는 능력. 어댑터는 아는 것만 true 로 적고,
 // 모르는 것은 **적지 않는다** — can() 이 없는 키를 false 로 준다.

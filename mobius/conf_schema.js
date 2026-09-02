@@ -207,49 +207,17 @@ var SCHEMA = {
               '유한값이면 즉시 500 이 나가 장치가 재시도할 수 있고 로그에 흔적이 남는다.'
     },
 
-    // ── SQLite. MySQL 의 튜닝 네 값에 대응하는 것은 둘뿐이다 ──────────
+    // ── 백엔드 고유 설정은 여기 없다 ─────────────────────────────────
     //
-    //   innodb_flush_log_at_trx_commit  ->  sqliteSynchronous
-    //   max_connections / 풀 크기        ->  sqliteBusyTimeoutMs
-    //   sync_binlog                      ->  대응 없음 (binlog 가 없다)
-    //   transaction_isolation            ->  대응 없음 (언제나 직렬화)
+    // sqliteJournalMode / sqliteSynchronous / sqliteBusyTimeoutMs 세 키가
+    // 여기 있었다. 코어의 표가 한 백엔드 전용 키를 들고 있는 셈이라,
+    // 튜닝 값을 갖는 세 번째 백엔드를 붙이려면 이 파일을 열어야 했다.
     //
-    // journal_mode 는 반대로 MySQL 에 대응이 없는데 여기서 가장 중요하다.
-    sqliteJournalMode: {
-        group: '저장소',
-        type: 'enum', dflt: 'WAL',
-        valid: ['WAL', 'DELETE', 'TRUNCATE', 'PERSIST', 'MEMORY', 'OFF'],
-        apply: 'restart',
-        label: 'SQLite 저널 모드',
-        help: '기본값 rollback journal(DELETE)은 **쓰는 동안 읽는 쪽을 전부 막는다.** ' +
-              '워커를 코어 수만큼 포크하므로 한 파일을 여러 프로세스가 연다 — ' +
-              'MySQL 에서 커넥션 풀이 말라 멈추던 것과 같은 자리다. ' +
-              'WAL 이면 읽기와 쓰기가 서로를 막지 않는다. ' +
-              '**이 값은 DB 파일에 영속된다** — 이미 만든 파일도 매 기동 다시 건다.'
-    },
-    sqliteSynchronous: {
-        group: '저장소',
-        type: 'enum', dflt: 'FULL',
-        valid: ['FULL', 'NORMAL', 'OFF', 'EXTRA'],
-        apply: 'restart',
-        label: 'SQLite 디스크 동기화',
-        help: 'MySQL 의 innodb_flush_log_at_trx_commit 에 해당한다. ' +
-              'FULL 은 커밋마다 굳힌다(= 1). WAL 과 함께 쓰면 NORMAL 도 응용 프로그램 ' +
-              '충돌에는 안전하지만 전원 장애에서 마지막 트랜잭션들을 잃는다. ' +
-              'OFF 는 잃을 수 있는 범위가 훨씬 넓다.'
-    },
-    sqliteBusyTimeoutMs: {
-        group: '저장소',
-        type: 'number', integer: true, dflt: 50000,
-        valid: function (v) { return v >= 0 && v <= 600000; },
-        validHint: '0 ~ 600000 (ms)',
-        apply: 'restart',
-        label: 'SQLite 잠금 대기 한도(ms)',
-        help: '다른 프로세스가 쓰는 중이면 얼마나 기다릴 것인가. ' +
-              'MySQL 의 커넥션 대기에 해당한다. SQLite 는 풀이 없고 ' +
-              '프로세스마다 핸들 하나를 공유하므로 dbConnectionLimit / ' +
-              'dbQueueLimit 은 SQLite 백엔드에서 쓰이지 않는다.'
-    },
+    // 부수 효과도 있었다 — 표에 있으면 화면에 뜨므로 MySQL 로 도는 배포의
+    // 관리 콘솔이 SQLite 칸 세 개를 보여줬다.
+    //
+    // 지금은 어댑터가 자기 confSchema 를 내보내고, 아래 SCHEMA 조립부가
+    // **지금 고른 백엔드의 것만** 합친다.
 
     // ── 노출 안 함: 비밀 ─────────────────────────────────────────────
     dbpass: {
@@ -282,6 +250,34 @@ var SCHEMA = {
     // 표에서 지우면 그 키를 쓰는 옛 conf.json 이 "표에 없는 키" 로 걸린다.
     // 그것이 의도다 — mobius.js 가 기동 때 무엇으로 바꾸라고 알려 준다.
 };
+
+// **지금 고른 백엔드가 쓰는 설정을 표에 합친다.**
+//
+// 어댑터가 자기 키를 confSchema 로 내보내고, 여기가 그것을 받는다. 그래서
+// 이 표는 어떤 백엔드가 어떤 키를 쓰는지 몰라도 된다 — 튜닝 값을 갖는 새
+// 백엔드를 붙일 때 이 파일을 안 열어도 된다.
+//
+// **지금 고른 것만** 합친다. 전부 합치면 MySQL 로 도는 배포의 관리 콘솔에
+// SQLite 칸이 뜬다 — 실제로 그랬다(sqliteJournalMode 등 세 개).
+//
+// 코어 키를 덮어쓰지 않는다. 어댑터가 실수로 dbpass 같은 이름을 쓰면
+// 조용히 가려지는 대신 여기서 걸린다.
+(function mergeBackendConf() {
+    var own;
+    try { own = require('./db').confSchema(); }
+    catch (e) {
+        // 파사드를 못 읽어도 설정 표는 떠야 한다. 백엔드 고유 키만 빠진다.
+        console.error('[conf_schema] 백엔드 설정을 못 읽었다: ' + ((e && e.message) || e));
+        return;
+    }
+    Object.keys(own || {}).forEach(function (k) {
+        if (SCHEMA[k]) {
+            console.error('[conf_schema] 어댑터가 코어 키 ' + k + ' 를 덮으려 한다 — 무시한다');
+            return;
+        }
+        SCHEMA[k] = own[k];
+    });
+})();
 
 // 화면에 그릴 것만. 비밀·잠금 위험·폐기 예정은 뺀다.
 exports.exposed = function () {
