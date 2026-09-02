@@ -917,6 +917,14 @@ function build_search_query(query) {
 }
 exports._build_search_query = build_search_query;
 
+// build_children_sql 에 "부모를 제한하지 마라" 를 말하는 표식.
+//
+// null 이나 빈 배열을 쓰면 안 된다 — 그 둘은 이미 "부모가 없다"(=답이 없다)를
+// 뜻하고, 정반대인 이 뜻을 같은 값으로 나타내면 조용히 0건이 된다.
+// 객체를 쓰는 이유도 그것이다: `!parents` 같은 검사에 절대 안 걸린다.
+var ALL_PARENTS = { all_parents: true };
+exports.ALL_PARENTS = ALL_PARENTS;
+
 // lookup.cs / lookup.cnf 를 믿어도 되는가.
 //
 // 011 이 컬럼을 만들고, tools/backfill-lookup-cin-attrs.js 가 옛 행을 채우고,
@@ -1484,7 +1492,11 @@ function build_children_sql(parents, query, search, lim, budget_ms, ofst, count_
     // 빈 목록은 `in ()` 이라는 문법 오류 SQL 이 된다. 호출부가 이미 막지만
     // 이 함수는 export 돼 있으므로 여기서도 막는다 — null 을 주면 호출부가
     // "던질 것이 없다" 를 알 수 있다.
-    if (!parents || parents.length === 0) { return null; }
+    //
+    // **ALL_PARENTS 는 예외다.** "부모가 없다"(답이 없다)와 "부모를 제한하지
+    // 않는다"(전부가 답이다)는 정반대인데, null 이나 빈 배열로 후자를 나타내면
+    // 이 줄에 걸려 조용히 0건이 된다. 그래서 표식을 따로 둔다.
+    if (parents !== ALL_PARENTS && (!parents || parents.length === 0)) { return null; }
 
     var bindings = {};
     var slots = [];
@@ -1496,9 +1508,22 @@ function build_children_sql(parents, query, search, lim, budget_ms, ofst, count_
     // 개수만 셀 때는 컬럼을 읽지 않는다 — 인덱스만으로 끝난다.
     var cols = (count_cap != null) ? '1' : 'r.*';
 
+    // **부모 제한이 없는 경우** — 호출부가 parents 로 null 을 준다.
+    //
+    // CSEBase 아래 전체를 찾는 요청이 그렇다. 그때는 골격이 모든 노드를
+    // 돌려주므로 `pi in (...)` 이 아무것도 안 거른다. 넣으면 낭비를 넘어
+    // 실제로 해롭다 — 34,415개짜리 IN 목록을 9번 나눠 던지게 되고,
+    // 선택도 높은 필터가 붙으면 배치마다 후보를 전부 훑는다(실측 배치당 6초).
+    //
+    // 절을 빼면 옵티마이저가 남은 조건(ty 등)으로 인덱스를 고른다 —
+    // 배포 실측 54초 -> 73~150ms.
+    //
+    var where_head = (parents === ALL_PARENTS)
+        ? ' where 1 = 1'
+        : ' where r.pi in (' + slots.join(', ') + ')';
+
     var sql = lead + cols + ' from lookup r' + hint + cin_join + '\n' +
-        ' where r.pi in (' + slots.join(', ') + ')' +
-        cin_ty + skip_cin_where + search.where;
+        where_head + cin_ty + skip_cin_where + search.where;
 
     // limit / offset 은 리터럴이다. 값은 호출부가 정수로 계산해 준다
     // (sanitize_discovery_query 가 la / ofst / lim 을 정수로 강제한다).
@@ -1876,6 +1901,43 @@ exports.search_lookup = function (connection, ri, query, cur_lim, pi_list, pi_in
 
     // 골격 질의의 결과. next_batch 가 여기서 배치를 잘라 간다.
     var parents = [];
+
+    // ── CSEBase 아래 전체를 찾는 요청은 골격을 만들지 않는다 ──────────────
+    //
+    // 골격은 "이 subtree 로 한정한다" 를 위해 있다. 그런데 대상이 CSEBase 면
+    // **한정할 것이 없다** — 모든 리소스가 그 아래다. 배포 실측으로 골격이
+    // 34,415개를 만들고, 그것을 4,000개씩 9번의 `pi in (...)` 로 넣는데,
+    // 그 목록이 아무것도 안 거른다.
+    //
+    // 그냥 낭비가 아니라 **실제로 실패한다.** 선택도 높은 필터가 붙으면
+    // `limit` 이 조기 종료를 못 한다 — 맞는 것을 찾으려고 후보를 전부 훑기
+    // 때문이다. 배포 실측(2026-09-02, ty=3 + rn=Mission_Data):
+    //
+    //   골격 34,415개                          384ms
+    //   자식배치(부모 4,000, ty=3 + rn)      6,067ms  -> 24행
+    //   자식배치(부모 4,000, ty=3 만)           93ms  -> 2,000행
+    //   배치 9개  =>  54초  ->  30초 상한 초과 (모니터가 네 번 잡았다)
+    //
+    //   부모 제한을 빼면 같은 24행을 73~150ms 에 준다. 새 인덱스도 필요 없다 —
+    //   기존 idx_lookup_ty 를 탄다.
+    //
+    // ── 결과가 같은가 ────────────────────────────────────────────────────
+    // 부모 목록이 걸러 내는 유일한 것은 **고아**다(부모가 지워진 리소스).
+    // 배포 실측으로 ty=2 와 ty=3 의 고아가 각각 0건이다. 고아가 생겨도
+    // 이 CSE 안의 리소스이므로 CSEBase 검색에 나오는 것이 오히려 옳다.
+    //
+    // ── 왜 lvl 이 있으면 안 되는가 ───────────────────────────────────────
+    // lvl 은 깊이를 제한하는데, 그 제한은 골격이 sk_lvl 로 건다. 골격이 없으면
+    // 깊이를 알 방법이 없다. 그래서 lvl 이 있으면 예전 경로로 간다.
+    var root_ri = '/' + (global.usecsebase || '');
+    var whole_tree = (ri === root_ri) && (max_lvl === null);
+
+    if (whole_tree) {
+        // 부모 제한 없이 **한 번만** 던진다. 배치로 나눌 이유가 없다 —
+        // 나누는 것은 IN 목록이 너무 길어지지 않게 하려던 것이고,
+        // 여기는 목록 자체가 없다.
+        return fetch_batch(0, ALL_PARENTS);
+    }
 
     var skel = build_skeleton_sql(ri, query, budget_left());
     facade.run(facade.raw(skel.sql, skel.bindings), connection, function (err, res) {

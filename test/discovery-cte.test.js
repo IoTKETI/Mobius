@@ -171,6 +171,88 @@ function run(t, query, cb, root) {
         });
 }
 
+// --- CSEBase 아래 전체는 골격을 만들지 않는다 --------------------------------
+//
+// 골격은 "이 subtree 로 한정한다" 를 위해 있다. 대상이 CSEBase 면 한정할 것이
+// 없다 — 모든 리소스가 그 아래다. 배포 실측(2026-09-02, /Mobius, ty=3+rn):
+//
+//   골격 34,415개                        384ms
+//   자식배치(부모 4,000, ty=3 + rn)    6,067ms -> 24행   x 9배치 = 54초
+//   부모 제한 없이                     73~150ms -> 같은 24행
+//
+// 선택도 높은 필터가 붙으면 limit 이 조기 종료를 못 해서(맞는 것을 찾으려고
+// 후보를 전부 훑는다) 배치마다 6초가 걸렸다. 모니터가 네 번 잡았다.
+function atRoot(t, query, cb) {
+    const saved = global.usecsebase;
+    global.usecsebase = 'Mobius';
+    const found = {};
+    t.sql_action.search_lookup(null, '/Mobius', query, query.lim, ['/Mobius'], 0, found, 0,
+        '0', '2026-01-02 00:00:00', 0, function (code) {
+            global.usecsebase = saved;
+            cb(code, Object.keys(found), t.seen);
+        });
+}
+
+test('CSEBase 전체 검색은 골격을 안 만들고 한 번만 던진다', function (t, done) {
+    const h = tap('mysql');
+    atRoot(h, { ty: '3', rn: 'Mission_Data', lim: 2000 }, guard(done, function (code, ris, seen) {
+        assert.strictEqual(seen.length, 1,
+            '질의가 ' + seen.length + '개다 — 골격 없이 한 문장이어야 한다: ' +
+            JSON.stringify(seen.map((s) => s.sql.slice(0, 40))));
+        assert.ok(!/with recursive skel/i.test(seen[0].sql),
+            '골격을 만들었다 — CSEBase 아래는 한정할 것이 없다');
+        assert.ok(!/r\.pi in \(/i.test(seen[0].sql),
+            '부모 제한이 붙었다 — 34,415개짜리 IN 목록이 아무것도 안 거른다');
+
+        // 필터는 그대로 걸려야 한다.
+        assert.match(seen[0].sql, /ty = /, 'ty 필터가 사라졌다');
+        assert.match(seen[0].sql, /rn = /, 'rn 필터가 사라졌다');
+        done();
+    }));
+});
+
+test('lvl 이 있으면 골격을 만든다 — 깊이를 알 방법이 그것뿐이다', function (t, done) {
+    // lvl 은 골격이 sk_lvl 로 건다. 골격이 없으면 깊이를 제한할 수 없다.
+    const h = tap('mysql');
+    atRoot(h, { ty: '3', lvl: '2', lim: 20 }, guard(done, function (code, ris, seen) {
+        assert.ok(/with recursive skel/i.test(seen[0].sql),
+            'lvl 이 있는데 골격을 안 만들었다 — 깊이 제한이 사라진다');
+        done();
+    }));
+});
+
+test('CSEBase 가 아니면 예전대로 골격을 만든다', function (t, done) {
+    // subtree 검색은 한정이 실제로 필요하다.
+    const h = tap('mysql');
+    run(h, { ty: '3', lim: 20 }, guard(done, function (code, ris, seen) {
+        assert.ok(/with recursive skel/i.test(seen[0].sql),
+            'subtree 인데 골격을 안 만들었다 — 다른 가지까지 나온다');
+        assert.match(childStmt(seen).sql, /r\.pi in \(/i,
+            'subtree 인데 부모 제한이 없다');
+        done();
+    }));
+});
+
+test('ALL_PARENTS 는 빈 목록과 다르다', function () {
+    // "부모가 없다"(답이 없다)와 "부모를 제한하지 않는다"(전부가 답이다)는
+    // 정반대다. null 이나 빈 배열로 후자를 나타내면 기존 가드에 걸려
+    // 조용히 0건이 된다.
+    const h = tap('mysql');
+    const sql = h.sql_action;
+    const q = { ty: '3' };
+    const s = sql._build_search_query(q);
+
+    assert.strictEqual(sql.build_children_sql([], q, s, 20, 30000, 0, null), null,
+        '빈 배열이 질의를 만들었다 — in () 은 문법 오류다');
+    assert.strictEqual(sql.build_children_sql(null, q, s, 20, 30000, 0, null), null,
+        'null 이 질의를 만들었다');
+
+    const all = sql.build_children_sql(sql.ALL_PARENTS, q, s, 20, 30000, 0, null);
+    assert.ok(all && all.sql, 'ALL_PARENTS 가 질의를 안 만들었다 — 전부가 답인 경우다');
+    assert.ok(!/r\.pi in \(/i.test(all.sql), 'ALL_PARENTS 인데 부모 제한이 붙었다');
+    assert.match(all.sql, /ty = /, '필터까지 사라졌다');
+});
+
 // --- 1) 왕복은 부모 수에 비례하지 않는다 -------------------------------------
 //
 // 이 테스트는 "부모마다 던지던 시절" 로의 회귀를 막으려고 있다.
