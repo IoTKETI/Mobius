@@ -506,7 +506,12 @@ exports.insert_cin = function (connection, obj, callback) {
 //   [테이블, 컬럼(공백 구분), JSON 으로 저장할 컬럼]
 var BODY_TABLES = {
     insert_grp:      ['grp',  'ri cr mt cnm mnm mid macp mtv csy gn', 'mid macp'],
-    insert_lcp:      ['lcp',  'ri los lou lot lor loi lon lost'],
+    // cr 이 빠져 있었다. lcp.cr 은 NOT NULL 이고 기본값이 없어서, 배포의
+    // STRICT_TRANS_TABLES 아래에서 **lcp 생성이 언제나 실패했다** —
+    // ER_NO_DEFAULT_FOR_FIELD: Field 'cr' doesn't have a default value.
+    // (로컬 MySQL 에 lcp 사본을 만들어 실제로 거부되는 것을 확인했다.)
+    // 형제들(grp, fcnt, hd_* 여덟)은 전부 cr 을 갖고 있었고 여기만 없었다.
+    insert_lcp:      ['lcp',  'ri los lou lot lor loi lon lost cr'],
     insert_fcnt:     ['fcnt', 'ri cnd cr'],
 
     // hd_* 여덟은 전부 fcnt 테이블이고 가운데 컬럼 하나만 다르다.

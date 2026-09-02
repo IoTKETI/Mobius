@@ -33,6 +33,15 @@ exports.build_lcp = function(request, response, resource_Obj, body_Obj, callback
     resource_Obj[rootnm].lon = (body_Obj[rootnm].lon) ? body_Obj[rootnm].lon : '';
     resource_Obj[rootnm].lost = (body_Obj[rootnm].lost) ? body_Obj[rootnm].lost : '';
 
+    // cr 이 여기 없었다. lcp.cr 은 NOT NULL 인데 아무도 안 채워서, 배포의
+    // STRICT_TRANS_TABLES 아래에서 lcp 생성이 언제나 실패했다.
+    //
+    // **cr 은 서버가 정한다.** 본문 값을 받으면 남의 이름으로 리소스를 만들 수
+    // 있고, security.js 의 creator_bypasses 가 cr 로 접근을 허용하므로 그것이
+    // 곧 권한 위조가 된다. 본문에 cr 을 실어 보내는 것 자체는 oneM2M 상
+    // 허용이라 거부하지 않고 무시한다. (mobius/cnt.js 의 같은 자리와 같은 규약)
+    resource_Obj[rootnm].cr = request.headers['x-m2m-origin'];
+
     request.resourceObj = JSON.parse(JSON.stringify(resource_Obj));
     resource_Obj = null;
 

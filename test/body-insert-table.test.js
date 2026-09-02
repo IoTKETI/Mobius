@@ -100,10 +100,29 @@ function objFor(cols) {
     return o;
 }
 
+// **옛 SQL 과 일부러 갈라지는 자리.** 옛것이 틀렸을 때만 여기 적는다.
+//
+// 이 파일의 나머지는 "전환이 동작을 안 바꿨다" 를 못박는다. 그 대조가
+// 의미를 가지려면 예외가 **목록으로 드러나 있어야** 한다 — 대조를 느슨하게
+// 고치면 다음 실수가 조용히 지나간다.
+const LEGACY_DIVERGENCE = {
+    // lcp.cr 은 NOT NULL 인데 기본값이 없다. 옛 코드도 이 컬럼을 안 넣었고,
+    // 그래서 배포의 STRICT_TRANS_TABLES 아래에서 **lcp 생성이 언제나
+    // 실패했다** (ER_NO_DEFAULT_FOR_FIELD). 로컬 MySQL 에 lcp 사본을 만들어
+    // 실제로 거부되는 것을 확인했다.
+    //
+    // 즉 이것은 전환이 낸 회귀가 아니라 **원래 있던 버그**이고, 옛것과 같게
+    // 두면 고칠 수가 없다. 형제들(grp, fcnt, hd_* 여덟)은 전부 cr 을 갖고
+    // 있었고 lcp 만 없었다.
+    insert_lcp: { added: ['cr'] }
+};
+
 if (LEGACY) {
     for (const [name, want] of Object.entries(LEGACY)) {
         test('표가 옛 SQL 과 같다: ' + name, function () {
-            const seen = capture(name, objFor(want.cols));
+            const div = LEGACY_DIVERGENCE[name];
+            const expect = want.cols.concat(div ? div.added : []);
+            const seen = capture(name, objFor(expect));
 
             // insert_lookup 이 먼저 나가고, 그 다음이 본문이다.
             const body = seen.filter(function (s) {
@@ -118,12 +137,20 @@ if (LEGACY) {
                 return s.trim().replace(/`/g, '');
             });
 
-            assert.deepStrictEqual(cols.slice().sort(), want.cols.slice().sort(),
-                name + ' 의 컬럼이 옛것과 다르다\n' +
-                '  옛것: ' + want.cols.join(', ') + '\n' +
+            assert.deepStrictEqual(cols.slice().sort(), expect.slice().sort(),
+                name + ' 의 컬럼이 기대와 다르다\n' +
+                '  옛것: ' + want.cols.join(', ') +
+                (div ? '\n  일부러 더한 것: ' + div.added.join(', ') : '') + '\n' +
                 '  지금: ' + cols.join(', '));
         });
     }
+
+    test('옛것과 갈라지는 자리는 목록에 적힌 것뿐이다', function () {
+        // 예외 목록이 낡으면(고친 뒤 안 지우면) 대조가 그만큼 헐거워진다.
+        const stale = Object.keys(LEGACY_DIVERGENCE).filter(function (n) { return !LEGACY[n]; });
+        assert.deepStrictEqual(stale, [],
+            'LEGACY_DIVERGENCE 에 옛 소스에 없는 이름이 있다: ' + stale.join(', '));
+    });
 }
 
 // --- UPDATE 쪽 ---------------------------------------------------------------
@@ -394,4 +421,93 @@ test('표에서 만들어지는 빌더의 호출부는 전부 3인자다', funct
         '표에서 만들어지는 빌더는 (connection, obj, callback) 3인자다. ' +
         '옛 위치인자로 부르면 callback 자리에 문자열이 들어가고, ' +
         '그 TypeError 가 비동기 콜백 안에서 나 **워커가 죽는다**:\n  ' + bad.join('\n  '));
+});
+
+// --- NOT NULL 컬럼 누락 -------------------------------------------------------
+//
+// insert 빌더가 그 테이블의 NOT NULL 컬럼을 안 채우면, 배포의
+// STRICT_TRANS_TABLES 아래에서 **그 타입의 생성이 언제나 실패한다.**
+//
+// 실제로 그랬다 — insert_lcp 가 cr 을 빼먹어서 lcp(ty=10) 생성이 항상
+// ER_NO_DEFAULT_FOR_FIELD 였다. 로컬 MySQL 에 lcp 사본을 만들어 거부되는
+// 것을 확인했다:
+//
+//     insert into lcp_probe (loi,lon,lor,los,lost,lot,lou,ri) values (...)
+//     -> ER_NO_DEFAULT_FOR_FIELD: Field 'cr' doesn't have a default value
+//     cr 을 넣으면 통과
+//
+// 표와 스키마를 둘 다 소스에서 읽는다. 손으로 적은 목록은 갈라진다.
+function bodyTableEntries() {
+    const src = fs.readFileSync(path.join(ROOT, 'mobius', 'sql_action.js'), 'utf8');
+    const m = src.match(/var BODY_TABLES = \{([\s\S]*?)\n\};/);
+    assert.ok(m, 'BODY_TABLES 를 못 찾았다 — 정규식이 낡았다');
+    const out = [];
+    const re = /^\s{4}(\w+):\s*\[\s*'([^']+)',\s*'([^']*)'/gm;
+    let x;
+    while ((x = re.exec(m[1])) !== null) {
+        out.push({ name: x[1], table: x[2], cols: x[3].split(/\s+/).filter(Boolean) });
+    }
+    return out;
+}
+
+// 채워야 하는 컬럼: NOT NULL 이면서 기본값이 없는 것.
+// DEFAULT / AUTO_INCREMENT / 생성 컬럼은 DB 가 알아서 채운다.
+function mustFillCols(schema, table) {
+    const t = schema.match(new RegExp('CREATE TABLE `' + table + '` \\(([\\s\\S]*?)\\n\\) ENGINE'));
+    if (!t) { return null; }
+    const out = [];
+    const re = /^\s+`(\w+)`\s+([^,\n]*)/gm;
+    let y;
+    while ((y = re.exec(t[1])) !== null) {
+        const decl = y[2];
+        if (!/NOT NULL/i.test(decl)) { continue; }
+        if (/DEFAULT/i.test(decl)) { continue; }
+        if (/AUTO_INCREMENT/i.test(decl)) { continue; }
+        if (/GENERATED ALWAYS/i.test(decl)) { continue; }
+        out.push(y[1]);
+    }
+    return out;
+}
+
+test('insert 빌더는 NOT NULL 컬럼을 전부 채운다', function () {
+    const schema = fs.readFileSync(require('../mobius/db/mysql').schemaPath, 'utf8');
+    const entries = bodyTableEntries();
+    assert.ok(entries.length >= 15,
+        '빌더를 ' + entries.length + '개만 찾았다 — 표를 읽는 정규식이 낡았다');
+
+    const bad = [];
+    let checked = 0;
+    for (const e of entries) {
+        const need = mustFillCols(schema, e.table);
+        assert.ok(need !== null, e.name + ': 스키마에서 테이블 ' + e.table + ' 을 못 찾았다');
+        assert.ok(need.length > 0, e.name + ': ' + e.table + ' 에 NOT NULL 컬럼이 하나도 없다 — 파서가 헛돈다');
+        checked++;
+        const missing = need.filter((c) => e.cols.indexOf(c) < 0);
+        if (missing.length) { bad.push(e.name + ' (' + e.table + '): ' + missing.join(' ')); }
+    }
+
+    assert.ok(checked === entries.length, '검사 못 한 빌더가 있다');
+    assert.deepStrictEqual(bad, [],
+        'NOT NULL 인데 기본값이 없는 컬럼을 빌더가 안 채운다. ' +
+        'STRICT_TRANS_TABLES 에서 그 타입의 생성이 **언제나** 실패한다:\n  ' + bad.join('\n  '));
+});
+
+test('cr 은 본문이 아니라 요청 Origin 에서 온다', function () {
+    // cr 은 security.js 의 creator_bypasses 가 접근 허용에 쓰는 값이다.
+    // 본문 값을 그대로 쓰면 남의 이름으로 리소스를 만들어 권한을 위조할 수 있다
+    // (실측: 201 로 통과하고 cr 이 피해자 ID 로 저장됐다).
+    //
+    // lcp 에 cr 을 새로 넣으면서 이 규약을 같이 못 박는다.
+    const FILES = ['cnt.js', 'grp.js', 'lcp.js'];
+    for (const f of FILES) {
+        const src = fs.readFileSync(path.join(ROOT, 'mobius', f), 'utf8')
+            // 주석이 검사를 만족시키면 안 된다 — 이 저장소가 세 번 겪은 함정이다.
+            .replace(/\/\*[\s\S]*?\*\//g, ' ')
+            .replace(/(^|[^:])\/\/[^\n]*/g, '$1');
+
+        assert.match(src, /\.cr = request\.headers\['x-m2m-origin'\]/,
+            'mobius/' + f + ' 가 cr 을 요청 Origin 에서 안 가져온다');
+        assert.ok(!/\.cr = body_Obj/.test(src),
+            'mobius/' + f + ' 가 cr 을 본문에서 받는다 — 권한 위조가 된다');
+    }
 });
