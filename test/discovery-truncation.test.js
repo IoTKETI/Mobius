@@ -225,3 +225,42 @@ test('presearch_action 이 la 요청에 ty=4 와 lvl=1 을 못박는다', functi
     assert.match(la_block, /request\.query\.lvl\s*=\s*'1'/,
         'la 인데 lvl=1 을 안 박는다 — 골격 전체를 훑어 30초 상한에 걸린다');
 });
+
+test('la 는 lbl 가드를 통과한다 — 그리고 그게 맞다', function () {
+    // ty 고정에는 부작용이 하나 있다. lbl LIKE 폭주를 막는 가드가
+    // `lbl != null && ty == null` 인데, la 는 ty 가 언제나 채워지므로
+    // **절대 발동하지 않는다.** 클라이언트가 `?la=1&lbl=x` 라고 ty 없이
+    // 썼어도 그렇다.
+    //
+    // 이것을 "가드가 무력화됐다" 로 읽고 고치려 들면 la 가 깨진다.
+    // 가드가 하는 일은 CIN 을 빼는 것인데 la 는 정의상 CIN 을 찾는 요청이라,
+    // 발동하면 언제나 0건이 된다.
+    const sql = require(path.join(ROOT, 'mobius', 'sql_action.js'));
+    const like_without_ty = sql._like_filter_without_ty;
+
+    // 클라이언트가 보낸 그대로면 가드가 발동한다.
+    assert.strictEqual(like_without_ty({ lbl: 'x' }), true,
+        'ty 없는 lbl 요청에 가드가 안 걸린다 — 1억4,560만 행을 훑는다');
+
+    // presearch_action 을 거친 뒤에는 발동하지 않는다.
+    assert.strictEqual(like_without_ty({ lbl: 'x', ty: '4', lvl: '1' }), false,
+        'la 에서 가드가 발동한다 — CIN 을 빼면 la 가 언제나 0건이 된다');
+});
+
+test('la 를 묶는 것은 lbl 가드가 아니라 lvl 고정이다', function () {
+    // 후보를 "한 컨테이너의 CIN" 으로 묶는 것은 lvl=1 이다. lvl=1 이면
+    // descendant_max_lvl 이 0 을 주고, 골격이 재귀 분기를 아예 안 만들어
+    // 부모가 언제나 하나가 된다.
+    //
+    // 이 사슬이 끊기면 la 가 여러 부모에 걸치고, 여러 부모를 넘는
+    // `order by ct desc` 는 인덱스로 못 풀어 filesort 가 된다.
+    // 배포에서 실제로 그렇게 30초 상한에 걸렸다(2026-09-01, e932e66 이전).
+    const sql = require(path.join(ROOT, 'mobius', 'sql_action.js'));
+
+    assert.strictEqual(sql.descendant_max_lvl({ lvl: '1' }), 0,
+        'lvl=1 인데 최대 깊이가 0 이 아니다 — 골격이 재귀해 부모가 여럿이 된다');
+
+    // lvl 이 없으면 제한이 없다 — 그래서 la 가 그것을 박아야 한다.
+    assert.strictEqual(sql.descendant_max_lvl({}), null,
+        'lvl 없는 요청에 깊이 제한이 생겼다 — 일반 discovery 의 동작이 바뀐다');
+});

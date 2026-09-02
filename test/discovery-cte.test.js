@@ -1348,6 +1348,37 @@ test('la 도 배치 경로를 탄다 — 골격을 조인하면 pi 가 상수가
     }));
 });
 
+test('예전 한 문장 경로는 배선돼 있지 않다', function () {
+    // build_descendant_sql 은 남아 있지만 **호출부가 0개**다. 배치 경로가
+    // 무엇을 대체했는지 보여주려고 두는 참고 코드다.
+    //
+    // 실수로 다시 배선하면 두 가지가 돌아온다.
+    //   la    골격을 조인하므로 pi 가 상수가 아니고, 그러면 filesort 다.
+    //         배포의 590만 건 컨테이너에서 30초 상한을 넘겼다(2026-09-01).
+    //   ofst  1페이지와 2페이지가 다른 경로를 타면 행 순서가 달라
+    //         offset 이 어긋난다. 배포에서 2,806건 중 248건이 사라졌다.
+    //
+    // 이 함수가 안 불린다는 사실이 주석에서 여러 번 갈렸다 — 두 자리가
+    // "ofst 나 la 가 있으면 이쪽을 쓴다" 라고 **거짓을** 말하고 있었고,
+    // 그 때문에 조사가 한 번 헛짚었다. 그래서 사실 쪽을 테스트로 못박는다.
+    const src = fs.readFileSync(path.join(ROOT, 'mobius', 'sql_action.js'), 'utf8');
+    // 주석은 뺀다 — 왜 안 쓰는지 설명하느라 이름을 여러 번 인용한다.
+    const lines = src.split('\n').filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l));
+
+    // 정의와 export 는 있어야 한다(참고 코드로 두는 것이 목적이다).
+    assert.ok(lines.some((l) => /function build_descendant_sql\s*\(/.test(l)),
+        'build_descendant_sql 이 사라졌다 — 배치 경로가 무엇을 대체했는지 알 수 없게 된다');
+
+    // **호출 형태**를 센다. 이름 개수를 세면 안 된다 —
+    // `exports.build_descendant_sql = build_descendant_sql;` 한 줄에 두 번 나온다.
+    const calls = lines.filter((l) =>
+        /build_descendant_sql\s*\(/.test(l) && !/function\s+build_descendant_sql/.test(l));
+
+    assert.deepStrictEqual(calls.map((l) => l.trim()), [],
+        'build_descendant_sql 이 다시 배선됐다.\n' +
+        'la 는 filesort 로, ofst 는 페이징 어긋남으로 돌아간다.');
+});
+
 test('부모가 0개면 자식 질의를 던지지 않는다', function (t, done) {
     // 없는 ri 를 주면 골격이 비고, 더 칠 이유가 없다.
     const h = tap('mysql', { skeleton: [] });
