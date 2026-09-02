@@ -634,21 +634,18 @@ test('sza 를 주면 cin 을 조인하고 c.cs 로 비교한다', function (t, d
     }));
 });
 
-test('szb / cty 도 마찬가지다', function (t, done) {
+test('szb 도 마찬가지다 — cty 는 이제 여기 오지 않는다', function (t, done) {
+    // 이 테스트에 cty 가 함께 있었다. cty 를 지원하지 않기로 하면서 뺐다 —
+    // presearch_action 이 400-65 로 먼저 끊으므로 SQL 을 만드는 자리까지
+    // 도달하지 않는다. 아래 'cty 는 SQL 을 만들지 않는다' 가 그것을 못박는다.
     const h = tap('mysql');
-    run(h, { ty: '4', szb: 100, cty: 'application/json:0', lim: 20 },
+    run(h, { ty: '4', szb: 100, lim: 20 },
         guard(done, function (code, ris, seen) {
             const c = childStmt(seen);
             assert.strictEqual((c.sql.match(/join cin c/g) || []).length, 1,
                 'cin 을 두 번 조인한다');
             assert.match(c.sql, /c\.cs < \?/, c.sql);
-            assert.match(c.sql, /c\.cnf = \?/, c.sql);
             assert.ok(c.bindings.indexOf(100) >= 0, 'szb 가 수로 안 왔다');
-            assert.ok(c.bindings.indexOf('application/json:0') >= 0,
-                'cty 가 바인딩에 없다: ' + JSON.stringify(c.bindings));
-            // 값이 SQL 에 남아 있으면 안 된다.
-            assert.strictEqual(allSql(seen).indexOf('application/json:0'), -1,
-                'cty 값이 SQL 에 인라인됐다: ' + c.sql);
             done();
         }));
 });
@@ -686,15 +683,46 @@ test('MySQL 은 캐스팅하지 않는다 (이미 int 다)', function (t, done) 
     }));
 });
 
-test('needs_cin_join 이 셋을 정확히 가린다', function () {
+test('cty 는 SQL 을 만들지 않는다 — 지원하지 않는 필터다', function () {
+    // 값이 SQL 에 안 들어가는 것으로는 부족하다. 아예 **절이 만들어지지
+    // 않아야** 한다. 절이 남아 있으면 게이트를 지우는 순간 되살아난다.
+    const src = fs.readFileSync(path.join(ROOT, 'mobius', 'sql_action.js'), 'utf8');
+    const code = src.split('\n')
+        .filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l))
+        .join('\n');
+
+    assert.ok(!/query\.cty/.test(code),
+        'sql_action 이 cty 를 다시 읽는다 — 지원하지 않기로 한 필터다');
+    assert.ok(!/c\.cnf/.test(code),
+        'cnf 비교가 되살아났다.\n' +
+        '값이 클라이언트가 준 것뿐이라 답이 틀리고, 인덱스가 없어 후보를\n' +
+        '건당 찾아간다. 배포 EXPLAIN 으로 값이 무엇이든 계획이 같다\n' +
+        '(맞는 값/안 맞는 값/필터 없음 모두 cost 1271.55) — 값을 채워도 안 빨라진다.');
+
+    // 게이트가 살아 있어야 한다.
+    const res = fs.readFileSync(path.join(ROOT, 'mobius', 'resource.js'), 'utf8');
+    const rcode = res.split('\n')
+        .filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l))
+        .join('\n');
+    assert.match(rcode, /query\.cty != null/,
+        'cty 게이트가 사라졌다 — 30초를 태우고 500-6 이 나가던 시절로 돌아간다');
+    assert.match(rcode, /'400-65'/,
+        'cty 게이트가 400-65 를 안 쓴다');
+});
+
+test('needs_cin_join 이 둘을 정확히 가린다', function () {
     const h = tap('mysql');
     const f = h.sql_action.needs_cin_join;
     assert.strictEqual(f({ sza: 1 }), true);
     assert.strictEqual(f({ szb: 1 }), true);
-    assert.strictEqual(f({ cty: 'x' }), true);
     assert.strictEqual(f({ sza: 0 }), true, '0 도 값이다');
     assert.strictEqual(f({ ty: '3', lbl: 'x' }), false);
     assert.strictEqual(f({}), false);
+
+    // cty 는 셋째였다. 지원하지 않기로 해서 뺐다 — 여기서 참을 주면
+    // presearch_action 이 이미 끊은 요청에 대해 조인을 준비하는 셈이다.
+    assert.strictEqual(f({ cty: 'x' }), false,
+        'cty 가 다시 조인을 부른다 — 지원하지 않기로 한 필터다');
 });
 
 // cs / cnf 는 contentInstance 에만 있으므로 결과는 반드시 ty=4 다.
@@ -1026,8 +1054,11 @@ test('SQLite 도 같은 뜻을 낸다 (ty <> 4)', function (t, done) {
 // 전부 이름 바인딩으로 나가므로 그 문제 자체가 없다. 이 테스트가 그것을
 // 못박는다 — 필터를 하나 더 만들 때 값을 문자열로 붙이면 여기서 걸린다.
 
+// cty 가 여기 있었다. 지원하지 않기로 해서 뺐다 — presearch_action 이
+// 400-65 로 먼저 끊으므로 SQL 을 만드는 자리까지 도달하지 않는다.
+// 그 대신 '지원하지 않는 필터는 SQL 을 만들지 않는다' 가 아래에 있다.
 const FILTERS = [
-    ['lbl', "a'b"], ['rn', "x' or '1'='1"], ['cty', "t'--"],
+    ['lbl', "a'b"], ['rn', "x' or '1'='1"],
     ['cra', "2026' or 1=1 --"], ['crb', "2026'"], ['ms', "2026'"], ['us', "2026'"],
     ['exa', "2026'"], ['exb', "2026'"], ['sts', "1'"], ['stb', "1'"]
 ];

@@ -1186,6 +1186,24 @@ function presearch_action(request, response, pi_list, found_parent_list, callbac
     var resource_Obj = request.resourceObj;
     var rootnm = Object.keys(resource_Obj)[0];
 
+    // cty 는 받지 않는다. **DB 를 건드리기 전에 끊는다.**
+    //
+    // 이 필터는 cin.cnf 와 정확 일치로 견주는데, cnf 에는 클라이언트가 보낸
+    // 값만 들어가고 대부분 비어 있다(배포 표본). 그래서 답이 거의 언제나
+    // 틀리고, 게다가 cnf 에 인덱스가 없어 후보를 건당 찾아간다 —
+    // 배포 EXPLAIN 으로 한 subtree 에서 rows 27,084,214 다.
+    //
+    // 예전에는 그 질의를 던지고 30초 상한에 걸려 500-6 이 나갔다. 30초를
+    // 태운 뒤에 "범위를 좁혀라" 라고 말하는 셈이었는데, 범위를 좁혀도 답은
+    // 여전히 틀린다. 지원하지 않는다고 먼저 말하는 편이 정직하다.
+    //
+    // sza / szb 는 그대로 받는다. cs 는 cin_ri_idx(pi, ri, cs) 에 담겨 있어
+    // 인덱스만으로 끝나고, 값도 서버가 채운다.
+    if (request.query.cty != null) {
+        callback('400-65');
+        return;
+    }
+
     request.query.cni = '0';
 
     // ty=2(AE)는 CSE 바로 아래에만 있다. 더 내려갈 이유가 없다.

@@ -36,7 +36,9 @@ test('사유 97개가 있다', function () {
     // xml/cbor 를 걷어내며 400-5("valid XML 이 아니다")와 400-6(CBOR)도
     // 참조를 잃어 96 이 됐다. 400-7(json 루트 태그 불일치)은 남는다.
     // 상류가 json 이 아닌 것을 돌려줄 때의 500-7 을 더해 97 이 됐다.
-    assert.strictEqual(Object.keys(reason.REASON).length, 97);
+    // cty 필터를 지원하지 않기로 하며 400-65 를 더해 98 이 됐다 — 30초를
+    // 태우고 500-6 을 내는 대신 처음부터 "그 필터는 없다" 를 알려준다.
+    assert.strictEqual(Object.keys(reason.REASON).length, 98);
 });
 
 test('모든 사유의 code 가 RSC 카탈로그의 실제 항목이다', function () {
@@ -52,7 +54,7 @@ test('모든 사유의 code 가 RSC 카탈로그의 실제 항목이다', functi
 
 test('toLegacyTable 이 app.js 가 쓰던 형태를 만든다', function () {
     const t = reason.toLegacyTable();
-    assert.strictEqual(Object.keys(t).length, 97);
+    assert.strictEqual(Object.keys(t).length, 98);
 
     Object.keys(t).forEach(function (k) {
         const row = t[k];
@@ -232,7 +234,9 @@ test('detail 은 18건에 붙어 있고 전부 문자열이다', function () {
     // xml/cbor 를 걷어내며 400-5 / 400-6 이 빠져 17건이 됐다.
     // 상류 형식 불일치(500-7)를 더해 18건이다 — 어느 상대가 규격을
     // 안 지키는지 알아야 하므로 detail 에 실제 형식이 남는다.
-    assert.strictEqual(withDetail.length, 18);
+    // 지원하지 않는 cty 필터(400-65)를 더해 19건이다 — 누가 아직 그것을
+    // 쓰는지 알아야 나중에 되살릴지 판단할 수 있다.
+    assert.strictEqual(withDetail.length, 19);
     withDetail.forEach(function (k) {
         assert.strictEqual(typeof reason.REASON[k].detail, 'string', k);
     });
@@ -363,7 +367,12 @@ test('detail 을 가진 사유는 드물게 나는 것들뿐이다', function ()
         '413-1',   // 요청 본문이 상한을 넘음
         // 상류(원격 CSE·AE)가 json 이 아닌 것을 돌려준 경우. 나가는 요청에
         // Accept: application/json 을 붙이므로 규격을 지키는 상대에게는 안 난다.
-        '500-7'    // 상류가 흘려보낼 수 없는 본문을 줌
+        '500-7',   // 상류가 흘려보낼 수 없는 본문을 줌
+        // 지원하지 않는 cty 필터. 여기 detail 이 붙은 이유도 계측이다 —
+        // 배포 access 로그 전체에서 cty 요청이 21건뿐이고 전부 조사용 curl 이라
+        // 진짜 클라이언트가 없다고 판단해 뺐다. 그 판단이 맞는지는 이 로그가
+        // 계속 비어 있는지로 확인된다. 차면 되살릴 근거가 된다.
+        '400-65'   // cty 필터를 씀
     ];
     const withDetail = Object.keys(reason.REASON)
         .filter(function (k) { return reason.REASON[k].detail != null; });

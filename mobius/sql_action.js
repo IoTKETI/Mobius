@@ -884,19 +884,21 @@ function build_search_query(query) {
 
     if (query.rn != null) { where += ' and rn = ' + bind(query.rn); }
 
-    if (query.cty != null) {
-        // cnf 에는 클라이언트가 준 contentInfo 가 그대로 들어간다
-        // (예: 'application/json:0'). 정확 일치로 본다.
-        where += ' and c.cnf = ' + bind(query.cty);
-    }
+    // cty 절이 여기 있었다(`and c.cnf = ?`). 지원하지 않기로 해서 지웠다 —
+    // presearch_action 이 400-65 로 먼저 끊으므로 여기 도달하지 않는다.
+    // 이유는 mobius/reason.js 의 400-65 주석에 있다.
 
     return { where: where, bindings: b };
 }
 exports._build_search_query = build_search_query;
 
-// sza / szb / cty 는 cin 의 속성을 본다. 하나라도 있으면 조인해야 한다.
+// sza / szb 는 cin 의 속성(cs)을 본다. 하나라도 있으면 조인해야 한다.
+//
+// cty 가 여기 있었다. 지원하지 않기로 해서 뺐다 — 그것이 보던 cnf 는
+// 인덱스에 없어 행 접근이 필요했고, 그래서 이 조인의 비용이 두 배로 갈렸다.
+// 지금 남은 cs 는 cin_ri_idx(pi, ri, cs) 에 담겨 있어 인덱스만으로 끝난다.
 function needs_cin_join(query) {
-    return query.sza != null || query.szb != null || query.cty != null;
+    return query.sza != null || query.szb != null;
 }
 exports.needs_cin_join = needs_cin_join;
 
@@ -1360,11 +1362,18 @@ function build_children_sql(parents, query, search, lim, budget_ms, ofst, count_
 
     // sza / szb / cty 를 쓰면 cin 을 조인한다. 그 값(cs / cnf)은 lookup 에 없다.
     //
-    // 조인 키를 (pi, ri) 둘 다로 잡는 이유: cin_ri_idx(pi, ri, cs) 가
-    // cs 까지 담고 있어서, sza / szb 만 쓰면 cin 행을 읽지 않고 인덱스만으로
-    // 끝난다. cnf 는 인덱스에 없어 행 접근이 필요하다.
-    // 두 컬럼 모두 lookup 쪽과 콜레이션이 같아 별도 지정이 필요 없다
-    // (pi 는 양쪽 general_ci, ri 는 양쪽 bin).
+    // 조인 키를 (pi, ri) 둘 다로 잡는다. 두 컬럼 모두 lookup 쪽과 콜레이션이
+    // 같아 별도 지정이 필요 없다 (pi 는 양쪽 general_ci, ri 는 양쪽 bin).
+    //
+    // 여기 "cin_ri_idx(pi, ri, cs) 가 cs 까지 담고 있어 sza / szb 는 인덱스만으로
+    // 끝난다" 고 적혀 있었다. **배포 EXPLAIN 으로 확인하니 사실이 아니다.**
+    // 옵티마이저는 cin_ri_idx 가 아니라 PRIMARY(ri, pi) 로 조인하고, InnoDB 에서
+    // PRIMARY 는 곧 행이므로 후보마다 클러스터드 인덱스를 한 번씩 찾아간다.
+    // cs 를 보든 cnf 를 보든 비용이 같다(실측 cost 1271.55, 세 경우 동일).
+    // using_index 가 뜨는 것은 cin 컬럼을 **아무것도 안 볼 때**뿐이다.
+    //
+    // 그래서 sza / szb 도 후보 수에 비례한다. 한 subtree 에 CIN 2,280만 건이면
+    // 그만큼 찾아간다 — 상한(30초)에 걸리면 500-6 으로 범위를 좁히라고 안내한다.
     //
     // inner join 이 맞다 — cs / cnf 가 없는 리소스(컨테이너 등)는 크기·형식으로
     // 거를 대상이 아니므로 결과에서 빠져야 한다.
@@ -1534,11 +1543,18 @@ function build_descendant_sql(ri, query, search, cur_lim) {
     // 두 방언(mysql / sqlite3) 모두 확인했다.
     // sza / szb / cty 를 쓰면 cin 을 조인한다. 그 값(cs / cnf)은 lookup 에 없다.
     //
-    // 조인 키를 (pi, ri) 둘 다로 잡는 이유: cin_ri_idx(pi, ri, cs) 가
-    // cs 까지 담고 있어서, sza / szb 만 쓰면 cin 행을 읽지 않고 인덱스만으로
-    // 끝난다. cnf 는 인덱스에 없어 행 접근이 필요하다.
-    // 두 컬럼 모두 lookup 쪽과 콜레이션이 같아 별도 지정이 필요 없다
-    // (pi 는 양쪽 general_ci, ri 는 양쪽 bin).
+    // 조인 키를 (pi, ri) 둘 다로 잡는다. 두 컬럼 모두 lookup 쪽과 콜레이션이
+    // 같아 별도 지정이 필요 없다 (pi 는 양쪽 general_ci, ri 는 양쪽 bin).
+    //
+    // 여기 "cin_ri_idx(pi, ri, cs) 가 cs 까지 담고 있어 sza / szb 는 인덱스만으로
+    // 끝난다" 고 적혀 있었다. **배포 EXPLAIN 으로 확인하니 사실이 아니다.**
+    // 옵티마이저는 cin_ri_idx 가 아니라 PRIMARY(ri, pi) 로 조인하고, InnoDB 에서
+    // PRIMARY 는 곧 행이므로 후보마다 클러스터드 인덱스를 한 번씩 찾아간다.
+    // cs 를 보든 cnf 를 보든 비용이 같다(실측 cost 1271.55, 세 경우 동일).
+    // using_index 가 뜨는 것은 cin 컬럼을 **아무것도 안 볼 때**뿐이다.
+    //
+    // 그래서 sza / szb 도 후보 수에 비례한다. 한 subtree 에 CIN 2,280만 건이면
+    // 그만큼 찾아간다 — 상한(30초)에 걸리면 500-6 으로 범위를 좁히라고 안내한다.
     //
     // inner join 이 맞다 — cs / cnf 가 없는 리소스(컨테이너 등)는 크기·형식으로
     // 거를 대상이 아니므로 결과에서 빠져야 한다.

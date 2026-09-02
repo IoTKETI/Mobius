@@ -105,6 +105,37 @@ var REASON = {
     // detail 은 응답에 안 나가고 responder.respond 가 console.error 로 찍는다.
     // 어떤 형식이 왔는지가 거기 남으므로 이 사유의 로그가 곧 계측이다.
     '400-64': { code: RSC.BAD_REQUEST, msg: "only json is supported; send the request body as application/json", detail: 'json_only' },
+    // cty(contentType) 필터는 받지 않는다.
+    //
+    // 이 필터는 cin.cnf 와 정확 일치로 견준다. 그런데 cnf 에 들어가는 값은
+    // **클라이언트가 보낸 것뿐**이다 — 서버가 Content-Type 헤더에서 유추하지
+    // 않고, 안 보내면 빈 문자열이 저장된다. 배포 표본에서 거의 전부 빈 값이다.
+    //
+    // 그래서 두 가지가 동시에 일어난다.
+    //   답이 틀린다   값을 채운 소수를 빼면 무엇을 물어도 0건이다. 클라이언트는
+    //                 "그런 형식의 CIN 이 없다" 로 읽지만 사실은 서버가 모른다.
+    //   느리다        cnf 에 인덱스가 없어 후보를 건당 찾아간다. 배포 EXPLAIN 으로
+    //                 한 subtree 에서 rows 27,084,214 / cost 60,898,288 이다
+    //                 (같은 부모에 cty 를 빼면 rows 93 / cost 110).
+    //
+    // **기본값을 빈 문자열 말고 다른 것으로 바꿔도 안 빨라진다.** 배포에서
+    // 재 봤다 — cnf 가 실제로 채워진 subtree(walwal/training, cnf='text')에서
+    // 맞는 값 / 안 맞는 값 / 필터 없음의 계획이 **완전히 같다**(cost 1271.55,
+    // 같은 접근, 같은 행 수). 조건이 attached_condition 이라 후보를 **먼저
+    // 가져온 뒤에** 값을 보기 때문이다. 값이 무엇이든 가져오는 비용은 같다.
+    // 게다가 임의의 기본값을 넣으면 답이 다르게 틀린다 — 그 값을 물으면
+    // 전건이 나오고, 다른 값을 물으면 여전히 0건이다.
+    //
+    // 인덱스로 풀 문제도 아니다. 값이 없는데 인덱스를 만들어도 답은 그대로
+    // 틀리고, cin 은 1억4,560만 행 / 249GB 라 인덱스 하나가 매우 비싸다.
+    // 그래서 **지원하지 않는다고 말한다.** 30초를 태우고 400 을 내는 것보다,
+    // 처음부터 "그 필터는 없다" 를 알려주는 편이 정직하다.
+    //
+    // 되살리려면 cnf 를 채우는 것부터다 — 생성 경로에서 Content-Type 을 넣든,
+    // 클라이언트에게 요구하든. 그 다음이 인덱스이고, 그 다음이 이 게이트 제거다.
+    '400-65': { code: RSC.BAD_REQUEST,
+                msg: "the cty filter is not supported by this CSE",
+                detail: 'cty: unsupported filter' },
     // 본문을 다 받기 전에 끊는다. 실제 상한값은 로그(detail)에만 남긴다 —
     // 응답에 적으면 "얼마까지 되는지" 를 물어보지 않고 알아낼 수 있게 된다.
     '413-1':  { code: RSC.CONTENT_TOO_LARGE, msg: "request body is too large", detail: 'body_limit' },
@@ -168,10 +199,19 @@ var REASON = {
     // 오해시킨다 — 30초를 태우고 같은 응답을 받는 일이 반복된다.
     // 고칠 사람은 호출자이고, 무엇을 고쳐야 하는지는 msg 에 있다.
     //
-    // 이 사유가 남은 자리(2026-09-01 기준): cty / sza / szb 처럼 cin 을
-    // 조인하는 필터. 그 컬럼(cnf)에 인덱스가 없고 배포에서는 값이 비어 있어,
-    // 아무것도 맞추지 못한 채 후보를 전부 훑는다. 값이 비어 있으니 인덱스로
-    // 풀 문제가 아니다 — 범위를 좁히는 것이 유일한 답이다.
+    // 이 사유가 남은 자리(2026-09-02 기준): sza / szb 처럼 cin 을 조인하는 필터.
+    //
+    // **비용은 cty 와 같다.** 배포 EXPLAIN 으로 확인했다 — 옵티마이저가
+    // cin_ri_idx(pi, ri, cs) 가 아니라 PRIMARY(ri, pi) 로 조인하고, InnoDB 에서
+    // PRIMARY 는 곧 행이므로 cs 를 보든 cnf 를 보든 후보마다 클러스터드 인덱스를
+    // 한 번씩 찾아간다. 세 계획의 cost 가 같았다(맞는 값/안 맞는 값/필터 없음
+    // 모두 1271.55). 코드 주석이 "cs 는 인덱스에 담겨 끝난다" 고 말하던 것은
+    // 사실과 다르다.
+    //
+    // 그런데도 sza / szb 는 받는다. cty 와 갈리는 것은 속도가 아니라 **정확성**이다.
+    //   cs   서버가 채운다. 답이 맞다. 느릴 뿐이라 범위를 좁히면 된다.
+    //   cnf  클라이언트가 준 것뿐이고 대부분 비어 있다. 범위를 좁혀도 답이 틀린다.
+    // 그래서 하나는 상한으로 묶어 두고, 다른 하나는 아예 받지 않는다(아래 400-65).
     '500-6': { code: RSC.BAD_REQUEST,
                msg: "discovery scope too large — narrow the target path, " +
                     "add a ty filter, or use cra/crb to bound the time range",
