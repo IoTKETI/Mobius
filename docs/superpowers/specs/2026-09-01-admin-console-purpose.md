@@ -629,14 +629,26 @@ part0 워크트리를 정리하면서(`mobius-87`) 무시된 경로에 있던 �
 거기서 뽑은, **포팅할 때 다시 겪게 될 것들**이다. DDL 을 새로 쓰거나 모듈을
 다시 짜면 전부 잃는다.
 
-**① `hit_ri.ri` 의 콜레이션은 `lookup.ri` 와 같아야 한다.**
+**① `hit_ri.ri` 에 `COLLATE utf8_bin` 을 명시하지 않으면 자동으로 어긋난다.**
 
     `ri` varchar(200) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL
 
-`delete_hit_ri_orphan` 이 `hit_ri.ri` 를 `lookup.ri` 에 조인한다. 콜레이션이
-어긋나면 **인덱스를 못 타고 조인이 조용히 느려지거나 안 맞는다.** 배포에서 이미
-같은 부류를 겪었다 — `lookup.pi` 가 `utf8mb3_general_ci`, `ri` 가 `utf8mb3_bin`
-이라 부모↔자식 조인이 인덱스를 못 탔다.
+"같게 맞춰라" 가 아니라 **"안 적으면 틀린 쪽으로 떨어진다"** 가 정확하다.
+`mobius/mobiusdb.sql` 을 직접 세어 확인했다(`mobius-87` 지적):
+
+    ri  17곳 전부 COLLATE utf8_bin 을 명시 (16곳은 CHARACTER SET 까지,
+        227줄 한 곳만 COLLATE 단독 — 결과는 같고 표기만 다르다)
+    pi  3곳 전부 맨 varchar. COLLATE 절이 하나도 없다
+    lookup 은 `) ENGINE=InnoDB DEFAULT CHARSET=utf8;` 로 닫힌다 — 테이블
+        기본값에도 COLLATE 가 없어 utf8_general_ci 가 된다
+
+즉 **`ri`=`utf8_bin` / `pi`=`general_ci` 는 배포에서 우연히 어긋난 것이 아니라
+스키마 원본에서부터 그렇다.** 새 테이블을 만들 때 `COLLATE` 를 빠뜨리면
+테이블 기본값을 타고 조용히 `general_ci` 가 된다.
+
+`delete_hit_ri_orphan` 이 `hit_ri.ri` 를 `lookup.ri` 에 조인하므로, 그렇게 되면
+**인덱스를 못 탄다.** 배포 `lookup` 은 5,740만 행이라 이 한 줄이 화면 하나를
+못 쓰게 만든다.
 
 **② 파사드 실패 규약을 writer 가 버리면 안 된다.**
 파사드는 실패 시 `callback(true, err)` 다. 두 번째 인자를 버리면 로그가
