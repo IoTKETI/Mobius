@@ -1410,7 +1410,7 @@ exports.retrieve = function (request, response, callback) {
                                 resource_Obj[rootnm].ri, foundObj, function (ferr, fstat) {
                             if (ferr) {
                                 console.error('[discovery] ACP 필터 실패 — 결과를 내보내지 않는다: ' +
-                                    ((fstat && (fstat.sqlMessage || fstat.message)) || fstat));
+                                    db_errors.text(fstat));
                                 return callback('500-1');
                             }
                             if (fstat.removed > 0) {

@@ -23,6 +23,10 @@ var merge = require('merge');
 // 않는 껍데기였고, 유일하게 남아 있던 임대 장부는 파사드로 옮겼다.
 var facade = require('./db');
 
+// 에러 술어. 코어가 드라이버 코드를 직접 보지 않게 한다 — 어댑터가 붙인
+// 중립 코드만 여기서 해석한다. resource.js:51 도 같은 모듈을 쓴다.
+var db_errors = require('./db/errors');
+
 // 구독 도달성 감사(audit_subscriptions)가 nu 와 poa 를 읽는다.
 var url = require('url');
 var poa_util = require('./poa');
@@ -1077,8 +1081,7 @@ exports.select_spec_ri = function (connection, found_Obj, count, callback) {
             facade.run(facade.k(t).select('*').whereIn('ri', chunk), connection,
                 function (err, rows) {
                     if (err) {
-                        console.error('[select_spec_ri] ' + t + ': ' +
-                                      ((rows && (rows.sqlMessage || rows.message)) || rows));
+                        console.error('[select_spec_ri] ' + t + ': ' + db_errors.text(rows));
                         return callback('500-1');
                     }
                     rows = rows || [];
@@ -1252,9 +1255,7 @@ function build_skeleton_sql(ri, query, budget_ms) {
     // 해시 조인을 막는다. 옵티마이저가 재귀항에서 "작은 인덱스를 통째로 훑고
     // 골격의 새 행으로 해시를 만드는" 계획을 고를 때가 있는데, 재귀는 반복마다
     // 상대가 바뀌므로 그 해시를 매번 새로 만든다 (실측 15,584ms -> 4,856ms).
-    var nohash = facade.noHashJoinHint(['l', 's']);
-    var hints = [timeout, nohash].filter(Boolean).join(' ');
-    var lead = 'select ' + (hints ? '/*+ ' + hints + ' */ ' : '');
+    var lead = 'select ' + facade.optimizerHints([timeout, facade.noHashJoinHint(['l', 's'])]);
 
     // 골격 컬럼을 처음부터 비교용 콜레이션으로 만든다.
     //
@@ -1332,7 +1333,7 @@ function build_children_sql(parents, query, search, lim, budget_ms, ofst, count_
     if (query.la != null) { hint = ''; }
 
     var timeout = facade.statementTimeoutHint(budget_ms || DISCOVERY_TIMEOUT_MS);
-    var lead = 'select ' + (timeout ? '/*+ ' + timeout + ' */ ' : '');
+    var lead = 'select ' + facade.optimizerHints([timeout]);
 
     // sza / szb / cty 를 쓰면 cin 을 조인한다. 그 값(cs / cnf)은 lookup 에 없다.
     //
@@ -1474,9 +1475,7 @@ function build_descendant_sql(ri, query, search, cur_lim) {
     // 해시 조인을 막는다. 옵티마이저가 재귀항에서 "작은 인덱스를 통째로 훑고
     // 골격의 새 행으로 해시를 만드는" 계획을 고를 때가 있는데, 재귀는 반복마다
     // 상대가 바뀌므로 그 해시를 매번 새로 만든다 (실측 15,584ms -> 4,856ms).
-    var nohash = facade.noHashJoinHint(['l', 's']);
-    var hints = [timeout, nohash].filter(Boolean).join(' ');
-    var lead = 'select ' + (hints ? '/*+ ' + hints + ' */ ' : '');
+    var lead = 'select ' + facade.optimizerHints([timeout, facade.noHashJoinHint(['l', 's'])]);
 
     // 골격 컬럼을 처음부터 비교용 콜레이션으로 만든다.
     //
@@ -1635,15 +1634,20 @@ exports.search_lookup = function (connection, ri, query, cur_lim, pi_list, pi_in
         if (settled) { return; }
         settled = true;
 
-        // 문장 상한(MySQL ER_MAX_EXECUTION_TIME_EXCEEDED)은 DB 고장이
-        // 아니라 "이 질의가 감당 못 할 범위"라는 뜻이다. 구분해서 남긴다.
+        // 문장 상한은 DB 고장이 아니라 "이 질의가 감당 못 할 범위"라는 뜻이다.
+        // 구분해서 남긴다.
         //
         // 대표적인 형태가 ty 없이 lbl like '%..%' 다. 그러면 후보에
         // CIN 이 전부 들어오는데(배포 서버 6,620만 행) LIKE 는 인덱스를
         // 못 타므로 어떤 계획으로도 빠를 수 없다. 인덱스를 강제해도
         // 안 해도 30초를 넘긴다(2026-08-29 실측). 예전 구현은 lbl 패턴이
         // 아예 안 맞아 늘 빈 결과였다(커밋 83e8461).
-        if (res && (res.driverCode === 'ER_MAX_EXECUTION_TIME_EXCEEDED' || res.errno === 3024)) {
+        //
+        // 여기 `res.driverCode === 'ER_MAX_EXECUTION_TIME_EXCEEDED' || res.errno === 3024`
+        // 이라고 적혀 있었다. 그 이름은 이 드라이버에 없어서(실제 이름은
+        // ER_QUERY_TIMEOUT) **죽은 가지**였고, 숫자는 MySQL 것이라 다른
+        // 백엔드에서는 뜻이 없다. 어댑터가 붙인 중립 코드만 본다.
+        if (db_errors.isStatementTimeout(res)) {
             console.error('[search_lookup] statement timeout (' + DISCOVERY_TIMEOUT_MS +
                           'ms) ri=' + ri + ' query=' + JSON.stringify(query) +
                           ' — 대상을 좁히거나(더 깊은 경로) ty 를 함께 준다');
@@ -1654,19 +1658,14 @@ exports.search_lookup = function (connection, ri, query, cur_lim, pi_list, pi_in
         // 인덱스가 없으면 force index 때문에 discovery 가 **전부** 실패한다.
         // 코드만 올리고 마이그레이션을 안 돌린 경우다 — 원인을 바로 알려준다.
         // (새로 설치하면 mobiusdb.sql 이 만들어 주므로 이 경우는 업그레이드뿐)
-        else if (res && (res.driverCode === 'ER_KEY_DOES_NOT_EXITS' ||
-                         res.errno === 1176 ||
-                         /Key '[^']*' doesn't exist/i.test(res.sqlMessage || res.message || ''))) {
-            // 복구 명령에 백엔드 이름을 박지 않는다 — '--check mysql' 이라고
-            // 적혀 있었다. migrate.js 는 백엔드 인자가 **선택**이라(142행이
-            // backendArg || conf.db 로 떨어진다) 안 적으면 설정을 따라간다.
-            // 이름을 박아 두면 다른 백엔드로 도는 서버에서 틀린 명령을 알려준다.
-            console.error('[search_lookup] 인덱스가 없다: ' +
-                          (res.sqlMessage || res.message) +
+        else if (db_errors.isMissingIndex(res)) {
+            // 복구 명령에 백엔드 이름을 박지 않는다. migrate.js 는 백엔드
+            // 인자가 **선택**이라 안 적으면 설정을 따라간다.
+            console.error('[search_lookup] 인덱스가 없다: ' + db_errors.text(res) +
                           ' — node tools/migrate.js --check 로 확인하고 적용할 것');
         }
         else {
-            console.error('[search_lookup] ' + ((res && (res.sqlMessage || res.message)) || res));
+            console.error('[search_lookup] ' + db_errors.text(res));
         }
         return callback('500-1');
     }
@@ -2936,8 +2935,9 @@ exports.reconcile_cnt_counters = function (connection, opts, callback) {
             if (aggTimeoutMs) {
                 var remain = hasBudget ? (budgetMs - (Date.now() - started)) : 0;
                 var capMs = (remain > 0 && remain < aggTimeoutMs) ? remain : aggTimeoutMs;
-                var hint = facade.statementTimeoutHint(capMs);
-                if (hint) { agg = agg.hintComment(hint); }
+                // `var h = hint(capMs); if (h) { agg = agg.hintComment(h); }` 였다.
+                // null 검사가 곧 "이 백엔드에 상한 힌트가 있는가" 를 코어가 아는 것이다.
+                agg = facade.withStatementTimeout(agg, capMs);
             }
 
             facade.run(agg, connection, function (aerr, ares) {

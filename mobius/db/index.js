@@ -395,6 +395,35 @@ exports.statementTimeoutHint = function (ms) {
     return adapter.statementTimeoutHint(ms);
 };
 
+// SELECT 뒤에 넣을 힌트 덩어리. 붙일 것이 없으면 빈 문자열이다.
+//
+//   var lead = 'select ' + db.optimizerHints([
+//       db.statementTimeoutHint(30000),
+//       db.noHashJoinHint(['l', 's'])
+//   ]);
+//
+// 호출부가 null 을 걸러 내거나 `/*+ */` 로 감쌀 필요가 없다. 그 두 가지가
+// 코어에 있던 마지막 방언 지식이었다 — 감싸는 표기 자체가 MySQL 것이다.
+exports.optimizerHints = function (hints) {
+    builder();
+    return adapter.optimizerHintBlock(hints);
+};
+
+// 이 질의 하나에 서버 측 시간 상한을 건다. 그 능력이 없는 백엔드에서는
+// 빌더를 그대로 돌려준다.
+//
+// 호출부가 `var h = hint(ms); if (h) { qb = qb.hintComment(h); }` 라고 쓰던
+// 자리다. null 검사가 곧 "이 백엔드에 상한 힌트가 있는가" 를 코어가 아는 것이다.
+//
+// **드라이버 타임아웃(run 의 opts.timeoutMs)과 다르다.** 그쪽은 커넥션을
+// 죽여서 뒤이은 질의가 전부 연쇄 실패한다. 이것은 그 문장만 중단한다.
+exports.withStatementTimeout = function (qb, ms) {
+    builder();
+    if (!adapter.capabilities.statementTimeout) { return qb; }
+    var hint = adapter.statementTimeoutHint(ms);
+    return hint ? qb.hintComment(hint) : qb;
+};
+
 // 리소스 경로(pi/ri)끼리 비교할 때 붙일 콜레이션 조각. 필요 없으면 빈 문자열.
 // 스키마가 두 컬럼을 다른 콜레이션으로 만든 백엔드(MySQL)에서만 값이 있다.
 //

@@ -270,6 +270,45 @@ test('코어는 백엔드 능력을 묻지 않는다', function () {
         '예: can(\'rowLock\') -> lockRow(qb), can(\'serverTuning\') -> ensureConnectionCeiling(n, conn, cb)');
 });
 
+test('코어는 드라이버 어휘를 모른다', function () {
+    // 능력 질의를 없애도 어휘가 남으면 코어는 여전히 백엔드를 안다.
+    // discovery 가 errno 3024 / 1176 을 직접 보고 있었고, 그중 하나
+    // (ER_MAX_EXECUTION_TIME_EXCEEDED)는 **드라이버에 없는 이름**이라
+    // 죽은 가지였다 — 실제 이름은 ER_QUERY_TIMEOUT 이다.
+    //
+    // 패턴을 좁게 잡는다. ER_[A-Z_]+ 만 보면 oneM2M 응답 코드 이름
+    // (INTERNAL_SERVER_ERROR, MAX_NUMBER_OF_MEMBER_EXCEEDED)에 걸린다.
+    const FORBIDDEN = [
+        [/\.errno\b/, 'MySQL errno 를 직접 본다 — db/errors 의 술어를 써라'],
+        [/\.sqlMessage\b/, 'node-mysql 전용 필드를 읽는다 — db_errors.text() 를 써라'],
+        [/['"]ER_[A-Z_]+['"]/, '드라이버 에러 이름을 직접 견준다 — 중립 코드를 써라'],
+        [/\/\*\+/, '옵티마이저 힌트 표기를 직접 만든다 — db.optimizerHints() 를 써라'],
+        [/\.hintComment\(/, '힌트를 직접 붙인다 — db.withStatementTimeout() 을 써라']
+    ];
+
+    const bad = [];
+    for (const rel of sourceFiles()) {
+        // 어댑터는 알아야 한다 — 거기가 어휘를 번역하는 자리다.
+        if (rel.startsWith('mobius/db/')) { continue; }
+
+        // 마이그레이션은 **스스로 백엔드를 밝힌다**(backends: ['mysql']).
+        // 밝힌 백엔드의 어휘를 쓰는 것은 이름을 쓰는 것과 같은 성격이라 정상이다 —
+        // 002·003·008 의 락 재시도(ER_LOCK_WAIT_TIMEOUT)와 010 의 SET PERSIST
+        // 진단이 그렇다. 위 nameSites 가 같은 이유로 이름 리터럴을 면제한다.
+        if (rel.startsWith('migrations/')) { continue; }
+
+        fs.readFileSync(path.join(ROOT, rel), 'utf8').split(/\r?\n/).forEach((l, i) => {
+            if (/^\s*(\/\/|\*|\/\*)/.test(l)) { return; }
+            for (const [re, why] of FORBIDDEN) {
+                if (re.test(l)) { bad.push(rel + ':' + (i + 1) + ' — ' + why); }
+            }
+        });
+    }
+
+    assert.deepStrictEqual(bad, [],
+        '코어가 드라이버 어휘를 안다:\n  ' + bad.join('\n  '));
+});
+
 test('선언된 능력은 누군가 실제로 묻는다', function () {
     // serverTuning 은 어댑터에 선언만 돼 있고 저장소 어디서도 묻지 않았다.
     // 그래서 그 자리가 백엔드 이름 비교로 채워져 있었다 — 답이 이미 있는데

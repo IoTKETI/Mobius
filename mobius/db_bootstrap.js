@@ -31,6 +31,7 @@
 
 var migrate = require('../tools/migrate');
 var db = require('./db');
+var db_errors = require('./db/errors');
 var pool_sizing = require('./pool_sizing');
 
 // max_connections 가 앱의 요구를 담는지 보고, 모자라면 올린다.
@@ -67,7 +68,7 @@ function ensure_connection_ceiling(ctx, cb) {
     db.ensureConnectionCeiling(floor, ctx.conn, function (err, res) {
         if (err) {
             console.error('[db_bootstrap] 동시 접속 상한을 올리지 못했다: ' +
-                ((res && (res.message || res.sqlMessage)) || res));
+                db_errors.text(res));
             console.error('    서버 설정을 바꿀 권한이 있는지 확인할 것');
             return cb(null);
         }

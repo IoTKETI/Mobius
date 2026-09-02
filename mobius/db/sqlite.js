@@ -67,6 +67,11 @@ exports.supportedResourceTypes = ['1', '2', '3', '4', '5', '23'];
 
 exports.statementTimeoutHint = function () { return null; };
 
+// SQLite 에는 옵티마이저 힌트를 넣는 문법이 없다. 조각도 없고 감쌀 것도 없다.
+// 이 어댑터의 힌트 함수들이 전부 null 을 주므로 목록은 언제나 비지만,
+// **함수는 있어야 한다** — 없으면 코어가 "이 백엔드는 힌트가 없다" 를 알아야 한다.
+exports.optimizerHintBlock = function () { return ''; };
+
 // mobiusdb_sqlite.sql 은 pi / ri 를 같은(기본 BINARY) 콜레이션으로 만든다.
 // 붙일 조각이 없다. MySQL 이 대소문자를 무시하는 것과 달리 SQLite 는
 // 구분하지만, 이는 이 스키마가 원래 갖고 있던 성질이라 그대로 둔다.

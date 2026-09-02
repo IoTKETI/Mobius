@@ -54,6 +54,23 @@ exports.statementTimeoutHint = function (ms) {
     return 'MAX_EXECUTION_TIME(' + n + ')';
 };
 
+// 힌트 조각들을 SELECT 뒤에 넣을 한 덩어리로 만든다. 붙일 것이 없으면 빈 문자열.
+//
+// **감싸는 문법도 방언이다.** 코어가 `'/*+ ' + hints.join(' ') + ' */ '` 를 직접
+// 만들고 있었는데, 그 `/*+ */` 는 MySQL(과 Oracle) 표기다. 힌트 조각은 이미
+// 어댑터가 주고 있었으므로 코어에 남은 것은 감싸는 법 하나였고, 그것 때문에
+// `[a, b].filter(Boolean)` 과 `hints ? ... : ''` 라는 갈래가 코어에 있었다.
+//
+// 뒤에 공백을 하나 붙여 돌려준다 — 호출부가 'select ' + block + 나머지 로
+// 이어 붙이기 때문이다. 빈 문자열일 때 공백을 붙이면 SQL 에 이중 공백이 남는다.
+// 배열이 아닌 것이 와도 던지지 않는다. 이 값은 질의를 **만드는** 동안 불리는데,
+// 거기서 던지면 그 예외가 facade.run 의 try 를 우회해 워커를 죽인다
+// (mobius/db/index.js 의 builder() 주석 참고).
+exports.optimizerHintBlock = function (hints) {
+    var live = Array.isArray(hints) ? hints.filter(Boolean) : [];
+    return live.length ? '/*+ ' + live.join(' ') + ' */ ' : '';
+};
+
 // 리소스 경로끼리 비교할 때 붙일 콜레이션 조각.
 //
 // mobiusdb.sql 에서 lookup.pi 는 utf8mb3_general_ci, lookup.ri 는 utf8mb3_bin
@@ -250,12 +267,34 @@ exports.normalizeError = function (err) {
     else if (err.code === 'ER_LOCK_DEADLOCK' || err.errno === 1213) { code = 'LOCK_CONFLICT'; }
     else if (err.code === 'ER_LOCK_WAIT_TIMEOUT' || err.errno === 1205) { code = 'LOCK_TIMEOUT'; }
 
+    // 문장 시간 상한에 걸렸다(MAX_EXECUTION_TIME 힌트).
+    //
+    // **이름은 ER_QUERY_TIMEOUT 이다.** 코어가 ER_MAX_EXECUTION_TIME_EXCEEDED
+    // 라고 쓰고 있었는데 이 드라이버에는 없는 이름이라 죽은 가지였다.
+    // errno 3024 로만 걸리고 있었다.
+    else if (err.code === 'ER_QUERY_TIMEOUT' || err.errno === 3024) { code = 'STATEMENT_TIMEOUT'; }
+
+    // 인덱스가 없다. 코드만 올리고 마이그레이션을 안 돌린 경우다.
+    // 드라이버의 상수 이름에 오타가 있다(EXITS) — MySQL 쪽 표기 그대로다.
+    else if (err.code === 'ER_KEY_DOES_NOT_EXITS' || err.errno === 1176 ||
+             /Key '[^']*' doesn't exist/i.test(err.sqlMessage || err.message || '')) {
+        code = 'MISSING_INDEX';
+    }
+
     // err.constraint 는 부분 문자열 비교용 힌트다. 동등 비교하면 안 된다 —
     // MySQL 5.7 은 "aei_UNIQUE", MySQL 8 은 "ae.aei_UNIQUE", SQLite 는 "aei" 를 준다.
     // 테이블 접두사를 떼어 최소한의 공통 형태로 맞춘다.
+    //
+    // **인덱스 부재에는 붙이지 않는다.** 1176 의 서버 메시지가
+    // "Key 'idx_lookup_pi_notcin' doesn't exist in table 'lookup'" 이라 아래
+    // 정규식에 그대로 걸린다. 그러면 인덱스 이름이 **중복키 제약 이름인 척**
+    // 달려서 코어로 간다. 지금은 isAeiDuplicate 가 isDuplicateKey 안쪽에만
+    // 있어 도달하지 않지만, 그 가둠이 풀리면 곧바로 오진이 된다.
     var constraint = null;
-    var m = /key '([^']+)'/i.exec(err.sqlMessage || err.message || '');
-    if (m) { constraint = m[1].replace(/^.*\./, ''); }
+    if (code !== 'MISSING_INDEX') {
+        var m = /key '([^']+)'/i.exec(err.sqlMessage || err.message || '');
+        if (m) { constraint = m[1].replace(/^.*\./, ''); }
+    }
 
     err.driverCode = driverCode;
     err.code = code;

@@ -49,7 +49,11 @@ const REQUIRED_FUNCTIONS = [
     // 서버가 동시 접속을 최소 N 개까지 받게 한다. 그 개념이 없는 백엔드도
     // **함수는 갖는다** — 없으면 파사드가 다시 백엔드를 구분해야 한다.
     // sqlite 는 no-op 이고 그 사실을 결과에 적어 돌려준다.
-    'ensureConnectionCeiling'
+    'ensureConnectionCeiling',
+
+    // 힌트 조각들을 SELECT 뒤에 넣을 한 덩어리로 감싼다. 감싸는 표기(`/*+ */`)
+    // 자체가 방언이라 어댑터가 갖는다. 힌트가 없는 백엔드는 빈 문자열을 준다.
+    'optimizerHintBlock'
 ];
 
 // supportedResourceTypes: 이 백엔드가 받는 리소스 타입 목록, 또는 null(제한 없음).
@@ -114,6 +118,18 @@ for (const [name, a] of Object.entries(ADAPTERS)) {
         assert.ok(a.notCinPredicate('l').indexOf('l') >= 0,
             'notCinPredicate 가 넘긴 별칭을 안 쓴다');
         assert.strictEqual(typeof a.numericExpr('c.cs'), 'string');
+
+        // **문자열이 아니면 discovery 가 통째로 죽는다.** 코어가 이 값을
+        // 'select ' 뒤에 그대로 이어 붙이므로(sql_action.js 의 세 빌더),
+        // null 을 주는 어댑터에서는 'select null' 이 되어 세 질의가 전부
+        // 문법 오류가 된다. 존재만 검사하면 그 어댑터가 이 관문을 통과한다.
+        assert.strictEqual(typeof a.optimizerHintBlock([]), 'string');
+        assert.strictEqual(typeof a.optimizerHintBlock([null, null]), 'string');
+
+        // 붙일 것이 없으면 **빈 문자열**이어야 한다. 공백 하나를 주면
+        // 'select  ...' 로 이중 공백이 남는다.
+        assert.strictEqual(a.optimizerHintBlock([]), '',
+            '붙일 힌트가 없는데 빈 문자열이 아니다');
     });
 
     test(name + ': 없는 능력은 null 로 답한다 (빈 문자열이 아니라)', function () {
