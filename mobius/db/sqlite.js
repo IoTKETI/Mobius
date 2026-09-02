@@ -102,6 +102,22 @@ exports.numericExpr = function (expr) {
     return 'CAST(' + expr + ' AS INTEGER)';
 };
 
+// SQLite 에는 동시 접속 상한이라는 개념이 없다. 서버가 없고 프로세스가 파일을
+// 직접 여니 "몇 개까지 받는가" 를 물을 대상이 없다. 그래서 아무것도 하지 않는다.
+//
+// **그래도 함수는 있다.** 없으면 파사드가 "이 어댑터는 이 기능이 없다" 를
+// 알아야 하고, 그것을 알려면 다시 백엔드를 구분해야 한다. 두 어댑터의 export
+// 표면이 같아야 코어가 조건 없이 부를 수 있다 —
+// test/db-adapter-contract.test.js 가 그 표면을 대조한다.
+// supportedResourceTypes 에 mysql 이 null 을 명시적으로 적는 것과 같은 이유다.
+//
+// 대응하는 손잡이가 아주 없는 것은 아니다. SQLite 에서 "동시에 여럿이 쓸 때
+// 어떻게 하는가" 는 잠금 대기로 다루고, 그것은 connect 에서 busy_timeout 으로
+// 이미 건다(sqliteBusyTimeoutMs). 성격이 달라 여기에 묶지 않는다.
+exports.ensureConnectionCeiling = function (floor, handle, callback) {
+    callback(null, { applied: false, reason: 'SQLite 에는 동시 접속 상한이 없다' });
+};
+
 // 설정값을 읽는다. 전역이 없으면(테스트 등) 기본값을 쓴다.
 //
 // 값은 PRAGMA 문에 **그대로 들어가므로** 반드시 허용 목록으로 거른다.

@@ -245,21 +245,38 @@ test('백엔드 이름이 붙은 전역을 쓰는 자리도 알려진 것뿐이�
         '설정 표는 어댑터가 내보낸 항목을 모으는 쪽이 맞다:\n  ' + bad.join('\n  '));
 });
 
-test('db_bootstrap 은 이름이 아니라 능력으로 서버 설정을 판단한다', function () {
-    // 이 자리가 **초록불인 채로** 들어왔던 구멍이다. 위 두 검사가 이제
-    // 잡지만, 여기서 한 번 더 못박는다 — 무엇을 물어야 하는지가 요점이라
-    // "이름이 없다" 보다 "can() 을 쓴다" 가 다음 사람에게 더 정확하다.
-    const src = fs.readFileSync(path.join(ROOT, 'mobius/db_bootstrap.js'), 'utf8');
-    const code = src.split('\n').filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l)).join('\n');
+test('코어는 백엔드 능력을 묻지 않는다', function () {
+    // **이 검사가 이 작업의 종착점이다.**
+    //
+    // 이름 비교를 없애는 것으로는 부족했다. `can('serverTuning')` 으로 바꾼 뒤에도
+    // db_bootstrap 은 그 뒤에서 `SET PERSIST` 를 직접 만들고 있었다 — 능력이 참인
+    // 두 번째 백엔드가 붙으면 MySQL 문장이 그쪽으로 날아가는 구조였다.
+    // 불리언은 "할 수 있다" 만 말하고 "어떻게" 는 말하지 못하기 때문이다.
+    //
+    // 그래서 기준을 올린다. 코어는 이름도 능력도 묻지 않는다. 파사드에
+    // "그 일을 해 주는 함수" 가 있고 어댑터가 자기 방식으로 구현한다.
+    const bad = [];
+    for (const rel of sourceFiles()) {
+        if (rel.startsWith('mobius/db/')) { continue; }   // 파사드·어댑터는 알아도 된다
+        fs.readFileSync(path.join(ROOT, rel), 'utf8').split(/\r?\n/).forEach((l, i) => {
+            if (/^\s*(\/\/|\*|\/\*)/.test(l)) { return; }
+            if (/\.can\(\s*['"]/.test(l)) { bad.push(rel + ':' + (i + 1)); }
+        });
+    }
 
-    assert.match(code, /can\(\s*['"]serverTuning['"]\s*\)/,
-        "db_bootstrap 이 can('serverTuning') 을 묻지 않는다");
+    assert.deepStrictEqual(bad, [],
+        '코어가 백엔드 능력을 물어 갈라진다: ' + bad.join(', ') + '\n' +
+        '파사드에 그 일을 해 주는 함수를 만들고 어댑터가 구현하게 해라.\n' +
+        '예: can(\'rowLock\') -> lockRow(qb), can(\'serverTuning\') -> ensureConnectionCeiling(n, conn, cb)');
 });
 
 test('선언된 능력은 누군가 실제로 묻는다', function () {
     // serverTuning 은 어댑터에 선언만 돼 있고 저장소 어디서도 묻지 않았다.
     // 그래서 그 자리가 백엔드 이름 비교로 채워져 있었다 — 답이 이미 있는데
     // 아무도 안 물어서 생긴 구멍이다. 능력을 새로 선언하면 소비자도 있어야 한다.
+    //
+    // 이제 소비자는 코어가 아니라 **파사드**다. 위 검사가 코어를 막으므로,
+    // 새 능력은 파사드의 흡수 함수 안에서 쓰여야 한다.
     const mysql = require('../mobius/db/mysql');
     const sqlite = require('../mobius/db/sqlite');
     const declared = new Set(Object.keys(mysql.capabilities)

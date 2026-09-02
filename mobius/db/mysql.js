@@ -11,8 +11,16 @@ exports.knexClient = 'mysql';
 exports.schemaFile = 'mobiusdb.sql';
 
 exports.capabilities = {
-    // SET GLOBAL 로 서버 파라미터를 바꿀 수 있다. 임베디드 백엔드에는 없는 개념이다.
-    serverTuning: true,
+    // serverTuning: true 가 여기 있었다. **불리언을 지우고 메서드로 바꿨다.**
+    //
+    // 불리언은 "할 수 있다" 만 말하고 "어떻게" 는 말하지 못한다. 그래서 코어가
+    // 그 뒤에 무슨 SQL 을 낼지 알아야 했고, mobius/db_bootstrap.js 가
+    // `SET PERSIST max_connections = N` 을 코어에서 문자열로 만들고 있었다.
+    // 능력이 참인 다른 백엔드가 붙으면 그 문장이 그대로 그쪽으로 날아간다 —
+    // 이름 비교보다 더 나쁘다. 이름 비교는 조용히 건너뛰기라도 했다.
+    //
+    // 지금은 아래 ensureConnectionCeiling 이 그 자리다. 코어는 필요한 수만
+    // 넘기고, 무슨 문장을 낼지는 어댑터가 정한다.
 
     transaction: true,
     rowLock: true,         // SELECT ... FOR UPDATE [NOWAIT]
@@ -104,6 +112,54 @@ exports.notCinIndexName = function () {
 // (mobiusdb_sqlite.sql 은 TEXT 라 캐스팅이 필요하다 — 그쪽 어댑터 참고)
 exports.numericExpr = function (expr) {
     return expr;
+};
+
+// 서버가 동시 접속을 최소 floor 개까지 받게 한다. **올리기만 한다.**
+//
+// ── 왜 어댑터가 갖는가 ──────────────────────────────────────────────────
+// 코어는 "몇 개가 필요한가" 만 안다(mobius/pool_sizing.js 가 풀 크기 x 프로세스
+// 수로 계산한다). 그 수를 어떤 문장으로 서버에 거는지는 백엔드마다 다르다 —
+// MySQL 은 SET PERSIST, PostgreSQL 은 ALTER SYSTEM SET, SQLite 는 그런 개념이
+// 아예 없다. 코어가 그중 하나를 알면 다른 백엔드에서 틀린 문장을 낸다.
+//
+// 예전에는 capabilities.serverTuning 불리언이었고, 코어가 그 뒤에서 직접
+// SET PERSIST 를 만들었다. 능력이 참인 두 번째 백엔드가 붙는 순간 MySQL 문장이
+// 그쪽으로 날아가는 구조였다.
+//
+// ── 왜 올리기만 하는가 ──────────────────────────────────────────────────
+// 높은 것은 해가 없다. MySQL 은 실제 접속만큼만 자원을 쓴다. 반대로 내리면
+// 그 여유를 쓰던 다른 클라이언트를 끊는다 — 운영자나 관리 UI 가 바닥 위로
+// 올려 둔 값을 앱이 되돌리면 안 된다.
+//
+// ── 왜 SET PERSIST 인가 ────────────────────────────────────────────────
+// mysqld-auto.cnf 에 적혀 재기동을 넘어 살아남는다. SET GLOBAL 은 재기동하면
+// 사라지고, my.cnf 는 root 로 파일을 고쳐야 한다.
+//
+// callback(null, {applied, before, after}) / callback(true, err)
+exports.ensureConnectionCeiling = function (floor, handle, callback) {
+    exports.execute(handle, 'select @@global.max_connections as n', [],
+        function (err, rows) {
+            if (err) { return callback(true, exports.normalizeError(err)); }
+
+            var now = (rows && rows[0]) ? Number(rows[0].n) : 0;
+            if (now >= floor) {
+                return callback(null, { applied: false, before: now, after: now });
+            }
+
+            // SET PERSIST 는 바인딩을 받지 않는다 — 변수 이름도 값도 자리표가
+            // 될 수 없다. floor 는 코어가 계산한 정수라 클라이언트 입력이
+            // 섞이지 않지만, 그 전제를 여기서 한 번 더 못박는다.
+            var n = parseInt(floor, 10);
+            if (!(n > 0)) {
+                return callback(true, { code: 'UNKNOWN', message: '바닥값이 양의 정수가 아니다: ' + floor });
+            }
+
+            exports.execute(handle, 'SET PERSIST max_connections = ' + n, [],
+                function (serr) {
+                    if (serr) { return callback(true, exports.normalizeError(serr)); }
+                    callback(null, { applied: true, before: now, after: n });
+                });
+        });
 };
 
 exports.connect = function (conf, callback) {

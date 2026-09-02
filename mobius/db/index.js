@@ -232,11 +232,43 @@ exports.transaction = function (conn, body, callback) {
     }
 
     if (!capable) {
+        // **사용자 콜백은 try 밖에서 부른다.**
+        //
+        // 예전에는 body(conn, cb) 를 통째로 try 로 감쌌다. 그런데 body 가
+        // **동기로** 정산하면(run() 은 assertReady/toSQL 실패 때 콜백을 동기로
+        // 부른다) 그 뒤 사용자 콜백이 던진 예외까지 이 catch 에 걸린다.
+        // settled 가 이미 참이라 reportLate 로 로그만 남고 예외는 사라진다 —
+        // 트랜잭션과 무관한 하류의 버그를 파사드가 삼키는 셈이다.
+        //
+        // 이 차이 때문에 호출부가 `if (can('transaction'))` 로 갈라져 있었다.
+        // 능력 없는 백엔드에서는 파사드를 안 거쳐야 예외가 올라갔기 때문이다.
+        // 여기를 고쳐야 그 분기를 지울 수 있다.
+        //
+        // 동기 정산이면 결과를 담아 두었다가 try 를 빠져나온 뒤 전달한다.
+        // 비동기 정산이면 애초에 try 의 동적 범위 밖이라 그대로 부른다.
+        var inBody = true;
+        var pending = null;
+
         try {
-            body(conn, function (err, result) { settle(err, result); });
+            body(conn, function (err, result) {
+                if (settled) { return; }
+                settled = true;
+                if (inBody) { pending = { err: err || null, result: result }; }
+                else { callback(err || null, result); }
+            });
         } catch (e) {
-            if (!settle(true, adapter.normalizeError(e))) { reportLate(e); }
+            inBody = false;
+            if (!settled) {
+                settled = true;
+                return callback(true, adapter.normalizeError(e));
+            }
+            // 이미 정산한 뒤 body 가 던졌다. 그 예외는 갈 곳이 없으니 남긴다.
+            // 아래에서 정산 결과는 그대로 전달한다 — 삼키면 요청이 매달린다.
+            reportLate(e);
         }
+
+        inBody = false;
+        if (pending) { callback(pending.err, pending.result); }
         return;
     }
 
@@ -304,9 +336,47 @@ exports.supportedResourceTypes = function () {
 };
 
 // **계약: 이 함수는 던지지 않는다.**
+//
+// **새 코드에서 이 함수를 쓰지 마라.** 능력을 물어서 코어가 갈라지면, 그 갈래는
+// 코어가 백엔드를 아는 자리다. 대신 파사드에 "그 일을 해 주는 함수" 를 만들고
+// 어댑터가 자기 방식으로 구현하게 한다 — 아래 lockRow, ensureConnectionCeiling 이
+// 그 모양이다. 그러면 백엔드가 늘어도 코어의 if 는 늘지 않는다.
+//
+// 남겨 두는 이유는 테스트와 진단이다. 실제로 이 함수로 갈라지는 코어 코드는 없다.
 exports.can = function (name) {
     adapter = adapter || pick();
     return adapter.capabilities[name] === true;
+};
+
+// 이 읽기를 다른 트랜잭션이 못 건드리게 잠근다. 잠금이 없는 백엔드에서는
+// 빌더를 그대로 돌려준다.
+//
+// 호출부가 `if (db.can('rowLock')) { qb = qb.forUpdate(); }` 라고 쓰던 자리다.
+// 그러면 코어가 "이 백엔드에 행 잠금이 있는가" 를 아는 셈이고, 잠금 개념이
+// 다른 백엔드(낙관적 버전 컬럼, SELECT FOR SHARE 등)가 붙으면 코어를 고쳐야 한다.
+//
+// 이 형태면 **의도는 코드에 남고 방법은 어댑터가 정한다.** "이 읽기는 잠그려던
+// 것" 이 호출부에서 읽히는 것이 중요하다 — knex 가 SQLite 에서 forUpdate() 를
+// 조용히 빈 문자열로 만든다는 사실에 기대면, 코드만 봐서는 잠금이 없다는 것을
+// 알 수 없다.
+exports.lockRow = function (qb) {
+    adapter = adapter || pick();
+    return adapter.capabilities.rowLock === true ? qb.forUpdate() : qb;
+};
+
+// 서버가 동시 접속을 최소 floor 개까지 받게 한다. 올리기만 하고, 그 개념이
+// 없는 백엔드에서는 아무것도 하지 않는다.
+//
+// 코어는 필요한 수만 계산해서 넘긴다(mobius/pool_sizing.js). 무슨 문장을
+// 낼지는 어댑터가 정한다 — MySQL 은 SET PERSIST, SQLite 는 no-op 이다.
+exports.ensureConnectionCeiling = function (floor, conn, callback) {
+    try {
+        assertReady();
+    } catch (e) {
+        return callback(true, adapter ? adapter.normalizeError(e)
+                                      : { code: 'UNKNOWN', message: e.message });
+    }
+    adapter.ensureConnectionCeiling(floor, conn, callback);
 };
 
 // 문장 하나에 시간 상한을 거는 힌트를 돌려준다. 능력이 없는 백엔드에서는 null.

@@ -47,53 +47,37 @@ var pool_sizing = require('./pool_sizing');
 // RESET PERSIST, 파일 손상) 값이 MySQL 기본값 151 로 떨어지는데, 그때
 // 마이그레이션은 이미 schema_migrations 에 기록돼 있어 다시 돌지 않는다.
 // 그러면 아무도 안 고친다.
-function ensure_max_connections(ctx, cb) {
-    // **이름이 아니라 능력으로 묻는다.**
+function ensure_connection_ceiling(ctx, cb) {
+    // **코어가 아는 것은 산수뿐이다.**
     //
-    // 여기 `ctx.backend !== 'mysql'` 이라고 적혀 있었다. 두 가지가 틀렸다.
+    // 여기에 두 가지가 더 있었다. 처음에는 `ctx.backend !== 'mysql'` 이라는
+    // 이름 비교였고, 그다음에는 `db.can('serverTuning')` 이라는 능력 질의였다.
+    // 둘 다 게이트만 바꿨을 뿐 **본문은 그대로 MySQL SQL 이었다** —
+    // `select @@global.max_connections` 와 `SET PERSIST` 를 코어가 문자열로
+    // 만들고 있었다.
     //
-    // 하나. 커넥션 상한을 가진 다른 백엔드가 붙으면 조용히 건너뛴다. 그 백엔드에
-    // 상한이 있어도 아무도 안 본다 — 이름이 'mysql' 이 아니라는 이유로.
+    // 그래서 능력 질의는 오히려 더 나빴다. 이름 비교는 다른 백엔드에서 조용히
+    // 건너뛰기라도 했는데, 능력이 참인 백엔드가 붙으면 MySQL 문장이 그대로
+    // 그쪽으로 날아간다. 불리언은 "할 수 있다" 만 말하고 "어떻게" 는 말하지
+    // 못하기 때문에 생긴 일이다.
     //
-    // 둘. conf 에 오타가 들어가면 두 경로가 갈린다. "db": "mysq1" 이라고 적으면
-    // 파사드는 경고를 찍고 mysql 어댑터로 붙어 앱이 정상으로 도는데(pick() 이
-    // 모르는 이름을 기본값으로 되돌린다), 이 비교만 거짓이 되어 바닥 검사가
-    // 사라진다. 앱은 MySQL 위에서 도는데 max_connections 는 151 인 상태다.
-    //
-    // 어댑터에는 이미 답이 선언돼 있다 — mysql.js 의 serverTuning: true 다.
-    // 그런데 저장소 어디에서도 그것을 묻지 않고 있었다.
-    if (!db.can('serverTuning')) { return cb(null); }
-
+    // 지금은 필요한 수만 넘긴다. 무슨 문장을 낼지는 어댑터가 정한다.
     var floor = pool_sizing.currentFloor();
 
-    ctx.db.run(ctx.db.raw("select @@global.max_connections as n"), ctx.conn,
-        function (err, rows) {
-            if (err) {
-                console.error('[db_bootstrap] max_connections 를 읽지 못했다');
-                return cb(null);
-            }
-            var now = (rows && rows[0]) ? Number(rows[0].n) : 0;
-            if (now >= floor) { return cb(null); }
-
-            console.log('[db_bootstrap] max_connections ' + now + ' < 필요 ' + floor +
+    db.ensureConnectionCeiling(floor, ctx.conn, function (err, res) {
+        if (err) {
+            console.error('[db_bootstrap] 동시 접속 상한을 올리지 못했다: ' +
+                ((res && (res.message || res.sqlMessage)) || res));
+            console.error('    서버 설정을 바꿀 권한이 있는지 확인할 것');
+            return cb(null);
+        }
+        if (res && res.applied) {
+            console.log('[db_bootstrap] 동시 접속 상한 ' + res.before + ' -> ' + res.after +
                         ' (풀 ' + (global.use_db_connection_limit || 25) +
-                        ' x 프로세스 ' + pool_sizing.processCount() + ') — 올린다');
-
-            // SET PERSIST 는 바인딩을 못 받는다. floor 는 위에서 계산한 정수라
-            // 클라이언트 입력이 섞이지 않는다.
-            ctx.db.run(ctx.db.raw('SET PERSIST max_connections = ' + floor), ctx.conn,
-                function (serr, sres) {
-                    if (serr) {
-                        console.error('[db_bootstrap] max_connections 를 올리지 못했다: ' +
-                            ((sres && (sres.sqlMessage || sres.message)) || sres));
-                        console.error('    SET PERSIST 에는 SYSTEM_VARIABLES_ADMIN 이 필요하다');
-                    }
-                    else {
-                        console.log('[db_bootstrap] max_connections = ' + floor);
-                    }
-                    cb(null);
-                });
-        });
+                        ' x 프로세스 ' + pool_sizing.processCount() + ' = 필요 ' + floor + ')');
+        }
+        cb(null);
+    });
 }
 
 // 마스터에서만 돈다. 워커 24개가 동시에 같은 마이그레이션을 적용하려 들면
@@ -126,20 +110,21 @@ exports.run = function (callback) {
         // 이름을 여기서 쓰는 이유는 하나뿐이다 — migrate.pending() 이 각
         // 마이그레이션의 backends: ['mysql'] 과 대조해야 하기 때문이다.
         // 그 자리에서는 이름이 곧 데이터라 피할 방법이 없다. 동작을 가르는
-        // 판단(위 ensure_max_connections)은 능력으로 묻는다.
+        // 판단은 이름으로도 능력으로도 하지 않는다 — 어댑터에게 시킨다
+        // (위 ensure_connection_ceiling).
         var ctx = { db: db, conn: connection, backend: db.backendName() };
 
         // 마이그레이션이 어떻게 끝났든 **언제나** 바닥 검사를 거쳐서 나간다.
         //
         // 이것을 "적용할 마이그레이션이 있을 때" 안에 두면 검사가 영영 안 돈다.
         // 이미 다 적용된 서버(=배포된 모든 서버)는 pending 이 0 이라 그 분기에
-        // 들어가지도 못하기 때문이다. 그러면 SET PERSIST 유실을 고치겠다는
-        // 목적 자체가 사라진다 — 유실은 마이그레이션을 다 적용한 뒤에 온다.
+        // 들어가지도 못하기 때문이다. 그러면 설정 유실을 고치겠다는 목적 자체가
+        // 사라진다 — 유실은 마이그레이션을 다 적용한 뒤에 온다.
         function finish(err) {
             if (err) {
                 console.error('[db_bootstrap] ' + ((err && err.message) || err));
             }
-            ensure_max_connections(ctx, function () {
+            ensure_connection_ceiling(ctx, function () {
                 db.release(connection);
                 callback(null);   // 어떤 경우에도 기동은 계속한다
             });

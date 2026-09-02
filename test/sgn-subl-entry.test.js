@@ -405,16 +405,28 @@ test('update_subl 은 배열이 아니라 함수를 받는다', function () {
 test('update_subl 이 락 안에서 읽는다', function () {
     const SQL = fs.readFileSync(path.join(ROOT, 'mobius', 'sql_action.js'), 'utf8');
     const at = SQL.indexOf('exports.update_subl = function');
-    const body = SQL.slice(at, SQL.indexOf('\n};', at) + 3);
+    // **주석은 걷어낸다.** 왜 이렇게 바꿨는지 설명하느라 옛 코드를 그대로
+    // 인용하기 때문이다. 이 저장소에서 소스 스캔 테스트가 자기 주석에 걸린
+    // 적이 여러 번 있다 — 이번에도 `facade.can('rowLock')` 인용에 걸렸다.
+    const body = SQL.slice(at, SQL.indexOf('\n};', at) + 3)
+        .split('\n').filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l)).join('\n');
 
     assert.ok(/\.select\('subl'\)/.test(body),
         'update_subl 이 현재 목록을 읽지 않는다');
-    assert.ok(/forUpdate\(\)/.test(body),
-        '행을 잠그지 않는다 — 동시 생성에서 하나가 사라진다');
-    assert.ok(/facade\.can\('rowLock'\)/.test(body),
-        'rowLock 능력 검사가 없다 — SQLite 에서 knex 가 던진다');
-    assert.ok(/facade\.can\('transaction'\)/.test(body),
-        '트랜잭션 능력 검사가 없다 — SQLite 는 트랜잭션을 지원하지 않는다');
+    // **의도는 코드에 남고 방법은 어댑터가 정한다.**
+    //
+    // 예전에는 `if (facade.can('rowLock')) { qb = qb.forUpdate(); }` 와
+    // `if (facade.can('transaction'))` 두 갈래가 있었다. 그러면 코어가 "이
+    // 백엔드에 행 잠금이 있는가 / 트랜잭션이 있는가" 를 아는 셈이고, 잠금 개념이
+    // 다른 백엔드(낙관적 버전 컬럼, SELECT FOR SHARE)가 붙으면 코어를 고쳐야 한다.
+    //
+    // forUpdate() 를 조건 없이 붙이는 방법도 있었다 — knex 가 SQLite 에서
+    // 조용히 빈 문자열로 만든다. 그러나 그러면 **잠금이 없다는 사실이 knex
+    // 내부에만** 있어서 코드만 봐서는 알 수 없다. lockRow 는 둘 다 해결한다.
+    assert.ok(/facade\.lockRow\(/.test(body),
+        '이 읽기를 잠그려는 의도가 코드에 없다 — 동시 생성에서 하나가 사라진다');
+    assert.ok(!/facade\.can\(/.test(body),
+        '코어가 능력을 물어 갈라진다 — 파사드가 흡수해야 한다');
     assert.ok(/mutate\(list\)/.test(body),
         '읽은 목록에 mutate 를 적용하지 않는다');
 });
@@ -478,16 +490,58 @@ test('sqlite 어댑터는 아직 트랜잭션·행잠금을 선언하지 않는�
         'sqlite 가 행잠금을 지원하게 됐다 — 같은 곳을 다시 볼 것');
 });
 
-test('update_subl 이 능력 없는 백엔드에서도 돈다', function () {
+test('update_subl 이 능력 없는 백엔드에서도 돈다 — 파사드가 흡수한다', function () {
     // 능력이 없으면 트랜잭션 없이 그냥 읽고 쓴다. 던지지 않는 것이 중요하다 —
     // 여기서 던지면 SQLite 배포의 구독 생성이 통째로 막힌다.
+    //
+    // 그 분기가 **코어에서 파사드로 옮겨갔다.** 코어는 조건 없이 부르고,
+    // 능력 없는 백엔드에서는 파사드가 본문만 돌린다. 같은 파일의 update_acp /
+    // update_sub / update_parent_by_delete 는 이미 그렇게 부르고 있었다 —
+    // 이 함수만 갈라져 있었다.
     const SQL = fs.readFileSync(path.join(ROOT, 'mobius', 'sql_action.js'), 'utf8');
     const at = SQL.indexOf('exports.update_subl = function');
     const body = SQL.slice(at, SQL.indexOf('\n};', at) + 3);
-    assert.ok(/else\s*\{\s*\n?\s*apply\(connection, callback\);/.test(body),
-        '트랜잭션을 못 쓰는 백엔드용 경로가 없다 — SQLite 에서 구독 생성이 막힌다');
-    assert.ok(/if \(facade\.can\('rowLock'\)\) \{ qb = qb\.forUpdate\(\); \}/.test(body),
-        'forUpdate 를 무조건 붙이면 SQLite 에서 knex 가 던진다');
+
+    assert.ok(/facade\.transaction\(connection, apply, callback\)/.test(body),
+        '파사드 트랜잭션을 조건 없이 부르지 않는다');
+    assert.ok(!/apply\(connection, callback\)/.test(body),
+        '능력 없는 백엔드용 우회 경로가 코어에 남아 있다 — 파사드가 그 일을 한다');
+
+    // 파사드가 실제로 흡수하는지 확인한다. 소스만 보면 "코어에 분기가 없다" 는
+    // 알아도 "그래서 SQLite 에서 도는가" 는 모른다.
+    const FACADE = fs.readFileSync(path.join(ROOT, 'mobius', 'db', 'index.js'), 'utf8');
+    assert.ok(/if \(!capable\)/.test(FACADE),
+        '파사드에 능력 없는 백엔드용 경로가 없다 — SQLite 에서 구독 생성이 막힌다');
+});
+
+test('파사드의 무능력 경로가 하류 예외를 삼키지 않는다', function () {
+    // 이 성질 때문에 코어가 갈라져 있었다. 파사드가 본문을 try 로 감싸는데,
+    // 본문이 **동기로** 정산하면 그 뒤 사용자 콜백이 던진 예외까지 잡혀
+    // 로그만 남고 사라졌다. 트랜잭션과 무관한 하류 버그를 파사드가 삼킨 것이다.
+    //
+    // 그래서 사용자 콜백을 try 밖에서 부른다. 이걸 고쳐야 코어의 if 를 지울 수 있었다.
+    delete require.cache[require.resolve('../mobius/db')];
+    const savedDb = global.usedb;
+    try {
+        global.usedb = 'sqlite';              // transaction 능력이 없는 백엔드
+        const db = require('../mobius/db');
+        db.connect(null, null, null, null, function () {});
+
+        let threw = null;
+        try {
+            db.transaction({}, function (conn, finish) {
+                finish(null, 'ok');           // 동기 정산
+            }, function () {
+                throw new Error('하류 폭발');  // 정산 뒤 사용자 콜백이 던진다
+            });
+        } catch (e) { threw = e; }
+
+        assert.ok(threw && /하류 폭발/.test(threw.message),
+            '파사드가 하류 예외를 삼켰다 — 트랜잭션과 무관한 버그가 로그로만 남는다');
+    } finally {
+        global.usedb = savedDb;
+        delete require.cache[require.resolve('../mobius/db')];
+    }
 });
 
 test('SQLite 한계가 문서에 남아 있다', function () {

@@ -110,9 +110,9 @@ test('010 은 SET PERSIST 만 하고 값이 배포와 같다', function () {
         'sync_binlog 를 건드린다 — 유지하기로 한 값이다');
 });
 
-test('max_connections 의 주인은 기동 검사 하나뿐이다', function () {
+test('접속 상한의 주인은 기동 검사 하나뿐이다', function () {
     // 둘이 쓰면 어느 쪽이 이겼는지 알 수 없다. 010 은 한 번 돌고 기록되므로
-    // SET PERSIST 유실(151 로 복귀)을 못 고친다 — 그래서 기동 검사가 갖는다.
+    // 설정 유실(151 로 복귀)을 못 고친다 — 그래서 기동 검사가 갖는다.
     const src = fs.readFileSync(path.join(MIG, '010-server-durability.js'), 'utf8');
     const code = src.split('\n')
         .filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l))
@@ -128,45 +128,74 @@ test('max_connections 의 주인은 기동 검사 하나뿐이다', function () 
         '010 이 max_connections 를 건다 — 기동 검사와 어느 쪽이 이겼는지 알 수 없다');
 
     const boot = fs.readFileSync(path.join(ROOT, 'mobius', 'db_bootstrap.js'), 'utf8');
-    assert.match(boot, /SET PERSIST max_connections/,
-        '기동 검사가 max_connections 를 걸지 않는다');
+    assert.match(boot, /ensureConnectionCeiling/,
+        '기동 검사가 접속 상한을 다루지 않는다');
 });
 
-test('기동 검사는 올리기만 한다', function () {
-    // 내리면 그 여유를 쓰던 다른 클라이언트를 끊는다. 운영자가 바닥 위로
-    // 올려 둔 값(관리 UI, my.cnf)은 그대로 둬야 한다.
+test('코어는 접속 상한을 거는 SQL 을 모른다', function () {
+    // **이 테스트가 이 회차의 요점이다.**
+    //
+    // 예전 db_bootstrap 은 게이트만 백엔드 중립이었고 본문은 MySQL SQL 이었다.
+    // 처음에는 `ctx.backend !== 'mysql'`, 그다음에는 `can('serverTuning')` 로
+    // 게이트를 바꿨지만 그 뒤에서 select @@global.max_connections 와
+    // SET PERSIST 를 코어가 문자열로 만들고 있었다.
+    //
+    // 능력 질의는 오히려 더 나빴다. 이름 비교는 다른 백엔드에서 조용히
+    // 건너뛰기라도 했는데, 능력이 참인 백엔드가 붙으면 MySQL 문장이 그대로
+    // 그쪽으로 날아간다.
     const src = fs.readFileSync(path.join(ROOT, 'mobius', 'db_bootstrap.js'), 'utf8');
     const code = src.split('\n')
         .filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l))
         .join('\n');
 
-    // 지금 값이 바닥 이상이면 SET 에 닿기 전에 빠져나가야 한다.
-    assert.match(code, /now\s*>=\s*floor/,
-        '지금 값과 바닥을 견주지 않는다 — 무조건 덮어쓰면 옛 set_tuning 과 같다');
+    assert.ok(!/SET PERSIST|SET GLOBAL|@@global|information_schema|performance_schema/i.test(code),
+        '코어가 서버 설정 SQL 을 직접 만든다 — 그 문장은 어댑터가 갖는다');
+    assert.ok(!/can\(\s*['"]serverTuning['"]\s*\)/.test(code),
+        "can('serverTuning') 이 되살아났다 — 불리언은 '어떻게' 를 말하지 못한다");
 
-    // 바닥 계산은 pool_sizing 에서만 온다. 여기서 숫자를 적으면 화면이
-    // 말하는 값과 서버가 거는 값이 갈린다.
-    assert.ok(!/max_connections\s*=\s*'?\d/.test(code),
-        '기동 검사가 max_connections 에 상수를 적는다 — pool_sizing 을 써야 한다');
+    // 코어가 아는 것은 산수뿐이다. 필요한 수를 계산해 넘기는 것까지가 코어 몫이다.
     assert.match(code, /pool_sizing\.currentFloor\(\)/,
-        'pool_sizing.currentFloor() 로 바닥을 구하지 않는다');
+        'pool_sizing 으로 필요한 수를 계산하지 않는다');
+    assert.match(code, /db\.ensureConnectionCeiling\(\s*floor/,
+        '계산한 수를 어댑터에 넘기지 않는다');
 });
 
-test('바닥 검사는 백엔드 이름이 아니라 능력으로 자기 차례를 정한다', function () {
-    // 이름으로 갈랐던 코드다. 두 가지가 틀렸다.
-    //   하나. 커넥션 상한을 가진 다른 백엔드가 붙으면 조용히 건너뛴다.
-    //   둘. conf 에 "db": "mysq1" 오타가 들어가면 파사드는 mysql 로 되돌려
-    //       앱이 정상으로 도는데(pick() 이 모르는 이름을 기본값으로 보낸다)
-    //       이 비교만 거짓이 되어 검사가 사라진다.
+test('올리기만 하는 규칙은 어댑터가 지킨다', function () {
+    // 내리면 그 여유를 쓰던 다른 클라이언트를 끊는다. 운영자가 바닥 위로
+    // 올려 둔 값(관리 UI, my.cnf)은 그대로 둬야 한다.
+    //
+    // 이 규칙이 어댑터로 옮겨간 것이 맞다 — "올린다" 가 무엇인지가 백엔드마다
+    // 다르기 때문이다. 지금 값을 어떻게 읽고 어떻게 거는지가 전부 다르다.
+    const src = fs.readFileSync(path.join(ROOT, 'mobius', 'db', 'mysql.js'), 'utf8');
+    const code = src.split('\n')
+        .filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l))
+        .join('\n');
+
+    assert.match(code, /now\s*>=\s*floor/,
+        '지금 값과 필요한 수를 견주지 않는다 — 무조건 덮어쓰면 옛 set_tuning 과 같다');
+
+    // 값은 코어가 준 것만 쓴다. 어댑터가 자기 상수를 적으면 화면이 말하는 값과
+    // 서버가 거는 값이 갈린다.
+    assert.ok(!/max_connections\s*=\s*'?\d/.test(code),
+        '어댑터가 상수를 적는다 — 코어가 넘긴 floor 만 써야 한다');
+});
+
+test('기동 검사는 백엔드를 구분하지 않는다 — 이름으로도 능력으로도', function () {
+    // 처음에는 `ctx.backend !== 'mysql'`, 그다음에는 `can('serverTuning')`,
+    // 지금은 **아무것도 묻지 않는다.** 조건 없이 어댑터에 시키고, 그 개념이
+    // 없는 백엔드는 어댑터가 no-op 으로 답한다.
+    //
+    // 묻지 않는 것이 왜 나은가: 물으려면 물을 대상의 목록을 코어가 알아야
+    // 한다. 백엔드가 늘 때마다 그 목록이 맞는지 다시 봐야 하고, 아무도 안 본다.
     const src = fs.readFileSync(path.join(ROOT, 'mobius', 'db_bootstrap.js'), 'utf8');
     const code = src.split('\n')
         .filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l))
         .join('\n');
 
     assert.ok(!/backend\s*[!=]==?\s*['"]/.test(code),
-        '백엔드 이름을 문자열과 견준다 — 동작을 가르는 판단은 can() 으로 물어야 한다');
-    assert.match(code, /can\(\s*['"]serverTuning['"]\s*\)/,
-        "can('serverTuning') 을 묻지 않는다 — 어댑터에 이미 선언된 능력이다");
+        '백엔드 이름을 문자열과 견준다 — 코어는 어느 DB 인지 몰라야 한다');
+    assert.ok(!/\.can\(/.test(code),
+        '능력을 물어 갈라진다 — 어댑터에 시키고 결과만 받아라');
 
     // 이름을 쓰는 자리가 하나 남는다: 마이그레이션 필터링이다. 거기서는
     // 이름이 곧 데이터라 피할 수 없지만, global 을 직접 읽으면 파사드와
@@ -177,11 +206,23 @@ test('바닥 검사는 백엔드 이름이 아니라 능력으로 자기 차례�
         '파사드가 고른 백엔드 이름을 받지 않는다');
 });
 
-test('능력이 없는 백엔드에서는 SET 을 내지 않는다', function (t, done) {
-    // serverTuning 을 선언하지 않은 어댑터(sqlite)에서는 아예 안 돈다.
-    runBootstrap({ now: 10, pending: [], serverTuning: false }, function (ran) {
-        assert.ok(!ran.some((s) => /max_connections/.test(s)),
-            '능력이 없는데 서버 설정을 건드렸다: ' + JSON.stringify(ran));
+test('상한 개념이 없는 백엔드에서도 기동은 그대로 끝난다', function (t, done) {
+    // 코어는 백엔드를 구분하지 않고 **언제나** 부른다. 그 개념이 없는 어댑터가
+    // applied:false 로 답하면 끝이다 — 코어에 그 갈래가 없다.
+    runBootstrap({ now: 10, pending: [], ceilingUnsupported: true }, function (ran) {
+        assert.ok(ran.some((s) => /ensureConnectionCeiling/.test(s)),
+            '어댑터에 물어보지도 않았다 — 구분은 어댑터가 한다');
+        done();
+    });
+});
+
+test('어댑터가 실패해도 기동은 계속한다', function (t, done) {
+    // 서버 설정을 바꿀 권한이 없는 설치가 있을 수 있다. 그때 기동이 멈추면
+    // 원인이 가려진다 — 로그만 남기고 진행한다.
+    let finished = false;
+    runBootstrap({ now: 10, pending: [], ceilingError: true }, function () {
+        finished = true;
+        assert.ok(finished, '어댑터 실패에 기동이 막혔다');
         done();
     });
 });
@@ -227,17 +268,27 @@ function runBootstrap(opts, done) {
         getConnection: (cb) => cb('200', { fake: true }),
         release: () => {},
         raw: (sql) => sql,
-        // 바닥 검사는 백엔드 **이름**이 아니라 능력으로 자기 실행 여부를 정한다.
-        // opts.serverTuning 을 false 로 주면 그 갈래를 확인할 수 있다.
-        can: (name) => (name === 'serverTuning'
-            ? opts.serverTuning !== false : false),
         backendName: () => opts.backend || 'mysql',
+
+        // 코어가 부르는 것은 이 함수 하나다. 무슨 SQL 을 낼지는 어댑터 몫이라
+        // 여기서는 흉내만 낸다 — 코어가 **필요한 수를 제대로 계산해서 넘기는지**,
+        // 그리고 **언제 부르는지**가 이 하네스가 보는 것이다.
+        //
+        // opts.ceilingUnsupported 를 주면 그 개념이 없는 백엔드(sqlite)를 흉내낸다.
+        ensureConnectionCeiling: (floor, conn, cb) => {
+            ran.push('ensureConnectionCeiling(' + floor + ')');
+            if (opts.ceilingUnsupported) {
+                return cb(null, { applied: false, reason: '상한 개념이 없다' });
+            }
+            if (opts.ceilingError) { return cb(true, { message: '권한 없음' }); }
+            if (opts.now >= floor) {
+                return cb(null, { applied: false, before: opts.now, after: opts.now });
+            }
+            return cb(null, { applied: true, before: opts.now, after: floor });
+        },
+
         run: (sql, conn, cb) => {
             ran.push(String(sql));
-            if (/max_connections/.test(String(sql))) {
-                if (/^select/i.test(String(sql))) { return cb(null, [{ n: opts.now }]); }
-                return cb(null, { affectedRows: 0 });
-            }
             cb(null, []);
         }
     };
@@ -270,23 +321,24 @@ function runBootstrap(opts, done) {
     });
 }
 
-test('적용할 마이그레이션이 없어도 바닥 검사는 돈다', function (t, done) {
+test('적용할 마이그레이션이 없어도 상한 검사는 돈다', function (t, done) {
     // 배포된 모든 서버가 이 상태다. 여기서 안 돌면 검사가 영영 안 도는 것과 같다.
     runBootstrap({ now: 151, pending: [] }, function (ran) {
-        const set = ran.filter((s) => /SET PERSIST max_connections/.test(s));
-        assert.strictEqual(set.length, 1,
-            'pending 이 0 인데 바닥 검사가 안 돌았다 — 배포된 서버에서는 이 경로뿐이다\n' +
-            '실행된 SQL: ' + JSON.stringify(ran));
+        const calls = ran.filter((s) => /ensureConnectionCeiling/.test(s));
+        assert.strictEqual(calls.length, 1,
+            'pending 이 0 인데 상한 검사가 안 돌았다 — 배포된 서버에서는 이 경로뿐이다\n' +
+            '실행된 것: ' + JSON.stringify(ran));
         done();
     });
 });
 
-test('바닥 이상이면 SET 을 내지 않는다', function (t, done) {
-    // 운영자가 올려 둔 값(1200)을 800 으로 끌어내리면 그 여유를 쓰던
-    // 다른 클라이언트가 끊긴다.
-    runBootstrap({ now: 1200, pending: [] }, function (ran) {
-        assert.ok(!ran.some((s) => /SET PERSIST/.test(s)),
-            '바닥보다 큰 값을 건드렸다 — 올리기만 해야 한다: ' + JSON.stringify(ran));
+test('코어가 넘기는 수는 pool_sizing 이 계산한 값이다', function (t, done) {
+    // 코어 몫은 산수뿐이다. 그 수가 틀리면 어댑터가 아무리 옳아도 소용없다.
+    const ps = require(path.join(ROOT, 'mobius', 'pool_sizing.js'));
+    runBootstrap({ now: 151, pending: [] }, function (ran) {
+        const call = ran.find((s) => /ensureConnectionCeiling/.test(s));
+        assert.strictEqual(call, 'ensureConnectionCeiling(' + ps.currentFloor() + ')',
+            '넘긴 수가 pool_sizing 의 계산과 다르다: ' + call);
         done();
     });
 });

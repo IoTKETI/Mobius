@@ -44,7 +44,12 @@ const REQUIRED_FUNCTIONS = [
     'execute', 'normalizeError', 'normalizeResult',
     'begin', 'commit', 'rollback',
     'statementTimeoutHint', 'pathCollate', 'indexHint',
-    'noHashJoinHint', 'notCinPredicate', 'notCinIndexName', 'numericExpr'
+    'noHashJoinHint', 'notCinPredicate', 'notCinIndexName', 'numericExpr',
+
+    // 서버가 동시 접속을 최소 N 개까지 받게 한다. 그 개념이 없는 백엔드도
+    // **함수는 갖는다** — 없으면 파사드가 다시 백엔드를 구분해야 한다.
+    // sqlite 는 no-op 이고 그 사실을 결과에 적어 돌려준다.
+    'ensureConnectionCeiling'
 ];
 
 // supportedResourceTypes: 이 백엔드가 받는 리소스 타입 목록, 또는 null(제한 없음).
@@ -58,8 +63,17 @@ const KNOWN_CAPABILITIES = [
     'transaction',           // begin/commit/rollback 이 진짜인가
     'rowLock',               // SELECT ... FOR UPDATE 가 되는가
     'statementTimeout',      // 문장 하나에 시간 상한을 걸 수 있는가
-    'limitedResourceTypes',  // 일부 리소스 타입만 받는가 (없으면 = 제한 없음)
-    'serverTuning'           // SET GLOBAL 로 서버 파라미터를 바꿀 수 있는가
+    'limitedResourceTypes'   // 일부 리소스 타입만 받는가 (없으면 = 제한 없음)
+
+    // 여기 serverTuning 이 있었다. **불리언을 지우고 메서드로 바꿨다.**
+    //
+    // 불리언은 "할 수 있다" 만 말하고 "어떻게" 는 말하지 못한다. 그래서 코어가
+    // 그 뒤에서 SET PERSIST 를 직접 만들고 있었고, 능력이 참인 두 번째 백엔드가
+    // 붙는 순간 MySQL 문장이 그쪽으로 날아가는 구조였다. 지금은
+    // ensureConnectionCeiling 이 그 자리다 — 위 REQUIRED_FUNCTIONS 참고.
+    //
+    // 남은 셋도 같은 길로 간다. 코어가 이것들로 갈라지지 않는지는
+    // test/usesqlite-single-reader.test.js 가 본다.
 ];
 
 for (const [name, a] of Object.entries(ADAPTERS)) {

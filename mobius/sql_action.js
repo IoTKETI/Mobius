@@ -2316,8 +2316,9 @@ exports.update_lookup = function (connection, obj, callback) {
  */
 exports.update_subl = function (connection, ri, mutate, callback) {
     function apply(conn, done) {
-        var qb = facade.k('lookup').select('subl').where({ ri: ri });
-        if (facade.can('rowLock')) { qb = qb.forUpdate(); }
+        // 이 읽기는 **잠그려는 것**이다. 어떻게 잠그는지는 어댑터가 정한다 —
+        // 여기 `if (facade.can('rowLock')) { qb = qb.forUpdate(); }` 가 있었다.
+        var qb = facade.lockRow(facade.k('lookup').select('subl').where({ ri: ri }));
 
         facade.run(qb, conn, function (err, rows) {
             if (err) { return done(err, rows); }
@@ -2356,12 +2357,16 @@ exports.update_subl = function (connection, ri, mutate, callback) {
         });
     }
 
-    if (facade.can('transaction')) {
-        facade.transaction(connection, apply, callback);
-    }
-    else {
-        apply(connection, callback);
-    }
+    // 능력 없는 백엔드에서는 파사드가 본문만 돌린다. 여기 if/else 가 있었는데,
+    // 같은 파일의 update_acp / update_sub / update_parent_by_delete 는 이미
+    // 조건 없이 부르고 있었다 — 이 함수만 갈라져 있었다.
+    //
+    // 갈라 두었던 실제 이유가 하나 있었다. 파사드의 무능력 경로가 본문을 try 로
+    // 감싸서, 본문이 **동기로** 정산한 뒤 사용자 콜백이 던지면 그 예외를 삼켰다.
+    // 파사드를 고쳐(사용자 콜백을 try 밖에서 부른다) 그 차이를 없앴으므로 이제
+    // 조건 없이 부를 수 있다. 오히려 얻는 것이 둘 있다 — 본문의 동기 throw 가
+    // normalizeError 를 거쳐 콜백 에러가 되고, done 을 두 번 불러도 한 번만 정산된다.
+    facade.transaction(connection, apply, callback);
 };
 
 // 이전에는 db.getResult 를 무조건 호출해 SQLite 모드에서도 MySQL 로 나갔다.
