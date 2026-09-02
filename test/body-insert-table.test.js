@@ -57,7 +57,7 @@ function capture(fnName, obj) {
         delete require.cache[require.resolve(m)];
     }
     global.usedb = 'mysql';
-    global.usesqlite = 'false';
+    global.usedb = 'mysql';
 
     const db = require(DB);
     const adapter = require(path.join(DB, 'mysql.js'));

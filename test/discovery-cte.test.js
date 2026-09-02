@@ -60,7 +60,7 @@ function tap(backend, opts) {
     delete require.cache[require.resolve(DB)];
     delete require.cache[require.resolve(path.join(DB, 'mysql.js'))];
     delete require.cache[require.resolve(path.join(DB, 'sqlite.js'))];
-    global.usesqlite = (backend === 'sqlite') ? 'true' : 'false';
+    global.usedb = backend;
     const db = require(DB);
     const adapter = require(path.join(DB, backend === 'sqlite' ? 'sqlite.js' : 'mysql.js'));
 

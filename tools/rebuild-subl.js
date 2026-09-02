@@ -75,11 +75,16 @@ function connect(cb) {
     try { conf = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'conf.json'), 'utf8')); }
     catch (e) { /* 없으면 기본값 */ }
 
-    global.usesqlite = backendArg ? String(backendArg === 'sqlite')
-                                  : (conf.usesqlite || 'false');
-    console.log('백엔드: ' + (global.usesqlite === 'true' ? 'sqlite' : 'mysql'));
+    // 선택자는 **이름**이다. 여기 global.usesqlite 불리언이 있었는데, 그것으로는
+    // 백엔드를 둘까지밖에 못 말한다 — 세 번째가 붙으면 'false' 가 'mysql' 을
+    // 뜻하게 되어 있어 틀린 답을 낸다.
+    global.usedb = backendArg || conf.db ||
+        ((conf.usesqlite === 'true' || conf.usesqlite === true) ? 'sqlite' : 'mysql');
 
     var db = require(path.join(__dirname, '..', 'mobius', 'db'));
+    // 파사드가 실제로 고른 것을 찍는다. 여기서 따로 계산하면 파사드가 모르는
+    // 이름을 기본값으로 되돌렸을 때(오타) 화면과 실제가 갈린다.
+    console.log('백엔드: ' + db.backendName());
     db.connect('localhost', 3306, 'root', conf.dbpass || '', function (rsc) {
         if (rsc !== '1') { console.error('DB 연결 실패: ' + rsc); process.exit(1); }
         db.getConnection(function (code, conn) {

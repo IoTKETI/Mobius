@@ -68,8 +68,19 @@ function ddl(ctx, sql, cb) {
     ctx.db.run(ctx.db.raw(sql), ctx.conn, cb, { timeoutMs: 0 });
 }
 
-function isSqlite() {
-    return global.usesqlite === 'true';
+// 러너가 이미 알려 준다 — tools/migrate.js 와 mobius/db_bootstrap.js 가
+// ctx.backend 를 채워서 넘긴다.
+//
+// 여기 `global.usesqlite === 'true'` 라고 적혀 있었다. 두 가지가 틀렸다.
+// 하나는 파사드 밖에서 선택자를 직접 읽는 것이고(코어가 백엔드를 아는 자리),
+// 다른 하나는 그 전역이 **불리언**이라는 것이다 — 백엔드를 둘까지밖에 못
+// 말하므로 세 번째가 붙으면 'false' 가 'mysql' 을 뜻하게 되어 틀린 답을 낸다.
+//
+// 마이그레이션이 백엔드 **이름**을 아는 것 자체는 정상이다. 바로 위
+// backends: ['mysql', 'sqlite'] 가 이미 이름으로 선언하고 있고, 백엔드마다
+// 다른 DDL 을 내는 것이 이 파일의 일이다. 문제는 그 이름을 어디서 얻느냐였다.
+function isSqlite(ctx) {
+    return ctx.backend === 'sqlite';
 }
 
 module.exports = {
@@ -78,7 +89,7 @@ module.exports = {
     backends: ['mysql', 'sqlite'],
 
     inspect: function (ctx, cb) {
-        if (isSqlite()) {
+        if (isSqlite(ctx)) {
             ctx.db.run(
                 ctx.db.raw("select count(*) as n from sqlite_master where type='table' and name=?", [TABLE]),
                 ctx.conn,
@@ -102,7 +113,7 @@ module.exports = {
     },
 
     up: function (ctx, cb) {
-        if (!isSqlite()) {
+        if (!isSqlite(ctx)) {
             return ddl(ctx, MYSQL_DDL, cb);
         }
         // SQLite 는 인덱스를 따로 만든다.

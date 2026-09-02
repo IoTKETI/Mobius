@@ -29,7 +29,7 @@ function tap(rowsFor) {
     delete require.cache[require.resolve(DB)];
     delete require.cache[require.resolve(path.join(DB, 'mysql.js'))];
     delete require.cache[require.resolve(path.join(DB, 'sqlite.js'))];
-    global.usesqlite = 'false';
+    global.usedb = 'mysql';
     const db = require(DB);
     const adapter = require(path.join(DB, 'mysql.js'));
 

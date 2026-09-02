@@ -30,7 +30,7 @@ function tap(total) {
     delete require.cache[require.resolve(DB)];
     delete require.cache[require.resolve(path.join(DB, 'mysql.js'))];
     delete require.cache[require.resolve(path.join(DB, 'sqlite.js'))];
-    global.usesqlite = 'false';
+    global.usedb = 'mysql';
     const db = require(DB);
     const adapter = require(path.join(DB, 'mysql.js'));
 
@@ -146,7 +146,7 @@ test('la 요청의 실효 한도는 la 값이다', function (t, done) {
 test('실패하면 info 를 안 넘긴다', function (t, done) {
     delete require.cache[require.resolve(DB)];
     delete require.cache[require.resolve(path.join(DB, 'mysql.js'))];
-    global.usesqlite = 'false';
+    global.usedb = 'mysql';
     const db = require(DB);
     const adapter = require(path.join(DB, 'mysql.js'));
     adapter.connect = function (conf, cb) { cb('1'); };

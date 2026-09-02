@@ -167,15 +167,25 @@ test('백엔드는 이름으로 고른다 — boolean 이 아니다', function (
     const m = fs.readFileSync(path.join(ROOT, 'mobius.js'), 'utf8');
     assert.ok(/global\.usedb\s*=/.test(m), 'mobius.js 가 global.usedb 를 정하지 않는다');
 
-    // usedb 가 진실원이고 usesqlite 는 거기서 파생된 한시적 별칭이어야 한다.
-    // 둘을 따로 정하면 어긋난다.
-    assert.ok(/global\.usesqlite = \(global\.usedb === 'sqlite'\)/.test(m),
-        'usesqlite 가 usedb 에서 파생되지 않는다 — 두 선택자가 갈라진다');
+    // 여기 "usesqlite 는 usedb 에서 파생된 한시적 별칭이어야 한다" 가 있었다.
+    // 그 별칭을 지웠으므로 기준이 뒤집힌다 — **아예 없어야 한다.**
+    //
+    // 파생값이라 값이 어긋날 수는 없었지만, 존재한다는 사실 자체가 새 코드를
+    // 잘못된 길로 이끌었다. 불리언 하나로 백엔드를 물을 수 있다는 인상을 주고,
+    // 실제로 007 마이그레이션과 tools 두 개가 그 길로 갔다.
+    const mCode = m.split('\n').filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l)).join('\n');
+    assert.ok(!/global\.usesqlite\s*=/.test(mCode),
+        'global.usesqlite 별칭이 되살아났다 — 선택자는 이름 하나여야 한다');
+
+    // conf.json 쪽 usesqlite 는 남는다. 옛 설정 파일과의 호환이고,
+    // 경계에서 이름으로 한 번 번역된다.
+    assert.ok(/conf\.usesqlite/.test(mCode),
+        'conf.usesqlite 호환 번역이 사라졌다 — db 키가 없는 옛 conf.json 이 못 뜬다');
 });
 
 test('모르는 이름은 기동을 막지 않는다', function () {
     // 오타 하나로 서버가 안 뜨는 것보다, 로그를 남기고 기본 백엔드로 도는 편이 낫다.
-    const saved = { usedb: global.usedb, usesqlite: global.usesqlite };
+    const saved = global.usedb;
     delete require.cache[require.resolve('../mobius/db')];
     try {
         global.usedb = '없는디비';
@@ -183,8 +193,7 @@ test('모르는 이름은 기동을 막지 않는다', function () {
         assert.strictEqual(db.can('없는_능력'), false, '모르는 백엔드에서 can() 이 던졌다');
         assert.strictEqual(typeof db.pathCollate(), 'string', '기본 백엔드로 안 떨어졌다');
     } finally {
-        global.usedb = saved.usedb;
-        global.usesqlite = saved.usesqlite;
+        global.usedb = saved;
         delete require.cache[require.resolve('../mobius/db')];
     }
 });

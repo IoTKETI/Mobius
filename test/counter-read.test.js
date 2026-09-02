@@ -16,7 +16,7 @@ function freshDb(useSqlite) {
     delete require.cache[require.resolve(DB)];
     delete require.cache[require.resolve(path.join(DB, 'mysql.js'))];
     delete require.cache[require.resolve(path.join(DB, 'sqlite.js'))];
-    global.usesqlite = useSqlite ? 'true' : 'false';
+    global.usedb = useSqlite ? 'sqlite' : 'mysql';
     return require(DB);
 }
 

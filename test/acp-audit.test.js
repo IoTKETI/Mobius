@@ -22,7 +22,7 @@ global.NOPRINT = 'true';
 global.usecsebase = 'Mobius';
 global.usecseid = '/Mobius2';
 global.usespid = '//ketiabc.com';
-global.usesqlite = 'true';
+global.usedb = 'sqlite';
 
 const db = require('../mobius/db');
 const db_sql = require('../mobius/sql_action');

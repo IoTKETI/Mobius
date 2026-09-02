@@ -33,7 +33,7 @@ test('스윕: 준비 — 빈 SQLite 에 실제 스키마를 올린다', function
         delete require.cache[require.resolve(m)];
     }
     global.usedb = 'sqlite';
-    global.usesqlite = 'true';
+    global.usedb = 'sqlite';
 
     const db = require('../mobius/db');
     db.connect('h', 0, 'u', 'p', function (code) {

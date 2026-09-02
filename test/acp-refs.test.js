@@ -24,7 +24,7 @@ function tap(useSqlite, pages) {
                      path.join(__dirname, '..', 'mobius', 'sql_action.js')]) {
         delete require.cache[require.resolve(m)];
     }
-    global.usesqlite = useSqlite ? 'true' : 'false';
+    global.usedb = useSqlite ? 'sqlite' : 'mysql';
     const db = require(DB);
     const adapter = require(path.join(DB, useSqlite ? 'sqlite.js' : 'mysql.js'));
     const seen = [];

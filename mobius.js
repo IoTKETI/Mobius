@@ -89,17 +89,24 @@ global.usesuperuser = (typeof conf.superUser === 'string' && conf.superUser !== 
 // 예전에는 usesqlite 라는 boolean 이었다. boolean 으로는 세 번째 백엔드를
 // 말할 방법이 아예 없다 — 그래서 DB 를 하나 더 붙이려면 선택자부터 고쳐야 했다.
 // 모르는 이름이면 파사드가 로그를 남기고 mysql 로 간다(mobius/db/index.js).
+// conf.usesqlite 는 **여기서만** 읽는다. 옛 설정 파일과의 호환이다.
+//
+// 배포된 conf.json 에 db 키가 없고 usesqlite 만 있을 수 있다. 그 파일을
+// 못 쓰게 만들 이유는 없으므로, 경계에서 한 번 이름으로 번역하고 그 안쪽은
+// usedb 하나로 돈다. **번역은 여기가 유일한 자리다** — 안쪽 어디에서도
+// 다시 boolean 을 만들지 않는다.
 global.usedb = process.argv[2] || conf.db ||
     ((conf.usesqlite === 'true' || conf.usesqlite === true) ? 'sqlite' : 'mysql');
 
-// **한시적 별칭.** 아직 usesqlite 를 직접 읽는 곳이 코어에 두 군데 남아 있다 —
-// cnt_man 의 카운터 갱신과 sql_action 의 delete_oldest. 둘 다 **진짜로 백엔드마다
-// 동작이 다른 곳**이라 없앨 것이 아니라 어댑터 메서드로 옮길 것이다. 그러면
-// 코어에는 분기가 없고 각 어댑터가 자기 방식대로 구현한다.
-// 그때 이 줄을 지운다 — test/usesqlite-single-reader.test.js 가 남은 수를 센다.
+// global.usesqlite 별칭이 여기 있었다. 지웠다.
 //
-// 파생값이라 usedb 와 어긋날 수 없다. 진실원은 usedb 하나다.
-global.usesqlite = (global.usedb === 'sqlite') ? 'true' : 'false';
+// 파생값이라 usedb 와 어긋날 수는 없었지만, 그 값이 **존재한다는 사실 자체가**
+// 새 코드를 잘못된 길로 이끌었다. 불리언 하나로 백엔드를 물을 수 있다는
+// 인상을 주기 때문이다. 실제로 007 마이그레이션과 tools 두 개가 그 길로 갔다.
+//
+// boolean 은 백엔드를 둘까지만 말할 수 있다. usesqlite='false' 가 'mysql' 을
+// 뜻하도록 되어 있었으니, 세 번째 백엔드로 도는 서버에서 그 값을 읽으면
+// 무용지물이 아니라 **틀린 답**을 낸다. 그런 값은 남겨 두지 않는다.
 
 // 컨테이너 경로별 기본 보관 정책 (선택). 형식은 mobius/cnt.js 상단 주석 참조.
 // 정의하지 않으면 규칙 없이 Mobius 기본값이 쓰인다.

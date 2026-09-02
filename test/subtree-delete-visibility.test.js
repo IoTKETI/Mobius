@@ -18,7 +18,7 @@ global.NOPRINT = 'true';
 global.usecsebase = 'Mobius';
 global.usecseid = '/Mobius2';
 global.uservi = '2a';
-global.usesqlite = 'false';
+global.usedb = 'mysql';
 
 const facade = require('../mobius/db');
 const db_sql = require('../mobius/sql_action');

@@ -59,7 +59,8 @@ function usage() {
     console.log('  node tools/snapshot-subl.js --out <경로> [mysql|sqlite]');
     console.log('  node tools/snapshot-subl.js --verify <경로> [mysql|sqlite]');
     console.log('');
-    console.log('백엔드를 생략하면 conf.json 의 usesqlite 를 따른다 (migrate.js 와 같다).');
+    console.log('백엔드를 생략하면 conf.json 의 db 키를 따른다 (migrate.js 와 같다).');
+    console.log('옛 conf.json 처럼 db 가 없고 usesqlite 만 있으면 그것을 이름으로 옮긴다.');
     console.log('경로가 .gz 로 끝나지 않으면 붙여 준다.');
     process.exit(2);
 }
@@ -72,11 +73,13 @@ function connect(cb) {
     catch (e) { /* 없으면 기본값 */ }
 
     // mobius.js·migrate.js 와 같은 방식으로 백엔드를 정한다.
-    global.usesqlite = backendArg ? String(backendArg === 'sqlite')
-                                  : (conf.usesqlite || 'false');
-    console.log('백엔드: ' + (global.usesqlite === 'true' ? 'sqlite' : 'mysql'));
+    // 선택자는 **이름**이다 — 불리언으로는 백엔드를 둘까지밖에 못 말한다.
+    global.usedb = backendArg || conf.db ||
+        ((conf.usesqlite === 'true' || conf.usesqlite === true) ? 'sqlite' : 'mysql');
 
     var db = require(path.join(__dirname, '..', 'mobius', 'db'));
+    // 파사드가 실제로 고른 것을 찍는다. 따로 계산하면 오타가 났을 때 갈린다.
+    console.log('백엔드: ' + db.backendName());
 
     db.connect('localhost', 3306, 'root', conf.dbpass || '', function (rsc) {
         if (rsc !== '1') { console.error('DB 연결 실패: ' + rsc); process.exit(1); }

@@ -139,9 +139,11 @@ function main() {
     try { conf = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'conf.json'), 'utf8')); }
     catch (e) { /* 없으면 기본값 */ }
 
+    // conf.usesqlite 는 옛 설정 파일 호환이다. 경계에서 이름으로 한 번 번역하고
+    // 안쪽은 usedb 하나로 돈다. global.usesqlite 별칭이 여기 있었는데 지웠다 —
+    // boolean 은 백엔드를 둘까지만 말할 수 있어, 셋째가 붙으면 틀린 답을 낸다.
     global.usedb = backendArg || conf.db ||
         ((conf.usesqlite === 'true' || conf.usesqlite === true) ? 'sqlite' : 'mysql');
-    global.usesqlite = (global.usedb === 'sqlite') ? 'true' : 'false';   // 한시적 별칭
 
     var db = require(path.join(__dirname, '..', 'mobius', 'db'));
     var backend = global.usedb;

@@ -32,7 +32,7 @@ function tapBy(answer) {
                      path.join(__dirname, '..', 'mobius', 'acp_simulate.js')]) {
         delete require.cache[require.resolve(m)];
     }
-    global.usesqlite = 'false';
+    global.usedb = 'mysql';
     const db = require(DB);
     const adapter = require(path.join(DB, 'mysql.js'));
     const seen = [];
@@ -50,7 +50,7 @@ function tap(pages) {
                      path.join(__dirname, '..', 'mobius', 'acp_simulate.js')]) {
         delete require.cache[require.resolve(m)];
     }
-    global.usesqlite = 'false';
+    global.usedb = 'mysql';
     const db = require(DB);
     const adapter = require(path.join(DB, 'mysql.js'));
     const seen = [];

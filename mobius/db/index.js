@@ -42,19 +42,25 @@ var connectCalled = false;
 var DEFAULT_BACKEND = 'mysql';
 
 function pick() {
-    // 선택자는 **이름**이다. 예전에는 global.usesqlite 라는 boolean 이었는데,
-    // boolean 으로는 세 번째 백엔드를 말할 방법이 아예 없었다.
+    // 선택자는 **이름**이다. 그리고 이제 이름 하나뿐이다.
     //
-    // usedb 가 없으면 옛 boolean 에서 유추한다. 아직 usesqlite 를 직접 세워
-    // 백엔드를 바꾸는 곳이 있다(테스트 다수). 그것들이 옮겨가면 이 갈래를 지운다.
+    // 예전에는 global.usesqlite 라는 boolean 폴백이 여기 있었다. 그것을 지운
+    // 이유는 편의가 아니라 정확성이다 — boolean 으로는 백엔드를 **둘까지만**
+    // 말할 수 있고, 셋째가 붙는 순간 틀린 답을 낸다. usesqlite='false' 가
+    // 'mysql' 을 뜻하도록 되어 있었으므로, postgres 로 도는 서버에서 그 값을
+    // 읽으면 mysql 이라고 답한다. 무용지물이 아니라 거짓말을 하는 상태다.
+    //
+    // 폴백을 남겨 둘 실익도 없었다. 이 전역을 세우던 곳(테스트 25개 파일,
+    // tools 2개, mobius.js 의 별칭)이 전부 usedb 로 옮겼기 때문에, 남겨 두면
+    // "아무도 안 세우는 값을 읽는 죽은 갈래" 가 된다.
+    //
+    // **conf.json 의 usesqlite 키는 살아 있다.** 그쪽은 배포된 설정 파일과의
+    // 호환이라 성격이 다르다 — mobius.js 가 그 키를 읽어 usedb 로 옮긴다.
+    // 즉 옛 이름은 설정 파일 경계에서 한 번 번역되고, 그 안쪽은 이름 하나로 돈다.
     //
     // 모르는 이름이면 기본값으로 간다 — 오타 하나로 기동이 막히는 것보다,
     // 로그를 남기고 아는 백엔드로 도는 편이 낫다.
-    var name = global.usedb;
-    if (!name) {
-        name = (global.usesqlite === 'true' || global.usesqlite === true)
-            ? 'sqlite' : DEFAULT_BACKEND;
-    }
+    var name = global.usedb || DEFAULT_BACKEND;
     if (ADAPTERS[name]) { return ADAPTERS[name]; }
 
     console.error('[db] 모르는 백엔드 "' + name + '" — ' + DEFAULT_BACKEND +

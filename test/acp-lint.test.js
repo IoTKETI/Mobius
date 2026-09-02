@@ -29,7 +29,7 @@ function tap(selectRows) {
     delete require.cache[require.resolve(path.join(__dirname, '..', 'mobius', 'sql_action.js'))];
     delete require.cache[require.resolve(path.join(__dirname, '..', 'mobius', 'acp_lint.js'))];
 
-    global.usesqlite = 'false';
+    global.usedb = 'mysql';
     const db = require(DB);
     const adapter = require(path.join(DB, 'mysql.js'));
     const seen = [];

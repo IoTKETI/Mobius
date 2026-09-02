@@ -17,31 +17,27 @@ const path = require('node:path');
 
 const ROOT = path.join(__dirname, '..');
 
-// 아직 usesqlite 를 읽어도 되는 파일. 커밋이 하나 지울 때마다 여기서도 지운다.
+// ── 허용 목록이 여기 있었다. 비었고, 그래서 지웠다 ──────────────────────
 //
-// 커넥션 원천이 파사드로 옮겨가면서 넷이 한꺼번에 사라졌다 — db_action(기동),
-// cnt_man(취득), resource(취득), sgn(취득). 넷 다 "내가 sqlite 인가" 를 묻고
-// 있었지만 진짜 질문은 "커넥션을 누가 주나" 하나였다.
+// 이 파일은 "global.usesqlite 를 읽는 곳이 파사드 하나뿐일 것" 을 기준으로
+// 출발했고, 목록이 줄어드는 것이 진척이었다. 그 진척의 마지막 단계에서
+// 파사드의 폴백까지 지워 **0 이 되었다.**
 //
-// 남은 둘은 성격이 다르다. **진짜로 백엔드마다 동작이 다른 곳**이고, 없앨 것이
-// 아니라 어댑터 메서드로 옮길 것이다. 그러면 코어에는 분기가 없고 각 어댑터가
-// 자기 방식대로 구현한다 — 세 번째 백엔드가 와도 if 가 늘지 않는다.
-// **목표 달성.** 이제 파사드 하나뿐이다.
+// 어떻게 줄었나:
 //
-// 마지막 둘(cnt_man 의 카운터 갱신, sql_action 의 delete_oldest)은 "백엔드마다
-// 동작이 달라야 한다" 는 이유로 남아 있었는데, 다시 보니 그 차이는 백엔드가
-// 아니라 **정리 주체가 여럿이라는 것**에서 나왔다. 워커 25개가 동시에 정리하니
-// 행 잠금이 필요했고, 잠금이 없는 백엔드는 그 알고리즘을 못 써서 갈렸다.
-// 정리를 마스터 하나로 옮기자 잠금이 필요 없어지고 갈래도 사라졌다.
-const ALLOWED = [
-    'mobius/db/index.js',      // 백엔드를 아는 유일한 곳
-
-    // 007 이 SQLite 와 MySQL 에 서로 다른 DDL 을 낸다(헌장 7b). 러너가 ctx.backend
-    // 로 이미 알려 주는데도 전역을 직접 읽는다. 목록에 올리는 이유는 하나 —
-    // 범위를 migrations/ 로 넓히면서 이것이 드러났고, 고치는 것은 별도 판단이라
-    // (SQLite 를 마이그레이션 대상으로 볼 것인가) 지금 여기서 결정하지 않는다.
-    'migrations/007-acp-audit-table.js'
-];
+//   넷   커넥션 원천이 파사드로 옮겨가며 한꺼번에 — db_action(기동),
+//        cnt_man·resource·sgn(취득). 넷 다 "내가 sqlite 인가" 를 물었지만
+//        진짜 질문은 "커넥션을 누가 주나" 하나였다.
+//   둘   cnt_man 의 카운터 갱신과 sql_action 의 delete_oldest. "백엔드마다
+//        동작이 달라야 한다" 는 이유로 남아 있었는데, 그 차이는 백엔드가
+//        아니라 **정리 주체가 여럿이라는 것**에서 나왔다. 워커 25개가 동시에
+//        정리하니 행 잠금이 필요했고, 잠금 없는 백엔드는 그 알고리즘을 못 썼다.
+//        정리를 마스터 하나로 옮기자 갈래가 사라졌다.
+//   셋   007 마이그레이션과 tools 두 개. 러너와 진입점이 이미 이름을 아는데도
+//        전역을 직접 읽고 있었다.
+//   하나 파사드 자신의 폴백. 세우는 곳이 다 사라지자 죽은 갈래가 되었다.
+//
+// 이제 기준은 "하나 이하" 가 아니라 **0** 이다. 아래 테스트가 그것을 못박는다.
 
 // ── 백엔드 이름으로 갈라지는 자리 ───────────────────────────────────────
 //
@@ -61,13 +57,12 @@ const ALLOWED = [
 // 생기면 즉시 실패하고, 목록의 자리가 사라져도 실패한다(목록을 같이 지우라는 뜻).
 // 이 저장소가 SQLite 파리티 진척을 세는 방식과 같다 — 숫자가 줄면 알려준다.
 const KNOWN_NAME_SITES = {
-    // 백엔드 선택자를 세우는 곳. 여기가 원천이라 이름이 나오는 것이 맞다.
-    // 다만 93행은 pick() 과 **같은 폴백 규칙을 두 번째로 적은 것**이라
-    // 한쪽만 고치면 갈린다. 파사드에 물어야 한다.
-    'mobius.js': [92, 93, 102],
+    // 백엔드 선택자를 세우는 유일한 곳이자, 옛 conf 키(usesqlite)를 이름으로
+    // 번역하는 경계다. 원천이라 이름이 나오는 것이 맞다.
+    'mobius.js': [98, 99],
 
     // 설정 표의 기본 백엔드. mobius/db/index.js 의 DEFAULT_BACKEND 와 같은 값을
-    // 두 번째로 적은 자리다.
+    // 두 번째로 적은 자리다(헌장 7g).
     'mobius/conf_schema.js': [154]
 };
 
@@ -75,7 +70,7 @@ const KNOWN_NAME_SITES = {
 // 헌장 7g 다 — 튜닝 값을 갖는 새 백엔드는 코어 두 파일을 열어야 키를 넣을 수 있다.
 // 고치려면 어댑터가 자기 설정 항목을 내보내는 구조가 필요해서 따로 잡는다.
 const KNOWN_BACKEND_GLOBALS = {
-    'mobius.js': [203, 206, 209]
+    'mobius.js': [210, 213, 216]
 };
 
 const NAME_LITERAL = /(['"])(mysql|sqlite|postgres|mariadb)\1/i;
@@ -90,6 +85,14 @@ const BACKENDS_DECL = /^\s*backends\s*:\s*\[/;
 function nameSites(rel, re) {
     // 어댑터와 파사드는 백엔드를 알아도 된다 — 거기가 아는 자리다.
     if (rel.startsWith('mobius/db/')) { return []; }
+
+    // 마이그레이션이 **이름**을 아는 것도 정상이다. backends: ['mysql'] 이
+    // 이미 이름으로 선언하고, 백엔드마다 다른 DDL 을 내는 것이 그 파일의 일이다.
+    // 중요한 것은 그 이름을 **어디서 얻느냐**다 — 러너가 주는 ctx.backend 는
+    // 파사드가 고른 값이라 괜찮고, 전역을 직접 읽으면 안 된다.
+    // 그래서 이름 리터럴은 면제하되 아래 USEDB 검사는 그대로 받는다.
+    const migration = rel.startsWith('migrations/');
+    if (migration && re === NAME_LITERAL) { return []; }
 
     const out = [];
     fs.readFileSync(path.join(ROOT, rel), 'utf8').split(/\r?\n/).forEach((l, i) => {
@@ -133,17 +136,60 @@ function readsUsesqlite(rel) {
     return lines.some((l) => !/^\s*(\/\/|\*|\/\*)/.test(l) && /global\.usesqlite/.test(l));
 }
 
-test('global.usesqlite 를 읽는 파일은 허용 목록과 정확히 같다', function () {
+test('global.usesqlite 전역은 아무도 읽지 않는다 — 목표 달성', function () {
+    // **목표가 달성됐다.** 이 파일의 원래 기준은 "리더가 파사드 한 곳뿐일 것"
+    // 이었는데, 이제 한 곳도 없다 — 파사드의 폴백까지 지웠다.
+    //
+    // 기준을 "하나 이하" 로 두면 되살아나는 것을 못 잡는다. 0 으로 못박는다.
     const actual = sourceFiles().filter(readsUsesqlite).sort();
-    const allowed = ALLOWED.slice().sort();
 
-    const added = actual.filter((f) => allowed.indexOf(f) < 0);
-    const gone = allowed.filter((f) => actual.indexOf(f) < 0);
+    assert.deepStrictEqual(actual, [],
+        'global.usesqlite 전역이 되살아났다: ' + actual.join(', ') + '\n' +
+        'boolean 은 백엔드를 둘까지만 말할 수 있다 — 셋째가 붙으면 무용지물이\n' +
+        '아니라 틀린 답을 낸다(usesqlite=false 가 mysql 을 뜻하게 되어 있었다).\n' +
+        '백엔드를 물어야 하면 global.usedb 를 세우거나 db.backendName() 을 받아라.');
+});
 
-    assert.deepStrictEqual(added, [],
-        '허용 목록에 없는 파일이 global.usesqlite 를 읽는다 — 코어는 백엔드를 몰라야 한다');
-    assert.deepStrictEqual(gone, [],
-        '이 파일들에서 리더가 사라졌다. 허용 목록에서도 지워라: ' + gone.join(', '));
+test('전역을 세우는 곳도 없다 — 읽는 이가 없으면 세우는 이도 없어야 한다', function () {
+    // 세우기만 하고 아무도 안 읽으면 죽은 값이다. 그런데 죽은 값이 남아 있으면
+    // 다음 사람이 "이걸로 백엔드를 물으면 되는구나" 로 읽는다. 실제로 007 과
+    // tools 두 개가 그 길로 갔다.
+    const writers = [];
+    const scan = sourceFiles().concat(['mobius.js', 'tools/migrate.js',
+                                       'tools/rebuild-subl.js', 'tools/snapshot-subl.js']);
+    for (const rel of scan) {
+        fs.readFileSync(path.join(ROOT, rel), 'utf8').split(/\r?\n/).forEach((l, i) => {
+            if (/^\s*(\/\/|\*|\/\*)/.test(l)) { return; }
+            if (/global\.usesqlite\s*=/.test(l)) { writers.push(rel + ':' + (i + 1)); }
+        });
+    }
+    assert.deepStrictEqual(writers, [],
+        'global.usesqlite 를 세우는 곳이 있다: ' + writers.join(', '));
+});
+
+test('conf.json 의 usesqlite 키는 경계에서 한 번만 번역된다', function () {
+    // 설정 파일 쪽 usesqlite 는 **살아 있다.** 배포된 conf.json 에 db 키가 없고
+    // usesqlite 만 있을 수 있어서, 그 파일을 못 쓰게 만들 이유가 없다.
+    //
+    // 다만 번역은 경계에서 한 번이어야 한다. 안쪽에서 다시 boolean 을 만들면
+    // 방금 지운 문제가 그대로 돌아온다. 그래서 conf.usesqlite 를 읽어도 되는
+    // 곳은 백엔드 이름을 정하는 **진입점**과, 그 키를 선언하는 설정 표뿐이다.
+    const ENTRY = ['mobius.js', 'tools/migrate.js',
+                   'tools/rebuild-subl.js', 'tools/snapshot-subl.js',
+                   'mobius/conf_schema.js'];
+    const bad = [];
+
+    for (const rel of sourceFiles()) {
+        if (ENTRY.indexOf(rel) >= 0) { continue; }
+        fs.readFileSync(path.join(ROOT, rel), 'utf8').split(/\r?\n/).forEach((l, i) => {
+            if (/^\s*(\/\/|\*|\/\*)/.test(l)) { return; }
+            if (/conf\.usesqlite/.test(l)) { bad.push(rel + ':' + (i + 1)); }
+        });
+    }
+
+    assert.deepStrictEqual(bad, [],
+        '진입점이 아닌 곳에서 conf.usesqlite 를 읽는다: ' + bad.join(', ') + '\n' +
+        '이름으로 옮기는 번역은 백엔드를 정하는 자리에서 한 번만 한다.');
 });
 
 test('백엔드 이름으로 갈라지는 자리는 알려진 것뿐이다', function () {
@@ -243,10 +289,22 @@ test('선언된 능력은 누군가 실제로 묻는다', function () {
         '\n선언만 있고 소비자가 없으면, 그 판단이 다른 곳에서 백엔드 이름 비교로 채워진다.');
 });
 
-test('파사드는 언제나 목록에 있다 — 여기가 유일한 리더가 되는 것이 목표다', function () {
-    assert.ok(ALLOWED.indexOf('mobius/db/index.js') >= 0);
-    assert.ok(readsUsesqlite('mobius/db/index.js'),
-        '파사드가 usesqlite 를 안 읽는다 — 백엔드를 어떻게 고르는지 확인할 것');
+test('파사드가 백엔드를 고르는 방법은 이름 하나뿐이다', function () {
+    // 이 자리에 "파사드는 언제나 허용 목록에 있다" 가 있었다. 파사드가 유일한
+    // usesqlite 리더가 되는 것이 목표였기 때문이다. 그 목표를 지나쳤다 —
+    // 이제 파사드도 안 읽는다. 그래서 기준을 바꾼다: 무엇을 읽는가가 아니라
+    // **선택 경로가 하나인가**를 본다.
+    const src = fs.readFileSync(path.join(ROOT, 'mobius/db/index.js'), 'utf8');
+    const code = src.split('\n').filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l)).join('\n');
+
+    assert.match(code, /global\.usedb/,
+        '파사드가 이름으로 백엔드를 고르지 않는다');
+    assert.ok(!/global\.usesqlite/.test(code),
+        '파사드에 boolean 폴백이 되살아났다 — 선택 경로가 둘이면 갈린다');
+
+    // 모르는 이름은 기본값으로 간다. 오타 하나로 기동이 막히면 안 된다.
+    assert.match(code, /DEFAULT_BACKEND/,
+        '모르는 이름일 때의 기본값이 없다');
 });
 
 test('can() 은 connect() 전에도 던지지 않는다', function () {
@@ -257,25 +315,25 @@ test('can() 은 connect() 전에도 던지지 않는다', function () {
     delete require.cache[require.resolve('../mobius/db/mysql')];
     delete require.cache[require.resolve('../mobius/db/sqlite')];
 
-    const saved = global.usesqlite;
+    const saved = global.usedb;
     try {
-        for (const [backend, limited] of [['true', true], ['false', false]]) {
+        for (const [backend, limited] of [['sqlite', true], ['mysql', false]]) {
             delete require.cache[require.resolve('../mobius/db')];
-            global.usesqlite = backend;
+            global.usedb = backend;
             const db = require('../mobius/db');
             const allowed = db.supportedResourceTypes();
             if (limited) {
                 assert.ok(Array.isArray(allowed),
-                    'usesqlite=' + backend + ' 이 지원 타입 목록을 안 준다');
+                    backend + ' 이 지원 타입 목록을 안 준다');
             }
             else {
                 assert.strictEqual(allowed, null,
-                    'usesqlite=' + backend + ' 이 제한을 선언했다 — null 이어야 한다');
+                    backend + ' 이 제한을 선언했다 — null 이어야 한다');
             }
             assert.strictEqual(db.can('없는_능력'), false, '없는 키는 false 여야 한다');
         }
     } finally {
-        if (saved === undefined) { delete global.usesqlite; } else { global.usesqlite = saved; }
+        if (saved === undefined) { delete global.usedb; } else { global.usedb = saved; }
         delete require.cache[require.resolve('../mobius/db')];
     }
 });
