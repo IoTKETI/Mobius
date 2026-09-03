@@ -85,7 +85,7 @@ var db_bootstrap = require('./mobius/db_bootstrap');
 // db.connect(...) 안에서 db_facade.connect(...) 를 다시 불렀는데, 둘이 같은
 // 객체이므로 같은 함수를 두 번 부른 것이다 — createPool 이 두 번 돌아
 // 첫 풀은 만들어지자마자 버려졌다. 무해했던 이유는 createPool 이 소켓도
-// 타이머도 만들지 않기 때문이다(node_modules/mysql/lib/Pool.js 의 생성자에
+// 타이머도 만들지 않기 때문이다(드라이버의 Pool 생성자에
 // I/O 가 없다). 그래도 죽은 코드라 지웠고, 별칭도 같이 지웠다.
 
 // ������ �����մϴ�.

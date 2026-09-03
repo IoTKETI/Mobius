@@ -2,7 +2,18 @@
 // MySQL 어댑터. 실행과 결과/에러 정규화만 담당한다.
 // 방언(플레이스홀더, 식별자 인용, upsert, 행 잠금)은 knex 가 처리하므로 여기 없다.
 
-var mysql = require('mysql');
+// mysql(mysqljs) 에서 mysql2 로 옮겼다 (2026-09-04).
+//
+// mysqljs 2.18.1 은 그것이 마지막 배포이고(2024-05-06) 유지보수가 멈췄다.
+// knex 도 mysql2 를 1급으로 다룬다.
+//
+// **드롭인이 아니다.** 아래 세 곳이 드라이버 차이를 흡수한다 —
+// execute 의 once + destroy(타임아웃이 더 이상 fatal 이 아니다),
+// createPool 의 decimalNumbers(SUM 결과 타입)와 charset(기본 문자셋).
+// 각각의 근거는 그 자리에 적어 뒀고, test/db-mysql2-contract.test.js 가
+// 되돌아가는 것을 막는다.
+var mysql = require('mysql2');
+var once = require('../once');
 var path = require('path');
 
 var pool = null;
@@ -265,7 +276,7 @@ exports.connect = function (callback) {
         // 예전에는 mobius.js 가 conf.dbpass 를 global.usedbpass 로 옮기고
         // app.js 가 그것을 인자로 넘겼다. 지금은 applyConf 가 준 **같은 conf
         // 객체**에서 직접 읽는다. undefined 와 '' 는 드라이버에게 같은 값이다
-        // (node_modules/mysql/lib/ConnectionConfig.js: options.password || undefined).
+        // (ConnectionConfig 가 options.password || undefined 로 받는다).
         password: (typeof conf.dbpass === 'string') ? conf.dbpass : '',
         database: DATABASE,
         // 풀 크기와 대기열 한도는 conf.json 으로 뺐다(mobius/conf_schema.js).
@@ -279,8 +290,40 @@ exports.connect = function (callback) {
         connectionLimit: limit,
         waitForConnections: true,
         debug: false,
-        acquireTimeout: 50000,
-        queueLimit: queue
+        queueLimit: queue,
+
+        // ── 드라이버 기본값에 기대지 않는다 ──────────────────────────────
+        //
+        // acquireTimeout 이 여기 있었다. **mysql2 에는 없는 옵션이라** 만나면
+        // 커넥션 설정마다 경고를 stderr 에 찍고 값을 버린다 — 워커 25개가
+        // 기동 때마다 줄을 뿌린다. mysqljs 에서도 큐 대기에는 관여하지 않고
+        // connect/changeUser/ping 에만 걸렸으므로 잃는 것이 없다.
+        //
+        // decimalNumbers — MySQL 은 정수 컬럼의 SUM() 을 NEWDECIMAL 로
+        // 돌려준다. mysqljs 는 그것을 Number 로 캐스팅하는데
+        // (RowDataPacket.js:96-104), mysql2 는 기본값 false 라 **문자열**로
+        // 낸다(lib/parsers/text_parser.js:51-56). 실측:
+        //     mysql  : [{"sum(cbs)":21048}]
+        //     mysql2 : [{"sum(cbs)":"21048"}]
+        // 스키마에 DECIMAL 컬럼은 없지만 SUM() 이 그 통로다. GET /total_cbs 가
+        // 이 행을 responder 를 안 거치고 JSON.stringify 로 직송하므로
+        // 응답의 숫자가 문자열로 바뀐다.
+        decimalNumbers: true,
+
+        // charset — 두 드라이버의 기본 커넥션 문자셋이 다르다. 실측:
+        //     mysql  charsetNumber 33  -> utf8mb3 / utf8mb3_general_ci
+        //     mysql2 charsetNumber 224 -> utf8mb4 / utf8mb4_unicode_ci
+        // 스키마는 utf8mb3 다(mobiusdb.sql 의 DEFAULT CHARSET=utf8).
+        // 커넥션이 utf8mb4 가 되면 4바이트 문자가 든 바인딩이 utf8mb3 컬럼과
+        // 비교될 때 0행이 아니라 ER_CANT_AGGREGATE_2COLLATIONS(1267) 로 터진다.
+        //
+        // 도달 경로는 **discovery 질의문자열**이다 — Express 의 query parser 가
+        // 퍼센트 인코딩을 디코딩하므로 ?lbl=%F0%9F%98%80 이 4바이트로 들어온다.
+        // (리소스 경로는 도달하지 못한다: 원시 바이트는 Node 가 400 으로 끊고
+        //  퍼센트 인코딩은 안 풀린다. MQTT/WS 는 ERR_UNESCAPED_CHARACTERS)
+        //
+        // **스키마를 utf8mb4 로 옮기면 이 줄을 같이 걷어내야 한다.**
+        charset: 'UTF8_GENERAL_CI'
     });
 
     // **어디에 붙을 것인지 한 줄 남긴다. 비밀번호는 적지 않는다.**
@@ -328,8 +371,44 @@ exports.execute = function (handle, sql, bindings, callback, opts) {
     var t = (opts && opts.timeoutMs !== undefined) ? opts.timeoutMs : DEFAULT_TIMEOUT_MS;
     if (t) { q.timeout = t; }
 
+    // ── 콜백을 한 번만 통과시킨다 ────────────────────────────────────────
+    //
+    // mysqljs 2.18.1 은 드라이버 타임아웃 에러에 fatal=true 를 달아 커넥션을
+    // 파기했다(lib/protocol/Protocol.js:162-163). 그래서 콜백이 한 번뿐이었다.
+    // **mysql2 는 fatal 을 안 달고 명령을 큐에서 빼지도 않는다**
+    // (lib/commands/query.js:349-364). 타임아웃으로 한 번, 나중에 실제 응답이
+    // 오면 또 한 번 부른다. 가짜 MySQL 서버로 실측했다:
+    //
+    //     mysql  / 타임아웃 뒤 소켓 끊김   cb 1회
+    //     mysql2 / 타임아웃 뒤 소켓 끊김   cb 2회
+    //     mysql2 / 타임아웃 뒤 ERR 패킷    cb 2회
+    //
+    // 두 번째 호출은 파사드를 그대로 지나 호출부까지 간다. 실제 저장소 파일로
+    // 추적한 경로: db/index.js -> sql_action.js -> resource.js 에서
+    // **db.release(connection) 이 두 번**. 커넥션이 두 번 반납되면 그 사이
+    // 다른 요청이 빌려간 것을 빼앗는다.
+    callback = once(callback, 'db/mysql execute');
+
     handle.query(q, function (err, rows) {
-        if (err) { return callback(err, null); }
+        if (err) {
+            // ── 타임아웃의 fatal 의미를 되살린다 ─────────────────────────
+            //
+            // once 는 그물이지 원인 수정이 아니다. mysql2 는 타임아웃 뒤에도
+            // 명령을 큐에 남겨 두므로, 그 커넥션이 풀로 돌아가면 다음에 빌린
+            // 요청의 질의가 **앞선 문장이 끝날 때까지 큐에서 대기한다.**
+            // mysqljs 는 fatal=true 로 그 커넥션을 풀에서 빼 이런 일이 없었다.
+            //
+            // destroy 는 PoolConnection 을 풀에서도 빼므로, 이후의
+            // db.release(handle) 는 _pool 이 null 이라 무해하게 반환된다.
+            // 비용은 타임아웃마다 커넥션 하나를 새로 맺는 것인데, 60초 질의는
+            // 드물어야 정상이므로 감당할 수 있다.
+            if (err.code === 'PROTOCOL_SEQUENCE_TIMEOUT' &&
+                handle && typeof handle.destroy === 'function') {
+                try { handle.destroy(); }
+                catch (e) { console.error('[db/mysql] 타임아웃 커넥션 파기 실패: ' + e.message); }
+            }
+            return callback(err, null);
+        }
         callback(null, rows);
     });
 };

@@ -25,10 +25,17 @@ const Module = require('node:module');
 
 const ROOT = path.join(__dirname, '..');
 
-// mysql 드라이버의 createPool 을 가로채, 어댑터가 실제로 만든 설정을 붙잡는다.
+// 드라이버의 createPool 을 가로채, 어댑터가 실제로 만든 설정을 붙잡는다.
 // 어댑터 소스를 안 읽는다 — 도착한 값만 본다.
+//
+// **어댑터와 같은 모듈을 잡아야 한다.** 2026-09-04 에 mysql -> mysql2 로
+// 옮기면서 이 줄이 'mysql' 을 그대로 붙잡고 있어 시험 5벌이 한꺼번에
+// 'Cannot find module' 로 죽었다. 가로채기는 이름을 하드코딩하므로 드라이버를
+// 바꾸면 여기도 같이 바꿔야 한다 — 그 사실 자체를 여기 적어 둔다.
+const DRIVER = 'mysql2';
+
 function capturePool(fn) {
-    const mysql = require('mysql');
+    const mysql = require(DRIVER);
     const orig = mysql.createPool;
     let captured = null;
     mysql.createPool = function (cfg) { captured = cfg; return { fake: true }; };

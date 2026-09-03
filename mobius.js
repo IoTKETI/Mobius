@@ -188,15 +188,20 @@ global.use_db_connection_limit =
 // 풀이 가득 찼을 때 대기열에 몇 개까지 쌓을 것인가.
 //
 // **0 은 "무제한" 이다 — 그리고 그 큐에는 타임아웃이 없다.**
-// node_modules/mysql/lib/Pool.js:222 가 `if (this.config.queueLimit && ...)`
-// 로 검사하므로 0 은 falsy 가 되어 한도 분기를 통째로 건너뛰고,
-// acquireTimeout 은 Pool.js 의 connect/changeUser/ping 에만 걸려 큐 대기에는
-// 관여하지 않는다. 그래서 풀이 마르면 요청이 **응답도 에러도 없이 영원히
-// 매달린다** — 워커도 죽지 않아 cluster 재기동도 안 걸린다.
+// 드라이버가 `if (queueLimit && 대기수 >= queueLimit)` 로 검사하므로 0 은
+// falsy 가 되어 한도 분기를 통째로 건너뛴다. 그래서 풀이 마르면 요청이
+// **응답도 에러도 없이 영원히 매달린다** — 워커도 죽지 않아 cluster 재기동도
+// 안 걸린다.
 //
-// 유한값으로 두면 드라이버가 POOL_ENQUEUELIMIT 를 즉시 던지고 그 에러가
+// 유한값으로 두면 드라이버가 즉시 거절하고, 그 에러가
 // mobius/db/mysql.js 의 getConnection 을 지나 500-5 로 나간다. 관측 불가능한
 // 매달림이 관측 가능한 실패로 바뀐다.
+//
+// mysql2 로 옮기면서 실측했다 — 거절은 그대로인데 **에러의 code 가 없어졌다.**
+//     mysql   code="POOL_ENQUEUELIMIT"  msg="Queue limit reached."
+//     mysql2  code=undefined            msg="Queue limit reached."
+// getConnection 이 code 를 안 보고 무조건 500-5 를 내므로 동작은 같다.
+// 다만 code 문자열로 이 상황을 가려내려 하면 안 된다.
 global.use_db_queue_limit =
     (typeof conf.dbQueueLimit === 'number' && conf.dbQueueLimit >= 0)
         ? conf.dbQueueLimit : 50;
