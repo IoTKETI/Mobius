@@ -29,6 +29,66 @@
 
 var util = require('util');
 
+// 종료 전에 비워야 할 것들. app.js 가 액세스 로그 스트림을 여기 등록한다.
+//
+// **여기가 무엇인지 알면 안 된다.** 액세스 로그는 app.js 의 것이고, 다음에
+// 또 무엇이 생길지 모른다. 등록하는 쪽이 자기 것을 안다.
+var flushers = [];
+
+// 종료 전에 부를 것을 등록한다. fn(done) 형태로, 다 비웠으면 done() 을 부른다.
+// done 을 안 불러도 아래 상한이 끊는다 — 종료가 걸리는 것이 유실보다 나쁘다.
+exports.flushOnExit = function (fn) {
+    if (typeof fn === 'function') { flushers.push(fn); }
+};
+
+// 테스트가 쓴다. 등록은 누적이라 파일 간에 샌다.
+exports._resetFlushers = function () { flushers = []; };
+
+// 상한. 이 안에 못 비우면 그냥 종료한다.
+//
+// **왜 상한이 필요한가.** 죽는 중인 워커다. 스트림이 이미 망가져 있어
+// end() 의 콜백이 영영 안 올 수도 있다. 그러면 요청이 응답 없이 매달리고
+// 커넥션이 풀에서 빠진 채로 프로세스가 살아 있게 된다 — 이 파일이 워커를
+// 죽이는 이유가 정확히 그것이라, 여기서 걸리면 목적이 뒤집힌다.
+var FLUSH_TIMEOUT_MS = 500;
+
+function flush_then(exit, d) {
+    var pending = flushers.length;
+    if (pending === 0) { return exit(); }
+
+    var settled = false;
+    function finish() {
+        if (settled) { return; }
+        settled = true;
+        if (timer && timer.unref) { timer.unref(); }
+        clearTimeout(timer);
+        exit();
+    }
+
+    var timer = setTimeout(function () {
+        if (settled) { return; }
+        console.error('[backstop] 로그를 다 비우지 못하고 종료한다 (' +
+                      FLUSH_TIMEOUT_MS + 'ms 초과) — 마지막 줄 몇 개가 빌 수 있다.');
+        finish();
+    }, (d && d.flushTimeoutMs) || FLUSH_TIMEOUT_MS);
+
+    flushers.forEach(function (fn) {
+        var called = false;
+        try {
+            fn(function () {
+                // 같은 등록이 done 을 두 번 불러도 한 번만 센다.
+                if (called) { return; }
+                called = true;
+                if (--pending === 0) { finish(); }
+            });
+        }
+        catch (e) {
+            // 비우다 실패해도 종료는 해야 한다.
+            if (!called) { called = true; if (--pending === 0) { finish(); } }
+        }
+    });
+}
+
 // 같은 예외가 반복될 때 로그를 덮어쓰지 않도록 접는다.
 // 프록시 핸들러가 매 메시지마다 던지면 마스터는 살아남지만 로그가 폭주한다.
 var FULL_LOG_LIMIT = 3;          // 같은 메시지를 몇 번까지 스택째 남기는가
@@ -116,8 +176,25 @@ exports.install = function (role, deps) {
             console.error('[backstop] 워커를 종료한다 — cluster 가 다시 띄운다. ' +
                           '살려 두면 이 요청이 응답 없이 매달리고 커넥션이 풀에서 빠진다.');
 
-            if (d.onFatal) { d.onFatal(1); }
-            else { proc.exit(1); }
+            // **곧장 exit 하면 아직 안 나간 로그가 사라진다.**
+            //
+            // proc.exit 는 대기 중인 비동기 I/O 를 기다리지 않는다. 그래서
+            // 파일 스트림(액세스 로그)에 write 한 줄이 버퍼에만 있고 디스크로
+            // 안 간 채 프로세스가 없어진다. 실측 — 한 줄 쓰고 backstop 과 같은
+            // 순서로 종료하기를 10회:
+            //
+            //     그냥 exit:        10회 중 10회 유실
+            //     닫고 나서 exit:   10회 중  0회 유실
+            //
+            // **하필 그 한 줄이 크래시 직전 요청의 기록이다.** 사고를 설명할
+            // 가장 중요한 줄을 사고가 날 때마다 잃고 있었다.
+            //
+            // 무엇을 닫을지는 여기가 모른다 — 액세스 로그는 app.js 의 것이다.
+            // 그쪽이 exports.flushOnExit 로 등록한다.
+            flush_then(function () {
+                if (d.onFatal) { d.onFatal(1); }
+                else { proc.exit(1); }
+            }, d);
             return;
         }
 

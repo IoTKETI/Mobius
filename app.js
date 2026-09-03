@@ -193,6 +193,21 @@ var accessLogStream = fileStreamRotator.getStream({
 // 이번엔 error.log 가 그 속도로 불어난다. 이 저장소가 이미 그 사고를 겪었다
 // (09477df 'stop log flooding'). 첫 줄은 즉시, 그 뒤는 1분에 한 줄만 내고
 // 그 사이에 삼킨 건수를 같이 적는다.
+// **워커가 죽을 때 이 스트림을 비우고 나서 죽게 한다.**
+//
+// backstop 이 proc.exit(1) 로 워커를 끝내는데, exit 는 대기 중인 비동기
+// I/O 를 안 기다린다. 그래서 마지막 요청의 액세스 로그 한 줄이 버퍼에만
+// 있다가 사라진다 — 실측 10회 중 10회. 하필 그 줄이 크래시 직전 요청의
+// 기록이라, 사고를 설명할 가장 중요한 줄을 사고마다 잃고 있었다.
+//
+// 여기서 등록하는 이유: backstop 은 이 스트림이 무엇인지 모른다. 알면
+// 코어가 app.js 의 사정을 아는 것이고, 다음에 비울 것이 생기면 또 고쳐야 한다.
+backstop.flushOnExit(function (done) {
+    // end() 는 버퍼를 다 내보낸 뒤 콜백한다. 안 오면 backstop 의 상한이 끊는다.
+    try { accessLogStream.end(done); }
+    catch (e) { done(); }
+});
+
 var access_log_err = { at: 0, skipped: 0 };
 accessLogStream.on('error', function (err) {
     var now = Date.now();

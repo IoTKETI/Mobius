@@ -179,3 +179,119 @@ test('백스톱은 응답을 쓰지 않는다', function () {
             'backstop 이 응답에 손댄다(' + forbidden + ') — 이중 응답으로 새 사망 경로가 생긴다');
     }
 });
+
+/* ── 종료 전 로그 비우기 ─────────────────────────────────────────────── */
+//
+// proc.exit 는 대기 중인 비동기 I/O 를 안 기다린다. 그래서 액세스 로그에
+// write 한 줄이 버퍼에만 있다가 프로세스와 함께 사라졌다. 실측 — 한 줄 쓰고
+// backstop 과 같은 순서로 종료하기를 10회:
+//
+//     그냥 exit:        10회 중 10회 유실
+//     닫고 나서 exit:   10회 중  0회 유실
+//
+// 하필 그 한 줄이 크래시 직전 요청의 기록이다.
+
+test('워커가 죽기 전에 등록된 것을 비운다', function (t, done) {
+    backstop._reset();
+    backstop._resetFlushers();
+    const proc = fakeProc();
+    let flushed = false;
+    let fatal = null;
+
+    backstop.flushOnExit(function (cb) {
+        flushed = true;
+        setImmediate(cb);          // 실제 스트림 end() 처럼 비동기
+    });
+
+    quiet(function () {
+        backstop.install('worker', {
+            proc: proc,
+            onFatal: function (c) {
+                fatal = c;
+                // **비운 뒤에 종료해야 한다.** 순서가 반대면 의미가 없다.
+                assert.strictEqual(flushed, true, '비우기 전에 종료했다');
+                assert.strictEqual(fatal, 1);
+                backstop._resetFlushers();
+                done();
+            }
+        });
+        proc.emit('uncaughtException', new Error('던졌다'), 'uncaughtException');
+    });
+});
+
+test('비우기가 안 끝나도 종료는 한다 — 상한이 끊는다', function (t, done) {
+    // **죽는 중인 워커다.** 스트림이 이미 망가져 end() 콜백이 영영 안 올 수
+    // 있다. 그때 종료가 걸리면 요청이 응답 없이 매달리고 커넥션이 풀에서
+    // 빠진 채로 프로세스가 살아 있게 된다 — 워커를 죽이는 이유가 뒤집힌다.
+    backstop._reset();
+    backstop._resetFlushers();
+    const proc = fakeProc();
+
+    backstop.flushOnExit(function () { /* done 을 영영 안 부른다 */ });
+
+    const t0 = Date.now();
+    quiet(function () {
+        backstop.install('worker', {
+            proc: proc,
+            flushTimeoutMs: 40,
+            onFatal: function (c) {
+                assert.strictEqual(c, 1);
+                assert.ok(Date.now() - t0 >= 35, '상한을 안 기다렸다');
+                backstop._resetFlushers();
+                done();
+            }
+        });
+        proc.emit('uncaughtException', new Error('던졌다'), 'uncaughtException');
+    });
+});
+
+test('비우다 던져도 종료는 한다', function (t, done) {
+    backstop._reset();
+    backstop._resetFlushers();
+    const proc = fakeProc();
+
+    backstop.flushOnExit(function () { throw new Error('스트림이 이미 망가졌다'); });
+
+    quiet(function () {
+        backstop.install('worker', {
+            proc: proc,
+            onFatal: function (c) {
+                assert.strictEqual(c, 1, '비우기가 던지면 종료를 못 한다');
+                backstop._resetFlushers();
+                done();
+            }
+        });
+        proc.emit('uncaughtException', new Error('던졌다'), 'uncaughtException');
+    });
+});
+
+test('등록이 없으면 예전처럼 곧장 종료한다', function () {
+    // 상한을 기다리거나 하지 않는다. 동기로 끝나야 한다.
+    backstop._reset();
+    backstop._resetFlushers();
+    const proc = fakeProc();
+    let fatal = null;
+
+    quiet(function () {
+        backstop.install('worker', { proc: proc, onFatal: function (c) { fatal = c; } });
+        proc.emit('uncaughtException', new Error('던졌다'), 'uncaughtException');
+    });
+
+    assert.strictEqual(fatal, 1, '등록이 없는데 종료가 미뤄졌다');
+});
+
+test('app.js 가 액세스 로그 스트림을 등록한다', function () {
+    // backstop 은 무엇을 비울지 모른다 — 등록하는 쪽이 자기 것을 안다.
+    // 이 줄이 없으면 위 장치가 아무것도 안 비운다.
+    const fs = require('node:fs');
+    const path = require('node:path');
+    const src = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8')
+        .replace(/\/\*[\s\S]*?\*\//g, ' ')
+        .replace(/(^|[^:])\/\/[^\n]*/g, '$1');
+
+    assert.match(src, /backstop\.flushOnExit\(/,
+        'app.js 가 액세스 로그 스트림을 backstop 에 등록하지 않는다 — ' +
+        '워커가 죽을 때 마지막 요청의 기록이 사라진다');
+    assert.match(src, /accessLogStream\.end\(/,
+        '등록은 했는데 스트림을 안 닫는다 — end() 가 버퍼를 내보낸다');
+});
