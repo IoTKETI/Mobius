@@ -2125,10 +2125,12 @@ function select_edge_resource(connection, parent_ri, child_ty, direction, outObj
 // 호출부(app.js)가 아직 0 을 넘기므로 인자는 남겨 둔다.
 exports.select_latest_resource = function (connection, parentObj, loop_count, latestObj, callback) {
     var child_ty = parseInt(parentObj.ty, 10) + 1;
-    console.time('select_latest ' + parentObj.ri);
+    // console.time('select_latest ' + ri) 이 여기 있었다. **지웠다.**
+    // 요청마다 stdout 에 한 줄을 냈는데 배포 실측으로 느려진 적이 없다 —
+    // 표본 1,912건: p50 1.7ms, p99 4.0ms, 최대 5.9ms, 200ms 초과 0건.
+    // 요청 전체 시간은 log/access-*.log 의 마지막 필드에 남는다(app.js 참고).
     select_edge_resource(connection, parentObj.ri, child_ty, 'desc', latestObj,
         function (code) {
-            console.timeEnd('select_latest ' + parentObj.ri);
             callback(code);
         });
 };

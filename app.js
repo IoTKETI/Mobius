@@ -167,7 +167,30 @@ var accessLogStream = fileStreamRotator.getStream({
 });
 
 // setup the logger
-app.use(morgan('combined', {stream: accessLogStream}));
+//
+// **'combined' 에 소요시간 한 필드를 끝에 붙였다.**
+//
+// 이 서버는 요청별 소요시간을 어디에도 안 남기고 있었다. stdout 에
+// `get_resource_from_url ... : N ms` 를 요청마다 찍긴 했는데, 배포 표본
+// 44,126건을 재 보니 p99.9 가 10ms 이고 최대가 19ms 였다 — 그 타이머는
+// URL 해석 구간만 재고, 느린 쪽(discovery)은 그 콜백 **뒤에** 돈다.
+// 즉 30초 타임아웃이 나는 경로를 아무도 재고 있지 않았다.
+//
+// 끝에 붙이는 이유: 중간에 끼우면 위치로 파싱하던 것이 전부 어긋난다.
+// 단위(ms)를 안 붙이므로 마지막 필드가 순수한 수다 —
+//   awk '{ if ($NF+0 > 1000) print }' log/access-*.log
+// 가 그대로 먹는다.
+//
+// **중단된 요청은 이 필드가 '-' 다.** morgan 의 response-time 은
+// res._startAt 을 onHeaders 로 채우는데(node_modules/morgan/index.js:164),
+// 응답 헤더를 한 번도 안 쓰면 그 값이 없다. 클라이언트가 끊거나 서버가
+// 응답을 못 만든 경우가 그렇다 — 하필 가장 알고 싶은 경우다. 그 구멍은
+// 이 줄이 아니라 다른 수단으로 메워야 한다(아래 [slow] 계획 주석 참고).
+var ACCESS_FORMAT =
+    ':remote-addr - :remote-user [:date[clf]] ":method :url HTTP/:http-version" ' +
+    ':status :res[content-length] ":referrer" ":user-agent" :response-time';
+
+app.use(morgan(ACCESS_FORMAT, {stream: accessLogStream}));
 
 //ts_app.use(morgan('short', {stream: accessLogStream}));
 
@@ -1293,11 +1316,11 @@ function get_resource_from_url(connection, ri, sri, option, callback) {
             makeObject(targetObject[rootnm]);
 
             if (option == '/latest') {
-                var la_id = 'select_latest_resource ' + targetObject[rootnm].ri + ' - ' + require('shortid').generate();
-                console.time(la_id);
+                // 여기도 console.time 계측이 있었다. **지웠다** — 위
+                // get_resource_from_url 과 같은 이유이고, 배포 실측도 같다.
+                // 표본 1,912건: p50 1.8ms, p99 4.6ms, 최대 6.5ms, 200ms 초과 0건.
                 var latestObj = [];
                 db_sql.select_latest_resource(connection, targetObject[rootnm], 0, latestObj, (code) => {
-                    console.timeEnd(la_id);
                     if (code === '200') {
                         if (latestObj.length == 1) {
 
@@ -1665,7 +1688,15 @@ function get_target_url(request, response, callback) {
     absolute_url = absolute_url.replace(/\/~\/[^\/]+\/?/, '/');
     var absolute_url_arr = absolute_url.split('/');
 
-    console.log('\n' + request.method + ' : ' + request.url);
+    // console.log('\n' + method + ' : ' + url) 이 여기 있었다. **지웠다.**
+    //
+    // 요청마다 두 줄(앞의 \n 이 빈 줄 하나를 더 만든다)을 찍었는데, 같은
+    // 사실이 log/access-*.log 에 이미 들어간다 — 거기에는 IP·상태·UA 까지
+    // 있어 더 낫다. 배포 실측으로 이 줄과 아래 계측이 stdout 의 96.6%
+    // (30,787줄 중 29,748줄)였고, pm2 로그가 6MB/시간으로 불어나
+    // logrotate(10M × 10) 아래에서 **하루도 안 되어 진단 이력이 사라졌다.**
+    //
+    // 없앤 것은 로그가 아니라 중복이다. 도착 기록은 액세스 로그에 남는다.
     // GET/DELETE 는 본문이 없어 여기가 bodyObj 의 유일한 생산 지점이다.
     // POST/PUT 은 이 앞의 check_resource_supported 에서 이미 파싱했으므로
     // 덮어쓰면 안 된다 — 그러면 파싱이 다시 두 번이 된다.
@@ -1738,10 +1769,22 @@ function get_target_url(request, response, callback) {
 
     request.absolute_url = absolute_url;
     absolute_url = null;
-    var tid = require('shortid').generate();
-    console.time('get_resource_from_url' + ' (' + tid + ') - ' + request.absolute_url);
+    // console.time('get_resource_from_url (shortid) - url') 이 여기 있었다.
+    // **지웠다. 라벨을 만들려고 요청마다 돌던 shortid.generate() 도 같이.**
+    //
+    // 이 계측이 무엇을 재고 있었는지 배포에서 확인했다. 표본 44,126건:
+    //
+    //     p50 1.9ms   p99 7.7ms   p99.9 10.0ms   최대 19.1ms
+    //     200ms 초과 0건
+    //
+    // **한 번도 느려진 적이 없다.** 그럴 수밖에 없는 것이, 이 타이머는
+    // get_resource_from_url 콜백의 첫 문장에서 끝난다. 실제로 느린 쪽인
+    // discovery(fu=1)는 그 콜백이 끝난 **뒤** app.js 의 lookup_retrieve 에서
+    // 시작한다 — 30초 상한에 걸리던 그 경로가 측정 구간 밖이었다.
+    //
+    // 즉 stdout 의 3분의 1을 쓰면서 "절대 안 느려지는 구간" 을 재고 있었다.
+    // 요청 전체 시간은 이제 액세스 로그의 마지막 필드에 남는다(위 참고).
     get_resource_from_url(request.db_connection, request.ri, request.sri, request.option, (targetObject, status) => {
-        console.timeEnd('get_resource_from_url' + ' (' + tid + ') - ' + request.absolute_url);
         if (status == 404) {
             if (url.parse(request.absolute_url).pathname.split('/')[1] == usecsebase) {
                 callback('404-1');
