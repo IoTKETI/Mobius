@@ -233,15 +233,28 @@ accessLogStream.on('error', function (err) {
 // 즉 30초 타임아웃이 나는 경로를 아무도 재고 있지 않았다.
 //
 // 끝에 붙이는 이유: 중간에 끼우면 위치로 파싱하던 것이 전부 어긋난다.
-// 단위(ms)를 안 붙이므로 마지막 필드가 순수한 수다 —
-//   awk '{ if ($NF+0 > 1000) print }' log/access-*.log
-// 가 그대로 먹는다.
+// 단위(ms)를 안 붙이므로 마지막 필드가 순수한 수다.
+//
+// ── 느린 요청을 셀 때 반드시 두 번 세라 ─────────────────────────────────
 //
 // **중단된 요청은 이 필드가 '-' 다.** morgan 의 response-time 은
 // res._startAt 을 onHeaders 로 채우는데(node_modules/morgan/index.js:164),
 // 응답 헤더를 한 번도 안 쓰면 그 값이 없다. 클라이언트가 끊거나 서버가
-// 응답을 못 만든 경우가 그렇다 — 하필 가장 알고 싶은 경우다. 그 구멍은
-// 이 줄이 아니라 다른 수단으로 메워야 한다(아래 [slow] 계획 주석 참고).
+// 응답을 못 만든 경우가 그렇다 — 하필 가장 알고 싶은 경우다.
+//
+// 그래서 `$NF+0 > N` 하나만 쓰면 **그 요청들이 조용히 빠진다.** awk 에서
+// '-' 는 0 으로 읽히기 때문이다. 느린 것을 찾는데 가장 나쁜 것이 안 나온다.
+//
+//   # 느린 것 — 응답을 마친 요청 중에서
+//   awk '$NF != "-" && $NF+0 > 1000' log/access-*.log
+//
+//   # 중단된 것 — 소요시간이 아예 없는 요청. 위와 **따로** 세야 한다
+//   awk '$NF == "-"' log/access-*.log
+//
+// 이 구멍을 로그 한 줄로 메우는 것([slow])은 지금 안 한다. 오늘 겪은 30초
+// 타임아웃들은 서버가 400 으로 **응답**했으므로 실제 시간이 남고, 응답을
+// 아예 못 만드는 경우는 [search_lookup] statement timeout 이 따로 찍힌다.
+// 그 구멍이 실제로 아플 때 넣는다.
 var ACCESS_FORMAT =
     ':remote-addr - :remote-user [:date[clf]] ":method :url HTTP/:http-version" ' +
     ':status :res[content-length] ":referrer" ":user-agent" :response-time';
