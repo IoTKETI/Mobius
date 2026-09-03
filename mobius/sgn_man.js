@@ -91,7 +91,7 @@ function noti_result(kind, proto, nu, ri, detail) {
 
 /* ─── exports.post ───────────────────────────────────────────────────────
  *  Fire-and-forget 방식으로 알림 전송. ACK 대기/재시도 없음.
- *  파라미터: nu, bodytype, rqi, bodyString, ri(구독 ri — 로그 역추적용)
+ *  파라미터: nu, rqi, bodyString, ri(구독 ri — 로그 역추적용)
  * ─────────────────────────────────────────────────────────────────────── */
 // bodytype 인자를 걷어냈다 (2026-09-01). 알림은 언제나 json 이다 —
 // sgn.js 가 그 자리에 'json' 리터럴을 넘기고 있었다. 값이 하나뿐인
