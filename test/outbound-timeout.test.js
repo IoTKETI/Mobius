@@ -144,3 +144,106 @@ test('응답이 오면 자체 타이머는 해제된다', function () {
         }, 200);
     });
 });
+
+/* ── 커버리지 ─────────────────────────────────────────────────────────────
+ *
+ * 위 시험들은 arm() 이 **제대로 도는지**만 본다. "모든 아웃바운드 요청에
+ * arm 이 걸려 있는가" 는 아무도 안 봤다. 새 요청 자리를 추가하면서 arm 을
+ * 빠뜨려도 걸리는 것이 없었다.
+ *
+ * 같은 저장소가 나가는 요청의 Accept 고정에는 이미 이 감시를 두고 있다
+ * (test/relay-headers.test.js 의 "상대에게 나가는 요청은 전부 Accept 를
+ * json 으로 고정한다"). 타임아웃에는 대응물이 없었다.
+ *
+ * 이 시험이 없어서 실제로 오판이 났다 — 파일별로 `http.request` 발생 횟수와
+ * `arm` 호출 횟수를 그냥 비교해 "프록시 10곳에 타임아웃이 없다" 고 보고했다.
+ * 틀렸다. 각 함수가 use_secure 로 http/https 를 갈라 **같은 req 변수**에 담고
+ * if/else **뒤에서** arm 을 한 번 부른다. 분기 쌍이 arm 하나를 공유한다.
+ * 세는 방법이 틀렸던 것이지 코드가 빠진 것이 아니었다.
+ */
+const fs = require('node:fs');
+const path = require('node:path');
+const ROOT = path.join(__dirname, '..');
+
+test('나가는 요청은 전부 outbound.arm 이 덮는다', function () {
+    // 드라이버가 아니라 **우리 코드**가 내보내는 요청만 본다.
+    const files = ['app.js', 'mobius/fopt.js', 'mobius/grp.js', 'mobius/sgn_man.js',
+                   'pxy_coap.js', 'pxy_mqtt.js', 'pxy_ws.js'];
+
+    for (const f of files) {
+        const lines = fs.readFileSync(path.join(ROOT, f), 'utf8').split(/\r?\n/);
+
+        const reqs = [];   // req 에 요청 객체를 담는 줄
+        const arms = [];   // 그 req 에 arm 을 거는 줄
+        lines.forEach(function (l, i) {
+            if (/^\s*(\/\/|\*|\/\*)/.test(l)) { return; }          // 주석은 뺀다
+            // http · https · coap 셋 다 센다. arm() 은 setTimeout 이 없는
+            // coap 요청도 자체 타이머로 다루므로(위 시험 참조) 똑같이 대상이다.
+            // 처음엔 https? 만 셌다가 sgn_man 의 coap 알림에 걸린 arm 이
+            // "아무것도 안 덮는다" 로 나왔다 — 코드가 아니라 이 줄이 틀렸었다.
+            if (/^\s*(var\s+)?req\s*=\s*(https?|coap)\.request\(/.test(l)) { reqs.push(i + 1); }
+            if (/outbound\.arm\(req\b/.test(l)) { arms.push(i + 1); }
+        });
+
+        if (reqs.length === 0) { continue; }
+
+        // **함수 단위로 본다.** 처음엔 "직전 arm 이후의 req 를 덮는다" 로 셌는데
+        // 너무 느슨했다 — 중간 arm 하나를 지워도 뒤쪽 함수의 arm 이 앞 함수의
+        // 요청까지 덮는 것으로 쳐서 돌연변이가 안 잡혔다(pxy_ws 로 확인).
+        //
+        // 다른 함수에 있는 arm 은 이 요청을 지켜 주지 않는다.
+        const fnStarts = [];
+        lines.forEach(function (l, i) {
+            if (/^(function\s+\w+|exports\.\w+\s*=\s*function|var\s+\w+\s*=\s*function)/.test(l)) {
+                fnStarts.push(i + 1);
+            }
+        });
+
+        function fnOf(line) {
+            let owner = 0;
+            for (const s of fnStarts) { if (s <= line) { owner = s; } else { break; } }
+            return owner;
+        }
+
+        for (const r of reqs) {
+            const home = fnOf(r);
+            const guarded = arms.some(function (a) { return a > r && fnOf(a) === home; });
+            assert.ok(guarded,
+                f + ':' + r + ' 의 요청에 outbound.arm 이 없다 (함수 시작 ' + home + '행) — ' +
+                '상대가 응답을 안 주면 그 자리에서 멈춘다');
+        }
+
+        // 아무 요청도 안 덮는 arm 은 죽은 호출이다.
+        for (const a of arms) {
+            const home = fnOf(a);
+            const covers = reqs.some(function (r) { return r < a && fnOf(r) === home; });
+            assert.ok(covers,
+                f + ':' + a + ' 의 arm 이 같은 함수의 요청을 안 덮는다 — 죽은 호출이거나 순서가 어긋났다');
+        }
+    }
+});
+
+test('arm 라벨이 어느 경로인지 말해 준다', function () {
+    // 타임아웃 로그는 '[outbound] <label> 응답이 ...' 한 줄이 전부다.
+    // label 이 비어 있거나 겹치면 어느 경로가 멈췄는지 알 수 없다.
+    const files = ['app.js', 'mobius/fopt.js', 'mobius/grp.js', 'mobius/sgn_man.js',
+                   'pxy_coap.js', 'pxy_mqtt.js', 'pxy_ws.js'];
+
+    let total = 0;
+    for (const f of files) {
+        const src = fs.readFileSync(path.join(ROOT, f), 'utf8');
+        const calls = src.split(/\r?\n/).filter(function (l) {
+            return !/^\s*(\/\/|\*|\/\*)/.test(l) && /outbound\.arm\(/.test(l);
+        });
+        for (const c of calls) {
+            total++;
+            assert.match(c, /outbound\.arm\(\s*req\s*,\s*['"]/,
+                f + ' 의 arm 에 라벨 문자열이 없다: ' + c.trim());
+        }
+    }
+
+    // 자리가 통째로 사라지면 위 두 시험이 조용히 통과한다(검사할 것이 없으니).
+    // 최소 개수를 박아 그 경우를 잡는다.
+    assert.ok(total >= 10,
+        'arm 호출이 ' + total + '개뿐이다 — 아웃바운드 자리가 사라졌거나 시험이 못 찾고 있다');
+});
