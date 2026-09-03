@@ -97,3 +97,50 @@ test('morgan 이 response-time 토큰을 안다', function () {
     assert.match(src, /morgan\.token\('response-time'/,
         '이 morgan 버전에 response-time 토큰이 없다 — 형식을 바꿔야 한다');
 });
+
+// --- 액세스 로그 스트림 -------------------------------------------------------
+//
+// 8b 로 요청별 소요시간이 이 파일에만 남게 됐다. 그 파일을 쓰는 스트림에
+// 구멍이 둘 있었고 둘 다 실측으로 확인했다.
+
+test('액세스 로그 스트림에 error 리스너가 있다 — 없으면 워커가 죽는다', function () {
+    // 라이브러리가 내부 파일 스트림의 error 를 이 스트림으로 그대로 올린다
+    // (node_modules/file-stream-rotator/FileStreamRotator.js:537 BubbleEvents).
+    // Node 는 'error' 에 리스너가 0개면 그 자리에서 throw 한다 — 재현했다:
+    //
+    //     리스너 없음:  Unhandled 'error' event -> 종료코드 1
+    //     리스너 있음:  한 줄 찍고 계속 돈다
+    //
+    // 디스크가 차는 것(ENOSPC)이 요청을 못 받을 이유는 아니다.
+    const src = code('app.js');
+    assert.match(src, /accessLogStream\.on\(\s*'error'/,
+        'accessLogStream 에 error 리스너가 없다 — 디스크가 차면 워커가 죽는다');
+});
+
+test('액세스 로그 회전이 대기 중인 줄을 버리지 않는다', function () {
+    // end_stream 을 안 주면 회전이 rotateStream.destroy() 를 탄다
+    // (FileStreamRotator.js:465-469). destroy 는 버퍼를 안 비운다.
+    // 같은 조건으로 재 본 결과:
+    //
+    //     end_stream 없음:   3,000줄 중 841줄만 남음 (2,159줄 유실)
+    //     end_stream: true:  3,000줄 전부 남음
+    //
+    // 배포는 워커 25개가 각자 자정에 회전한다.
+    const src = code('app.js');
+    const m = src.match(/fileStreamRotator\.getStream\(\{([\s\S]*?)\}\)/);
+    assert.ok(m, 'getStream 호출을 못 찾았다');
+    assert.match(m[1], /end_stream\s*:\s*true/,
+        'getStream 에 end_stream: true 가 없다 — 자정 회전이 줄을 버린다');
+});
+
+test('에러 로그가 폭주하지 않는다 — 억제가 붙어 있다', function () {
+    // 디스크가 찬 상태는 지속된다. 요청마다 한 줄이면 이번엔 error.log 가
+    // 그 속도로 불어난다. 이 저장소가 이미 겪은 사고다(09477df).
+    const src = code('app.js');
+    const m = src.match(/accessLogStream\.on\(\s*'error'[\s\S]*?\n\}\);/);
+    assert.ok(m, 'error 리스너 본문을 못 찾았다');
+    assert.match(m[0], /Date\.now\(\)/,
+        'error 리스너에 시간 기반 억제가 없다 — 디스크가 차면 error.log 가 폭주한다');
+    assert.match(m[0], /skipped/,
+        '삼킨 건수를 안 센다 — 억제가 사실을 감추면 안 된다');
+});

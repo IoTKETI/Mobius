@@ -163,7 +163,48 @@ var accessLogStream = fileStreamRotator.getStream({
     date_format: 'YYYYMMDD',
     filename: logDirectory + '/access-%DATE%.log',
     frequency: 'daily',
-    verbose: false
+    verbose: false,
+
+    // **자정 회전 때 버퍼를 비우고 닫는다.**
+    //
+    // 이 옵션이 없으면 회전이 rotateStream.destroy() 를 탄다
+    // (node_modules/file-stream-rotator/FileStreamRotator.js:465-469).
+    // destroy 는 아직 안 쓴 줄을 버린다 — 라이브러리 주석이 직접
+    // "data pending to be flushed might be lost" 라고 적어 뒀다(같은 파일 47행).
+    //
+    // 배포는 워커 25개가 각자 자정을 감지해 각자 회전하므로, 그 순간마다
+    // 워커별로 대기 중인 줄이 사라진다. 8b 이후로 요청별 소요시간이 이
+    // 파일에만 남으므로 잃으면 안 된다.
+    end_stream: true
+});
+
+// **에러 리스너가 없었다. 그래서 이 스트림이 워커를 죽일 수 있었다.**
+//
+// 라이브러리가 내부 파일 스트림의 error 를 이 스트림으로 그대로 올린다
+// (FileStreamRotator.js:537 의 BubbleEvents). 그런데 Node 는 'error' 에
+// 리스너가 하나도 없으면 그 자리에서 throw 한다 — 디스크가 차거나(ENOSPC)
+// 권한이 사라지면 액세스 로그를 못 쓰는 것으로 끝나지 않고 워커가 죽는다.
+//
+// **액세스 로그를 못 쓰는 것이 요청을 못 받을 이유는 아니다.** 그래서 여기서
+// 삼키고 계속 돈다. 대신 조용히 넘기지는 않는다 — 그러면 소요시간 기록이
+// 사라진 것을 아무도 모른다.
+//
+// 억제가 필요한 이유: 디스크가 찬 상태는 지속된다. 요청마다 한 줄씩 찍으면
+// 이번엔 error.log 가 그 속도로 불어난다. 이 저장소가 이미 그 사고를 겪었다
+// (09477df 'stop log flooding'). 첫 줄은 즉시, 그 뒤는 1분에 한 줄만 내고
+// 그 사이에 삼킨 건수를 같이 적는다.
+var access_log_err = { at: 0, skipped: 0 };
+accessLogStream.on('error', function (err) {
+    var now = Date.now();
+    if (access_log_err.at && (now - access_log_err.at) < 60000) {
+        access_log_err.skipped++;
+        return;
+    }
+    console.error('[access_log] 못 쓴다: ' + ((err && err.message) || err) +
+                  (access_log_err.skipped ? ' (지난 1분간 ' + access_log_err.skipped + '건 더)' : '') +
+                  ' — 요청은 계속 받는다. 요청별 소요시간이 그동안 안 남는다.');
+    access_log_err.at = now;
+    access_log_err.skipped = 0;
 });
 
 // setup the logger
