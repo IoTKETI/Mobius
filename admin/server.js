@@ -52,12 +52,20 @@ if (PASSWORD === '') {
 }
 
 // DB 백엔드는 Mobius 와 같은 규칙을 따른다 (argv 가 conf 를 이긴다).
-if (process.argv[2] === 'sqlite') { global.usesqlite = 'true'; }
-else if (process.argv[2] === 'mysql') { global.usesqlite = 'false'; }
-else { global.usesqlite = conf.usesqlite; }
+//
+// **global.usesqlite 를 쓰고 있었다. 그 전역은 이제 없다.**
+// 백엔드는 이름으로 고른다 — mobius.js 의 같은 자리와 글자까지 같다.
+// 'sqlite' / 'mysql' 이 아닌 이름을 줘도 파사드가 기본값으로 떨어뜨린다.
+global.usedb = process.argv[2] || conf.db || 'mysql';
 
-global.usedbhost = 'localhost';
-global.usedbpass = conf.dbpass;
+// global.usedbhost / global.usedbpass 가 여기 있었다. **둘 다 지웠다.**
+//
+// 연결 좌표(호스트·포트·계정·비밀번호)는 이제 어댑터가 갖는다. 코어가
+// connect 에 넘기던 네 인자가 사라졌고, 그 값들은 어댑터가 자기 상수와
+// applyConf 로 받은 conf 에서 읽는다.
+//
+// **그래서 applyConf 가 connect 보다 먼저 와야 한다.** 아래 db.connect
+// 직전에 그 줄이 있다.
 
 // CSE 신원. Mobius 본체는 mobius.js 와 app.js 에서 이 값들을 세운다.
 //
@@ -214,7 +222,10 @@ function now_et() {
 app.get('/api/session', function (req, res) {
     res.json({
         ok: true,
-        backend: global.usesqlite === 'true' ? 'sqlite' : 'mysql',
+        // 파사드가 고른 이름을 그대로 준다. 예전에는 global.usesqlite 를
+        // 삼항으로 풀었는데, 그러면 백엔드가 하나 늘 때 이 줄이 조용히
+        // 틀린 이름을 내려보낸다 — 화면은 그걸 믿는다.
+        backend: db.backendName(),
         // 쓰기가 가능한지, 그리고 그 권한이 어디서 오는지 화면이 알아야 한다.
         // origin 값 자체는 내려보내지 않는다 — superUser 는 공유 비밀이다.
         write: {
@@ -1011,14 +1022,22 @@ if (typeof db_sql.acp_ri_context === 'function') {
     }
 }
 
-db.connect(global.usedbhost, 3306, 'root', global.usedbpass, function (rsc) {
+// **applyConf 가 connect 보다 먼저다.** 어댑터가 conf 에서 자기 것(비밀번호
+// 등)을 직접 읽으므로, 이 줄이 없으면 어댑터의 conf 가 {} 로 남아 빈
+// 비밀번호로 붙는다. test/db-connect-wiring.test.js 가 이 순서를 지킨다.
+db.applyConf(conf);
+
+db.connect(function (rsc) {
     if (rsc !== '1') {
         console.error('[admin] DB 연결 실패 (' + rsc + ')');
         process.exit(1);
     }
     app.listen(PORT, HOST, function () {
+        // 백엔드 이름은 파사드에게 묻는다. 예전에는 usesqlite 전역을
+        // 삼항으로 풀어 여기서 이름을 만들었다 — 백엔드가 하나 늘면
+        // 그 삼항이 조용히 틀린 이름을 찍는다.
         console.log('[admin] 관리 콘솔 ' + HOST + ':' + PORT +
-                    ' (backend=' + (global.usesqlite === 'true' ? 'sqlite' : 'mysql') + ')');
+                    ' (backend=' + db.backendName() + ')');
         if (HOST !== '127.0.0.1' && HOST !== 'localhost') {
             console.warn('[admin] 경고: 루프백이 아닌 주소에 바인드했다 — 접근 통제를 확인할 것.');
         }

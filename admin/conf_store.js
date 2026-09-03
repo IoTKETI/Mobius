@@ -9,7 +9,7 @@
  *   2. **원자적으로 쓴다.** 같은 파일을 Mobius 워커 25개가 기동 때 읽는다.
  *      쓰는 도중 워커가 되살아나 반쪽 파일을 읽으면 그 워커가 못 뜨는 데서
  *      끝나지 않는다 — mobius.js:20-28 의 catch 가 **설정 전체를 버리고
- *      csebaseport/dbpass/usesqlite 세 개만 남긴 conf.json 을 덮어쓴다.**
+ *      csebaseport/dbpass/db 세 개만 남긴 conf.json 을 덮어쓴다.**
  *      게다가 그 dbpass 는 하드코딩된 기본값이다. 즉 반쪽 파일을 한 번 읽히면
  *      adminPassword·superUser·acp* 설정이 통째로 사라지고 DB 비밀번호가
  *      기본값으로 바뀐다. 콘솔도 adminPassword 가 없으면 뜨지 않으므로 같이

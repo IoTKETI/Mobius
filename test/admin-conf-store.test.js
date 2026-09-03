@@ -78,9 +78,12 @@ test('비밀 키는 고칠 수 없다', function () {
 });
 
 test('숨김 키도 고칠 수 없다 — 콘솔이 자기 발밑을 무너뜨리지 않게', function () {
-    const file = tempConf({ adminPort: 7580, csebaseport: '7579', usesqlite: 'true' });
+    const file = tempConf({ adminPort: 7580, csebaseport: '7579', pxyWsPort: '7577' });
     const s = store(file);
-    ['adminPort', 'csebaseport', 'usesqlite'].forEach((k) => {
+    // usesqlite 를 쓰고 있었다. 그 키는 없어졌고, 없는 키는 '숨김이라'
+    // 거절되는 게 아니라 '모르는 키라' 거절된다 — 검사가 헛돈다.
+    // 표에 실재하는 숨김 키로 바꾼다.
+    ['adminPort', 'csebaseport', 'pxyWsPort'].forEach((k) => {
         assert.strictEqual(s.update({ [k]: 'x' }).ok, false, k + ' 를 고칠 수 있었다');
     });
     assert.strictEqual(readConf(file).adminPort, 7580);

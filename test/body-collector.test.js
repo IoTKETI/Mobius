@@ -527,7 +527,23 @@ test('응답 본문을 직접 모으는 자리가 남아 있지 않다', functio
             // setEncoding 이 **주석이 아닌 상태로** 위에 있는가.
             // fopt.js / grp.js 는 그 줄이 `//res.setEncoding(...)` 이라 안 걸렸고,
             // 그래서 8년 동안 조용히 깨지고 있었다. 주석은 세지 않는다.
-            const near = lines.slice(Math.max(0, i - 7), i);
+            //
+            // **어디를 볼 것인가.** 예전에는 이어붙이는 줄의 바로 위 7줄만 봤다.
+            // 그런데 setEncoding 은 핸들러를 **붙이기 전에** 부르는 것이지
+            // 이어붙이는 줄 근처에 있는 것이 아니다. 핸들러 본문이 길면
+            // (주석이 길면) 창을 벗어나 오탐이 난다 — admin/cse.js 가 그랬다.
+            // setEncoding 은 91행, 이어붙이기는 114행이었다.
+            //
+            // 그래서 이어붙이는 줄에서 위로 올라가 **이 핸들러를 붙인 줄**을
+            // 찾고, 그 앞을 본다. 검사의 뜻이 그것이다 — "이 스트림에
+            // setEncoding 을 걸고 나서 붙였는가".
+            let open = -1;
+            for (let k = i; k >= 0 && k > i - 200; k--) {
+                if (/\.on\(\s*'data'/.test(lines[k])) { open = k; break; }
+            }
+            if (open < 0) { bad.push(f + ':' + (i + 1) + '  ' + l.trim() + '  (data 핸들러를 못 찾음)'); return; }
+
+            const near = lines.slice(Math.max(0, open - 7), open);
             const guarded = near.some((w) => /^\s*res\.setEncoding\(/.test(w));
             if (!guarded) { bad.push(f + ':' + (i + 1) + '  ' + l.trim()); }
         });

@@ -14,8 +14,11 @@ const assert = require('node:assert');
 const path = require('path');
 
 const ROOT = path.join(__dirname, '..');
-global.usesqlite = 'true';
-global.usedbhost = 'localhost';
+// global.usesqlite = 'true' / global.usedbhost = 'localhost' 가 여기 있었다.
+// **둘 다 없어진 전역이다.** 백엔드는 이름으로 고르고(usedb), 연결 좌표는
+// 어댑터가 갖는다. usesqlite 를 세우는 것만으로도 감시 테스트가 걸린다
+// (test/usesqlite-single-reader.test.js — "세우는 이가 없어야 한다").
+global.usedb = 'sqlite';
 global.usecsebase = 'Mobius';
 global.usecseid = '/Mobius2';
 global.usespid = '//keti.re.kr';
@@ -29,7 +32,9 @@ const N = 7;
 
 function connect() {
     return new Promise((resolve) => {
-        db.connect('localhost', 3306, 'root', '', function () {
+        // 옛 시그니처 connect(host, port, user, password, cb) 를 쓰고 있었다.
+        // 좌표는 이제 어댑터가 갖는다 — 파사드는 콜백 하나만 받는다.
+        db.connect(function () {
             db.getConnection(function (code, conn) { resolve(conn); });
         });
     });
