@@ -1,0 +1,172 @@
+/* 오션 테마.
+ *
+ * 밝은 쪽은 얕은 바다(모래·해무), 어두운 쪽은 심해다. 강조색은 두 모드 모두
+ * 청록 계열로 두고, 경고는 산호/호박색으로 뺀다 — 파랑 위에서 가장 잘 튄다.
+ *
+ * 글자는 16px 를 기준으로 잡았다. 관리자가 경로(ri)와 타임스탬프를 눈으로
+ * 훑는 화면이라, 밀도보다 읽히는 쪽이 낫다.
+ */
+
+:root {
+  /* 얕은 바다 */
+  --bg: #eef5f9;
+  --bg-deep: #dceaf2;
+  --panel: #ffffff;
+  --panel-alt: #f6fafc;
+  --border: #c6dce7;
+  --border-soft: #dcebf2;
+  --text: #0d2b3e;
+  --text-strong: #072031;
+  --muted: #4d7186;
+  --accent: #0b7f9e;
+  --accent-strong: #075f78;
+  --accent-wash: #e2f2f8;
+  --warn: #a35a06;
+  --warn-wash: #fdf1e2;
+  --danger: #b3372a;
+  --danger-wash: #fdecea;
+  --ok: #0f6f66;
+  --shadow: 0 1px 2px rgba(9, 45, 66, 0.06), 0 4px 12px rgba(9, 45, 66, 0.05);
+  color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    /* 심해 */
+    --bg: #08161f;
+    --bg-deep: #061119;
+    --panel: #0f2431;
+    --panel-alt: #132b3a;
+    --border: #1f4054;
+    --border-soft: #17323f;
+    --text: #dcecf5;
+    --text-strong: #f2f9fc;
+    --muted: #8ab0c4;
+    --accent: #3fb8dd;
+    --accent-strong: #6dd3f0;
+    --accent-wash: #10303f;
+    --warn: #f0ac3c;
+    --warn-wash: #2c2415;
+    --danger: #ff8578;
+    --danger-wash: #2e1a19;
+    --ok: #4fd1bd;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 6px 18px rgba(0, 0, 0, 0.28);
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  /* 아주 옅은 수심 그라디언트. 아래로 갈수록 깊어진다. */
+  background-image: linear-gradient(180deg, var(--bg) 0%, var(--bg-deep) 100%);
+  background-attachment: fixed;
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Malgun Gothic",
+    "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+  font-size: 16px;
+  line-height: 1.65;
+  -webkit-font-smoothing: antialiased;
+}
+
+code,
+.mono {
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+    "Liberation Mono", monospace;
+  font-size: 0.94em;
+  letter-spacing: -0.01em;
+}
+
+/* 본문 안의 인라인 code — 속성명(et, ri)이 문장에 자주 섞인다. */
+p code,
+li code {
+  background: var(--accent-wash);
+  color: var(--accent-strong);
+  padding: 0.08em 0.36em;
+  border-radius: 4px;
+}
+
+button {
+  font: inherit;
+  font-size: 0.95rem;
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--text);
+  cursor: pointer;
+  transition: border-color 0.12s ease, background 0.12s ease, color 0.12s ease;
+}
+button:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent-strong);
+}
+button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+button.primary:hover:not(:disabled) {
+  background: var(--accent-strong);
+  border-color: var(--accent-strong);
+  color: #fff;
+}
+
+input {
+  font: inherit;
+  font-size: 1rem;
+  padding: 0.6rem 0.8rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--text);
+}
+input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-wash);
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.95rem;
+}
+th,
+td {
+  text-align: left;
+  padding: 0.7rem 0.85rem;
+  border-bottom: 1px solid var(--border-soft);
+  vertical-align: baseline;
+}
+th {
+  font-weight: 600;
+  font-size: 0.8rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  background: var(--panel-alt);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+tbody tr:hover {
+  background: var(--accent-wash);
+}

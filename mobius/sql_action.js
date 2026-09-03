@@ -3579,6 +3579,88 @@ exports.select_expired_resources = function (connection, et, limit, callback) {
     facade.run(qb, connection, callback);
 };
 
+// 관리자 콘솔용 만료 조회. select_expired_resources 와 두 가지가 다르다.
+//
+//  1. **타입을 제외하지 않는다.** 삭제 경로가 AE(2)·CNT(3)·CSEBase(5)를 빼는 것은
+//     자동 삭제의 안전장치이지, 관리자가 그것들을 *보면* 안 된다는 뜻이 아니다.
+//     오히려 자동 정리에서 빠지기 때문에 계속 쌓이는 쪽이 이들이다 — 관리자가
+//     실제 규모를 보려면 반드시 보여야 한다.
+//  2. 키셋 커서를 받는다. 배포의 lookup 은 5,740만 행이고 et 가 지난 행이
+//     표본의 81% 라, 화면이 오프셋 페이징을 쓰면 뒤로 갈수록 느려진다.
+//
+// 커서는 (et, ri) 쌍이다. et 만으로는 같은 et 를 가진 행이 잘려 유실된다.
+//
+// @param opts.limit   한 페이지 크기
+// @param opts.types   볼 ty 목록. 비우면 전부
+// @param opts.afterEt / opts.afterRi  직전 페이지의 마지막 행 (없으면 처음부터)
+exports.select_expired_page = function (connection, et, opts, callback) {
+    opts = opts || {};
+    var limit = opts.limit > 0 ? opts.limit : 50;
+
+    var qb = facade.k('lookup')
+        .select('ri', 'ty', 'rn', 'pi', 'et', 'ct', 'lt')
+        .where('et', '<', et)
+        .orderBy('et', 'asc')
+        .orderBy('ri', 'asc')
+        .limit(limit + 1);          // +1 로 "다음 쪽이 있는가" 만 본다
+
+    if (opts.types && opts.types.length) {
+        qb = qb.whereIn('ty', opts.types);
+    }
+    if (opts.afterEt) {
+        // (et, ri) 사전식 비교. knex 에 행 값 비교가 없어 풀어 쓴다.
+        qb = qb.andWhere(function () {
+            this.where('et', '>', opts.afterEt)
+                .orWhere(function () {
+                    this.where('et', opts.afterEt).andWhere('ri', '>', opts.afterRi || '');
+                });
+        });
+    }
+
+    facade.run(qb, connection, function (err, rows) {
+        if (err) { return callback(err, rows); }
+        rows = rows || [];
+        var more = rows.length > limit;
+        if (more) { rows = rows.slice(0, limit); }
+        var last = rows.length ? rows[rows.length - 1] : null;
+        callback(null, {
+            rows: rows,
+            more: more,
+            nextEt: last ? last.et : null,
+            nextRi: last ? last.ri : null
+        });
+    });
+};
+
+// 만료 리소스를 타입별로 센다. **상한을 두고 센다** — 배포의 MySQL lookup 에는
+// et 인덱스가 없어(SQLite 에만 idx_lookup_et 이 있다) 끝까지 세면 5,740만 행
+// 풀스캔이다. 화면은 "많다"만 알면 되므로 limit 에서 끊고 capped 로 알린다.
+//
+// count_orphan_lookup 의 { count, capped } 규약을 따른다.
+exports.count_expired_by_type = function (connection, et, limit, callback) {
+    if (typeof limit === 'function') { callback = limit; limit = 1000; }
+    var cap = limit > 0 ? limit : 1000;
+
+    var qb = facade.k('lookup')
+        .select('ty')
+        .where('et', '<', et)
+        .limit(cap + 1);
+
+    facade.run(qb, connection, function (err, rows) {
+        if (err) { return callback(err, rows); }
+        rows = rows || [];
+        var capped = rows.length > cap;
+        if (capped) { rows = rows.slice(0, cap); }
+
+        var by_type = {};
+        for (var i = 0; i < rows.length; i++) {
+            var ty = String(rows[i].ty);
+            by_type[ty] = (by_type[ty] || 0) + 1;
+        }
+        callback(null, { byType: by_type, count: rows.length, capped: capped });
+    });
+};
+
 // 만료된 리소스를 지운다. **자동 실행하지 않는다** — app.js 에 주기 등록이 없다.
 // 관리자가 select_expired_resources 로 확인한 뒤 호출하는 용도다.
 //
@@ -4199,6 +4281,100 @@ exports.count_orphan_lookup = function (connection, limit, callback) {
     }
 
     scan('');
+};
+
+/**
+ * 고아 행을 **목록으로** 돌려준다. 아무것도 바꾸지 않는다.
+ *
+ * count_orphan_lookup 은 "몇 개인가" 만 답한다. 관리자가 지울지 말지 판단하려면
+ * 무엇이 고아인지 봐야 한다 — 어제 삭제하다 만 서브트리의 잔해인지, 오래전부터
+ * 쌓인 것인지, 특정 AE 아래에 몰려 있는지는 목록을 봐야 알 수 있다.
+ *
+ * 조인을 쓰지 않는다. 배포 스키마는 lookup.pi 가 utf8mb3_general_ci, lookup.ri 가
+ * utf8mb3_bin 이라 부모↔자식 조인이 인덱스를 못 탄다(실측: LEFT JOIN 형태는
+ * 5,740만 행 풀스캔). count_orphan_lookup 과 같이 ri 키셋으로 전진하며 배치마다
+ * 부모 존재를 리터럴 whereIn 으로 확인한다.
+ *
+ * @param opts.limit    돌려줄 최대 행 수
+ * @param opts.afterRi  직전 페이지의 마지막 ri (없으면 처음부터)
+ * @param opts.scanCap  훑을 최대 행 수. 고아가 드물면 목록 한 쪽을 채우려고
+ *                      테이블 끝까지 갈 수 있어 상한을 둔다. 도달하면
+ *                      scanCapped=true 로 알린다.
+ * @returns callback(err, { rows, more, nextRi, scanned, scanCapped })
+ */
+exports.select_orphan_page = function (connection, opts, callback) {
+    opts = opts || {};
+    var limit = opts.limit > 0 ? opts.limit : 50;
+    var scan_cap = opts.scanCap > 0 ? opts.scanCap : 200000;
+    var BATCH = 5000;
+
+    var found = [];
+    var scanned = 0;
+    var last_seen = opts.afterRi || '';
+
+    function scan(last_ri) {
+        var qb = facade.k('lookup')
+            .select('ri', 'pi', 'ty', 'rn', 'ct', 'lt', 'et')
+            .where('ri', '>', last_ri)
+            .whereNot('pi', '')          // CSEBase 는 pi 가 빈 문자열이라 제외
+            .orderBy('ri', 'asc')
+            .limit(BATCH);
+
+        facade.run(qb, connection, function (err, rows) {
+            if (err) { return callback(err, rows); }
+            rows = rows || [];
+            if (!rows.length) {
+                return callback(null, {
+                    rows: found, more: false, nextRi: null,
+                    scanned: scanned, scanCapped: false
+                });
+            }
+
+            var next_ri = rows[rows.length - 1].ri;
+            var pi_set = {};
+            for (var i = 0; i < rows.length; i++) { pi_set[rows[i].pi] = 1; }
+
+            facade.run(facade.k('lookup').select('ri').whereIn('ri', Object.keys(pi_set)), connection,
+                function (err2, prows) {
+                    if (err2) { return callback(err2, prows); }
+                    var exists = {};
+                    prows = prows || [];
+                    for (var j = 0; j < prows.length; j++) { exists[prows[j].ri] = 1; }
+
+                    for (var k = 0; k < rows.length; k++) {
+                        scanned++;
+                        last_seen = rows[k].ri;
+                        if (exists[rows[k].pi]) { continue; }
+                        found.push(rows[k]);
+                        if (found.length > limit) {
+                            // limit+1 번째를 찾았다 = 다음 쪽이 있다. 이 행은
+                            // 돌려주지 않고 버린다.
+                            found.pop();
+                            // **커서는 버린 행이 아니라 마지막으로 돌려주는 행이다.**
+                            // last_seen 은 방금 버린 행의 ri 라, 그걸 커서로 주면
+                            // 다음 쪽이 ri > 버린행 에서 시작해 그 행을 영영 건너뛴다.
+                            // 실측: 고아 7건을 limit=2 로 이어보면 5건만 나오고
+                            // 페이지 경계의 2건이 사라졌다.
+                            return callback(null, {
+                                rows: found, more: true,
+                                nextRi: found[found.length - 1].ri,
+                                scanned: scanned, scanCapped: false
+                            });
+                        }
+                    }
+
+                    if (scanned >= scan_cap) {
+                        return callback(null, {
+                            rows: found, more: found.length >= limit, nextRi: last_seen,
+                            scanned: scanned, scanCapped: true
+                        });
+                    }
+                    setImmediate(scan, next_ri);
+                });
+        });
+    }
+
+    scan(last_seen);
 };
 
 // **자동 실행하지 않는다** — app.js 에 주기 등록이 없다.
