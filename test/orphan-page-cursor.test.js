@@ -14,6 +14,17 @@ const assert = require('node:assert');
 const path = require('path');
 
 const ROOT = path.join(__dirname, '..');
+// **자기 DB 파일을 쓴다.** 이 줄이 없으면 sqlite 어댑터의 기본값인
+// ./mobius.db 를 쓰는데, 그것은 실행한 디렉터리의 실제 파일이다.
+// 배포 서버에서 이 테스트를 돌렸더니 거기 있던 mobius.db 를 열어
+// SQLITE_CORRUPT 로 실패했다 — 테스트가 실데이터를 건드리고 있었다는 뜻이다.
+// (test/acp-audit.test.js 가 같은 이유로 같은 일을 한다.)
+const os = require('os');
+const fsx = require('fs');
+const DBFILE = path.join(os.tmpdir(), 'mobius-orphan-page-test.db');
+try { fsx.unlinkSync(DBFILE); } catch (e) { /* 없으면 그만 */ }
+process.env.MOBIUS_SQLITE_PATH = DBFILE;
+
 // global.usesqlite = 'true' / global.usedbhost = 'localhost' 가 여기 있었다.
 // **둘 다 없어진 전역이다.** 백엔드는 이름으로 고르고(usedb), 연결 좌표는
 // 어댑터가 갖는다. usesqlite 를 세우는 것만으로도 감시 테스트가 걸린다

@@ -14,6 +14,7 @@ const test = require('node:test');
 const assert = require('node:assert');
 const fs = require('node:fs');
 const path = require('node:path');
+const { execFileSync } = require('node:child_process');
 
 const ROOT = path.join(__dirname, '..');
 
@@ -119,23 +120,35 @@ function nameSites(rel, re) {
 // 를 직접 읽는 것을 이 테스트가 못 봤다 — 헌장이 "단일리더 테스트 범위 밖이라
 // 안 걸린다" 고 따로 적어 두어야 했을 정도다. 감시가 있는데 안 보는 것보다
 // 범위에 넣고 아는 예외로 두는 편이 낫다.
-function walkDir(out, rel) {
-    for (const e of fs.readdirSync(path.join(ROOT, rel), { withFileTypes: true })) {
-        const r = rel + '/' + e.name;
-        if (e.isDirectory()) { walkDir(out, r); }
-        else if (e.name.endsWith('.js')) { out.push(r); }
-    }
-}
-
+// **디렉터리를 훑지 않고 git 이 아는 파일만 본다.**
+//
+// 예전에는 readdirSync 로 훑었다. 그랬더니 배포 서버에서 이 테스트가
+// 실패했다 — 거기 굴러다니던 dbq_tmp.js(추적 안 되는 임시 파일)를 코어로
+// 세었기 때문이다. 저장소에 없는 파일이 감시를 깨면, "배포에서 테스트를
+// 돌려 본다" 가 성립하지 않는다.
+//
+// 범위는 그대로다. 루트의 진입점들(프록시 pxy_* 와 wdt 포함 — 지금은
+// 리더가 없지만 빼면 나중에 새 리더가 들어와도 안 걸린다), mobius/,
+// migrations/. mobius.js 는 usesqlite 를 **세팅**하던 곳이라 대상이 아니고,
+// tools/ 는 운영 코드가 아니다(백엔드를 인자로 고른다).
+//
+// migrations/ 를 넣는 이유: 예전에는 뺐는데, 그래서 007 이 global.usesqlite
+// 를 직접 읽는 것을 이 테스트가 못 봤다. 감시가 있는데 안 보는 것보다
+// 범위에 넣고 아는 예외로 두는 편이 낫다.
 function sourceFiles() {
-    const out = [];
-    // 루트의 진입점들. 프록시(pxy_*)와 wdt 도 코어다 — 지금은 리더가 없지만
-    // 범위에서 빼면 나중에 거기로 새 리더가 들어와도 안 걸린다.
-    for (const f of fs.readdirSync(ROOT)) {
-        if (f.endsWith('.js') && f !== 'mobius.js') { out.push(f); }
-    }
-    walkDir(out, 'mobius');
-    walkDir(out, 'migrations');
+    const tracked = execFileSync('git', ['ls-files', '*.js'],
+        { cwd: ROOT, encoding: 'utf8' })
+        .split('\n').map((s) => s.trim()).filter(Boolean);
+
+    const out = tracked.filter(function (f) {
+        if (f === 'mobius.js') { return false; }
+        if (f.indexOf('/') < 0) { return true; }                 // 루트 진입점
+        return f.indexOf('mobius/') === 0 || f.indexOf('migrations/') === 0;
+    });
+
+    // git 이 아무것도 안 돌려주면 검사가 통째로 헛돈다.
+    assert.ok(out.length > 20,
+        '코어 파일을 ' + out.length + '개만 찾았다 — git ls-files 가 안 먹는다');
     return out;
 }
 
