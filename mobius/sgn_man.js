@@ -24,29 +24,57 @@ var outbound = require('./outbound');
 
 global.NOPRINT = 'true';
 
-/* ─── MQTT 클라이언트 (싱글톤) ─────────────────────────────────────────── */
-var sgn_mqtt_client = null;
+/* ─── MQTT 클라이언트 (싱글톤) ─────────────────────────────────────────────
+ *
+ * ── 옵션은 한 곳에서만 만든다 ────────────────────────────────────────────
+ * 예전에는 use_secure 분기마다 따로 만들었는데, **쓰는 쪽에 설정이 없고
+ * 안 쓰는 쪽에 있었다.** 배포는 'disable' 인데 그쪽은 URL 문자열만 넘겨
+ * 라이브러리 기본값(keepalive 60초)으로 돌았고, keepalive 10초·
+ * reconnectPeriod 2초는 쓰지 않는 'enable' 분기에만 적혀 있었다.
+ *
+ * keepalive 가 60초면 브로커가 조용히 사라졌을 때 그것을 알아채기까지
+ * 최악 60초가 걸리고, 그동안 발행은 전부 아래 큐로 들어간다.
+ *
+ * ── 끊긴 동안 쌓지 않는다 (queueQoSZero: false) ──────────────────────────
+ * mqtt.js 는 연결이 끊긴 동안 QoS 0 발행을 **크기 제한이 없는 배열**에
+ * 쌓는다. 2.18.9 도 5.15.2 도 같고, queueLimit 같은 옵션은 없다.
+ *
+ *   _sendPacket: if (!this.connected) {
+ *       if ((qos === 0 && this.queueQoSZero) || cmd !== 'publish')
+ *           this.queue.push({ packet, cb })     // <- 상한 없음
+ *
+ * 배포 실측으로 알림은 하루 약 11만건(초당 2.8건), 본문 약 1KB 다.
+ * 브로커가 한 시간 죽어 있으면 워커당 수 MB 이고 워커는 25개다.
+ * 그리고 실제로 죽는다 — 2026-09-03 11:42 에 systemd 가 SIGABRT 로
+ * mosquitto 를 죽였다(SIGTERM 에 응답하지 않아서).
+ *
+ * 쌓아서 나중에 보내는 것이 좋아 보이지만 그렇지 않다.
+ *   - 알림은 이미 fire-and-forget 이다. ACK·재시도·타임아웃이 전부 없다
+ *   - QoS 0 이라 구독자는 **버려진 것과 유실된 것을 구분할 수 없다**
+ *   - 센서 데이터는 늦게 도착하면 값이 없다. 20시간 뒤에 오는 11만건은
+ *     도움이 아니라 부담이다
+ * 그래서 버린다. 대신 **버린 것을 센다**(아래 publish 콜백).
+ */
+var MQTT_OPTIONS = {
+    host: use_mqtt_broker,
+    port: use_mqtt_port,
+    protocol: (use_secure === 'disable') ? 'mqtt' : 'mqtts',
+    protocolId: 'MQTT',
+    protocolVersion: 4,
+    clean: true,
+    keepalive: 10,
+    reconnectPeriod: 2000,
+    connectTimeout: 2000,
+    queueQoSZero: false
+};
 
-if (use_secure === 'disable') {
-    sgn_mqtt_client = mqtt.connect('mqtt://' + use_mqtt_broker + ':' + use_mqtt_port);
+if (use_secure !== 'disable') {
+    MQTT_OPTIONS.key  = fs.readFileSync('./server-key.pem');
+    MQTT_OPTIONS.cert = fs.readFileSync('./server-crt.pem');
+    MQTT_OPTIONS.rejectUnauthorized = false;
 }
-else {
-    var connectOptions = {
-        host: use_mqtt_broker,
-        port: use_mqtt_port,
-        protocol: 'mqtts',
-        keepalive: 10,
-        protocolId: 'MQTT',
-        protocolVersion: 4,
-        clean: true,
-        reconnectPeriod: 2000,
-        connectTimeout: 2000,
-        key:  fs.readFileSync('./server-key.pem'),
-        cert: fs.readFileSync('./server-crt.pem'),
-        rejectUnauthorized: false
-    };
-    sgn_mqtt_client = mqtt.connect(connectOptions);
-}
+
+var sgn_mqtt_client = mqtt.connect(MQTT_OPTIONS);
 
 sgn_mqtt_client.on('connect', function () {
     console.log('sgn_mqtt_client is connected');
@@ -55,6 +83,35 @@ sgn_mqtt_client.on('connect', function () {
 sgn_mqtt_client.on('error', function (err) {
     console.log('[sgn_mqtt_client] error: ' + (err ? err.message : ''));
     // reconnectPeriod 옵션에 의해 자동 재연결되므로 null로 만들지 않음
+});
+
+/* ── 단절을 보이게 한다 ───────────────────────────────────────────────────
+ *
+ * 리스너가 connect 와 error 둘뿐이었다. 그런데 브로커가 끊길 때 나오는 것은
+ * 'offline' / 'close' 이고 'error' 가 아니다. 배포 로그가 그것을 보여 준다 —
+ *
+ *   [sgn_mqtt_client] error        0건
+ *   sgn_mqtt_client is connected   400건   (워커 25개 x 16회 재연결)
+ *
+ * 재연결이 워커당 16번 있었는데 error 는 한 줄도 없었다. 즉 **끊겨서 알림을
+ * 못 보내는 동안 로그에 아무 흔적이 없었다.**
+ *
+ * queue.length 를 같이 찍는다. queueQoSZero: false 라 0 이어야 정상이고,
+ * 0 이 아니면 publish 가 아닌 패킷(subscribe 등)이 밀린 것이다.
+ */
+sgn_mqtt_client.on('offline', function () {
+    console.error('[sgn_mqtt_client] offline — 브로커와 끊겼다. ' +
+                  '재연결까지 오는 알림은 버려진다 (queue=' +
+                  (sgn_mqtt_client.queue ? sgn_mqtt_client.queue.length : '?') + ')');
+});
+
+sgn_mqtt_client.on('close', function () {
+    console.error('[sgn_mqtt_client] close — 연결이 닫혔다');
+});
+
+sgn_mqtt_client.on('reconnect', function () {
+    console.error('[sgn_mqtt_client] reconnect — 재연결 시도 (queue=' +
+                  (sgn_mqtt_client.queue ? sgn_mqtt_client.queue.length : '?') + ')');
 });
 
 /* ─── 알림 결과 판정 ─────────────────────────────────────────────────────
@@ -248,12 +305,26 @@ function request_noti_mqtt(nu, bodyString, xm2mri, ri) {
         }
         var aeid       = url.parse(nu).pathname.replace('/', '').split('?')[0];
         var noti_topic = '/oneM2M/req/' + usecseid.replace('/', '') + '/' + aeid + '/json';
-        sgn_mqtt_client.publish(noti_topic, bodyString);
 
-        // QoS 0 이라 브로커가 받았는지도 알 수 없고, 브로커가 받았다 해도
-        // 구독자에게 닿았는지는 MQTT 3.1.1 에 알 방법이 없다.
-        // '실패' 로 세면 멀쩡한 구독이 죽은 것으로 보이므로 '판정 불가' 로 둔다.
-        noti_result(NOTI_UNKNOWN, 'mqtt', nu, ri, 'QoS0 — 전달 확인 불가');
+        // **콜백을 준다.** 예전에는 publish(topic, body) 로만 불러서, 브로커가
+        // 끊겨 발행이 안 되어도 아래 UNKNOWN 한 줄만 남았다 — 정상일 때와
+        // 로그가 똑같았다.
+        //
+        // queueQoSZero: false 와 짝이다. 끊긴 상태에서 mqtt.js 가
+        // cb(new Error('No connection to broker')) 를 준다. 실측으로 확인했다:
+        //   queueQoSZero true  -> queue 에 쌓이고 콜백은 안 불린다
+        //   queueQoSZero false -> queue 0, 콜백에 err 가 온다
+        sgn_mqtt_client.publish(noti_topic, bodyString, function (err) {
+            if (err) {
+                noti_result(NOTI_FAIL, 'mqtt', nu, ri, '발행 실패: ' + err.message);
+                return;
+            }
+            // 여기까지 왔다는 것은 소켓에 썼다는 뜻이다. QoS 0 이라 브로커가
+            // 받았는지도 알 수 없고, 받았다 해도 구독자에게 닿았는지는
+            // MQTT 3.1.1 에 알 방법이 없다. '실패' 로 세면 멀쩡한 구독이 죽은
+            // 것으로 보이므로 '판정 불가' 로 둔다.
+            noti_result(NOTI_UNKNOWN, 'mqtt', nu, ri, 'QoS0 — 전달 확인 불가');
+        });
     }
     catch (e) {
         noti_result(NOTI_FAIL, 'mqtt', nu, ri, e.message);

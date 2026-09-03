@@ -254,3 +254,87 @@ test('못 푼 nu 는 배열에서 빼고 순회를 이어 간다', function () {
     assert.strictEqual(/splice\(req_count, 1\);\s*\r?\n\s*get_nu_arr\(connection, nu_arr, req_count \+ 1,/.test(body), false,
         'splice 후 req_count + 1 로 재귀하면 한 항목을 건너뛴다');
 });
+
+test('MQTT 알림이 브로커 단절 때 메모리에 무한히 쌓이지 않는다', function () {
+    // mqtt.js 는 연결이 끊긴 동안 QoS 0 발행을 **크기 제한 없는 배열**에 쌓는다.
+    // 2.18.9 도 5.15.2 도 같다 — `queueLimit` 같은 옵션은 어느 버전에도 없다.
+    //
+    //   MqttClient.prototype._sendPacket: if (!this.connected) {
+    //       if ((qos === 0 && this.queueQoSZero) || cmd !== 'publish') this.queue.push(...)
+    //
+    // 배포 실측: 알림 하루 약 11만건(초당 2.8건), 본문 약 1KB. 브로커가 한 시간
+    // 죽어 있으면 워커당 수 MB 이고 워커는 25개다. 실제로 죽은 적이 있다 —
+    // 2026-09-03 11:42 에 systemd 가 SIGABRT 로 mosquitto 를 죽였다.
+    //
+    // 알림은 이미 fire-and-forget 이다(ACK·재시도·타임아웃 없음). QoS 0 이라
+    // 구독자는 버려진 알림과 유실된 알림을 구분할 수 없고, 센서 데이터는
+    // 늦게 도착하면 값이 없다. 그래서 **쌓지 않고 버리는 쪽**을 골랐다.
+    // **실행되는 줄에서만 찾는다.** 처음엔 파일 전체를 정규식으로 봤는데,
+    // 바로 위 설명 주석에 'queueQoSZero: false' 라는 문구가 있어서
+    // **값을 true 로 바꿔도 시험이 통과했다.** 돌연변이 검증에서 잡혔다.
+    // 주석을 보고 통과하는 시험은 아무것도 지키지 않는다.
+    const live = SGN_MAN.split(/\r?\n/).filter(function (l) {
+        return !/^\s*(\/\/|\*|\/\*)/.test(l);
+    });
+
+    assert.ok(live.some(function (l) { return /^\s*queueQoSZero\s*:\s*false\s*,?\s*$/.test(l); }),
+        'queueQoSZero: false 가 실행 코드에 없다 — 브로커가 끊기면 발행이 메모리에 무한히 쌓인다');
+
+    assert.strictEqual(live.some(function (l) { return /queueQoSZero\s*:\s*true/.test(l); }), false,
+        'queueQoSZero 가 true 다 — 끊긴 동안 발행이 상한 없이 쌓인다');
+});
+
+test('브로커 단절을 로그로 알 수 있다', function () {
+    // 리스너가 connect 와 error 둘뿐이었다. 그런데 브로커가 끊길 때 나오는 것은
+    // 'offline' / 'close' 이고 error 가 아니다. 배포 로그에서 실제로 확인했다 —
+    //
+    //   [sgn_mqtt_client] error        0건
+    //   sgn_mqtt_client is connected   400건  (워커 25개 x 16회 재연결)
+    //
+    // 재연결이 워커당 16번 있었는데 error 는 한 줄도 없었다. 즉 끊겨서
+    // 알림을 못 보내는 동안 로그에 아무 흔적이 없었다.
+    for (const ev of ['offline', 'close', 'reconnect']) {
+        assert.ok(new RegExp("sgn_mqtt_client\\.on\\('" + ev + "'").test(SGN_MAN),
+            "'" + ev + "' 리스너가 없다 — 브로커가 끊긴 것을 로그로 알 수 없다");
+    }
+});
+
+test('발행 실패를 세지 않고 넘어가지 않는다', function () {
+    // publish 에 콜백을 주지 않으면 실패가 조용히 사라진다.
+    // queueQoSZero: false 와 짝이다 — 끊긴 상태에서 콜백이
+    // err('No connection to broker') 를 준다. 실측으로 확인했다.
+    assert.ok(/publish\(noti_topic, bodyString, function/.test(SGN_MAN),
+        'publish 에 콜백이 없다 — 브로커가 끊겨 버려진 알림을 셀 수 없다');
+});
+
+test('두 use_secure 분기가 같은 연결 옵션을 쓴다', function () {
+    // 배포는 use_secure = 'disable' 이다. 그런데 옵션(keepalive·reconnectPeriod·
+    // connectTimeout)은 쓰지 않는 'enable' 분기에만 있었다 — **쓰는 쪽에 설정이
+    // 없고 안 쓰는 쪽에 있었다.** 이 저장소가 콜레이션에서 겪은 것과 같은 모양이다.
+    //
+    // 옵션 객체를 하나로 만들고 두 분기가 그것을 공유하게 한다.
+    const at = SGN_MAN.indexOf('MQTT 클라이언트');
+    const head = SGN_MAN.slice(at, SGN_MAN.indexOf('알림 결과 판정', at));
+
+    // **실행되는 줄만 센다.** 설명 주석이 옵션 이름을 언급하는 것은 정상이고,
+    // 그것까지 세면 "왜 이렇게 했는지" 를 적을수록 시험이 실패한다.
+    const live = head.split(/\r?\n/).filter(function (l) {
+        return !/^\s*(\/\/|\*|\/\*)/.test(l);
+    }).join('\n');
+
+    // 옵션 객체가 하나여야 한다 — 분기 안에서 각자 만들면 다시 갈라진다.
+    const bare = /mqtt\.connect\('mqtt:\/\/'\s*\+\s*use_mqtt_broker\s*\+\s*':'\s*\+\s*use_mqtt_port\)/;
+    assert.strictEqual(bare.test(live), false,
+        '옵션 없이 URL 만으로 connect 하는 분기가 남아 있다 — 기본값(keepalive 60s)이 적용된다');
+
+    for (const opt of ['keepalive', 'reconnectPeriod', 'connectTimeout', 'queueQoSZero']) {
+        const n = (live.match(new RegExp('^\\s*' + opt + '\\s*:', 'gm')) || []).length;
+        assert.strictEqual(n, 1,
+            opt + ' 이 실행 코드 ' + n + '곳에 있다 — 공유 객체 한 곳에만 있어야 두 분기가 안 갈라진다');
+    }
+
+    // 그리고 connect 는 한 번만 불려야 한다.
+    const connects = (live.match(/mqtt\.connect\(/g) || []).length;
+    assert.strictEqual(connects, 1,
+        'mqtt.connect 가 ' + connects + '번 불린다 — 분기마다 부르면 옵션이 다시 갈라진다');
+});
