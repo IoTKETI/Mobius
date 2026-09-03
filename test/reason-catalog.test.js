@@ -154,8 +154,9 @@ function mockPair() {
         method: 'POST',
         url: '/Mobius',
         query: {},
-        headers: { 'x-m2m-ri': 'unit', 'accept': 'application/json' },
-        usebodytype: 'json'
+        // usebodytype 은 넣지 않는다 — 그 필드는 없어졌다(2026-09-03).
+        // 대역이 실물에 없는 필드를 들고 있으면, 그것이 쓰이는 것처럼 보인다.
+        headers: { 'x-m2m-ri': 'unit', 'accept': 'application/json' }
     };
     const response = {
         header: function (k, v) { sent.headers[k] = v; },

@@ -164,11 +164,18 @@ function collect(PORT, OUT) {
 
             // Accept 가 없을 때 무엇으로 답하는가.
             //
-            // usebodytype 은 **요청의** Content-Type 에서 온다(app.js 의
-            // check_xm2m_headers). Accept 가 없으면 response_result 는 그 값을
-            // 그대로 두고(= 보낸 형식으로 답한다), search_result 와
-            // response_rcn3_result 는 json 으로 덮는다. 같은 서버가 경로에 따라
-            // 다르게 답하는 자리이므로 반드시 찍어 둔다.
+            // **지금은 언제나 json 이다.** Accept 도 요청의 Content-Type 도
+            // 응답 형식을 바꾸지 못한다 — responder.apply_headers 가 한 자리에서
+            // `application/json` 으로 고정한다.
+            //
+            // 이 서술은 2026-09-03 에 고쳤다. 그전에는 "usebodytype 이 요청의
+            // Content-Type 에서 오고, 경로에 따라 그것을 그대로 두거나 json 으로
+            // 덮는다" 고 적혀 있었다. xml/cbor 시절에는 맞았지만 json 전용이 된
+            // 뒤로는 **틀린 서술이 코드보다 오래 남아 있었다.**
+            //
+            // 그래도 이 세 줄은 계속 찍는다. 경로가 셋(response_result ·
+            // search_result · response_rcn3_result)이라, 그중 하나가 형식을
+            // 다시 갈라 놓으면 여기서 드러난다.
             ['xml 본문 accept 없음',  'PUT', CNT, '<m2m:cnt xmlns:m2m="http://www.onem2m.org/xml/protocols"><lbl>c</lbl></m2m:cnt>',
                                        'application/xml', {}],
             ['discovery accept 없음', 'GET', AE + '?fu=1&rcn=6', null, null, {}],

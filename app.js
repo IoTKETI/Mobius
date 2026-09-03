@@ -1646,20 +1646,14 @@ function check_xm2m_headers(request, callback) {
             callback('400-3');
             return;
         }
+    }
 
-        // 언제나 json 이다. 앞의 json_only 미들웨어가 xml/cbor 본문을 이미
-        // 400 으로 끊었으므로 여기 오는 요청은 전부 json 이다.
-        //
-        // 예전에는 content-type 문자열에 'xml' 이 들어 있는지 **부분 문자열**로
-        // 봤다. 그래서 `application/json;ty=3;note=xmlish` 같은 정상 요청이
-        // usebodytype='xml' 이 되어 parse_to_json 이 400-5("valid XML 이
-        // 아니다")를 냈다. 실측으로 재현했다. 관문은 세미콜론 앞의 MIME 만
-        // 보므로 그런 오탐이 없다.
-        request.usebodytype = 'json';
-    }
-    else {
-        request.usebodytype = 'json';
-    }
+    // 여기 `request.usebodytype = 'json'` 이 두 자리(if 와 else) 있었다.
+    // **지웠다** (2026-09-03). 읽는 코드가 하나도 없었다.
+    //
+    // 형식을 정하는 곳은 둘뿐이다 — 들어오는 것은 json_only 관문,
+    // 나가는 것은 responder.apply_headers 의 Content-Type 이다.
+    // 요청 객체에 실어 응답 경로까지 옮길 이유가 없다.
 
     // Check X-M2M-Origin Header
     if (request.headers.hasOwnProperty('x-m2m-origin')) {
@@ -2025,6 +2019,14 @@ app.use((req, res, next) => {
     var ct = req.headers['content-type'];
     if (typeof ct !== 'string' || ct === '') { return next(); }
 
+    // **세미콜론 앞의 MIME 만 본다.** 부분 문자열로 보면 안 된다.
+    //
+    // 옛 코드는 content-type 문자열 전체에 'xml' 이 들어 있는지로 판단했다.
+    // 그래서 `application/json;ty=3;note=xmlish` 같은 **정상 요청**이 xml 로
+    // 분류돼 400-5("valid XML 이 아니다")를 받았다. 실측으로 재현했다.
+    //
+    // 여기서 자르고 정규식을 `^...$` 로 묶는 이유가 그것이다. 파라미터
+    // (`;ty=`, `;charset=`)에 우연히 xml·cbor 이 섞여도 오탐이 없다.
     var mime = ct.split(';')[0].trim().toLowerCase();
     if (!JSON_ONLY_DENY.test(mime)) { return next(); }
 

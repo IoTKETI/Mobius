@@ -206,3 +206,37 @@ test('상대에게 나가는 요청은 전부 Accept 를 json 으로 고정한�
             f + ' 이 클라이언트 헤더를 통째로 상대에게 넘긴다 — outbound_headers 를 거칠 것');
     }
 });
+
+test('요청 객체에 응답 형식을 담는 자리가 없다 — usebodytype', function () {
+    // `request.usebodytype` 은 xml/cbor 시절의 잔재다. 형식이 셋일 때는 "이
+    // 요청에 무엇으로 답할지" 를 요청 객체에 실어 응답 경로까지 옮겨야 했다.
+    //
+    // json 전용이 된 뒤에는 그 값이 언제나 'json' 이었고, 읽는 코드가 하나도
+    // 없는데 세 자리에서 계속 대입하고 있었다(app.js 둘, responder.js 하나).
+    //
+    // **값이 하나뿐인 변수는 지워야 한다.** 남겨 두면 형식이 아직 선택
+    // 가능한 것처럼 보이고, 다음 사람이 그 자리에 분기를 새로 만든다.
+    // 이 저장소에서 실제로 그렇게 됐다 — 옛 코드는 content-type 문자열에
+    // 'xml' 이 들어 있는지 **부분 문자열**로 봤고, 그래서
+    // `application/json;ty=3;note=xmlish` 같은 정상 요청이 400-5 를 받았다.
+    //
+    // 형식을 정하는 곳은 두 군데뿐이어야 한다: 들어오는 것은 json_only 관문,
+    // 나가는 것은 responder.apply_headers 의 Content-Type 이다.
+    const files = ['app.js', 'mobius/responder.js', 'mobius/resource.js',
+                   'mobius/sgn.js', 'mobius/fopt.js', 'mobius/grp.js'];
+
+    for (const f of files) {
+        const src = fs.readFileSync(path.join(ROOT, f), 'utf8');
+
+        // 주석은 봐준다 — "예전에는 이랬다" 는 기록은 남을 값이 있다.
+        // 실행되는 줄에서만 찾는다.
+        const live = src.split(/\r?\n/).filter(function (l) {
+            return !/^\s*(\/\/|\*|\/\*)/.test(l) && /usebodytype/.test(l);
+        });
+
+        assert.deepStrictEqual(live, [],
+            f + ' 이 usebodytype 을 실행 코드에서 쓴다: ' + live.join(' | ') +
+            '\n  형식은 요청 객체에 실어 옮기지 않는다 — json_only 관문과 ' +
+            'responder.apply_headers 두 곳에서만 정한다');
+    }
+});

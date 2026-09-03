@@ -126,7 +126,9 @@ function apply_headers(request, response, rsc) {
     if (h.hasOwnProperty('x-m2m-rvi')) { response.header('X-M2M-RVI', h['x-m2m-rvi']); }
     if (h.hasOwnProperty('locale'))    { response.header('Locale',    h['locale']); }
 
-    request.usebodytype = 'json';
+    // 여기 `request.usebodytype = 'json'` 이 있었다. **지웠다** (2026-09-03).
+    // 응답을 만드는 함수가 **요청** 객체를 고칠 이유가 없었고, 그 값을 읽는
+    // 코드도 없었다. 형식은 아래 Content-Type 한 줄로 정해진다.
     response.header('Content-Type', 'application/json');
     response.header('X-M2M-RSC', rsc);
 }
