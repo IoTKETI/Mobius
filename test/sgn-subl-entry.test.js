@@ -23,6 +23,17 @@ const path = require('node:path');
 const read_sub = require('../mobius/subl').read;
 
 const ROOT = path.join(__dirname, '..');
+
+// **자기 DB 파일을 쓴다.** 아래에 global.usedb='sqlite' 로 db.connect() 를
+// 부르는 테스트가 있는데, 이 줄이 없으면 sqlite 어댑터의 기본값인
+// ./mobius.db — 즉 **저장소 루트의 실제 개발 DB** — 를 연다. connect() 는
+// PRAGMA journal_mode(파일에 영속된다)와 스키마 exec 를 실제로 돌린다.
+//
+// usedb='sqlite' 를 쓰는 테스트 넷 중 이 파일만 경로를 안 세우고 있었다.
+// (배포에서 orphan-page-cursor 가 같은 이유로 SQLITE_CORRUPT 를 냈고,
+//  그 수정에서 이 파일이 빠졌다.)
+process.env.MOBIUS_SQLITE_PATH =
+    path.join(require('node:os').tmpdir(), 'mobius-sgn-subl-test.db');
 const SGN = fs.readFileSync(path.join(ROOT, 'mobius', 'sgn.js'), 'utf8');
 
 function entry(over) {

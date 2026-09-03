@@ -1976,9 +1976,29 @@ exports.search_lookup = function (connection, ri, query, cur_lim, pi_list, pi_in
     // 단축이 그 성과를 되돌리면 안 된다 — 시간 범위가 걸린 요청은 골격을
     // 만드는 값을 한다. 골격 34,415개가 384ms 이고, 그 뒤 배치는 부모마다
     // 범위 접근이라 거의 공짜다.
+    // ── 왜 ty 없는 lbl 요청이 있으면 안 되는가 ───────────────────────────
+    // **이것이 같은 뿌리의 세 번째다.** cra/crb 와 이유가 글자까지 같다 —
+    // 부모 제한을 버리면 그 인덱스도 같이 버려진다.
+    //
+    // ty 를 안 주고 lbl 로 찾는 요청은 like_filter_without_ty 경로를 탄다.
+    // 그쪽이 기대는 것은 idx_lookup_pi_notcin **(pi, not_cin)** 이고, not_cin
+    // 을 담은 인덱스는 저장소에 그것 하나뿐이다(mobius/db/mobiusdb.sql:372).
+    // pi 가 선두라 pi 술어가 없으면 접두사가 없어 못 쓴다. select r.* 라
+    // 커버링도 안 된다.
+    //
+    // 배포 EXPLAIN — 같은 lbl 요청을 두 경로로:
+    //
+    //   부모 제한 없음    type ALL   key NULL                  rows 60,105,584
+    //   부모 제한 + 힌트  type ref   key idx_lookup_pi_notcin  rows         32
+    //
+    // 6,010만 대 32다. 게다가 lbl 은 선택도가 높아(라벨 붙은 비-CIN 27,677건 중
+    // 'status' 는 96건) limit 20 이 조기 종료를 못 한다 — 끝까지 훑고 30초
+    // 상한에 걸린다. like_filter_without_ty 최적화가 고쳐 둔 그 사고를
+    // 루트에서만 되살릴 뻔했다.
     var root_ri = '/' + (global.usecsebase || '');
     var has_ct_bound = (query.cra != null) || (query.crb != null);
-    var whole_tree = (ri === root_ri) && (max_lvl === null) && !has_ct_bound;
+    var whole_tree = (ri === root_ri) && (max_lvl === null) &&
+                     !has_ct_bound && !like_filter_without_ty(query);
 
     if (whole_tree) {
         // 부모 제한 없이 **한 번만** 던진다. 배치로 나눌 이유가 없다 —
@@ -3593,6 +3613,31 @@ exports.select_expired_resources = function (connection, et, limit, callback) {
 // @param opts.limit   한 페이지 크기
 // @param opts.types   볼 ty 목록. 비우면 전부
 // @param opts.afterEt / opts.afterRi  직전 페이지의 마지막 행 (없으면 처음부터)
+// **이 질의에는 쓸 인덱스가 없다. 시간 상한을 반드시 건다.**
+//
+// MySQL lookup 에 et 인덱스가 없다(mobius/db/mobiusdb.sql 의 KEY 목록 참고).
+// 바로 아래 형제 count_expired_by_type 은 order by 가 없고 상한이 있어서
+// 조건을 만족하는 행을 cap 만큼 찾으면 멈춘다 — 배포는 et 가 지난 행이
+// 표본의 81% 라 거의 즉시 끝난다.
+//
+// **이쪽은 order by 때문에 그 이점을 못 쓴다.** LIMIT 51 을 정하려면 조건을
+// 통과한 행을 전부 보고 정렬해야 한다. 배포 EXPLAIN:
+//
+//   select_expired_page       type ALL  rows 60,105,584  Using where; Using filesort
+//   count_expired_by_type     type ALL  rows 60,105,584  Using where          <- limit 으로 조기 종료
+//
+// 키셋 커서(afterEt/afterRi)도 인덱스가 없으니 시크가 안 된다 — "더 보기"
+// 를 누를 때마다 같은 스캔이 반복된다.
+//
+// 그래서 여기서 하는 것은 **폭주를 막는 것뿐이다.** 제대로 고치려면 둘 중
+// 하나이고 둘 다 콘솔 작업의 결정이다:
+//   (a) lookup(et) 인덱스를 마이그레이션으로 추가 — 커서 시크까지 산다
+//   (b) order by 를 버리고 형제와 같은 규약(cap + capped 보고)으로 바꾼다
+//
+// 상한에 걸리면 파사드가 STATEMENT_TIMEOUT 으로 정규화해 돌려준다.
+// 화면은 그것을 "지금은 못 센다" 로 말해야지, 빈 목록으로 보이면 안 된다.
+var EXPIRED_PAGE_TIMEOUT_MS = 10000;
+
 exports.select_expired_page = function (connection, et, opts, callback) {
     opts = opts || {};
     var limit = opts.limit > 0 ? opts.limit : 50;
@@ -3603,6 +3648,10 @@ exports.select_expired_page = function (connection, et, opts, callback) {
         .orderBy('et', 'asc')
         .orderBy('ri', 'asc')
         .limit(limit + 1);          // +1 로 "다음 쪽이 있는가" 만 본다
+
+    // 인덱스가 없어 최악이 6,000만 행 스캔 + filesort 다. 운영 DB 의 버퍼
+    // 풀을 통째로 밀어내면 그 사이 CSE 의 discovery 가 30초 상한에 걸린다.
+    qb = facade.withStatementTimeout(qb, EXPIRED_PAGE_TIMEOUT_MS);
 
     if (opts.types && opts.types.length) {
         qb = qb.whereIn('ty', opts.types);

@@ -1197,8 +1197,21 @@ function presearch_action(request, response, pi_list, found_parent_list, callbac
     // 태운 뒤에 "범위를 좁혀라" 라고 말하는 셈이었는데, 범위를 좁혀도 답은
     // 여전히 틀린다. 지원하지 않는다고 먼저 말하는 편이 정직하다.
     //
-    // sza / szb 는 그대로 받는다. cs 는 cin_ri_idx(pi, ri, cs) 에 담겨 있어
-    // 인덱스만으로 끝나고, 값도 서버가 채운다.
+    // sza / szb 는 그대로 받는다. **빠르기 때문이 아니다.**
+    //
+    // 여기 "cs 는 cin_ri_idx(pi, ri, cs) 에 담겨 있어 인덱스만으로 끝난다"
+    // 고 적혀 있었다. **배포 EXPLAIN 으로 거짓임이 확인됐다** — 옵티마이저는
+    // cin_ri_idx 가 아니라 PRIMARY(ri, pi) 로 조인하고, InnoDB 에서 PRIMARY 는
+    // 곧 행이라 후보마다 클러스터드 인덱스를 찾아간다. cs 를 보든 cnf 를 보든
+    // 비용이 같았다(mobius/sql_action.js 의 같은 자리 주석에 실측이 있다).
+    //
+    // 하필 이 문장이 "무엇을 DB 에 보내기 전에 끊을 것인가" 를 정하는 자리에
+    // 근거로 적혀 있었다. 다음 사람이 이 줄을 읽고 sza 를 안전한 것으로
+    // 취급하게 된다 — 이 저장소가 네 번 겪은 함정과 같은 배치다.
+    //
+    // **진짜 이유는 답이 맞는가다.** cnf 는 값이 대부분 비어 있어 cty 필터가
+    // 조용히 틀린 답을 낸다. cs 는 서버가 채우므로 답이 맞다. 느린 것은
+    // 별도로 다뤘다 — lookup.cs 로 옮겨 조인을 없앴다(마이그레이션 012).
     if (request.query.cty != null) {
         callback('400-65');
         return;

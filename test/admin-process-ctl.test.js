@@ -145,14 +145,56 @@ test('pid 파일의 포트가 지금 설정과 다르면 우리 것으로 보지
     assert.strictEqual(st.ours, false, '다른 포트로 기록된 것을 우리 것이라고 했다');
 });
 
-test('명령을 conf 에서 받지 않는다 — 실행 파일이 고정이다', function () {
+test('명령을 conf 에서 받지 않는다 — 실행 파일이 고정이다 (형태)', function () {
     // 콘솔은 conf 를 화면에서 고칠 수 있다. 실행할 명령을 conf 에 두면
     // 콘솔 비밀번호 하나가 임의 명령 실행이 된다.
-    const src = fs.readFileSync(path.join(__dirname, '..', 'admin', 'process_ctl.js'), 'utf8');
+    // **주석을 걷고 본다.** 안 걷으면 이 파일의 머리말이 검사를 통과시킨다 —
+    // process_ctl.js:18 이 "실행 파일은 process.execPath 로 고정하고" 라고
+    // 설명으로 적어 두었다. 그 문장만 남고 코드가 conf 에서 명령을 받도록
+    // 바뀌어도 아래 검사가 전부 초록이었다. 이 저장소가 네 번 겪은 함정이다.
+    const src = fs.readFileSync(path.join(__dirname, '..', 'admin', 'process_ctl.js'), 'utf8')
+        .replace(/\/\*[\s\S]*?\*\//g, ' ')
+        .replace(/(^|[^:])\/\/[^\n]*/g, '$1');
+
     assert.ok(/process\.execPath/.test(src), '실행 파일이 고정이 아니다');
     assert.ok(!/exec\s*\(/.test(src.replace(/execFile|execFileSync/g, '')),
         '셸을 거치는 exec 를 쓰고 있다');
     assert.ok(!/shell\s*:\s*true/.test(src), 'shell:true 를 쓰고 있다');
+});
+
+test('명령을 conf 에서 받지 않는다 — spawn 에 실제로 넘어가는 것', async function () {
+    // **형태만 보면 부족하다.** `cp.spawn((conf && conf.cmd) || process.execPath, …)`
+    // 는 위 검사를 전부 통과하면서 conf 로 명령을 받는다. spawn 에 실제로
+    // 무엇이 넘어가는지, start() 를 실제로 돌려서 본다.
+    const spawnArgs = [];
+    const realSpawn = cp.spawn;
+    cp.spawn = function (cmd) {
+        spawnArgs.push(cmd);
+        // 실제로 띄우지 않는다. 이 테스트는 spawn 에 넘어간 인자만 본다.
+        const { EventEmitter } = require('node:events');
+        const fake = new EventEmitter();
+        fake.pid = 999999;
+        fake.unref = function () {};
+        fake.stdout = new EventEmitter();
+        fake.stderr = new EventEmitter();
+        return fake;
+    };
+
+    let res;
+    try {
+        const port = await freePort();
+        const c = ctlFor(tempRoot(), port);
+        res = await call(c, 'start');
+    }
+    finally { cp.spawn = realSpawn; }
+
+    assert.ok(spawnArgs.length > 0, 'spawn 이 안 불렸다 — 검사가 헛돈다');
+    assert.strictEqual(res.err, null, 'start 가 실패했다: ' + JSON.stringify(res.err));
+    for (const cmd of spawnArgs) {
+        assert.strictEqual(cmd, process.execPath,
+            'spawn 에 process.execPath 가 아닌 것이 넘어갔다: ' + cmd +
+            ' — 콘솔 비밀번호 하나가 임의 명령 실행이 된다');
+    }
 });
 
 test('pm2 이름이 없으면 detached 모드다', function () {

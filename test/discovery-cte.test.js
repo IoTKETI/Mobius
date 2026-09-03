@@ -248,6 +248,34 @@ test('crb 도 마찬가지다 — 시간 상한만 걸어도 ct 가 범위를 �
     }));
 });
 
+test('ty 없이 lbl 만 주면 루트에서도 골격을 만든다 — not_cin 인덱스를 살린다', function (t, done) {
+    // **같은 뿌리의 세 번째다.** cra/crb 와 이유가 글자까지 같다.
+    //
+    // ty 없는 lbl 요청은 idx_lookup_pi_notcin **(pi, not_cin)** 에 기댄다.
+    // not_cin 을 담은 인덱스는 그것 하나뿐이고 pi 가 선두라, 부모 제한이
+    // 없으면 접두사가 없어 못 쓴다. 배포 EXPLAIN:
+    //
+    //   부모 제한 없음    type ALL   key NULL                  rows 60,105,584
+    //   부모 제한 + 힌트  type ref   key idx_lookup_pi_notcin  rows         32
+    //
+    // **힌트가 없는지만 보면 안 된다.** ALL_PARENTS 경로도 힌트가 없기 때문에
+    // 그 검사는 이 결함을 통과시킨다. 골격을 만들고 자식 문장에 부모 제한과
+    // 힌트가 **붙는지**를 봐야 한다.
+    const h = tap('mysql');
+    atRoot(h, { lbl: 'status', lim: 20 }, guard(done, function (code, ris, seen) {
+        assert.ok(/with recursive skel/i.test(seen[0].sql),
+            'lbl 만 주는 루트 요청이 골격을 안 만들었다 — not_cin 이 인덱스 밖으로 밀린다');
+
+        const child = childStmt(seen);
+        assert.ok(child, '자식 질의가 없다');
+        assert.match(child.sql, /r\.pi in \(/i,
+            '자식 질의에 부모 제한이 없다 — (pi, not_cin) 의 선두가 pi 다');
+        assert.match(child.sql, /force index \(idx_lookup_pi_notcin\)/i,
+            'not_cin 인덱스를 강제하지 않는다 — 옵티마이저가 PRIMARY 를 고른다');
+        done();
+    }));
+});
+
 test('시간 범위가 없으면 루트는 그대로 단축을 탄다', function (t, done) {
     // 위 예외가 단축 자체를 죽이면 안 된다. ct 를 안 거는 요청은 골격이
     // 아무것도 못 걸러 주므로 34,415개를 만드는 값이 없다.
