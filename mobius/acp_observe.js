@@ -105,6 +105,23 @@ var OBSERVABLE = {
     no_acp_row: 1     // 참조한 ACP 를 못 찾았다 (dangling)
 };
 
+/**
+ * 이 판정이 **ACP 자신에 대한 것**인가.
+ *
+ * security.check 는 대상이 ACP(ty=1)면 pv 가 아니라 pvs(selfPrivileges)로
+ * 판정한다. 두 자리는 성격이 다르다 —
+ *
+ *     pv   이 리소스를 읽고 쓸 수 있나
+ *     pvs  **이 접근 정책 자체를 고치거나 지울 수 있나**
+ *
+ * 이름이 두 곳에서 다르게 붙는다. evaluate_acp_rows 는 trace.field 에 담고
+ * (security.js 의 trace 생성부), ty=1 분기는 trace.path 에 담는다.
+ * 한쪽만 보면 나머지 경로가 그대로 뚫린다.
+ */
+function is_self_privilege(t) {
+    return t.field === 'pvs' || t.path === 'pvs';
+}
+
 var OP_NAME = {
     '1': 'CREATE', '2': 'RETRIEVE', '3': 'CREATE_SUB', '4': 'UPDATE',
     '8': 'DELETE', '16': 'NOTIFY', '32': 'DISCOVERY'
@@ -169,7 +186,7 @@ exports.record_decision = function (request, code, trace) {
 
         stats.byReason[reason] = (stats.byReason[reason] || 0) + 1;
 
-        if (cfg.mode === 'observe' && !OBSERVABLE[reason]) {
+        if (cfg.mode === 'observe' && (!OBSERVABLE[reason] || is_self_privilege(t))) {
             // 관찰 모드는 **ACP 때문에 막힌 것**만 뒤집는다.
             //
             // 예전에는 사유를 안 보고 모든 '0' 을 '1' 로 바꿨다. 그런데 배포에
@@ -182,10 +199,22 @@ exports.record_decision = function (request, code, trace) {
             //
             // 기본 정책은 ACP 가 아니라 ACP 가 **없을 때**의 정책이라 관찰
             // 대상이 아니다. 그것을 바꾸려면 defaultAccessPolicy 를 쓴다.
+            //
+            // ── pvs 도 뒤집지 않는다 ─────────────────────────────────────
+            //
+            // 사유는 ACP 평가에서 났지만(acr / exhausted / …) 대상이 **ACP
+            // 자신**이면 다르다. 관찰 모드의 전제는 "막지 않고 보되 되돌릴 수
+            // 있다" 인데, pvs 를 열면 그 창 동안 인증된 아무나 ACP 본문을
+            // 고치거나 **지울** 수 있고 모드를 꺼도 그 변경은 안 돌아온다.
+            // ACP 하나를 고치면 그것을 참조하는 모든 리소스의 권한이 함께
+            // 바뀌므로, 관찰 창 하나가 영구적인 권한 변경으로 남는다.
             push_recent({ at: new Date().toISOString(), kind: 'deny', info: line_info(request, t) });
             stats.counts.deny += 1;
             if (may_log()) {
-                console.log('[acp] deny ' + format(request, t) + ' (관찰 모드지만 ACP 거부가 아니라 그대로 막는다)');
+                var why = is_self_privilege(t)
+                    ? '관찰 모드지만 ACP 자신(pvs)에 대한 접근이라 그대로 막는다'
+                    : '관찰 모드지만 ACP 거부가 아니라 그대로 막는다';
+                console.log('[acp] deny ' + format(request, t) + ' (' + why + ')');
             }
             return code;
         }

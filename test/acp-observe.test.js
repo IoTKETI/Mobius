@@ -197,3 +197,68 @@ test('configure 는 모르는 값을 무시한다 — 오타로 ACP 가 무력�
     assert.strictEqual(c.denyLog, 'sample');
     assert.strictEqual(c.rate, 5);
 });
+
+/* ── pvs — ACP 자신에 대한 접근 ────────────────────────────────────────────
+ *
+ * security.check 는 대상이 ACP(ty=1)면 pv 가 아니라 **pvs**(selfPrivileges)로
+ * 판정한다. 그 자리는 성격이 다르다 — pv 는 "이 리소스를 읽고 쓸 수 있나" 인데
+ * pvs 는 **"이 접근 정책 자체를 고치거나 지울 수 있나"** 다.
+ *
+ * 관찰 모드의 전제는 "막지 않고 보되, 되돌릴 수 있다" 이다. 그런데 pvs 를
+ * 뒤집으면 그 전제가 깨진다:
+ *
+ *   - 관찰 창 동안 인증된 아무나 ACP 본문을 고칠 수 있다
+ *   - ACP 를 **지울** 수도 있다
+ *   - 모드를 꺼도 **그 변경은 돌아오지 않는다**
+ *
+ * 게다가 ACP 를 고치면 그 ACP 를 참조하는 모든 리소스의 권한이 함께 바뀐다.
+ * 관찰 창 하나가 영구적인 권한 변경으로 남는다.
+ */
+
+test('관찰 모드가 pvs 거부는 뒤집지 않는다 — ACP 자신을 열면 되돌릴 수 없다', function () {
+    reset({ mode: 'observe' });
+    quiet(function () {
+        for (const reason of ['acr', 'exhausted', 'no_acr_cr', 'no_acp_row']) {
+            assert.strictEqual(
+                observe.record_decision(req('AE-X', '/Mobius/acp1'), '0',
+                    { decided_by: reason, field: 'pvs' }),
+                '0',
+                'pvs 거부(' + reason + ')를 관찰 모드가 허용으로 바꿨다 — ' +
+                '관찰 창 동안 아무나 ACP 를 고치거나 지울 수 있다');
+        }
+    });
+});
+
+test('pvs 는 path 로 와도 막는다 — security.js 가 두 이름을 쓴다', function () {
+    // evaluate_acp_rows 는 trace.field 에 담고(security.js:336),
+    // ty=1 분기는 trace.path 에 담는다(security.js:578). 둘 다 봐야 한다.
+    reset({ mode: 'observe' });
+    quiet(function () {
+        assert.strictEqual(
+            observe.record_decision(req('AE-X', '/Mobius/acp1'), '0',
+                { decided_by: 'acr', path: 'pvs' }),
+            '0',
+            'trace.path 로 온 pvs 를 못 걸렀다');
+    });
+});
+
+test('pv 거부는 여전히 뒤집는다 — 관찰 모드의 본래 목적', function () {
+    reset({ mode: 'observe' });
+    quiet(function () {
+        assert.strictEqual(
+            observe.record_decision(req('AE-X'), '0', { decided_by: 'acr', field: 'pv' }),
+            '1',
+            'pv 거부까지 막으면 관찰 모드가 아무것도 못 본다');
+    });
+});
+
+test('막은 pvs 는 deny 로 센다 — 관찰 통계가 거짓말하지 않게', function () {
+    reset({ mode: 'observe' });
+    quiet(function () {
+        observe.record_decision(req('AE-X', '/Mobius/acp1'), '0',
+            { decided_by: 'acr', field: 'pvs' });
+    });
+    const s = observe.snapshot();
+    assert.strictEqual(s.counts.deny, 1, 'pvs 를 막았으면 deny 로 세야 한다');
+    assert.strictEqual(s.counts.observe, 0, 'observe 로 세면 "뒤집었다" 는 뜻이 된다');
+});
