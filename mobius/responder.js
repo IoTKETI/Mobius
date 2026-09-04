@@ -37,39 +37,13 @@ var _this = this;
 
 
 
-var typeRsrc = {
-    "1": "acp",
-    "2": "ae",
-    "3": "cnt",
-    "4": "cin",
-    "5": "cb",
-    "9": "grp",
-    "10": "lcp",
-    "13": "mgo",
-    "14": "nod",
-    "16": "csr",
-    "23": "sub",
-    "24": "smd",
-    "27": "mms",
-    "28": "fcnt",
-    "91": "hd_brigs",
-    "92": "hd_color",
-    "93": "hd_colSn",
-    "94": "hd_fauDn",
-    "95": "hd_binSh",
-    "96": "hd_tempe",
-    "97": "hd_bat",
-    "98": "hd_dooLk",
-    "99": "rsp"
-};
+var shape = require('./shape');
 
-var mgoType = {
-    "1001": "fwr",
-    "1006": "bat",
-    "1007": "dvi",
-    "1008": "dvc",
-    "1009": "rbo"
-};
+// 리소스 타입 표는 shape.js 로 갔다. 여기서 그대로 다시 export 한다 —
+// app.js·admin/server.js·resource.js·sql_action.js 가 `responder.typeRsrc`
+// 로 부르고 있어서, 그 호출부를 한 줄도 안 고치기 위해서다.
+var typeRsrc = shape.typeRsrc;
+var mgoType = shape.mgoType;
 
 exports.typeRsrc = typeRsrc;
 exports.mgoType = mgoType;
@@ -440,158 +414,60 @@ var operation = {
 };
 
 exports.response_result = function(request, response, status, rsc, cap, callback) {
-    var body_Obj = request.resourceObj;
-
     apply_headers(request, response, rsc);
 
-    if (request.query.rcn == 0 && Object.keys(body_Obj)[0] != 'dbg') {
+    // 본문을 만드는 일은 shape 로 갔다. 여기 있던 접두 4갈래(55줄)와
+    // 만들었다 곧바로 버리던 rspObj 는 함께 사라졌다.
+    //
+    // **정규화 함수를 인자로 넘기는 것이 요점이다** — 이 갈래는 본문 한 겹에
+    // 걸고, rce 갈래는 한 겹 안쪽에, 그룹 갈래는 두 겹(typeCheckforJson2)에
+    // 걸며, uril 갈래는 아예 안 건다. 호출부에서 그 차이가 보여야 한다.
+    var body_Obj = shape.single(request.resourceObj, request.query.rcn,
+                                _this.typeCheckforJson);
+
+    if (body_Obj === null) {
+        // rcn=0 은 본문이 없다는 뜻이다. rt 갈래는 아직 여기 남는다 —
+        // 배출구(1단계 2번)가 들어오면 end('') 한 줄로 접힌다.
         if (request.query.rt == 3) {
             // parseInt: status 는 resultStatusCode 테이블에서 '400' 같은 문자열로
             // 온다. Express 는 문자열 상태코드를 deprecated 로 경고하는데, 그게 모든
             // 응답마다 찍혀 에러 로그를 덮어써서 진짜 에러가 묻혔다.
             response.status(parseInt(status, 10)).end('');
-
-            var rspObj = {
-                rsc: rsc,
-                dbg: cap
-            };
-            rspObj.ri = request.method + "-" + request.url + "-" + JSON.stringify(request.query);
-
-            // console.log(JSON.stringify(rspObj)); // 응답 바디 전체 덤프 - 로그 폭주 원인이라 비활성
-
-            body_Obj = null;
-            rspObj = null;
-
-            callback();
         }
         else {
             // 예전에는 rt==1 일 때 req 리소스에 결과를 적는 분기가 있었다.
             // 논블로킹을 지원하지 않게 되면서 도달할 수 없다.
-            callback();
         }
-    }
-    else {
-        // 여기서 헤더를 다시 세우던 자리다. 이 함수 진입부에서 이미
-        // apply_headers 가 돌았고, 그 사이에 헤더를 건드리는 코드가 없다.
-        // 같은 값을 두 번 쓰던 것이라 걷어냈다.
-
-        var rootnm = Object.keys(body_Obj)[0];
-
-        if(rootnm == 'mgo') {
-            body_Obj['m2m:' + mgoType[body_Obj[rootnm].mgd]] = body_Obj[rootnm];
-            delete body_Obj[rootnm];
-        }
-        else if(rootnm == 'fcnt') {
-            // cnd 가 없을 수 있다. 요청 URL 에 #attr 필터가 붙으면 remove_no_value 가
-            // 지정한 속성만 남기고 나머지를 지운다(resource.js 의 hash 분기).
-            // GET /…/{fcnt}#lbl 하나로 여기서 워커가 죽었다 — undefined 위에서
-            // .includes 가 돌았다. 아래 == 비교들은 undefined 라도 false 라 안전하고,
-            // 던지는 것은 .includes 하나뿐이다.
-            if (typeof body_Obj[rootnm].cnd === 'string' &&
-                body_Obj[rootnm].cnd.includes('org.onem2m.home.device.')) {
-                body_Obj['m2m:' + rootnm] = body_Obj[rootnm];
-                delete body_Obj[rootnm];
-            }
-            else if (body_Obj[rootnm].cnd == 'org.onem2m.home.moduleclass.doorlock') {
-                body_Obj['hd:' + rootnm.replace('fcnt', 'dooLk')] = body_Obj[rootnm];
-                delete body_Obj[rootnm];
-            }
-            else if (body_Obj[rootnm].cnd == 'org.onem2m.home.moduleclass.battery') {
-                body_Obj['hd:' + rootnm.replace('fcnt', 'bat')] = body_Obj[rootnm];
-                delete body_Obj[rootnm];
-            }
-            else if (body_Obj[rootnm].cnd == 'org.onem2m.home.moduleclass.temperature') {
-                body_Obj['hd:' + rootnm.replace('fcnt', 'tempe')] = body_Obj[rootnm];
-                delete body_Obj[rootnm];
-            }
-            else if (body_Obj[rootnm].cnd == 'org.onem2m.home.moduleclass.binarySwitch') {
-                body_Obj['hd:' + rootnm.replace('fcnt', 'binSh')] = body_Obj[rootnm];
-                delete body_Obj[rootnm];
-            }
-            else if (body_Obj[rootnm].cnd == 'org.onem2m.home.moduleclass.faultDetection') {
-                body_Obj['hd:' + rootnm.replace('fcnt', 'fauDn')] = body_Obj[rootnm];
-                delete body_Obj[rootnm];
-            }
-            else if (body_Obj[rootnm].cnd == 'org.onem2m.home.moduleclass.colourSaturation') {
-                body_Obj['hd:' + rootnm.replace('fcnt', 'colSn')] = body_Obj[rootnm];
-                delete body_Obj[rootnm];
-            }
-            else if (body_Obj[rootnm].cnd == 'org.onem2m.home.moduleclass.colour') {
-                body_Obj['hd:' + rootnm.replace('fcnt', 'color')] = body_Obj[rootnm];
-                delete body_Obj[rootnm];
-            }
-            else if (body_Obj[rootnm].cnd == 'org.onem2m.home.moduleclass.brightness') {
-                body_Obj['hd:' + rootnm.replace('fcnt', 'brigs')] = body_Obj[rootnm];
-                delete body_Obj[rootnm];
-            }
-            else {
-                // 아는 cnd 가 아니거나 cnd 가 없다. 예전에는 아무 분기도 안 타서
-                // 접두 없는 'fcnt' 키가 그대로 응답에 실렸다 — 표준 본문이 아니다.
-                body_Obj['m2m:' + rootnm] = body_Obj[rootnm];
-                delete body_Obj[rootnm];
-            }
-        }
-        else if(rootnm.includes('hd_')) {
-            body_Obj['hd:' + rootnm.replace('hd_', '')] = body_Obj[rootnm];
-            delete body_Obj[rootnm];
-        }
-        else {
-            body_Obj['m2m:' + rootnm] = body_Obj[rootnm];
-            delete body_Obj[rootnm];
-        }
-
-        _this.typeCheckforJson(body_Obj);
-
-        // req(ty=17)의 pc 를 특별 취급하던 분기는 걷어냈다. 논블로킹을 지원하지
-        // 않게 되면서 이 리소스를 만드는 경로도, 저장할 테이블도 없어졌다.
-        // (migrations/003-drop-req-table.js)
-
-        var bodyString = JSON.stringify(body_Obj);
-
-        // console.log(bodyString); // 응답 바디 전체 덤프 - 로그 폭주 원인이라 비활성
-
-        // 논블로킹(rt=1/2)은 지원하지 않는다 — app.js 의 check_request_query_rt 가
-        // 405-4 로 막으므로 여기까지 오는 요청은 모두 블로킹이다.
-        // 예전에는 여기서 rt 로 갈라져 한쪽이 req 리소스에 결과를 적었다.
-
-        response.status(parseInt(status, 10)).end(bodyString);
-
-        rspObj = {};
-        rspObj.rsc = rsc;
-        rspObj.ri = request.method + "-" + request.url + "-" + JSON.stringify(request.query);
-        rspObj = cap;
-        // console.log(JSON.stringify(rspObj)); // 응답 바디 전체 덤프 - 로그 폭주 원인이라 비활성
-
-        body_Obj = null;
-        rspObj = null;
 
         callback();
+        return;
     }
+
+    // 논블로킹(rt=1/2)은 지원하지 않는다 — app.js 의 check_request_query_rt 가
+    // 405-4 로 막으므로 여기까지 오는 요청은 모두 블로킹이다.
+    response.status(parseInt(status, 10)).end(JSON.stringify(body_Obj));
+
+    callback();
 };
 
-
 exports.response_rcn3_result = function(request, response, status, rsc, cap, callback) {
-    var body_Obj = request.resourceObj;
-
     if (request.query.rt == 3) {
         apply_headers(request, response, rsc);
     }
 
-    var rootnm = request.headers.rootnm;
-
-    body_Obj[rootnm] = {};
-    body_Obj[rootnm] = body_Obj['rce'][rootnm];
-
-    body_Obj['rce']['m2m:' + rootnm] = body_Obj[rootnm];
-    //body_Obj['rce']['uri'] = body_Obj.rce.uri;
-    body_Obj['m2m:rce'] = body_Obj.rce;
-    delete body_Obj[rootnm];
-    delete body_Obj['rce'][rootnm];
-    //delete body_Obj.rce.uri;
-    delete body_Obj.rce;
-    var rce_nm = 'rce';
-
-    _this.typeCheckforJson(body_Obj['m2m:rce']);
+    // 본문 조립 열두 줄이 shape.js 로 나갔다. 여기 남은 것은 "어떻게 보낼지"
+    // 뿐이다. 정규화 함수는 rce **한 겹 안쪽**에 건다 — 그것을 인자로 넘긴다.
+    //
+    // 함께 없어진 것 둘:
+    //
+    //   var rce_nm = 'rce';        아무도 안 읽었다
+    //   body_Obj[rootnm] = {};     바로 다음 줄이 덮어썼다. **다만** 그 다음
+    //                              줄이 던지는 입력(rce 없는 본문)에서는 이
+    //                              대입만 남았다. 응답도 커넥션 반납도 없이
+    //                              워커가 죽는 경로라, 죽기 직전 잔해의 모양이
+    //                              달라지는 것을 차이로 받아들였다.
+    var body_Obj = shape.rce(request.resourceObj, request.headers.rootnm,
+                             _this.typeCheckforJson);
 
     var bodyString = JSON.stringify(body_Obj);
 
@@ -605,21 +481,12 @@ exports.response_rcn3_result = function(request, response, status, rsc, cap, cal
 
     response.status(parseInt(status, 10)).end(bodyString);
 
-    var rspObj = {};
-    rspObj.rsc = rsc;
-    rspObj.ri = request.method + "-" + request.url + "-" + JSON.stringify(request.query);
-    rspObj = cap;
-    // console.log(JSON.stringify(rspObj)); // 응답 바디 전체 덤프 - 로그 폭주 원인이라 비활성
-
-    delete body_Obj;
-    delete rspObj;
-
-    body_Obj = null;
-    rspObj = null;
-
+    // 여기 있던 rspObj 열두 줄을 걷어냈다. 만들자마자 cap 으로 덮어쓰고 다시
+    // null 로 버렸다 — 읽는 곳이 없다. cap(여섯째 인자)이 응답에 안 나타난다는
+    // 것은 하네스의 cap/string|object|number|null 네 건이 같은 바이트를 내는
+    // 것으로 확인했다.
     callback();
 };
-
 
 exports.search_result = function(request, response, status, rsc, cap, callback) {
     var body_Obj = request.resourceObj;
@@ -628,12 +495,21 @@ exports.search_result = function(request, response, status, rsc, cap, callback) 
         apply_headers(request, response, rsc);
     }
 
-    if (Object.keys(body_Obj)[0] == 'rsp') {
-        rootnm = 'rsp';
-    }
+    // 여기 있던 세 줄을 걷어냈다:
+    //
+    //     if (Object.keys(body_Obj)[0] == 'rsp') { rootnm = 'rsp'; }
+    //
+    // **아무 일도 안 했다.** 아래 두 갈래가 각자 첫 문장에서 rootnm 을 무조건
+    // 다시 대입하므로 이 값은 어느 쪽으로도 살아남지 못한다. 차분 하네스의
+    // search/first-key-rsp 가 그 바이트다 — rootnm='agr' 인데 본문 첫 키가
+    // 'rsp' 인 입력이 {"m2m:agr":…} 로 나간다. 살아 있었다면 m2m:rsp 였다.
+    //
+    // `var rootnm` 이 아래 갈래 **안에** 선언돼 있어서 호이스팅으로 함수 전체에
+    // 걸쳐 있었다. 함수 머리로 올린다 — 그러지 않으면 else 갈래의 맨 대입이
+    // **암묵적 전역**이 되어 워커 안에서 요청끼리 값이 섞인다.
+    var rootnm = request.headers.rootnm;
 
-    if (request.headers.rootnm == 'uril') {
-        var rootnm = request.headers.rootnm;
+    if (rootnm == 'uril') {
 
         // rt 가 1/2/3 이 아니거나 rt==2 인데 x-m2m-rtu 가 없으면, 예전에는 두 조건이
         // 모두 거짓이 되어 콜백이 사라졌다 — 응답도 connection.release() 도 없이
@@ -642,61 +518,25 @@ exports.search_result = function(request, response, status, rsc, cap, callback) 
         // 논블로킹(rt=1/2)은 지원하지 않는다 — app.js 의 check_request_query_rt 가
         // 405-4 로 막으므로 여기까지 오는 요청은 모두 블로킹이다.
         // 예전에는 여기서 rt 로 갈라져 한쪽이 req 리소스에 결과를 적었다.
-        body_Obj['m2m:' + rootnm] = body_Obj[rootnm];
-        delete body_Obj[rootnm];
+        // discovery(fu=1)의 결과는 URI 문자열 배열이다. **네 갈래 중 여기만
+        // typeCheck 를 안 거친다** — 정규화 인자가 아예 없는 것이 그 표시고,
+        // 함수 이름(uril_no_type_check)에도 적혀 있다.
+        body_Obj = shape.uril(body_Obj, rootnm);
 
         var bodyString = JSON.stringify(body_Obj);
 
-
         response.status(parseInt(status, 10)).end(bodyString);
 
-        var rspObj = {};
-        rspObj.rsc = rsc;
-        rspObj.ri = request.method + "-" + request.url + "-" + JSON.stringify(request.query);
-        rspObj = cap;
-        // console.log(JSON.stringify(rspObj)); // 응답 바디 전체 덤프 - 로그 폭주 원인이라 비활성
-
+        // 죽은 rspObj 여섯 줄을 걷어냈다 (위 rcn3 와 같은 것).
         callback();
     }
     else {
-        rootnm = request.headers.rootnm;
+        // rootnm 은 함수 머리에서 이미 request.headers.rootnm 이다.
 
-        var res_Obj = {};
-        for (var prop in body_Obj) {
-            if (body_Obj.hasOwnProperty(prop)) {
-                if (body_Obj[prop].ty == null) {
-                    var ty = '99';
-                }
-                else {
-                    ty = body_Obj[prop].ty;
-                }
-
-                if(typeRsrc[ty] == 'mgo') {
-                    if (res_Obj['m2m:' + mgoType[body_Obj[prop].mgd]] == null) {
-                        res_Obj['m2m:' + mgoType[body_Obj[prop].mgd]] = [];
-                    }
-
-                    var tmp_Obj = {};
-                    tmp_Obj['m2m:' + mgoType[body_Obj[prop].mgd]] = body_Obj[prop];
-                    res_Obj['m2m:' + mgoType[body_Obj[prop].mgd]].push(tmp_Obj['m2m:' + mgoType[body_Obj[prop].mgd]]);
-                    delete body_Obj[prop];
-                }
-                else {
-                    if (res_Obj['m2m:' + typeRsrc[ty]] == null) {
-                        res_Obj['m2m:' + typeRsrc[ty]] = [];
-                    }
-
-                    tmp_Obj = {};
-                    tmp_Obj['m2m:' + typeRsrc[ty]] = body_Obj[prop];
-                    res_Obj['m2m:' + typeRsrc[ty]].push(tmp_Obj['m2m:' + typeRsrc[ty]]);
-                    delete body_Obj[prop];
-                }
-            }
-        }
-
-        body_Obj['m2m:' + rootnm] = res_Obj;
-
-        typeCheckforJson2(body_Obj['m2m:' + rootnm]);
+        // ty 별 뭉치기와 값 정규화는 shape.grouped 가 한다. 정규화는 **두 겹**
+        // (typeCheckforJson2) — 그것을 인자로 넘긴다.
+        // `body_Obj`(= request.resourceObj)를 제자리에서 고치고 되돌려준다.
+        body_Obj = shape.grouped(body_Obj, rootnm, typeCheckforJson2);
 
         bodyString = JSON.stringify(body_Obj);
 
@@ -710,15 +550,9 @@ exports.search_result = function(request, response, status, rsc, cap, callback) 
 
         response.status(parseInt(status, 10)).end(bodyString);
 
-        rspObj = {};
-        rspObj.rsc = rsc;
-        rspObj.ri = request.method + "-" + request.url + "-" + JSON.stringify(request.query);
-        rspObj = cap;
-        // console.log(JSON.stringify(rspObj)); // 응답 바디 전체 덤프 - 로그 폭주 원인이라 비활성
-
-        body_Obj = null;
-        rspObj = null;
-
+        // 죽은 rspObj 여섯 줄을 걷어냈다. 이 자리는 uril 갈래의 `var rspObj` 를
+        // 호이스팅으로 빌려 쓰고 있었다 — 그쪽을 걷어낸 뒤 여기만 남기면
+        // 선언 없는 대입이 되어 암묵적 전역이 된다.
         callback();
     }
 };
