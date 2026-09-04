@@ -1,30 +1,28 @@
 'use strict';
 /**
- * conf.json 을 안전하게 읽고 쓴다.
+ * conf.json 을 안전하게 읽고 쓴다. CLI(tools/mobius-conf.js)와 마법사(tools/setup.js)가 쓴다.
+ * 2026-09-05 까지는 admin/ 에 있었다 — 설정 편집이 CLI 의 일이 되면서 옮겼다.
  *
- * 화면이 설정을 고칠 수 있게 하려면 세 가지가 먼저 성립해야 한다.
+ * 지켜야 할 것 셋.
  *
  *   1. **모르는 키를 보존한다.** conf.json 은 여러 세션·사람이 동시에 고친다.
  *      읽고-고쳐-쓰기를 하면 그 사이 남이 넣은 키를 조용히 날린다.
- *   2. **원자적으로 쓴다.** 같은 파일을 Mobius 워커 25개가 기동 때 읽는다.
- *      쓰는 도중 워커가 되살아나 반쪽 파일을 읽으면 그 워커가 못 뜨는 데서
- *      끝나지 않는다 — mobius.js:20-28 의 catch 가 **설정 전체를 버리고
- *      csebaseport/dbpass/db 세 개만 남긴 conf.json 을 덮어쓴다.**
- *      게다가 그 dbpass 는 하드코딩된 기본값이다. 즉 반쪽 파일을 한 번 읽히면
- *      adminPassword·superUser·acp* 설정이 통째로 사라지고 DB 비밀번호가
- *      기본값으로 바뀐다. 콘솔도 adminPassword 가 없으면 뜨지 않으므로 같이
- *      죽는다. 원자적 쓰기는 편의가 아니라 이 파괴를 막는 장치다.
- *   3. **비밀은 값을 내보내지 않는다.** dbpass·superUser·adminPassword 는
- *      화면에 값이 뜨면 안 된다. 있는지 없는지만 말한다.
+ *   2. **원자적으로 쓴다.** 쓰기 자체는 mobius/conf_write.js 가 한다(tmp+rename).
+ *      같은 파일을 Mobius 워커 25개가 기동 때 읽는다 — 반쪽 파일을 읽히면 안 된다.
+ *   3. **비밀은 값을 내보내지 않는다.** 있는지 없는지만 말한다.
  *
- * **스키마는 코어가 준다**(`mobius/conf_schema`). 그 표는 mobius.js 가 실제로
- * 읽는 것과 양방향으로 대조되므로(코어의 test/conf-schema.test.js) 손으로 적은
- * 표처럼 갈라지지 않는다. 이 파일은 읽기/쓰기 기계만 맡는다.
+ * **update() 를 우회하는 예외 API 는 create() 와 setSecret() 둘뿐이다.** 첫 구동
+ * 마법사가 dbpass·csebaseport 를 반드시 써야 하는데 isWritable() 이 그것을 막기
+ * 때문이다. 둘 다 화이트리스트로 좁힌다 — 아래 각 함수의 주석.
+ *
+ * **스키마는 코어가 준다**(`mobius/conf_schema`). 이 파일은 읽기/쓰기 기계만 맡는다.
+ * **global.usedb 를 세운 뒤에 require 한다** — 표가 백엔드를 따라간다.
  */
 
 var fs = require('fs');
 var path = require('path');
 var schema = require(path.join(__dirname, '..', 'mobius', 'conf_schema'));
+var conf_write = require(path.join(__dirname, '..', 'mobius', 'conf_write'));
 
 /**
  * 적용 시점.
@@ -53,27 +51,8 @@ function isWritable(key) {
     return schema.exposed().indexOf(key) >= 0;
 }
 
-/**
- * 값을 절대 내보내지 않는 키. **있는지 없는지만** 말한다.
- *
- * superUser 는 아는 사람이 ACP 를 전부 우회한다(security.js 가 그 origin 을
- * 무조건 통과시킨다). adminPassword 는 콘솔 자신의 인증이라, 화면에서 고치게
- * 두면 스스로 잠근다. adminOrigin 은 콘솔의 쓰기 권한을 정한다.
- */
-var SECRET = ['dbpass', 'superUser', 'adminPassword', 'adminOrigin'];
-
-/**
- * 콘솔 자신의 설정 키.
- *
- * conf.json 하나에 Mobius 것과 콘솔 것이 같이 산다. 코어 스키마는 **mobius.js 가
- * 읽는 것**만 알므로 이 키들을 모른다 — 넣어 주지 않으면 화면이 "모르는 키"
- * 라고 표시한다(다른 세션이 넣은 것처럼 보인다).
- *
- * 화면에서 고치지는 않는다. adminPort/adminHost 를 바꾸면 콘솔이 자기가 듣던
- * 자리를 옮기는 것이고, adminCsePort 를 바꾸면 쓰기 대상이 바뀐다 — 잘못 넣으면
- * 다음 재기동에 화면으로 돌아올 길이 없다.
- */
-var CONSOLE_KEYS = ['adminPort', 'adminHost', 'adminCseHost', 'adminCsePort'];
+// 값을 절대 내보내지 않는 키. **표에서 뽑는다** — 손 목록은 새 비밀 키를 놓친다.
+var SECRET = schema.all().filter(function (k) { return schema.get(k).secret === true; });
 
 /**
  * 값을 바꾸면 특히 위험한 것. 화면이 눈에 띄게 표시한다.
@@ -91,8 +70,15 @@ function ConfStore(file) {
     this.file = file;
 }
 
+// 파일이 없으면 빈 설정이다 — 읽기는 기본값으로 답하고, 쓰기만 파일을 만든다.
+// 깨졌으면 던진다. 호출부(CLI)가 덮어쓰지 않고 종료한다.
 ConfStore.prototype._read = function () {
-    return JSON.parse(fs.readFileSync(this.file, 'utf8'));
+    try {
+        return JSON.parse(fs.readFileSync(this.file, 'utf8'));
+    } catch (e) {
+        if (e && e.code === 'ENOENT') { return {}; }
+        throw e;
+    }
 };
 
 /**
@@ -142,9 +128,8 @@ ConfStore.prototype.view = function () {
         };
     });
 
-    // 코어가 아는 키에도, 비밀에도, 콘솔 자신의 키에도 없는 것.
-    // 다른 세션이 넣었을 수 있다.
-    var known = schema.all().concat(SECRET, CONSOLE_KEYS);
+    // 코어가 아는 키에도, 비밀에도 없는 것. 다른 세션이 넣었을 수 있다.
+    var known = schema.all();
     var unknown = Object.keys(conf).filter(function (k) { return known.indexOf(k) < 0; });
 
     return { items: items, secrets: secrets, unknownKeys: unknown, file: this.file };
@@ -158,7 +143,7 @@ ConfStore.prototype.view = function () {
  * 써지고, 그건 되돌릴 수 없다.
  */
 ConfStore.prototype.validate = function (key, value) {
-    if (!isWritable(key)) { return '화면에서 고칠 수 없는 키다: ' + key; }
+    if (!isWritable(key)) { return '고칠 수 없는 키다 (노출 대상이 아니다): ' + key; }
     var v = schema.validate(key, value);
     return v.ok ? null : (key + ': ' + v.reason);
 };
@@ -202,27 +187,86 @@ ConfStore.prototype.update = function (patch) {
     return { ok: true, changed: changed, errors: [] };
 };
 
-/**
- * 같은 디렉터리에 임시 파일로 쓰고 rename 한다.
- *
- * 워커 25개가 기동 때 이 파일을 읽는다. 제자리에서 고치면 쓰는 도중에 뜬
- * 워커가 반쪽 JSON 을 읽고 parse 에서 던져 못 뜬다. rename 은 같은 볼륨에서
- * 원자적이라 워커는 언제 읽어도 온전한 파일을 본다.
- */
 ConfStore.prototype._writeAtomic = function (obj) {
-    var dir = path.dirname(this.file);
-    var tmp = path.join(dir, '.conf.json.' + process.pid + '.' + Date.now() + '.tmp');
-    fs.writeFileSync(tmp, JSON.stringify(obj, null, 4) + '\n', 'utf8');
+    conf_write.writeAtomic(this.file, obj);
+};
+
+/**
+ * 키를 지워 기본값으로 되돌린다.
+ *
+ * **update 와 같은 관문을 지난다** — 노출 여부(isWritable)와 읽기 전용. 값이 없는
+ * 경로라 schema.validate 를 그대로 못 쓴다(타입 검사가 undefined 를 거절한다).
+ * 값 없는 경로로 관문을 빼먹으면 `unset dbpass` 가 통하고, 읽기 전용을 안 보면
+ * `unset retentionPolicies` 가 규칙 배열을 날린다 — unset 도 값을 바꾸는 저장이다.
+ */
+ConfStore.prototype.removeKey = function (key) {
+    if (!isWritable(key)) {
+        return { ok: false, changed: [], errors: ['고칠 수 없는 키다 (노출 대상이 아니다): ' + key] };
+    }
+    var s = schema.get(key);
+    if (s && s.readOnly) {
+        return { ok: false, changed: [], errors: ['고칠 수 없는 키다 (읽기 전용이다): ' + key] };
+    }
+    var conf = this._read();
+    if (!Object.prototype.hasOwnProperty.call(conf, key)) { return { ok: true, changed: [], errors: [] }; }
+    var before = conf[key];
+    delete conf[key];
+    this._writeAtomic(conf);
+    return { ok: true, changed: [{ key: key, from: before, to: null }], errors: [] };
+};
+
+/**
+ * 첫 구동 마법사가 묻는 여섯 키. create() 는 이 밖의 키를 거부한다.
+ * dbpass 는 db 가 그것을 쓰는 백엔드일 때만 온다.
+ */
+var WIZARD_KEYS = ['db', 'dbpass', 'cseBase', 'cseId', 'spId', 'csebaseport'];
+
+/**
+ * 파일이 **없을 때만** 만든다 — 첫 구동 마법사 전용. update() 를 우회하는 둘 중 하나.
+ *
+ * isWritable() 대신 WIZARD_KEYS 화이트리스트로 거르고, 값은 checkValue() 의
+ * 타입·유효값 검사만 지난다(validate() 는 dbpass·csebaseport 를 막는다 — 그래서
+ * 이 API 가 있다). 존재 확인과 쓰기 사이의 경합은 wx 플래그가 막는다.
+ */
+ConfStore.prototype.create = function (obj) {
+    var keys = Object.keys(obj || {});
+    var outside = keys.filter(function (k) { return WIZARD_KEYS.indexOf(k) < 0; });
+    if (outside.length) {
+        return { ok: false, errors: ['처음 만들 때 쓸 수 없는 키다: ' + outside.join(', ')] };
+    }
+    var errors = [];
+    keys.forEach(function (k) {
+        var r = schema.checkValue(k, obj[k]);
+        if (!r.ok) { errors.push(k + ': ' + r.reason); }
+    });
+    if (errors.length) { return { ok: false, errors: errors }; }
+    if (fs.existsSync(this.file)) { return { ok: false, errors: ['이미 있다: ' + this.file] }; }
     try {
-        fs.renameSync(tmp, this.file);
+        conf_write.createExclusive(this.file, obj);
     } catch (e) {
-        try { fs.unlinkSync(tmp); } catch (e2) { /* 정리 실패가 원인을 가리지 않게 */ }
+        if (e && e.code === 'EEXIST') { return { ok: false, errors: ['이미 있다: ' + this.file] }; }
         throw e;
     }
+    return { ok: true, errors: [] };
+};
+
+/**
+ * `npm run setup -- --dbpass` 전용. update() 를 우회하는 둘 중 나머지 하나.
+ * 대상 키를 dbpass 하나로 못박는다. 파일이 있어야 한다(없으면 _read 가 {} 를 주지만
+ * 그 경로로 파일을 만들면 안 되므로 먼저 확인한다 — ENOENT 를 던진다).
+ */
+ConfStore.prototype.setSecret = function (key, value) {
+    if (key !== 'dbpass') { return { ok: false, errors: ['이 경로로 바꿀 수 있는 것은 dbpass 뿐이다'] }; }
+    if (typeof value !== 'string') { return { ok: false, errors: ['문자열이 아니다'] }; }
+    fs.readFileSync(this.file, 'utf8');   // 없으면 ENOENT
+    var conf = this._read();
+    conf[key] = value;
+    this._writeAtomic(conf);
+    return { ok: true, errors: [] };
 };
 
 exports.ConfStore = ConfStore;
 exports.APPLY = APPLY;
 exports.SECRET = SECRET;
-exports.CONSOLE_KEYS = CONSOLE_KEYS;
 exports.DANGER = DANGER;
+exports.WIZARD_KEYS = WIZARD_KEYS;

@@ -498,33 +498,19 @@ exports.choices = function (key) {
 };
 
 /**
- * 값 하나를 검사한다.
- * @returns {{ok: boolean, reason: string}}
+ * 값 하나의 **타입·유효값**만 본다. 노출·읽기 전용 관문은 보지 않는다.
  *
- * **던지지 않는다.** 설정 저장 경로에서 도는 함수라, 여기서 던지면
- * 화면이 이유 없이 500 을 받는다.
+ * 첫 구동 마법사가 쓴다 — dbpass 와 csebaseport 를 반드시 써야 하는데
+ * validate() 는 exposed:false 를 막는다. 저장 경로의 관문은 validate() 다.
  */
-exports.validate = function (key, value) {
+exports.checkValue = function (key, value) {
     var s = SCHEMA[key];
     if (!s) { return { ok: false, reason: '모르는 키다' }; }
-
-    // **노출 대상이 아니면 여기서 끊는다.**
-    //
-    // 이 함수를 "설정 저장 경로의 관문" 이라고 설명해 놓고 노출 여부는 안 보고
-    // 있었다. 그러면 validate 만 믿고 위임한 호출부에서 dbpass / superUser 가
-    // 그냥 써진다. superUser 는 그 값을 X-M2M-Origin 에 넣으면 모든 ACP 검사를
-    // 건너뛰는 값이다 — 콘솔이 그것을 쓸 수 있으면 콘솔이 곧 마스터 키다.
-    //
-    // 관문이 하나뿐이라고 말했으면 그 하나가 전부 막아야 한다.
-    if (s.exposed === false) { return { ok: false, reason: '노출 대상이 아니다' }; }
-    if (s.readOnly) { return { ok: false, reason: '읽기 전용이다' }; }
 
     if (s.type === 'number') {
         if (typeof value !== 'number' || !isFinite(value)) {
             return { ok: false, reason: '수가 아니다' };
         }
-        // 정수여야 하는 값에 소수가 들어가면 당장 안 깨져도 다음에 읽는
-        // 사람이 헷갈린다. 화면은 정수 입력칸을 그려 놓고 저장은 1.5 를 받는다.
         if (s.integer && Math.floor(value) !== value) {
             return { ok: false, reason: '정수여야 한다' };
         }
@@ -541,7 +527,6 @@ exports.validate = function (key, value) {
 
     if (typeof s.valid === 'function') {
         var r = s.valid(value);
-        // enum 은 valid() 가 목록을 돌려준다. 그 외에는 참/거짓이다.
         if (Array.isArray(r)) {
             if (r.indexOf(value) < 0) {
                 return { ok: false, reason: r.join(' / ') + ' 중 하나여야 한다' };
@@ -556,6 +541,31 @@ exports.validate = function (key, value) {
     }
 
     return { ok: true, reason: '' };
+};
+
+/**
+ * 저장 경로의 관문. **던지지 않는다.**
+ *
+ * 노출 대상이 아니면 여기서 끊는다 — validate 만 믿고 위임한 호출부에서 dbpass /
+ * superUser 가 그냥 써지면 콘솔이 곧 마스터 키다. 관문이 하나뿐이라고 말했으면
+ * 그 하나가 전부 막아야 한다. 그 뒤는 checkValue 와 같다.
+ */
+exports.validate = function (key, value) {
+    var s = SCHEMA[key];
+    if (!s) { return { ok: false, reason: '모르는 키다' }; }
+    if (s.exposed === false) { return { ok: false, reason: '노출 대상이 아니다' }; }
+    if (s.readOnly) { return { ok: false, reason: '읽기 전용이다' }; }
+    return exports.checkValue(key, value);
+};
+
+// 분류 이름을 표의 선언 순서로. CLI 가 목록을 이 순서로 그린다.
+exports.groups = function () {
+    var seen = [];
+    Object.keys(SCHEMA).forEach(function (k) {
+        var g = SCHEMA[k].group;
+        if (seen.indexOf(g) < 0) { seen.push(g); }
+    });
+    return seen;
 };
 
 // 화면이 그대로 쓸 수 있는 형태. 비밀은 값을 담지 않는다.

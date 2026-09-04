@@ -11,7 +11,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
-const { ConfStore, APPLY, SECRET } = require(path.join(__dirname, '..', 'admin', 'conf_store.js'));
+const { ConfStore, APPLY, SECRET, WIZARD_KEYS } = require(path.join(__dirname, '..', 'tools', 'conf_store.js'));
 
 function tempConf(obj) {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'confstore-'));
@@ -289,4 +289,90 @@ test('reload 키는 무엇을 다시 불러야 하는지 알려 준다', functio
     });
     const observe = items.find((i) => i.key === 'acpObserveMode');
     assert.strictEqual(observe.reloadWith, 'acp_observe.configure');
+});
+
+// --- 2026-09-05 CLI·마법사가 쓰는 API ------------------------------------------
+
+test('SECRET 은 표에서 온다 — 손 목록이 아니다', function () {
+    const schema = require(path.join(__dirname, '..', 'mobius', 'conf_schema.js'));
+    assert.deepStrictEqual(SECRET, schema.all().filter((k) => schema.get(k).secret === true));
+    assert.ok(SECRET.indexOf('dbpass') >= 0 && SECRET.indexOf('adminOrigin') >= 0);
+});
+
+test('L5 removeKey 는 update 와 같은 관문을 지난다 — unset dbpass 가 통하면 안 된다', function () {
+    const file = tempConf({ dbpass: 'x', acpObserveMode: 'observe', retentionPolicies: [] });
+    const s = store(file);
+    assert.strictEqual(s.removeKey('dbpass').ok, false);
+    assert.strictEqual(s.removeKey('retentionPolicies').ok, false, '읽기 전용이 지워졌다');
+    assert.strictEqual(s.removeKey('noSuchKey').ok, false);
+    assert.strictEqual(readConf(file).dbpass, 'x');
+
+    const r = s.removeKey('acpObserveMode');
+    assert.strictEqual(r.ok, true);
+    assert.deepStrictEqual(r.changed, [{ key: 'acpObserveMode', from: 'observe', to: null }]);
+    assert.ok(!('acpObserveMode' in readConf(file)));
+    // 없는 키를 지우면 아무 일도 없다
+    assert.deepStrictEqual(s.removeKey('acpObserveMode'), { ok: true, changed: [], errors: [] });
+});
+
+test('update 는 파일이 없으면 만든다 — 읽기는 기본값으로, 쓰기만 파일을 만든다', function () {
+    const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'confstore-')), 'conf.json');
+    const s = store(file);
+    assert.strictEqual(s.update({ acpObserveMode: 'observe' }).ok, true);
+    assert.deepStrictEqual(readConf(file), { acpObserveMode: 'observe' });
+});
+
+test('W3 create 는 마법사의 여섯 키만 받고, 파일이 있으면 동작하지 않는다', function () {
+    assert.deepStrictEqual(WIZARD_KEYS, ['db', 'dbpass', 'cseBase', 'cseId', 'spId', 'csebaseport']);
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'confstore-'));
+    const file = path.join(dir, 'conf.json');
+    const s = store(file);
+
+    let r = s.create({ db: 'mysql', dbpass: 'p', cseBase: 'Vita', acpObserveMode: 'off' });
+    assert.strictEqual(r.ok, false, '여섯 밖의 키를 받았다');
+    assert.ok(/acpObserveMode/.test(r.errors.join(' ')));
+    assert.strictEqual(fs.existsSync(file), false);
+
+    r = s.create({ db: 'mysql', cseBase: 'Mo/bius' });
+    assert.strictEqual(r.ok, false, '유효값 검사를 안 지났다');
+    assert.strictEqual(fs.existsSync(file), false);
+
+    r = s.create({ db: 'mysql', dbpass: 'p', cseBase: 'Vita', cseId: '/Vita1', spId: '//example.com', csebaseport: '7579' });
+    assert.strictEqual(r.ok, true, r.errors.join(' '));
+    assert.strictEqual(readConf(file).dbpass, 'p', 'dbpass 를 못 썼다 — create 는 isWritable 을 지나지 않는다');
+    assert.strictEqual(readConf(file).cseBase, 'Vita');
+
+    r = s.create({ db: 'sqlite' });
+    assert.strictEqual(r.ok, false, '파일이 있는데 만들었다');
+    assert.strictEqual(readConf(file).cseBase, 'Vita', '있던 파일을 덮었다');
+});
+
+test('W3 setSecret 은 dbpass 만, 파일이 있을 때만', function () {
+    const file = tempConf({ dbpass: 'old', cseBase: 'Vita' });
+    const s = store(file);
+    assert.strictEqual(s.setSecret('superUser', 'x').ok, false);
+    assert.strictEqual(s.setSecret('adminPassword', 'x').ok, false);
+    assert.strictEqual(s.setSecret('acpObserveMode', 'off').ok, false);
+    assert.strictEqual(s.setSecret('dbpass', 42).ok, false, '문자열이 아닌데 받았다');
+    assert.strictEqual(readConf(file).dbpass, 'old');
+
+    assert.strictEqual(s.setSecret('dbpass', 'new').ok, true);
+    assert.strictEqual(readConf(file).dbpass, 'new');
+    assert.strictEqual(readConf(file).cseBase, 'Vita', '다른 키를 날렸다');
+
+    const missing = store(path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'confstore-')), 'conf.json'));
+    assert.throws(function () { missing.setSecret('dbpass', 'x'); }, /ENOENT/);
+});
+
+test('conf_schema.checkValue 는 관문 없이 타입·유효값만 본다', function () {
+    const schema = require(path.join(__dirname, '..', 'mobius', 'conf_schema.js'));
+    assert.strictEqual(schema.checkValue('dbpass', 'x').ok, true, 'exposed:false 를 관문으로 썼다');
+    assert.strictEqual(schema.checkValue('dbpass', 1).ok, false);
+    assert.strictEqual(schema.checkValue('cseBase', 'la').ok, false);
+    assert.strictEqual(schema.checkValue('noSuchKey', 'x').ok, false);
+    assert.strictEqual(schema.validate('dbpass', 'x').ok, false, 'validate 는 여전히 관문이다');
+    // groups() 는 선언 순서다
+    const g = schema.groups();
+    assert.ok(g.indexOf('권한') >= 0 && g.indexOf('콘솔') >= 0);
+    assert.strictEqual(g.length, new Set(g).size);
 });

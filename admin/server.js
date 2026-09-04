@@ -361,7 +361,7 @@ app.get('/api/orphans', function (req, res) {
 // 스키마는 코어(mobius/conf_schema)가 준다. 여기는 파일을 안전하게 읽고 쓰는
 // 일만 한다 — 모르는 키 보존, 원자적 쓰기, 비밀 미노출.
 
-var conf_store = require('./conf_store');
+var conf_store = require(path.join(ROOT, 'tools', 'conf_store'));
 var store = new conf_store.ConfStore(path.join(ROOT, 'conf.json'));
 
 app.get('/api/conf', function (req, res) {
