@@ -17,6 +17,11 @@ test('종료 코드는 1 이 아니다 — backstop 과 fail_start 가 1 을 쓴
     assert.strictEqual(EXIT.NO_CONF, 13);
 });
 
+test('onListenError 의 기본 종료 경로가 실재한다 — 그 이름이 사라지면 핸들러가 던져 exit 1 → 재포크 루프(좀비)가 되살아난다', function () {
+    // 두 onListenError 시험은 deps.exit 을 주입하므로 운영 경로(backstop.exitAfterFlush)를 지나지 않는다.
+    assert.strictEqual(typeof require('../mobius/backstop').exitAfterFlush, 'function');
+});
+
 test('C9 probe — 남이 쥔 포트는 taken, 빈 포트는 free', function (t, done) {
     hold(function (srv, port) {
         port_guard.probe(port, function (state) {

@@ -265,6 +265,13 @@ function first_run(file, opts, callback) {
     var db = require('./db');
     var backends = db.backends();                          // pick() 을 부르지 않는다
     var forced = process.argv[2];
+    if (forced && backends.indexOf(forced) < 0) {
+        // 마법사가 물어 sqlite 를 골라도 select_backend 는 argv 를 이긴다 — 파일은 sqlite,
+        // 첫 기동은 mysql 폴백이 되는 자기모순. 모르는 이름은 묻기 전에 거부한다.
+        var bad = new Error('[설정] 모르는 백엔드 인자다: ' + forced + ' — 쓸 수 있는 것: ' + backends.join(', '));
+        bad.code = 'BAD_BACKEND';
+        return callback(bad);
+    }
     require('./setup_prompt').run({
         backends: backends,
         preset: (backends.indexOf(forced) >= 0) ? { db: forced } : null,

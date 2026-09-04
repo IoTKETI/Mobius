@@ -208,6 +208,22 @@ test('npm 스크립트 — setup', function () {
     assert.strictEqual(pkg.scripts.setup, 'node tools/setup.js');
 });
 
+test('모르는 argv[2] 로 첫 기동하면 묻기 전에 거부한다 — 마법사의 답을 argv 가 이기는 자기모순을 막는다', function (t, done) {
+    const saved = process.argv.slice();
+    process.argv[2] = 'postgre';
+    const file = path.join(tmpDir(), 'conf.json');
+    const t1 = io();
+    fresh();
+    conf_load({ file, wizard: true, isPrimary: true, io: { stdin: t1.stdin, stdout: t1.stdout } }, function (err) {
+        process.argv = saved;
+        assert.ok(err && err.code === 'BAD_BACKEND', String(err && err.message));
+        assert.match(err.message, /postgre/);
+        assert.strictEqual(t1.seen(), '', '묻기 전에 거부해야 한다');
+        assert.strictEqual(fs.existsSync(file), false);
+        done();
+    });
+});
+
 test('마법사가 백엔드 이름 리터럴을 들지 않는다 — 선택지는 backends() 가 준다', function () {
     for (const f of ['mobius/setup_prompt.js', 'tools/setup.js']) {
         const src = fs.readFileSync(path.join(ROOT, f), 'utf8').split('\n')

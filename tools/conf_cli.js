@@ -25,6 +25,7 @@
 var readline = require('readline');
 var net = require('net');
 var cp = require('child_process');
+var fs = require('fs');
 
 var PROBE_TIMEOUT_MS = 1500;
 var PM2_TIMEOUT_MS = 5000;
@@ -184,6 +185,9 @@ exports.renderList = function (deps) {
     } else {
         lines.push('재기동 대기 없음.');
     }
+    // 표에 없는 키 — 죽은 키(usesqlite·cntManPort…)거나 오타다. 웹의 unknownKeys 경고를 여기서 잇는다.
+    var unknown = Object.keys(conf).filter(function (k) { return !schema.get(k); });
+    if (unknown.length) { lines.push('경고: 표에 없는 키 — 죽은 키거나 오타다: ' + unknown.join(', ')); }
     exports.warnings(rec).forEach(function (w) { lines.push('경고: ' + w); });
     return lines;
 };
@@ -256,6 +260,11 @@ function gate(key, deps, cb) {
 function fail(lines) { return { ok: false, lines: lines }; }
 
 exports.runSet = function (key, raw, deps, cb) {
+    if (!fs.existsSync(deps.store.file)) {
+        // 여기서 파일을 만들면 다음 기동에 첫 구동 마법사가 안 돌고, dbpass 가 비어 DB 연결에서
+        // 실패한다 — 원인이 두 단계 멀어진다(스펙 §4.5.1 가). 읽기는 기본값으로 답하되 쓰기는 거부한다.
+        return cb(null, fail(['conf.json 이 없다 — 먼저 `npm run setup` 을 실행할 것 (' + deps.store.file + ')']));
+    }
     var s = deps.schema.get(key);
     if (!s) { return cb(null, fail(['모르는 키다: ' + key])); }
     if (raw === undefined) { return cb(null, fail(['값이 없다: set ' + key + ' <값>'])); }
@@ -278,6 +287,11 @@ exports.runSet = function (key, raw, deps, cb) {
 };
 
 exports.runUnset = function (key, deps, cb) {
+    if (!fs.existsSync(deps.store.file)) {
+        // 여기서 파일을 만들면 다음 기동에 첫 구동 마법사가 안 돌고, dbpass 가 비어 DB 연결에서
+        // 실패한다 — 원인이 두 단계 멀어진다(스펙 §4.5.1 가). 읽기는 기본값으로 답하되 쓰기는 거부한다.
+        return cb(null, fail(['conf.json 이 없다 — 먼저 `npm run setup` 을 실행할 것 (' + deps.store.file + ')']));
+    }
     var s = deps.schema.get(key);
     if (!s) { return cb(null, fail(['모르는 키다: ' + key])); }
     gate(key, deps, function (pass) {

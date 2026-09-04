@@ -166,6 +166,20 @@ test('L5 unset 이 관문을 지난다 — unset dbpass 는 거부', function (t
     });
 });
 
+test('set/unset 은 conf.json 이 없으면 거부한다 — 부분 파일을 만들면 첫 구동 마법사가 안 돈다', function (t, done) {
+    const d = deps({ file: path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'confcli-')), 'conf.json') });
+    cli.runSet('dbConnectionLimit', '30', d, function (err, r) {
+        assert.strictEqual(r.ok, false);
+        assert.match(r.lines.join(' '), /npm run setup/);
+        assert.strictEqual(fs.existsSync(d.file), false, '파일이 생겼다');
+        cli.runUnset('acpObserveMode', d, function (err2, r2) {
+            assert.strictEqual(r2.ok, false);
+            assert.strictEqual(fs.existsSync(d.file), false);
+            done();
+        });
+    });
+});
+
 test('L6 관문 — TTY 가 아니면 읽지도 않고 거부, 파일을 안 건드린다', function (t, done) {
     const d = deps({ conf: { cseBase: 'Mobius' }, isTTY: false });
     cli.runSet('cseBase', 'Vita', d, function (err, r) {
@@ -282,6 +296,14 @@ test('목록 — 떠 있지 않으면 모름이고 값 대조를 안 한다', fu
     assert.match(txt, /dbConnectionLimit\s+25\s+모름/);
     assert.match(txt, /모름 — /);
     assert.doesNotMatch(txt, /재기동 대기 \d+건/);
+});
+
+test('목록 — 표에 없는 키를 경고한다 (죽은 키·오타)', function () {
+    const d = deps({ conf: { usesqlite: 'false', cntManPort: '7599', acpObserveMode: 'off' }, record: null });
+    const txt = cli.renderList(d).join('\n');
+    assert.match(txt, /표에 없는 키[^\n]*usesqlite/);
+    assert.match(txt, /표에 없는 키[^\n]*cntManPort/);
+    assert.doesNotMatch(txt, /표에 없는 키[^\n]*acpObserveMode/);
 });
 
 test('단건 — 표가 가진 것을 다 보여 준다', function () {

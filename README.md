@@ -127,8 +127,8 @@ node tools/migrate.js --apply mysql    # apply it
 Running on SQLite? None of this applies — SQLite has no server to configure, and
 the pool settings are unused there.
 
-All of these values are declared in `mobius/conf_schema.js`, which the admin
-console settings screen reads, so they can be changed from there.
+All of these values are declared in `mobius/conf_schema.js`, which `npm run conf`
+reads, so they can be inspected and changed from there.
 
 ## Mobius Docker Version
 We deploy Mobius as a Docker image using the virtualization open source tool Docker.
