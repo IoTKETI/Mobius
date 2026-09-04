@@ -49,6 +49,20 @@ var db = require('./db');
 var db_facade = db;
 var db_sql = require('./sql_action');
 var db_errors = require('./db/errors');
+var shape = require('./shape');
+
+// moduleclass 약칭 -> sql_action 의 insert/update 함수 **이름**. cnd -> 약칭은
+// shape.MODULE_CLASS 가 단일 진실원이고, 여기는 약칭 -> DB 함수만 안다.
+// 문자열 표로 두고 db_sql[이름] 으로 늦게 묶는다 — 함수 참조를 표에 박으면
+// 시험이 db_sql.insert_hd_* 를 갈아끼운 것이 안 먹고, 이름은 grep 에 잡힌다.
+var HD_INSERT = {
+    dooLk: 'insert_hd_dooLk', bat: 'insert_hd_bat', tempe: 'insert_hd_tempe', binSh: 'insert_hd_binSh',
+    fauDn: 'insert_hd_fauDn', colSn: 'insert_hd_colSn', color: 'insert_hd_color', brigs: 'insert_hd_brigs'
+};
+var HD_UPDATE = {
+    dooLk: 'update_hd_dooLk', bat: 'update_hd_bat', tempe: 'update_hd_tempe', binSh: 'update_hd_binSh',
+    fauDn: 'update_hd_fauDn', colSn: 'update_hd_colSn', color: 'update_hd_color', brigs: 'update_hd_brigs'
+};
 var defaults = require('./defaults');
 var rid = require('./rid');
 
@@ -607,6 +621,8 @@ function create_action(request, response, callback) {
         }
     }
     else if (ty == '28' || ty == '98' || ty == '97' || ty == '96' || ty == '95' || ty == '94' || ty == '93' || ty == '92' || ty == '91') {
+        // moduleclass 약칭. 디바이스(fcnt)가 아니면서 null 이면 모르는 짝이다.
+        var hd = shape.hd_short(rootnm, resource_Obj[rootnm].cnd);
         if (rootnm == 'fcnt' && resource_Obj[rootnm].cnd.includes('org.onem2m.home.device.')) {
             db_sql.insert_fcnt(request.db_connection, resource_Obj[rootnm], function (err, results) {
                 if (!err) {
@@ -623,120 +639,11 @@ function create_action(request, response, callback) {
                 }
             });
         }
-        else if (rootnm == 'hd_dooLk' && resource_Obj[rootnm].cnd == 'org.onem2m.home.moduleclass.doorlock') {
-            db_sql.insert_hd_dooLK(request.db_connection, resource_Obj[rootnm], function (err, results) {
-                if (!err) {
-                    callback('200');
-                }
-                else {
-                    if (db_errors.isDuplicateKey(results)) {
-                        callback('409-5');
-                    }
-                    else {
-                        console.log('[create_action] create resource error ======== ' + results.code);
-                        callback('500-4');
-                    }
-                }
-            });
-        }
-        else if (rootnm == 'hd_bat' && resource_Obj[rootnm].cnd == 'org.onem2m.home.moduleclass.battery') {
-            db_sql.insert_hd_bat(request.db_connection, resource_Obj[rootnm], function (err, results) {
-                if (!err) {
-                    callback('200');
-                }
-                else {
-                    if (db_errors.isDuplicateKey(results)) {
-                        callback('409-5');
-                    }
-                    else {
-                        console.log('[create_action] create resource error ======== ' + results.code);
-                        callback('500-4');
-                    }
-                }
-            });
-        }
-        else if (rootnm == 'hd_tempe' && resource_Obj[rootnm].cnd == 'org.onem2m.home.moduleclass.temperature') {
-            db_sql.insert_hd_tempe(request.db_connection, resource_Obj[rootnm], function (err, results) {
-                if (!err) {
-                    callback('200');
-                }
-                else {
-                    if (db_errors.isDuplicateKey(results)) {
-                        callback('409-5');
-                    }
-                    else {
-                        console.log('[create_action] create resource error ======== ' + results.code);
-                        callback('500-4');
-                    }
-                }
-            });
-        }
-        else if (rootnm == 'hd_binSh' && resource_Obj[rootnm].cnd == 'org.onem2m.home.moduleclass.binarySwitch') {
-            db_sql.insert_hd_binSh(request.db_connection, resource_Obj[rootnm], function (err, results) {
-                if (!err) {
-                    callback('200');
-                }
-                else {
-                    if (db_errors.isDuplicateKey(results)) {
-                        callback('409-5');
-                    }
-                    else {
-                        console.log('[create_action] create resource error ======== ' + results.code);
-                        callback('500-4');
-                    }
-                }
-            });
-        }
-        else if (rootnm == 'hd_fauDn' && resource_Obj[rootnm].cnd == 'org.onem2m.home.moduleclass.faultDetection') {
-            db_sql.insert_hd_fauDn(request.db_connection, resource_Obj[rootnm], function (err, results) {
-                if (!err) {
-                    callback('200');
-                }
-                else {
-                    if (db_errors.isDuplicateKey(results)) {
-                        callback('409-5');
-                    }
-                    else {
-                        console.log('[create_action] create resource error ======== ' + results.code);
-                        callback('500-4');
-                    }
-                }
-            });
-        }
-        else if (rootnm == 'hd_colSn' && resource_Obj[rootnm].cnd == 'org.onem2m.home.moduleclass.colourSaturation') {
-            db_sql.insert_hd_colSn(request.db_connection, resource_Obj[rootnm], function (err, results) {
-                if (!err) {
-                    callback('200');
-                }
-                else {
-                    if (db_errors.isDuplicateKey(results)) {
-                        callback('409-5');
-                    }
-                    else {
-                        console.log('[create_action] create resource error ======== ' + results.code);
-                        callback('500-4');
-                    }
-                }
-            });
-        }
-        else if (rootnm == 'hd_brigs' && resource_Obj[rootnm].cnd == 'org.onem2m.home.moduleclass.brightness') {
-            db_sql.insert_hd_brigs(request.db_connection, resource_Obj[rootnm], function (err, results) {
-                if (!err) {
-                    callback('200');
-                }
-                else {
-                    if (db_errors.isDuplicateKey(results)) {
-                        callback('409-5');
-                    }
-                    else {
-                        console.log('[create_action] create resource error ======== ' + results.code);
-                        callback('500-4');
-                    }
-                }
-            });
-        }
-        else if (rootnm == 'hd_color' && resource_Obj[rootnm].cnd == 'org.onem2m.home.moduleclass.colour') {
-            db_sql.insert_hd_color(request.db_connection, resource_Obj[rootnm], function (err, results) {
+        else if (hd !== null) {
+            // 여덟 갈래 (rootnm == 'hd_X' && cnd == '...Y') -> insert_hd_X 가 여기
+            // 있었다. 콜백 본문은 여덟이 글자까지 같았다. 짝 판정은 shape.hd_short,
+            // 함수 선택은 HD_INSERT 이름 표다. 1단계 5번(2026-09-05).
+            db_sql[HD_INSERT[hd]](request.db_connection, resource_Obj[rootnm], function (err, results) {
                 if (!err) {
                     callback('200');
                 }
@@ -1752,6 +1659,8 @@ function update_action(request, response, callback) {
         }
     }
     else if (ty == '28' || ty == '98' || ty == '97' || ty == '96' || ty == '95' || ty == '94' || ty == '93' || ty == '92' || ty == '91') {
+        // UPDATE 는 cnd 만 본다 — rootnm 은 안 본다. 옛 코드의 비대칭이고 그대로 둔다.
+        var hd = shape.cnd_short(resource_Obj[rootnm].cnd);
         if (resource_Obj[rootnm].cnd.includes('org.onem2m.home.device.')) {
             db_sql.update_fcnt(request.db_connection, resource_Obj[rootnm], function (err, results) {
                 if (!err) {
@@ -1764,92 +1673,9 @@ function update_action(request, response, callback) {
                 }
             });
         }
-        else if (resource_Obj[rootnm].cnd == 'org.onem2m.home.moduleclass.doorlock') {
-            db_sql.update_hd_dooLk(request.db_connection, resource_Obj[rootnm], function (err, results) {
-                if (!err) {
-                    callback('200');
-                }
-                else {
-                    console.log('[update_action] ty=' + ty + ' error: ' +
-                                (results.driverCode || results.code) + ' / ' + results.message);
-                    callback('500-1');
-                }
-            });
-        }
-        else if (resource_Obj[rootnm].cnd == 'org.onem2m.home.moduleclass.battery') {
-            db_sql.update_hd_bat(request.db_connection, resource_Obj[rootnm], function (err, results) {
-                if (!err) {
-                    callback('200');
-                }
-                else {
-                    console.log('[update_action] ty=' + ty + ' error: ' +
-                                (results.driverCode || results.code) + ' / ' + results.message);
-                    callback('500-1');
-                }
-            });
-        }
-        else if (resource_Obj[rootnm].cnd == 'org.onem2m.home.moduleclass.temperature') {
-            db_sql.update_hd_tempe(request.db_connection, resource_Obj[rootnm], function (err, results) {
-                if (!err) {
-                    callback('200');
-                }
-                else {
-                    console.log('[update_action] ty=' + ty + ' error: ' +
-                                (results.driverCode || results.code) + ' / ' + results.message);
-                    callback('500-1');
-                }
-            });
-        }
-        else if (resource_Obj[rootnm].cnd == 'org.onem2m.home.moduleclass.binarySwitch') {
-            db_sql.update_hd_binSh(request.db_connection, resource_Obj[rootnm], function (err, results) {
-                if (!err) {
-                    callback('200');
-                }
-                else {
-                    console.log('[update_action] ty=' + ty + ' error: ' +
-                                (results.driverCode || results.code) + ' / ' + results.message);
-                    callback('500-1');
-                }
-            });
-        }
-        else if (resource_Obj[rootnm].cnd == 'org.onem2m.home.moduleclass.faultDetection') {
-            db_sql.update_hd_fauDn(request.db_connection, resource_Obj[rootnm], function (err, results) {
-                if (!err) {
-                    callback('200');
-                }
-                else {
-                    console.log('[update_action] ty=' + ty + ' error: ' +
-                                (results.driverCode || results.code) + ' / ' + results.message);
-                    callback('500-1');
-                }
-            });
-        }
-        else if (resource_Obj[rootnm].cnd == 'org.onem2m.home.moduleclass.colourSaturation') {
-            db_sql.update_hd_colSn(request.db_connection, resource_Obj[rootnm], function (err, results) {
-                if (!err) {
-                    callback('200');
-                }
-                else {
-                    console.log('[update_action] ty=' + ty + ' error: ' +
-                                (results.driverCode || results.code) + ' / ' + results.message);
-                    callback('500-1');
-                }
-            });
-        }
-        else if (resource_Obj[rootnm].cnd == 'org.onem2m.home.moduleclass.colour') {
-            db_sql.update_hd_color(request.db_connection, resource_Obj[rootnm], function (err, results) {
-                if (!err) {
-                    callback('200');
-                }
-                else {
-                    console.log('[update_action] ty=' + ty + ' error: ' +
-                                (results.driverCode || results.code) + ' / ' + results.message);
-                    callback('500-1');
-                }
-            });
-        }
-        else if (resource_Obj[rootnm].cnd == 'org.onem2m.home.moduleclass.brightness') {
-            db_sql.update_hd_brigs(request.db_connection, resource_Obj[rootnm], function (err, results) {
+        else if (hd !== null) {
+            // 여덟 갈래 (cnd == '...Y') -> update_hd_X 가 여기 있었다. 1단계 5번.
+            db_sql[HD_UPDATE[hd]](request.db_connection, resource_Obj[rootnm], function (err, results) {
                 if (!err) {
                     callback('200');
                 }

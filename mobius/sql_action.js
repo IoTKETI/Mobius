@@ -515,7 +515,9 @@ var BODY_TABLES = {
     insert_fcnt:     ['fcnt', 'ri cnd cr'],
 
     // hd_* 여덟은 전부 fcnt 테이블이고 가운데 컬럼 하나만 다르다.
-    insert_hd_dooLK: ['fcnt', 'ri cnd lock cr'],
+    // dooLk 다 — 'dooLK' 였다. update_hd_dooLk 와 대소문자가 달라 이름 표로
+    // 못 접었다. 이 키가 곧 export 이름이라 호출부(resource.js)도 같이 바꿨다.
+    insert_hd_dooLk: ['fcnt', 'ri cnd lock cr'],
     insert_hd_bat:   ['fcnt', 'ri cnd lvl cr'],
     insert_hd_tempe: ['fcnt', 'ri cnd curT0 cr'],
     insert_hd_binSh: ['fcnt', 'ri cnd powerSe cr'],

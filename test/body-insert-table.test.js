@@ -117,12 +117,19 @@ const LEGACY_DIVERGENCE = {
     insert_lcp: { added: ['cr'] }
 };
 
+// **이름만 바뀐 자리.** 옛 소스의 이름으로 지금 export 를 찾을 때 여기를 거친다.
+// insert_hd_dooLK 는 형제 update_hd_dooLk 와 대소문자가 갈려 있어 1단계 5번
+// (2026-09-05)에서 소문자 k 로 맞췄다 — 테이블·컬럼은 그대로다.
+const LEGACY_RENAME = {
+    insert_hd_dooLK: 'insert_hd_dooLk'
+};
+
 if (LEGACY) {
     for (const [name, want] of Object.entries(LEGACY)) {
         test('표가 옛 SQL 과 같다: ' + name, function () {
             const div = LEGACY_DIVERGENCE[name];
             const expect = want.cols.concat(div ? div.added : []);
-            const seen = capture(name, objFor(expect));
+            const seen = capture(LEGACY_RENAME[name] || name, objFor(expect));
 
             // insert_lookup 이 먼저 나가고, 그 다음이 본문이다.
             const body = seen.filter(function (s) {
