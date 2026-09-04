@@ -165,8 +165,22 @@ const fs = require('node:fs');
 const path = require('node:path');
 const ROOT = path.join(__dirname, '..');
 
-test('나가는 요청은 전부 outbound.arm 이 덮는다', function () {
-    // 드라이버가 아니라 **우리 코드**가 내보내는 요청만 본다.
+test('http·https·coap 로 나가는 요청은 전부 outbound.arm 이 덮는다', function () {
+    // **이 시험의 범위는 세 프로토콜뿐이다.** 제목을 그렇게 적어 둔다.
+    //
+    // 처음엔 "나가는 요청은 전부" 라고 적었는데 과장이었다. 이 검사는
+    // `req = http|https|coap.request(...)` 라는 **모양**을 찾는다. 그래서
+    // 그 모양이 아닌 아웃바운드는 애초에 시야에 없다:
+    //
+    //   mobius/sgn_man.js:349  ws_client.connect(nu, subprotocol)   <- WS 알림
+    //   mobius/sgn_man.js:251  sgn_mqtt_client.publish(...)         <- MQTT 알림
+    //
+    // WS 알림에는 지금 타임아웃이 없다(connectFailed 는 접속 실패만 잡고,
+    // 붙은 뒤 상대가 조용하면 기다린다). MQTT publish 는 요청-응답이 아니라
+    // arm 의 대상이 아니다.
+    //
+    // 이 사각지대를 모르고 "11곳 전부 armed" 라고 문서에 적었다가 잡혔다.
+    // 시험 제목이 실제 범위보다 넓으면 그런 오해를 만든다.
     const files = ['app.js', 'mobius/fopt.js', 'mobius/grp.js', 'mobius/sgn_man.js',
                    'pxy_coap.js', 'pxy_mqtt.js', 'pxy_ws.js'];
 

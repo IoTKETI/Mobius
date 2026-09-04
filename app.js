@@ -208,6 +208,45 @@ backstop.flushOnExit(function (done) {
     catch (e) { done(); }
 });
 
+/* ─── 기동 실패는 조용하면 안 된다 ────────────────────────────────────────
+ *
+ * DB 커넥션을 못 얻으면 예전에는 `[db.connect] No Connection` 한 줄만 찍고
+ * 끝났다. 그런데 그 뒤에 있어야 할 것이 이것들이다:
+ *
+ *   마스터  cluster.fork()  — 성공 분기 **안**에 있다. 워커가 0개가 된다
+ *   워커    listen()        — 마찬가지. 포트가 안 열린다
+ *
+ * 두 경우 다 **프로세스는 살아 있다.** pm2 는 online 으로 보고, 프로세스만
+ * 보는 헬스체크도 통과한다. 그런데 요청은 전부 연결 거부다.
+ * 워커는 더 나쁘다 — 죽지 않으니 아래 cluster.on('exit') 이 발화하지 않아
+ * **재포크도 안 걸린다.** 재기동 전까지 영구 결원이고, 다른 워커가 정상이라
+ * 겉으로는 '조금 느림' 으로만 보인다.
+ *
+ * MySQL 어댑터의 connect 는 createPool 만 하고 언제나 '1' 을 준다 — 실제
+ * 접속은 첫 getConnection 에서 일어난다. 그래서 기동 순간 MySQL 이 몇 초
+ * 늦거나 비밀번호가 틀리면 정확히 이 상태가 된다.
+ *
+ * ── 왜 곧바로 안 나가는가 ────────────────────────────────────────────────
+ * pm2 는 min_uptime(기본 1초)보다 오래 산 프로세스만 '정상 기동' 으로 세고,
+ * 그보다 빨리 죽으면 max_restarts(기본 15)를 세다가 **errored 로 두고
+ * 포기한다.** DB 가 부팅 때 몇 초 늦는 흔한 경우에 그러면 MySQL 이 돌아와도
+ * 서비스가 영영 안 뜬다.
+ *
+ * 그래서 잠깐 쉬고 나간다. 그 사이 감독은 이 프로세스를 '살았다' 로 세어
+ * 재시작 카운터를 되돌리고, 결과적으로 이 지연이 **재시도 주기**가 된다.
+ * 감독이 pm2 든 systemd 든 docker 든 같은 방식으로 동작한다.
+ */
+var START_FAIL_EXIT_MS = 3000;
+
+function fail_start(role, why) {
+    console.error('[기동 실패] ' + role + ' — ' + why);
+    console.error('[기동 실패] 포트를 열지 못했다. ' + START_FAIL_EXIT_MS +
+                  'ms 뒤 종료한다 — 감독 프로세스가 다시 띄운다.');
+    setTimeout(function () {
+        backstop.exitAfterFlush(1);
+    }, START_FAIL_EXIT_MS);
+}
+
 var access_log_err = { at: 0, skipped: 0 };
 accessLogStream.on('error', function (err) {
     var now = Date.now();
@@ -551,6 +590,7 @@ if (use_clustering) {
                     }
                     else {
                         console.log('[db.connect] No Connection');
+                        fail_start('마스터', '커넥션을 못 얻어 워커를 하나도 못 띄운다');
                     }
                 });
             }
@@ -564,6 +604,7 @@ if (use_clustering) {
                 // 좌표가 코어의 인자에서 사라진 뒤로는 더 중요하다. 무엇이 틀렸는지
                 // 보려면 어댑터가 찍는 [db/mysql] pool ... 줄과 이 줄을 같이 봐야 한다.
                 console.error('[db] connect 실패 (' + rsc + ') — DB 를 쓰는 요청은 전부 실패한다');
+                fail_start('마스터', 'DB 연결 자체가 실패했다');
             }
         });
     }
@@ -620,6 +661,7 @@ if (use_clustering) {
                     }
                     else {
                         console.log('[db.connect] No Connection');
+                        fail_start('워커', '커넥션을 못 얻어 listen 을 못 한다');
                     }
                 });
                 });   // db_bootstrap.readDataSwitches
@@ -634,6 +676,7 @@ if (use_clustering) {
                 // 좌표가 코어의 인자에서 사라진 뒤로는 더 중요하다. 무엇이 틀렸는지
                 // 보려면 어댑터가 찍는 [db/mysql] pool ... 줄과 이 줄을 같이 봐야 한다.
                 console.error('[db] connect 실패 (' + rsc + ') — DB 를 쓰는 요청은 전부 실패한다');
+                fail_start('워커', 'DB 연결 자체가 실패했다');
             }
         });
     }
@@ -673,6 +716,7 @@ else {
                 }
                 else {
                     console.log('[db.connect] No Connection');
+                    fail_start('단일 프로세스', '커넥션을 못 얻어 listen 을 못 한다');
                 }
             });
         }
@@ -686,6 +730,7 @@ else {
             // 좌표가 코어의 인자에서 사라진 뒤로는 더 중요하다. 무엇이 틀렸는지
             // 보려면 어댑터가 찍는 [db/mysql] pool ... 줄과 이 줄을 같이 봐야 한다.
             console.error('[db] connect 실패 (' + rsc + ') — DB 를 쓰는 요청은 전부 실패한다');
+            fail_start('단일 프로세스', 'DB 연결 자체가 실패했다');
         }
     });
 }

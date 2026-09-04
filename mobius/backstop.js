@@ -44,6 +44,25 @@ exports.flushOnExit = function (fn) {
 // 테스트가 쓴다. 등록은 누적이라 파일 간에 샌다.
 exports._resetFlushers = function () { flushers = []; };
 
+/**
+ * 잡히지 않은 예외가 아닌 이유로 프로세스를 끝낼 때 쓴다 — 기동 실패가 그렇다.
+ *
+ * 종료 전에 등록된 비우기를 돌린다. 이유는 아래 flush_then 주석과 같다:
+ * proc.exit 는 대기 중인 비동기 I/O 를 안 기다려서, 마지막 로그 줄이
+ * 버퍼에만 있다가 사라진다. **하필 그 줄이 왜 죽었는지 말해 주는 줄이다.**
+ *
+ *   code  종료 코드. 감독 프로세스가 실패로 보게 하려면 0 이 아니어야 한다
+ *   deps  시험용 주입 — onFatal, flushTimeoutMs, proc
+ */
+exports.exitAfterFlush = function (code, deps) {
+    var d = deps || {};
+    var proc = d.proc || process;
+    flush_then(function () {
+        if (d.onFatal) { d.onFatal(code); }
+        else { proc.exit(code); }
+    }, d);
+};
+
 // 상한. 이 안에 못 비우면 그냥 종료한다.
 //
 // **왜 상한이 필요한가.** 죽는 중인 워커다. 스트림이 이미 망가져 있어
