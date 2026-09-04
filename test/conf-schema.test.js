@@ -505,16 +505,28 @@ test('C6 secret 과 exposed 가 어긋난 키가 0건이다 — 전수', functio
     assert.deepStrictEqual(hidden, [], 'exposed:false 인데 secret 이 아니다: ' + hidden.join(', '));
 });
 
-test('C5 콘솔 키의 리더가 스캐너에 잡힌다 — 실행 코드에서 지우면 실제로 빠진다', function () {
+test('C5 콘솔 키의 리더가 스캐너에 잡힌다 — 실행 코드에서 지우면 빠지고, 주석의 언급은 리더가 아니다', function () {
     const src = readSrc('admin/server.js');
     assert.ok(keysReadByAdmin().indexOf('adminPassword') >= 0, 'admin/server.js 가 adminPassword 를 읽는다고 안 나온다');
-    // conf.adminPassword 를 읽는 **코드 줄**만 지우고 주석의 언급은 남긴다.
+
+    // conf.adminPassword 를 읽는 **코드 줄**을 지우고, 그 자리에 같은 이름을 **주석으로** 심는다.
+    // admin/server.js 자체에는 그런 주석이 없어서(2026-09-05 리뷰에서 잡힘) 파일 내용만으로는
+    // 주석 제거가 도는지 증명되지 않는다 — 그래서 직접 심는다.
     const code = src.split('\n')
-        .filter((l) => !(/conf\.adminPassword/.test(l) && !/^\s*(\/\/|\*|\/\*)/.test(l)))
+        .map((l) => (/conf\.adminPassword/.test(l) && !/^\s*(\/\/|\*|\/\*)/.test(l))
+            ? '// 예전에는 여기서 conf.adminPassword 를 읽었다 — 주석의 언급은 리더가 아니다'
+            : l)
         .join('\n');
-    assert.ok(/adminPassword/.test(code), '주석의 adminPassword 까지 지워졌다 — 시험이 헛돈다');
+    assert.ok(/conf\.adminPassword/.test(code), '심어 둔 주석이 없다 — 시험이 헛돈다');
     assert.ok(keysReadIn(code).indexOf('adminPassword') < 0,
         '코드에서 지웠는데도 읽는다고 나온다 — 주석이 가드를 통과한다');
+
+    // 주석 제거를 **안 하면** 정말 잡히는지 — 이 시험이 주석 제거를 검사한다는 증명.
+    const naive = new Set();
+    const re = /conf\.([a-zA-Z_][\w]*)/g;
+    let m;
+    while ((m = re.exec(code)) !== null) { naive.add(m[1]); }
+    assert.ok(naive.has('adminPassword'), '주석을 안 걷어도 안 잡힌다 — 이 시험이 주석 제거를 검사하지 못한다');
 });
 
 test('C4 키 표가 백엔드를 따라간다 — 자식 프로세스에서 db:sqlite 로 conf_load 를 부른다', function () {
