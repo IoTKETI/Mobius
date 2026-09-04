@@ -569,11 +569,41 @@ function create_action(request, response, callback) {
             });
         }
         else {
-            body_Obj = {};
-            body_Obj['dbg'] = "this resource of mgmtObj is not supported";
-            responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-            callback('0', resource_Obj);
-            return '0';
+            // 다섯(1001 fwr · 1006 bat · 1007 dvi · 1008 dvc · 1009 rbo) 중
+            // 어느 것도 아닌 mgd 다. 형제 분기와 같게 **코드만 돌려준다.**
+            //
+            // ── 예전에는 여기서 응답을 직접 보냈다 (2026-09-04 에 고쳤다)
+            //
+            //     body_Obj = {};
+            //     body_Obj['dbg'] = "this resource of mgmtObj is not supported";
+            //     responder.response_result(request, response, 400, body_Obj, 4000,
+            //                               request.url, body_Obj['dbg']);
+            //     callback('0', resource_Obj);
+            //
+            // response_result 의 시그니처는 여섯 개인데(request, response,
+            // status, rsc, cap, callback) 일곱 개를 넘겼다. 넷째부터 한 칸씩
+            // 당겨져 **rsc 자리에 객체가** 가고(-> X-M2M-RSC: [object Object])
+            // **callback 자리에 request.url 문자열이** 갔다(-> callback() 에서
+            // TypeError -> 워커 사망). 게다가 응답을 보내고 callback('0') 까지
+            // 불러서, 카탈로그에 없는 '0' 이 위로 올라가 이중 정산이 됐다.
+            //
+            // 같은 밀림을 app.js 의 check_grp 에서도 겪었다(그쪽 주석에 재현법
+            // 이 있다). 거기서도 해결은 "호출부가 응답하게 두고 이 호출을
+            // 지운다" 였다.
+            //
+            // ── 지금 도달하지 않는다. 그래도 고친 이유
+            //
+            // mgmtObj 구체 타입(fwr/bat/dvi/dvc/rbo)은 typeRsrc 에 없어서
+            // type_resolver 가 400-3 으로 먼저 끊는다 — **일부러 막아 둔 것**
+            // 이고 그 근거는 type_resolver.js 의 그 자리 주석에 있다.
+            // 실측(2026-09-04): 정상 조합 fwr+1001 조차 400-3 이다.
+            //
+            // 즉 이 자리는 mgmtObj 를 여는 날 처음 밟힌다. 그날 [object Object]
+            // 헤더와 워커 사망이 기다리고 있으면 안 된다. **덫을 치우는 것이다.**
+            //
+            // 문구는 그대로다 — 카탈로그의 400-53 이 글자까지 같고, mgmtObj
+            // update 경로 두 곳이 이미 그 코드를 쓴다.
+            callback('400-53');
         }
     }
     else if (ty == '28' || ty == '98' || ty == '97' || ty == '96' || ty == '95' || ty == '94' || ty == '93' || ty == '92' || ty == '91') {

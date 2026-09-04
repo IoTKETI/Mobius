@@ -76,16 +76,20 @@ test('responder 의 응답 함수는 선언한 인자 개수를 그대로 받는
 });
 
 test('responder 응답 함수를 인자 개수 맞게 부른다', function () {
-    // 하나가 아직 일곱 개를 넘긴다. **알려진 위반이고 P2 3.2 로 따로
-    // 처리한다** — ty=13(mgmtObj) 에 지원하지 않는 mgd 로 POST 했을 때
-    // 닿는 자리다.
+    // **비었다. P2 3.2 가 끝났다.**
+    //
+    // 마지막 위반은 mgmtObj 의 mgd 분기 끝(create_action)에 있었고
+    // 2026-09-04 에 callback('400-53') 으로 바꿨다. 형제 다섯이 이미 그
+    // 형태였고, 카탈로그의 400-53 문구가 글자까지 같으며, mgmtObj update
+    // 경로 두 곳이 이미 그 코드를 쓰고 있었다 — create 경로만 옛 방식으로
+    // 남아 있었던 것이다.
     //
     // **개수만 세면 안 된다.** 이미 위반인 자리에 인자를 하나 더 붙여도
     // "위반 1곳" 은 그대로라 통과한다(변이로 확인했다). 그래서 어느
     // 함수를 **몇 개로** 부르고 있는지까지 못박는다.
     //
     // 목록은 **줄어들기만 해야 한다.**
-    const KNOWN_BAD = ['response_result:7'];
+    const KNOWN_BAD = [];
 
     const files = ['app.js', 'mobius/resource.js', 'mobius/responder.js',
                    'mobius/settle.js', 'mobius/fopt.js', 'mobius/sgn.js'];
@@ -111,6 +115,37 @@ test('responder 응답 함수를 인자 개수 맞게 부른다', function () {
         '인자 개수가 안 맞는 호출이 달라졌다:\n  ' + where.join('\n  ') +
         '\n  넷째 인자부터 한 칸씩 밀려 X-M2M-RSC 에 객체가 나가고 callback() 이 TypeError 를 낸다' +
         '\n  고쳤으면 KNOWN_BAD 에서 그 항목을 지울 것');
+});
+
+test('mgmtObj 의 mgd 분기가 형제와 같게 코드만 돌려준다', function () {
+    // create_action 의 ty=13 분기는 mgd 다섯(1001 fwr · 1006 bat · 1007 dvi ·
+    // 1008 dvc · 1009 rbo)을 각각 insert 로 보내고, 그 밖은 거절한다.
+    // 형제 다섯은 전부 callback('200'/'409-5'/'500-4') 인데 마지막 else 만
+    // 응답을 직접 보내고 있었다 — 그것도 인자가 밀린 채로.
+    //
+    // **지금 이 자리는 도달하지 않는다.** mgmtObj 구체 타입이 typeRsrc 에
+    // 없어서 type_resolver 가 400-3 으로 먼저 끊는다(일부러 막아 둔 것).
+    // 그래도 못박아 두는 이유는, mgmtObj 를 여는 날 이 자리가 처음 밟히는데
+    // 그때 [object Object] 헤더와 워커 사망이 기다리고 있으면 안 되기 때문이다.
+    const src = code('mobius/resource.js');
+
+    // ty=13 분기만 잘라서 본다. 다른 분기의 문자열에 걸리면 헛돈다.
+    const at = src.indexOf("else if (ty == '13')");
+    assert.ok(at > 0, "create_action 의 ty=13 분기를 못 찾았다 — 이 시험의 전제가 바뀌었다");
+
+    // 끝은 **다음 ty 분기가 무엇이든** 거기까지다. 특정 타입 번호를 경계로
+    // 박아 두면 그 분기를 손대는 무관한 편집에 이 시험이 부서진다.
+    const rest = src.slice(at + 1);
+    const m = rest.match(/else if \(ty == '\d+'/);
+    const end = m ? at + 1 + m.index : src.length;
+    const branch = src.slice(at, end);
+
+    assert.ok(branch.indexOf("callback('400-53')") >= 0,
+        'mgmtObj 의 알 수 없는 mgd 갈래가 400-53 으로 답하지 않는다');
+    assert.strictEqual(/responder\./.test(branch), false,
+        'mgmtObj 분기가 responder 를 직접 부른다 — 응답은 라우트의 정산기가 한다');
+    assert.strictEqual(/callback\('0'/.test(branch), false,
+        "카탈로그에 없는 '0' 을 위로 올린다 — 그 코드는 reason.get 이 null 을 내고 500 이 된다");
 });
 
 test('죽은 create_resource 가 되살아나지 않았다', function () {

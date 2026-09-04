@@ -254,33 +254,107 @@ mobius/resource.js:1514   callback('400');      ← 카탈로그에 없는 코�
 `settle.error('400')` → `reason.get('400')` 이 `null` → `app.js:1131` 이
 "정의되지 않은 코드" 로 500 을 낸다. **그것도 discovery 를 다 돌린 뒤에.**
 
-### 3.2 옛 7인자로 `response_result` 를 부르는 자리 6곳
+### 3.2 ~~옛 7인자로 `response_result` 를 부르는 자리 6곳~~ — **끝났다** (2026-09-04)
+
+**여섯 곳이 아니라 다섯 곳이었고, 그중 도달하는 것은 하나도 없었다.**
+문서가 요구한 "도달 가능성을 자리마다 확인해야 한다" 를 실측으로 했더니
+결론이 세 번 바뀌었다.
+
+#### 무엇이 문제였나
 
 ```
-시그니처   responder.js:442   (request, response, status, rsc, cap, callback)   ← 6개
-호출       resource.js:574 · 1312 · 1955 · 1968 · 1978 · 1991
-           (request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg'])
-                                        ^^^^^^^^  한 칸씩 밀린다
+시그니처   responder.js:442  (request, response, status, rsc, cap, callback)   ← 6개
+호출                        (request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg'])
+                                                     ^^^^^^^^  넷째부터 한 칸씩 당겨진다
 ```
 
-인자가 밀려 이렇게 들어간다:
+| 파라미터 | 실제로 받는 값 | 이 문서의 옛 주장 |
+|---|---|---|
+| `rsc` | `body_Obj` — **객체** | 같음 |
+| `cap` | `4000` | 같음 |
+| `callback` | **`request.url`** — 문자열 | `body_Obj['dbg']` — **틀렸다** |
 
-| 파라미터 | 받는 값 |
-|---|---|
-| `rsc` | `body_Obj` — **객체** |
-| `cap` | `4000` |
-| `callback` | `body_Obj['dbg']` — **문자열** |
+일곱째 인자(`body_Obj['dbg']`)는 그냥 **버려진다.** 실측으로 확인했다.
 
 두 가지가 동시에 터진다.
 
 1. `apply_headers(request, response, rsc)` 에 객체가 가서
-   **`X-M2M-RSC: [object Object]`** 가 나간다. 이 저장소가 이미 배포에서
-   한 번 겪은 그 결함이다
-2. `responder.js:465`·`470`·`568` 이 `callback()` 을 부르는데 문자열이라
+   **`X-M2M-RSC: [object Object]`** 가 나간다
+2. `responder.js` 의 `callback()` 자리에 문자열이 가서
    **TypeError → 워커 사망**
 
-**도달 가능성을 자리마다 확인해야 한다.** 여섯 곳 다 에러 응답 경로라
-평소에는 안 지나갈 수 있다.
+#### 자리별 실측 결과
+
+| 자리 | 판정 | 왜 |
+|---|---|---|
+| `resource.js:1312` | **호출이 아니다** | `/* */` 주석 블록 안(1310-1314) |
+| `1955` · `1968` · `1978` · `1991` | **죽은 함수 안** | `create_resource`(1943) 를 아무도 안 부른다 |
+| `574` | **도달 불가** | mgmtObj 구체 타입이 `typeRsrc` 에 없어 `type_resolver` 가 400-3 으로 먼저 끊는다 |
+
+#### 어떻게 처리했나
+
+**(1) `create_resource` 삭제 (53줄).** 참조 0 · export 0 · `eval`/동적 호출
+수단 0. **살아 있는 쌍둥이가 따로 있었다** — `build_resource`(:843)가 같은
+표(`create_np_attr_list` 등)로 같은 검증을 하고, 응답을 직접 보내지 않고
+카탈로그 코드를 콜백으로 돌려준다.
+
+| 지운 것 (옛 방식) | `build_resource` (지금) |
+|---|---|
+| 필수 속성 누락 → 400 + dbg | `callback('400-26')` |
+| NP 속성 존재 → 400 + dbg | `callback('400-22')` |
+| 정의 안 된 속성 → 400 + dbg | `callback('400-25')` |
+| `ty_list` 밖 → 405 + dbg | `callback('405-5')` |
+
+> **`resource.create` 는 함수 참조로 넘어간다** —
+> `authorize_and_run(..., resource.create, callback)`. `resource\.create\(` 로
+> grep 하면 0곳이 나온다. 이번에 한 번 헛짚었다.
+
+**(2) mgmtObj 갈래를 `callback('400-53')` 으로.** 6줄이 1줄이 됐다.
+형제 다섯이 이미 그 형태였고, 카탈로그의 `400-53` 문구가
+`"this resource of mgmtObj is not supported"` 로 **글자까지 같으며**,
+mgmtObj **update** 경로 두 곳(`:1717`·`:1834`)이 이미 그 코드를 쓰고 있었다.
+create 경로만 옛 방식으로 남아 있었던 것이다.
+
+**지우지는 않았다.** mgmtObj 를 여는 날 이 코드가 필요해진다. 지금 하는
+일은 결함을 고치는 것이 아니라 **그날을 위해 덫을 치우는 것**이다.
+
+#### mgmtObj 는 왜 도달하지 않나
+
+관문이 셋인데 첫 번째에서 다 막힌다.
+
+```
+1. type_resolver.js:98   typeRsrc 에 fwr/bat/dvi/dvc/rbo 가 없다 → 400-3   ← 전부 여기서 끝
+2. mgo.js:64             rootnm 과 mgd 짝이 안 맞으면 → 400-35
+3. create_action:571     mgd 가 다섯 중 없으면 → 문제의 자리
+```
+
+`typeRsrc` 에는 `13 → "mgo"` 만 있고 구체 타입 다섯은 `mgoType` 이라는
+**다른 표**에 있다. 그리고 이것은 **일부러 막아 둔 것**이다 —
+`type_resolver.js:94-97` 이 "그 아래 경로는 한 번도 실제로 밟힌 적이 없다.
+열려면 그 경로를 먼저 검증해야 한다" 고 적어 두었다.
+
+실측(2026-09-04, 로컬 서버): `fwr`+`mgd:1001`(정상 조합)·`fwr`+`9999`·
+`fwr`+`1006`·`bat`+`1001` 네 가지 전부 `400` / `4000` /
+`"not supported resource type requested"` 였다.
+
+#### 시험
+
+`test/responder-arity.test.js` (신규 4건):
+
+- `responder` 의 응답 함수가 **선언한 인자 개수**를 그대로 받는가
+- 호출부가 그 개수로 부르는가 — **알려진 위반 목록은 이제 비었다**
+- mgmtObj 갈래가 카탈로그 코드로 답하는가 (`responder` 직접 호출 금지,
+  카탈로그에 없는 `'0'` 금지)
+- `create_resource` 가 되살아나지 않았고 `build_resource` 는 그대로인가
+
+> **개수만 세면 안 된다.** 이미 위반인 자리에 인자를 하나 더 붙여도
+> "위반 1곳" 은 그대로라 통과한다 — 변이로 확인하고 어느 함수를 **몇 개로**
+> 부르는지(`'response_result:7'`)까지 못박았다.
+>
+> **경계를 특정 타입 번호로 박지 않는다.** 처음에 `ty == '28'` 을 구간
+> 경계로 썼더니 그 분기를 손대는 무관한 편집에 시험이 부서졌다.
+
+전체 1,072 → **1,076건**. 변이 10건으로 확인했다.
 
 ### 3.3 ~~MQTT 프록시가 내부 함수명과 예외 원문을 발행한다~~ — 해결됨
 
