@@ -107,7 +107,7 @@ exports.run = function (deps, cb) {
 
     step_db(function (err) {
         if (err) { return finish(err); }
-        var ctx = deps.onBackend(answers.db);   // global.usedb 는 호출자가 세운다
+        var ctx = deps.onBackend(answers.db);   // usedb 전역은 호출자가 세운다
         var steps = [];
         if (ctx.needsDbpass) { steps.push(['dbpass', 'DB 비밀번호', true]); }
         steps.push(['cseBase', 'CSE 이름', false]);
