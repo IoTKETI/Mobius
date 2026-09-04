@@ -3145,21 +3145,31 @@ exports.reconcile_cnt_counters = function (connection, opts, callback) {
             return;
         }
 
-        rows = rows || [];
+        // 어댑터가 배열 아닌 것을 주면 `0 >= undefined` 가 false 라 루프가
+        // 그대로 통과하고 rows[0].ri 에서 던진다. 그 예외는 콜백보다 앞이라
+        // 호출부의 어떤 try 로도 못 잡는다. 계약을 여기서 명시적으로 만든다.
+        rows = Array.isArray(rows) ? rows : [];
         var idx = 0;
         var fixed = 0;
         var failed = [];      // 집계가 실패한 컨테이너 (타임아웃 등)
         var deferred = [];    // maxCni 를 넘어 집계를 건너뛴 컨테이너
         var lastRi = cursor;
 
+        // finish 는 **콜백을 부르지 않는다.** 결과만 여기 놓고, 부르는 것은
+        // 트램펄린 밖에서 한다 (아래 pump 참고). 호출자가 던진 예외를
+        // 이 루프의 잘못으로 기록하면 안 되기 때문이다.
+        var result = null;
+
         function finish(outOfBudget) {
-            console.timeEnd(rec_id);
+            // console.timeEnd 는 여기서 부르지 않는다 — 트램펄린의 단일
+            // 출구에서만 부른다. 양쪽에서 부르면 thrown 갈래에서 라벨이
+            // 이미 소비돼 Node 가 "No such label" 경고를 낸다.
             if (fixed > 0 || failed.length > 0 || deferred.length > 0) {
                 console.log('[reconcile_cnt_counters] ' + idx + '건 확인, ' + fixed + '건 교정' +
                             (failed.length ? ', ' + failed.length + '건 실패' : '') +
                             (deferred.length ? ', ' + deferred.length + '건 유예(대형)' : ''));
             }
-            callback(null, {
+            result = {
                 checked: idx,
                 fixed: fixed,
                 failed: failed.length,
@@ -3169,7 +3179,7 @@ exports.reconcile_cnt_counters = function (connection, opts, callback) {
                 nextCursor: lastRi,
                 // 배치를 다 채웠거나 예산이 끊겼으면 아직 남았다.
                 done: !outOfBudget && rows.length < limit
-            });
+            };
         }
 
         // 예산이 한 건을 볼 만큼 남지 않았으면 시작하지 않는다. 남은 예산이
@@ -3181,7 +3191,85 @@ exports.reconcile_cnt_counters = function (connection, opts, callback) {
         // (첫 컨테이너를 보기 전에 멈춘다). null 을 줘야 예산을 안 건다.
         var hasBudget = (budgetMs !== null && budgetMs !== undefined);
 
-        (function next() {
+        // ── 트램펄린 ────────────────────────────────────────────────────
+        //
+        // **콜백이 동기로 돌아오면 이 루프는 재귀가 된다.**
+        //
+        // mysql2 는 커넥션이 죽으면 addCommand 를 _addCommandClosedState 로
+        // 갈아끼우는데(base/connection.js:960-968 의 close, :219-229 의
+        // _handleFatalError), 그것이 cmd.onResult(err) 를 process.nextTick 없이
+        // **그 자리에서** 부른다(:207-217). 그러면 execute -> facade.run ->
+        // 여기까지 전부 한 스택 위에서 돌아오고, next() 가 다음 행으로 가면서
+        // 행마다 열 몇 프레임씩 쌓인다.
+        //
+        // 실측(2026-09-04, 죽은 커넥션을 흉내낸 동기 실패 어댑터):
+        //
+        //     행 1,000  콜백 도착
+        //     행 1,500  RangeError: Maximum call stack size exceeded
+        //     행 2,000  RangeError — **콜백이 아예 안 온다**
+        //
+        // app.js 는 limit 2000 을 준다. 즉 이 경로는 오늘 열려 있다. 그리고
+        // 그 RangeError 는 드라이버 프레임에서 터져 나오므로 호출부의 어떤
+        // try 로도 못 잡는다 — 마스터의 reconcile_running 이 켜진 채 영구히
+        // 남고, backstop 이 마스터를 살리므로 24시간 틱이 영원히 튕긴다.
+        //
+        // 트램펄린은 동기로 돌아온 호출을 깃발로만 받아 **스택을 상수로**
+        // 유지한다. 정상(비동기) 경로에는 tick 이 하나도 늘지 않는다.
+        //
+        // ── 대신 무엇을 치르는가 ────────────────────────────────────────
+        //
+        // 스택 깊이 상한이 **이벤트 루프 블로킹 시간**으로 바뀐다. 죽은
+        // 커넥션에서는 남은 행을 한 tick 안에 다 돈다. 실측(TCP 리스너로
+        // accept 지연을 함께 측정):
+        //
+        //     행  2,000   블로킹 28.5ms   신규 접속 응답 31.1ms
+        //     행 20,000   블로킹  145ms   신규 접속 응답  146ms
+        //
+        // **마스터는 accept 루프다**(SCHED_RR). 그 시간 동안 워커가 전부
+        // 멀쩡해도 신규 연결이 수락되지 않는다. 배포 cnt 가 30,220행이라
+        // 현실 최악은 약 0.24초이고, 그것은 커넥션이 죽었을 때만 일어난다 —
+        // 크래시와 영구 정지를 그것과 바꾼 것이다.
+        //
+        // 한도를 크게 올릴 일이 생기면 이 숫자를 다시 재고, N행마다
+        // setImmediate 로 양보하는 항복점을 넣을 것.
+        var pumping = false;
+        var again = false;
+
+        function next() {
+            if (pumping) { again = true; return; }   // 동기 재진입 — 깃발만 세운다
+            pumping = true;
+            var thrown = null;
+            do {
+                again = false;
+                try { step(); }
+                catch (e) { thrown = e; break; }
+            } while (again && result === null);
+            pumping = false;
+
+            // **콜백은 루프 밖에서 부른다.** 안에서 부르면 호출자가 던진
+            // 예외를 이 루프의 잘못(LOOP_THREW)으로 기록하게 된다.
+            if (thrown) {
+                console.timeEnd(rec_id);
+                // 던져서 콜백을 잃는 대신 에러로 돌려준다. 호출부는 래치를
+                // 놓을 기회를 얻는다 — 이것이 "조용한 영구 정지" 와
+                // "한 주기 실패" 를 가른다.
+                //
+                // **이 그물이 덮는 것은 step() 안에서 던진 것뿐이다.**
+                // 드라이버 콜백이 비동기로 온 뒤 그 본문에서 던지면 여기
+                // 밖이다 — 그 경우는 원래도 콜백을 잃었고 지금도 잃는다.
+                // 동기로 돌아온 경로(죽은 커넥션)가 이 수정의 대상이다.
+                return callback(true, { code: 'LOOP_THREW', message: thrown.message,
+                                        stack: thrown.stack });
+            }
+            if (result !== null) {
+                console.timeEnd(rec_id);
+                var r = result;
+                result = null;
+                return callback(null, r);
+            }
+        }
+
+        function step() {
             if (idx >= rows.length) { return finish(false); }
             if (hasBudget && (Date.now() - started) >= Math.max(0, budgetMs - MIN_SLICE_MS)) {
                 return finish(true);
@@ -3258,7 +3346,9 @@ exports.reconcile_cnt_counters = function (connection, opts, callback) {
                         next();
                     });
             });
-        })();
+        }
+
+        next();
     });
 };
 
@@ -3326,14 +3416,76 @@ exports.purge_sweep = function (connection, opts, callback) {
     var limit = o.limit || 100;
     var report = { scanned: 0, purged: 0, deleted: 0, failed: 0 };
 
+    // 컨테이너 하나를 끝낼 때마다 부른다. 감시가 "한 바퀴가 얼마나 걸렸나"
+    // 가 아니라 **"마지막 진전이 언제였나"** 를 재게 하려는 것이다.
+    // purge 는 예산이 없어 한 바퀴 길이에 상한이 없다 — 한 바퀴로 재면
+    // 정상 백로그 스윕이 그대로 오탐이 된다.
+    // **훅이 정산을 막지 못하게 한다.** 아래 두 호출 자리 중 하나
+    // (delete_oldest 콜백 안)는 트램펄린의 try 도, app.js 의 try 도 닿지
+    // 않는다 — step() 은 이미 반환했고 next() 의 try 도 빠져나온 뒤다.
+    // 거기서 던지면 콜백이 0회가 되어 이 수정이 막으려던 영구 래치가
+    // 그대로 재현된다. app.js 의 release_quietly 와 같은 규약이다.
+    var raw_progress = (typeof o.onProgress === 'function') ? o.onProgress : null;
+    var onProgress = raw_progress && function (ri) {
+        try { raw_progress(ri); }
+        catch (e) { console.error('[purge_sweep] onProgress 실패: ' + e.message); }
+    };
+
     _this.select_over_limit(connection, limit, function (err, rows) {
         if (err) { return callback(err, rows); }
+        // reconcile 과 같은 이유로 계약을 명시적으로 만든다. 배열이 아니면
+        // rows.length 가 undefined 가 되어 루프를 통과하고 rows[0] 에서 던진다.
+        rows = Array.isArray(rows) ? rows : [];
         report.scanned = rows.length;
         if (!rows.length) { return callback(null, report); }
 
         var i = 0;
-        (function next() {
-            if (i >= rows.length) { return callback(null, report); }
+        var result = null;
+
+        // ── 트램펄린 ────────────────────────────────────────────────────
+        //
+        // reconcile_cnt_counters 와 같은 처방이고 같은 이유다. 죽은 커넥션은
+        // 콜백을 동기로 돌려주므로(mysql2 의 _addCommandClosedState) 이 루프가
+        // 재귀가 된다.
+        //
+        // **purge 가 지금까지 살아 있던 유일한 근거는 app.js 가 주는
+        // limit 100 이었다.** 실측(2026-09-04, 동기 실패 어댑터):
+        //
+        //     행   100  콜백 도착      <- app.js 가 주는 값
+        //     행   500  콜백 도착
+        //     행 1,000  **콜백 없음**  (RangeError)
+        //
+        // 여유가 5~10배뿐인데 그 사실이 어디에도 안 적혀 있었다. 한도를
+        // 올리는 커밋 하나면 reconcile 과 같은 영구 정지가 된다. 트램펄린은
+        // 그 의존을 없앤다 — limit 이 얼마든 스택이 상수다.
+        var pumping = false;
+        var again = false;
+
+        function next() {
+            if (pumping) { again = true; return; }
+            pumping = true;
+            var thrown = null;
+            do {
+                again = false;
+                try { step(); }
+                catch (e) { thrown = e; break; }
+            } while (again && result === null);
+            pumping = false;
+
+            // 콜백은 루프 밖에서. 호출자가 던진 것을 루프 잘못으로 적지 않는다.
+            if (thrown) {
+                return callback(true, { code: 'LOOP_THREW', message: thrown.message,
+                                        stack: thrown.stack });
+            }
+            if (result !== null) {
+                var rep = result;
+                result = null;
+                return callback(null, rep);
+            }
+        }
+
+        function step() {
+            if (i >= rows.length) { result = report; return; }
             var r = rows[i];
             i++;
 
@@ -3352,6 +3504,7 @@ exports.purge_sweep = function (connection, opts, callback) {
                 report.failed++;
                 console.error('[purge_sweep] 한도가 비어 있다 — 건너뛴다 ri=' + r.ri +
                               ' mni=' + r.mni + ' mbs=' + r.mbs);
+                if (onProgress) { onProgress(r.ri); }
                 return next();
             }
 
@@ -3375,9 +3528,12 @@ exports.purge_sweep = function (connection, opts, callback) {
                     report.purged++;
                     report.deleted += deleted;
                 }
+                if (onProgress) { onProgress(r.ri); }
                 next();
             });
-        })();
+        }
+
+        next();
     });
 };
 

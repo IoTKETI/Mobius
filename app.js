@@ -363,31 +363,165 @@ var RECONCILE_GAP_MS = 60 * 1000;
 // 걸리는 컨테이너가 14개였다.
 var purge_running = false;
 
+// ── 래치 감시 ────────────────────────────────────────────────────────────
+//
+// 두 주기 작업은 플래그를 켜고 **DB 콜백 안에서만** 끈다. 콜백이 안 오거나
+// 콜백 본문에서 던지면 플래그가 켜진 채 남고, 그 뒤의 모든 틱이
+// `if (running) return` 으로 **로그 한 줄 없이** 튕긴다. 마스터에서 도는
+// 일이라 워커 재기동으로 회복되지 않는다.
+//
+// 원인 쪽은 두 군데서 닫았다.
+//   - sql_action 의 트램펄린 — 죽은 커넥션이 콜백을 동기로 돌려줄 때
+//     루프가 재귀가 되어 스택이 터지고 콜백이 사라지던 것 (실측 근거는
+//     mobius/sql_action.js 의 트램펄린 주석에 있다)
+//   - 아래 settle_* / try-catch — 콜백에 도달한 뒤의 어떤 예외로도
+//     래치를 놓고 나가게 한다
+//
+// 여기 있는 것은 **그래도 남는 것**을 알리는 그물이다.
+//
+// ── 왜 풀지 않는가
+//
+// 래치는 상호배제다. 풀어도 도는 흐름은 안 멈춘다 — 취소 경로가 없다.
+// 푸는 것은 잠금 없는 임계구역에 두 번째 쓰기 주체를 들여보내는 일이고,
+// purge 두 흐름은 한도 밑으로 CIN 을 지우며(FK CASCADE 라 복구 불가)
+// reconcile 두 흐름은 커서를 서로 덮어써 구간을 무음으로 건너뛴다.
+// **재기동으로 회복되는 정지를, 회복되지 않는 손상과 바꾸는 거래다.**
+//
+// mobius/lease.js 의 강제 회수는 자원을 되돌리는 것이라 데이터를 틀리게
+// 할 수 없다. 여기는 다르다. 그래서 알리기만 한다. 옵션으로도 두지 않는다.
+//
+// ── 왜 시계가 둘인가
+//
+// **한 바퀴 길이로 재면 안 된다.** reconcile 한 바퀴는 조각 16회 x 간격
+// 60초 = 최소 15분이고, 조각당 처리량이 떨어지면 몇 시간이 된다. purge 는
+// 예산이 아예 없어 상한 자체가 없다. 그 값들은 데이터에 달렸으므로
+// 임계값을 정할 수 없다.
+//
+//   started_at   래치를 켠 시각. 콜백이 **아예 안 오는** 것을 잡는다
+//                (db.getConnection 은 시간 상한이 없다 — mysql2 에
+//                 acquireTimeout 이 없고 queueLimit 은 큐가 꽉 찼을 때만
+//                 에러를 낸다. mobius/db/mysql.js 의 풀 주석 참고)
+//   progress_at  실제로 전진한 시각. **reconcile 은 "조각이 끝났다" 가
+//                아니라 "커서가 전진했다" 여야 한다** — 커서가 안 움직이는
+//                자기영속 사슬은 조각을 계속 정상 종료하므로, 조각 완료로
+//                재면 60초마다 시계가 되감겨 영원히 건강해 보인다
+//
+// 진전 간격의 정상 상한은 계산된다: reconcile 은 조각 30초 + 마지막 집계
+// 5초 + 간격 60초 ~= 100초, purge 는 컨테이너 하나 단위라 그보다 짧다.
+// 기본 임계 15분은 9배 여유다. **한 바퀴가 3시간이든 24시간이든 안 걸린다.**
+// 장부와 판정은 mobius/latch.js 가 갖는다. app.js 는 단독 로드가 안 되므로
+// (require 하면 서버가 뜬다) 여기 두면 시험이 원문 정규식밖에 못 건다 —
+// 배선 한 줄을 지워도 전부 초록인 상태가 된다. lease.js 와 같은 이유로
+// 모듈에 둔다.
+var latch = require('./mobius/latch');
+
+// db.release 는 지금 두 어댑터에서 던지지 않는다. mysql2 의
+// PoolConnection.release 는 이중 반납에 조용히 돌아가고(_released 와 _pool
+// 두 겹), sqlite 의 release 는 빈 함수다. 그런데 그 무해함은 **드라이버
+// 구현에 얹혀 있다** — mysqljs 는 정확히 이 자리에서 던졌다.
+// 반납이 정산을 막지 못하게 한다.
+function release_quietly(connection, who) {
+    try { db.release(connection); }
+    catch (e) { console.error('[' + who + '] 커넥션 반납 실패: ' + e.message); }
+}
+
 function purge_sweep_tick() {
     if (purge_running) { return; }   // 한 바퀴가 도는 중이면 넘어간다
     purge_running = true;
+    // 취득보다 **먼저** 올린다. db.getConnection 이 콜백을 영영 안 주는
+    // 경로도 장부에 잡혀야 한다 — lease 는 취득에 성공한 뒤에야 올리므로
+    // 그 경로를 원리적으로 못 본다.
+    latch.enter('purge_sweep');
 
-    db.getConnection((code, connection) => {
+    db.getConnection(once(function (code, connection) {
         if (code !== '200') {
             purge_running = false;
+            latch.leave('purge_sweep');
             console.error('[purge_sweep] 커넥션을 못 빌렸다 — 다음 주기에 다시 한다');
             return;
         }
-        db_sql.purge_sweep(connection, { limit: 100 }, (err, report) => {
-            db.release(connection);
+
+        // 정산은 여기 한 곳에서만 한다. 응답 경로의 settle.js 와 같은 생각이다.
+        var settled = false;
+        function settle_purge() {
+            if (settled) { return; }
+            settled = true;
             purge_running = false;
-            if (err) {
-                console.error('[purge_sweep] 실패: ' + ((report && report.message) || report));
-                return;
-            }
-            // 할 일이 없으면 조용하다. 10초마다 한 줄씩 찍으면 로그가 밀린다.
-            if (report.scanned > 0) {
-                console.log('[purge_sweep] 초과 ' + report.scanned + '개 중 ' +
-                            report.purged + '개 정리, ' + report.deleted + '건 삭제' +
-                            (report.failed ? ', 실패 ' + report.failed : ''));
-            }
-        });
-    });
+            latch.leave('purge_sweep');
+            release_quietly(connection, 'purge_sweep');
+        }
+
+        try {
+            db_sql.purge_sweep(connection, {
+                limit: 100,
+                // 컨테이너 하나를 끝낼 때마다 진전으로 센다. purge 는 예산이
+                // 없어 한 바퀴 길이에 상한이 없으므로, 한 바퀴로 재면 정상
+                // 백로그 스윕이 그대로 오탐이 된다.
+                onProgress: function () { latch.progress('purge_sweep'); }
+            }, once(function (err, report) {
+                try {
+                    if (err) {
+                        console.error('[purge_sweep] 실패: ' + ((report && report.message) || report));
+                        return;
+                    }
+                    // 할 일이 없으면 조용하다. 10초마다 한 줄씩 찍으면 로그가 밀린다.
+                    if (report.scanned > 0) {
+                        console.log('[purge_sweep] 초과 ' + report.scanned + '개 중 ' +
+                                    report.purged + '개 정리, ' + report.deleted + '건 삭제' +
+                                    (report.failed ? ', 실패 ' + report.failed : ''));
+                    }
+                }
+                finally { settle_purge(); }
+            }, 'purge_sweep'));
+        }
+        catch (e) {
+            // 호출이 **동기로** 던졌다 — 콜백은 오지 않는다. 여기서 정산한다.
+            settle_purge();
+            throw e;   // 삼키지 않는다. backstop 이 찍어야 원인을 고칠 수 있다
+        }
+    }, 'purge_sweep getConnection'));
+}
+
+// 한 바퀴 중간에 실패했을 때 이어돌기를 몇 번까지 다시 시도하는가.
+//
+// **이것이 없으면 조각 하나의 일시적 실패가 한 바퀴를 통째로 버린다.**
+// 커서는 중간에 멈춰 있는데 래치는 정상 반납되므로 감시도 조용하고, 다음
+// 재개는 24시간 뒤 틱이다. RECONCILE_GAP_MS 가 없애려던 "한 바퀴에 16일"
+// 이 그대로 돌아온다.
+//
+// 상한을 두는 이유는 영구 재시도가 곧 영구 점유이기 때문이다. 상한을
+// 넘기면 래치를 놓고 24시간 틱에 맡긴다 — 그때는 사람이 볼 일이다.
+var RECONCILE_MAX_RETRY = 5;
+var reconcile_retry = 0;
+
+/**
+ * 한 바퀴 중간에 실패했을 때 이어돌기를 다시 예약한다.
+ *
+ * 바퀴 밖(커서가 비어 있음)이면 아무것도 안 한다 — 그냥 다음 24시간 틱을
+ * 기다리면 되고, 그것이 정상이다.
+ *
+ * 상한을 넘기면 false 를 돌려준다. 그때 호출부는 래치를 놓고 24시간 틱에
+ * 맡긴다. 커서는 남겨 둔다 — 다음 바퀴가 그 자리에서 이어서 돈다.
+ *
+ * @returns {boolean} 다시 예약했으면 true (호출부는 래치를 켠 채 둔다)
+ */
+function rearm_or_give_up(why) {
+    if (reconcile_cursor === '') { return false; }   // 바퀴 밖이다
+    reconcile_retry++;
+    if (reconcile_retry > RECONCILE_MAX_RETRY) {
+        console.error('[reconcile_counters] ' + why + ' — ' + RECONCILE_MAX_RETRY +
+                      '회 재시도했으나 이어가지 못했다. 이 바퀴를 놓고 다음 24시간 ' +
+                      '틱에 맡긴다. 커서는 ' + reconcile_cursor + ' 에 남겨 둔다');
+        return false;
+    }
+    // 뒤로 갈수록 사이를 벌린다. DB 가 잠깐 흔들린 것이면 첫 번째나 두 번째에
+    // 붙고, 계속 안 되면 붙잡고 늘어지지 않는다.
+    var wait = RECONCILE_GAP_MS * reconcile_retry;
+    console.log('[reconcile_counters] ' + why + ' — ' + Math.round(wait / 1000) +
+                '초 뒤 이어서 다시 시도한다 (' + reconcile_retry + '/' +
+                RECONCILE_MAX_RETRY + ')');
+    setTimeout(function () { reconcile_counters(true); }, wait);
+    return true;
 }
 
 // is_continuation 은 이어 돌기가 스스로 부를 때만 true 다.
@@ -396,57 +530,113 @@ function purge_sweep_tick() {
 function reconcile_counters(is_continuation) {
     if (reconcile_running && !is_continuation) { return; }
     reconcile_running = true;
+    // **이어돌기에서는 장부를 새로 올리지 않는다.** 한 바퀴 전체가 하나의
+    // 임대이기 때문이다 — 조각마다 새로 올리면 "이 바퀴가 언제 시작했나" 를
+    // 잃는다. (latch.enter 자체는 이미 잡혀 있으면 시계를 되감지 않고
+    // 겹침을 알리기만 한다. 그래도 그 경고는 진짜 겹침일 때만 나야 한다.)
+    if (!is_continuation) {
+        latch.enter('reconcile_counters');
+        reconcile_retry = 0;
+    }
 
-    db.getConnection((code, connection) => {
+    db.getConnection(once(function (code, connection) {
         if (code !== '200') {
             console.log('[reconcile_counters] No Connection');
+            if (rearm_or_give_up('커넥션을 못 빌렸다')) { return; }
             reconcile_running = false;
+            latch.leave('reconcile_counters');
             return;
         }
 
-        db_sql.reconcile_cnt_counters(connection,
-            // limit 은 한 번에 읽어 둘 컨테이너 수이고, 실질 상한은 budgetMs 다.
-            // cnt 는 3만 행대라 2000행을 읽는 것 자체는 싸다.
-            { limit: 2000, cursor: reconcile_cursor, budgetMs: 30000 },
-            (err, report) => {
-                db.release(connection);
+        // 정산은 여기 한 곳에서만. 이어돌기를 예약한 경우에만 래치를 켠 채
+        // 둔다 — **설계상 유지해야 하는 유일한 경우이고, 그 하나만 예외다.**
+        var settled = false;
+        var chained = false;
+        function settle_reconcile() {
+            if (settled) { return; }
+            settled = true;
+            if (!chained) {
+                reconcile_running = false;
+                latch.leave('reconcile_counters');
+            }
+            release_quietly(connection, 'reconcile_counters');
+        }
 
-                if (err) {
-                    console.log('[reconcile_counters] error', report);
-                    reconcile_running = false;
-                    return;
-                }
+        try {
+            db_sql.reconcile_cnt_counters(connection,
+                // limit 은 한 번에 읽어 둘 컨테이너 수이고, 실질 상한은 budgetMs 다.
+                // cnt 는 3만 행대라 2000행을 읽는 것 자체는 싸다.
+                { limit: 2000, cursor: reconcile_cursor, budgetMs: 30000 },
+                once(function (err, report) {
+                    try {
+                        if (err) {
+                            console.log('[reconcile_counters] error', report);
+                            // 바퀴 중간이면 버리지 않고 다시 잡는다.
+                            if (rearm_or_give_up('조각이 실패했다')) { chained = true; }
+                            return;
+                        }
 
-                if (report.fixed > 0) {
-                    console.log('[reconcile_counters] ' + report.checked + '건 확인, ' +
-                                report.fixed + '건 교정');
-                }
-                reconcile_deferred = reconcile_deferred.concat(report.deferredRis || []);
-                reconcile_failed = reconcile_failed.concat(report.failedRis || []);
+                        if (report.fixed > 0) {
+                            console.log('[reconcile_counters] ' + report.checked + '건 확인, ' +
+                                        report.fixed + '건 교정');
+                        }
+                        reconcile_deferred = reconcile_deferred.concat(report.deferredRis || []);
+                        reconcile_failed = reconcile_failed.concat(report.failedRis || []);
 
-                if (report.done) {
-                    // 한 바퀴 완료. 손대지 못한 것들을 한 번만 알리고 되감는다.
-                    var stuck = reconcile_deferred.concat(reconcile_failed);
-                    if (stuck.length > 0) {
-                        console.log('[reconcile_counters] 한 바퀴 완료 — 유예(대형) ' +
-                                    reconcile_deferred.length + '건, 실패 ' +
-                                    reconcile_failed.length + '건. 관리자 UI 에서 개별 처리 필요: ' +
-                                    stuck.slice(0, 10).join(', ') +
-                                    (stuck.length > 10 ? ' 외 ' + (stuck.length - 10) + '건' : ''));
+                        // **커서가 실제로 전진했을 때만** 진전으로 센다.
+                        // 조각이 정상 종료하는데 nextCursor 가 그대로인 상태가
+                        // 있다 — 배치 SELECT 에는 문장 상한이 없어서, 그것이
+                        // 예산(30초)을 다 먹으면 첫 컨테이너를 보기도 전에
+                        // idx=0 · lastRi===cursor 로 끝난다. 그러면 이어돌기가
+                        // 같은 커서로 영원히 다시 돈다. 조각 완료로 재면
+                        // 그 상태가 건강해 보인다.
+                        if (report.nextCursor !== reconcile_cursor) {
+                            latch.progress('reconcile_counters');
+                            // 전진했으면 재시도 예산도 되돌린다. 안 그러면 긴
+                            // 바퀴에 흩어진 실패 다섯 번으로 예산이 마른다 —
+                            // 상한은 "연속으로 못 이어간다" 를 재야 한다.
+                            reconcile_retry = 0;
+                        }
+
+                        if (report.done) {
+                            // 한 바퀴 완료. **상태를 먼저 되감고 보고는 나중에** 한다 —
+                            // 보고 문장에서 던지면 커서가 테이블 끝에 남고 유예·실패
+                            // 목록도 안 비워져, 보이는 정지가 안 보이는 영구 no-op 이 된다.
+                            var stuck = reconcile_deferred.concat(reconcile_failed);
+                            var n_deferred = reconcile_deferred.length;
+                            var n_failed = reconcile_failed.length;
+                            reconcile_cursor = '';
+                            reconcile_deferred = [];
+                            reconcile_failed = [];
+                            if (stuck.length > 0) {
+                                console.log('[reconcile_counters] 한 바퀴 완료 — 유예(대형) ' +
+                                            n_deferred + '건, 실패 ' + n_failed +
+                                            '건. 관리자 UI 에서 개별 처리 필요: ' +
+                                            stuck.slice(0, 10).join(', ') +
+                                            (stuck.length > 10 ? ' 외 ' + (stuck.length - 10) + '건' : ''));
+                            }
+                            // 래치는 settle_reconcile 이 내린다 (chained 가 false 다).
+                        }
+                        else {
+                            // 아직 도는 중이다. reconcile_running 을 켠 채로 두어
+                            // 24시간 틱이 끼어들지 못하게 한다.
+                            reconcile_cursor = report.nextCursor;
+                            setTimeout(function () { reconcile_counters(true); }, RECONCILE_GAP_MS);
+                            // **예약이 실제로 걸린 뒤에** 켠다. 앞에 두면
+                            // setTimeout 이 던졌을 때 래치는 켜져 있고 이어돌기는
+                            // 없는 최악의 상태가 된다.
+                            chained = true;
+                        }
                     }
-                    reconcile_cursor = '';
-                    reconcile_deferred = [];
-                    reconcile_failed = [];
-                    reconcile_running = false;   // 한 바퀴 끝. 다음 24시간 틱을 받는다.
-                }
-                else {
-                    // 아직 도는 중이다. reconcile_running 을 켠 채로 두어
-                    // 24시간 틱이 끼어들지 못하게 한다.
-                    reconcile_cursor = report.nextCursor;
-                    setTimeout(function () { reconcile_counters(true); }, RECONCILE_GAP_MS);
-                }
-            });
-    });
+                    finally { settle_reconcile(); }
+                }, 'reconcile_counters'));
+        }
+        catch (e) {
+            // 호출이 **동기로** 던졌다 — 콜백은 오지 않는다.
+            settle_reconcile();
+            throw e;   // 삼키지 않는다
+        }
+    }, 'reconcile_counters getConnection'));
 }
 
 // 고아 행 정리는 **자동으로 돌리지 않는다.**
@@ -485,6 +675,18 @@ if (use_clustering) {
         // 사라진다 — 리스닝 포트가 전부 없어진다. 마스터는 요청 상태를
         // 들고 있지 않으므로 살아남는 쪽이 낫다. 자세한 근거는 backstop.js.
         backstop.install('master');
+
+        // ── 감시를 **가장 먼저** 건다 ────────────────────────────────────
+        //
+        // 아래 주기 작업 배선은 콜백 네 겹 안에 있다:
+        //   db.connect -> db.getConnection -> db_bootstrap.run -> cb.create
+        // 그중 하나가 콜백을 안 주면 주기 작업 둘이 **아예 등록되지 않는다.**
+        // 그때 워커는 이미 떠서 트래픽을 정상 처리하므로 완벽하게 조용하다.
+        //
+        // latch.sweep 은 DB 에 아무것도 요구하지 않는다. 그래서 그 사슬 밖,
+        // 마스터 블록 최상단에 건다. 그러면 위 사슬이 통째로 끊겨도 감시는
+        // 살아서 "한 번도 시작되지 않았다" 를 알릴 수 있다.
+        setInterval(function () { latch.sweep(); }, 60 * 1000);
 
         // 결과 코드·사유 카탈로그 자체 점검. 마스터에서 한 번만 돈다.
         // 문제가 있어도 기동을 막지 않는다 — 운영 배포에서 서버가 안 뜨는 쪽이
@@ -572,13 +774,23 @@ if (use_clustering) {
                                 // (delete_orphan_lookup)의 주기 실행은 뺐다.
                                 // 이유는 위 주석 참고 — 관리자 UI 가 확인 후 호출한다.
 
-                                reconcile_counters();
-                                setInterval(reconcile_counters, (24) * (60) * (60) * (1000));
+                                // **등록을 즉시 호출보다 먼저 한다.**
+                                //
+                                // 아래 reconcile_counters() 는 한 번 도는 호출이고,
+                                // 그것이 던지면 뒤따르는 setInterval 이 하나도
+                                // 등록되지 않아 **주기 작업 둘이 프로세스 수명 내내
+                                // 영영 안 돈다.** 등록은 부작용이 없으므로 앞에 둔다.
+                                //
+                                // 감시(latch.sweep)는 이 사슬 밖, 마스터 블록
+                                // 최상단에 이미 걸려 있다.
 
                                 // 보존 정책 스윕. 주기가 곧 "한도를 얼마나 넘겨도
                                 // 되는가" 의 손잡이다. 예전 debounce 도 최대 10초를
                                 // 허용했으므로 같은 수준에서 시작한다.
                                 setInterval(purge_sweep_tick, global.purge_sweep_ms);
+                                setInterval(reconcile_counters, (24) * (60) * (60) * (1000));
+
+                                reconcile_counters();
 
                                 // 프로토콜 프록시 3종(pxy_mqtt · pxy_coap · pxy_ws)을 여기서 require 했다.
                                 // **2026-09-04 에 지웠다. 다시 넣지 말 것 — 아래를 먼저 읽을 것.**

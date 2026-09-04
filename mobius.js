@@ -169,6 +169,14 @@ global.use_sgn_man_port = port_of(conf.sgnManPort, '7599');
 // 없다. 예전 debounce 방식도 최대 10초를 허용했으므로 같은 수준에서 시작한다.
 global.purge_sweep_ms = (typeof conf.purgeSweepMs === 'number' && conf.purgeSweepMs >= 1000)
     ? conf.purgeSweepMs : 10000;
+
+// 주기 작업 래치가 굳었다고 볼 시간(ms). 0 이면 감시를 끈다.
+//
+// 재는 것은 **한 바퀴 길이가 아니라 마지막 진전으로부터의 시간**이다.
+// 한 바퀴는 데이터에 달려 몇 시간이 될 수 있어 임계값을 정할 수 없다.
+// 자세한 근거는 app.js 의 래치 감시 주석에 있다.
+global.latchStaleMs = (typeof conf.latchStaleMs === 'number' && conf.latchStaleMs >= 0)
+    ? conf.latchStaleMs : 900000;
 global.use_hit_man_port = port_of(conf.hitManPort, '7594');
 
 // ── DB 커넥션 풀 ────────────────────────────────────────────────────────

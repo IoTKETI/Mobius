@@ -238,7 +238,15 @@ test('보고에 failed/deferred 가 항상 들어간다', function (t, done) {
 // 커서는 "다음 호출이 멈춘 자리에서 계속한다" 를 전제로 만들었는데, 예전에는
 // 그 다음 호출이 24시간 뒤뿐이었다. 배포 기준 컨테이너 30,220개를 조각당
 // 2000개로 나누면 한 바퀴에 16일이 걸려 드리프트 교정이 사실상 멈춰 있었다.
-const APP = require('node:fs').readFileSync(path.join(ROOT, 'app.js'), 'utf8');
+// **주석은 걷어낸다.** 안 걷어내면 설명 문장이 검사를 통과시킨다 — 이 저장소가
+// 여러 번 겪은 함정이고, 바로 아래 시험이 실제로 그렇게 되어 있었다:
+// `/reconcile_running = false;\s*\/\/\s*한 바퀴 끝/` 은 **주석 글자**를 봤다.
+// 정산을 settle_reconcile 한 곳으로 모으면서 그 주석이 사라지자, 동작은 더
+// 정확해졌는데 시험이 깨졌다. 시험이 구조가 아니라 글자를 보고 있었다는 뜻이다.
+const APP_RAW = require('node:fs').readFileSync(path.join(ROOT, 'app.js'), 'utf8');
+const APP = APP_RAW
+    .replace(/\/\*[\s\S]*?\*\//g, ' ')
+    .replace(/(^|[^:])\/\/[^\n]*/g, '$1');
 
 test('app.js: 한 바퀴가 안 끝났으면 24시간을 기다리지 않고 이어서 돈다', function () {
     assert.match(APP, /RECONCILE_GAP_MS\s*=\s*60\s*\*\s*1000/,
@@ -251,9 +259,59 @@ test('app.js: 한 바퀴가 안 끝났으면 24시간을 기다리지 않고 이
 test('app.js: 24시간 틱은 한 바퀴가 도는 중이면 끼어들지 않는다', function () {
     assert.match(APP, /if\s*\(reconcile_running\s*&&\s*!is_continuation\)\s*\{\s*return;\s*\}/,
         '겹침 방어가 없다 — 두 흐름이 같은 커서를 각자 전진시켜 컨테이너를 건너뛴다');
-    // 이어 돌기 중에는 플래그가 켜져 있어야 한다. done 일 때만 내린다.
-    assert.match(APP, /reconcile_running\s*=\s*false;\s*\/\/\s*한 바퀴 끝/,
-        '한 바퀴가 끝날 때 플래그를 내리지 않는다');
+
+    // 이어 돌기 중에는 플래그가 켜져 있어야 하고, 한 바퀴가 끝나면 내려가야
+    // 한다. 그 판단은 **정산기 한 곳**에 있다 — `chained` 가 "이어 돌기를
+    // 예약했다" 이고, 그때만 켠 채로 둔다.
+    // 불리언과 장부는 **같은 가드 안에서 함께** 움직여야 한다. 갈라지면
+    // 감시가 보는 상태와 실제 배타 상태가 어긋난다 — 그러면 굳었는데
+    // 조용하거나, 멀쩡한데 경고가 난다.
+    assert.match(APP,
+        /if\s*\(!chained\)\s*\{\s*reconcile_running\s*=\s*false;\s*latch\.leave\('reconcile_counters'\);\s*\}/,
+        'reconcile 의 래치 해제와 장부 반납이 chained 판단 한 곳에 모여 있지 않다');
+
+    // 정산이 다시 흩어지면 "콜백 본문에서 던지면 래치가 영구히 켜진다" 가
+    // 돌아온다. reconcile 의 해제는 정산기 안의 그 한 줄과, 커넥션을 못
+    // 빌린 갈래 하나뿐이어야 한다.
+    // `var reconcile_running = false;` 선언은 빼고 센다.
+    const drops = (APP.match(/(?<!var )reconcile_running\s*=\s*false/g) || []).length;
+    assert.strictEqual(drops, 2,
+        'reconcile_running 해제가 ' + drops + '곳이다 — 정산이 다시 흩어졌는지 볼 것 ' +
+        '(정산기 1곳 + 커넥션 취득 실패 1곳)');
+});
+
+test('app.js: 두 주기 작업의 정산이 대칭이다', function () {
+    // purge 는 예전에 "정산 세 문장을 콜백 첫머리에 둔다" 는 **문장 순서**로만
+    // 지켜져 있었다. 그 앞에 줄 하나만 붙으면 창이 다시 열린다.
+    // reconcile 만 구조로 닫고 purge 는 관행으로 닫은 비대칭이었다.
+    assert.match(APP, /function\s+settle_purge\s*\(\s*\)/, 'purge 에 정산기가 없다');
+    assert.match(APP, /function\s+settle_reconcile\s*\(\s*\)/, 'reconcile 에 정산기가 없다');
+
+    // 콜백 본문 어디서 던져도 정산이 돌아야 한다.
+    const finallies = (APP.match(/finally\s*\{\s*settle_(purge|reconcile)\(\);\s*\}/g) || []).length;
+    assert.strictEqual(finallies, 2,
+        'finally 로 정산하는 자리가 ' + finallies + '곳이다 — 둘이어야 한다');
+
+    // db_sql 호출 **자체**가 동기로 던지면 콜백은 오지 않는다. 그 갈래도
+    // 정산해야 하고, 예외는 삼키지 않고 되던져야 한다 — backstop 이 찍어야
+    // 원인을 고칠 수 있다.
+    const rethrows = (APP.match(/settle_(purge|reconcile)\(\);\s*throw\s+e;/g) || []).length;
+    assert.strictEqual(rethrows, 2,
+        '동기 throw 갈래에서 정산하고 되던지는 자리가 ' + rethrows + '곳이다 — 둘이어야 한다');
+
+    // 반납을 하는 콜백은 once 로 감싼다(저장소 규약). 마스터 주기 작업 두
+    // 자리에서만 안 지켜져 있었다. **둘 다** 세야 한다 — 하나만 보면 다른
+    // 하나에서 걷어내도 통과한다.
+    const wrapped = (APP.match(/once\(function\s*\(err,\s*report\)/g) || []).length;
+    assert.strictEqual(wrapped, 2,
+        '주기 작업 콜백 중 ' + wrapped + '곳만 once 로 감싸여 있다 — 둘이어야 한다');
+
+    // 커넥션 취득 콜백도 마찬가지다. mysql2 는 타임아웃 뒤에 콜백을 두 번
+    // 부를 수 있고, reconcile 은 is_continuation 이 래치 검사를 우회하도록
+    // 설계돼 있어 콜백이 두 번 불리면 래치가 잠기는 게 아니라 **무력화된다**.
+    const acquired = (APP.match(/db\.getConnection\(once\(/g) || []).length;
+    assert.strictEqual(acquired, 2,
+        '주기 작업의 커넥션 취득 콜백 중 ' + acquired + '곳만 once 로 감싸여 있다');
 });
 
 test('app.js: 손대지 못한 컨테이너를 바퀴 끝에 한 번만 보고한다', function () {

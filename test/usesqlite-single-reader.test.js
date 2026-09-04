@@ -64,7 +64,11 @@ const KNOWN_NAME_SITES = {
 
     // 설정 표의 기본 백엔드. mobius/db/index.js 의 DEFAULT_BACKEND 와 같은 값을
     // 두 번째로 적은 자리다(헌장 7g).
-    'mobius/conf_schema.js': [154]
+    // **줄 번호는 그 파일을 손댈 때마다 밀린다.** 2026-09-04 에만 두 번
+    // 밀렸다(latchStaleMs 항목 추가로 154 -> 173, 그 항목의 도움말 두 줄
+    // 추가로 173 -> 175). 이 시험이 실패하면 대개 결함이 아니라 이 숫자다 —
+    // 실패 메시지가 새 줄 번호를 알려 주므로 그것으로 바꾸면 된다.
+    'mobius/conf_schema.js': [175]
 };
 
 // 백엔드 이름이 붙은 전역(global.use_sqlite_* 등)을 코어가 직접 쓰는 자리.
