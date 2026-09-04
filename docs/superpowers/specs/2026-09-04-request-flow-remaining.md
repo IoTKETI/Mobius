@@ -320,12 +320,19 @@ create 경로만 옛 방식으로 남아 있었던 것이다.
 
 #### mgmtObj 는 왜 도달하지 않나
 
-관문이 셋인데 첫 번째에서 다 막힌다.
+관문이 셋인데, **본문 모양에 따라 어디서 막히는지가 다르다.**
 
 ```
-1. type_resolver.js:98   typeRsrc 에 fwr/bat/dvi/dvc/rbo 가 없다 → 400-3   ← 전부 여기서 끝
-2. mgo.js:64             rootnm 과 mgd 짝이 안 맞으면 → 400-35
-3. create_action:571     mgd 가 다섯 중 없으면 → 문제의 자리
+본문이 {"m2m:fwr"} 계열 (구체 타입)
+  1. type_resolver.js:98   typeRsrc 에 fwr/bat/dvi/dvc/rbo 가 없다 → 400-3
+
+본문이 {"m2m:mgo"} (추상 타입)
+  1. resource.js:927       create_np_attr_list 에 mgo 표가 없다 → 409-4
+     (부모가 nod 가 아니면 그보다 먼저 app.js 의 부모-자식 검사 → 403-2)
+
+둘 다 통과시켜도
+  2. mgo.js:64             rootnm 과 mgd 짝이 안 맞으면 → 400-35
+  3. create_action:571     mgd 가 다섯 중 없으면 → 문제의 자리
 ```
 
 `typeRsrc` 에는 `13 → "mgo"` 만 있고 구체 타입 다섯은 `mgoType` 이라는
@@ -333,9 +340,59 @@ create 경로만 옛 방식으로 남아 있었던 것이다.
 `type_resolver.js:94-97` 이 "그 아래 경로는 한 번도 실제로 밟힌 적이 없다.
 열려면 그 경로를 먼저 검증해야 한다" 고 적어 두었다.
 
-실측(2026-09-04, 로컬 서버): `fwr`+`mgd:1001`(정상 조합)·`fwr`+`9999`·
-`fwr`+`1006`·`bat`+`1001` 네 가지 전부 `400` / `4000` /
-`"not supported resource type requested"` 였다.
+`mgo` 쪽 관문(`409-4`)도 의도된 것이다 — 그 자리 주석이 "mgo 는 추상
+타입이라 표가 없는 것이 맞다 … '도달하면 안 되는 조합' 이므로 거절이
+옳다" 고 적어 두었다.
+
+**실측 두 벌.**
+
+로컬·배포(2026-09-04): `fwr`+`mgd:1001`(정상 조합)·`fwr`+`9999`·
+`fwr`+`1006`·`bat`+`1001` 전부 `400` / `4000` /
+`"not supported resource type requested"`.
+
+MySQL 사본에 `nod` 부모를 만들고 확인(에이전트 실측): `{"m2m:mgo"}` 는
+`mgd` 값과 **무관하게** `409` / `4005` 이고 로그에
+`[build_resource] 속성표가 없는 리소스 이름이다: mgo (ty=13)` 가 남는다 —
+`create_action` 에 진입조차 안 한다.
+
+#### 관문을 걷어내면 무슨 일이 나는가 (사본에서 재현)
+
+에이전트가 사본에서 세 관문을 차례로 제거해 이 자리를 실제로 밟았다.
+**두 증상이 동시에** 났다.
+
+```
+HTTP/1.1 400 Bad Request
+X-M2M-RSC: [object Object]
+{"m2m:fwr":{"rn":"fwrC","ty":13,"pi":"14-...","ri":"13-...","mgd":1002,...}}
+```
+
+응답 본문이 `dbg` 설명이 아니라 **만들어진 리소스 전체**다 —
+`response_result` 가 인자를 무시하고 `request.resourceObj` 를 읽기 때문이다.
+그리고 응답 직후:
+
+```
+TypeError: callback is not a function
+    at exports.response_result (mobius/responder.js:568:9)
+    at create_action (mobius/resource.js:574:23)
+[backstop] 종료 시점에 빌려 둔 커넥션 1개 (누적 취득 4 / 반납 3)
+[backstop] 워커를 종료한다 — cluster 가 다시 띄운다
+```
+
+**커넥션 하나가 반납되지 않은 채 워커가 죽는다.**
+
+#### 인자만 고쳤으면 없던 결함이 생겼다
+
+`callback('0', resource_Obj)` 는 **오늘 실행되지 않는다** — 바로 앞 줄이
+먼저 던지기 때문이다. 그런데 인자 밀림만 고쳐 `callback` 자리에 진짜
+함수를 넣었다면, TypeError 가 사라지면서 그 줄이 실행되고 `'0'` 이
+`settle.error('0')` 까지 올라간다. `reason.get('0')` 이 `undefined` 라
+**이미 `end()` 된 응답에 500 을 또 보낸다.**
+
+정산기의 이중 정산 방어도 안 걸린다 — 첫 응답이 `settle` 을 거치지 않고
+`responder` 를 직접 불렀으므로 정산이 `claim` 되지 않은 상태다.
+
+**그래서 `callback('400-53')` 로 통째로 바꾼 것이 맞았다.** 인자만
+맞췄다면 없던 이중 응답을 새로 만들었을 것이다.
 
 #### 시험
 

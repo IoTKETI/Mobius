@@ -148,6 +148,48 @@ test('mgmtObj 의 mgd 분기가 형제와 같게 코드만 돌려준다', functi
         "카탈로그에 없는 '0' 을 위로 올린다 — 그 코드는 reason.get 이 null 을 내고 500 이 된다");
 });
 
+test('resource.js 는 응답을 직접 보내지 않는다', function () {
+    // **응답은 라우트의 정산기(settle)가 한 번만 한다.** 하위 모듈이 직접
+    // 보내면 두 가지가 동시에 열린다 — 정산기의 이중 정산 방어가 안 걸리고
+    // (첫 응답이 claim 되지 않았으므로), 하위가 코드까지 위로 올리면 라우트가
+    // 이미 끝난 응답에 또 쓴다.
+    //
+    // 그 상태가 실제로 어땠는지는 mgmtObj 자리에서 확인됐다. 관문을 걷어낸
+    // 사본에서 재현하니 `X-M2M-RSC: [object Object]` 와 워커 사망이 동시에
+    // 났고, **커넥션 하나가 반납되지 않았다.**
+    //
+    // 그리고 인자 밀림만 고쳤다면 **없던 결함이 새로 생겼다** — TypeError 가
+    // 사라지면서 그 다음 줄의 callback('0') 이 실행되고, 카탈로그에 없는
+    // '0' 이 settle.error 까지 올라가 이미 끝난 응답에 500 을 또 보낸다.
+    //
+    // ── 허용목록을 쓰지 않는다
+    //
+    // "이 함수들만 금지" 로 적으면 목록에 없는 것이 뚫린다. 특히
+    // responder.respond 는 CLAUDE.md 가 **단일 응답 진입점**이라 부르는
+    // 바로 그것인데, 금지 목록에서 빠뜨리기 쉽다. 그래서 **응답을 만드는
+    // 것이 아니라 데이터를 읽는 것만 허용**하는 반대 방향으로 잠근다.
+    const src = code('mobius/resource.js');
+
+    // 데이터 조회용 — 표를 읽을 뿐 응답을 만들지 않는다.
+    const DATA_ONLY = ['typeRsrc', 'mgoType', 'typeCheckforJson'];
+
+    const bad = [];
+    src.split(/\r?\n/).forEach(function (l, i) {
+        const m = l.match(/responder\.([A-Za-z0-9_]+)/g);
+        if (!m) { return; }
+        m.forEach(function (hit) {
+            const name = hit.slice('responder.'.length);
+            if (DATA_ONLY.indexOf(name) >= 0) { return; }
+            bad.push('resource.js:' + (i + 1) + '  ' + hit);
+        });
+    });
+
+    assert.deepStrictEqual(bad, [],
+        'resource.js 가 responder 의 응답 함수를 직접 부른다:\n  ' + bad.join('\n  ') +
+        '\n  코드만 callback 으로 올리고 응답은 라우트의 정산기에 맡길 것' +
+        '\n  (표를 읽기만 하는 것이면 이 시험의 DATA_ONLY 에 추가할 것)');
+});
+
 test('죽은 create_resource 가 되살아나지 않았다', function () {
     // 53줄짜리 함수였고 아무도 안 불렀다. 같은 일을 하는 build_resource 가
     // 살아 있고, 그쪽은 응답을 직접 보내지 않고 카탈로그 코드를 콜백으로
