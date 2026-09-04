@@ -28,6 +28,8 @@
   "main": "mobius.js",
   "scripts": {
     "start": "node mobius.js",
+    "conf": "node tools/mobius-conf.js",
+    "status": "node tools/mobius-conf.js status",
     "test": "node --test test/*.test.js"
   },
   "author": "Il Yeup Ahn, IoT Platform Center, KETI",
