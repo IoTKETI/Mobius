@@ -228,6 +228,13 @@ var REASON = {
     '500-7': { code: RSC.INTERNAL_SERVER_ERROR,
                msg: "upstream returned a body this CSE cannot relay",
                detail: 'relay: non-json content-type' },
+    // 정산기가 받은 결과 객체(out)가 잘못됐다 — 모르는 rsc 이름이나 shape, 또는
+    // 본문 조립이 던졌다. 클라이언트 탓이 아니라 **생산자(resource.js 등)의
+    // 프로그래밍 오류**다. 던지면 커넥션 반납을 못 하고 backstop 이 워커를
+    // 죽이므로, 요청 하나의 500 으로 가둔다. 무엇이 틀렸는지는 [settle] 로그에 있다.
+    '500-8': { code: RSC.INTERNAL_SERVER_ERROR,
+               msg: "internal error",
+               detail: 'settle.done: bad result object' },
     // 백엔드 이름을 말하지 않는다. 여기 "the SQLite backend" 라고 적혀 있었는데
     // **틀린 문장이었다** — 이 사유는 SQLite 라서 나가는 것이 아니라, 어댑터가
     // supportedResourceTypes 목록을 선언했고 요청한 타입이 그 목록에 없어서

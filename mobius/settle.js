@@ -30,6 +30,25 @@
  */
 
 var responder = require('./responder');
+var RSC = require('./rsc').RSC;
+
+/**
+ * 옛 라우트의 if-else — lookup_* 이 **코드 문자열만** 주는 동안 done(code) 가
+ * 이 표로 옛 세 갈래(result / search / rcn3)를 고른다.
+ *
+ * 2단계 6번(2026-09-05)에서 app.js 라우트 넷의 갈래를 여기로 옮겼다. 모양
+ * 정보('200' 은 일반, '200-1' 은 discovery, '201-3' 은 rcn=3)가 코드 문자열에
+ * 인코딩되어 세 층을 관통하던 것이 이 표 하나로 좁혀진 상태다. 생산자가
+ * out 을 주기 시작하면(8~9번) 줄이 빠지고, 다 빠지면 표째 지운다(10번).
+ *
+ * 메서드가 키다 — 같은 '200' 이 GET 은 2000, PUT 은 2004, DELETE 는 2002 다.
+ */
+var LEGACY = {
+    POST:   { '201': ['result', '201', '2001'], '201-3': ['rcn3', '201', '2001'] },
+    GET:    { '200': ['result', '200', '2000'], '200-1': ['search', '200', '2000'] },
+    PUT:    { '200': ['result', '200', '2004'] },
+    DELETE: { '200': ['result', '200', '2002'] }
+};
 
 /**
  * @param request
@@ -69,7 +88,45 @@ exports.make = function (request, response, connection, on_error, release) {
         if (connection) { release(connection); }
     }
 
-    return {
+    var api = {
+        /**
+         * 연산 결과로 정산한다 — 2단계의 단일 진입점.
+         *
+         *   done(code)        실패. 사유 코드로 에러 응답 (error 와 같다)
+         *   done(null, out)   성공. out = { rsc, shape, rootnm, body }
+         *                     rsc 는 rsc.js 카탈로그 이름('CREATED'), shape 는
+         *                     shape.js 의 네 모양 이름. 본문이 **인자**로 온다 —
+         *                     request.resourceObj 에 숨지 않는다.
+         *
+         * 이행기에는 옛 성공 코드('201', '200-1' …)도 code 로 온다 — 위 LEGACY.
+         *
+         * out 이 잘못됐으면(모르는 rsc·shape, 본문 조립이 던짐) **던지지 않고**
+         * 500 으로 낸다. 응답 전에 던지면 반납을 못 하고 backstop 이 워커를
+         * 죽인다 — 프로그래밍 오류를 요청 하나의 500 으로 가두는 것이다.
+         */
+        done: function (code, out) {
+            if (out) {
+                if (!claim('done ' + out.rsc)) { return; }
+                var c = Object.prototype.hasOwnProperty.call(RSC, out.rsc) ? RSC[out.rsc] : null;
+                var body;
+                try {
+                    if (!c) { throw new TypeError('unknown rsc ' + JSON.stringify(out.rsc)); }
+                    body = responder.body_of(out, request.query.rcn);
+                }
+                catch (e) {
+                    console.error('[settle] done: ' + e.message);
+                    on_error(request, response, '500-8', finish);
+                    return;
+                }
+                responder.respond(request, response, { status: c.http, rsc: c.rsc, body: body }, finish);
+                return;
+            }
+            var m = Object.prototype.hasOwnProperty.call(LEGACY, request.method) ? LEGACY[request.method] : {};
+            var leg = Object.prototype.hasOwnProperty.call(m, code) ? m[code] : null;
+            if (leg) { api[leg[0]](leg[1], leg[2]); return; }
+            api.error(code);
+        },
+
         /** 사유 코드로 에러 응답. app.js 에서 가장 흔한 정산이다. */
         error: function (code) {
             if (!claim('error ' + code)) { return; }
@@ -112,4 +169,8 @@ exports.make = function (request, response, connection, on_error, release) {
         /** 이미 정산됐는가. 테스트와 진단용. */
         isSettled: function () { return settled; }
     };
+    return api;
 };
+
+/** 이행기 표. 시험이 라우트의 옛 if-else 와 같은지 대조한다. */
+exports.LEGACY = LEGACY;

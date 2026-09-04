@@ -38,7 +38,9 @@ test('사유 97개가 있다', function () {
     // 상류가 json 이 아닌 것을 돌려줄 때의 500-7 을 더해 97 이 됐다.
     // cty 필터를 지원하지 않기로 하며 400-65 를 더해 98 이 됐다 — 30초를
     // 태우고 500-6 을 내는 대신 처음부터 "그 필터는 없다" 를 알려준다.
-    assert.strictEqual(Object.keys(reason.REASON).length, 98);
+    // 정산기가 잘못된 결과 객체를 받았을 때의 500-8 을 더해 99 가 됐다 —
+    // 생산자의 프로그래밍 오류를 워커 사망이 아니라 요청 하나의 500 으로 가둔다.
+    assert.strictEqual(Object.keys(reason.REASON).length, 99);
 });
 
 test('모든 사유의 code 가 RSC 카탈로그의 실제 항목이다', function () {
@@ -54,7 +56,7 @@ test('모든 사유의 code 가 RSC 카탈로그의 실제 항목이다', functi
 
 test('toLegacyTable 이 app.js 가 쓰던 형태를 만든다', function () {
     const t = reason.toLegacyTable();
-    assert.strictEqual(Object.keys(t).length, 98);
+    assert.strictEqual(Object.keys(t).length, 99);
 
     Object.keys(t).forEach(function (k) {
         const row = t[k];
@@ -237,7 +239,9 @@ test('detail 은 18건에 붙어 있고 전부 문자열이다', function () {
     // 안 지키는지 알아야 하므로 detail 에 실제 형식이 남는다.
     // 지원하지 않는 cty 필터(400-65)를 더해 19건이다 — 누가 아직 그것을
     // 쓰는지 알아야 나중에 되살릴지 판단할 수 있다.
-    assert.strictEqual(withDetail.length, 19);
+    // 정산기가 받은 결과 객체가 잘못된 500-8 을 더해 20건이다 — 생산자의
+    // 프로그래밍 오류라 나면 안 되는 것이고, 났다면 로그로 드러나야 한다.
+    assert.strictEqual(withDetail.length, 20);
     withDetail.forEach(function (k) {
         assert.strictEqual(typeof reason.REASON[k].detail, 'string', k);
     });
@@ -373,7 +377,13 @@ test('detail 을 가진 사유는 드물게 나는 것들뿐이다', function ()
         // 배포 access 로그 전체에서 cty 요청이 21건뿐이고 전부 조사용 curl 이라
         // 진짜 클라이언트가 없다고 판단해 뺐다. 그 판단이 맞는지는 이 로그가
         // 계속 비어 있는지로 확인된다. 차면 되살릴 근거가 된다.
-        '400-65'   // cty 필터를 씀
+        '400-65',  // cty 필터를 씀
+        // 정산기(settle.done)가 잘못된 결과 객체를 받았다 — 모르는 rsc 이름이나
+        // shape, 또는 본문 조립이 던짐. 클라이언트가 만들 수 있는 사유가 아니라
+        // **생산자(resource.js 등)의 프로그래밍 오류**라 정상 운영에서는 0건이어야
+        // 한다. 던지면 커넥션 반납을 못 하고 backstop 이 워커를 죽이므로 500 으로
+        // 가두되, 무엇이 틀렸는지는 [settle] 로그와 이 detail 로 남긴다.
+        '500-8'    // settle.done 이 받은 out 이 잘못됨
     ];
     const withDetail = Object.keys(reason.REASON)
         .filter(function (k) { return reason.REASON[k].detail != null; });
