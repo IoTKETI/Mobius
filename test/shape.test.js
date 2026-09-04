@@ -172,6 +172,21 @@ test('responder.js 에 죽은 rspObj 가 없다', function () {
     assert.strictEqual(words.filter(function (w) { return w === 'cap'; }).length, 0, 'cap 인자가 되살아났다');
 });
 
+test('sgn.js 는 알림 본문의 접두를 shape.root_key 로 만든다', function () {
+    // 같은 4갈래(mgo / fcnt+moduleclass 여덟 / hd_ / 그 밖)가 responder.js 와
+    // sgn.js 두 곳에 복제돼 있었다. 한쪽만 고치면 응답과 알림에서 같은 리소스가
+    // 다른 이름으로 나간다. 1단계 4번에서 sgn.js 의 56줄을 root_key 한 줄로 —
+    // 옛 갈래를 그대로 옮긴 함수와 6,624 조합을 대조해 키·던지는 자리가 같음을
+    // 확인했다.
+    const sgn = code('mobius/sgn.js');
+    assert.strictEqual((sgn.match(/org\.onem2m\.home\.moduleclass/g) || []).length, 0,
+        'sgn.js 에 moduleclass 갈래가 되살아났다 — 표가 다시 두 벌이 된다');
+    assert.strictEqual((sgn.match(/shape\.root_key\(/g) || []).length, 1, 'sgn.js 의 root_key 호출은 하나');
+    assert.strictEqual(/responder\.mgoType/.test(sgn), false, 'mgo 갈래도 root_key 안이다');
+    // responder 쪽도 여전히 비어 있어야 한다 — 둘 다 shape 를 본다.
+    assert.strictEqual((code('mobius/responder.js').match(/org\.onem2m\.home\.moduleclass/g) || []).length, 0);
+});
+
 test('shape.js 는 request/response/responder 를 모른다', function () {
     // 값 -> 값이어야 HTTP 없이 시험되고, 순환 require 가 없고, sgn.js 도 쓸 수 있다.
     const src = code('mobius/shape.js');

@@ -26,6 +26,8 @@ var db_sql = require('./sql_action');
 var merge = require('merge');
 
 var responder = require('./responder');
+// 접두 규칙의 단일 진실원. 아래 nev.rep 의 키를 이것으로 만든다.
+var shape = require('./shape');
 var poa_util = require('./poa');
 var subl_entry = require('./subl');
 
@@ -348,62 +350,16 @@ function sgn_action(connection, rootnm, check_value, subl, req_count, noti_Obj, 
     node['m2m:sgn'].nev = {};
     node['m2m:sgn'].nev.rep = {};
 
-    if(rootnm == 'mgo') {
-        node['m2m:sgn'].nev.rep['m2m:' + responder.mgoType[notiObj.mgd]] = JSON.parse(JSON.stringify(notiObj));
-    }
-    else if(rootnm == 'fcnt') {
-        // cnd 가 없을 수 있다. 요청 URL 에 #attr 필터가 붙으면 remove_no_value 가
-        // 지정한 속성만 남기고 나머지를 지운다(resource.js 의 hash 분기) — cnd 도
-        // 같이 사라진다. 그 객체가 그대로 여기로 온다.
-        //
-        // 그러면 아래 .includes 가 undefined 위에서 돌아 워커가 죽었다. 이 코드는
-        // db 커넥션을 빌린 채라 죽으면 커넥션도 함께 샜다. create·update 는
-        // 예전부터 이 입력에 죽었고, DELETE 는 headers.rootnm 이 늘 'rsp' 로
-        // 잡히는 바람에 이 분기에 오지 않아 우연히 가려져 있었다. 그 우회를
-        // 걷어내면서(resource.js 의 set_rootnm) DELETE 도 같이 드러났다.
-        //
-        // 아래 == 비교들은 undefined 라도 그냥 false 라 안전하다. 던지는 것은
-        // .includes 하나뿐이므로 그것만 막는다.
-        if (typeof notiObj.cnd === 'string' && notiObj.cnd.includes('org.onem2m.home.device.')) {
-            node['m2m:sgn'].nev.rep['m2m:' + rootnm] = JSON.parse(JSON.stringify(notiObj));
-        }
-        else if (notiObj.cnd == 'org.onem2m.home.moduleclass.doorlock') {
-            node['m2m:sgn'].nev.rep['hd:' + rootnm.replace('fcnt', 'dooLk')] = JSON.parse(JSON.stringify(notiObj));
-        }
-        else if (notiObj.cnd == 'org.onem2m.home.moduleclass.battery') {
-            node['m2m:sgn'].nev.rep['hd:' + rootnm.replace('fcnt', 'bat')] = JSON.parse(JSON.stringify(notiObj));
-        }
-        else if (notiObj.cnd == 'org.onem2m.home.moduleclass.temperature') {
-            node['m2m:sgn'].nev.rep['hd:' + rootnm.replace('fcnt', 'tempe')] = JSON.parse(JSON.stringify(notiObj));
-        }
-        else if (notiObj.cnd == 'org.onem2m.home.moduleclass.binarySwitch') {
-            node['m2m:sgn'].nev.rep['hd:' + rootnm.replace('fcnt', 'binSh')] = JSON.parse(JSON.stringify(notiObj));
-        }
-        else if (notiObj.cnd == 'org.onem2m.home.moduleclass.faultDetection') {
-            node['m2m:sgn'].nev.rep['hd:' + rootnm.replace('fcnt', 'fauDn')] = JSON.parse(JSON.stringify(notiObj));
-        }
-        else if (notiObj.cnd == 'org.onem2m.home.moduleclass.colourSaturation') {
-            node['m2m:sgn'].nev.rep['hd:' + rootnm.replace('fcnt', 'colSn')] = JSON.parse(JSON.stringify(notiObj));
-        }
-        else if (notiObj.cnd == 'org.onem2m.home.moduleclass.colour') {
-            node['m2m:sgn'].nev.rep['hd:' + rootnm.replace('fcnt', 'color')] = JSON.parse(JSON.stringify(notiObj));
-        }
-        else if (notiObj.cnd == 'org.onem2m.home.moduleclass.brightness') {
-            node['m2m:sgn'].nev.rep['hd:' + rootnm.replace('fcnt', 'brigs')] = JSON.parse(JSON.stringify(notiObj));
-        }
-        else {
-            // 아는 cnd 가 아니거나 cnd 가 없다. 예전에는 여기서 아무것도 안 담아
-            // nev.rep 가 {} 인 채로 알림이 나갔다 — 구독자는 무엇이 바뀌었는지
-            // 알 수 없다. 표준 이름으로라도 실어 보낸다.
-            node['m2m:sgn'].nev.rep['m2m:' + rootnm] = JSON.parse(JSON.stringify(notiObj));
-        }
-    }
-    else if(rootnm.includes('hd_')) {
-        node['m2m:sgn'].nev.rep['hd:' + rootnm.replace('hd_', '')] = JSON.parse(JSON.stringify(notiObj));
-    }
-    else {
-        node['m2m:sgn'].nev.rep['m2m:' + rootnm] = JSON.parse(JSON.stringify(notiObj));
-    }
+    // 접두 4갈래(mgo / fcnt+moduleclass 여덟 / hd_ / 그 밖)가 여기 56줄로 있었다.
+    // 같은 규칙이 responder.js(응답 본문)에도 한 벌 더 있어서 한쪽만 고치면
+    // 응답과 알림에서 같은 리소스가 다른 이름으로 나갔다. 이제 shape.root_key
+    // 한 곳이다 — 1단계 4번(2026-09-05).
+    //
+    // 옛 갈래를 글자 그대로 옮긴 함수와 rootnm x cnd x mgd 6,624 조합을 대조해
+    // 키와 던지는 자리(rootnm 이 undefined 면 .includes 에서 TypeError)가 전부
+    // 같은 것을 확인했다. cnd 가 없을 수 있다는 것(#attr 필터로 사라진 fcnt)도
+    // root_key 안의 typeof 가드가 그대로 받는다.
+    node['m2m:sgn'].nev.rep[shape.root_key(rootnm, notiObj)] = JSON.parse(JSON.stringify(notiObj));
 
     responder.typeCheckforJson(node['m2m:sgn'].nev.rep);
 
