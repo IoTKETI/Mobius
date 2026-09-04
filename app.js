@@ -56,6 +56,8 @@ var type_resolver = require('./mobius/type_resolver');
 
 // 잡히지 않은 예외의 마지막 방어선. 마스터는 살리고 워커는 종료한다.
 var backstop = require('./mobius/backstop');
+var EXIT = require('./mobius/exit_codes');
+var port_guard = require('./mobius/port_guard');
 
 // 아웃바운드 요청 타임아웃 (D16)
 var outbound = require('./mobius/outbound');
@@ -676,6 +678,11 @@ if (use_clustering) {
         // 들고 있지 않으므로 살아남는 쪽이 낫다. 자세한 근거는 backstop.js.
         backstop.install('master');
 
+        // Windows 에서 워커마다 콘솔 창이 뜨는 것을 막는다. 창은 cluster.fork() 가 만든다 —
+        // spawn 쪽 windowsHide 는 무효다(실측). 터미널에서 직접 띄우면 워커가 부모 콘솔을
+        // 상속해 애초에 안 뜨고, pm2 처럼 콘솔 없는 부모가 띄울 때만 생긴다. Linux 는 무시한다.
+        cluster.setupPrimary({ windowsHide: true });
+
         // ── 감시를 **가장 먼저** 건다 ────────────────────────────────────
         //
         // 아래 주기 작업 배선은 콜백 네 겹 안에 있다:
@@ -711,6 +718,16 @@ if (use_clustering) {
             // 종료를 의도한 경우(부모가 kill/disconnect)는 다시 띄우지 않는다.
             if (dead.exitedAfterDisconnect) {
                 console.log('worker ' + dead.process.pid + ' 정상 종료');
+                return;
+            }
+            // 포트 충돌·conf 소실은 다시 띄워도 같은 이유로 죽는다. 재포크 루프가 곧
+            // 좀비다 — 마스터가 살아 있어 pm2 는 online 으로 본다. 마스터도 같은 코드로
+            // 즉시 종료해 감독자가 실패를 보게 한다.
+            if (code === EXIT.PORT_TAKEN || code === EXIT.NO_CONF) {
+                console.error('worker ' + dead.process.pid + ' 가 code=' + code + ' 로 죽었다 — ' +
+                    (code === EXIT.PORT_TAKEN ? '포트를 남이 쥐고 있다' : 'conf.json 이 없다') +
+                    '. 다시 띄우지 않고 마스터도 종료한다.');
+                process.exit(code);
                 return;
             }
             console.error('worker ' + dead.process.pid + ' 죽음 (code=' + code +
@@ -872,7 +889,7 @@ if (use_clustering) {
 
                                     db.release(connection);
                                 });
-                            });
+                            }).on('error', port_guard.onListenError(usecsebaseport));
                         }
                         else {
                             var options = {
@@ -888,7 +905,7 @@ if (use_clustering) {
 
                                     db.release(connection);
                                 });
-                            });
+                            }).on('error', port_guard.onListenError(usecsebaseport));
                         }
                     }
                     else {
@@ -925,7 +942,7 @@ else {
                             http.createServer(app).listen({port: usecsebaseport, agent: false}, () => {
                                 console.log('mobius server (' + ip.address() + ') running at ' + usecsebaseport + ' port');
                                 //noti_mqtt_begin();
-                            });
+                            }).on('error', port_guard.onListenError(usecsebaseport));
                         }
                         else {
                             var options = {
@@ -936,7 +953,7 @@ else {
                             https.createServer(options, app).listen({port: usecsebaseport, agent: false}, () => {
                                 console.log('mobius server (' + ip.address() + ') running at ' + usecsebaseport + ' port');
                                 //noti_mqtt_begin();
-                            });
+                            }).on('error', port_guard.onListenError(usecsebaseport));
                         }
 
                         db.release(connection);
