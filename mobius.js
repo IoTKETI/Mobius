@@ -21,6 +21,7 @@
 // **종료는 여기서만 한다.** conf_load 는 어떤 경로에서도 exit 하지 않는다 —
 // 모듈이 exit 하면 시험 러너가 통째로 죽는다.
 var conf_load = require('./mobius/conf_load');
+var boot_record = require('./mobius/boot_record');
 
 conf_load(function (err, applied) {
     if (err) {
@@ -28,6 +29,9 @@ conf_load(function (err, applied) {
         process.exit(1);
         return;
     }
+    // 기동 시 적용된 값을 남긴다. 던지지 않는다 — 기록 실패가 기동을 막지 않는다.
+    // 마스터는 여기서 파일을 비운다.
+    boot_record.write(applied, { confPath: conf_load.DEFAULT_FILE });
     // CSE core
     require('./app');
 });
