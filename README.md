@@ -151,14 +151,17 @@ mosquitto -v
 ```
 npm install
 ```
-- Modify the configuration file "conf.json" per your setting
+- Create the configuration file. On the first run Mobius asks six questions (database, database password, CSE name, CSE-ID, SP-ID, HTTP port) and writes `conf.json`:
 ```
-{
-  "csebaseport": "7579", //Mobius HTTP hosting  port
-  "dbpass": "*******",   //MySQL root password
-  "db": "mysql"          //storage backend: "mysql" or "sqlite"
-}
+npm run setup          # or simply `npm start` in an interactive terminal
 ```
+Everything else has a default. Inspect and change settings with the CLI — there is no web page for this, because `conf.json` holds the master keys:
+```
+npm run conf                        # list all keys with their file value and whether the running server has applied them
+npm run conf -- set cseBase Vita    # gated keys print a warning and ask you to type the key name
+npm run status                      # master pid, port, boot record, keys waiting for a restart
+```
+`dbpass` is stored in plain text; the wizard hides it while you type. To re-enter it: `npm run setup -- --dbpass`.
 
 ### Default Retention Policies (optional)
 By default a container created without `mni` / `mbs` uses the Mobius defaults. If a deployment needs different defaults for particular container paths, they can be declared in `conf.json` as `retentionPolicies`. Omit the key to disable the feature entirely.
@@ -191,6 +194,8 @@ node mobius.js sqlite   // force SQLite
 node mobius.js mysql    // force MySQL
 ```
 `npm start` is equivalent to `node mobius.js`. On Windows the `run_sqlite.bat` and `run_mysql.bat` helper scripts are also provided.
+
+If `conf.json` is missing and the terminal is interactive, `node mobius.js` runs the setup wizard itself. If it is missing and the output is not a terminal (a service, `npm start > log`), Mobius exits with code 1 without creating the file — run `npm run setup` first. If the port is already taken, Mobius exits with code 12 instead of respawning workers forever.
 
 <div align="center">
 <img src="https://user-images.githubusercontent.com/29790334/28245526-c9db7850-6a43-11e7-9bfd-f0b4fb20e396.png" width="700"/>
