@@ -2338,10 +2338,23 @@ app.get('*', onem2mParser, (request, response) => {
                     });
                 }
                 else if (code === '201') {
-                    db.release(connection);
-                    response.header('Content-Type', 'application/json');
-                    response.status(200).end(JSON.stringify(result, null, 4));
-                    result = null;
+                    // /hit · /total_ae · /total_cbs 의 응답이다. oneM2M 리소스가
+                    // 아니라 서버 상태 집계라 responder 형태에 안 맞는다 —
+                    // 그래서 settle.raw 로 직접 보낸다.
+                    //
+                    // 예전에는 정산기를 아예 우회했다:
+                    //     db.release(connection);          <- 응답보다 **먼저**
+                    //     response.status(200).end(...)
+                    //
+                    // 두 가지가 어긋났다. 반납이 응답보다 앞서서 그 사이 다른
+                    // 요청이 이 커넥션을 빌릴 수 있었고, 정산기를 안 타므로
+                    // **이중 정산 방지 장치가 없었다.** raw 는 fn 이 응답을
+                    // 보내고 나서 반납하고, claim() 도 탄다.
+                    settle.raw('extra api ' + request.url, function () {
+                        response.header('Content-Type', 'application/json');
+                        response.status(200).end(JSON.stringify(result, null, 4));
+                        result = null;
+                    });
                 }
                 else {
                     settle.error(code);

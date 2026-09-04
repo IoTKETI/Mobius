@@ -134,6 +134,69 @@ test('app.js 에 흩어진 정산 클로저가 남아 있지 않다', function (
         'connection.release() 가 ' + rel + '곳이다 — 라우트 정산이 다시 흩어졌는지 확인할 것');
 });
 
+test('라우트 핸들러 안에서 db.release 를 직접 부르지 않는다', function () {
+    // ── 왜 ────────────────────────────────────────────────────────────
+    //
+    // /hit · /total_ae · /total_cbs 응답이 정산기를 우회하고 있었다:
+    //
+    //     db.release(connection);                          <- 응답보다 **먼저**
+    //     response.header('Content-Type', ...);
+    //     response.status(200).end(JSON.stringify(result));
+    //
+    // 두 가지가 어긋난다.
+    //
+    //   1. 반납이 응답보다 앞선다. 그 사이 다른 요청이 이 커넥션을 빌려
+    //      쓰기 시작할 수 있다
+    //   2. 정산기를 안 타므로 **이중 정산 방지 장치가 없다.** 이 경로에서
+    //      두 번 응답하는 실수가 생기면 아무것도 막지 않는다
+    //
+    // settle.raw(what, fn) 이 정확히 이 용도다 — fn 이 응답을 보내고 나면
+    // 반납한다. 순서가 맞고 claim() 도 탄다.
+    //
+    // ── 범위 ──────────────────────────────────────────────────────────
+    //
+    // 기동·주기 작업(app.js 앞부분)은 정산기가 없는 자리라 대상이 아니다.
+    // 라우트가 시작되는 첫 app.get/post/put/delete 이후만 본다.
+    const fs = require('node:fs');
+    const path = require('node:path');
+    const src = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8');
+
+    const routes_at = src.search(/^app\.(get|post|put|delete)\(/m);
+    assert.ok(routes_at > 0, '라우트 시작을 찾지 못했다 — 이 시험의 범위 계산을 다시 볼 것');
+
+    // **주석은 실행되지 않는다.** 주석까지 보면 주석에 낱말 하나 적어서
+    // 검사를 통과시킬 수 있다 — 이 저장소에서 실제로 반복해 겪은 결함이다
+    // (`queueQoSZero` 시험이 설명 주석에 걸려 값을 뒤집어도 통과했다).
+    // 그래서 스캔 대상과 아래 예외 판정 모두 실행 줄만 본다.
+    const is_comment = function (l) { return /^\s*(\/\/|\*|\/\*)/.test(l); };
+
+    const lines = src.slice(routes_at).split(/\r?\n/);
+    const bad = [];
+    const before = src.slice(0, routes_at).split(/\r?\n/).length;
+    lines.forEach(function (l, i) {
+        if (is_comment(l)) { return; }
+        if (!/\bdb\.release\(/.test(l)) { return; }
+
+        // **예외: set_hit 전용 커넥션.**
+        //
+        // POST 는 hit 카운터를 요청 커넥션이 아니라 **자기 커넥션**으로 쓴다
+        // (fire-and-forget 이라 요청의 첫 SELECT 앞에 줄 서지 않게 하려고).
+        // 그 커넥션은 응답 경로가 아니므로 정산기가 없고, 쓰기 완료 콜백에서
+        // 반납하는 것이 맞다. 이 시험이 막으려는 것은 **응답 경로**의 우회다.
+        const near = lines.slice(Math.max(0, i - 4), i)
+            .filter(function (n) { return !is_comment(n); })
+            .join('\n');
+        if (/set_hit\(/.test(near)) { return; }
+
+        bad.push('app.js:' + (before + i) + '  ' + l.trim());
+    });
+
+    assert.deepStrictEqual(bad, [],
+        '라우트 안에서 db.release 를 직접 부른다:\n  ' + bad.join('\n  ') +
+        '\n  settle.raw(설명, function () { ...응답... }) 를 쓸 것 — ' +
+        '응답 뒤에 반납하고 이중 정산도 막는다');
+});
+
 // ── lookup_* 파이프라인 (§9.3) ───────────────────────────────────────
 //
 // create / retrieve / update / delete 는 "권한을 보고 연산한다" 는 같은 꼬리를
