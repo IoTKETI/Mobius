@@ -267,8 +267,8 @@ test('백엔드는 이름으로 고른다 — boolean 이 아니다', function (
     const src = fs.readFileSync(path.join(ROOT, 'mobius/db/index.js'), 'utf8');
     assert.ok(/global\.usedb/.test(src), '파사드가 이름으로 백엔드를 고르지 않는다');
 
-    const m = fs.readFileSync(path.join(ROOT, 'mobius.js'), 'utf8');
-    assert.ok(/global\.usedb\s*=/.test(m), 'mobius.js 가 global.usedb 를 정하지 않는다');
+    const m = fs.readFileSync(path.join(ROOT, 'mobius', 'conf_load.js'), 'utf8');
+    assert.ok(/global\.usedb\s*=/.test(m), 'conf_load.js 가 global.usedb 를 정하지 않는다');
 
     // 여기 "usesqlite 는 usedb 에서 파생된 한시적 별칭이어야 한다" 가 있었다.
     // 그 별칭을 지웠으므로 기준이 뒤집힌다 — **아예 없어야 한다.**

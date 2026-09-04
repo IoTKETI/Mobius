@@ -27,16 +27,22 @@ function stripComments(src) {
     return src.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|[^:])\/\/[^\n]*/g, '$1');
 }
 
-function keysReadByMobius() {
-    const src = stripComments(fs.readFileSync(path.join(ROOT, 'mobius.js'), 'utf8'));
+// 소스 문자열에서 conf.<키> 로 읽는 것 전부. conf.json 은 파일 이름이라 뺀다.
+// 주석을 걷어낸다. **이걸 안 하면 산문이 가드를 만족시킨다.**
+function keysReadIn(src) {
     const out = new Set();
     const re = /conf\.([a-zA-Z_][\w]*)/g;
     let m;
-    while ((m = re.exec(src)) !== null) {
+    const code = stripComments(src);
+    while ((m = re.exec(code)) !== null) {
         if (m[1] !== 'json') { out.add(m[1]); }
     }
     return [...out].sort();
 }
+function readSrc(rel) { return fs.readFileSync(path.join(ROOT, rel), 'utf8'); }
+
+// 코어가 읽는 것. 예전에는 mobius.js 였고, 2026-09-05 에 mobius/conf_load.js 로 옮겼다.
+function keysReadByCore() { return keysReadIn(readSrc('mobius/conf_load.js')); }
 
 // 어댑터가 **자기 것으로** 선언한 키. 이것도 리더다.
 //
@@ -59,7 +65,7 @@ function keysOwnedByAdapter() {
 }
 
 function keysReadBySomeone() {
-    return [...new Set(keysReadByMobius().concat(keysOwnedByAdapter()))].sort();
+    return [...new Set(keysReadByCore().concat(keysOwnedByAdapter()))].sort();
 }
 
 test('표가 코어와 어댑터가 읽는 키를 전부 담는다', function () {
@@ -68,7 +74,7 @@ test('표가 코어와 어댑터가 읽는 키를 전부 담는다', function ()
     const missing = read.filter((k) => known.indexOf(k) < 0);
 
     assert.deepStrictEqual(missing, [],
-        'mobius.js 가 읽는데 표에 없는 키가 있다: ' + missing.join(', ') +
+        'conf_load.js 가 읽는데 표에 없는 키가 있다: ' + missing.join(', ') +
         '\n' +
         '\n표에 없으면 관리 콘솔이 그 설정의 존재조차 모른다 — 콘솔은 자체 목록을' +
         '\n들지 않고 conf_schema.describe() 를 그대로 쓰므로, 표에 없는 키는' +
@@ -88,7 +94,7 @@ test('표에만 있고 아무도 안 읽는 키가 없다', function () {
     const stale = schema.all().filter((k) => read.indexOf(k) < 0);
 
     assert.deepStrictEqual(stale, [],
-        '표에 있는데 mobius.js 가 안 읽는 키가 있다: ' + stale.join(', ') +
+        '표에 있는데 conf_load.js 가 안 읽는 키가 있다: ' + stale.join(', ') +
         '\n코드에서 없어졌으면 표에서도 지울 것');
 });
 
@@ -263,14 +269,14 @@ test('파싱 실패가 conf.json 을 덮어쓰지 않는다', function () {
     // 도달 경로가 실재한다: 워커 25개가 각자 기동 때 이 파일을 읽는데,
     // backstop 이 워커를 죽이면 cluster 가 다시 띄운다. 그 순간 누군가
     // conf.json 을 제자리에서 쓰고 있으면 반쪽 JSON 을 읽는다.
-    const src = fs.readFileSync(path.join(ROOT, 'mobius.js'), 'utf8');
+    const src = fs.readFileSync(path.join(ROOT, 'mobius', 'conf_load.js'), 'utf8');
 
     // "없음" 과 "깨짐" 을 가른다. 없을 때만 만들어 준다.
-    assert.ok(/existsSync\('conf\.json'\)/.test(src),
+    assert.ok(/existsSync\(file\)/.test(src),
         '파일 존재 여부를 안 가른다 — "없음" 과 "깨짐" 을 같이 잡으면 안 된다');
 
     // 파싱 실패 catch 안에서 파일을 쓰면 안 된다.
-    const at = src.indexOf("JSON.parse(fs.readFileSync('conf.json'");
+    const at = src.indexOf("JSON.parse(fs.readFileSync(file, 'utf8'))");
     assert.ok(at > 0, 'conf.json 파싱 지점을 못 찾았다');
     const after = src.slice(at, at + 900);
     const catchAt = after.indexOf('catch (e) {');
@@ -292,21 +298,21 @@ test('db 의 유효값 검사가 실제 어댑터를 따른다', function () {
 // --- 표의 기본값과 코드의 기본값이 같은가 ------------------------------------
 //
 // 표는 **콘솔 설정 화면의 계약**이다. 화면이 "기본값 25" 라고 보여 주는데
-// mobius.js 가 실제로는 100 으로 떨어지면, 관리자는 설정을 안 넣은 서버가
+// conf_load.js 가 실제로는 100 으로 떨어지면, 관리자는 설정을 안 넣은 서버가
 // 25 로 돈다고 믿는다. 키 존재만 대조해서는 이 어긋남을 못 잡는다 —
 // 실제로 dbConnectionLimit 이 표 25 / 코드 100 으로 갈라져 있었다.
 //
-// mobius.js 가 기본값을 쓰는 모양은 둘이다:
+// conf_load.js 가 기본값을 쓰는 모양은 둘이다:
 //     ? conf.<키> : <기본값>;      (타입 검사가 붙은 경우)
 //     conf.<키> || <기본값>;       (문자열)
 
-test('표의 dflt 와 mobius.js 의 기본값이 같다', function () {
+test('표의 dflt 와 conf_load.js 의 기본값이 같다', function () {
     // 표는 **콘솔 설정 화면의 계약**이다. 화면이 '기본값 25' 라고 보여 주는데
     // mobius.js 가 실제로는 100 으로 떨어지면, 관리자는 설정을 안 넣은 서버가
     // 25 로 돈다고 믿는다. 키 존재만 대조해서는 이 어긋남을 못 잡는다 —
     // 실제로 dbConnectionLimit 이 표 25 / 코드 100 으로 갈라져 있었다.
     const table = schema._SCHEMA;
-    const src = fs.readFileSync(path.join(ROOT, 'mobius.js'), 'utf8');
+    const src = fs.readFileSync(path.join(ROOT, 'mobius', 'conf_load.js'), 'utf8');
 
     // 주석은 뺀다 — 근거를 적느라 같은 숫자를 인용한다.
     const code = src.split('\n').filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l)).join('\n');
@@ -356,7 +362,7 @@ test('표의 dflt 와 mobius.js 의 기본값이 같다', function () {
     const must = ['dbConnectionLimit', 'dbQueueLimit'];
     const missed = must.filter((k) => checked.indexOf(k) < 0);
     assert.deepStrictEqual(missed, [],
-        '이 키들의 기본값을 대조하지 못했다 — mobius.js 의 작성 모양이 바뀌었다: ' +
+        '이 키들의 기본값을 대조하지 못했다 — conf_load.js 의 작성 모양이 바뀌었다: ' +
         missed.join(', '));
 });
 

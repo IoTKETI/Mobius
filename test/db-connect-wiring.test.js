@@ -150,7 +150,7 @@ test('connect 하는 도구는 그 앞에서 db.applyConf(conf) 를 부른다', 
 
 test('코어에 옛 연결 좌표가 남아 있지 않다', function () {
     // 3306 / 'root' / 'localhost' 를 코어가 다시 들면 이 작업이 되돌려진 것이다.
-    const files = ['app.js', 'mobius.js'];
+    const files = ['app.js', 'mobius.js', 'mobius/conf_load.js'];
     const bad = [];
 
     for (const f of files) {

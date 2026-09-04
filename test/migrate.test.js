@@ -177,7 +177,7 @@ test('실패한 마이그레이션은 이력에 남지 않는다', function (t, 
 // --- 자동 실행 금지 -----------------------------------------------------------
 
 test('app.js / mobius.js 가 마이그레이션을 자동 실행하지 않는다', function () {
-    ['app.js', 'mobius.js'].forEach(function (f) {
+    ['app.js', 'mobius.js', 'mobius/conf_load.js'].forEach(function (f) {
         const src = fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
         assert.strictEqual(/require\([^)]*tools\/migrate/.test(src), false,
             f + ' 가 마이그레이션 러너를 부른다 — 기동 시 자동 실행은 금지다');
