@@ -163,15 +163,6 @@ test('에러 응답이 표를 직접 인덱싱하지 않는다', function () {
         'responder.error_result 직접 호출이 남아 있다 — response_error_result 를 쓴다');
 });
 
-test('바인딩별 결과 코드 정의가 카탈로그 한 곳에만 있다', function () {
-    // 예전에는 app.js 의 결과 코드 표와 pxy_coap.js 의 CoAP 표가 서로를 몰랐다.
-    // 그 결과 6종이 CoAP 매핑 없이 undefined 로 나갔다(D19).
-    const coap = read('pxy_coap.js');
-    const ws = read('pxy_ws.js');
-    assert.ok(coap.indexOf('var coap_rsc_code') < 0, 'pxy_coap 에 자체 표가 남아 있다');
-    assert.ok(/require\(['"]\.\/mobius\/rsc['"]\)/.test(coap), 'pxy_coap 이 카탈로그를 써야 한다');
-    assert.ok(/require\(['"]\.\/mobius\/rsc['"]\)/.test(ws), 'pxy_ws 가 카탈로그를 써야 한다');
-});
 
 // ── Task 5: 바인딩 통합 ──────────────────────────────────────────────────
 
@@ -203,17 +194,4 @@ test('매핑이 없으면 rsc 첫 자리로 폴백한다', function () {
     assert.strictEqual(rsc.toCoapCode('9999'), '5.00');   // 모르는 코드
 });
 
-test('pxy_coap.js 가 자체 매핑 표를 들고 있지 않다', function () {
-    const s = read('pxy_coap.js');
-    assert.ok(s.indexOf('var coap_rsc_code') < 0, '자체 표가 남아 있다');
-    assert.ok(/require\(['"]\.\/mobius\/rsc['"]\)/.test(s), '카탈로그를 참조해야 한다');
-    assert.ok(s.indexOf('CoAP 바인딩은 삭제 예정') >= 0, '삭제 예정 표시가 있어야 한다');
-});
 
-test('pxy_ws.js 가 결과 코드를 숫자로 직접 적지 않는다', function () {
-    const s = read('pxy_ws.js');
-    const literals = s.split('\n').filter(function (l) {
-        return !l.trim().startsWith('//') && /ws_response\([^,]+,\s*\d{4}\s*,/.test(l);
-    });
-    assert.deepStrictEqual(literals, [], '숫자 리터럴이 남아 있다:\n' + literals.join('\n'));
-});

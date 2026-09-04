@@ -151,8 +151,11 @@ function port_of(v, dflt) {
     return (v === undefined || v === null || String(v) === '') ? dflt : String(v);
 }
 
-global.usepxywsport = port_of(conf.pxyWsPort, '7577');
-global.usepxymqttport = port_of(conf.pxyMqttPort, '7578');
+// global.usepxywsport / usepxymqttport 가 여기 있었다.
+// 프로토콜 프록시와 함께 지웠다 — 읽는 곳이 pxy_ws/pxy_mqtt 뿐이었다.
+// conf 키 pxyWsPort/pxyMqttPort 도 mobius/conf_schema.js 에서 함께 뺐다.
+// **둘은 원자적으로 움직여야 한다** — test/conf-schema.test.js 가 양방향으로
+// 강제해서, 한쪽만 지우면 실패한다.
 
 global.use_sgn_man_port = port_of(conf.sgnManPort, '7599');
 // cntManPort 는 여기 있었다. 2019년의 cnt_man 은 그 포트에서 도는 별도 HTTP
@@ -270,7 +273,9 @@ global.acp_audit = (conf.acpAudit === 'off') ? 'off' : 'on';
 // 사실상 없다. 문제가 생기면 'off' 로 되돌린다.
 global.acp_discovery_filter = (conf.acpDiscoveryFilter === 'off') ? 'off' : 'on';
 
-global.wdt = require('./wdt');
+// global.wdt = require('./wdt') 가 여기 있었다. wdt.js 는 2026-09-04 에
+// 프로토콜 프록시와 함께 지웠다 — set_wdt 등록자 4개가 전부 그 셋 안이었다.
+// 주기 작업이 필요하면 setInterval 을 직접 쓴다(mobius/lease.js 가 그렇게 한다).
 
 
 global.allowed_ae_ids = [];

@@ -580,9 +580,26 @@ if (use_clustering) {
                                 // 허용했으므로 같은 수준에서 시작한다.
                                 setInterval(purge_sweep_tick, global.purge_sweep_ms);
 
-                                require('./pxy_mqtt');
-                                require('./pxy_coap');
-                                require('./pxy_ws');
+                                // 프로토콜 프록시 3종(pxy_mqtt · pxy_coap · pxy_ws)을 여기서 require 했다.
+                                // **2026-09-04 에 지웠다. 다시 넣지 말 것 — 아래를 먼저 읽을 것.**
+                                //
+                                // 3년치 실측이 근거다. hit 테이블 1,092일 누적으로
+                                //     http 124,988,941 / mqtt 32 / coap 0 / ws 0
+                                // http 외가 기록된 날은 3일뿐이고(20240320 mqtt=30, 20240322 mqtt=1,
+                                // 20241123 mqtt=1) CoAP·WebSocket 은 단 한 건도 없다.
+                                //
+                                // 그리고 이 셋이 알려진 결함의 근원이었다 — 크기 상한 없는 원시
+                                // += chunk 10곳이 전부 여기였고, pxy_mqtt 의 메시지 캐시는 ttl 필드가
+                                // 없어 영구히 샜다. 마스터에서 돌아 자동 복구가 없는 자리다.
+                                //
+                                // **알림은 이것과 별개다.** mobius/sgn_man.js 가 자기 mqtt/coap/websocket
+                                // 클라이언트를 따로 연다. 구독 3,463개의 99.85% 가 mqtt:// 로 받는데
+                                // 그 경로는 그대로 산다. npm 의존성 셋도 그래서 남겼다.
+                                //
+                                // 재도입 조건: 위 수치가 유의미하게 바뀌거나, 규격 인증·상호운용
+                                // 시험이 이 바인딩을 요구할 때. 그때는 **되살리지 말고 새로 만든다** —
+                                // 왜 revert 로 안 되는지와 필요한 접점 목록은
+                                // docs/superpowers/reports/2026-09-04-protocol-proxy-removal.md 에 있다.
 
                                 db.release(connection);
                             });
@@ -693,7 +710,6 @@ else {
                             http.globalAgent.maxSockets = 1000000;
                             http.createServer(app).listen({port: usecsebaseport, agent: false}, () => {
                                 console.log('mobius server (' + ip.address() + ') running at ' + usecsebaseport + ' port');
-                                require('./pxy_mqtt');
                                 //noti_mqtt_begin();
                             });
                         }
@@ -706,7 +722,6 @@ else {
                             https.globalAgent.maxSockets = 1000000;
                             https.createServer(options, app).listen({port: usecsebaseport, agent: false}, () => {
                                 console.log('mobius server (' + ip.address() + ') running at ' + usecsebaseport + ' port');
-                                require('./pxy_mqtt');
                                 //noti_mqtt_begin();
                             });
                         }
@@ -841,19 +856,16 @@ function usable_object(v) {
     return v != null && typeof v === 'object' && !Array.isArray(v);
 }
 
-// bodytype 인자를 걷어냈다 (2026-09-01). json 전용이 되면서 xml/cbor
-// 분기가 사라졌고, 이 함수는 그 뒤로 인자를 한 번도 안 봤다.
-global.make_json_obj = function (str, callback) {
-    try {
-        var result = JSON.parse(str);
-        if (!usable_object(result)) { callback('0'); return; }
-        callback('1', result);
-    }
-    catch (e) {
-        console.error(e.message);
-        callback('0');
-    }
-};
+// global.make_json_obj 가 여기 있었다. **2026-09-04 에 지웠다.**
+//
+// 프로토콜 프록시 3종만 부르던 함수다 — pxy_mqtt 3곳, pxy_ws 2곳이 전부였고
+// 그 셋을 지우면서 호출자가 0이 됐다. 코어의 본문 파싱은 아래 parse_body 가
+// 한다(본문을 한 번만 읽는다).
+//
+// 지운 근거와 되살릴 때 필요한 접점은
+// docs/superpowers/reports/2026-09-04-protocol-proxy-removal.md 에 있다.
+// 되살린다면 시그니처는 (str, callback) 이다 — 2026-09-01 에 bodytype 인자가
+// 빠졌으므로 옛 3인자로 부르면 조용히 틀린다.
 
 // make_json_arraytype 을 걷어냈다 (2026-08-31).
 // XML 파서가 만든 결과에서 "원소가 하나면 배열이 아니라 값" 이 되는 것을

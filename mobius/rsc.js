@@ -15,11 +15,15 @@
 //
 // ─────────────────────────────────────────────────────────────────────────
 // 이 파일의 값은 전부 현재 코드에서 기계적으로 옮긴 것이다. 값을 바꾸지 않는다.
-//   추출 근거:  node tools/response-golden/extract-codes.js
+//   추출 근거였던 tools/response-golden/extract-codes.js 는 2026-09-04 에
+//   지웠다. 출처 세 곳 중 둘이 이미 없어졌기 때문이다 — app.js 의
+//   resultStatusCode 는 카탈로그로 옮겨지면서, pxy_coap.js 의 coap_rsc_code 는
+//   프로토콜 프록시 삭제와 함께. 값 자체는 test/fixtures/coap-table-original.json
+//   이 원본으로 붙들고 있고 test/rsc-catalog.test.js 가 대조한다.
 //
 // 이름은 코드베이스가 이미 쓰던 어휘에서 가져왔다(대부분 메시지 접두어).
 // oneM2M TS-0004 원문과 대조하지 않았다 — 값 교정은 별도 작업이다.
-// (docs/superpowers/specs/2026-08-26-request-flow-perf-analysis.md §8.3)
+// (docs/superpowers/specs/2026-09-04-request-flow-remaining.md §5)
 //
 // 같은 rsc 가 서로 다른 http 로 나가는 경우가 있다(4005 -> 405 와 409).
 // 규격상 이상하지만 현재 동작이므로 두 항목으로 나눠 보존한다. 값 교정 대상이다.

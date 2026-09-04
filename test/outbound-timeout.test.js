@@ -181,8 +181,9 @@ test('http·https·coap 로 나가는 요청은 전부 outbound.arm 이 덮는�
     //
     // 이 사각지대를 모르고 "11곳 전부 armed" 라고 문서에 적었다가 잡혔다.
     // 시험 제목이 실제 범위보다 넓으면 그런 오해를 만든다.
-    const files = ['app.js', 'mobius/fopt.js', 'mobius/grp.js', 'mobius/sgn_man.js',
-                   'pxy_coap.js', 'pxy_mqtt.js', 'pxy_ws.js'];
+    // pxy_coap.js · pxy_mqtt.js · pxy_ws.js 가 여기 있었다.
+    // 2026-09-04 에 프로토콜 프록시 3종을 지우면서 함께 뺐다.
+    const files = ['app.js', 'mobius/fopt.js', 'mobius/grp.js', 'mobius/sgn_man.js'];
 
     for (const f of files) {
         const lines = fs.readFileSync(path.join(ROOT, f), 'utf8').split(/\r?\n/);
@@ -240,8 +241,9 @@ test('http·https·coap 로 나가는 요청은 전부 outbound.arm 이 덮는�
 test('arm 라벨이 어느 경로인지 말해 준다', function () {
     // 타임아웃 로그는 '[outbound] <label> 응답이 ...' 한 줄이 전부다.
     // label 이 비어 있거나 겹치면 어느 경로가 멈췄는지 알 수 없다.
-    const files = ['app.js', 'mobius/fopt.js', 'mobius/grp.js', 'mobius/sgn_man.js',
-                   'pxy_coap.js', 'pxy_mqtt.js', 'pxy_ws.js'];
+    // pxy_coap.js · pxy_mqtt.js · pxy_ws.js 가 여기 있었다.
+    // 2026-09-04 에 프로토콜 프록시 3종을 지우면서 함께 뺐다.
+    const files = ['app.js', 'mobius/fopt.js', 'mobius/grp.js', 'mobius/sgn_man.js'];
 
     let total = 0;
     for (const f of files) {
@@ -258,6 +260,12 @@ test('arm 라벨이 어느 경로인지 말해 준다', function () {
 
     // 자리가 통째로 사라지면 위 두 시험이 조용히 통과한다(검사할 것이 없으니).
     // 최소 개수를 박아 그 경우를 잡는다.
-    assert.ok(total >= 10,
+    //
+    // 하한이 10 이었다. 프로토콜 프록시 3종을 지우면서 arm 호출이
+    // 11 -> 6 으로 줄어 6 으로 내렸다. 남는 여섯 자리:
+    //     app.js 2 (ae notify · csr forward)
+    //     mobius/fopt.js 1 · mobius/grp.js 1
+    //     mobius/sgn_man.js 2 (notify http · notify coap)
+    assert.ok(total >= 6,
         'arm 호출이 ' + total + '개뿐이다 — 아웃바운드 자리가 사라졌거나 시험이 못 찾고 있다');
 });

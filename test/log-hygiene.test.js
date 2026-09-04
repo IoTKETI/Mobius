@@ -70,32 +70,18 @@ test('나가는 요청·응답 로그에 길이가 남는다 — 진단을 없�
     // 본문을 뺀 대신 무엇이 남았는지 확인한다. 전부 지워 버리면
     // "응답이 왔는데 비어 있었다" 와 "응답이 안 왔다" 를 구분할 수 없다.
     const app = fs.readFileSync(path.join(ROOT, 'app.js'), 'utf8');
-    const coap = fs.readFileSync(path.join(ROOT, 'pxy_coap.js'), 'utf8');
-    const ws = fs.readFileSync(path.join(ROOT, 'pxy_ws.js'), 'utf8');
 
     // 로그 한 줄이 길어 두 줄로 나뉘는 경우가 있다. 줄 단위로 보면 놓치므로
     // 표지 뒤 200자 안에서 찾는다(줄바꿈 포함).
+    // pxy_coap.js · pxy_ws.js 두 줄이 여기 있었다. 2026-09-04 에 프로토콜
+    // 프록시 3종을 지우면서 함께 뺐다 — 시험의 뜻(본문을 지우면서 진단까지
+    // 지우지 마라)은 남는 두 줄이 그대로 지킨다.
     for (const [name, src, marker] of [
         ['app.js  notify_http',  app,  '\\[notify_http\\]'],
-        ['app.js  forward_http', app,  '\\[forward_http\\]'],
-        ['pxy_coap.js',          coap, '\\[pxy_coap\\]'],
-        ['pxy_ws.js',            ws,   '\\[pxy_ws\\]']
+        ['app.js  forward_http', app,  '\\[forward_http\\]']
     ]) {
         assert.ok(new RegExp(marker + '[\\s\\S]{0,200}?length').test(src),
             name + ' 의 로그에 길이가 없다 — 본문을 지우면서 진단까지 지웠다');
     }
 });
 
-test('pxy_ws 가 프레임을 hex 로 통째로 찍지 않는다', function () {
-    // 바이너리 프레임을 hex 로 찍으면 바이트당 두 글자라 **본문의 두 배**가 된다.
-    const src = fs.readFileSync(path.join(ROOT, 'pxy_ws.js'), 'utf8');
-    const lines = src.split(/\r?\n/);
-    const bad = [];
-    lines.forEach((l, i) => {
-        if (/^\s*(\/\/|\*|\/\*)/.test(l)) { return; }
-        if (/console\.(log|error)\([^)]*toString\('hex'\)/.test(l)) {
-            bad.push('pxy_ws.js:' + (i + 1) + '  ' + l.trim());
-        }
-    });
-    assert.deepStrictEqual(bad, [], bad.join('\n  '));
-});

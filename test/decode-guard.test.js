@@ -51,33 +51,13 @@ test('빈 Buffer 는 isBuffer 를 통과하고 [0] 이 undefined 다', function 
 // app.js 는 require 하면 cluster.fork() 와 listen 이 돌아 함수를 직접
 // 부를 수 없다. 소스에 가드가 남아 있는지로 확인한다.
 
-test('make_json_obj 가 결과를 검증하고서 성공을 알린다', function () {
-    // 예전 이름은 '세 분기가 모두' 였다. json 전용이 되면서 분기가 하나만
-    // 남았다(2026-08-31). **시험의 뜻은 그대로다** — 파서가 성공했다고
-    // 최상위가 객체인 것은 아니다. JSON.parse('null') 은 null 을,
-    // JSON.parse('3') 은 숫자를 준다. 그대로 Object.keys 에 넣으면 던진다.
-    const src = fs.readFileSync(path.join(ROOT, 'app.js'), 'utf8');
-
-    assert.ok(/function usable_object\(/.test(src),
-        'usable_object 가 사라졌다 — 파서 결과 검증이 없어졌는지 확인할 것');
-
-    // make_json_obj 본문만 잘라 낸다.
-    const start = src.indexOf('global.make_json_obj = function');
-    assert.ok(start > 0, 'make_json_obj 를 찾지 못했다');
-    const end = src.indexOf('\nfunction ', start);
-    const body = src.slice(start, end > 0 ? end : start + 4000);
-
-    const guards = (body.match(/usable_object\(/g) || []).length;
-    assert.ok(guards >= 1,
-        'make_json_obj 에 결과 검증이 하나도 없다 — 파서 결과를 그대로 믿고 있다');
-
-    // 검증 없이 성공을 알리는 형태가 남아 있으면 안 된다.
-    // 분기를 다시 늘리더라도 이 불변식은 유지되어야 한다.
-    const raw_success = (body.match(/^\s*callback\('1', result\);/gm) || []).length;
-    const checked = (body.match(/usable_object\(result\)/g) || []).length;
-    assert.ok(checked >= raw_success,
-        "검증 없이 callback('1', result) 를 부르는 분기가 남아 있다");
-});
+// make_json_obj 시험이 여기 있었다. 그 함수는 2026-09-04 에 프로토콜 프록시
+// 3종과 함께 지웠다 — 호출자가 그 셋뿐이었다.
+//
+// **뜻은 아래 parse_to_json 시험이 이어받는다.** 파서가 성공했다고 최상위가
+// 객체인 것은 아니다 — JSON.parse('null') 은 null 을, JSON.parse('3') 은
+// 숫자를 준다. 그대로 Object.keys 에 넣으면 던진다. 그 가드는 지금
+// 코어의 유일한 본문 파싱 경로인 parse_to_json 에 있다.
 
 test('parse_to_json 의 settle 이 최상위 객체 여부를 본다', function () {
     const src = fs.readFileSync(path.join(ROOT, 'app.js'), 'utf8');
@@ -109,29 +89,4 @@ test('parse_to_json 의 settle 이 최상위 객체 여부를 본다', function 
     }
 });
 
-test('CoAP 옵션 267 이 길이를 확인한 뒤 인덱싱한다', function () {
-    const src = fs.readFileSync(path.join(ROOT, 'pxy_coap.js'), 'utf8');
 
-    assert.strictEqual(/value\[0\]\.toString\(\)/.test(src), false,
-        '길이 확인 없이 옵션 첫 바이트를 인덱싱한다 — 빈 옵션에 5.00 이 나가고 예외 문구가 노출된다');
-    assert.ok(/ty_opt\.length > 0/.test(src),
-        '옵션 267 의 길이 검사가 사라졌다');
-});
-
-// ── 이 부류가 다시 생기지 않도록 ────────────────────────────────────
-
-test('프록시는 여전히 cluster 마스터에서 require 된다 — 던지면 마스터가 죽는다', function () {
-    // 이 사실이 위 가드들의 존재 이유다. 워커로 옮기면 완충이 생기지만
-    // 지금은 그렇지 않으므로, 이 배치가 바뀌면 알아차려야 한다.
-    const src = fs.readFileSync(path.join(ROOT, 'app.js'), 'utf8');
-
-    const master_start = src.indexOf('if (cluster.isMaster)');
-    assert.ok(master_start > 0, 'cluster.isMaster 블록을 찾지 못했다');
-
-    const proxies = ['pxy_mqtt', 'pxy_coap', 'pxy_ws'];
-    for (const p of proxies) {
-        const at = src.indexOf("require('./" + p + "')");
-        assert.ok(at > master_start,
-            p + ' 의 require 위치가 바뀌었다 — 마스터 밖으로 옮겼다면 이 테스트의 전제를 다시 적을 것');
-    }
-});

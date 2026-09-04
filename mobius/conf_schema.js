@@ -241,8 +241,10 @@ var SCHEMA = {
     // ── 노출 안 함: 바꾸면 깨진다 ────────────────────────────────────
     csebaseport: { group: '네트워크', type: 'string', dflt: '7579', exposed: false, apply: 'restart',
         label: 'CSEBase 포트', help: '바꾸면 등록된 AE 의 poa 가 전부 어긋난다.' },
-    pxyWsPort:   { group: '네트워크', type: 'string', dflt: '7577', exposed: false, apply: 'restart', label: 'WS 프록시 포트' },
-    pxyMqttPort: { group: '네트워크', type: 'string', dflt: '7578', exposed: false, apply: 'restart', label: 'MQTT 프록시 포트' },
+    // pxyWsPort(7577) / pxyMqttPort(7578) 가 여기 있었다.
+    // 2026-09-04 에 프로토콜 프록시 3종과 함께 지웠다.
+    // **mobius.js 의 global 대입과 원자적으로 움직여야 한다** — 아래
+    // conf-schema 시험이 양방향으로 강제해서 한쪽만 지우면 실패한다.
     sgnManPort:  { group: '네트워크', type: 'string', dflt: '7599', exposed: false, apply: 'restart', label: '알림 관리 포트' },
     hitManPort:  { group: '네트워크', type: 'string', dflt: '7594', exposed: false, apply: 'restart', label: '히트 관리 포트' }
 
