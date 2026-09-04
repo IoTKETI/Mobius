@@ -647,7 +647,11 @@ if (use_clustering) {
                 db.getConnection((code, connection) => {
                     if (code === '200') {
                         if (use_secure === 'disable') {
-                            http.globalAgent.maxSockets = 1000000;
+                            // http/https.globalAgent.maxSockets = 1000000 이 여기와 아래 세 자리에
+                            // 있었다. **2026-09-04 에 지웠다.** Node 기본값이 Infinity 라 값을
+                            // 올리는 것이 아니라 낮추고 있었고, 1,000,000 은 어떤 부하에서도
+                            // 안 걸린다 — 튜닝처럼 보이지만 아무 일도 안 하는 줄이었다.
+                            // 진짜 역압이 필요하면 실측으로 값을 정한다(test/outbound-timeout.test.js).
                             http.createServer(app).listen({port: usecsebaseport, agent: false}, () => {
                                 console.log('mobius server (' + ip.address() + ') running at ' + usecsebaseport + ' port');
                                 cb.create(connection, (rsp) => {
@@ -664,7 +668,6 @@ if (use_clustering) {
                                 cert: fs.readFileSync('server-crt.pem'),
                                 ca: fs.readFileSync('ca-crt.pem')
                             };
-                            https.globalAgent.maxSockets = 1000000;
                             https.createServer(options, app).listen({port: usecsebaseport, agent: false}, () => {
                                 console.log('mobius server (' + ip.address() + ') running at ' + usecsebaseport + ' port');
                                 cb.create(connection, (rsp) => {
@@ -707,7 +710,6 @@ else {
                         console.log(JSON.stringify(rsp));
 
                         if (use_secure === 'disable') {
-                            http.globalAgent.maxSockets = 1000000;
                             http.createServer(app).listen({port: usecsebaseport, agent: false}, () => {
                                 console.log('mobius server (' + ip.address() + ') running at ' + usecsebaseport + ' port');
                                 //noti_mqtt_begin();
@@ -719,7 +721,6 @@ else {
                                 cert: fs.readFileSync('server-crt.pem'),
                                 ca: fs.readFileSync('ca-crt.pem')
                             };
-                            https.globalAgent.maxSockets = 1000000;
                             https.createServer(options, app).listen({port: usecsebaseport, agent: false}, () => {
                                 console.log('mobius server (' + ip.address() + ') running at ' + usecsebaseport + ' port');
                                 //noti_mqtt_begin();

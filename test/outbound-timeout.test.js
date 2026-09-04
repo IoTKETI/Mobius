@@ -269,3 +269,37 @@ test('arm 라벨이 어느 경로인지 말해 준다', function () {
     assert.ok(total >= 6,
         'arm 호출이 ' + total + '개뿐이다 — 아웃바운드 자리가 사라졌거나 시험이 못 찾고 있다');
 });
+
+test('globalAgent.maxSockets 를 손으로 세우지 않는다', function () {
+    // ── 왜 지웠나 ────────────────────────────────────────────────────────
+    //
+    // app.js 네 자리에 `http.globalAgent.maxSockets = 1000000` 이 있었다.
+    // 튜닝처럼 보이지만 **아무 일도 안 하는 줄**이었다:
+    //
+    //     Node 의 http/https.globalAgent.maxSockets 기본값 = Infinity
+    //
+    // 즉 값을 올리는 것이 아니라 **낮추고** 있었다(Infinity -> 1,000,000).
+    // 그리고 1,000,000 은 어떤 현실적 부하에서도 안 걸린다.
+    //
+    // 남겨 두면 "동시성을 100만으로 튜닝했다" 는 인상을 주어 읽는 사람을
+    // 오해시킨다. 넷 중 둘은 죽은 단일 프로세스 분기 안이기도 했다.
+    //
+    // ── 다시 세우려면 ────────────────────────────────────────────────────
+    //
+    // 나가는 요청에 진짜 역압이 필요하다고 판단되면 그때는 **실측으로 숫자를
+    // 정한다.** 상대 호스트당 동시 소켓을 몇으로 둘지는 알림·팬아웃의 실제
+    // 동시성에서 나와야 하고, 근거 없는 큰 수를 다시 박는 것은 같은 실수다.
+    // 그렇게 정한 값이라면 이 시험도 함께 고친다.
+    const files = ['app.js', 'mobius/fopt.js', 'mobius/grp.js', 'mobius/sgn_man.js'];
+
+    for (const f of files) {
+        const src = fs.readFileSync(path.join(ROOT, f), 'utf8');
+        const live = src.split(/\r?\n/).filter(function (l) {
+            return !/^\s*(\/\/|\*|\/\*)/.test(l) && /globalAgent\.maxSockets\s*=/.test(l);
+        });
+        assert.deepStrictEqual(live, [],
+            f + ' 이 globalAgent.maxSockets 를 세운다: ' + live.join(' | ') +
+            '\n  Node 기본값이 Infinity 라 이 대입은 상한을 낮출 뿐이고 실효가 없다. ' +
+            '진짜 역압이 필요하면 실측으로 값을 정하고 이 시험을 고칠 것');
+    }
+});
