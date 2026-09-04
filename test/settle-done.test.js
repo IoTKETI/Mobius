@@ -194,3 +194,15 @@ test('app.js 라우트 넷이 settle.done 을 부르고 옛 세 함수를 직접
                   fn + ' 이 (code, out) 을 done 으로 넘긴다');
     });
 });
+
+test('resource 경로에 두 번째 인자를 버리는 통과 릴레이가 없다 (2단계 7번)', () => {
+    // lookup_* → authorize_and_run → resource.* 사이에 `(code) => { callback(code); }`
+    // 가 두 곳 있었다. 오늘은 무해하지만(생산자가 코드만 준다) 생산자가 (null, out)
+    // 을 주는 순간 out 이 여기서 사라진다 — 모든 성공 요청이 500-8 이 된다.
+    const src = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8')
+        .replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/mg, '');
+    assert.ok(src.includes('run(request, response, callback);'), 'authorize_and_run 이 콜백을 그대로 넘긴다');
+    assert.ok(src.includes('resource.update(request, response, callback);'), 'acpi 전용 update 가 콜백을 그대로 넘긴다');
+    const relays = src.match(/\b(run|resource\.\w+)\(request, response, \(code\) => \{\s*callback\(code\);\s*\}\);/g) || [];
+    assert.deepStrictEqual(relays, [], 'resource 경로의 통과 릴레이');
+});

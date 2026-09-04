@@ -1447,9 +1447,10 @@ function resolve_cr(target) {
 function authorize_and_run(request, response, target, access_value, run, callback) {
     security.check(request, response, target.ty, target.acpi, access_value, target.cr, (code) => {
         if (code === '1') {
-            run(request, response, (code) => {
-                callback(code);
-            });
+            // 콜백을 그대로 넘긴다. 여기 있던 `(code) => { callback(code); }` 는
+            // 두 번째 인자를 버렸다 — 2단계에서 resource.* 가 (null, out) 을
+            // 주기 시작하면 그 out 이 여기서 사라진다. 2단계 7번(2026-09-05).
+            run(request, response, callback);
         }
         else if (code === '0') {
             callback('403-3');
@@ -1593,9 +1594,8 @@ function lookup_update(request, response, callback) {
 
         if (!updates_beyond_acpi(request.bodyObj)) {
             // acpi 만 바꾸는 경우 — 권한 검사 없이 진행한다.
-            resource.update(request, response, (code) => {
-                callback(code);
-            });
+            // 콜백을 그대로 넘긴다 — authorize_and_run 과 같은 이유(2단계 7번).
+            resource.update(request, response, callback);
             return;
         }
 
