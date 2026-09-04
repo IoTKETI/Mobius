@@ -128,7 +128,7 @@ admin/                    웹. 리소스만 다룬다
 | `conf.json` — 선언은 됐지만 `exposed: false` | 5 (포트 3 + 비밀 2) |
 | `mobius.js` 상단 하드코딩 (`global.*`) | 8 |
 | `app.js` 하드코딩 (`usespid`) | 1 |
-| 콘솔 자신의 키 (`admin*`) | 7 (스키마 밖) |
+| 콘솔 자신의 키 (`admin*`) | 7 (스키마 밖. 그중 `adminPm2Name` 은 §6 에서 지운다) |
 
 > **기준선 주의.** 문서 작성 중 `4a47c48` 이 프로토콜 프록시 3종(`pxy_mqtt.js`·`pxy_ws.js`·
 > `pxy_coap.js`)과 `wdt.js` 를 지웠고, 그와 함께 conf 키 `pxyWsPort`·`pxyMqttPort` 도
@@ -169,7 +169,7 @@ CSEBase 행이 하나 더 생기고 기존 트리 전체가 고아가 된다. di
 | `allowedAppIds` | `[]` | `mobius.js` `allowed_app_ids` | 접근 제한 | runtime | **관문** | AE 생성 시 `api` 화이트리스트 |
 | `csebaseport` | `7579` | 이미 conf | 네트워크 | restart | **관문** | 등록된 AE 의 `poa` 가 어긋난다 |
 | `sgnManPort` | `7599` | 이미 conf | 네트워크 | restart | 편집 | `exposed: true` 로 연다 |
-| 콘솔 7키 | | 스키마 밖 | 콘솔 | restart | 편집 | `adminPassword`·`adminOrigin` 은 `secret` |
+| 콘솔 6키 | | 스키마 밖 | 콘솔 | restart | 편집 | `adminPassword`·`adminOrigin` 은 `secret`. `adminPm2Name` 은 제외 |
 
 **`hitManPort` 는 삭제한다** — `global.use_hit_man_port` 를 세우지만 읽는 코드가 0건인 죽은 키다.
 `pxyWsPort`·`pxyMqttPort` 는 `4a47c48` 이 프록시와 함께 이미 지웠다.
@@ -179,9 +179,10 @@ CSEBase 행이 하나 더 생기고 기존 트리 전체가 고아가 된다. di
 
 `spId` 는 `app.js` 에서 `mobius.js` 로 옮긴다. 이유는 §2.4.
 
-**`adminPm2Name` 은 그대로 둔다.** 이름과 달리 Mobius 의 pm2 이름을 가리키지만, `admin/` 이
-프로세스 제어를 안 하게 되면 **읽는 코드가 없어진다.** `hitManPort` 와 같이 죽은 키가 되므로
-§6 에서 함께 지운다.
+**`adminPm2Name` 은 스키마에 올리지 않는다.** 이름과 달리 Mobius 의 pm2 이름을 가리키는데,
+`admin/` 이 프로세스 제어를 안 하게 되면 **읽는 코드가 없어진다.** `hitManPort` 와 같은
+죽은 키가 되므로 §6 에서 지운다. 그래서 스키마에 올리는 콘솔 키는 **6개**다
+(`adminPassword`·`adminPort`·`adminHost`·`adminCseHost`·`adminCsePort`·`adminOrigin`).
 
 ### 2.4 `conf_schema` 규약이 요구하는 것
 
@@ -319,8 +320,47 @@ CSE 신원
 ● 재기동 대기 1건.  반영하려면 Mobius 를 다시 띄운다.
 ```
 
-3상태는 §3 의 부팅 기록과 대조해 나온다. Mobius 가 안 떠 있으면 그 열이 `모름` 이 되고
-**대조를 아예 하지 않는다.**
+**값을 세 곳에서 합친다.**
+
+```
+mobius/conf_schema.js    키 목록 · 타입 · 기본값 · 유효값 · 도움말 · apply · 등급
+conf.json                파일에 실제로 적힌 값
+log/mobius-boot.jsonl    지금 도는 프로세스가 적용한 값
+```
+
+키마다 이렇게 계산한다.
+
+| | 스키마 `dflt` | `conf.json` | 부팅 기록 | 화면에 |
+|---|---|---|---|---|
+| `maxBodyBytes` | 10MB | **20MB** | 10MB | `20MB` · ● 재기동 대기 |
+| `db` | mysql | (없음) | mysql | `mysql` · 적용됨 |
+| `purgeSweepMs` | 10000 | (없음) | (기록 없음) | `10000` · 모름 |
+
+- **현재 값** = 파일에 있으면 그 값, 없으면 스키마의 기본값
+- **도는 값** = 부팅 기록의 마스터 줄
+- **상태** = 둘을 대조. 기록이 없으면 **대조를 아예 하지 않고** `모름`
+
+**단건 조회는 스키마가 가진 것을 다 보여 준다.**
+
+```
+$ npm run conf -- acpObserveMode
+
+acpObserveMode                                              권한
+  현재 값   off        (파일에 없음 — 기본값)
+  도는 값   off        적용됨
+  기본값    off
+  유효값    off | observe
+  반영      reload (acp_observe.configure) — 다만 파일만 고쳐서는 안 먹는다.
+                                             재기동해야 반영된다
+  등급      편집
+
+  observe 로 두면 ACP 거부가 허용으로 나간다. 잠그기 전에 무엇이 막힐지
+  보기 위한 것이고, 켠 채로 두면 ACP 가 무력해진다.
+```
+
+`apply` 가 `runtime` 이든 `reload` 든 **CLI 관점에서는 전부 "재기동"** 이다 — 다른 프로세스의
+전역을 바꾸거나 재설정 함수를 부를 수 없다(§3.1). `apply` 는 정보로 보여 주되 결론은
+"재기동해야 반영된다"로 통일한다.
 
 ### 4.3 변경
 
@@ -341,10 +381,57 @@ $ npm run conf -- set cseBase Mobius2
       저장된 모든 ri 가 /Mobius/… 로 시작하므로 바꾸면 트리 전체가 고아가 된다.
 ```
 
+**다섯 관문을 지난다.**
+
+```
+npm run conf -- set maxBodyBytes 20971520
+   │
+   ├─ 1. 타입 변환     명령줄은 전부 문자열이다. 스키마의 type 을 보고
+   │                   number / array / enum 으로 바꾼다          ← 새로 짠다
+   │
+   ├─ 2. validate()    conf_store.validate() → conf_schema.validate()
+   │                   모르는 키 / 읽기 전용 / 유효값 밖 / 비밀 키를 거부
+   │
+   ├─ 3. 등급 확인     관문 키면 "무엇이 깨지나" + 키 이름 타이핑   ← 새로 짠다
+   │
+   ├─ 4. 원자적 쓰기   conf_store.update()
+   │                     · 하나라도 틀리면 아무것도 안 쓴다
+   │                     · 읽은 객체에서 그 키만 바꿔 다시 쓴다 → 모르는 키 보존
+   │                     · 임시 파일 + rename
+   │
+   └─ 5. 안내          "재기동해야 반영된다"
+```
+
+**2·4번은 이미 있는 코드다.** `conf_store` 의 주석이 그 성질을 명시한다 —
+*"하나라도 틀리면 아무것도 쓰지 않는다. 일부만 적용되면 화면이 보여 준 상태와 파일이
+어긋난다"*, *"모르는 키는 그대로 둔다"*. 관문이 이중(`isWritable` + `schema.validate`)인
+이유도 적혀 있다 — *"잘못 통과하면 비밀이 파일에 써지고, 그건 되돌릴 수 없다"*.
+
+**1·3번만 새로 짠다.** CLI 라서 생기는 부분이다 — 웹은 폼이 타입을 알고 있었고 확인
+대화상자도 있었다.
+
 - 검증은 **`conf_schema.validate()` 단일 관문**을 지난다. CLI 가 자기 규칙을 따로 갖지 않는다
 - §2.2 의 3등급이 그대로 적용된다
-- 쓰기는 `tools/conf_store.js` 의 **원자적 쓰기**를 쓴다. 모르는 키는 보존한다
 - **재기동을 CLI 가 대신 하지 않는다.** "재기동해야 반영된다"만 말하고, 방법은 환경에 맡긴다
+- `unset` 은 `set` 의 대칭이다 — 파일에서 키를 지우면 기본값으로 돌아간다
+
+**배열 키는 쉼표로 받는다.** `allowedAeIds`·`allowedAppIds` 가 `type: 'array'` 이고
+편집 가능하다. 빈 문자열이면 빈 배열이다. AE-ID·App-ID 에 쉼표가 들어갈 일이 없고,
+JSON 을 치게 하면 셸 따옴표가 번거롭다.
+
+```
+$ npm run conf -- set allowedAeIds ryeubi,APP01
+⚠ allowedAeIds 를 채우면 목록 밖의 Origin 이 전부 403 을 받는다.
+  지금은 비어 있어 전원 허용 상태다.
+
+  바뀔 값:  [] → ["ryeubi", "APP01"]
+
+  계속하려면 키 이름을 그대로 입력:  allowedAeIds
+> _
+```
+
+이 둘은 **관문 등급**이라 저장 전에 전체 목록을 다시 보여 주고 타이핑 확인을 받는다.
+실수로 통째로 덮어쓰는 것을 거기서 막는다.
 
 **비밀 키(`dbpass`·`superUser`·`adminPassword`)는 조회만 하고 변경은 지원하지 않는다.**
 
@@ -449,8 +536,8 @@ pm2 처럼 **콘솔 없는 부모**가 띄울 때만 생긴다(§10.1). 배포�
 
 ## 7. 시험 계약
 
-`test/conf-schema.test.js` 가 이미 19건으로 conf 키를 양방향 강제하므로 **새 키 16개**(소스에서
-내리는 9개 + 콘솔 7개)**는 자동으로 거기 걸린다.** 새로 쓰는 것은 그 표가 못 잡는 것들이다.
+`test/conf-schema.test.js` 가 이미 19건으로 conf 키를 양방향 강제하므로 **새 키 15개**(소스에서
+내리는 9개 + 콘솔 6개)**는 자동으로 거기 걸린다.** 새로 쓰는 것은 그 표가 못 잡는 것들이다.
 
 ### 7.1 코어
 
@@ -490,18 +577,22 @@ Linux CI 에서는 증상이 안 나오므로 소스 검사로 잡는다. 다만
 **⑧ `conf` 조회가 3상태를 낸다** — 부팅 기록이 없으면 대조를 아예 안 하고 `모름` /
 워커 줄이 서로 다르면 불일치 / `capped` 면 좀비 의심
 
-**⑨ `conf set` 이 `validate()` 를 지난다** — CLI 가 자기 검증 규칙을 따로 갖지 않는지.
+**⑨ 명령줄 문자열을 스키마 타입으로 바꾼다** — `number` 키에 `"20971520"` 을 주면 숫자로,
+`array` 키에 `"a,b"` 를 주면 `["a","b"]`, 빈 문자열이면 `[]`. **이 단계가 빠지면
+`validate()` 가 "숫자가 아니다"로 거부해 number 키를 아예 못 고친다**
+
+**⑩ `conf set` 이 `validate()` 를 지난다** — CLI 가 자기 검증 규칙을 따로 갖지 않는지.
 모르는 키·읽기 전용·유효값 밖·비밀 키가 모두 거부되는지
 
-**⑩ 위험 등급이 CLI 에서 지켜진다** — 읽기 전용은 거부, 관문 키는 확인 입력 없이는 저장되지
+**⑪ 위험 등급이 CLI 에서 지켜진다** — 읽기 전용은 거부, 관문 키는 확인 입력 없이는 저장되지
 않음. **확인 입력을 흉내 낸 대역이 실물보다 관대하면 안 된다**
 
-**⑪ `status` 가 pm2 없이도 동작한다** — `pm2` 를 못 찾아도 포트·부팅 기록으로 답하고,
+**⑫ `status` 가 pm2 없이도 동작한다** — `pm2` 를 못 찾아도 포트·부팅 기록으로 답하고,
 `감독` 줄만 빠지는지
 
 ### 7.3 웹
 
-**⑫ conf·프로세스 제어가 웹에서 사라졌다** — `admin/server.js` 에 그 라우트가 없고,
+**⑬ conf·프로세스 제어가 웹에서 사라졌다** — `admin/server.js` 에 그 라우트가 없고,
 `admin/` 어디에도 프로세스를 띄우거나 `conf.json` 에 쓰는 코드가 없는지
 
 ### 7.4 시험 대역 원칙
@@ -530,8 +621,8 @@ CLAUDE.md 의 규칙을 따른다 — **가짜가 실물보다 관대하면 시�
 | 3 | 포트 충돌 처리 | `app.js` · `mobius.js` | ⑥ |
 | 4 | `windowsHide` 한 줄 | `app.js` | ⑦ |
 | — | **배포 1차** — 코어 반영 + Mobius 재기동 | | 동작 불변 확인 |
-| 5 | `conf_store.js` 이동 + conf CLI | `admin/` → `tools/` · `tools/mobius-conf.js`(신설) · `package.json` | 기존 20 + ⑧⑨⑩⑪ |
-| 6 | 웹에서 걷어내기 | `admin/server.js` · `ConfView.vue`·`ServerControl.vue`·`process_ctl.js` 삭제 | ⑫ |
+| 5 | `conf_store.js` 이동 + conf CLI | `admin/` → `tools/` · `tools/mobius-conf.js`(신설) · `package.json` | 기존 20 + ⑧⑨⑩⑪⑫ |
+| 6 | 웹에서 걷어내기 | `admin/server.js` · `ConfView.vue`·`ServerControl.vue`·`process_ctl.js` 삭제 | ⑬ |
 | — | **배포 2차** — CLI 반영 + 웹 재기동 | | |
 
 **코어를 먼저 하는 이유**는 CLI 가 코어가 준 것(스키마·부팅 기록)에 의존하고 반대는 아니기
@@ -550,7 +641,8 @@ CLAUDE.md 의 규칙을 따른다 — **가짜가 실물보다 관대하면 시�
   띄웠을 때 **좀비가 아니라 깨끗한 실패**가 되는 것을 실제로 확인
 - **배포 1차** — 재기동 후 `mobius-boot.jsonl` 이 생기고, 응답이 전과 같음
   (`tools/response-golden/headers.js`)
-- **5** — `npm test` 전건 통과. `npm run conf` 와 `npm run status` 가 **pm2 없이도** 동작
+- **5** — `npm test` 전건 통과. `npm run conf` 와 `npm run status` 가 **pm2 없이도** 동작.
+  number·array 키를 명령줄에서 실제로 고쳐 본다
 - **6** — 웹이 여전히 뜨고 남은 화면이 동작. `admin/` 에 프로세스 제어·conf 쓰기 코드가 0건
 - **배포 2차** — SSH 로 들어가 `npm run conf` → `set` → `pm2 restart Mobius` →
   `적용됨` 으로 바뀌는 것까지 한 번 걸어 봄
