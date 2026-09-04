@@ -110,7 +110,7 @@ test('모든 항목이 분류를 밝힌다', function () {
 test('분류 이름이 늘어나는 것은 의도된 선택이어야 한다', function () {
     // 오타로 '권한 ' 같은 새 묶음이 생기면 화면에 빈 칸이 하나 더 뜬다.
     // 새 분류를 정말 만들 때는 이 목록도 같이 늘린다.
-    const KNOWN = ['권한', '요청 처리', '저장소', '네트워크'];
+    const KNOWN = ['권한', '요청 처리', '저장소', '네트워크', 'CSE 신원', '접근 제한'];
     const used = [...new Set(schema.all().map((k) => schema.get(k).group))].sort();
     const unknown = used.filter((g) => KNOWN.indexOf(g) < 0);
     assert.deepStrictEqual(unknown, [],
@@ -147,7 +147,7 @@ test("'reload' 는 무엇을 다시 불러야 하는지 밝힌다", function () 
 test('describe() 가 소비자에게 필요한 필드를 전부 준다', function () {
     // 화면이 쓰는 유일한 진입점이다. 내부 표에만 있고 여기 없으면 없는 것과 같다.
     const NEED = ['type', 'dflt', 'choices', 'validHint', 'integer', 'group',
-                  'apply', 'reloadWith', 'readOnly', 'label', 'help'];
+                  'apply', 'reloadWith', 'readOnly', 'label', 'help', 'grade', 'gateWarn'];
     for (const [k, v] of Object.entries(schema.describe())) {
         for (const f of NEED) {
             assert.ok(f in v, 'describe().' + k + ' 에 ' + f + ' 가 없다');
@@ -426,4 +426,58 @@ test('설정 표가 지금 고른 백엔드의 키만 싣는다', function () {
     } finally {
         global.usedb = saved;
     }
+});
+
+// --- 2026-09-05 conf 키 내리기 ------------------------------------------------
+
+test('관문 등급이면 문구가 있다 — grade:gate 인데 gateWarn 이 비면 CLI 가 빈 경고를 띄운다', function () {
+    const bad = schema.all().filter((k) => {
+        const s = schema.get(k);
+        return s.grade === 'gate' && !(typeof s.gateWarn === 'string' && s.gateWarn.length > 0);
+    });
+    assert.deepStrictEqual(bad, [], 'gate 인데 gateWarn 이 없다: ' + bad.join(', '));
+    // grade 는 'gate' 아니면 없어야 한다 — 'edit' 를 굳이 적지 않는다
+    const odd = schema.all().filter((k) => schema.get(k).grade !== undefined && schema.get(k).grade !== 'gate');
+    assert.deepStrictEqual(odd, [], '모르는 grade: ' + odd.join(', '));
+});
+
+test('describe() 가 grade 와 gateWarn 을 준다 — 화이트리스트 복사라 안 더하면 CLI 에 안 온다', function () {
+    const d = schema.describe();
+    assert.strictEqual(d.cseBase.grade, 'gate');
+    assert.ok(d.cseBase.gateWarn.indexOf('cseBase') >= 0);
+    assert.strictEqual(d.mqttBroker.grade, 'edit');
+    assert.strictEqual(d.mqttBroker.gateWarn, null);
+});
+
+test('C13 cseBase 유효성 — 빈 값·슬래시·예약어·65자를 거부한다', function () {
+    for (const v of ['', 'Mo/bius', 'la', 'latest', 'ol', 'oldest', 'fopt', 'a'.repeat(65), 'Mo bius']) {
+        const r = schema.validate('cseBase', v);
+        assert.strictEqual(r.ok, false, JSON.stringify(v) + ' 가 통과했다');
+        assert.ok(r.reason.length > 0);
+    }
+    for (const v of ['Mobius', 'Vita', 'cse-1', 'a'.repeat(64)]) {
+        assert.strictEqual(schema.validate('cseBase', v).ok, true, v + ' 가 거절됐다');
+    }
+});
+
+test('releaseVersion 의 유효값은 cb.js 가 광고하는 srv 와 같다', function () {
+    // cb.js 는 srv 를 push 로 하나씩 쌓는다. 표에 다른 값이 있으면 CSE 가 광고하지
+    // 않는 버전을 설정으로 고를 수 있게 된다.
+    const src = fs.readFileSync(path.join(ROOT, 'mobius', 'cb.js'), 'utf8');
+    const srv = [];
+    const re = /srv\.push\('([^']+)'\)/g;
+    let m;
+    while ((m = re.exec(src)) !== null) { srv.push(m[1]); }
+    assert.ok(srv.length > 0, 'cb.js 의 srv.push 를 못 찾았다');
+    assert.deepStrictEqual(schema.choices('releaseVersion'), srv);
+});
+
+test('새로 내린 키의 등급이 스펙 §2.3 과 같다', function () {
+    const GATE = ['cseBase', 'cseId', 'spId', 'useSecure', 'allowedAeIds', 'allowedAppIds'];
+    const EDIT = ['releaseVersion', 'mqttBroker', 'mqttPort'];
+    GATE.forEach((k) => assert.strictEqual(schema.get(k).grade, 'gate', k + ' 가 관문이 아니다'));
+    EDIT.forEach((k) => assert.strictEqual(schema.get(k).grade, undefined, k + ' 가 관문이다'));
+    assert.strictEqual(schema.get('releaseVersion').apply, 'runtime');
+    assert.strictEqual(schema.get('allowedAeIds').apply, 'runtime');
+    assert.strictEqual(schema.get('cseBase').apply, 'restart');
 });

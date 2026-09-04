@@ -267,7 +267,118 @@ var SCHEMA = {
     // **mobius.js 의 global 대입과 원자적으로 움직여야 한다** — 아래
     // conf-schema 시험이 양방향으로 강제해서 한쪽만 지우면 실패한다.
     sgnManPort:  { group: '네트워크', type: 'string', dflt: '7599', exposed: false, apply: 'restart', label: '알림 관리 포트' },
-    hitManPort:  { group: '네트워크', type: 'string', dflt: '7594', exposed: false, apply: 'restart', label: '히트 관리 포트' }
+    hitManPort:  { group: '네트워크', type: 'string', dflt: '7594', exposed: false, apply: 'restart', label: '히트 관리 포트' },
+
+    // ── CSE 신원 ─────────────────────────────────────────────────────────
+    // 예전에는 mobius.js 상단(usecsebase·usecseid·uservi)과 app.js(usespid)에
+    // 박혀 있었다. 바꾸려면 소스를 고쳐야 했다. 2026-09-05 에 conf 로 내렸다.
+    //
+    // 관문 등급(grade:'gate')은 CLI 가 gateWarn 을 그대로 찍고 키 이름을
+    // 타이핑해야 통과시킨다. **문구는 여기 둔다** — CLI 에 키별 문구를 적으면
+    // 코어의 정책을 화면이 베끼는 것이 된다.
+    cseBase: {
+        group: 'CSE 신원',
+        type: 'string', dflt: 'Mobius', apply: 'restart',
+        grade: 'gate',
+        gateWarn: '⚠ cseBase 를 바꾸면 다른 CSE 로 뜬다.\n' +
+                  '  · 지금 이름으로 만든 리소스는 지워지지 않지만 /새이름/… 경로로는 404 다\n' +
+                  '  · 그런데 루트 discovery 와 비구조 주소(/{sri})로는 여전히 나온다 — 절반만 가려진다\n' +
+                  '  · 옛 경로를 mid 로 가진 그룹은 그 멤버를 조용히 건너뛴다\n' +
+                  '  · 이름을 되돌리면 원래대로 돌아온다',
+        // 빈 문자열이면 cb.js 의 ri 가 '/' 가 되고 sql_action 의 root_ri 도 '/' 가
+        // 되어 whole_tree 판정이 어긋난다. '/' 가 들어가면 pi='' 인 트리와 깊이가
+        // 안 맞는다. 다섯 예약어는 app.js 의 la/ol/fopt 분기와 충돌한다.
+        valid: function (v) {
+            return /^[A-Za-z0-9_-]{1,64}$/.test(v) &&
+                   ['la', 'latest', 'ol', 'oldest', 'fopt'].indexOf(v) < 0;
+        },
+        validHint: '영문·숫자·_·- 1~64자. la/latest/ol/oldest/fopt 는 쓸 수 없다',
+        label: 'CSE 이름',
+        help: 'CSEBase 리소스 이름 — 경로의 첫 마디다(/Mobius/...). 기동 시 이 이름의 ' +
+              'CSEBase 가 DB 에 있으면 이어받고 없으면 만든다.'
+    },
+    cseId: {
+        group: 'CSE 신원',
+        type: 'string', dflt: '/Mobius2', apply: 'restart',
+        grade: 'gate',
+        gateWarn: '⚠ cseId 를 바꾸면 MQTT 알림 토픽과 acpi 절대 표기 접기가 끊긴다.\n' +
+                  '  · 기존 구독자가 옛 CSE-ID 토픽을 듣고 있으면 알림을 못 받는다\n' +
+                  '  · //spid/옛ID/... 로 적힌 acpi 는 더 이상 내부 ri 로 접히지 않는다',
+        valid: function (v) { return /^\/\S+$/.test(v); },
+        validHint: '/ 로 시작하고 공백이 없어야 한다 (예: /Mobius2)',
+        label: 'CSE-ID',
+        help: 'oneM2M CSE-ID. 절대 표기 //spid/cseid/... 의 두 번째 마디다.'
+    },
+    spId: {
+        group: 'CSE 신원',
+        type: 'string', dflt: '//keti.re.kr', apply: 'restart',
+        grade: 'gate',
+        gateWarn: '⚠ spId 를 바꾸면 절대 표기(//spid/cseid/...) 접기가 안 된다.\n' +
+                  '  · 그렇게 적힌 대상(acpi·구독 알림 주소)의 해석이 실패한다',
+        valid: function (v) { return /^\/\/\S+$/.test(v); },
+        validHint: '// 로 시작하고 공백이 없어야 한다 (예: //keti.re.kr)',
+        label: 'SP-ID',
+        help: 'oneM2M 서비스 제공자 ID. 예전에는 app.js 에 박혀 있었다.'
+    },
+    releaseVersion: {
+        group: 'CSE 신원',
+        type: 'enum', valid: ['1', '2', '2a'], dflt: '2a', apply: 'runtime',
+        label: '릴리스 버전(rvi)',
+        help: '응답과 알림의 X-M2M-RVI. mobius/cb.js 가 광고하는 srv 목록과 같아야 한다 — ' +
+              'test/conf-schema.test.js 가 대조한다.'
+    },
+
+    // ── 네트워크 (MQTT·TLS) ───────────────────────────────────────────────
+    mqttBroker: {
+        group: '네트워크',
+        type: 'string', dflt: 'localhost', apply: 'restart',
+        valid: function (v) { return v.length > 0; },
+        validHint: '비울 수 없다',
+        label: 'MQTT 브로커',
+        help: '알림 발행에 쓰는 브로커 호스트. 남은 소비처는 알림 발행뿐이다.'
+    },
+    mqttPort: {
+        group: '네트워크',
+        type: 'string', dflt: '1883', apply: 'restart',
+        valid: function (v) { return /^\d{1,5}$/.test(v) && Number(v) >= 1 && Number(v) <= 65535; },
+        validHint: '1~65535',
+        // CLI 가 "유도됨" 을 낼 근거. 파일 값과 도는 값이 달라도 재기동 대기가 아니다.
+        derivedFrom: function (applied) {
+            return (applied && applied.useSecure === 'enable') ? 'useSecure=enable' : null;
+        },
+        label: 'MQTT 포트',
+        help: 'useSecure 가 enable 이면 8883 으로 덮인다.'
+    },
+    useSecure: {
+        group: '네트워크',
+        type: 'enum', valid: ['disable', 'enable'], dflt: 'disable', apply: 'restart',
+        grade: 'gate',
+        gateWarn: '⚠ useSecure 를 켜면 HTTP 가 HTTPS 로, MQTT 알림이 mqtts(8883) 로 바뀐다.\n' +
+                  '  · server-key.pem / server-crt.pem / ca-crt.pem 이 저장소 루트에 있어야 뜬다\n' +
+                  '  · 기존 브로커가 TLS 를 안 받으면 알림이 전부 끊긴다',
+        label: 'TLS',
+        help: "'enable' 이 아닌 어떤 값도 disable 로 본다 — 오타로 HTTPS 분기에 들어가면 안 된다."
+    },
+
+    // ── 접근 제한 ─────────────────────────────────────────────────────────
+    allowedAeIds: {
+        group: '접근 제한',
+        type: 'array', dflt: [], apply: 'runtime',
+        grade: 'gate',
+        gateWarn: '⚠ allowedAeIds 를 채우면 목록 밖의 X-M2M-Origin 은 전부 403-1 이다.\n' +
+                  '  · 비어 있으면 제한하지 않는다',
+        label: '허용 AE-ID 목록',
+        help: '비어 있으면 전원 허용. CLI 에서는 쉼표로 구분한다.'
+    },
+    allowedAppIds: {
+        group: '접근 제한',
+        type: 'array', dflt: [], apply: 'runtime',
+        grade: 'gate',
+        gateWarn: '⚠ allowedAppIds 를 채우면 AE 생성 시 api 가 목록 밖이면 거절된다.\n' +
+                  '  · 비어 있으면 제한하지 않는다',
+        label: '허용 App-ID 목록',
+        help: 'AE 생성 시 api 화이트리스트. 비어 있으면 전원 허용.'
+    }
 
     // usesqlite 가 여기 "곧 사라진다" 로 있었다. 사라졌다.
     //
@@ -414,6 +525,10 @@ exports.describe = function () {
             readOnly: s.readOnly === true,
             label: s.label,
             help: s.help || '',
+            // 관문 등급과 그 문구. CLI 가 저장 전에 찍는다. 문구를 여기서 주므로
+            // CLI 에 키별 문구가 없다.
+            grade: s.grade === 'gate' ? 'gate' : 'edit',
+            gateWarn: s.gateWarn || null,
             // 이 값이 서버 쪽 다른 값을 끌고 갈 때 그 관계를 숫자로 넘긴다.
             // 던지면 설정 화면 전체가 안 뜨므로 삼킨다 — 항목 하나의 부가
             // 정보가 없다고 나머지 16개를 못 그리게 할 이유가 없다.

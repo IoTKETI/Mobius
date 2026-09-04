@@ -148,9 +148,9 @@ var app = express();
 
 app.use(cors());
 
-global.usespid = '//keti.re.kr';
-// usesuperuser 는 mobius.js 가 conf.json 에서 읽어 설정한다.
-// 이 값을 X-M2M-Origin 에 넣으면 모든 ACP 검사를 건너뛰므로 코드에 두면 안 된다.
+// usespid 가 여기 있었다. usesuperuser 와 함께 mobius/conf_load.js 가 conf.json 에서
+// 읽어 세운다(spId 키). superUser 값을 X-M2M-Origin 에 넣으면 모든 ACP 검사를
+// 건너뛰므로 코드에 두면 안 된다.
 global.useobserver = 'Sandwich';
 
 var logDirectory = __dirname + '/log';

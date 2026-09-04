@@ -106,3 +106,54 @@ test('mobius.js 는 conf 를 직접 읽지 않는다 — 순서만 잡는다', f
     assert.ok(!/global\.usedb\s*=/.test(src), 'mobius.js 가 global.usedb 를 세운다 — conf_load 의 일이다');
     assert.ok(/require\(['"]\.\/app['"]\)/.test(src), 'mobius.js 가 app 을 띄우지 않는다 — 순서의 마지막 줄이 없다');
 });
+
+test('C2 spId 를 conf_load 가 세운다 — app.js 는 세우지 않는다', function (t, done) {
+    const file = tmpConf(JSON.stringify({ spId: '//example.com', cseBase: 'Vita', cseId: '/Vita1' }));
+    conf_load({ file: file }, function (err, applied) {
+        assert.ifError(err);
+        assert.strictEqual(global.usespid, '//example.com');
+        assert.strictEqual(global.usecsebase, 'Vita');
+        assert.strictEqual(global.usecseid, '/Vita1');
+        assert.strictEqual(applied.spId, '//example.com');
+        assert.strictEqual(applied.cseBase, 'Vita');
+        const app = stripComments(fs.readFileSync(path.join(ROOT, 'app.js'), 'utf8'));
+        assert.ok(!/global\.usespid\s*=/.test(app), 'app.js 가 아직 usespid 를 세운다');
+        done();
+    });
+});
+
+test('C1 spId 기본값 — 빈 conf 면 //keti.re.kr', function (t, done) {
+    conf_load({ file: tmpConf('{}') }, function (err) {
+        assert.ifError(err);
+        assert.strictEqual(global.usespid, '//keti.re.kr');
+        done();
+    });
+});
+
+test('C3 useSecure=enable 이면 mqttPort 가 8883 으로 덮인다 — applied 에도 유도값이 실린다', function (t, done) {
+    const file = tmpConf(JSON.stringify({ useSecure: 'enable', mqttPort: '1884' }));
+    conf_load({ file: file }, function (err, applied) {
+        assert.ifError(err);
+        assert.strictEqual(global.use_secure, 'enable');
+        assert.strictEqual(global.use_mqtt_port, '8883');
+        assert.strictEqual(applied.mqttPort, '8883');
+        assert.strictEqual(applied.useSecure, 'enable');
+        // 'enable' 이 아닌 어떤 값도 disable 이다 — 오타로 HTTPS 분기에 들어가면 안 된다
+        conf_load({ file: tmpConf(JSON.stringify({ useSecure: 'yes', mqttPort: '1884' })) }, function (err2) {
+            assert.ifError(err2);
+            assert.strictEqual(global.use_secure, 'disable');
+            assert.strictEqual(global.use_mqtt_port, '1884');
+            done();
+        });
+    });
+});
+
+test('접근 제한 목록은 배열일 때만 받는다', function (t, done) {
+    conf_load({ file: tmpConf(JSON.stringify({ allowedAeIds: ['a', 'b'], allowedAppIds: 'oops' })) }, function (err, applied) {
+        assert.ifError(err);
+        assert.deepStrictEqual(global.allowed_ae_ids, ['a', 'b']);
+        assert.deepStrictEqual(global.allowed_app_ids, []);
+        assert.deepStrictEqual(applied.allowedAeIds, ['a', 'b']);
+        done();
+    });
+});

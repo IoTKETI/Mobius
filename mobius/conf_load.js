@@ -67,9 +67,18 @@ function apply_conf(conf) {
     var applied = {};
     applied.db = select_backend(conf);
 
-    // my CSE information
-    global.usecsebase = 'Mobius';
-    global.usecseid = '/Mobius2';
+    // ── CSE 신원 ─────────────────────────────────────────────────────
+    // 예전에는 여기(usecsebase·usecseid·uservi)와 app.js(usespid)에 박혀 있었다.
+    // 바꾸면 무슨 일이 나는지는 mobius/conf_schema.js 의 gateWarn 에 있다.
+    global.usecsebase = conf.cseBase || 'Mobius';
+    applied.cseBase = global.usecsebase;
+    global.usecseid = conf.cseId || '/Mobius2';
+    applied.cseId = global.usecseid;
+    global.usespid = conf.spId || '//keti.re.kr';
+    applied.spId = global.usespid;
+    // 유효값(1/2/2a)은 표가 저장 때 막는다. 손으로 고친 파일의 이상한 값은 그대로 헤더에 실린다.
+    global.uservi = conf.releaseVersion || '2a';
+    applied.releaseVersion = global.uservi;
     // 예전에는 conf.csebaseport 를 그대로 심어 파일에 키가 없으면 undefined 였다
     // (listen 이 임의 포트를 잡는다). 표의 dflt 와 같은 7579 로 떨어뜨린다.
     global.usecsebaseport = port_of(conf.csebaseport, '7579');
@@ -133,15 +142,19 @@ function apply_conf(conf) {
     // 볼지는 어댑터가 정한다. 코어는 키 이름을 하나도 모른다.
     require('./db').applyConf(conf);
 
-    global.use_mqtt_broker = 'localhost'; // mqttbroker for mobius
-
-    global.use_secure = 'disable';
-    global.use_mqtt_port = '1883';
+    // ── 네트워크 ─────────────────────────────────────────────────────
+    global.use_mqtt_broker = conf.mqttBroker || 'localhost';
+    applied.mqttBroker = global.use_mqtt_broker;
+    // 'enable' 이 아닌 어떤 값도 disable 이다 — 파일의 오타로 HTTPS 분기에 들어가
+    // 인증서를 찾다 죽는 일이 없게. (표의 dflt 대조가 이 모양은 못 본다 — acpiAttachPolicy 와 같다)
+    global.use_secure = (conf.useSecure === 'enable') ? 'enable' : 'disable';
+    applied.useSecure = global.use_secure;
+    global.use_mqtt_port = port_of(conf.mqttPort, '1883');
     if (global.use_secure === 'enable') {
-        // 예전에는 global. 접두 없는 암묵 전역 대입이었다('use strict' 가 없어서
-        // 동작했다). 명시한다.
+        // 예전에는 global. 접두 없는 암묵 전역 대입이었다. 명시한다.
         global.use_mqtt_port = '8883';
     }
+    applied.mqttPort = global.use_mqtt_port;   // enable 이면 유도값 8883 이 기록된다 — CLI 는 "유도됨" 으로 보인다
 
     // 이름과 달리 "ACP 를 쓰느냐" 가 아니라 **acpi 가 없는 리소스의 기본 정책**이다.
     global.useaccesscontrolpolicy = conf.defaultAccessPolicy || 'disable';
@@ -177,10 +190,12 @@ function apply_conf(conf) {
     global.acp_discovery_filter = (conf.acpDiscoveryFilter === 'off') ? 'off' : 'on';
     applied.acpDiscoveryFilter = global.acp_discovery_filter;
 
-    global.allowed_ae_ids = [];
-    global.allowed_app_ids = [];
-
-    global.uservi = '2a';
+    // ── 접근 제한 ─────────────────────────────────────────────────────
+    // 비면 전원 허용. 채우면 목록 밖 전부 403-1 (app.js 의 검사).
+    global.allowed_ae_ids = Array.isArray(conf.allowedAeIds) ? conf.allowedAeIds : [];
+    applied.allowedAeIds = global.allowed_ae_ids;
+    global.allowed_app_ids = Array.isArray(conf.allowedAppIds) ? conf.allowedAppIds : [];
+    applied.allowedAppIds = global.allowed_app_ids;
 
     return applied;
 }
