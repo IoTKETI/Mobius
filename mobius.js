@@ -31,7 +31,9 @@ var EXIT = require('./mobius/exit_codes');
 conf_load(function (err, applied) {
     if (err) {
         console.error(err.message);
-        process.exit(1);
+        // conf.json 이 없는 워커는 전용 코드로 나간다 — 마스터가 그것을 보고 재포크
+        // 하지 않고 같이 종료한다(app.js 의 cluster.on('exit')). 마스터 자신은 1 이다.
+        process.exit((err.code === 'NO_CONF' && !cluster.isPrimary) ? EXIT.NO_CONF : 1);
         return;
     }
     if (!cluster.isPrimary) { return boot(applied); }

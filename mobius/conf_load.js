@@ -28,8 +28,8 @@ var path = require('path');
 var ROOT = path.join(__dirname, '..');
 var DEFAULT_FILE = path.join(ROOT, 'conf.json');
 
-// 기본 경로에 파일이 없을 때 만들어 주는 최소 conf. 파싱이 깨졌을 때도
-// 이 값으로 진행한다 — 파일은 건드리지 않는다(아래 read_conf 참고).
+// 파싱이 깨졌을 때 이 값으로 진행한다 — 파일은 건드리지 않는다(아래 read_conf 참고).
+// "없음" 은 이제 만들어 주지 않는다 — 마법사가 묻는다(first_run).
 var DEFAULT_CONF = {
     csebaseport: "7579",
     dbpass: "dksdlfduq2",
@@ -207,19 +207,21 @@ function apply_conf(conf) {
 // 예외에서 워커를 죽이면 cluster 가 다시 띄운다. 그 순간 누군가 conf.json 을
 // 제자리에서 쓰고 있으면 그 워커가 반쪽 JSON 을 읽는다.
 //
-//   파일이 없다   기본 경로면 최초 실행이다 — 기본값으로 만들어 준다.
-//                 opts.file 이 주어졌으면 만들지 않고 오류다.
-//   파싱이 깨졌다 **건드리지 않는다.** 크게 남기고 기본값으로 진행한다.
-function read_conf(file, is_default_path, callback) {
+//   파일이 없다   첫 설치다. **만들어 두지 않는다** — 만들면 다음 기동에 마법사가
+//                 안 돌고 dbpass 가 소스 기본값이라 DB 연결에서 실패한다(원인이 두
+//                 단계 멀어진다). 마스터 + 대화형 터미널이면 마법사가 묻고(first_run),
+//                 아니면 오류다(NO_CONF). opts.file 이 주어졌으면 wizard 를 켜지 않는
+//                 한 만들지 않는다.
+//   파싱이 깨졌다 **건드리지 않는다.** 크게 남기고 기본값으로 진행한다. 종료로
+//                 바꾸면 누군가 제자리에서 파일을 쓰는 동안 재포크된 워커가 전부
+//                 기동에 실패한다. (CLI 는 다르다 — 덮어쓰지 않고 종료한다.)
+function read_conf(file, opts, callback) {
     var conf;
     if (!fs.existsSync(file)) {
-        if (!is_default_path) {
-            return callback(new Error('[설정] conf.json 이 없다: ' + file));
+        if (!opts.wizard) {
+            return callback(no_conf_error(file, '이 경로에는 만들지 않는다'));
         }
-        conf = JSON.parse(JSON.stringify(DEFAULT_CONF));
-        fs.writeFileSync(file, JSON.stringify(conf, null, 4), 'utf8');
-        console.log('[conf] conf.json 이 없어 기본값으로 만들었다: ' + file);
-        return callback(null, conf);
+        return first_run(file, opts, callback);
     }
     try {
         conf = JSON.parse(fs.readFileSync(file, 'utf8'));
@@ -235,13 +237,67 @@ function read_conf(file, is_default_path, callback) {
     callback(null, conf);
 }
 
+function no_conf_error(file, why) {
+    var e = new Error('[설정 없음] conf.json 이 없고 ' + why + '.\n' +
+                      '            터미널에서 `npm run setup` 을 먼저 실행할 것.\n' +
+                      '            (' + file + ')');
+    e.code = 'NO_CONF';
+    return e;
+}
+
+// 첫 구동 마법사. 지키는 것(스펙 §4.5.1):
+//   (가) stdin 과 stdout 이 **둘 다** TTY 여야 한다. stdin 만 보면 `npm start > log` 를
+//        놓친다 — 입력은 받는데 무엇을 묻는지가 파일로 가서 사람은 빈 화면 앞에 앉는다.
+//   (나) 워커는 묻지 않는다. 워커는 부모의 stdio 를 상속하므로 마스터가 TTY 면 워커도
+//        TTY 다 — (가)로는 못 막는다. 도달 경로는 운영 중 conf.json 이 지워진 경우다.
+//   (다) 비동기다 — 그래서 conf_load 가 콜백을 받는다.
+//   (마) rl.close() 는 setup_prompt 가 모든 경로에서 지난다.
+// 파일 생성 실패·취소는 callback(err) 다 — mobius.js 가 require('./app') 에 도달하지 않는다.
+function first_run(file, opts, callback) {
+    var io = opts.io || { stdin: process.stdin, stdout: process.stdout };
+    var isPrimary = (opts.isPrimary !== undefined) ? !!opts.isPrimary : require('cluster').isPrimary;
+    if (!isPrimary) {
+        return callback(no_conf_error(file, '워커는 묻지 않는다 (운영 중에 파일이 사라졌다)'));
+    }
+    if (!(io.stdin.isTTY && io.stdout.isTTY)) {
+        return callback(no_conf_error(file, '대화형 터미널이 아니다'));
+    }
+    var db = require('./db');
+    var backends = db.backends();                          // pick() 을 부르지 않는다
+    var forced = process.argv[2];
+    require('./setup_prompt').run({
+        backends: backends,
+        preset: (backends.indexOf(forced) >= 0) ? { db: forced } : null,
+        onBackend: function (name) {
+            select_backend({ db: name });                  // 여기서 처음 usedb 전역이 선다
+            return { schema: require('./conf_schema'), needsDbpass: !!db.confSchema().dbpass };
+        },
+        io: io
+    }, function (err, answers) {
+        if (err) { return callback(err); }
+        try {
+            require('./conf_write').createExclusive(file, answers);
+        }
+        catch (e) {
+            return callback(new Error('[설정] conf.json 을 만들지 못했다: ' + ((e && e.message) || e)));
+        }
+        io.stdout.write('\nconf.json 을 만들었습니다: ' + file + '\n나머지 설정은 `npm run conf` 로 봅니다.\n\n');
+        callback(null, answers);
+    });
+}
+
 module.exports = function conf_load(opts, callback) {
     if (typeof opts === 'function') { callback = opts; opts = {}; }
     opts = opts || {};
     var file = opts.file || DEFAULT_FILE;
-    var is_default_path = !opts.file;
+    // 마법사는 기본 경로에서만 돈다. 시험이 임시 경로를 넘길 때는 명시적으로 켠다.
+    var o = {
+        wizard: (opts.wizard !== undefined) ? !!opts.wizard : !opts.file,
+        io: opts.io,
+        isPrimary: opts.isPrimary
+    };
 
-    read_conf(file, is_default_path, function (err, conf) {
+    read_conf(file, o, function (err, conf) {
         if (err) { return callback(err); }
         var applied;
         try {
