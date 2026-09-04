@@ -8,19 +8,16 @@ import AcpProblemsView from './views/AcpProblemsView.vue'
 import AcpListView from './views/AcpListView.vue'
 import AcpSimulateView from './views/AcpSimulateView.vue'
 import AcpEditView from './views/AcpEditView.vue'
-import ConfView from './views/ConfView.vue'
 
 type Tab =
   | 'expired' | 'orphans'
   | 'acp-problems' | 'acp-list' | 'acp-sim' | 'acp-edit'
-  | 'conf'
 const TABS: { id: Tab; label: string; group?: string }[] = [
   { id: 'expired', label: '만료된 리소스' },
   { id: 'orphans', label: '고아 리소스' },
   { id: 'acp-problems', label: '문제', group: '권한' },
   { id: 'acp-list', label: 'ACP 목록', group: '권한' },
   { id: 'acp-sim', label: '시뮬레이터', group: '권한' },
-  { id: 'conf', label: '서버 설정' },
 ]
 const tab = ref<Tab>('expired')
 
@@ -158,7 +155,6 @@ onMounted(probe)
         :write="write"
         @done="tab = 'acp-list'"
       />
-      <ConfView v-else-if="tab === 'conf'" :write="write" />
     </main>
   </template>
 </template>

@@ -54,7 +54,7 @@ if (PASSWORD === '') {
 // DB 백엔드는 Mobius 와 같은 규칙을 따른다 (argv 가 conf 를 이긴다).
 //
 // **global.usesqlite 를 쓰고 있었다. 그 전역은 이제 없다.**
-// 백엔드는 이름으로 고른다 — mobius.js 의 같은 자리와 글자까지 같다.
+// 백엔드는 이름으로 고른다 — mobius/conf_load.js 의 select_backend 와 같은 규칙이다.
 // 'sqlite' / 'mysql' 이 아닌 이름을 줘도 파사드가 기본값으로 떨어뜨린다.
 global.usedb = process.argv[2] || conf.db || 'mysql';
 
@@ -67,7 +67,7 @@ global.usedb = process.argv[2] || conf.db || 'mysql';
 // **그래서 applyConf 가 connect 보다 먼저 와야 한다.** 아래 db.connect
 // 직전에 그 줄이 있다.
 
-// CSE 신원. Mobius 본체는 mobius.js 와 app.js 에서 이 값들을 세운다.
+// CSE 신원. Mobius 본체는 mobius/conf_load.js 가 세운다.
 //
 // 콘솔은 app.js 를 읽지 않으므로 직접 세워야 한다. 안 세우면 sql_action 의
 // fold_acpi_entry 가 **선언되지 않은 전역을 읽어 ReferenceError 로 죽는다** —
@@ -77,9 +77,17 @@ global.usedb = process.argv[2] || conf.db || 'mysql';
 var SUPER_USER = (typeof conf.superUser === 'string' && conf.superUser !== '')
     ? conf.superUser : 'Sponde';
 
-global.usecsebase = 'Mobius';
-global.usecseid = '/Mobius2';
-global.usespid = '//keti.re.kr';
+// CSE 신원은 conf 에서 읽고, 없으면 **표의 기본값**을 쓴다 — 코어(conf_load)의
+// 기본값을 여기 베끼면 코어가 바뀔 때 조용히 어긋난다. 2026-09-05 까지는 세 값이
+// 여기 박혀 있었다.
+var conf_schema = require(path.join(ROOT, 'mobius', 'conf_schema'));
+function conf_or_dflt(key) {
+    var v = conf[key];
+    return (typeof v === 'string' && v !== '') ? v : conf_schema.get(key).dflt;
+}
+global.usecsebase = conf_or_dflt('cseBase');
+global.usecseid = conf_or_dflt('cseId');
+global.usespid = conf_or_dflt('spId');
 global.usesuperuser = SUPER_USER;
 
 var db = require(path.join(ROOT, 'mobius', 'db'));
@@ -356,114 +364,12 @@ app.get('/api/orphans', function (req, res) {
     });
 });
 
-// ── 설정 (conf.json) ──────────────────────────────────────────────────────
+// ── 설정과 프로세스 제어는 여기 없다 ──────────────────────────────────────
 //
-// 스키마는 코어(mobius/conf_schema)가 준다. 여기는 파일을 안전하게 읽고 쓰는
-// 일만 한다 — 모르는 키 보존, 원자적 쓰기, 비밀 미노출.
-
-var conf_store = require(path.join(ROOT, 'tools', 'conf_store'));
-var store = new conf_store.ConfStore(path.join(ROOT, 'conf.json'));
-
-app.get('/api/conf', function (req, res) {
-    try {
-        var v = store.view();
-        // **화면이 "지금 도는 서버의 값" 을 말하면 안 된다.** conf 는 기동 시
-        // 읽히고 cluster.fork() 가 엔트리를 재실행하므로, 되살아난 워커만 새
-        // 파일을 읽어 워커마다 값이 갈릴 수 있다. 워커별 조회 계약이 오기
-        // 전까지는 파일 값만 보여 주고 그 사실을 화면이 밝힌다.
-        v.runtimeKnown = false;
-        res.json(v);
-    } catch (e) {
-        res.status(500).json({ error: 'conf.json 을 읽을 수 없다: ' + String(e.message || e) });
-    }
-});
-
-app.post('/api/conf', function (req, res) {
-    var patch = (req.body && req.body.patch) || null;
-    if (!patch || typeof patch !== 'object') {
-        return res.status(400).json({ error: 'patch 가 필요하다' });
-    }
-    var r;
-    try {
-        r = store.update(patch);
-    } catch (e) {
-        return res.status(500).json({ error: 'conf.json 을 쓸 수 없다: ' + String(e.message || e) });
-    }
-    if (!r.ok) { return res.status(400).json({ error: '값이 올바르지 않다', problems: r.errors }); }
-    res.json({ ok: true, changed: r.changed });
-});
-
-// ── Mobius 기동·정지 ──────────────────────────────────────────────────────
-//
-// 콘솔은 Mobius 의 부모가 되지 않는다(detached + unref). 그래서 콘솔을
-// 재시작해도 Mobius 는 그대로 돈다.
-//
-// **콘솔만 아는 것이 하나 있다 — 지금 도는 일괄 작업.** 사람이 SSH 로 내리면
-// 그걸 모르고 삭제 작업을 끊는다. 여기서는 막을 수 있다.
-
-var process_ctl = require('./process_ctl');
-var ctl = new process_ctl.ProcessCtl({
-    root: ROOT,
-    host: CSE_HOST,
-    port: CSE_PORT,
-    // adminPm2Name 을 읽던 자리다. 우리 도구는 pm2 를 다루지 않는다 — 키를 지웠다(2026-09-05).
-    pm2Name: null
-});
-
-app.get('/api/server/status', function (req, res) {
-    ctl.status(function (err, st) {
-        if (err) { return res.status(500).json({ error: String(err.message || err) }); }
-        var active = jobs.active();
-        st.busyJob = active ? { id: active.id, title: active.title,
-                                processed: active.processed, total: active.total } : null;
-        res.json(st);
-    });
-});
-
-/**
- * 정지·재기동은 도는 작업이 있으면 거부한다.
- *
- * 일괄 삭제가 도는 중에 CSE 를 내리면 남은 대상은 처리되지 않고, 작업은
- * 실패로 끝난다. 되돌릴 수 없는 연산이라 중간에 끊는 판단을 사람이 하게 한다.
- */
-function guard_busy(res) {
-    var active = jobs.active();
-    if (active) {
-        res.status(409).json({
-            error: '일괄 작업이 도는 중이다 — 끝나거나 취소된 뒤에 한다',
-            job: { id: active.id, title: active.title,
-                   processed: active.processed, total: active.total }
-        });
-        return false;
-    }
-    return true;
-}
-
-function run_ctl(res, fn, args) {
-    fn.call(ctl, function (err, r) {
-        if (err) {
-            // 못 한 것을 한 것처럼 말하지 않는다. 사유 코드를 그대로 전한다.
-            var code = (err.code === 'ALREADY_RUNNING' || err.code === 'NOT_RUNNING' ||
-                        err.code === 'NOT_OURS') ? 409 : 500;
-            return res.status(code).json({ error: err.message, code: err.code });
-        }
-        res.json(r);
-    });
-}
-
-app.post('/api/server/start', function (req, res) {
-    run_ctl(res, ctl.start);
-});
-
-app.post('/api/server/stop', function (req, res) {
-    if (!guard_busy(res)) { return; }
-    run_ctl(res, ctl.stop);
-});
-
-app.post('/api/server/restart', function (req, res) {
-    if (!guard_busy(res)) { return; }
-    run_ctl(res, ctl.restart);
-});
+// 2026-09-05 까지 /api/conf 와 /api/server/{status,start,stop,restart} 가 있었다.
+// 걷어냈다 — 설정은 마스터 키(dbpass·superUser)를 쥐는 일이라 SSH 로 들어온
+// 사람의 것이고(npm run conf), 실행·정지는 환경(pm2·터미널)의 것이다. 웹은
+// 리소스만 다룬다. 이 경계가 곧 권한 경계다.
 
 // ── ACP (권한) ────────────────────────────────────────────────────────────
 //

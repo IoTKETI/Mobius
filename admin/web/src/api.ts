@@ -8,13 +8,11 @@ import type {
   AcpRefLintPage,
   AcpSimulation,
   AcpValidation,
-  ConfView,
   ExpiredPage,
   ExpiredSummary,
   Job,
   OrphanPage,
   OrphanSummary,
-  ServerStatus,
   SessionInfo,
 } from './types'
 
@@ -141,37 +139,6 @@ export function orphanPage(opts: { limit?: number; afterRi?: string | null; scan
   if (opts.afterRi) q.set('afterRi', opts.afterRi)
   if (opts.scanCap) q.set('scanCap', String(opts.scanCap))
   return get<OrphanPage>(`/api/orphans?${q.toString()}`)
-}
-
-// ── Mobius 기동·정지 ───────────────────────────────────────────────────────
-
-export function serverStatus() {
-  return get<ServerStatus>('/api/server/status')
-}
-
-type CtlResult = { pid?: number; warning?: string; stopped?: boolean; restarted?: boolean }
-export function serverStart() {
-  return post<CtlResult>('/api/server/start')
-}
-export function serverStop() {
-  return post<CtlResult>('/api/server/stop')
-}
-export function serverRestart() {
-  return post<CtlResult>('/api/server/restart')
-}
-
-// ── 설정 (conf.json) ───────────────────────────────────────────────────────
-
-export function confView() {
-  return get<ConfView>('/api/conf')
-}
-
-/** 보낸 키만 바뀐다. 하나라도 유효하지 않으면 아무것도 안 쓴다. */
-export function confSave(patch: Record<string, unknown>) {
-  return post<{ ok: boolean; changed: { key: string; from: unknown; to: unknown }[] }>(
-    '/api/conf',
-    { patch },
-  )
 }
 
 // ── ACP ────────────────────────────────────────────────────────────────────
