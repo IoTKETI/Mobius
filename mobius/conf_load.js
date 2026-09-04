@@ -107,8 +107,7 @@ function apply_conf(conf) {
         ? conf.maxBodyBytes : 10 * 1024 * 1024;
     applied.maxBodyBytes = global.max_body_bytes;
 
-    global.use_sgn_man_port = port_of(conf.sgnManPort, '7599');
-    applied.sgnManPort = global.use_sgn_man_port;
+    // use_sgn_man_port(7599) / use_hit_man_port(7594) 가 여기 있었다. 읽는 코드가 0건이라 지웠다.
 
     // 보존 정책 스윕 주기(ms). 마스터에서만 도는 타이머다.
     global.purge_sweep_ms = (typeof conf.purgeSweepMs === 'number' && conf.purgeSweepMs >= 1000)
@@ -119,9 +118,6 @@ function apply_conf(conf) {
     global.latchStaleMs = (typeof conf.latchStaleMs === 'number' && conf.latchStaleMs >= 0)
         ? conf.latchStaleMs : 900000;
     applied.latchStaleMs = global.latchStaleMs;
-
-    global.use_hit_man_port = port_of(conf.hitManPort, '7594');
-    applied.hitManPort = global.use_hit_man_port;
 
     // ── DB 커넥션 풀 ────────────────────────────────────────────────────
     // 풀은 프로세스마다 하나다. 배포는 워커 24 + 마스터 1 = 25 이므로 총량은

@@ -406,10 +406,8 @@ var ctl = new process_ctl.ProcessCtl({
     root: ROOT,
     host: CSE_HOST,
     port: CSE_PORT,
-    // 이름만 받는다. 실행할 명령을 conf 에서 받으면, conf 를 화면에서 고칠 수
-    // 있는 이상 콘솔 비밀번호 하나가 임의 명령 실행이 된다.
-    pm2Name: (typeof conf.adminPm2Name === 'string' && conf.adminPm2Name !== '')
-        ? conf.adminPm2Name : null
+    // adminPm2Name 을 읽던 자리다. 우리 도구는 pm2 를 다루지 않는다 — 키를 지웠다(2026-09-05).
+    pm2Name: null
 });
 
 app.get('/api/server/status', function (req, res) {

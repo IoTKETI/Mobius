@@ -259,15 +259,69 @@ var SCHEMA = {
               '사실상 마스터 키라 화면에 올리지 않는다.'
     },
 
-    // ── 노출 안 함: 바꾸면 깨진다 ────────────────────────────────────
-    csebaseport: { group: '네트워크', type: 'string', dflt: '7579', exposed: false, apply: 'restart',
-        label: 'CSEBase 포트', help: '바꾸면 등록된 AE 의 poa 가 전부 어긋난다.' },
-    // pxyWsPort(7577) / pxyMqttPort(7578) 가 여기 있었다.
-    // 2026-09-04 에 프로토콜 프록시 3종과 함께 지웠다.
-    // **mobius.js 의 global 대입과 원자적으로 움직여야 한다** — 아래
-    // conf-schema 시험이 양방향으로 강제해서 한쪽만 지우면 실패한다.
-    sgnManPort:  { group: '네트워크', type: 'string', dflt: '7599', exposed: false, apply: 'restart', label: '알림 관리 포트' },
-    hitManPort:  { group: '네트워크', type: 'string', dflt: '7594', exposed: false, apply: 'restart', label: '히트 관리 포트' },
+    // ── 네트워크 (HTTP) ──────────────────────────────────────────────────
+    // 예전에는 exposed:false 로 잠가 두었다("바꾸면 깨진다"). 2026-09-05 에 관문
+    // 등급으로 열었다 — 첫 설치 마법사가 이 값을 물어야 하고, 바꿔야 할 때 소스를
+    // 고치는 것보다 경고를 읽고 바꾸는 편이 낫다.
+    csebaseport: {
+        group: '네트워크',
+        type: 'string', dflt: '7579', apply: 'restart',
+        grade: 'gate',
+        gateWarn: '⚠ csebaseport 를 바꾸면 등록된 AE 의 poa 가 전부 어긋난다.\n' +
+                  '  · 그 AE 로 가는 알림이 실패한다 — AE 쪽에서 poa 를 다시 등록해야 한다',
+        valid: function (v) { return /^\d{1,5}$/.test(v) && Number(v) >= 1 && Number(v) <= 65535; },
+        validHint: '1~65535',
+        label: 'CSEBase 포트',
+        help: 'HTTP(S) 가 듣는 포트. 마스터가 기동 전에 시험 바인드로 점유 여부를 본다.'
+    },
+    // pxyWsPort(7577) / pxyMqttPort(7578) 가 여기 있었다 — 프로토콜 프록시와 함께 지웠다.
+    // sgnManPort(7599) / hitManPort(7594) 도 있었다 — 전역은 세웠지만 읽는 코드가 0건인
+    // 죽은 키였다. 2026-09-05 에 conf_load 의 대입과 원자적으로 지웠다.
+
+    // ── 콘솔 ─────────────────────────────────────────────────────────────
+    // 관리 콘솔(admin/server.js)만 읽는 키. 코어는 전역을 세우지 않으므로 부팅
+    // 기록에 안 실리고 CLI 가 "대조 대상 아님" 으로 보인다.
+    //
+    // adminPassword·adminOrigin 은 **secret:true + exposed:false 를 함께** 붙인다 —
+    // validate() 의 관문은 exposed 이지 secret 이 아니다(C6 시험이 전수로 본다).
+    adminPort: {
+        group: '콘솔',
+        type: 'number', integer: true, min: 1, dflt: 7580, apply: 'restart',
+        label: '콘솔 포트', help: '관리 콘솔이 듣는 포트.'
+    },
+    adminHost: {
+        group: '콘솔',
+        type: 'string', dflt: '127.0.0.1', apply: 'restart',
+        valid: function (v) { return v.length > 0; }, validHint: '비울 수 없다',
+        label: '콘솔 바인드 주소',
+        help: '기본은 루프백이다. 조회만 해도 운영 리소스 트리를 그대로 보여 주므로 기본값이 외부 공개면 안 된다.'
+    },
+    adminCseHost: {
+        group: '콘솔',
+        type: 'string', dflt: '127.0.0.1', apply: 'restart',
+        valid: function (v) { return v.length > 0; }, validHint: '비울 수 없다',
+        label: '콘솔이 쓰기를 보낼 Mobius 주소', help: ''
+    },
+    adminCsePort: {
+        group: '콘솔',
+        type: 'number', integer: true, min: 0, dflt: 0, apply: 'restart',
+        label: '콘솔이 쓰기를 보낼 Mobius 포트',
+        help: '0 이면 csebaseport 를 따른다.'
+    },
+    adminPassword: {
+        group: '콘솔',
+        type: 'string', dflt: '', secret: true, exposed: false, apply: 'restart',
+        label: '콘솔 비밀번호',
+        help: '없으면 콘솔이 뜨지 않는다. 화면에도 CLI 에도 값을 내보내지 않는다.'
+    },
+    adminOrigin: {
+        group: '콘솔',
+        type: 'string', dflt: '', secret: true, exposed: false, apply: 'restart',
+        label: '콘솔의 X-M2M-Origin',
+        help: '비면 superUser 로 떨어진다 — 그러면 콘솔 비밀번호가 곧 마스터 키다. ACP 로 제한하려면 별도 AE-ID 를 넣는다.'
+    },
+    // adminPm2Name 은 올리지 않는다. 우리 도구는 pm2 를 다루지 않는다 — 그 키를 읽던
+    // admin/server.js 의 한 줄은 이 커밋에서 같이 지웠다.
 
     // ── CSE 신원 ─────────────────────────────────────────────────────────
     // 예전에는 mobius.js 상단(usecsebase·usecseid·uservi)과 app.js(usespid)에

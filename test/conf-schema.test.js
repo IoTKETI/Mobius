@@ -64,8 +64,14 @@ function keysOwnedByAdapter() {
     return keys.sort();
 }
 
+// 콘솔 자신의 키. admin/server.js 만 읽으므로 코어 소스에도 어댑터 표에도 안
+// 잡힌다 — 표에 올리는 순간 "표에만 있고 아무도 안 읽는 키" 검사가 잡는다.
+// 그래서 세 번째 리더로 더한다. 주석 제거(keysReadIn)를 같이 지나므로
+// adminOrigin 이 주석에 나오는 것으로는 통과하지 않는다.
+function keysReadByAdmin() { return keysReadIn(readSrc('admin/server.js')); }
+
 function keysReadBySomeone() {
-    return [...new Set(keysReadByCore().concat(keysOwnedByAdapter()))].sort();
+    return [...new Set(keysReadByCore().concat(keysOwnedByAdapter(), keysReadByAdmin()))].sort();
 }
 
 test('표가 코어와 어댑터가 읽는 키를 전부 담는다', function () {
@@ -110,7 +116,7 @@ test('모든 항목이 분류를 밝힌다', function () {
 test('분류 이름이 늘어나는 것은 의도된 선택이어야 한다', function () {
     // 오타로 '권한 ' 같은 새 묶음이 생기면 화면에 빈 칸이 하나 더 뜬다.
     // 새 분류를 정말 만들 때는 이 목록도 같이 늘린다.
-    const KNOWN = ['권한', '요청 처리', '저장소', '네트워크', 'CSE 신원', '접근 제한'];
+    const KNOWN = ['권한', '요청 처리', '저장소', '네트워크', 'CSE 신원', '접근 제한', '콘솔'];
     const used = [...new Set(schema.all().map((k) => schema.get(k).group))].sort();
     const unknown = used.filter((g) => KNOWN.indexOf(g) < 0);
     assert.deepStrictEqual(unknown, [],
@@ -190,13 +196,18 @@ test('validate 가 노출 대상이 아닌 키를 거절한다', function () {
     // 한다. 노출 여부를 안 보면, validate 만 믿고 위임한 호출부에서 비밀 키가
     // 그냥 써진다. superUser 는 그 값으로 모든 ACP 검사를 건너뛰는 값이다 —
     // 콘솔이 그것을 쓸 수 있으면 콘솔이 곧 마스터 키다.
-    for (const k of ['dbpass', 'superUser', 'csebaseport', 'pxyWsPort']) {
+    for (const k of ['dbpass', 'superUser']) {
         const r = schema.validate(k, 'x');
         assert.strictEqual(r.ok, false, k + ' 가 통과했다 — 노출 대상이 아닌데 써진다');
         assert.ok(r.reason.length > 0);
     }
     // 노출 대상은 그대로 통과해야 한다.
     assert.strictEqual(schema.validate('acpObserveMode', 'observe').ok, true);
+    // csebaseport 는 2026-09-05 에 열었다(관문 등급). 예전 목록에 있던 pxyWsPort 는
+    // 표에서 지워져 "모르는 키" 로 우연히 통과하고 있었다 — 검사한다고 말하는 것을
+    // 검사하지 않았다.
+    assert.strictEqual(schema.validate('csebaseport', '7580').ok, true, 'csebaseport 가 닫혀 있다');
+    assert.strictEqual(schema.validate('csebaseport', '99999').ok, false, '포트 범위를 안 본다');
 });
 
 test('비밀은 노출 목록에 없다', function () {
@@ -480,4 +491,46 @@ test('새로 내린 키의 등급이 스펙 §2.3 과 같다', function () {
     assert.strictEqual(schema.get('releaseVersion').apply, 'runtime');
     assert.strictEqual(schema.get('allowedAeIds').apply, 'runtime');
     assert.strictEqual(schema.get('cseBase').apply, 'restart');
+});
+
+test('C6 secret 과 exposed 가 어긋난 키가 0건이다 — 전수', function () {
+    // validate() 의 관문은 exposed === false 다. secret 은 보지 않는다.
+    // secret:true 만 붙이고 exposed:false 를 빠뜨린 키는 그냥 써진다 — adminOrigin 은
+    // 콘솔의 CSE 쓰기 권한을 정하는 값이라 그 구멍이 곧 권한이다.
+    const bad = schema.all().filter((k) => schema.get(k).secret === true && schema.get(k).exposed !== false);
+    assert.deepStrictEqual(bad, [], 'secret 인데 exposed:false 가 아니다: ' + bad.join(', '));
+    // 반대로, 지금 exposed:false 인 것은 전부 비밀이어야 한다 — "숨김이지만 비밀은
+    // 아닌" 키(옛 csebaseport)는 없어졌다.
+    const hidden = schema.all().filter((k) => schema.get(k).exposed === false && schema.get(k).secret !== true);
+    assert.deepStrictEqual(hidden, [], 'exposed:false 인데 secret 이 아니다: ' + hidden.join(', '));
+});
+
+test('C5 콘솔 키의 리더가 스캐너에 잡힌다 — 실행 코드에서 지우면 실제로 빠진다', function () {
+    const src = readSrc('admin/server.js');
+    assert.ok(keysReadByAdmin().indexOf('adminPassword') >= 0, 'admin/server.js 가 adminPassword 를 읽는다고 안 나온다');
+    // conf.adminPassword 를 읽는 **코드 줄**만 지우고 주석의 언급은 남긴다.
+    const code = src.split('\n')
+        .filter((l) => !(/conf\.adminPassword/.test(l) && !/^\s*(\/\/|\*|\/\*)/.test(l)))
+        .join('\n');
+    assert.ok(/adminPassword/.test(code), '주석의 adminPassword 까지 지워졌다 — 시험이 헛돈다');
+    assert.ok(keysReadIn(code).indexOf('adminPassword') < 0,
+        '코드에서 지웠는데도 읽는다고 나온다 — 주석이 가드를 통과한다');
+});
+
+test('C4 키 표가 백엔드를 따라간다 — 자식 프로세스에서 db:sqlite 로 conf_load 를 부른다', function () {
+    // 이 프로세스의 표는 이미 굳었다(mergeBackendConf 가 require 시점에 돈다).
+    // 그래서 자식에서 본다. argv 는 비워 둔다 — conf.db 가 선택자여야 한다.
+    const { execFileSync } = require('node:child_process');
+    const os = require('node:os');
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'confschema-'));
+    const file = path.join(dir, 'conf.json');
+    fs.writeFileSync(file, JSON.stringify({ db: 'sqlite' }), 'utf8');
+    const script = "require(" + JSON.stringify(path.join(ROOT, 'mobius', 'conf_load.js')) + ")({file:" +
+        JSON.stringify(file) + "}, function (err) { if (err) { throw err; }" +
+        " var s = require(" + JSON.stringify(path.join(ROOT, 'mobius', 'conf_schema.js')) + ");" +
+        " process.stdout.write(JSON.stringify(s.all())); });";
+    const out = execFileSync(process.execPath, ['-e', script], { encoding: 'utf8', env: Object.assign({}, process.env, { MOBIUS_SQLITE_PATH: path.join(dir, 'x.db') }) });
+    const keys = JSON.parse(out);
+    assert.ok(keys.indexOf('sqliteJournalMode') >= 0, 'sqlite 키가 없다: ' + keys.join(','));
+    assert.ok(keys.indexOf('dbpass') < 0, 'mysql 의 dbpass 가 sqlite 표에 있다');
 });

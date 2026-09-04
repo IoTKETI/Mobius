@@ -77,16 +77,21 @@ test('비밀 키는 고칠 수 없다', function () {
     assert.strictEqual(after.adminPassword, 'a');
 });
 
-test('숨김 키도 고칠 수 없다 — 콘솔이 자기 발밑을 무너뜨리지 않게', function () {
-    const file = tempConf({ adminPort: 7580, csebaseport: '7579', pxyWsPort: '7577' });
+test('exposed:false 인 키는 전부 고칠 수 없다 — 목록을 표에서 전수로 뽑는다', function () {
+    // 예전에는 ['adminPort', 'csebaseport', 'pxyWsPort'] 를 손으로 들었다. adminPort 와
+    // csebaseport 는 2026-09-05 에 편집 가능해졌고(설정은 CLI 의 일이다), pxyWsPort 는
+    // 표에서 사라져 "모르는 키라" 거절되고 있었다 — 검사가 헛돌았다.
+    const schema = require(path.join(__dirname, '..', 'mobius', 'conf_schema.js'));
+    const hidden = schema.all().filter((k) => schema.get(k).exposed === false);
+    assert.ok(hidden.length >= 4, '숨김 키가 넷보다 적다: ' + hidden.join(', '));
+    const seed = {};
+    hidden.forEach((k) => { seed[k] = 'orig'; });
+    const file = tempConf(seed);
     const s = store(file);
-    // usesqlite 를 쓰고 있었다. 그 키는 없어졌고, 없는 키는 '숨김이라'
-    // 거절되는 게 아니라 '모르는 키라' 거절된다 — 검사가 헛돈다.
-    // 표에 실재하는 숨김 키로 바꾼다.
-    ['adminPort', 'csebaseport', 'pxyWsPort'].forEach((k) => {
+    hidden.forEach((k) => {
         assert.strictEqual(s.update({ [k]: 'x' }).ok, false, k + ' 를 고칠 수 있었다');
     });
-    assert.strictEqual(readConf(file).adminPort, 7580);
+    hidden.forEach((k) => assert.strictEqual(readConf(file)[k], 'orig'));
 });
 
 test('유효값이 아니면 거절하고, 하나라도 틀리면 아무것도 안 쓴다', function () {
@@ -162,13 +167,16 @@ test('콘솔 자신의 conf 키를 "모르는 키" 로 오해하지 않는다', 
         '콘솔 자신의 키가 모르는 키로 나왔다: ' + v.unknownKeys.join(', '));
 });
 
-test('콘솔 자신의 키는 화면에서 고칠 수 없다 — 자기 발밑', function () {
+test('콘솔 키는 고칠 수 있다 — 설정은 이제 CLI 의 일이다', function () {
+    // 웹에서 자기 발밑(adminPort)을 고치지 못하게 막던 규칙은 웹이 설정을 안
+    // 고치게 되면서 의미가 없어졌다. CLI 는 SSH 로 들어온 사람이 쓴다.
     const file = tempConf({ adminPort: 7580, adminCsePort: 7579 });
     const s = store(file);
-    // 잘못 넣으면 다음 재기동에 화면으로 돌아올 길이 없다.
-    assert.strictEqual(s.update({ adminPort: 9999 }).ok, false);
-    assert.strictEqual(s.update({ adminCsePort: 1 }).ok, false);
-    assert.strictEqual(readConf(file).adminPort, 7580);
+    assert.strictEqual(s.update({ adminPort: 9999 }).ok, true);
+    assert.strictEqual(readConf(file).adminPort, 9999);
+    // 비밀인 콘솔 키는 여전히 안 된다
+    assert.strictEqual(s.update({ adminPassword: 'x' }).ok, false);
+    assert.strictEqual(s.update({ adminOrigin: 'x' }).ok, false);
 });
 
 test('파일에 없는 키는 기본값을 쓴다고 구분해서 말한다', function () {
