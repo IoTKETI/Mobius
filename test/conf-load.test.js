@@ -104,4 +104,5 @@ test('mobius.js 는 conf 를 직접 읽지 않는다 — 순서만 잡는다', f
     assert.ok(/require\(['"]\.\/mobius\/conf_load['"]\)/.test(src), 'mobius.js 가 conf_load 를 부르지 않는다');
     assert.ok(!/conf\.json/.test(src), 'mobius.js 가 conf.json 을 직접 읽는다');
     assert.ok(!/global\.usedb\s*=/.test(src), 'mobius.js 가 global.usedb 를 세운다 — conf_load 의 일이다');
+    assert.ok(/require\(['"]\.\/app['"]\)/.test(src), 'mobius.js 가 app 을 띄우지 않는다 — 순서의 마지막 줄이 없다');
 });
