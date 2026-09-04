@@ -414,202 +414,114 @@ var operation = {
 };
 
 exports.response_result = function(request, response, status, rsc, cap, callback) {
-    apply_headers(request, response, rsc);
-
-    // 본문을 만드는 일은 shape 로 갔다. 여기 있던 접두 4갈래(55줄)와
-    // 만들었다 곧바로 버리던 rspObj 는 함께 사라졌다.
-    //
-    // **정규화 함수를 인자로 넘기는 것이 요점이다** — 이 갈래는 본문 한 겹에
-    // 걸고, rce 갈래는 한 겹 안쪽에, 그룹 갈래는 두 겹(typeCheckforJson2)에
-    // 걸며, uril 갈래는 아예 안 건다. 호출부에서 그 차이가 보여야 한다.
-    var body_Obj = shape.single(request.resourceObj, request.query.rcn,
-                                _this.typeCheckforJson);
-
-    if (body_Obj === null) {
-        // rcn=0 은 본문이 없다는 뜻이다. rt 갈래는 아직 여기 남는다 —
-        // 배출구(1단계 2번)가 들어오면 end('') 한 줄로 접힌다.
-        if (request.query.rt == 3) {
-            // parseInt: status 는 resultStatusCode 테이블에서 '400' 같은 문자열로
-            // 온다. Express 는 문자열 상태코드를 deprecated 로 경고하는데, 그게 모든
-            // 응답마다 찍혀 에러 로그를 덮어써서 진짜 에러가 묻혔다.
-            response.status(parseInt(status, 10)).end('');
-        }
-        else {
-            // 예전에는 rt==1 일 때 req 리소스에 결과를 적는 분기가 있었다.
-            // 논블로킹을 지원하지 않게 되면서 도달할 수 없다.
-        }
-
-        callback();
-        return;
-    }
-
-    // 논블로킹(rt=1/2)은 지원하지 않는다 — app.js 의 check_request_query_rt 가
-    // 405-4 로 막으므로 여기까지 오는 요청은 모두 블로킹이다.
-    response.status(parseInt(status, 10)).end(JSON.stringify(body_Obj));
-
-    callback();
+    // rcn=0 이면 shape.single 이 null 을 준다 — 배출구가 그것을 빈 본문으로
+    // 보낸다. 여기 있던 rt 갈래(rt==3 이면 '' 를 보내고, 아니면 **아무것도
+    // 안 보내고 콜백만** 불러 요청이 매달렸다)는 없어졌다. 뒤엣것은 모양이
+    // 아니라 결함이고, app.js 가 rt 를 3 으로 고정하고 1/2 를 405-4 로 막으므로
+    // 실트래픽은 그 갈래를 밟지 못했다. 차분 하네스의 result/rcn0/rt-* 두
+    // 건이 그 자리를 '의도된 차이' 로 못박는다.
+    var body = shape.single(request.resourceObj, request.query.rcn,
+                            _this.typeCheckforJson);
+    exports.respond(request, response, { status: status, rsc: rsc, body: body }, callback);
 };
 
 exports.response_rcn3_result = function(request, response, status, rsc, cap, callback) {
-    if (request.query.rt == 3) {
-        apply_headers(request, response, rsc);
-    }
-
-    // 본문 조립 열두 줄이 shape.js 로 나갔다. 여기 남은 것은 "어떻게 보낼지"
-    // 뿐이다. 정규화 함수는 rce **한 겹 안쪽**에 건다 — 그것을 인자로 넘긴다.
-    //
-    // 함께 없어진 것 둘:
-    //
-    //   var rce_nm = 'rce';        아무도 안 읽었다
-    //   body_Obj[rootnm] = {};     바로 다음 줄이 덮어썼다. **다만** 그 다음
-    //                              줄이 던지는 입력(rce 없는 본문)에서는 이
-    //                              대입만 남았다. 응답도 커넥션 반납도 없이
-    //                              워커가 죽는 경로라, 죽기 직전 잔해의 모양이
-    //                              달라지는 것을 차이로 받아들였다.
-    var body_Obj = shape.rce(request.resourceObj, request.headers.rootnm,
-                             _this.typeCheckforJson);
-
-    var bodyString = JSON.stringify(body_Obj);
-
-    // rt 가 1/2/3 이 아니거나 rt==2 인데 x-m2m-rtu 가 없으면, 예전에는 두 조건이
-    // 모두 거짓이 되어 콜백이 사라졌다 — 응답도 connection.release() 도 없이
-    // 요청이 매달렸다. 크래시가 아니라 워커 재시작도 안 걸리는 조용한 고갈이다.
-    // 이제 논블로킹만 명시적으로 잡고 나머지는 기본(블로킹)으로 보낸다.
-    // 논블로킹(rt=1/2)은 지원하지 않는다 — app.js 의 check_request_query_rt 가
-    // 405-4 로 막으므로 여기까지 오는 요청은 모두 블로킹이다.
-    // 예전에는 여기서 rt 로 갈라져 한쪽이 req 리소스에 결과를 적었다.
-
-    response.status(parseInt(status, 10)).end(bodyString);
-
-    // 여기 있던 rspObj 열두 줄을 걷어냈다. 만들자마자 cap 으로 덮어쓰고 다시
-    // null 로 버렸다 — 읽는 곳이 없다. cap(여섯째 인자)이 응답에 안 나타난다는
-    // 것은 하네스의 cap/string|object|number|null 네 건이 같은 바이트를 내는
-    // 것으로 확인했다.
-    callback();
+    // 여기 있던 `if (rt == 3) apply_headers` 게이트는 없어졌다 — 배출구가
+    // 헤더를 무조건 세운다. rt 는 실트래픽에서 언제나 3 이다(위 참조).
+    var body = shape.rce(request.resourceObj, request.headers.rootnm,
+                         _this.typeCheckforJson);
+    exports.respond(request, response, { status: status, rsc: rsc, body: body }, callback);
 };
 
 exports.search_result = function(request, response, status, rsc, cap, callback) {
-    var body_Obj = request.resourceObj;
-
-    if (request.query.rt == 3) {
-        apply_headers(request, response, rsc);
-    }
-
-    // 여기 있던 세 줄을 걷어냈다:
-    //
-    //     if (Object.keys(body_Obj)[0] == 'rsp') { rootnm = 'rsp'; }
-    //
-    // **아무 일도 안 했다.** 아래 두 갈래가 각자 첫 문장에서 rootnm 을 무조건
-    // 다시 대입하므로 이 값은 어느 쪽으로도 살아남지 못한다. 차분 하네스의
-    // search/first-key-rsp 가 그 바이트다 — rootnm='agr' 인데 본문 첫 키가
-    // 'rsp' 인 입력이 {"m2m:agr":…} 로 나간다. 살아 있었다면 m2m:rsp 였다.
-    //
-    // `var rootnm` 이 아래 갈래 **안에** 선언돼 있어서 호이스팅으로 함수 전체에
-    // 걸쳐 있었다. 함수 머리로 올린다 — 그러지 않으면 else 갈래의 맨 대입이
-    // **암묵적 전역**이 되어 워커 안에서 요청끼리 값이 섞인다.
     var rootnm = request.headers.rootnm;
 
-    if (rootnm == 'uril') {
+    // uril 은 네 모양 중 유일하게 정규화를 안 한다 — 인자가 없는 것이 표시다.
+    var body = (rootnm == 'uril')
+        ? shape.uril(request.resourceObj, rootnm)
+        : shape.grouped(request.resourceObj, rootnm, typeCheckforJson2);
 
-        // rt 가 1/2/3 이 아니거나 rt==2 인데 x-m2m-rtu 가 없으면, 예전에는 두 조건이
-        // 모두 거짓이 되어 콜백이 사라졌다 — 응답도 connection.release() 도 없이
-        // 요청이 매달렸다. 크래시가 아니라 워커 재시작도 안 걸리는 조용한 고갈이다.
-        // 이제 논블로킹만 명시적으로 잡고 나머지는 기본(블로킹)으로 보낸다.
-        // 논블로킹(rt=1/2)은 지원하지 않는다 — app.js 의 check_request_query_rt 가
-        // 405-4 로 막으므로 여기까지 오는 요청은 모두 블로킹이다.
-        // 예전에는 여기서 rt 로 갈라져 한쪽이 req 리소스에 결과를 적었다.
-        // discovery(fu=1)의 결과는 URI 문자열 배열이다. **네 갈래 중 여기만
-        // typeCheck 를 안 거친다** — 정규화 인자가 아예 없는 것이 그 표시고,
-        // 함수 이름(uril_no_type_check)에도 적혀 있다.
-        body_Obj = shape.uril(body_Obj, rootnm);
-
-        var bodyString = JSON.stringify(body_Obj);
-
-        response.status(parseInt(status, 10)).end(bodyString);
-
-        // 죽은 rspObj 여섯 줄을 걷어냈다 (위 rcn3 와 같은 것).
-        callback();
-    }
-    else {
-        // rootnm 은 함수 머리에서 이미 request.headers.rootnm 이다.
-
-        // ty 별 뭉치기와 값 정규화는 shape.grouped 가 한다. 정규화는 **두 겹**
-        // (typeCheckforJson2) — 그것을 인자로 넘긴다.
-        // `body_Obj`(= request.resourceObj)를 제자리에서 고치고 되돌려준다.
-        body_Obj = shape.grouped(body_Obj, rootnm, typeCheckforJson2);
-
-        bodyString = JSON.stringify(body_Obj);
-
-        // rt 가 1/2/3 이 아니거나 rt==2 인데 x-m2m-rtu 가 없으면, 예전에는 두 조건이
-        // 모두 거짓이 되어 콜백이 사라졌다 — 응답도 connection.release() 도 없이
-        // 요청이 매달렸다. 크래시가 아니라 워커 재시작도 안 걸리는 조용한 고갈이다.
-        // 이제 논블로킹만 명시적으로 잡고 나머지는 기본(블로킹)으로 보낸다.
-        // 논블로킹(rt=1/2)은 지원하지 않는다 — app.js 의 check_request_query_rt 가
-        // 405-4 로 막으므로 여기까지 오는 요청은 모두 블로킹이다.
-        // 예전에는 여기서 rt 로 갈라져 한쪽이 req 리소스에 결과를 적었다.
-
-        response.status(parseInt(status, 10)).end(bodyString);
-
-        // 죽은 rspObj 여섯 줄을 걷어냈다. 이 자리는 uril 갈래의 `var rspObj` 를
-        // 호이스팅으로 빌려 쓰고 있었다 — 그쪽을 걷어낸 뒤 여기만 남기면
-        // 선언 없는 대입이 되어 암묵적 전역이 된다.
-        callback();
-    }
+    exports.respond(request, response, { status: status, rsc: rsc, body: body }, callback);
 };
 
-// 에러 응답 본체. 아래 respond() 와 error_result() 가 공유한다.
+// ── 배출구 ─────────────────────────────────────────────────────────────
 //
-// httpStatus 는 number 로 와도 되고 문자열로 와도 된다. 카탈로그(mobius/rsc.js)는
-// number 를 주지만, 옛 시그니처를 쓰는 호출부는 '400' 처럼 문자열을 준다.
-// Express 는 문자열 상태코드에 deprecated 경고를 찍는데 그게 모든 응답마다 나와
-// 에러 로그를 덮어써서 진짜 에러가 묻혔다. 여기서 한 번에 숫자로 만든다.
-function sendError(request, response, httpStatus, rsc, dbg_string, callback) {
-    request.query.rt = 3;
-    var body_Obj = {};
-    body_Obj['m2m:dbg'] = dbg_string;
+// **응답 바이트가 전선에 실리는 자리는 이 파일에서 send() 하나다.**
+//
+// 예전에는 세 응답 함수와 sendError 가 각자 apply_headers 를 자기 조건으로
+// 부르고(무조건 2 · rt==3 게이트 2) 각자 response.status().end() 를 했다 —
+// 여섯 자리. 위치 인자 여섯 개짜리 시그니처라 한 칸만 밀려도 rsc 자리에
+// 객체가 가서 `X-M2M-RSC: [object Object]` 가 나갔고, callback 자리에
+// 문자열이 가서 워커가 죽었다. 이 저장소에서 두 번 일어났다.
+//
+// 이제 respond() 가 **이름 있는 필드**로 받는다. 위치가 없으니 밀림이 성립
+// 하지 않는다. 그리고 send() 가 rsc 와 status 를 검사해서, 잘못된 것이 오면
+// **던지지 않고** 500 으로 내보낸다 — 응답 도중에 던지면 커넥션 반납도
+// 못 하기 때문이다. 차분 하네스의 hdr/rsc-object(옛: [object Object] 가
+// 전선에) 와 hdr/status-garbage(옛: ERR_HTTP_INVALID_STATUS_CODE 로 워커
+// 사망)가 그 두 경우를 '의도된 차이' 로 못박는다.
+
+/**
+ * 전송. 이 파일에서 response.status().end() 를 부르는 유일한 자리.
+ *
+ * @param status   HTTP 상태. '200' 같은 문자열도 받는다 (parseInt)
+ * @param rsc      X-M2M-RSC 에 실릴 네 자리 문자열
+ * @param body     JSON 으로 직렬화할 객체. null 이면 빈 본문
+ * @param headers  apply_headers 뒤에 얹을 추가 헤더 (없으면 null)
+ * @param done     전송 뒤 부른다. settle 이 여기서 커넥션을 반납한다
+ */
+function send(request, response, status, rsc, body, headers, done) {
+    var st = parseInt(status, 10);
+
+    if (!/^\d{4}$/.test(String(rsc)) || !(st >= 100 && st <= 599)) {
+        console.error('[respond] 잘못된 응답 명세: status=' + status + ' rsc=' + rsc +
+                      ' (' + request.method + ' ' + request.url + ')');
+        st = 500;
+        rsc = '5000';
+        body = { 'm2m:dbg': 'internal error' };
+        headers = null;
+    }
 
     apply_headers(request, response, rsc);
-
-        var bodyString = JSON.stringify(body_Obj);
-
-    body_Obj = null;
-
-    response.status(Number(httpStatus)).end(bodyString);
-
-    var rspObj = {};
-    rspObj.rsc = rsc;
-    rspObj.ri = request.method + "-" + request.url + "-" + JSON.stringify(request.query);
-    rspObj.msg = dbg_string;
-    // console.log(JSON.stringify(rspObj)); // 응답 바디 전체 덤프 - 로그 폭주 원인이라 비활성
-    rspObj = null;
-
-    callback();
+    if (headers) {
+        Object.keys(headers).forEach(function (k) { response.header(k, headers[k]); });
+    }
+    response.status(st).end(body == null ? '' : JSON.stringify(body));
+    done();
 }
 
-// 단일 응답 진입점.
-//
-//   result = {
-//     code:   mobius/rsc.js 의 카탈로그 항목 (http·rsc·coap 을 들고 있다)
-//     dbg:    클라이언트 응답 본문(m2m:dbg)에 실릴 문구
-//     detail: 로그에만 남길 상세 (드라이버 에러 원문, 내부 함수명 등)
-//   }
-//
-// dbg 와 detail 을 나눈 이유: 지금은 내부 함수명과 DB 드라이버 에러 원문이
-// m2m:dbg 로 클라이언트에 그대로 나간다. 문구 정리 단계에서 detail 로 옮기면
-// 응답에는 안 나가고 로그에만 남는다.
-//
-// 성공 응답은 아직 response_result / search_result / response_rcn3_result 를
-// 거친다. 그쪽 통합은 뒤 단계다.
-exports.respond = function (request, response, result, callback) {
-    var code = result.code;
-    if (result.detail) {
-        console.error('[' + (code && code.name ? code.name : '?') + '] ' + result.detail);
+/**
+ * 공개 배출구.
+ *
+ *   respond(request, response, { code, dbg, detail }, done)          에러
+ *   respond(request, response, { status, rsc, body, headers }, done) 성공
+ *
+ * code 는 rsc.js 카탈로그 객체다(reason.js 의 code 필드). 그것이 오면
+ * status·rsc·본문을 카탈로그가 정한다 — 이 형태는 예전부터 있었고 호출부
+ * 5곳(app.js 3 · body.js 1 · 시험 1)이 한 글자도 안 바뀌었다. 에러 경로의
+ * 부수효과(request.query.rt = 3, detail 로그)도 그대로다.
+ */
+exports.respond = function (request, response, spec, done) {
+    if (spec.code) {
+        var code = spec.code;
+        if (spec.detail) {
+            console.error('[' + (code && code.name ? code.name : '?') + '] ' + spec.detail);
+        }
+        // 옛 sendError 가 하던 것. 논블로킹 흔적이지만 응답에 안 나타나므로
+        // 바꾸지 않는다 — 하네스가 queryAfter 로 이 부수효과까지 본다.
+        request.query.rt = 3;
+        send(request, response, code.http, code.rsc, { 'm2m:dbg': spec.dbg }, null, done);
+        return;
     }
-    sendError(request, response, code.http, code.rsc, result.dbg, callback);
+    send(request, response, spec.status, spec.rsc, spec.body, spec.headers, done);
 };
 
-// 옛 시그니처 어댑터. status 가 '400' 같은 문자열로 들어온다.
-// 새 코드는 respond() 를 쓴다.
+// error_result 가 아직 부른다. 호출자가 없으므로 1단계 3번에서 둘 다 지운다.
+function sendError(request, response, httpStatus, rsc, dbg_string, callback) {
+    request.query.rt = 3;
+    send(request, response, httpStatus, rsc, { 'm2m:dbg': dbg_string }, null, callback);
+}
+
 exports.error_result = function (request, response, status, rsc, dbg_string, callback) {
     sendError(request, response, status, rsc, dbg_string, callback);
 };
