@@ -48,9 +48,10 @@
 | 3 | `csebaseport` 를 연다. 죽은 포트 키 둘(`hitManPort`·`sgnManPort`)을 지운다 | `conf_schema.js` · `mobius.js` |
 | 4 | 기동 시 적용된 설정을 파일에 한 줄 남긴다 | `mobius.js` · `mobius/boot_record.js`(신설) · `mobius/conf_load.js`(신설) |
 | 5 | **`conf` CLI** — 조회·변경 + `status` | `tools/mobius-conf.js`(신설) · `tools/conf_store.js`(이동) |
-| 6 | 코어 결함 둘 — 포트 충돌 처리, `windowsHide` 한 줄 | `app.js` |
-| 7 | 웹에서 conf 편집·프로세스 제어를 걷어낸다 | `admin/` |
-| 8 | 낡는 문서를 고친다 | `CLAUDE.md` · `README.md` · `admin/README.md` |
+| 6 | **첫 구동 설정 마법사** — `npm run setup` | `tools/setup.js`(신설) · `mobius/conf_load.js` |
+| 7 | 코어 결함 둘 — 포트 충돌 처리, `windowsHide` 한 줄 | `app.js` |
+| 8 | 웹에서 conf 편집·프로세스 제어를 걷어낸다 | `admin/` |
+| 9 | 낡는 문서를 고친다 | `CLAUDE.md` · `README.md` · `admin/README.md` |
 
 ---
 
@@ -152,22 +153,44 @@ admin/                    웹. 리소스만 다룬다
 
 ### 2.2 위험 3등급
 
-전부 편집 가능하게 두지 않는다. `usecsebase` 를 추적한 결과가 그 이유다.
-
-```
-mobius/cb.js        CSEBase 의 ri = '' + '/' + 'Mobius'  =  /Mobius
-mobius/resource.js  자식은  ri = pi + '/' + rn
-```
-
-**저장된 모든 경로가 `/Mobius/…` 로 시작한다.** 값을 바꾸면 `cb.js` 의 조회가 실패해
-CSEBase 행이 하나 더 생기고 기존 트리 전체가 고아가 된다. discovery 의 `whole_tree`
-최적화가 어긋나고, `fopt.js` 가 기존 멤버를 원격 CSE 로 오판해 **조용히 건너뛴다.**
+전부 같은 무게로 두지 않는다. 값을 바꿨을 때 **되돌릴 수 있는가**가 기준이다.
 
 | 등급 | 뜻 | 스키마 |
 |---|---|---|
 | **편집** | 그냥 저장 | 평범 |
-| **관문** | 저장 전에 "무엇이 깨지는가"를 보이고 키 이름을 타이핑해야 통과 | **`grade: 'gate'`** |
+| **관문** | 저장 전에 "무엇이 달라지는가"를 보이고 키 이름을 타이핑해야 통과 | **`grade: 'gate'`** |
 | **읽기** | 값만 보이고 저장 거부 | `readOnly: true` (`conf_schema.validate` 가 막는다) |
+
+**새로 내리는 키 중에 읽기 전용은 없다.** 그 등급은 기존 `retentionPolicies` 가 쓰고 있다.
+
+### 2.2.1 `cseBase` 를 바꾸면 무슨 일이 나나
+
+`mobius/cb.js` 가 기동할 때 하는 일은 이렇다.
+
+```
+select_ri_lookup('/<이름>')
+  ├─ 1건 있으면  →  update_cb_poa_csi   기존 CSEBase 를 그대로 쓴다   rsc 2004
+  └─ 없으면      →  insert_cb           새 CSEBase 를 만든다          rsc 2001
+```
+
+즉 **이름을 바꿔 띄우면 그 이름의 CSE 로 정상 기동한다.** 오류가 아니라 지원되는 동작이다.
+
+- 이전 이름으로 만든 리소스는 **DB 에 그대로 남는다.** 지워지지 않는다
+- 다만 **새 CSE 에서는 안 보인다** — 저장된 경로가 옛 이름으로 시작하기 때문이다
+- **이름을 되돌리면 다시 보인다.** 위 분기가 기존 것을 찾아 재사용한다
+
+그래서 파괴적이지도 않고 되돌릴 수도 있다. **다만 모르고 하면 "데이터가 사라졌다"로 보인다.**
+그것이 관문 등급인 이유이고, 관문 문구도 그렇게 쓴다.
+
+```
+⚠ cseBase 를 바꾸면 다른 CSE 로 뜬다.
+  · 지금 이름으로 만든 리소스는 DB 에 남지만 새 CSE 에서 안 보인다
+  · 이름을 되돌리면 다시 보인다
+  · 같은 DB 에 그 이름의 CSE 가 이미 있으면 그것을 이어받는다
+```
+
+**빈 DB 에 처음 설치할 때 이름을 정하는 것이 가장 자연스러운 자리**이고, 그래서 §4.5 의
+첫 구동 마법사가 이 값을 묻는다.
 
 > **필드 이름은 `grade` 다. `danger` 를 쓰지 않는다** — `conf_store.js` 에 이미 **뜻이 다른**
 > `DANGER`(값이 특정 값일 때 위험하다는 술어)가 있고, §7 이 그 파일을 `tools/` 로 옮기므로
@@ -181,7 +204,7 @@ CSEBase 행이 하나 더 생기고 기존 트리 전체가 고아가 된다. di
 
 | 새 conf 키 | 지금 값 | 지금 자리 | group | apply | 등급 | 근거 |
 |---|---|---|---|---|---|---|
-| `cseBase` | `Mobius` | `mobius.js` `usecsebase` | CSE 신원 | restart | **읽기** | 모든 `ri` 가 이걸로 시작 |
+| `cseBase` | `Mobius` | `mobius.js` `usecsebase` | CSE 신원 | restart | **관문** | 바꾸면 다른 CSE 로 뜬다 — §2.2.1 |
 | `cseId` | `/Mobius2` | `mobius.js` `usecseid` | CSE 신원 | restart | **관문** | MQTT 알림 토픽·`acpi` 절대표기 접기가 끊긴다 |
 | `spId` | `//keti.re.kr` | **`app.js` `usespid`** | CSE 신원 | restart | **관문** | 절대 표기 접기가 안 되면 대상 해석 실패 |
 | `releaseVersion` | `2a` | `mobius.js` `uservi` | CSE 신원 | runtime | 편집 | `valid` 를 `cb.js` 의 `srv=['1','2','2a']` 로 건다 |
@@ -495,7 +518,82 @@ Mobius     돌고 있다 · 포트 7579 열림
 **액세스 로그 요약은 넣지 않는다.** 초판 로그 탭의 잔재였다. `tail -f log/access-*.log` 가
 그 자리다.
 
-### 4.5 오류 처리
+### 4.5 첫 구동 설정 — `npm run setup`
+
+`conf.json` 이 없으면 첫 설치다. 지금은 `mobius.js` 가 세 키(`csebaseport`·`dbpass`·`db`)로
+파일을 만들고 그대로 진행하는데, **`dbpass` 기본값이 소스에 박힌 값이라 대부분 안 맞아**
+DB 연결에서 실패한다. 실패를 뒤로 미루는 것보다 앞에서 묻는 것이 낫다.
+
+```
+Mobius 첫 설정입니다.
+
+  DB              [1] mysql  [2] sqlite          > 1
+  DB 비밀번호     (화면에 안 보입니다)             > ********
+  CSE 이름        Mobius                          > Vita
+  CSE ID          /Mobius2                        > ⏎
+  SP-ID           //keti.re.kr                    > //example.com
+  HTTP 포트       7579                            > ⏎
+
+conf.json 을 만들었습니다.  나머지 설정은 `npm run conf` 로 봅니다.
+```
+
+**묻는 것은 여섯뿐이다.** 나머지는 기본값으로 두고 "`npm run conf` 로 보라"고 안내한다.
+`dbpass` 는 **`db` 가 `mysql` 일 때만** 묻는다 — SQLite 에는 없는 값이다.
+`db` 의 선택지는 `mobius/db` 파사드의 `backends()` 에서 뽑는다. 손 목록을 만들지 않는다.
+
+**바꾸기 어려운 것을 처음에 묻는다.** `cseBase`·`cseId`·`spId` 는 관문 등급이라 나중에는
+확인 절차를 지나야 하고, 특히 `cseBase` 는 §2.2.1 대로 바꾸면 다른 CSE 가 된다. 빈 DB 에
+처음 설치할 때가 이 값들을 정하는 가장 자연스러운 자리다.
+
+**비밀번호는 평문으로 저장한다.** 암호화를 검토했으나 넣지 않기로 했다 — 서버가 스스로
+복호화할 수 있으면 그 서버를 읽을 수 있는 사람도 복호화할 수 있어서, 키를 어디에 두든
+"DB 접속 차단"은 될 수 없다. 대신 **입력할 때 화면에 안 보이게** 해서 어깨 너머와 터미널
+스크롤백만 막는다. `conf.json` 은 이미 `.gitignore` 되어 있다.
+
+**세 가지를 지킨다 — (가)(나)(다).**
+
+**(가) TTY 가 아니면 묻지 않는다.** `mobius.js` 는 pm2·detached·CI 에서도 뜬다. 프롬프트를
+띄우면 **영원히 매달리고, pm2 는 그것을 `online` 으로 본다**(§11.6 의 좀비와 같은 모양).
+
+```js
+var interactive = process.stdin.isTTY && process.stdout.isTTY;
+```
+
+TTY 가 아니면 파일을 만들지 않고 종료한다.
+
+```
+[설정 없음] conf.json 이 없고 대화형 터미널이 아니다.
+            터미널에서 `npm run setup` 을 먼저 실행할 것.
+```
+
+**(나) 마스터만 묻는다.** `cluster.fork()` 가 `mobius.js` 를 다시 실행한다. 첫 구동에는 마스터가
+파일을 만든 뒤 `require('./app')` 하므로 워커는 이미 파일이 있는 상태로 뜨지만,
+`cluster.isPrimary` 가드를 명시적으로 단다.
+
+**(다) `conf_load` 가 콜백을 받는다.** 프롬프트가 비동기이므로 §6 의 `conf_load` 를 콜백
+형태로 만든다. `require('./app')` 이 그 콜백 안으로 들어가는 것뿐이고 새 의존성이 없다
+(`readline` 은 내장).
+
+```js
+conf_load(function (err, applied) {
+    if (err) { /* 안내하고 종료 */ }
+    boot_record.write(applied);
+    require('./app');
+});
+```
+
+**비밀번호를 다시 넣는 길** — 마법사는 `conf.json` 이 있으면 안 돈다. 그래서 입구를 하나 둔다.
+
+```
+npm run setup                 conf.json 이 없을 때만
+npm run setup -- --dbpass     비밀번호만 다시 받는다 (파일이 있어도)
+```
+
+이것이 §4.3 의 "비밀 키는 CLI 로 변경 불가"의 **유일한 예외**다. 명령줄 인자로 값을 받지 않고
+**프롬프트로만** 받으므로 셸 히스토리에 안 남는다 — 원래 거부한 이유가 그것이었으니 조건이
+유지된다.
+
+### 4.6 오류 처리
 
 - **`conf.json` 이 없다** → 읽기는 전부 기본값으로 답한다. **쓰기만 파일을 만든다**
 - **`conf.json` 이 깨졌다** → 덮어쓰지 않는다. 사유를 말하고 종료
@@ -696,9 +794,15 @@ uservi '2a' · allowed_ae_ids [] · allowed_app_ids []
 **⑯ `status` 가 pm2 없이도 동작한다** — `감독` 줄의 문구만 바뀌고 나머지는 나오는지.
 pm2 앱을 **pid 로** 고르는지(이름 하드코딩이 없는지)
 
+**⑰ 마법사가 TTY 가 아니면 묻지 않는다** — 파이프로 실행하면 프롬프트 없이 안내하고
+종료하는지. **매달리지 않는지가 핵심이다** — 매달리면 pm2 가 `online` 으로 본다
+
+**⑱ 마법사가 만든 `conf.json` 이 유효하다** — `db` 선택지가 `backends()` 에서 오는지,
+SQLite 를 고르면 `dbpass` 를 안 묻는지, 만든 파일을 `conf_load` 가 그대로 읽는지
+
 ### 8.3 웹
 
-**⑰ conf·프로세스 제어가 웹에서 사라졌다** — 라우트 4개가 없고, `admin/` 어디에도
+**⑲ conf·프로세스 제어가 웹에서 사라졌다** — 라우트 4개가 없고, `admin/` 어디에도
 프로세스를 띄우거나 `conf.json` 에 쓰는 코드가 없는지. **프런트가 빌드되는지**
 
 ### 8.4 시험 대역 원칙
@@ -724,17 +828,18 @@ CLAUDE.md 의 규칙을 따른다 — **가짜가 실물보다 관대하면 시�
 | — | **배포 1차** — 코어 반영 + Mobius 재기동 | | 동작 불변 확인 |
 | 5 | `conf_store.js` 이동 (+ `removeKey`) | `admin/` → `tools/` · `test/admin-conf-store.test.js` | 기존 20 |
 | 6 | conf CLI | `tools/mobius-conf.js`(신설) · `package.json` | ⑩~⑯ |
-| 7 | 웹에서 걷어내기 | `admin/server.js` · 뷰 2개 · 프런트 3파일 · `process_ctl.js` | ⑰ |
-| 8 | 문서 갱신 | `CLAUDE.md` · `README.md` · `admin/README.md` | — |
+| 7 | 첫 구동 마법사 | `tools/setup.js`(신설) · `mobius/conf_load.js`(콜백화) · `mobius.js` | ⑰⑱ |
+| 8 | 웹에서 걷어내기 | `admin/server.js` · 뷰 2개 · 프런트 3파일 · `process_ctl.js` | ⑲ |
+| 9 | 문서 갱신 | `CLAUDE.md` · `README.md` · `admin/README.md` | — |
 | — | **배포 2차** — CLI 반영 + 웹 재기동 | | |
 
 **코어를 먼저 하는 이유**는 CLI 가 코어가 준 것(스키마·부팅 기록)에 의존하고 반대는 아니기
 때문이다. 1~4가 배포에 무해하므로 먼저 올려 두면 CLI 작업 중에도 배포가 안전하다.
 
-**7단계는 한 커밋에 한다.** 라우트 4개·뷰 2개·프런트 3파일·`process_ctl.js`·CSE 신원 세 줄을
+**8단계는 한 커밋에 한다.** 라우트 4개·뷰 2개·프런트 3파일·`process_ctl.js`·CSE 신원 세 줄을
 같이 고친다. 반쪽만 지우면 빌드가 깨진다.
 
-**8단계에서 낡는 문서** — `CLAUDE.md` 의 conf 키 표(개수와 행이 바뀐다) · "환경 변수를 보는
+**9단계에서 낡는 문서** — `CLAUDE.md` 의 conf 키 표(개수와 행이 바뀐다) · "환경 변수를 보는
 운영 코드는 `MOBIUS_SQLITE_PATH` 하나뿐"(부팅 기록이 `pm_id` 를 본다) · 죽은 키 표 ·
 관리 콘솔 모듈 목록. `README.md` 의 실행·설정 예시. `admin/README.md` 의 admin 키 표.
 **`CLAUDE.md` 는 `.gitignore` 되어 코드 커밋이 자동으로 안 건드린다.**
@@ -747,7 +852,8 @@ CLAUDE.md 의 규칙을 따른다 — **가짜가 실물보다 관대하면 시�
   (`tools/response-golden/headers.js`)
 - **5~6** — `npm test` 전건 통과. `npm run conf` 와 `npm run status` 가 **pm2 없이도** 동작.
   number·array 키를 명령줄에서 실제로 고쳐 본다. **SQLite 로도 한 번 조회해 키 표가 바뀌는지**
-- **7** — 웹이 여전히 뜨고 남은 6화면이 동작. `npm run build` 가 통과
+- **7** — TTY 가 아닐 때 매달리지 않는 것을 파이프로 확인한다
+- **8** — 웹이 여전히 뜨고 남은 6화면이 동작. `npm run build` 가 통과
 - **배포 2차** — SSH 로 들어가 `npm run conf` → `set` → `pm2 restart Mobius` →
   `적용됨` 으로 바뀌는 것까지 한 번 걸어 봄
 
@@ -899,5 +1005,9 @@ adminHost      기본 127.0.0.1 — conf 로 바꿀 수 있다
   계약만 §4.4 에 있으면 된다
 - **배포에 `ecosystem.config.js` 를 둘 것인가** — 두면 `pm2 start` 의 모호성(§11.2)이
   없어지고 로그 경로·모드를 파일로 고정할 수 있다. 이 스펙의 범위 밖
+- **`dbpass` 암호화는 하지 않기로 했다** — 서버가 스스로 복호화할 수 있으면 그 서버를
+  읽을 수 있는 사람도 복호화할 수 있어 "DB 접속 차단" 이 될 수 없다. 마법사가 입력할 때
+  화면에 안 보이게 하는 것으로 충분하다고 판단했다. 되살리려면 별도 키 파일 방식이
+  후보다(장비 고유값 파생은 백업 복원·서버 이전에서 깨진다)
 - **배포 소스의 `usecsebase`·`usecseid`·`usespid` 실제 값**이 이 문서가 적은 기본값과 같은지.
   **1단계 착수 전에 확인한다**
