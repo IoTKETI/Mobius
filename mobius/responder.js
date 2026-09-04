@@ -413,7 +413,7 @@ var operation = {
     'delete': 4
 };
 
-exports.response_result = function(request, response, status, rsc, cap, callback) {
+exports.response_result = function(request, response, status, rsc, callback) {
     // rcn=0 이면 shape.single 이 null 을 준다 — 배출구가 그것을 빈 본문으로
     // 보낸다. 여기 있던 rt 갈래(rt==3 이면 '' 를 보내고, 아니면 **아무것도
     // 안 보내고 콜백만** 불러 요청이 매달렸다)는 없어졌다. 뒤엣것은 모양이
@@ -425,7 +425,7 @@ exports.response_result = function(request, response, status, rsc, cap, callback
     exports.respond(request, response, { status: status, rsc: rsc, body: body }, callback);
 };
 
-exports.response_rcn3_result = function(request, response, status, rsc, cap, callback) {
+exports.response_rcn3_result = function(request, response, status, rsc, callback) {
     // 여기 있던 `if (rt == 3) apply_headers` 게이트는 없어졌다 — 배출구가
     // 헤더를 무조건 세운다. rt 는 실트래픽에서 언제나 3 이다(위 참조).
     var body = shape.rce(request.resourceObj, request.headers.rootnm,
@@ -433,7 +433,7 @@ exports.response_rcn3_result = function(request, response, status, rsc, cap, cal
     exports.respond(request, response, { status: status, rsc: rsc, body: body }, callback);
 };
 
-exports.search_result = function(request, response, status, rsc, cap, callback) {
+exports.search_result = function(request, response, status, rsc, callback) {
     var rootnm = request.headers.rootnm;
 
     // uril 은 네 모양 중 유일하게 정규화를 안 한다 — 인자가 없는 것이 표시다.
@@ -514,14 +514,4 @@ exports.respond = function (request, response, spec, done) {
         return;
     }
     send(request, response, spec.status, spec.rsc, spec.body, spec.headers, done);
-};
-
-// error_result 가 아직 부른다. 호출자가 없으므로 1단계 3번에서 둘 다 지운다.
-function sendError(request, response, httpStatus, rsc, dbg_string, callback) {
-    request.query.rt = 3;
-    send(request, response, httpStatus, rsc, { 'm2m:dbg': dbg_string }, null, callback);
-}
-
-exports.error_result = function (request, response, status, rsc, dbg_string, callback) {
-    sendError(request, response, status, rsc, dbg_string, callback);
 };

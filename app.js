@@ -1343,7 +1343,7 @@ function run_fanout(request, response, settle, access_value, parse_body) {
 
             function fan_out() {
                 fopt.check(request, response, result_grp, body_Obj, (code) => {
-                    if (code === '200') { settle.search('200', '2000', ''); }
+                    if (code === '200') { settle.search('200', '2000'); }
                     else { settle.error(code); }
                 });
             }
@@ -2392,10 +2392,10 @@ app.post('*', onem2mParser, (request, response) => {
                                                                     if ((request.query.fu == 2) && (request.query.rcn == 0 || request.query.rcn == 1 || request.query.rcn == 2 || request.query.rcn == 3)) {
                                                                         lookup_create(request, response, (code) => {
                                                                             if (code === '201') {
-                                                                                settle.result('201', '2001', '');
+                                                                                settle.result('201', '2001');
                                                                             }
                                                                             else if (code === '201-3') {
-                                                                                settle.rcn3('201', '2001', '');
+                                                                                settle.rcn3('201', '2001');
                                                                             }
                                                                             else {
                                                                                 settle.error(code);
@@ -2509,10 +2509,10 @@ app.get('*', onem2mParser, (request, response) => {
                                         if ((request.query.fu == 1 || request.query.fu == 2) && (request.query.rcn == 1 || request.query.rcn == 4 || request.query.rcn == 5 || request.query.rcn == 6 || request.query.rcn == 7)) {
                                             lookup_retrieve(request, response, (code) => {
                                                 if (code === '200') {
-                                                    settle.result('200', '2000', '');
+                                                    settle.result('200', '2000');
                                                 }
                                                 else if (code === '200-1') {
-                                                    settle.search('200', '2000', '');
+                                                    settle.search('200', '2000');
                                                 }
                                                 else {
                                                     settle.error(code);
@@ -2612,7 +2612,7 @@ app.put('*', onem2mParser, (request, response) => {
                                                             if ((request.query.fu == 2) && (request.query.rcn == 0 || request.query.rcn == 1)) {
                                                                 lookup_update(request, response, (code) => {
                                                                     if (code === '200') {
-                                                                        settle.result('200', '2004', '');
+                                                                        settle.result('200', '2004');
                                                                     }
                                                                     else {
                                                                         settle.error(code);
@@ -2702,7 +2702,7 @@ app.delete('*', onem2mParser, (request, response) => {
                                         if ((request.query.fu == 2) && (request.query.rcn == 0 || request.query.rcn == 1)) {
                                             lookup_delete(request, response, (code) => {
                                                 if (code === '200') {
-                                                    settle.result('200', '2002', '');
+                                                    settle.result('200', '2002');
                                                 }
                                                 else {
                                                     settle.error(code);

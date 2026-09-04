@@ -57,11 +57,12 @@ function arity(call) {
 }
 
 // responder 의 위치 인자 응답 함수들. 시그니처가 바뀌면 여기도 바꾼다.
+// 1단계 3번에서 여섯째 인자 cap 을 뺐다 — 네 자리 전부에서 만들었다 버려지던
+// 값이라 응답에 한 번도 안 나타났다. error_result 는 호출자 0 이라 같이 지웠다.
 const EXPECTED = {
-    response_result: 6,
-    response_rcn3_result: 6,
-    search_result: 6,
-    error_result: 6
+    response_result: 5,
+    response_rcn3_result: 5,
+    search_result: 5
 };
 
 test('responder 의 응답 함수는 선언한 인자 개수를 그대로 받는다', function () {

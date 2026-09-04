@@ -156,14 +156,20 @@ test('responder.js 는 본문 조립을 shape 에 위임한다', function () {
     assert.strictEqual(/org\.onem2m\.home\.moduleclass/.test(src), false, '접두 규칙이 responder 에 되살아났다');
 });
 
-test('세 응답 함수 구간에 죽은 rspObj 가 없다', function () {
-    // 만들자마자 cap 으로 덮어쓰고 null 로 버리던 것. uril 갈래의 var 를
-    // 호이스팅으로 빌려 쓰던 그룹 갈래의 대입이 남으면 암묵적 전역이 된다.
+test('responder.js 에 죽은 rspObj 가 없다', function () {
+    // 만들자마자 cap 으로 덮어쓰고 null 로 버리던 것. 세 응답 함수와 sendError
+    // 네 자리에 있었다. uril 갈래의 var 를 호이스팅으로 빌려 쓰던 그룹 갈래의
+    // 대입이 남으면 암묵적 전역이 된다.
+    //
+    // 처음엔 "세 함수 구간(~ sendError 앞)" 만 봤는데 1단계 3번이 sendError 를
+    // 지우면서 구간 끝 표식이 사라졌다. 파일 전체로 본다 — 배출구 블록에도
+    // 없어야 하므로 그쪽이 맞다.
     const src = code('mobius/responder.js');
-    const a = src.indexOf('exports.response_result = function');
-    const b = src.indexOf('function sendError');
-    assert.ok(a > 0 && b > a, '구간을 못 잡았다 — 이 시험의 전제가 바뀌었다');
-    assert.strictEqual(src.slice(a, b).indexOf('rspObj'), -1);
+    assert.ok(src.indexOf('exports.response_result = function') > 0, '이 시험의 전제가 바뀌었다');
+    assert.strictEqual(src.indexOf('rspObj'), -1, 'rspObj 가 되살아났다');
+    // cap 도 같은 운명이다 — 여섯째 인자로 받아 rspObj 에 넣었다 버리던 것.
+    const words = src.split(/[^A-Za-z0-9_$]+/);
+    assert.strictEqual(words.filter(function (w) { return w === 'cap'; }).length, 0, 'cap 인자가 되살아났다');
 });
 
 test('shape.js 는 request/response/responder 를 모른다', function () {

@@ -76,22 +76,27 @@ exports.make = function (request, response, connection, on_error, release) {
             on_error(request, response, code, finish);
         },
 
+        // 세 함수의 여섯째 인자 cap 은 1단계 3번에서 없앴다. 네 자리 전부에서
+        // 만들었다 버려지던 값이라 응답에 한 번도 안 나타났다 — 차분 하네스의
+        // cap/string|object|number|null 네 건이 같은 바이트를 낸 것으로 확인했다.
+        // 호출부(app.js 7곳)가 넘기던 '' 도 같이 걷어냈다.
+
         /** 일반 성공 응답. */
-        result: function (status, rsc, cap) {
+        result: function (status, rsc) {
             if (!claim('result ' + status + '/' + rsc)) { return; }
-            responder.response_result(request, response, status, rsc, cap || '', finish);
+            responder.response_result(request, response, status, rsc, finish);
         },
 
         /** discovery·fanOutPoint 결과 응답. */
-        search: function (status, rsc, cap) {
+        search: function (status, rsc) {
             if (!claim('search ' + status + '/' + rsc)) { return; }
-            responder.search_result(request, response, status, rsc, cap || '', finish);
+            responder.search_result(request, response, status, rsc, finish);
         },
 
         /** rcn=3 응답. */
-        rcn3: function (status, rsc, cap) {
+        rcn3: function (status, rsc) {
             if (!claim('rcn3 ' + status + '/' + rsc)) { return; }
-            responder.response_rcn3_result(request, response, status, rsc, cap || '', finish);
+            responder.response_rcn3_result(request, response, status, rsc, finish);
         },
 
         /**
