@@ -1940,59 +1940,45 @@ function update_action(request, response, callback) {
     }
 }
 
-function create_resource(request, response, ty, body_Obj, resource_Obj, callback) {
-    var rootnm = request.headers.rootnm;
-
-    if (ty_list.includes(ty.toString())) {
-        // check M
-        for (var attr in create_m_attr_list[rootnm]) {
-            if (create_m_attr_list[rootnm].hasOwnProperty(attr)) {
-                if (body_Obj[rootnm].includes(attr)) {
-                }
-                else {
-                    body_Obj = {};
-                    body_Obj['dbg'] = 'BAD REQUEST: ' + attr + ' is \'Mandatory\' attribute';
-                    responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-                    callback('0', resource_Obj);
-                    return '0';
-                }
-            }
-        }
-
-        // check NP and body
-        for (attr in body_Obj[rootnm]) {
-            if (body_Obj[rootnm].hasOwnProperty(attr)) {
-                if (create_np_attr_list[rootnm].includes(attr)) {
-                    body_Obj = {};
-                    body_Obj['dbg'] = 'BAD REQUEST: ' + attr + ' is \'Not Present\' attribute';
-                    responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-                    callback('0', resource_Obj);
-                    return '0';
-                }
-                else {
-                    if (create_opt_attr_list[rootnm].includes(attr)) {
-                    }
-                    else {
-                        body_Obj = {};
-                        body_Obj['dbg'] = 'BAD REQUEST: ' + attr + ' attribute is not defined';
-                        responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-                        callback('0', resource_Obj);
-                        return '0';
-                    }
-                }
-            }
-        }
-
-        callback('1', resource_Obj);
-    }
-    else {
-        body_Obj = {};
-        body_Obj['dbg'] = 'we do not support to create resource';
-        responder.response_result(request, response, 405, body_Obj, 4005, request.url, body_Obj['dbg']);
-        callback('0', body_Obj);
-        return '0';
-    }
-}
+// create_resource 를 여기서 지웠다 (2026-09-04). **다시 넣지 말 것.**
+//
+// 53줄짜리 함수였고 **아무도 부르지 않았다** — 저장소 전체 고정 문자열
+// 검색에 정의 한 줄만 나왔고, export 도 없고, 이 파일에는 eval 이나
+// new Function, this[...] 같은 동적 호출 수단도 없다.
+//
+// ── 살아 있는 쌍둥이가 따로 있다
+//
+// 같은 일(NP / Optional / Mandatory 속성 검증)을 build_resource 가 한다.
+// 같은 표(create_np_attr_list · create_opt_attr_list · create_m_attr_list)를
+// 쓰고, 네 갈래가 그대로 대응된다:
+//
+//     지운 것 (옛 방식)                 build_resource (지금)
+//     필수 속성 누락  -> 400 + dbg      callback('400-26')
+//     NP 속성 존재    -> 400 + dbg      callback('400-22')
+//     정의 안 된 속성 -> 400 + dbg      callback('400-25')
+//     ty_list 밖      -> 405 + dbg      callback('405-5')
+//
+// 생성 경로는 app.js 의 authorize_and_run(..., resource.create, ...) 에서
+// exports.create -> build_resource -> create_action 으로 간다. 지운 함수는
+// 그 사슬 어디에도 없었다.
+//
+// ── 왜 남겨 두면 안 됐나
+//
+// 옛 방식은 **응답을 직접 보냈다.** 그것도 인자가 밀린 채로:
+//
+//     responder.response_result(request, response, 400, body_Obj, 4000,
+//                               request.url, body_Obj['dbg']);
+//
+// 시그니처는 (request, response, status, rsc, cap, callback) 여섯 개다.
+// 일곱 개를 넘기니 넷째부터 한 칸씩 당겨져 rsc 자리에 객체가 가고
+// (-> X-M2M-RSC: [object Object]) callback 자리에 request.url 문자열이
+// 간다(-> callback() 에서 TypeError -> 워커 사망).
+//
+// **같은 부류를 app.js 의 check_grp 에서 이미 한 번 겪었다** — 그 주석
+// (app.js 의 fanOutPoint 판정 부분)에 재현법까지 적혀 있다. 죽은 코드로
+// 남겨 두면 다음 사람이 이것을 본보기로 삼는다.
+//
+// 되살릴 일이 생기면 build_resource 를 고치는 것이 맞다.
 
 // acpi 직렬화 길이 한도. lookup.acpi 가 varchar(200) 이다.
 // ri 가 22자면 7개(176자)까지 들어가고 8개는 201자라 넘친다.
