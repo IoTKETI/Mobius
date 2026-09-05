@@ -38,32 +38,23 @@ test('sgn 이 자기 커넥션을 빌리고 반납한다', function () {
         '반납이 한 번인지 지키는 표식이 없다');
 });
 
-// ── DB 가 필요할 때만 빌린다 ────────────────────────────────────────
+// ── 언제나 빌린다 ──────────────────────────────────────────────────
 //
-// get_nu_arr 은 nu 가 URL 이 아니라 ID 형식일 때만 조회한다.
-// 대부분의 배포는 nu 에 URL 을 쓰므로, 알림마다 커넥션을 하나씩 더 빼면
-// 워커당 100 인 한도가 이유 없이 빡빡해진다.
+// 예전에는 "이 알림에 DB 조회가 필요한가"(needs_connection — nu 가 ID 형일 때만)를
+// 먼저 물었고 대부분의 배포는 nu 가 URL 이라 안 빌렸다. 원천이 sub 테이블로 옮겨진
+// 뒤(2026-09-05)로는 쓰기마다 `sub where pi = ?` 를 읽어야 하므로 언제나 빌린다.
+// 배포 실측: 대여 1ms 안팎, 최고 시간대 초당 13번.
 
-test('needs_connection 은 nu 형식으로 판정한다', function () {
-    // sgn.js 는 export 하지 않으므로 같은 판정을 소스에서 확인한다.
-    const at = SGN.indexOf('function needs_connection(');
-    assert.ok(at > 0,
-        'DB 필요 여부 판정이 없다 — 알림마다 커넥션을 빌리고 있는지 확인할 것');
+// 주석은 뺀다 — "예전에는 needs_connection 이…" 같은 기록은 남을 값이 있다.
+const SGN_CODE = SGN.replace(/\/\*[\s\S]*?\*\//g, ' ').split(/\r?\n/).filter((l) => !/^\s*\/\//.test(l)).join('\n');
 
-    // 변수 이름이 아니라 판정 자체를 본다. 이름은 바뀔 수 있다
-    // (nu_arr -> subl.read 가 돌려주는 ss.nu 로 옮긴 적이 있다).
-    const body = SGN.slice(at, SGN.indexOf('\n}', at) + 2);
-    assert.ok(/url\.parse\(String\([^)]+\)\)\.protocol == null/.test(body),
-        '판정 조건이 get_nu_arr 의 조건(protocol == null)과 어긋난다');
-});
-
-test('판정 조건이 get_nu_arr 의 실제 조건과 같다', function () {
-    // 둘이 갈리면 "DB 가 필요 없다"고 판정해 놓고 null 커넥션으로 질의하게 된다.
-    const at = SGN.indexOf('function get_nu_arr');
-    assert.ok(at > 0);
-    const body = SGN.slice(at, at + 1200);
-    assert.ok(/sub_nu\.protocol == null/.test(body),
-        'get_nu_arr 의 조건이 바뀌었다 — needs_connection 도 함께 고칠 것');
+test('알림은 언제나 자기 커넥션을 빌린다 — 원천이 sub 테이블이라 DB 가 필요하다', function () {
+    assert.strictEqual(SGN_CODE.indexOf('needs_connection'), -1,
+        '"DB 가 필요할 때만" 판정이 되살아났다 — 이제 언제나 필요하다');
+    assert.ok(/function with_connection\(body, on_giveup\)/.test(SGN_CODE), '커넥션 대여 함수가 없다');
+    assert.ok(/sub_source\.rows_for\(connection, parentObj, notiObj, check_value/.test(SGN_CODE),
+        '빌린 커넥션으로 sub_source 를 묻지 않는다');
+    assert.strictEqual(SGN_CODE.indexOf('parentObj.subl'), -1, 'subl 사본을 다시 읽는다');
 });
 
 // ── 호출부가 여전히 fire-and-forget 인가 ────────────────────────────
@@ -238,21 +229,26 @@ test('모든 신호에 구독 ri 가 붙는다', function () {
         'arm label 에 구독 ri 가 없다 — 타임아웃 로그를 역추적할 수 없다');
 });
 
-test('못 푼 nu 는 배열에서 빼고 순회를 이어 간다', function () {
-    // 예전에는 주석이 '순회만 이어 간다' 인데 코드는 callback 후 return 이라
-    // 거기서 끝났다. 그러면 뒤에 오는 ID 형식 nu 가 영영 안 풀린다.
-    // 그리고 못 푼 문자열을 배열에 남기면 발송 단계가 그것을 주소로 착각해
-    // 엉뚱한 두 번째 실패 로그를 낸다 — 구독 하나가 두 줄로 보인다.
-    const at = SGN.indexOf('function get_nu_arr');
-    const body = SGN.slice(at, SGN.indexOf('function sgn_action', at));
-
-    const splices = (body.match(/nu_arr\.splice\(req_count, 1\)/g) || []).length;
-    assert.strictEqual(splices, 4,
-        '못 푼 nu 를 빼는 곳이 ' + splices + '곳이다 — 해석 실패 분기 4곳 전부여야 한다');
-
-    // splice 로 한 칸 줄었으므로 재귀는 req_count 그대로다(+1 이 아니다).
-    assert.strictEqual(/splice\(req_count, 1\);\s*\r?\n\s*get_nu_arr\(connection, nu_arr, req_count \+ 1,/.test(body), false,
-        'splice 후 req_count + 1 로 재귀하면 한 항목을 건너뛴다');
+test('못 푼 nu 는 빼고 이어 간다 — 해석 실패 갈래 넷 전부', function () {
+    // 예전(get_nu_arr)에는 주석이 '순회만 이어 간다' 인데 코드는 callback 후 return 이라
+    // 거기서 끝났다. 그러면 뒤에 오는 ID 형식 nu 가 영영 안 풀린다. 그리고 못 푼
+    // 문자열을 배열에 남기면 발송 단계가 그것을 주소로 착각해 엉뚱한 두 번째 실패
+    // 로그를 낸다 — 구독 하나가 두 줄로 보인다.
+    //
+    // 지금은 mobius/nu_resolve.js 가 맡는다. 동작은 test/sgn-resolve-nu.test.js 가
+    // 실제로 돌려 본다. 여기서는 실패 사유 넷이 전부 "빼고 남긴다"(fail) 로 가는지만
+    // 소스로 잠근다 — 하나라도 return 으로 새면 그 nu 가 배열에 남는다.
+    const src = fs.readFileSync(path.join(ROOT, 'mobius', 'nu_resolve.js'), 'utf8')
+        .replace(/\/\*[\s\S]*?\*\//g, ' ').split(/\r?\n/).filter((l) => !/^\s*\/\//.test(l)).join('\n');
+    const reasons = ['nu 해석 중 DB 오류', '받을 리소스 조회 중 DB 오류', '받을 리소스가 없다: ', '받을 리소스에 poa 가 없다: '];
+    reasons.forEach(function (r) {
+        assert.ok(new RegExp("fail\\(it, '" + r.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).test(src),
+            '실패 사유가 fail() 로 가지 않는다: ' + r);
+    });
+    // 호출만 센다 — `function fail(it, why)` 정의는 따옴표가 뒤따르지 않는다.
+    assert.strictEqual((src.match(/fail\(it, '/g) || []).length, 4, '실패 갈래는 정확히 넷이다');
+    // 발송기가 쓰는 것은 finish() 가 재조립한 배열뿐이다 — 못 푼 항목은 out 이 [] 라 사라진다.
+    assert.ok(/else if \(it\.out\) \{ Array\.prototype\.push\.apply\(out, it\.out\); \}/.test(src));
 });
 
 test('MQTT 알림이 브로커 단절 때 메모리에 무한히 쌓이지 않는다', function () {

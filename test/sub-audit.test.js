@@ -17,7 +17,8 @@ const path = require('node:path');
 
 const ROOT = path.join(__dirname, '..');
 const SQL = fs.readFileSync(path.join(ROOT, 'mobius', 'sql_action.js'), 'utf8');
-const SGN = fs.readFileSync(path.join(ROOT, 'mobius', 'sgn.js'), 'utf8');
+// ID 형 nu 해석은 sgn.js 에서 mobius/nu_resolve.js 로 옮겨졌다(2026-09-05) — 접두 규칙은 거기와 맞춘다.
+const NU_RESOLVE = fs.readFileSync(path.join(ROOT, 'mobius', 'nu_resolve.js'), 'utf8');
 
 function auditBody() {
     const at = SQL.indexOf('exports.audit_subscriptions');
@@ -90,16 +91,16 @@ test('et 를 삭제 후보로 분류하지 않는다', function () {
 test('ID 형식 nu 해석이 sgn.js 와 같은 두 단계다', function () {
     const body = auditBody();
 
-    // sgn.js 의 get_nu_arr 은 (1) 첫 조각의 ri 를 찾아 (2) 경로를 치환한 뒤
-    // 전체 경로로 대상을 찾는다. 한 단계만 하면 첫 조각(대개 CSEBase 이름)을
+    // nu_resolve.js(옛 sgn.js 의 get_nu_arr)는 (1) 첫 조각의 ri 를 찾아 (2) 경로를
+    // 치환한 뒤 전체 경로로 대상을 찾는다. 한 단계만 하면 첫 조각(대개 CSEBase 이름)을
     // 대상으로 착각해 **살아 있는 구독을 죽었다고 판정한다** — 실제로 그랬다.
     assert.ok(/function split_id_nu/.test(body), 'nu 분해 함수가 없다');
     assert.ok(/head_ri\[p\.head\]/.test(body), '첫 조각의 ri 를 쓰지 않는다');
     assert.ok(/p\.abs\.replace\('\/' \+ p\.head, hr\)/.test(body),
         '경로 치환이 없다 — 한 단계만 해서는 대상을 못 찾는다');
 
-    // 접두 제거 규칙이 sgn.js 와 같아야 한다.
-    for (const src of [body, SGN]) {
+    // 접두 제거 규칙이 발송 경로(nu_resolve.js)와 같아야 한다.
+    for (const src of [body, NU_RESOLVE]) {
         assert.ok(/replace\(usespid \+ usecseid \+ '\/', '\/'\)/.test(src),
             'usespid+usecseid 접두 제거가 없다');
         assert.ok(/replace\(usecseid \+ '\/', '\/'\)/.test(src),

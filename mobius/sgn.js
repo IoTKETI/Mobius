@@ -30,6 +30,13 @@ var responder = require('./responder');
 var shape = require('./shape');
 var poa_util = require('./poa');
 var subl_entry = require('./subl');
+// 알림 라우팅의 원천은 sub 테이블이다 — lookup.subl 사본이 아니다 (2026-09-05).
+// 어느 행에 보낼지는 sub_source, ID 형 nu 를 주소로 푸는 것은 nu_resolve 가 맡는다.
+// 둘 다 sgn_man 을 모르므로 시험이 로드할 수 있다. 사본을 지키던 장치는 이중 쓰기로
+// 한 단계 더 남아 있다가 걷힌다.
+// 스펙: docs/superpowers/specs/2026-09-05-notification-routing-source-design.md
+var sub_source = require('./sub_source');
+var nu_resolve = require('./nu_resolve');
 
 var sgn_man = require('./sgn_man');
 
@@ -196,117 +203,6 @@ function sgn_action_send(nu_arr, req_count, node, short_flag, check_value, ss_cr
     });
 }
 
-// sub_ri 는 로그 역추적용이다. 어느 구독의 nu 를 풀다 실패했는지가
-// "받을 놈이 사라진 구독" 을 찾는 유일한 단서인데, 예전에는 로그에
-// nu 대상의 ri 만 있고 구독 ri 가 없어 되짚을 수가 없었다.
-function get_nu_arr(connection, nu_arr, req_count, callback, sub_ri) {
-    if(nu_arr.length <= req_count) {
-        callback('200');
-        return;
-    }
-
-    var nu = nu_arr[req_count];
-    var sub_nu = url.parse(nu);
-
-    if(sub_nu.protocol == null) { // ID format
-        var absolute_url = nu;
-        absolute_url = absolute_url.replace(usespid + usecseid + '/', '/');
-        absolute_url = absolute_url.replace(usecseid + '/', '/');
-
-        if(absolute_url.charAt(0) != '/') {
-            absolute_url = '/' + absolute_url;
-        }
-
-        var absolute_url_arr = absolute_url.split('/');
-
-        db_sql.get_ri_sri(connection, absolute_url_arr[1].split('?')[0], function (err, results) {
-            if (err) {
-                console.error('[noti] fail - sub=' + (sub_ri || '?') + ' nu=' + nu +
-                              ' (nu 해석 중 DB 오류)');
-                nu_arr.splice(req_count, 1);
-                get_nu_arr(connection, nu_arr, req_count, callback, sub_ri);
-            }
-            else {
-                absolute_url = (results.length == 0) ? absolute_url : ((results[0].hasOwnProperty('ri')) ? absolute_url.replace('/' + absolute_url_arr[1], results[0].ri) : absolute_url);
-
-                var sri = absolute_url_arr[1].split('?')[0];
-                var ri = absolute_url.split('?')[0];
-                db_sql.select_resource_from_url(connection, ri, sri, function (err, result_Obj) {
-                    if (!err) {
-                        // 예전에는 이 두 조건에 else 가 없어, 리소스를 못 찾거나
-                        // poa 가 비면 콜백이 사라졌다. 알림 사슬이 그대로 멈췄다.
-                        //
-                        // 그다음 고칠 때 '순회만 이어 간다' 고 주석을 적었는데
-                        // 코드는 callback 후 return 이라 **거기서 끝났다**.
-                        // 그러면 뒤에 오는 ID 형식 nu 가 영영 안 풀린다.
-                        // 그리고 못 푼 문자열을 배열에 남기면 발송 단계가 그것을
-                        // 주소로 착각해 엉뚱한 두 번째 실패 로그를 낸다 —
-                        // 구독 하나가 두 줄로 보인다. 그래서 빼고 이어 간다.
-                        // splice 로 한 칸 줄었으므로 재귀는 req_count 그대로다.
-                        if (result_Obj.length != 1) {
-                            console.error('[noti] fail - sub=' + (sub_ri || '?') + ' nu=' + nu +
-                                          ' (받을 리소스가 없다: ' + ri + ')');
-                            nu_arr.splice(req_count, 1);
-                            get_nu_arr(connection, nu_arr, req_count, callback, sub_ri);
-                            return;
-                        }
-
-                        // 원래는 (poa != null || poa != '') 였다. 둘 중 하나는 항상
-                        // 참이라 이 조건은 언제나 통과했고, poa 가 null 이면 아래
-                        // JSON.parse(null) 이 null 을 돌려줘 .length 에서 워커가 죽었다.
-                        var poa_arr = poa_util.parse(result_Obj[0].poa, '[sgn_action] ' + ri);
-                        if (poa_arr === null || poa_arr.length === 0) {
-                            console.error('[noti] fail - sub=' + (sub_ri || '?') + ' nu=' + nu +
-                                          ' (받을 리소스에 poa 가 없다: ' + ri + ')');
-                            nu_arr.splice(req_count, 1);
-                            get_nu_arr(connection, nu_arr, req_count, callback, sub_ri);
-                            return;
-                        }
-
-                        // 이 자리의 ID 형식 항목을 풀어낸 URL 들로 갈아 끼운다.
-                        // 예전에는 pop() 이라 배열의 *마지막* 항목을 지웠다 —
-                        // nu 가 2개 이상이면 엉뚱한 항목이 통째로 사라졌다.
-                        var resolved = [];
-                        for (var i = 0; i < poa_arr.length; i++) {
-                            sub_nu = url.parse(poa_arr[i]);
-                            if(sub_nu.protocol == null) {
-                                resolved.push('http://localhost:7579' + absolute_url);
-                            }
-                            else {
-                                if(poa_arr[i].charAt(poa_arr[i].length-1) == '/') {
-                                    poa_arr[i] = poa_arr[i].slice(0, -1);
-                                }
-                                resolved.push(poa_arr[i]);
-                            }
-                        }
-                        Array.prototype.splice.apply(nu_arr, [req_count, 1].concat(resolved));
-
-                        // 갈아 끼운 만큼 건너뛴다. 새로 넣은 것들은 이미 URL 이다.
-                        get_nu_arr(connection, nu_arr, req_count + resolved.length, function (code) {
-                            callback(code);
-                        }, sub_ri);
-                    }
-                    else {
-                        console.error('[noti] fail - sub=' + (sub_ri || '?') + ' nu=' + nu +
-                                      ' (받을 리소스 조회 중 DB 오류)');
-                        nu_arr.splice(req_count, 1);
-                        get_nu_arr(connection, nu_arr, req_count, callback, sub_ri);
-                    }
-                });
-            }
-        });
-    }
-    else {
-        // 이미 URL 형식이라 풀 것이 없다. 예전에는 여기서 callback('200') 으로
-        // 순회를 끝내버려, URL 이 하나라도 앞에 있으면 그 뒤의 ID 형식 nu 는
-        // 영영 풀리지 않았다. nu 가 하나뿐이면 결과는 같다 — 다음이 없으니
-        // 바로 위 종료 조건에 걸린다.
-        get_nu_arr(connection, nu_arr, req_count + 1, function (code) {
-            callback(code);
-        }, sub_ri);
-    }
-}
-
 function sgn_action(connection, rootnm, check_value, subl, req_count, noti_Obj, parentObj, callback) {
     if(subl.length <= req_count) {
         callback('200');
@@ -371,38 +267,24 @@ function sgn_action(connection, rootnm, check_value, subl, req_count, noti_Obj, 
             matched = true;
             node['m2m:sgn'].nev.net = parseInt(net_arr[j].toString());
 
-            get_nu_arr(connection, nu_arr, 0, function (code) {
-                if(code == '200') {
-                    if (nct == 2 || nct == 1) {
-                        setTimeout(function (nu_arr, count, node, short_flag, check_value, cr, ri, xm2mri, exc, parentObj) {
-                            sgn_action_send(nu_arr, count, node, short_flag, check_value, results_ss.cr, results_ss.ri, xm2mri, results_ss.exc, parentObj, function (code) {
-                                console.log('[sgn_action_send] - ' + code);
-                            });
-                        }, parseInt(1 + Math.random() * 10), nu_arr, 0, node, short_flag, check_value, results_ss.cr, results_ss.ri, xm2mri, results_ss.exc, parentObj);
-
-                        sgn_action(connection, rootnm, check_value, subl, ++req_count, noti_Obj, parentObj, function (code) {
-                            callback(code);
+            // ID 형 nu 는 질의 3번으로 한꺼번에 푼다(옛 get_nu_arr 은 nu 마다 2번, 순차).
+            // resolve 는 코드를 주지 않고 언제나 부른다 — 못 푼 nu 는 빼고 로그를 남긴다.
+            // 그래서 "다음 구독으로" 는 갈래 없이 한 줄이다.
+            nu_resolve.resolve(connection, nu_arr, results_ss.ri, function (resolved) {
+                if (nct == 2 || nct == 1) {
+                    setTimeout(function (nu_arr, count, node, short_flag, check_value, cr, ri, xm2mri, exc, parentObj) {
+                        sgn_action_send(nu_arr, count, node, short_flag, check_value, results_ss.cr, results_ss.ri, xm2mri, results_ss.exc, parentObj, function (code) {
+                            console.log('[sgn_action_send] - ' + code);
                         });
-                    }
-                    else {
-                        console.log('nct except 2 (All Attribute) do not support');
-                        sgn_action(connection, rootnm, check_value, subl, ++req_count, noti_Obj, parentObj, function (code) {
-                            callback(code);
-                        });
-                    }
+                    }, parseInt(1 + Math.random() * 10), resolved, 0, node, short_flag, check_value, results_ss.cr, results_ss.ri, xm2mri, results_ss.exc, parentObj);
                 }
                 else {
-                    // get_nu_arr 은 지금 언제나 '200' 을 준다. 그래도 else 를
-                    // 둔다 — 없으면 그 계약이 바뀌는 순간 콜백이 조용히
-                    // 사라지고 알림 사슬이 거기서 멈춘다. 이 파일에서 이미
-                    // 두 번 일어난 부류다(get_nu_arr 의 두 조기 반환).
-                    console.error('[noti] sub=' + results_ss.ri +
-                                  ' nu 해석이 200 이 아닌 코드를 줬다: ' + code);
-                    sgn_action(connection, rootnm, check_value, subl, ++req_count, noti_Obj, parentObj, function (code) {
-                        callback(code);
-                    });
+                    console.log('nct except 2 (All Attribute) do not support');
                 }
-            }, results_ss.ri);
+                sgn_action(connection, rootnm, check_value, subl, ++req_count, noti_Obj, parentObj, function (code) {
+                    callback(code);
+                });
+            });
             break;
         }
     }
@@ -413,31 +295,6 @@ function sgn_action(connection, rootnm, check_value, subl, req_count, noti_Obj, 
             callback(code);
         });
     }
-}
-
-// 이 알림이 DB 를 만져야 하는가.
-//
-// get_nu_arr 은 nu 가 URL 이 아니라 ID 형식일 때만 조회한다
-// (sub_nu.protocol == null). 대부분의 배포는 nu 에 URL 을 쓰므로 그런 경우
-// 커넥션을 아예 빌리지 않는다 — 알림마다 풀에서 하나씩 더 빼면
-// 워커당 100 인 한도가 금방 빡빡해진다.
-function needs_connection(subl) {
-    if (!Array.isArray(subl)) {
-        return false;
-    }
-    for (var i = 0; i < subl.length; i++) {
-        // sgn_action 과 같은 눈으로 읽어야 한다. 예전에는 여기서만
-        // Array.isArray 로 걸러서, nu 가 문자열인 항목은 커넥션을 안 빌리고도
-        // 발송 경로로 들어갔다 — ID 형식이면 get_ri_sri(null, ...) 에서 죽는다.
-        var ss = subl_entry.read(subl[i]);
-        if (!ss) { continue; }
-        for (var j = 0; j < ss.nu.length; j++) {
-            if (url.parse(String(ss.nu[j])).protocol == null) {
-                return true;
-            }
-        }
-    }
-    return false;
 }
 
 exports.check = function(request, notiObj, check_value, callback) {
@@ -458,9 +315,10 @@ exports.check = function(request, notiObj, check_value, callback) {
     // 대상 객체 전체를 깊은 복제한 뒤 그중 하나만 꺼내 쓰고 있었다.
     // 요청마다 도는 자리라 그만큼이 그대로 낭비다. sgn_action 이 parentObj 를
     // 읽기만 하므로 복제 없이 넘긴다.
+    // 구독이 붙은 리소스 자신이다 — 생성은 POST 대상, 갱신은 PUT 대상, 삭제는
+    // delete_action 이 부모로 바꿔 둔 것. 옛 코드는 여기서 parentObj.subl(사본)을 읽었다.
     var target_root = Object.keys(request.targetObject)[0];
     var parentObj = request.targetObject[target_root];
-    var subl = parentObj.subl;
 
     if(check_value != 256 && check_value != 128) {
         var noti_ri = noti_Obj.ri;
@@ -480,26 +338,26 @@ exports.check = function(request, notiObj, check_value, callback) {
     //
     // 실측으로 확인했다 — nu 를 ID 형식으로 둔 구독에 CIN 3건을 넣으니
     // 반납 후 질의가 6건 찍혔다(get_ri_sri, select_resource_from_url).
-    run_with_own_connection(subl, function (connection, release) {
-        sgn_action(connection, rootnm, check_value, subl, 0, noti_Obj, parentObj, function (code) {
-            release();
-            callback(code);
+    //
+    // 원천은 sub 테이블이다(sub_source) — 그래서 커넥션이 언제나 필요하다.
+    with_connection(function (connection, release) {
+        sub_source.rows_for(connection, parentObj, notiObj, check_value, function (rows) {
+            sgn_action(connection, rootnm, check_value, rows, 0, noti_Obj, parentObj, function (code) {
+                release();
+                callback(code);
+            });
         });
     }, callback);
 };
 
-// DB 가 필요하면 자기 커넥션을 빌려 넘기고, 아니면 null 로 진행한다.
-// release 는 몇 번 불려도 한 번만 반납한다.
-function run_with_own_connection(subl, body, on_giveup) {
-    // 예전에는 여기에 `global.usesqlite === 'true' ||` 가 붙어 있었다.
-    // 커넥션 원천이 MySQL 풀로 고정이라 SQLite 모드가 그 풀을 안 건드리게
-    // 하려던 우회였다. 원천이 파사드로 옮겨졌으니 필요 없다.
-    // 남은 조건은 하나 — 이 알림에 DB 조회가 필요한가.
-    if (!needs_connection(subl)) {
-        body(null, function () {});
-        return;
-    }
-
+// 자기 커넥션을 빌려 넘긴다. release 는 몇 번 불려도 한 번만 반납한다.
+//
+// 예전에는 "이 알림에 DB 조회가 필요한가"(needs_connection — nu 가 ID 형일 때만)를
+// 먼저 물었고, 대부분의 배포는 nu 가 URL 이라 커넥션을 아예 안 빌렸다. 원천이 sub
+// 테이블로 옮겨진 뒤로는 언제나 필요하다 — 정상 운영에서 대여는 1ms 안팎이고 최고
+// 시간대에도 초당 13번이다(배포 실측 2026-09-05). 풀이 고갈됐으면 알림을 건너뛰고
+// 남긴다 — 그때는 서버가 이미 다른 이유로 아프다.
+function with_connection(body, on_giveup) {
     db.getConnection(function (code, connection) {
         if (code !== '200') {
             // 알림은 fire-and-forget 이다. 여기서 매달리거나 재시도하면

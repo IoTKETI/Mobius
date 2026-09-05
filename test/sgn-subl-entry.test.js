@@ -145,15 +145,19 @@ test('sgn_action 이 subl.read 를 거친다', function () {
         '못 읽은 항목을 건너뛰는 분기가 없다');
 });
 
-test('needs_connection 도 같은 눈으로 읽는다', function () {
-    // 예전에는 여기서만 Array.isArray 로 걸러서, nu 가 문자열인 항목은
-    // 커넥션을 안 빌리고도 발송 경로로 들어갔다. ID 형식이면
-    // get_ri_sri(null, ...) 에서 죽는다.
-    const at = SGN.indexOf('function needs_connection(');
-    assert.ok(at > 0, 'needs_connection 이 사라졌다');
-    const body = SGN.slice(at, SGN.indexOf('\n}', at) + 2);
-    assert.ok(/subl_entry\.read\(subl\[i\]\)/.test(body),
-        'needs_connection 이 sgn_action 과 다른 눈으로 subl 을 읽는다');
+test('sub 테이블 행도 같은 눈(read)으로 읽는다 — nu·enc 가 JSON 문자열이라서', function () {
+    // 원천이 sub 테이블로 옮겨진 뒤(2026-09-05)로 sgn_action 이 받는 것은 subl 사본이
+    // 아니라 select_subs_by_pi 가 준 행이다. insert_sub 는 nu·enc 를 JSON.stringify 해서
+    // 넣으므로 그 행은 정확히 "항목 안쪽이 문자열인" 모양이다 — read 가 그것을 푼다.
+    // 예전에는 needs_connection 이 여기서만 Array.isArray 로 걸러 nu 가 문자열인
+    // 항목을 커넥션 없이 발송 경로로 들여보냈다. 그 함수는 없어졌다(언제나 빌린다).
+    const at = SGN.indexOf('function sgn_action(');
+    assert.ok(at > 0);
+    const body = SGN.slice(at, at + 800);
+    assert.ok(/subl_entry\.read\(subl\[req_count\]\)/.test(body),
+        'sgn_action 이 행을 read 로 읽지 않는다 — 문자열 nu/enc 를 못 푼다');
+    const row = { ri: '/M/p/s1', nu: '["mqtt://b/t"]', enc: '{"net":[3]}', nct: '2', nec: null, cr: 'C' };
+    assert.deepStrictEqual(subl.read(row), { ri: '/M/p/s1', cr: 'C', exc: undefined, nct: '2', nec: null, net: [3], nu: ['mqtt://b/t'] });
 });
 
 /* ── 배열 조작: 같은 ri 는 하나만 ─────────────────────────────────── */

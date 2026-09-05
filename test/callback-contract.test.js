@@ -214,14 +214,16 @@ test('check_mtv 가 멤버 확인 실패를 흘려보낸다', function () {
         'check_member 결과 분기에 else 가 없다 — 실패 시 요청이 매달린다');
 });
 
-test('sgn_action 이 nu 해석 실패를 흘려보낸다', function () {
+test('sgn_action 이 nu 해석 뒤 언제나 다음 구독으로 간다', function () {
     const src = fsR.readFileSync(pathR.join(ROOT_R, 'mobius', 'sgn.js'), 'utf8');
-    const at = src.indexOf('get_nu_arr(connection, nu_arr, 0, function (code) {');
-    assert.ok(at > 0, 'sgn_action 의 get_nu_arr 호출을 찾지 못했다');
-    const body = src.slice(at, at + 2000);
+    const at = src.indexOf('nu_resolve.resolve(connection, nu_arr, results_ss.ri, function (resolved) {');
+    assert.ok(at > 0, 'sgn_action 의 nu_resolve.resolve 호출을 찾지 못했다');
+    const body = src.slice(at, at + 1500);
 
-    // 지금 get_nu_arr 은 언제나 '200' 을 준다. 그래도 else 가 있어야 한다 —
-    // 없으면 그 계약이 바뀌는 순간 알림 사슬이 조용히 멈춘다.
-    assert.ok(/else \{[\s\S]{0,400}?sgn_action\(connection, rootnm, check_value, subl, \+\+req_count/.test(body),
-        'nu 해석이 200 이 아닐 때 다음 구독으로 넘어가지 않는다');
+    // resolve 는 코드를 주지 않고 언제나 부른다(못 푼 nu 는 빼고 로그). 그 콜백 안에서
+    // nct 갈래와 무관하게 다음 구독 호출이 있어야 한다 — 없으면 사슬이 조용히 멈춘다.
+    assert.ok(/sgn_action\(connection, rootnm, check_value, subl, \+\+req_count/.test(body),
+        'nu 해석 뒤 다음 구독으로 넘어가지 않는다');
+    // 옛 get_nu_arr 의 '200' 코드 계약은 없다 — 그것에 매달린 갈래가 남으면 죽은 코드다.
+    assert.strictEqual(body.indexOf("code == '200'"), -1);
 });
