@@ -188,3 +188,7 @@ CREATE INDEX IF NOT EXISTS idx_lookup_et ON lookup (et);
 -- cin 을 부모로 묶어 세는 질의(정합 맞추기, delete_oldest).
 -- cs 까지 넣으면 sum(cs) 가 인덱스만 읽고 끝난다.
 CREATE INDEX IF NOT EXISTS idx_cin_pi ON cin (pi, ri, cs);
+
+-- 알림 라우팅의 원천. sgn.check 가 쓰기마다 `sub where pi = ?` 를 한 번 읽는다
+-- (MySQL 은 migrations/013-sub-pi-index.js).
+CREATE INDEX IF NOT EXISTS idx_sub_pi ON sub (pi);

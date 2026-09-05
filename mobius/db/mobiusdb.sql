@@ -515,9 +515,9 @@ DROP TABLE IF EXISTS `sub`;
 CREATE TABLE `sub` (
   `ri` varchar(200) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
   `pi` varchar(400) DEFAULT NULL,
-  `enc` varchar(45) DEFAULT NULL,
+  `enc` text,
   `exc` varchar(45) DEFAULT NULL,
-  `nu` varchar(200) DEFAULT NULL,
+  `nu` text,
   `gpi` varchar(45) DEFAULT NULL,
   `nfu` varchar(45) DEFAULT NULL,
   `bn` varchar(45) DEFAULT NULL,
@@ -532,6 +532,7 @@ CREATE TABLE `sub` (
   `su` varchar(45) DEFAULT NULL,
   PRIMARY KEY (`ri`),
   UNIQUE KEY `resourceid_UNIQUE` (`ri`),
+  KEY `idx_sub_pi` (`pi`),
   CONSTRAINT `sub_ri` FOREIGN KEY (`ri`) REFERENCES `lookup` (`ri`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
