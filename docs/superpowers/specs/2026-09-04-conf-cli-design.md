@@ -1,6 +1,6 @@
 # Mobius 설정 — 코어 정리와 conf CLI
 
-- 작성일: 2026-09-04 · **7판 (최종)**
+- 작성일: 2026-09-04 · **8판** (7판이 구현·배포 준비 완료, 8판은 2차 — §13)
 - 대상 브랜치: `lite`
 - 선행 문서: [관리 콘솔 목표 재정의](2026-09-01-admin-console-purpose.md), [관리 콘솔 설계](2026-08-28-admin-console-design.md)
 
@@ -14,7 +14,8 @@
 | 4 | `conf` 조회·변경의 구조를 채웠다 |
 | 5 | 전수 검토 반영 — 코드와 어긋난 사실 5건, 미정 12건 |
 | 6 | **첫 구동 마법사** 추가 · `cseBase` 등급 정정 |
-| **7** | **2차 전수 검토 반영** — 아래 |
+| 7 | 2차 전수 검토 반영 — 아래 |
+| **8** | **2차 작업(§13)** — 사용자/고급 키 구분(`tier`)과 `--all` · 비밀 봉인(`conf.seal.json`) · 일괄 편집(`conf edit`) · 마법사에 `superUser` · `--superuser`. 사용자 결정 2026-09-05 |
 
 **7판에서 고친 것** — 두 번째 검토가 잡은 것 중 무거운 것들이다.
 
@@ -55,6 +56,9 @@
 | 8 | **첫 구동 마법사** — `npm run setup` | `tools/setup.js`(신설) · `mobius/setup_prompt.js`(신설) |
 | 9 | 웹에서 conf 편집·프로세스 제어를 걷어낸다 | `admin/` |
 | 10 | 낡는 문서를 고친다 | `CLAUDE.md` · `README.md` · `admin/README.md` |
+| 11 | **(2차)** 사용자 키 7개와 고급 키를 가른다 — CLI 는 기본으로 사용자 키만, `--all` 로 전부 | `conf_schema.js` · `tools/conf_cli.js` · `tools/mobius-conf.js` |
+| 12 | **(2차)** `dbpass`·`superUser` 를 봉인한다 — 도구로만 바꾸고, 손으로 고치면 기동을 거부 | `mobius/conf_seal.js`(신설) · `conf_load.js` · `tools/conf_store.js` |
+| 13 | **(2차)** 일괄 편집 `npm run conf -- edit` — 첫 실행처럼 사용자 키를 차례로 묻는다 | `tools/conf_cli.js` |
 
 ---
 
@@ -973,6 +977,10 @@ SQLite 를 고르면 `dbpass` 를 안 묻는지, 만든 파일을 `conf_load` �
 | 9 | 웹에서 걷어내기 | `admin/server.js` · 뷰 2개 · 프런트 3파일 · `process_ctl.js` | A1 |
 | 10 | 문서 갱신 | `CLAUDE.md` · `README.md` · `admin/README.md` | — |
 | — | **배포 2차** — CLI 반영 + 웹 재기동 | | |
+| 11 | (2차) 사용자/고급 키 · `--all` | `conf_schema.js` · `mobius/db/mysql.js` · `tools/conf_cli.js` · `tools/mobius-conf.js` · 문서 | T1 T2 T3 |
+| 12 | (2차) 봉인 | `mobius/conf_seal.js`(신설) · `conf_load.js` · `exit_codes.js` · `mobius.js` · `app.js` · `tools/conf_store.js` · `.gitignore` · 문서 | S1~S6 |
+| 13 | (2차) 일괄 편집 | `tools/conf_cli.js` · `tools/mobius-conf.js` · 문서 | E1~E6 |
+| — | **배포 3차** — 재기동 전에 `npm run setup -- --superuser`(또는 `--dbpass`)로 봉인을 만든다 | | |
 
 **코어를 먼저 하는 이유**는 CLI 가 코어가 준 것(스키마·부팅 기록)에 의존하고 반대는 아니기
 때문이다. 1~5가 배포에 무해하므로 먼저 올려 두면 CLI 작업 중에도 배포가 안전하다.
@@ -1139,3 +1147,116 @@ adminHost      기본 127.0.0.1 — 루프백 아니면 경고 한 줄만 찍고
   없어진다. 이 스펙의 범위 밖
 - **배포 소스의 `usecsebase`·`usecseid`·`usespid` 실제 값**이 이 문서가 적은 기본값과 같은지.
   **1단계 착수 전에 확인한다**
+
+---
+
+## 13. 2차 — 사용자/고급 키 · 봉인 · 일괄 편집 (8판, 2026-09-05)
+
+7판을 구현한 뒤 사용자가 정한 것 셋이다. 셋 다 "설정은 CLI 가 맡는다" 는 기조 안에 있고, 7판의
+결정을 뒤집지 않는다(비밀은 평문, pm2 는 안 다룬다, 웹은 리소스만).
+
+### 13.1 사용자 키와 고급 키
+
+**표의 키를 둘로 가른다.** 사용자가 바꿀 일이 있는 것과, 소스 기본값으로 두면 되는 것.
+
+| 등급 | 뜻 | 스키마 | 누가 어떻게 바꾸나 |
+|---|---|---|---|
+| **사용자** | 첫 실행이 묻는 것 | `tier: 'user'` | 마법사 · `npm run conf`(목록·`set`·`unset`·`edit`) · 비밀은 `npm run setup -- --…` |
+| **고급** | 굳이 바꿀 필요가 없는 것 | (표시 없음 = 기본) | 아는 사람이 `conf.json` 을 직접 고치거나 `npm run conf -- --all` |
+
+**사용자 키는 일곱이다** — `db`·`dbpass`·`cseBase`·`cseId`·`spId`·`superUser`·`csebaseport`. 첫 실행 마법사가
+묻는 것(§13.4)·`WIZARD_KEYS`·`conf_schema.userKeys()` 가 **같은 집합**이어야 하고 시험이 이름으로 못박는다.
+`dbpass` 는 mysql 어댑터의 `confSchema` 에 있으므로 `tier` 도 거기 적는다.
+
+**새 키의 기본은 고급이다.** 표에 키를 더할 때 `tier: 'user'` 를 명시하지 않으면 사용자에게 안 보인다 —
+실수로 노출되는 방향이 아니라 실수로 숨는 방향이 안전하다.
+
+**CLI 는 기본으로 사용자 키만 안다.** 목록은 사용자 키와 비밀 둘(`dbpass`·`superUser`)만 보이고 끝에
+"고급 키 N개는 숨겼다 — `--all`" 한 줄을 둔다. 고급 키에 `set`/`unset`/단건 조회/`edit` 을 하면
+`고급 키다 — conf.json 을 직접 고치거나 --all 을 줄 것` 으로 거부한다. **`--all` 을 주면 지금(7판)과
+같다** — 전부 보이고 전부 고칠 수 있다(유효값 검사·관문은 그대로). `status` 의 재기동 대기 건수는
+`--all` 과 무관하게 전 키를 센다(운영 상태는 숨기지 않는다).
+
+`describe()` 가 `tier`('user'|'advanced')를 내보낸다.
+
+### 13.2 봉인 — `dbpass`·`superUser` 는 도구로만 바꾼다
+
+**목적은 권한이 아니라 경로다.** 소유자와 사용자를 나누지 않는다. `conf.json` 을 편집기로 열어 비밀
+둘을 고치는 길을 닫고, `npm run setup -- --dbpass` / `-- --superuser`(프롬프트로만)만 남긴다.
+
+**파일** — `conf.json` 옆 `conf.seal.json`(gitignore):
+
+```json
+{ "key": "<설치 때 만든 난수 32바이트, hex>", "keys": ["dbpass", "superUser"],
+  "seal": "<HMAC-SHA256(key, JSON.stringify({dbpass: 값|null, superUser: 값|null})) hex>", "at": "…" }
+```
+
+`conf.json` 은 그대로 평문이다 — 값을 숨기는 것이 목적이 아니다.
+
+**쓰는 쪽은 둘뿐이다.** 마법사가 `conf.json` 을 만들 때 key 를 만들고 봉인한다. `setSecret`(`--dbpass`·
+`--superuser`)이 값을 바꾼 뒤 다시 봉인한다. **봉인만 새로 만드는 명령(`--seal`)은 두지 않는다** — 손으로
+고치고 봉인하는 뒷문이 된다. `npm run conf -- set` 은 비밀을 못 건드리므로 봉인을 깨지 않는다.
+
+**읽는 쪽은 코어다.** `conf_load` 가 `conf.json` 을 파싱한 직후 대조한다.
+
+| 상태 | 무엇을 한다 |
+|---|---|
+| 맞음 | 그대로 기동 |
+| `conf.seal.json` 없음 · 깨짐 · 불일치 | **기동하지 않는다.** `[설정] dbpass·superUser 가 도구 밖에서 바뀌었다(또는 봉인이 없다) — npm run setup -- --superuser (mysql 이면 --dbpass 도) 로 다시 넣을 것`. 마스터는 exit 1, 워커는 **`EXIT_BAD_SEAL = 14`** 로 나가고 마스터가 재포크하지 않고 같이 종료한다(`NO_CONF` 와 같은 자리) |
+| 파싱이 깨진 `conf.json` | 7판 그대로 기본값으로 진행(값이 손편집된 것이 아니라 파일이 깨진 것) |
+
+**기존 배포 파일에는 봉인이 없다.** 새 코어로 재기동하기 전에 `npm run setup -- --superuser`(어느 백엔드든
+된다; mysql 이면 `--dbpass` 로도 된다)를 **한 번** 쳐서 봉인을 만든다 — 배포 3차의 순서다. 그냥 통과시키는
+유예는 두지 않는다.
+
+**한계.** 같은 계정이 `conf.seal.json` 의 key 로 HMAC 을 직접 계산하면 우회할 수 있다. 사용자가 소유자·
+사용자를 나누지 않기로 했으므로 막지 않는다. 콘솔의 비밀(`adminPassword`·`adminOrigin`)은 봉인 대상이
+아니다 — 고급 키라 손편집이 설계다.
+
+`npm run conf` 목록은 봉인이 어긋나 있으면 경고 한 줄을 낸다(서버가 뜨지 않을 것이므로).
+
+### 13.3 일괄 편집 — `npm run conf -- edit`
+
+첫 실행처럼 **사용자 키를 카테고리 순서대로 차례로 묻는다**(`--all` 이면 고급 키까지). 비밀 둘은 안 묻고
+(각자 `npm run setup -- --…`), 읽기 전용은 값만 보이고 건너뛴다.
+
+```
+CSE 신원
+  cseBase              Mobius                          > ⏎
+  cseId                /Mobius2                        > /Vita1
+네트워크
+  csebaseport          7579                            > ⏎
+저장소
+  db                   mysql  (mysql / sqlite)          > ⏎
+```
+
+- 현재 값(파일에 있으면 파일 값, 없으면 기본값 — `(기본값)` 표시)을 보이고 **Enter 는 "그대로"** 다.
+  파일에 없던 키를 Enter 로 지나가면 파일에 넣지 않는다.
+- 답마다 `set` 과 같은 타입 변환·`validate()`. 틀리면 `validHint` 를 보이고 같은 항목을 다시 묻는다.
+- **관문 키는 값을 바꿨을 때만** 끝에 `set` 과 같은 관문(경고 + 키 이름 타이핑)을 지난다. 거부하면 그 키만
+  빠지고 나머지는 쓴다.
+- 끝에 바뀐 것을 한 번에 보이고 **한 번의 원자적 쓰기**(`store.update(patch)`), "재기동해야 반영된다".
+  바뀐 것이 없으면 파일을 건드리지 않는다. Ctrl-C/Ctrl-D 는 아무것도 쓰지 않는다.
+- TTY 가 아니면 거부. `conf.json` 이 없으면 `set` 과 같이 거부(먼저 `node mobius.js`).
+
+### 13.4 마법사와 재입력 (7판 이후 이미 들어간 것)
+
+- 마법사는 **일곱**을 묻는다: DB → dbpass(mysql 만) → cseBase → cseId → spId → **superUser** → csebaseport.
+  superUser 는 화면에 안 보이게 받고 비우면 `Sponde`.
+- `npm run setup -- --superuser` — `--dbpass` 와 같은 길. 빈 입력은 바꾸지 않는다.
+- 비-TTY 첫 기동의 안내는 `node mobius.js` 를 앞세운다(별도 명령이 아니라 첫 기동이 묻고 만든다).
+
+### 13.5 시험 계약 (2차)
+
+**T1** `userKeys()` 가 정확히 일곱이고 `WIZARD_KEYS`·마법사 질문과 같은 집합이다 · **T2** `--all` 없이 고급 키
+`set`/`unset`/단건/`edit` 이 거부되고 파일이 안 바뀐다; `--all` 이면 7판과 같다 · **T3** 목록이 고급 키를 숨기고
+개수를 말한다; 새 키의 기본 등급이 고급이다(`describe().tier`).
+
+**S1** 마법사가 `conf.json` 과 함께 `conf.seal.json` 을 만들고, 이어서 `conf_load` 가 통과한다 · **S2** `dbpass`
+또는 `superUser` 를 손으로 고치면 `conf_load` 가 `BAD_SEAL` 로 거부하고 파일을 건드리지 않는다 · **S3** 봉인
+파일이 없거나 깨졌어도 거부 · **S4** `setSecret` 뒤 봉인이 다시 맞고 key 는 유지된다 · **S5** `set` 으로 다른
+키를 바꿔도 봉인이 깨지지 않는다 · **S6** 워커의 `BAD_SEAL` 이 14 로 나가고 마스터가 재포크하지 않는다(소스).
+
+**E1** Enter 만 치면 파일이 안 바뀐다 · **E2** 바꾼 키만 한 번에 쓰인다(파일에 없던 키를 Enter 로 지나면 안
+생긴다) · **E3** 유효하지 않은 답은 같은 항목을 다시 묻는다 · **E4** 관문 키는 바꿨을 때만 확인을 받고, 거부하면
+그 키만 빠진다 · **E5** 비-TTY·EOF 는 아무것도 쓰지 않는다 · **E6** `--all` 이면 고급 키도 묻는다.
