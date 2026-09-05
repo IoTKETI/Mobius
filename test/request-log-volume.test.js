@@ -65,6 +65,23 @@ test('la 경로에도 요청마다 도는 계측이 없다', function () {
         'select_latest 계측이 살아 있다 — la 는 이 배포에서 가장 잦은 요청이다');
 });
 
+test('sql_action.js 의 계측은 마스터 주기 작업과 기동 것뿐이다 (남은 일 §5.5)', function () {
+    // 2026-09-05 전에는 요청 경로 33곳이 있었다 — CIN 생성마다 stdout 한 줄.
+    // 남긴 넷: delete_oldest(purge 스윕) · reconcile_cnt_counters · delete_lookup_et
+    // (만료 스윕) · update_cb_poa_csi(기동 때 한 번). 요청마다 도는 것이 아니다.
+    const src = code('mobius/sql_action.js');
+    const ALLOWED = /rec_id|del_id|update_cb_poa_csi/;
+    const bad = (src.match(/console\.time(End)?\([^\n]*/g) || []).filter(function (l) { return !ALLOWED.test(l); });
+    assert.deepStrictEqual(bad, [], '요청 경로에 계측이 되살아났다:\n  ' + bad.join('\n  '));
+    // 라벨용 shortid 도 그 셋에서만
+    assert.strictEqual((src.match(/require\('shortid'\)/g) || []).length, 3);
+});
+
+test('resource.js 에 console.time 계측이 없다', function () {
+    const src = code('mobius/resource.js');
+    assert.strictEqual((src.match(/console\.time(End)?\s*\(/g) || []).length, 0);
+});
+
 test('액세스 로그가 요청 전체 소요시간을 남긴다', function () {
     // 계측을 지우면서 소요시간을 통째로 잃으면 안 된다. morgan 의 'combined'
     // 에는 그 필드가 없어서 형식을 직접 적었다.

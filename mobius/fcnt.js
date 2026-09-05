@@ -17,6 +17,14 @@
 var url = require('url');
 var util = require('util');
 var responder = require('./responder');
+var shape = require('./shape');
+
+// moduleclass 별로 본문에서 옮길 속성. 키는 shape.MODULE_CLASS 의 값(약칭)이다 —
+// 어느 cnd 가 어느 약칭인지는 저 표만 알고, 여기는 약칭이 어떤 속성을 갖는지만 안다.
+var HD_ATTRS = {
+    dooLk: ['lock'], bat: ['lvl'], tempe: ['curT0'], binSh: ['powerSe'],
+    fauDn: ['sus'], colSn: ['colSn'], color: ['red', 'green', 'blue'], brigs: ['brigs']
+};
 
 
 exports.build_fcnt = function(request, response, resource_Obj, body_Obj, callback) {
@@ -30,35 +38,20 @@ exports.build_fcnt = function(request, response, resource_Obj, body_Obj, callbac
 
     if(rootnm == 'fcnt' && body_Obj[rootnm].cnd.includes('org.onem2m.home.device.')) {
     }
-    else if(rootnm == 'hd_dooLk' && body_Obj[rootnm].cnd == 'org.onem2m.home.moduleclass.doorlock') {
-        resource_Obj[rootnm].lock = body_Obj[rootnm].lock;
-    }
-    else if(rootnm == 'hd_bat' && body_Obj[rootnm].cnd == 'org.onem2m.home.moduleclass.battery') {
-        resource_Obj[rootnm].lvl = body_Obj[rootnm].lvl;
-    }
-    else if(rootnm == 'hd_tempe' && body_Obj[rootnm].cnd == 'org.onem2m.home.moduleclass.temperature') {
-        resource_Obj[rootnm].curT0 = body_Obj[rootnm].curT0;
-    }
-    else if(rootnm == 'hd_binSh' && body_Obj[rootnm].cnd == 'org.onem2m.home.moduleclass.binarySwitch') {
-        resource_Obj[rootnm].powerSe = body_Obj[rootnm].powerSe;
-    }
-    else if(rootnm == 'hd_fauDn' && body_Obj[rootnm].cnd == 'org.onem2m.home.moduleclass.faultDetection') {
-        resource_Obj[rootnm].sus = body_Obj[rootnm].sus;
-    }
-    else if(rootnm == 'hd_colSn' && body_Obj[rootnm].cnd == 'org.onem2m.home.moduleclass.colourSaturation') {
-        resource_Obj[rootnm].colSn = body_Obj[rootnm].colSn;
-    }
-    else if(rootnm == 'hd_color' && body_Obj[rootnm].cnd == 'org.onem2m.home.moduleclass.colour') {
-        resource_Obj[rootnm].red = body_Obj[rootnm].red;
-        resource_Obj[rootnm].green = body_Obj[rootnm].green;
-        resource_Obj[rootnm].blue = body_Obj[rootnm].blue;
-    }
-    else if(rootnm == 'hd_brigs' && body_Obj[rootnm].cnd == 'org.onem2m.home.moduleclass.brightness') {
-        resource_Obj[rootnm].brigs = body_Obj[rootnm].brigs;
-    }
     else {
-        callback('400-54');
-        return;
+        // 여덟 갈래 (rootnm == 'hd_X' && cnd == '...Y') 가 여기 있었다 — 같은 짝
+        // 판정이 resource.js 에도 적혀 있었다. 판정은 접두 표(shape.MODULE_CLASS)의
+        // 것이라 shape.hd_short 로 가고, 타입별로 옮길 속성만 HD_ATTRS 로 남는다.
+        // 1단계 5번(2026-09-05).
+        var hd = shape.hd_short(rootnm, body_Obj[rootnm].cnd);
+        if (hd === null) {
+            callback('400-54');
+            return;
+        }
+        // 순서대로 옮긴다 — 키 순서가 응답 본문의 바이트다 (color 의 red·green·blue).
+        HD_ATTRS[hd].forEach(function (attr) {
+            resource_Obj[rootnm][attr] = body_Obj[rootnm][attr];
+        });
     }
 
     request.resourceObj = JSON.parse(JSON.stringify(resource_Obj));

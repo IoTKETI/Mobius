@@ -47,22 +47,28 @@ function arity(call) {
     var depth = 0;
     var n = 1;
     var started = false;
+    var closed = false;
     for (var i = 0; i < call.length; i++) {
         var c = call[i];
         if (c === '(' || c === '[' || c === '{') { depth++; started = true; continue; }
-        if (c === ')' || c === ']' || c === '}') { depth--; if (depth === 0) { break; } continue; }
+        if (c === ')' || c === ']' || c === '}') { depth--; if (depth === 0) { closed = true; break; } continue; }
         if (c === ',' && depth === 1) { n++; }
     }
-    return started ? n : 0;
+    // 한 줄에서 닫히지 않은 호출(`respond(request, response, {` 처럼 객체 리터럴이
+    // 다음 줄로 이어지는 것)은 이 검사의 대상이 아니다 — 세다 만 값을 돌려주면
+    // 인자 3개짜리 호출로 잘못 잡힌다.
+    return started && closed ? n : 0;
 }
 
 // responder 의 위치 인자 응답 함수들. 시그니처가 바뀌면 여기도 바꾼다.
 // 1단계 3번에서 여섯째 인자 cap 을 뺐다 — 네 자리 전부에서 만들었다 버려지던
 // 값이라 응답에 한 번도 안 나타났다. error_result 는 호출자 0 이라 같이 지웠다.
+// 2단계 10번에서 response_result / response_rcn3_result / search_result 셋을
+// 지웠다 — 정산기(settle.done)가 결과 객체를 받아 body_of 와 respond 로 간다.
+// 남은 것은 배출구 respond 와 본문 조립 body_of 둘이고, 위치 인자가 넷 이하다.
 const EXPECTED = {
-    response_result: 5,
-    response_rcn3_result: 5,
-    search_result: 5
+    respond: 4,
+    body_of: 2
 };
 
 test('responder 의 응답 함수는 선언한 인자 개수를 그대로 받는다', function () {

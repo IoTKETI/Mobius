@@ -49,6 +49,20 @@ var db = require('./db');
 var db_facade = db;
 var db_sql = require('./sql_action');
 var db_errors = require('./db/errors');
+var shape = require('./shape');
+
+// moduleclass 약칭 -> sql_action 의 insert/update 함수 **이름**. cnd -> 약칭은
+// shape.MODULE_CLASS 가 단일 진실원이고, 여기는 약칭 -> DB 함수만 안다.
+// 문자열 표로 두고 db_sql[이름] 으로 늦게 묶는다 — 함수 참조를 표에 박으면
+// 시험이 db_sql.insert_hd_* 를 갈아끼운 것이 안 먹고, 이름은 grep 에 잡힌다.
+var HD_INSERT = {
+    dooLk: 'insert_hd_dooLk', bat: 'insert_hd_bat', tempe: 'insert_hd_tempe', binSh: 'insert_hd_binSh',
+    fauDn: 'insert_hd_fauDn', colSn: 'insert_hd_colSn', color: 'insert_hd_color', brigs: 'insert_hd_brigs'
+};
+var HD_UPDATE = {
+    dooLk: 'update_hd_dooLk', bat: 'update_hd_bat', tempe: 'update_hd_tempe', binSh: 'update_hd_binSh',
+    fauDn: 'update_hd_fauDn', colSn: 'update_hd_colSn', color: 'update_hd_color', brigs: 'update_hd_brigs'
+};
 var defaults = require('./defaults');
 var rid = require('./rid');
 
@@ -400,11 +414,16 @@ function create_action(request, response, callback) {
                 // 자식이 생겼으니 부모 stateTag 를 올린다.
                 // 이 호출은 원래 useCert=='enable' 뒤에 있어 한 번도 실행되지 않았다
                 // (mobius.js 가 'disable' 로 하드코딩). 플래그를 걷어내며 되살렸다.
+                // 부모 st 갱신이 **끝난 뒤** 응답한다. 예전에는 빈 콜백을 주고 곧바로
+                // callback('200') 을 불렀다 — 응답 뒤 정산기가 커넥션을 반납하는데 그
+                // 위에서 이 UPDATE 가 아직 돌고 있었다(남은 일 §4.1, sgn.js 의 D17 과
+                // 같은 유형). :455 의 update_parent_counters 가 옳은 모양이다.
+                // 갱신 실패는 예전처럼 응답을 바꾸지 않는다 — 로그만 남긴다.
                 db_sql.update_parent_st(request.db_connection,
-                    request.targetObject[cnt_parent_rootnm], function () {
+                    request.targetObject[cnt_parent_rootnm], function (err) {
+                        if (err) { console.log('[create_action] update_parent_st failed: ' + err); }
+                        callback('200');
                     });
-
-                callback('200');
             }
             else {
                 if (db_errors.isDuplicateKey(results)) {
@@ -607,6 +626,8 @@ function create_action(request, response, callback) {
         }
     }
     else if (ty == '28' || ty == '98' || ty == '97' || ty == '96' || ty == '95' || ty == '94' || ty == '93' || ty == '92' || ty == '91') {
+        // moduleclass 약칭. 디바이스(fcnt)가 아니면서 null 이면 모르는 짝이다.
+        var hd = shape.hd_short(rootnm, resource_Obj[rootnm].cnd);
         if (rootnm == 'fcnt' && resource_Obj[rootnm].cnd.includes('org.onem2m.home.device.')) {
             db_sql.insert_fcnt(request.db_connection, resource_Obj[rootnm], function (err, results) {
                 if (!err) {
@@ -623,120 +644,11 @@ function create_action(request, response, callback) {
                 }
             });
         }
-        else if (rootnm == 'hd_dooLk' && resource_Obj[rootnm].cnd == 'org.onem2m.home.moduleclass.doorlock') {
-            db_sql.insert_hd_dooLK(request.db_connection, resource_Obj[rootnm], function (err, results) {
-                if (!err) {
-                    callback('200');
-                }
-                else {
-                    if (db_errors.isDuplicateKey(results)) {
-                        callback('409-5');
-                    }
-                    else {
-                        console.log('[create_action] create resource error ======== ' + results.code);
-                        callback('500-4');
-                    }
-                }
-            });
-        }
-        else if (rootnm == 'hd_bat' && resource_Obj[rootnm].cnd == 'org.onem2m.home.moduleclass.battery') {
-            db_sql.insert_hd_bat(request.db_connection, resource_Obj[rootnm], function (err, results) {
-                if (!err) {
-                    callback('200');
-                }
-                else {
-                    if (db_errors.isDuplicateKey(results)) {
-                        callback('409-5');
-                    }
-                    else {
-                        console.log('[create_action] create resource error ======== ' + results.code);
-                        callback('500-4');
-                    }
-                }
-            });
-        }
-        else if (rootnm == 'hd_tempe' && resource_Obj[rootnm].cnd == 'org.onem2m.home.moduleclass.temperature') {
-            db_sql.insert_hd_tempe(request.db_connection, resource_Obj[rootnm], function (err, results) {
-                if (!err) {
-                    callback('200');
-                }
-                else {
-                    if (db_errors.isDuplicateKey(results)) {
-                        callback('409-5');
-                    }
-                    else {
-                        console.log('[create_action] create resource error ======== ' + results.code);
-                        callback('500-4');
-                    }
-                }
-            });
-        }
-        else if (rootnm == 'hd_binSh' && resource_Obj[rootnm].cnd == 'org.onem2m.home.moduleclass.binarySwitch') {
-            db_sql.insert_hd_binSh(request.db_connection, resource_Obj[rootnm], function (err, results) {
-                if (!err) {
-                    callback('200');
-                }
-                else {
-                    if (db_errors.isDuplicateKey(results)) {
-                        callback('409-5');
-                    }
-                    else {
-                        console.log('[create_action] create resource error ======== ' + results.code);
-                        callback('500-4');
-                    }
-                }
-            });
-        }
-        else if (rootnm == 'hd_fauDn' && resource_Obj[rootnm].cnd == 'org.onem2m.home.moduleclass.faultDetection') {
-            db_sql.insert_hd_fauDn(request.db_connection, resource_Obj[rootnm], function (err, results) {
-                if (!err) {
-                    callback('200');
-                }
-                else {
-                    if (db_errors.isDuplicateKey(results)) {
-                        callback('409-5');
-                    }
-                    else {
-                        console.log('[create_action] create resource error ======== ' + results.code);
-                        callback('500-4');
-                    }
-                }
-            });
-        }
-        else if (rootnm == 'hd_colSn' && resource_Obj[rootnm].cnd == 'org.onem2m.home.moduleclass.colourSaturation') {
-            db_sql.insert_hd_colSn(request.db_connection, resource_Obj[rootnm], function (err, results) {
-                if (!err) {
-                    callback('200');
-                }
-                else {
-                    if (db_errors.isDuplicateKey(results)) {
-                        callback('409-5');
-                    }
-                    else {
-                        console.log('[create_action] create resource error ======== ' + results.code);
-                        callback('500-4');
-                    }
-                }
-            });
-        }
-        else if (rootnm == 'hd_brigs' && resource_Obj[rootnm].cnd == 'org.onem2m.home.moduleclass.brightness') {
-            db_sql.insert_hd_brigs(request.db_connection, resource_Obj[rootnm], function (err, results) {
-                if (!err) {
-                    callback('200');
-                }
-                else {
-                    if (db_errors.isDuplicateKey(results)) {
-                        callback('409-5');
-                    }
-                    else {
-                        console.log('[create_action] create resource error ======== ' + results.code);
-                        callback('500-4');
-                    }
-                }
-            });
-        }
-        else if (rootnm == 'hd_color' && resource_Obj[rootnm].cnd == 'org.onem2m.home.moduleclass.colour') {
-            db_sql.insert_hd_color(request.db_connection, resource_Obj[rootnm], function (err, results) {
+        else if (hd !== null) {
+            // 여덟 갈래 (rootnm == 'hd_X' && cnd == '...Y') -> insert_hd_X 가 여기
+            // 있었다. 콜백 본문은 여덟이 글자까지 같았다. 짝 판정은 shape.hd_short,
+            // 함수 선택은 HD_INSERT 이름 표다. 1단계 5번(2026-09-05).
+            db_sql[HD_INSERT[hd]](request.db_connection, resource_Obj[rootnm], function (err, results) {
                 if (!err) {
                     callback('200');
                 }
@@ -1177,7 +1089,8 @@ exports.create = function (request, response, callback) {
                             resource_Obj.uri = resource_Obj.uri.replace('/', ''); // make cse relative uri
                             request.resourceObj = resource_Obj;
 
-                            callback('201');
+                            // rcn=2 는 uri 하나 — single 모양. 결과가 인자로 올라간다. 2단계 9번.
+                            callback(null, { rsc: 'CREATED', shape: 'single', rootnm: 'uri', body: request.resourceObj });
                         }
                         else if (request.query.rcn == 3) { // hierarchical address and attributes
                             request.headers.rootnm = rootnm;
@@ -1187,10 +1100,11 @@ exports.create = function (request, response, callback) {
                             request.resourceObj.rce[rootnm] = request.resourceObj[rootnm];
                             delete request.resourceObj[rootnm];
 
-                            callback('201-3');
+                            // rcn=3 은 rce 모양 — 옛 라우트가 '201-3' 을 보고 rcn3 갈래를 골랐다.
+                            callback(null, { rsc: 'CREATED', shape: 'rce', rootnm: rootnm, body: request.resourceObj });
                         }
                         else {
-                            callback('201');
+                            callback(null, { rsc: 'CREATED', shape: 'single', rootnm: rootnm, body: request.resourceObj });
                         }
                     }
                 }
@@ -1298,10 +1212,6 @@ function search_action(request, response, seq, resource_Obj, ri_list, strObj, pr
     var finding_Obj = [];
     var tbl = ty_list[seq];
 
-    if (seq == 0) {
-        console.time('search_resource');
-    }
-
     if (request.query.ty != null) {
         tbl = request.query.ty;
         seq = ty_list.length;
@@ -1310,7 +1220,6 @@ function search_action(request, response, seq, resource_Obj, ri_list, strObj, pr
     db_sql.select_in_ri_list(request.db_connection, responder.typeRsrc[tbl], ri_list, 0, finding_Obj, 0, function (err, search_Obj) {
         if (!err) {
             if (search_Obj.length >= 1) {
-                //console.timeEnd('search_resource');
 
                 if (strObj.length > 1) {
                     strObj += ',';
@@ -1325,7 +1234,6 @@ function search_action(request, response, seq, resource_Obj, ri_list, strObj, pr
             }
 
             if (++seq >= ty_list.length) {
-                console.timeEnd('search_resource');
                 callback('1', strObj);
                 return '0';
             }
@@ -1430,7 +1338,10 @@ exports.retrieve = function (request, response, callback) {
         _this.set_rootnm(request, ty);
         _this.remove_no_value(request, request.resourceObj);
 
-        callback('200');
+        // 결과가 인자로 올라간다 — 코드 '200' 이 아니라 결과 객체다. 본문은
+        // 이 시점의 request.resourceObj 그대로(심는 곳은 안 건드렸다). 모양은
+        // 옛 라우트가 '200' 을 보고 고르던 response_result 와 같다. 2단계 8번.
+        callback(null, { rsc: 'OK', shape: 'single', rootnm: request.headers.rootnm, body: request.resourceObj });
     }
     // 여기 있던 smf(시맨틱 필터) 분기를 걷어냈다 (2026-08-31).
     //
@@ -1445,6 +1356,16 @@ exports.retrieve = function (request, response, callback) {
     // 지금까지 10초 뒤 404 를 받던 클라이언트가 즉시 400 을 받게 되는데,
     // 어느 쪽도 원하는 답이 아니라면 결과를 주는 쪽이 낫다.
     else {
+        // 이 갈래가 낼 수 있는 모양은 둘뿐이다 — fu=1 이면 uril, rcn=4/5/6 이면 grouped.
+        // 라우트 게이트는 GET 에 rcn=7 도 통과시키므로(옛 조건식 그대로) fu=2&rcn=7 이
+        // 여기까지 온다. 예전에는 discovery 를 **다 돌린 뒤** 카탈로그에 없는 '400' 을
+        // 올려 500 이 나갔다(남은 일 §3.1). 돌리기 전에 카탈로그 코드로 거절한다.
+        if (request.query.fu != 1 &&
+            !(request.query.rcn == 4 || request.query.rcn == 5 || request.query.rcn == 6)) {
+            callback('400-44');
+            return;
+        }
+
         request.headers.rootnm = 'agr';
 
 
@@ -1531,17 +1452,21 @@ exports.retrieve = function (request, response, callback) {
                                     request.resourceObj.uril = {};
                                     request.resourceObj.uril = ri_list;
 
-                                    callback('200-1');
+                                    // fu=1 은 uril 모양 — 옛 search_result 가 rootnm 으로 갈랐다. 2단계 8번.
+                                    callback(null, { rsc: 'OK', shape: 'uril', rootnm: 'uril', body: request.resourceObj });
                                 }
                                 else if (request.query.rcn == 4 || request.query.rcn == 5 || request.query.rcn == 6) {
                                     request.headers.rootnm = 'rsp';
                                     request.resourceObj = JSON.parse(JSON.stringify(foundObj));
                                     _this.remove_no_value(request, request.resourceObj);
 
-                                    callback('200-1');
+                                    // rcn=4/5/6 은 grouped 모양(rootnm 'rsp'). 2단계 8번.
+                                    callback(null, { rsc: 'OK', shape: 'grouped', rootnm: request.headers.rootnm, body: request.resourceObj });
                                 }
                                 else {
-                                    callback('400');
+                                    // 위의 앞선 거절 때문에 도달하지 않는다. 남겨 두는 것은 방어 —
+                                    // 카탈로그에 없는 '400' 을 올리면 500 이 된다.
+                                    callback('400-44');
                                 }
                             }
                             });
@@ -1752,6 +1677,8 @@ function update_action(request, response, callback) {
         }
     }
     else if (ty == '28' || ty == '98' || ty == '97' || ty == '96' || ty == '95' || ty == '94' || ty == '93' || ty == '92' || ty == '91') {
+        // UPDATE 는 cnd 만 본다 — rootnm 은 안 본다. 옛 코드의 비대칭이고 그대로 둔다.
+        var hd = shape.cnd_short(resource_Obj[rootnm].cnd);
         if (resource_Obj[rootnm].cnd.includes('org.onem2m.home.device.')) {
             db_sql.update_fcnt(request.db_connection, resource_Obj[rootnm], function (err, results) {
                 if (!err) {
@@ -1764,92 +1691,9 @@ function update_action(request, response, callback) {
                 }
             });
         }
-        else if (resource_Obj[rootnm].cnd == 'org.onem2m.home.moduleclass.doorlock') {
-            db_sql.update_hd_dooLk(request.db_connection, resource_Obj[rootnm], function (err, results) {
-                if (!err) {
-                    callback('200');
-                }
-                else {
-                    console.log('[update_action] ty=' + ty + ' error: ' +
-                                (results.driverCode || results.code) + ' / ' + results.message);
-                    callback('500-1');
-                }
-            });
-        }
-        else if (resource_Obj[rootnm].cnd == 'org.onem2m.home.moduleclass.battery') {
-            db_sql.update_hd_bat(request.db_connection, resource_Obj[rootnm], function (err, results) {
-                if (!err) {
-                    callback('200');
-                }
-                else {
-                    console.log('[update_action] ty=' + ty + ' error: ' +
-                                (results.driverCode || results.code) + ' / ' + results.message);
-                    callback('500-1');
-                }
-            });
-        }
-        else if (resource_Obj[rootnm].cnd == 'org.onem2m.home.moduleclass.temperature') {
-            db_sql.update_hd_tempe(request.db_connection, resource_Obj[rootnm], function (err, results) {
-                if (!err) {
-                    callback('200');
-                }
-                else {
-                    console.log('[update_action] ty=' + ty + ' error: ' +
-                                (results.driverCode || results.code) + ' / ' + results.message);
-                    callback('500-1');
-                }
-            });
-        }
-        else if (resource_Obj[rootnm].cnd == 'org.onem2m.home.moduleclass.binarySwitch') {
-            db_sql.update_hd_binSh(request.db_connection, resource_Obj[rootnm], function (err, results) {
-                if (!err) {
-                    callback('200');
-                }
-                else {
-                    console.log('[update_action] ty=' + ty + ' error: ' +
-                                (results.driverCode || results.code) + ' / ' + results.message);
-                    callback('500-1');
-                }
-            });
-        }
-        else if (resource_Obj[rootnm].cnd == 'org.onem2m.home.moduleclass.faultDetection') {
-            db_sql.update_hd_fauDn(request.db_connection, resource_Obj[rootnm], function (err, results) {
-                if (!err) {
-                    callback('200');
-                }
-                else {
-                    console.log('[update_action] ty=' + ty + ' error: ' +
-                                (results.driverCode || results.code) + ' / ' + results.message);
-                    callback('500-1');
-                }
-            });
-        }
-        else if (resource_Obj[rootnm].cnd == 'org.onem2m.home.moduleclass.colourSaturation') {
-            db_sql.update_hd_colSn(request.db_connection, resource_Obj[rootnm], function (err, results) {
-                if (!err) {
-                    callback('200');
-                }
-                else {
-                    console.log('[update_action] ty=' + ty + ' error: ' +
-                                (results.driverCode || results.code) + ' / ' + results.message);
-                    callback('500-1');
-                }
-            });
-        }
-        else if (resource_Obj[rootnm].cnd == 'org.onem2m.home.moduleclass.colour') {
-            db_sql.update_hd_color(request.db_connection, resource_Obj[rootnm], function (err, results) {
-                if (!err) {
-                    callback('200');
-                }
-                else {
-                    console.log('[update_action] ty=' + ty + ' error: ' +
-                                (results.driverCode || results.code) + ' / ' + results.message);
-                    callback('500-1');
-                }
-            });
-        }
-        else if (resource_Obj[rootnm].cnd == 'org.onem2m.home.moduleclass.brightness') {
-            db_sql.update_hd_brigs(request.db_connection, resource_Obj[rootnm], function (err, results) {
+        else if (hd !== null) {
+            // 여덟 갈래 (cnd == '...Y') -> update_hd_X 가 여기 있었다. 1단계 5번.
+            db_sql[HD_UPDATE[hd]](request.db_connection, resource_Obj[rootnm], function (err, results) {
                 if (!err) {
                     callback('200');
                 }
@@ -2387,7 +2231,8 @@ exports.update = function (request, response, callback) {
 
                     });
 
-                    callback('200');
+                    // 결과가 인자로 올라간다 — 옛 라우트가 '200' 을 보고 result 200/2004 를 골랐다. 2단계 9번.
+                    callback(null, { rsc: 'UPDATED', shape: 'single', rootnm: rootnm, body: request.resourceObj });
                     });
                     });
                 }
@@ -2447,7 +2292,6 @@ function delete_descendants_background(root_ri, attempt) {
     function run(connection) {
         var pi_list = [root_ri];
         var result_ri = [];
-        console.time('delete_descendants ' + root_ri);
         db_sql.search_parents_lookup_all(connection, pi_list, [], result_ri, function (code) {
             if (code !== '200') {
                 // 자손 목록을 못 만들었다. 루트는 이미 지워졌으므로 그 아래가
@@ -2455,7 +2299,6 @@ function delete_descendants_background(root_ri, attempt) {
                 console.error('[delete_descendants] ' + root_ri +
                               ' 의 자손 목록을 만들지 못했다 (code=' + code +
                               '). 자손이 통째로 고아로 남는다.');
-                console.timeEnd('delete_descendants ' + root_ri);
                 if (connection) db.release(connection);
                 return;
             }
@@ -2475,7 +2318,6 @@ function delete_descendants_background(root_ri, attempt) {
                                   ' subtree 삭제가 끝나지 못했다 (code=' + code +
                                   ', 대상 ' + pi_list.length + '개). 남은 것은 고아가 된다.');
                 }
-                console.timeEnd('delete_descendants ' + root_ri);
                 if (connection) db.release(connection);
             });
         });
@@ -2551,11 +2393,12 @@ function delete_action(request, response, callback) {
 
                                             // update_lookup 은 st 를 obj.st 그대로 다시 쓴다(대입).
                                             // 자식이 지워졌으니 부모 stateTag 는 올라가야 한다.
+                                            // 갱신이 끝난 뒤 응답한다 — create_action 의 같은 자리 주석 참조 (§4.1).
                                             db_sql.update_parent_st(request.db_connection,
-                                                request.targetObject[parent_rootnm], function () {
+                                                request.targetObject[parent_rootnm], function (err) {
+                                                    if (err) { console.log('[delete_action] update_parent_st failed: ' + err); }
+                                                    callback('200');
                                                 });
-
-                                            callback('200');
                                         });
                                     }
                                     else if (resource_Obj[rootnm].ty == '4') {
@@ -2575,11 +2418,12 @@ function delete_action(request, response, callback) {
                                     }
                                     else {
                                         // CIN 외의 자식이 지워져도 부모 stateTag 는 올라가야 한다.
+                                        // 갱신이 끝난 뒤 응답한다 — create_action 의 같은 자리 주석 참조 (§4.1).
                                         db_sql.update_parent_st(request.db_connection,
-                                            request.targetObject[parent_rootnm], function () {
+                                            request.targetObject[parent_rootnm], function (err) {
+                                                if (err) { console.log('[delete_action] update_parent_st failed: ' + err); }
+                                                callback('200');
                                             });
-
-                                        callback('200');
                                     }
                                 }
                                 else {
@@ -2638,7 +2482,9 @@ exports.delete = function (request, response, callback) {
             // 그래서 지금 CIN 을 지워도 부모 cnt 의 cni/cbs 가 줄지 않는다.
             // 올바른 복원 방안은
             // docs/superpowers/specs/2026-08-27-counter-maintenance-review.md 참조.
-            callback('200');
+            //
+            // 결과가 인자로 올라간다 — 옛 라우트가 '200' 을 보고 result 200/2002 를 골랐다. 2단계 9번.
+            callback(null, { rsc: 'DELETED', shape: 'single', rootnm: rootnm, body: request.resourceObj });
             });
         }
         else {

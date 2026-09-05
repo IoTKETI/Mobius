@@ -67,6 +67,7 @@ var once = require('./mobius/once');
 
 // 응답 전송과 커넥션 반납을 한 번만 하도록 모은다
 var settle_mod = require('./mobius/settle');
+var route_gate = require('./mobius/route_gate');
 
 // DB 의 poa 컬럼을 안전하게 배열로 읽는다
 var poa_util = require('./mobius/poa');
@@ -148,12 +149,24 @@ var app = express();
 // cache_security_check 도 같은 이유로 걷어냈다 — 쓰기만 하고 읽는 곳이 없어
 // origin·ri 로 키가 무한히 쌓이는 메모리 누수였다.
 
-app.use(cors());
+// CORS — 한 곳에서. 예전에는 둘이었다: 여기 cors() 와 아래쪽의 수동 미들웨어(Kevin Lee,
+// Unibest 기여). 수동 쪽의 OPTIONS 갈래는 cors() 가 먼저 204 로 답해 도달한 적이 없고,
+// 일반 응답에 Allow-Methods / Allow-Headers 를 얹는 것은 브라우저가 preflight 밖에서는
+// 읽지 않는다. 브라우저가 실제로 필요로 하는 것은 Expose-Headers(스크립트가 X-M2M-RSC
+// 같은 응답 헤더를 읽게) 뿐이라 그것만 옵션으로 옮겼다. preflight 는 그대로 요청 헤더를
+// 반영한다 — 고정 목록보다 관대하고, 옛 동작 그대로다. 남은 일 §5.6(CORS 이중 적용).
+//
+// 값은 **문자열 그대로** 준다 — 배열로 주면 cors 가 ',' 로 이어 붙여 옛 값
+// ("Origin, X-Requested-With, …" 공백 포함)과 바이트가 달라진다. 헤더 골든이 그것을
+// 잡았다. cors 는 이 헤더를 preflight(204)에도 붙인다 — 브라우저는 거기서 읽지
+// 않으므로 무해하고, 프로브로 확인한 유일한 preflight 차이다.
+app.use(cors({
+    exposedHeaders: 'Origin, X-Requested-With, Content-Type, X-M2M-RI, X-M2M-RVI, X-M2M-RSC, Accept, X-M2M-Origin, Locale'
+}));
 
 // usespid 가 여기 있었다. usesuperuser 와 함께 mobius/conf_load.js 가 conf.json 에서
 // 읽어 세운다(spId 키). superUser 값을 X-M2M-Origin 에 넣으면 모든 ACP 검사를
 // 건너뛰므로 코드에 두면 안 된다.
-global.useobserver = 'Sandwich';
 
 var logDirectory = __dirname + '/log';
 
@@ -980,25 +993,45 @@ else {
     });
 }
 
+/**
+ * sri 목록을 ri 목록으로 — lookup 에 그 sri 행이 있으면 그 ri, 없으면 원값 그대로.
+ * ACP 의 acpi 목록(security.js), acpi 검증(resource.js), 그룹 멤버(fopt.js)가 쓴다.
+ *
+ * 예전에는 원소마다 get_ri_sri 를 **순차로** 한 번씩 냈다(남은 일 §5.3 — ACP 조회
+ * 3단 중 2단). 저장된 acpi 는 validate_acpi 를 거쳐 이미 ri 라 정상 사용에서
+ * 결과가 0행인데, 옛 데이터에 sri 형이 남아 있는지는 확인할 길이 없어(acpi 컬럼
+ * 훑기는 풀스캔) 단을 **빼지 않고** 한 질의로 접었다 — 의미는 글자 그대로 같다.
+ * 실제로 치환이 일어나면 로그를 남긴다. 그 로그가 오래 비어 있으면 ACP 경로에서는
+ * 이 호출 자체를 뺄 수 있다(그때는 fopt 의 mid 는 그대로 둔다 — 멤버는 sri 로도 온다).
+ */
 global.get_ri_list_sri = function (request, response, sri_list, ri_list, count, callback) {
-    if (sri_list.length <= count) {
+    var todo = sri_list.slice(count);
+    if (todo.length === 0) {
         callback('200');
+        return;
     }
-    else {
-        db_sql.get_ri_sri(request.db_connection, sri_list[count], (err, results) => {
-            if (!err) {
-                ri_list[count] = ((results.length == 0) ? sri_list[count] : results[0].ri);
-                results = null;
-
-                get_ri_list_sri(request, response, sri_list, ri_list, ++count, (code) => {
-                    callback(code);
-                });
-            }
-            else {
-                callback('500-1');
-            }
-        });
-    }
+    db_sql.get_ri_sri_in(request.db_connection, todo, (err, rows) => {
+        if (err) {
+            callback('500-1');
+            return;
+        }
+        // 같은 sri 행이 둘이면 먼저 온 것 — 옛 코드의 results[0] 과 같은 "정해지지 않은 첫 행" 이다
+        var map = Object.create(null);
+        for (var i = 0; i < rows.length; i++) {
+            if (!(rows[i].sri in map)) { map[rows[i].sri] = rows[i].ri; }
+        }
+        var resolved = 0;
+        for (var j = 0; j < todo.length; j++) {
+            var v = (todo[j] in map) ? map[todo[j]] : todo[j];
+            if (v !== todo[j]) { resolved++; }
+            ri_list[count + j] = v;
+        }
+        rows = null;
+        if (resolved > 0) {
+            console.log('[get_ri_list_sri] sri→ri 치환 ' + resolved + '/' + todo.length + ' — ' + request.method + ' ' + request.url);
+        }
+        callback('200');
+    });
 };
 
 global.update_route = function (connection, cse_poa, callback) {
@@ -1359,9 +1392,8 @@ function run_fanout(request, response, settle, access_value, parse_body) {
             if (code !== '1') { settle.error(code); return; }
 
             function fan_out() {
-                fopt.check(request, response, result_grp, body_Obj, (code) => {
-                    if (code === '200') { settle.search('200', '2000'); }
-                    else { settle.error(code); }
+                fopt.check(request, response, result_grp, body_Obj, (code, out) => {
+                    settle.done(code, out);
                 });
             }
 
@@ -1401,6 +1433,96 @@ function check_grp(request, response, callback) {
 //
 // 예전에는 호출부마다 resultStatusCode[code][0], [1], [2] 를 직접 펼쳐 넘겼다.
 // 표의 3원소 배열 구조가 47곳에 새어 나가 있어서, 표에 필드를 하나 더하려면
+/**
+ * 대상이 이 CSE 밑에 없다(get_target_url 이 301-1) — remoteCSE 로 넘긴다.
+ *
+ * check_csr 이 csr 의 poa 로 요청을 흘려보내고 응답을 response.body /
+ * response.statusCode 에 실어 '301-2' 를 준다. 그것을 settle.raw 로 그대로
+ * 내보낸다 — responder 모양이 아니라서(상류가 만든 본문) 정산기의 유일한
+ * 인정된 우회다. 네 라우트에 이 12줄이 글자까지 같게 있었다. 3단계 11번.
+ */
+function forward_to_csr(request, response, settle) {
+    check_csr(request, response, (code) => {
+        if (code === '301-2') {
+            settle.raw('csr forward', function () {
+                response.status(response.statusCode).end(response.body);
+            });
+        }
+        else {
+            settle.error(code);
+        }
+    });
+}
+
+/**
+ * 요청 하나에 커넥션을 빌려 정산기를 만들어 준다. 못 빌리면 반납할 것이
+ * 없으니 커넥션 없는 정산기로 그 사유를 응답한다.
+ *
+ * 네 라우트가 각자 갖고 있던 취득 + 실패 else + 정산기 생성 12줄이다(주석까지
+ * 같았다). fn 은 정산기만 받는다 — 커넥션은 request.db_connection 으로 가고,
+ * 반납은 정산기가 한다. 3단계 12번(2026-09-05).
+ */
+function with_connection(request, response, fn) {
+    db.getConnection((code, connection) => {
+        if (code !== '200') {
+            // 커넥션을 못 빌린 경로다 — 반납할 것이 없어 null 을 넘긴다.
+            make_settler(request, response, null).error(code);
+            return;
+        }
+        request.db_connection = connection;
+        fn(make_settler(request, response, connection));
+    });
+}
+
+/**
+ * 대상이 정해진 뒤의 공통 꼬리 — 대상 ri 를 request.url 로 · (fu, rcn) 게이트 ·
+ * lookup_* 호출 · 정산. 네 라우트가 각자 갖고 있던 것을 접었다. 3단계 13번.
+ *
+ * request.url 은 게이트 **앞에서** 세운다 — 옛 라우트 넷이 그랬다. DELETE 는
+ * request.pi 도 세운다(resource.delete 가 부모를 그것으로 찾는다). 게이트의
+ * 허용 조합은 mobius/route_gate.js 표이고, 옛 조건식과 같은지는 시험이
+ * 전수 대조한다 — 옮기다 조합 하나를 빠뜨리면 400 이 새로 나간다.
+ */
+// **method 는 라우트가 아는 이름을 넘긴다 — request.method 가 아니다.** Express 4 는
+// HEAD 를 app.get('*') 로 태우고 request.method 는 'HEAD' 그대로다. 그것을 표에
+// 넣으면 모르는 메서드라 던지고, 그 자리가 DB 콜백 안이라 backstop 이 워커를
+// 죽였다(066c550 배포 직후 독립 검토가 잡았다, 2026-09-05). 옛 라우트는 메서드를
+// 안 보고 GET 조건식을 썼으므로 HEAD 는 GET 이다 — 본문은 Node 가 버린다.
+function run_operation(request, response, settle, method, lookup) {
+    var rootnm = Object.keys(request.targetObject)[0];
+    request.url = request.targetObject[rootnm].ri;
+    if (method === 'DELETE') { request.pi = request.targetObject[rootnm].pi; }
+
+    var reject = route_gate.reject(method, request.query);
+    if (reject) { settle.error(reject); return; }
+
+    lookup(request, response, (code, out) => { settle.done(code, out); });
+}
+
+/**
+ * 요청 하나를 hit 표에 센다 — 자기 커넥션을 빌려 세고 자기가 반납한다.
+ * 응답을 기다리지 않는다(집계라 요청을 막지 않는다).
+ *
+ * 3단계 14번(2026-09-05) 전에는 모양이 셋이었다. POST 만 이렇게 했고 GET·PUT·
+ * DELETE 는 **요청 커넥션** 위에서 set_hit 를 던지고 콜백을 안 기다렸다 — 헤더
+ * 검증이 400-1 로 즉시 정산하면 그 커넥션이 질의가 아직 날아가는 채로 풀에
+ * 돌아갔다. 결함 수정이지 리팩터가 아니라 따로 커밋했다.
+ *
+ * 세는 **위치**는 남은 일 §5.1 에서 옮겼다 — 네 라우트 다 check_xm2m_headers 를
+ * 통과한 뒤다. 예전에는 검증 앞에서 세어 X-M2M-RI·Origin 이 없어 400 으로
+ * 거절될 요청도 hit 에 들어갔다. GET 은 extra api(/hit 등)를 뺀 뒤이기도 하다.
+ * test/hit-after-validation.test.js 가 순서를 잠근다.
+ */
+function count_hit(binding) {
+    db.getConnection((code, connection) => {
+        if (code !== '200') { return; }
+        db_sql.set_hit(connection, binding, (err, results) => {
+            results = null;
+            db.release(connection);
+        });
+    });
+}
+
 // 그 47곳을 전부 봐야 했다.
 // 정산기는 mobius/settle.js 에 있다. 여기서는 response_error_result 를 엮어
 // 넘기기만 한다 — 그 함수가 reason 카탈로그와 responder.respond 를 잇고 있다.
@@ -1464,9 +1586,10 @@ function resolve_cr(target) {
 function authorize_and_run(request, response, target, access_value, run, callback) {
     security.check(request, response, target.ty, target.acpi, access_value, target.cr, (code) => {
         if (code === '1') {
-            run(request, response, (code) => {
-                callback(code);
-            });
+            // 콜백을 그대로 넘긴다. 여기 있던 `(code) => { callback(code); }` 는
+            // 두 번째 인자를 버렸다 — 2단계에서 resource.* 가 (null, out) 을
+            // 주기 시작하면 그 out 이 여기서 사라진다. 2단계 7번(2026-09-05).
+            run(request, response, callback);
         }
         else if (code === '0') {
             callback('403-3');
@@ -1550,7 +1673,7 @@ function lookup_create(request, response, callback) {
                 }
 
                 // sub 생성은 CREATE(1)가 아니라 NOTIFY 를 포함한 3 을 본다.
-                var access_value = (request.ty == 23) ? '3' : '1';
+                var access_value = (request.ty == 23) ? security.ACOP.SUB_CREATE : security.ACOP.CREATE;
 
                 // 예전에는 여기서 두 가지를 더 했다.
                 //   - 요청마다 shortid 를 만들어 security.check 를 console.time 으로 쟀다.
@@ -1577,7 +1700,7 @@ function lookup_retrieve(request, response, callback) {
 
         // discovery(fu=1)는 DISCOVER(32), 일반 조회는 RETRIEVE(2).
         // 예전에는 이 둘 때문에 같은 블록이 두 벌 있었다.
-        var access_value = (request.query.fu == 1) ? '32' : '2';
+        var access_value = (request.query.fu == 1) ? security.ACOP.DISCOVERY : security.ACOP.RETRIEVE;
         resolve_cr(resultObj);
         authorize_and_run(request, response, resultObj, access_value, resource.retrieve, callback);
     });
@@ -1610,14 +1733,13 @@ function lookup_update(request, response, callback) {
 
         if (!updates_beyond_acpi(request.bodyObj)) {
             // acpi 만 바꾸는 경우 — 권한 검사 없이 진행한다.
-            resource.update(request, response, (code) => {
-                callback(code);
-            });
+            // 콜백을 그대로 넘긴다 — authorize_and_run 과 같은 이유(2단계 7번).
+            resource.update(request, response, callback);
             return;
         }
 
         resolve_cr(resultObj);
-        authorize_and_run(request, response, resultObj, '4', resource.update, callback);
+        authorize_and_run(request, response, resultObj, security.ACOP.UPDATE, resource.update, callback);
     });
 }
 
@@ -1628,7 +1750,7 @@ function lookup_delete(request, response, callback) {
         var resultObj = request.targetObject[Object.keys(request.targetObject)[0]];
 
         resolve_cr(resultObj);
-        authorize_and_run(request, response, resultObj, '8', resource.delete, callback);
+        authorize_and_run(request, response, resultObj, security.ACOP.DELETE, resource.delete, callback);
     });
 }
 
@@ -2165,27 +2287,13 @@ function get_target_url(request, response, callback) {
 }
 
 function check_allowed_app_ids(request, callback) {
+    // request.ty 는 check_resource_supported 가 본문 루트로 확정한 값이라 여기서
+    // 어긋날 수 없다 — 방어로만 남긴다. 여기 있던 mgo 갈래(mgoType 표를 돌며 구체
+    // 타입 다섯을 봐주던 것)는 type_resolver 가 그 타입들을 400-3 으로 먼저 끊어
+    // 도달하지 않았다(남은 일 §5.6). mgmtObj 를 여는 날 type_resolver 쪽에서 푼다.
     if (responder.typeRsrc[request.ty] != Object.keys(request.bodyObj)[0]) {
-        if (responder.typeRsrc[request.ty] == 'mgo') {
-            var support_mgo = 0;
-            for (var prop in responder.mgoType) {
-                if (responder.mgoType.hasOwnProperty(prop)) {
-                    if (responder.mgoType[prop] == Object.keys(request.bodyObj)[0]) {
-                        support_mgo = 1;
-                        break;
-                    }
-                }
-            }
-
-            if (support_mgo == 0) {
-                callback('400-42');
-                return;
-            }
-        }
-        else {
-            callback('400-42');
-            return;
-        }
+        callback('400-42');
+        return;
     }
 
     if (request.ty == '2') {
@@ -2264,16 +2372,8 @@ var body = require('./mobius/body');
 var log_safe = require('./mobius/log_safe');
 var onem2mParser = body.collect;
 
-//////// contribution code
-// Kevin Lee, Executive Director, Unibest INC, Owner of Howchip.com
-// Process for CORS problem
-app.use((req, res, next) => {
-    res.header('Access-Control-Allow-Origin', '*');
-    res.header('Access-Control-Allow-Methods', 'GET, PUT, POST, DELETE, OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, X-M2M-RI, X-M2M-RVI, X-M2M-RSC, Accept, X-M2M-Origin, Locale');
-    res.header('Access-Control-Expose-Headers', 'Origin, X-Requested-With, Content-Type, X-M2M-RI, X-M2M-RVI, X-M2M-RSC, Accept, X-M2M-Origin, Locale');
-    (req.method == 'OPTIONS') ? res.sendStatus(200) : next();
-});
+// CORS 수동 미들웨어(Kevin Lee, Unibest 기여)가 여기 있었다 — 위쪽 cors() 설정으로
+// 합쳤다. 이유는 그 자리 주석에.
 
 /**
  * 이 CSE 는 json 만 다룬다. 요청 **본문**이 xml/cbor 이면 여기서 끊는다.
@@ -2361,112 +2461,54 @@ app.use((req, res, next) => {
 
 // remoteCSE, ae, cnt
 app.post('*', onem2mParser, (request, response) => {
-    var binding = request.headers['binding'] || 'H';   // request 참조를 동기 시점으로 이동
-    db.getConnection((code, connection) => {
-        if (code === '200') {
-            db_sql.set_hit(connection, binding, (err, results) => {
-                results = null;
-                db.release(connection);
-            });
-        }
-    });
-    // db.getConnection((code, connection) => {
-    //     if (code === '200') {
-    //         if (!request.headers.hasOwnProperty('binding')) {
-    //             request.headers['binding'] = 'H';
-    //         }
+    with_connection(request, response, (settle) => {
+        check_xm2m_headers(request, (code) => {
+            if (code === '200') {
+                // 헤더 검증을 통과한 요청만 센다 (남은 일 §5.1). 예전에는 검증 앞에서
+                // 세어 X-M2M-RI 가 없어 400 으로 거절될 요청도 hit 에 들어갔다.
+                count_hit(request.headers['binding'] || 'H');
 
-    //         db_sql.set_hit(connection, request.headers['binding'], (err, results) => {
-    //             results = null;
-
-    //             connection.release();
-    //         });
-    //     }
-    // });
-
-    db.getConnection((code, connection) => {
-        if (code === '200') {
-            request.db_connection = connection;
-            var settle = make_settler(request, response, connection);
-
-            check_xm2m_headers(request, (code) => {
-                if (code === '200') {
-                    if (request.body !== "") {
-                        check_resource_supported(request, response, (code) => {
-                            if (code === '200') {
-                                get_target_url(request, response, (code) => {
-                                    if (code === '200') {
-                                        if (request.option !== '/fopt') {
-                                            parse_body_format(request, response, (code) => {
-                                                if (code === '200') {
-                                                    check_allowed_app_ids(request, (code) => {
-                                                        if (code === '200') {
-                                                            var rootnm = Object.keys(request.targetObject)[0];
-                                                            var absolute_url = request.targetObject[rootnm].ri;
-                                                            check_notification(request, response, (code) => {
-                                                                if (code === 'post') {
-                                                                    request.url = absolute_url;
-                                                                    if ((request.query.fu == 2) && (request.query.rcn == 0 || request.query.rcn == 1 || request.query.rcn == 2 || request.query.rcn == 3)) {
-                                                                        lookup_create(request, response, (code) => {
-                                                                            if (code === '201') {
-                                                                                settle.result('201', '2001');
-                                                                            }
-                                                                            else if (code === '201-3') {
-                                                                                settle.rcn3('201', '2001');
-                                                                            }
-                                                                            else {
-                                                                                settle.error(code);
-                                                                            }
-                                                                        });
-                                                                    }
-                                                                    else {
-                                                                        code = '400-43';
+                if (request.body !== "") {
+                    check_resource_supported(request, response, (code) => {
+                        if (code === '200') {
+                            get_target_url(request, response, (code) => {
+                                if (code === '200') {
+                                    if (request.option !== '/fopt') {
+                                        parse_body_format(request, response, (code) => {
+                                            if (code === '200') {
+                                                check_allowed_app_ids(request, (code) => {
+                                                    if (code === '200') {
+                                                        check_notification(request, response, (code) => {
+                                                            if (code === 'post') {
+                                                                run_operation(request, response, settle, 'POST', lookup_create);
+                                                            }
+                                                            else if (code === 'notify') {
+                                                                check_ae_notify(request, response, (code, res) => {
+                                                                    if (code !== '200') {
                                                                         settle.error(code);
+                                                                        return;
                                                                     }
-                                                                }
-                                                                else if (code === 'notify') {
-                                                                    check_ae_notify(request, response, (code, res) => {
-                                                                        if (code !== '200') {
-                                                                            settle.error(code);
-                                                                            return;
-                                                                        }
-                                                                        // 상류가 json 이 아닌 것을 주면 흘려보내지 않는다.
-                                                                        // 이 경로는 settle.raw 라 apply_headers 를 우회하므로
-                                                                        // "응답은 언제나 json" 이 여기서는 안 걸린다.
-                                                                        if (!relay_headers(response, res, 'ae notify')) {
-                                                                            settle.error('500-7');
-                                                                            return;
-                                                                        }
-                                                                        settle.raw('ae notify', function () {
-                                                                            response.statusCode = res.statusCode;
-                                                                            response.send(res.body);
-                                                                        });
+                                                                    // 상류가 json 이 아닌 것을 주면 흘려보내지 않는다.
+                                                                    // 이 경로는 settle.raw 라 apply_headers 를 우회하므로
+                                                                    // "응답은 언제나 json" 이 여기서는 안 걸린다.
+                                                                    if (!relay_headers(response, res, 'ae notify')) {
+                                                                        settle.error('500-7');
+                                                                        return;
+                                                                    }
+                                                                    settle.raw('ae notify', function () {
+                                                                        response.statusCode = res.statusCode;
+                                                                        response.send(res.body);
                                                                     });
-                                                                }
-                                                                else {
-                                                                    settle.error(code);
-                                                                }
-                                                            });
-                                                        }
-                                                        else {
-                                                            settle.error(code);
-                                                        }
-                                                    });
-                                                }
-                                                else {
-                                                    settle.error(code);
-                                                }
-                                            });
-                                        }
-                                        else { // if (request.option === '/fopt') {
-                                            run_fanout(request, response, settle, '1', true);
-                                        }
-                                    }
-                                    else if (code === '301-1') {
-                                        check_csr(request, response, (code) => {
-                                            if (code === '301-2') {
-                                                settle.raw('csr forward', function () {
-                                                    response.status(response.statusCode).end(response.body);
+                                                                });
+                                                            }
+                                                            else {
+                                                                settle.error(code);
+                                                            }
+                                                        });
+                                                    }
+                                                    else {
+                                                        settle.error(code);
+                                                    }
                                                 });
                                             }
                                             else {
@@ -2474,87 +2516,12 @@ app.post('*', onem2mParser, (request, response) => {
                                             }
                                         });
                                     }
-                                    else {
-                                        settle.error(code);
-                                    }
-                                });
-                            }
-                            else {
-                                settle.error(code);
-                            }
-                        });
-                    }
-                    else {
-                        settle.error('400-40');
-                    }
-                }
-                else {
-                    settle.error(code);
-                }
-            });
-        }
-        else {
-            // 커넥션을 못 빌린 경로다 — 반납할 것이 없어 null 을 넘긴다.
-            make_settler(request, response, null).error(code);
-        }
-    });
-});
-
-app.get('*', onem2mParser, (request, response) => {
-    db.getConnection((code, connection) => {
-        if (code === '200') {
-            request.db_connection = connection;
-            var settle = make_settler(request, response, connection);
-
-            extra_api_action(connection, request.url, (code, result) => {
-                if (code === '200') {
-                    if (!request.headers.hasOwnProperty('binding')) {
-                        request.headers['binding'] = 'H';
-                    }
-
-                    db_sql.set_hit(request.db_connection, request.headers['binding'], (err, results) => {
-                        results = null;
-                    });
-
-                    check_xm2m_headers(request, (code) => {
-                        if (code === '200') {
-                            get_target_url(request, response, (code) => {
-                                if (code === '200') {
-                                    if (request.option !== '/fopt') {
-                                        var rootnm = Object.keys(request.targetObject)[0];
-                                        request.url = request.targetObject[rootnm].ri;
-                                        if ((request.query.fu == 1 || request.query.fu == 2) && (request.query.rcn == 1 || request.query.rcn == 4 || request.query.rcn == 5 || request.query.rcn == 6 || request.query.rcn == 7)) {
-                                            lookup_retrieve(request, response, (code) => {
-                                                if (code === '200') {
-                                                    settle.result('200', '2000');
-                                                }
-                                                else if (code === '200-1') {
-                                                    settle.search('200', '2000');
-                                                }
-                                                else {
-                                                    settle.error(code);
-                                                }
-                                            });
-                                        }
-                                        else {
-                                            settle.error('400-44');
-                                        }
-                                    }
-                                    else { //if (request.option === '/fopt') {
-                                        run_fanout(request, response, settle, (request.query.fu == 1) ? '32' : '2', false);
+                                    else { // if (request.option === '/fopt') {
+                                        run_fanout(request, response, settle, security.ACOP.CREATE, true);
                                     }
                                 }
                                 else if (code === '301-1') {
-                                    check_csr(request, response, (code) => {
-                                        if (code === '301-2') {
-                                            settle.raw('csr forward', function () {
-                                                response.status(response.statusCode).end(response.body);
-                                            });
-                                        }
-                                        else {
-                                            settle.error(code);
-                                        }
-                                    });
+                                    forward_to_csr(request, response, settle);
                                 }
                                 else {
                                     settle.error(code);
@@ -2566,99 +2533,97 @@ app.get('*', onem2mParser, (request, response) => {
                         }
                     });
                 }
-                else if (code === '201') {
-                    // /hit · /total_ae · /total_cbs 의 응답이다. oneM2M 리소스가
-                    // 아니라 서버 상태 집계라 responder 형태에 안 맞는다 —
-                    // 그래서 settle.raw 로 직접 보낸다.
-                    //
-                    // 예전에는 정산기를 아예 우회했다:
-                    //     db.release(connection);          <- 응답보다 **먼저**
-                    //     response.status(200).end(...)
-                    //
-                    // 두 가지가 어긋났다. 반납이 응답보다 앞서서 그 사이 다른
-                    // 요청이 이 커넥션을 빌릴 수 있었고, 정산기를 안 타므로
-                    // **이중 정산 방지 장치가 없었다.** raw 는 fn 이 응답을
-                    // 보내고 나서 반납하고, claim() 도 탄다.
-                    settle.raw('extra api ' + request.url, function () {
-                        response.header('Content-Type', 'application/json');
-                        response.status(200).end(JSON.stringify(result, null, 4));
-                        result = null;
-                    });
-                }
                 else {
-                    settle.error(code);
+                    settle.error('400-40');
                 }
-            });
-        }
-        else {
-            // 커넥션을 못 빌린 경로다 — 반납할 것이 없어 null 을 넘긴다.
-            make_settler(request, response, null).error(code);
-        }
+            }
+            else {
+                settle.error(code);
+            }
+        });
+    });
+});
+
+app.get('*', onem2mParser, (request, response) => {
+    with_connection(request, response, (settle) => {
+        extra_api_action(request.db_connection, request.url, (code, result) => {
+            if (code === '200') {
+                check_xm2m_headers(request, (code) => {
+                    if (code === '200') {
+                        // 헤더 검증을 통과한 요청만 센다 (§5.1). extra api 는 위에서 이미 뺐다.
+                        count_hit(request.headers['binding'] || 'H');
+
+                        get_target_url(request, response, (code) => {
+                            if (code === '200') {
+                                if (request.option !== '/fopt') {
+                                    run_operation(request, response, settle, 'GET', lookup_retrieve);
+                                }
+                                else { //if (request.option === '/fopt') {
+                                    run_fanout(request, response, settle, (request.query.fu == 1) ? security.ACOP.DISCOVERY : security.ACOP.RETRIEVE, false);
+                                }
+                            }
+                            else if (code === '301-1') {
+                                forward_to_csr(request, response, settle);
+                            }
+                            else {
+                                settle.error(code);
+                            }
+                        });
+                    }
+                    else {
+                        settle.error(code);
+                    }
+                });
+            }
+            else if (code === '201') {
+                // /hit · /total_ae · /total_cbs 의 응답이다. oneM2M 리소스가
+                // 아니라 서버 상태 집계라 responder 형태에 안 맞는다 —
+                // 그래서 settle.raw 로 직접 보낸다.
+                //
+                // 예전에는 정산기를 아예 우회했다:
+                //     db.release(connection);          <- 응답보다 **먼저**
+                //     response.status(200).end(...)
+                //
+                // 두 가지가 어긋났다. 반납이 응답보다 앞서서 그 사이 다른
+                // 요청이 이 커넥션을 빌릴 수 있었고, 정산기를 안 타므로
+                // **이중 정산 방지 장치가 없었다.** raw 는 fn 이 응답을
+                // 보내고 나서 반납하고, claim() 도 탄다.
+                settle.raw('extra api ' + request.url, function () {
+                    response.header('Content-Type', 'application/json');
+                    response.status(200).end(JSON.stringify(result, null, 4));
+                    result = null;
+                });
+            }
+            else {
+                settle.error(code);
+            }
+        });
     });
 });
 
 
 app.put('*', onem2mParser, (request, response) => {
-    db.getConnection((code, connection) => {
-        if (code === '200') {
-            request.db_connection = connection;
-            var settle = make_settler(request, response, connection);
+    with_connection(request, response, (settle) => {
+        check_xm2m_headers(request, (code) => {
+            if (code === '200') {
+                // 헤더 검증을 통과한 요청만 센다 (§5.1).
+                count_hit(request.headers['binding'] || 'H');
 
-            if (!request.headers.hasOwnProperty('binding')) {
-                request.headers['binding'] = 'H';
-            }
-
-            db_sql.set_hit(request.db_connection, request.headers['binding'], (err, results) => {
-                results = null;
-            });
-
-            check_xm2m_headers(request, (code) => {
-                if (code === '200') {
-                    if (request.body !== "") {
-                        check_resource_supported(request, response, (code) => {
-                            if (code === '200') {
-                                get_target_url(request, response, (code) => {
-                                    if (code === '200') {
-                                        if (request.option !== '/fopt') {
-                                            parse_body_format(request, response, (code) => {
-                                                if (code === '200') {
-                                                    check_type_update_resource(request, (code) => {
-                                                        if (code === '200') {
-                                                            var rootnm = Object.keys(request.targetObject)[0];
-                                                            request.url = request.targetObject[rootnm].ri;
-                                                            if ((request.query.fu == 2) && (request.query.rcn == 0 || request.query.rcn == 1)) {
-                                                                lookup_update(request, response, (code) => {
-                                                                    if (code === '200') {
-                                                                        settle.result('200', '2004');
-                                                                    }
-                                                                    else {
-                                                                        settle.error(code);
-                                                                    }
-                                                                });
-                                                            }
-                                                            else {
-                                                                settle.error('400-45');
-                                                            }
-                                                        }
-                                                        else {
-                                                            settle.error(code);
-                                                        }
-                                                    });
-                                                }
-                                                else {
-                                                    settle.error(code);
-                                                }
-                                            });
-                                        }
-                                        else { // if (request.option === '/fopt') {
-                                            run_fanout(request, response, settle, '4', true);
-                                        }
-                                    }
-                                    else if (code === '301-1') {
-                                        check_csr(request, response, (code) => {
-                                            if (code === '301-2') {
-                                                settle.raw('csr forward', function () {
-                                                    response.status(response.statusCode).end(response.body);
+                if (request.body !== "") {
+                    check_resource_supported(request, response, (code) => {
+                        if (code === '200') {
+                            get_target_url(request, response, (code) => {
+                                if (code === '200') {
+                                    if (request.option !== '/fopt') {
+                                        parse_body_format(request, response, (code) => {
+                                            if (code === '200') {
+                                                check_type_update_resource(request, (code) => {
+                                                    if (code === '200') {
+                                                        run_operation(request, response, settle, 'PUT', lookup_update);
+                                                    }
+                                                    else {
+                                                        settle.error(code);
+                                                    }
                                                 });
                                             }
                                             else {
@@ -2666,85 +2631,12 @@ app.put('*', onem2mParser, (request, response) => {
                                             }
                                         });
                                     }
-                                    else {
-                                        settle.error(code);
+                                    else { // if (request.option === '/fopt') {
+                                        run_fanout(request, response, settle, security.ACOP.UPDATE, true);
                                     }
-                                });
-                            }
-                            else {
-                                settle.error(code);
-                            }
-                        });
-                    }
-                    else {
-                        settle.error('400-40');
-                    }
-                }
-                else {
-                    settle.error(code);
-                }
-            });
-        }
-        else {
-            // 커넥션을 못 빌린 경로다 — 반납할 것이 없어 null 을 넘긴다.
-            make_settler(request, response, null).error(code);
-        }
-    });
-});
-
-app.delete('*', onem2mParser, (request, response) => {
-    db.getConnection((code, connection) => {
-        if (code === '200') {
-            request.db_connection = connection;
-            var settle = make_settler(request, response, connection);
-
-            if (!request.headers.hasOwnProperty('binding')) {
-                request.headers['binding'] = 'H';
-            }
-
-            db_sql.set_hit(request.db_connection, request.headers['binding'], (err, results) => {
-                results = null;
-            });
-
-            check_xm2m_headers(request, (code) => {
-                if (code === '200') {
-                    get_target_url(request, response, (code) => {
-                        if (code === '200') {
-                            if (request.option !== '/fopt') {
-                                check_type_delete_resource(request, (code) => {
-                                    if (code === '200') {
-                                        var rootnm = Object.keys(request.targetObject)[0];
-                                        request.url = request.targetObject[rootnm].ri;
-                                        request.pi = request.targetObject[rootnm].pi;
-                                        if ((request.query.fu == 2) && (request.query.rcn == 0 || request.query.rcn == 1)) {
-                                            lookup_delete(request, response, (code) => {
-                                                if (code === '200') {
-                                                    settle.result('200', '2002');
-                                                }
-                                                else {
-                                                    settle.error(code);
-                                                }
-                                            });
-                                        }
-                                        else {
-                                            settle.error('400-46');
-                                        }
-                                    }
-                                    else {
-                                        settle.error(code);
-                                    }
-                                });
-                            }
-                            else { // if (request.option === '/fopt') {
-                                run_fanout(request, response, settle, '8', false);
-                            }
-                        }
-                        else if (code === '301-1') {
-                            check_csr(request, response, (code) => {
-                                if (code === '301-2') {
-                                    settle.raw('csr forward', function () {
-                                        response.status(response.statusCode).end(response.body);
-                                    });
+                                }
+                                else if (code === '301-1') {
+                                    forward_to_csr(request, response, settle);
                                 }
                                 else {
                                     settle.error(code);
@@ -2757,14 +2649,51 @@ app.delete('*', onem2mParser, (request, response) => {
                     });
                 }
                 else {
-                    settle.error(code);
+                    settle.error('400-40');
                 }
-            });
-        }
-        else {
-            // 커넥션을 못 빌린 경로다 — 반납할 것이 없어 null 을 넘긴다.
-            make_settler(request, response, null).error(code);
-        }
+            }
+            else {
+                settle.error(code);
+            }
+        });
+    });
+});
+
+app.delete('*', onem2mParser, (request, response) => {
+    with_connection(request, response, (settle) => {
+        check_xm2m_headers(request, (code) => {
+            if (code === '200') {
+                // 헤더 검증을 통과한 요청만 센다 (§5.1).
+                count_hit(request.headers['binding'] || 'H');
+
+                get_target_url(request, response, (code) => {
+                    if (code === '200') {
+                        if (request.option !== '/fopt') {
+                            check_type_delete_resource(request, (code) => {
+                                if (code === '200') {
+                                    run_operation(request, response, settle, 'DELETE', lookup_delete);
+                                }
+                                else {
+                                    settle.error(code);
+                                }
+                            });
+                        }
+                        else { // if (request.option === '/fopt') {
+                            run_fanout(request, response, settle, security.ACOP.DELETE, false);
+                        }
+                    }
+                    else if (code === '301-1') {
+                        forward_to_csr(request, response, settle);
+                    }
+                    else {
+                        settle.error(code);
+                    }
+                });
+            }
+            else {
+                settle.error(code);
+            }
+        });
     });
 });
 

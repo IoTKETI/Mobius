@@ -126,6 +126,31 @@ var MODULE_CLASS = {
 exports.MODULE_CLASS = MODULE_CLASS;
 
 /**
+ * cnd 가 아는 moduleclass 면 약칭('bat'), 아니면 null.
+ *
+ * `hasOwnProperty` 로 막는다 — 'toString' 같은 cnd 가 프로토타입에서 값을
+ * 물어 오면 안 된다. cnd 가 undefined 여도 null 이다(옛 `==` 비교가 전부
+ * false 였던 것과 같다).
+ */
+exports.cnd_short = function (cnd) {
+    return Object.prototype.hasOwnProperty.call(MODULE_CLASS, cnd) ? MODULE_CLASS[cnd] : null;
+};
+
+/**
+ * (rootnm, cnd) **쌍**이 아는 moduleclass 인가. 맞으면 약칭, 아니면 null.
+ *
+ * 본문 루트가 'hd_bat' 이면서 cnd 가 battery 여야 한다. CREATE 가 이 쌍을
+ * 본다 — fcnt.js 의 빌드와 resource.js 의 insert 디스패치. UPDATE 는 cnd 만
+ * 본다(cnd_short) — 옛 코드의 비대칭이고 그대로 둔다. 여덟 갈래
+ * `(rootnm == 'hd_X' && cnd == '…Y')` 가 두 파일에 24번 적혀 있던 것을
+ * 이 한 줄이 대신한다 — 1단계 5번.
+ */
+exports.hd_short = function (rootnm, cnd) {
+    var s = exports.cnd_short(cnd);
+    return (s !== null && rootnm == 'hd_' + s) ? s : null;
+};
+
+/**
  * 루트 이름에 접두를 붙인다. **접두 규칙의 단일 진실원.**
  *
  *   mgo          'm2m:' + mgoType[obj.mgd]

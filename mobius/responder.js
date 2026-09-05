@@ -413,35 +413,39 @@ var operation = {
     'delete': 4
 };
 
-exports.response_result = function(request, response, status, rsc, callback) {
-    // rcn=0 이면 shape.single 이 null 을 준다 — 배출구가 그것을 빈 본문으로
-    // 보낸다. 여기 있던 rt 갈래(rt==3 이면 '' 를 보내고, 아니면 **아무것도
-    // 안 보내고 콜백만** 불러 요청이 매달렸다)는 없어졌다. 뒤엣것은 모양이
-    // 아니라 결함이고, app.js 가 rt 를 3 으로 고정하고 1/2 를 405-4 로 막으므로
-    // 실트래픽은 그 갈래를 밟지 못했다. 차분 하네스의 result/rcn0/rt-* 두
-    // 건이 그 자리를 '의도된 차이' 로 못박는다.
-    var body = shape.single(request.resourceObj, request.query.rcn,
-                            _this.typeCheckforJson);
-    exports.respond(request, response, { status: status, rsc: rsc, body: body }, callback);
-};
+/**
+ * 결과 객체 → 응답 본문. 2단계의 생산자가 주는 out = { shape, rootnm, body }.
+ *
+ * 어느 모양이 어느 정규화를 받는지는 **여기(응답 층)가 안다** — shape.js 는
+ * 값→값이고 정규화 함수를 인자로 받는다(갈래마다 깊이가 달라서). uril 은
+ * 네 모양 중 유일하게 정규화를 안 한다 — 인자가 없는 것이 표시다.
+ *
+ * 모르는 shape 면 TypeError 를 던진다. 정산기(settle.done)가 잡아 500 으로
+ * 낸다 — 여기서 잡으면 "무엇이 잘못됐는지" 를 정산기가 못 본다.
+ *
+ * **request.resourceObj 를 읽는 자리가 이 파일에는 없다.** 2단계 전에는
+ * response_result / response_rcn3_result / search_result 셋이 각자 그것을
+ * 읽어 본문을 만들었다 — 결과가 request 에 숨어 세 층을 건너왔다. 이제
+ * 생산자(resource.js · fopt.js)가 out 을 인자로 올리고 정산기(settle.done)가
+ * 여기로 가져온다. 셋은 2단계 10번(2026-09-05)에서 지웠다.
+ *
+ * rcn=0 이면 shape.single 이 null 을 주고 배출구가 빈 본문으로 보낸다. 옛
+ * response_result 에 있던 rt 갈래(rt!=3 이면 응답 없이 콜백만 불러 요청이
+ * 매달렸다)는 1단계에서 없앴다 — 실트래픽은 언제나 rt=3 이다.
+ */
+// 시험이 grouped 의 기대값을 body_of 자신이 아니라 shape.grouped + 이 함수로
+// 따로 만들 수 있게 내보낸다. 안 내보내면 시험이 동어반복이 되어 grouped 의
+// 정규화를 통째로 빼도 못 잡는다 — 배포 뒤 독립 검토가 변이로 확인했다.
+exports.typeCheckforJson2 = typeCheckforJson2;
 
-exports.response_rcn3_result = function(request, response, status, rsc, callback) {
-    // 여기 있던 `if (rt == 3) apply_headers` 게이트는 없어졌다 — 배출구가
-    // 헤더를 무조건 세운다. rt 는 실트래픽에서 언제나 3 이다(위 참조).
-    var body = shape.rce(request.resourceObj, request.headers.rootnm,
-                         _this.typeCheckforJson);
-    exports.respond(request, response, { status: status, rsc: rsc, body: body }, callback);
-};
-
-exports.search_result = function(request, response, status, rsc, callback) {
-    var rootnm = request.headers.rootnm;
-
-    // uril 은 네 모양 중 유일하게 정규화를 안 한다 — 인자가 없는 것이 표시다.
-    var body = (rootnm == 'uril')
-        ? shape.uril(request.resourceObj, rootnm)
-        : shape.grouped(request.resourceObj, rootnm, typeCheckforJson2);
-
-    exports.respond(request, response, { status: status, rsc: rsc, body: body }, callback);
+exports.body_of = function (out, rcn) {
+    switch (out.shape) {
+        case 'single':  return shape.single(out.body, rcn, _this.typeCheckforJson);
+        case 'rce':     return shape.rce(out.body, out.rootnm, _this.typeCheckforJson);
+        case 'uril':    return shape.uril(out.body, out.rootnm);
+        case 'grouped': return shape.grouped(out.body, out.rootnm, typeCheckforJson2);
+    }
+    throw new TypeError('body_of: unknown shape ' + JSON.stringify(out.shape));
 };
 
 // ── 배출구 ─────────────────────────────────────────────────────────────

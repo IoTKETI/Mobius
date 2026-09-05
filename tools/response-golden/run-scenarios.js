@@ -58,6 +58,10 @@ function cleanup() {
 const CASES = [
     // --- 성공 경로 ---
     { case: 'get-cse',        method: 'GET',    path: CB },
+    // Express 4 는 HEAD 를 app.get('*') 로 태우고 request.method 는 'HEAD' 그대로다.
+    // 라우트가 request.method 를 게이트 표에 넣었다가 워커가 죽은 적이 있다(066c550).
+    // 옛 코드처럼 GET 과 같이 200 이어야 하고, 무엇보다 워커가 죽으면 안 된다.
+    { case: 'head-cse',       method: 'HEAD',   path: CB },
     { case: 'create-ae',      method: 'POST',   path: CB, ct: 'application/json;ty=2',
       body: JSON.stringify({ 'm2m:ae': { rn: AE, api: 'Ngolden', rr: true, srv: ['3'] } }) },
     { case: 'get-ae',         method: 'GET',    path: CB + '/' + AE },
@@ -71,6 +75,10 @@ const CASES = [
       body: JSON.stringify({ 'm2m:cnt': { lbl: ['g'] } }) },
     { case: 'rcn0-create',    method: 'POST',   path: CB + '/' + AE + '?rcn=0', ct: 'application/json;ty=3',
       body: JSON.stringify({ 'm2m:cnt': { rn: 'c2' } }) },
+    // 생산자가 모양 이름을 직접 주는 종단 중 골든에 없던 둘 (독립 검토 지적)
+    { case: 'rcn2-create',    method: 'POST',   path: CB + '/' + AE + '?rcn=2', ct: 'application/json;ty=3',
+      body: JSON.stringify({ 'm2m:cnt': { rn: 'c3' } }) },
+    { case: 'discovery-rcn4', method: 'GET',    path: CB + '/' + AE + '?fu=2&rcn=4' },
 
     // --- 실패 경로 ---
     { case: 'dup-ae',         method: 'POST',   path: CB, ct: 'application/json;ty=2',
@@ -88,6 +96,9 @@ const CASES = [
       body: JSON.stringify({ 'm2m:ae': { rn: 'x' } }) },
     { case: 'delete-cse',     method: 'DELETE', path: CB },
     { case: 'bad-rcn-get',    method: 'GET',    path: CB + '/' + AE + '?rcn=0' },
+    // 게이트는 rcn=7 을 통과시키는데 retrieve 가 낼 모양이 없다. 예전에는 discovery 를
+    // 다 돌린 뒤 카탈로그에 없는 '400' 을 올려 500 이 났다 (남은 일 §3.1).
+    { case: 'bad-rcn7-get',   method: 'GET',    path: CB + '/' + AE + '?fu=2&rcn=7' },
 
     // mni=0 컨테이너에 CIN 을 넣으면 406 이 난다 (406-1)
     { case: 'mni-zero-cnt',   method: 'POST',   path: CB + '/' + AE, ct: 'application/json;ty=3',

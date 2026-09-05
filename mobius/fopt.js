@@ -225,7 +225,9 @@ exports.check = function(request, response, grp, body_Obj, callback) {
                                 request.resourceObj = JSON.parse(JSON.stringify(retrieve_Obj));
                                 retrieve_Obj = null;
 
-                                callback('200');
+                                // 결과가 인자로 올라간다 — 옛 run_fanout 이 '200' 을 보고
+                                // search 200/2000(grouped, rootnm 'agr')을 골랐다. 2단계 9번.
+                                callback(null, { rsc: 'OK', shape: 'grouped', rootnm: 'agr', body: request.resourceObj });
                             }
                             else {
                                 callback('404-5');

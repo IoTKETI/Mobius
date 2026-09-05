@@ -73,10 +73,16 @@ test('rt==3 게이트가 없다 — 헤더는 무조건 세운다', function () 
         'rt 게이트가 되살아났다. app.js 가 rt 를 3 으로 고정하고 1/2 를 405-4 로 막으므로 갈릴 이유가 없다');
 });
 
-test('세 응답 함수는 전송 코드 없이 respond 로 위임한다', function () {
+test('옛 세 응답 함수가 없고, 본문 조립은 body_of 하나다', function () {
+    // 1단계 2번에서 셋이 전송을 respond 에 위임했고, 2단계 10번에서 셋을 지웠다 —
+    // 정산기(settle.done)가 결과 객체를 받아 body_of 와 respond 로 간다.
+    // request.resourceObj 를 읽는 자리가 이 파일에 없어야 한다.
     const src = code('mobius/responder.js');
-    const n = (src.match(/exports\.respond\(request, response, \{ status: status, rsc: rsc, body: body \}, callback\)/g) || []).length;
-    assert.strictEqual(n, 3, 'response_result · response_rcn3_result · search_result 셋이 위임해야 한다 (실제 ' + n + ')');
+    ['response_result', 'response_rcn3_result', 'search_result'].forEach(function (n) {
+        assert.strictEqual(src.indexOf('exports.' + n + ' ='), -1, n + ' 이 되살아났다');
+    });
+    assert.ok(/exports\.body_of = function \(out, rcn\)/.test(src), 'body_of 가 있어야 한다');
+    assert.strictEqual(/request\.resourceObj/.test(src), false, 'responder 가 request.resourceObj 를 읽는다 — 결과는 인자로 온다');
 });
 
 // ── 행위: 성공 경로 ───────────────────────────────────────────────────────

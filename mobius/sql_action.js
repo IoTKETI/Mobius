@@ -159,11 +159,14 @@ exports.set_hit_n = function (connection, _ct, _http, _mqtt, _coap, _ws, callbac
 //     });
 // };
 
+// sri 여럿을 한 번에 — app.js 의 get_ri_list_sri 가 원소마다 get_ri_sri 를 순차로
+// 내던 것을 접은 것(남은 일 §5.3). 돌려주는 행은 (ri, sri) 쌍이라 호출부가 짝을 맞춘다.
+exports.get_ri_sri_in = function (connection, sri_list, callback) {
+    facade.run(facade.k('lookup').select('ri', 'sri').whereIn('sri', sri_list || []), connection, callback);
+};
+
 exports.get_ri_sri = function (connection, sri, callback) {
-    var tid = require('shortid').generate();
-    console.time('get_ri_sri' + ' (' + tid + ')');
     facade.run(facade.k('lookup').select('ri').where({ sri: sri }), connection, function (err, results) {
-        console.timeEnd('get_ri_sri' + ' (' + tid + ')');
         callback(err, results);
     });
 };
@@ -230,7 +233,6 @@ exports.insert_lookup = function (connection, obj, callback) {
 };
 
 exports.insert_cb = function (connection, obj, callback) {
-    console.time('insert_cb ' + obj.ri);
     _this.insert_lookup(connection, obj, function (err, results) {
         if (!err) {
             // 두 분기는 같은 INSERT 였고 수동 이스케이프만 달랐다
@@ -248,7 +250,6 @@ exports.insert_cb = function (connection, obj, callback) {
 
             facade.run(qb, connection, function (err2, results2) {
                 if (!err2) {
-                    console.timeEnd('insert_cb ' + obj.ri);
                     callback(err2, results2);
                     return;
                 }
@@ -266,7 +267,6 @@ exports.insert_cb = function (connection, obj, callback) {
 };
 
 exports.insert_acp = function (connection, obj, callback) {
-    console.time('insert_acp ' + obj.ri);
     _this.insert_lookup(connection, obj, function (err, results) {
         if (err) {
             callback(err, results);
@@ -279,7 +279,6 @@ exports.insert_acp = function (connection, obj, callback) {
             pvs: JSON.stringify(obj.pvs)
         }), connection, function (err2, results2) {
             if (!err2) {
-                console.timeEnd('insert_acp ' + obj.ri);
                 callback(err2, results2);
                 return;
             }
@@ -293,7 +292,6 @@ exports.insert_acp = function (connection, obj, callback) {
 };
 
 exports.insert_ae = function (connection, obj, callback) {
-    console.time('insert_ae ' + obj.ri);
     _this.insert_lookup(connection, obj, (err, results) => {
         if (!err) {
             // 두 갈래의 차이는 예약어 or 의 인용(SQLite `"or"` vs MySQL `ae.or`)과
@@ -312,14 +310,12 @@ exports.insert_ae = function (connection, obj, callback) {
                 srv: JSON.stringify(obj.srv || [])
             }), connection, function (aerr, ares) {
                 if (!aerr) {
-                    console.timeEnd('insert_ae ' + obj.ri);
                     callback(aerr, ares);
                     return;
                 }
                 // ae 삽입이 실패하면 앞서 넣은 lookup 행을 되돌린다.
                 facade.run(facade.k('lookup').where({ ri: obj.ri }).del(), connection,
                     function () {
-                        console.timeEnd('insert_ae ' + obj.ri);
                         callback(aerr, ares);
                     });
             });
@@ -331,7 +327,6 @@ exports.insert_ae = function (connection, obj, callback) {
 };
 
 exports.insert_cnt = function (connection, obj, callback) {
-    console.time('insert_cnt ' + obj.ri);
     _this.insert_lookup(connection, obj, function (err, results) {
         if (!err) {
             // insert_ae 와 같은 이유로 갈렸다 — `"or"` vs `cnt.or`, `values` vs
@@ -349,20 +344,17 @@ exports.insert_cnt = function (connection, obj, callback) {
                 disr: obj.disr
             }), connection, function (cerr, cres) {
                 if (!cerr) {
-                    console.timeEnd('insert_cnt ' + obj.ri);
                     callback(cerr, cres);
                     return;
                 }
                 // cnt 삽입이 실패하면 앞서 넣은 lookup 행을 되돌린다.
                 facade.run(facade.k('lookup').where({ ri: obj.ri }).del(), connection,
                     function () {
-                        console.timeEnd('insert_cnt ' + obj.ri);
                         callback(cerr, cres);
                     });
             });
         }
         else {
-            console.timeEnd('insert_cnt ' + obj.ri, ' - ', results);
             callback(err, results);
         }
     });
@@ -436,8 +428,6 @@ exports.get_cni_count = function (connection, obj, callback) {
 };
 
 exports.insert_cin = function (connection, obj, callback) {
-    var cin_id = 'insert_cin ' + obj.ri + ' - ' + require('shortid').generate();
-    console.time(cin_id);
     _this.insert_lookup(connection, obj, function (err, results) {
         if (!err) {
             var con_type = getType(obj.con);
@@ -465,14 +455,12 @@ exports.insert_cin = function (connection, obj, callback) {
                 con: (con_type == 'string') ? obj.con : JSON.stringify(obj.con)
             }), connection, function (ierr, ires) {
                 if (!ierr) {
-                    console.timeEnd(cin_id);
                     callback(ierr, ires);
                     return;
                 }
                 // cin 삽입이 실패하면 앞서 넣은 lookup 행을 되돌린다.
                 facade.run(facade.k('lookup').where({ ri: obj.ri }).del(), connection,
                     function () {
-                        console.timeEnd(cin_id);
                         callback(ierr, ires);
                     });
             });
@@ -515,7 +503,9 @@ var BODY_TABLES = {
     insert_fcnt:     ['fcnt', 'ri cnd cr'],
 
     // hd_* 여덟은 전부 fcnt 테이블이고 가운데 컬럼 하나만 다르다.
-    insert_hd_dooLK: ['fcnt', 'ri cnd lock cr'],
+    // dooLk 다 — 'dooLK' 였다. update_hd_dooLk 와 대소문자가 달라 이름 표로
+    // 못 접었다. 이 키가 곧 export 이름이라 호출부(resource.js)도 같이 바꿨다.
+    insert_hd_dooLk: ['fcnt', 'ri cnd lock cr'],
     insert_hd_bat:   ['fcnt', 'ri cnd lvl cr'],
     insert_hd_tempe: ['fcnt', 'ri cnd curT0 cr'],
     insert_hd_binSh: ['fcnt', 'ri cnd powerSe cr'],
@@ -539,8 +529,6 @@ var BODY_TABLES = {
 
 function make_body_insert(name, table, cols, json_cols) {
     return function (connection, obj, callback) {
-        var label = name + ' ' + obj.ri;
-        console.time(label);
 
         _this.insert_lookup(connection, obj, function (err, results) {
             if (err) {
@@ -580,7 +568,6 @@ function make_body_insert(name, table, cols, json_cols) {
 
             facade.run(facade.k(table).insert(row), connection, function (err2, results2) {
                 if (!err2) {
-                    console.timeEnd(label);
                     callback(err2, results2);
                     return;
                 }
@@ -589,7 +576,6 @@ function make_body_insert(name, table, cols, json_cols) {
                 // 그 고아 행은 이후 discovery 를 깨뜨린다.
                 facade.run(facade.k('lookup').where({ ri: obj.ri }).del(), connection,
                     function () {
-                        console.timeEnd(label);
                         callback(err2, results2);
                     });
             });
@@ -605,7 +591,6 @@ Object.keys(BODY_TABLES).forEach(function (name) {
 // ---------------------------------------------------------------------------
 
 exports.insert_sub = function (connection, obj, callback) {
-    console.time('insert_sub ' + obj.ri);
     _this.insert_lookup(connection, obj, function (err, results) {
         if (!err) {
             // 가장 순수한 가짜 분기였다 — 예약어도 없고 컬럼 17개가 그대로
@@ -630,14 +615,12 @@ exports.insert_sub = function (connection, obj, callback) {
                 su: obj.su
             }), connection, function (serr, sres) {
                 if (!serr) {
-                    console.timeEnd('insert_sub ' + obj.ri);
                     callback(serr, sres);
                     return;
                 }
                 // sub 삽입이 실패하면 앞서 넣은 lookup 행을 되돌린다.
                 facade.run(facade.k('lookup').where({ ri: obj.ri }).del(), connection,
                     function () {
-                        console.timeEnd('insert_sub ' + obj.ri);
                         callback(serr, sres);
                     });
             });
@@ -1796,7 +1779,7 @@ exports.build_descendant_sql = build_descendant_sql;
 // 페이징이 어긋나지 않는 것은 두 페이지가 **같은 경로**를 타기 때문이다.
 // 예전에 ofst 만 옛 경로로 보냈더니 1페이지와 2페이지의 순서가 달라
 // 배포에서 2,806건 중 248건이 사라졌다.
-exports.search_lookup = function (connection, ri, query, cur_lim, pi_list, pi_index, found_Obj, skipped, cni, cur_d, loop_cnt, callback, search_tid) {
+exports.search_lookup = function (connection, ri, query, cur_lim, pi_list, pi_index, found_Obj, skipped, cni, cur_d, loop_cnt, callback) {
     // 숫자로 쓰이는 파라미터만 거른다. 문자열 값은 이제 바인딩으로 나가므로
     // 이스케이프하지 않는다 (build_search_query 주석 참고).
     sanitize_discovery_query(query);
@@ -2160,10 +2143,8 @@ exports.select_latest_resource = function (connection, parentObj, loop_count, la
 // (예전에는 MySQL 쪽에 ORDER BY 가 아예 없어 limit 1 이 임의의 행을 골랐다 —
 //  "가장 오래된 것"이라는 의미가 성립하지 않았다. 그건 앞서 고쳤다.)
 exports.select_oldest_resource = function (connection, ty, ri, oldestObj, callback) {
-    console.time('select_oldest ' + ri);
     select_edge_resource(connection, ri, parseInt(ty, 10), 'asc', oldestObj,
         function (code) {
-            console.timeEnd('select_oldest ' + ri);
             callback(code);
         });
 };
@@ -2173,10 +2154,8 @@ exports.select_lookup = function (connection, ri, callback) {
 };
 
 exports.select_ri_lookup = function (connection, ri, callback) {
-    console.time('select_ri_lookup ' + ri);
     facade.run(facade.k('lookup').select('ri', 'sri').where({ ri: ri }), connection,
         function (err, results) {
-            console.timeEnd('select_ri_lookup ' + ri);
             callback(err, results);
         });
 };
@@ -2455,14 +2434,8 @@ function delete_oldest(connection, obj, count, callback) {
 }
 
 
-exports.select_in_ri_list = function (connection, tbl, ri_list, ri_index, found_Obj, loop_cnt, callback, search_tid) {
+exports.select_in_ri_list = function (connection, tbl, ri_list, ri_index, found_Obj, loop_cnt, callback) {
     var cur_ri = [];
-
-    // 재귀 시 loop_cnt가 증가하지 않아 배치마다 타이머가 새로 생성/누수되던 문제 — tid를 인자로 전달
-    if (!search_tid) {
-        search_tid = 'select_in_ri_list (' + require('shortid').generate() + ')';
-        console.time(search_tid);
-    }
 
     for (var idx = 0; idx < 8; idx++) {
         if (ri_index < ri_list.length) {
@@ -2489,19 +2462,17 @@ exports.select_in_ri_list = function (connection, tbl, ri_list, ri_index, found_
             }
 
             if (ri_index >= ri_list.length) {
-                console.timeEnd(search_tid);
                 callback(err, found_Obj);
             }
             else {
                 setTimeout(function () {
                     _this.select_in_ri_list(connection, tbl, ri_list, ri_index, found_Obj, loop_cnt, function (err, found_Obj) {
                         callback(err, found_Obj);
-                    }, search_tid);
+                    });
                 }, 0);
             }
         }
         else {
-            console.timeEnd(search_tid);
             callback(err, search_Obj);
         }
     });
@@ -2657,7 +2628,6 @@ exports.update_subl = function (connection, ri, mutate, callback) {
 // 여기서는 lookup 과 acp 두 문장을 한 트랜잭션으로 묶는다 — 반쪽만 반영되면
 // 리소스 메타데이터와 접근 정책이 어긋난다.
 exports.update_acp = function (connection, obj, callback) {
-    console.time('update_acp ' + obj.ri);
     facade.transaction(connection, function (conn, finish) {
         _this.update_lookup(conn, obj, function (err, results) {
             if (err) { return finish(err, results); }
@@ -2671,14 +2641,12 @@ exports.update_acp = function (connection, obj, callback) {
         });
     }, function (err, results) {
         if (!err) {
-            console.timeEnd('update_acp ' + obj.ri);
         }
         callback(err, results);
     });
 };
 
 exports.update_ae = function (connection, obj, callback) {
-    console.time('update_ae ' + obj.ri);
     _this.update_lookup(connection, obj, function (err, results) {
         if (!err) {
             // 두 갈래의 차이는 예약어 or 의 인용뿐이었다 (`ae.or` vs `"or"`).
@@ -2689,7 +2657,6 @@ exports.update_ae = function (connection, obj, callback) {
                 or: obj.or,
                 rr: obj.rr
             }), connection, function (uerr, ures) {
-                console.timeEnd('update_ae ' + obj.ri);
                 callback(uerr, ures);
             });
         }
@@ -2700,8 +2667,6 @@ exports.update_ae = function (connection, obj, callback) {
 };
 
 exports.update_cnt = function (connection, obj, callback) {
-    var cnt_id = 'update_cnt ' + obj.ri + ' - ' + require('shortid').generate();
-    console.time(cnt_id);
     _this.update_lookup(connection, obj, function (err, results) {
         if (!err) {
             // update_ae 와 같은 이유로 갈렸다 — `cnt.or` vs `"or"`.
@@ -2714,7 +2679,6 @@ exports.update_cnt = function (connection, obj, callback) {
                 cni: obj.cni,
                 cbs: obj.cbs
             }), connection, function (uerr, ures) {
-                console.timeEnd(cnt_id);
                 callback(uerr, ures);
             });
         }
@@ -2725,7 +2689,6 @@ exports.update_cnt = function (connection, obj, callback) {
 };
 
 exports.update_grp = function (connection, obj, callback) {
-    console.time('update_grp ' + obj.ri);
     _this.update_lookup(connection, obj, function (err, results) {
         if (!err) {
             facade.run(facade.k('grp').update({
@@ -2735,7 +2698,6 @@ exports.update_grp = function (connection, obj, callback) {
                 gn: obj.gn
             }).where({ ri: obj.ri }), connection, function (err2, results2) {
                 if (!err2) {
-                    console.timeEnd('update_grp ' + obj.ri);
                 }
                 callback(err2, results2);
             });
@@ -2747,13 +2709,11 @@ exports.update_grp = function (connection, obj, callback) {
 };
 
 exports.update_lcp = function (connection, obj, callback) {
-    console.time('update_lcp ' + obj.ri);
     _this.update_lookup(connection, obj, function (err, results) {
         if (!err) {
             facade.run(facade.k('lcp').update({ lou: obj.lou, lon: obj.lon })
                 .where({ ri: obj.ri }), connection, function (err2, results2) {
                 if (!err2) {
-                    console.timeEnd('update_lcp ' + obj.ri);
                 }
                 callback(err2, results2);
             });
@@ -2765,10 +2725,8 @@ exports.update_lcp = function (connection, obj, callback) {
 };
 
 exports.update_fcnt = function (connection, obj, callback) {
-    console.time('update_fcnt ' + obj.ri);
     _this.update_lookup(connection, obj, function (err, results) {
         if (!err) {
-            console.timeEnd('update_fcnt ' + obj.ri);
             callback(err, results);
         }
         else {
@@ -2778,13 +2736,11 @@ exports.update_fcnt = function (connection, obj, callback) {
 };
 
 exports.update_hd_dooLk = function (connection, obj, callback) {
-    console.time('update_hd_dooLk ' + obj.ri);
     _this.update_lookup(connection, obj, function (err, results) {
         if (!err) {
             var qb2 = facade.k('fcnt').update({ lock: obj.lock }).where({ ri: obj.ri });
             facade.run(qb2, connection, function (err, results) {
                 if (!err) {
-                    console.timeEnd('update_hd_dooLk ' + obj.ri);
                     callback(err, results);
                 }
                 else {
@@ -2799,13 +2755,11 @@ exports.update_hd_dooLk = function (connection, obj, callback) {
 };
 
 exports.update_hd_bat = function (connection, obj, callback) {
-    console.time('update_hd_bat ' + obj.ri);
     _this.update_lookup(connection, obj, function (err, results) {
         if (!err) {
             var qb2 = facade.k('fcnt').update({ lvl: obj.lvl }).where({ ri: obj.ri });
             facade.run(qb2, connection, function (err, results) {
                 if (!err) {
-                    console.timeEnd('update_hd_bat ' + obj.ri);
                     callback(err, results);
                 }
                 else {
@@ -2820,13 +2774,11 @@ exports.update_hd_bat = function (connection, obj, callback) {
 };
 
 exports.update_hd_tempe = function (connection, obj, callback) {
-    console.time('update_hd_tempe ' + obj.ri);
     _this.update_lookup(connection, obj, function (err, results) {
         if (!err) {
             var qb2 = facade.k('fcnt').update({ curT0: obj.curT0 }).where({ ri: obj.ri });
             facade.run(qb2, connection, function (err, results) {
                 if (!err) {
-                    console.timeEnd('update_hd_tempe ' + obj.ri);
                     callback(err, results);
                 }
                 else {
@@ -2841,13 +2793,11 @@ exports.update_hd_tempe = function (connection, obj, callback) {
 };
 
 exports.update_hd_binSh = function (connection, obj, callback) {
-    console.time('update_hd_binSh ' + obj.ri);
     _this.update_lookup(connection, obj, function (err, results) {
         if (!err) {
             var qb2 = facade.k('fcnt').update({ powerSe: obj.powerSe }).where({ ri: obj.ri });
             facade.run(qb2, connection, function (err, results) {
                 if (!err) {
-                    console.timeEnd('update_hd_binSh ' + obj.ri);
                     callback(err, results);
                 }
                 else {
@@ -2862,13 +2812,11 @@ exports.update_hd_binSh = function (connection, obj, callback) {
 };
 
 exports.update_hd_fauDn = function (connection, obj, callback) {
-    console.time('update_hd_fauDn ' + obj.ri);
     _this.update_lookup(connection, obj, function (err, results) {
         if (!err) {
             var qb2 = facade.k('fcnt').update({ sus: obj.sus }).where({ ri: obj.ri });
             facade.run(qb2, connection, function (err, results) {
                 if (!err) {
-                    console.timeEnd('update_hd_fauDn ' + obj.ri);
                     callback(err, results);
                 }
                 else {
@@ -2883,13 +2831,11 @@ exports.update_hd_fauDn = function (connection, obj, callback) {
 };
 
 exports.update_hd_colSn = function (connection, obj, callback) {
-    console.time('update_hd_colSn ' + obj.ri);
     _this.update_lookup(connection, obj, function (err, results) {
         if (!err) {
             var qb2 = facade.k('fcnt').update({ colSn: obj.colSn }).where({ ri: obj.ri });
             facade.run(qb2, connection, function (err, results) {
                 if (!err) {
-                    console.timeEnd('update_hd_colSn ' + obj.ri);
                     callback(err, results);
                 }
                 else {
@@ -2904,13 +2850,11 @@ exports.update_hd_colSn = function (connection, obj, callback) {
 };
 
 exports.update_hd_brigs = function (connection, obj, callback) {
-    console.time('update_hd_brigs ' + obj.ri);
     _this.update_lookup(connection, obj, function (err, results) {
         if (!err) {
             var qb2 = facade.k('fcnt').update({ brigs: obj.brigs }).where({ ri: obj.ri });
             facade.run(qb2, connection, function (err, results) {
                 if (!err) {
-                    console.timeEnd('update_hd_brigs ' + obj.ri);
                     callback(err, results);
                 }
                 else {
@@ -2925,13 +2869,11 @@ exports.update_hd_brigs = function (connection, obj, callback) {
 };
 
 exports.update_hd_color = function (connection, obj, callback) {
-    console.time('update_hd_color ' + obj.ri);
     _this.update_lookup(connection, obj, function (err, results) {
         if (!err) {
             var qb2 = facade.k('fcnt').update({ red: obj.red, green: obj.green, blue: obj.blue }).where({ ri: obj.ri });
             facade.run(qb2, connection, function (err, results) {
                 if (!err) {
-                    console.timeEnd('update_hd_color ' + obj.ri);
                     callback(err, results);
                 }
                 else {
@@ -2974,8 +2916,6 @@ var BODY_UPDATES = {
 
 function make_body_update(name, table, cols, json_cols) {
     return function (connection, obj, callback) {
-        var label = name + ' ' + obj.ri;
-        console.time(label);
 
         _this.update_lookup(connection, obj, function (err, results) {
             if (err) {
@@ -2999,7 +2939,6 @@ function make_body_update(name, table, cols, json_cols) {
 
             facade.run(facade.k(table).update(row).where({ ri: obj.ri }), connection,
                 function (err2, results2) {
-                    console.timeEnd(label);
                     callback(err2, results2);
                 });
         });
@@ -3014,7 +2953,6 @@ Object.keys(BODY_UPDATES).forEach(function (name) {
 // ---------------------------------------------------------------------------
 
 exports.update_sub = function (connection, obj, callback) {
-    console.time('update_sub ' + obj.ri);
     facade.transaction(connection, function (conn, finish) {
         _this.update_lookup(conn, obj, function (err, results) {
             if (err) { return finish(err, results); }
@@ -3038,15 +2976,12 @@ exports.update_sub = function (connection, obj, callback) {
         });
     }, function (err, results) {
         if (!err) {
-            console.timeEnd('update_sub ' + obj.ri);
         }
         callback(err, results);
     });
 };
 
 exports.update_cnt_cni = function (connection, obj, callback) {
-    var cni_id = 'update_cnt_cni ' + obj.ri + ' - ' + require('shortid').generate();
-    console.time(cni_id);
 
     var qb = facade.k('cnt')
         .update({ cni: obj.cni, cbs: obj.cbs })
@@ -3054,7 +2989,6 @@ exports.update_cnt_cni = function (connection, obj, callback) {
 
     facade.run(qb, connection, function (err, results) {
         if (!err) {
-            console.timeEnd(cni_id);
         }
         callback(err, results);
     });
@@ -3563,34 +3497,40 @@ exports.select_over_limit = function (connection, limit, callback) {
         .limit(n), connection, callback);
 };
 
+// CIN 생성 뒤 부모 cnt 의 cni/cbs 를 올리고 lookup 의 st 를 올린다 — 두 문장.
+//
+// 삭제 쪽(update_parent_by_delete)은 같은 두 문장을 transaction 으로 감싸는데
+// 이쪽만 감싸지 않았다(남은 일 §4.3). 첫 문장이 성공하고 둘째가 실패하면
+// cni 는 올라갔는데 st 는 안 올라간 채 남았다. 같은 모양으로 맞춘다 — MySQL 은
+// 실제 BEGIN/COMMIT, SQLite 는 능력이 없어 본문만 돈다(기존과 같다).
 exports.update_parent_counters = function (connection, pi, cs, callback) {
     var n = (typeof cs === 'number' && isFinite(cs)) ? cs : 0;
 
-    facade.run(facade.k('cnt').update({
-        cni: facade.raw('cni + 1'),
-        cbs: facade.raw('cbs + ?', [n])
-    }).where({ ri: pi }), connection, function (err, results) {
+    facade.transaction(connection, function (conn, finish) {
+        facade.run(facade.k('cnt').update({
+            cni: facade.raw('cni + 1'),
+            cbs: facade.raw('cbs + ?', [n])
+        }).where({ ri: pi }), conn, function (err, results) {
+            if (err) { return finish(err, results); }
+
+            // 자식이 생겼으니 부모 stateTag 를 올린다. cnt 행이 있을 때만 —
+            // 위 UPDATE 와 같은 조건이어야 둘이 갈라지지 않는다.
+            facade.run(facade.k('lookup')
+                .update({ st: facade.raw('st + 1') })
+                .where({ ri: pi })
+                .whereExists(facade.k('cnt').select('*').whereRaw('cnt.ri = ?', [pi])),
+                conn, function (err2, r2) {
+                finish(err2, err2 ? r2 : results);
+            });
+        });
+    }, function (err, results) {
         if (err) {
             // 카운터가 어긋나도 CIN 은 이미 저장됐다. 요청을 실패시키지 않는다 —
             // reconcile 이 하루 안에 실측으로 바로잡는다.
-            console.error('[update_parent_counters] cnt 갱신 실패 pi=' + pi +
+            console.error('[update_parent_counters] 부모 갱신 실패 pi=' + pi +
                           ' : ' + ((results && results.message) || results));
-            return callback(err, results);
         }
-
-        // 자식이 생겼으니 부모 stateTag 를 올린다. cnt 행이 있을 때만 —
-        // 위 UPDATE 와 같은 조건이어야 둘이 갈라지지 않는다.
-        facade.run(facade.k('lookup')
-            .update({ st: facade.raw('st + 1') })
-            .where({ ri: pi })
-            .whereExists(facade.k('cnt').select('*').whereRaw('cnt.ri = ?', [pi])),
-            connection, function (err2, r2) {
-            if (err2) {
-                console.error('[update_parent_counters] st 갱신 실패 pi=' + pi +
-                              ' : ' + ((r2 && r2.message) || r2));
-            }
-            callback(err2, r2);
-        });
+        callback(err, results);
     });
 };
 
@@ -3603,8 +3543,6 @@ exports.update_parent_counters = function (connection, pi, cs, callback) {
 // 테이블에 존재할 때만 올린다"는 의미이므로, EXISTS 서브쿼리로 그대로 옮긴다.
 exports.update_parent_st = function (connection, obj, callback) {
     var tableName = responder.typeRsrc[parseInt(obj.ty, 10)];
-    var st_id = 'update_parent_st ' + obj.ri + ' - ' + require('shortid').generate();
-    console.time(st_id);
 
     var qb = facade.k('lookup')
         .update({ st: facade.raw('st + 1') })
@@ -3613,7 +3551,6 @@ exports.update_parent_st = function (connection, obj, callback) {
 
     facade.run(qb, connection, function (err, results) {
         if (!err) {
-            console.timeEnd(st_id);
         }
         callback(err, results);
     });
@@ -3630,8 +3567,6 @@ exports.update_parent_st = function (connection, obj, callback) {
 // console.time 라벨이 'update_parent_by_insert' 였던 것은 복사 실수다.
 exports.update_parent_by_delete = function (connection, obj, cs, callback) {
     var tableName = responder.typeRsrc[parseInt(obj.ty, 10)];
-    var cni_id = 'update_parent_by_delete ' + obj.ri + ' - ' + require('shortid').generate();
-    console.time(cni_id);
 
     facade.transaction(connection, function (conn, finish) {
         var q1 = facade.k(tableName)
@@ -3654,7 +3589,6 @@ exports.update_parent_by_delete = function (connection, obj, cs, callback) {
         });
     }, function (err, results) {
         if (!err) {
-            console.timeEnd(cni_id);
         }
         callback(err, results);
     });
@@ -4669,21 +4603,15 @@ exports.delete_orphan_lookup = function (connection, callback) {
 // migrations/003-drop-req-table.js 가 한 번에 정리한다.
 
 exports.select_sum_cbs = function (connection, callback) {
-    var tid = require('shortid').generate();
-    console.time('select_sum_cbs ' + tid);
     // 집계 컬럼 이름(sum(cbs))이 응답에 그대로 나가므로 빌더 대신 raw 로 SQL 을 유지한다.
     facade.run(facade.raw('select sum(cbs) from cnt'), connection, function (err, result_Obj) {
-        console.timeEnd('select_sum_cbs ' + tid);
         callback(err, result_Obj);
     });
 };
 
 exports.select_sum_ae = function (connection, callback) {
-    var tid = require('shortid').generate();
-    console.time('select_sum_ae ' + tid);
     // 집계 컬럼 이름(count(*))이 응답에 그대로 나가므로 빌더 대신 raw 로 SQL 을 유지한다.
     facade.run(facade.raw('select count(*) from ae'), connection, function (err, result_Obj) {
-        console.timeEnd('select_sum_ae ' + tid);
         callback(err, result_Obj);
     });
 };
