@@ -1434,12 +1434,17 @@ function with_connection(request, response, fn) {
  * 허용 조합은 mobius/route_gate.js 표이고, 옛 조건식과 같은지는 시험이
  * 전수 대조한다 — 옮기다 조합 하나를 빠뜨리면 400 이 새로 나간다.
  */
-function run_operation(request, response, settle, lookup) {
+// **method 는 라우트가 아는 이름을 넘긴다 — request.method 가 아니다.** Express 4 는
+// HEAD 를 app.get('*') 로 태우고 request.method 는 'HEAD' 그대로다. 그것을 표에
+// 넣으면 모르는 메서드라 던지고, 그 자리가 DB 콜백 안이라 backstop 이 워커를
+// 죽였다(066c550 배포 직후 독립 검토가 잡았다, 2026-09-05). 옛 라우트는 메서드를
+// 안 보고 GET 조건식을 썼으므로 HEAD 는 GET 이다 — 본문은 Node 가 버린다.
+function run_operation(request, response, settle, method, lookup) {
     var rootnm = Object.keys(request.targetObject)[0];
     request.url = request.targetObject[rootnm].ri;
-    if (request.method === 'DELETE') { request.pi = request.targetObject[rootnm].pi; }
+    if (method === 'DELETE') { request.pi = request.targetObject[rootnm].pi; }
 
-    var reject = route_gate.reject(request.method, request.query);
+    var reject = route_gate.reject(method, request.query);
     if (reject) { settle.error(reject); return; }
 
     lookup(request, response, (code, out) => { settle.done(code, out); });
@@ -2450,7 +2455,7 @@ app.post('*', onem2mParser, (request, response) => {
                                                     if (code === '200') {
                                                         check_notification(request, response, (code) => {
                                                             if (code === 'post') {
-                                                                run_operation(request, response, settle, lookup_create);
+                                                                run_operation(request, response, settle, 'POST', lookup_create);
                                                             }
                                                             else if (code === 'notify') {
                                                                 check_ae_notify(request, response, (code, res) => {
@@ -2525,7 +2530,7 @@ app.get('*', onem2mParser, (request, response) => {
                         get_target_url(request, response, (code) => {
                             if (code === '200') {
                                 if (request.option !== '/fopt') {
-                                    run_operation(request, response, settle, lookup_retrieve);
+                                    run_operation(request, response, settle, 'GET', lookup_retrieve);
                                 }
                                 else { //if (request.option === '/fopt') {
                                     run_fanout(request, response, settle, (request.query.fu == 1) ? '32' : '2', false);
@@ -2587,7 +2592,7 @@ app.put('*', onem2mParser, (request, response) => {
                                             if (code === '200') {
                                                 check_type_update_resource(request, (code) => {
                                                     if (code === '200') {
-                                                        run_operation(request, response, settle, lookup_update);
+                                                        run_operation(request, response, settle, 'PUT', lookup_update);
                                                     }
                                                     else {
                                                         settle.error(code);
@@ -2638,7 +2643,7 @@ app.delete('*', onem2mParser, (request, response) => {
                         if (request.option !== '/fopt') {
                             check_type_delete_resource(request, (code) => {
                                 if (code === '200') {
-                                    run_operation(request, response, settle, lookup_delete);
+                                    run_operation(request, response, settle, 'DELETE', lookup_delete);
                                 }
                                 else {
                                     settle.error(code);

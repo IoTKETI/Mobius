@@ -162,6 +162,13 @@ function collect(PORT, OUT) {
             ['PUT xml',         'PUT', CNT, { 'm2m:cnt': { lbl: ['b'] } }, J, { Accept: 'application/xml' }],
             ['POST rcn3',       'POST', CNT + '?rcn=3', { 'm2m:cin': { con: 'v2' } }, J + ';ty=4', { Accept: J }],
 
+            // 2단계 뒤 생산자가 모양 이름(shape)을 직접 주므로, 모양마다 한 번은
+            // 밟아야 한다. 독립 검토가 지적한 미검증 종단 둘 — rcn=2(uri 하나) 와
+            // fu=2&rcn=4/5/6(grouped, 루트 m2m:rsp). fu=1 은 uril 이라 별개다.
+            ['POST rcn2',       'POST', CNT + '?rcn=2', { 'm2m:cin': { con: 'v3' } }, J + ';ty=4', { Accept: J }],
+            ['discovery rcn4',  'GET', AE + '?fu=2&rcn=4', null, null, { Accept: J }],
+            ['discovery rcn6',  'GET', AE + '?fu=2&rcn=6', null, null, { Accept: J }],
+
             // Accept 가 없을 때 무엇으로 답하는가.
             //
             // **지금은 언제나 json 이다.** Accept 도 요청의 Content-Type 도

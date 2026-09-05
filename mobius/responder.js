@@ -433,6 +433,11 @@ var operation = {
  * response_result 에 있던 rt 갈래(rt!=3 이면 응답 없이 콜백만 불러 요청이
  * 매달렸다)는 1단계에서 없앴다 — 실트래픽은 언제나 rt=3 이다.
  */
+// 시험이 grouped 의 기대값을 body_of 자신이 아니라 shape.grouped + 이 함수로
+// 따로 만들 수 있게 내보낸다. 안 내보내면 시험이 동어반복이 되어 grouped 의
+// 정규화를 통째로 빼도 못 잡는다 — 배포 뒤 독립 검토가 변이로 확인했다.
+exports.typeCheckforJson2 = typeCheckforJson2;
+
 exports.body_of = function (out, rcn) {
     switch (out.shape) {
         case 'single':  return shape.single(out.body, rcn, _this.typeCheckforJson);

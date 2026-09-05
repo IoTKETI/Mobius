@@ -423,6 +423,28 @@ test('표에서 만들어지는 빌더의 호출부는 전부 3인자다', funct
         }
     }
 
+    // 표 디스패치(1단계 5번): insert_hd_* 여덟은 db_sql[HD_INSERT[hd]](…) 한 자리로
+    // 부른다. 위 정규식은 그 자리를 못 보므로 따로 센다 — 여덟 빌더의 3인자 보호가
+    // 조용히 사라진 것을 배포 뒤 독립 검토가 잡았다(4인자 변이가 통과했다).
+    const rsrc = fs.readFileSync(path.join(ROOT, 'mobius/resource.js'), 'utf8');
+    const DISPATCH = 'db_sql[HD_INSERT[hd]](';
+    const at = rsrc.indexOf(DISPATCH);
+    assert.ok(at > 0, 'insert_hd_* 표 디스패치 자리를 못 찾았다 — 이 검사의 전제가 바뀌었다');
+    assert.strictEqual(rsrc.indexOf(DISPATCH, at + 1), -1, '표 디스패치 자리는 하나여야 한다');
+    {
+        let depth = 0, n = 1;
+        for (let i = at + DISPATCH.length - 1; i < rsrc.length; i++) {
+            const ch = rsrc[i];
+            if ('([{'.indexOf(ch) >= 0) { depth++; }
+            else if (')]}'.indexOf(ch) >= 0) { depth--; if (depth === 0) { break; } }
+            else if (ch === ',' && depth === 1) { n++; }
+        }
+        calls++;
+        if (n !== 3) {
+            bad.push('mobius/resource.js:' + rsrc.slice(0, at).split('\n').length + ' db_sql[HD_INSERT[hd]] 이 인자 ' + n + '개');
+        }
+    }
+
     assert.ok(calls > 0, '호출부를 하나도 못 찾았다 — 검사가 헛돈다');
     assert.deepStrictEqual(bad, [],
         '표에서 만들어지는 빌더는 (connection, obj, callback) 3인자다. ' +

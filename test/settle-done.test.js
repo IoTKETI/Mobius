@@ -99,14 +99,15 @@ test('done(null, out): 카탈로그 status·rsc 와 body_of 본문으로 respond
     ];
     // 기대값은 body_of 가 아니라 **shape 함수로 직접** 만든다 — body_of 로 만들면
     // body_of 가 모양을 바꿔 불러도(rce 가 grouped 로) 양쪽이 같이 틀려 못 잡는다.
-    // 변이 시험에서 실제로 그렇게 놓쳤다. grouped 만은 정규화 함수
-    // (typeCheckforJson2)가 responder 밖으로 안 나와 body_of 를 쓴다.
+    // 변이 시험에서 실제로 그렇게 놓쳤다. grouped 도 마찬가지다 — 처음엔 정규화
+    // 함수(typeCheckforJson2)가 안 나와 body_of 를 썼는데, 그러면 grouped 의
+    // 정규화를 통째로 빼도 1,126건이 다 통과했다(배포 뒤 독립 검토의 변이 실험).
     const copy = (o) => JSON.parse(JSON.stringify(o));
     const EXPECT = {
         single:  (o) => shape.single(copy(o.body), '1', responder.typeCheckforJson),
         rce:     (o) => shape.rce(copy(o.body), o.rootnm, responder.typeCheckforJson),
         uril:    (o) => shape.uril(copy(o.body), o.rootnm),
-        grouped: (o) => responder.body_of(copy(o), '1')
+        grouped: (o) => shape.grouped(copy(o.body), o.rootnm, responder.typeCheckforJson2)
     };
     cases.forEach((out) => {
         const log = [];
@@ -174,6 +175,14 @@ test('body_of: 네 모양은 shape 의 같은 함수로, 모르는 모양은 Typ
     // grouped 는 원소 배열을 받는다 — rce 와 모양이 다르므로 서로 바꿔 부르면 여기서 갈린다
     const grouped = responder.body_of({ shape: 'grouped', rootnm: 'cnt', body: { 'm2m:cnt': [{ rn: 'a', ty: '3' }] } });
     assert.ok(grouped && !('m2m:rce' in grouped), 'grouped 결과에 m2m:rce 가 있으면 rce 로 갔다');
+    // grouped 의 정규화를 **값으로** 못박는다 — discovery(fu=2&rcn=4) 결과는 ri 를 키로 한
+    // 행 맵이고, body_of 가 한 겹 안에 typeCheckforJson2 를 걸어 ty·st·cni 를 숫자로,
+    // lbl 을 배열로 되돌리고 subl 을 뺀다. 정규화가 빠지거나 한 겹짜리로 바뀌면 여기서 갈린다
+    // (배포 뒤 독립 검토가 no-op 변이로 1,126건 전부 통과하는 것을 보였다).
+    assert.deepStrictEqual(
+        responder.body_of({ shape: 'grouped', rootnm: 'rsp',
+            body: { '/Mobius/ae/c1': { rn: 'c1', ty: '3', pi: '/Mobius/ae', lbl: '["l"]', st: '0', cni: '5', subl: '["x"]', cr: 'Cx' } } }, '4'),
+        { 'm2m:rsp': { 'm2m:cnt': [{ rn: 'c1', ty: 3, pi: '/Mobius/ae', lbl: ['l'], st: 0, cni: 5, cr: 'Cx' }] } });
     assert.throws(() => responder.body_of({ shape: 'list', body: {} }), TypeError);
     assert.throws(() => responder.body_of({ body: {} }), TypeError);
 });
@@ -186,9 +195,15 @@ test('app.js 라우트 넷이 settle.done 을 부르고 옛 세 함수를 직접
     assert.strictEqual(count('settle.result('), 0);
     assert.strictEqual(count('settle.rcn3('), 0);
     assert.strictEqual(count('settle.search('), 0, 'run_fanout 도 done 을 쓴다 (2단계 9번)');
-    ['lookup_create', 'lookup_retrieve', 'lookup_update', 'lookup_delete'].forEach((fn) => {
-        assert.strictEqual(count('run_operation(request, response, settle, ' + fn + ')'), 1, fn + ' 은 run_operation 으로 간다 (3단계 13번)');
+    // 메서드는 라우트가 아는 이름을 **리터럴로** 넘긴다 — request.method 를 넘기면
+    // Express 4 가 app.get 으로 태우는 HEAD 가 표에 없어 던지고 워커가 죽는다(실제로 났다).
+    const METHOD = { lookup_create: 'POST', lookup_retrieve: 'GET', lookup_update: 'PUT', lookup_delete: 'DELETE' };
+    Object.keys(METHOD).forEach((fn) => {
+        assert.strictEqual(count("run_operation(request, response, settle, '" + METHOD[fn] + "', " + fn + ')'), 1,
+                           fn + ' 은 run_operation 으로 간다 — 메서드 리터럴과 함께 (3단계 13번)');
     });
+    assert.strictEqual(count('route_gate.reject(request.method'), 0, '게이트에 request.method 를 넘기면 HEAD 가 던진다');
+    assert.strictEqual(count('route_gate.reject(method, request.query)'), 1);
     assert.ok(/lookup\(request, response, \(code, out\) => \{ settle\.done\(code, out\); \}\)/.test(src),
               'run_operation 이 (code, out) 을 done 으로 넘긴다');
 });
