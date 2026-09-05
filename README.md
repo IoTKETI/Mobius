@@ -166,7 +166,7 @@ npm run status                      # master pid, port, boot record, keys waitin
 ```
 `dbpass` and `superUser` are stored in plain text; the wizard hides them while you type. To re-enter one later: `npm run setup -- --dbpass` or `npm run setup -- --superuser` (prompt only — never a command-line argument).
 
-Both secrets are sealed against hand-editing: alongside `conf.json` the server keeps `conf.seal.json` (gitignored), and hand-edits of the two secrets are refused at boot. Existing installs have no seal yet — before restarting on a new core, run `npm run setup -- --superuser` once and **type the current value** (`Sponde` if you never changed it) — an empty answer changes nothing and creates no seal.
+Both secrets are sealed against hand-editing: alongside `conf.json` the server keeps `conf.seal.json` (gitignored), and hand-edits of the two secrets are refused at boot. Existing installs have no seal yet — before restarting on a new core, run `npm run setup -- --superuser` once and press **Enter** — the value is kept and the seal is created. `--dbpass` follows the same rule.
 
 ### Default Retention Policies (optional)
 By default a container created without `mni` / `mbs` uses the Mobius defaults. If a deployment needs different defaults for particular container paths, they can be declared in `conf.json` as `retentionPolicies`. Omit the key to disable the feature entirely.

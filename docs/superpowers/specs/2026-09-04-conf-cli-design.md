@@ -1202,12 +1202,13 @@ adminHost      기본 127.0.0.1 — 루프백 아니면 경고 한 줄만 찍고
 | 상태 | 무엇을 한다 |
 |---|---|
 | 맞음 | 그대로 기동 |
-| `conf.seal.json` 없음 · 깨짐(읽기 실패는 `e.code` 를 붙여 구분) · 낡음(`keys` 불일치) · 불일치 | **기동하지 않는다.** `[설정] <사유>. conf.json 의 dbpass·superUser 는 도구로만 바꾼다 — 터미널에서 npm run setup -- --superuser 를 치고 현재 값을 그대로 입력(안 바꿨으면 Sponde) — Enter 는 봉인을 만들지 않는다.` 마스터는 exit 1, 워커는 **`EXIT_BAD_SEAL = 14`** 로 나가고 마스터가 재포크하지 않고 같이 종료한다(`NO_CONF` 와 같은 자리) |
+| `conf.seal.json` 없음 · 깨짐(읽기 실패는 `e.code` 를 붙여 구분) · 낡음(`keys` 불일치) · 불일치 | **기동하지 않는다.** `[설정] <사유>. conf.json 의 dbpass·superUser 는 도구로만 바꾼다 — 터미널에서 npm run setup -- --superuser 를 치고 Enter(값 유지) 하면 봉인이 만들어진다.` 마스터는 exit 1, 워커는 **`EXIT_BAD_SEAL = 14`** 로 나가고 마스터가 재포크하지 않고 같이 종료한다(`NO_CONF` 와 같은 자리) |
 | 파싱이 깨진 `conf.json` | 7판 그대로 기본값으로 진행(값이 손편집된 것이 아니라 파일이 깨진 것) |
 
-**기존 배포 파일에는 봉인이 없다.** 새 코어로 재기동하기 전에 `npm run setup -- --superuser`(현재 값을
-그대로 타이핑한다 — 빈 답은 봉인을 만들지 않는다. `--dbpass` 는 값을 새로 넣을 때만 — Enter 는 빈
-비밀번호를 쓴다)를 **한 번** 쳐서 봉인을 만든다 — 배포 3차의 순서다. 그냥 통과시키는 유예는 두지 않는다.
+**기존 배포 파일에는 봉인이 없다.** 새 코어로 재기동하기 전에 `npm run setup -- --superuser`를
+**한 번** 쳐서 봉인을 만든다 — **Enter 한 번이면 된다**(값은 그대로 두고 봉인만 만든다·이미
+있으면 다시 만든다). `--dbpass` 도 같은 규칙이다. 배포 3차의 순서이고, 그냥 통과시키는 유예는
+두지 않는다.
 
 **한계.** 같은 계정이 `conf.seal.json` 의 key 로 HMAC 을 직접 계산하면 우회할 수 있다. 사용자가 소유자·
 사용자를 나누지 않기로 했으므로 막지 않는다. 콘솔의 비밀(`adminPassword`·`adminOrigin`)은 봉인 대상이
@@ -1243,7 +1244,8 @@ CSE 신원
 
 - 마법사는 **일곱**을 묻는다: DB → dbpass(mysql 만) → cseBase → cseId → spId → **superUser** → csebaseport.
   superUser 는 화면에 안 보이게 받고 비우면 `Sponde`.
-- `npm run setup -- --superuser` — `--dbpass` 와 같은 길. 빈 입력은 바꾸지 않는다.
+- `npm run setup -- --superuser` — `--dbpass` 와 같은 길. 빈 입력(Enter)은 값을 그대로 두고
+  봉인만 만든다(있으면 다시 만든다) — 두 플래그가 같은 규칙이다(사용자 결정 2026-09-05).
 - 비-TTY 첫 기동의 안내는 `node mobius.js` 를 앞세운다(별도 명령이 아니라 첫 기동이 묻고 만든다).
 
 ### 13.5 시험 계약 (2차)
