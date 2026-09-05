@@ -1212,10 +1212,6 @@ function search_action(request, response, seq, resource_Obj, ri_list, strObj, pr
     var finding_Obj = [];
     var tbl = ty_list[seq];
 
-    if (seq == 0) {
-        console.time('search_resource');
-    }
-
     if (request.query.ty != null) {
         tbl = request.query.ty;
         seq = ty_list.length;
@@ -1224,7 +1220,6 @@ function search_action(request, response, seq, resource_Obj, ri_list, strObj, pr
     db_sql.select_in_ri_list(request.db_connection, responder.typeRsrc[tbl], ri_list, 0, finding_Obj, 0, function (err, search_Obj) {
         if (!err) {
             if (search_Obj.length >= 1) {
-                //console.timeEnd('search_resource');
 
                 if (strObj.length > 1) {
                     strObj += ',';
@@ -1239,7 +1234,6 @@ function search_action(request, response, seq, resource_Obj, ri_list, strObj, pr
             }
 
             if (++seq >= ty_list.length) {
-                console.timeEnd('search_resource');
                 callback('1', strObj);
                 return '0';
             }
@@ -2298,7 +2292,6 @@ function delete_descendants_background(root_ri, attempt) {
     function run(connection) {
         var pi_list = [root_ri];
         var result_ri = [];
-        console.time('delete_descendants ' + root_ri);
         db_sql.search_parents_lookup_all(connection, pi_list, [], result_ri, function (code) {
             if (code !== '200') {
                 // 자손 목록을 못 만들었다. 루트는 이미 지워졌으므로 그 아래가
@@ -2306,7 +2299,6 @@ function delete_descendants_background(root_ri, attempt) {
                 console.error('[delete_descendants] ' + root_ri +
                               ' 의 자손 목록을 만들지 못했다 (code=' + code +
                               '). 자손이 통째로 고아로 남는다.');
-                console.timeEnd('delete_descendants ' + root_ri);
                 if (connection) db.release(connection);
                 return;
             }
@@ -2326,7 +2318,6 @@ function delete_descendants_background(root_ri, attempt) {
                                   ' subtree 삭제가 끝나지 못했다 (code=' + code +
                                   ', 대상 ' + pi_list.length + '개). 남은 것은 고아가 된다.');
                 }
-                console.timeEnd('delete_descendants ' + root_ri);
                 if (connection) db.release(connection);
             });
         });
