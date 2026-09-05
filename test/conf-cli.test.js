@@ -34,6 +34,7 @@ function deps(opts) {
         alive: (pid) => !!opts.alive,
         probePort: (port, cb) => cb(!!opts.portOpen),
         pm2List: (cb) => cb(opts.pm2 === undefined ? null : opts.pm2),
+        sealStatus: () => (opts.seal === undefined ? { ok: true } : opts.seal),
         io: { stdin: opts.stdin || new PassThrough(), stdout: out, isTTY: !!opts.isTTY },
         all: !!opts.all,
         output: () => captured
@@ -400,6 +401,12 @@ test('T2 진입점이 --all 을 deps 로 넘기고 args 에서 뺀다 — 소스
     const src = fs.readFileSync(path.join(ROOT, 'tools', 'mobius-conf.js'), 'utf8');
     assert.match(src, /all:\s*argv\.indexOf\('--all'\)\s*>=\s*0/);
     assert.match(src, /a !== '--all'/);
+});
+
+test('봉인이 어긋나면 목록이 경고한다 — 이 상태로는 서버가 안 뜬다', function () {
+    const d = deps({ conf: { db: 'mysql' }, record: null, seal: { ok: false, reason: 'dbpass·superUser 가 도구 밖에서 바뀌었다' } });
+    assert.match(cli.renderList(d).join('\n'), /경고: 봉인[^\n]*--superuser/);
+    assert.doesNotMatch(cli.renderList(deps({ conf: { db: 'mysql' }, record: null })).join('\n'), /경고: 봉인/);
 });
 test('T2 main — 고급 키 단건 조회는 --all 없이 1 로 끝나고, --all 이면 0', function (t, done) {
     const d = deps({ conf: {}, record: null });

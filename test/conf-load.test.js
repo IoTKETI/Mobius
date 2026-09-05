@@ -157,3 +157,30 @@ test('접근 제한 목록은 배열일 때만 받는다', function (t, done) {
         done();
     });
 });
+
+test('S2/S3 conf_load 는 봉인이 없거나 어긋나면 BAD_SEAL 로 거부하고 파일을 건드리지 않는다', function (t, done) {
+    const seal = require('../mobius/conf_seal');
+    const file = tmpConf(JSON.stringify({ dbpass: 'p', superUser: 'S', csebaseport: '7581' }));
+    conf_load({ file, seal: true }, function (err) {
+        assert.ok(err && err.code === 'BAD_SEAL', String(err && err.message));
+        assert.match(err.message, /npm run setup -- --superuser/);
+        seal.seal(file, JSON.parse(fs.readFileSync(file, 'utf8')));
+        conf_load({ file, seal: true }, function (err2, applied) {
+            assert.ifError(err2);
+            assert.strictEqual(applied.csebaseport, '7581');
+            fs.writeFileSync(file, JSON.stringify({ dbpass: 'hacked', superUser: 'S', csebaseport: '7581' }), 'utf8');
+            const before = fs.readFileSync(file, 'utf8');
+            conf_load({ file, seal: true }, function (err3) {
+                assert.ok(err3 && err3.code === 'BAD_SEAL');
+                assert.strictEqual(fs.readFileSync(file, 'utf8'), before);
+                done();
+            });
+        });
+    });
+});
+test('깨진 conf.json 은 봉인 대조 없이 기본값으로 진행한다 — 손편집이 아니라 파일이 깨진 것', function (t, done) {
+    conf_load({ file: tmpConf('{"dbpass": "x"'), seal: true }, function (err) { assert.ifError(err); done(); });
+});
+test('conf_load 는 opts.file 이면 봉인을 기본으로 보지 않는다 — 시험이 임시 파일을 쓰므로', function (t, done) {
+    conf_load({ file: tmpConf('{"dbpass": "x"}') }, function (err) { assert.ifError(err); done(); });
+});

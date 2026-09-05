@@ -19,6 +19,7 @@ cbs_cache.json
 package-lock.json
 ss_ri_cache.json
 conf.json
+conf.seal.json
 *.drawio
 mobius.db*
 test_*

@@ -44,6 +44,7 @@ cli.main(args, {
     alive: function (pid) { try { process.kill(pid, 0); return true; } catch (e) { return false; } },
     probePort: cli.probePort,
     pm2List: cli.pm2List,
+    sealStatus: function () { return fs.existsSync(FILE) ? require(path.join(ROOT, 'mobius', 'conf_seal')).verify(FILE, conf) : null; },
     io: { stdin: process.stdin, stdout: process.stdout, isTTY: !!(process.stdin.isTTY && process.stdout.isTTY) },
     all: argv.indexOf('--all') >= 0
 }, function (err, code) {

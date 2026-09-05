@@ -13,7 +13,8 @@
  *
  * **update() 를 우회하는 예외 API 는 create() 와 setSecret() 둘뿐이다.** 첫 구동
  * 마법사가 dbpass·csebaseport 를 반드시 써야 하는데 isWritable() 이 그것을 막기
- * 때문이다. 둘 다 화이트리스트로 좁힌다 — 아래 각 함수의 주석.
+ * 때문이다. 둘 다 화이트리스트로 좁힌다 — 아래 각 함수의 주석. 둘 다 쓰고 나서
+ * 봉인한다(mobius/conf_seal).
  *
  * **스키마는 코어가 준다**(`mobius/conf_schema`). 이 파일은 읽기/쓰기 기계만 맡는다.
  * **global.usedb 를 세운 뒤에 require 한다** — 표가 백엔드를 따라간다.
@@ -23,6 +24,7 @@ var fs = require('fs');
 var path = require('path');
 var schema = require(path.join(__dirname, '..', 'mobius', 'conf_schema'));
 var conf_write = require(path.join(__dirname, '..', 'mobius', 'conf_write'));
+var conf_seal = require(path.join(__dirname, '..', 'mobius', 'conf_seal'));
 
 /**
  * 적용 시점.
@@ -243,6 +245,7 @@ ConfStore.prototype.create = function (obj) {
     if (fs.existsSync(this.file)) { return { ok: false, errors: ['이미 있다: ' + this.file] }; }
     try {
         conf_write.createExclusive(this.file, obj);
+        conf_seal.seal(this.file, obj);
     } catch (e) {
         if (e && e.code === 'EEXIST') { return { ok: false, errors: ['이미 있다: ' + this.file] }; }
         throw e;
@@ -267,6 +270,7 @@ ConfStore.prototype.setSecret = function (key, value) {
     var conf = this._read();
     conf[key] = value;
     this._writeAtomic(conf);
+    conf_seal.seal(this.file, conf);
     return { ok: true, errors: [] };
 };
 

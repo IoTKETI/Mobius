@@ -201,6 +201,12 @@ exports.renderList = function (deps) {
     // 표에 없는 키 — 죽은 키(usesqlite·cntManPort…)거나 오타다. 웹의 unknownKeys 경고를 여기서 잇는다.
     var unknown = Object.keys(conf).filter(function (k) { return !schema.get(k); });
     if (unknown.length) { lines.push('경고: 표에 없는 키 — 죽은 키거나 오타다: ' + unknown.join(', ')); }
+    // 봉인이 어긋나면 서버가 안 뜬다 — 목록에서 바로 보이게 한다(스펙 §13.2).
+    var sv = deps.sealStatus ? deps.sealStatus() : null;
+    if (sv && !sv.ok) {
+        lines.push('경고: 봉인 — ' + sv.reason + '. 이 상태로는 서버가 뜨지 않는다 — ' +
+            '`npm run setup -- --superuser`(mysql 이면 `--dbpass` 도)로 다시 넣을 것.');
+    }
     exports.warnings(rec).forEach(function (w) { lines.push('경고: ' + w); });
     return lines;
 };

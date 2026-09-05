@@ -12,6 +12,7 @@ const os = require('os');
 const path = require('path');
 
 const { ConfStore, APPLY, SECRET, WIZARD_KEYS } = require(path.join(__dirname, '..', 'tools', 'conf_store.js'));
+const seal = require(path.join(__dirname, '..', 'mobius', 'conf_seal.js'));
 
 function tempConf(obj) {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'confstore-'));
@@ -341,6 +342,7 @@ test('W3 create 는 마법사의 일곱 키만 받고, 파일이 있으면 동�
     assert.strictEqual(r.ok, true, r.errors.join(' '));
     assert.strictEqual(readConf(file).dbpass, 'p', 'dbpass 를 못 썼다 — create 는 isWritable 을 지나지 않는다');
     assert.strictEqual(readConf(file).cseBase, 'Vita');
+    assert.strictEqual(seal.verify(file, readConf(file)).ok, true, 'create 가 봉인하지 않았다');
 
     r = s.create({ db: 'sqlite' });
     assert.strictEqual(r.ok, false, '파일이 있는데 만들었다');
@@ -359,11 +361,16 @@ test('W3 setSecret 은 dbpass·superUser 만, 파일이 있을 때만', function
     assert.strictEqual(s.setSecret('dbpass', 'new').ok, true);
     assert.strictEqual(readConf(file).dbpass, 'new');
     assert.strictEqual(readConf(file).cseBase, 'Vita', '다른 키를 날렸다');
+    assert.strictEqual(seal.verify(file, readConf(file)).ok, true, 'setSecret 이 봉인하지 않았다');
+    const key1 = JSON.parse(fs.readFileSync(seal.sealPath(file), 'utf8')).key;
 
     // superUser 도 같은 길 — 파일에 없던 키면 추가된다
     assert.strictEqual(s.setSecret('superUser', 'Vader').ok, true);
     assert.strictEqual(readConf(file).superUser, 'Vader');
     assert.strictEqual(readConf(file).dbpass, 'new', 'dbpass 를 날렸다');
+    assert.strictEqual(seal.verify(file, readConf(file)).ok, true, 'setSecret 이 봉인하지 않았다');
+    const key2 = JSON.parse(fs.readFileSync(seal.sealPath(file), 'utf8')).key;
+    assert.strictEqual(key2, key1, 'setSecret 이 key 를 새로 만들었다');
 
     const missing = store(path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'confstore-')), 'conf.json'));
     assert.throws(function () { missing.setSecret('dbpass', 'x'); }, /ENOENT/);

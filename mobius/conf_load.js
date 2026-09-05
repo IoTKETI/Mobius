@@ -227,12 +227,18 @@ function read_conf(file, opts, callback) {
         conf = JSON.parse(fs.readFileSync(file, 'utf8'));
     }
     catch (e) {
-        // 덮어쓰지 않는다. 여기서 쓰면 남의 설정을 지운다.
+        // 덮어쓰지 않는다. 여기서 쓰면 남의 설정을 지운다. 봉인도 안 본다 — 손편집이 아니라 깨진 것이다.
         conf = JSON.parse(JSON.stringify(DEFAULT_CONF));
         console.error('[conf] conf.json 을 읽지 못했다: ' + ((e && e.message) || e));
         console.error('[conf] **파일은 그대로 둔다.** 기본값으로 진행하지만 ' +
                       'dbpass 가 달라 DB 연결이 실패할 가능성이 높다. ' +
                       '파일을 고치고 다시 띄울 것.');
+        return callback(null, conf);
+    }
+    if (opts.seal) {
+        // dbpass·superUser 는 도구로만 바꾼다(스펙 §13.2). 손으로 고쳤으면 뜨지 않는다.
+        var v = require('./conf_seal').verify(file, conf);
+        if (!v.ok) { return callback(bad_seal_error(v.reason)); }
     }
     callback(null, conf);
 }
@@ -242,6 +248,14 @@ function no_conf_error(file, why) {
                       '            터미널에서 `node mobius.js` 를 한 번 실행하면 설정을 묻고 만든다 (또는 `npm run setup`).\n' +
                       '            (' + file + ')');
     e.code = 'NO_CONF';
+    return e;
+}
+
+function bad_seal_error(reason) {
+    var e = new Error('[설정] ' + reason + '.\n' +
+                      '            conf.json 의 dbpass·superUser 는 도구로만 바꾼다 — 터미널에서 `npm run setup -- --superuser` ' +
+                      '(mysql 이면 `--dbpass` 도) 로 다시 넣으면 봉인이 만들어진다.');
+    e.code = 'BAD_SEAL';
     return e;
 }
 
@@ -284,6 +298,7 @@ function first_run(file, opts, callback) {
         if (err) { return callback(err); }
         try {
             require('./conf_write').createExclusive(file, answers);
+            require('./conf_seal').seal(file, answers);
         }
         catch (e) {
             return callback(new Error('[설정] conf.json 을 만들지 못했다: ' + ((e && e.message) || e)));
@@ -301,7 +316,8 @@ module.exports = function conf_load(opts, callback) {
     var o = {
         wizard: (opts.wizard !== undefined) ? !!opts.wizard : !opts.file,
         io: opts.io,
-        isPrimary: opts.isPrimary
+        isPrimary: opts.isPrimary,
+        seal: (opts.seal !== undefined) ? !!opts.seal : !opts.file
     };
 
     read_conf(file, o, function (err, conf) {

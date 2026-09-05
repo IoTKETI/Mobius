@@ -723,9 +723,9 @@ if (use_clustering) {
             // 포트 충돌·conf 소실은 다시 띄워도 같은 이유로 죽는다. 재포크 루프가 곧
             // 좀비다 — 마스터가 살아 있어 pm2 는 online 으로 본다. 마스터도 같은 코드로
             // 즉시 종료해 감독자가 실패를 보게 한다.
-            if (code === EXIT.PORT_TAKEN || code === EXIT.NO_CONF) {
+            if (code === EXIT.PORT_TAKEN || code === EXIT.NO_CONF || code === EXIT.BAD_SEAL) {
                 console.error('worker ' + dead.process.pid + ' 가 code=' + code + ' 로 죽었다 — ' +
-                    (code === EXIT.PORT_TAKEN ? '포트를 남이 쥐고 있다' : 'conf.json 이 없다') +
+                    (code === EXIT.PORT_TAKEN ? '포트를 남이 쥐고 있다' : code === EXIT.NO_CONF ? 'conf.json 이 없다' : '비밀 봉인이 어긋났다(손편집)') +
                     '. 다시 띄우지 않고 마스터도 종료한다.');
                 process.exit(code);
                 return;

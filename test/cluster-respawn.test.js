@@ -37,14 +37,14 @@ test('워커 종료를 exit 로 듣고 다시 띄운다', function () {
     assert.match(APP, /cluster\.on\(\s*'exit'/,
         "워커 종료를 듣는 cluster.on('exit') 가 없다");
     // 핸들러 안에서 fork 를 불러야 용량이 돌아온다.
-    const handler = /cluster\.on\(\s*'exit'[\s\S]{0,1600}?\n\s{8}\}\);/.exec(APP);
+    const handler = /cluster\.on\(\s*'exit'[\s\S]{0,2000}?\n\s{8}\}\);/.exec(APP);
     assert.ok(handler, "exit 핸들러 본문을 못 찾았다");
     assert.match(handler[0], /cluster\.fork\(\)/, 'exit 핸들러가 워커를 다시 띄우지 않는다');
 });
 
 test('의도한 종료는 다시 띄우지 않는다', function () {
     // 배포/재시작 때 부모가 워커를 내리는 경우까지 되살리면 종료가 안 끝난다.
-    const handler = /cluster\.on\(\s*'exit'[\s\S]{0,1600}?\n\s{8}\}\);/.exec(APP);
+    const handler = /cluster\.on\(\s*'exit'[\s\S]{0,2000}?\n\s{8}\}\);/.exec(APP);
     assert.match(handler[0], /exitedAfterDisconnect/,
         '의도한 종료(exitedAfterDisconnect)를 구분하지 않는다');
 });
@@ -66,13 +66,14 @@ function code_only(src) {
 }
 
 test('C9 포트 충돌·conf 소실은 재포크하지 않고 마스터도 종료한다 — exitedAfterDisconnect 뒤, setTimeout 앞', function () {
-    const handler = /cluster\.on\(\s*'exit'[\s\S]{0,1600}?\n\s{8}\}\);/.exec(APP)[0];
+    const handler = /cluster\.on\(\s*'exit'[\s\S]{0,2000}?\n\s{8}\}\);/.exec(APP)[0];
     const a = handler.indexOf('exitedAfterDisconnect');
     const b = handler.indexOf('EXIT.PORT_TAKEN');
     const c = handler.indexOf('EXIT.NO_CONF');
     const d = handler.indexOf('setTimeout');
     assert.ok(a > 0 && b > a && c > a && d > b && d > c, '분기의 자리가 틀렸다 (순서: exitedAfterDisconnect → EXIT 분기 → setTimeout)');
     assert.match(handler, /process\.exit\(code\)/, '마스터가 같은 코드로 종료하지 않는다');
+    assert.ok(handler.indexOf('EXIT.BAD_SEAL') > a, '봉인 불일치 종료 코드가 exitedAfterDisconnect 뒤에 없다');
 });
 
 test('C9 listen 네 곳 전부에 error 핸들러가 붙어 있다 — 하나만 고치면 https 배포에서 좀비가 남는다', function () {
@@ -98,4 +99,5 @@ test('C9 마스터의 시험 바인드가 부팅 기록보다 앞이다 — 뒤�
     assert.ok(probe > 0 && write > 0 && probe < write);
     assert.match(src, /cluster\.isPrimary/, '시험 바인드가 마스터에서만 도는지 가르지 않는다');
     assert.match(src, /process\.exit\(EXIT\.PORT_TAKEN\)/);
+    assert.match(src, /BAD_SEAL/);
 });

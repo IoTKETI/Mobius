@@ -136,6 +136,7 @@ test('W2 conf_load 가 마법사를 돌려 파일을 만들고 그대로 읽는�
     conf_load({ file, wizard: true, isPrimary: true, io: { stdin: t1.stdin, stdout: t1.stdout } }, function (err, applied) {
         assert.ifError(err);
         assert.ok(fs.existsSync(file), '파일이 안 생겼다');
+        assert.ok(fs.existsSync(require('../mobius/conf_seal').sealPath(file)), '봉인이 안 생겼다');
         const saved = JSON.parse(fs.readFileSync(file, 'utf8'));
         assert.strictEqual(saved.db, 'sqlite');
         assert.strictEqual(saved.cseBase, 'Vita');
@@ -147,8 +148,27 @@ test('W2 conf_load 가 마법사를 돌려 파일을 만들고 그대로 읽는�
         assert.strictEqual(applied.cseBase, 'Vita');
         assert.ok(/conf\.json 을 만들었습니다/.test(t1.seen()));
         // 두 번째 기동은 묻지 않는다
-        conf_load({ file, wizard: true, isPrimary: true, io: { stdin: new FakeTty(), stdout: new FakeTty() } }, function (err2) {
+        conf_load({ file, wizard: true, seal: true, isPrimary: true, io: { stdin: new FakeTty(), stdout: new FakeTty() } }, function (err2) {
             assert.ifError(err2);
+            done();
+        });
+    });
+});
+
+test('S1 마법사가 봉인을 만들고, dbpass 를 손으로 고치면 다음 기동이 BAD_SEAL 이다', function (t, done) {
+    const backends = db.backends();
+    const file = path.join(tmpDir(), 'conf.json');
+    const t1 = io();
+    script(t1, [String(backends.indexOf('mysql') + 1), 'hunter2', '', '', '', 'Vader', '']);
+    fresh();
+    conf_load({ file, wizard: true, seal: true, isPrimary: true, io: { stdin: t1.stdin, stdout: t1.stdout } }, function (err) {
+        assert.ifError(err);
+        const saved = JSON.parse(fs.readFileSync(file, 'utf8'));
+        saved.dbpass = 'hacked';
+        fs.writeFileSync(file, JSON.stringify(saved), 'utf8');
+        fresh();
+        conf_load({ file, wizard: true, seal: true, isPrimary: true, io: { stdin: new FakeTty(), stdout: new FakeTty() } }, function (err2) {
+            assert.ok(err2 && err2.code === 'BAD_SEAL', String(err2 && err2.message));
             done();
         });
     });
@@ -189,14 +209,18 @@ test('C10 (나) 워커는 묻지 않는다 — conf.json 이 없으면 NO_CONF',
     });
 });
 
-test('C10 mobius.js 는 워커의 NO_CONF 를 EXIT.NO_CONF 로 내고, app.js 마스터가 그것을 보면 재포크하지 않는다', function () {
+test('C10/S6 mobius.js 는 워커의 NO_CONF·BAD_SEAL 을 전용 코드로 내고, app.js 마스터가 그것을 보면 재포크하지 않는다', function () {
     const strip = (s) => s.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|[^:])\/\/[^\n]*/g, '$1');
     const m = strip(fs.readFileSync(path.join(ROOT, 'mobius.js'), 'utf8'));
-    assert.match(m, /err\.code === 'NO_CONF'/);
+    // 워커 전용 종료 코드는 표(WORKER_EXIT)로 — NO_CONF(13)·BAD_SEAL(14). 리터럴 비교를 나열하면 셋째 코드에서 갈라진다.
+    assert.match(m, /WORKER_EXIT\s*=\s*\{[^}]*NO_CONF:\s*EXIT\.NO_CONF/);
+    assert.match(m, /WORKER_EXIT\s*=\s*\{[^}]*BAD_SEAL:\s*EXIT\.BAD_SEAL/);
+    assert.match(m, /WORKER_EXIT\[err\.code\]/);
     assert.match(m, /EXIT\.NO_CONF/);
     const a = strip(fs.readFileSync(path.join(ROOT, 'app.js'), 'utf8'));
-    const handler = /cluster\.on\(\s*'exit'[\s\S]{0,1600}?\n\s{8}\}\);/.exec(a)[0];
+    const handler = /cluster\.on\(\s*'exit'[\s\S]{0,2000}?\n\s{8}\}\);/.exec(a)[0];
     assert.match(handler, /EXIT\.NO_CONF/);
+    assert.match(handler, /EXIT\.BAD_SEAL/);
 });
 
 test('W1 프로세스 수준 — 파이프로 띄우면 매달리지 않고 파일 없이 1 로 끝난다', function () {

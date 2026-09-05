@@ -28,12 +28,15 @@ var boot_record = require('./mobius/boot_record');
 var port_guard = require('./mobius/port_guard');
 var EXIT = require('./mobius/exit_codes');
 
+// conf.json 이 없거나 봉인이 어긋난 워커는 전용 코드로 나간다.
+var WORKER_EXIT = { NO_CONF: EXIT.NO_CONF, BAD_SEAL: EXIT.BAD_SEAL };
+
 conf_load(function (err, applied) {
     if (err) {
         console.error(err.message);
-        // conf.json 이 없는 워커는 전용 코드로 나간다 — 마스터가 그것을 보고 재포크
-        // 하지 않고 같이 종료한다(app.js 의 cluster.on('exit')). 마스터 자신은 1 이다.
-        process.exit((err.code === 'NO_CONF' && !cluster.isPrimary) ? EXIT.NO_CONF : 1);
+        // 마스터가 그것을 보고 재포크하지 않고 같이 종료한다(app.js 의 cluster.on('exit')).
+        // 마스터 자신은 1 이다.
+        process.exit((!cluster.isPrimary && WORKER_EXIT[err.code]) ? WORKER_EXIT[err.code] : 1);
         return;
     }
     if (!cluster.isPrimary) { return boot(applied); }
