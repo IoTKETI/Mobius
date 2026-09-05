@@ -96,6 +96,9 @@ const CASES = [
       body: JSON.stringify({ 'm2m:ae': { rn: 'x' } }) },
     { case: 'delete-cse',     method: 'DELETE', path: CB },
     { case: 'bad-rcn-get',    method: 'GET',    path: CB + '/' + AE + '?rcn=0' },
+    // 게이트는 rcn=7 을 통과시키는데 retrieve 가 낼 모양이 없다. 예전에는 discovery 를
+    // 다 돌린 뒤 카탈로그에 없는 '400' 을 올려 500 이 났다 (남은 일 §3.1).
+    { case: 'bad-rcn7-get',   method: 'GET',    path: CB + '/' + AE + '?fu=2&rcn=7' },
 
     // mni=0 컨테이너에 CIN 을 넣으면 406 이 난다 (406-1)
     { case: 'mni-zero-cnt',   method: 'POST',   path: CB + '/' + AE, ct: 'application/json;ty=3',

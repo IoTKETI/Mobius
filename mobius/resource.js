@@ -414,11 +414,16 @@ function create_action(request, response, callback) {
                 // 자식이 생겼으니 부모 stateTag 를 올린다.
                 // 이 호출은 원래 useCert=='enable' 뒤에 있어 한 번도 실행되지 않았다
                 // (mobius.js 가 'disable' 로 하드코딩). 플래그를 걷어내며 되살렸다.
+                // 부모 st 갱신이 **끝난 뒤** 응답한다. 예전에는 빈 콜백을 주고 곧바로
+                // callback('200') 을 불렀다 — 응답 뒤 정산기가 커넥션을 반납하는데 그
+                // 위에서 이 UPDATE 가 아직 돌고 있었다(남은 일 §4.1, sgn.js 의 D17 과
+                // 같은 유형). :455 의 update_parent_counters 가 옳은 모양이다.
+                // 갱신 실패는 예전처럼 응답을 바꾸지 않는다 — 로그만 남긴다.
                 db_sql.update_parent_st(request.db_connection,
-                    request.targetObject[cnt_parent_rootnm], function () {
+                    request.targetObject[cnt_parent_rootnm], function (err) {
+                        if (err) { console.log('[create_action] update_parent_st failed: ' + err); }
+                        callback('200');
                     });
-
-                callback('200');
             }
             else {
                 if (db_errors.isDuplicateKey(results)) {
@@ -1357,6 +1362,16 @@ exports.retrieve = function (request, response, callback) {
     // 지금까지 10초 뒤 404 를 받던 클라이언트가 즉시 400 을 받게 되는데,
     // 어느 쪽도 원하는 답이 아니라면 결과를 주는 쪽이 낫다.
     else {
+        // 이 갈래가 낼 수 있는 모양은 둘뿐이다 — fu=1 이면 uril, rcn=4/5/6 이면 grouped.
+        // 라우트 게이트는 GET 에 rcn=7 도 통과시키므로(옛 조건식 그대로) fu=2&rcn=7 이
+        // 여기까지 온다. 예전에는 discovery 를 **다 돌린 뒤** 카탈로그에 없는 '400' 을
+        // 올려 500 이 나갔다(남은 일 §3.1). 돌리기 전에 카탈로그 코드로 거절한다.
+        if (request.query.fu != 1 &&
+            !(request.query.rcn == 4 || request.query.rcn == 5 || request.query.rcn == 6)) {
+            callback('400-44');
+            return;
+        }
+
         request.headers.rootnm = 'agr';
 
 
@@ -1455,7 +1470,9 @@ exports.retrieve = function (request, response, callback) {
                                     callback(null, { rsc: 'OK', shape: 'grouped', rootnm: request.headers.rootnm, body: request.resourceObj });
                                 }
                                 else {
-                                    callback('400');
+                                    // 위의 앞선 거절 때문에 도달하지 않는다. 남겨 두는 것은 방어 —
+                                    // 카탈로그에 없는 '400' 을 올리면 500 이 된다.
+                                    callback('400-44');
                                 }
                             }
                             });
@@ -2385,11 +2402,12 @@ function delete_action(request, response, callback) {
 
                                             // update_lookup 은 st 를 obj.st 그대로 다시 쓴다(대입).
                                             // 자식이 지워졌으니 부모 stateTag 는 올라가야 한다.
+                                            // 갱신이 끝난 뒤 응답한다 — create_action 의 같은 자리 주석 참조 (§4.1).
                                             db_sql.update_parent_st(request.db_connection,
-                                                request.targetObject[parent_rootnm], function () {
+                                                request.targetObject[parent_rootnm], function (err) {
+                                                    if (err) { console.log('[delete_action] update_parent_st failed: ' + err); }
+                                                    callback('200');
                                                 });
-
-                                            callback('200');
                                         });
                                     }
                                     else if (resource_Obj[rootnm].ty == '4') {
@@ -2409,11 +2427,12 @@ function delete_action(request, response, callback) {
                                     }
                                     else {
                                         // CIN 외의 자식이 지워져도 부모 stateTag 는 올라가야 한다.
+                                        // 갱신이 끝난 뒤 응답한다 — create_action 의 같은 자리 주석 참조 (§4.1).
                                         db_sql.update_parent_st(request.db_connection,
-                                            request.targetObject[parent_rootnm], function () {
+                                            request.targetObject[parent_rootnm], function (err) {
+                                                if (err) { console.log('[delete_action] update_parent_st failed: ' + err); }
+                                                callback('200');
                                             });
-
-                                        callback('200');
                                     }
                                 }
                                 else {
