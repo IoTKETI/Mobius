@@ -3565,34 +3565,40 @@ exports.select_over_limit = function (connection, limit, callback) {
         .limit(n), connection, callback);
 };
 
+// CIN 생성 뒤 부모 cnt 의 cni/cbs 를 올리고 lookup 의 st 를 올린다 — 두 문장.
+//
+// 삭제 쪽(update_parent_by_delete)은 같은 두 문장을 transaction 으로 감싸는데
+// 이쪽만 감싸지 않았다(남은 일 §4.3). 첫 문장이 성공하고 둘째가 실패하면
+// cni 는 올라갔는데 st 는 안 올라간 채 남았다. 같은 모양으로 맞춘다 — MySQL 은
+// 실제 BEGIN/COMMIT, SQLite 는 능력이 없어 본문만 돈다(기존과 같다).
 exports.update_parent_counters = function (connection, pi, cs, callback) {
     var n = (typeof cs === 'number' && isFinite(cs)) ? cs : 0;
 
-    facade.run(facade.k('cnt').update({
-        cni: facade.raw('cni + 1'),
-        cbs: facade.raw('cbs + ?', [n])
-    }).where({ ri: pi }), connection, function (err, results) {
+    facade.transaction(connection, function (conn, finish) {
+        facade.run(facade.k('cnt').update({
+            cni: facade.raw('cni + 1'),
+            cbs: facade.raw('cbs + ?', [n])
+        }).where({ ri: pi }), conn, function (err, results) {
+            if (err) { return finish(err, results); }
+
+            // 자식이 생겼으니 부모 stateTag 를 올린다. cnt 행이 있을 때만 —
+            // 위 UPDATE 와 같은 조건이어야 둘이 갈라지지 않는다.
+            facade.run(facade.k('lookup')
+                .update({ st: facade.raw('st + 1') })
+                .where({ ri: pi })
+                .whereExists(facade.k('cnt').select('*').whereRaw('cnt.ri = ?', [pi])),
+                conn, function (err2, r2) {
+                finish(err2, err2 ? r2 : results);
+            });
+        });
+    }, function (err, results) {
         if (err) {
             // 카운터가 어긋나도 CIN 은 이미 저장됐다. 요청을 실패시키지 않는다 —
             // reconcile 이 하루 안에 실측으로 바로잡는다.
-            console.error('[update_parent_counters] cnt 갱신 실패 pi=' + pi +
+            console.error('[update_parent_counters] 부모 갱신 실패 pi=' + pi +
                           ' : ' + ((results && results.message) || results));
-            return callback(err, results);
         }
-
-        // 자식이 생겼으니 부모 stateTag 를 올린다. cnt 행이 있을 때만 —
-        // 위 UPDATE 와 같은 조건이어야 둘이 갈라지지 않는다.
-        facade.run(facade.k('lookup')
-            .update({ st: facade.raw('st + 1') })
-            .where({ ri: pi })
-            .whereExists(facade.k('cnt').select('*').whereRaw('cnt.ri = ?', [pi])),
-            connection, function (err2, r2) {
-            if (err2) {
-                console.error('[update_parent_counters] st 갱신 실패 pi=' + pi +
-                              ' : ' + ((r2 && r2.message) || r2));
-            }
-            callback(err2, r2);
-        });
+        callback(err, results);
     });
 };
 
