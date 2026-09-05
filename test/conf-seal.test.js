@@ -54,6 +54,20 @@ test('없는 비밀은 null 로 봉인한다 — sqlite 설치(dbpass 없음)도
     assert.strictEqual(seal.verify(file, { db: 'sqlite', superUser: 'S', dbpass: 'x' }).ok, false, '없던 비밀을 손으로 넣은 것도 잡는다');
     assert.strictEqual(seal.verify(file, { db: 'sqlite', superUser: 'S', dbpass: 1 }).ok, false, '숫자로 손편집해도 잡는다');
 });
+test('D1 봉인 파일을 못 읽으면(EACCES 등) "깨졌다" 가 아니라 사유에 코드를 싣는다', function (t) {
+    const file = tmpConf({ dbpass: 'p' });
+    seal.seal(file, { dbpass: 'p' });
+    const sealFile = seal.sealPath(file);
+    const orig = fs.readFileSync;
+    t.mock.method(fs, 'readFileSync', function (p, enc) {
+        if (p === sealFile) { const e = new Error('permission denied'); e.code = 'EACCES'; throw e; }
+        return orig.call(fs, p, enc);
+    });
+    const v = seal.verify(file, { dbpass: 'p' });
+    assert.strictEqual(v.ok, false);
+    assert.match(v.reason, /읽지 못했다\(EACCES\)/);
+    assert.doesNotMatch(v.reason, /깨졌다/);
+});
 test('낡은 봉인 — keys 가 지금 KEYS 와 다르면 "도구 밖에서 바뀌었다" 가 아니라 낡았다고 말한다', function () {
     const file = tmpConf({ dbpass: 'p', superUser: 'S' });
     const rec = seal.seal(file, { dbpass: 'p', superUser: 'S' });

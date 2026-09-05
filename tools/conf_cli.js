@@ -42,6 +42,9 @@ var STATE_LABEL = {
     invalid: '파일 값이 유효하지 않다'
 };
 
+// runEdit 이 관문 처리 전/후 두 자리에서 조기 반환할 때 쓴다 — 문구가 갈리지 않게.
+var NOTHING_CHANGED = '바꾼 것이 없다 — 파일을 건드리지 않았다.';
+
 var USAGE = [
     '사용법',
     '  npm run conf                     전체 목록 — 카테고리별 · 파일 값 · 3상태',
@@ -158,7 +161,7 @@ exports.renderList = function (deps) {
     var rec = deps.readRecord();
     var live = exports.liveness(rec, deps.alive);
     var record = live.running ? live.master.conf : null;
-    var lines = [], pending = [];
+    var lines = [];
 
     grouped(schema).forEach(function (grp) {
         var shown = grp.keys.filter(function (k) { return visible(deps, k) && schema.get(k).secret !== true; });
@@ -168,7 +171,6 @@ exports.renderList = function (deps) {
         shown.forEach(function (k) {
             var s = schema.get(k);
             var j = exports.judge(schema, k, conf, live.running, record);
-            if (j.state === 'pending') { pending.push(k); }
             var state = j.note || STATE_LABEL[j.state];
             lines.push('  ' + pad(k, 20) + ' ' + pad(norm(j.fileValue), 20) + ' ' + pad(state, 14) + ' ' + mark_of(s));
         });
@@ -194,10 +196,20 @@ exports.renderList = function (deps) {
     lines.push('');
     if (!live.running) {
         lines.push('모름 — ' + live.reason + '. 값 대조를 하지 않았다.');
-    } else if (pending.length) {
-        lines.push('● 재기동 대기 ' + pending.length + '건 (' + pending.join(', ') + ').  반영하려면 Mobius 를 다시 띄운다.');
     } else {
-        lines.push('재기동 대기 없음.');
+        // 재기동 대기는 --all 과 무관하게 전 키를 센다 — status 와 같은 원칙이다.
+        // 숨기는 것은 **키** 이지 "재기동이 필요하다는 사실" 이 아니다 — 고급 키를
+        // conf.json 을 직접 고쳐 바꾼 운영자에게 "재기동 대기 없음" 이라고 하면 거짓말이
+        // 된다(2차 검토 Important 2).
+        var allPending = exports.pendingKeys(deps, record);
+        if (allPending.length) {
+            var hiddenPending = allPending.filter(function (k) { return !visible(deps, k); });
+            lines.push('● 재기동 대기 ' + allPending.length + '건 (' + allPending.join(', ') + ')' +
+                (hiddenPending.length ? ' (고급 키 ' + hiddenPending.length + '개 포함 — --all 로 본다)' : '') +
+                '.  반영하려면 Mobius 를 다시 띄운다.');
+        } else {
+            lines.push('재기동 대기 없음.');
+        }
     }
     // 표에 없는 키 — 죽은 키(usesqlite·cntManPort…)거나 오타다. 웹의 unknownKeys 경고를 여기서 잇는다.
     var unknown = Object.keys(conf).filter(function (k) { return !schema.get(k); });
@@ -206,7 +218,7 @@ exports.renderList = function (deps) {
     var sv = deps.sealStatus ? deps.sealStatus() : null;
     if (sv && !sv.ok) {
         lines.push('경고: 봉인 — ' + sv.reason + '. 이 상태로는 서버가 뜨지 않는다 — ' +
-            '`npm run setup -- --superuser`(mysql 이면 `--dbpass` 도)로 다시 넣을 것.');
+            '`npm run setup -- --superuser` 를 치고 현재 값을 그대로 입력(안 바꿨으면 Sponde) — Enter 는 봉인을 만들지 않는다.');
     }
     exports.warnings(rec).forEach(function (w) { lines.push('경고: ' + w); });
     return lines;
@@ -249,6 +261,10 @@ exports.renderShow = function (key, deps) {
  *   - TTY 가 아니면 읽지 않고 거부한다. 통과가 아니다.
  *   - EOF(Ctrl-D)·틀린 입력은 거부.
  *   - 비대화형에서 확인 없이 통과시키는 명령줄 옵션을 두지 않는다.
+ *
+ * **cb 의 둘째 인자는 사유다.** EOF 는 `'eof'` — `runSet`/`runUnset` 처럼 "이 키
+ * 하나만 취소" 로 충분한 호출부는 무시하면 그만이지만, `runEdit` 은 여러 키를
+ * 한 번에 쥐고 있어 "이 키만 빼고 진행" 과 "Ctrl-C 니 전부 취소" 를 갈라야 한다.
  */
 exports.confirmGate = function (key, warn, io, cb) {
     io.stdout.write('\n' + warn + '\n\n');
@@ -268,7 +284,7 @@ exports.confirmGate = function (key, warn, io, cb) {
         if (answered) { return; }
         answered = true;
         io.stdout.write('\n');
-        cb(false);
+        cb(false, 'eof');
     });
 };
 
@@ -289,6 +305,21 @@ function advanced_fail(key) {
     return fail(['고급 키다: ' + key + ' — conf.json 을 직접 고치거나 `npm run conf -- --all` 을 줄 것']);
 }
 
+/**
+ * 문자열 답 하나를 coerce → store.validate 순서로 지난다(`set`과 `edit`이 같은 값을
+ * 저장한다는 계약의 근거). 실패해도 어느 단계인지(`stage`)만 돌려준다 — 실패했을 때
+ * 반응(즉시 실패 반환 vs 같은 항목 재질문)과 문구 조립은 호출부마다 달라 여기서 정하지
+ * 않는다.
+ */
+function applyAnswer(key, raw, deps) {
+    var s = deps.schema.get(key);
+    var c = exports.coerce(s.type, raw);
+    if (!c.ok) { return { ok: false, stage: 'coerce', reason: c.reason }; }
+    var why = deps.store.validate(key, c.value);          // exposed / readOnly / 유효값 관문
+    if (why) { return { ok: false, stage: 'validate', reason: why }; }
+    return { ok: true, value: c.value };
+}
+
 exports.runSet = function (key, raw, deps, cb) {
     if (!fs.existsSync(deps.store.file)) {
         // 여기서 파일을 만들면 다음 기동에 첫 구동 마법사가 안 돌고, dbpass 가 비어 DB 연결에서
@@ -299,14 +330,12 @@ exports.runSet = function (key, raw, deps, cb) {
     var s = deps.schema.get(key);
     if (!s) { return cb(null, fail(['모르는 키다: ' + key])); }
     if (raw === undefined) { return cb(null, fail(['값이 없다: set ' + key + ' <값>'])); }
-    var c = exports.coerce(s.type, raw);
-    if (!c.ok) { return cb(null, fail([key + ': ' + c.reason])); }
-    var why = deps.store.validate(key, c.value);          // exposed / readOnly / 유효값 관문
-    if (why) { return cb(null, fail([why])); }
+    var a = applyAnswer(key, raw, deps);
+    if (!a.ok) { return cb(null, fail([a.stage === 'coerce' ? (key + ': ' + a.reason) : a.reason])); }
     gate(key, deps, function (pass) {
         if (!pass) { return cb(null, fail(['취소했다 — 파일을 건드리지 않았다'])); }
         var patch = {};
-        patch[key] = c.value;
+        patch[key] = a.value;
         var r = deps.store.update(patch);
         if (!r.ok) { return cb(null, fail(r.errors)); }
         if (!r.changed.length) { return cb(null, { ok: true, lines: [key + ' 는 이미 그 값이다. 바꾼 것이 없다.'] }); }
@@ -380,12 +409,16 @@ exports.runEdit = function (deps, cb) {
                 rl.question('  ' + pad(k, 20) + ' ' + pad(norm(cur) + (inFile ? '' : ' (기본값)'), 30) + ' ' + hint + ' > ', function (ans) {
                     var t = ans.trim();
                     if (t === '') { return nextKey(ki + 1); }
-                    var c = exports.coerce(s.type, t);
-                    if (!c.ok) { io.stdout.write('    ' + c.reason + '\n'); return ask(); }
-                    var why = deps.store.validate(k, c.value);
-                    if (why) { io.stdout.write('    ' + (s.validHint || why) + '\n'); return ask(); }
-                    if (inFile && norm(c.value) === norm(cur)) { return nextKey(ki + 1); }
-                    patch[k] = c.value;
+                    var a = applyAnswer(k, t, deps);
+                    if (!a.ok) {
+                        io.stdout.write('    ' + (a.stage === 'validate' && s.validHint ? s.validHint : a.reason) + '\n');
+                        return ask();
+                    }
+                    // 파일에 없던 키라도 **타이핑해서** 답하면(기본값과 같은 값이어도) 파일에
+                    // 들어간다 — Enter(위의 t==='' 분기)만 "그대로 둔다" 이고, 이건 "명시적으로
+                    // 적은 것" 으로 본다(2차 검토 Minor 9). 위반은 아니고 의도다.
+                    if (inFile && norm(a.value) === norm(cur)) { return nextKey(ki + 1); }
+                    patch[k] = a.value;
                     if (order.indexOf(k) < 0) { order.push(k); }
                     nextKey(ki + 1);
                 });
@@ -397,13 +430,18 @@ exports.runEdit = function (deps, cb) {
         if (finished) { return; }
         finished = true;
         if (eof) { io.stdout.write('\n'); return cb(null, fail(['취소했다 — 파일을 건드리지 않았다'])); }
-        if (!order.length) { return cb(null, { ok: true, lines: ['바꾼 것이 없다 — 파일을 건드리지 않았다.'] }); }
+        if (!order.length) { return cb(null, { ok: true, lines: [NOTHING_CHANGED] }); }
         var desc = schema.describe();
         var gates = order.filter(function (k) { return desc[k] && desc[k].grade === 'gate'; });
         (function nextGate(i) {
             if (i >= gates.length) { return write(); }
             var k = gates[i];
-            exports.confirmGate(k, desc[k].gateWarn, io, function (pass) {
+            exports.confirmGate(k, desc[k].gateWarn, io, function (pass, why) {
+                // Ctrl-C/EOF(사유 'eof')는 "이 키만 빼자" 가 아니라 "전부 취소" 다 — 편집은
+                // 여러 키를 한 번에 쥐고 있어, 관문 경고를 보고 Ctrl-C 를 친 사용자의 뜻과
+                // 반대로 나머지 키가 써지면 안 된다(2차 검토 Important 1). finished 가 이미
+                // 참이므로 finish() 를 다시 타지 않고 여기서 바로 cb 한다.
+                if (why === 'eof') { return cb(null, fail(['취소했다 — 파일을 건드리지 않았다'])); }
                 if (!pass) {
                     delete patch[k];
                     order = order.filter(function (x) { return x !== k; });
@@ -413,7 +451,7 @@ exports.runEdit = function (deps, cb) {
             });
         })(0);
         function write() {
-            if (!order.length) { return cb(null, { ok: true, lines: ['바꾼 것이 없다 — 파일을 건드리지 않았다.'] }); }
+            if (!order.length) { return cb(null, { ok: true, lines: [NOTHING_CHANGED] }); }
             var r = deps.store.update(patch);
             if (!r.ok) { return cb(null, fail(r.errors)); }
             var lines = r.changed.map(function (ch) { return ch.key + ': ' + norm(ch.from) + ' → ' + norm(ch.to); });

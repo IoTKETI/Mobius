@@ -67,7 +67,7 @@ if (flags.length === 1) {
     setup_prompt.askSecret(io, re.label, function (err, value) {
         if (err) { console.error(err.message); process.exit(1); }
         if (!re.allowEmpty && value.trim() === '') {
-            console.error('값이 비었다 — 바꾸지 않았다.');
+            console.error('값이 비었다 — 바꾸지 않았다. 봉인도 만들지 않았다.');
             process.exit(1);
         }
         var r = store.setSecret(re.key, value);

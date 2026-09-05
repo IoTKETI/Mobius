@@ -253,8 +253,8 @@ function no_conf_error(file, why) {
 
 function bad_seal_error(reason) {
     var e = new Error('[설정] ' + reason + '.\n' +
-                      '            conf.json 의 dbpass·superUser 는 도구로만 바꾼다 — 터미널에서 `npm run setup -- --superuser` ' +
-                      '(mysql 이면 `--dbpass` 도) 로 다시 넣으면 봉인이 만들어진다.');
+                      '            conf.json 의 dbpass·superUser 는 도구로만 바꾼다 — 터미널에서 `npm run setup -- --superuser` 를 치고 ' +
+                      '현재 값을 그대로 입력(안 바꿨으면 Sponde) — Enter 는 봉인을 만들지 않는다.');
     e.code = 'BAD_SEAL';
     return e;
 }
@@ -320,13 +320,7 @@ module.exports = function conf_load(opts, callback) {
     if (typeof opts === 'function') { callback = opts; opts = {}; }
     opts = opts || {};
     var file = opts.file || DEFAULT_FILE;
-    // 마법사는 기본 경로에서만 돈다. 시험이 임시 경로를 넘길 때는 명시적으로 켠다.
-    var o = {
-        wizard: (opts.wizard !== undefined) ? !!opts.wizard : !opts.file,
-        io: opts.io,
-        isPrimary: opts.isPrimary,
-        seal: (opts.seal !== undefined) ? !!opts.seal : !opts.file
-    };
+    var o = module.exports.resolve_opts(opts);
 
     read_conf(file, o, function (err, conf) {
         if (err) { return callback(err); }
@@ -342,3 +336,19 @@ module.exports = function conf_load(opts, callback) {
 };
 
 module.exports.DEFAULT_FILE = DEFAULT_FILE;
+
+/**
+ * opts 해석 하나로 못박는다(2차 검토 Important 3). wizard 는 기본 경로에서만 돈다 —
+ * 시험이 임시 경로를 넘길 때는 명시적으로 켜야 한다. seal 도 같은 규칙 —
+ * opts.file 이 있으면(시험) 기본으로 안 보고, 없으면(실서비스) 본다. 이 삼항이
+ * 뒤집혀도 어떤 시험도 못 잡던 것이 Important 3 였다 — 여기 하나로 직접 단정한다.
+ */
+module.exports.resolve_opts = function (opts) {
+    opts = opts || {};
+    return {
+        wizard: (opts.wizard !== undefined) ? !!opts.wizard : !opts.file,
+        io: opts.io,
+        isPrimary: opts.isPrimary,
+        seal: (opts.seal !== undefined) ? !!opts.seal : !opts.file
+    };
+};

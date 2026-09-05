@@ -373,6 +373,17 @@ test('T3 목록은 기본으로 사용자 키만 보이고 고급 키 개수를 
     assert.match(all, /adminPassword/);
     assert.doesNotMatch(all, /숨겼다/);
 });
+test('A2 목록 footer 의 재기동 대기는 --all 과 무관하게 전 키를 센다 — 숨긴 것은 키이지 사실이 아니다', function () {
+    const rec = ALIVE_REC({ dbConnectionLimit: 100 });
+    const d = deps({ conf: { dbConnectionLimit: 25 }, record: rec, alive: true });
+    const txt = cli.renderList(d).join('\n');
+    assert.doesNotMatch(txt, /dbConnectionLimit\s+25/, '고급 키가 --all 없이 표에 보인다');
+    assert.match(txt, /재기동 대기 1건 \(dbConnectionLimit\)/);
+    assert.match(txt, /고급 키 1개 포함[^\n]*--all/);
+    const allTxt = cli.renderList(deps({ conf: { dbConnectionLimit: 25 }, record: rec, alive: true, all: true })).join('\n');
+    assert.match(allTxt, /재기동 대기 1건 \(dbConnectionLimit\)/);
+    assert.doesNotMatch(allTxt, /고급 키 1개 포함/, '--all 로 이미 보이는데 고급 키 안내를 또 낸다');
+});
 test('T2 고급 키는 --all 없이 set/unset/단건이 거부되고 파일이 안 바뀐다; --all 이면 된다', function (t, done) {
     const d = deps({ conf: { dbConnectionLimit: 25 } });
     cli.runSet('dbConnectionLimit', '30', d, function (err, r) {
@@ -401,6 +412,12 @@ test('T2 진입점이 --all 을 deps 로 넘기고 args 에서 뺀다 — 소스
     const src = fs.readFileSync(path.join(ROOT, 'tools', 'mobius-conf.js'), 'utf8');
     assert.match(src, /all:\s*argv\.indexOf\('--all'\)\s*>=\s*0/);
     assert.match(src, /a !== '--all'/);
+});
+test('B3 진입점이 sealStatus 를 conf_seal.verify 로 배선한다 — 소스 검사', function () {
+    // deps.sealStatus 의 기본 대역이 { ok: true } 라(deps() 헬퍼) 배선이 끊겨도 목록
+    // 시험은 전부 통과한다 — --all 배선과 같은 모양의 소스 핀을 둔다(2차 검토 Minor 8).
+    const src = fs.readFileSync(path.join(ROOT, 'tools', 'mobius-conf.js'), 'utf8');
+    assert.match(src, /sealStatus:[^\n]*conf_seal[^\n]*\.verify\(FILE, conf\)/);
 });
 
 test('봉인이 어긋나면 목록이 경고한다 — 이 상태로는 서버가 안 뜬다', function () {
@@ -437,6 +454,11 @@ function scriptEdit(d, answers) {
 // 구현 뒤 실제 순서를 renderList 로 확인해 답 배열을 맞춘다.
 test('E1/E2 edit — Enter 는 그대로, 바꾼 키만 한 번에 쓴다; 파일에 없던 키를 Enter 로 지나면 안 생긴다', function (t, done) {
     const d = deps({ conf: { cseBase: 'Mobius', db: 'mysql' }, isTTY: true, stdin: new PassThrough() });
+    // B2(2차 검토 Minor 7) — store.update 호출 횟수를 직접 센다. "한 번에 쓴다" 는
+    // 결과(파일 내용)만으로는 여러 번 나눠 써도 같은 결과가 나올 수 있어 실측이 아니었다.
+    let updateCalls = 0;
+    const origUpdate = d.store.update.bind(d.store);
+    d.store.update = function (patch) { updateCalls++; return origUpdate(patch); };
     scriptEdit(d, ['', '7580', '', '', '', 'csebaseport']);   // db 그대로, csebaseport 바꿈(관문 → 끝에 키 이름), cseBase·cseId·spId 그대로
     cli.runEdit(d, function (err, r) {
         assert.ifError(err);
@@ -447,6 +469,11 @@ test('E1/E2 edit — Enter 는 그대로, 바꾼 키만 한 번에 쓴다; 파�
         assert.strictEqual(saved.cseBase, 'Mobius');
         assert.match(r.lines.join('\n'), /csebaseport: [^\n]*7580/);
         assert.match(r.lines.join('\n'), /재기동/);
+        assert.strictEqual(updateCalls, 1, 'store.update 가 한 번이 아니다');
+        // B2(2차 검토 Minor 7) — 안 바꾼 관문 키(cseBase)는 확인을 묻지 않는다. 모든
+        // 관문 키에 확인을 묻는 구현이라도(관문 순서상) 이 시험이 우연히 통과할 수
+        // 있었다 — 이 단정이 없으면 "바뀌었을 때만" 이 실측되지 않는다.
+        assert.doesNotMatch(d.output(), /cseBase 를 바꾸면/);
         done();
     });
 });
@@ -472,6 +499,21 @@ test('E4 관문 키는 바꿨을 때만 확인을 받고, 거부하면 그 키�
         done();
     });
 });
+test('D6 관문 키 둘을 한 번에 바꾸면 승인한 것만 써진다', function (t, done) {
+    const d = deps({ conf: { db: 'mysql' }, isTTY: true, stdin: new PassThrough() });
+    // db·csebaseport 그대로, cseBase·cseId(둘 다 관문) 바꿈, spId 그대로 →
+    // 관문 확인은 cseBase 먼저(승인) 그다음 cseId(거부).
+    scriptEdit(d, ['', '', 'Vita', '/Vita1', '', 'cseBase', 'nope']);
+    cli.runEdit(d, function (err, r) {
+        assert.strictEqual(r.ok, true, r.lines.join(' '));
+        const saved = readConf(d.file);
+        assert.strictEqual(saved.cseBase, 'Vita', '승인한 관문 키가 안 써졌다');
+        assert.ok(!('cseId' in saved), '거부한 관문 키가 그래도 써졌다');
+        assert.match(d.output(), /cseId 은 빼고 진행한다/);
+        assert.match(r.lines.join('\n'), /cseBase: [^\n]*Vita/);
+        done();
+    });
+});
 test('E5 비-TTY 와 EOF 는 아무것도 쓰지 않는다', function (t, done) {
     const d1 = deps({ conf: { db: 'mysql' }, isTTY: false });
     cli.runEdit(d1, function (err, r) {
@@ -482,7 +524,19 @@ test('E5 비-TTY 와 EOF 는 아무것도 쓰지 않는다', function (t, done) 
         cli.runEdit(d2, function (err2, r2) {
             assert.strictEqual(r2.ok, false);
             assert.strictEqual(fs.readFileSync(d2.file, 'utf8'), before);
-            done();
+            // A1(2차 검토 Important 1) — 질문 단계가 아니라 **관문 확인 프롬프트에서**
+            // Ctrl-C/EOF 가 오면, 그때까지 모은 편집 등급 키(db)도 전부 버려야 한다.
+            // 관문 경고를 보고 취소한 사용자의 뜻과 반대로 파일이 바뀌면 안 된다.
+            const d3 = deps({ conf: { db: 'mysql' }, isTTY: true, stdin: new PassThrough() });
+            scriptEdit(d3, ['sqlite', '', 'Vita', '', '']);   // db(편집)·cseBase(관문) 바꾸고 관문 프롬프트에서 EOF
+            const before3 = fs.readFileSync(d3.file, 'utf8');
+            cli.runEdit(d3, function (err3, r3) {
+                assert.strictEqual(r3.ok, false, '관문에서 EOF 인데 ok 다');
+                assert.strictEqual(fs.readFileSync(d3.file, 'utf8'), before3, '관문 EOF 인데 파일이 바뀌었다');
+                assert.strictEqual(readConf(d3.file).db, 'mysql');
+                assert.match(r3.lines.join(' '), /취소/);
+                done();
+            });
         });
     });
 });

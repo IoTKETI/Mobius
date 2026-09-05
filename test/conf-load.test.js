@@ -73,10 +73,12 @@ test('C1 파일 값이 전역과 applied 에 같이 실린다', function (t, don
 test('C11 깨진 conf.json 을 덮어쓰지도 종료하지도 않는다', function (t, done) {
     const broken = '{"csebaseport": "7580", "dbpass": "abc"';   // 반쪽 파일
     const file = tmpConf(broken);
+    const errSpy = t.mock.method(console, 'error', () => {});   // 실제로 나가는 로그다 — 잡아서 시험 출력을 깨끗이 하고 횟수를 못박는다
     conf_load({ file: file }, function (err) {
         assert.ifError(err);
         assert.strictEqual(fs.readFileSync(file, 'utf8'), broken, '파일이 바뀌었다 — 읽기 실패를 쓰기로 갚으면 안 된다');
         assert.strictEqual(global.usecsebaseport, '7579', '기본값으로 진행하지 않았다');
+        assert.strictEqual(errSpy.mock.callCount(), 2, '읽기 실패 로그가 두 줄이 아니다');
         done();
     });
 });
@@ -97,6 +99,16 @@ test('conf_load 는 어떤 경로에서도 process.exit 을 하지 않는다', f
 
 test('경로는 저장소 루트 기준이다 — cwd 가 아니다', function () {
     assert.strictEqual(conf_load.DEFAULT_FILE, path.join(ROOT, 'conf.json'));
+});
+
+// Important 3(2차 검토) — seal 기본값(opts.file 이 없으면 본다)이 삼항 하나에 있고
+// 어떤 시험도 못박지 않았다. resolve_opts 를 따로 불러 직접 단정한다.
+test('resolve_opts — seal·wizard 기본값은 opts.file 유무로 갈린다', function () {
+    assert.strictEqual(conf_load.resolve_opts({}).seal, true);
+    assert.strictEqual(conf_load.resolve_opts({ file: 'x' }).seal, false);
+    assert.strictEqual(conf_load.resolve_opts({ file: 'x', seal: true }).seal, true);
+    assert.strictEqual(conf_load.resolve_opts({}).wizard, true);
+    assert.strictEqual(conf_load.resolve_opts({ file: 'x' }).wizard, false);
 });
 
 test('mobius.js 는 conf 를 직접 읽지 않는다 — 순서만 잡는다', function () {
@@ -179,7 +191,12 @@ test('S2/S3 conf_load 는 봉인이 없거나 어긋나면 BAD_SEAL 로 거부�
     });
 });
 test('깨진 conf.json 은 봉인 대조 없이 기본값으로 진행한다 — 손편집이 아니라 파일이 깨진 것', function (t, done) {
-    conf_load({ file: tmpConf('{"dbpass": "x"'), seal: true }, function (err) { assert.ifError(err); done(); });
+    const errSpy = t.mock.method(console, 'error', () => {});
+    conf_load({ file: tmpConf('{"dbpass": "x"'), seal: true }, function (err) {
+        assert.ifError(err);
+        assert.strictEqual(errSpy.mock.callCount(), 2, '읽기 실패 로그가 두 줄이 아니다');
+        done();
+    });
 });
 test('conf_load 는 opts.file 이면 봉인을 기본으로 보지 않는다 — 시험이 임시 파일을 쓰므로', function (t, done) {
     conf_load({ file: tmpConf('{"dbpass": "x"}') }, function (err) { assert.ifError(err); done(); });

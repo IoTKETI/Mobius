@@ -35,8 +35,13 @@ function payload(conf) {
 function hmac(keyHex, conf) {
     return crypto.createHmac('sha256', Buffer.from(keyHex, 'hex')).update(payload(conf)).digest('hex');
 }
+// 읽기 실패와 내용이 깨진 것을 구별해야 한다 — EACCES(권한, 예: sudo 로 만든 봉인을
+// 다른 계정의 pm2 가 읽는 경우)를 "봉인 파일이 깨졌다" 로 뭉뚱그리면 운영자가 파일을
+// 지우고 다시 만드는 쪽으로 간다. e.code 가 있으면(fs 오류) 그것을 사유에 싣고,
+// 없으면(JSON.parse 의 SyntaxError) 기존대로 "깨졌다" 로 떨어진다 — verify() 가 가른다.
 function read_seal(file) {
-    try { return JSON.parse(fs.readFileSync(file, 'utf8')); } catch (e) { return null; }
+    try { return JSON.parse(fs.readFileSync(file, 'utf8')); }
+    catch (e) { return { error: (e && e.code) || null }; }
 }
 
 exports.seal = function (confFile, conf) {
@@ -54,6 +59,9 @@ exports.verify = function (confFile, conf) {
     var file = seal_path(confFile);
     if (!fs.existsSync(file)) { return { ok: false, reason: '봉인이 없다 (' + file + ')' }; }
     var rec = read_seal(file);
+    if (rec && rec.error) {
+        return { ok: false, reason: '봉인 파일을 읽지 못했다(' + rec.error + ') (' + file + ')' };
+    }
     if (!rec || typeof rec.key !== 'string' || !/^[0-9a-f]{64}$/.test(rec.key) || typeof rec.seal !== 'string') {
         return { ok: false, reason: '봉인 파일이 깨졌다 (' + file + ')' };
     }
