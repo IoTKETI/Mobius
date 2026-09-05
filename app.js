@@ -1404,6 +1404,26 @@ function forward_to_csr(request, response, settle) {
     });
 }
 
+/**
+ * 요청 하나에 커넥션을 빌려 정산기를 만들어 준다. 못 빌리면 반납할 것이
+ * 없으니 커넥션 없는 정산기로 그 사유를 응답한다.
+ *
+ * 네 라우트가 각자 갖고 있던 취득 + 실패 else + 정산기 생성 12줄이다(주석까지
+ * 같았다). fn 은 정산기만 받는다 — 커넥션은 request.db_connection 으로 가고,
+ * 반납은 정산기가 한다. 3단계 12번(2026-09-05).
+ */
+function with_connection(request, response, fn) {
+    db.getConnection((code, connection) => {
+        if (code !== '200') {
+            // 커넥션을 못 빌린 경로다 — 반납할 것이 없어 null 을 넘긴다.
+            make_settler(request, response, null).error(code);
+            return;
+        }
+        request.db_connection = connection;
+        fn(make_settler(request, response, connection));
+    });
+}
+
 // 그 47곳을 전부 봐야 했다.
 // 정산기는 mobius/settle.js 에 있다. 여기서는 response_error_result 를 엮어
 // 넘기기만 한다 — 그 함수가 reason 카탈로그와 responder.respond 를 잇고 있다.
@@ -2387,139 +2407,70 @@ app.post('*', onem2mParser, (request, response) => {
     //     }
     // });
 
-    db.getConnection((code, connection) => {
-        if (code === '200') {
-            request.db_connection = connection;
-            var settle = make_settler(request, response, connection);
-
-            check_xm2m_headers(request, (code) => {
-                if (code === '200') {
-                    if (request.body !== "") {
-                        check_resource_supported(request, response, (code) => {
-                            if (code === '200') {
-                                get_target_url(request, response, (code) => {
-                                    if (code === '200') {
-                                        if (request.option !== '/fopt') {
-                                            parse_body_format(request, response, (code) => {
-                                                if (code === '200') {
-                                                    check_allowed_app_ids(request, (code) => {
-                                                        if (code === '200') {
-                                                            var rootnm = Object.keys(request.targetObject)[0];
-                                                            var absolute_url = request.targetObject[rootnm].ri;
-                                                            check_notification(request, response, (code) => {
-                                                                if (code === 'post') {
-                                                                    request.url = absolute_url;
-                                                                    if ((request.query.fu == 2) && (request.query.rcn == 0 || request.query.rcn == 1 || request.query.rcn == 2 || request.query.rcn == 3)) {
-                                                                        lookup_create(request, response, (code, out) => {
-                                                                            settle.done(code, out);
-                                                                        });
-                                                                    }
-                                                                    else {
-                                                                        code = '400-43';
-                                                                        settle.error(code);
-                                                                    }
-                                                                }
-                                                                else if (code === 'notify') {
-                                                                    check_ae_notify(request, response, (code, res) => {
-                                                                        if (code !== '200') {
-                                                                            settle.error(code);
-                                                                            return;
-                                                                        }
-                                                                        // 상류가 json 이 아닌 것을 주면 흘려보내지 않는다.
-                                                                        // 이 경로는 settle.raw 라 apply_headers 를 우회하므로
-                                                                        // "응답은 언제나 json" 이 여기서는 안 걸린다.
-                                                                        if (!relay_headers(response, res, 'ae notify')) {
-                                                                            settle.error('500-7');
-                                                                            return;
-                                                                        }
-                                                                        settle.raw('ae notify', function () {
-                                                                            response.statusCode = res.statusCode;
-                                                                            response.send(res.body);
-                                                                        });
-                                                                    });
-                                                                }
-                                                                else {
-                                                                    settle.error(code);
-                                                                }
-                                                            });
-                                                        }
-                                                        else {
-                                                            settle.error(code);
-                                                        }
-                                                    });
-                                                }
-                                                else {
-                                                    settle.error(code);
-                                                }
-                                            });
-                                        }
-                                        else { // if (request.option === '/fopt') {
-                                            run_fanout(request, response, settle, '1', true);
-                                        }
-                                    }
-                                    else if (code === '301-1') {
-                                        forward_to_csr(request, response, settle);
-                                    }
-                                    else {
-                                        settle.error(code);
-                                    }
-                                });
-                            }
-                            else {
-                                settle.error(code);
-                            }
-                        });
-                    }
-                    else {
-                        settle.error('400-40');
-                    }
-                }
-                else {
-                    settle.error(code);
-                }
-            });
-        }
-        else {
-            // 커넥션을 못 빌린 경로다 — 반납할 것이 없어 null 을 넘긴다.
-            make_settler(request, response, null).error(code);
-        }
-    });
-});
-
-app.get('*', onem2mParser, (request, response) => {
-    db.getConnection((code, connection) => {
-        if (code === '200') {
-            request.db_connection = connection;
-            var settle = make_settler(request, response, connection);
-
-            extra_api_action(connection, request.url, (code, result) => {
-                if (code === '200') {
-                    if (!request.headers.hasOwnProperty('binding')) {
-                        request.headers['binding'] = 'H';
-                    }
-
-                    db_sql.set_hit(request.db_connection, request.headers['binding'], (err, results) => {
-                        results = null;
-                    });
-
-                    check_xm2m_headers(request, (code) => {
+    with_connection(request, response, (settle) => {
+        check_xm2m_headers(request, (code) => {
+            if (code === '200') {
+                if (request.body !== "") {
+                    check_resource_supported(request, response, (code) => {
                         if (code === '200') {
                             get_target_url(request, response, (code) => {
                                 if (code === '200') {
                                     if (request.option !== '/fopt') {
-                                        var rootnm = Object.keys(request.targetObject)[0];
-                                        request.url = request.targetObject[rootnm].ri;
-                                        if ((request.query.fu == 1 || request.query.fu == 2) && (request.query.rcn == 1 || request.query.rcn == 4 || request.query.rcn == 5 || request.query.rcn == 6 || request.query.rcn == 7)) {
-                                            lookup_retrieve(request, response, (code, out) => {
-                                                settle.done(code, out);
-                                            });
-                                        }
-                                        else {
-                                            settle.error('400-44');
-                                        }
+                                        parse_body_format(request, response, (code) => {
+                                            if (code === '200') {
+                                                check_allowed_app_ids(request, (code) => {
+                                                    if (code === '200') {
+                                                        var rootnm = Object.keys(request.targetObject)[0];
+                                                        var absolute_url = request.targetObject[rootnm].ri;
+                                                        check_notification(request, response, (code) => {
+                                                            if (code === 'post') {
+                                                                request.url = absolute_url;
+                                                                if ((request.query.fu == 2) && (request.query.rcn == 0 || request.query.rcn == 1 || request.query.rcn == 2 || request.query.rcn == 3)) {
+                                                                    lookup_create(request, response, (code, out) => {
+                                                                        settle.done(code, out);
+                                                                    });
+                                                                }
+                                                                else {
+                                                                    code = '400-43';
+                                                                    settle.error(code);
+                                                                }
+                                                            }
+                                                            else if (code === 'notify') {
+                                                                check_ae_notify(request, response, (code, res) => {
+                                                                    if (code !== '200') {
+                                                                        settle.error(code);
+                                                                        return;
+                                                                    }
+                                                                    // 상류가 json 이 아닌 것을 주면 흘려보내지 않는다.
+                                                                    // 이 경로는 settle.raw 라 apply_headers 를 우회하므로
+                                                                    // "응답은 언제나 json" 이 여기서는 안 걸린다.
+                                                                    if (!relay_headers(response, res, 'ae notify')) {
+                                                                        settle.error('500-7');
+                                                                        return;
+                                                                    }
+                                                                    settle.raw('ae notify', function () {
+                                                                        response.statusCode = res.statusCode;
+                                                                        response.send(res.body);
+                                                                    });
+                                                                });
+                                                            }
+                                                            else {
+                                                                settle.error(code);
+                                                            }
+                                                        });
+                                                    }
+                                                    else {
+                                                        settle.error(code);
+                                                    }
+                                                });
+                                            }
+                                            else {
+                                                settle.error(code);
+                                            }
+                                        });
                                     }
-                                    else { //if (request.option === '/fopt') {
-                                        run_fanout(request, response, settle, (request.query.fu == 1) ? '32' : '2', false);
+                                    else { // if (request.option === '/fopt') {
+                                        run_fanout(request, response, settle, '1', true);
                                     }
                                 }
                                 else if (code === '301-1') {
@@ -2535,96 +2486,51 @@ app.get('*', onem2mParser, (request, response) => {
                         }
                     });
                 }
-                else if (code === '201') {
-                    // /hit · /total_ae · /total_cbs 의 응답이다. oneM2M 리소스가
-                    // 아니라 서버 상태 집계라 responder 형태에 안 맞는다 —
-                    // 그래서 settle.raw 로 직접 보낸다.
-                    //
-                    // 예전에는 정산기를 아예 우회했다:
-                    //     db.release(connection);          <- 응답보다 **먼저**
-                    //     response.status(200).end(...)
-                    //
-                    // 두 가지가 어긋났다. 반납이 응답보다 앞서서 그 사이 다른
-                    // 요청이 이 커넥션을 빌릴 수 있었고, 정산기를 안 타므로
-                    // **이중 정산 방지 장치가 없었다.** raw 는 fn 이 응답을
-                    // 보내고 나서 반납하고, claim() 도 탄다.
-                    settle.raw('extra api ' + request.url, function () {
-                        response.header('Content-Type', 'application/json');
-                        response.status(200).end(JSON.stringify(result, null, 4));
-                        result = null;
-                    });
-                }
                 else {
-                    settle.error(code);
+                    settle.error('400-40');
                 }
-            });
-        }
-        else {
-            // 커넥션을 못 빌린 경로다 — 반납할 것이 없어 null 을 넘긴다.
-            make_settler(request, response, null).error(code);
-        }
+            }
+            else {
+                settle.error(code);
+            }
+        });
     });
 });
 
+app.get('*', onem2mParser, (request, response) => {
+    with_connection(request, response, (settle) => {
+        extra_api_action(request.db_connection, request.url, (code, result) => {
+            if (code === '200') {
+                if (!request.headers.hasOwnProperty('binding')) {
+                    request.headers['binding'] = 'H';
+                }
 
-app.put('*', onem2mParser, (request, response) => {
-    db.getConnection((code, connection) => {
-        if (code === '200') {
-            request.db_connection = connection;
-            var settle = make_settler(request, response, connection);
+                db_sql.set_hit(request.db_connection, request.headers['binding'], (err, results) => {
+                    results = null;
+                });
 
-            if (!request.headers.hasOwnProperty('binding')) {
-                request.headers['binding'] = 'H';
-            }
-
-            db_sql.set_hit(request.db_connection, request.headers['binding'], (err, results) => {
-                results = null;
-            });
-
-            check_xm2m_headers(request, (code) => {
-                if (code === '200') {
-                    if (request.body !== "") {
-                        check_resource_supported(request, response, (code) => {
+                check_xm2m_headers(request, (code) => {
+                    if (code === '200') {
+                        get_target_url(request, response, (code) => {
                             if (code === '200') {
-                                get_target_url(request, response, (code) => {
-                                    if (code === '200') {
-                                        if (request.option !== '/fopt') {
-                                            parse_body_format(request, response, (code) => {
-                                                if (code === '200') {
-                                                    check_type_update_resource(request, (code) => {
-                                                        if (code === '200') {
-                                                            var rootnm = Object.keys(request.targetObject)[0];
-                                                            request.url = request.targetObject[rootnm].ri;
-                                                            if ((request.query.fu == 2) && (request.query.rcn == 0 || request.query.rcn == 1)) {
-                                                                lookup_update(request, response, (code, out) => {
-                                                                    settle.done(code, out);
-                                                                });
-                                                            }
-                                                            else {
-                                                                settle.error('400-45');
-                                                            }
-                                                        }
-                                                        else {
-                                                            settle.error(code);
-                                                        }
-                                                    });
-                                                }
-                                                else {
-                                                    settle.error(code);
-                                                }
-                                            });
-                                        }
-                                        else { // if (request.option === '/fopt') {
-                                            run_fanout(request, response, settle, '4', true);
-                                        }
-                                    }
-                                    else if (code === '301-1') {
-                                        forward_to_csr(request, response, settle);
+                                if (request.option !== '/fopt') {
+                                    var rootnm = Object.keys(request.targetObject)[0];
+                                    request.url = request.targetObject[rootnm].ri;
+                                    if ((request.query.fu == 1 || request.query.fu == 2) && (request.query.rcn == 1 || request.query.rcn == 4 || request.query.rcn == 5 || request.query.rcn == 6 || request.query.rcn == 7)) {
+                                        lookup_retrieve(request, response, (code, out) => {
+                                            settle.done(code, out);
+                                        });
                                     }
                                     else {
-                                        settle.error(code);
+                                        settle.error('400-44');
                                     }
-                                });
+                                }
+                                else { //if (request.option === '/fopt') {
+                                    run_fanout(request, response, settle, (request.query.fu == 1) ? '32' : '2', false);
+                                }
+                            }
+                            else if (code === '301-1') {
+                                forward_to_csr(request, response, settle);
                             }
                             else {
                                 settle.error(code);
@@ -2632,65 +2538,91 @@ app.put('*', onem2mParser, (request, response) => {
                         });
                     }
                     else {
-                        settle.error('400-40');
+                        settle.error(code);
                     }
-                }
-                else {
-                    settle.error(code);
-                }
-            });
-        }
-        else {
-            // 커넥션을 못 빌린 경로다 — 반납할 것이 없어 null 을 넘긴다.
-            make_settler(request, response, null).error(code);
-        }
+                });
+            }
+            else if (code === '201') {
+                // /hit · /total_ae · /total_cbs 의 응답이다. oneM2M 리소스가
+                // 아니라 서버 상태 집계라 responder 형태에 안 맞는다 —
+                // 그래서 settle.raw 로 직접 보낸다.
+                //
+                // 예전에는 정산기를 아예 우회했다:
+                //     db.release(connection);          <- 응답보다 **먼저**
+                //     response.status(200).end(...)
+                //
+                // 두 가지가 어긋났다. 반납이 응답보다 앞서서 그 사이 다른
+                // 요청이 이 커넥션을 빌릴 수 있었고, 정산기를 안 타므로
+                // **이중 정산 방지 장치가 없었다.** raw 는 fn 이 응답을
+                // 보내고 나서 반납하고, claim() 도 탄다.
+                settle.raw('extra api ' + request.url, function () {
+                    response.header('Content-Type', 'application/json');
+                    response.status(200).end(JSON.stringify(result, null, 4));
+                    result = null;
+                });
+            }
+            else {
+                settle.error(code);
+            }
+        });
     });
 });
 
-app.delete('*', onem2mParser, (request, response) => {
-    db.getConnection((code, connection) => {
-        if (code === '200') {
-            request.db_connection = connection;
-            var settle = make_settler(request, response, connection);
 
-            if (!request.headers.hasOwnProperty('binding')) {
-                request.headers['binding'] = 'H';
-            }
+app.put('*', onem2mParser, (request, response) => {
+    with_connection(request, response, (settle) => {
+        if (!request.headers.hasOwnProperty('binding')) {
+            request.headers['binding'] = 'H';
+        }
 
-            db_sql.set_hit(request.db_connection, request.headers['binding'], (err, results) => {
-                results = null;
-            });
+        db_sql.set_hit(request.db_connection, request.headers['binding'], (err, results) => {
+            results = null;
+        });
 
-            check_xm2m_headers(request, (code) => {
-                if (code === '200') {
-                    get_target_url(request, response, (code) => {
+        check_xm2m_headers(request, (code) => {
+            if (code === '200') {
+                if (request.body !== "") {
+                    check_resource_supported(request, response, (code) => {
                         if (code === '200') {
-                            if (request.option !== '/fopt') {
-                                check_type_delete_resource(request, (code) => {
-                                    if (code === '200') {
-                                        var rootnm = Object.keys(request.targetObject)[0];
-                                        request.url = request.targetObject[rootnm].ri;
-                                        request.pi = request.targetObject[rootnm].pi;
-                                        if ((request.query.fu == 2) && (request.query.rcn == 0 || request.query.rcn == 1)) {
-                                            lookup_delete(request, response, (code, out) => {
-                                                settle.done(code, out);
-                                            });
-                                        }
-                                        else {
-                                            settle.error('400-46');
-                                        }
+                            get_target_url(request, response, (code) => {
+                                if (code === '200') {
+                                    if (request.option !== '/fopt') {
+                                        parse_body_format(request, response, (code) => {
+                                            if (code === '200') {
+                                                check_type_update_resource(request, (code) => {
+                                                    if (code === '200') {
+                                                        var rootnm = Object.keys(request.targetObject)[0];
+                                                        request.url = request.targetObject[rootnm].ri;
+                                                        if ((request.query.fu == 2) && (request.query.rcn == 0 || request.query.rcn == 1)) {
+                                                            lookup_update(request, response, (code, out) => {
+                                                                settle.done(code, out);
+                                                            });
+                                                        }
+                                                        else {
+                                                            settle.error('400-45');
+                                                        }
+                                                    }
+                                                    else {
+                                                        settle.error(code);
+                                                    }
+                                                });
+                                            }
+                                            else {
+                                                settle.error(code);
+                                            }
+                                        });
                                     }
-                                    else {
-                                        settle.error(code);
+                                    else { // if (request.option === '/fopt') {
+                                        run_fanout(request, response, settle, '4', true);
                                     }
-                                });
-                            }
-                            else { // if (request.option === '/fopt') {
-                                run_fanout(request, response, settle, '8', false);
-                            }
-                        }
-                        else if (code === '301-1') {
-                            forward_to_csr(request, response, settle);
+                                }
+                                else if (code === '301-1') {
+                                    forward_to_csr(request, response, settle);
+                                }
+                                else {
+                                    settle.error(code);
+                                }
+                            });
                         }
                         else {
                             settle.error(code);
@@ -2698,14 +2630,66 @@ app.delete('*', onem2mParser, (request, response) => {
                     });
                 }
                 else {
-                    settle.error(code);
+                    settle.error('400-40');
                 }
-            });
+            }
+            else {
+                settle.error(code);
+            }
+        });
+    });
+});
+
+app.delete('*', onem2mParser, (request, response) => {
+    with_connection(request, response, (settle) => {
+        if (!request.headers.hasOwnProperty('binding')) {
+            request.headers['binding'] = 'H';
         }
-        else {
-            // 커넥션을 못 빌린 경로다 — 반납할 것이 없어 null 을 넘긴다.
-            make_settler(request, response, null).error(code);
-        }
+
+        db_sql.set_hit(request.db_connection, request.headers['binding'], (err, results) => {
+            results = null;
+        });
+
+        check_xm2m_headers(request, (code) => {
+            if (code === '200') {
+                get_target_url(request, response, (code) => {
+                    if (code === '200') {
+                        if (request.option !== '/fopt') {
+                            check_type_delete_resource(request, (code) => {
+                                if (code === '200') {
+                                    var rootnm = Object.keys(request.targetObject)[0];
+                                    request.url = request.targetObject[rootnm].ri;
+                                    request.pi = request.targetObject[rootnm].pi;
+                                    if ((request.query.fu == 2) && (request.query.rcn == 0 || request.query.rcn == 1)) {
+                                        lookup_delete(request, response, (code, out) => {
+                                            settle.done(code, out);
+                                        });
+                                    }
+                                    else {
+                                        settle.error('400-46');
+                                    }
+                                }
+                                else {
+                                    settle.error(code);
+                                }
+                            });
+                        }
+                        else { // if (request.option === '/fopt') {
+                            run_fanout(request, response, settle, '8', false);
+                        }
+                    }
+                    else if (code === '301-1') {
+                        forward_to_csr(request, response, settle);
+                    }
+                    else {
+                        settle.error(code);
+                    }
+                });
+            }
+            else {
+                settle.error(code);
+            }
+        });
     });
 });
 
