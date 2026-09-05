@@ -1084,7 +1084,8 @@ exports.create = function (request, response, callback) {
                             resource_Obj.uri = resource_Obj.uri.replace('/', ''); // make cse relative uri
                             request.resourceObj = resource_Obj;
 
-                            callback('201');
+                            // rcn=2 는 uri 하나 — single 모양. 결과가 인자로 올라간다. 2단계 9번.
+                            callback(null, { rsc: 'CREATED', shape: 'single', rootnm: 'uri', body: request.resourceObj });
                         }
                         else if (request.query.rcn == 3) { // hierarchical address and attributes
                             request.headers.rootnm = rootnm;
@@ -1094,10 +1095,11 @@ exports.create = function (request, response, callback) {
                             request.resourceObj.rce[rootnm] = request.resourceObj[rootnm];
                             delete request.resourceObj[rootnm];
 
-                            callback('201-3');
+                            // rcn=3 은 rce 모양 — 옛 라우트가 '201-3' 을 보고 rcn3 갈래를 골랐다.
+                            callback(null, { rsc: 'CREATED', shape: 'rce', rootnm: rootnm, body: request.resourceObj });
                         }
                         else {
-                            callback('201');
+                            callback(null, { rsc: 'CREATED', shape: 'single', rootnm: rootnm, body: request.resourceObj });
                         }
                     }
                 }

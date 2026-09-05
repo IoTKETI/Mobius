@@ -45,7 +45,8 @@ const OLD_ROUTES = {
 //   GET — resource.retrieve (2단계 8번)
 // 빠진 메서드에 옛 코드가 오면 on_error 로 간다 — 옛 코드를 주는 생산자가
 // 남아 있으면 조용히 옛 갈래를 타는 대신 500 으로 드러난다.
-const DONE_METHODS = ['GET'];
+//   POST — resource.create (2단계 9번)
+const DONE_METHODS = ['GET', 'POST'];
 const LEGACY_LEFT = {};
 Object.keys(OLD_ROUTES).forEach((m) => { if (DONE_METHODS.indexOf(m) < 0) LEGACY_LEFT[m] = OLD_ROUTES[m]; });
 
@@ -229,4 +230,19 @@ test('resource.retrieve 의 성공 종단이 코드가 아니라 결과 객체�
     // shape 이름은 body_of 가 아는 넷 중 하나여야 한다 — 오타는 런타임 500-8 이다
     const shapes = (src.match(/shape: '([a-z]+)'/g) || []).map((s) => s.slice(8, -1));
     shapes.forEach((s) => assert.ok(['single', 'rce', 'uril', 'grouped'].indexOf(s) >= 0, s));
+    // rsc 이름도 카탈로그에 있어야 한다
+    const rscs = (src.match(/rsc: '([A-Z_]+)'/g) || []).map((s) => s.slice(6, -1));
+    rscs.forEach((r) => assert.ok(Object.prototype.hasOwnProperty.call(RSC, r), r));
+});
+
+test('resource.create 의 성공 종단이 결과 객체를 준다 (2단계 9번)', () => {
+    // 옛 종단 셋: rcn=2 → '201'(uri, single), rcn=3 → '201-3'(rce), 그 밖 → '201'(single)
+    const src = fs.readFileSync(path.join(MOBIUS_DIR, 'resource.js'), 'utf8')
+        .replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/mg, '');
+    const count = (n) => src.split(n).length - 1;
+    assert.strictEqual(count("callback('201')"), 0);
+    assert.strictEqual(count("callback('201-3')"), 0);
+    assert.strictEqual(count("{ rsc: 'CREATED', shape: 'single', rootnm: 'uri', body: request.resourceObj }"), 1);
+    assert.strictEqual(count("{ rsc: 'CREATED', shape: 'rce', rootnm: rootnm, body: request.resourceObj }"), 1);
+    assert.strictEqual(count("{ rsc: 'CREATED', shape: 'single', rootnm: rootnm, body: request.resourceObj }"), 1);
 });

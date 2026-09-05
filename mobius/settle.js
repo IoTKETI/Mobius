@@ -44,10 +44,10 @@ var RSC = require('./rsc').RSC;
  * 메서드가 키다 — 같은 '200' 이 GET 은 2000, PUT 은 2004, DELETE 는 2002 다.
  */
 var LEGACY = {
-    POST:   { '201': ['result', '201', '2001'], '201-3': ['rcn3', '201', '2001'] },
-    // GET 은 빠졌다 — resource.retrieve 가 (null, out) 을 준다(2단계 8번).
-    // '200' → result 200/2000, '200-1' → search 200/2000 이었다. GET 에 코드가
+    // 빠진 메서드는 생산자가 (null, out) 을 주는 것들이다. 그 메서드에 코드가
     // 오면 이제 on_error 로 간다 — 옛 코드를 주는 생산자가 남아 있으면 드러난다.
+    //   GET  — resource.retrieve (8번): '200' → result 200/2000, '200-1' → search 200/2000
+    //   POST — resource.create (9번):   '201' → result 201/2001, '201-3' → rcn3 201/2001
     PUT:    { '200': ['result', '200', '2004'] },
     DELETE: { '200': ['result', '200', '2002'] }
 };
