@@ -165,7 +165,8 @@ test('responder.js 에 죽은 rspObj 가 없다', function () {
     // 지우면서 구간 끝 표식이 사라졌다. 파일 전체로 본다 — 배출구 블록에도
     // 없어야 하므로 그쪽이 맞다.
     const src = code('mobius/responder.js');
-    assert.ok(src.indexOf('exports.response_result = function') > 0, '이 시험의 전제가 바뀌었다');
+    // 세 응답 함수는 2단계 10번에서 지웠다. 본문 조립은 body_of 하나다.
+    assert.ok(src.indexOf('exports.body_of = function') > 0, '이 시험의 전제가 바뀌었다');
     assert.strictEqual(src.indexOf('rspObj'), -1, 'rspObj 가 되살아났다');
     // cap 도 같은 운명이다 — 여섯째 인자로 받아 rspObj 에 넣었다 버리던 것.
     const words = src.split(/[^A-Za-z0-9_$]+/);

@@ -33,25 +33,19 @@ var responder = require('./responder');
 var RSC = require('./rsc').RSC;
 
 /**
- * 옛 라우트의 if-else — lookup_* 이 **코드 문자열만** 주는 동안 done(code) 가
- * 이 표로 옛 세 갈래(result / search / rcn3)를 고른다.
+ * ── 옛 세 갈래(result / search / rcn3)는 어디로 갔나
  *
- * 2단계 6번(2026-09-05)에서 app.js 라우트 넷의 갈래를 여기로 옮겼다. 모양
- * 정보('200' 은 일반, '200-1' 은 discovery, '201-3' 은 rcn=3)가 코드 문자열에
- * 인코딩되어 세 층을 관통하던 것이 이 표 하나로 좁혀진 상태다. 생산자가
- * out 을 주기 시작하면(8~9번) 줄이 빠지고, 다 빠지면 표째 지운다(10번).
+ * 2단계(2026-09-05) 전에는 lookup_* 이 **코드 문자열만** 돌려줬다 — '200' 은
+ * 일반, '200-1' 은 discovery, '201-3' 은 rcn=3. 모양 정보가 코드에 인코딩되어
+ * 라우트가 그것을 보고 settle.result / .search / .rcn3 중 하나를 골랐고,
+ * 그것이 responder 의 세 함수 중 하나를 골랐다. 세 층을 관통하는 암묵 계약이었다.
  *
- * 메서드가 키다 — 같은 '200' 이 GET 은 2000, PUT 은 2004, DELETE 는 2002 다.
+ * 이제 생산자(resource.create/retrieve/update/delete · fopt.check)가 결과
+ * 객체 out 을 인자로 올리고, 정산은 done 하나다. 옛 갈래로 돌리던 이행기
+ * 표(LEGACY)는 생산자가 하나씩 옮겨가며 줄이 빠졌고 10번에서 표째 지웠다.
+ * 옛 코드를 주는 생산자가 남아 있었다면 on_error 로 500 이 나서 드러났을 것이다
+ * — 골든이 그것을 확인했다.
  */
-var LEGACY = {
-    // 빠진 메서드는 생산자가 (null, out) 을 주는 것들이다. 그 메서드에 코드가
-    // 오면 이제 on_error 로 간다 — 옛 코드를 주는 생산자가 남아 있으면 드러난다.
-    //   GET  — resource.retrieve (8번): '200' → result 200/2000, '200-1' → search 200/2000
-    //   POST — resource.create (9번):   '201' → result 201/2001, '201-3' → rcn3 201/2001
-    //   PUT  — resource.update (9번):   '200' → result 200/2004
-    //   DELETE — resource.delete (9번): '200' → result 200/2002
-    // 전부 빠졌다 — 이 표와 옛 갈래(result / search / rcn3)는 10번에서 지운다.
-};
 
 /**
  * @param request
@@ -101,8 +95,6 @@ exports.make = function (request, response, connection, on_error, release) {
          *                     shape.js 의 네 모양 이름. 본문이 **인자**로 온다 —
          *                     request.resourceObj 에 숨지 않는다.
          *
-         * 이행기에는 옛 성공 코드('201', '200-1' …)도 code 로 온다 — 위 LEGACY.
-         *
          * out 이 잘못됐으면(모르는 rsc·shape, 본문 조립이 던짐) **던지지 않고**
          * 500 으로 낸다. 응답 전에 던지면 반납을 못 하고 backstop 이 워커를
          * 죽인다 — 프로그래밍 오류를 요청 하나의 500 으로 가두는 것이다.
@@ -124,9 +116,6 @@ exports.make = function (request, response, connection, on_error, release) {
                 responder.respond(request, response, { status: c.http, rsc: c.rsc, body: body }, finish);
                 return;
             }
-            var m = Object.prototype.hasOwnProperty.call(LEGACY, request.method) ? LEGACY[request.method] : {};
-            var leg = Object.prototype.hasOwnProperty.call(m, code) ? m[code] : null;
-            if (leg) { api[leg[0]](leg[1], leg[2]); return; }
             api.error(code);
         },
 
@@ -134,29 +123,6 @@ exports.make = function (request, response, connection, on_error, release) {
         error: function (code) {
             if (!claim('error ' + code)) { return; }
             on_error(request, response, code, finish);
-        },
-
-        // 세 함수의 여섯째 인자 cap 은 1단계 3번에서 없앴다. 네 자리 전부에서
-        // 만들었다 버려지던 값이라 응답에 한 번도 안 나타났다 — 차분 하네스의
-        // cap/string|object|number|null 네 건이 같은 바이트를 낸 것으로 확인했다.
-        // 호출부(app.js 7곳)가 넘기던 '' 도 같이 걷어냈다.
-
-        /** 일반 성공 응답. */
-        result: function (status, rsc) {
-            if (!claim('result ' + status + '/' + rsc)) { return; }
-            responder.response_result(request, response, status, rsc, finish);
-        },
-
-        /** discovery·fanOutPoint 결과 응답. */
-        search: function (status, rsc) {
-            if (!claim('search ' + status + '/' + rsc)) { return; }
-            responder.search_result(request, response, status, rsc, finish);
-        },
-
-        /** rcn=3 응답. */
-        rcn3: function (status, rsc) {
-            if (!claim('rcn3 ' + status + '/' + rsc)) { return; }
-            responder.response_rcn3_result(request, response, status, rsc, finish);
         },
 
         /**
@@ -174,6 +140,3 @@ exports.make = function (request, response, connection, on_error, release) {
     };
     return api;
 };
-
-/** 이행기 표. 시험이 라우트의 옛 if-else 와 같은지 대조한다. */
-exports.LEGACY = LEGACY;

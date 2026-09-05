@@ -3,18 +3,19 @@
  *
  * 옛 라우트 넷은 lookup_* 의 코드 문자열을 보고 settle.result / .search / .rcn3
  * 중 하나를 골랐다 — 모양 정보('200-1' 은 discovery)가 코드에 인코딩되어 세
- * 층을 관통했다. 그 if-else 를 settle 안의 LEGACY 표로 옮겼고, 생산자가
- * out = { rsc, shape, rootnm, body } 를 주면 표를 안 거친다.
+ * 층을 관통했다. 6번에서 그 if-else 를 settle 안의 이행기 표(LEGACY)로 옮기고,
+ * 8·9번에서 생산자가 out = { rsc, shape, rootnm, body } 를 주게 되면서 줄이
+ * 빠졌고, 10번에서 표와 옛 세 갈래·responder 의 옛 세 함수를 지웠다.
  *
  * 지키는 것:
- *   1. LEGACY 표가 옛 라우트의 갈래와 **정확히** 같다 — 메서드×코드 전수
- *   2. 표에 없는 코드는 on_error 로 — 옛 else 갈래와 같다
- *   3. out 이 오면 카탈로그(rsc.js)와 body_of 를 거쳐 respond 로 — 옛 갈래를
- *      전혀 안 탄다
- *   4. 잘못된 out(모르는 rsc·shape)은 **던지지 않고** 500-8 — 던지면 커넥션
+ *   1. done(code) 는 메서드·코드와 무관하게 언제나 on_error 다 — 옛 갈래가 없다
+ *   2. out 이 오면 카탈로그(rsc.js)와 body_of 를 거쳐 respond 로
+ *   3. 잘못된 out(모르는 rsc·shape)은 **던지지 않고** 500-8 — 던지면 커넥션
  *      반납을 못 한다
- *   5. 두 번 정산은 막힌다 (done 도 claim 을 거친다)
- *   6. app.js 라우트 넷이 done 을 부르고 옛 세 함수를 직접 안 부른다
+ *   4. 두 번 정산은 막힌다 (done 도 claim 을 거친다)
+ *   5. 옛 갈래(settle.result/search/rcn3 · responder 의 세 함수)가 되살아나지 않는다
+ *   6. app.js 라우트 넷과 run_fanout 이 done 을 부른다
+ *   7. 생산자 다섯의 성공 종단이 코드가 아니라 결과 객체를 준다
  */
 'use strict';
 const test = require('node:test');
@@ -33,25 +34,6 @@ const shape = require('../mobius/shape');
 const RSC = require('../mobius/rsc').RSC;
 const MOBIUS_DIR = path.join(__dirname, '..', 'mobius');
 
-// 옛 라우트 넷의 갈래를 그대로 옮겨 적은 것. 표가 이것과 같아야 한다.
-// (app.js 2단계 6번 전 — lookup_create/retrieve/update/delete 의 콜백)
-const OLD_ROUTES = {
-    POST:   { '201': ['result', '201', '2001'], '201-3': ['rcn3', '201', '2001'] },
-    GET:    { '200': ['result', '200', '2000'], '200-1': ['search', '200', '2000'] },
-    PUT:    { '200': ['result', '200', '2004'] },
-    DELETE: { '200': ['result', '200', '2002'] }
-};
-// 생산자가 out 을 주기 시작한 메서드는 표에서 빠진다. 지금까지 빠진 것:
-//   GET — resource.retrieve (2단계 8번)
-// 빠진 메서드에 옛 코드가 오면 on_error 로 간다 — 옛 코드를 주는 생산자가
-// 남아 있으면 조용히 옛 갈래를 타는 대신 500 으로 드러난다.
-//   POST — resource.create (2단계 9번)
-//   PUT  — resource.update (2단계 9번)
-//   DELETE — resource.delete (2단계 9번)
-const DONE_METHODS = ['GET', 'POST', 'PUT', 'DELETE'];
-const LEGACY_LEFT = {};
-Object.keys(OLD_ROUTES).forEach((m) => { if (DONE_METHODS.indexOf(m) < 0) LEGACY_LEFT[m] = OLD_ROUTES[m]; });
-
 function fakeConn() {
     const c = { released: 0 };
     c.release = function () { c.released++; };
@@ -64,17 +46,12 @@ function quiet(fn) {
     try { fn(); } finally { console.error = orig; }
     return lines;
 }
-// responder 의 옛 세 함수와 respond 를 기록기로 바꿔 끼운다. settle 은 모듈
-// 객체를 통해 부르므로 여기서 갈아끼운 것이 그대로 먹는다.
+// responder 의 배출구 respond 를 기록기로 바꿔 끼운다. settle 은 모듈 객체를
+// 통해 부르므로 여기서 갈아끼운 것이 그대로 먹는다.
 function spyResponder(log) {
-    const names = ['response_result', 'search_result', 'response_rcn3_result', 'respond'];
-    const orig = {};
-    names.forEach((n) => { orig[n] = responder[n]; });
-    responder.response_result = (rq, rs, status, rsc, cb) => { log.push(['result', status, rsc]); cb(); };
-    responder.search_result = (rq, rs, status, rsc, cb) => { log.push(['search', status, rsc]); cb(); };
-    responder.response_rcn3_result = (rq, rs, status, rsc, cb) => { log.push(['rcn3', status, rsc]); cb(); };
+    const orig = responder.respond;
     responder.respond = (rq, rs, spec, cb) => { log.push(['respond', spec]); cb(); };
-    return function restore() { names.forEach((n) => { responder[n] = orig[n]; }); };
+    return function restore() { responder.respond = orig; };
 }
 function onError(log) {
     return function (rq, rs, code, cb) { log.push(['error', code]); cb(); };
@@ -83,11 +60,19 @@ function req(method, extra) {
     return Object.assign({ method: method, query: {}, headers: { rootnm: 'cnt' } }, extra || {});
 }
 
-test('LEGACY 표가 옛 라우트의 갈래에서 out 으로 옮겨간 메서드만 뺀 것과 같다', () => {
-    assert.deepStrictEqual(settle_mod.LEGACY, LEGACY_LEFT);
+test('옛 갈래가 없다 — settle 에 result/search/rcn3, responder 에 세 함수가 없다', () => {
+    const s = settle_mod.make(req('GET'), {}, fakeConn(), onError([]));
+    ['result', 'search', 'rcn3'].forEach((n) => assert.strictEqual(typeof s[n], 'undefined', 'settle.' + n));
+    assert.strictEqual(typeof settle_mod.LEGACY, 'undefined', '이행기 표가 남아 있다');
+    ['response_result', 'search_result', 'response_rcn3_result'].forEach((n) =>
+        assert.strictEqual(typeof responder[n], 'undefined', 'responder.' + n));
+    assert.strictEqual(typeof responder.body_of, 'function');
+    assert.strictEqual(typeof responder.respond, 'function');
 });
 
-test('done(code): 표의 (메서드, 코드)는 옛 세 함수 중 하나로, 나머지는 on_error 로', () => {
+test('done(code): 메서드·코드와 무관하게 언제나 on_error 로 — 옛 성공 코드도 예외가 아니다', () => {
+    // '200'/'200-1'/'201'/'201-3' 은 이행기에 옛 갈래로 가던 코드다. 이제 생산자가
+    // 코드를 주면 그것은 실패이고, 옛 코드를 주는 생산자가 남아 있으면 여기서 드러난다.
     const CODES = ['200', '200-1', '201', '201-3', '400-1', '404-4', '500-1', '2000', '', undefined];
     ['POST', 'GET', 'PUT', 'DELETE', 'PATCH', 'OPTIONS', undefined].forEach((method) => {
         CODES.forEach((code) => {
@@ -98,9 +83,7 @@ test('done(code): 표의 (메서드, 코드)는 옛 세 함수 중 하나로, �
                 const s = settle_mod.make(req(method), {}, conn, onError(log));
                 s.done(code);
             } finally { restore(); }
-            const old = (LEGACY_LEFT[method] || {})[code];
-            const want = old ? [old] : [['error', code]];
-            assert.deepStrictEqual(log, want, method + ' ' + JSON.stringify(code));
+            assert.deepStrictEqual(log, [['error', code]], method + ' ' + JSON.stringify(code));
             assert.strictEqual(conn.released, 1, '반납은 한 번');
         });
     });
