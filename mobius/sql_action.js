@@ -590,6 +590,16 @@ Object.keys(BODY_TABLES).forEach(function (name) {
 });
 // ---------------------------------------------------------------------------
 
+// 알림 라우팅의 원천. sgn.check 가 쓰기마다 "구독이 붙은 리소스" 의 ri 로 한 번 읽는다
+// (docs/superpowers/specs/2026-09-05-notification-routing-source-design.md).
+// 발송기(subl_entry.read)가 읽는 6필드만 고르고, 순서는 ri 오름차순으로 고정한다 —
+// 옛 subl 사본은 삽입순이었지만 발송 앞의 랜덤 지연이 이미 순서를 흔들고 있어 실효가 없다.
+// nu·enc 는 insert_sub 가 넣은 그대로 JSON **문자열**이다 — 읽는 쪽이 푼다.
+exports.select_subs_by_pi = function (connection, pi, callback) {
+    facade.run(facade.k('sub').select('ri', 'nu', 'enc', 'nct', 'nec', 'cr')
+                     .where({ pi: pi }).orderBy('ri', 'asc'), connection, callback);
+};
+
 exports.insert_sub = function (connection, obj, callback) {
     _this.insert_lookup(connection, obj, function (err, results) {
         if (!err) {
@@ -677,6 +687,57 @@ exports.select_resource_from_url = function (connection, ri, sri, callback) {
                     : comm_Obj[0]);
                 callback(null, resource_Obj);
             });
+    });
+};
+
+// select_resource_from_url 의 배치판. nu 해석(mobius/nu_resolve.js)이 구독의 ID 형 nu
+// 전부를 한 번에 푼다 — 옛 get_nu_arr 은 nu 마다 위 단건 함수를 순차로 불렀다.
+// lookup 을 ri 목록 또는 sri 목록으로 한 번 읽고, 나온 타입마다 테이블을 한 번씩 읽어
+// merge 한다. 규칙은 단건과 같다 — 이 CSE 가 다루지 않는 타입은 lookup 행만 돌려준다
+// (poa 가 없으니 호출부가 "보낼 곳이 없다" 로 뺀다). 매치가 없는 항목은 결과에 없다.
+exports.select_resources_in = function (connection, ri_list, sri_list, callback) {
+    var ris = ri_list || [];
+    var sris = sri_list || [];
+    if (ris.length === 0 && sris.length === 0) {
+        callback(null, []);
+        return;
+    }
+    var qb = facade.k('lookup').select('*').where(function () {
+        this.whereIn('ri', ris).orWhereIn('sri', sris);
+    });
+    facade.run(qb, connection, function (err, comm) {
+        if (err) {
+            callback(err, comm);
+            return;
+        }
+        var byTable = {};
+        (comm || []).forEach(function (row) {
+            var table = responder.typeRsrc[row.ty];
+            if (!table) {
+                console.error('[select_resources_in] 지원하지 않는 타입의 행: ty=' + row.ty + ' ' + row.ri);
+                return;
+            }
+            (byTable[table] = byTable[table] || []).push(row.ri);
+        });
+        var tables = Object.keys(byTable);
+        var spec = {};
+        (function next(i) {
+            if (i >= tables.length) {
+                callback(null, (comm || []).map(function (row) {
+                    return spec[row.ri] ? merge(row, spec[row.ri]) : row;
+                }));
+                return;
+            }
+            facade.run(facade.k(tables[i]).select('*').whereIn('ri', byTable[tables[i]]), connection,
+                function (err2, rows) {
+                    if (err2) {
+                        callback(err2, rows);
+                        return;
+                    }
+                    (rows || []).forEach(function (r) { spec[r.ri] = r; });
+                    next(i + 1);
+                });
+        })(0);
     });
 };
 

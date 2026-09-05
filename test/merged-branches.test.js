@@ -224,7 +224,7 @@ test('호출부 없는 함수들이 제거되었다', function () {
         delete_ri_lookup_in: '호출부 0, MySQL 전용 DELETE ... LIMIT',
         select_grp_lookup: '호출부 0 — 그룹 조회는 select_resource_from_url 이 한다',
         select_grp: '호출부 0',
-        select_sub: '호출부 0 — 알림은 lookup.subl 캐시를 읽는다',
+        select_sub: '호출부 0 — 알림은 select_subs_by_pi 로 sub 를 부모 ri 로 읽는다 (2026-09-05, 옛 subl 캐시 아님)',
         select_st: '호출부 0 — st 는 select_cni_parent 가 함께 읽는다'
     };
 
