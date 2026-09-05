@@ -1383,6 +1383,27 @@ function check_grp(request, response, callback) {
 //
 // 예전에는 호출부마다 resultStatusCode[code][0], [1], [2] 를 직접 펼쳐 넘겼다.
 // 표의 3원소 배열 구조가 47곳에 새어 나가 있어서, 표에 필드를 하나 더하려면
+/**
+ * 대상이 이 CSE 밑에 없다(get_target_url 이 301-1) — remoteCSE 로 넘긴다.
+ *
+ * check_csr 이 csr 의 poa 로 요청을 흘려보내고 응답을 response.body /
+ * response.statusCode 에 실어 '301-2' 를 준다. 그것을 settle.raw 로 그대로
+ * 내보낸다 — responder 모양이 아니라서(상류가 만든 본문) 정산기의 유일한
+ * 인정된 우회다. 네 라우트에 이 12줄이 글자까지 같게 있었다. 3단계 11번.
+ */
+function forward_to_csr(request, response, settle) {
+    check_csr(request, response, (code) => {
+        if (code === '301-2') {
+            settle.raw('csr forward', function () {
+                response.status(response.statusCode).end(response.body);
+            });
+        }
+        else {
+            settle.error(code);
+        }
+    });
+}
+
 // 그 47곳을 전부 봐야 했다.
 // 정산기는 mobius/settle.js 에 있다. 여기서는 response_error_result 를 엮어
 // 넘기기만 한다 — 그 함수가 reason 카탈로그와 responder.respond 를 잇고 있다.
@@ -2437,16 +2458,7 @@ app.post('*', onem2mParser, (request, response) => {
                                         }
                                     }
                                     else if (code === '301-1') {
-                                        check_csr(request, response, (code) => {
-                                            if (code === '301-2') {
-                                                settle.raw('csr forward', function () {
-                                                    response.status(response.statusCode).end(response.body);
-                                                });
-                                            }
-                                            else {
-                                                settle.error(code);
-                                            }
-                                        });
+                                        forward_to_csr(request, response, settle);
                                     }
                                     else {
                                         settle.error(code);
@@ -2511,16 +2523,7 @@ app.get('*', onem2mParser, (request, response) => {
                                     }
                                 }
                                 else if (code === '301-1') {
-                                    check_csr(request, response, (code) => {
-                                        if (code === '301-2') {
-                                            settle.raw('csr forward', function () {
-                                                response.status(response.statusCode).end(response.body);
-                                            });
-                                        }
-                                        else {
-                                            settle.error(code);
-                                        }
-                                    });
+                                    forward_to_csr(request, response, settle);
                                 }
                                 else {
                                     settle.error(code);
@@ -2616,16 +2619,7 @@ app.put('*', onem2mParser, (request, response) => {
                                         }
                                     }
                                     else if (code === '301-1') {
-                                        check_csr(request, response, (code) => {
-                                            if (code === '301-2') {
-                                                settle.raw('csr forward', function () {
-                                                    response.status(response.statusCode).end(response.body);
-                                                });
-                                            }
-                                            else {
-                                                settle.error(code);
-                                            }
-                                        });
+                                        forward_to_csr(request, response, settle);
                                     }
                                     else {
                                         settle.error(code);
@@ -2696,16 +2690,7 @@ app.delete('*', onem2mParser, (request, response) => {
                             }
                         }
                         else if (code === '301-1') {
-                            check_csr(request, response, (code) => {
-                                if (code === '301-2') {
-                                    settle.raw('csr forward', function () {
-                                        response.status(response.statusCode).end(response.body);
-                                    });
-                                }
-                                else {
-                                    settle.error(code);
-                                }
-                            });
+                            forward_to_csr(request, response, settle);
                         }
                         else {
                             settle.error(code);
