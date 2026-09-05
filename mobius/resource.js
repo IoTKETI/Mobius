@@ -2220,7 +2220,8 @@ exports.update = function (request, response, callback) {
 
                     });
 
-                    callback('200');
+                    // 결과가 인자로 올라간다 — 옛 라우트가 '200' 을 보고 result 200/2004 를 골랐다. 2단계 9번.
+                    callback(null, { rsc: 'UPDATED', shape: 'single', rootnm: rootnm, body: request.resourceObj });
                     });
                     });
                 }

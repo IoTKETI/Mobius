@@ -48,7 +48,7 @@ var LEGACY = {
     // 오면 이제 on_error 로 간다 — 옛 코드를 주는 생산자가 남아 있으면 드러난다.
     //   GET  — resource.retrieve (8번): '200' → result 200/2000, '200-1' → search 200/2000
     //   POST — resource.create (9번):   '201' → result 201/2001, '201-3' → rcn3 201/2001
-    PUT:    { '200': ['result', '200', '2004'] },
+    //   PUT  — resource.update (9번):   '200' → result 200/2004
     DELETE: { '200': ['result', '200', '2002'] }
 };
 

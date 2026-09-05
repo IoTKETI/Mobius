@@ -46,7 +46,8 @@ const OLD_ROUTES = {
 // 빠진 메서드에 옛 코드가 오면 on_error 로 간다 — 옛 코드를 주는 생산자가
 // 남아 있으면 조용히 옛 갈래를 타는 대신 500 으로 드러난다.
 //   POST — resource.create (2단계 9번)
-const DONE_METHODS = ['GET', 'POST'];
+//   PUT  — resource.update (2단계 9번)
+const DONE_METHODS = ['GET', 'POST', 'PUT'];
 const LEGACY_LEFT = {};
 Object.keys(OLD_ROUTES).forEach((m) => { if (DONE_METHODS.indexOf(m) < 0) LEGACY_LEFT[m] = OLD_ROUTES[m]; });
 
@@ -163,14 +164,17 @@ test('done 은 claim 을 거친다 — 두 번째는 막히고 로그로 남는�
     const restore = spyResponder(log);
     const conn = fakeConn();
     try {
-        // PUT 은 아직 LEGACY 에 있다(GET 은 8번에서 빠졌다) — 옛 갈래 뒤에 out 이 와도 막힌다
-        const s = settle_mod.make(req('PUT'), {}, conn, onError(log));
-        s.done('200');
-        const lines = quiet(() => { s.done(null, { rsc: 'OK', shape: 'single', body: {} }); });
+        // 옛 갈래에 기대지 않는다 — 8·9번을 거치며 전부 빠진다. out 으로 정산한 뒤 또 out 이 와도 막힌다
+        // 본문은 진짜 모양이어야 한다 — {} 는 root_key 가 던져 500-8 로 간다
+        const s = settle_mod.make(req('PUT', { query: { rcn: '1' } }), {}, conn, onError(log));
+        s.done(null, { rsc: 'UPDATED', shape: 'single', body: { 'm2m:cnt': { rn: 'a', ty: '3' } } });
+        const lines = quiet(() => { s.done(null, { rsc: 'OK', shape: 'single', body: { 'm2m:cnt': { rn: 'b', ty: '3' } } }); });
         assert.strictEqual(lines.length, 1);
         assert.ok(/settle/.test(lines[0]) && /done OK/.test(lines[0]), lines[0]);
     } finally { restore(); }
-    assert.deepStrictEqual(log, [['result', '200', '2004']]);
+    assert.strictEqual(log.length, 1, '두 번째 응답은 나가면 안 된다');
+    assert.strictEqual(log[0][0], 'respond');
+    assert.strictEqual(log[0][1].rsc, '2004');
     assert.strictEqual(conn.released, 1);
 });
 
@@ -245,4 +249,11 @@ test('resource.create 의 성공 종단이 결과 객체를 준다 (2단계 9번
     assert.strictEqual(count("{ rsc: 'CREATED', shape: 'single', rootnm: 'uri', body: request.resourceObj }"), 1);
     assert.strictEqual(count("{ rsc: 'CREATED', shape: 'rce', rootnm: rootnm, body: request.resourceObj }"), 1);
     assert.strictEqual(count("{ rsc: 'CREATED', shape: 'single', rootnm: rootnm, body: request.resourceObj }"), 1);
+});
+
+test('resource.update 의 성공 종단이 결과 객체를 준다 (2단계 9번)', () => {
+    const src = fs.readFileSync(path.join(MOBIUS_DIR, 'resource.js'), 'utf8')
+        .replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/mg, '');
+    const count = (n) => src.split(n).length - 1;
+    assert.strictEqual(count("{ rsc: 'UPDATED', shape: 'single', rootnm: rootnm, body: request.resourceObj }"), 1);
 });
