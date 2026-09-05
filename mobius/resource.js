@@ -22,7 +22,6 @@ var moment = require('moment');
 var fs = require('fs');
 
 var sgn = require('./sgn');
-var subl_entry = require('./subl');
 var responder = require('./responder');
 var csr = require('./csr');
 var cnt = require('./cnt');
@@ -702,36 +701,12 @@ function create_action(request, response, callback) {
     else if (ty == '23') {
         db_sql.insert_sub(request.db_connection, resource_Obj[rootnm], (err, results) => {
             if (!err) {
-                var parent_rootnm = Object.keys(request.targetObject)[0];
-                var parentObj = request.targetObject[parent_rootnm];
-
-                // 목록을 여기서 만들지 않는다. update_subl 이 부모 행을 잠그고
-                // **그 안에서 읽은** 배열에 이 함수를 적용한다.
-                //
-                // 예전에는 request.targetObject 의 부모 사본에 push 했다. 그
-                // 사본은 요청이 시작될 때 읽은 것이라, 그 사이 같은 부모에
-                // 다른 구독이 생기면 절대값 UPDATE 가 그것을 지웠다.
-                // 수정·삭제는 그 자리에서 부모를 다시 읽는데 생성만 안 읽었다.
-                var entry = subl_entry.pack(resource_Obj[rootnm]);
-                db_sql.update_subl(request.db_connection, parentObj.ri, function (list) {
-                    return subl_entry.upsert(list, entry);
-                }, (err, results) => {
-                    // else 가 없었다. 부모 갱신이 실패하면 콜백이 사라져
-                    // 응답도 connection.release() 도 없이 요청이 매달렸다.
-                    // 데드락, 락 타임아웃, 커넥션 끊김, SQLITE_BUSY 에서 실제로 난다.
-                    //
-                    // sub 행은 이미 들어갔으므로 200 이 완전히 틀린 것은 아니지만,
-                    // 부모의 subl 이 갱신되지 않아 알림이 안 나간다. 실패를 알린다.
-                    if(!err) {
-                        callback('200');
-                    }
-                    else {
-                        console.error('[create_action] sub 의 부모 subl 갱신 실패: ' +
-                                      ((results && (results.driverCode || results.code)) || '?') +
-                                      ' 부모=' + parentObj.ri + ' sub=' + resource_Obj[rootnm].ri);
-                        callback('500-1');
-                    }
-                });
+                // 부모 lookup 행의 subl 사본을 여기서 갱신하던 자리다(update_subl —
+                // 트랜잭션 + 행 잠금). 알림 라우팅의 원천이 sub 테이블로 옮겨진 뒤로
+                // (2026-09-05) 사본은 아무도 읽지 않으므로 갱신도 하지 않는다. 방금
+                // 들어간 sub 행이 곧 발송 목록이다.
+                // 스펙: docs/superpowers/specs/2026-09-05-notification-routing-source-design.md
+                callback('200');
             }
             else {
                 if (db_errors.isDuplicateKey(results)) {
@@ -1735,48 +1710,11 @@ function update_action(request, response, callback) {
     else if (ty == '23') {
         db_sql.update_sub(request.db_connection, resource_Obj[rootnm], function (err, results) {
             if (!err) {
-                db_sql.select_lookup(request.db_connection, resource_Obj[rootnm].pi, function (err, results_comm) {
-                    // 이 두 콜백에 else 가 없었다. 부모를 못 읽거나 갱신하지
-                    // 못하면 update_action 의 콜백이 사라져, 응답도
-                    // connection.release() 도 없이 PUT 요청이 매달렸다.
-                    if (err) {
-                        console.log('[update_action] sub 의 부모 조회 실패: ' +
-                                    ((results_comm && (results_comm.driverCode || results_comm.code)) || '?'));
-                        callback('500-1');
-                        return;
-                    }
-
-                    // 부모를 잃은 sub 를 수정하면 results_comm 이 빈 배열이라
-                    // results_comm[0] 이 undefined 가 되고, 다음 줄의
-                    // parentObj.subl 에서 워커가 죽었다.
-                    if (results_comm.length === 0) {
-                        console.log('[update_action] sub 의 부모 lookup 행이 없다: ' + resource_Obj[rootnm].pi);
-                        callback('404-1');
-                        return;
-                    }
-
-                    makeObject(results_comm[0]);
-                    var parentObj = results_comm[0];
-
-                    // 첫 항목만 갈아 끼우고 break 하던 자리다. 같은 ri 가 두 개면
-                    // 뒤엣것은 옛 nu 를 그대로 들고 계속 발송했다 — 배포에서
-                    // "subl 과 sub 의 nu 가 다른" 194건이 이것이다.
-                    // upsert 는 첫 자리에 새 것을 놓고 나머지 같은 ri 를 버린다.
-                    var entry = subl_entry.pack(resource_Obj[rootnm]);
-                    db_sql.update_subl(request.db_connection, parentObj.ri, function (list) {
-                        return subl_entry.upsert(list, entry);
-                    }, function (err, results) {
-                        if (!err) {
-                            callback('200');
-                        }
-                        else {
-                            console.error('[update_action] sub 의 부모 subl 갱신 실패: ' +
-                                          ((results && (results.driverCode || results.code)) || '?') +
-                                          ' 부모=' + parentObj.ri + ' sub=' + resource_Obj[rootnm].ri);
-                            callback('500-1');
-                        }
-                    });
-                });
+                // 부모 lookup 행을 다시 읽어 subl 사본의 항목을 갈아 끼우던 자리다
+                // (배포의 "낡은 nu 194건" 이 여기서 났다). 원천이 sub 테이블로 옮겨진
+                // 뒤로(2026-09-05) 사본은 읽히지 않으므로 갱신도, 부모 조회도 없다 —
+                // 방금 고친 sub 행이 곧 발송 목록이다.
+                callback('200');
             }
             else {
                 console.log('[update_action] ty=' + ty + ' error: ' +
@@ -2360,46 +2298,20 @@ function delete_action(request, response, callback) {
                                             }
                                         }
 
-                                        var parentObj = request.targetObject[parent_rootnm];
-                                        var gone_ri = resource_Obj[rootnm].ri;
-
-                                        // for-in 으로 돌면서 splice 하던 자리다. 뒤 원소가 앞으로
-                                        // 당겨지며 건너뛰어, 같은 ri 가 두 개면 하나만 지워졌다 —
-                                        // 배포의 "중복 1,481묶음" 이 지워지지 않고 남는 이유다.
-                                        // without 은 같은 ri 를 전부 뺀다.
+                                        // 부모 lookup 행의 subl 사본에서 이 구독을 빼던 자리다(update_subl).
+                                        // 여기가 실패하면 sub 행은 FK CASCADE 로 사라졌는데 사본에 남아
+                                        // **영구히 알림을 계속 보내는 유령**이 됐다 — 배포의 유령 9,475건.
+                                        // 원천이 sub 테이블로 옮겨진 뒤로(2026-09-05) 행이 사라지는 것이
+                                        // 곧 발송 중단이라 할 일이 없다.
                                         //
-                                        // **이 갱신을 기다린 뒤에 응답한다.** update_subl 은 MySQL 에서
-                                        // 트랜잭션을 연다. 예전처럼 던져 놓고 곧바로 응답하면, 응답에서
-                                        // connection.release() 까지가 한 tick 안에서 끝나므로 커넥션이
-                                        // **열린 트랜잭션째** 풀로 돌아간다. 다음 요청이 남의 트랜잭션
-                                        // 안에서 돌게 되고, 하필 delete_oldest 의 SELECT ... FOR UPDATE 와
-                                        // 겹치면 반쪽 상태가 커밋된다. 크래시가 아니라 조용한 뒤섞임이라
-                                        // 로그에 아무것도 안 남는다(mobius/db/index.js 의 같은 주석 참고).
-                                        db_sql.update_subl(request.db_connection, parentObj.ri, function (list) {
-                                            return subl_entry.without(list, gone_ri);
-                                        }, function (err, results) {
-                                            // 콜백이 비어 있었다. 여기가 실패하면 sub 행은 이미
-                                            // FK CASCADE 로 사라졌는데 목록에는 항목이 남아
-                                            // **영구히 알림을 계속 보내는 유령**이 된다.
-                                            //
-                                            // 응답은 200 이 맞다 — 리소스는 지워졌다. 대신 무엇이
-                                            // 남았는지 반드시 남긴다. 그래야 감사가 그 부모를 짚는다.
-                                            if (err) {
-                                                console.error('[delete_action] sub 의 부모 subl 갱신 실패 — ' +
-                                                    '유령이 남는다: ' +
-                                                    ((results && (results.driverCode || results.code)) || '?') +
-                                                    ' 부모=' + parentObj.ri + ' sub=' + gone_ri);
-                                            }
-
-                                            // update_lookup 은 st 를 obj.st 그대로 다시 쓴다(대입).
-                                            // 자식이 지워졌으니 부모 stateTag 는 올라가야 한다.
-                                            // 갱신이 끝난 뒤 응답한다 — create_action 의 같은 자리 주석 참조 (§4.1).
-                                            db_sql.update_parent_st(request.db_connection,
-                                                request.targetObject[parent_rootnm], function (err) {
-                                                    if (err) { console.log('[delete_action] update_parent_st failed: ' + err); }
-                                                    callback('200');
-                                                });
-                                        });
+                                        // update_lookup 은 st 를 obj.st 그대로 다시 쓴다(대입).
+                                        // 자식이 지워졌으니 부모 stateTag 는 올라가야 한다.
+                                        // 갱신이 끝난 뒤 응답한다 — create_action 의 같은 자리 주석 참조 (§4.1).
+                                        db_sql.update_parent_st(request.db_connection,
+                                            request.targetObject[parent_rootnm], function (err) {
+                                                if (err) { console.log('[delete_action] update_parent_st failed: ' + err); }
+                                                callback('200');
+                                            });
                                     }
                                     else if (resource_Obj[rootnm].ty == '4') {
                                         // 부모는 위 select_lookup 으로 이미 조회했다.

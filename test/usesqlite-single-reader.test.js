@@ -183,8 +183,8 @@ test('전역을 세우는 곳도 없다 — 읽는 이가 없으면 세우는 �
     // 다음 사람이 "이걸로 백엔드를 물으면 되는구나" 로 읽는다. 실제로 007 과
     // tools 두 개가 그 길로 갔다.
     const writers = [];
-    const scan = sourceFiles().concat(['mobius.js', 'tools/migrate.js',
-                                       'tools/rebuild-subl.js', 'tools/snapshot-subl.js']);
+    // tools/rebuild-subl.js · snapshot-subl.js 가 여기 있었다 — subl 사본과 함께 지웠다(2026-09-05).
+    const scan = sourceFiles().concat(['mobius.js', 'tools/migrate.js']);
     for (const rel of scan) {
         fs.readFileSync(path.join(ROOT, rel), 'utf8').split(/\r?\n/).forEach((l, i) => {
             if (/^\s*(\/\/|\*|\/\*)/.test(l)) { return; }
@@ -206,8 +206,8 @@ test('conf.json 의 usesqlite 키도 아무도 읽지 않는다', function () {
     // db 키가 그 자리를 완전히 대신한다. 옛 키가 남은 conf.json 은 설정 표에
     // 없는 키라 "모르는 키" 로 걸린다 — 조용히 넘어가지 않는다.
     const bad = [];
-    const scan = sourceFiles().concat(['mobius.js', 'tools/migrate.js',
-                                       'tools/rebuild-subl.js', 'tools/snapshot-subl.js']);
+    // tools/rebuild-subl.js · snapshot-subl.js 가 여기 있었다 — subl 사본과 함께 지웠다(2026-09-05).
+    const scan = sourceFiles().concat(['mobius.js', 'tools/migrate.js']);
 
     for (const rel of scan) {
         fs.readFileSync(path.join(ROOT, rel), 'utf8').split(/\r?\n/).forEach((l, i) => {

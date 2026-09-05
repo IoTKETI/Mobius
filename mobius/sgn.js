@@ -29,7 +29,7 @@ var responder = require('./responder');
 // 접두 규칙의 단일 진실원. 아래 nev.rep 의 키를 이것으로 만든다.
 var shape = require('./shape');
 var poa_util = require('./poa');
-var subl_entry = require('./subl');
+var sub_entry = require('./sub_entry');
 // 알림 라우팅의 원천은 sub 테이블이다 — lookup.subl 사본이 아니다 (2026-09-05).
 // 어느 행에 보낼지는 sub_source, ID 형 nu 를 주소로 푸는 것은 nu_resolve 가 맡는다.
 // 둘 다 sgn_man 을 모르므로 시험이 로드할 수 있다. 사본을 지키던 장치는 이중 쓰기로
@@ -203,19 +203,20 @@ function sgn_action_send(nu_arr, req_count, node, short_flag, check_value, ss_cr
     });
 }
 
-function sgn_action(connection, rootnm, check_value, subl, req_count, noti_Obj, parentObj, callback) {
-    if(subl.length <= req_count) {
+// rows 는 sub_source.rows_for 가 준 sub 행 목록이다(옛 인자 이름은 subl — 부모 행의 사본).
+function sgn_action(connection, rootnm, check_value, rows, req_count, noti_Obj, parentObj, callback) {
+    if(rows.length <= req_count) {
         callback('200');
         return;
     }
 
-    var results_ss = subl_entry.read(subl[req_count]);
+    var results_ss = sub_entry.read(rows[req_count]);
     if (!results_ss) {
-        var broken = subl[req_count];
-        console.error('[sgn] subl 항목을 읽을 수 없어 건너뛴다 — 부모=' +
+        var broken = rows[req_count];
+        console.error('[sgn] 구독 행을 읽을 수 없어 건너뛴다 — 부모=' +
                       ((parentObj && parentObj.ri) || '?') + ' 항목 ' + req_count +
                       ' sub=' + ((broken && broken.ri) || '?'));
-        sgn_action(connection, rootnm, check_value, subl, ++req_count, noti_Obj, parentObj, function (code) {
+        sgn_action(connection, rootnm, check_value, rows, ++req_count, noti_Obj, parentObj, function (code) {
             callback(code);
         });
         return;
@@ -281,7 +282,7 @@ function sgn_action(connection, rootnm, check_value, subl, req_count, noti_Obj, 
                 else {
                     console.log('nct except 2 (All Attribute) do not support');
                 }
-                sgn_action(connection, rootnm, check_value, subl, ++req_count, noti_Obj, parentObj, function (code) {
+                sgn_action(connection, rootnm, check_value, rows, ++req_count, noti_Obj, parentObj, function (code) {
                     callback(code);
                 });
             });
@@ -291,7 +292,7 @@ function sgn_action(connection, rootnm, check_value, subl, req_count, noti_Obj, 
 
     // net_arr에 check_value가 없는 경우에도 다음 subl로 진행
     if (!matched) {
-        sgn_action(connection, rootnm, check_value, subl, ++req_count, noti_Obj, parentObj, function (code) {
+        sgn_action(connection, rootnm, check_value, rows, ++req_count, noti_Obj, parentObj, function (code) {
             callback(code);
         });
     }

@@ -13,7 +13,7 @@
  *     (옛 코드는 사본에 아직 남은 그 구독과 **형제 구독 전부**에 sud 를 보냈다 —
  *     형제에게 가던 것은 실수였고, 배포에 su 설정 구독은 0 이라 영향이 없다.)
  *
- * 행의 nu·enc 는 insert_sub 가 넣은 JSON 문자열이다 — 발송기(subl_entry.read)가 푼다.
+ * 행의 nu·enc 는 insert_sub 가 넣은 JSON 문자열이다 — 발송기(sub_entry.read)가 푼다.
  * sgn_man 을 끌어오지 않는다 — 시험이 로드할 수 있다.
  */
 var db_sql = require('./sql_action');

@@ -152,6 +152,13 @@
 도구 둘 · `sgn-subl-entry` 시험 삭제, `subl` 컬럼 쓰기 0. 컬럼 자체는 그 뒤 별도
 마이그레이션으로 지운다(`responder` 지우기도 그때).
 
+> **2단계는 2026-09-06 에 했다** — 사용자 결정으로 첫 평일 관문 **전에** 진행했다.
+> 그래서 되돌리기는 1·2단계 revert 둘 + 지운 `rebuild-subl` 도구를 git 에서 되살려
+> 사본을 되만드는 것이다. `subl.js` 는 `sub_entry.js`(read 만)로, `sgn_action` 의 인자
+> `subl` 은 `rows` 로 이름을 바꿨다. `insert_lookup` 의 `subl: '[]'` 와 `responder` 의
+> 지우기, `makeObject` 의 파싱은 컬럼이 남아 있는 동안 그대로다. 증명: 런타임 골든 ·
+> 헤더 골든 26 · 알림 골든 6단계 전후 동일, npm test 1,268.
+
 ## 4. 증명
 
 - **차분 하네스** (스크래치): 같은 구독 픽스처를 (가) `subl` 배열 → 옛 `sgn_action`,

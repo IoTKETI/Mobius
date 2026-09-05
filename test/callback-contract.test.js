@@ -222,7 +222,7 @@ test('sgn_action 이 nu 해석 뒤 언제나 다음 구독으로 간다', functi
 
     // resolve 는 코드를 주지 않고 언제나 부른다(못 푼 nu 는 빼고 로그). 그 콜백 안에서
     // nct 갈래와 무관하게 다음 구독 호출이 있어야 한다 — 없으면 사슬이 조용히 멈춘다.
-    assert.ok(/sgn_action\(connection, rootnm, check_value, subl, \+\+req_count/.test(body),
+    assert.ok(/sgn_action\(connection, rootnm, check_value, rows, \+\+req_count/.test(body),
         'nu 해석 뒤 다음 구독으로 넘어가지 않는다');
     // 옛 get_nu_arr 의 '200' 코드 계약은 없다 — 그것에 매달린 갈래가 남으면 죽은 코드다.
     assert.strictEqual(body.indexOf("code == '200'"), -1);

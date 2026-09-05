@@ -592,7 +592,7 @@ Object.keys(BODY_TABLES).forEach(function (name) {
 
 // 알림 라우팅의 원천. sgn.check 가 쓰기마다 "구독이 붙은 리소스" 의 ri 로 한 번 읽는다
 // (docs/superpowers/specs/2026-09-05-notification-routing-source-design.md).
-// 발송기(subl_entry.read)가 읽는 6필드만 고르고, 순서는 ri 오름차순으로 고정한다 —
+// 발송기(sub_entry.read)가 읽는 6필드만 고르고, 순서는 ri 오름차순으로 고정한다 —
 // 옛 subl 사본은 삽입순이었지만 발송 앞의 랜덤 지연이 이미 순서를 흔들고 있어 실효가 없다.
 // nu·enc 는 insert_sub 가 넣은 그대로 JSON **문자열**이다 — 읽는 쪽이 푼다.
 exports.select_subs_by_pi = function (connection, pi, callback) {
@@ -2289,7 +2289,7 @@ exports.select_acp_in = function (connection, acpiList, callback) {
 
 // select_sub 은 여기 있었다. 호출부가 없어 지웠다 — 알림 경로는 sub 테이블을
 // pi 로 뒤지지 않고 부모 lookup 의 subl 컬럼에 캐시된 항목을 읽는다
-// (sgn.js 의 sgn_action -> subl_entry.read).
+// (sgn.js 의 sgn_action -> sub_entry.read).
 
 exports.select_cb = function (connection, ri, callback) {
     facade.run(facade.k('cb').select('*').where({ ri: ri }), connection, function (err, results_cb) {
@@ -2557,15 +2557,18 @@ exports.update_cb_poa_csi = function (connection, poa, csi, srt, ri, callback) {
 // 동시에 두 워커가 부르면 하나가 다른 하나를 덮는다. stateTag 를 올리는 일은
 // update_parent_st(증분식)가 맡는다.
 
-// subl 은 여기서 쓰지 않는다. update_subl 로만 쓴다.
+// subl 은 여기서 쓰지 않는다 — 이제 **어디에서도** 쓰지 않는다.
 //
 // 예전에는 이 함수가 subl 을 **절대값으로** 같이 덮었다. 그런데 이 함수를
 // 부르는 래퍼가 update_cnt / update_ae / update_acp 등 20여 개다. 즉 부모
 // 컨테이너에 PUT 한 번만 해도 그 요청이 시작될 때 읽은 subl 스냅샷으로
-// 되감겼다 — 그 사이 다른 워커가 만든 구독은 사라진다.
+// 되감겼다 — 그 사이 다른 워커가 만든 구독은 사라진다. 그래서 떼어 냈고
+// 한동안 update_subl(트랜잭션 + 행 잠금) 셋만 썼다.
 //
-// 구독과 무관한 갱신이 구독 목록을 건드릴 이유가 없다. 떼어 놓으면 subl 을
-// 쓸 수 있는 곳이 구독 생성·수정·삭제 세 곳뿐이 된다.
+// 2026-09-05 에 알림 라우팅의 원천이 sub 테이블로 옮겨져(select_subs_by_pi)
+// subl 사본은 읽는 이도 쓰는 이도 없다. 컬럼은 별도 마이그레이션으로 지운다 —
+// 그때 insert_lookup 의 `subl: '[]'` 와 responder 의 지우기도 같이 걷는다.
+// 스펙: docs/superpowers/specs/2026-09-05-notification-routing-source-design.md
 exports.update_lookup = function (connection, obj, callback) {
     facade.run(facade.k('lookup').update({
         lt: obj.lt,
@@ -2580,109 +2583,6 @@ exports.update_lookup = function (connection, obj, callback) {
     });
 };
 
-/**
- * 부모의 발송 목록을 **읽은 자리에서 고쳐 쓴다.** 다른 컬럼은 안 건드린다.
- *
- *   update_subl(connection, ri, mutate, callback)
- *   mutate(list) -> 새 list          list 는 지금 DB 에 있는 배열이다
- *
- * 호출부는 구독 생성(resource.js create_action ty=23), 수정(update_action
- * ty=23), 삭제(delete_action ty=23) 세 곳뿐이다. 늘리지 말 것.
- *
- * ── 왜 배열을 받지 않고 함수를 받나 ─────────────────────────────────
- * 예전에는 호출부가 완성된 배열을 넘겼다. 그 배열은 요청이 시작될 때 읽은
- * 부모의 사본에서 나온 것이라, 읽은 뒤 쓰기까지의 사이에 다른 요청이 같은
- * 부모를 고치면 그 변경이 통째로 날아갔다. 절대값 UPDATE 라 병합이 없다.
- *
- * 창이 좁아 보이지만 무증상이고 영구적이다. 두 방향으로 샌다:
- *   같은 부모에 구독 두 개를 동시에 만들면 나중 UPDATE 가 앞의 것을 지운다.
- *   sub 행은 남아 있고 응답도 201 이지만, 발송기는 subl 만 보므로 먼저 만든
- *   구독은 영원히 알림을 못 받는다 — 배포의 "침묵 21건".
- *
- *   삭제와 겹치면 낡은 사본이 지워진 구독을 되살린다. sub 행은 FK CASCADE 로
- *   없는데 목록에만 남아 계속 발송한다 — "유령".
- *
- * 워커가 16개라서 생기는 문제가 아니다. 읽기와 쓰기가 DB 콜백 경계로
- * 쪼개져 있어 **워커 하나 안에서도** 두 요청이 이벤트 루프에서 교차하면 난다.
- *
- * 그래서 읽기를 여기로 들여왔다. MySQL 은 트랜잭션 + SELECT ... FOR UPDATE 로
- * 그 부모 행을 잡고 읽는다.
- *
- * 실측 — 같은 부모에 구독 12개를 동시에 만들기를 6회, MySQL:
- *     잠그기 전   sub 행 72 / subl 항목 9    -> 63개가 침묵
- *     잠근 뒤     sub 행 72 / subl 항목 72   -> 0
- *
- * 대기(FOR UPDATE)를 쓴다. delete_oldest 는 NOWAIT 로 즉시 스킵하지만 그쪽은
- * CIN 유입마다 도는 자리라 락 컨보이가 문제였다. 구독 생성은 배포 기준 월
- * 150건이라 줄을 서도 된다 — 스킵하면 목록 갱신이 조용히 사라진다.
- *
- * ── SQLite 는 아직 막지 못한다 ──────────────────────────────────────
- * mobius/db/sqlite.js 가 transaction / rowLock 을 둘 다 false 로 선언한다.
- * 워커당 핸들이 하나뿐이라 비동기 호출이 겹치면 서로 다른 논리적 트랜잭션이
- * 같은 핸들에서 뒤섞이기 때문이다. BEGIN IMMEDIATE 로 파일 락을 잡는 것도
- * 답이 아니다 — 그 사이 같은 핸들로 나가는 **무관한 질의까지** 그 트랜잭션에
- * 끌려들어가고, 롤백하면 남의 삽입이 함께 사라진다.
- *
- * 그래서 SQLite 에서는 잠금 없이 읽고 쓴다. 같은 부모에 구독을 동시에 만들면
- * 하나가 사라진다 — 위와 같은 시험에서 72개 중 52개를 잃었다. 고치려면
- * 어댑터에 핸들 풀이나 직렬화 큐가 필요하다(sqlite.js 가 "후속 작업" 으로
- * 적어 둔 것). 배포는 MySQL 이고 SQLite 는 임베디드 규모라 여기서 멈춘다.
- * **모른 채 두지 않는다** — test/sgn-subl-entry.test.js 가 이 한계를 못박는다.
- */
-exports.update_subl = function (connection, ri, mutate, callback) {
-    function apply(conn, done) {
-        // 이 읽기는 **잠그려는 것**이다. 어떻게 잠그는지는 어댑터가 정한다 —
-        // 여기 `if (facade.can('rowLock')) { qb = qb.forUpdate(); }` 가 있었다.
-        var qb = facade.lockRow(facade.k('lookup').select('subl').where({ ri: ri }));
-
-        facade.run(qb, conn, function (err, rows) {
-            if (err) { return done(err, rows); }
-            if (!rows || rows.length === 0) {
-                // 부모 행이 없다. 자식이 지워지는 중이거나 이미 지워졌다.
-                // 성공으로 두면 호출부가 목록이 갱신된 줄 안다.
-                return done('404', { code: '404-1', message: 'parent gone: ' + ri });
-            }
-
-            var list = [];
-            var raw = rows[0].subl;
-            if (raw !== null && raw !== undefined && String(raw) !== '') {
-                try {
-                    var parsed = JSON.parse(String(raw));
-                    if (Array.isArray(parsed)) { list = parsed; }
-                    else {
-                        console.error('[update_subl] subl 이 배열이 아니다 — 새로 만든다: ' + ri);
-                    }
-                }
-                catch (e) {
-                    // 못 읽는 목록은 발송기도 못 쓴다(subl.read 가 항목마다
-                    // 걸러낸다). 여기서 새로 만드는 것이 수리다. 다만 무엇을
-                    // 잃는지 모르므로 반드시 남긴다.
-                    console.error('[update_subl] subl 을 읽을 수 없어 새로 만든다: ' + ri +
-                                  ' (' + e.message + ')');
-                }
-            }
-
-            var next;
-            try { next = mutate(list); }
-            catch (e2) { return done(e2, { code: '500-4', message: e2.message }); }
-            if (!Array.isArray(next)) { next = []; }
-
-            facade.run(facade.k('lookup').update({ subl: JSON.stringify(next) })
-                             .where({ ri: ri }), conn, done);
-        });
-    }
-
-    // 능력 없는 백엔드에서는 파사드가 본문만 돌린다. 여기 if/else 가 있었는데,
-    // 같은 파일의 update_acp / update_sub / update_parent_by_delete 는 이미
-    // 조건 없이 부르고 있었다 — 이 함수만 갈라져 있었다.
-    //
-    // 갈라 두었던 실제 이유가 하나 있었다. 파사드의 무능력 경로가 본문을 try 로
-    // 감싸서, 본문이 **동기로** 정산한 뒤 사용자 콜백이 던지면 그 예외를 삼켰다.
-    // 파사드를 고쳐(사용자 콜백을 try 밖에서 부른다) 그 차이를 없앴으므로 이제
-    // 조건 없이 부를 수 있다. 오히려 얻는 것이 둘 있다 — 본문의 동기 throw 가
-    // normalizeError 를 거쳐 콜백 에러가 되고, done 을 두 번 불러도 한 번만 정산된다.
-    facade.transaction(connection, apply, callback);
-};
 
 // 이전에는 db.getResult 를 무조건 호출해 SQLite 모드에서도 MySQL 로 나갔다.
 // select_acp 는 SQLite 에서 읽으므로 정책 갱신이 조용히 유실됐다(2차에서 수정).
@@ -4695,11 +4595,11 @@ exports.select_sum_ae = function (connection, callback) {
  * 배포 표본에서 et 의 약 81% 가 이미 과거이므로, 이것을 삭제 후보로 올리면
  * 목록이 통째로 오염된다. 만료는 select_expired_resources 가 따로 다룬다.
  *
- * ── 왜 subl 을 안 보는가
+ * ── subl 은 보지 않는다
  *
- * 부모의 subl 사본은 신뢰할 수 없다. update_lookup 이 절대값으로 덮어쓰고
- * 호출부가 26곳이라, 구독을 동시에 만들면 조용히 사라진다(실측: 12개 중 11개).
- * 진실은 lookup(ty=23) + sub 이다.
+ * 한때 부모의 subl 사본이 발송 목록이었고 신뢰할 수 없었다(구독을 동시에 만들면
+ * 조용히 사라졌다 — 실측 12개 중 11개). 2026-09-05 부터 발송도 이 감사와 같은
+ * 원천 lookup(ty=23) + sub 를 읽는다(select_subs_by_pi). 사본은 더 없다.
  */
 
 // 판정 사유. 관리 UI 가 그룹으로 묶어 보여 줄 수 있게 코드로 준다.
