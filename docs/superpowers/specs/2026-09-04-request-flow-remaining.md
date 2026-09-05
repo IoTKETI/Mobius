@@ -244,7 +244,7 @@ MQTT 유입은 브로커가 밀어 넣어 역압이 없으므로 마스터 FD �
 
 ## 3. P2 — 도달 가능한 결함
 
-### 3.1 `?rcn=7` 이 400 대신 500 을 받는다
+### 3.1 ~~`?rcn=7` 이 400 대신 500 을 받는다~~ — **고쳤다** (2026-09-05)
 
 ```
 mobius/resource.js:1514   callback('400');      ← 카탈로그에 없는 코드
@@ -253,6 +253,14 @@ mobius/resource.js:1514   callback('400');      ← 카탈로그에 없는 코�
 
 `settle.error('400')` → `reason.get('400')` 이 `null` → `app.js:1131` 이
 "정의되지 않은 코드" 로 500 을 낸다. **그것도 discovery 를 다 돌린 뒤에.**
+
+**고친 것.** 게이트는 그대로 두었다 — `fu=1&rcn=7` 은 uril 로 정상이라
+게이트에서 7 을 빼면 그것이 새로 400 을 받는다. 대신 `resource.retrieve` 의
+discovery 갈래 **첫머리**에서 "낼 모양이 없는 (fu, rcn)" 을 `400-44`(카탈로그의
+"rcn or fu query is not supported at GET request")로 거절한다 — discovery 를
+돌리기 전이다. 끝의 `callback('400')` 도 `400-44` 로(도달하지 않지만 방어).
+런타임 골든에 `bad-rcn7-get` 을 넣었다(400/4000). `test/parent-write-settles.test.js`
+가 카탈로그에 없는 `'400'` 이 되살아나지 않는지 본다.
 
 ### 3.2 ~~옛 7인자로 `response_result` 를 부르는 자리 6곳~~ — **끝났다** (2026-09-04)
 
@@ -465,7 +473,10 @@ AE 총수, CIN 바이트 총합이다. 자격증명도 리소스 내용도 아�
 이 세 경로를 사내망·관리망에서만 열면 된다. 사용자 결정 사항이라
 여기 남긴다.
 
-### 3.5 관찰 모드가 `pvs` 거부까지 뒤집는다
+### 3.5 ~~관찰 모드가 `pvs` 거부까지 뒤집는다~~ — **고쳤다** (`72df4ae`, 2026-09-04)
+
+`acp_observe.js` 가 `trace.field === 'pvs'` 를 보고 관찰 모드에서도 그대로
+막는다. 아래는 고치기 전 서술이다.
 
 ```
 mobius/acp_observe.js:101-106   OBSERVABLE — decided_by 만 본다
@@ -483,7 +494,14 @@ ACP 자신에 대한 UPDATE·DELETE 라 성격이 다르다.
 
 ## 4. P3 — 커넥션 수명
 
-### 4.1 응답을 정산한 뒤에도 요청 커넥션 위에서 도는 쓰기 3곳
+### 4.1 ~~응답을 정산한 뒤에도 요청 커넥션 위에서 도는 쓰기 3곳~~ — **고쳤다** (2026-09-05)
+
+세 곳 모두 `update_parent_st` 의 콜백 **안에서** `callback('200')` 을 부른다
+— `resource.js:441` 과 같은 모양. 갱신 실패는 예전처럼 응답을 바꾸지 않고
+로그만 남긴다. `test/parent-write-settles.test.js` 가 `update_parent_*` 호출
+전부에 대해 "콜백 안에서 응답한다 · 빈 콜백 금지" 를 잠근다(변이로 확인).
+로컬 MySQL 실측 — cnt 생성/삭제 뒤 부모 AE 의 `st` 가 응답 시점에 이미 +1.
+아래는 고치기 전 서술이다.
 
 ```
 resource.js:403    update_parent_st(…, function () { });   빈 콜백
@@ -505,7 +523,11 @@ resource.js:441    update_parent_counters(…, function () { callback('200'); })
 `sgn.js` 에서 이미 고친 것과 **같은 유형**이다(D17). 고치는 모양도
 `resource.js:441` 이 이미 보여 준다.
 
-### 4.2 `hit` UPSERT 가 요청 커넥션 위에서 줄을 선다
+### 4.2 ~~`hit` UPSERT 가 요청 커넥션 위에서 줄을 선다~~ — **고쳤다** (`066c550`, 2026-09-05)
+
+응답 구조 재작성 3단계 14번. 네 라우트 다 `count_hit(binding)` — POST 모양
+(자기 커넥션·자기 반납). 세는 위치는 그대로라 §5.1 은 아직 남아 있다.
+아래는 고치기 전 서술이다.
 
 ```
 GET     app.js:2228
@@ -518,7 +540,13 @@ mysql2 는 커넥션마다 명령 큐를 하나 둔다. fire-and-forget 으로 �
 **그 요청의 첫 SELECT 앞에 선다.** POST 처럼 전용 커넥션을 쓰거나, 검증
 뒤로 옮겨야 한다(§5.1 과 같이 처리하면 좋다).
 
-### 4.3 CIN 생성/삭제의 트랜잭션 비대칭
+### 4.3 ~~CIN 생성/삭제의 트랜잭션 비대칭~~ — **고쳤다** (2026-09-05)
+
+`update_parent_counters` 도 `update_parent_by_delete` 와 같은 모양으로
+`facade.transaction` 안에서 두 문장을 돈다. MySQL 은 BEGIN/COMMIT, SQLite 는
+본문만(기존과 같다). 실패 처리는 그대로 — 요청을 실패시키지 않고 로그만,
+reconcile 이 바로잡는다. 로컬 MySQL 실측 — CIN 3개 생성 뒤 cni 3 · cbs 6 ·
+st +3, la 삭제 뒤 cni 2 · cbs 4 · st +4. 아래는 고치기 전 서술이다.
 
 ```
 mobius/sql_action.js:3410   update_parent_counters   트랜잭션 없음
@@ -604,14 +632,18 @@ CIN 생성마다 `sql_action.js:468` 이 stdout 에 한 줄을 낸다(실측 재
 
 - **구독별 DB 조회가 배치가 아니다** — `sgn.js` 에 `whereIn`/`IN (` 0곳
 - **알림 전송 앞 1~10ms 랜덤 지연** — `sgn.js:185`·`421`. 근거가 주석에 없다
-- **`csr` 포워딩 블록 4회 복붙** — `app.js:2179`·`2261`·`2358`·`2443`, 각 12줄
+- ~~**`csr` 포워딩 블록 4회 복붙**~~ — `forward_to_csr` 하나로 (`e00f145`, 응답 구조 3단계 11번). 라우트 넷 자체가 `with_connection` → 관문 → `run_operation` 으로 접혔다(`4351da1`·`ec29791`)
+- **HEAD 요청** — Express 4 는 HEAD 를 `app.get('*')` 로 태우고 `request.method` 는 'HEAD' 그대로다. 라우트가 그것을 표의 키로 쓰면 워커가 죽는다(`396d3dd` 로 고침, 골든 `head-cse`). 새 라우트 코드를 쓸 때 기억할 것
+- **`hd_*` 의 고유 속성(lvl 등)은 HTTP 로 갱신할 길이 없다** — `hd:bat` 루트 PUT 은 400-42(ty 대조), `m2m:fcnt` 루트는 400 "attribute is not defined". 2026-09-05 실측(`tools/response-golden/fcnt-check.js`). 결함인지 설계인지 판단이 필요하다
 - **`access_value` 리터럴 12개가 9곳에 흩어짐** — 상수 정의가 없다
 - **CORS 이중 적용** — `app.js:149` `cors()` 와 `:1983-1989` 수동 헤더
 - **rsc↔HTTP 불일치** — 같은 `4005` 가 405·409 양쪽. 키 접두 규칙 위반 4건
   (`301-3`·`301-4`·`301-5` 가 http 405, `500-6` 이 400)
 - **죽은 코드** — `ty == '33'`(없는 타입), `useobserver`(참조 0),
   `acor_allows`/`evaluate_acr`(시험만 부름), `check_allowed_app_ids` 의 mgo 분기,
-  POST 의 `notify` 분기와 `check_ae_notify`(도달 불가),
+  POST 의 `notify` 분기와 `check_ae_notify`(도달 불가 — 2026-09-05 실측으로
+  확인: AE 에 `m2m:sgn` 본문을 POST 하면 `check_resource_supported` 가 400-3 으로
+  먼저 끊는다, 변경 전에도 같았다),
   `sgnManPort`/`hitManPort`(아무도 안 듣는다)
 
 ---
@@ -682,7 +714,7 @@ mobius/db/sqlite.js:117   supportedResourceTypes = ['1','2','3','4','5','23']
 - **`arm()` 의 유휴 타이머 한계** — 실측은 `outbound.js:60-74` 에 적혀 있으나
   시험으로 고정돼 있지 않다
 
-### 7.5 헛도는 시험 하나
+### 7.5 ~~헛도는 시험 하나~~ — **고쳤다** (2026-09-05)
 
 ```
 test/rsc-catalog.test.js:32-48   liveSuccess()
@@ -692,6 +724,11 @@ test/rsc-catalog.test.js:32-48   liveSuccess()
 `fe1e694` 가 호출부를 `settle.result(...)` 로 바꿔서 **이제 주석 한 줄만
 맞힌다.** "성공 코드의 (http, rsc) 쌍이 모두 카탈로그에 있다" 는 시험이
 아무것도 검사하지 않는다.
+
+**고친 것.** 성공 코드는 이제 생산자가 결과 객체의 `rsc: 'CREATED'` 같은
+카탈로그 **이름**으로 올린다(응답 구조 2단계). 시험이 그 이름을 전부 모아
+카탈로그에 있는 성공 항목인지 보고, OK·CREATED·UPDATED·DELETED 넷이 반드시
+잡혀야 통과한다(헛돌지 않는지). 변이 — `DELETED` 를 `NOT_FOUND` 로 바꾸면 실패.
 
 ---
 
