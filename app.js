@@ -1342,9 +1342,8 @@ function run_fanout(request, response, settle, access_value, parse_body) {
             if (code !== '1') { settle.error(code); return; }
 
             function fan_out() {
-                fopt.check(request, response, result_grp, body_Obj, (code) => {
-                    if (code === '200') { settle.search('200', '2000'); }
-                    else { settle.error(code); }
+                fopt.check(request, response, result_grp, body_Obj, (code, out) => {
+                    settle.done(code, out);
                 });
             }
 

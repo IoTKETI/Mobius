@@ -199,11 +199,10 @@ test('app.js 라우트 넷이 settle.done 을 부르고 옛 세 함수를 직접
     const src = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8')
         .replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/mg, '');
     const count = (n) => src.split(n).length - 1;
-    assert.strictEqual(count('settle.done('), 4, 'lookup_create/retrieve/update/delete 의 콜백');
+    assert.strictEqual(count('settle.done('), 5, 'lookup_create/retrieve/update/delete 의 콜백 + run_fanout');
     assert.strictEqual(count('settle.result('), 0);
     assert.strictEqual(count('settle.rcn3('), 0);
-    // run_fanout 의 settle.search 하나는 2단계 9번(fopt 종단 → out) 몫이다
-    assert.strictEqual(count('settle.search('), 1);
+    assert.strictEqual(count('settle.search('), 0, 'run_fanout 도 done 을 쓴다 (2단계 9번)');
     ['lookup_create', 'lookup_retrieve', 'lookup_update', 'lookup_delete'].forEach((fn) => {
         assert.ok(new RegExp(fn + '\\(request, response, \\(code, out\\) => \\{\\s*settle\\.done\\(code, out\\);').test(src),
                   fn + ' 이 (code, out) 을 done 으로 넘긴다');
@@ -264,4 +263,14 @@ test('resource.delete 의 성공 종단이 결과 객체를 준다 (2단계 9번
         .replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/mg, '');
     const count = (n) => src.split(n).length - 1;
     assert.strictEqual(count("{ rsc: 'DELETED', shape: 'single', rootnm: rootnm, body: request.resourceObj }"), 1);
+});
+
+test('fopt.check 의 성공 종단이 결과 객체를 준다 (2단계 9번)', () => {
+    const src = fs.readFileSync(path.join(MOBIUS_DIR, 'fopt.js'), 'utf8')
+        .replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/mg, '');
+    const count = (n) => src.split(n).length - 1;
+    assert.strictEqual(count("{ rsc: 'OK', shape: 'grouped', rootnm: 'agr', body: request.resourceObj }"), 1);
+    const app = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8');
+    assert.ok(/fopt\.check\(request, response, result_grp, body_Obj, \(code, out\) => \{\s*settle\.done\(code, out\);/.test(app),
+              'run_fanout 이 (code, out) 을 done 으로 넘긴다');
 });
