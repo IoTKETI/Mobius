@@ -300,7 +300,7 @@ ConfStore.prototype.reseal = function () {
         conf_seal.seal(this.file, conf);
     } catch (e) {
         throw new Error('[설정] 봉인에 실패했다: ' + ((e && e.message) || e) +
-                        ' — npm run setup -- --superuser 로 다시 시도할 것');
+                        ' — npm run setup -- --superuser 로 봉인을 다시 만들 것');
     }
     return { ok: true, created: created };
 };

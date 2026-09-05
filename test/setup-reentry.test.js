@@ -21,6 +21,11 @@
  *      (raw 모드 자체가 실제로 걸리지는 않지만, 파이프로 준 바이트는 그대로 들어온다).
  *
  * 이 저장소의 실제 `conf.json`/`conf.seal.json` 은 어떤 시험에서도 열리거나 쓰이지 않는다.
+ *
+ * **정리.** 각 시험이 `t.after` 로 임시 디렉터리와 정션을 지운다(`cleanupSandbox`) —
+ * 정션 자체를 먼저 끊고 나서야 나머지를 재귀 삭제한다. 순서를 바꾸면 재귀 삭제가 정션을
+ * 따라 들어가 진짜 `mobius/` 를 지운다. 끊기가 둘 다 실패하면 재귀 삭제를 하지 않고
+ * 넘어간다 — 임시 디렉터리 하나가 남는 편이 사고보다 낫다.
  */
 const test = require('node:test');
 const assert = require('node:assert');
@@ -32,12 +37,35 @@ const { spawnSync } = require('node:child_process');
 const ROOT = path.join(__dirname, '..');
 const conf_seal = require('../mobius/conf_seal');
 
-function sandbox() {
+// 정션(T/mobius)을 먼저 끊고 나서야 T 를 재귀 삭제한다 — 순서를 바꾸면 재귀 삭제가
+// 정션을 **따라 들어가** 진짜 mobius/ 를 지운다(대상이 이 저장소의 실제 코어다).
+// Windows 디렉터리 정션은 rmdirSync 로, 리눅스 심링크는 unlinkSync 로 끊는다 — 하나를
+// 먼저 시도하고 실패하면 다른 것. **둘 다 실패하면 T 를 지우지 않는다** — 임시 디렉터리
+// 하나가 남는 게 실제 mobius/ 를 지우는 사고보다 훨씬 낫다.
+function cleanupSandbox(T) {
+    var link = path.join(T, 'mobius');
+    var unlinked = false;
+    try { fs.rmdirSync(link); unlinked = true; } catch (e) { /* 다음 것 시도 */ }
+    if (!unlinked) {
+        try { fs.unlinkSync(link); unlinked = true; } catch (e) { /* 아래서 포기 */ }
+    }
+    if (!unlinked) { return; }
+    fs.rmSync(T, { recursive: true, force: true });
+}
+
+function sandbox(t) {
     const T = fs.mkdtempSync(path.join(os.tmpdir(), 'setup-reentry-'));
     fs.mkdirSync(path.join(T, 'tools'));
     fs.copyFileSync(path.join(ROOT, 'tools', 'setup.js'), path.join(T, 'tools', 'setup.js'));
     fs.copyFileSync(path.join(ROOT, 'tools', 'conf_store.js'), path.join(T, 'tools', 'conf_store.js'));
     fs.symlinkSync(path.join(ROOT, 'mobius'), path.join(T, 'mobius'), 'junction');
+    t.after(function () {
+        cleanupSandbox(T);
+        // 정션 삭제가 진짜 mobius/ 안으로 재귀했다면 이 파일이 사라져 있을 것이다 —
+        // 그 사고를 놓치지 않게 매번 직접 확인한다.
+        assert.strictEqual(fs.existsSync(path.join(ROOT, 'mobius', 'conf_seal.js')), true,
+            '정션 삭제 사고 — 실제 mobius/conf_seal.js 가 사라졌다');
+    });
     return T;
 }
 function writeConf(T, obj) {
@@ -65,8 +93,8 @@ function runSetup(T, args, input) {
         { input: input, encoding: 'utf8', timeout: 10000 });
 }
 
-test('reentry --superuser 에 빈 답(Enter) — 값 그대로, 봉인이 생기고 통과, exit 0', function () {
-    const T = sandbox();
+test('reentry --superuser 에 빈 답(Enter) — 값 그대로, 봉인이 생기고 통과, exit 0', function (t) {
+    const T = sandbox(t);
     writeConf(T, { db: 'mysql', dbpass: 'x', superUser: 'Custom' });
     assert.strictEqual(fs.existsSync(sealFile(T)), false, '시작부터 봉인이 있으면 안 된다');
 
@@ -79,8 +107,8 @@ test('reentry --superuser 에 빈 답(Enter) — 값 그대로, 봉인이 생기
     assert.match(r.stdout, /봉인을 만들었다/);
 });
 
-test('reentry --superuser 를 두 번 빈 답으로 — key 재사용, "다시 만들었다"', function () {
-    const T = sandbox();
+test('reentry --superuser 를 두 번 빈 답으로 — key 재사용, "다시 만들었다"', function (t) {
+    const T = sandbox(t);
     writeConf(T, { db: 'mysql', superUser: 'Sponde' });
 
     const r1 = runSetup(T, ['--superuser'], '\n');
@@ -97,8 +125,8 @@ test('reentry --superuser 를 두 번 빈 답으로 — key 재사용, "다시 �
     assert.strictEqual(conf_seal.verify(path.join(T, 'conf.json'), readConf(T)).ok, true);
 });
 
-test('reentry --dbpass 에 빈 답(Enter) — 빈 비밀번호로 바뀌지 않는다, 봉인이 생긴다', function () {
-    const T = sandbox();
+test('reentry --dbpass 에 빈 답(Enter) — 빈 비밀번호로 바뀌지 않는다, 봉인이 생긴다', function (t) {
+    const T = sandbox(t);
     writeConf(T, { db: 'mysql', dbpass: 'hunter2', superUser: 'Sponde' });
 
     const r = runSetup(T, ['--dbpass'], '\n');
@@ -109,8 +137,8 @@ test('reentry --dbpass 에 빈 답(Enter) — 빈 비밀번호로 바뀌지 않�
     assert.match(r.stdout, /봉인을 만들었다/);
 });
 
-test('reentry 값을 실제로 넣는 길은 그대로 통과한다 — setSecret 경로, 재기동 안내', function () {
-    const T = sandbox();
+test('reentry 값을 실제로 넣는 길은 그대로 통과한다 — setSecret 경로, 재기동 안내', function (t) {
+    const T = sandbox(t);
     writeConf(T, { db: 'mysql', superUser: 'Sponde' });
 
     const r = runSetup(T, ['--superuser'], 'Vader\n');
