@@ -1337,7 +1337,10 @@ exports.retrieve = function (request, response, callback) {
         _this.set_rootnm(request, ty);
         _this.remove_no_value(request, request.resourceObj);
 
-        callback('200');
+        // 결과가 인자로 올라간다 — 코드 '200' 이 아니라 결과 객체다. 본문은
+        // 이 시점의 request.resourceObj 그대로(심는 곳은 안 건드렸다). 모양은
+        // 옛 라우트가 '200' 을 보고 고르던 response_result 와 같다. 2단계 8번.
+        callback(null, { rsc: 'OK', shape: 'single', rootnm: request.headers.rootnm, body: request.resourceObj });
     }
     // 여기 있던 smf(시맨틱 필터) 분기를 걷어냈다 (2026-08-31).
     //
@@ -1438,14 +1441,16 @@ exports.retrieve = function (request, response, callback) {
                                     request.resourceObj.uril = {};
                                     request.resourceObj.uril = ri_list;
 
-                                    callback('200-1');
+                                    // fu=1 은 uril 모양 — 옛 search_result 가 rootnm 으로 갈랐다. 2단계 8번.
+                                    callback(null, { rsc: 'OK', shape: 'uril', rootnm: 'uril', body: request.resourceObj });
                                 }
                                 else if (request.query.rcn == 4 || request.query.rcn == 5 || request.query.rcn == 6) {
                                     request.headers.rootnm = 'rsp';
                                     request.resourceObj = JSON.parse(JSON.stringify(foundObj));
                                     _this.remove_no_value(request, request.resourceObj);
 
-                                    callback('200-1');
+                                    // rcn=4/5/6 은 grouped 모양(rootnm 'rsp'). 2단계 8번.
+                                    callback(null, { rsc: 'OK', shape: 'grouped', rootnm: request.headers.rootnm, body: request.resourceObj });
                                 }
                                 else {
                                     callback('400');

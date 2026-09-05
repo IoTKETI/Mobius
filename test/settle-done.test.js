@@ -31,6 +31,7 @@ const settle_mod = require('../mobius/settle');
 const responder = require('../mobius/responder');
 const shape = require('../mobius/shape');
 const RSC = require('../mobius/rsc').RSC;
+const MOBIUS_DIR = path.join(__dirname, '..', 'mobius');
 
 // 옛 라우트 넷의 갈래를 그대로 옮겨 적은 것. 표가 이것과 같아야 한다.
 // (app.js 2단계 6번 전 — lookup_create/retrieve/update/delete 의 콜백)
@@ -40,6 +41,13 @@ const OLD_ROUTES = {
     PUT:    { '200': ['result', '200', '2004'] },
     DELETE: { '200': ['result', '200', '2002'] }
 };
+// 생산자가 out 을 주기 시작한 메서드는 표에서 빠진다. 지금까지 빠진 것:
+//   GET — resource.retrieve (2단계 8번)
+// 빠진 메서드에 옛 코드가 오면 on_error 로 간다 — 옛 코드를 주는 생산자가
+// 남아 있으면 조용히 옛 갈래를 타는 대신 500 으로 드러난다.
+const DONE_METHODS = ['GET'];
+const LEGACY_LEFT = {};
+Object.keys(OLD_ROUTES).forEach((m) => { if (DONE_METHODS.indexOf(m) < 0) LEGACY_LEFT[m] = OLD_ROUTES[m]; });
 
 function fakeConn() {
     const c = { released: 0 };
@@ -72,8 +80,8 @@ function req(method, extra) {
     return Object.assign({ method: method, query: {}, headers: { rootnm: 'cnt' } }, extra || {});
 }
 
-test('LEGACY 표가 옛 라우트 넷의 갈래와 같다', () => {
-    assert.deepStrictEqual(settle_mod.LEGACY, OLD_ROUTES);
+test('LEGACY 표가 옛 라우트의 갈래에서 out 으로 옮겨간 메서드만 뺀 것과 같다', () => {
+    assert.deepStrictEqual(settle_mod.LEGACY, LEGACY_LEFT);
 });
 
 test('done(code): 표의 (메서드, 코드)는 옛 세 함수 중 하나로, 나머지는 on_error 로', () => {
@@ -87,7 +95,7 @@ test('done(code): 표의 (메서드, 코드)는 옛 세 함수 중 하나로, �
                 const s = settle_mod.make(req(method), {}, conn, onError(log));
                 s.done(code);
             } finally { restore(); }
-            const old = (OLD_ROUTES[method] || {})[code];
+            const old = (LEGACY_LEFT[method] || {})[code];
             const want = old ? [old] : [['error', code]];
             assert.deepStrictEqual(log, want, method + ' ' + JSON.stringify(code));
             assert.strictEqual(conn.released, 1, '반납은 한 번');
@@ -205,4 +213,19 @@ test('resource 경로에 두 번째 인자를 버리는 통과 릴레이가 없�
     assert.ok(src.includes('resource.update(request, response, callback);'), 'acpi 전용 update 가 콜백을 그대로 넘긴다');
     const relays = src.match(/\b(run|resource\.\w+)\(request, response, \(code\) => \{\s*callback\(code\);\s*\}\);/g) || [];
     assert.deepStrictEqual(relays, [], 'resource 경로의 통과 릴레이');
+});
+
+test('resource.retrieve 의 성공 종단이 코드가 아니라 결과 객체를 준다 (2단계 8번)', () => {
+    // 옛 종단 셋: fu=2&rcn=1 → '200', fu=1 → '200-1'(uril), rcn=4/5/6 → '200-1'(grouped).
+    // '200-1' 은 discovery 에서만 나던 코드라 파일 전체에서 0 이어야 한다.
+    const src = fs.readFileSync(path.join(MOBIUS_DIR, 'resource.js'), 'utf8')
+        .replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/mg, '');
+    const count = (n) => src.split(n).length - 1;
+    assert.strictEqual(count("callback('200-1')"), 0, "discovery 종단에 '200-1' 이 남아 있다");
+    assert.strictEqual(count("{ rsc: 'OK', shape: 'single', rootnm: request.headers.rootnm, body: request.resourceObj }"), 1);
+    assert.strictEqual(count("{ rsc: 'OK', shape: 'uril', rootnm: 'uril', body: request.resourceObj }"), 1);
+    assert.strictEqual(count("{ rsc: 'OK', shape: 'grouped', rootnm: request.headers.rootnm, body: request.resourceObj }"), 1);
+    // shape 이름은 body_of 가 아는 넷 중 하나여야 한다 — 오타는 런타임 500-8 이다
+    const shapes = (src.match(/shape: '([a-z]+)'/g) || []).map((s) => s.slice(8, -1));
+    shapes.forEach((s) => assert.ok(['single', 'rce', 'uril', 'grouped'].indexOf(s) >= 0, s));
 });

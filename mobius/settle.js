@@ -45,7 +45,9 @@ var RSC = require('./rsc').RSC;
  */
 var LEGACY = {
     POST:   { '201': ['result', '201', '2001'], '201-3': ['rcn3', '201', '2001'] },
-    GET:    { '200': ['result', '200', '2000'], '200-1': ['search', '200', '2000'] },
+    // GET 은 빠졌다 — resource.retrieve 가 (null, out) 을 준다(2단계 8번).
+    // '200' → result 200/2000, '200-1' → search 200/2000 이었다. GET 에 코드가
+    // 오면 이제 on_error 로 간다 — 옛 코드를 주는 생산자가 남아 있으면 드러난다.
     PUT:    { '200': ['result', '200', '2004'] },
     DELETE: { '200': ['result', '200', '2002'] }
 };
