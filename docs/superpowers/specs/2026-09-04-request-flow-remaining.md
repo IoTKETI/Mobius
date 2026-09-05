@@ -619,7 +619,15 @@ mobius/security.js:465   security_check_action_pvs
 > 한다면 `security.js` 안에서 한다. **이 금지를 지키는 시험이 없고,
 > `test/acp-eval.test.js` 라는 파일명이 남아 혼동을 준다.**
 
-### 5.5 요청 경로의 `console.time` 계측 37곳
+### 5.5 ~~요청 경로의 `console.time` 계측 37곳~~ — **걷어냈다** (2026-09-05)
+
+sql_action.js 의 계측 84줄 → 13줄, resource.js 6 → 0. 남긴 것은 요청마다
+돌지 않는 넷 — `delete_oldest`(purge 스윕) · `reconcile_cnt_counters` ·
+`delete_lookup_et`(만료 스윕) · `update_cb_poa_csi`(기동 때 한 번). 라벨용
+`require('shortid')` 도 그 셋에만 남았다. `select_in_ri_list` / `search_lookup`
+서명에서 안 읽던 `search_tid` 인자를 뺐다. 헤더 골든 26건을 돌린 서버
+stdout 의 계측 줄이 43 → 17(남은 것은 기동 줄). `test/request-log-volume.test.js`
+가 남은 넷 말고는 되살아나지 못하게 잠근다. 아래는 걷어내기 전 서술이다.
 
 ```
 mobius/sql_action.js   console.time 37곳 / timeEnd 46곳 / shortid.generate 12곳
