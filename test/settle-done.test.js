@@ -182,14 +182,15 @@ test('app.js 라우트 넷이 settle.done 을 부르고 옛 세 함수를 직접
     const src = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8')
         .replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/mg, '');
     const count = (n) => src.split(n).length - 1;
-    assert.strictEqual(count('settle.done('), 5, 'lookup_create/retrieve/update/delete 의 콜백 + run_fanout');
+    assert.strictEqual(count('settle.done('), 2, 'run_operation 과 run_fanout 둘 (3단계 13번)');
     assert.strictEqual(count('settle.result('), 0);
     assert.strictEqual(count('settle.rcn3('), 0);
     assert.strictEqual(count('settle.search('), 0, 'run_fanout 도 done 을 쓴다 (2단계 9번)');
     ['lookup_create', 'lookup_retrieve', 'lookup_update', 'lookup_delete'].forEach((fn) => {
-        assert.ok(new RegExp(fn + '\\(request, response, \\(code, out\\) => \\{\\s*settle\\.done\\(code, out\\);').test(src),
-                  fn + ' 이 (code, out) 을 done 으로 넘긴다');
+        assert.strictEqual(count('run_operation(request, response, settle, ' + fn + ')'), 1, fn + ' 은 run_operation 으로 간다 (3단계 13번)');
     });
+    assert.ok(/lookup\(request, response, \(code, out\) => \{ settle\.done\(code, out\); \}\)/.test(src),
+              'run_operation 이 (code, out) 을 done 으로 넘긴다');
 });
 
 test('resource 경로에 두 번째 인자를 버리는 통과 릴레이가 없다 (2단계 7번)', () => {

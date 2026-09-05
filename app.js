@@ -65,6 +65,7 @@ var once = require('./mobius/once');
 
 // 응답 전송과 커넥션 반납을 한 번만 하도록 모은다
 var settle_mod = require('./mobius/settle');
+var route_gate = require('./mobius/route_gate');
 
 // DB 의 poa 컬럼을 안전하게 배열로 읽는다
 var poa_util = require('./mobius/poa');
@@ -1424,6 +1425,26 @@ function with_connection(request, response, fn) {
     });
 }
 
+/**
+ * 대상이 정해진 뒤의 공통 꼬리 — 대상 ri 를 request.url 로 · (fu, rcn) 게이트 ·
+ * lookup_* 호출 · 정산. 네 라우트가 각자 갖고 있던 것을 접었다. 3단계 13번.
+ *
+ * request.url 은 게이트 **앞에서** 세운다 — 옛 라우트 넷이 그랬다. DELETE 는
+ * request.pi 도 세운다(resource.delete 가 부모를 그것으로 찾는다). 게이트의
+ * 허용 조합은 mobius/route_gate.js 표이고, 옛 조건식과 같은지는 시험이
+ * 전수 대조한다 — 옮기다 조합 하나를 빠뜨리면 400 이 새로 나간다.
+ */
+function run_operation(request, response, settle, lookup) {
+    var rootnm = Object.keys(request.targetObject)[0];
+    request.url = request.targetObject[rootnm].ri;
+    if (request.method === 'DELETE') { request.pi = request.targetObject[rootnm].pi; }
+
+    var reject = route_gate.reject(request.method, request.query);
+    if (reject) { settle.error(reject); return; }
+
+    lookup(request, response, (code, out) => { settle.done(code, out); });
+}
+
 // 그 47곳을 전부 봐야 했다.
 // 정산기는 mobius/settle.js 에 있다. 여기서는 response_error_result 를 엮어
 // 넘기기만 한다 — 그 함수가 reason 카탈로그와 responder.respond 를 잇고 있다.
@@ -2420,20 +2441,9 @@ app.post('*', onem2mParser, (request, response) => {
                                             if (code === '200') {
                                                 check_allowed_app_ids(request, (code) => {
                                                     if (code === '200') {
-                                                        var rootnm = Object.keys(request.targetObject)[0];
-                                                        var absolute_url = request.targetObject[rootnm].ri;
                                                         check_notification(request, response, (code) => {
                                                             if (code === 'post') {
-                                                                request.url = absolute_url;
-                                                                if ((request.query.fu == 2) && (request.query.rcn == 0 || request.query.rcn == 1 || request.query.rcn == 2 || request.query.rcn == 3)) {
-                                                                    lookup_create(request, response, (code, out) => {
-                                                                        settle.done(code, out);
-                                                                    });
-                                                                }
-                                                                else {
-                                                                    code = '400-43';
-                                                                    settle.error(code);
-                                                                }
+                                                                run_operation(request, response, settle, lookup_create);
                                                             }
                                                             else if (code === 'notify') {
                                                                 check_ae_notify(request, response, (code, res) => {
@@ -2514,16 +2524,7 @@ app.get('*', onem2mParser, (request, response) => {
                         get_target_url(request, response, (code) => {
                             if (code === '200') {
                                 if (request.option !== '/fopt') {
-                                    var rootnm = Object.keys(request.targetObject)[0];
-                                    request.url = request.targetObject[rootnm].ri;
-                                    if ((request.query.fu == 1 || request.query.fu == 2) && (request.query.rcn == 1 || request.query.rcn == 4 || request.query.rcn == 5 || request.query.rcn == 6 || request.query.rcn == 7)) {
-                                        lookup_retrieve(request, response, (code, out) => {
-                                            settle.done(code, out);
-                                        });
-                                    }
-                                    else {
-                                        settle.error('400-44');
-                                    }
+                                    run_operation(request, response, settle, lookup_retrieve);
                                 }
                                 else { //if (request.option === '/fopt') {
                                     run_fanout(request, response, settle, (request.query.fu == 1) ? '32' : '2', false);
@@ -2591,16 +2592,7 @@ app.put('*', onem2mParser, (request, response) => {
                                             if (code === '200') {
                                                 check_type_update_resource(request, (code) => {
                                                     if (code === '200') {
-                                                        var rootnm = Object.keys(request.targetObject)[0];
-                                                        request.url = request.targetObject[rootnm].ri;
-                                                        if ((request.query.fu == 2) && (request.query.rcn == 0 || request.query.rcn == 1)) {
-                                                            lookup_update(request, response, (code, out) => {
-                                                                settle.done(code, out);
-                                                            });
-                                                        }
-                                                        else {
-                                                            settle.error('400-45');
-                                                        }
+                                                        run_operation(request, response, settle, lookup_update);
                                                     }
                                                     else {
                                                         settle.error(code);
@@ -2657,17 +2649,7 @@ app.delete('*', onem2mParser, (request, response) => {
                         if (request.option !== '/fopt') {
                             check_type_delete_resource(request, (code) => {
                                 if (code === '200') {
-                                    var rootnm = Object.keys(request.targetObject)[0];
-                                    request.url = request.targetObject[rootnm].ri;
-                                    request.pi = request.targetObject[rootnm].pi;
-                                    if ((request.query.fu == 2) && (request.query.rcn == 0 || request.query.rcn == 1)) {
-                                        lookup_delete(request, response, (code, out) => {
-                                            settle.done(code, out);
-                                        });
-                                    }
-                                    else {
-                                        settle.error('400-46');
-                                    }
+                                    run_operation(request, response, settle, lookup_delete);
                                 }
                                 else {
                                     settle.error(code);
