@@ -421,3 +421,86 @@ test('T2 main — 고급 키 단건 조회는 --all 없이 1 로 끝나고, --al
         });
     });
 });
+
+// --- 2026-09-05 일괄 편집 — npm run conf -- edit (스펙 §13.3) ----------------
+
+function scriptEdit(d, answers) {
+    let i = 0, last = 0;
+    d.io.stdout.on('data', () => {
+        const s = d.output();
+        if (s.indexOf('> ', last) < 0 && s.indexOf('입력: ', last) < 0) { return; }
+        last = s.length;
+        setImmediate(() => { if (i < answers.length) { d.io.stdin.write(answers[i++] + '\n'); } else { d.io.stdin.end(); } });
+    });
+}
+// 사용자 키가 묻히는 순서 = 표의 그룹 선언 순서(권한 superUser 는 비밀이라 제외, 저장소 db, 네트워크 csebaseport, CSE 신원 cseBase·cseId·spId).
+// 구현 뒤 실제 순서를 renderList 로 확인해 답 배열을 맞춘다.
+test('E1/E2 edit — Enter 는 그대로, 바꾼 키만 한 번에 쓴다; 파일에 없던 키를 Enter 로 지나면 안 생긴다', function (t, done) {
+    const d = deps({ conf: { cseBase: 'Mobius', db: 'mysql' }, isTTY: true, stdin: new PassThrough() });
+    scriptEdit(d, ['', '7580', '', '', '', 'csebaseport']);   // db 그대로, csebaseport 바꿈(관문 → 끝에 키 이름), cseBase·cseId·spId 그대로
+    cli.runEdit(d, function (err, r) {
+        assert.ifError(err);
+        assert.strictEqual(r.ok, true, r.lines.join(' '));
+        const saved = readConf(d.file);
+        assert.strictEqual(saved.csebaseport, '7580');
+        assert.ok(!('cseId' in saved), '기본값을 굳이 파일에 넣었다');
+        assert.strictEqual(saved.cseBase, 'Mobius');
+        assert.match(r.lines.join('\n'), /csebaseport: [^\n]*7580/);
+        assert.match(r.lines.join('\n'), /재기동/);
+        done();
+    });
+});
+test('E3 유효하지 않은 답은 같은 항목을 다시 묻는다', function (t, done) {
+    const d = deps({ conf: { db: 'mysql' }, isTTY: true, stdin: new PassThrough() });
+    scriptEdit(d, ['', '99999', '7581', '', '', '', 'csebaseport']);
+    cli.runEdit(d, function (err, r) {
+        assert.strictEqual(r.ok, true, r.lines.join(' '));
+        assert.strictEqual(readConf(d.file).csebaseport, '7581');
+        assert.match(d.output(), /1~65535/);
+        done();
+    });
+});
+test('E4 관문 키는 바꿨을 때만 확인을 받고, 거부하면 그 키만 빠진다', function (t, done) {
+    const d = deps({ conf: { db: 'mysql' }, isTTY: true, stdin: new PassThrough() });
+    scriptEdit(d, ['sqlite', '', 'Vita', '', '', 'nope']);   // db(편집) 바꿈, cseBase(관문) 바꿈 → 관문에서 'nope' 로 거부
+    cli.runEdit(d, function (err, r) {
+        assert.strictEqual(r.ok, true, r.lines.join(' '));
+        const saved = readConf(d.file);
+        assert.strictEqual(saved.db, 'sqlite');
+        assert.ok(!('cseBase' in saved), '거부한 관문 키가 쓰였다');
+        assert.match(d.output(), /cseBase 를 바꾸면/);
+        done();
+    });
+});
+test('E5 비-TTY 와 EOF 는 아무것도 쓰지 않는다', function (t, done) {
+    const d1 = deps({ conf: { db: 'mysql' }, isTTY: false });
+    cli.runEdit(d1, function (err, r) {
+        assert.strictEqual(r.ok, false);
+        const d2 = deps({ conf: { db: 'mysql' }, isTTY: true, stdin: new PassThrough() });
+        scriptEdit(d2, ['sqlite']);   // 한 답 뒤 EOF
+        const before = fs.readFileSync(d2.file, 'utf8');
+        cli.runEdit(d2, function (err2, r2) {
+            assert.strictEqual(r2.ok, false);
+            assert.strictEqual(fs.readFileSync(d2.file, 'utf8'), before);
+            done();
+        });
+    });
+});
+test('E6 --all 이면 고급 키도 묻는다; 기본은 사용자 키만이고 비밀은 안 묻는다', function (t, done) {
+    const d = deps({ conf: { db: 'mysql' }, isTTY: true, stdin: new PassThrough(), all: true });
+    scriptEdit(d, []);   // 첫 프롬프트에서 EOF
+    cli.runEdit(d, function () {
+        assert.match(d.output(), /acpObserveMode|dbConnectionLimit|acpAudit/);
+        const u = deps({ conf: { db: 'mysql' }, isTTY: true, stdin: new PassThrough() });
+        scriptEdit(u, []);
+        cli.runEdit(u, function () {
+            assert.doesNotMatch(u.output(), /acpObserveMode|dbConnectionLimit/);
+            assert.doesNotMatch(u.output(), /dbpass|superUser/, '비밀을 물었다');
+            done();
+        });
+    });
+});
+test('edit 는 conf.json 이 없으면 거부한다', function (t, done) {
+    const d = deps({ file: path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'confcli-')), 'conf.json'), isTTY: true, stdin: new PassThrough() });
+    cli.runEdit(d, function (err, r) { assert.strictEqual(r.ok, false); assert.match(r.lines.join(' '), /node mobius.js/); done(); });
+});

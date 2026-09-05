@@ -160,6 +160,7 @@ Everything else has a default. Inspect and change settings with the CLI — ther
 ```
 npm run conf                        # list all keys with their file value and whether the running server has applied them
 npm run conf -- set cseBase Vita    # gated keys print a warning and ask you to type the key name
+npm run conf -- edit                # walk through the user keys one by one, Enter keeps the current value
 npm run conf -- --all               # advanced keys too (default: the seven first-run keys)
 npm run status                      # master pid, port, boot record, keys waiting for a restart
 ```

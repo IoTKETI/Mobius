@@ -48,6 +48,7 @@ var USAGE = [
     '  npm run conf -- <키>             단건 상세',
     '  npm run conf -- set <키> <값>    변경 (배열은 쉼표로)',
     '  npm run conf -- unset <키>       기본값으로 되돌린다',
+    '  npm run conf -- edit             일괄 편집 — 첫 실행처럼 사용자 키를 차례로 묻는다 (Enter 는 그대로)',
     '  npm run status                   마스터 pid · 포트 · 부팅 기록 · 재기동 대기 건수',
     '  옵션  --db=<이름>                백엔드를 강제한다 (키 표가 백엔드를 따라간다)',
     '  옵션  --all                     고급 키까지 보이고 고친다 (기본은 사용자 키 7개 — 첫 실행이 묻는 것)',
@@ -337,6 +338,91 @@ exports.runUnset = function (key, deps, cb) {
     });
 };
 
+/**
+ * 일괄 편집(스펙 §13.3). 첫 실행처럼 사용자 키를 카테고리 순서대로 묻는다(deps.all 이면 고급 키도).
+ * Enter 는 그대로, 답은 set 과 같은 변환·검사, 관문 키는 바꿨을 때만 끝에 확인, 마지막에 한 번의
+ * 원자적 쓰기. 비밀은 묻지 않고 읽기 전용은 보이고 건너뛴다. 비-TTY·EOF 는 아무것도 쓰지 않는다.
+ */
+exports.runEdit = function (deps, cb) {
+    var io = deps.io, schema = deps.schema, conf = deps.conf;
+    if (!io.isTTY) { return cb(null, fail(['대화형 터미널이 아니다 — edit 은 터미널에서만 된다. 개별 변경은 `set <키> <값>`.'])); }
+    if (!fs.existsSync(deps.store.file)) {
+        return cb(null, fail(['conf.json 이 없다 — 먼저 터미널에서 `node mobius.js`(또는 `npm run setup`)로 만들 것 (' + deps.store.file + ')']));
+    }
+    var rl = readline.createInterface({ input: io.stdin, output: io.stdout });
+    var patch = {}, order = [], closing = false, eof = false, finished = false;
+    rl.on('close', function () { if (!closing) { eof = true; finish(); } });
+
+    var groups = grouped(schema).map(function (g) {
+        return { group: g.group, keys: g.keys.filter(function (k) { return visible(deps, k) && schema.get(k).secret !== true; }) };
+    }).filter(function (g) { return g.keys.length; });
+
+    io.stdout.write('\n설정 편집 — Enter 는 그대로 두고, Ctrl-C 는 취소한다.' +
+                    (deps.all ? ' (고급 키 포함)' : ' 사용자 키만 묻는다 — 고급 키는 --all.') + '\n');
+
+    (function nextGroup(gi) {
+        if (eof) { return; }
+        if (gi >= groups.length) { closing = true; rl.close(); return finish(); }
+        var grp = groups[gi];
+        io.stdout.write('\n' + grp.group + '\n');
+        (function nextKey(ki) {
+            if (eof) { return; }
+            if (ki >= grp.keys.length) { return nextGroup(gi + 1); }
+            var k = grp.keys[ki], s = schema.get(k);
+            var inFile = has(conf, k), cur = inFile ? conf[k] : s.dflt;
+            if (s.readOnly) {
+                io.stdout.write('  ' + pad(k, 20) + ' ' + pad(norm(cur), 30) + ' 읽기 전용 — 파일을 직접 고친다\n');
+                return nextKey(ki + 1);
+            }
+            var choices = schema.choices(k);
+            var hint = choices ? '(' + choices.join(' / ') + ')' : (s.type === 'array' ? '(쉼표로 구분)' : '');
+            (function ask() {
+                rl.question('  ' + pad(k, 20) + ' ' + pad(norm(cur) + (inFile ? '' : ' (기본값)'), 30) + ' ' + hint + ' > ', function (ans) {
+                    var t = ans.trim();
+                    if (t === '') { return nextKey(ki + 1); }
+                    var c = exports.coerce(s.type, t);
+                    if (!c.ok) { io.stdout.write('    ' + c.reason + '\n'); return ask(); }
+                    var why = deps.store.validate(k, c.value);
+                    if (why) { io.stdout.write('    ' + (s.validHint || why) + '\n'); return ask(); }
+                    if (inFile && norm(c.value) === norm(cur)) { return nextKey(ki + 1); }
+                    patch[k] = c.value;
+                    if (order.indexOf(k) < 0) { order.push(k); }
+                    nextKey(ki + 1);
+                });
+            })();
+        })(0);
+    })(0);
+
+    function finish() {
+        if (finished) { return; }
+        finished = true;
+        if (eof) { io.stdout.write('\n'); return cb(null, fail(['취소했다 — 파일을 건드리지 않았다'])); }
+        if (!order.length) { return cb(null, { ok: true, lines: ['바꾼 것이 없다 — 파일을 건드리지 않았다.'] }); }
+        var desc = schema.describe();
+        var gates = order.filter(function (k) { return desc[k] && desc[k].grade === 'gate'; });
+        (function nextGate(i) {
+            if (i >= gates.length) { return write(); }
+            var k = gates[i];
+            exports.confirmGate(k, desc[k].gateWarn, io, function (pass) {
+                if (!pass) {
+                    delete patch[k];
+                    order = order.filter(function (x) { return x !== k; });
+                    io.stdout.write('  ' + k + ' 은 빼고 진행한다.\n');
+                }
+                nextGate(i + 1);
+            });
+        })(0);
+        function write() {
+            if (!order.length) { return cb(null, { ok: true, lines: ['바꾼 것이 없다 — 파일을 건드리지 않았다.'] }); }
+            var r = deps.store.update(patch);
+            if (!r.ok) { return cb(null, fail(r.errors)); }
+            var lines = r.changed.map(function (ch) { return ch.key + ': ' + norm(ch.from) + ' → ' + norm(ch.to); });
+            lines.push('재기동해야 반영된다 — 파일 값은 기동 때 한 번 읽힌다.  (' + deps.store.file + ')');
+            cb(null, { ok: true, lines: lines });
+        }
+    }
+};
+
 function pm2_line(master, list) {
     var notPm2 = master.supervised ? 'pm2 로 떴으나 지금 목록에서 찾지 못함' : 'pm2 로 뜬 것이 아니다';
     if (!Array.isArray(list)) { return notPm2; }
@@ -412,6 +498,9 @@ exports.main = function (args, deps, cb) {
     if (!cmd) { out(exports.renderList(deps)); return cb(null, 0); }
     if (cmd === 'status') {
         return exports.renderStatus(deps, function (err, lines) { out(lines); cb(null, 0); });
+    }
+    if (cmd === 'edit') {
+        return exports.runEdit(deps, function (err, r) { out(r.lines); cb(null, r.ok ? 0 : 1); });
     }
     if (cmd === 'set') {
         return exports.runSet(args[1], args[2], deps, function (err, r) { out(r.lines); cb(null, r.ok ? 0 : 1); });
