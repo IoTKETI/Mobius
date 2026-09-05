@@ -560,7 +560,11 @@ mobius/sql_action.js:3480   update_parent_…          BEGIN/COMMIT
 
 ## 5. P4 — 구조와 성능 (급하지 않다)
 
-### 5.1 `set_hit` 이 헤더 검증보다 먼저다
+### 5.1 ~~`set_hit` 이 헤더 검증보다 먼저다~~ — **고쳤다** (2026-09-05)
+
+네 라우트 다 `count_hit` 이 `check_xm2m_headers` 의 성공 갈래 안이다. 동작
+변경 — 거절될 요청은 안 센다(로컬 실측: 같은 11요청에 증가량 10→8).
+`test/hit-after-validation.test.js` 가 순서를 잠근다. 아래는 고치기 전 서술이다.
 
 ```
 POST    set_hit 2080 < check_xm2m_headers 2105
