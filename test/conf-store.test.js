@@ -347,11 +347,11 @@ test('W3 create 는 마법사의 일곱 키만 받고, 파일이 있으면 동�
     assert.strictEqual(readConf(file).cseBase, 'Vita', '있던 파일을 덮었다');
 });
 
-test('W3 setSecret 은 dbpass 만, 파일이 있을 때만', function () {
+test('W3 setSecret 은 dbpass·superUser 만, 파일이 있을 때만', function () {
     const file = tempConf({ dbpass: 'old', cseBase: 'Vita' });
     const s = store(file);
-    assert.strictEqual(s.setSecret('superUser', 'x').ok, false);
-    assert.strictEqual(s.setSecret('adminPassword', 'x').ok, false);
+    assert.strictEqual(s.setSecret('adminPassword', 'x').ok, false, '콘솔의 비밀이 이 경로로 써졌다');
+    assert.strictEqual(s.setSecret('adminOrigin', 'x').ok, false);
     assert.strictEqual(s.setSecret('acpObserveMode', 'off').ok, false);
     assert.strictEqual(s.setSecret('dbpass', 42).ok, false, '문자열이 아닌데 받았다');
     assert.strictEqual(readConf(file).dbpass, 'old');
@@ -359,6 +359,11 @@ test('W3 setSecret 은 dbpass 만, 파일이 있을 때만', function () {
     assert.strictEqual(s.setSecret('dbpass', 'new').ok, true);
     assert.strictEqual(readConf(file).dbpass, 'new');
     assert.strictEqual(readConf(file).cseBase, 'Vita', '다른 키를 날렸다');
+
+    // superUser 도 같은 길 — 파일에 없던 키면 추가된다
+    assert.strictEqual(s.setSecret('superUser', 'Vader').ok, true);
+    assert.strictEqual(readConf(file).superUser, 'Vader');
+    assert.strictEqual(readConf(file).dbpass, 'new', 'dbpass 를 날렸다');
 
     const missing = store(path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'confstore-')), 'conf.json'));
     assert.throws(function () { missing.setSecret('dbpass', 'x'); }, /ENOENT/);

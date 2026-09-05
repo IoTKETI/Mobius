@@ -30,6 +30,9 @@ var fs = require('fs');
 var PROBE_TIMEOUT_MS = 1500;
 var PM2_TIMEOUT_MS = 5000;
 
+// 프롬프트로만 다시 받을 수 있는 비밀 둘(tools/setup.js). 표에 문구를 두지 않는 것은 키가 아니라 명령이라서다.
+var REENTRY_FLAG = { dbpass: '--dbpass', superUser: '--superuser' };
+
 var STATE_LABEL = {
     applied: '적용됨',
     pending: '● 재기동 대기',
@@ -49,7 +52,7 @@ var USAGE = [
     '  옵션  --db=<이름>                백엔드를 강제한다 (키 표가 백엔드를 따라간다)',
     '',
     '  비밀 키(dbpass·superUser·adminPassword·adminOrigin)는 조회만 한다.',
-    '  dbpass 를 다시 넣으려면 `npm run setup -- --dbpass`.'
+    '  dbpass 를 다시 넣으려면 `npm run setup -- --dbpass`, superUser 는 `npm run setup -- --superuser`.'
 ];
 
 function pad(s, n) { s = String(s); while (s.length < n) { s += ' '; } return s; }
@@ -210,7 +213,7 @@ exports.renderShow = function (key, deps) {
     lines.push('  ' + pad('반영', 12) + s.apply + (s.reloadWith ? ' (' + s.reloadWith + ')' : '') + ' — 파일을 고치면 재기동해야 반영된다');
     if (s.secret === true) {
         lines.push('  ' + pad('파일 값', 12) + (has(deps.conf, key) && deps.conf[key] !== '' ? '설정됨' : '없음') + ' (비밀 — 값을 띄우지 않는다)');
-        lines.push('  ' + pad('변경', 12) + 'CLI 로 바꿀 수 없다' + (key === 'dbpass' ? ' — `npm run setup -- --dbpass`' : ''));
+        lines.push('  ' + pad('변경', 12) + 'CLI 로 바꿀 수 없다' + (REENTRY_FLAG[key] ? ' — `npm run setup -- ' + REENTRY_FLAG[key] + '`' : ''));
         return lines;
     }
     if (d && d.grade === 'gate') { lines.push('  ' + pad('등급', 12) + '관문 — 저장 전에 아래 경고를 보이고 키 이름을 타이핑해야 통과'); lines.push(d.gateWarn.split('\n').map(function (l) { return '    ' + l; }).join('\n')); }

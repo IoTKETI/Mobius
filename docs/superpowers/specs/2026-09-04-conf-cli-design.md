@@ -614,9 +614,10 @@ conf.json 을 만들었습니다.  나머지 설정은 `npm run conf` 로 봅니
 ```
 npm run setup                 conf.json 이 없을 때만
 npm run setup -- --dbpass     비밀번호만 다시 받는다 (파일이 있어도)
+npm run setup -- --superuser  수퍼유저 Origin 만 다시 받는다 (파일이 있어도 · 2026-09-05 추가)
 ```
 
-이것이 §4.3 의 "비밀 키는 CLI 로 변경 불가"의 **유일한 예외**다. 명령줄 인자로 값을 받지
+이 둘이 §4.3 의 "비밀 키는 CLI 로 변경 불가"의 **유일한 예외**다. 명령줄 인자로 값을 받지
 않고 **프롬프트로만** 받으므로 셸 히스토리에 안 남는다.
 
 ### 4.5.1 지키는 것 — 조건과 행동
@@ -713,7 +714,7 @@ conf_load(function (err, applied) {
 화이트리스트**(`db`·`dbpass`·`cseBase`·`cseId`·`spId`·`csebaseport`)로 거르고, 밖의 키가
 하나라도 있으면 거부한다. 값은 `validate()` 의 **타입·유효값 검사만** 지난다.
 
-**`setSecret(key, value)`** — `--dbpass` 전용. 대상 키를 **`dbpass` 하나로 못박고** 다른
+**`setSecret(key, value)`** — `--dbpass`·`--superuser` 전용. 대상 키를 **`dbpass`·`superUser` 둘로 못박고** 다른
 키는 거부한다. 파일이 있어야 하며 `_read()` → 그 키만 변경 → 원자적 쓰기.
 
 ### 4.6 오류 처리

@@ -162,7 +162,7 @@ npm run conf                        # list all keys with their file value and wh
 npm run conf -- set cseBase Vita    # gated keys print a warning and ask you to type the key name
 npm run status                      # master pid, port, boot record, keys waiting for a restart
 ```
-`dbpass` is stored in plain text; the wizard hides it while you type. To re-enter it: `npm run setup -- --dbpass`.
+`dbpass` and `superUser` are stored in plain text; the wizard hides them while you type. To re-enter one later: `npm run setup -- --dbpass` or `npm run setup -- --superuser` (prompt only — never a command-line argument).
 
 ### Default Retention Policies (optional)
 By default a container created without `mni` / `mbs` uses the Mobius defaults. If a deployment needs different defaults for particular container paths, they can be declared in `conf.json` as `retentionPolicies`. Omit the key to disable the feature entirely.

@@ -251,12 +251,17 @@ ConfStore.prototype.create = function (obj) {
 };
 
 /**
- * `npm run setup -- --dbpass` 전용. update() 를 우회하는 둘 중 나머지 하나.
- * 대상 키를 dbpass 하나로 못박는다. 파일이 있어야 한다(없으면 _read 가 {} 를 주지만
- * 그 경로로 파일을 만들면 안 되므로 먼저 확인한다 — ENOENT 를 던진다).
+ * `npm run setup -- --dbpass` / `-- --superuser` 전용. update() 를 우회하는 둘 중 나머지 하나.
+ * 대상 키를 REENTRY_KEYS 둘로 못박는다 — 콘솔의 비밀(adminPassword·adminOrigin)은 여기서
+ * 못 바꾼다. 파일이 있어야 한다(없으면 _read 가 {} 를 주지만 그 경로로 파일을 만들면
+ * 안 되므로 먼저 확인한다 — ENOENT 를 던진다).
  */
+var REENTRY_KEYS = ['dbpass', 'superUser'];
+
 ConfStore.prototype.setSecret = function (key, value) {
-    if (key !== 'dbpass') { return { ok: false, errors: ['이 경로로 바꿀 수 있는 것은 dbpass 뿐이다'] }; }
+    if (REENTRY_KEYS.indexOf(key) < 0) {
+        return { ok: false, errors: ['이 경로로 바꿀 수 있는 것은 ' + REENTRY_KEYS.join('·') + ' 뿐이다'] };
+    }
     if (typeof value !== 'string') { return { ok: false, errors: ['문자열이 아니다'] }; }
     fs.readFileSync(this.file, 'utf8');   // 없으면 ENOENT
     var conf = this._read();
@@ -270,3 +275,4 @@ exports.APPLY = APPLY;
 exports.SECRET = SECRET;
 exports.DANGER = DANGER;
 exports.WIZARD_KEYS = WIZARD_KEYS;
+exports.REENTRY_KEYS = REENTRY_KEYS;
