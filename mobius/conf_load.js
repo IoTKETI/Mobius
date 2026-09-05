@@ -298,10 +298,18 @@ function first_run(file, opts, callback) {
         if (err) { return callback(err); }
         try {
             require('./conf_write').createExclusive(file, answers);
-            require('./conf_seal').seal(file, answers);
         }
         catch (e) {
             return callback(new Error('[설정] conf.json 을 만들지 못했다: ' + ((e && e.message) || e)));
+        }
+        // 봉인은 따로 가른다 — 파일 생성과 같은 try 에 있으면 봉인만 실패해도
+        // "만들지 못했다" 가 나가는데, 이 시점엔 conf.json 이 이미 생겼다.
+        try {
+            require('./conf_seal').seal(file, answers);
+        }
+        catch (e) {
+            return callback(new Error('[설정] conf.json 은 만들었지만 봉인에 실패했다: ' + ((e && e.message) || e) +
+                                      ' — npm run setup -- --superuser 로 봉인을 다시 만들 것'));
         }
         io.stdout.write('\nconf.json 을 만들었습니다: ' + file + '\n나머지 설정은 `npm run conf` 로 봅니다.\n\n');
         callback(null, answers);

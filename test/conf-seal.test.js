@@ -52,4 +52,15 @@ test('없는 비밀은 null 로 봉인한다 — sqlite 설치(dbpass 없음)도
     seal.seal(file, { db: 'sqlite', superUser: 'S' });
     assert.strictEqual(seal.verify(file, { db: 'sqlite', superUser: 'S' }).ok, true);
     assert.strictEqual(seal.verify(file, { db: 'sqlite', superUser: 'S', dbpass: 'x' }).ok, false, '없던 비밀을 손으로 넣은 것도 잡는다');
+    assert.strictEqual(seal.verify(file, { db: 'sqlite', superUser: 'S', dbpass: 1 }).ok, false, '숫자로 손편집해도 잡는다');
+});
+test('낡은 봉인 — keys 가 지금 KEYS 와 다르면 "도구 밖에서 바뀌었다" 가 아니라 낡았다고 말한다', function () {
+    const file = tmpConf({ dbpass: 'p', superUser: 'S' });
+    const rec = seal.seal(file, { dbpass: 'p', superUser: 'S' });
+    // seal·key 는 실제로 두 키 전체로 계산된 값 그대로 두고 keys 메타만 낡게 만든다 —
+    // keys 대조가 없으면 HMAC 은 여전히 맞아 조용히 통과해 버린다.
+    fs.writeFileSync(seal.sealPath(file), JSON.stringify(Object.assign({}, rec, { keys: ['dbpass'] })), 'utf8');
+    const v = seal.verify(file, { dbpass: 'p', superUser: 'S' });
+    assert.strictEqual(v.ok, false);
+    assert.match(v.reason, /낡았다/);
 });

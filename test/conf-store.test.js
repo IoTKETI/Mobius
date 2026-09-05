@@ -349,6 +349,20 @@ test('W3 create 는 마법사의 일곱 키만 받고, 파일이 있으면 동�
     assert.strictEqual(readConf(file).cseBase, 'Vita', '있던 파일을 덮었다');
 });
 
+test('create — conf.json 은 만들어졌지만 봉인이 실패하면 사유를 가른다', function () {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'confstore-'));
+    const file = path.join(dir, 'conf.json');
+    // conf.seal.json 자리를 디렉터리로 미리 만들어 두면 writeAtomic 의 rename 이 실패한다 —
+    // conf.json 쓰기는 이미 끝난 뒤라 "만들지 못했다" 로 뭉뚱그리면 안 된다.
+    fs.mkdirSync(seal.sealPath(file));
+    const s = store(file);
+
+    assert.throws(function () {
+        s.create({ db: 'mysql', dbpass: 'p', cseBase: 'Vita', cseId: '/Vita1', spId: '//example.com', csebaseport: '7579' });
+    }, /봉인에 실패/);
+    assert.strictEqual(fs.existsSync(file), true, 'conf.json 은 이미 생겼어야 한다');
+});
+
 test('W3 setSecret 은 dbpass·superUser 만, 파일이 있을 때만', function () {
     const file = tempConf({ dbpass: 'old', cseBase: 'Vita' });
     const s = store(file);

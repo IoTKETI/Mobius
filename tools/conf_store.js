@@ -245,10 +245,17 @@ ConfStore.prototype.create = function (obj) {
     if (fs.existsSync(this.file)) { return { ok: false, errors: ['이미 있다: ' + this.file] }; }
     try {
         conf_write.createExclusive(this.file, obj);
-        conf_seal.seal(this.file, obj);
     } catch (e) {
         if (e && e.code === 'EEXIST') { return { ok: false, errors: ['이미 있다: ' + this.file] }; }
         throw e;
+    }
+    // 봉인은 따로 가른다 — 파일 생성과 같은 try 에 있으면 봉인만 실패해도 EEXIST 분기를
+    // 지나 "이미 있다" 로 나가는데, 이 시점엔 conf.json 이 방금 막 생긴 것이다.
+    try {
+        conf_seal.seal(this.file, obj);
+    } catch (e) {
+        throw new Error('[설정] conf.json 은 만들었지만 봉인에 실패했다: ' + ((e && e.message) || e) +
+                        ' — npm run setup -- --superuser 로 봉인을 다시 만들 것');
     }
     return { ok: true, errors: [] };
 };

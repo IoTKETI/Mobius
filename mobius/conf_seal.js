@@ -25,9 +25,11 @@ var KEYS = ['dbpass', 'superUser'];
 function seal_path(confFile) { return path.join(path.dirname(confFile), 'conf.seal.json'); }
 
 // 대상 키만, 없으면 null — 키가 없다는 사실도 봉인에 들어가야 손으로 지우거나 넣은 것을 잡는다.
+// 값을 문자열로만 좁히지 않는다 — 숫자·불리언으로 손편집해도(예: "superUser": 123) 값이 그대로
+// 봉인에 실려야 불일치로 잡힌다. 스키마는 둘 다 string 이지만 그 강제는 여기 일이 아니다.
 function payload(conf) {
     var o = {};
-    KEYS.forEach(function (k) { o[k] = (conf && typeof conf[k] === 'string') ? conf[k] : null; });
+    KEYS.forEach(function (k) { o[k] = (conf && conf[k] !== undefined) ? conf[k] : null; });
     return JSON.stringify(o);
 }
 function hmac(keyHex, conf) {
@@ -54,6 +56,11 @@ exports.verify = function (confFile, conf) {
     var rec = read_seal(file);
     if (!rec || typeof rec.key !== 'string' || !/^[0-9a-f]{64}$/.test(rec.key) || typeof rec.seal !== 'string') {
         return { ok: false, reason: '봉인 파일이 깨졌다 (' + file + ')' };
+    }
+    // 봉인 대상 키 집합이 지금 KEYS 와 다르면 불일치가 아니라 "낡음" 이다 — 훗날 대상이 늘어도
+    // 옛 봉인 파일이 틀린 사유("도구 밖에서 바뀌었다")로 나가면 안 된다.
+    if (!Array.isArray(rec.keys) || rec.keys.length !== KEYS.length || rec.keys.some(function (k, i) { return k !== KEYS[i]; })) {
+        return { ok: false, reason: '봉인이 낡았다(봉인 대상 키가 바뀌었다) — npm run setup -- --superuser 로 다시 만들 것' };
     }
     if (hmac(rec.key, conf) !== rec.seal) { return { ok: false, reason: 'dbpass·superUser 가 도구 밖에서 바뀌었다' }; }
     return { ok: true };
