@@ -159,6 +159,12 @@ exports.set_hit_n = function (connection, _ct, _http, _mqtt, _coap, _ws, callbac
 //     });
 // };
 
+// sri 여럿을 한 번에 — app.js 의 get_ri_list_sri 가 원소마다 get_ri_sri 를 순차로
+// 내던 것을 접은 것(남은 일 §5.3). 돌려주는 행은 (ri, sri) 쌍이라 호출부가 짝을 맞춘다.
+exports.get_ri_sri_in = function (connection, sri_list, callback) {
+    facade.run(facade.k('lookup').select('ri', 'sri').whereIn('sri', sri_list || []), connection, callback);
+};
+
 exports.get_ri_sri = function (connection, sri, callback) {
     facade.run(facade.k('lookup').select('ri').where({ sri: sri }), connection, function (err, results) {
         callback(err, results);

@@ -963,25 +963,45 @@ else {
     });
 }
 
+/**
+ * sri 목록을 ri 목록으로 — lookup 에 그 sri 행이 있으면 그 ri, 없으면 원값 그대로.
+ * ACP 의 acpi 목록(security.js), acpi 검증(resource.js), 그룹 멤버(fopt.js)가 쓴다.
+ *
+ * 예전에는 원소마다 get_ri_sri 를 **순차로** 한 번씩 냈다(남은 일 §5.3 — ACP 조회
+ * 3단 중 2단). 저장된 acpi 는 validate_acpi 를 거쳐 이미 ri 라 정상 사용에서
+ * 결과가 0행인데, 옛 데이터에 sri 형이 남아 있는지는 확인할 길이 없어(acpi 컬럼
+ * 훑기는 풀스캔) 단을 **빼지 않고** 한 질의로 접었다 — 의미는 글자 그대로 같다.
+ * 실제로 치환이 일어나면 로그를 남긴다. 그 로그가 오래 비어 있으면 ACP 경로에서는
+ * 이 호출 자체를 뺄 수 있다(그때는 fopt 의 mid 는 그대로 둔다 — 멤버는 sri 로도 온다).
+ */
 global.get_ri_list_sri = function (request, response, sri_list, ri_list, count, callback) {
-    if (sri_list.length <= count) {
+    var todo = sri_list.slice(count);
+    if (todo.length === 0) {
         callback('200');
+        return;
     }
-    else {
-        db_sql.get_ri_sri(request.db_connection, sri_list[count], (err, results) => {
-            if (!err) {
-                ri_list[count] = ((results.length == 0) ? sri_list[count] : results[0].ri);
-                results = null;
-
-                get_ri_list_sri(request, response, sri_list, ri_list, ++count, (code) => {
-                    callback(code);
-                });
-            }
-            else {
-                callback('500-1');
-            }
-        });
-    }
+    db_sql.get_ri_sri_in(request.db_connection, todo, (err, rows) => {
+        if (err) {
+            callback('500-1');
+            return;
+        }
+        // 같은 sri 행이 둘이면 먼저 온 것 — 옛 코드의 results[0] 과 같은 "정해지지 않은 첫 행" 이다
+        var map = Object.create(null);
+        for (var i = 0; i < rows.length; i++) {
+            if (!(rows[i].sri in map)) { map[rows[i].sri] = rows[i].ri; }
+        }
+        var resolved = 0;
+        for (var j = 0; j < todo.length; j++) {
+            var v = (todo[j] in map) ? map[todo[j]] : todo[j];
+            if (v !== todo[j]) { resolved++; }
+            ri_list[count + j] = v;
+        }
+        rows = null;
+        if (resolved > 0) {
+            console.log('[get_ri_list_sri] sri→ri 치환 ' + resolved + '/' + todo.length + ' — ' + request.method + ' ' + request.url);
+        }
+        callback('200');
+    });
 };
 
 global.update_route = function (connection, cse_poa, callback) {
