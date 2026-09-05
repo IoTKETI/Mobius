@@ -414,7 +414,10 @@ exports.main = function (args, deps, cb) {
         return exports.runUnset(args[1], deps, function (err, r) { out(r.lines); cb(null, r.ok ? 0 : 1); });
     }
     if (cmd === 'help' || cmd === '--help' || cmd === '-h') { out(USAGE); return cb(null, 0); }
-    if (deps.schema.get(cmd)) { out(exports.renderShow(cmd, deps)); return cb(null, 0); }
+    if (deps.schema.get(cmd)) {
+        if (!visible(deps, cmd)) { out(advanced_fail(cmd).lines); return cb(null, 1); }
+        out(exports.renderShow(cmd, deps)); return cb(null, 0);
+    }
     out(['모르는 명령 또는 키다: ' + cmd, ''].concat(USAGE));
     cb(null, 2);
 };

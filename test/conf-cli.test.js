@@ -122,8 +122,9 @@ test('L2 파일 값이 유효하지 않으면 재기동 대기가 아니라 "유
     assert.match(j.note, /set/);
 });
 
+// 고급 키를 쓰므로 --all (가시성은 T2·T3 가 본다) — 안 그러면 고급 키 관문이 먼저 잡아 검사 이유가 바뀐다
 test('L4 set 은 validate() 를 지난다 — 모르는 키·읽기 전용·유효값 밖·exposed:false', function (t, done) {
-    const d = deps({ conf: { dbpass: 'x', retentionPolicies: [] } });
+    const d = deps({ conf: { dbpass: 'x', retentionPolicies: [] }, all: true });
     const cases = [['noSuchKey', 'x'], ['retentionPolicies', 'a'], ['acpObserveMode', 'sometimes'], ['dbpass', 'y'], ['dbConnectionLimit', '0'], ['dbConnectionLimit', '20MB']];
     (function next(i) {
         if (i >= cases.length) {
@@ -399,4 +400,17 @@ test('T2 진입점이 --all 을 deps 로 넘기고 args 에서 뺀다 — 소스
     const src = fs.readFileSync(path.join(ROOT, 'tools', 'mobius-conf.js'), 'utf8');
     assert.match(src, /all:\s*argv\.indexOf\('--all'\)\s*>=\s*0/);
     assert.match(src, /a !== '--all'/);
+});
+test('T2 main — 고급 키 단건 조회는 --all 없이 1 로 끝나고, --all 이면 0', function (t, done) {
+    const d = deps({ conf: {}, record: null });
+    cli.main(['dbConnectionLimit'], d, function (err, code) {
+        assert.strictEqual(code, 1);
+        assert.match(d.output(), /고급 키다/);
+        const a = deps({ conf: {}, record: null, all: true });
+        cli.main(['dbConnectionLimit'], a, function (err2, code2) {
+            assert.strictEqual(code2, 0);
+            assert.match(a.output(), /dbConnectionLimit  —/);
+            done();
+        });
+    });
 });
