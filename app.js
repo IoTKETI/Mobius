@@ -1457,8 +1457,12 @@ function run_operation(request, response, settle, method, lookup) {
  * 3단계 14번(2026-09-05) 전에는 모양이 셋이었다. POST 만 이렇게 했고 GET·PUT·
  * DELETE 는 **요청 커넥션** 위에서 set_hit 를 던지고 콜백을 안 기다렸다 — 헤더
  * 검증이 400-1 로 즉시 정산하면 그 커넥션이 질의가 아직 날아가는 채로 풀에
- * 돌아갔다. 결함 수정이지 리팩터가 아니라 따로 커밋했다. 세는 위치는 그대로라
- * 집계 수치는 안 바뀐다 — GET 은 여전히 extra api(/hit 등)를 뺀 뒤에 센다.
+ * 돌아갔다. 결함 수정이지 리팩터가 아니라 따로 커밋했다.
+ *
+ * 세는 **위치**는 남은 일 §5.1 에서 옮겼다 — 네 라우트 다 check_xm2m_headers 를
+ * 통과한 뒤다. 예전에는 검증 앞에서 세어 X-M2M-RI·Origin 이 없어 400 으로
+ * 거절될 요청도 hit 에 들어갔다. GET 은 extra api(/hit 등)를 뺀 뒤이기도 하다.
+ * test/hit-after-validation.test.js 가 순서를 잠근다.
  */
 function count_hit(binding) {
     db.getConnection((code, connection) => {
@@ -2430,19 +2434,13 @@ app.use((req, res, next) => {
 
 // remoteCSE, ae, cnt
 app.post('*', onem2mParser, (request, response) => {
-    count_hit(request.headers['binding'] || 'H');
-
-    //         db_sql.set_hit(connection, request.headers['binding'], (err, results) => {
-    //             results = null;
-
-    //             connection.release();
-    //         });
-    //     }
-    // });
-
     with_connection(request, response, (settle) => {
         check_xm2m_headers(request, (code) => {
             if (code === '200') {
+                // 헤더 검증을 통과한 요청만 센다 (남은 일 §5.1). 예전에는 검증 앞에서
+                // 세어 X-M2M-RI 가 없어 400 으로 거절될 요청도 hit 에 들어갔다.
+                count_hit(request.headers['binding'] || 'H');
+
                 if (request.body !== "") {
                     check_resource_supported(request, response, (code) => {
                         if (code === '200') {
@@ -2523,10 +2521,11 @@ app.get('*', onem2mParser, (request, response) => {
     with_connection(request, response, (settle) => {
         extra_api_action(request.db_connection, request.url, (code, result) => {
             if (code === '200') {
-                count_hit(request.headers['binding'] || 'H');
-
                 check_xm2m_headers(request, (code) => {
                     if (code === '200') {
+                        // 헤더 검증을 통과한 요청만 센다 (§5.1). extra api 는 위에서 이미 뺐다.
+                        count_hit(request.headers['binding'] || 'H');
+
                         get_target_url(request, response, (code) => {
                             if (code === '200') {
                                 if (request.option !== '/fopt') {
@@ -2578,10 +2577,11 @@ app.get('*', onem2mParser, (request, response) => {
 
 app.put('*', onem2mParser, (request, response) => {
     with_connection(request, response, (settle) => {
-        count_hit(request.headers['binding'] || 'H');
-
         check_xm2m_headers(request, (code) => {
             if (code === '200') {
+                // 헤더 검증을 통과한 요청만 센다 (§5.1).
+                count_hit(request.headers['binding'] || 'H');
+
                 if (request.body !== "") {
                     check_resource_supported(request, response, (code) => {
                         if (code === '200') {
@@ -2634,10 +2634,11 @@ app.put('*', onem2mParser, (request, response) => {
 
 app.delete('*', onem2mParser, (request, response) => {
     with_connection(request, response, (settle) => {
-        count_hit(request.headers['binding'] || 'H');
-
         check_xm2m_headers(request, (code) => {
             if (code === '200') {
+                // 헤더 검증을 통과한 요청만 센다 (§5.1).
+                count_hit(request.headers['binding'] || 'H');
+
                 get_target_url(request, response, (code) => {
                     if (code === '200') {
                         if (request.option !== '/fopt') {
