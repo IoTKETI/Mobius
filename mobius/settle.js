@@ -49,7 +49,8 @@ var LEGACY = {
     //   GET  — resource.retrieve (8번): '200' → result 200/2000, '200-1' → search 200/2000
     //   POST — resource.create (9번):   '201' → result 201/2001, '201-3' → rcn3 201/2001
     //   PUT  — resource.update (9번):   '200' → result 200/2004
-    DELETE: { '200': ['result', '200', '2002'] }
+    //   DELETE — resource.delete (9번): '200' → result 200/2002
+    // 전부 빠졌다 — 이 표와 옛 갈래(result / search / rcn3)는 10번에서 지운다.
 };
 
 /**

@@ -47,7 +47,8 @@ const OLD_ROUTES = {
 // 남아 있으면 조용히 옛 갈래를 타는 대신 500 으로 드러난다.
 //   POST — resource.create (2단계 9번)
 //   PUT  — resource.update (2단계 9번)
-const DONE_METHODS = ['GET', 'POST', 'PUT'];
+//   DELETE — resource.delete (2단계 9번)
+const DONE_METHODS = ['GET', 'POST', 'PUT', 'DELETE'];
 const LEGACY_LEFT = {};
 Object.keys(OLD_ROUTES).forEach((m) => { if (DONE_METHODS.indexOf(m) < 0) LEGACY_LEFT[m] = OLD_ROUTES[m]; });
 
@@ -256,4 +257,11 @@ test('resource.update 의 성공 종단이 결과 객체를 준다 (2단계 9번
         .replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/mg, '');
     const count = (n) => src.split(n).length - 1;
     assert.strictEqual(count("{ rsc: 'UPDATED', shape: 'single', rootnm: rootnm, body: request.resourceObj }"), 1);
+});
+
+test('resource.delete 의 성공 종단이 결과 객체를 준다 (2단계 9번)', () => {
+    const src = fs.readFileSync(path.join(MOBIUS_DIR, 'resource.js'), 'utf8')
+        .replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/mg, '');
+    const count = (n) => src.split(n).length - 1;
+    assert.strictEqual(count("{ rsc: 'DELETED', shape: 'single', rootnm: rootnm, body: request.resourceObj }"), 1);
 });

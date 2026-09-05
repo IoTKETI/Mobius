@@ -2472,7 +2472,9 @@ exports.delete = function (request, response, callback) {
             // 그래서 지금 CIN 을 지워도 부모 cnt 의 cni/cbs 가 줄지 않는다.
             // 올바른 복원 방안은
             // docs/superpowers/specs/2026-08-27-counter-maintenance-review.md 참조.
-            callback('200');
+            //
+            // 결과가 인자로 올라간다 — 옛 라우트가 '200' 을 보고 result 200/2002 를 골랐다. 2단계 9번.
+            callback(null, { rsc: 'DELETED', shape: 'single', rootnm: rootnm, body: request.resourceObj });
             });
         }
         else {
