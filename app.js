@@ -1445,6 +1445,26 @@ function run_operation(request, response, settle, lookup) {
     lookup(request, response, (code, out) => { settle.done(code, out); });
 }
 
+/**
+ * 요청 하나를 hit 표에 센다 — 자기 커넥션을 빌려 세고 자기가 반납한다.
+ * 응답을 기다리지 않는다(집계라 요청을 막지 않는다).
+ *
+ * 3단계 14번(2026-09-05) 전에는 모양이 셋이었다. POST 만 이렇게 했고 GET·PUT·
+ * DELETE 는 **요청 커넥션** 위에서 set_hit 를 던지고 콜백을 안 기다렸다 — 헤더
+ * 검증이 400-1 로 즉시 정산하면 그 커넥션이 질의가 아직 날아가는 채로 풀에
+ * 돌아갔다. 결함 수정이지 리팩터가 아니라 따로 커밋했다. 세는 위치는 그대로라
+ * 집계 수치는 안 바뀐다 — GET 은 여전히 extra api(/hit 등)를 뺀 뒤에 센다.
+ */
+function count_hit(binding) {
+    db.getConnection((code, connection) => {
+        if (code !== '200') { return; }
+        db_sql.set_hit(connection, binding, (err, results) => {
+            results = null;
+            db.release(connection);
+        });
+    });
+}
+
 // 그 47곳을 전부 봐야 했다.
 // 정산기는 mobius/settle.js 에 있다. 여기서는 response_error_result 를 엮어
 // 넘기기만 한다 — 그 함수가 reason 카탈로그와 responder.respond 를 잇고 있다.
@@ -2405,20 +2425,7 @@ app.use((req, res, next) => {
 
 // remoteCSE, ae, cnt
 app.post('*', onem2mParser, (request, response) => {
-    var binding = request.headers['binding'] || 'H';   // request 참조를 동기 시점으로 이동
-    db.getConnection((code, connection) => {
-        if (code === '200') {
-            db_sql.set_hit(connection, binding, (err, results) => {
-                results = null;
-                db.release(connection);
-            });
-        }
-    });
-    // db.getConnection((code, connection) => {
-    //     if (code === '200') {
-    //         if (!request.headers.hasOwnProperty('binding')) {
-    //             request.headers['binding'] = 'H';
-    //         }
+    count_hit(request.headers['binding'] || 'H');
 
     //         db_sql.set_hit(connection, request.headers['binding'], (err, results) => {
     //             results = null;
@@ -2511,13 +2518,7 @@ app.get('*', onem2mParser, (request, response) => {
     with_connection(request, response, (settle) => {
         extra_api_action(request.db_connection, request.url, (code, result) => {
             if (code === '200') {
-                if (!request.headers.hasOwnProperty('binding')) {
-                    request.headers['binding'] = 'H';
-                }
-
-                db_sql.set_hit(request.db_connection, request.headers['binding'], (err, results) => {
-                    results = null;
-                });
+                count_hit(request.headers['binding'] || 'H');
 
                 check_xm2m_headers(request, (code) => {
                     if (code === '200') {
@@ -2572,13 +2573,7 @@ app.get('*', onem2mParser, (request, response) => {
 
 app.put('*', onem2mParser, (request, response) => {
     with_connection(request, response, (settle) => {
-        if (!request.headers.hasOwnProperty('binding')) {
-            request.headers['binding'] = 'H';
-        }
-
-        db_sql.set_hit(request.db_connection, request.headers['binding'], (err, results) => {
-            results = null;
-        });
+        count_hit(request.headers['binding'] || 'H');
 
         check_xm2m_headers(request, (code) => {
             if (code === '200') {
@@ -2634,13 +2629,7 @@ app.put('*', onem2mParser, (request, response) => {
 
 app.delete('*', onem2mParser, (request, response) => {
     with_connection(request, response, (settle) => {
-        if (!request.headers.hasOwnProperty('binding')) {
-            request.headers['binding'] = 'H';
-        }
-
-        db_sql.set_hit(request.db_connection, request.headers['binding'], (err, results) => {
-            results = null;
-        });
+        count_hit(request.headers['binding'] || 'H');
 
         check_xm2m_headers(request, (code) => {
             if (code === '200') {
