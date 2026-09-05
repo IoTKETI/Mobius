@@ -33,11 +33,15 @@ var db = require(path.join(ROOT, 'mobius', 'db'));
 
 // 비밀 하나를 다시 받는 길. 키마다 라벨과 검사가 다르다.
 //   needsBackendKey  그 백엔드의 표에 키가 있어야 한다 (dbpass 는 mysql 만 쓴다)
-//   allowEmpty       빈 입력을 그대로 쓸 것인가 (비밀번호 없는 MySQL 은 가능하다;
-//                    수퍼유저가 비면 코어가 Sponde 로 떨어지므로 바꾸지 않는다)
+//
+// Enter(빈 입력)는 **값을 그대로 두고 봉인만 만든다**(있으면 다시 만든다) — 두 플래그가
+// 같은 규칙이다(사용자 결정 2026-09-05). Enter 의 뜻이 플래그마다 다르면 함정이다(2차
+// 최종 검토 Important 4 가 짚은 것) — 예전엔 --superuser 의 Enter 는 거부, --dbpass 의
+// Enter 는 빈 비밀번호를 그대로 썼다. 비밀번호 없는 MySQL 을 **설정하는** 길은 첫 실행
+// 마법사에서만 — 재입력의 Enter 는 유지다.
 var REENTRY = {
-    '--dbpass':    { key: 'dbpass',    label: 'DB 비밀번호',    needsBackendKey: true,  allowEmpty: true },
-    '--superuser': { key: 'superUser', label: '수퍼유저 Origin', needsBackendKey: false, allowEmpty: false }
+    '--dbpass':    { key: 'dbpass',    label: 'DB 비밀번호',    needsBackendKey: true },
+    '--superuser': { key: 'superUser', label: '수퍼유저 Origin', needsBackendKey: false }
 };
 var flags = Object.keys(REENTRY).filter(function (f) { return process.argv.indexOf(f) >= 0; });
 if (flags.length > 1) {
@@ -65,18 +69,23 @@ if (flags.length === 1) {
     }
     var store = new (require('./conf_store').ConfStore)(FILE);   // usedb 뒤에 require
     setup_prompt.askSecret(io, re.label, function (err, value) {
-        if (err) { console.error(err.message); process.exit(1); }
-        if (!re.allowEmpty && value.trim() === '') {
-            console.error('값이 비었다 — 바꾸지 않았다. 봉인도 만들지 않았다.');
-            process.exit(1);
+        if (err) { console.error(err.message); return process.exit(1); }
+        if (value.trim() === '') {
+            // 값은 그대로 두고 봉인만 만든다(사용자 결정 2026-09-05) — reseal() 은 값 검증·
+            // 쓰기 없이 지금 파일 값으로만 다시 봉인한다.
+            var rr;
+            try { rr = store.reseal(); }
+            catch (e) { console.error(e.message); return process.exit(1); }
+            console.log(re.key + ' 는 그대로 두었다. 봉인을 ' + (rr.created ? '만들었다.' : '다시 만들었다.'));
+            return process.exit(0);
         }
         var r = store.setSecret(re.key, value);
-        if (!r.ok) { console.error(r.errors.join('\n')); process.exit(1); }
+        if (!r.ok) { console.error(r.errors.join('\n')); return process.exit(1); }
         console.log(re.key + ' 를 바꿨다. 재기동해야 반영된다.' +
                     (re.key === 'superUser'
                         ? ' 이 값으로 도는 운영 도구(관리 콘솔의 adminOrigin 기본값 포함)도 같이 바꿔야 한다 — 아니면 곧바로 403 을 받는다.'
                         : ''));
-        process.exit(0);
+        return process.exit(0);
     });
     return;
 }

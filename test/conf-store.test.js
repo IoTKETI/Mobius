@@ -390,6 +390,39 @@ test('W3 setSecret 은 dbpass·superUser 만, 파일이 있을 때만', function
     assert.throws(function () { missing.setSecret('dbpass', 'x'); }, /ENOENT/);
 });
 
+// --- 2026-09-05 재입력 Enter = 값 유지 + 봉인 (사용자 결정) ----------------------
+
+test('reseal — 값은 그대로 두고 봉인만 만든다(다시 만든다); created 플래그; key 재사용', function () {
+    const file = tempConf({ dbpass: 'p', superUser: 'S' });
+    const s = store(file);
+    assert.strictEqual(fs.existsSync(seal.sealPath(file)), false, '시작부터 봉인이 있으면 created 판정을 못 본다');
+
+    const r1 = s.reseal();
+    assert.deepStrictEqual(r1, { ok: true, created: true });
+    assert.strictEqual(seal.verify(file, readConf(file)).ok, true, 'reseal 이 봉인하지 않았다');
+    assert.deepStrictEqual(readConf(file), { dbpass: 'p', superUser: 'S' }, '값이 바뀌었다 — reseal 은 쓰기가 없어야 한다');
+    const key1 = JSON.parse(fs.readFileSync(seal.sealPath(file), 'utf8')).key;
+
+    const r2 = s.reseal();
+    assert.deepStrictEqual(r2, { ok: true, created: false }, '이미 있는데 created 가 참이다');
+    assert.strictEqual(seal.verify(file, readConf(file)).ok, true);
+    const key2 = JSON.parse(fs.readFileSync(seal.sealPath(file), 'utf8')).key;
+    assert.strictEqual(key2, key1, 'reseal 이 key 를 새로 만들었다 — setSecret 과 같은 계약이다');
+    assert.deepStrictEqual(readConf(file), { dbpass: 'p', superUser: 'S' }, '두 번째 reseal 도 값을 건드리면 안 된다');
+
+    const missing = store(path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'confstore-')), 'conf.json'));
+    assert.throws(function () { missing.reseal(); }, /ENOENT/);
+});
+test('reseal — 봉인이 실패하면 create 와 같은 모양의 사유로 던진다', function () {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'confstore-'));
+    const file = path.join(dir, 'conf.json');
+    fs.writeFileSync(file, JSON.stringify({ dbpass: 'p' }, null, 4), 'utf8');
+    // conf.seal.json 자리를 디렉터리로 미리 만들어 두면 writeAtomic 의 rename 이 실패한다.
+    fs.mkdirSync(seal.sealPath(file));
+    const s = store(file);
+    assert.throws(function () { s.reseal(); }, /봉인에 실패/);
+});
+
 test('conf_schema.checkValue 는 관문 없이 타입·유효값만 본다', function () {
     const schema = require(path.join(__dirname, '..', 'mobius', 'conf_schema.js'));
     assert.strictEqual(schema.checkValue('dbpass', 'x').ok, true, 'exposed:false 를 관문으로 썼다');

@@ -254,7 +254,7 @@ function no_conf_error(file, why) {
 function bad_seal_error(reason) {
     var e = new Error('[설정] ' + reason + '.\n' +
                       '            conf.json 의 dbpass·superUser 는 도구로만 바꾼다 — 터미널에서 `npm run setup -- --superuser` 를 치고 ' +
-                      '현재 값을 그대로 입력(안 바꿨으면 Sponde) — Enter 는 봉인을 만들지 않는다.');
+                      'Enter(값 유지) 하면 봉인이 만들어진다.');
     e.code = 'BAD_SEAL';
     return e;
 }

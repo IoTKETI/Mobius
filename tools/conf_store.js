@@ -281,6 +281,30 @@ ConfStore.prototype.setSecret = function (key, value) {
     return { ok: true, errors: [] };
 };
 
+/**
+ * 값은 그대로 두고 봉인만 (다시) 만든다. `npm run setup -- --dbpass`/`--superuser`
+ * 재입력에서 Enter(빈 답)를 쳤을 때 쓴다 — 값을 그대로 두고 봉인을 만든다는 사용자
+ * 결정(2026-09-05)의 근거다. 값 검증·쓰기는 없다 — 지금 파일에 있는 그대로의
+ * dbpass·superUser 로 HMAC 을 다시 계산해 봉인한다. `conf_seal.seal` 이 key 를
+ * 재사용하므로(있으면) 봉인이 낡아 있던 게 아닌 한 다른 값은 그대로 맞는다.
+ *
+ * 파일이 있어야 한다(없으면 setSecret 과 같이 ENOENT 를 던진다).
+ *
+ * @returns { ok:true, created }  created 는 봉인 파일이 **없었는지**(이번에 새로 생겼는지)
+ */
+ConfStore.prototype.reseal = function () {
+    fs.readFileSync(this.file, 'utf8');   // 없으면 ENOENT
+    var conf = this._read();
+    var created = !fs.existsSync(conf_seal.sealPath(this.file));
+    try {
+        conf_seal.seal(this.file, conf);
+    } catch (e) {
+        throw new Error('[설정] 봉인에 실패했다: ' + ((e && e.message) || e) +
+                        ' — npm run setup -- --superuser 로 다시 시도할 것');
+    }
+    return { ok: true, created: created };
+};
+
 exports.ConfStore = ConfStore;
 exports.APPLY = APPLY;
 exports.SECRET = SECRET;

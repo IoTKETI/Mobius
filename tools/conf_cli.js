@@ -218,7 +218,7 @@ exports.renderList = function (deps) {
     var sv = deps.sealStatus ? deps.sealStatus() : null;
     if (sv && !sv.ok) {
         lines.push('경고: 봉인 — ' + sv.reason + '. 이 상태로는 서버가 뜨지 않는다 — ' +
-            '`npm run setup -- --superuser` 를 치고 현재 값을 그대로 입력(안 바꿨으면 Sponde) — Enter 는 봉인을 만들지 않는다.');
+            '`npm run setup -- --superuser` 를 치고 Enter(값 유지) 하면 봉인이 만들어진다.');
     }
     exports.warnings(rec).forEach(function (w) { lines.push('경고: ' + w); });
     return lines;
