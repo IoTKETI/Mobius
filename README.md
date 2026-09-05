@@ -151,9 +151,10 @@ mosquitto -v
 ```
 npm install
 ```
-- Create the configuration file. On the first run Mobius asks six questions (database, database password, CSE name, CSE-ID, SP-ID, HTTP port) and writes `conf.json`:
+- Start Mobius once from an interactive terminal. When `conf.json` is missing, `node mobius.js` itself asks six questions (database, database password, CSE name, CSE-ID, SP-ID, HTTP port), writes `conf.json`, and then boots — no separate setup command is needed:
 ```
-npm run setup          # or simply `npm start` in an interactive terminal
+node mobius.js         # first run: asks, writes conf.json, starts
+npm run setup          # same wizard without starting the server (optional)
 ```
 Everything else has a default. Inspect and change settings with the CLI — there is no web page for this, because `conf.json` holds the master keys:
 ```
@@ -195,7 +196,7 @@ node mobius.js mysql    // force MySQL
 ```
 `npm start` is equivalent to `node mobius.js`. On Windows the `run_sqlite.bat` and `run_mysql.bat` helper scripts are also provided.
 
-If `conf.json` is missing and the terminal is interactive, `node mobius.js` runs the setup wizard itself. If it is missing and the output is not a terminal (a service, `npm start > log`), Mobius exits with code 1 without creating the file — run `npm run setup` first. If the port is already taken, Mobius exits with code 12 instead of respawning workers forever.
+If `conf.json` is missing and the terminal is interactive, `node mobius.js` runs the setup wizard itself. If it is missing and the output is not a terminal (a service, `npm start > log`), Mobius exits with code 1 without creating the file — start it once from an interactive terminal (`node mobius.js`, or `npm run setup`) to create it. If the port is already taken, Mobius exits with code 12 instead of respawning workers forever.
 
 <div align="center">
 <img src="https://user-images.githubusercontent.com/29790334/28245526-c9db7850-6a43-11e7-9bfd-f0b4fb20e396.png" width="700"/>

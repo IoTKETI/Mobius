@@ -263,7 +263,7 @@ exports.runSet = function (key, raw, deps, cb) {
     if (!fs.existsSync(deps.store.file)) {
         // 여기서 파일을 만들면 다음 기동에 첫 구동 마법사가 안 돌고, dbpass 가 비어 DB 연결에서
         // 실패한다 — 원인이 두 단계 멀어진다(스펙 §4.5.1 가). 읽기는 기본값으로 답하되 쓰기는 거부한다.
-        return cb(null, fail(['conf.json 이 없다 — 먼저 `npm run setup` 을 실행할 것 (' + deps.store.file + ')']));
+        return cb(null, fail(['conf.json 이 없다 — 먼저 터미널에서 `node mobius.js`(또는 `npm run setup`)로 만들 것 (' + deps.store.file + ')']));
     }
     var s = deps.schema.get(key);
     if (!s) { return cb(null, fail(['모르는 키다: ' + key])); }
@@ -290,7 +290,7 @@ exports.runUnset = function (key, deps, cb) {
     if (!fs.existsSync(deps.store.file)) {
         // 여기서 파일을 만들면 다음 기동에 첫 구동 마법사가 안 돌고, dbpass 가 비어 DB 연결에서
         // 실패한다 — 원인이 두 단계 멀어진다(스펙 §4.5.1 가). 읽기는 기본값으로 답하되 쓰기는 거부한다.
-        return cb(null, fail(['conf.json 이 없다 — 먼저 `npm run setup` 을 실행할 것 (' + deps.store.file + ')']));
+        return cb(null, fail(['conf.json 이 없다 — 먼저 터미널에서 `node mobius.js`(또는 `npm run setup`)로 만들 것 (' + deps.store.file + ')']));
     }
     var s = deps.schema.get(key);
     if (!s) { return cb(null, fail(['모르는 키다: ' + key])); }

@@ -31,7 +31,7 @@ var db = require(path.join(ROOT, 'mobius', 'db'));
 
 if (process.argv.indexOf('--dbpass') >= 0) {
     if (!fs.existsSync(FILE)) {
-        console.error('conf.json 이 없다. 먼저 `npm run setup` 을 실행할 것.');
+        console.error('conf.json 이 없다. 먼저 터미널에서 `node mobius.js`(또는 `npm run setup`)로 만들 것.');
         process.exit(1);
     }
     var conf;

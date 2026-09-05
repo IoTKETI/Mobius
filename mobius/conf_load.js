@@ -239,7 +239,7 @@ function read_conf(file, opts, callback) {
 
 function no_conf_error(file, why) {
     var e = new Error('[설정 없음] conf.json 이 없고 ' + why + '.\n' +
-                      '            터미널에서 `npm run setup` 을 먼저 실행할 것.\n' +
+                      '            터미널에서 `node mobius.js` 를 한 번 실행하면 설정을 묻고 만든다 (또는 `npm run setup`).\n' +
                       '            (' + file + ')');
     e.code = 'NO_CONF';
     return e;
