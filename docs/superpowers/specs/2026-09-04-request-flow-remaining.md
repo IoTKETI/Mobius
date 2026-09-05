@@ -590,18 +590,25 @@ DB 커넥션이 묶인다. `mid` 원소 수에 상한이 있는지도 확인할 
 
 `Promise`/`async` 는 `fopt.js`·`grp.js` 어디에도 없다.
 
-### 5.3 ACP 조회가 3단 직렬이다
+### 5.3 ACP 조회가 3단 직렬이다 — **2단을 배치로 접었다** (`156a2b2`, 2026-09-05). 빼는 것은 보류
 
 ```
 1단  select_acp_cnt 재귀    security.js:589 → sql_action.js:2192, 재귀 :2226
-2단  get_ri_list_sri        acpi 원소마다 1회   ← 이 단은 없앨 수 있다
-3단  select_acp_in          IN 1회 (여기만 배치)
+2단  get_ri_list_sri        whereIn 한 번 (원소마다 순차 → 배치)   ← 빼는 건 아래 조건
+3단  select_acp_in          IN 1회
 ```
 
 **2단은 정상 사용에서 결과가 항상 0행이다.** `validate_acpi`
 (`resource.js:2055-2094`)를 통과해 저장된 `acpi` 는 이미 `ri` 표기인데,
-`get_ri_sri`(`sql_action.js:162-169`)는 `sri` 컬럼을 찾는다. 한 건도 안 맞는
-질의를 원소마다 순차로 낸다.
+`get_ri_sri`(`sql_action.js:162-169`)는 `sri` 컬럼을 찾는다.
+
+**왜 아직 못 빼나.** 그 함수의 폴백이 "sri 행이 없으면 원값 그대로" 라, 옛
+데이터에 sri 형 `acpi` 가 하나라도 남아 있으면 빼는 순간 그 리소스의 ACP 가
+조용히 안 맞는다(거부 쪽으로). 있는지 확인하려면 `acpi` 컬럼을 훑어야 하는데
+배포 DB 5,740만 행에 LIKE 풀스캔은 금지다. 그래서 **치환이 실제로 일어날 때만
+찍히는 로그**(`[get_ri_list_sri] sri→ri 치환 n/m`)를 달아 두었다 — 배포 뒤 그
+로그가 오래 비어 있으면 ACP 경로에서 2단을 뺀다. `test/ri-sri-batch.test.js`
+7건이 의미(있으면 ri, 없으면 원값 · 순서·개수 보존 · 500-1)를 옛 계약과 대조한다.
 
 ### 5.4 `pv`/`pvs` 평가가 두 함수로 갈려 있다
 
@@ -647,16 +654,26 @@ CIN 생성마다 `sql_action.js:468` 이 stdout 에 한 줄을 낸다(실측 재
 - ~~**`csr` 포워딩 블록 4회 복붙**~~ — `forward_to_csr` 하나로 (`e00f145`, 응답 구조 3단계 11번). 라우트 넷 자체가 `with_connection` → 관문 → `run_operation` 으로 접혔다(`4351da1`·`ec29791`)
 - **HEAD 요청** — Express 4 는 HEAD 를 `app.get('*')` 로 태우고 `request.method` 는 'HEAD' 그대로다. 라우트가 그것을 표의 키로 쓰면 워커가 죽는다(`396d3dd` 로 고침, 골든 `head-cse`). 새 라우트 코드를 쓸 때 기억할 것
 - **`hd_*` 의 고유 속성(lvl 등)은 HTTP 로 갱신할 길이 없다** — `hd:bat` 루트 PUT 은 400-42(ty 대조), `m2m:fcnt` 루트는 400 "attribute is not defined". 2026-09-05 실측(`tools/response-golden/fcnt-check.js`). 결함인지 설계인지 판단이 필요하다
-- **`access_value` 리터럴 12개가 9곳에 흩어짐** — 상수 정의가 없다
-- **CORS 이중 적용** — `app.js:149` `cors()` 와 `:1983-1989` 수동 헤더
+- ~~**`access_value` 리터럴 12개가 9곳에 흩어짐**~~ — `security.ACOP` 상수로
+  (`2e8a698`, 2026-09-05). 값은 문자열이다 — `acop_allows` 가 문자열 `&` 로
+  비교하므로 숫자로 바꾸면 그 자리를 같이 봐야 한다. `test/remaining-56.test.js`
+- ~~**CORS 이중 적용**~~ — `cors()` 한 곳으로 (`8d909dc`, 2026-09-05). 수동
+  미들웨어의 OPTIONS 갈래는 `cors()` 가 먼저 204 로 답해 한 번도 도달하지
+  않았다(프로브 실측). **동작 변화(의도)**: 일반 응답에서 `Allow-Methods` /
+  `Allow-Headers` 두 헤더가 빠진다(브라우저는 preflight 밖에서 읽지 않는다).
+  `Expose-Headers` 는 옛 값 **문자열 그대로** 옮겼다 — 배열로 주면 cors 가
+  `','` 로 이어 붙여 바이트가 달라지고, 헤더 골든이 그것을 잡았다. 헤더 골든
+  26건이 정확히 그 두 키에서만 갈리고 status·본문은 같다
 - **rsc↔HTTP 불일치** — 같은 `4005` 가 405·409 양쪽. 키 접두 규칙 위반 4건
   (`301-3`·`301-4`·`301-5` 가 http 405, `500-6` 이 400)
-- **죽은 코드** — `ty == '33'`(없는 타입), `useobserver`(참조 0),
-  `acor_allows`/`evaluate_acr`(시험만 부름), `check_allowed_app_ids` 의 mgo 분기,
-  POST 의 `notify` 분기와 `check_ae_notify`(도달 불가 — 2026-09-05 실측으로
-  확인: AE 에 `m2m:sgn` 본문을 POST 하면 `check_resource_supported` 가 400-3 으로
-  먼저 끊는다, 변경 전에도 같았다),
-  `sgnManPort`/`hitManPort`(아무도 안 듣는다)
+- **죽은 코드** — 지운 것(`2e8a698`): ~~`ty == '33'`~~ · ~~`useobserver`~~ ·
+  ~~`check_allowed_app_ids` 의 mgo 분기~~ · ~~`sgnManPort`/`hitManPort`~~(conf
+  표와 `mobius.js` 에서 뺐다, 죽은 키 표로). **남긴 것**:
+  `acor_allows`/`evaluate_acr`(시험만 부름 — `_acor_allows` 는 ACOP 상수 시험이
+  쓴다), POST 의 `notify` 분기와 `check_ae_notify`(도달 불가 — 2026-09-05
+  실측으로 확인: AE 에 `m2m:sgn` 본문을 POST 하면 `check_resource_supported` 가
+  400-3 으로 먼저 끊는다, 변경 전에도 같았다). 이 둘은 "지우면 무엇이 달라지나"
+  가 아니라 "왜 남아 있나" 를 먼저 적어야 해서 따로 항목으로 다룬다
 
 ---
 
