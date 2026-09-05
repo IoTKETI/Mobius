@@ -21,8 +21,9 @@ var OPS = {
     DELETE: '8', NOTIFY: '16', DISCOVERY: '32'
 };
 
-// 상속 탐색이 올라가는 타입. select_acp_cnt 와 같은 조건이다.
-var INHERITS = { '3': 1, '4': 1, '23': 1, '33': 1 };
+// 상속 탐색이 올라가는 타입 · 필드 · use_ra/cr_fallback 은 전부 security 것을 쓴다
+// (security.INHERITS_ACPI · field_of · FIELD). 여기 사본을 두었더니 실제로 갈라졌다 —
+// security.js 에서 없는 타입 '33' 을 뺀 뒤에도 이 파일의 사본에는 남아 있었다(§5.4).
 
 function access_value_of(op) {
     if (op === undefined || op === null) { return OPS.RETRIEVE; }
@@ -123,10 +124,9 @@ exports.simulate = function (connection, params, callback) {
             }));
         }
 
-        // 어떤 acpi 로 볼 것인가.
-        var field = (ty === '1') ? 'pvs' : 'pv';
-        var use_ra = (ty !== '1');
-        var cr_fallback = (ty !== '1');
+        // 어떤 필드로, 어떤 옵션으로 볼 것인가 — security 가 정한다.
+        var field = security.field_of(ty);
+        var opt = security.FIELD[field];
 
         // acpiOverride 가 **빈 배열**이면 "이 ACP 를 떼면 어떻게 되나" 를 묻는
         // 것이다. 그때는 저장된 acpi 가 비었을 때와 똑같은 갈래를 타야 한다 —
@@ -150,7 +150,7 @@ exports.simulate = function (connection, params, callback) {
         var src_own = overridden ? 'override' : 'own';
         var src_none = overridden ? 'override' : 'none';
 
-        if (ty === '1' && own.length === 0) {
+        if (field === 'pvs' && own.length === 0) {
             // ACP 자신은 자기 pvs 로 판정한다. 이건 acpi 와 무관하므로
             // override 로 비워도 그대로다.
             finish(src_own, null, [target.ri]);
@@ -160,7 +160,7 @@ exports.simulate = function (connection, params, callback) {
             finish(src_own, null, own);
             return;
         }
-        if (INHERITS[ty]) {
+        if (security.INHERITS_ACPI[ty]) {
             var uri_arr = String(target.ri).split('/');
             db_sql.select_acp_cnt(connection, 0, uri_arr, function (err2, inherited, found_ri) {
                 if (err2) { return callback(err2, inherited); }
@@ -246,7 +246,7 @@ exports.simulate = function (connection, params, callback) {
 
                 var verdict = security._evaluate_acp_rows(
                     use_rows, fake_request(connection, p, target.ri),
-                    cr, access_value, field, use_ra, cr_fallback);
+                    cr, access_value, field, opt.use_ra, opt.cr_fallback);
 
                 callback(null, Object.assign(base, {
                     source: source, inherited_from: from,

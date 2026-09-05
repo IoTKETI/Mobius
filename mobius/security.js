@@ -127,13 +127,35 @@ exports._evaluate_acp_rows = evaluate_acp_rows;
 //
 // 이제 평가는 evaluate_acr() 한 곳에서만 한다. 고칠 일이 생기면 한 번만 고친다.
 //
-// 두 경로의 진짜 차이는 셋뿐이라 인자로 받는다.
+// 두 경로의 진짜 차이는 셋뿐이고, 그것을 아래 표 FIELD 가 갖는다(남은 일 §5.4).
 //   field        'pv' 는 일반 리소스 접근, 'pvs' 는 ACP 자신에 대한 접근
 //   use_ra       클라이언트 IPv4 를 remoteaddress 헤더에서 먼저 볼 것인가.
-//                이 헤더는 CoAP 프록시가 넣는다(pxy_coap.js). pv 만 보고 있었다 —
-//                pvs 도 봐야 맞을 것 같지만 동작을 바꾸지 않으려고 그대로 둔다.
+//                이 헤더는 CoAP 프록시가 넣었다(지금은 프록시가 없다). pv 만 보고
+//                있었다 — pvs 도 봐야 맞을 것 같지만 동작을 바꾸지 않으려고 그대로 둔다.
 //   cr_fallback  acr 이 없는 규칙을 만났을 때 cr(생성자)과 비교하고 즉시 끝낼
 //                것인가. pv 만 그렇게 한다. pvs 는 그냥 다음 acp 로 넘어간다.
+//
+// 이 표와 field_of · INHERITS_ACPI 는 **여기에만** 있다. 시뮬레이터(acp_simulate)가
+// 한때 ty 로부터 같은 값을 자기가 다시 계산했고, 실제로 갈라졌다 — 없는 타입 '33' 을
+// 여기서 뺀 뒤에도 시뮬레이터의 상속 타입 사본에는 남아 있었다. 정책을 베껴 적지 않는다.
+
+var FIELD = Object.freeze({
+    pv:  Object.freeze({ use_ra: true,  cr_fallback: true }),
+    pvs: Object.freeze({ use_ra: false, cr_fallback: false })
+});
+
+// 어느 필드로 판정하나 — ACP 자신(ty 1)은 자기 pvs(selfPrivileges), 나머지는 pv.
+function field_of(ty) {
+    return (String(ty) === '1') ? 'pvs' : 'pv';
+}
+
+// acpi 가 비어 있을 때 조상의 acpi 로 올라가 판정하는 타입 — cnt · cin · sub.
+// select_acp_cnt 가 그 탐색을 한다. 그 밖의 타입은 곧장 기본 정책이다.
+var INHERITS_ACPI = Object.freeze({ '3': true, '4': true, '23': true });
+
+exports.FIELD = FIELD;
+exports.field_of = field_of;
+exports.INHERITS_ACPI = INHERITS_ACPI;
 
 /**
  * 요청을 보낸 쪽의 IPv4 주소.
@@ -439,12 +461,14 @@ function evaluate_acp_rows(rows, request, cr, access_value, field, use_ra, cr_fa
 /**
  * acpiList 가 가리키는 ACP 들의 field(pv|pvs)로 접근을 판정한다.
  *
- * @param field       'pv' 또는 'pvs'
- * @param use_ra      client IPv4 를 remoteaddress 헤더에서 먼저 볼 것인가
- * @param cr_fallback acr 없는 규칙에서 cr 비교로 즉시 끝낼 것인가
+ * use_ra · cr_fallback 은 FIELD[field] 에서 꺼낸다. 예전에는 이 위에 pv 용·pvs 용
+ * 래퍼가 하나씩 있었고 pvs 쪽은 cr 과 access_value 의 자리가 뒤바뀌어 있었다.
+ *
+ * @param field  'pv' 또는 'pvs' — field_of(ty) 로 정한다
  */
-function security_check_action(request, response, acpiList, cr, access_value,
-                               field, use_ra, cr_fallback, callback) {
+function security_check_action(request, response, acpiList, cr, access_value, field, callback) {
+    var use_ra = FIELD[field].use_ra;
+    var cr_fallback = FIELD[field].cr_fallback;
     make_internal_ri(acpiList);
     var ri_list = [];
     get_ri_list_sri(request, response, acpiList, ri_list, 0, function (code) {
@@ -468,20 +492,6 @@ function security_check_action(request, response, acpiList, cr, access_value,
         });
     });
 }
-
-// pv  — 일반 리소스 접근. remoteaddress 헤더를 보고, acr 없는 규칙에서 cr 로 끝낸다.
-function security_check_action_pv(request, response, acpiList, cr, access_value, callback) {
-    security_check_action(request, response, acpiList, cr, access_value,
-                          'pv', true, true, callback);
-}
-
-// pvs — ACP 자신에 대한 접근. 인자 순서가 pv 와 달랐다(cr 과 access_value 가
-// 뒤바뀌어 있었다). 호출부를 그대로 두려고 시그니처는 유지한다.
-function security_check_action_pvs(request, response, acpiList, access_value, cr, callback) {
-    security_check_action(request, response, acpiList, cr, access_value,
-                          'pvs', false, false, callback);
-}
-
 
 function security_default_check_action(request, response, cr, access_value, callback) {
     // acpi 가 아무 데도 없는 리소스의 기본 정책이다. useaccesscontrolpolicy 라는
@@ -561,9 +571,15 @@ exports._creator_bypasses = creator_bypasses;
  * 인자를 무시하므로 그대로 둬도 된다. 지금까지 거부는 '0' 한 글자였고 그 안에
  * 이유가 없어서, 403 이 나면 관리자가 어느 ACP 를 어떻게 고쳐야 할지 알 수
  * 없었다 — 배포 로그 22개 파일에 거부 흔적이 한 줄도 없는 이유이기도 하다.
+ *
+ * ty 는 **대상 리소스의** 타입이고 셋을 정한다 — 생성자 우회 제외(ty 1),
+ * 필드(field_of: ty 1 만 pvs), 빈 acpi 의 조상 탐색(INHERITS_ACPI). 호출자는
+ * app.js 둘(대상 행의 ty)과 resource.js 하나(acpi 갱신 검사, '1')다. 옛 문서가
+ * target 객체로 바꾸자고 했지만 판정에 쓰는 것은 이 셋뿐이라 그대로 둔다.
  */
 exports.check = function(request, response, ty, acpiList, access_value, cr, callback) {
     var from = request.headers['x-m2m-origin'];
+    var field = field_of(ty);
 
     function done(code, trace) {
         var t = trace || {};
@@ -582,20 +598,20 @@ exports.check = function(request, response, ty, acpiList, access_value, cr, call
         done('1', { decided_by: 'creator', from: from, cr: cr });
     }
     else {
-        if (ty == '1') { // check selfPrevileges
+        if (field === 'pvs') { // ACP 자신 — selfPrivileges
             var self_acp = false;
             if (acpiList.length == 0) {
                 acpiList = [url.parse(request.url).pathname.split('?')[0]];
                 self_acp = true;
             }
-            security_check_action_pvs(request, response, acpiList, access_value, cr, function (code, trace) {
+            security_check_action(request, response, acpiList, cr, access_value, field, function (code, trace) {
                 var t = trace || {};
                 t.path = 'pvs';
                 t.self = self_acp;
                 done(code, t);
             });
         }
-        else if(ty == '23' || ty == '4' || ty == '3') { // cnt or sub --> check parents acpi to AE
+        else if (INHERITS_ACPI[ty]) { // cnt · cin · sub — acpi 가 비면 조상(AE 까지)의 acpi 로
             if (acpiList.length == 0) {
                 var targetUri = request.url.split('?')[0];
                 var targetUri_arr = targetUri.split('/');
@@ -607,7 +623,7 @@ exports.check = function(request, response, ty, acpiList, access_value, cr, call
                             security_default_check_action(request, response, cr, access_value, done);
                         }
                         else {
-                            security_check_action_pv(request, response, results_acpi, cr, access_value, function (code, trace) {
+                            security_check_action(request, response, results_acpi, cr, access_value, field, function (code, trace) {
                                 var t = trace || {};
                                 // 이 리소스가 아니라 **조상**의 acpi 로 판정했다는 사실은
                                 // 지금 어디에도 남지 않았다. AE 의 ACP 를 고쳐도 왜 안
@@ -624,7 +640,7 @@ exports.check = function(request, response, ty, acpiList, access_value, cr, call
                 });
             }
             else {
-                security_check_action_pv(request, response, acpiList, cr, access_value, function (code, trace) {
+                security_check_action(request, response, acpiList, cr, access_value, field, function (code, trace) {
                     var t = trace || {};
                     t.source = 'own';
                     done(code, t);
@@ -636,7 +652,7 @@ exports.check = function(request, response, ty, acpiList, access_value, cr, call
                 security_default_check_action(request, response, cr, access_value, done);
             }
             else {
-                security_check_action_pv(request, response, acpiList, cr, access_value, function (code, trace) {
+                security_check_action(request, response, acpiList, cr, access_value, field, function (code, trace) {
                     var t = trace || {};
                     t.source = 'own';
                     done(code, t);

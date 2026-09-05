@@ -639,7 +639,27 @@ DB 커넥션이 묶인다. `mid` 원소 수에 상한이 있는지도 확인할 
 로그가 오래 비어 있으면 ACP 경로에서 2단을 뺀다. `test/ri-sri-batch.test.js`
 7건이 의미(있으면 ri, 없으면 원값 · 순서·개수 보존 · 500-1)를 옛 계약과 대조한다.
 
-### 5.4 `pv`/`pvs` 평가가 두 함수로 갈려 있다
+### 5.4 ~~`pv`/`pvs` 평가가 두 함수로 갈려 있다~~ — **정책을 표 하나로** (2026-09-05)
+
+착수해 보니 평가 루프는 이미 하나(`evaluate_acp_rows`)였고, 남은 것은 인자
+순서가 서로 다른 4줄짜리 래퍼 둘과 **시뮬레이터의 정책 사본**이었다.
+`acp_simulate.js` 가 `ty` 로부터 필드·use_ra·cr_fallback·상속 타입을 자기가
+다시 계산했고, 실제로 갈라져 있었다 — §5.6 에서 없는 타입 `'33'` 을
+`security.js` 에서 뺐는데 시뮬레이터의 `INHERITS` 에는 남아 있었다.
+
+지금은 `security.js` 가 `FIELD`(pv/pvs 별 use_ra·cr_fallback, 동결) ·
+`field_of(ty)` · `INHERITS_ACPI`(cnt·cin·sub) 를 내보내고, `check()` 와
+시뮬레이터가 그것만 본다. 래퍼 둘은 없다. `security.check` 의 `ty` 는
+그대로 둔다 — 생성자 우회 제외·필드·상속 탐색 셋을 정하는 실제 입력이고
+호출자 셋이 그 뜻으로 넘긴다(docblock 에 적음).
+
+증명: 옛 `security.js`(git HEAD)와 새 것을 같은 DB 스텁 위에서 돌린 차분
+**18,144 조합(ty 6 × acpi 9 × 원본 7 × 연산 2 × 기본정책 2 × remoteaddress 2 ×
+상속 3 × cr 2) 에서 (code, trace) 차이 0건** · `test/acp-field-policy.test.js`
+14건(표·`field_of`·`INHERITS_ACPI`·사본 금지·**`mobius/acp_eval.js` 부재와
+평가기 정의가 `security.js` 에만 있음**·`check()` 끝단 특성화 8건) · 변이
+10건 전부 잡힘 · npm test 1,284 통과. `test/acp-eval.test.js` 는 머리말대로
+`acp-trace.test.js` 로 개명했다. 아래는 고치기 전 서술이다.
 
 ```
 mobius/security.js:460   security_check_action_pv
@@ -652,8 +672,8 @@ mobius/security.js:465   security_check_action_pvs
 
 > **`mobius/acp_eval.js` 를 되살리지 말 것.** 한때 판정을 그 파일로 추출했다가
 > 대체·삭제됐고, 2차 병합에서 되살아나 ACP 시험 3벌이 죽었다. 통합을 다시
-> 한다면 `security.js` 안에서 한다. **이 금지를 지키는 시험이 없고,
-> `test/acp-eval.test.js` 라는 파일명이 남아 혼동을 준다.**
+> 한다면 `security.js` 안에서 한다. 이 금지는 이제
+> `test/acp-field-policy.test.js` 가 지킨다.
 
 ### 5.5 ~~요청 경로의 `console.time` 계측 37곳~~ — **걷어냈다** (2026-09-05)
 
