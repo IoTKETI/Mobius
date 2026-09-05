@@ -60,3 +60,18 @@ test('sgnManPort / hitManPort 는 conf 표에도 mobius.js 에도 없다', () =>
     assert.strictEqual(code('mobius.js').indexOf('use_sgn_man_port'), -1);
     assert.strictEqual(code('mobius.js').indexOf('use_hit_man_port'), -1);
 });
+
+test('CORS 는 cors() 한 곳이고 Expose-Headers 에 X-M2M-RSC 가 있다', () => {
+    // 수동 미들웨어가 되살아나면 다시 이중이 된다. 브라우저 클라이언트가 응답의
+    // X-M2M-RSC 를 읽으려면 Expose-Headers 가 반드시 있어야 한다.
+    const src = code('app.js');
+    assert.strictEqual((src.match(/app\.use\(cors\(/g) || []).length, 1);
+    assert.strictEqual((src.match(/res\.header\('Access-Control-/g) || []).length, 0, '수동 CORS 헤더가 되살아났다');
+    const m = src.match(/app\.use\(cors\(\{([\s\S]*?)\}\)\)/);
+    assert.ok(m, 'cors 옵션 블록을 못 찾았다');
+    assert.match(m[1], /exposedHeaders/);
+    // 문자열 그대로 — 배열로 바꾸면 cors 가 ',' 로 이어 붙여 옛 값과 바이트가 달라진다
+    const v = m[1].match(/exposedHeaders:\s*'([^']*)'/);
+    assert.ok(v, 'exposedHeaders 는 문자열이어야 한다(바이트 보존)');
+    assert.strictEqual(v[1], 'Origin, X-Requested-With, Content-Type, X-M2M-RI, X-M2M-RVI, X-M2M-RSC, Accept, X-M2M-Origin, Locale');
+});

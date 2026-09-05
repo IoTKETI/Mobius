@@ -147,7 +147,20 @@ var app = express();
 // cache_security_check 도 같은 이유로 걷어냈다 — 쓰기만 하고 읽는 곳이 없어
 // origin·ri 로 키가 무한히 쌓이는 메모리 누수였다.
 
-app.use(cors());
+// CORS — 한 곳에서. 예전에는 둘이었다: 여기 cors() 와 아래쪽의 수동 미들웨어(Kevin Lee,
+// Unibest 기여). 수동 쪽의 OPTIONS 갈래는 cors() 가 먼저 204 로 답해 도달한 적이 없고,
+// 일반 응답에 Allow-Methods / Allow-Headers 를 얹는 것은 브라우저가 preflight 밖에서는
+// 읽지 않는다. 브라우저가 실제로 필요로 하는 것은 Expose-Headers(스크립트가 X-M2M-RSC
+// 같은 응답 헤더를 읽게) 뿐이라 그것만 옵션으로 옮겼다. preflight 는 그대로 요청 헤더를
+// 반영한다 — 고정 목록보다 관대하고, 옛 동작 그대로다. 남은 일 §5.6(CORS 이중 적용).
+//
+// 값은 **문자열 그대로** 준다 — 배열로 주면 cors 가 ',' 로 이어 붙여 옛 값
+// ("Origin, X-Requested-With, …" 공백 포함)과 바이트가 달라진다. 헤더 골든이 그것을
+// 잡았다. cors 는 이 헤더를 preflight(204)에도 붙인다 — 브라우저는 거기서 읽지
+// 않으므로 무해하고, 프로브로 확인한 유일한 preflight 차이다.
+app.use(cors({
+    exposedHeaders: 'Origin, X-Requested-With, Content-Type, X-M2M-RI, X-M2M-RVI, X-M2M-RSC, Accept, X-M2M-Origin, Locale'
+}));
 
 global.usespid = '//keti.re.kr';
 // usesuperuser 는 mobius.js 가 conf.json 에서 읽어 설정한다.
@@ -2342,16 +2355,8 @@ var body = require('./mobius/body');
 var log_safe = require('./mobius/log_safe');
 var onem2mParser = body.collect;
 
-//////// contribution code
-// Kevin Lee, Executive Director, Unibest INC, Owner of Howchip.com
-// Process for CORS problem
-app.use((req, res, next) => {
-    res.header('Access-Control-Allow-Origin', '*');
-    res.header('Access-Control-Allow-Methods', 'GET, PUT, POST, DELETE, OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, X-M2M-RI, X-M2M-RVI, X-M2M-RSC, Accept, X-M2M-Origin, Locale');
-    res.header('Access-Control-Expose-Headers', 'Origin, X-Requested-With, Content-Type, X-M2M-RI, X-M2M-RVI, X-M2M-RSC, Accept, X-M2M-Origin, Locale');
-    (req.method == 'OPTIONS') ? res.sendStatus(200) : next();
-});
+// CORS 수동 미들웨어(Kevin Lee, Unibest 기여)가 여기 있었다 — 위쪽 cors() 설정으로
+// 합쳤다. 이유는 그 자리 주석에.
 
 /**
  * 이 CSE 는 json 만 다룬다. 요청 **본문**이 xml/cbor 이면 여기서 끊는다.
