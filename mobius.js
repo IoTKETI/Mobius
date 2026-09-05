@@ -157,7 +157,6 @@ function port_of(v, dflt) {
 // **둘은 원자적으로 움직여야 한다** — test/conf-schema.test.js 가 양방향으로
 // 강제해서, 한쪽만 지우면 실패한다.
 
-global.use_sgn_man_port = port_of(conf.sgnManPort, '7599');
 // cntManPort 는 여기 있었다. 2019년의 cnt_man 은 그 포트에서 도는 별도 HTTP
 // 마이크로서비스였는데, 그 코드는 오래전에 주석 처리됐고 자기 자신에게
 // PUT /cnt 를 보내던 호출부도 제거됐다. 읽는 코드가 0건인 죽은 설정이었다.
@@ -177,7 +176,6 @@ global.purge_sweep_ms = (typeof conf.purgeSweepMs === 'number' && conf.purgeSwee
 // 자세한 근거는 app.js 의 래치 감시 주석에 있다.
 global.latchStaleMs = (typeof conf.latchStaleMs === 'number' && conf.latchStaleMs >= 0)
     ? conf.latchStaleMs : 900000;
-global.use_hit_man_port = port_of(conf.hitManPort, '7594');
 
 // ── DB 커넥션 풀 ────────────────────────────────────────────────────────
 //

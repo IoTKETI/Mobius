@@ -152,7 +152,6 @@ app.use(cors());
 global.usespid = '//keti.re.kr';
 // usesuperuser 는 mobius.js 가 conf.json 에서 읽어 설정한다.
 // 이 값을 X-M2M-Origin 에 넣으면 모든 ACP 검사를 건너뛰므로 코드에 두면 안 된다.
-global.useobserver = 'Sandwich';
 
 var logDirectory = __dirname + '/log';
 
@@ -1624,7 +1623,7 @@ function lookup_create(request, response, callback) {
                 }
 
                 // sub 생성은 CREATE(1)가 아니라 NOTIFY 를 포함한 3 을 본다.
-                var access_value = (request.ty == 23) ? '3' : '1';
+                var access_value = (request.ty == 23) ? security.ACOP.SUB_CREATE : security.ACOP.CREATE;
 
                 // 예전에는 여기서 두 가지를 더 했다.
                 //   - 요청마다 shortid 를 만들어 security.check 를 console.time 으로 쟀다.
@@ -1651,7 +1650,7 @@ function lookup_retrieve(request, response, callback) {
 
         // discovery(fu=1)는 DISCOVER(32), 일반 조회는 RETRIEVE(2).
         // 예전에는 이 둘 때문에 같은 블록이 두 벌 있었다.
-        var access_value = (request.query.fu == 1) ? '32' : '2';
+        var access_value = (request.query.fu == 1) ? security.ACOP.DISCOVERY : security.ACOP.RETRIEVE;
         resolve_cr(resultObj);
         authorize_and_run(request, response, resultObj, access_value, resource.retrieve, callback);
     });
@@ -1690,7 +1689,7 @@ function lookup_update(request, response, callback) {
         }
 
         resolve_cr(resultObj);
-        authorize_and_run(request, response, resultObj, '4', resource.update, callback);
+        authorize_and_run(request, response, resultObj, security.ACOP.UPDATE, resource.update, callback);
     });
 }
 
@@ -1701,7 +1700,7 @@ function lookup_delete(request, response, callback) {
         var resultObj = request.targetObject[Object.keys(request.targetObject)[0]];
 
         resolve_cr(resultObj);
-        authorize_and_run(request, response, resultObj, '8', resource.delete, callback);
+        authorize_and_run(request, response, resultObj, security.ACOP.DELETE, resource.delete, callback);
     });
 }
 
@@ -2238,27 +2237,13 @@ function get_target_url(request, response, callback) {
 }
 
 function check_allowed_app_ids(request, callback) {
+    // request.ty 는 check_resource_supported 가 본문 루트로 확정한 값이라 여기서
+    // 어긋날 수 없다 — 방어로만 남긴다. 여기 있던 mgo 갈래(mgoType 표를 돌며 구체
+    // 타입 다섯을 봐주던 것)는 type_resolver 가 그 타입들을 400-3 으로 먼저 끊어
+    // 도달하지 않았다(남은 일 §5.6). mgmtObj 를 여는 날 type_resolver 쪽에서 푼다.
     if (responder.typeRsrc[request.ty] != Object.keys(request.bodyObj)[0]) {
-        if (responder.typeRsrc[request.ty] == 'mgo') {
-            var support_mgo = 0;
-            for (var prop in responder.mgoType) {
-                if (responder.mgoType.hasOwnProperty(prop)) {
-                    if (responder.mgoType[prop] == Object.keys(request.bodyObj)[0]) {
-                        support_mgo = 1;
-                        break;
-                    }
-                }
-            }
-
-            if (support_mgo == 0) {
-                callback('400-42');
-                return;
-            }
-        }
-        else {
-            callback('400-42');
-            return;
-        }
+        callback('400-42');
+        return;
     }
 
     if (request.ty == '2') {
@@ -2490,7 +2475,7 @@ app.post('*', onem2mParser, (request, response) => {
                                         });
                                     }
                                     else { // if (request.option === '/fopt') {
-                                        run_fanout(request, response, settle, '1', true);
+                                        run_fanout(request, response, settle, security.ACOP.CREATE, true);
                                     }
                                 }
                                 else if (code === '301-1') {
@@ -2532,7 +2517,7 @@ app.get('*', onem2mParser, (request, response) => {
                                     run_operation(request, response, settle, 'GET', lookup_retrieve);
                                 }
                                 else { //if (request.option === '/fopt') {
-                                    run_fanout(request, response, settle, (request.query.fu == 1) ? '32' : '2', false);
+                                    run_fanout(request, response, settle, (request.query.fu == 1) ? security.ACOP.DISCOVERY : security.ACOP.RETRIEVE, false);
                                 }
                             }
                             else if (code === '301-1') {
@@ -2605,7 +2590,7 @@ app.put('*', onem2mParser, (request, response) => {
                                         });
                                     }
                                     else { // if (request.option === '/fopt') {
-                                        run_fanout(request, response, settle, '4', true);
+                                        run_fanout(request, response, settle, security.ACOP.UPDATE, true);
                                     }
                                 }
                                 else if (code === '301-1') {
@@ -2652,7 +2637,7 @@ app.delete('*', onem2mParser, (request, response) => {
                             });
                         }
                         else { // if (request.option === '/fopt') {
-                            run_fanout(request, response, settle, '8', false);
+                            run_fanout(request, response, settle, security.ACOP.DELETE, false);
                         }
                     }
                     else if (code === '301-1') {

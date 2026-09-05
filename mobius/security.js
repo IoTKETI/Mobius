@@ -94,6 +94,21 @@ exports._parse_acp_rule = parse_acp_rule;
 exports._actw_matches = actw_matches;
 exports._acip_allows = acip_allows;
 exports._actw_allows = actw_allows;
+/**
+ * oneM2M accessControlOperations 비트. 호출부(app.js)가 '1'·'2'·'32' 같은
+ * 리터럴을 아홉 곳에 흩어 쓰고 있었다(남은 일 §5.6). 값은 문자열이다 —
+ * acop_allows 가 `rule.acop.toString() & access_value` 로 비교하고 default
+ * 정책이 `access_value & '1'` 처럼 쓰므로, 숫자로 바꾸면 그 자리들을 같이 봐야 한다.
+ *
+ * SUB_CREATE 는 '3'(CREATE|RETRIEVE) 이다. 호출부 주석은 "NOTIFY 를 포함한 3"
+ * 이라고 적었지만 NOTIFY 는 16 이다 — 값은 옛 코드 그대로 두고 이름만 사실대로
+ * 붙였다. 바꾸는 것은 ACP 판정 변경이라 별건이다.
+ */
+exports.ACOP = Object.freeze({
+    CREATE: '1', RETRIEVE: '2', UPDATE: '4', DELETE: '8', NOTIFY: '16', DISCOVERY: '32',
+    SUB_CREATE: '3'
+});
+
 exports._acor_allows = acor_allows;
 exports._acor_matches = acor_matches;
 exports._acop_allows = acop_allows;
@@ -580,7 +595,7 @@ exports.check = function(request, response, ty, acpiList, access_value, cr, call
                 done(code, t);
             });
         }
-        else if(ty == '33' || ty == '23' || ty == '4' || ty == '3') { // cnt or sub --> check parents acpi to AE
+        else if(ty == '23' || ty == '4' || ty == '3') { // cnt or sub --> check parents acpi to AE
             if (acpiList.length == 0) {
                 var targetUri = request.url.split('?')[0];
                 var targetUri_arr = targetUri.split('/');

@@ -266,8 +266,10 @@ var SCHEMA = {
     // 2026-09-04 에 프로토콜 프록시 3종과 함께 지웠다.
     // **mobius.js 의 global 대입과 원자적으로 움직여야 한다** — 아래
     // conf-schema 시험이 양방향으로 강제해서 한쪽만 지우면 실패한다.
-    sgnManPort:  { group: '네트워크', type: 'string', dflt: '7599', exposed: false, apply: 'restart', label: '알림 관리 포트' },
-    hitManPort:  { group: '네트워크', type: 'string', dflt: '7594', exposed: false, apply: 'restart', label: '히트 관리 포트' }
+    // sgnManPort · hitManPort 는 여기 있었다. mobius.js 가 읽어 global 에 심기만 하고
+    // 아무도 그 포트로 서버를 띄우지 않았다(관리 서버 둘은 프로토콜 프록시와 함께
+    // 사라졌다). 2026-09-05 에 읽는 줄과 함께 걷어냈다 — conf.json 에 남아 있어도
+    // 무해하다(남은 일 §5.6).
 
     // usesqlite 가 여기 "곧 사라진다" 로 있었다. 사라졌다.
     //
