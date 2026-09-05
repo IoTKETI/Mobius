@@ -7,7 +7,7 @@
 //
 //     app.js       notify_http          AE 알림 전달
 //     app.js       forward_http         remoteCSE 포워딩
-//     mobius/fopt.js request_to_member  팬아웃 멤버 조회
+//     mobius/fanout.js request_to_member  팬아웃 멤버 조회 (2026-09-05 에 fopt.js 에서 옮김)
 //     mobius/grp.js  check_member       그룹 멤버 검증
 //
 // 앞의 셋은 **클라이언트의 헤더를 그대로** 상대에게 넘긴다. 거기에는

@@ -183,7 +183,7 @@ test('http·https·coap 로 나가는 요청은 전부 outbound.arm 이 덮는�
     // 시험 제목이 실제 범위보다 넓으면 그런 오해를 만든다.
     // pxy_coap.js · pxy_mqtt.js · pxy_ws.js 가 여기 있었다.
     // 2026-09-04 에 프로토콜 프록시 3종을 지우면서 함께 뺐다.
-    const files = ['app.js', 'mobius/fopt.js', 'mobius/grp.js', 'mobius/sgn_man.js'];
+    const files = ['app.js', 'mobius/fanout.js', 'mobius/fopt.js', 'mobius/grp.js', 'mobius/sgn_man.js'];
 
     for (const f of files) {
         const lines = fs.readFileSync(path.join(ROOT, f), 'utf8').split(/\r?\n/);
@@ -243,7 +243,7 @@ test('arm 라벨이 어느 경로인지 말해 준다', function () {
     // label 이 비어 있거나 겹치면 어느 경로가 멈췄는지 알 수 없다.
     // pxy_coap.js · pxy_mqtt.js · pxy_ws.js 가 여기 있었다.
     // 2026-09-04 에 프로토콜 프록시 3종을 지우면서 함께 뺐다.
-    const files = ['app.js', 'mobius/fopt.js', 'mobius/grp.js', 'mobius/sgn_man.js'];
+    const files = ['app.js', 'mobius/fanout.js', 'mobius/fopt.js', 'mobius/grp.js', 'mobius/sgn_man.js'];
 
     let total = 0;
     for (const f of files) {
@@ -264,7 +264,7 @@ test('arm 라벨이 어느 경로인지 말해 준다', function () {
     // 하한이 10 이었다. 프로토콜 프록시 3종을 지우면서 arm 호출이
     // 11 -> 6 으로 줄어 6 으로 내렸다. 남는 여섯 자리:
     //     app.js 2 (ae notify · csr forward)
-    //     mobius/fopt.js 1 · mobius/grp.js 1
+    //     mobius/fanout.js 1 (팬아웃 멤버 — 2026-09-05 에 fopt.js 에서 옮김) · mobius/grp.js 1
     //     mobius/sgn_man.js 2 (notify http · notify coap)
     assert.ok(total >= 6,
         'arm 호출이 ' + total + '개뿐이다 — 아웃바운드 자리가 사라졌거나 시험이 못 찾고 있다');
@@ -290,7 +290,7 @@ test('globalAgent.maxSockets 를 손으로 세우지 않는다', function () {
     // 정한다.** 상대 호스트당 동시 소켓을 몇으로 둘지는 알림·팬아웃의 실제
     // 동시성에서 나와야 하고, 근거 없는 큰 수를 다시 박는 것은 같은 실수다.
     // 그렇게 정한 값이라면 이 시험도 함께 고친다.
-    const files = ['app.js', 'mobius/fopt.js', 'mobius/grp.js', 'mobius/sgn_man.js'];
+    const files = ['app.js', 'mobius/fanout.js', 'mobius/fopt.js', 'mobius/grp.js', 'mobius/sgn_man.js'];
 
     for (const f of files) {
         const src = fs.readFileSync(path.join(ROOT, f), 'utf8');

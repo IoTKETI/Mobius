@@ -187,7 +187,7 @@ test('상대에게 나가는 요청은 전부 Accept 를 json 으로 고정한�
     // 집계에서 조용히 빠진다.** 받는 쪽은 빠진 것을 알 수 없다.
     const sites = [
         ['app.js',            /outbound_headers\(request\.headers\)/,        'notify_http · forward_http'],
-        ['mobius/fopt.js',    /headers:\s*outbound_headers\(request\.headers\)/, 'request_to_member (팬아웃)'],
+        ['mobius/fanout.js',  /headers:\s*outbound_headers\(request\.headers\)/, 'request_to_member (팬아웃 — 2026-09-05 에 fopt.js 에서 옮김)'],
         // grp.js 는 헤더 객체를 새로 만들며 Accept 를 직접 적는다.
         // 형태는 다르지만 결과가 같으므로 그 형태를 그대로 인정한다.
         ['mobius/grp.js',     /'Accept':\s*'application\/json'/,             'check_member (그룹 검증)']
@@ -200,7 +200,7 @@ test('상대에게 나가는 요청은 전부 Accept 를 json 으로 고정한�
     }
 
     // 클라이언트 헤더를 **통째로** 넘기는 자리가 남아 있으면 안 된다.
-    for (const f of ['mobius/fopt.js', 'mobius/grp.js']) {
+    for (const f of ['mobius/fanout.js', 'mobius/fopt.js', 'mobius/grp.js']) {
         const src = fs.readFileSync(path.join(ROOT, f), 'utf8');
         assert.doesNotMatch(src, /^\s*headers:\s*request\.headers\s*$/m,
             f + ' 이 클라이언트 헤더를 통째로 상대에게 넘긴다 — outbound_headers 를 거칠 것');
@@ -223,7 +223,7 @@ test('요청 객체에 응답 형식을 담는 자리가 없다 — usebodytype'
     // 형식을 정하는 곳은 두 군데뿐이어야 한다: 들어오는 것은 json_only 관문,
     // 나가는 것은 responder.apply_headers 의 Content-Type 이다.
     const files = ['app.js', 'mobius/responder.js', 'mobius/resource.js',
-                   'mobius/sgn.js', 'mobius/fopt.js', 'mobius/grp.js'];
+                   'mobius/sgn.js', 'mobius/fanout.js', 'mobius/fopt.js', 'mobius/grp.js'];
 
     for (const f of files) {
         const src = fs.readFileSync(path.join(ROOT, f), 'utf8');
