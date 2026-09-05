@@ -3,7 +3,7 @@
 /**
  * 첫 구동 설정. `npm run setup`.
  *
- *   npm run setup                 conf.json 이 없을 때만 — 여섯을 묻고 파일을 만든다
+ *   npm run setup                 conf.json 이 없을 때만 — 일곱을 묻고 파일을 만든다
  *   npm run setup -- --dbpass     비밀번호만 다시 받는다 (파일이 있어도)
  *
  * 후자가 "비밀 키는 CLI 로 변경 불가" 의 **유일한 예외**다. 명령줄 인자로 값을 받지

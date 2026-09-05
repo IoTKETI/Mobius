@@ -216,10 +216,10 @@ ConfStore.prototype.removeKey = function (key) {
 };
 
 /**
- * 첫 구동 마법사가 묻는 여섯 키. create() 는 이 밖의 키를 거부한다.
+ * 첫 구동 마법사가 묻는 일곱 키(순서대로). create() 는 이 밖의 키를 거부한다.
  * dbpass 는 db 가 그것을 쓰는 백엔드일 때만 온다.
  */
-var WIZARD_KEYS = ['db', 'dbpass', 'cseBase', 'cseId', 'spId', 'csebaseport'];
+var WIZARD_KEYS = ['db', 'dbpass', 'cseBase', 'cseId', 'spId', 'superUser', 'csebaseport'];
 
 /**
  * 파일이 **없을 때만** 만든다 — 첫 구동 마법사 전용. update() 를 우회하는 둘 중 하나.

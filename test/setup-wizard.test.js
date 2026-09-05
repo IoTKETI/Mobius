@@ -55,14 +55,19 @@ function onBackend(name) {
     return { schema: require('../mobius/conf_schema'), needsDbpass: !!facade.confSchema().dbpass };
 }
 
-test('W2 답을 다 받으면 여섯 키 이하의 answers — sqlite 면 dbpass 를 묻지 않는다', function (t, done) {
+test('W2 답을 다 받으면 일곱 키 이하의 answers — sqlite 면 dbpass 를 묻지 않는다', function (t, done) {
     const backends = db.backends();
     const t1 = io();
-    script(t1, [String(backends.indexOf('sqlite') + 1), 'Vita', '', '//example.com', '']);
+    // 순서: DB · (dbpass) · CSE 이름 · CSE ID · SP-ID · 수퍼유저 Origin · HTTP 포트
+    script(t1, [String(backends.indexOf('sqlite') + 1), 'Vita', '', '//example.com', '', '']);
     setup_prompt.run({ backends, onBackend, io: { stdin: t1.stdin, stdout: t1.stdout } }, function (err, answers) {
         assert.ifError(err);
-        assert.deepStrictEqual(answers, { db: 'sqlite', cseBase: 'Vita', cseId: '/Mobius2', spId: '//example.com', csebaseport: '7579' });
+        assert.deepStrictEqual(answers, { db: 'sqlite', cseBase: 'Vita', cseId: '/Mobius2', spId: '//example.com', superUser: 'Sponde', csebaseport: '7579' });
         assert.ok(!('dbpass' in answers));
+        // 묻는 순서 — SP-ID 다음이 수퍼유저, 그다음이 포트
+        const seen = t1.seen();
+        assert.ok(seen.indexOf('SP-ID') < seen.indexOf('수퍼유저 Origin') && seen.indexOf('수퍼유저 Origin') < seen.indexOf('HTTP 포트'), '수퍼유저 질문의 자리가 다르다');
+        assert.ok(seen.indexOf('비우면 Sponde') >= 0, '수퍼유저 기본값 안내가 없다');
         assert.ok(t1.seen().indexOf('[1] ' + backends[0]) >= 0, '선택지가 backends() 에서 오지 않았다');
         assert.strictEqual(t1.stdin.isRaw, false, 'raw 모드가 안 돌아왔다');
         done();
@@ -72,7 +77,7 @@ test('W2 답을 다 받으면 여섯 키 이하의 answers — sqlite 면 dbpass
 test('W2 유효하지 않은 답은 validHint 를 보이고 같은 항목을 다시 묻는다', function (t, done) {
     const backends = db.backends();
     const t1 = io();
-    script(t1, [String(backends.indexOf('sqlite') + 1), 'la', 'Mo/bius', 'Vita', '', '', '99999', '7580']);
+    script(t1, [String(backends.indexOf('sqlite') + 1), 'la', 'Mo/bius', 'Vita', '', '', '', '99999', '7580']);
     setup_prompt.run({ backends, onBackend, io: { stdin: t1.stdin, stdout: t1.stdout } }, function (err, answers) {
         assert.ifError(err);
         assert.strictEqual(answers.cseBase, 'Vita');
@@ -82,15 +87,18 @@ test('W2 유효하지 않은 답은 validHint 를 보이고 같은 항목을 다
     });
 });
 
-test('W2 mysql 이면 dbpass 를 묻고 화면에 안 보인다', function (t, done) {
+test('W2 mysql 이면 dbpass 를 묻고 화면에 안 보인다 — superUser 도 안 보인다', function (t, done) {
     const backends = db.backends();
     const t1 = io();
-    script(t1, [String(backends.indexOf('mysql') + 1), 'hunter2', '', '', '', '']);
+    script(t1, [String(backends.indexOf('mysql') + 1), 'hunter2', '', '', '', 'Vader', '']);
     setup_prompt.run({ backends, onBackend, io: { stdin: t1.stdin, stdout: t1.stdout } }, function (err, answers) {
         assert.ifError(err);
         assert.strictEqual(answers.dbpass, 'hunter2');
         assert.ok(t1.seen().indexOf('hunter2') < 0, '비밀번호가 화면에 찍혔다');
         assert.ok(t1.seen().indexOf('DB 비밀번호') >= 0, '프롬프트까지 삼켰다 — 음소거를 question() 앞에 켰다');
+        assert.strictEqual(answers.superUser, 'Vader');
+        assert.ok(t1.seen().indexOf('Vader') < 0, '수퍼유저 값이 화면에 찍혔다');
+        assert.ok(t1.seen().indexOf('수퍼유저 Origin') >= 0, '수퍼유저 프롬프트까지 삼켰다');
         done();
     });
 });
@@ -98,7 +106,7 @@ test('W2 mysql 이면 dbpass 를 묻고 화면에 안 보인다', function (t, d
 test('W2 preset(db) 이 있으면 DB 를 묻지 않는다 — node mobius.js <이름> 으로 띄운 경우', function (t, done) {
     const backends = db.backends();
     const t1 = io();
-    script(t1, ['', '', '', '']);
+    script(t1, ['', '', '', '', '']);
     setup_prompt.run({ backends, preset: { db: 'sqlite' }, onBackend, io: { stdin: t1.stdin, stdout: t1.stdout } }, function (err, answers) {
         assert.ifError(err);
         assert.strictEqual(answers.db, 'sqlite');
@@ -122,7 +130,7 @@ test('W2 conf_load 가 마법사를 돌려 파일을 만들고 그대로 읽는�
     const backends = db.backends();
     const file = path.join(tmpDir(), 'conf.json');
     const t1 = io();
-    script(t1, [String(backends.indexOf('sqlite') + 1), 'Vita', '', '', '']);
+    script(t1, [String(backends.indexOf('sqlite') + 1), 'Vita', '', '', 'Vader', '']);
     fresh();
     conf_load({ file, wizard: true, isPrimary: true, io: { stdin: t1.stdin, stdout: t1.stdout } }, function (err, applied) {
         assert.ifError(err);
@@ -130,8 +138,11 @@ test('W2 conf_load 가 마법사를 돌려 파일을 만들고 그대로 읽는�
         const saved = JSON.parse(fs.readFileSync(file, 'utf8'));
         assert.strictEqual(saved.db, 'sqlite');
         assert.strictEqual(saved.cseBase, 'Vita');
+        assert.strictEqual(saved.superUser, 'Vader', '수퍼유저 답이 파일에 안 실렸다');
         assert.ok(!('dbpass' in saved));
         assert.strictEqual(global.usecsebase, 'Vita');
+        assert.strictEqual(global.usesuperuser, 'Vader', '수퍼유저 답이 전역에 안 실렸다');
+        assert.ok(!('superUser' in applied) || applied.superUser === 'Vader');
         assert.strictEqual(applied.cseBase, 'Vita');
         assert.ok(/conf\.json 을 만들었습니다/.test(t1.seen()));
         // 두 번째 기동은 묻지 않는다

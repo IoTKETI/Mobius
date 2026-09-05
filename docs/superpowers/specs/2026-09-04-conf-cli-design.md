@@ -593,7 +593,7 @@ Mobius 첫 설정입니다.
 conf.json 을 만들었습니다.  나머지 설정은 `npm run conf` 로 봅니다.
 ```
 
-**묻는 것은 여섯뿐이다.** `dbpass` 는 `db` 가 `mysql` 일 때만 묻는다.
+**묻는 것은 일곱뿐이다.** `dbpass` 는 `db` 가 `mysql` 일 때만 묻는다. `superUser` 는 SP-ID 다음에 화면에 안 보이게 묻고 비우면 `Sponde` 다(2026-09-05 사용자 요청으로 추가).
 **각 입력은 `conf_schema.validate()` 를 그대로 지난다** — 통과하지 못하면 `validHint` 를
 보여 주고 같은 항목을 다시 묻는다. 손으로 만든 별도 검사를 두지 않는다.
 

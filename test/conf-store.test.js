@@ -322,14 +322,14 @@ test('update 는 파일이 없으면 만든다 — 읽기는 기본값으로, �
     assert.deepStrictEqual(readConf(file), { acpObserveMode: 'observe' });
 });
 
-test('W3 create 는 마법사의 여섯 키만 받고, 파일이 있으면 동작하지 않는다', function () {
-    assert.deepStrictEqual(WIZARD_KEYS, ['db', 'dbpass', 'cseBase', 'cseId', 'spId', 'csebaseport']);
+test('W3 create 는 마법사의 일곱 키만 받고, 파일이 있으면 동작하지 않는다', function () {
+    assert.deepStrictEqual(WIZARD_KEYS, ['db', 'dbpass', 'cseBase', 'cseId', 'spId', 'superUser', 'csebaseport']);
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'confstore-'));
     const file = path.join(dir, 'conf.json');
     const s = store(file);
 
     let r = s.create({ db: 'mysql', dbpass: 'p', cseBase: 'Vita', acpObserveMode: 'off' });
-    assert.strictEqual(r.ok, false, '여섯 밖의 키를 받았다');
+    assert.strictEqual(r.ok, false, '일곱 밖의 키를 받았다');
     assert.ok(/acpObserveMode/.test(r.errors.join(' ')));
     assert.strictEqual(fs.existsSync(file), false);
 

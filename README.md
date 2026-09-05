@@ -151,7 +151,7 @@ mosquitto -v
 ```
 npm install
 ```
-- Start Mobius once from an interactive terminal. When `conf.json` is missing, `node mobius.js` itself asks six questions (database, database password, CSE name, CSE-ID, SP-ID, HTTP port), writes `conf.json`, and then boots — no separate setup command is needed:
+- Start Mobius once from an interactive terminal. When `conf.json` is missing, `node mobius.js` itself asks seven questions (database, database password, CSE name, CSE-ID, SP-ID, super-user origin, HTTP port), writes `conf.json`, and then boots — no separate setup command is needed:
 ```
 node mobius.js         # first run: asks, writes conf.json, starts
 npm run setup          # same wizard without starting the server (optional)

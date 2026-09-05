@@ -10,11 +10,12 @@
  *   deps.onBackend  (name) → 호출자가 global.usedb 를 세우고 { schema, needsDbpass } 를 돌려준다.
  *                   표가 백엔드를 따라가므로 db 를 먼저 받아야 나머지를 검사할 수 있다
  *   deps.io         { stdin, stdout }
- *   cb(err, answers)   취소·EOF 면 err.code === 'CANCELLED'. answers 는 여섯 키 이하
+ *   cb(err, answers)   취소·EOF 면 err.code === 'CANCELLED'. answers 는 일곱 키 이하
  *
  * **각 입력은 schema.checkValue() 를 그대로 지난다** — 손으로 만든 별도 검사를 두지 않는다.
  * 통과하지 못하면 validHint 를 보이고 같은 항목을 다시 묻는다. dbpass 는 그 백엔드가
- * 그 키를 쓸 때만 묻는다.
+ * 그 키를 쓸 때만 묻는다. superUser 는 늘 묻되 화면에 안 보이게 받고, 비우면 표의
+ * 기본값(Sponde)이다 — 마스터 키라 첫 설치에서 정하게 한다(2026-09-05 사용자 요청).
  *
  * **비밀번호 마스킹.** readline 에는 에코를 끄는 공개 API 가 없다. stream.Writable 로
  * 출력 프록시를 만들어 output 으로 주고 terminal:true 로 연 뒤, rl.question() 을 부른
@@ -70,7 +71,9 @@ function Prompter(io) {
 Prompter.prototype.ask = function (label, dflt, secret, cb) {
     if (this.closed) { return cb(cancelled()); }
     var self = this;
-    var hint = secret ? '(화면에 안 보입니다)' : (dflt === undefined ? '' : String(dflt));
+    // 비밀 키도 기본값이 있으면 알려 준다(superUser 의 Sponde) — 값은 소스에 적힌 것이라 비밀이 아니다.
+    var hint = secret ? ('(화면에 안 보입니다' + (dflt ? ' · 비우면 ' + dflt : '') + ')')
+                      : (dflt === undefined ? '' : String(dflt));
     this.pending = cb;
     this.rl.question('  ' + pad(label, 14) + ' ' + pad(hint, 30) + ' > ', function (ans) {
         var done = self.pending;
@@ -88,7 +91,8 @@ Prompter.prototype.close = function () {
 };
 
 /**
- * 마법사 본체. 묻는 것은 여섯뿐이다 — 바꾸기 어려운 것(관문 넷)을 처음에 묻는다.
+ * 마법사 본체. 묻는 것은 일곱뿐이다 — 바꾸기 어려운 것(관문 넷)을 처음에 묻고,
+ * 수퍼유저 Origin 은 SP-ID 다음에 묻는다(사용자가 정한 자리).
  */
 exports.run = function (deps, cb) {
     var io = deps.io;
@@ -113,6 +117,8 @@ exports.run = function (deps, cb) {
         steps.push(['cseBase', 'CSE 이름', false]);
         steps.push(['cseId', 'CSE ID', false]);
         steps.push(['spId', 'SP-ID', false]);
+        // 마스터 키. 이 값을 X-M2M-Origin 에 넣으면 모든 ACP 검사를 건너뛴다 — 화면에 안 보이게.
+        steps.push(['superUser', '수퍼유저 Origin', true]);
         steps.push(['csebaseport', 'HTTP 포트', false]);
         (function next(i) {
             if (i >= steps.length) { return finish(null); }
@@ -148,11 +154,12 @@ exports.run = function (deps, cb) {
 
     function ask_valid(schema, key, label, secret, done) {
         var s = schema.get(key);
-        var dflt = secret ? undefined : s.dflt;
+        var dflt = s.dflt;
         (function again() {
             p.ask(label, dflt, secret, function (err, ans) {
                 if (err) { return done(err); }
-                var v = (!secret && ans.trim() === '') ? String(dflt) : ans;
+                // 빈 입력은 기본값. 기본값이 비어 있는 비밀(dbpass)은 빈 값 그대로다.
+                var v = (ans.trim() === '' && dflt !== undefined && dflt !== '') ? String(dflt) : ans;
                 var r = schema.checkValue(key, v);
                 if (!r.ok) {
                     io.stdout.write('    ' + (s.validHint || r.reason) + '\n');
