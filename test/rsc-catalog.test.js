@@ -29,19 +29,26 @@ function livePairs() {
     return pairs;
 }
 
+// 성공 응답의 코드는 이제 생산자(resource.js · fopt.js)가 결과 객체의 `rsc: 'CREATED'`
+// 같은 **카탈로그 이름**으로 올린다 — settle.done 이 그 이름으로 RSC 를 찾는다.
+// 옛 판은 `responder.response_result(x, y, '200', '2000'` 형태를 찾았는데, 그 호출은
+// fe1e694 에서 settle 로, 2단계 10번에서 responder 의 세 함수 자체가 사라져 **주석
+// 한 줄만 맞히며 헛돌았다**(남은 일 §7.5). 지금 실물이 올리는 것을 본다.
 function liveSuccess() {
     const files = ['app.js'].concat(
         fs.readdirSync(path.join(ROOT, 'mobius'))
             .filter(function (f) { return f.endsWith('.js'); })
             .map(function (f) { return 'mobius/' + f; }));
-    const CALL = /responder\.(?:response_result|response_rcn3_result|search_result|error_result)\s*\(\s*[^,]+,\s*[^,]+,\s*'(\d{3})'\s*,\s*'(\d{4})'/g;
-    const out = new Map();
+    const NAME = /\brsc:\s*'([A-Z][A-Z_]+)'/g;
+    const out = new Map();     // 이름 -> 'file:line' 목록
     files.forEach(function (f) {
         let src;
-        try { src = read(f); } catch (e) { return; }
+        try { src = read(f).replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/mg, ''); } catch (e) { return; }
         let m;
-        while ((m = CALL.exec(src)) !== null) {
-            if (m[2][0] === '2' || m[2][0] === '1') { out.set(m[1] + '|' + m[2], true); }
+        while ((m = NAME.exec(src)) !== null) {
+            const line = src.slice(0, m.index).split('\n').length;
+            if (!out.has(m[1])) { out.set(m[1], []); }
+            out.get(m[1]).push(f + ':' + line);
         }
     });
     return out;
@@ -76,15 +83,22 @@ test('resultStatusCode 의 모든 (http, rsc) 쌍이 카탈로그에 있다', fu
     assert.deepStrictEqual(missing, [], '카탈로그에 없는 쌍:\n  ' + missing.join('\n  '));
 });
 
-test('성공 코드의 (http, rsc) 쌍이 모두 카탈로그에 있다', function () {
-    const missing = [];
-    liveSuccess().forEach(function (_v, pair) {
-        const parts = pair.split('|');
-        if (!rsc.byPair(parts[0], parts[1])) {
-            missing.push('http ' + parts[0] + ' / rsc ' + parts[1]);
-        }
+test('생산자가 올리는 성공 rsc 이름이 전부 카탈로그의 성공 항목이다', function () {
+    const live = liveSuccess();
+    // 헛돌지 않는지 — 생산자 다섯(create/retrieve/update/delete/fopt)이 올리는 이름은
+    // 최소 OK · CREATED · UPDATED · DELETED 넷이다.
+    ['OK', 'CREATED', 'UPDATED', 'DELETED'].forEach(function (n) {
+        assert.ok(live.has(n), n + ' 을 올리는 자리를 못 찾았다 — 이 시험의 전제가 바뀌었다');
     });
-    assert.deepStrictEqual(missing, [], '카탈로그에 없는 성공 코드:\n  ' + missing.join('\n  '));
+    const bad = [];
+    live.forEach(function (where, name) {
+        const e = rsc.RSC[name];
+        if (!e) { bad.push(name + ' 은 카탈로그에 없다 (' + where.join(', ') + ')'); return; }
+        // 결과 객체는 성공만 담는다 — 실패는 사유 코드 문자열로 간다. 4xx/5xx 이름이
+        // 여기 오면 settle.done 이 그것을 성공으로 보낸다.
+        if (!/^[12]/.test(e.rsc)) { bad.push(name + ' 은 성공 계열이 아니다 rsc=' + e.rsc + ' (' + where.join(', ') + ')'); }
+    });
+    assert.deepStrictEqual(bad, [], '결과 객체의 rsc 이름:\n  ' + bad.join('\n  '));
 });
 
 test('카탈로그의 CoAP 값이 원본 표(픽스처)와 일치한다', function () {
