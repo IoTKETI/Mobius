@@ -162,13 +162,14 @@ test('done 은 claim 을 거친다 — 두 번째는 막히고 로그로 남는�
     const restore = spyResponder(log);
     const conn = fakeConn();
     try {
-        const s = settle_mod.make(req('GET'), {}, conn, onError(log));
+        // PUT 은 아직 LEGACY 에 있다(GET 은 8번에서 빠졌다) — 옛 갈래 뒤에 out 이 와도 막힌다
+        const s = settle_mod.make(req('PUT'), {}, conn, onError(log));
         s.done('200');
         const lines = quiet(() => { s.done(null, { rsc: 'OK', shape: 'single', body: {} }); });
         assert.strictEqual(lines.length, 1);
         assert.ok(/settle/.test(lines[0]) && /done OK/.test(lines[0]), lines[0]);
     } finally { restore(); }
-    assert.deepStrictEqual(log, [['result', '200', '2000']]);
+    assert.deepStrictEqual(log, [['result', '200', '2004']]);
     assert.strictEqual(conn.released, 1);
 });
 
