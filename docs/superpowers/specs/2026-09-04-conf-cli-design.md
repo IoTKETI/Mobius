@@ -1202,7 +1202,7 @@ adminHost      기본 127.0.0.1 — 루프백 아니면 경고 한 줄만 찍고
 | 상태 | 무엇을 한다 |
 |---|---|
 | 맞음 | 그대로 기동 |
-| `conf.seal.json` 없음 · 깨짐 · 불일치 | **기동하지 않는다.** `[설정] dbpass·superUser 가 도구 밖에서 바뀌었다(또는 봉인이 없다) — npm run setup -- --superuser (mysql 이면 --dbpass 도) 로 다시 넣을 것`. 마스터는 exit 1, 워커는 **`EXIT_BAD_SEAL = 14`** 로 나가고 마스터가 재포크하지 않고 같이 종료한다(`NO_CONF` 와 같은 자리) |
+| `conf.seal.json` 없음 · 깨짐(읽기 실패는 `e.code` 를 붙여 구분) · 낡음(`keys` 불일치) · 불일치 | **기동하지 않는다.** `[설정] <사유>. conf.json 의 dbpass·superUser 는 도구로만 바꾼다 — 터미널에서 npm run setup -- --superuser 를 치고 현재 값을 그대로 입력(안 바꿨으면 Sponde) — Enter 는 봉인을 만들지 않는다.` 마스터는 exit 1, 워커는 **`EXIT_BAD_SEAL = 14`** 로 나가고 마스터가 재포크하지 않고 같이 종료한다(`NO_CONF` 와 같은 자리) |
 | 파싱이 깨진 `conf.json` | 7판 그대로 기본값으로 진행(값이 손편집된 것이 아니라 파일이 깨진 것) |
 
 **기존 배포 파일에는 봉인이 없다.** 새 코어로 재기동하기 전에 `npm run setup -- --superuser`(현재 값을
