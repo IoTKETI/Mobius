@@ -50,6 +50,7 @@ var USAGE = [
     '  npm run conf -- unset <키>       기본값으로 되돌린다',
     '  npm run status                   마스터 pid · 포트 · 부팅 기록 · 재기동 대기 건수',
     '  옵션  --db=<이름>                백엔드를 강제한다 (키 표가 백엔드를 따라간다)',
+    '  옵션  --all                     고급 키까지 보이고 고친다 (기본은 사용자 키 7개 — 첫 실행이 묻는 것)',
     '',
     '  비밀 키(dbpass·superUser·adminPassword·adminOrigin)는 조회만 한다.',
     '  dbpass 를 다시 넣으려면 `npm run setup -- --dbpass`, superUser 는 `npm run setup -- --superuser`.'
@@ -159,11 +160,11 @@ exports.renderList = function (deps) {
     var lines = [], pending = [];
 
     grouped(schema).forEach(function (grp) {
-        var visible = grp.keys.filter(function (k) { return schema.get(k).secret !== true; });
-        if (!visible.length) { return; }
+        var shown = grp.keys.filter(function (k) { return visible(deps, k) && schema.get(k).secret !== true; });
+        if (!shown.length) { return; }
         lines.push('');
         lines.push(grp.group);
-        visible.forEach(function (k) {
+        shown.forEach(function (k) {
             var s = schema.get(k);
             var j = exports.judge(schema, k, conf, live.running, record);
             if (j.state === 'pending') { pending.push(k); }
@@ -172,7 +173,16 @@ exports.renderList = function (deps) {
         });
     });
 
-    var secrets = schema.all().filter(function (k) { return schema.get(k).secret === true; });
+    if (!deps.all) {
+        var hidden = schema.all().filter(function (k) { return !visible(deps, k); });
+        if (hidden.length) {
+            lines.push('');
+            lines.push('고급 키 ' + hidden.length + '개는 숨겼다 — `npm run conf -- --all` 로 본다. 굳이 바꿀 일이 없는 것들이다.');
+        }
+    }
+
+    var secrets = schema.all().filter(function (k) { return schema.get(k).secret === true; })
+        .filter(function (k) { return visible(deps, k); });
     lines.push('');
     lines.push('비밀 — 값을 띄우지 않는다');
     secrets.forEach(function (k) {
@@ -197,6 +207,7 @@ exports.renderList = function (deps) {
 
 exports.renderShow = function (key, deps) {
     var schema = deps.schema;
+    if (!visible(deps, key)) { return advanced_fail(key).lines; }
     var s = schema.get(key);
     var d = schema.describe()[key];   // 비밀·숨김 키는 describe 에 없다
     var rec = deps.readRecord();
@@ -262,12 +273,22 @@ function gate(key, deps, cb) {
 
 function fail(lines) { return { ok: false, lines: lines }; }
 
+// 기본으로 사용자 키만 안다. deps.all 이면 전부(7판과 같다). 스펙 §13.1.
+function visible(deps, key) {
+    var s = deps.schema.get(key);
+    return !!s && (deps.all === true || s.tier === 'user');
+}
+function advanced_fail(key) {
+    return fail(['고급 키다: ' + key + ' — conf.json 을 직접 고치거나 `npm run conf -- --all` 을 줄 것']);
+}
+
 exports.runSet = function (key, raw, deps, cb) {
     if (!fs.existsSync(deps.store.file)) {
         // 여기서 파일을 만들면 다음 기동에 첫 구동 마법사가 안 돌고, dbpass 가 비어 DB 연결에서
         // 실패한다 — 원인이 두 단계 멀어진다(스펙 §4.5.1 가). 읽기는 기본값으로 답하되 쓰기는 거부한다.
         return cb(null, fail(['conf.json 이 없다 — 먼저 터미널에서 `node mobius.js`(또는 `npm run setup`)로 만들 것 (' + deps.store.file + ')']));
     }
+    if (deps.schema.get(key) && !visible(deps, key)) { return cb(null, advanced_fail(key)); }
     var s = deps.schema.get(key);
     if (!s) { return cb(null, fail(['모르는 키다: ' + key])); }
     if (raw === undefined) { return cb(null, fail(['값이 없다: set ' + key + ' <값>'])); }
@@ -295,6 +316,7 @@ exports.runUnset = function (key, deps, cb) {
         // 실패한다 — 원인이 두 단계 멀어진다(스펙 §4.5.1 가). 읽기는 기본값으로 답하되 쓰기는 거부한다.
         return cb(null, fail(['conf.json 이 없다 — 먼저 터미널에서 `node mobius.js`(또는 `npm run setup`)로 만들 것 (' + deps.store.file + ')']));
     }
+    if (deps.schema.get(key) && !visible(deps, key)) { return cb(null, advanced_fail(key)); }
     var s = deps.schema.get(key);
     if (!s) { return cb(null, fail(['모르는 키다: ' + key])); }
     gate(key, deps, function (pass) {

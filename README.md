@@ -160,6 +160,7 @@ Everything else has a default. Inspect and change settings with the CLI — ther
 ```
 npm run conf                        # list all keys with their file value and whether the running server has applied them
 npm run conf -- set cseBase Vita    # gated keys print a warning and ask you to type the key name
+npm run conf -- --all               # advanced keys too (default: the seven first-run keys)
 npm run status                      # master pid, port, boot record, keys waiting for a restart
 ```
 `dbpass` and `superUser` are stored in plain text; the wizard hides them while you type. To re-enter one later: `npm run setup -- --dbpass` or `npm run setup -- --superuser` (prompt only — never a command-line argument).

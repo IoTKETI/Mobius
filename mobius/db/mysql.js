@@ -137,6 +137,7 @@ exports.optimizerHintBlock = function (hints) {
 exports.confSchema = {
     dbpass: {
         group: '저장소',
+        tier: 'user',
         type: 'string', dflt: '', secret: true, exposed: false, apply: 'restart',
         label: 'DB 비밀번호',
         help: '값을 화면으로 내보내지 않는다. 길이도 주지 않는다.'

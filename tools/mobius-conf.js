@@ -34,7 +34,7 @@ var schema = require(path.join(ROOT, 'mobius', 'conf_schema'));
 var conf_store = require('./conf_store');
 var boot_record = require(path.join(ROOT, 'mobius', 'boot_record'));
 
-var args = argv.filter(function (a) { return a.indexOf('--db=') !== 0; });
+var args = argv.filter(function (a) { return a.indexOf('--db=') !== 0 && a !== '--all'; });
 
 cli.main(args, {
     schema: schema,
@@ -44,7 +44,8 @@ cli.main(args, {
     alive: function (pid) { try { process.kill(pid, 0); return true; } catch (e) { return false; } },
     probePort: cli.probePort,
     pm2List: cli.pm2List,
-    io: { stdin: process.stdin, stdout: process.stdout, isTTY: !!(process.stdin.isTTY && process.stdout.isTTY) }
+    io: { stdin: process.stdin, stdout: process.stdout, isTTY: !!(process.stdin.isTTY && process.stdout.isTTY) },
+    all: argv.indexOf('--all') >= 0
 }, function (err, code) {
     if (err) { console.error(err.message || err); process.exit(1); }
     process.exit(code);

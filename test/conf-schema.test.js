@@ -153,7 +153,7 @@ test("'reload' 는 무엇을 다시 불러야 하는지 밝힌다", function () 
 test('describe() 가 소비자에게 필요한 필드를 전부 준다', function () {
     // 화면이 쓰는 유일한 진입점이다. 내부 표에만 있고 여기 없으면 없는 것과 같다.
     const NEED = ['type', 'dflt', 'choices', 'validHint', 'integer', 'group',
-                  'apply', 'reloadWith', 'readOnly', 'label', 'help', 'grade', 'gateWarn'];
+                  'apply', 'reloadWith', 'readOnly', 'label', 'help', 'grade', 'gateWarn', 'tier'];
     for (const [k, v] of Object.entries(schema.describe())) {
         for (const f of NEED) {
             assert.ok(f in v, 'describe().' + k + ' 에 ' + f + ' 가 없다');
@@ -545,4 +545,18 @@ test('C4 키 표가 백엔드를 따라간다 — 자식 프로세스에서 db:s
     const keys = JSON.parse(out);
     assert.ok(keys.indexOf('sqliteJournalMode') >= 0, 'sqlite 키가 없다: ' + keys.join(','));
     assert.ok(keys.indexOf('dbpass') < 0, 'mysql 의 dbpass 가 sqlite 표에 있다');
+});
+
+// --- 2026-09-05 사용자 키 / 고급 키 (스펙 §13.1) ------------------------------
+
+test('T1 사용자 키는 일곱이고 마법사 화이트리스트와 같은 집합이다', function () {
+    assert.deepStrictEqual(schema.userKeys(), ['cseBase', 'cseId', 'csebaseport', 'db', 'dbpass', 'spId', 'superUser']);
+    const { WIZARD_KEYS } = require('../tools/conf_store');
+    assert.deepStrictEqual(WIZARD_KEYS.slice().sort(), schema.userKeys());
+});
+test('T3 새 키의 기본 등급은 고급이다 — tier 를 안 적으면 사용자에게 안 보인다', function () {
+    assert.strictEqual(schema.get('mqttBroker').tier, undefined);
+    assert.strictEqual(schema.describe().mqttBroker.tier, 'advanced');
+    assert.strictEqual(schema.describe().cseBase.tier, 'user');
+    assert.ok(schema.userKeys().indexOf('superUser') >= 0, '비밀도 사용자 키일 수 있다');
 });

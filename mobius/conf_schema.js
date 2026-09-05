@@ -173,6 +173,7 @@ var SCHEMA = {
     db: {
         group: '저장소',
         type: 'enum', dflt: 'mysql',
+        tier: 'user',
         // 유효값을 하드코딩하지 않는다. 어댑터 파일(mobius/db/<이름>.js)을 두면
         // 이 목록이 자동으로 늘어난다 — 화면 선택지도 같이 늘어난다.
         valid: function () { return require('./db').backends(); },
@@ -253,6 +254,7 @@ var SCHEMA = {
     // ── 노출 안 함: 비밀 ─────────────────────────────────────────────
     superUser: {
         group: '권한',
+        tier: 'user',
         type: 'string', dflt: 'Sponde', secret: true, exposed: false, apply: 'restart',
         label: '수퍼유저 Origin',
         help: '이 값을 X-M2M-Origin 에 넣으면 **모든 ACP 검사를 건너뛴다.** ' +
@@ -265,6 +267,7 @@ var SCHEMA = {
     // 고치는 것보다 경고를 읽고 바꾸는 편이 낫다.
     csebaseport: {
         group: '네트워크',
+        tier: 'user',
         type: 'string', dflt: '7579', apply: 'restart',
         grade: 'gate',
         gateWarn: '⚠ csebaseport 를 바꾸면 등록된 AE 의 poa 가 전부 어긋난다.\n' +
@@ -332,6 +335,7 @@ var SCHEMA = {
     // 코어의 정책을 화면이 베끼는 것이 된다.
     cseBase: {
         group: 'CSE 신원',
+        tier: 'user',
         type: 'string', dflt: 'Mobius', apply: 'restart',
         grade: 'gate',
         gateWarn: '⚠ cseBase 를 바꾸면 다른 CSE 로 뜬다.\n' +
@@ -353,6 +357,7 @@ var SCHEMA = {
     },
     cseId: {
         group: 'CSE 신원',
+        tier: 'user',
         type: 'string', dflt: '/Mobius2', apply: 'restart',
         grade: 'gate',
         gateWarn: '⚠ cseId 를 바꾸면 MQTT 알림 토픽과 acpi 절대 표기 접기가 끊긴다.\n' +
@@ -365,6 +370,7 @@ var SCHEMA = {
     },
     spId: {
         group: 'CSE 신원',
+        tier: 'user',
         type: 'string', dflt: '//keti.re.kr', apply: 'restart',
         grade: 'gate',
         gateWarn: '⚠ spId 를 바꾸면 절대 표기(//spid/cseid/...) 접기가 안 된다.\n' +
@@ -482,6 +488,13 @@ exports.all = function () {
     return Object.keys(SCHEMA).sort();
 };
 
+// 사용자 키 — 첫 실행이 묻고 CLI 가 기본으로 보이는 일곱. 나머지는 고급(소스 기본값으로
+// 두면 되는 것; 아는 사람이 conf.json 을 직접 고치거나 --all 로 만진다). **tier 를 안 적으면
+// 고급이다** — 새 키가 실수로 노출되는 방향이 아니라 숨는 방향이 안전하다(스펙 §13.1).
+exports.userKeys = function () {
+    return exports.all().filter(function (k) { return SCHEMA[k].tier === 'user'; });
+};
+
 exports.get = function (key) {
     return SCHEMA[key] || null;
 };
@@ -589,6 +602,9 @@ exports.describe = function () {
             readOnly: s.readOnly === true,
             label: s.label,
             help: s.help || '',
+            // 사용자 / 고급 등급. 안 적으면 고급이다 — 실수로 노출되는 방향이 아니라
+            // 실수로 숨는 방향이 안전하다(스펙 §13.1).
+            tier: s.tier === 'user' ? 'user' : 'advanced',
             // 관문 등급과 그 문구. CLI 가 저장 전에 찍는다. 문구를 여기서 주므로
             // CLI 에 키별 문구가 없다.
             grade: s.grade === 'gate' ? 'gate' : 'edit',

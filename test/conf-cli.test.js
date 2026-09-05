@@ -35,6 +35,7 @@ function deps(opts) {
         probePort: (port, cb) => cb(!!opts.portOpen),
         pm2List: (cb) => cb(opts.pm2 === undefined ? null : opts.pm2),
         io: { stdin: opts.stdin || new PassThrough(), stdout: out, isTTY: !!opts.isTTY },
+        all: !!opts.all,
         output: () => captured
     };
 }
@@ -137,8 +138,9 @@ test('L4 set 은 validate() 를 지난다 — 모르는 키·읽기 전용·유�
     })(0);
 });
 
+// 고급 키를 쓰므로 --all (가시성은 T2·T3 가 본다)
 test('L4 set 이 통과하면 원자적으로 쓰고 재기동 안내를 한다 — number·array 변환 포함', function (t, done) {
-    const d = deps({ conf: {} });
+    const d = deps({ conf: {}, all: true });
     cli.runSet('dbConnectionLimit', '30', d, function (err, r) {
         assert.ifError(err);
         assert.strictEqual(r.ok, true, r.lines.join(' '));
@@ -153,8 +155,9 @@ test('L4 set 이 통과하면 원자적으로 쓰고 재기동 안내를 한다 
     });
 });
 
+// 고급 키를 쓰므로 --all (가시성은 T2·T3 가 본다)
 test('L5 unset 이 관문을 지난다 — unset dbpass 는 거부', function (t, done) {
-    const d = deps({ conf: { dbpass: 'x', acpObserveMode: 'observe' } });
+    const d = deps({ conf: { dbpass: 'x', acpObserveMode: 'observe' }, all: true });
     cli.runUnset('dbpass', d, function (err, r) {
         assert.strictEqual(r.ok, false);
         assert.strictEqual(readConf(d.file).dbpass, 'x');
@@ -275,9 +278,10 @@ test('L7 떠 있지 않으면 마지막 기동과 pid 를 말한다. capped 는 
     });
 });
 
+// 고급 키를 쓰므로 --all (가시성은 T2·T3 가 본다)
 test('목록 — 그룹별 · 3상태 · 비밀은 존재 여부만 · 재기동 대기 건수', function () {
     const rec = ALIVE_REC({ csebaseport: '7579', dbConnectionLimit: 100 });
-    const d = deps({ conf: { csebaseport: '7579', dbConnectionLimit: 25, dbpass: 'p4ss', adminPort: 7580 }, record: rec, alive: true });
+    const d = deps({ conf: { csebaseport: '7579', dbConnectionLimit: 25, dbpass: 'p4ss', adminPort: 7580 }, record: rec, alive: true, all: true });
     const txt = cli.renderList(d).join('\n');
     assert.match(txt, /CSE 신원/); assert.match(txt, /네트워크/); assert.match(txt, /콘솔/);
     assert.match(txt, /csebaseport\s+7579\s+적용됨/);
@@ -290,8 +294,9 @@ test('목록 — 그룹별 · 3상태 · 비밀은 존재 여부만 · 재기동
     assert.match(txt, /cseBase[^\n]*⚠ 관문/);
 });
 
+// 고급 키를 쓰므로 --all (가시성은 T2·T3 가 본다)
 test('목록 — 떠 있지 않으면 모름이고 값 대조를 안 한다', function () {
-    const d = deps({ conf: { dbConnectionLimit: 25 }, record: null });
+    const d = deps({ conf: { dbConnectionLimit: 25 }, record: null, all: true });
     const txt = cli.renderList(d).join('\n');
     assert.match(txt, /dbConnectionLimit\s+25\s+모름/);
     assert.match(txt, /모름 — /);
@@ -306,8 +311,9 @@ test('목록 — 표에 없는 키를 경고한다 (죽은 키·오타)', functi
     assert.doesNotMatch(txt, /표에 없는 키[^\n]*acpObserveMode/);
 });
 
+// 고급 키를 쓰므로 --all (가시성은 T2·T3 가 본다)
 test('단건 — 표가 가진 것을 다 보여 준다', function () {
-    const d = deps({ conf: { acpObserveMode: 'observe' }, record: null });
+    const d = deps({ conf: { acpObserveMode: 'observe' }, record: null, all: true });
     const txt = cli.renderShow('acpObserveMode', d).join('\n');
     assert.match(txt, /acpObserveMode/); assert.match(txt, /off \/ observe/); assert.match(txt, /reload/);
     assert.match(txt, /acp_observe\.configure/);
@@ -349,4 +355,48 @@ test('npm 스크립트 — conf·status 가 있고 start 는 그대로', functio
     assert.strictEqual(pkg.scripts.conf, 'node tools/mobius-conf.js');
     assert.strictEqual(pkg.scripts.status, 'node tools/mobius-conf.js status');
     assert.ok(!pkg.dependencies || !pkg.dependencies.pm2, 'pm2 가 의존성에 있다');
+});
+
+// --- 2026-09-05 사용자 키 / 고급 키 — --all (스펙 §13.1) ----------------------
+
+test('T3 목록은 기본으로 사용자 키만 보이고 고급 키 개수를 말한다; --all 이면 전부', function () {
+    const d = deps({ conf: { dbConnectionLimit: 25, cseBase: 'Vita' }, record: null });
+    const txt = cli.renderList(d).join('\n');
+    assert.match(txt, /cseBase\s+Vita/);
+    assert.doesNotMatch(txt, /dbConnectionLimit/);
+    assert.doesNotMatch(txt, /adminPassword/);
+    assert.match(txt, /고급 키 \d+개는 숨겼다[^\n]*--all/);
+    const all = cli.renderList(deps({ conf: { dbConnectionLimit: 25 }, record: null, all: true })).join('\n');
+    assert.match(all, /dbConnectionLimit\s+25/);
+    assert.match(all, /adminPassword/);
+    assert.doesNotMatch(all, /숨겼다/);
+});
+test('T2 고급 키는 --all 없이 set/unset/단건이 거부되고 파일이 안 바뀐다; --all 이면 된다', function (t, done) {
+    const d = deps({ conf: { dbConnectionLimit: 25 } });
+    cli.runSet('dbConnectionLimit', '30', d, function (err, r) {
+        assert.strictEqual(r.ok, false);
+        assert.match(r.lines.join(' '), /고급 키[^\n]*--all/);
+        assert.strictEqual(readConf(d.file).dbConnectionLimit, 25);
+        cli.runUnset('dbConnectionLimit', d, function (err2, r2) {
+            assert.strictEqual(r2.ok, false);
+            assert.strictEqual(readConf(d.file).dbConnectionLimit, 25);
+            assert.match(cli.renderShow('dbConnectionLimit', d).join('\n'), /고급 키/);
+            const a = deps({ file: d.file, all: true });
+            cli.runSet('dbConnectionLimit', '30', a, function (err3, r3) {
+                assert.strictEqual(r3.ok, true, r3.lines.join(' '));
+                assert.strictEqual(readConf(d.file).dbConnectionLimit, 30);
+                // 사용자 키는 --all 없이도 된다 — 관문 키라 비-TTY 에서 거부되지만 사유가 "고급 키" 여서는 안 된다
+                cli.runSet('cseId', '/Vita1', deps({ file: d.file }), function (err4, r4) {
+                    assert.strictEqual(r4.ok, false);
+                    assert.doesNotMatch(r4.lines.join(' '), /고급 키/);
+                    done();
+                });
+            });
+        });
+    });
+});
+test('T2 진입점이 --all 을 deps 로 넘기고 args 에서 뺀다 — 소스 검사', function () {
+    const src = fs.readFileSync(path.join(ROOT, 'tools', 'mobius-conf.js'), 'utf8');
+    assert.match(src, /all:\s*argv\.indexOf\('--all'\)\s*>=\s*0/);
+    assert.match(src, /a !== '--all'/);
 });

@@ -63,6 +63,7 @@ test('W2 답을 다 받으면 일곱 키 이하의 answers — sqlite 면 dbpass
     setup_prompt.run({ backends, onBackend, io: { stdin: t1.stdin, stdout: t1.stdout } }, function (err, answers) {
         assert.ifError(err);
         assert.deepStrictEqual(answers, { db: 'sqlite', cseBase: 'Vita', cseId: '/Mobius2', spId: '//example.com', superUser: 'Sponde', csebaseport: '7579' });
+        assert.deepStrictEqual(Object.keys(answers).sort(), require('../mobius/conf_schema').userKeys(), '마법사가 만든 키 집합이 사용자 키와 다르다');
         assert.ok(!('dbpass' in answers));
         // 묻는 순서 — SP-ID 다음이 수퍼유저, 그다음이 포트
         const seen = t1.seen();
