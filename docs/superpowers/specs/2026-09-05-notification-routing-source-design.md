@@ -111,11 +111,14 @@
 
 **스키마 (`migrations/`)**
 - `013-sub-pi-index`: MySQL `ALTER TABLE sub ADD INDEX idx_sub_pi (pi)` — 3,463행이라
-  즉시. `db_bootstrap` 의 즉시 적용 대상. SQLite 는 `mobiusdb_sqlite.sql` 에
-  `CREATE INDEX IF NOT EXISTS`(001 과 같은 방식).
-- `014-widen-sub-nu-enc`: MySQL `nu`·`enc` 를 `text` 로. 원천이 되는 컬럼이 URL 두세 개에
+  즉시 끝나지만 **`autoApply` 는 붙이지 않는다.** 인덱스 생성·컬럼 변경은 DDL 종류로
+  기동 경로에서 금지된다(`test/db-bootstrap.test.js` — 규칙은 행 수가 아니라 종류).
+  배포 때 `node tools/migrate.js --check` 뒤 `--apply` 로 손으로 적용한다. SQLite 는
+  `mobiusdb_sqlite.sql` 의 `CREATE INDEX IF NOT EXISTS`(001 과 같은 방식). 인덱스가
+  아직 없어도 코드는 돈다 — 풀스캔 2.48ms 일 뿐이다.
+- `014-sub-widen-nu-enc`: MySQL `nu`·`enc` 를 `text` 로. 원천이 되는 컬럼이 URL 두세 개에
   넘치면 안 된다(STRICT 라 지금은 생성이 실패하지 조용히 잘리진 않는다). 3,463행이라
-  즉시. SQLite 는 폭 제한이 없어 no-op.
+  즉시. 역시 손으로 적용. SQLite 는 폭 제한이 없어 no-op.
 
 **`mobius/responder.js`** — `subl` 지우기는 컬럼이 남아 있는 동안 유지.
 

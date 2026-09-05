@@ -101,7 +101,10 @@ test('rows_for — 구독 삭제(128)는 지워진 구독 자신이다 (FK 로 �
 
 test('rows_for — DB 오류면 로그 한 줄과 빈 목록 (알림은 fire-and-forget)', async () => {
     db_sql.select_subs_by_pi = (c, pi, cb) => setImmediate(() => cb(new Error('boom'), { message: 'boom', code: 'ER_X' }));
-    const { v, lines } = await quiet(() => rowsFor({ ri: '/M/p' }, { ri: '/M/p/c' }, 3));
+    // 콜백이 영영 안 오면 시험이 매달리기만 하고 실패로 안 잡힌다 — 상한을 건다.
+    // 오류 갈래에서 callback 을 빠뜨리면 release 도 안 되어 커넥션이 새는 부류다.
+    const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('rows_for 가 DB 오류 뒤 콜백을 부르지 않았다')), 2000).unref());
+    const { v, lines } = await quiet(() => Promise.race([rowsFor({ ri: '/M/p' }, { ri: '/M/p/c' }, 3), timeout]));
     assert.deepStrictEqual(v, []);
     assert.ok(lines.some((l) => /\[sgn\] 구독 조회 실패.*\/M\/p/.test(l)), lines.join('\n'));
 });

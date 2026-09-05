@@ -698,7 +698,14 @@ CIN 생성마다 `sql_action.js:468` 이 stdout 에 한 줄을 낸다(실측 재
 
 ### 5.6 그 밖에
 
-- **구독별 DB 조회가 배치가 아니다** — `sgn.js` 에 `whereIn`/`IN (` 0곳
+- ~~**구독별 DB 조회가 배치가 아니다**~~ — 더 큰 결정에 흡수됐다(2026-09-05).
+  실측: 배포 구독 3,463개의 nu 가 전부 `mqtt://` URL 이라 이 DB 경로(ID 형 nu)는
+  한 번도 돌지 않았다. 그래도 "`subl` 사본이 더 효율적인가" 를 따진 결과 **알림
+  라우팅의 원천을 `sub` 테이블로** 옮기기로 했고(`lookup.subl` 사본은 유령 9,475건을
+  만든 장치이고 스윕 쪽 구멍이 남아 있었다), ID 형 nu 해석은 그 안에서 질의 3번
+  (`mobius/nu_resolve.js`)으로 접혔다. 스펙
+  `docs/superpowers/specs/2026-09-05-notification-routing-source-design.md`, 1단계
+  커밋 `01b234a`(이중 쓰기 유지). 2단계(사본 장치 제거)는 첫 평일 관문 뒤
 - **알림 전송 앞 1~10ms 랜덤 지연** — `sgn.js:185`·`421`. 근거가 주석에 없다
 - ~~**`csr` 포워딩 블록 4회 복붙**~~ — `forward_to_csr` 하나로 (`e00f145`, 응답 구조 3단계 11번). 라우트 넷 자체가 `with_connection` → 관문 → `run_operation` 으로 접혔다(`4351da1`·`ec29791`)
 - **HEAD 요청** — Express 4 는 HEAD 를 `app.get('*')` 로 태우고 `request.method` 는 'HEAD' 그대로다. 라우트가 그것을 표의 키로 쓰면 워커가 죽는다(`396d3dd` 로 고침, 골든 `head-cse`). 새 라우트 코드를 쓸 때 기억할 것
