@@ -19,18 +19,33 @@
 // 2023년 등록의 껍데기뿐이다(csr 본문은 이미 없다).
 // SQLite 스키마에는 csr 테이블이 없어 대상이 아니다.
 
+// 세 단계 전부 인덱스만 탄다 — ty=16 은 idx_lookup_ty, csr 은 PK, 자식 수는 PK 접두(pi).
+// 처음엔 한 문장(lookup LEFT JOIN csr + 상관 서브쿼리)이었는데 배포에서 드라이버
+// 타임아웃에 걸렸다(2026-09-06) — 5,740만 행 테이블을 빈 csr 과 조인하며 옵티마이저가
+// 풀스캔을 택한 것으로 보인다. 행 수가 몇 개뿐이니 단순한 질의 셋이 낫다.
 function orphans(ctx, cb) {
-    ctx.db.run(ctx.db.raw(
-        'select l.ri as ri, l.ct as ct, ' +
-        ' (select count(*) from lookup k where k.pi = l.ri) as kids ' +
-        'from lookup l left join csr c on c.ri = l.ri ' +
-        "where l.ty = 16 and c.ri is null"),
-        ctx.conn, function (err, rows) {
-            if (err) { return cb(err, rows); }
-            cb(null, (rows || []).map(function (r) {
-                return { ri: r.ri || r.RI, ct: r.ct || r.CT, kids: parseInt(r.kids || r.KIDS || 0, 10) };
-            }));
-        });
+    ctx.db.run(ctx.db.raw('select ri, ct from lookup where ty = 16'), ctx.conn, function (err, rows) {
+        if (err) { return cb(err, rows); }
+        var cands = (rows || []).map(function (r) { return { ri: r.ri || r.RI, ct: r.ct || r.CT, kids: 0 }; });
+        if (cands.length === 0) { return cb(null, []); }
+        ctx.db.run(ctx.db.raw('select ri from csr where ri in (' + cands.map(function () { return '?'; }).join(', ') + ')',
+                              cands.map(function (c) { return c.ri; })),
+            ctx.conn, function (err2, have) {
+                if (err2) { return cb(err2, have); }
+                var has = {};
+                (have || []).forEach(function (h) { has[h.ri || h.RI] = true; });
+                var orphan = cands.filter(function (c) { return !has[c.ri]; });
+                (function next(i) {
+                    if (i >= orphan.length) { return cb(null, orphan); }
+                    ctx.db.run(ctx.db.raw('select count(*) as n from lookup where pi = ?', [orphan[i].ri]), ctx.conn,
+                        function (err3, k) {
+                            if (err3) { return cb(err3, k); }
+                            orphan[i].kids = parseInt((k && k[0] && (k[0].n || k[0].N)) || 0, 10);
+                            next(i + 1);
+                        });
+                })(0);
+            });
+    });
 }
 
 module.exports = {
