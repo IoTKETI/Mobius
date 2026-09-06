@@ -3,14 +3,15 @@ import { ref, computed, onMounted } from 'vue'
 import {
   expiredSummary,
   expiredPage,
+  expiredPolicy,
   fmtTime,
   daysSince,
   etAfterDays,
   startExpiredDelete,
   startExpiredExtend,
 } from '../api'
-import { NEVER_AUTO_DELETED, AUTO_DELETED_RISKY, ET_EXTENDABLE, UNDELETABLE } from '../types'
-import type { ExpiredRow, ExpiredSummary, WriteInfo } from '../types'
+import { UNDELETABLE } from '../types'
+import type { ExpiredRow, ExpiredSummary, ExpiryPolicy, WriteInfo } from '../types'
 import { useJobRunner } from '../job'
 import JobPanel from '../components/JobPanel.vue'
 import ConfirmDialog from '../components/ConfirmDialog.vue'
@@ -26,6 +27,7 @@ const nextRi = ref<string | null>(null)
 const loading = ref(false)
 const error = ref('')
 const selectedTypes = ref<number[]>([])
+const policy = ref<ExpiryPolicy | null>(null)
 
 const PAGE = 50
 
@@ -58,13 +60,14 @@ function toggleAll() {
 
 const selectedList = computed(() => [...selected.value])
 
-/** 선택 중 et 를 실제로 늘릴 수 있는 것들. CIN 은 oneM2M 상 수정이 안 된다. */
-const extendable = computed(() =>
-  selectedList.value.filter((ri) => {
+/** 선택 중 et 를 실제로 늘릴 수 있는 것들 — 코어가 정한다(expiry_policy.etExtendableTypes). */
+const extendable = computed(() => {
+  const ok = new Set(policy.value?.etExtendableTypes ?? [])
+  return selectedList.value.filter((ri) => {
     const ty = byRi.value.get(ri)?.ty
-    return ty !== undefined && ET_EXTENDABLE.has(ty)
-  }),
-)
+    return ty !== undefined && ok.has(ty)
+  })
+})
 
 /** 지우면 하위 트리가 통째로 사라지는 선택이 섞여 있는가. */
 const hasSubtree = computed(() =>
@@ -106,11 +109,11 @@ function typeLabel(ty: number): string {
   return bare.toUpperCase()
 }
 
-/** 이 타입이 자동 정리에서 어떻게 다뤄지는지 — 삭제 판단의 핵심 신호다. */
+/** 이 타입이 자동 정리에서 어떻게 다뤄지는지 — 코어의 만료 정책에서 받는다. */
 function fate(ty: number): { text: string; cls: string } {
-  if (NEVER_AUTO_DELETED.has(ty)) return { text: '자동 삭제 안 됨', cls: 'never' }
-  if (AUTO_DELETED_RISKY.has(ty)) return { text: '만료 시 자동 삭제', cls: 'risky' }
-  return { text: '수동 정리 대상', cls: 'manual' }
+  if (!policy.value) return { text: '…', cls: 'manual' }
+  if (policy.value.autoDeletedTypes.includes(ty)) return { text: '만료 시 자동 삭제', cls: 'risky' }
+  return { text: '자동 삭제 안 됨 — 수동 정리', cls: 'never' }
 }
 
 const typeChips = computed(() => {
@@ -180,6 +183,11 @@ function toggleType(ty: number) {
 onMounted(async () => {
   // 다른 화면에서 시작한 작업이 돌고 있으면 먼저 붙는다.
   void runner.attach()
+  try {
+    policy.value = await expiredPolicy()
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : String(e)
+  }
   await loadSummary()
   await loadFirst()
 })
@@ -364,7 +372,7 @@ onMounted(async () => {
       <p v-if="extendable.length < selected.size" class="dlg warn">
         선택 {{ selected.size.toLocaleString() }}건 중
         {{ (selected.size - extendable.length).toLocaleString() }}건은 제외했습니다 —
-        CIN 은 oneM2M 상 수정할 수 없습니다.
+        et 를 수정할 수 없는 타입입니다(코어의 만료 정책 기준).
       </p>
     </ConfirmDialog>
   </section>

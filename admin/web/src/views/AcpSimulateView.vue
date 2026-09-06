@@ -2,9 +2,9 @@
 import { ref, computed } from 'vue'
 import { acpSimulate } from '../api'
 import { ACP_OPS, DECIDED_BY_LABEL } from '../types'
-import type { AcpOp, AcpSimulation, AcpVerdict } from '../types'
+import type { AcpConfig, AcpOp, AcpSimulation, AcpVerdict } from '../types'
 
-const props = defineProps<{ initialRi?: string | null }>()
+const props = defineProps<{ initialRi?: string | null; acp?: AcpConfig | null }>()
 
 const ri = ref(props.initialRi ?? '')
 const originsText = ref('')
@@ -74,6 +74,12 @@ const creatorPasses = computed(
 <template>
   <section>
     <h2>권한 시뮬레이터</h2>
+    <div v-if="acp && acp.discoveryFilter === 'off'" class="banner danger">
+      <strong><code>acpDiscoveryFilter</code> 가 <code>off</code> 입니다.</strong>
+      잠근 컨테이너의 경로가 상위 discovery 결과에 그대로 나옵니다 — 아래 판정에서
+      DISCOVERY 가 “거부” 로 나와도 실제로는 경로가 보입니다. 시뮬레이션이 보호를 과장합니다.
+      <em>(콘솔이 읽은 설정값 기준입니다.)</em>
+    </div>
     <p class="lead">
       누가 무엇을 할 수 있는지 <strong>저장하기 전에</strong> 봅니다. 콘솔은 수퍼유저로 붙기
       때문에 HTTP 로 직접 시험해서는 정책을 검증할 수 없습니다 — 무엇을 걸든 콘솔 자신은
@@ -306,6 +312,7 @@ h2 { margin: 0 0 0.4rem; font-size: 1.6rem; letter-spacing: -0.02em; color: var(
   background: var(--accent-wash);
   border-left: 3px solid var(--warn);
 }
+.banner.danger { background: var(--danger-wash); border-left: 3px solid var(--danger); padding: 0.8rem 1rem; border-radius: 0 8px 8px 0; margin: 0.8rem 0; font-size: 0.95rem; max-width: 88ch; }
 
 .table-wrap {
   background: var(--panel);

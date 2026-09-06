@@ -64,19 +64,7 @@ export interface OrphanSummary {
   capped: boolean
 }
 
-/** 자동 정리에서 제외되는 타입 — 방치하면 계속 쌓이는 쪽이다. */
-export const NEVER_AUTO_DELETED = new Set([2, 3, 5])
-
-/** 서버가 만료되면 자동으로 지우는 타입. ACP 가 사라지면 참조하던 리소스의 권한이 바뀐다. */
-export const AUTO_DELETED_RISKY = new Set([1])
-
-/**
- * et 를 수정할 수 있는 타입. CIN(4)은 oneM2M 상 UPDATE 자체가 405 다
- * (app.js:1839). CSEBase(5)도 수정할 수 없다(405-9).
- */
-export const ET_EXTENDABLE = new Set([1, 2, 3, 9, 23])
-
-/** 삭제할 수 없는 타입 — CSEBase 는 트리의 뿌리다. */
+/** 삭제할 수 없는 타입 — CSEBase 는 트리의 뿌리다. 정책이 아니라 구조라 여기 둔다. */
 export const UNDELETABLE = new Set([5])
 
 // ── 일괄 작업 ──────────────────────────────────────────────────────────────
