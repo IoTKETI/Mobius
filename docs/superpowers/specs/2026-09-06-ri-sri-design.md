@@ -130,3 +130,11 @@ AE-ID → `400-70`. 문구의 숫자는 `name_limits` 상수에서 만든다.
 | UNIQUE 인덱스(`idx_lookup_sri` → UNIQUE) | — | 017 뒤 중복 0 확인하고 별도 DDL(INPLACE, 수십 분). 아직 안 만듦 |
 
 증명: npm test 100개 파일 1,312건 · 변이 27/27 잡힘 · sqlite 골든 33건 옛 HEAD 와 동등.
+
+**배포됨** `270a2a3` 2026-09-06 14:41 KST(05:40:59 UTC). 순서대로 — `git pull` → `--check mysql`
+(393초, 017 의 전수 group by) → `--apply mysql --only 017-dedupe-lookup-sri`(396초: **sri 다시 매김
+1,041행, 자식 spi 갱신 3행**, 9월 CIN 중복 0 확인) → 재기동(워커 24, 2초) → 스모크 21/21 ·
+알림 프로브 6단계(MQTT 포함) 기대대로 · 구조 주소 EXPLAIN `type=const key=ri_UNIQUE`
+(index_merge 사라짐) · 재기동 뒤 5xx 0. 018 은 `--check` 에 "바꿀 표 16" 으로 남아 있다 —
+**적용하지 않았다**(ts·tsi 표가 서버에 아직 있어 그 cr 도 대상에 잡힌다, 무해).
+`--apply` 를 `--only` 없이 치면 018 이 같이 돈다 — 점검 창 전에는 반드시 `--only`.
