@@ -43,7 +43,8 @@ function scanMigrations(re) {
 }
 
 function indexesAddedByMigrations() {
-    return scanMigrations(/ADD\s+INDEX\s+([A-Za-z0-9_]+)\s*\(/gi);
+    // UNIQUE 도 잡는다 — 019 가 `ADD UNIQUE INDEX` 로 만든다. 빠뜨리면 그 인덱스는 대조 밖이다.
+    return scanMigrations(/ADD\s+(?:UNIQUE\s+)?INDEX\s+([A-Za-z0-9_]+)\s*\(/gi);
 }
 
 function indexesDroppedByMigrations() {
@@ -100,6 +101,13 @@ test('마이그레이션이 지우는 인덱스는 mobiusdb.sql 에서도 빠져
             d.migration + ' 이 ' + d.index + ' 를 지우는데 ' + MYSQL_SCHEMA + ' 에 아직 있다. ' +
             '신규 설치가 이 인덱스를 다시 만들어 버린다.');
     });
+});
+
+test('019 의 UNIQUE 는 mobiusdb.sql 에 UNIQUE 로 선언돼 있다 — 이름만 맞고 유일성이 빠지면 안 된다', function () {
+    const schema = fs.readFileSync(MYSQL_SCHEMA, 'utf8');
+    const added = indexesAddedByMigrations().filter((a) => a.index === 'idx_lookup_sri_unique');
+    assert.strictEqual(added.length, 1, '019 가 idx_lookup_sri_unique 를 만들어야 한다 (정규식이 UNIQUE 를 못 보면 0)');
+    assert.match(schema, /UNIQUE KEY `idx_lookup_sri_unique` \(`sri`\)/);
 });
 
 test('001 이 만드는 인덱스는 SQLite 스키마에도 있다', function () {

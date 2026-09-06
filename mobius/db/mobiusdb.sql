@@ -370,7 +370,9 @@ CREATE TABLE `lookup` (
   -- 전부 pi(대개 ty 까지)와 함께라 idx_lookup_pi_ty_ct 가 처리한다.
   -- 배포 서버 실측(2026-08-29, 40.6시간): 읽기 0회 / 15.6GB.
   -- 기존 DB 는 migrations/005(INVISIBLE) -> 006(DROP) 으로 맞춘다.
-  KEY `idx_lookup_sri` (`sri`),
+  -- sri 는 밖으로 나가는 ri(resourceID)라 유일해야 한다 (마이그레이션 019, 2026-09-06).
+  -- 옛 생성기가 워커끼리 겹쳐 비유일 인덱스로는 막지 못했다.
+  UNIQUE KEY `idx_lookup_sri_unique` (`sri`),
   KEY `idx_lookup_pi_ty_ct` (`pi`,`ty`,`ct`),
   KEY `idx_lookup_pi_notcin` (`pi`,`not_cin`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
