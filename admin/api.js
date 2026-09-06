@@ -724,7 +724,7 @@ exports.install = function (app, ctx) {
     /** 감사를 끝까지 돌려 ri → { severity, reason } 를 만든다. */
     function audit_map(conn, callback) {
         var map = {};
-        var acc = { scanned: 0, capped: false, bySeverity: {}, byReason: {} };
+        var acc = { scanned: 0, capped: false, findingsTruncated: false, bySeverity: {}, byReason: {} };
         drain(
             function (after, cb) {
                 var o = { batch: 500, scanCap: 20000, maxFindings: 2000 };
@@ -735,6 +735,7 @@ exports.install = function (app, ctx) {
             function (a, p) {
                 a.scanned += p.scanned;
                 a.capped = a.capped || p.capped;
+                a.findingsTruncated = a.findingsTruncated || !!p.findingsTruncated;
                 Object.keys(p.bySeverity || {}).forEach(function (k) { a.bySeverity[k] = (a.bySeverity[k] || 0) + p.bySeverity[k]; });
                 Object.keys(p.byReason || {}).forEach(function (k) { a.byReason[k] = (a.byReason[k] || 0) + p.byReason[k]; });
                 (p.findings || []).forEach(function (f) { map[f.ri] = { severity: f.severity, reason: f.reason }; });

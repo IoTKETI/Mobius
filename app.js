@@ -668,9 +668,9 @@ function reconcile_counters(is_continuation) {
 // 달렸으므로, 매일 전수를 훑는 것이 맞는지는 실제 수를 보고 정할 일이다.
 // 그래서 기동 시 실행과 24시간 주기를 모두 뺐다. 만료 스윕과 같은 방침이다.
 //
-// 관리자 UI 가 쓸 함수:
-//   db_sql.count_orphan_lookup(conn, cb)          몇 개인지 센다 (읽기 전용)
-//   db_sql.delete_orphan_lookup(conn, cb)         확인 후 삭제
+// 관리 콘솔은 db_sql.select_orphan_page 로 후보를 읽고, 지울 때는 그 DB 를
+// 직접 지우지 않고 CSE 로 DELETE 요청을 보낸다. db_sql.count_orphan_lookup 과
+// db_sql.delete_orphan_lookup(lookup 을 직접 DELETE 한다) 은 콘솔이 쓰지 않는다.
 //
 // 자세한 배경은 docs/superpowers/specs/2026-08-29-admin-ui-handoff.md 참고.
 

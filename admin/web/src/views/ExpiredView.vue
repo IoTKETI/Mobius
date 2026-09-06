@@ -10,7 +10,6 @@ import {
   startExpiredDelete,
   startExpiredExtend,
 } from '../api'
-import { UNDELETABLE } from '../types'
 import type { ExpiredRow, ExpiredSummary, ExpiryPolicy, WriteInfo } from '../types'
 import { useJobRunner } from '../job'
 import JobPanel from '../components/JobPanel.vue'
@@ -35,9 +34,10 @@ const PAGE = 50
 const selected = ref<Set<string>>(new Set())
 const byRi = computed(() => new Map(rows.value.map((r) => [r.ri, r])))
 
-/** CSEBase 는 트리의 뿌리라 지울 수 없다(405-9). 고를 수도 없게 한다. */
+/** CSEBase 는 트리의 뿌리라 지울 수 없다(405-9). 고를 수도 없게 한다 — 코어가 정한다(expiry_policy.undeletableTypes). */
 function selectable(r: ExpiredRow): boolean {
-  return !UNDELETABLE.has(r.ty)
+  const undeletable = new Set(policy.value?.undeletableTypes ?? [])
+  return !undeletable.has(r.ty)
 }
 
 function toggle(ri: string) {

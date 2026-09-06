@@ -43,8 +43,6 @@ export interface OrphanRow {
   ty: number
   rn: string
   ct: string
-  lt: string
-  et: string
 }
 
 /** 고아 탐지 작업 하나의 결과 파일. 세지 않는다 — 표본이다. */
@@ -62,9 +60,6 @@ export interface OrphanScanResult {
   lookupOnlyCin: { rows: { ri: string; pi: string; rn: string; ct: string }[]; scanned: number; scanCapped: boolean; sampleTruncated: boolean }
   typeNames: Record<string, string>
 }
-
-/** 삭제할 수 없는 타입 — CSEBase 는 트리의 뿌리다. 정책이 아니라 구조라 여기 둔다. */
-export const UNDELETABLE = new Set([5])
 
 // ── 일괄 작업 ──────────────────────────────────────────────────────────────
 
@@ -146,7 +141,7 @@ export interface SubsEndpointsPage {
   endpointsTruncated: boolean
   scanned: number
   capped: boolean
-  audit: { scanned: number; capped: boolean; bySeverity: Record<string, number>; byReason: Record<string, number> }
+  audit: { scanned: number; capped: boolean; findingsTruncated: boolean; bySeverity: Record<string, number>; byReason: Record<string, number> }
 }
 
 /** 코어 구독 감사(audit_subscriptions)가 낸 판정이 붙은 구독 한 행. */
@@ -247,7 +242,7 @@ export interface AcpRefs {
   capped: boolean
   broken: number
   unresolved: string[]
-  nextRi: string | null
+  nextRi?: string | null
 }
 
 export interface AcpMacpRefs {

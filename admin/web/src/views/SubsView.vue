@@ -93,6 +93,9 @@ onMounted(async () => { void runner.attach(); await load() })
       <div class="tile"><div class="k">의심</div><div class="v">{{ (page.audit.bySeverity.suspect ?? 0).toLocaleString() }}</div><div class="s">받을 상대 미확인</div></div>
       <div class="tile"><div class="k">엔드포인트</div><div class="v">{{ page.endpoints.length }}<span v-if="page.endpointsTruncated">+</span></div><div class="s">건수 순</div></div>
     </div>
+    <p v-if="page?.audit.findingsTruncated" class="note warn">
+      감사 결과가 2,000건에서 잘렸습니다 — 표의 깨짐/의심 건수는 실제보다 적게 보일 수 있습니다.
+    </p>
 
     <JobPanel v-if="runner.job.value" :job="runner.job.value" :error="runner.error.value" @cancel="runner.cancel" @dismiss="runner.dismiss" />
 
@@ -153,6 +156,8 @@ onMounted(async () => { void runner.attach(); await load() })
 h2 { margin: 0 0 0.4rem; font-size: 1.6rem; letter-spacing: -0.02em; color: var(--text-strong); }
 .lead { margin: 0 0 1.4rem; color: var(--muted); font-size: 1.02rem; max-width: 80ch; }
 .err { color: var(--danger); }
+.note { font-size: 0.88rem; margin: -0.5rem 0 1.1rem; color: var(--muted); }
+.note.warn { color: var(--warn); font-weight: 600; }
 .muted { color: var(--muted); font-size: 0.92rem; }
 .small { font-size: 0.88rem; }
 .empty { color: var(--muted); padding: 3rem 0; text-align: center; }

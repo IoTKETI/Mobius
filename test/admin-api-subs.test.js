@@ -68,6 +68,8 @@ test('엔드포인트로 묶고 코어 감사의 판정을 붙인다', async fun
         assert.ok(r.body.audit && typeof r.body.audit.scanned === 'number', '감사 요약을 같이 준다');
         assert.strictEqual(r.body.audit.bySeverity.suspect, 1);
         assert.strictEqual(r.body.audit.byReason.mqtt_topic_unregistered, 1);
+        // audit_map 이 findingsTruncated 를 버리지 않고 옮긴다(발견 2건 < maxFindings 라 false).
+        assert.strictEqual(r.body.audit.findingsTruncated, false);
         assert.strictEqual(r.body.capped, false);
     } finally { await h.close(); }
 });

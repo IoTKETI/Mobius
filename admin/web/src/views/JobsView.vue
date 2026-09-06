@@ -37,6 +37,7 @@ const KIND_LABEL: Record<string, string> = {
   'expired-extend': 'et 연장',
   'orphan-delete': '고아 삭제',
   'orphan-scan': '고아 탐지',
+  'sub-delete': '구독 삭제',
   selftest: '종합 테스트',
 }
 

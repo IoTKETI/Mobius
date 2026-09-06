@@ -5,7 +5,7 @@
  * 실제 express 앱을 임시 포트에 띄운다. DB 는 어댑터 대역(execute 를 가로채
  * SQL·bindings 를 기록하고 시험이 준 행을 돌려준다), CSE 는 가짜 HTTP 서버다.
  *
- * 가짜 CSE 는 **관대하지 않다** — X-M2M-RI·X-M2M-Origin 이 없으면 400, POST 에
+ * 가짜 CSE 는 **관대하지 않다** — X-M2M-RI·X-M2M-Origin·X-M2M-RVI 가 없으면 400, POST 에
  * Content-Type 의 ;ty= 가 없으면 400 을 낸다. 콘솔이 헤더를 빠뜨려도 시험이
  * 초록이면 시험이 거짓말을 하는 것이다.
  */
@@ -39,6 +39,7 @@ function fakeCse(dflt) {
                 res.end(JSON.stringify({ 'm2m:dbg': msg }));
             }
             if (!req.headers['x-m2m-ri'] || !req.headers['x-m2m-origin']) { return refuse('X-M2M-RI / X-M2M-Origin 없음'); }
+            if (!req.headers['x-m2m-rvi']) { return refuse('X-M2M-RVI 없음'); }
             if (req.method === 'POST' && !/;ty=\d+/.test(req.headers['content-type'] || '')) { return refuse('Content-Type 에 ty 없음'); }
             const r = (typeof reply === 'function') ? reply(rec) : reply;
             res.statusCode = r.status; res.setHeader('X-M2M-RSC', r.rsc); res.setHeader('Content-Type', 'application/json');
