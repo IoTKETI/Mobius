@@ -636,6 +636,8 @@ CNT 1, 둘 다 경로 표기), **sri 형 항목 0**. 치환 로그도 배포 뒤
 `get_ri_list_sri` 자체는 fopt(mid)·resource(acpi 검증)가 계속 쓰고 `test/ri-sri-batch` 가
 그 계약을 지킨다. 증명: `test/acp-field-policy` 의 "두 질의" 시험(RED→GREEN) ·
 `test/acp-simulate` 의 sri 시험(뒤집힘) · 옛 HEAD 와의 차분 18,144 조합 0건 차이.
+**배포됨** `bade022` 2026-09-06 21:27 KST — 워커 24(2초), 스모크 21/21, acpi 가 걸린 두
+리소스에 낯선 origin 으로 GET → 403/4103(잠금이 산다).
 아래는 접었을 때의 서술이다.
 
 ### ~~5.3 ACP 조회가 3단 직렬이다 — **2단을 배치로 접었다** (`156a2b2`, 2026-09-05). 빼는 것은 보류~~
