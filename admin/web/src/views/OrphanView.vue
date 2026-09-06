@@ -21,6 +21,9 @@ const scanCap = ref(200000)
 async function loadLast() {
   loading.value = true
   error.value = ''
+  // 결과를 새로 읽으면 선택을 비운다. 화면에 없는(옛 탐지의) ri 가 선택에
+  // 남으면 체크된 행 없이 "N건 선택"만 보이는 유령 상태가 된다.
+  selected.value = new Set()
   try {
     const r = await orphanLast()
     if ('none' in r) { none.value = true; result.value = null }
