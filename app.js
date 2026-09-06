@@ -2178,7 +2178,11 @@ function get_target_url(request, response, callback) {
     }
 
     request.option = '';
-    request.sri = absolute_url_arr[1].split('?')[0];
+    // 구조 주소(첫 조각이 CSE base 이름)면 sri 로 볼 것이 없다 — ri(PK) 하나로 찾는다.
+    // 비구조 주소(/~/<cseid>/<id> 가 /<id> 로 접힌 것)만 둘째 조각을 sri 로 본다.
+    // 접근 로그 이틀 390,877건 중 구조 주소가 390,872건이다 (ri/sri 설계 메모 §3 A2).
+    var head = absolute_url_arr[1].split('?')[0];
+    request.sri = (head === usecsebase) ? null : head;
     if (absolute_url_arr[absolute_url_arr.length - 1] == 'la') {
         if (request.method.toLowerCase() == 'get' || request.method.toLowerCase() == 'delete') {
             request.ri = absolute_url.split('?')[0];

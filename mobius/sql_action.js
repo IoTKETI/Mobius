@@ -641,9 +641,14 @@ exports.insert_sub = function (connection, obj, callback) {
 };
 
 exports.select_resource_from_url = function (connection, ri, sri, callback) {
-    var qb = facade.k('lookup').select('*')
-        .where({ ri: ri })
-        .orWhere({ sri: sri });
+    // 구조 주소는 ri(PK) 하나로 찾는다 — 호출부(app.js get_target_url)가 sri 를 비워 보낸다.
+    // 비구조 주소(/~/<cseid>/<id> · /<id>)만 둘 다 본다. 예전엔 언제나 OR 였고 배포 EXPLAIN 이
+    // index_merge union — 구조 주소만 오는데 요청마다 idx_lookup_sri(15.8GB)를 헛찔렀다
+    // (ri/sri 설계 메모 §3 A2, test/address-resolve.test.js).
+    var qb = facade.k('lookup').select('*');
+    if (ri && sri) { qb.where({ ri: ri }).orWhere({ sri: sri }); }
+    else if (ri) { qb.where({ ri: ri }); }
+    else { qb.where({ sri: sri }); }
 
     facade.run(qb, connection, function (err, comm_Obj) {
         if (err) {
