@@ -94,3 +94,27 @@ test('표본은 그 엔드포인트의 구독만, 판정과 함께', async funct
         assert.strictEqual(bad.status, 400);
     } finally { await h.close(); }
 });
+
+test('감사가 실패하면 사유를 담아 500 — {"error":"true"} 로 뭉개지 않는다', async function () {
+    // audit_map 의 콜백은 (err, map, a) 이고 실패 때 map 은 그냥 빈 ri 맵({}) 이라
+    // .message 가 없다 — 사유는 셋째 인자(audit_subscriptions 의 상세 객체)에 있다.
+    // 감사의 첫 질의(lookup 의 ty=23 키셋 스캔)에서 던져 그 경로를 그대로 탄다.
+    function throwingExecute(sql) {
+        if (/from `lookup`/.test(sql)) { throw new Error('boom'); }
+        return [];
+    }
+
+    const h = await boot({ execute: throwingExecute });
+    try {
+        await h.login();
+        const r = await h.request('GET', '/api/subs/endpoints');
+        assert.strictEqual(r.status, 500);
+        assert.notStrictEqual(r.body.error, 'true');
+        assert.ok(/boom/.test(r.body.error), 'error 에 실제 사유(boom)가 담겨야 한다: ' + JSON.stringify(r.body));
+
+        const r2 = await h.request('GET', '/api/subs/sample?endpoint=x');
+        assert.strictEqual(r2.status, 500);
+        assert.notStrictEqual(r2.body.error, 'true');
+        assert.ok(/boom/.test(r2.body.error), 'error 에 실제 사유(boom)가 담겨야 한다: ' + JSON.stringify(r2.body));
+    } finally { await h.close(); }
+});

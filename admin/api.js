@@ -678,7 +678,7 @@ exports.install = function (app, ctx) {
         var scanCap = Math.min(parseInt(req.query.scanCap, 10) || 20000, 200000);
         with_connection(res, function (conn, done) {
             audit_map(conn, function (err, map, audit) {
-                if (err) { done(); return res.status(500).json({ error: String((map && map.message) || err) }); }
+                if (err) { done(); return res.status(500).json({ error: String((audit && audit.message) || err) }); }
                 db_sql.select_sub_endpoint_rollup(conn, {
                     limit: limit, scanCap: scanCap,
                     severityOf: function (ri) { return map[ri] ? map[ri].severity : null; }
@@ -697,8 +697,8 @@ exports.install = function (app, ctx) {
         if (!endpoint) { return res.status(400).json({ error: 'endpoint 가 필요하다' }); }
         var limit = Math.min(parseInt(req.query.limit, 10) || 200, 1000);
         with_connection(res, function (conn, done) {
-            audit_map(conn, function (err, map) {
-                if (err) { done(); return res.status(500).json({ error: String((map && map.message) || err) }); }
+            audit_map(conn, function (err, map, audit) {
+                if (err) { done(); return res.status(500).json({ error: String((audit && audit.message) || err) }); }
                 db_sql.select_subs_by_endpoint(conn, { endpoint: String(endpoint), limit: limit }, function (err2, r) {
                     done();
                     if (err2) { return res.status(500).json({ error: String((r && r.message) || err2) }); }
