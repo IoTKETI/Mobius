@@ -10,6 +10,18 @@
  * 두 단계다: (1) 부모가 lookup 에 없는 행(select_orphan_page) (2) cin 에 없는데
  * lookup 에 ty=4 로 남은 행(select_lookup_only_cin_page, 인수인계 §6). 둘 다 세지
  * 않는다 — 표본만.
+ *
+ * 단계 전환 규칙(검토 fix round 1). `page.more:false` 는 "테이블 끝" 이 아니다 —
+ * 조각의 scanCap 에 걸려 페이지가 안 찼을 때도 more:false 이고 그때는
+ * page.scanCapped:true 다. 그래서 세 조건을 이 순서로 본다:
+ *   1) 표본이 찼다(누적 개수가 sampleCap 이상) — 표본만 뽑는 작업이니 더 훑을
+ *      이유가 없다. sampleTruncated 를 세우고 다음 단계로.
+ *   2) 이 단계의 예산(scanCap)을 다 썼다 — scanCapped 를 세우고 다음 단계로.
+ *      **다음 단계는 자기 예산으로 새로 돈다** — 1 단계가 예산을 다 썼다고
+ *      2 단계를 굶기지 않는다(exhausted 로 끝내지 않는다).
+ *   3) 그 외에는 코어의 신호를 그대로 따른다 — nextRi 가 있고 (more 이거나
+ *      scanCapped) 인 동안 커서를 전진해 같은 단계를 계속한다. 아니면(!more
+ *      && !scanCapped) 정말 테이블 끝이니 다음 단계로 넘어간다.
  */
 var crypto = require('crypto');
 var data_dir = require('./data_dir');
@@ -54,9 +66,18 @@ exports.start = function (ctx, opts) {
                         if (result.orphans.length < sampleCap) { result.orphans.push({ ri: r.ri, pi: r.pi, ty: r.ty, rn: r.rn, ct: r.ct }); }
                         else { result.sampleTruncated = true; }
                     });
-                    if (page.more && page.nextRi) { cursor = page.nextRi; }
-                    else { stage = 2; cursor = null; }
-                    if (result.scanned >= scanCap && stage === 1) { result.scanCapped = true; exhausted = true; }
+                    if (result.orphans.length >= sampleCap) {
+                        result.sampleTruncated = true;
+                        stage = 2; cursor = null;
+                    } else if (result.scanned >= scanCap) {
+                        result.scanCapped = true;
+                        stage = 2; cursor = null;
+                    } else if (page.nextRi && (page.more || page.scanCapped)) {
+                        cursor = page.nextRi;
+                    } else {
+                        // !page.more && !page.scanCapped — 정말 테이블 끝이다.
+                        stage = 2; cursor = null;
+                    }
                     cb('ok');
                 });
                 return;
@@ -70,8 +91,18 @@ exports.start = function (ctx, opts) {
                     if (s.rows.length < sampleCap) { s.rows.push({ ri: r.ri, pi: r.pi, rn: r.rn, ct: r.ct }); }
                     else { s.sampleTruncated = true; }
                 });
-                if (page.more && page.nextRi) { cursor = page.nextRi; } else { exhausted = true; }
-                if (s.scanned >= scanCap) { s.scanCapped = true; exhausted = true; }
+                if (s.rows.length >= sampleCap) {
+                    s.sampleTruncated = true;
+                    exhausted = true;
+                } else if (s.scanned >= scanCap) {
+                    s.scanCapped = true;
+                    exhausted = true;
+                } else if (page.nextRi && (page.more || page.scanCapped)) {
+                    cursor = page.nextRi;
+                } else {
+                    // !page.more && !page.scanCapped — 정말 테이블 끝이다.
+                    exhausted = true;
+                }
                 cb('ok');
             });
         });
