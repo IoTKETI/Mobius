@@ -172,14 +172,13 @@ test('http·https·coap 로 나가는 요청은 전부 outbound.arm 이 덮는�
     // `req = http|https|coap.request(...)` 라는 **모양**을 찾는다. 그래서
     // 그 모양이 아닌 아웃바운드는 애초에 시야에 없다:
     //
-    //   mobius/sgn_man.js  request_noti_ws    ws_client.connect(nu, subprotocol)   <- WS 알림
     //   mobius/sgn_man.js  request_noti_mqtt  sgn_mqtt_client.publish(...)        <- MQTT 알림
     //
-    // WS 알림은 arm 이 아니라 **자체 타이머**(outbound.limitMs — 같은 한도)로
-    // 끊는다. ws_client 가 http 요청 객체가 아니라 arm 이 듣는 이벤트를 안 내기
-    // 때문이다. 그 타이머는 test/sgn-ws-timeout.test.js 가 101 을 안 주는 서버를
-    // 띄워 직접 본다(2026-09-06, 요청 흐름 남은 일 §8). 그 전에는 타임아웃이
-    // 없었다. MQTT publish 는 요청-응답이 아니라 arm 의 대상이 아니다.
+    // MQTT publish 는 요청-응답이 아니라 arm 의 대상이 아니다. WS 알림
+    // (ws_client.connect — websocket 라이브러리가 요청 객체를 감춰 arm 을 못 걸었다)
+    // 도 여기 있었는데 타임아웃 없이 3년을 살았다 — 이 감시가 못 봤기 때문이다.
+    // 2026-09-06 에 경로째 지웠다(요청 흐름 남은 일 §8, test/removed-paths.test.js).
+    // 새 아웃바운드가 `req = http.request` 모양이 아니면 감시도 같이 만든다.
     //
     // 이 사각지대를 모르고 "11곳 전부 armed" 라고 문서에 적었다가 잡혔다.
     // 시험 제목이 실제 범위보다 넓으면 그런 오해를 만든다.

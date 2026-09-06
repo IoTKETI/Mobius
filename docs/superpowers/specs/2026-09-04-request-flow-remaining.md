@@ -838,7 +838,14 @@ test/rsc-catalog.test.js:32-48   liveSuccess()
 
 ---
 
-## 8. ~~WebSocket 알림 — 분류가 애매한 것~~ — **고쳤다** (2026-09-06)
+## 8. ~~WebSocket 알림 — 분류가 애매한 것~~ — **지웠다** (2026-09-06)
+
+**경로째 뺐다** — 사용자 결정("WS 알림 자체를 지우자"). 타임아웃을 넣은 커밋
+`7fed365` 바로 뒤에 `request_noti_ws` · `post` 의 `ws:` 분기 · npm `websocket` ·
+`test/sgn-ws-timeout.test.js` 를 지웠다. `ws://` nu 는 이제 ID 형 nu 와 같이
+"받을 놈이 없는" 구독이다 — 접속 시도 없이 `[noti] fail - … (unsupported scheme)`.
+구독 생성 때 막지는 않는다(nu 스킴 검사는 원래 없다). `test/removed-paths.test.js`
+가 되살아남을 막는다. 아래는 지우기 전, 타임아웃을 넣었을 때의 서술이다.
 
 `mobius/sgn_man.js` 의 `request_noti_ws` 에 **자체 타이머**를 걸었다. 한도는
 `outbound.limitMs()` — http/coap 와 같은 값(conf 의 `outboundTimeoutMs`, 기본

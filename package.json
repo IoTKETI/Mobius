@@ -21,8 +21,7 @@
     "shortid": "^2.2.14",
     "sqlite3": "^5.1.7",
     "url": "^0.11.0",
-    "util": "^0.11.1",
-    "websocket": "^1.0.28"
+    "util": "^0.11.1"
   },
   "description": "Mobius",
   "main": "mobius.js",

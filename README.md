@@ -22,7 +22,10 @@ Mobius runs one worker per CPU core, and several operations were not safe agains
 - Parent container counters (`cni`, `cbs`, `st`) are updated by relative increment instead of absolute overwrite, and multiple contentInstance creations are coalesced into a single debounced update.
 - Retention enforcement (`mni`, `mbs`) no longer performs a full child scan, deletes the oldest instances rather than arbitrary ones, and removes exactly the amount over the limit. Each pass is bounded so a long deletion cannot hold the container row lock.
 - Concurrent retention passes across workers are serialised with a transaction, preventing over-deletion.
-- Notification delivery is now fire-and-forget across HTTP, CoAP, MQTT and WebSocket.
+- Notification delivery is now fire-and-forget across HTTP, CoAP and MQTT.
+
+### Removed: WebSocket notification delivery
+Notifications to `ws://` URIs are no longer sent (2026-09-06). Three years of deployment data showed no subscription, AE or remoteCSE ever used a `ws://` address, and the path had no outbound timeout. A subscription with a `ws://` `nu` is still accepted; at delivery time it is logged as `[noti] fail - … (unsupported scheme)`. The `websocket` npm dependency was dropped with it.
 - Excessive per-request logging was removed so that operational logs remain usable for incident analysis.
 
 ### Removed: timeSeries and timeSeriesInstance
@@ -73,10 +76,9 @@ To enable Internet of Things, things are connected to &Cube via TAS (Thing Adapt
 </div>
 
 ## Supported Protocol Bindings
-- HTTP
-- CoAP
-- MQTT
-- WebSocket
+- HTTP — the only request binding. The MQTT, CoAP and WebSocket request proxies were removed in September 2026 (three years of hit counts: http 124,988,941 / mqtt 32 / coap 0 / ws 0).
+
+Notifications are delivered over HTTP, CoAP and MQTT. WebSocket delivery was removed on 2026-09-06.
 
 ## Installation
 The Mobius is based on Node.js framework and uses MySQL or SQLite for database.
@@ -207,10 +209,9 @@ If `conf.json` is missing and the terminal is interactive, `node mobius.js` runs
 </div><br/>
 
 ## Library Dependencies
-This is the list of library dependencies for Mobius 
-- body-parser
-- cbor
+This is the list of library dependencies for Mobius (`package.json`)
 - coap
+- cors
 - crypto
 - events
 - express
@@ -219,18 +220,16 @@ This is the list of library dependencies for Mobius
 - http
 - https
 - ip
-- js2xmlparser
+- knex
 - merge
+- moment
 - morgan
 - mqtt
-- mysql
+- mysql2
 - shortid
 - sqlite3
 - url
 - util
-- websocket
-- xml2js
-- xmlbuilder
 
 ## Document
 The legacy installation guide PDFs were removed from this repository as they no longer matched the current version. The installation and configuration steps above are the up-to-date reference.

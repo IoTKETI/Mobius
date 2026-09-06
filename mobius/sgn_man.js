@@ -129,7 +129,7 @@ sgn_mqtt_client.on('reconnect', function () {
  *   reject   2xx 인데 RSC 가 4xxx/5xxx — 수신자가 받긴 했으나 거부했다.
  *            설정이 어긋난 것이지 "못 보내는 구독" 이 아니다. 구분해야 한다.
  *   fail     4xx/5xx, 또는 연결 자체가 안 됨
- *   unknown  판정할 수 없는 프로토콜(MQTT QoS0, WS) — '실패' 로 세면 안 된다
+ *   unknown  판정할 수 없는 프로토콜(MQTT QoS0) — '실패' 로 세면 안 된다
  */
 var NOTI_OK = 'ok';
 var NOTI_REJECT = 'reject';
@@ -162,15 +162,14 @@ exports.post = function (nu, rqi, bodyString, ri) {
         else if (sub_nu.protocol === 'coap:') {
             request_noti_coap(nu, bodyString, rqi, ri);
         }
-        else if (sub_nu.protocol === 'ws:') {
-            request_noti_ws(nu, bodyString, rqi, ri);
-        }
         else if (sub_nu.protocol === 'mqtt:') {
             request_noti_mqtt(nu, bodyString, rqi, ri);
         }
         else {
-            // 네 분기 어디에도 안 걸리면 조용히 사라졌다. get_nu_arr 이 풀지 못한
+            // 세 분기 어디에도 안 걸리면 조용히 사라졌다. nu_resolve 가 풀지 못한
             // ID 형식 nu 가 여기로 온다 — 정확히 "받을 놈이 없는" 구독이다.
+            // ws:// 도 여기다 — WS 알림은 2026-09-06 에 지웠다(배포 3년치 ws nu 0건,
+            // 요청 흐름 남은 일 §8). 되살리려면 그때 새로 만든다.
             noti_result(NOTI_FAIL, '-', nu, ri, 'unsupported scheme');
         }
     }
@@ -329,72 +328,4 @@ function request_noti_mqtt(nu, bodyString, xm2mri, ri) {
     catch (e) {
         noti_result(NOTI_FAIL, 'mqtt', nu, ri, e.message);
     }
-}
-
-/* ─── WebSocket ──────────────────────────────────────────────────────── */
-function request_noti_ws(nu, bodyString, xm2mri, ri) {
-    if (use_secure !== 'disable') {
-        noti_result(NOTI_FAIL, 'ws', nu, ri, 'secure ws not supported');
-        return;
-    }
-
-    var WebSocketClient = require('websocket').client;
-    var ws_client = new WebSocketClient();
-
-    // xml/cbor 서브프로토콜 분기를 걷어냈다. 도달할 수 없었다 —
-    // sgn.js 가 'json' 리터럴을 넘겼고, pxy_ws 의 WS_SUBPROTOCOL 도
-    // json 둘만 받으므로 상대가 우리면 그 이름으로는 붙지도 못한다.
-    var subprotocol = 'onem2m.r2.0.json';
-
-    // ── 타임아웃 ─────────────────────────────────────────────────────────
-    // 여기에는 outbound.arm 을 걸 수 없다. ws_client 는 http 요청 객체가 아니라
-    // (setTimeout 이 없고 요청 객체는 라이브러리 안에 있다) 결과를 'connect' /
-    // 'connectFailed' 로 알린다 — arm 의 자체 타이머가 듣는 'response'/'error'/
-    // 'close' 가 아니라서, 그대로 걸면 접속이 된 뒤에도 타이머가 살아 거짓
-    // '끊는다' 로그를 남긴다. 그래서 같은 한도(outbound.limitMs — conf 의
-    // outboundTimeoutMs)로 타이머를 직접 건다.
-    //
-    // 상대가 TCP 는 받아놓고 101 을 영영 안 주면 두 이벤트 다 오지 않는다 —
-    // 타이머가 없던 동안은 알림마다 소켓이 하나씩 남았다(요청 흐름 남은 일 §8).
-    // 타이머가 판정을 하고 abort() 로 요청을 파기한다. 파기하면 라이브러리가
-    // connectFailed 를 올리므로 settled 로 두 번째 판정을 막는다.
-    // 배포에는 ws:// nu 가 0건이다(2026-09-06 실측: sub 3,463 · ae poa 568 · csr
-    // poa 모두 0) — "고칠 때 같이 고친" 것이지 장애가 있었던 것이 아니다.
-    var limit = outbound.limitMs();
-    var settled = false;
-    var timer = setTimeout(function () {
-        if (settled) { return; }
-        settled = true;
-        console.error('[outbound] notify ws ' + (ri || nu) + ' 101 이 ' + limit + 'ms 안에 오지 않아 끊는다');
-        noti_result(NOTI_FAIL, 'ws', nu, ri, 'outbound timeout: 101 을 ' + limit + 'ms 안에 못 받았다');
-        try { ws_client.abort(); }
-        catch (e) { console.error('[outbound] notify ws ' + (ri || nu) + ' 파기 실패: ' + e.message); }
-    }, limit);
-    if (timer && typeof timer.unref === 'function') { timer.unref(); }
-
-    ws_client.on('connectFailed', function (error) {
-        clearTimeout(timer);
-        if (settled) { return; }   // 타임아웃이 끊은 뒤 따라오는 실패다 — 이미 판정했다
-        settled = true;
-        // 접속 자체가 안 된 것은 확실한 실패다 — 수신자가 사라졌다는 뜻이다.
-        noti_result(NOTI_FAIL, 'ws', nu, ri, 'connectFailed: ' + error.message);
-    });
-
-    ws_client.on('connect', function (conn) {
-        clearTimeout(timer);
-        if (settled) { conn.close(); return; }   // 타임아웃 뒤에 붙은 접속은 쓰지 않는다
-        settled = true;
-        console.log('<======= [request_noti_ws] connected - ' + nu);
-        conn.on('error', function (error) {
-            noti_result(NOTI_FAIL, 'ws', nu, ri, 'conn error: ' + error.message);
-        });
-        conn.sendUTF(bodyString);
-
-        // 보내자마자 닫으므로 수신자가 처리했는지는 알 수 없다.
-        // 접속이 됐다는 것까지만 확실하다.
-        noti_result(NOTI_UNKNOWN, 'ws', nu, ri, '접속됨 — 처리 확인 불가');
-        conn.close();
-    });
-
-    ws_client.connect(nu, subprotocol);
 }
