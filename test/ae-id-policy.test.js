@@ -43,9 +43,9 @@ test('그 밖의 값은 형식을 보지 않고 그대로 aei 다 — S/C 로 �
     }
 });
 
-test('길이만 막는다 — 46자는 400-70', async () => {
-    assert.strictEqual((await build('S'.repeat(45))).code, '200');
-    const r = await build('x'.repeat(46));
+test('길이만 막는다 — 200자는 통과, 201자는 400-70', async () => {
+    assert.strictEqual((await build('S'.repeat(200))).code, '200');
+    const r = await build('x'.repeat(201));
     assert.strictEqual(r.code, '400-70');
 });
 

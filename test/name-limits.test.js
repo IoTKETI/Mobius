@@ -26,22 +26,22 @@ test('한계값은 MySQL 스키마의 컬럼 폭을 넘지 않는다', () => {
     assert.ok(limits.RN_MAX <= w(lookup, 'rn'), 'RN_MAX ' + limits.RN_MAX + ' > lookup.rn');
     assert.ok(limits.PATH_MAX <= w(lookup, 'ri'), 'PATH_MAX ' + limits.PATH_MAX + ' > lookup.ri');
     assert.ok(limits.ID_MAX <= Math.min(w(lookup, 'sri'), w(ae, 'aei')), 'ID_MAX ' + limits.ID_MAX + ' > lookup.sri/ae.aei');
-    // 배포 스키마(018 전)의 폭 — 올릴 때는 018 적용을 먼저 확인한다
-    assert.strictEqual(limits.RN_MAX, 45);
-    assert.strictEqual(limits.ID_MAX, 45);
+    // 배포 스키마의 폭 — 018(2026-09-06 적용)이 rn·sri·spi 를 200 으로 넓힌 뒤의 값
+    assert.strictEqual(limits.RN_MAX, 200);
+    assert.strictEqual(limits.ID_MAX, 200);
     assert.strictEqual(limits.PATH_MAX, 200);
 });
 
-test('AE-ID — 45자는 통과, 46자는 400-70. 형식(S/C)은 보지 않는다', () => {
-    assert.strictEqual(limits.check_id('S'.repeat(45)), null);
+test('AE-ID — 200자는 통과, 201자는 400-70. 형식(S/C)은 보지 않는다', () => {
+    assert.strictEqual(limits.check_id('S'.repeat(200)), null);
     assert.strictEqual(limits.check_id('myDevice-01'), null, 'S/C 로 시작하지 않아도 받는다 — 사용자 결정');
-    assert.strictEqual(limits.check_id('x'.repeat(46)), '400-70');
+    assert.strictEqual(limits.check_id('x'.repeat(201)), '400-70');
 });
 
 test('사유 문구는 상수에서 만들어져 한계값과 "this CSE" 를 담는다', () => {
-    assert.match(reason.REASON['400-68'].msg, /45/);
+    assert.match(reason.REASON['400-68'].msg, /200/);
     assert.match(reason.REASON['400-69'].msg, /200/);
-    assert.match(reason.REASON['400-70'].msg, /45/);
+    assert.match(reason.REASON['400-70'].msg, /200/);
     ['400-68', '400-69', '400-70'].forEach((k) => {
         assert.match(reason.REASON[k].msg, /this CSE/, k + ' — oneM2M 의 한계가 아니라 이 CSE 의 저장 한계라고 말해야 한다');
         assert.strictEqual(reason.REASON[k].code, rsc.RSC.BAD_REQUEST, k);
@@ -58,9 +58,10 @@ test('build_ae 가 aei 를 정한 직후 길이를 검사한다', () => {
     assert.match(after, /callback\(too_long\);\s*\n\s*return;/);
 });
 
-test('rn — 45자는 통과, 46자는 400-68', () => {
-    assert.strictEqual(limits.check('a'.repeat(45), '/Mobius/' + 'a'.repeat(45)), null);
-    assert.strictEqual(limits.check('a'.repeat(46), '/Mobius/' + 'a'.repeat(46)), '400-68');
+test('rn — 200자는 통과, 201자는 400-68', () => {
+    // 경로 검사(200)에 먼저 걸리지 않게 경로는 짧게 준다 — 여기서는 이름만 본다
+    assert.strictEqual(limits.check('a'.repeat(200), '/M/x'), null);
+    assert.strictEqual(limits.check('a'.repeat(201), '/M/x'), '400-68');
 });
 
 test('경로 — 200자는 통과, 201자는 400-69', () => {
@@ -72,7 +73,7 @@ test('경로 — 200자는 통과, 201자는 400-69', () => {
 });
 
 test('둘 다 넘으면 이름 쪽(400-68)이 먼저다 — 고칠 것이 이름이다', () => {
-    assert.strictEqual(limits.check('a'.repeat(46), '/'.repeat(300)), '400-68');
+    assert.strictEqual(limits.check('a'.repeat(201), '/'.repeat(300)), '400-68');
 });
 
 test('세 사유가 카탈로그에 있고 BAD_REQUEST 다', () => {
