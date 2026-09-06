@@ -36,8 +36,9 @@ const byRi = computed(() => new Map(rows.value.map((r) => [r.ri, r])))
 
 /** CSEBase 는 트리의 뿌리라 지울 수 없다(405-9). 고를 수도 없게 한다 — 코어가 정한다(expiry_policy.undeletableTypes). */
 function selectable(r: ExpiredRow): boolean {
-  const undeletable = new Set(policy.value?.undeletableTypes ?? [])
-  return !undeletable.has(r.ty)
+  // 정책을 아직 못 받았으면(요청 실패 포함) 아무것도 고를 수 없다 — 상수로 대신하지 않는다.
+  if (!policy.value) return false
+  return !policy.value.undeletableTypes.includes(r.ty)
 }
 
 function toggle(ri: string) {
