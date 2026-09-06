@@ -806,7 +806,20 @@ CIN 생성마다 `sql_action.js:468` 이 stdout 에 한 줄을 낸다(실측 재
 
 **착수 전에 이 절을 읽어라.** 여기 적힌 것은 "시험을 돌려도 안 걸린다".
 
-### 7.1 MySQL 경로는 한 문장도 실행되지 않는다
+### 7.1 ~~MySQL 경로는 한 문장도 실행되지 않는다~~ — **MySQL 레인을 만들었다** (2026-09-06)
+
+`npm run test:mysql`(`test/mysql/`): 같은 서버의 별도 DB `mobiusdb_test` 를 `mobiusdb.sql` 로
+새로 깔고(이름이 `_test` 로 끝나는지와 `select database()` 를 두 번 확인한 뒤에만 DROP) →
+마이그레이션 19개를 전부 적용(새 설치 절차 그대로 — 스키마 파일만으로는 012 같은 데이터
+스위치가 기록되지 않는다는 것을 이 시험이 찾았고 README 에 적었다) → 빌더로 트리를
+심고(CSEBase·AE·컨테이너 6·CIN 1,650·구독·ACP) → 구조/비구조 조회 · la/ol · discovery 골격과
+자식 질의 · 구독 조회 · ACP 재귀/IN · 워커 카운터 증분 · 정합 · 스윕 · 삭제 · id 묶음 조회를
+**실제로 실행**하고 기록된 문장을 EXPLAIN 한다(lookup 풀스캔 0, 지정 인덱스 사용).
+어댑터가 conf 키 `dbName` 을 얻었고(기본 `mobiusdb`), 풀을 닫는 `end()` 가 생겼다.
+규모는 `node tools/explain-check.js` 가 **운영 DB 에서 읽기 전용**으로 같은 경로를 EXPLAIN 한다 —
+로컬 개발 DB 에서 첫 실행에 "뒤처진 DB(018 미적용)" 를 골격 풀스캔으로 잡았다.
+배포 절차에 둘을 넣었다(CLAUDE.md). 7.2 는 사용자 결정으로 하지 않는다 — SQLite 가 지원하지
+않는 16종은 SQLite 시험에서 빼고 MySQL 레인에서만 돈다. 아래는 고치기 전 서술이다.
 
 MySQL 시험은 전부 `adapter.execute` 를 스텁으로 갈아끼우고 **만들어진 SQL
 문자열만** 어서션한다(`test/discovery-cte.test.js:66-107` 등).
