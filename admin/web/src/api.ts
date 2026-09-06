@@ -13,8 +13,7 @@ import type {
   ExpiryPolicy,
   HitRow,
   Job,
-  OrphanPage,
-  OrphanSummary,
+  OrphanScanResult,
   SessionInfo,
 } from './types'
 
@@ -131,16 +130,11 @@ export function expiredPage(opts: {
   return get<ExpiredPage>(`/api/expired?${q.toString()}`)
 }
 
-export function orphanSummary(cap = 5000) {
-  return get<OrphanSummary>(`/api/orphans/summary?cap=${cap}`)
+export function startOrphanScan(opts: { scanCap?: number; sampleCap?: number } = {}) {
+  return post<Job>('/api/jobs/orphan-scan', opts)
 }
-
-export function orphanPage(opts: { limit?: number; afterRi?: string | null; scanCap?: number }) {
-  const q = new URLSearchParams()
-  q.set('limit', String(opts.limit ?? 50))
-  if (opts.afterRi) q.set('afterRi', opts.afterRi)
-  if (opts.scanCap) q.set('scanCap', String(opts.scanCap))
-  return get<OrphanPage>(`/api/orphans?${q.toString()}`)
+export function orphanLast() {
+  return get<OrphanScanResult | { none: true }>('/api/orphans/last')
 }
 
 // ── ACP ────────────────────────────────────────────────────────────────────

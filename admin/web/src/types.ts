@@ -47,21 +47,20 @@ export interface OrphanRow {
   et: string
 }
 
-export interface OrphanPage {
-  rows: OrphanRow[]
-  more: boolean
-  nextRi: string | null
-  /** 이 응답을 만들려고 훑은 행 수. */
+/** 고아 탐지 작업 하나의 결과 파일. 세지 않는다 — 표본이다. */
+export interface OrphanScanResult {
+  runId: string
+  startedAt: string
+  endedAt: string | null
+  cancelled: boolean
+  scanCap: number
+  sampleCap: number
   scanned: number
-  /** 훑기 상한에 걸렸는가. 걸렸으면 뒤에 더 있을 수 있다. */
   scanCapped: boolean
+  orphans: OrphanRow[]
+  sampleTruncated: boolean
+  lookupOnlyCin: { rows: { ri: string; pi: string; rn: string; ct: string }[]; scanned: number; scanCapped: boolean; sampleTruncated: boolean }
   typeNames: Record<string, string>
-}
-
-export interface OrphanSummary {
-  cap: number
-  count: number
-  capped: boolean
 }
 
 /** 삭제할 수 없는 타입 — CSEBase 는 트리의 뿌리다. 정책이 아니라 구조라 여기 둔다. */
