@@ -115,7 +115,7 @@ DROP TABLE IF EXISTS `cin`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `cin` (
-  `pi` varchar(200) NOT NULL,
+  `pi` varchar(200) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
   `ri` varchar(200) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
   `cs` int NOT NULL,
   `cr` varchar(45) NOT NULL,
@@ -315,7 +315,11 @@ DROP TABLE IF EXISTS `lookup`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `lookup` (
-  `pi` varchar(200) NOT NULL,
+  -- pi · sri · spi 는 ri 와 같이 utf8_bin 이다 (2026-09-06, 마이그레이션 018). 식별자는
+  -- 바이트 그대로 비교한다 — general_ci 였을 때 `pi = ri` 조인마다 콜레이션 변환이 끼었고,
+  -- /Mobius/Abc 와 /Mobius/abc 가 따로 생기는데 자식 조회는 한 부모로 봤다. cin.pi · sub.pi 도 같다.
+  -- rn · lbl 은 discovery 필터 의미가 걸려 있어 일부러 general_ci 로 둔다.
+  `pi` varchar(200) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
   `ri` varchar(200) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
   `ty` int unsigned NOT NULL,
   `ct` varchar(21) NOT NULL,
@@ -327,8 +331,8 @@ CREATE TABLE `lookup` (
   `lbl` varchar(200) NOT NULL,
   `at` varchar(45) NOT NULL,
   `aa` varchar(45) NOT NULL,
-  `sri` varchar(45) NOT NULL,
-  `spi` varchar(45) NOT NULL,
+  `sri` varchar(45) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
+  `spi` varchar(45) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
   -- CIN 의 contentSize / contentInfo 사본. discovery 의 sza / szb / cty 가 본다.
   --
   -- ── 왜 여기에 두 벌로 두는가 ──────────────────────────────────────────
@@ -513,7 +517,7 @@ DROP TABLE IF EXISTS `sub`;
 /*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `sub` (
   `ri` varchar(200) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
-  `pi` varchar(400) DEFAULT NULL,
+  `pi` varchar(400) CHARACTER SET utf8 COLLATE utf8_bin DEFAULT NULL,
   `enc` text,
   `exc` varchar(45) DEFAULT NULL,
   `nu` text,

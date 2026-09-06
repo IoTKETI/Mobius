@@ -111,20 +111,25 @@ test('001 이 만드는 인덱스는 SQLite 스키마에도 있다', function ()
         '001 이 backends:[mysql] 로 한정한 근거가 무너진다');
 });
 
-test('lookup 의 pi 는 콜레이션을 명시하지 않고 ri 는 utf8_bin 을 명시한다', function () {
-    // 이 비대칭이 재귀 CTE(sql_action.js 의 search_parents_lookup_all)에서
-    // `l.pi = p.ri` 를 교차 콜레이션 비교로 만든다. 배포 DB 실측으로는
-    // 그 경로가 18.9시간에 10회 / 검사행 0 이라 비용이 없어 그대로 두기로
-    // 했다 (2026-08-28 판단). 누군가 한쪽만 바꾸면 이 테스트가 알려 준다.
+test('id 컬럼(lookup 의 ri·pi·sri·spi, cin.pi, sub.pi)은 전부 utf8_bin 을 명시한다', function () {
+    // 예전에는 ri 만 bin 이고 pi 는 general_ci 였다 — 그 비대칭이 재귀 CTE 의 `l.pi = p.ri` 를
+    // 교차 콜레이션 비교로 만들었고(2026-08-28 에는 비용이 없다고 두었다), /Mobius/Abc 와
+    // /Mobius/abc 가 따로 생기는데 자식 조회는 한 부모로 보는 구멍도 있었다.
+    // 2026-09-06 에 식별자는 바이트 그대로 비교하기로 했다(ri/sri 설계 메모 §3 A3,
+    // 마이그레이션 018). 새 설치는 이 파일이, 배포는 018 이 맞춘다. 한쪽만 바뀌면 여기서 걸린다.
     const schema = fs.readFileSync(MYSQL_SCHEMA, 'utf8');
-    const lookup = schema.slice(schema.indexOf('CREATE TABLE `lookup`'));
-    const body = lookup.slice(0, lookup.indexOf('ENGINE=InnoDB'));
-
-    const riLine = body.split('\n').find((l) => l.trim().startsWith('`ri`'));
-    const piLine = body.split('\n').find((l) => l.trim().startsWith('`pi`'));
-
-    assert.ok(riLine && /COLLATE\s+utf8_bin/.test(riLine),
-        'lookup.ri 가 utf8_bin 을 명시하지 않는다: ' + riLine);
-    assert.ok(piLine && !/COLLATE/.test(piLine),
-        'lookup.pi 에 COLLATE 가 생겼다 — 콜레이션 판단을 다시 해야 한다: ' + piLine);
+    function line(table, col) {
+        const t = schema.slice(schema.indexOf('CREATE TABLE `' + table + '`'));
+        const body = t.slice(0, t.indexOf('ENGINE=InnoDB'));
+        return body.split('\n').find((l) => l.trim().startsWith('`' + col + '`'));
+    }
+    [['lookup', 'ri'], ['lookup', 'pi'], ['lookup', 'sri'], ['lookup', 'spi'], ['cin', 'pi'], ['sub', 'pi']].forEach(function (p) {
+        const l = line(p[0], p[1]);
+        assert.ok(l && /COLLATE\s+utf8_bin/.test(l), p[0] + '.' + p[1] + ' 이 utf8_bin 을 명시하지 않는다: ' + l);
+    });
+    // 마이그레이션 018 이 같은 여섯 컬럼을 다룬다
+    const m = require('../migrations/018-id-columns-collation-bin.js');
+    assert.strictEqual(m.id, '018-id-columns-collation-bin');
+    // rn · lbl 은 discovery 필터 의미가 걸려 있어 일부러 두었다
+    assert.ok(!/COLLATE/.test(line('lookup', 'rn')), 'lookup.rn 에 COLLATE 가 생겼다 — 필터 의미를 다시 봐야 한다');
 });
