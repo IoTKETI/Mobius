@@ -27,7 +27,6 @@ var ip = require('ip');
 var crypto = require('crypto');
 var fileStreamRotator = require('file-stream-rotator');
 var https = require('https');
-var moment = require('moment');
 
 const cors = require('cors');
 
@@ -2438,7 +2437,7 @@ app.post('*', onem2mParser, (request, response) => {
 app.get('*', onem2mParser, (request, response) => {
     with_connection(request, response, (settle) => {
         // /hit · /total_ae · /total_cbs 가 여기(extra_api_action) 있었다. 2026-09-06 에
-        // 관리 콘솔의 /api/stats/* 로 옮겼다 — 헤더·ACP 검사 **앞에서** 인증 없이
+        // 관리 콘솔의 /api/stats/hit·total-ae·total-cbs 로 옮겼다 — 헤더·ACP 검사 **앞에서** 인증 없이
         // 호출 건수·AE 수·CIN 바이트 총합을 내보내던 경로였다(인수인계 §7, 외부에서
         // 닿는 것을 실측). 세 URL 은 이제 일반 리소스 조회로 떨어져 404 다.
         check_xm2m_headers(request, (code) => {

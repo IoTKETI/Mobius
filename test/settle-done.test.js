@@ -189,11 +189,8 @@ test('body_of: 네 모양은 shape 의 같은 함수로, 모르는 모양은 Typ
 });
 
 test('app.js 라우트 넷이 settle.done 을 부르고 옛 세 함수를 직접 안 부른다', () => {
-    // 줄 주석부터 지운다 — 그 안에 우연히 '/*' 가 들어 있으면(예: 경로 와일드카드
-    // '/api/stats/*') 블록 주석 제거를 먼저 돌릴 때 다음 실제 '*/' 까지 실코드를
-    // 통째로 삼켜 버린다(실측: 156줄). 순서를 바꾸면 그 줄이 먼저 사라져 안전하다.
     const src = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8')
-        .replace(/^\s*\/\/.*$/mg, '').replace(/\/\*[\s\S]*?\*\//g, '');
+        .replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/mg, '');
     const count = (n) => src.split(n).length - 1;
     assert.strictEqual(count('settle.done('), 2, 'run_operation 과 run_fanout 둘 (3단계 13번)');
     assert.strictEqual(count('settle.result('), 0);

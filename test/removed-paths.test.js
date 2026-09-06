@@ -23,11 +23,8 @@ const fs = require('fs');
 const path = require('path');
 const ROOT = path.join(__dirname, '..');
 function live(rel) {
-    // 줄 주석을 먼저 걸러낸다 — 그 안에 우연히 '/*' 가 들어 있으면(예: 경로
-    // 와일드카드 '/api/stats/*') 블록 주석 제거가 먼저 돌 때 다음 실제 '*/' 까지
-    // 실코드를 통째로 삼켜 버린다(실측: 156줄, app.js). 순서를 바꾸면 안전하다.
     return fs.readFileSync(path.join(ROOT, rel), 'utf8')
-        .split(/\r?\n/).filter((l) => !/^\s*\/\//.test(l)).join('\n').replace(/\/\*[\s\S]*?\*\//g, ' ');
+        .replace(/\/\*[\s\S]*?\*\//g, ' ').split(/\r?\n/).filter((l) => !/^\s*\/\//.test(l)).join('\n');
 }
 
 test('AE 알림 중계 경로가 없다 — check_ae_notify · notify_http · notify 갈래', () => {
