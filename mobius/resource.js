@@ -15,6 +15,7 @@
  */
 
 var log_safe = require('./log_safe');
+var name_limits = require('./name_limits');
 var short_ri = require('./short_ri');
 var url = require('url');
 var http = require('http');
@@ -788,6 +789,12 @@ function build_resource(request, response, callback) {
     }
     resource_Obj[rootnm].pi = url.parse(request.url).pathname;
     resource_Obj[rootnm].ri = resource_Obj[rootnm].pi + '/' + resource_Obj[rootnm].rn;
+    // 스키마 폭(rn 45 · 경로 200)을 넘으면 여기서 400 — MySQL 의 "Data too long" 500 이 되지 않게
+    var too_long = name_limits.check(resource_Obj[rootnm].rn, resource_Obj[rootnm].ri);
+    if (too_long) {
+        callback(too_long);
+        return;
+    }
     resource_Obj[rootnm].ct = moment().utc().format('YYYYMMDDTHHmmss');
     resource_Obj[rootnm].lt = resource_Obj[rootnm].ct;
     resource_Obj[rootnm].st = 0;

@@ -225,6 +225,10 @@ var REASON = {
                 msg: "discovery scope too large — narrow the target path, " +
                      "add a ty filter, or use cra/crb to bound the time range",
                 detail: 'search_lookup: statement timeout' },
+    // 생성 시 이름·경로 길이 — lookup.rn varchar(45) · lookup.ri(구조 경로) varchar(200).
+    // 넘으면 MySQL strict 모드가 "Data too long" 으로 거절해 500 이 나갔다 (mobius/name_limits.js).
+    '400-68': { code: RSC.BAD_REQUEST, msg: "resource name exceeds 45 characters" },
+    '400-69': { code: RSC.BAD_REQUEST, msg: "resource path exceeds 200 characters — the tree is too deep or the names too long" },
     // 상류(원격 CSE 나 AE)가 json 이 아닌 것을 돌려준 경우.
     //
     // 이 CSE 는 json 만 만든다고 선언했다. 상류의 응답을 그대로 흘려보내면
