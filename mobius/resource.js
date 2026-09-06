@@ -663,7 +663,7 @@ function create_action(request, response, callback) {
             });
         }
         else {
-            callback('409-4');
+            callback('405-15');
         }
     }
     else if (ty == '14') {
@@ -764,7 +764,7 @@ function build_resource(request, response, callback) {
     resource_Obj[rootnm] = {};
 
     if (body_Obj[rootnm]['rn'] == 'latest' || body_Obj[rootnm]['rn'] == 'oldest' || body_Obj[rootnm]['rn'] == 'ol' || body_Obj[rootnm]['rn'] == 'la') {
-        callback('409-3');
+        callback('400-66');   // 예약어 rn — 잘못된 값이라 BAD_REQUEST (옛 409-3 은 4005/409 였다)
         return;
     }
 
@@ -813,7 +813,7 @@ function build_resource(request, response, callback) {
         // '도달하면 안 되는 조합' 이므로 거절이 옳다.
         if (!create_np_attr_list.hasOwnProperty(rootnm)) {
             console.log('[build_resource] 속성표가 없는 리소스 이름이다: ' + rootnm + ' (ty=' + request.ty + ')');
-            callback('409-4');
+            callback('405-15');
             return;
         }
 
@@ -959,7 +959,7 @@ function build_resource(request, response, callback) {
             });
             break;
         default: {
-            callback('409-4');
+            callback('405-15');
             return;
         }
     }
@@ -1946,7 +1946,7 @@ function update_resource(request, response, callback) {
         // updates_beyond_acpi 가 ACP 검사까지 건너뛰므로 인증만 되면 누구나 할 수 있었다.
         if (!update_np_attr_list.hasOwnProperty(rootnm)) {
             console.log('[update_resource] 속성표가 없는 리소스 이름이다: ' + rootnm + ' (ty=' + request.ty + ')');
-            callback('409-4');
+            callback('405-15');
             return;
         }
 

@@ -69,6 +69,28 @@ test('카탈로그 자체 점검이 통과한다', function () {
     assert.deepStrictEqual(problems, [], problems.join('\n'));
 });
 
+test('한 rsc 는 한 HTTP 다 — 예외는 CONTENT_TOO_LARGE 하나뿐', function () {
+    // oneM2M TS-0009 의 매핑은 rsc 마다 HTTP 하나다. 4005 OPERATION_NOT_ALLOWED 가 405 와
+    // 409(CONFLICT_OPERATION) 두 갈래로 나가던 것을 2026-09-06 에 교정했다.
+    //
+    // 하나만 남긴다: CONTENT_TOO_LARGE(4000/413). oneM2M 에는 "본문이 너무 크다" 가 없어
+    // rsc 는 BAD_REQUEST 와 같은 4000 이고 HTTP 만 413 이다 — HTTP 가 oneM2M 보다 더 말할 수
+    // 있는 유일한 자리다(rsc.js 의 그 항목 주석). 늘리려면 여기 근거를 적는다.
+    const EXCEPTIONS = { CONTENT_TOO_LARGE: true };
+    const httpOf = {};
+    const bad = [];
+    Object.keys(rsc.RSC).forEach(function (k) {
+        if (EXCEPTIONS[k]) { return; }
+        const e = rsc.RSC[k];
+        if (httpOf[e.rsc] !== undefined && httpOf[e.rsc] !== e.http) {
+            bad.push(e.rsc + ' -> ' + httpOf[e.rsc] + ' 와 ' + e.http + ' (' + k + ')');
+        }
+        httpOf[e.rsc] = e.http;
+    });
+    assert.deepStrictEqual(bad, [], '같은 rsc 가 다른 HTTP 로 나간다:\n  ' + bad.join('\n  '));
+    assert.deepStrictEqual(rsc.RSC.TARGET_NOT_REACHABLE, { name: 'TARGET_NOT_REACHABLE', rsc: '5103', http: 404, coap: '4.04' });
+});
+
 test('resultStatusCode 의 모든 (http, rsc) 쌍이 카탈로그에 있다', function () {
     const pairs = livePairs();
     assert.ok(pairs.size > 0, 'resultStatusCode 를 파싱하지 못했다');

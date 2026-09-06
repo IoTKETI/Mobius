@@ -2188,7 +2188,7 @@ function get_target_url(request, response, callback) {
             // return 이 없으면 아래 get_resource_from_url 까지 실행이 흘러 콜백이 두 번
             // 불린다. 첫 호출이 409 를 보내고 핸들러가 request = null 로 지운 뒤라
             // 두 번째 호출은 error_result 에서 request.query 를 읽다 워커를 죽였다.
-            callback('409-1');
+            callback('405-13');
             return;
         }
     }
@@ -2202,7 +2202,7 @@ function get_target_url(request, response, callback) {
             // return 이 없으면 아래 get_resource_from_url 까지 실행이 흘러 콜백이 두 번
             // 불린다. 첫 호출이 409 를 보내고 핸들러가 request = null 로 지운 뒤라
             // 두 번째 호출은 error_result 에서 request.query 를 읽다 워커를 죽였다.
-            callback('409-1');
+            callback('405-13');
             return;
         }
     }
@@ -2214,7 +2214,7 @@ function get_target_url(request, response, callback) {
         }
         else {
             // 위와 같은 이유로 return 이 필요하다 (콜백 중복 호출 -> 워커 크래시)
-            callback('409-2');
+            callback('405-14');
             return;
         }
     }
@@ -2226,7 +2226,7 @@ function get_target_url(request, response, callback) {
         }
         else {
             // 위와 같은 이유로 return 이 필요하다 (콜백 중복 호출 -> 워커 크래시)
-            callback('409-2');
+            callback('405-14');
             return;
         }
     }
@@ -2901,15 +2901,15 @@ function check_csr(request, response, callback) {
                     var why;
                     if (poa_arr.length === 0) {
                         console.log('[check_csr] poa 가 비어 있어 포워딩할 곳이 없다: ' + ri);
-                        why = '301-5';
+                        why = '404-9';    // TARGET_NOT_REACHABLE — 옛 301-5(405)
                     }
                     else if (saw_mqtt) {
                         console.log('forwarding with mqtt is not supported');
-                        why = '301-3';
+                        why = '501-3';    // NOT_IMPLEMENTED — 옛 301-3(405)
                     }
                     else {
                         console.log('protocol in poa of csr is not supported');
-                        why = '301-4';
+                        why = '501-4';    // NOT_IMPLEMENTED — 옛 301-4(405)
                     }
                     result_csr = null;
                     callback(why);

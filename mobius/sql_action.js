@@ -1901,7 +1901,7 @@ exports.search_lookup = function (connection, ri, query, cur_lim, pi_list, pi_in
                           ' — 대상을 좁히거나(더 깊은 경로) ty 를 함께 준다');
             // 상한에 걸린 것은 DB 고장이 아니라 "이 범위를 감당 못 한다" 다.
             // 500 "database error" 로 뭉개면 호출자가 무엇을 고쳐야 할지 모른다.
-            return callback('500-6');
+            return callback('400-67');
         }
         // 인덱스가 없으면 force index 때문에 discovery 가 **전부** 실패한다.
         // 코드만 올리고 마이그레이션을 안 돌린 경우다 — 원인을 바로 알려준다.
@@ -1958,7 +1958,7 @@ exports.search_lookup = function (connection, ri, query, cur_lim, pi_list, pi_in
                       ' — 대상을 좁히거나(더 깊은 경로) ty 를 함께 준다');
         if (settled) { return; }
         settled = true;
-        return callback('500-6');
+        return callback('400-67');
     }
 
     var batch_size = discovery_batch_size(query);

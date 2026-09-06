@@ -86,13 +86,40 @@ test('알려진 항목의 (status, rsc) 는 원본 그대로다', function () {
     // 이스케이프 잔재가 있던 항목 — 소스에는 \' 였고 런타임 값은 ' 이다
     assert.strictEqual(t['400-22'][2], "'Not Present' attribute");
 
-    // 키 접두는 301 인데 실제 http 는 405 인 항목 (키 규칙 위반, 값은 보존)
-    assert.deepStrictEqual(t['301-3'], ['405', '4005', 'forwarding with mqtt is not supported']);
-
-    // 같은 rsc 4005 인데 http 가 409 인 항목 — CONFLICT_OPERATION 으로 갈렸다
-    assert.deepStrictEqual(t['409-1'], ['409', '4005', 'can not use post, put method at latest resource']);
-    assert.strictEqual(reason.REASON['409-1'].code.name, 'CONFLICT_OPERATION');
     assert.strictEqual(reason.REASON['405-1'].code.name, 'OPERATION_NOT_ALLOWED');
+});
+
+// ── 2026-09-06 rsc↔HTTP 불일치 교정 (남은 일 §5.6) ────────────────────────
+//
+// 규칙 둘을 세웠다. (1) 한 rsc 는 한 HTTP — oneM2M TS-0009 의 매핑대로. 4005
+// OPERATION_NOT_ALLOWED 는 405 이지 409 가 아니다. (2) 사유 키의 접두는 곧 HTTP 상태다.
+// 옛 값을 "보존" 하던 위 시험 두 줄(301-3 = 405, 409-1 = 409/4005)은 그 교정으로 없앴다.
+// 배포 실측(최근 3일): 405 0 · 501 0 · 409 68(전부 4105 "이미 있음") — 여덟 사유는 한 번도
+// 나가지 않았다.
+
+test('사유 키의 접두는 곧 HTTP 상태다', function () {
+    const bad = Object.keys(reason.REASON).filter(function (k) {
+        return k.split('-')[0] !== String(reason.REASON[k].code.http);
+    });
+    assert.deepStrictEqual(bad, [], '키 접두와 HTTP 가 다른 사유: ' + bad.join(', '));
+});
+
+test('교정된 여덟 사유 — la/ol 에 POST·PUT 은 405, 예약어 rn 은 400, 포워딩 불가는 501/404, 탐색 상한은 400 키로', function () {
+    const t = reason.toLegacyTable();
+    ['301-3', '301-4', '301-5', '409-1', '409-2', '409-3', '409-4', '500-6'].forEach(function (old) {
+        assert.strictEqual(t[old], undefined, old + ' 이 아직 있다');
+    });
+    assert.deepStrictEqual(t['405-13'], ['405', '4005', 'can not use post, put method at latest resource']);
+    assert.deepStrictEqual(t['405-14'], ['405', '4005', 'can not use post, put method at oldest resource']);
+    assert.deepStrictEqual(t['405-15'], ['405', '4005', 'requested resource is not supported']);
+    assert.deepStrictEqual(t['400-66'], ['400', '4000', 'resource name can not use that is keyword']);
+    assert.deepStrictEqual(t['501-3'], ['501', '5001', 'forwarding with mqtt is not supported']);
+    assert.deepStrictEqual(t['501-4'], ['501', '5001', 'protocol in poa of csr is not supported']);
+    assert.deepStrictEqual(t['404-9'], ['404', '5103', 'remoteCSE has no point of access']);
+    assert.strictEqual(reason.REASON['404-9'].code.name, 'TARGET_NOT_REACHABLE');
+    assert.deepStrictEqual(t['400-67'].slice(0, 2), ['400', '4000']);
+    assert.match(t['400-67'][2], /^discovery scope too large/);
+    assert.strictEqual(rsc.RSC.CONFLICT_OPERATION, undefined, '4005 를 409 로 내던 항목이 되살아났다');
 });
 
 test('get 은 없는 키에 null 을 준다', function () {
@@ -357,7 +384,7 @@ test('detail 을 가진 사유는 드물게 나는 것들뿐이다', function ()
         '400-61',  // acpi 원소가 문자열이 아님
         '400-62',  // acpi 가 varchar(200) 을 넘김
         '400-63',  // acpi 가 없는 ACP 를 가리킴
-        '500-6',   // 탐색이 문장 상한에 걸림 — 드물고 진단이 필요하다
+        '400-67',  // 탐색이 문장 상한에 걸림 — 드물고 진단이 필요하다 (옛 500-6, 키 접두 교정)
         // json 전용 관문. 여기 detail 이 붙은 이유는 진단이 아니라 **계측**이다 —
         // 요청 경로에 xml/cbor 가 얼마나 오는지 기록이 없어서, 이 로그가
         // 비어 있는 것이 곧 xml/cbor 코드를 지워도 된다는 근거가 된다.

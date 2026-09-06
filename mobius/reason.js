@@ -26,14 +26,13 @@
 
 var RSC = require('./rsc').RSC;
 
-var REASON = {
-    '301-3': { code: RSC.OPERATION_NOT_ALLOWED, msg: "forwarding with mqtt is not supported" },
-    '301-4': { code: RSC.OPERATION_NOT_ALLOWED, msg: "protocol in poa of csr is not supported" },
-    // poa 가 비어 있는 경우. 예전에는 이 상황에서 콜백이 아예 불리지 않아
-    // 요청이 매달렸다. 301-4 로 뭉뚱그리면 "프로토콜이 뭐길래" 를 찾게 되므로
-    // 사유를 따로 둔다. poa 는 미지정 시 [] 가 기본값이라 드물지 않다.
-    '301-5': { code: RSC.OPERATION_NOT_ALLOWED, msg: "remoteCSE has no point of access" },
+// ── 키 규칙 (2026-09-06) ─────────────────────────────────────────────────
+// 키의 접두는 곧 HTTP 상태다. 301-3·301-4·301-5(실제 405) 와 500-6(실제 400) 가
+// 규칙을 어기고 있었고, 409-1~409-4 는 4005 를 409 로 내고 있었다(한 rsc 한 HTTP 위반).
+// 여덟을 교정했다 — 501-3 · 501-4 · 404-9 · 400-67 · 405-13~15 · 400-66.
+// test/reason-catalog.test.js 가 접두 = HTTP 를 잠근다. 남은 일 §5.6.
 
+var REASON = {
     '400-1': { code: RSC.BAD_REQUEST, msg: "X-M2M-RI is none" },
     '400-2': { code: RSC.BAD_REQUEST, msg: "X-M2M-Origin header is Mandatory" },
     '400-3': { code: RSC.BAD_REQUEST, msg: "not supported resource type requested" },
@@ -136,6 +135,9 @@ var REASON = {
     '400-65': { code: RSC.BAD_REQUEST,
                 msg: "the cty filter is not supported by this CSE",
                 detail: 'cty: unsupported filter' },
+    // rn 이 예약어(la · ol · latest · oldest)다. 옛 409-3 은 4005/409 로 냈는데 잘못된 속성값이라
+    // BAD_REQUEST 가 맞다(2026-09-06).
+    '400-66': { code: RSC.BAD_REQUEST, msg: "resource name can not use that is keyword" },
     // 본문을 다 받기 전에 끊는다. 실제 상한값은 로그(detail)에만 남긴다 —
     // 응답에 적으면 "얼마까지 되는지" 를 물어보지 않고 알아낼 수 있게 된다.
     '413-1':  { code: RSC.CONTENT_TOO_LARGE, msg: "request body is too large", detail: 'body_limit' },
@@ -160,6 +162,11 @@ var REASON = {
     // AE 는 찾았는데 poa 가 비어 알림을 보낼 곳이 없는 경우.
     // 404-6 은 "AE 를 못 찾았다" 라서 원인을 반대로 짚게 한다.
     '404-8': { code: RSC.NOT_FOUND, msg: "AE for notification has no point of access" },
+    // remoteCSE 의 poa 가 비어 포워딩할 곳이 없다(옛 301-5). 예전에는 이 상황에서 콜백이
+    // 아예 불리지 않아 요청이 매달렸고, 그 뒤로는 OPERATION_NOT_ALLOWED(405)로 나가
+    // "메서드가 안 된다" 는 뜻이 됐다. 대상에 닿을 수 없는 것이니 TS-0009 대로 5103/404.
+    // poa 는 미지정 시 [] 가 기본값이라 드물지 않다.
+    '404-9': { code: RSC.TARGET_NOT_REACHABLE, msg: "remoteCSE has no point of access" },
 
     '405-1': { code: RSC.OPERATION_NOT_ALLOWED, msg: "CSEBase can not be created by others" },
     '405-3': { code: RSC.OPERATION_NOT_ALLOWED, msg: "requested resource type is not supported" },
@@ -172,15 +179,16 @@ var REASON = {
     '405-10': { code: RSC.OPERATION_NOT_ALLOWED, msg: "notification with mqtt is not supported" },
     '405-11': { code: RSC.OPERATION_NOT_ALLOWED, msg: "notification with ws is not supported" },
     '405-12': { code: RSC.OPERATION_NOT_ALLOWED, msg: "notification with coap is not supported" },
+    // 옛 409-1 · 409-2 · 409-4. 4005 를 409 로 내던 CONFLICT_OPERATION 항목을 없애며 405 로.
+    '405-13': { code: RSC.OPERATION_NOT_ALLOWED, msg: "can not use post, put method at latest resource" },
+    '405-14': { code: RSC.OPERATION_NOT_ALLOWED, msg: "can not use post, put method at oldest resource" },
+    '405-15': { code: RSC.OPERATION_NOT_ALLOWED, msg: "requested resource is not supported" },
 
     '406-1': { code: RSC.NOT_ACCEPTABLE, msg: "can not create cin because mni value is zero" },
     '406-2': { code: RSC.NOT_ACCEPTABLE, msg: "can not create cin because mbs value is zero" },
     '406-3': { code: RSC.NOT_ACCEPTABLE, msg: "cs is exceed mbs" },
 
-    '409-1': { code: RSC.CONFLICT_OPERATION, msg: "can not use post, put method at latest resource" },
-    '409-2': { code: RSC.CONFLICT_OPERATION, msg: "can not use post, put method at oldest resource" },
-    '409-3': { code: RSC.CONFLICT_OPERATION, msg: "resource name can not use that is keyword" },
-    '409-4': { code: RSC.CONFLICT_OPERATION, msg: "requested resource is not supported" },
+    // 409-1 ~ 409-4(CONFLICT_OPERATION, 4005/409)가 여기 있었다 — 405-13~15 와 400-66 으로.
     '409-5': { code: RSC.ALREADY_EXISTS, msg: "resource already exists" },
     '409-6': { code: RSC.AEI_DUPLICATED, msg: "aei is already registered", detail: 'create_action: aei duplicate' },
 
@@ -212,10 +220,11 @@ var REASON = {
     //   cs   서버가 채운다. 답이 맞다. 느릴 뿐이라 범위를 좁히면 된다.
     //   cnf  클라이언트가 준 것뿐이고 대부분 비어 있다. 범위를 좁혀도 답이 틀린다.
     // 그래서 하나는 상한으로 묶어 두고, 다른 하나는 아예 받지 않는다(아래 400-65).
-    '500-6': { code: RSC.BAD_REQUEST,
-               msg: "discovery scope too large — narrow the target path, " +
-                    "add a ty filter, or use cra/crb to bound the time range",
-               detail: 'search_lookup: statement timeout' },
+    // 옛 500-6 — 값은 그대로 BAD_REQUEST 고 키 접두만 HTTP(400)에 맞췄다.
+    '400-67': { code: RSC.BAD_REQUEST,
+                msg: "discovery scope too large — narrow the target path, " +
+                     "add a ty filter, or use cra/crb to bound the time range",
+                detail: 'search_lookup: statement timeout' },
     // 상류(원격 CSE 나 AE)가 json 이 아닌 것을 돌려준 경우.
     //
     // 이 CSE 는 json 만 만든다고 선언했다. 상류의 응답을 그대로 흘려보내면
@@ -241,7 +250,11 @@ var REASON = {
     // 나간다. 지금 그 목록을 선언한 어댑터가 sqlite 하나뿐이라 우연히 맞았을 뿐,
     // 부분 지원 상태의 새 백엔드를 붙이면 클라이언트가 쓰지도 않는 DB 이름을 듣는다.
     '501-2': { code: RSC.NOT_IMPLEMENTED,
-               msg: "this resource type is not supported by the configured storage backend" }
+               msg: "this resource type is not supported by the configured storage backend" },
+    // remoteCSE 포워딩에서 우리가 구현하지 않은 방식(옛 301-3 · 301-4, 그때는 4005/405 로 나가
+    // "메서드가 안 된다" 는 뜻이 됐다). 구현하지 않은 것이니 NOT_IMPLEMENTED.
+    '501-3': { code: RSC.NOT_IMPLEMENTED, msg: "forwarding with mqtt is not supported" },
+    '501-4': { code: RSC.NOT_IMPLEMENTED, msg: "protocol in poa of csr is not supported" }
 };
 
 // app.js 가 쓰던 { key: [status, rsc, msg] } 형태를 그대로 만들어 준다.

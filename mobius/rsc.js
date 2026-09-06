@@ -25,8 +25,10 @@
 // oneM2M TS-0004 원문과 대조하지 않았다 — 값 교정은 별도 작업이다.
 // (docs/superpowers/specs/2026-09-04-request-flow-remaining.md §5)
 //
-// 같은 rsc 가 서로 다른 http 로 나가는 경우가 있다(4005 -> 405 와 409).
-// 규격상 이상하지만 현재 동작이므로 두 항목으로 나눠 보존한다. 값 교정 대상이다.
+// **한 rsc 는 한 http 다** (oneM2M TS-0009 의 매핑). 4005 가 405 와 409 두 갈래로
+// 나가던 것(CONFLICT_OPERATION)은 2026-09-06 에 405 로 합쳤다 — 남은 일 §5.6.
+// 예외는 CONTENT_TOO_LARGE(4000/413) 하나뿐이고 그 근거는 그 항목에 있다.
+// test/rsc-catalog.test.js 가 이 불변식을 잠근다.
 // ─────────────────────────────────────────────────────────────────────────
 
 // coap 이 null 인 항목은 현재 CoAP 매핑이 없다는 뜻이다. pxy_coap.js 가
@@ -60,13 +62,16 @@ var RSC = {
 
     // ── 404 / 405 / 406 ──────────────────────────────────────────────────
     NOT_FOUND:             { name: 'NOT_FOUND',             rsc: '4004', http: 404, coap: '4.04' },
+    // 대상에 닿을 수 없다 — remoteCSE 에 poa 가 없을 때(404-9). TS-0009 는 5103 을 404 로.
+    // 예전에는 OPERATION_NOT_ALLOWED(405)로 나가 "메서드가 안 된다" 는 뜻이 됐다.
+    TARGET_NOT_REACHABLE:  { name: 'TARGET_NOT_REACHABLE',  rsc: '5103', http: 404, coap: '4.04' },
     OPERATION_NOT_ALLOWED: { name: 'OPERATION_NOT_ALLOWED', rsc: '4005', http: 405, coap: '4.05' },
     NOT_ACCEPTABLE:        { name: 'NOT_ACCEPTABLE',        rsc: '5207', http: 406, coap: '4.06' },
 
     // ── 409 ──────────────────────────────────────────────────────────────
-    // OPERATION_NOT_ALLOWED 와 rsc 가 같은데 http 만 다르다. 409-1~409-4 가 쓴다.
-    // (la/ol 에 POST·PUT, 예약어 rn, 미지원 리소스) — 값 교정 대상이다.
-    CONFLICT_OPERATION: { name: 'CONFLICT_OPERATION', rsc: '4005', http: 409, coap: '4.05' },
+    // CONFLICT_OPERATION(4005/409)이 여기 있었다 — la/ol 에 POST·PUT, 예약어 rn, 미지원
+    // 리소스가 썼다. 4005 는 405 이므로 OPERATION_NOT_ALLOWED 로 합쳤고(405-13~15),
+    // 예약어 rn 은 잘못된 값이라 BAD_REQUEST(400-66)로 보냈다(2026-09-06).
     ALREADY_EXISTS:     { name: 'ALREADY_EXISTS',     rsc: '4105', http: 409, coap: '4.03' },
     AEI_DUPLICATED:     { name: 'AEI_DUPLICATED',     rsc: '4106', http: 409, coap: null },
 
@@ -75,8 +80,8 @@ var RSC = {
     // BAD_REQUEST 와 같은 4000 이고 http 만 413 이다 — oneM2M 은 "잘못된 요청"
     // 이라고만 말할 수 있고, HTTP 는 왜 잘못됐는지까지 말할 수 있다.
     //
-    // (http, rsc) 쌍은 유일하므로 아래 selfCheck 의 중복 검사를 통과한다.
-    // CONFLICT_OPERATION 이 OPERATION_NOT_ALLOWED 와 rsc 를 공유하는 것과 같은 꼴이다.
+    // (http, rsc) 쌍은 유일하므로 아래 selfCheck 의 중복 검사를 통과한다. "한 rsc 는 한
+    // http" 규칙의 **유일한 예외**다 — HTTP 가 oneM2M 보다 더 말할 수 있는 자리라서.
     //
     // coap 은 4.13(Request Entity Too Large)이 아니라 **4.00** 이다. CoAP 에
     // 그 코드가 있긴 하지만, 이 표의 불변식은 "같은 rsc 는 같은 coap" 이고
@@ -100,14 +105,15 @@ var RSC = {
 // Task 5 에서 pxy_coap.js 를 카탈로그로 옮길 때 함께 판단한다.
 var COAP_ONLY = {
     '4008': '4.04', '4101': '4.03', '4102': '4.00', '4104': '4.00',
-    '5103': '4.04', '5105': '4.03', '5106': '5.06', '5205': '4.03', '5206': '5.00',
+    '5105': '4.03', '5106': '5.06', '5205': '4.03', '5206': '5.00',
     '6003': '4.04', '6005': '4.04', '6020': '5.00', '6021': '5.00', '6022': '4.00',
     '6023': '4.00', '6024': '4.00', '6025': '5.00', '6026': '5.00',
     '6028': '4.00', '6029': '4.00'
 };
 
 // (http, rsc) 쌍으로 카탈로그 항목을 찾는다. 기존 resultStatusCode 항목을
-// 카탈로그에 붙일 때 쓴다 — rsc 만으로는 4005 를 가릴 수 없기 때문이다.
+// 카탈로그에 붙일 때 썼다 — 그때는 rsc 만으로 4005 를 가릴 수 없었다(405/409 두 갈래).
+// 지금은 CONTENT_TOO_LARGE(4000/413) 하나 때문에 쌍이 필요하다.
 function byPair(http, rsc) {
     var want = String(http);
     for (var k in RSC) {

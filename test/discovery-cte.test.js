@@ -1234,7 +1234,7 @@ test('문장 타임아웃을 다른 DB 오류와 구분해 남긴다', function 
         try {
             // 상한에 걸린 것은 DB 고장이 아니라 "이 범위를 감당 못 한다" 다.
             // 500-1("database error")로 뭉개면 호출자가 무엇을 고쳐야 할지 모른다.
-            assert.strictEqual(code, '500-6');
+            assert.strictEqual(code, '400-67');   // 옛 500-6 — 키 접두를 HTTP(400)에 맞췄다 (2026-09-06)
             assert.ok(logs.some((l) => /statement timeout/.test(l)),
                 '타임아웃이 구분되지 않았다: ' + JSON.stringify(logs));
             assert.ok(logs.some((l) => /ty 를 함께 준다/.test(l)),
@@ -1805,15 +1805,15 @@ test('배치가 실패하면 그 코드로 한 번만 콜백한다', function (t
 // 보내면 반드시 또 실패하므로, "재시도하면 될 수도 있다" 를 뜻하는 5xx 는
 // 호출자를 오해시킨다 — 30초를 태우고 같은 응답을 받는 일이 반복된다.
 
-test('탐색 범위 초과(500-6)는 BAD_REQUEST 로 나간다', function () {
+test('탐색 범위 초과(400-67, 옛 500-6)는 BAD_REQUEST 로 나간다', function () {
     const reason = require(path.join(ROOT, 'mobius', 'reason.js'));
     const rsc = require(path.join(ROOT, 'mobius', 'rsc.js'));
 
-    const r = reason.of ? reason.of('500-6') : null;
+    const r = reason.of ? reason.of('400-67') : null;
     // reason 모듈의 조회 함수 이름이 무엇이든, 카탈로그에서 직접 찾는다.
     const src = fs.readFileSync(path.join(ROOT, 'mobius', 'reason.js'), 'utf8');
-    const at = src.indexOf("'500-6':");
-    assert.ok(at > 0, '500-6 이 카탈로그에 없다');
+    const at = src.indexOf("'400-67':");
+    assert.ok(at > 0, '400-67 이 카탈로그에 없다');
     const entry = src.slice(at, at + 300);
 
     assert.match(entry, /code:\s*RSC\.BAD_REQUEST/,
