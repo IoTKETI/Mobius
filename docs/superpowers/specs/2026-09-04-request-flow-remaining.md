@@ -838,7 +838,32 @@ test/rsc-catalog.test.js:32-48   liveSuccess()
 
 ---
 
-## 8. WebSocket 알림 — 분류가 애매한 것
+## 8. ~~WebSocket 알림 — 분류가 애매한 것~~ — **고쳤다** (2026-09-06)
+
+`mobius/sgn_man.js` 의 `request_noti_ws` 에 **자체 타이머**를 걸었다. 한도는
+`outbound.limitMs()` — http/coap 와 같은 값(conf 의 `outboundTimeoutMs`, 기본
+10초)이다. 한도 안에 `connect` 도 `connectFailed` 도 안 오면
+`[outbound] notify ws …` 를 남기고 `[noti] fail ws … (outbound timeout …)` 로
+판정한 뒤 `ws_client.abort()` 로 요청을 파기한다. 파기하면 라이브러리가
+`connectFailed`("socket hang up") 를 뒤따라 올리므로(Node 22·24 둘 다 실측)
+`settled` 표식이 두 번째 판정을 막는다.
+
+`outbound.arm` 을 쓰지 않은 이유 — `ws_client` 는 http 요청 객체가 아니다.
+`setTimeout` 이 없고 요청 객체는 라이브러리 안에 있으며, 결과를
+`connect`/`connectFailed` 로 알린다. arm 의 자체 타이머가 듣는
+`response`/`error`/`close` 가 오지 않아, 그대로 걸면 접속이 된 뒤에도 타이머가
+살아 거짓 '끊는다' 로그를 남긴다.
+
+시험 `test/sgn-ws-timeout.test.js` 3건 — 101 을 안 주는 서버(한도 안에 판정 ·
+소켓 FIN · 판정 한 번), 정상 접속(본문 도착 · 판정 unknown 하나 · 한도를 넘겨도
+타이머 안 터짐), 접속 거부(곧바로 실패 · 한도 뒤 두 번째 판정 없음). 변이 8건
+중 6건 잡힘, 2건은 등가(connect/connectFailed 의 `clearTimeout` 제거 —
+`settled` 가 타이머를 무력화하므로 동작이 같다. 정리용으로 남겼다).
+`test/outbound-timeout.test.js` 의 사각지대 주석은 이 시험을 가리키도록 고쳤다.
+
+실측(2026-09-06): 배포 구독 3,463 의 nu 스킴은 mqtt 3,436 · http 24 · https 3.
+`ws://`/`wss://` 는 sub nu · ae poa(568행) · csr poa 모두 **0건**. 장애가 있었던
+것이 아니라 "고칠 때 같이 고친" 것이다. 아래는 고치기 전 서술이다.
 
 ```
 mobius/sgn_man.js:341-349   ws_client.connect(nu, subprotocol)   ← 인자 2개, 옵션 없음

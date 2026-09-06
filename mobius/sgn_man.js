@@ -346,14 +346,44 @@ function request_noti_ws(nu, bodyString, xm2mri, ri) {
     // json 둘만 받으므로 상대가 우리면 그 이름으로는 붙지도 못한다.
     var subprotocol = 'onem2m.r2.0.json';
 
-    ws_client.connect(nu, subprotocol);
+    // ── 타임아웃 ─────────────────────────────────────────────────────────
+    // 여기에는 outbound.arm 을 걸 수 없다. ws_client 는 http 요청 객체가 아니라
+    // (setTimeout 이 없고 요청 객체는 라이브러리 안에 있다) 결과를 'connect' /
+    // 'connectFailed' 로 알린다 — arm 의 자체 타이머가 듣는 'response'/'error'/
+    // 'close' 가 아니라서, 그대로 걸면 접속이 된 뒤에도 타이머가 살아 거짓
+    // '끊는다' 로그를 남긴다. 그래서 같은 한도(outbound.limitMs — conf 의
+    // outboundTimeoutMs)로 타이머를 직접 건다.
+    //
+    // 상대가 TCP 는 받아놓고 101 을 영영 안 주면 두 이벤트 다 오지 않는다 —
+    // 타이머가 없던 동안은 알림마다 소켓이 하나씩 남았다(요청 흐름 남은 일 §8).
+    // 타이머가 판정을 하고 abort() 로 요청을 파기한다. 파기하면 라이브러리가
+    // connectFailed 를 올리므로 settled 로 두 번째 판정을 막는다.
+    // 배포에는 ws:// nu 가 0건이다(2026-09-06 실측: sub 3,463 · ae poa 568 · csr
+    // poa 모두 0) — "고칠 때 같이 고친" 것이지 장애가 있었던 것이 아니다.
+    var limit = outbound.limitMs();
+    var settled = false;
+    var timer = setTimeout(function () {
+        if (settled) { return; }
+        settled = true;
+        console.error('[outbound] notify ws ' + (ri || nu) + ' 101 이 ' + limit + 'ms 안에 오지 않아 끊는다');
+        noti_result(NOTI_FAIL, 'ws', nu, ri, 'outbound timeout: 101 을 ' + limit + 'ms 안에 못 받았다');
+        try { ws_client.abort(); }
+        catch (e) { console.error('[outbound] notify ws ' + (ri || nu) + ' 파기 실패: ' + e.message); }
+    }, limit);
+    if (timer && typeof timer.unref === 'function') { timer.unref(); }
 
     ws_client.on('connectFailed', function (error) {
+        clearTimeout(timer);
+        if (settled) { return; }   // 타임아웃이 끊은 뒤 따라오는 실패다 — 이미 판정했다
+        settled = true;
         // 접속 자체가 안 된 것은 확실한 실패다 — 수신자가 사라졌다는 뜻이다.
         noti_result(NOTI_FAIL, 'ws', nu, ri, 'connectFailed: ' + error.message);
     });
 
     ws_client.on('connect', function (conn) {
+        clearTimeout(timer);
+        if (settled) { conn.close(); return; }   // 타임아웃 뒤에 붙은 접속은 쓰지 않는다
+        settled = true;
         console.log('<======= [request_noti_ws] connected - ' + nu);
         conn.on('error', function (error) {
             noti_result(NOTI_FAIL, 'ws', nu, ri, 'conn error: ' + error.message);
@@ -365,4 +395,6 @@ function request_noti_ws(nu, bodyString, xm2mri, ri) {
         noti_result(NOTI_UNKNOWN, 'ws', nu, ri, '접속됨 — 처리 확인 불가');
         conn.close();
     });
+
+    ws_client.connect(nu, subprotocol);
 }
