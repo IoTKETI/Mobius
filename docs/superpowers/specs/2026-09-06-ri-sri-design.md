@@ -90,3 +90,16 @@ discovery 필터 의미가 걸려 있어 이번엔 두지 않는다. 6,200만 �
   구조 URL 의 SQL 에 `sri` 가 없다(어댑터 tap).
 - A4: 46자 이름 · 201자 경로가 4xx 로, 45·200 은 통과. `reason-catalog` 개수 95.
 - 배포 순서: 코드(A1·A2·A4) → 017 `--check`/`--apply` → 재기동. 018 은 별도 창.
+
+## 6. 진행 (2026-09-06)
+
+| 항목 | 커밋 | 상태 |
+|---|---|---|
+| A1 생성기 `mobius/short_ri.js` + resource/cb/ae 배선 | `e37c97c` | 푸시됨 · **미배포** |
+| A1 마이그레이션 `017-dedupe-lookup-sri` | `7e0b173` | 푸시됨 · 배포 때 `--check` → `--apply`(분 단위) |
+| A2 구조 주소는 `ri` 만 | `27fcb02` | 푸시됨 · 미배포. 배포 뒤 EXPLAIN 으로 index_merge 소멸 확인 |
+| A4 이름 45 · 경로 200 검사 (`400-68`/`400-69`) | `a2a3831` | 푸시됨 · 미배포 |
+| A3 `018-id-columns-collation-bin` + `mobiusdb.sql` bin | `80e6a32` | 푸시됨 · **적용은 점검 창, 사용자 결정** |
+| UNIQUE 인덱스(`idx_lookup_sri` → UNIQUE) | — | 017 뒤 중복 0 확인하고 별도 DDL(INPLACE, 수십 분). 아직 안 만듦 |
+
+증명: npm test 99개 파일 1,303건 · 변이 15/15 잡힘 · sqlite 골든 33건 옛 HEAD 와 동등.
