@@ -53,9 +53,11 @@ test('db_sql.purge_sweep / reconcile_cnt_counters 는 각자의 tick 함수 안�
         }
         return f;
     }
-    assert.deepStrictEqual([...new Set(find(/db_sql\.purge_sweep\(/).map(owner))], ['purge_sweep_tick']);
-    assert.deepStrictEqual([...new Set(find(/db_sql\.reconcile_cnt_counters\(/).map(owner))], ['reconcile_counters']);
-    // 다른 모듈도 부르지 않는다
-    const elsewhere = sources.grep(/db_sql\.(purge_sweep|reconcile_cnt_counters)\(/, { scope: 'core', allow: ['app.js'] });
+    // 별칭이 무엇이든(db_sql. · require('./sql_action'). · 다른 이름) 메서드 호출 모양으로 본다 —
+    // `db_sql\.` 만 보면 다른 별칭으로 부르는 변이가 살아남았다(2026-09-06 변이로 확인).
+    assert.deepStrictEqual([...new Set(find(/\.purge_sweep\s*\(/).map(owner))], ['purge_sweep_tick']);
+    assert.deepStrictEqual([...new Set(find(/\.reconcile_cnt_counters\s*\(/).map(owner))], ['reconcile_counters']);
+    // 다른 모듈도 부르지 않는다 — 정의와 내부 호출이 있는 sql_action.js 만 뺀다
+    const elsewhere = sources.grep(/\.(purge_sweep|reconcile_cnt_counters)\s*\(/, { scope: 'core', allow: ['app.js', 'mobius/sql_action.js'] });
     assert.deepStrictEqual(elsewhere.map((h) => h.file + ':' + h.line), []);
 });
