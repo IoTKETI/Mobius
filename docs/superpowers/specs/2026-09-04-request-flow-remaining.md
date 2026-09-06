@@ -483,7 +483,19 @@ AE 총수, CIN 바이트 총합이다. 자격증명도 리소스 내용도 아�
 ### 3.5 ~~관찰 모드가 `pvs` 거부까지 뒤집는다~~ — **고쳤다** (`72df4ae`, 2026-09-04)
 
 `acp_observe.js` 가 `trace.field === 'pvs'` 를 보고 관찰 모드에서도 그대로
-막는다. 아래는 고치기 전 서술이다.
+막는다.
+
+**후속(같은 날)** — 사용자 지시 「새 설치에서 mobiusdb.sql import 만으로 끝날 수 있게」: 스키마 파일이
+`schema_migrations` 표와 이력을 싣는다. MySQL 은 010 을 뺀 18건(010 은 SET PERSIST — 서버 설정이라
+덤프가 못 담고, autoApply 라 첫 기동이 한다). SQLite 는 007·015·017 을 **조건부**로(`INSERT OR IGNORE` +
+그 마이그레이션의 inspect 와 같은 조건 — 기동마다 도는 파일이라 옛 DB 에서 거짓 이력을 적으면 안 된다;
+SQLite 의 AND 단락 평가를 확인하고 이력이 있으면 조건을 평가하지 않게 했다). README 의 「--apply 한 번 더」
+문장을 지웠다. 시험: `test/schema-drift.test.js` 3건(목록·DDL 세 곳 대조, 예외는 autoApply 여야 함) ·
+`test/sqlite-fresh-ledger.test.js` 4건(새 DB 남은 것 0, subl 이 남은 옛 DB 는 015 남음, 중복 sri 는 017 남음 — 실물 파일) ·
+`test/mysql/schema-fresh.test.js` 는 「import → 남은 것 010 뿐 → readDataSwitches 켜짐 → autoApply 뒤 0」. 015 조건을 떼는
+변이를 옛 DB 시험이 잡았다.
+
+아래는 고치기 전 서술이다.
 
 ```
 mobius/acp_observe.js:101-106   OBSERVABLE — decided_by 만 본다
@@ -811,7 +823,7 @@ CIN 생성마다 `sql_action.js:468` 이 stdout 에 한 줄을 낸다(실측 재
 `npm run test:mysql`(`test/mysql/`): 같은 서버의 별도 DB `mobiusdb_test` 를 `mobiusdb.sql` 로
 새로 깔고(이름이 `_test` 로 끝나는지와 `select database()` 를 두 번 확인한 뒤에만 DROP) →
 마이그레이션 19개를 전부 적용(새 설치 절차 그대로 — 스키마 파일만으로는 012 같은 데이터
-스위치가 기록되지 않는다는 것을 이 시험이 찾았고 README 에 적었다) → 빌더로 트리를
+스위치가 기록되지 않는다는 것을 이 시험이 찾았고 README 에 적었다 — 후속에서 그 절차 자체를 없앴다, 아래) → 빌더로 트리를
 심고(CSEBase·AE·컨테이너 6·CIN 1,650·구독·ACP) → 구조/비구조 조회 · la/ol · discovery 골격과
 자식 질의 · 구독 조회 · ACP 재귀/IN · 워커 카운터 증분 · 정합 · 스윕 · 삭제 · id 묶음 조회를
 **실제로 실행**하고 기록된 문장을 EXPLAIN 한다(lookup 풀스캔 0, 지정 인덱스 사용).
