@@ -1397,9 +1397,14 @@ function build_skeleton_sql(ri, query, budget_ms) {
     // 상대가 바뀌므로 그 해시를 매번 새로 만든다 (실측 15,584ms -> 4,856ms).
     var lead = 'select ' + facade.optimizerHints([timeout, facade.noHashJoinHint(['l', 's'])]);
 
-    // 골격 컬럼을 처음부터 비교용 콜레이션으로 만든다.
+    // 골격 컬럼의 콜레이션 조각(C)은 2026-09-06(마이그레이션 018) 뒤로 **빈 문자열**이다.
+    // pi 와 ri 가 같은 utf8mb3_bin 이라 캐스트가 필요 없고, 남겨 두면 재귀 조인이
+    // l.pi 쪽을 변환해 (pi, not_cin) 인덱스를 잃는다(배포 discovery 30초 타임아웃 —
+    // mobius/db/mysql.js 의 pathCollate 주석). 대소문자만 다른 경로는 이제 서로 다른
+    // 리소스라 UNION 이 접지 않는 것이 맞다. 아래는 018 전, pi 가 general_ci 였을 때의
+    // 사정이다 — 그때는 골격 컬럼을 처음부터 ci 로 캐스트해야 했다.
     //
-    // 조인할 때만 붙이면(s.sk_ri collate ...) 골격 안에 대소문자만 다른 경로가
+    // (옛) 조인할 때만 붙이면(s.sk_ri collate ...) 골격 안에 대소문자만 다른 경로가
     // 그대로 남는다. lookup.ri 는 utf8mb3_bin 이라 UNION 이 그것들을 서로 다른
     // 행으로 보기 때문이다. 그러면 같은 자식이 그 수만큼 중복으로 나오고,
     // 호출부가 found_Obj[ri] 로 합치면서 응답이 lim 보다 적어진다.
@@ -1436,9 +1441,10 @@ function build_skeleton_sql(ri, query, budget_ms) {
     // **모르면 남긴다** — `n.ri is null or n.cni > 0` 이다.
     //
     // ── 콜레이션 ────────────────────────────────────────────────────────
-    // sk_ri 는 위에서 pathCollate 로 캐스트돼 있다(재귀에서 pi 와 비교해야 한다).
-    // cnt.ri 는 lookup.ri 와 같은 원래 콜레이션이라, 조인하려면 되돌려야 한다.
-    // 안 맞추면 콜레이션이 섞여 죽는다. 어느 조각을 붙일지는 어댑터가 안다.
+    // pathCollate / riCollate 는 2026-09-06(마이그레이션 018) 뒤로 **빈 조각**이다 —
+    // pi · ri · cnt.ri 가 전부 utf8mb3_bin 이라 캐스트할 것이 없다. 캐스트를 남겨 두면
+    // 재귀 조인이 l.pi 쪽을 변환해 (pi, not_cin) 인덱스를 잃는다(배포 discovery 30초
+    // 타임아웃, mobius/db/mysql.js 참고). 호출 자리는 어댑터 계약으로 남긴다.
     // **needs_cin_join 이 아니라 has_size_filter 로 판단한다.**
     // 부모를 거르는 이득은 조인 여부와 무관하다 — 비용이 부모 개수에
     // 선형이라, 백필이 끝나 조인이 사라져도 이 필터는 계속 걸려야 한다.
@@ -1714,9 +1720,14 @@ function build_descendant_sql(ri, query, search, cur_lim) {
     // 상대가 바뀌므로 그 해시를 매번 새로 만든다 (실측 15,584ms -> 4,856ms).
     var lead = 'select ' + facade.optimizerHints([timeout, facade.noHashJoinHint(['l', 's'])]);
 
-    // 골격 컬럼을 처음부터 비교용 콜레이션으로 만든다.
+    // 골격 컬럼의 콜레이션 조각(C)은 2026-09-06(마이그레이션 018) 뒤로 **빈 문자열**이다.
+    // pi 와 ri 가 같은 utf8mb3_bin 이라 캐스트가 필요 없고, 남겨 두면 재귀 조인이
+    // l.pi 쪽을 변환해 (pi, not_cin) 인덱스를 잃는다(배포 discovery 30초 타임아웃 —
+    // mobius/db/mysql.js 의 pathCollate 주석). 대소문자만 다른 경로는 이제 서로 다른
+    // 리소스라 UNION 이 접지 않는 것이 맞다. 아래는 018 전, pi 가 general_ci 였을 때의
+    // 사정이다 — 그때는 골격 컬럼을 처음부터 ci 로 캐스트해야 했다.
     //
-    // 조인할 때만 붙이면(s.sk_ri collate ...) 골격 안에 대소문자만 다른 경로가
+    // (옛) 조인할 때만 붙이면(s.sk_ri collate ...) 골격 안에 대소문자만 다른 경로가
     // 그대로 남는다. lookup.ri 는 utf8mb3_bin 이라 UNION 이 그것들을 서로 다른
     // 행으로 보기 때문이다. 그러면 같은 자식이 그 수만큼 중복으로 나오고,
     // 호출부가 found_Obj[ri] 로 합치면서 응답이 lim 보다 적어진다.
@@ -2979,9 +2990,11 @@ exports.update_cnt_cni = function (connection, obj, callback) {
 //
 // 1. 커서로 진행한다. 예전 구현은 ORDER BY 없이 `limit N` 만 걸어서 늘 같은
 //    N개만 봤다 — 나머지 컨테이너는 영원히 검사되지 않았다.
-// 2. 조인을 쓰지 않는다. 운영 스키마는 ri 가 utf8mb3_bin, pi 가
-//    utf8mb3_general_ci 라 부모↔자식 조인이 인덱스를 못 쓴다
-//    (실측: LEFT JOIN 형태는 컨테이너 50개에 20초 상한 초과).
+// 2. 조인을 쓰지 않는다. 이 판단 당시 운영 스키마는 ri 가 utf8mb3_bin, pi 가
+//    utf8mb3_general_ci 라 부모↔자식 조인이 인덱스를 못 썼다
+//    (실측: LEFT JOIN 형태는 컨테이너 50개에 20초 상한 초과). 2026-09-06 의
+//    018 로 둘 다 bin 이 되어 조인도 인덱스를 타지만, 리터럴 비교가 더 단순하고
+//    빠르므로 그대로 둔다.
 //    리터럴 비교는 정상적으로 인덱스를 탄다 (type: ref, Using index).
 // 3. 시간 예산을 둔다. 한 번 호출이 무한정 길어지지 않게 하고 남은 몫은
 //    커서로 넘긴다.
@@ -4393,9 +4406,10 @@ exports.count_orphan_lookup = function (connection, limit, callback) {
  * 무엇이 고아인지 봐야 한다 — 어제 삭제하다 만 서브트리의 잔해인지, 오래전부터
  * 쌓인 것인지, 특정 AE 아래에 몰려 있는지는 목록을 봐야 알 수 있다.
  *
- * 조인을 쓰지 않는다. 배포 스키마는 lookup.pi 가 utf8mb3_general_ci, lookup.ri 가
- * utf8mb3_bin 이라 부모↔자식 조인이 인덱스를 못 탄다(실측: LEFT JOIN 형태는
- * 5,740만 행 풀스캔). count_orphan_lookup 과 같이 ri 키셋으로 전진하며 배치마다
+ * 조인을 쓰지 않는다. 이 판단 당시 배포 스키마는 lookup.pi 가 utf8mb3_general_ci,
+ * lookup.ri 가 utf8mb3_bin 이라 부모↔자식 조인이 인덱스를 못 탔다(실측: LEFT JOIN
+ * 형태는 5,740만 행 풀스캔). 018(2026-09-06) 뒤 둘 다 bin 이지만 키셋 전진이 더
+ * 단순하므로 그대로 둔다. count_orphan_lookup 과 같이 ri 키셋으로 전진하며 배치마다
  * 부모 존재를 리터럴 whereIn 으로 확인한다.
  *
  * @param opts.limit    돌려줄 최대 행 수

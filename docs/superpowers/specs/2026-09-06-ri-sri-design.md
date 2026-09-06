@@ -127,7 +127,10 @@ AE-ID → `400-70`. 문구의 숫자는 `name_limits` 상수에서 만든다.
 | A3 `018-id-columns-collation-bin` + `mobiusdb.sql` bin | `80e6a32` | 푸시됨 · **적용은 점검 창, 사용자 결정** |
 | A3 확대 — 식별자·이름 전부 bin, rn·sri·spi 200 (018 · mobiusdb.sql · schema-drift 시험의 CRLF 구멍 수정) | `ee58d55` | 푸시됨 · **적용은 점검 창** |
 | A4·A5 — 지정 AE-ID 길이 `400-70`, 문구를 상수로("this CSE"), 형식 미검사 결정 잠금 | `645ba92` | 푸시됨 · 미배포 |
-| UNIQUE 인덱스(`idx_lookup_sri` → UNIQUE) | — | 017 뒤 중복 0 확인하고 별도 DDL(INPLACE, 수십 분). 아직 안 만듦 |
+| 018 적용 | — | **적용됨** 2026-09-06 16:16 → 19:44 KST(12,489초). cin 265GB 약 2시간 50분 · lookup 78GB 약 35분. 창 동안 요청 27,903 전부 읽기, 5xx 0, 쓰기 0(일요일). 뒤늦게 완료된 쓰기 0 |
+| 019 `lookup.sri` UNIQUE(`idx_lookup_sri_unique`, 비유일 인덱스 제거) | `ba06aaf` | **적용됨** 19:54 → 20:25 KST(1,882초, 전수 group by 포함). unique · 카디널리티 61,860,908 · lookup 인덱스 총 57.4 → 56.1GB. 빌드 중 I/O 로 discovery 84건이 30초 타임아웃(400-67)됐고 끝난 뒤 정상(3분 72건 전부 200, 최대 172ms) |
+| 길이 상수 45 → 200 (`name_limits`) | `7723637` | **배포됨** 19:47 KST — 201자 이름 400 "up to 200", 60자 aei 201 확인 |
+| **핫픽스** 어댑터 콜레이션 조각 제거 (`pathCollate`·`riCollate` → '') | `bde7187` | **배포됨** 19:53 KST. 018 직후 discovery 26건 중 24건이 30초 타임아웃 — 골격의 ci 캐스트가 bin 이 된 `l.pi` 를 변환시켜 (pi, not_cin) 인덱스를 못 탔다. 실측 ci 30,019ms / 없음 931ms / bin 42ms. 핫픽스 뒤 같은 질의 188ms, 전체 CSE ty=3 341ms, 스모크 21/21 |
 
 증명: npm test 100개 파일 1,312건 · 변이 27/27 잡힘 · sqlite 골든 33건 옛 HEAD 와 동등.
 
