@@ -207,6 +207,15 @@ export function acpSimulateWithRows(body: {
   })
 }
 
+export function acpCreate(body: { parentRi: string; rn: string; pv: AcpPrivileges; pvs: AcpPrivileges }) {
+  return post<{ ok: boolean; ri: string; status: number; rsc: string | null }>('/api/acp/create', body)
+}
+
+/** 잠금 단위는 AE 하나다 — 백엔드가 그 외 타입을 거절한다. */
+export function acpAttach(body: { targetRi: string; acpi: string[] }) {
+  return post<{ ok: boolean; status: number; rsc: string | null }>('/api/acp/attach', body)
+}
+
 export function acpAudit(opts: { ri?: string; limit?: number; afterId?: number | null } = {}) {
   const q = new URLSearchParams()
   q.set('limit', String(opts.limit ?? 50))

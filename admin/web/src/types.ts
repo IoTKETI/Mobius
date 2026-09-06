@@ -185,6 +185,12 @@ export interface AcpPrivileges {
   acr?: AcpRule[]
 }
 
+/** 편집기의 규칙 한 줄. acor 는 쉼표로 구분한 문자열, acop 은 비트 합. */
+export interface EditRule {
+  acor: string
+  acop: number
+}
+
 export interface AcpRef {
   ri: string
   ty: number

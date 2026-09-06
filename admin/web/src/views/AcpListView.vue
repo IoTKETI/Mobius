@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { ref, watch, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { acpList, acpDetail, acpAudit, fmtTime } from '../api'
 import AcpPolicyNote from '../components/AcpPolicyNote.vue'
+import { riParam } from '../router'
 import type { AcpListRow, AcpDetailResponse, AcpAuditRow, AcpRule, WriteInfo } from '../types'
 
 const props = defineProps<{ selected?: string | null; write: WriteInfo }>()
-const emit = defineEmits<{ simulate: [ri: string]; edit: [ri: string] }>()
+const router = useRouter()
 
 const rows = ref<AcpListRow[]>([])
 const more = ref(false)
@@ -117,6 +119,11 @@ onMounted(async () => {
 
     <AcpPolicyNote />
 
+    <div class="toolbar">
+      <button class="primary" :disabled="!write.enabled" @click="router.push({ name: 'judge-acp-create' })">새 ACP</button>
+      <button :disabled="!write.enabled" @click="router.push({ name: 'judge-acp-attach' })">acpi 연결 / 해제</button>
+    </div>
+
     <p v-if="error" class="err">{{ error }}</p>
 
     <div v-if="rows.length" class="table-wrap">
@@ -139,7 +146,7 @@ onMounted(async () => {
             <td class="mono muted">{{ fmtTime(r.ct) }}</td>
             <td class="mono muted">{{ fmtTime(r.lt) }}</td>
             <td>
-              <button class="small" @click="emit('simulate', r.ri)">시뮬레이터</button>
+              <button class="small" @click="router.push({ name: 'judge-acp-sim', params: { ri: riParam(r.ri) } })">시뮬레이터</button>
             </td>
           </tr>
         </tbody>
@@ -161,11 +168,11 @@ onMounted(async () => {
           v-if="detail?.detail.is_acp !== false"
           :disabled="!write.enabled"
           :title="write.enabled ? '' : '조회 전용으로 떠 있습니다'"
-          @click="emit('edit', openRi)"
+          @click="router.push({ name: 'judge-acp-edit', params: { ri: riParam(openRi) } })"
         >
           편집
         </button>
-        <button @click="emit('simulate', openRi)">시뮬레이터로</button>
+        <button @click="router.push({ name: 'judge-acp-sim', params: { ri: riParam(openRi) } })">시뮬레이터로</button>
         <button @click="close">닫기</button>
       </div>
 
@@ -237,7 +244,10 @@ onMounted(async () => {
             <span v-if="detail.refs.capped" class="warntext">훑기 상한에 걸림 — 더 있을 수 있음</span>
           </p>
           <ul v-if="detail.refs.refs.length" class="reflist">
-            <li v-for="r in detail.refs.refs" :key="r.ri" class="mono">{{ r.ri }}</li>
+            <li v-for="r in detail.refs.refs" :key="r.ri" class="refrow">
+              <span class="mono">{{ r.ri }}</span>
+              <button class="small" @click="router.push({ name: 'judge-acp-attach', params: { ri: riParam(r.ri) } })">연결 편집</button>
+            </li>
           </ul>
           <p v-else class="none">
             아무도 이 ACP 를 쓰지 않습니다 — 걸어 두었지만 효력이 없는 상태입니다.
@@ -296,6 +306,9 @@ h4 { margin: 1.4rem 0 0.5rem; font-size: 1rem; color: var(--text-strong); }
 .muted { color: var(--muted); }
 .small { font-size: 0.88rem; }
 .warntext { color: var(--warn); font-weight: 600; }
+
+.toolbar { display: flex; gap: 0.6rem; margin: 0.6rem 0 1rem; }
+.toolbar .primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
 
 .table-wrap {
   background: var(--panel);
@@ -360,6 +373,8 @@ button.small { padding: 0.2rem 0.6rem; font-size: 0.85rem; }
 
 .reflist { margin: 0.3rem 0; padding-left: 1.1rem; max-height: 180px; overflow: auto; }
 .reflist li { font-size: 0.92rem; overflow-wrap: anywhere; }
+.reflist .refrow { display: flex; align-items: center; gap: 0.6rem; justify-content: space-between; }
+.reflist .refrow span { overflow-wrap: anywhere; }
 
 .prob { display: flex; align-items: baseline; gap: 0.5rem; flex-wrap: wrap; padding: 0.12rem 0; }
 .sev { font-size: 0.75rem; font-weight: 700; border-radius: 4px; padding: 0.05rem 0.4rem; }
