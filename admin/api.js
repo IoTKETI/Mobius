@@ -17,8 +17,6 @@ var moment = require('moment');
 var MAX_TARGETS = 5000;
 var SESSION_TTL_MS = 8 * 60 * 60 * 1000;
 var SCAN_MAX_PASSES = 50;
-/** et 연장이 가능한 타입. CIN 은 oneM2M 상 수정 자체가 안 된다(app.js:1839 → 405-7). */
-var EXTENDABLE = { '1': 1, '2': 1, '3': 1, '9': 1, '23': 1 };
 
 exports.install = function (app, ctx) {
     var conf = ctx.conf;
@@ -156,6 +154,21 @@ exports.install = function (app, ctx) {
                 // 시뮬레이터의 "거부" 가 실제 보호를 과장한다. 화면이 경고를 띄운다.
                 discoveryFilter: conf.acpDiscoveryFilter || 'on'
             }
+        });
+    });
+
+    /**
+     * 만료 정책. 화면이 상수로 들고 있던 것을 코어 함수로 바꿨다 — ACP 만 자동 삭제된다고
+     * 표시했는데 실제로는 아무것도 자동 삭제되지 않고, 코어가 et 를 받아 주는 타입을
+     * 화면이 막고 있었다(목적 문서 §0층 위반 1·2). undeletableTypes 는 정책이 아니라
+     * 구조다 — CSEBase 는 트리의 뿌리라 지울 수 없다(405-9).
+     */
+    app.get('/api/expired/policy', function (req, res) {
+        res.json({
+            autoDeletedTypes: ctx.expiry_policy.autoDeletedTypes(),
+            etExtendableTypes: ctx.expiry_policy.etExtendableTypes(),
+            undeletableTypes: [5],
+            typeNames: responder.typeRsrc
         });
     });
 
@@ -591,6 +604,47 @@ exports.install = function (app, ctx) {
         });
     });
 
+    // ── 통계 (관측) ───────────────────────────────────────────────────────
+    //
+    // 코어의 /hit · /total_ae · /total_cbs 가 여기로 왔다(2026-09-06). 그 경로는
+    // X-M2M 헤더 검사와 ACP 앞에서 인증 없이 응답했고 외부에서 닿았다(인수인계 §7).
+    // 여기서는 세션 게이트 뒤다. 질의는 코어의 것을 그대로 쓴다.
+
+    function first_value(rows) {
+        if (!rows || !rows.length) { return 0; }
+        var r = rows[0];
+        var k = Object.keys(r)[0];
+        return Number(r[k]) || 0;
+    }
+
+    app.get('/api/stats/hit', function (req, res) {
+        with_connection(res, function (conn, done) {
+            db_sql.get_hit_all(conn, function (err, rows) {
+                done();
+                if (err) { return res.status(500).json({ error: String((rows && rows.message) || err) }); }
+                res.json({ asOf: now_et(), rows: rows });
+            });
+        });
+    });
+    app.get('/api/stats/total-ae', function (req, res) {
+        with_connection(res, function (conn, done) {
+            db_sql.select_sum_ae(conn, function (err, rows) {
+                done();
+                if (err) { return res.status(500).json({ error: String((rows && rows.message) || err) }); }
+                res.json({ total: first_value(rows) });
+            });
+        });
+    });
+    app.get('/api/stats/total-cbs', function (req, res) {
+        with_connection(res, function (conn, done) {
+            db_sql.select_sum_cbs(conn, function (err, rows) {
+                done();
+                if (err) { return res.status(500).json({ error: String((rows && rows.message) || err) }); }
+                res.json({ total: first_value(rows) });
+            });
+        });
+    });
+
     // ── 일괄 작업 ─────────────────────────────────────────────────────────────
 
     /** 커넥션을 하나 빌려 fn 에 넘기고 반드시 반납한다. 작업 항목마다 짧게 빌린다. */
@@ -764,7 +818,8 @@ exports.install = function (app, ctx) {
                         if (e) { return cb('failed', 'DB 조회 실패: ' + String((rows && rows.message) || e)); }
                         if (!rows || rows.length === 0) { return cb('skipped', '이미 없음'); }
                         var ty = String(rows[0].ty);
-                        if (!EXTENDABLE[ty]) {
+                        var extendable = ctx.expiry_policy.etExtendableTypes();
+                        if (extendable.indexOf(parseInt(ty, 10)) < 0) {
                             // 타입 이름의 받침에 따라 조사가 달라지므로 조사를 붙이지 않는다.
                             var nm = responder.typeRsrc[ty] || ('ty' + ty);
                             return cb('skipped', nm.toUpperCase() + ' — et 를 수정할 수 없는 타입');
