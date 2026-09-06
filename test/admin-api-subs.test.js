@@ -118,3 +118,27 @@ test('감사가 실패하면 사유를 담아 500 — {"error":"true"} 로 뭉�
         assert.ok(/boom/.test(r2.body.error), 'error 에 실제 사유(boom)가 담겨야 한다: ' + JSON.stringify(r2.body));
     } finally { await h.close(); }
 });
+
+test('sub-delete 는 구독만 지운다', async function () {
+    const h = await boot({
+        execute: function (sql, bindings) {
+            if (/from `lookup`/.test(sql)) { return [{ ri: bindings[0], ty: bindings[0].endsWith('/s1') ? '23' : '3' }]; }
+            return [];
+        },
+        cse: { status: 200, rsc: '2002', body: {} }
+    });
+    try {
+        await h.login();
+        const r = await h.request('POST', '/api/jobs/sub-delete', { ris: ['/M/ae/s1', '/M/ae/c'] });
+        assert.strictEqual(r.status, 202);
+        let job;
+        for (let i = 0; i < 200; i++) {
+            job = (await h.request('GET', '/api/jobs/' + r.body.id)).body;
+            if (job.state !== 'running') { break; }
+            await new Promise((res) => setTimeout(res, 10));
+        }
+        assert.strictEqual(job.ok, 1);
+        assert.strictEqual(job.skipped, 1);
+        assert.deepStrictEqual(h.cse.calls.filter((c) => c.method === 'DELETE').map((c) => c.path), ['/M/ae/s1']);
+    } finally { await h.close(); }
+});

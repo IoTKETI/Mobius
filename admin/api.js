@@ -926,6 +926,28 @@ exports.install = function (app, ctx) {
     });
 
     /**
+     * 구독 삭제. 구독 화면에서 broken 만 미리 선택되어 온다. 삭제 직전 그 ri 가 여전히
+     * 구독(ty=23)인지 본다 — 목록이 낡았을 수 있다.
+     */
+    app.post('/api/jobs/sub-delete', function (req, res) {
+        if (!require_write(res)) { return; }
+        var ris = req.body && req.body.ris;
+        var bad = bad_targets(ris);
+        if (bad) { return res.status(400).json({ error: bad }); }
+        start_or_conflict(res, {
+            kind: 'sub-delete',
+            title: '구독 삭제 ' + ris.length + '건',
+            note: '삭제 직전 대상이 여전히 구독(ty=23)인지 다시 확인한다.',
+            targets: ris,
+            concurrency: 4,
+            worker: make_delete_worker(function (conn, row, next) {
+                if (String(row.ty) !== '23') { return next('구독이 아님 (ty=' + row.ty + ')'); }
+                next(null);
+            })
+        });
+    });
+
+    /**
      * et 연장. 절대 시각을 받는다 — "며칠 뒤" 를 서버에서 계산하면 화면이 보여 준
      * 값과 실제로 들어가는 값이 어긋날 수 있다.
      */

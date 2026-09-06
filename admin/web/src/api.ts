@@ -15,6 +15,8 @@ import type {
   Job,
   OrphanScanResult,
   SessionInfo,
+  SubsEndpointsPage,
+  SubsSamplePage,
 } from './types'
 
 export class AuthError extends Error {}
@@ -135,6 +137,18 @@ export function startOrphanScan(opts: { scanCap?: number; sampleCap?: number } =
 }
 export function orphanLast() {
   return get<OrphanScanResult | { none: true }>('/api/orphans/last')
+}
+
+// ── 구독 (엔드포인트 롤업) ──────────────────────────────────────────────────
+
+export function subsEndpoints(opts: { limit?: number } = {}) {
+  return get<SubsEndpointsPage>(`/api/subs/endpoints?limit=${opts.limit ?? 100}`)
+}
+export function subsSample(endpoint: string, limit = 200) {
+  return get<SubsSamplePage>(`/api/subs/sample?endpoint=${encodeURIComponent(endpoint)}&limit=${limit}`)
+}
+export function startSubDelete(ris: string[]) {
+  return post<Job>('/api/jobs/sub-delete', { ris })
 }
 
 // ── ACP ────────────────────────────────────────────────────────────────────

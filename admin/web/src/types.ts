@@ -68,7 +68,7 @@ export const UNDELETABLE = new Set([5])
 
 // ── 일괄 작업 ──────────────────────────────────────────────────────────────
 
-export type JobKind = 'expired-delete' | 'expired-extend' | 'orphan-delete' | 'orphan-scan' | 'selftest'
+export type JobKind = 'expired-delete' | 'expired-extend' | 'orphan-delete' | 'orphan-scan' | 'sub-delete' | 'selftest'
 export type JobState = 'running' | 'done' | 'cancelled' | 'failed'
 
 export interface JobOutcome {
@@ -127,6 +127,45 @@ export interface ExpiryPolicy {
 }
 
 export interface HitRow { ct: string; http: number; mqtt: number; coap: number; ws: number }
+
+// ── 구독 (엔드포인트 롤업) ───────────────────────────────────────────────────
+
+/** 같은 nu 엔드포인트(scheme://host)로 묶은 구독 집계 한 줄. */
+export interface SubsEndpoint {
+  endpoint: string
+  total: number
+  /** 알림을 보낼 수 없는 구독 수 — 일괄 삭제 후보. */
+  broken: number
+  /** 보낼 수는 있으나 받을 상대가 확인되지 않는 구독 수 — 사람이 하나씩 골라야 한다. */
+  suspect: number
+  sample: string[]
+}
+
+export interface SubsEndpointsPage {
+  endpoints: SubsEndpoint[]
+  endpointsTruncated: boolean
+  scanned: number
+  capped: boolean
+  audit: { scanned: number; capped: boolean; bySeverity: Record<string, number>; byReason: Record<string, number> }
+}
+
+/** 코어 구독 감사(audit_subscriptions)가 낸 판정이 붙은 구독 한 행. */
+export interface SubsSampleRow {
+  ri: string
+  pi: string
+  nu: string[]
+  enc: unknown
+  cr: string
+  severity: 'broken' | 'suspect' | null
+  reason: string | null
+}
+
+export interface SubsSamplePage {
+  rows: SubsSampleRow[]
+  more: boolean
+  scanned: number
+  capped: boolean
+}
 
 export interface SessionInfo {
   ok: boolean
