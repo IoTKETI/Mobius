@@ -460,3 +460,11 @@ function unsupported(handle, callback) {
 exports.begin = unsupported;
 exports.commit = unsupported;
 exports.rollback = unsupported;
+
+// 핸들을 닫는다. 운영 코드는 부르지 않는다 — 어댑터 표면을 mysql 과 같게 두려고 있고(test/db-adapter-contract),
+// 시험이 프로세스를 끝낼 때 쓴다. 닫은 뒤 다시 connect 하면 새로 연다.
+exports.end = function (callback) {
+    var h = db; db = null;
+    if (!h || typeof h.close !== 'function') { return callback && callback(null); }
+    h.close(function (err) { if (callback) { callback(err || null); } });
+};

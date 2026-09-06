@@ -141,6 +141,15 @@ exports.confSchema = {
         type: 'string', dflt: '', secret: true, exposed: false, apply: 'restart',
         label: 'DB 비밀번호',
         help: '값을 화면으로 내보내지 않는다. 길이도 주지 않는다.'
+    },
+    // 데이터베이스 이름. 기본은 mobiusdb. MySQL 시험 레인(test/mysql/, npm run test:mysql)이
+    // 같은 서버의 별도 DB(mobiusdb_test)에 스키마를 새로 깔고 실제로 실행하려고 만들었다
+    // (2026-09-06, 남은 일 §7.1). 운영에서 이름을 바꿀 일은 거의 없다 — 고급 키.
+    dbName: {
+        group: '저장소',
+        type: 'string', dflt: 'mobiusdb', apply: 'restart',
+        label: 'DB 이름',
+        help: '접속할 데이터베이스 이름. 시험 레인은 mobiusdb_test 를 쓴다.'
     }
 };
 
@@ -290,7 +299,7 @@ exports.connect = function (callback) {
         // 객체**에서 직접 읽는다. undefined 와 '' 는 드라이버에게 같은 값이다
         // (ConnectionConfig 가 options.password || undefined 로 받는다).
         password: (typeof conf.dbpass === 'string') ? conf.dbpass : '',
-        database: DATABASE,
+        database: (typeof conf.dbName === 'string' && conf.dbName) ? conf.dbName : DATABASE,
         // 풀 크기와 대기열 한도는 conf.json 으로 뺐다(mobius/conf_schema.js).
         // 기본값은 예전에 박혀 있던 값 그대로라 설정을 안 넣으면 동작이 같다.
         //
@@ -346,7 +355,7 @@ exports.connect = function (callback) {
     //
     // createPool 은 소켓을 열지 않는다 — 이 줄은 "붙었다" 가 아니라 "이
     // 좌표로 붙을 것이다" 다. 실제 실패는 첫 getConnection 에서 난다.
-    console.log('[db/mysql] pool ' + USER + '@' + HOST + ':' + PORT + '/' + DATABASE +
+    console.log('[db/mysql] pool ' + USER + '@' + HOST + ':' + PORT + '/' + ((typeof conf.dbName === 'string' && conf.dbName) ? conf.dbName : DATABASE) +
                 ' (풀 ' + limit + ', 대기열 ' + queue + ')');
 
     callback('1');
@@ -488,3 +497,12 @@ exports.normalizeError = function (err) {
 exports.begin = function (handle, callback) { handle.beginTransaction(callback); };
 exports.commit = function (handle, callback) { handle.commit(callback); };
 exports.rollback = function (handle, callback) { handle.rollback(callback); };
+
+// 풀을 닫는다. 운영 코드는 부르지 않는다 — 프로세스가 끝날 때 같이 닫힌다.
+// MySQL 시험 레인(test/mysql/)이 시험 프로세스를 끝내려고 쓴다: 풀이 열려 있으면
+// node --test 의 자식 프로세스가 종료하지 못해 러너가 영원히 기다린다.
+exports.end = function (callback) {
+    var p = pool; pool = null;
+    if (!p) { return callback && callback(null); }
+    p.end(function (err) { if (callback) { callback(err || null); } });
+};
