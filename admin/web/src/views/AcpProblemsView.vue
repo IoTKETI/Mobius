@@ -114,6 +114,7 @@ onMounted(load)
     <div v-if="!loading && !bodyRows.length && !refRows.length" class="empty">
       문제가 발견되지 않았습니다.
       <span v-if="refs?.capped">(훑기 상한까지는 — 뒤에 더 있을 수 있습니다)</span>
+      <span v-if="lintMore">(지금까지 검사한 것 중입니다 — “더 보기” 로 이어서 검사합니다)</span>
     </div>
 
     <template v-if="bodyRows.length">
@@ -146,13 +147,17 @@ onMounted(load)
           </tbody>
         </table>
       </div>
-      <div class="more">
-        <button v-if="lintMore" :disabled="loadingMore" @click="loadMoreLint">
-          {{ loadingMore ? '불러오는 중…' : '더 보기 (다음 200건)' }}
-        </button>
-        <span class="muted">{{ lint?.rows.length ?? 0 }}건 검사<template v-if="lintMore"> · 더 있음</template></span>
-      </div>
     </template>
+
+    <!-- 지금까지 읽은 쪽에 문제 행이 하나도 없어도(bodyRows 가 비어도) lint 를
+         읽었으면 항상 그린다 — 안 그러면 뒤에 문제 ACP 가 남아 있어도 "없다"
+         로 보인다. -->
+    <div v-if="lint" class="more">
+      <button v-if="lintMore" :disabled="loadingMore" @click="loadMoreLint">
+        {{ loadingMore ? '불러오는 중…' : '더 보기 (다음 200건)' }}
+      </button>
+      <span class="muted">{{ lint?.rows.length ?? 0 }}건 검사<template v-if="lintMore"> · 더 있음</template></span>
+    </div>
 
     <template v-if="refRows.length">
       <h3>ACP 를 가리키는 쪽</h3>
