@@ -152,7 +152,9 @@ test('본문 조립과 발송이 nu 별 값을 쓴다', function () {
     // 예전에는 여기 bodytype 도 있었다. 값이 언제나 'json' 리터럴이라
     // 걷어냈다(2026-09-01) — 이 시험의 뜻은 "nu 별 값과 구독 ri 를 함께
     // 넘긴다" 이지 형식을 넘긴다가 아니었다.
-    assert.ok(/sgn_man\.post\(nu, xm2mri, bodyString, ri\)/.test(body),
+    // 예전에는 setTimeout 래퍼 안에서 매개변수 이름 ri 로 넘겼다. 랜덤 지연을 걷으면서
+    // (2026-09-06) 곧바로 부르므로 이제 ss_ri 그대로다 — 뜻은 같다.
+    assert.ok(/sgn_man\.post\(nu, xm2mri, bodyString, ss_ri\)/.test(body),
         '발송이 nu 와 구독 ri 를 함께 넘겨야 한다');
 
     // 형식이 인자로 되돌아오면 잡는다. 알림은 언제나 json 이다.

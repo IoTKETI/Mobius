@@ -191,9 +191,10 @@ function sgn_action_send(nu_arr, req_count, node, short_flag, check_value, ss_cr
             // 역추적할 수 없었다. 관리 UI 가 물어볼 첫 번째 질문이 그것이다.
             // 'json' 리터럴을 넘기던 bodytype 자리를 없앴다 (2026-09-01).
             // 알림은 언제나 json 이고, 그 사실은 위 머리말이 이미 말한다.
-            setTimeout(function (nu, xm2mri, bodyString, ri) {
-                sgn_man.post(nu, xm2mri, bodyString, ri);
-            }, parseInt(1 + Math.random() * 10), nu, xm2mri, bodyString, ss_ri);
+            //
+            // 여기에 setTimeout(1~10ms 랜덤) 이 있었다 — 아래 sgn_action 의 같은 자리 주석 참조.
+            // 지연 없이 곧바로 보낸다. 한 워커 안에서 nu 순서 · 사건 순서가 그대로 발송 순서다.
+            sgn_man.post(nu, xm2mri, bodyString, ss_ri);
         }
 
         // 다음 nu 에는 **원래 값**을 넘긴다. 이 nu 의 옵션이 번지면 안 된다.
@@ -273,11 +274,21 @@ function sgn_action(connection, rootnm, check_value, rows, req_count, noti_Obj, 
             // 그래서 "다음 구독으로" 는 갈래 없이 한 줄이다.
             nu_resolve.resolve(connection, nu_arr, results_ss.ri, function (resolved) {
                 if (nct == 2 || nct == 1) {
-                    setTimeout(function (nu_arr, count, node, short_flag, check_value, cr, ri, xm2mri, exc, parentObj) {
-                        sgn_action_send(nu_arr, count, node, short_flag, check_value, results_ss.cr, results_ss.ri, xm2mri, results_ss.exc, parentObj, function (code) {
-                            console.log('[sgn_action_send] - ' + code);
-                        });
-                    }, parseInt(1 + Math.random() * 10), resolved, 0, node, short_flag, check_value, results_ss.cr, results_ss.ri, xm2mri, results_ss.exc, parentObj);
+                    // 발송 앞에 setTimeout(1~10ms 랜덤) 이 두 자리(여기와 sgn_action_send 의
+                    // sgn_man.post 앞) 있었다. 처음 넣은 이유는 "워커 여럿이 같은 순간에 같은
+                    // 메시지를 보내면 충돌하지 않을까" 였다(작성자 확인, 2026-09-06). 충돌은
+                    // 없다 — 발송은 워커마다 자기 소켓으로 나간다. HTTP 는 알림마다 새 연결,
+                    // MQTT 는 워커당 클라이언트 하나가 자기 연결에서 순서대로 쓴다(QoS 0 이라
+                    // 패킷 ID 도 없다). 프로세스 사이를 1~10ms 지터로 조정할 수도 없고, 한 워커
+                    // 안에서는 지터 없이도 직렬이다.
+                    //
+                    // 지연이 실제로 한 일은 순서를 흔드는 것이었다. 같은 워커에서 10ms 안에
+                    // 사건이 둘 나면 각각 독립된 난수 지연을 받아 **나중 사건의 알림이 먼저**
+                    // 나갈 수 있었다. 응답은 어차피 DB 콜백 뒤에 발송이 도니 지연 없이도 먼저
+                    // 나간다. 그래서 곧바로 보낸다 — test/sgn-send-order.test.js 가 순서를 잠근다.
+                    sgn_action_send(resolved, 0, node, short_flag, check_value, results_ss.cr, results_ss.ri, xm2mri, results_ss.exc, parentObj, function (code) {
+                        console.log('[sgn_action_send] - ' + code);
+                    });
                 }
                 else {
                     console.log('nct except 2 (All Attribute) do not support');

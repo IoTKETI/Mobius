@@ -706,7 +706,13 @@ CIN 생성마다 `sql_action.js:468` 이 stdout 에 한 줄을 낸다(실측 재
   (`mobius/nu_resolve.js`)으로 접혔다. 스펙
   `docs/superpowers/specs/2026-09-05-notification-routing-source-design.md`, 1단계
   커밋 `01b234a`(이중 쓰기 유지). 2단계(사본 장치 제거)는 첫 평일 관문 뒤
-- **알림 전송 앞 1~10ms 랜덤 지연** — `sgn.js:185`·`421`. 근거가 주석에 없다
+- ~~**알림 전송 앞 1~10ms 랜덤 지연**~~ — 걷었다(2026-09-06). 작성자가 확인한 원래
+  이유는 "워커 여럿이 같은 순간에 같은 메시지를 보내면 충돌하지 않을까" 였다. 충돌은
+  없다 — 발송은 워커마다 자기 소켓(HTTP 는 알림마다 새 연결, MQTT 는 워커당 클라이언트
+  하나의 직렬 쓰기, QoS 0)이고 지터가 프로세스 사이를 조정하지도 못한다. 지연이 실제로
+  한 일은 같은 워커의 10ms 안 두 사건의 알림 순서를 뒤집는 것이었다.
+  `test/sgn-send-order.test.js` 가 "지연 없음 · 사건 순서 보장" 을 잠근다(sgn_man 을
+  require.cache 스텁으로 갈아 끼워 sgn.js 를 시험 안에서 돌린다)
 - ~~**`csr` 포워딩 블록 4회 복붙**~~ — `forward_to_csr` 하나로 (`e00f145`, 응답 구조 3단계 11번). 라우트 넷 자체가 `with_connection` → 관문 → `run_operation` 으로 접혔다(`4351da1`·`ec29791`)
 - **HEAD 요청** — Express 4 는 HEAD 를 `app.get('*')` 로 태우고 `request.method` 는 'HEAD' 그대로다. 라우트가 그것을 표의 키로 쓰면 워커가 죽는다(`396d3dd` 로 고침, 골든 `head-cse`). 새 라우트 코드를 쓸 때 기억할 것
 - **`hd_*` 의 고유 속성(lvl 등)은 HTTP 로 갱신할 길이 없다** — `hd:bat` 루트 PUT 은 400-42(ty 대조), `m2m:fcnt` 루트는 400 "attribute is not defined". 2026-09-05 실측(`tools/response-golden/fcnt-check.js`). 결함인지 설계인지 판단이 필요하다
