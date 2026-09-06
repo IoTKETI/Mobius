@@ -15,7 +15,10 @@ const fs = require('fs');
 const path = require('path');
 
 const src = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8')
-    .replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/mg, '');
+    // 줄 주석부터 지운다 — 그 안에 우연히 '/*' 가 들어 있으면(예: 경로 와일드카드
+    // '/api/stats/*') 블록 주석 제거를 먼저 돌릴 때 다음 실제 '*/' 까지 실코드를
+    // 통째로 삼켜 버린다(실측: 156줄). 순서를 바꾸면 그 줄이 먼저 사라져 안전하다.
+    .replace(/^\s*\/\/.*$/mg, '').replace(/\/\*[\s\S]*?\*\//g, '');
 
 function routeBlock(method) {
     const start = src.indexOf("app." + method + "('*', onem2mParser,");

@@ -1873,105 +1873,6 @@ function get_resource_from_url(connection, ri, sri, option, callback) {
     });
 }
 
-function extra_api_action(connection, url, callback) {
-    if (url == '/hit') {
-        // for backup hit count
-        if (0) {
-            var _hit_old = JSON.parse(fs.readFileSync('hit.json', 'utf-8'));
-            var _http = 0;
-            var _mqtt = 0;
-            var _coap = 0;
-            var _ws = 0;
-
-            for (var dd in _hit_old) {
-                if (_hit_old.hasOwnProperty(dd)) {
-                    for (var ff in _hit_old[dd]) {
-                        if (_hit_old[dd].hasOwnProperty(ff)) {
-                            if (Object.keys(_hit_old[dd][ff]).length > 0) {
-                                for (var gg in _hit_old[dd][ff]) {
-                                    if (_hit_old[dd][ff].hasOwnProperty(gg)) {
-                                        if (_hit_old[dd][ff][gg] == null) {
-                                            _hit_old[dd][ff][gg] = 0;
-                                        }
-                                        if (gg == 'H') {
-                                            _http = _hit_old[dd][ff][gg];
-                                        }
-                                        else if (gg == 'M') {
-                                            _mqtt = _hit_old[dd][ff][gg];
-                                        }
-                                        else if (gg == 'C') {
-                                            _coap = _hit_old[dd][ff][gg];
-                                        }
-                                        else if (gg == 'W') {
-                                            _ws = _hit_old[dd][ff][gg];
-                                        }
-                                    }
-                                }
-
-                                db_sql.set_hit_n(connection, dd, _http, _mqtt, _coap, _ws, (err, results) => {
-                                    results = null;
-                                });
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        if (0) {
-            var count = 0;
-            setTimeout((count) => {
-                if (count > 250) {
-                    return;
-                }
-                var dd = moment().utc().subtract(count, 'days').format('YYYYMMDD');
-                var _http = 5000 + Math.random() * 50000;
-                var _mqtt = 1000 + Math.random() * 9000;
-                var _coap = 0;
-                var _ws = 0;
-
-                db_sql.set_hit_n(connection, dd, _http, _mqtt, _coap, _ws, (err, results) => {
-                    results = null;
-                    console.log(count);
-                    setTimeout(random_hit, 100, ++count);
-                });
-            }, 100, count);
-        }
-
-        db_sql.get_hit_all(connection, (err, result) => {
-            if (err) {
-                callback('500-1');
-            }
-            else {
-                callback('201', result);
-            }
-        });
-    }
-    else if (url == '/total_ae') {
-        db_sql.select_sum_ae(connection, function (err, result) {
-            if (err) {
-                callback('500-1');
-            }
-            else {
-                callback('201', result);
-            }
-        });
-    }
-    else if (url == '/total_cbs') {
-        db_sql.select_sum_cbs(connection, function (err, result) {
-            if (err) {
-                callback('500-1');
-            }
-            else {
-                callback('201', result);
-            }
-        });
-    }
-    else {
-        callback('200');
-    }
-}
-
 function check_xm2m_headers(request, callback) {
     // Check X-M2M-RI Header
     if (request.headers.hasOwnProperty('x-m2m-ri')) {
@@ -2536,52 +2437,30 @@ app.post('*', onem2mParser, (request, response) => {
 
 app.get('*', onem2mParser, (request, response) => {
     with_connection(request, response, (settle) => {
-        extra_api_action(request.db_connection, request.url, (code, result) => {
+        // /hit · /total_ae · /total_cbs 가 여기(extra_api_action) 있었다. 2026-09-06 에
+        // 관리 콘솔의 /api/stats/* 로 옮겼다 — 헤더·ACP 검사 **앞에서** 인증 없이
+        // 호출 건수·AE 수·CIN 바이트 총합을 내보내던 경로였다(인수인계 §7, 외부에서
+        // 닿는 것을 실측). 세 URL 은 이제 일반 리소스 조회로 떨어져 404 다.
+        check_xm2m_headers(request, (code) => {
             if (code === '200') {
-                check_xm2m_headers(request, (code) => {
-                    if (code === '200') {
-                        // 헤더 검증을 통과한 요청만 센다 (§5.1). extra api 는 위에서 이미 뺐다.
-                        count_hit(request.headers['binding'] || 'H');
+                // 헤더 검증을 통과한 요청만 센다 (§5.1).
+                count_hit(request.headers['binding'] || 'H');
 
-                        get_target_url(request, response, (code) => {
-                            if (code === '200') {
-                                if (request.option !== '/fopt') {
-                                    run_operation(request, response, settle, 'GET', lookup_retrieve);
-                                }
-                                else { //if (request.option === '/fopt') {
-                                    run_fanout(request, response, settle, (request.query.fu == 1) ? security.ACOP.DISCOVERY : security.ACOP.RETRIEVE, false);
-                                }
-                            }
-                            else if (code === '301-1') {
-                                forward_to_csr(request, response, settle);
-                            }
-                            else {
-                                settle.error(code);
-                            }
-                        });
+                get_target_url(request, response, (code) => {
+                    if (code === '200') {
+                        if (request.option !== '/fopt') {
+                            run_operation(request, response, settle, 'GET', lookup_retrieve);
+                        }
+                        else { //if (request.option === '/fopt') {
+                            run_fanout(request, response, settle, (request.query.fu == 1) ? security.ACOP.DISCOVERY : security.ACOP.RETRIEVE, false);
+                        }
+                    }
+                    else if (code === '301-1') {
+                        forward_to_csr(request, response, settle);
                     }
                     else {
                         settle.error(code);
                     }
-                });
-            }
-            else if (code === '201') {
-                // /hit · /total_ae · /total_cbs 의 응답이다. oneM2M 리소스가
-                // 아니라 서버 상태 집계라 responder 형태에 안 맞는다 —
-                // 그래서 settle.raw 로 직접 보낸다.
-                //
-                // 예전에는 정산기를 아예 우회했다:
-                //     db.release(connection);          <- 응답보다 **먼저**
-                //     response.status(200).end(...)
-                //
-                // 두 가지가 어긋났다. 반납이 응답보다 앞서서 그 사이 다른
-                // 요청이 이 커넥션을 빌릴 수 있었고, 정산기를 안 타므로
-                // **이중 정산 방지 장치가 없었다.** raw 는 fn 이 응답을
-                // 보내고 나서 반납하고, claim() 도 탄다.
-                settle.raw('extra api ' + request.url, function () {
-                    response.header('Content-Type', 'application/json');
-                    response.status(200).end(JSON.stringify(result, null, 4));
-                    result = null;
                 });
             }
             else {
