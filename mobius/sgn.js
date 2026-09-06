@@ -159,21 +159,15 @@ function sgn_action_send(nu_arr, req_count, node, short_flag, check_value, ss_cr
         }
     }
 
-    // 아래 둘은 nu 와 무관하게 모든 수신자에게 똑같이 적용된다.
+    // nu 와 무관하게 모든 수신자에게 똑같이 적용된다.
     // 몇 번을 돌려도 같은 결과라 공유 객체에 그대로 둔다.
+    //
+    // 구독 검증 요청(check_value 256, vrq=true)을 만드는 갈래가 여기 있었다 — 부르는 곳이
+    // 없었다. oneM2M 은 구독 생성 때 수신자에게 검증 요청을 보내 2000 을 받아야 성공으로
+    // 치지만 이 CSE 는 검증하지 않는다. 구현하면 배포 구독자(MQTT 로 받는 GCS 등)가 검증에
+    // 답하지 않을 때 구독 생성이 깨지므로 지원하지 않기로 결정했다(2026-09-06).
     if(check_value == 128) {
         this_node['m2m:sgn'].sud = true;
-        delete this_node['m2m:sgn'].nev;
-    }
-    else if(check_value == 256) {
-        if(!this_node['m2m:sgn'].hasOwnProperty('vrq')) {
-            this_node['m2m:sgn'].vrq = true;
-        }
-        this_node['m2m:sgn'].vrq = true;
-        var temp = this_node['m2m:sgn'].sur;
-        delete this_node['m2m:sgn'].sur;
-        this_node['m2m:sgn'].sur = temp;
-        this_node['m2m:sgn'].cr = ss_cr;
         delete this_node['m2m:sgn'].nev;
     }
 
@@ -265,7 +259,7 @@ function sgn_action(connection, rootnm, check_value, rows, req_count, noti_Obj, 
 
     var matched = false;
     for (var j = 0; j < net_arr.length; j++) {
-        if (net_arr[j] == check_value || check_value == 256 || check_value == 128) { // 1 : Update_of_Subscribed_Resource, 3 : Create_of_Direct_Child_Resource, 4 : Delete_of_Direct_Child_Resource
+        if (net_arr[j] == check_value || check_value == 128) { // 1 : Update_of_Subscribed_Resource, 3 : Create_of_Direct_Child_Resource, 4 : Delete_of_Direct_Child_Resource, 128 : 구독 삭제
             matched = true;
             node['m2m:sgn'].nev.net = parseInt(net_arr[j].toString());
 
@@ -332,7 +326,7 @@ exports.check = function(request, notiObj, check_value, callback) {
     var target_root = Object.keys(request.targetObject)[0];
     var parentObj = request.targetObject[target_root];
 
-    if(check_value != 256 && check_value != 128) {
+    if(check_value != 128) {
         var noti_ri = noti_Obj.ri;
         noti_Obj.ri = noti_Obj.sri;
         delete noti_Obj.sri;

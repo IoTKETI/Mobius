@@ -262,11 +262,12 @@ test('arm 라벨이 어느 경로인지 말해 준다', function () {
     // 최소 개수를 박아 그 경우를 잡는다.
     //
     // 하한이 10 이었다. 프로토콜 프록시 3종을 지우면서 arm 호출이
-    // 11 -> 6 으로 줄어 6 으로 내렸다. 남는 여섯 자리:
-    //     app.js 2 (ae notify · csr forward)
+    // 11 -> 6 으로 줄어 6 으로 내렸고, AE 알림 중계(notify_http)를 지우며(2026-09-06)
+    // 5 로 내렸다. 남는 다섯 자리:
+    //     app.js 1 (csr forward)
     //     mobius/fanout.js 1 (팬아웃 멤버 — 2026-09-05 에 fopt.js 에서 옮김) · mobius/grp.js 1
     //     mobius/sgn_man.js 2 (notify http · notify coap)
-    assert.ok(total >= 6,
+    assert.ok(total >= 5,
         'arm 호출이 ' + total + '개뿐이다 — 아웃바운드 자리가 사라졌거나 시험이 못 찾고 있다');
 });
 

@@ -43,8 +43,9 @@ const helpers = (function () {
     const src = fs.readFileSync(path.join(ROOT, 'app.js'), 'utf8');
     const s = src.indexOf('function relay_headers(');
     assert.ok(s > 0, 'app.js 에서 relay_headers 를 못 찾았다');
-    const e = src.indexOf('function check_ae_notify(', s);
-    assert.ok(e > s, 'app.js 에서 check_ae_notify 를 못 찾았다 — 잘라 낼 끝을 모른다');
+    // 끝 표지는 check_csr 다 — 그 앞에 있던 check_ae_notify(AE 알림 중계)는 2026-09-06 에 지웠다.
+    const e = src.indexOf('function check_csr(', s);
+    assert.ok(e > s, 'app.js 에서 check_csr 을 못 찾았다 — 잘라 낼 끝을 모른다');
 
     // relay_headers 는 위에 선언된 RELAY_JSON_OK 를 쓴다. 함께 떼어 낸다.
     const reStart = src.indexOf('var RELAY_JSON_OK');
@@ -167,14 +168,15 @@ test('두 경로가 상류 헤더를 직접 복사하지 않는다', function ()
     assert.doesNotMatch(src, /response\.(setHeader|header)\('Content-Type',\s*res\.headers/,
         '상류의 Content-Type 을 검증 없이 복사하는 자리가 돌아왔다 — relay_headers 를 쓸 것');
 
-    // 두 호출부가 살아 있는지. `function relay_headers(...)` 정의는 빼고 센다.
+    // 호출부가 살아 있는지. `function relay_headers(...)` 정의는 빼고 센다.
+    // ae notify 경로는 2026-09-06 에 지워 csr forward 하나다.
     const uses = (src.match(/(?<!function )relay_headers\(response, res/g) || []).length;
-    assert.strictEqual(uses, 2,
-        'relay_headers 호출부가 ' + uses + '곳이다 — ae notify 와 csr forward 둘이어야 한다');
+    assert.strictEqual(uses, 1,
+        'relay_headers 호출부가 ' + uses + '곳이다 — csr forward 하나여야 한다');
 
     const outs = (src.match(/outbound_headers\(request\.headers\)/g) || []).length;
-    assert.strictEqual(outs, 2,
-        'app.js 의 outbound_headers 호출부가 ' + outs + '곳이다 — ae notify 와 csr forward 둘이어야 한다');
+    assert.strictEqual(outs, 1,
+        'app.js 의 outbound_headers 호출부가 ' + outs + '곳이다 — csr forward 하나여야 한다');
 });
 
 test('상대에게 나가는 요청은 전부 Accept 를 json 으로 고정한다', function () {

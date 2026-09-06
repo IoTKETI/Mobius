@@ -48,7 +48,9 @@ var REASON = {
     '400-16': { code: RSC.BAD_REQUEST, msg: "(pv.acr.acco.acip.ipv6, pvs.acr.acco.acip.ipv6) attribute should be json array format" },
     '400-17': { code: RSC.BAD_REQUEST, msg: "(pv.acr.acco.actw, pvs.acr.acco.actw) attribute should be json array format" },
     '400-18': { code: RSC.BAD_REQUEST, msg: "(uds, cas) attribute should be json array format" },
-    '400-19': { code: RSC.BAD_REQUEST, msg: "POST without ty in Content-Type must carry a notification body", detail: 'check_notification' },
+    // AE 알림 중계(ty 없는 POST 에 m2m:sgn 본문)를 지우면서(2026-09-06) 문구를 "ty 가 있어야
+    // 한다" 로 좁혔다 — 예전 문구는 알림 본문이면 통과한다는 뜻이었다.
+    '400-19': { code: RSC.BAD_REQUEST, msg: "POST must carry ty in Content-Type", detail: 'check_post_content_type' },
     '400-20': { code: RSC.BAD_REQUEST, msg: "Content-Type header is required", detail: 'check_notification' },
     '400-21': { code: RSC.BAD_REQUEST, msg: "X-M2M-RTU is none" },
     '400-22': { code: RSC.BAD_REQUEST, msg: "'Not Present' attribute" },
@@ -71,7 +73,6 @@ var REASON = {
     '400-44': { code: RSC.BAD_REQUEST, msg: "rcn or fu query is not supported at GET request" },
     '400-45': { code: RSC.BAD_REQUEST, msg: "rcn or fu query is not supported at PUT request" },
     '400-46': { code: RSC.BAD_REQUEST, msg: "rcn or fu query is not supported at DELETE request" },
-    '400-47': { code: RSC.BAD_REQUEST, msg: "protocol in poa of ae is not supported" },
     '400-51': { code: RSC.BAD_REQUEST, msg: "requested mgmtObj does not match the body content type" },
     '400-52': { code: RSC.BAD_REQUEST, msg: "resource type is not supported for update" },
     '400-53': { code: RSC.BAD_REQUEST, msg: "this resource of mgmtObj is not supported" },
@@ -157,16 +158,18 @@ var REASON = {
     '404-3': { code: RSC.NOT_FOUND, msg: "CSEBase was not found" },
     '404-4': { code: RSC.NOT_FOUND, msg: "group resource does not exist" },
     '404-5': { code: RSC.NOT_FOUND, msg: "response did not come from fanOutPoint" },
-    '404-6': { code: RSC.NOT_FOUND, msg: "AE for notification was not found" },
-    '404-7': { code: RSC.NOT_FOUND, msg: "AE for notification does not exist" },
-    // AE 는 찾았는데 poa 가 비어 알림을 보낼 곳이 없는 경우.
-    // 404-6 은 "AE 를 못 찾았다" 라서 원인을 반대로 짚게 한다.
-    '404-8': { code: RSC.NOT_FOUND, msg: "AE for notification has no point of access" },
+    // 404-6 · 404-7 · 404-8(AE 알림 중계의 사유 셋)과 400-47 · 405-10~12(그 경로의 poa 프로토콜
+    // 사유)가 여기 있었다 — 경로째 지웠다(2026-09-06). forward_http 가 404-7 을 빌려 쓰던
+    // 자리는 404-10 으로.
     // remoteCSE 의 poa 가 비어 포워딩할 곳이 없다(옛 301-5). 예전에는 이 상황에서 콜백이
     // 아예 불리지 않아 요청이 매달렸고, 그 뒤로는 OPERATION_NOT_ALLOWED(405)로 나가
     // "메서드가 안 된다" 는 뜻이 됐다. 대상에 닿을 수 없는 것이니 TS-0009 대로 5103/404.
     // poa 는 미지정 시 [] 가 기본값이라 드물지 않다.
     '404-9': { code: RSC.TARGET_NOT_REACHABLE, msg: "remoteCSE has no point of access" },
+    // remoteCSE 포워딩에서 상류가 답하지 않았다(연결 실패 · 타임아웃 · 본문 못 받음).
+    // forward_http 는 지워진 AE 알림 중계의 404-7("AE for notification does not exist")을
+    // 빌려 쓰고 있었다 — 뜻이 어긋나 따로 둔다(2026-09-06).
+    '404-10': { code: RSC.TARGET_NOT_REACHABLE, msg: "remoteCSE did not respond" },
 
     '405-1': { code: RSC.OPERATION_NOT_ALLOWED, msg: "CSEBase can not be created by others" },
     '405-3': { code: RSC.OPERATION_NOT_ALLOWED, msg: "requested resource type is not supported" },
@@ -176,9 +179,6 @@ var REASON = {
     '405-7': { code: RSC.OPERATION_NOT_ALLOWED, msg: "Update cin is not supported" },
     '405-8': { code: RSC.OPERATION_NOT_ALLOWED, msg: "req is not supported when put request" },
     '405-9': { code: RSC.OPERATION_NOT_ALLOWED, msg: "csebase is not supported when put request" },
-    '405-10': { code: RSC.OPERATION_NOT_ALLOWED, msg: "notification with mqtt is not supported" },
-    '405-11': { code: RSC.OPERATION_NOT_ALLOWED, msg: "notification with ws is not supported" },
-    '405-12': { code: RSC.OPERATION_NOT_ALLOWED, msg: "notification with coap is not supported" },
     // 옛 409-1 · 409-2 · 409-4. 4005 를 409 로 내던 CONFLICT_OPERATION 항목을 없애며 405 로.
     '405-13': { code: RSC.OPERATION_NOT_ALLOWED, msg: "can not use post, put method at latest resource" },
     '405-14': { code: RSC.OPERATION_NOT_ALLOWED, msg: "can not use post, put method at oldest resource" },

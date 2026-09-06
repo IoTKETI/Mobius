@@ -715,7 +715,7 @@ CIN 생성마다 `sql_action.js:468` 이 stdout 에 한 줄을 낸다(실측 재
   require.cache 스텁으로 갈아 끼워 sgn.js 를 시험 안에서 돌린다)
 - ~~**`csr` 포워딩 블록 4회 복붙**~~ — `forward_to_csr` 하나로 (`e00f145`, 응답 구조 3단계 11번). 라우트 넷 자체가 `with_connection` → 관문 → `run_operation` 으로 접혔다(`4351da1`·`ec29791`)
 - **HEAD 요청** — Express 4 는 HEAD 를 `app.get('*')` 로 태우고 `request.method` 는 'HEAD' 그대로다. 라우트가 그것을 표의 키로 쓰면 워커가 죽는다(`396d3dd` 로 고침, 골든 `head-cse`). 새 라우트 코드를 쓸 때 기억할 것
-- **`hd_*` 의 고유 속성(lvl 등)은 HTTP 로 갱신할 길이 없다** — `hd:bat` 루트 PUT 은 400-42(ty 대조), `m2m:fcnt` 루트는 400 "attribute is not defined". 2026-09-05 실측(`tools/response-golden/fcnt-check.js`). 결함인지 설계인지 판단이 필요하다
+- ~~**`hd_*` 의 고유 속성(lvl 등)은 HTTP 로 갱신할 길이 없다**~~ — **설계로 확정**(사용자 결정 2026-09-06). `hd:bat` 루트 PUT 은 400-42(ty 대조), `m2m:fcnt` 루트는 400 "attribute is not defined". 2026-09-05 실측(`tools/response-golden/fcnt-check.js`). 배포에 mgo·fcnt·hd_* 리소스가 0 이라 쓰는 곳이 없다. CLAUDE.md "지원하지 않는 것" 에 적었다
 - ~~**`access_value` 리터럴 12개가 9곳에 흩어짐**~~ — `security.ACOP` 상수로
   (`2e8a698`, 2026-09-05). 값은 문자열이다 — `acop_allows` 가 문자열 `&` 로
   비교하므로 숫자로 바꾸면 그 자리를 같이 봐야 한다. `test/remaining-56.test.js`
@@ -741,8 +741,13 @@ CIN 생성마다 `sql_action.js:468` 이 stdout 에 한 줄을 낸다(실측 재
   `acor_allows`/`evaluate_acr`(시험만 부름 — `_acor_allows` 는 ACOP 상수 시험이
   쓴다), POST 의 `notify` 분기와 `check_ae_notify`(도달 불가 — 2026-09-05
   실측으로 확인: AE 에 `m2m:sgn` 본문을 POST 하면 `check_resource_supported` 가
-  400-3 으로 먼저 끊는다, 변경 전에도 같았다). 이 둘은 "지우면 무엇이 달라지나"
-  가 아니라 "왜 남아 있나" 를 먼저 적어야 해서 따로 항목으로 다룬다
+  400-3 으로 먼저 끊는다, 변경 전에도 같았다). **2026-09-06 결정**: AE 알림 중계
+  경로는 지웠다(`check_ae_notify` · `notify_http` · notify 갈래 · 사유 일곱 — 배포에
+  원격 CSE 0, 3일간 시도 0; forward_http 가 빌려 쓰던 404-7 은 404-10
+  TARGET_NOT_REACHABLE 로). 구독 검증 요청(256, vrq) 갈래도 부르는 곳이 없어
+  지웠다(검증을 구현하면 답하지 않는 배포 구독자의 구독 생성이 깨진다).
+  `acor_allows`/`evaluate_acr` 는 시험이 보는 계약이라 남긴다. `lookup` 의 ty=16
+  고아 4행은 016 마이그레이션으로 지운다. `test/removed-paths.test.js`
 
 ---
 

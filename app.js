@@ -2478,28 +2478,13 @@ app.post('*', onem2mParser, (request, response) => {
                                             if (code === '200') {
                                                 check_allowed_app_ids(request, (code) => {
                                                     if (code === '200') {
-                                                        check_notification(request, response, (code) => {
-                                                            if (code === 'post') {
+                                                        // 여기에 'notify' 갈래(AE 알림 중계 — check_ae_notify → notify_http →
+                                                        // settle.raw)가 있었다. 앞의 check_resource_supported 가 m2m:sgn 본문을
+                                                        // 400-3 으로 먼저 끊어 도달할 수 없었고, 그 기능을 쓸 원격 CSE 도 배포에
+                                                        // 없다(csr 0행). 되살릴 때 새로 만든다 — 결정 2026-09-06.
+                                                        check_post_content_type(request, (code) => {
+                                                            if (code === '200') {
                                                                 run_operation(request, response, settle, 'POST', lookup_create);
-                                                            }
-                                                            else if (code === 'notify') {
-                                                                check_ae_notify(request, response, (code, res) => {
-                                                                    if (code !== '200') {
-                                                                        settle.error(code);
-                                                                        return;
-                                                                    }
-                                                                    // 상류가 json 이 아닌 것을 주면 흘려보내지 않는다.
-                                                                    // 이 경로는 settle.raw 라 apply_headers 를 우회하므로
-                                                                    // "응답은 언제나 json" 이 여기서는 안 걸린다.
-                                                                    if (!relay_headers(response, res, 'ae notify')) {
-                                                                        settle.error('500-7');
-                                                                        return;
-                                                                    }
-                                                                    settle.raw('ae notify', function () {
-                                                                        response.statusCode = res.statusCode;
-                                                                        response.send(res.body);
-                                                                    });
-                                                                });
                                                             }
                                                             else {
                                                                 settle.error(code);
@@ -2697,31 +2682,27 @@ app.delete('*', onem2mParser, (request, response) => {
     });
 });
 
-function check_notification(request, response, callback) {
-    if (request.headers.hasOwnProperty('content-type')) {
-        if (request.headers['content-type'].includes('ty')) { // post
-            callback('post');
-        }
-        else {
-            if (request.headers.rootnm == 'sgn') {
-                callback('notify');
-            }
-            else {
-                callback('400-19');
-            }
-        }
-    }
-    else {
+// POST 는 Content-Type 에 ty 가 있어야 한다(oneM2M HTTP 바인딩의 CREATE). 예전 이름은
+// check_notification 이었다 — ty 가 없으면 본문이 m2m:sgn 인지 보고 AE 알림 중계로
+// 보냈는데, 그 갈래는 도달할 수 없었고 지웠다(2026-09-06). 남은 판정은 둘뿐이다.
+function check_post_content_type(request, callback) {
+    if (!request.headers.hasOwnProperty('content-type')) {
         callback('400-20');
+        return;
     }
+    if (!request.headers['content-type'].includes('ty')) {
+        callback('400-19');
+        return;
+    }
+    callback('200');
 }
 
 /**
- * 상류(원격 CSE · AE)로 나가는 요청의 헤더를 다듬는다.
+ * 상류(원격 CSE)로 나가는 요청의 헤더를 다듬는다.
  *
- * 두 경로(check_ae_notify -> notify_http, check_csr -> forward_http)가
- * **클라이언트의 헤더를 그대로** 상류에 넘긴다. 거기에는 클라이언트의
- * Accept 도 들어 있다.
+ * check_csr -> forward_http 가 **클라이언트의 헤더를 그대로** 상류에 넘긴다.
+ * 거기에는 클라이언트의 Accept 도 들어 있다. (AE 알림 중계 경로 check_ae_notify ->
+ * notify_http 도 같았는데 2026-09-06 에 지웠다.)
  *
  * 그런데 이 CSE 는 json 만 읽고 json 만 만든다 — xml/cbor 처리를 전부
  * 걷어냈다. 클라이언트가 `Accept: application/xml` 을 보냈다고 상류에
@@ -2738,10 +2719,10 @@ var outbound_headers = require('./mobius/outbound_headers');
  * 상류 응답의 헤더를 우리 응답으로 옮긴다.
  *
  * ── Content-Type 만 다르게 다룬다 ───────────────────────────────────────
- * 예전에는 상류가 준 Content-Type 을 그대로 복사했다. 이 두 경로는
- * settle.raw 를 지나 responder.apply_headers 를 **우회**하므로, "응답은
- * 언제나 json" 이라는 선언이 여기서는 안 걸렸다. 상류가 xml 을 주면
- * 그것이 그대로 우리 응답으로 나갔다.
+ * 예전에는 상류가 준 Content-Type 을 그대로 복사했다. 이 경로(csr forward —
+ * 한때 ae notify 도)는 settle.raw 를 지나 responder.apply_headers 를 **우회**
+ * 하므로, "응답은 언제나 json" 이라는 선언이 여기서는 안 걸렸다. 상류가 xml 을
+ * 주면 그것이 그대로 우리 응답으로 나갔다.
  *
  * 선택지가 셋이었다:
  *   그대로 복사   정직하지만 **우리가 xml 을 내보낸 것**이 된다
@@ -2785,75 +2766,6 @@ function relay_headers(response, res, label) {
         if (res.headers[k]) { response.header(RELAY[k], res.headers[k]); }
     });
     return true;
-}
-
-function check_ae_notify(request, response, callback) {
-    // 이 콜백은 응답 전송과 커넥션 반납을 함께 한다. 두 번 불리면 워커가 죽는다.
-    callback = once(callback, 'check_ae_notify');
-
-    var ri = request.targetObject[Object.keys(request.targetObject)[0]].ri;
-    console.log('[check_ae_notify] : ' + ri);
-    // select_ae 의 시그니처는 (connection, ri, callback) 이다. connection 을 빠뜨려
-    // 인자가 한 칸씩 밀리면서 callback 이 undefined 가 되어, 이 경로는 호출 즉시
-    // TypeError 로 죽었다.
-    db_sql.select_ae(request.db_connection, ri, (err, result_ae) => {
-        if (!err) {
-            if (result_ae.length == 1) {
-                var poa_arr = poa_util.parse(result_ae[0].poa, '[check_ae_notify] ' + ri);
-                if (poa_arr === null) {
-                    callback('500-1');
-                    return;
-                }
-
-                // poa 는 접속점 후보 목록이다. 예전에는 전부 순회하며 매번 콜백을
-                // 불러, 2개 이상이면 두 번째 호출이 null 이 된 response 를 만졌다.
-                // 이제 알림을 보낼 수 있는 첫 http poa 하나만 고른다.
-                var chosen = null;
-                var fallback = null;      // http 가 없을 때 돌려줄 사유
-                for (var i = 0; i < poa_arr.length; i++) {
-                    var poa = url.parse(poa_arr[i]);
-                    if (poa.protocol == 'http:') {
-                        chosen = poa;
-                        break;
-                    }
-                    if (fallback === null) {
-                        if (poa.protocol == 'coap:')      { fallback = '405-12'; }
-                        else if (poa.protocol == 'mqtt:') { fallback = '405-10'; }
-                        else if (poa.protocol == 'ws:')   { fallback = '405-11'; }
-                        else                              { fallback = '400-47'; }
-                    }
-                }
-
-                if (chosen === null) {
-                    // poa 가 비어 있으면 예전에는 루프가 0회 돌아 콜백이 아예
-                    // 불리지 않았다 — 요청이 매달리고 커넥션도 반납되지 않았다.
-                    if (poa_arr.length === 0) {
-                        console.log('[check_ae_notify] poa 가 비어 있어 알림을 보낼 곳이 없다: ' + ri);
-                        callback('404-8');
-                    }
-                    else {
-                        callback(fallback);
-                    }
-                    return;
-                }
-
-                console.log('send notification to ' + chosen.href);
-                // 클라이언트의 헤더를 그대로 넘기되 Accept 만 바꾼다 —
-                // 우리가 다룰 수 있는 것을 물어야 한다. outbound_headers 참조.
-                notify_http(chosen.hostname, chosen.port, chosen.path, request.method, outbound_headers(request.headers), request.body, (code, res) => {
-                    callback(code, res);
-                });
-            }
-            else {
-                callback('404-6');
-            }
-        }
-        else {
-            // db 계층은 에러일 때 callback(true, err) 로 부른다 — 에러 객체는 두 번째다
-            console.log('[check_ae_notify] query error: ' + result_ae.message);
-            callback('500-1');
-        }
-    });
 }
 
 function check_csr(request, response, callback) {
@@ -2976,69 +2888,6 @@ function check_csr(request, response, callback) {
 }
 
 
-function notify_http(hostname, port, path, method, headers, bodyString, callback) {
-    var options = {
-        hostname: hostname,
-        port: port,
-        path: path,
-        method: method,
-        headers: headers
-    };
-
-    var req = http.request(options, (res) => {
-        // ── 결함 둘을 함께 고친다 ──────────────────────────────────────
-        //
-        // (1) 모은 본문을 **아무 데도 넣지 않았다.**
-        //     여기서 callback('200', res) 로 넘긴 res 의 .body 를
-        //     app.js 의 check_ae_notify 콜백이 `response.send(res.body)` 로
-        //     원 요청자에게 내보낸다(2116 부근). 그런데 res.body 는 여기서
-        //     세워진 적이 없다 — 언제나 undefined 였다.
-        //     Express 의 send(undefined) 는 content-length: 0 을 보낸다.
-        //     즉 **AE 알림 응답의 본문이 통째로 사라지고 있었다.**
-        //     쌍둥이인 forward_http 는 res.body = fullBody 를 한다.
-        //
-        // (2) 조각마다 따로 디코드해서 멀티바이트가 깨졌다.
-        //     mobius/body.js 의 read() 가 다 모은 뒤 한 번만 디코드한다.
-        //
-        // 본문을 통째로 로그에 찍던 것도 걷어냈다. CLAUDE.md 가 금지한다 —
-        // 요청마다 응답 본문을 덤프하면 운영 로그가 밀려 장애 분석이 안 된다.
-        // 상태코드와 길이만 남긴다. 진단에 필요한 것은 그것으로 충분하다.
-        body.read(res, (err, fullBody) => {
-            if (err) {
-                console.error('[notify_http] 알림 응답을 받지 못했다: ' + err.message);
-                callback('404-7');
-                return;
-            }
-            res.body = fullBody;
-            console.log('[notify_http] ' + res.statusCode + '  ' + fullBody.length + '자');
-            callback('200', res);
-        });
-    });
-
-    // 응답이 오지 않으면 요청을 끊는다. 파기하면 아래 error 핸들러가 뒷정리를 한다.
-    outbound.arm(req, 'ae notify');
-    req.on('error', (e) => {
-        console.log('[forward_http] problem with request: ' + e.message);
-
-        callback('404-7');
-    });
-
-    // 본문을 통째로 찍던 것을 걷어냈다. 앞서 이 함수의 **응답** 쪽은 고쳤는데
-    // 나가는 쪽을 놓쳤다. 같은 이유다 — 요청마다 본문을 덤프하면 운영 로그가
-    // 밀려 장애 분석이 불가능해진다(CLAUDE.md).
-    console.log('[notify_http] -----> ' + method + ' ' + path +
-                '  ' + (bodyString ? bodyString.length : 0) + '자');
-
-    // write data to request body
-    if ((method.toLowerCase() == 'get') || (method.toLowerCase() == 'delete')) {
-        req.write('');
-    }
-    else {
-        req.write(bodyString);
-    }
-    req.end();
-}
-
 function forward_http(forwardcbhost, forwardcbport, f_url, f_method, f_headers, f_body, callback) {
     var options = {
         hostname: forwardcbhost,
@@ -3052,7 +2901,7 @@ function forward_http(forwardcbhost, forwardcbport, f_url, f_method, f_headers, 
         body.read(res, (err, fullBody) => {
             if (err) {
                 console.error('[forward_http] 원격 응답을 받지 못했다: ' + err.message);
-                callback('404-7');
+                callback('404-10');   // 상류 무응답 — TARGET_NOT_REACHABLE (옛 404-7 은 AE 알림 중계의 사유였다)
                 return;
             }
             res.body = fullBody;

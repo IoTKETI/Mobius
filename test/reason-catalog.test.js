@@ -40,7 +40,9 @@ test('사유 97개가 있다', function () {
     // 태우고 500-6 을 내는 대신 처음부터 "그 필터는 없다" 를 알려준다.
     // 정산기가 잘못된 결과 객체를 받았을 때의 500-8 을 더해 99 가 됐다 —
     // 생산자의 프로그래밍 오류를 워커 사망이 아니라 요청 하나의 500 으로 가둔다.
-    assert.strictEqual(Object.keys(reason.REASON).length, 99);
+    // AE 알림 중계 경로를 지우며(2026-09-06) 그 사유 일곱(404-6·7·8, 405-10·11·12,
+    // 400-47)이 빠지고, forward_http 가 404-7 을 빌려 쓰던 자리에 404-10 을 더해 93.
+    assert.strictEqual(Object.keys(reason.REASON).length, 93);
 });
 
 test('모든 사유의 code 가 RSC 카탈로그의 실제 항목이다', function () {
@@ -56,7 +58,7 @@ test('모든 사유의 code 가 RSC 카탈로그의 실제 항목이다', functi
 
 test('toLegacyTable 이 app.js 가 쓰던 형태를 만든다', function () {
     const t = reason.toLegacyTable();
-    assert.strictEqual(Object.keys(t).length, 99);
+    assert.strictEqual(Object.keys(t).length, 93);
 
     Object.keys(t).forEach(function (k) {
         const row = t[k];

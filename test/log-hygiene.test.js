@@ -76,8 +76,8 @@ test('나가는 요청·응답 로그에 길이가 남는다 — 진단을 없�
     // pxy_coap.js · pxy_ws.js 두 줄이 여기 있었다. 2026-09-04 에 프로토콜
     // 프록시 3종을 지우면서 함께 뺐다 — 시험의 뜻(본문을 지우면서 진단까지
     // 지우지 마라)은 남는 두 줄이 그대로 지킨다.
+    // notify_http(AE 알림 중계) 줄도 여기 있었다 — 경로째 지웠다(2026-09-06).
     for (const [name, src, marker] of [
-        ['app.js  notify_http',  app,  '\\[notify_http\\]'],
         ['app.js  forward_http', app,  '\\[forward_http\\]']
     ]) {
         assert.ok(new RegExp(marker + '[\\s\\S]{0,200}?length').test(src),
