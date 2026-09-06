@@ -231,54 +231,28 @@ exports.install = function (app, ctx) {
         });
     });
 
-    /**
-     * 고아 리소스 요약. 부모(pi)가 lookup 에 없는 행의 수를 상한 안에서 센다.
-     *
-     * 고아는 이 서버의 **정상 실패 모드**다. DELETE 는 루트 행만 지우고 200 을
-     * 돌려준 뒤 자손을 배경에서 지우는데(delete_descendants_background), 그 도중
-     * 프로세스가 죽거나 커넥션을 못 빌리거나 대형 서브트리가 타임아웃에 걸리면
-     * 남은 자손이 통째로 고아가 된다. lite 는 이 정리의 자동 실행을 일부러 빼고
-     * 관리자 판단으로 넘겼다 — 5,740만 행에서 한 패스가 배치 11,000회이고 그동안
-     * 커넥션 하나를 계속 붙잡기 때문이다.
-     */
-    app.get('/api/orphans/summary', function (req, res) {
-        var cap = Math.min(parseInt(req.query.cap, 10) || 5000, 50000);
-        with_connection(res, function (conn, done) {
-            db_sql.count_orphan_lookup(conn, cap, function (err, result) {
-                done();
-                if (err) { return res.status(500).json({ error: String((result && result.message) || err) }); }
-                res.json({ cap: cap, count: result.count, capped: result.capped });
-            });
-        });
+    // ── 고아 (배치 결과) ───────────────────────────────────────────────────
+    //
+    // 라이브 스캔은 없다. 탐지는 POST /api/jobs/orphan-scan 이 작업으로 돌리고,
+    // 화면은 마지막 결과 파일(admin/data/orphans/)만 본다. admin/orphan_scan.js.
+    var orphan_scan = require('./orphan_scan');
+    var data_dir = require('./data_dir');
+
+    app.post('/api/jobs/orphan-scan', function (req, res) {
+        var b = req.body || {};
+        var job = orphan_scan.start(ctx, { scanCap: b.scanCap, sampleCap: b.sampleCap });
+        if (!job) {
+            return res.status(409).json({ error: '이미 도는 작업이 있다. 끝나거나 취소된 뒤에 시작한다.', active: jobs.active().view() });
+        }
+        res.status(202).json(job.view());
     });
 
-    /**
-     * 고아 리소스 목록. ri 키셋 페이징.
-     *
-     * scanCapped 가 오면 "훑기 상한에 걸렸다" 는 뜻이다 — 고아가 드물면 한 쪽을
-     * 채우려고 테이블 끝까지 갈 수 있어 상한을 둔다. 화면은 그 사실을 숨기지 않는다.
-     */
-    app.get('/api/orphans', function (req, res) {
-        var limit = Math.min(parseInt(req.query.limit, 10) || 50, 200);
-        var scanCap = Math.min(parseInt(req.query.scanCap, 10) || 200000, 2000000);
-        with_connection(res, function (conn, done) {
-            db_sql.select_orphan_page(conn, {
-                limit: limit,
-                afterRi: req.query.afterRi || null,
-                scanCap: scanCap
-            }, function (err, page) {
-                done();
-                if (err) { return res.status(500).json({ error: String((page && page.message) || err) }); }
-                res.json({
-                    rows: page.rows,
-                    more: page.more,
-                    nextRi: page.nextRi,
-                    scanned: page.scanned,
-                    scanCapped: page.scanCapped,
-                    typeNames: responder.typeRsrc
-                });
-            });
-        });
+    app.get('/api/orphans/last', function (req, res) {
+        var list = data_dir.listJson(ctx.dataDir, 'orphans').filter(function (x) { return !x.broken; });
+        if (!list.length) { return res.json({ none: true }); }
+        var r = data_dir.readJson(list[0].path);
+        r.typeNames = responder.typeRsrc;
+        res.json(r);
     });
 
     // ── 설정과 프로세스 제어는 여기 없다 ──────────────────────────────────────
