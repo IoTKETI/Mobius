@@ -1,17 +1,23 @@
 'use strict';
 //
-// 생성 시 이름·경로 길이 검사 (ri/sri 설계 메모 §3 A4).
+// 생성 시 이름·경로·AE-ID 길이 검사 (ri/sri 설계 메모 §3 A4).
 //
-// 한계는 스키마의 것이다 — lookup.rn 이 varchar(45), lookup.ri(구조 경로 `pi/rn`)가
-// varchar(200). 넘는 값은 MySQL strict 모드가 "Data too long" 으로 거절해 요청이 500 으로
-// 끝났다. 클라이언트 입력이 원인이니 받는 쪽에서 400 으로 먼저 끊는다. 배포 실측
-// (2026-09-06) 최대 경로는 92자·깊이 7 이라 지금 걸리는 것은 없다.
+// oneM2M 은 길이를 정하지 않는다. 한계는 **이 CSE 의 저장소**다 — lookup.rn 이 varchar(45),
+// lookup.ri(구조 경로 `pi/rn`)가 varchar(200), lookup.sri(짧은 id · AE 는 aei)가 varchar(45).
+// 넘는 값은 MySQL strict 모드가 "Data too long" 으로 거절해 요청이 500 으로 끝났다.
+// 사용자는 oneM2M 을 모르므로 "왜 안 되는지" 를 말해 줘야 대처한다 — 500 은 그것을 숨긴다.
+// 그래서 받는 쪽에서 400 으로 끊고, 사유 문구에 이 CSE 의 한계라고 적는다(reason.js 가
+// 여기 상수로 문구를 만든다).
 //
-// test/name-limits.test.js 가 두 상수를 mobius/db/mobiusdb.sql 의 컬럼 폭과 대조한다 —
-// 스키마를 넓히면 여기도 같이 바꾼다.
+// 값은 배포 스키마의 것이다. 마이그레이션 018 이 rn·sri·spi 를 200 으로 넓히면 그 뒤에
+// RN_MAX·ID_MAX 를 200 으로 올린다 — 코드가 스키마보다 앞서면 DB 가 500 을 낸다.
+// test/name-limits.test.js 가 mobius/db/mobiusdb.sql 의 폭을 **넘지 않는지** 대조한다.
+//
+// AE-ID 의 형식(S/C 로 시작)은 검사하지 않는다 — 사용자 결정, mobius/ae.js 참고.
 
 var RN_MAX = 45;
 var PATH_MAX = 200;
+var ID_MAX = 45;
 
 // 넘으면 사유 코드, 아니면 null. 둘 다 넘으면 이름 쪽이다 — 고칠 것이 이름이다.
 function check(rn, ri) {
@@ -20,8 +26,16 @@ function check(rn, ri) {
     return null;
 }
 
+// 사용자가 지정한 AE-ID. 길이만 본다.
+function check_id(aei) {
+    if (typeof aei === 'string' && aei.length > ID_MAX) { return '400-70'; }
+    return null;
+}
+
 module.exports = {
     RN_MAX: RN_MAX,
     PATH_MAX: PATH_MAX,
-    check: check
+    ID_MAX: ID_MAX,
+    check: check,
+    check_id: check_id
 };

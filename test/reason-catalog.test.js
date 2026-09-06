@@ -42,8 +42,8 @@ test('사유 97개가 있다', function () {
     // 생산자의 프로그래밍 오류를 워커 사망이 아니라 요청 하나의 500 으로 가둔다.
     // AE 알림 중계 경로를 지우며(2026-09-06) 그 사유 일곱(404-6·7·8, 405-10·11·12,
     // 400-47)이 빠지고, forward_http 가 404-7 을 빌려 쓰던 자리에 404-10 을 더해 93.
-    // 생성 시 이름·경로 길이 검사(400-68 · 400-69, mobius/name_limits.js)를 더해 95.
-    assert.strictEqual(Object.keys(reason.REASON).length, 95);
+    // 생성 시 이름·경로·AE-ID 길이 검사(400-68 · 400-69 · 400-70, mobius/name_limits.js)를 더해 96.
+    assert.strictEqual(Object.keys(reason.REASON).length, 96);
 });
 
 test('모든 사유의 code 가 RSC 카탈로그의 실제 항목이다', function () {
@@ -59,7 +59,7 @@ test('모든 사유의 code 가 RSC 카탈로그의 실제 항목이다', functi
 
 test('toLegacyTable 이 app.js 가 쓰던 형태를 만든다', function () {
     const t = reason.toLegacyTable();
-    assert.strictEqual(Object.keys(t).length, 95);
+    assert.strictEqual(Object.keys(t).length, 96);
 
     Object.keys(t).forEach(function (k) {
         const row = t[k];

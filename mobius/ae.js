@@ -20,6 +20,7 @@ var merge = require('merge');
 
 var responder = require('./responder');
 var short_ri = require('./short_ri');
+var name_limits = require('./name_limits');
 
 exports.build_ae = function(request, response, resource_Obj, body_Obj, callback) {
     var rootnm = request.headers.rootnm;
@@ -31,6 +32,12 @@ exports.build_ae = function(request, response, resource_Obj, body_Obj, callback)
     resource_Obj[rootnm].csz = (body_Obj[rootnm].csz) ? body_Obj[rootnm].csz : '';
     resource_Obj[rootnm].srv = (body_Obj[rootnm].srv) ? body_Obj[rootnm].srv : '';
 
+    // ── AE-ID 정책 (사용자 결정 2026-09-06, test/ae-id-policy.test.js) ──────────
+    // X-M2M-Origin 이 정확히 'S' 나 'C' 일 때만 CSE 가 만든다. 그 밖의 값은 **그대로**
+    // aei 다 — 형식은 검사하지 않는다(S/C 로 시작하는지 보지 않는다). oneM2M 은 그렇게 정하지만 사용자들은
+    // oneM2M 을 모르므로 "S/C 로 시작하지 않는다" 는 오류를 받아도 대처하지 못했고,
+    // 강제하면 사용자가 만들 수 있는 id 가 제한된다. 배포에도 S/C 로 시작하지 않는 aei 가
+    // 13개 있다. 길이만 이 CSE 의 저장 한계로 막는다(name_limits — 넘으면 400-70).
     if( (request.headers['x-m2m-origin'] == 'S') ) {
         // aei 도 short_ri 로 — shortid 는 프로세스마다 카운터가 0 에서 시작해 같은 초에 뜬 워커끼리 겹칠 수 있다
         resource_Obj[rootnm].aei = short_ri.generate('S');
@@ -40,6 +47,11 @@ exports.build_ae = function(request, response, resource_Obj, body_Obj, callback)
     }
     else {
         resource_Obj[rootnm].aei = request.headers['x-m2m-origin'];
+        var too_long = name_limits.check_id(resource_Obj[rootnm].aei);
+        if (too_long) {
+            callback(too_long);
+            return;
+        }
     }
 
     resource_Obj[rootnm].nl = '';
