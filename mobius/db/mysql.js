@@ -158,12 +158,23 @@ exports.applyConf = function (c) {
 //
 // 두 콜레이션이 한 스키마에 공존하는 것이 이 저장소의 사정이고, 그래서
 // "어느 쪽에 맞출 것인가" 를 자리마다 골라야 한다. 그 선택지를 어댑터가 준다.
+//
+// ── 2026-09-06 이후: 둘 다 빈 조각이다 ──────────────────────────────────
+// 마이그레이션 018 이 pi · sri · spi · rn 을 ri 와 같은 utf8mb3_bin 으로 맞췄다.
+// 그 뒤로 캐스트는 필요 없을 뿐 아니라 **해롭다** — 골격 컬럼을 general_ci 로
+// 캐스트한 채 `l.pi = s.sk_ri` 를 하면 이제 bin 인 l.pi 쪽을 변환해야 해서
+// (pi, not_cin) 인덱스를 못 타고 재귀마다 풀스캔이 된다. 018 을 적용한 직후
+// 배포 discovery 가 거의 전부 30초 타임아웃(400-67)이었다(2026-09-06 19:47 KST,
+// 26건 중 24건). 실측: ci 캐스트 30,019ms 타임아웃 / 캐스트 없음 931ms / bin 캐스트 42ms.
+// 대소문자만 다른 경로를 UNION 이 하나로 접던 부수 효과도 사라진다 — 그것들은
+// 이제 서로 다른 리소스다(oneM2M). 위 주석은 그 전의 사정이다.
+// test/discovery-cte.test.js 가 캐스트 부재를 잠근다.
 exports.riCollate = function () {
-    return ' collate utf8mb3_bin';
+    return '';
 };
 
 exports.pathCollate = function () {
-    return ' collate utf8mb3_general_ci';
+    return '';
 };
 
 // 옵티마이저에게 인덱스를 강제한다.

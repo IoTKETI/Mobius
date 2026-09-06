@@ -645,9 +645,12 @@ test('la 가 아니면 인덱스를 그대로 강제한다', function (t, done) 
 test('MySQL 은 콜레이션 / 인덱스 강제 / 문장 타임아웃을 붙인다', function (t, done) {
     const h = tap('mysql');
     run(h, { ty: '3', lim: 20 }, guard(done, function (code, ris, seen) {
-        // lookup.pi 는 utf8mb3_general_ci, lookup.ri 는 utf8mb3_bin 이다.
-        // 명시하지 않으면 ER_CANT_AGGREGATE_2COLLATIONS 로 죽는다.
-        assert.match(skelStmt(seen).sql, /collate utf8mb3_general_ci/);
+        // 예전(pi 가 general_ci, ri 가 bin)에는 골격 컬럼을 general_ci 로 캐스트해야
+        // ER_CANT_AGGREGATE_2COLLATIONS 를 피했다. 018(2026-09-06)로 둘 다 bin 이 된 뒤에는
+        // 그 캐스트가 **재귀 조인의 인덱스를 죽인다** — l.pi(bin) 쪽을 변환하게 되어
+        // (pi, not_cin) 을 못 타고 배포 discovery 가 30초 타임아웃이었다(26건 중 24건).
+        // 실측: ci 캐스트 30,019ms / 캐스트 없음 931ms / bin 캐스트 42ms. 캐스트가 없어야 한다.
+        assert.doesNotMatch(skelStmt(seen).sql, /collate/i, '골격에 콜레이션 캐스트가 되살아났다');
         // PRIMARY(pi, ri, ty) 를 고르면 ty 가 범위에서 빠져 부모마다 CIN 을
         // 전부 읽는다 (배포 서버 실측: lbl 필터가 60초 초과 -> 강제 시 840ms).
         assert.match(childStmt(seen).sql, /force index \(idx_lookup_pi_ty_ct\)/);
@@ -1049,8 +1052,11 @@ test('부모 필터의 콜레이션은 어댑터가 정한다', function () {
     // MySQL 은 반대로 반드시 있어야 한다 — 없으면 콜레이션이 섞여 죽는다.
     assert.strictEqual(require(path.join(DB, 'sqlite.js')).riCollate(), '',
         'SQLite 에 콜레이션 조각이 붙는다 — 구문 오류가 난다');
-    assert.match(require(path.join(DB, 'mysql.js')).riCollate(), /collate/i,
-        'MySQL 에 콜레이션 조각이 없다 — cnt 와 조인할 때 죽는다');
+    // MySQL 도 이제 빈 조각이다 — 018 뒤 lookup.ri · cnt.ri · 골격 컬럼이 전부 bin 이라
+    // 되돌릴 것이 없다. 조각이 되살아나면 재귀 조인이 인덱스를 잃는다(위 6) 시험 참고).
+    assert.strictEqual(require(path.join(DB, 'mysql.js')).riCollate(), '',
+        'MySQL 에 콜레이션 조각이 되살아났다 — 018 뒤에는 필요 없고 인덱스를 죽인다');
+    assert.strictEqual(require(path.join(DB, 'mysql.js')).pathCollate(), '');
 });
 
 test('needs_cin_join 이 둘을 정확히 가린다', function () {
@@ -1294,16 +1300,17 @@ test('골격 컬럼 이름은 sk_ 접두사를 쓴다', function (t, done) {
 // 적어진다. 배포 서버 실측(2026-08-29): 골격 30,855행 중 61행이 중복이었고
 // ty=3 lim=2000 이 1,960건만 돌려줬다. 골격 컬럼을 ci 로 선언하면 2,000건이다.
 
-test('MySQL 은 골격 컬럼에 콜레이션을 붙이고 조인 조건에는 안 붙인다', function (t, done) {
+test('MySQL 골격은 어디에도 콜레이션을 붙이지 않는다 — 018 뒤 pi · ri 가 같은 bin 이다', function (t, done) {
+    // 예전 이름은 "골격 컬럼에 콜레이션을 붙이고 조인 조건에는 안 붙인다" 였다. pi 가
+    // general_ci, ri 가 bin 이던 시절의 규칙이다. 018(2026-09-06) 뒤에는 캐스트가 있으면
+    // 재귀 조인이 l.pi 쪽을 변환해 (pi, not_cin) 인덱스를 잃는다 — 배포에서 discovery
+    // 26건 중 24건이 30초 타임아웃이었다. 골격 컬럼도, 조인 조건도 원래 콜레이션 그대로다.
     const h = tap('mysql');
     run(h, { ty: '3', lim: 20 }, guard(done, function (code, ris, seen) {
         const sql = skelStmt(seen).sql;
-        assert.match(sql, /select ri collate utf8mb3_general_ci as sk_ri/,
-            '앵커의 골격 컬럼에 콜레이션이 없다');
-        assert.match(sql, /select l\.ri collate utf8mb3_general_ci, s\.sk_lvl/,
-            '재귀항의 골격 컬럼에 콜레이션이 없다');
-        assert.ok(!/s\.sk_ri collate/.test(sql),
-            '조인 조건에 콜레이션이 남아 있다 - 그러면 UNION 이 중복을 못 지운다');
+        assert.match(sql, /select ri as sk_ri/, '앵커의 골격 컬럼이 원래 콜레이션이 아니다: ' + sql.slice(0, 120));
+        assert.match(sql, /select l\.ri, s\.sk_lvl/, '재귀항의 골격 컬럼에 캐스트가 있다');
+        assert.doesNotMatch(sql, /collate/i, '골격 어딘가에 콜레이션 캐스트가 있다');
         done();
     }));
 });
