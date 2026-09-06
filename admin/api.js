@@ -578,6 +578,101 @@ exports.install = function (app, ctx) {
         });
     });
 
+    /** lookup 에서 ri 하나의 타입을 본다. 없으면 null. */
+    function type_of(conn, ri, cb) {
+        db_sql.select_lookup(conn, ri, function (e, rows) {
+            if (e) { return cb('DB 조회 실패: ' + String((rows && rows.message) || e)); }
+            if (!rows || rows.length === 0) { return cb(null, null); }
+            cb(null, String(rows[0].ty));
+        });
+    }
+
+    function cse_failure(res, r) {
+        res.status(r.status >= 400 && r.status < 500 ? 400 : 502).json({
+            error: describe(r), status: r.status, rsc: r.rsc, body: r.body
+        });
+    }
+
+    /**
+     * ACP 신규 생성. 부모는 AE 다 — 잠금 단위가 AE 하나이므로(이전 결정) 컨테이너
+     * 아래에 ACP 를 두는 길을 열지 않는다. 검사 → CSE POST 한 번. 부분 적용은 없다.
+     */
+    app.post('/api/acp/create', function (req, res) {
+        if (!require_write(res)) { return; }
+        var b = req.body || {};
+        if (typeof b.parentRi !== 'string' || b.parentRi.charAt(0) !== '/') {
+            return res.status(400).json({ error: 'parentRi 가 필요하다' });
+        }
+        if (typeof b.rn !== 'string' || !/^[A-Za-z0-9_-]{1,64}$/.test(b.rn)) {
+            return res.status(400).json({ error: 'rn 은 영문·숫자·_·- 1~64자다' });
+        }
+        var problems = [];
+        ['pv', 'pvs'].forEach(function (f) {
+            if (!b[f] || typeof b[f] !== 'object') {
+                problems.push({ field: f, code: '400-57', path: f, message: f + ' 가 객체가 아니다' });
+                return;
+            }
+            var v = acp_rules.validate_privileges(b[f], f);
+            if (v.code) { problems.push({ field: f, code: v.code, path: v.path, message: v.message || '' }); }
+        });
+        if (problems.length) { return res.status(400).json({ error: '값이 올바르지 않다', problems: problems }); }
+
+        with_connection(res, function (conn, done) {
+            type_of(conn, b.parentRi, function (e, ty) {
+                done();
+                if (e) { return res.status(500).json({ error: e }); }
+                if (ty !== '2') { return res.status(400).json({ error: '부모는 AE 여야 한다 (잠금 단위는 AE 하나다)' }); }
+                cse.create(b.parentRi, 1, 'm2m:acp', { rn: b.rn, pv: b.pv, pvs: b.pvs }, function (r) {
+                    if (!r.ok) { return cse_failure(res, r); }
+                    res.status(201).json({ ok: true, ri: b.parentRi + '/' + b.rn, status: r.status, rsc: r.rsc });
+                });
+            });
+        });
+    });
+
+    /**
+     * acpi 연결/해제. AE 의 acpi 를 통째로 바꾼다(oneM2M UPDATE 는 보낸 속성만 바꾸므로
+     * acpi 만 보낸다). 최대 7개 — lookup.acpi 가 varchar(200) 이다. 손입력은 없다:
+     * 화면이 목록에서 고르고, 여기서는 각 ri 가 정말 ACP 인지 본다.
+     */
+    app.post('/api/acp/attach', function (req, res) {
+        if (!require_write(res)) { return; }
+        var b = req.body || {};
+        if (typeof b.targetRi !== 'string' || b.targetRi.charAt(0) !== '/') {
+            return res.status(400).json({ error: 'targetRi 가 필요하다' });
+        }
+        if (!Array.isArray(b.acpi) || b.acpi.length > 7) {
+            return res.status(400).json({ error: 'acpi 는 0~7개의 배열이다 (컬럼 폭 200)' });
+        }
+        for (var i = 0; i < b.acpi.length; i++) {
+            if (typeof b.acpi[i] !== 'string' || b.acpi[i].charAt(0) !== '/') {
+                return res.status(400).json({ error: 'acpi 원소가 리소스 경로가 아니다: ' + String(b.acpi[i]).slice(0, 80) });
+            }
+        }
+        with_connection(res, function (conn, done) {
+            type_of(conn, b.targetRi, function (e, ty) {
+                if (e) { done(); return res.status(500).json({ error: e }); }
+                if (ty !== '2') { done(); return res.status(400).json({ error: '대상은 AE 여야 한다 (잠금 단위는 AE 하나다)' }); }
+                var idx = 0;
+                (function check() {
+                    if (idx >= b.acpi.length) {
+                        done();
+                        return cse.update(b.targetRi, 'm2m:ae', { acpi: b.acpi }, function (r) {
+                            if (!r.ok) { return cse_failure(res, r); }
+                            res.json({ ok: true, status: r.status, rsc: r.rsc });
+                        });
+                    }
+                    var ri = b.acpi[idx++];
+                    type_of(conn, ri, function (e2, t) {
+                        if (e2) { done(); return res.status(500).json({ error: e2 }); }
+                        if (t !== '1') { done(); return res.status(400).json({ error: 'ACP 가 아니거나 없다: ' + ri }); }
+                        check();
+                    });
+                }());
+            });
+        });
+    });
+
     /** 변경 이력. 최신순이라 커서는 "이 id 보다 작은 것" 이다. */
     app.get('/api/acp/audit', function (req, res) {
         var limit = Math.min(parseInt(req.query.limit, 10) || 50, 200);
