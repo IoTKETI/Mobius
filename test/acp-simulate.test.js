@@ -146,17 +146,20 @@ test('절대 표기로 저장된 정상 참조를 dangling 으로 보지 않는�
     });
 });
 
-test('sri 로 저장된 참조는 풀어서 본다', function (t, done) {
-    // 질의 3: resolve_acpi_entries, 질의 4: select_acp_in
-    const h = tap(target(cnt('c1', ['acp1short'], 'Cowner'))
-        .concat([[{ ri: '/Mobius/acp1', sri: 'acp1short' }],
-                 [acpRow('/Mobius/acp1', 'Cteam')]]));
+test('sri 로 저장된 참조는 풀지 않는다 — 실제 판정과 같이 dangling 이다 (§5.3)', function (t, done) {
+    // 예전에는 질의 3(resolve_acpi_entries)으로 sri 를 ri 로 풀어 "정상" 으로 보였다.
+    // 실제 판정 경로(security_check_action)가 2026-09-06 에 그 단을 뺐으므로 — 배포 전수
+    // 확인으로 sri 형 acpi 가 0건 — 시뮬레이터도 풀지 않는다. 풀어 주면 실제로는 거부되는
+    // 참조를 콘솔이 정상이라고 거짓말한다. 질의 3 은 곧바로 select_acp_in 이고 행이 없다.
+    const h = tap(target(cnt('c1', ['acp1short'], 'Cowner')).concat([[]]));
     h.sim.simulate(null, { ri: '/Mobius/c1', origin: 'Cteam', op: 'RETRIEVE' }, function (err, r) {
         assert.ok(!err, JSON.stringify(r));
-        assert.strictEqual(r.allowed, true);
-        assert.deepStrictEqual(r.warnings, []);
-        assert.strictEqual(r.resolved[0].given, 'acp1short');
-        assert.strictEqual(r.resolved[0].ri, '/Mobius/acp1');
+        assert.strictEqual(r.allowed, false);
+        assert.strictEqual(r.decided_by, 'no_acp_row');
+        assert.ok(r.warnings.some((w) => w.rule === 'dangling'), JSON.stringify(r.warnings));
+        assert.deepStrictEqual(r.resolved, [{ given: 'acp1short', ri: 'acp1short', exists: false }]);
+        // resolve_acpi_entries 는 `where sri in (...)` 이었다 — 그 모양의 질의가 없어야 한다
+        assert.ok(!h.seen.some((s) => /`sri`\s+in\s*\(/i.test(s.sql)), 'sri 를 푸는 질의가 나갔다: ' + h.seen.map((s) => s.sql).join(' | '));
         done();
     });
 });

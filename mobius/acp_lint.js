@@ -181,9 +181,11 @@ exports.lint_acpi_refs = function (connection, opts, callback) {
                     if (known[entry]) { return; }
                     var viaSri = sriMap[entry];
                     if (viaSri && known[viaSri]) {
-                        // 실재하기는 한다. 다만 저장 표기가 내부 ri 가 아니다.
-                        problems.push({ severity: 'warn', rule: 'not_normalized', entry: entry,
-                            message: '내부 ri(' + viaSri + ') 가 아니라 sri 로 저장돼 역참조가 어긋난다' });
+                        // 실재하기는 한다. 다만 저장 표기가 내부 ri 가 아니다 — 그리고 판정 경로는
+                        // 2026-09-06(남은 일 §5.3)부터 sri 를 풀지 않으므로 **잠금이 풀린 것**이다.
+                        // dangling 과 결과는 같지만 고칠 방법이 다르다: acpi 를 그 ri 로 다시 쓰면 된다.
+                        problems.push({ severity: 'error', rule: 'not_normalized', entry: entry,
+                            message: '내부 ri(' + viaSri + ') 가 아니라 sri 로 저장됐다 — 판정이 sri 를 풀지 않아 잠금이 풀려 생성자만 통과한다. acpi 를 ' + viaSri + ' 로 고칠 것' });
                         return;
                     }
                     problems.push({ severity: 'error', rule: 'dangling', entry: entry,

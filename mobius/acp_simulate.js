@@ -191,21 +191,14 @@ exports.simulate = function (connection, params, callback) {
         function finish(source, from, acpi_list) {
             var given = acpi_list.slice();
 
-            // **실제 판정 경로와 같게 표기를 먼저 푼다.**
-            // security_check_action 은 make_internal_ri 로 접고 get_ri_list_sri 로
-            // sri 를 ri 로 바꾼 뒤 조회한다. 그 단계를 건너뛰면 절대·SP상대·sri
-            // 표기로 저장된 **정상 참조가 전부 dangling 으로 보인다** — 콘솔의
-            // 첫 화면이 "이 ACP 가 없다" 고 거짓말을 하게 된다.
+            // **실제 판정 경로와 같게 표기를 접는다 — 그리고 그 이상은 하지 않는다.**
+            // security_check_action 은 make_internal_ri 로 절대·SP상대 표기를 접은 뒤 그대로
+            // 조회한다. 예전에는 여기서 sri 형 항목을 resolve_acpi_entries 로 풀었는데,
+            // 2026-09-06(남은 일 §5.3)에 실제 경로가 그 단을 뺐으므로 여기도 풀지 않는다 —
+            // 풀어 주면 실제로는 거부되는 참조를 콘솔이 "정상" 이라고 거짓말한다.
+            // sri 형 항목은 그대로 IN 에 들어가 행이 없고 dangling 으로 보인다. 그것이 실제다.
             var folded = db_sql.fold_acpi_list(given);
-            var need = folded.filter(function (v) { return typeof v === 'string' && v.charAt(0) !== '/'; });
-
-            if (need.length === 0) { return lookup_rows(folded); }
-            db_sql.resolve_acpi_entries(connection, need, function (errR, res) {
-                if (errR) { return callback(errR, res); }
-                var map = (res && res.map) ? res.map : {};
-                lookup_rows(folded.map(function (v) { return map[v] || v; }));
-            });
-
+            lookup_rows(folded);
             function lookup_rows(wanted) {
             db_sql.select_acp_in(connection, wanted, function (err3, rows2) {
                 if (err3) { return callback(err3, rows2); }

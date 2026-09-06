@@ -622,7 +622,23 @@ D16 이 "영원히 매달림" 을 "10초 뒤 끊김" 으로 바꿨지만, **직�
 DB 커넥션이 묶인다. `mid` 원소 수에 상한이 있는지도 확인할 것
 (`mobius/grp.js:279`) — 확인했다: `mnm` 뿐이다.
 
-### 5.3 ACP 조회가 3단 직렬이다 — **2단을 배치로 접었다** (`156a2b2`, 2026-09-05). 빼는 것은 보류
+### 5.3 ~~ACP 조회가 3단 직렬이다~~ — **2단을 뺐다** (2026-09-06)
+
+로그를 기다리는 대신 **데이터로 확인했다.** CIN 은 oneM2M 에 `acpi` 가 없으므로(코드도
+넣지 않는다 — 9월 CIN 20만 표본 0) `acpi` 는 CIN 아닌 행에만 있고, 그것은 34,494행뿐이라
+전수를 훑을 수 있다(`idx_lookup_ty` 로 타입별). 결과: **acpi 가 있는 행 2개**(AE 1 ·
+CNT 1, 둘 다 경로 표기), **sri 형 항목 0**. 치환 로그도 배포 뒤 0건.
+
+그래서 `security_check_action` 이 `make_internal_ri` 로 접은 `acpiList` 를 그대로
+`select_acp_in` 에 넘긴다 — 질의 둘(재귀 · IN). `lookup_error` 사유도 사라졌다.
+시뮬레이터(`acp_simulate.js`)도 같은 이유로 sri 형 항목을 풀지 않는다 — 풀어 주면 실제로는
+거부되는 참조를 콘솔이 정상이라고 거짓말한다. 이제 sri 형 항목은 dangling 이다(맞는 답).
+`get_ri_list_sri` 자체는 fopt(mid)·resource(acpi 검증)가 계속 쓰고 `test/ri-sri-batch` 가
+그 계약을 지킨다. 증명: `test/acp-field-policy` 의 "두 질의" 시험(RED→GREEN) ·
+`test/acp-simulate` 의 sri 시험(뒤집힘) · 옛 HEAD 와의 차분 18,144 조합 0건 차이.
+아래는 접었을 때의 서술이다.
+
+### ~~5.3 ACP 조회가 3단 직렬이다 — **2단을 배치로 접었다** (`156a2b2`, 2026-09-05). 빼는 것은 보류~~
 
 ```
 1단  select_acp_cnt 재귀    security.js:589 → sql_action.js:2192, 재귀 :2226

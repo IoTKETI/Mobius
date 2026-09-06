@@ -103,7 +103,10 @@ const ROWS = {
 const calls = { acp_in: [], acp_cnt: [] };
 db_sql.select_acp_in = function (conn, list, cb) { calls.acp_in.push(list.slice()); setImmediate(() => cb(null, list.filter((r) => ROWS[r]).map((r) => ROWS[r]))); };
 db_sql.select_acp_cnt = function (conn, loop, uri_arr, cb) { calls.acp_cnt.push(uri_arr.slice()); setImmediate(() => (uri_arr.indexOf('inh') >= 0 ? cb(null, ['/M/a1'], '/Mobius/inh') : cb(null, [], null))); };
-global.get_ri_list_sri = function (request, response, list, out, count, cb) { list.forEach((v, i) => { out[i] = v; }); cb('200'); };
+// 2단(sri→ri 치환)은 ACP 경로에서 뺐다(2026-09-06, 남은 일 §5.3). 스텁은 남겨 두되 **불리면 센다** —
+// 되살아나면 아래 시험이 잡는다. fopt·resource 의 acpi 검증은 여전히 이 함수를 쓴다.
+calls.ri_list_sri = 0;
+global.get_ri_list_sri = function (request, response, list, out, count, cb) { calls.ri_list_sri++; list.forEach((v, i) => { out[i] = v; }); cb('200'); };
 global.make_internal_ri = function () { /* 시험 입력은 이미 내부형이다 */ };
 
 function req(from, url, opts) {
@@ -118,6 +121,24 @@ function quiet(fn) {
     const e = console.error, l = console.log; console.error = () => {}; console.log = () => {};
     return Promise.resolve().then(fn).finally(() => { console.error = e; console.log = l; });
 }
+
+test('ACP 검사는 두 질의다 — 재귀(select_acp_cnt)와 IN(select_acp_in). sri→ri 치환 단은 없다 (§5.3)', async () => {
+    // 저장된 acpi 는 validate_acpi 가 이미 ri 형으로 고쳐 넣고 make_internal_ri 가 표기를 접는다.
+    // 배포 전수 확인(2026-09-06): CIN 아닌 34,494행 중 acpi 가 있는 행 2개, sri 형 항목 0.
+    // 그래서 get_ri_list_sri 를 거치지 않고 acpi 를 그대로 select_acp_in 에 넘긴다 —
+    // 요청마다 헛질의 한 번이 사라진다.
+    calls.acp_in.length = 0; calls.ri_list_sri = 0;
+    const r = await check('3', ['/M/a1', '/M/noacr'], '2', 'Cowner', req('Reader'));
+    assert.strictEqual(r.code, '1');
+    assert.deepStrictEqual(calls.acp_in, [['/M/a1', '/M/noacr']], 'acpi 가 그대로 IN 질의로 가야 한다');
+    assert.strictEqual(calls.ri_list_sri, 0, 'ACP 경로가 get_ri_list_sri 를 다시 부른다 — 배포에 sri 형 acpi 는 0건이다');
+    assert.deepStrictEqual(r.trace.acpi, ['/M/a1', '/M/noacr']);
+    // 소스에도 없다
+    const src = fs.readFileSync(path.join(ROOT, 'mobius', 'security.js'), 'utf8')
+        .replace(/\/\*[\s\S]*?\*\//g, ' ').split(/\r?\n/).filter((l) => !/^\s*\/\//.test(l)).join('\n');
+    assert.strictEqual(src.indexOf('get_ri_list_sri'), -1, 'security.js 가 get_ri_list_sri 를 부른다');
+    assert.strictEqual(src.indexOf('lookup_error'), -1, '없어진 단의 실패 사유(lookup_error)가 남아 있다');
+});
 
 test('수퍼유저와 생성자는 ACP 를 보지 않는다', async () => {
     const s = await check('3', ['/M/a1'], '8', 'Cowner', req('Ssuper'));

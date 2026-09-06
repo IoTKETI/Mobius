@@ -470,26 +470,26 @@ function security_check_action(request, response, acpiList, cr, access_value, fi
     var use_ra = FIELD[field].use_ra;
     var cr_fallback = FIELD[field].cr_fallback;
     make_internal_ri(acpiList);
-    var ri_list = [];
-    get_ri_list_sri(request, response, acpiList, ri_list, 0, function (code) {
-        if (code !== '200') {
-            callback(code, { decided_by: 'lookup_error', field: field, acpi: acpiList });
+    // ── 2단(sri→ri 치환, get_ri_list_sri)은 뺐다 (2026-09-06, 요청 흐름 남은 일 §5.3) ──
+    // 저장된 acpi 는 validate_acpi 가 저장 시점에 ri 형으로 고쳐 넣고, 바로 위 make_internal_ri
+    // 가 절대·SP상대 표기를 접는다. 그래서 그 단은 정상 사용에서 항상 0행이었고, 요청마다
+    // lookup.sri 인덱스를 한 번씩 헛찔렀다. 못 빼던 이유는 옛 데이터에 sri 형 acpi 가 남아
+    // 있을 가능성이었는데, 배포 전수 확인(CIN 아닌 34,494행 — CIN 은 acpi 가 없다)으로
+    // acpi 가 있는 행 2개, sri 형 항목 0 이었다. 치환 로그도 배포 뒤 0건.
+    // sri 형 항목이 들어오면 이제 그대로 IN 에 들어가 행이 없어 거부된다 — 그것이 맞다.
+    // fopt(mid)·resource(acpi 검증)는 여전히 get_ri_list_sri 를 쓴다.
+    var ri_list = acpiList.slice();
+    db_sql.select_acp_in(request.db_connection, ri_list, function (err, results_acp) {
+        if (err) {
+            console.log('query error: ' + results_acp.message);
+            callback('500-1', { decided_by: 'db_error', field: field, acpi: ri_list });
             return;
         }
-
-        db_sql.select_acp_in(request.db_connection, ri_list, function (err, results_acp) {
-            if (err) {
-                console.log('query error: ' + results_acp.message);
-                callback('500-1', { decided_by: 'db_error', field: field, acpi: ri_list });
-                return;
-            }
-
-            var verdict = evaluate_acp_rows(results_acp, request, cr, access_value,
-                                            field, use_ra, cr_fallback);
-            verdict.trace.acpi = ri_list;
-            results_acp = null;
-            callback(verdict.code, verdict.trace);
-        });
+        var verdict = evaluate_acp_rows(results_acp, request, cr, access_value,
+                                        field, use_ra, cr_fallback);
+        verdict.trace.acpi = ri_list;
+        results_acp = null;
+        callback(verdict.code, verdict.trace);
     });
 }
 
