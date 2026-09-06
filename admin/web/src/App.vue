@@ -1,41 +1,11 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, provide } from 'vue'
+import { RouterLink, RouterView, useRoute } from 'vue-router'
 import { session, login, logout, AuthError } from './api'
 import type { AcpConfig, WriteInfo } from './types'
-import ExpiredView from './views/ExpiredView.vue'
-import OrphanView from './views/OrphanView.vue'
-import AcpProblemsView from './views/AcpProblemsView.vue'
-import AcpListView from './views/AcpListView.vue'
-import AcpSimulateView from './views/AcpSimulateView.vue'
-import AcpEditView from './views/AcpEditView.vue'
+import { GROUPS, NAV } from './router'
 
-type Tab =
-  | 'expired' | 'orphans'
-  | 'acp-problems' | 'acp-list' | 'acp-sim' | 'acp-edit'
-const TABS: { id: Tab; label: string; group?: string }[] = [
-  { id: 'expired', label: '만료된 리소스' },
-  { id: 'orphans', label: '고아 리소스' },
-  { id: 'acp-problems', label: '문제', group: '권한' },
-  { id: 'acp-list', label: 'ACP 목록', group: '권한' },
-  { id: 'acp-sim', label: '시뮬레이터', group: '권한' },
-]
-const tab = ref<Tab>('expired')
-
-/** 화면 사이로 옮겨 다니는 ri — 문제 목록에서 상세로, 상세에서 시뮬레이터로. */
-const focusRi = ref<string | null>(null)
-
-function openAcp(ri: string) {
-  focusRi.value = ri
-  tab.value = 'acp-list'
-}
-function simulateRi(ri: string) {
-  focusRi.value = ri
-  tab.value = 'acp-sim'
-}
-function editRi(ri: string) {
-  focusRi.value = ri
-  tab.value = 'acp-edit'
-}
+const route = useRoute()
 
 const authed = ref(false)
 const backend = ref('')
@@ -46,6 +16,7 @@ const busy = ref(false)
 const OFFLINE: WriteInfo = { enabled: false, target: null, superuser: false }
 const write = ref<WriteInfo>(OFFLINE)
 const acpCfg = ref<AcpConfig | null>(null)
+const target = ref<string | null>(null) // probe 에서 write.target 을 넣는다
 
 async function probe() {
   try {
@@ -54,6 +25,7 @@ async function probe() {
     backend.value = s.backend
     write.value = s.write ?? OFFLINE
     acpCfg.value = s.acp ?? null
+    target.value = s.write?.target ?? null
   } catch (e) {
     authed.value = !(e instanceof AuthError)
   }
@@ -78,6 +50,9 @@ async function doLogout() {
   authed.value = false
 }
 
+provide('write', write)
+provide('acpCfg', acpCfg)
+
 onMounted(probe)
 </script>
 
@@ -101,61 +76,54 @@ onMounted(probe)
   </div>
 
   <template v-else>
-    <header>
-      <strong>Mobius 관리 콘솔</strong>
-      <nav>
-        <template v-for="(t, i) in TABS" :key="t.id">
-          <span v-if="t.group && TABS[i - 1]?.group !== t.group" class="group">{{ t.group }}</span>
-          <button class="tab" :class="{ on: tab === t.id }" @click="tab = t.id">
-            {{ t.label }}
-          </button>
-        </template>
-      </nav>
-      <span class="spacer" />
-      <span class="pill">{{ backend }}</span>
-      <!-- 콘솔이 무엇을 할 수 있는 상태인지 항상 보이게 둔다. superuser 로 붙어
-           있다면 ACP 를 전부 통과한다는 뜻이라 숨기지 않는다. -->
-      <span v-if="!write.enabled" class="pill readonly">조회 전용</span>
-      <span v-else-if="write.superuser" class="pill super" :title="`쓰기 대상 ${write.target}`">
-        쓰기 · superuser
-      </span>
-      <span v-else class="pill write" :title="`쓰기 대상 ${write.target}`">쓰기</span>
-      <button @click="doLogout">로그아웃</button>
-    </header>
+    <div class="frame">
+      <aside>
+        <div class="brand">
+          <strong>Mobius 관리 콘솔</strong>
+          <span class="muted small">{{ backend }} · {{ target ?? '조회 전용' }}</span>
+        </div>
+        <nav>
+          <template v-for="g in GROUPS" :key="g.id">
+            <div class="group">{{ g.label }}</div>
+            <RouterLink
+              v-for="n in NAV.filter((x) => x.group === g.id)"
+              :key="n.name"
+              :to="{ name: n.name }"
+              class="tab"
+              :class="{ on: route.name === n.name || String(route.name ?? '').startsWith(n.name + '-') || (n.name === 'judge-acp-list' && ['judge-acp-edit', 'judge-acp-create', 'judge-acp-attach'].includes(String(route.name))) }"
+            >
+              {{ n.label }}
+            </RouterLink>
+          </template>
+        </nav>
+        <div class="foot">
+          <span v-if="!write.enabled" class="pill readonly">조회 전용</span>
+          <span v-else-if="write.superuser" class="pill super" :title="`쓰기 대상 ${write.target}`">쓰기 · superuser</span>
+          <span v-else class="pill write" :title="`쓰기 대상 ${write.target}`">쓰기</span>
+          <button @click="doLogout">로그아웃</button>
+        </div>
+      </aside>
 
-    <!-- 관찰 모드는 거부를 허용으로 내보낸다. 켠 채로 잊으면 ACP 가 통째로
-         무력하므로 화면 맨 위에 항상 띄운다. -->
-    <div v-if="acpCfg && acpCfg.observeMode === 'observe'" class="alertbar">
-      <strong>ACP 관찰 모드가 켜져 있습니다</strong> —
-      <strong>ACP 평가로 난 거부가 허용으로 나갑니다</strong>.
-      규칙에 안 맞아 막혔을 요청이 그대로 통과하므로, 잠그기 전 하루만 켜는 설정입니다.
-      (<code>acpi</code> 가 없어 기본 정책으로 막히는 것은 그대로 막힙니다.)
-      <code>conf.json</code> 의 <code>acpObserveMode</code> 를 <code>'off'</code> 로 되돌린 뒤
-      Mobius 를 재기동하세요.
-      <em>(콘솔이 읽은 설정값 기준입니다 — 워커의 실제 상태는 콘솔이 알 수 없습니다.)</em>
+      <div class="content">
+        <!-- 관찰 모드는 거부를 허용으로 내보낸다. 켠 채로 잊으면 ACP 가 통째로
+             무력하므로 화면 맨 위에 항상 띄운다. -->
+        <div v-if="acpCfg && acpCfg.observeMode === 'observe'" class="alertbar">
+          <strong>ACP 관찰 모드가 켜져 있습니다</strong> —
+          <strong>ACP 평가로 난 거부가 허용으로 나갑니다</strong>.
+          규칙에 안 맞아 막혔을 요청이 그대로 통과하므로, 잠그기 전 하루만 켜는 설정입니다.
+          (<code>acpi</code> 가 없어 기본 정책으로 막히는 것은 그대로 막힙니다.)
+          <code>conf.json</code> 의 <code>acpObserveMode</code> 를 <code>'off'</code> 로 되돌린 뒤
+          Mobius 를 재기동하세요.
+          <em>(콘솔이 읽은 설정값 기준입니다 — 워커의 실제 상태는 콘솔이 알 수 없습니다.)</em>
+        </div>
+
+        <main>
+          <!-- write·acp 는 defineProps 로 선언한 뷰만 받는다 — 선언하지 않으면
+               fallthrough attribute 로 떨어지고 무해하다. -->
+          <RouterView :write="write" :acp="acpCfg" />
+        </main>
+      </div>
     </div>
-
-    <main>
-      <!-- 탭을 떠났다가 돌아오면 다시 읽는다. 화면들이 무거운 스캔을 하므로
-           캐시해 두면 낡은 숫자를 사실처럼 보여 주게 된다. -->
-      <ExpiredView v-if="tab === 'expired'" :write="write" />
-      <OrphanView v-else-if="tab === 'orphans'" :write="write" />
-      <AcpProblemsView v-else-if="tab === 'acp-problems'" @open="openAcp" />
-      <AcpListView
-        v-else-if="tab === 'acp-list'"
-        :selected="focusRi"
-        :write="write"
-        @simulate="simulateRi"
-        @edit="editRi"
-      />
-      <AcpSimulateView v-else-if="tab === 'acp-sim'" :initial-ri="focusRi" />
-      <AcpEditView
-        v-else-if="tab === 'acp-edit' && focusRi"
-        :ri="focusRi"
-        :write="write"
-        @done="tab = 'acp-list'"
-      />
-    </main>
   </template>
 </template>
 
@@ -185,37 +153,6 @@ onMounted(probe)
 .muted { color: var(--muted); margin: 0; font-size: 0.95rem; }
 .err { color: var(--danger); margin: 0; font-size: 0.95rem; }
 
-header {
-  display: flex;
-  align-items: center;
-  gap: 0.7rem;
-  padding: 0.9rem 1.4rem;
-  background: var(--panel);
-  border-bottom: 1px solid var(--border);
-  box-shadow: var(--shadow);
-  position: sticky;
-  top: 0;
-  z-index: 5;
-}
-header strong {
-  font-size: 1.05rem;
-  letter-spacing: -0.01em;
-  color: var(--text-strong);
-}
-.spacer { flex: 1; }
-
-nav { display: flex; align-items: center; gap: 0.25rem; margin-left: 0.6rem; }
-.group {
-  font-size: 0.75rem;
-  color: var(--muted);
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  font-weight: 700;
-  margin: 0 0.15rem 0 0.8rem;
-  padding-left: 0.8rem;
-  border-left: 1px solid var(--border);
-}
-
 .alertbar {
   background: var(--danger-wash);
   border-bottom: 1px solid var(--danger);
@@ -225,21 +162,6 @@ nav { display: flex; align-items: center; gap: 0.25rem; margin-left: 0.6rem; }
 }
 .alertbar strong { color: var(--danger); }
 .alertbar em { font-style: normal; color: var(--muted); }
-.tab {
-  border: 1px solid transparent;
-  background: transparent;
-  color: var(--muted);
-  padding: 0.4rem 0.85rem;
-  border-radius: 8px;
-  font-size: 0.95rem;
-}
-.tab:hover:not(.on) { background: var(--accent-wash); color: var(--accent-strong); }
-.tab.on {
-  background: var(--accent-wash);
-  border-color: var(--accent);
-  color: var(--accent-strong);
-  font-weight: 600;
-}
 
 .pill {
   font-size: 0.8rem;
@@ -251,5 +173,35 @@ nav { display: flex; align-items: center; gap: 0.25rem; margin-left: 0.6rem; }
 .pill.readonly { border-color: var(--ok); color: var(--ok); }
 .pill.write { border-color: var(--accent); color: var(--accent-strong); }
 .pill.super { border-color: var(--danger); color: var(--danger); font-weight: 600; }
-main { padding: 1.6rem 1.4rem 3rem; max-width: 1500px; margin: 0 auto; }
+
+.frame { display: grid; grid-template-columns: 220px 1fr; min-height: 100vh; }
+aside {
+  background: var(--panel);
+  border-right: 1px solid var(--border);
+  padding: 1rem 0.9rem;
+  display: flex; flex-direction: column; gap: 0.6rem;
+  position: sticky; top: 0; height: 100vh; overflow: auto;
+}
+.brand { display: grid; gap: 0.15rem; padding: 0.2rem 0.4rem 0.8rem; }
+.brand strong { font-size: 1.05rem; letter-spacing: -0.01em; color: var(--text-strong); }
+.small { font-size: 0.8rem; }
+.muted { color: var(--muted); }
+nav { display: grid; gap: 0.15rem; }
+.group {
+  font-size: 0.72rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em;
+  font-weight: 700; margin: 0.9rem 0.4rem 0.25rem;
+}
+.tab {
+  display: block; text-decoration: none; color: var(--muted);
+  padding: 0.45rem 0.7rem; border-radius: 8px; font-size: 0.95rem; border: 1px solid transparent;
+}
+.tab:hover { background: var(--accent-wash); color: var(--accent-strong); }
+.tab.on { background: var(--accent-wash); border-color: var(--accent); color: var(--accent-strong); font-weight: 600; }
+.foot { margin-top: auto; display: grid; gap: 0.5rem; padding: 0.6rem 0.4rem 0; }
+.content { min-width: 0; }
+main { padding: 1.6rem 1.6rem 3rem; max-width: 1500px; }
+@media (max-width: 900px) {
+  .frame { grid-template-columns: 1fr; }
+  aside { position: static; height: auto; }
+}
 </style>

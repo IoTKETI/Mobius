@@ -10,6 +10,8 @@ import type {
   AcpValidation,
   ExpiredPage,
   ExpiredSummary,
+  ExpiryPolicy,
+  HitRow,
   Job,
   OrphanPage,
   OrphanSummary,
@@ -235,4 +237,24 @@ export function daysSince(et: string, asOf: string): number | null {
   const b = p(asOf)
   if (a === null || b === null) return null
   return Math.floor((b - a) / 86400000)
+}
+
+// ── 정책·관측 ──────────────────────────────────────────────────────────────
+
+export function expiredPolicy() {
+  return get<ExpiryPolicy>('/api/expired/policy')
+}
+
+export function statsHit() {
+  return get<{ asOf: string; rows: HitRow[] }>('/api/stats/hit')
+}
+export function statsTotalAe() {
+  return get<{ total: number }>('/api/stats/total-ae')
+}
+export function statsTotalCbs() {
+  return get<{ total: number }>('/api/stats/total-cbs')
+}
+
+export function jobList() {
+  return get<{ jobs: Job[] }>('/api/jobs')
 }

@@ -81,7 +81,7 @@ export const UNDELETABLE = new Set([5])
 
 // ── 일괄 작업 ──────────────────────────────────────────────────────────────
 
-export type JobKind = 'expired-delete' | 'expired-extend' | 'orphan-delete'
+export type JobKind = 'expired-delete' | 'expired-extend' | 'orphan-delete' | 'orphan-scan' | 'selftest'
 export type JobState = 'running' | 'done' | 'cancelled' | 'failed'
 
 export interface JobOutcome {
@@ -127,7 +127,19 @@ export interface AcpConfig {
   defaultPolicy: string
   audit: string
   denyLog: string
+  /** 'off' 면 잠근 컨테이너의 경로가 상위 discovery 에 그대로 나온다 — 시뮬레이터가 보호를 과장한다. */
+  discoveryFilter: string
 }
+
+/** 코어가 정하는 만료 정책. 화면은 이것만 본다 — 상수를 두지 않는다. */
+export interface ExpiryPolicy {
+  autoDeletedTypes: number[]
+  etExtendableTypes: number[]
+  undeletableTypes: number[]
+  typeNames: Record<string, string>
+}
+
+export interface HitRow { ct: string; http: number; mqtt: number; coap: number; ws: number }
 
 export interface SessionInfo {
   ok: boolean
