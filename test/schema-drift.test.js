@@ -111,25 +111,34 @@ test('001 이 만드는 인덱스는 SQLite 스키마에도 있다', function ()
         '001 이 backends:[mysql] 로 한정한 근거가 무너진다');
 });
 
-test('id 컬럼(lookup 의 ri·pi·sri·spi, cin.pi, sub.pi)은 전부 utf8_bin 을 명시한다', function () {
-    // 예전에는 ri 만 bin 이고 pi 는 general_ci 였다 — 그 비대칭이 재귀 CTE 의 `l.pi = p.ri` 를
-    // 교차 콜레이션 비교로 만들었고(2026-08-28 에는 비용이 없다고 두었다), /Mobius/Abc 와
-    // /Mobius/abc 가 따로 생기는데 자식 조회는 한 부모로 보는 구멍도 있었다.
-    // 2026-09-06 에 식별자는 바이트 그대로 비교하기로 했다(ri/sri 설계 메모 §3 A3,
-    // 마이그레이션 018). 새 설치는 이 파일이, 배포는 018 이 맞춘다. 한쪽만 바뀌면 여기서 걸린다.
+test('식별자·이름 컬럼은 모든 표에서 utf8_bin 을 명시한다 — oneM2M 대로 대소문자를 구분한다', function () {
+    // 예전에는 ri 만 bin 이고 pi·sri·spi·rn·aei·cr 은 general_ci 였다. 만드는 것은 구분하는데
+    // 찾는 것은 안 가렸다 — 배포 실측(2026-09-06): 대소문자만 다른 형제 컨테이너 51쌍의 자식이
+    // `pi = ?` 로 섞이고(8 + 1 = 9), `?rn=` 필터가 대소문자를 안 가리며, SmyAE 가 있으면 SMYAE 가 409.
+    // 사용자 결정(2026-09-06): 식별자·이름은 바이트 그대로 비교한다(마이그레이션 018).
+    // 새 설치는 이 파일이, 배포는 018 이 맞춘다. 한쪽만 바뀌면 여기서 걸린다.
     const schema = fs.readFileSync(MYSQL_SCHEMA, 'utf8');
-    function line(table, col) {
-        const t = schema.slice(schema.indexOf('CREATE TABLE `' + table + '`'));
-        const body = t.slice(0, t.indexOf('ENGINE=InnoDB'));
-        return body.split('\n').find((l) => l.trim().startsWith('`' + col + '`'));
-    }
-    [['lookup', 'ri'], ['lookup', 'pi'], ['lookup', 'sri'], ['lookup', 'spi'], ['cin', 'pi'], ['sub', 'pi']].forEach(function (p) {
-        const l = line(p[0], p[1]);
-        assert.ok(l && /COLLATE\s+utf8_bin/.test(l), p[0] + '.' + p[1] + ' 이 utf8_bin 을 명시하지 않는다: ' + l);
+    const ID_COLS = new Set(['ri', 'pi', 'sri', 'spi', 'rn', 'lbl', 'acpi', 'aei', 'csi', 'cb', 'cr']);
+    const bad = [];
+    const blocks = schema.split(/CREATE TABLE `/).slice(1);
+    blocks.forEach(function (b) {
+        const table = b.slice(0, b.indexOf('`'));
+        const body = b.slice(0, b.indexOf('ENGINE=InnoDB'));
+        // 파일은 CRLF 다. '\n' 으로만 자르면 줄 끝에 '\r' 이 남고, JS 의 `.` 은 '\r' 을 안 먹어
+        // `(.*)$` 가 한 줄도 못 맞힌다 — 검사가 통째로 헛돌았다(변이로 잡았다).
+        body.split(/\r?\n/).forEach(function (l) {
+            const m = /^\s*`(\w+)` varchar\((\d+)\)(.*)$/.exec(l);
+            if (!m || !ID_COLS.has(m[1])) { return; }
+            if (!/COLLATE utf8_bin/.test(m[3])) { bad.push(table + '.' + m[1] + ' (' + l.trim() + ')'); }
+        });
     });
-    // 마이그레이션 018 이 같은 여섯 컬럼을 다룬다
+    assert.deepStrictEqual(bad, [], 'utf8_bin 을 명시하지 않는 식별자 컬럼');
+
+    // rn · sri · spi 는 45 → 200 (구독 이름이 이미 40자, aei 는 ae.aei 의 200 과 맞춘다)
+    const lookup = schema.slice(schema.indexOf('CREATE TABLE `lookup`'));
+    ['rn', 'sri', 'spi'].forEach(function (c) {
+        assert.match(lookup, new RegExp('`' + c + '` varchar\\(200\\)'), 'lookup.' + c + ' 가 200 이 아니다');
+    });
     const m = require('../migrations/018-id-columns-collation-bin.js');
     assert.strictEqual(m.id, '018-id-columns-collation-bin');
-    // rn · lbl 은 discovery 필터 의미가 걸려 있어 일부러 두었다
-    assert.ok(!/COLLATE/.test(line('lookup', 'rn')), 'lookup.rn 에 COLLATE 가 생겼다 — 필터 의미를 다시 봐야 한다');
 });

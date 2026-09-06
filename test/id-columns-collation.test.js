@@ -1,9 +1,13 @@
 'use strict';
-// 마이그레이션 018 — id 컬럼 콜레이션을 utf8mb3_bin 으로 (ri/sri 설계 메모 §3 A3).
+// 마이그레이션 018 — 식별자·이름 컬럼을 utf8mb3_bin 으로, rn·sri·spi 는 200 으로 (ri/sri 설계 메모 §3 A3).
 //
 // 표 전체를 다시 쓰는 DDL 이라 실제로 돌려 볼 수 없다. test/migrate.test.js 처럼
 // 어댑터를 가로채 **무슨 문장을 어떤 순서로 내는지**만 본다. 형과 NULL 여부는
-// information_schema 에서 읽어 그대로 두는 것이 계약이다.
+// information_schema 에서 읽어 그대로 두되, rn·sri·spi 만 200 으로 넓히는 것이 계약이다.
+//
+// 대상(2026-09-06 사용자 결정 — "oneM2M 대로 대소문자를 구분한다"):
+//   lookup.pi/sri/spi/rn/lbl/acpi · ae.aei · cb.csi · csr.csi/cb · 모든 표의 cr(생성자) · cin.pi · sub.pi
+//   poa · nu 는 주소라 두고, rn·sri·spi 는 45 → 200(구독 이름이 이미 40자).
 
 const test = require('node:test');
 const assert = require('node:assert');
@@ -31,14 +35,28 @@ function tap(selectRows) {
     return { ctx: { db: db, conn: {}, backend: 'mysql' }, seen: seen };
 }
 
-// 배포 실측 모양 — lookup.ri 만 bin 이고 나머지는 general_ci
+const BIN = 'utf8mb3_bin', CI = 'utf8mb3_general_ci';
+function col(t, c, ty, nul, coll) { return { t: t, c: c, ty: ty, nul: nul, coll: coll }; }
+
+// 배포 실측 모양(2026-09-06) — 질의가 table_name, column_name 순으로 준다
 const DEPLOY = [
-    { t: 'cin', c: 'pi', ty: 'varchar(200)', nul: 'NO', coll: 'utf8mb3_general_ci' },
-    { t: 'lookup', c: 'pi', ty: 'varchar(200)', nul: 'NO', coll: 'utf8mb3_general_ci' },
-    { t: 'lookup', c: 'spi', ty: 'varchar(45)', nul: 'NO', coll: 'utf8mb3_general_ci' },
-    { t: 'lookup', c: 'sri', ty: 'varchar(45)', nul: 'NO', coll: 'utf8mb3_general_ci' },
-    { t: 'sub', c: 'pi', ty: 'varchar(400)', nul: 'YES', coll: 'utf8mb3_general_ci' }
+    col('ae', 'aei', 'varchar(200)', 'NO', CI),
+    col('cb', 'csi', 'varchar(45)', 'NO', CI),
+    col('cin', 'cr', 'varchar(45)', 'NO', CI),
+    col('cin', 'pi', 'varchar(200)', 'NO', CI),
+    col('csr', 'cb', 'varchar(200)', 'NO', CI),
+    col('csr', 'csi', 'varchar(200)', 'NO', CI),
+    col('fcnt', 'cr', 'varchar(45)', 'YES', BIN),          // 이미 bin
+    col('lookup', 'acpi', 'varchar(200)', 'NO', CI),
+    col('lookup', 'lbl', 'varchar(200)', 'NO', CI),
+    col('lookup', 'pi', 'varchar(200)', 'NO', CI),
+    col('lookup', 'rn', 'varchar(45)', 'NO', CI),
+    col('lookup', 'spi', 'varchar(45)', 'NO', CI),
+    col('lookup', 'sri', 'varchar(45)', 'NO', CI),
+    col('sub', 'cr', 'varchar(45)', 'YES', CI),
+    col('sub', 'pi', 'varchar(400)', 'YES', CI)
 ];
+const MOD = (c, ty, nul) => 'MODIFY ' + c + ' ' + ty + ' CHARACTER SET utf8mb3 COLLATE utf8mb3_bin ' + nul;
 
 test('선언 — MySQL 만, 수동', () => {
     assert.strictEqual(m.id, '018-id-columns-collation-bin');
@@ -46,46 +64,73 @@ test('선언 — MySQL 만, 수동', () => {
     assert.strictEqual(m.autoApply, undefined, '표를 다시 쓰는 DDL 이 기동 때 돌면 안 된다');
 });
 
-test('inspect — 컬럼마다 지금 콜레이션과 바꿀 것을 말한다', (t, done) => {
+test('대상 질의 — 모든 표의 cr 과 lookup 의 여섯 컬럼, varchar 만', (t, done) => {
+    const { ctx, seen } = tap([DEPLOY]);
+    m.inspect(ctx, (err) => {
+        assert.ifError(err);
+        const q = seen[0].sql;
+        assert.match(q, /information_schema\.columns/);
+        assert.match(q, /column_name = 'cr'/, '모든 표의 cr 을 잡아야 한다');
+        assert.match(q, /data_type = 'varchar'/);
+        ['acpi', 'lbl', 'pi', 'rn', 'spi', 'sri'].forEach((c) => assert.match(q, new RegExp("'" + c + "'"), 'lookup.' + c));
+        assert.match(q, /'aei'/); assert.match(q, /'csi'/); assert.match(q, /'cb'/);
+        done();
+    });
+});
+
+test('inspect — 컬럼마다 지금 콜레이션과 바꿀 것, 넓힐 것을 말한다', (t, done) => {
     const { ctx } = tap([DEPLOY]);
     m.inspect(ctx, (err, note) => {
         assert.ifError(err);
         assert.match(note, /lookup\.pi utf8mb3_general_ci → utf8mb3_bin/);
-        assert.match(note, /sub\.pi utf8mb3_general_ci → utf8mb3_bin/);
-        assert.match(note, /바꿀 표 3/);
+        assert.match(note, /lookup\.rn .*varchar\(45\) → varchar\(200\)/);
+        assert.match(note, /fcnt\.cr utf8mb3_bin$/m, '이미 bin 인 것은 화살표가 없다');
+        assert.match(note, /바꿀 표 6/);
         assert.match(note, /점검 창/);
         done();
     });
 });
 
-test('up — 표마다 ALTER 한 문장, 형·NULL 여부는 읽은 그대로, 타임아웃 없음', (t, done) => {
+test('up — 표마다 ALTER 한 문장, 형·NULL 여부는 읽은 그대로, rn·sri·spi 는 200, 타임아웃 없음', (t, done) => {
     const { ctx, seen } = tap([DEPLOY]);
     m.up(ctx, (err, out) => {
         assert.ifError(err);
         const alters = seen.filter((s) => /^ALTER/.test(s.sql));
         assert.deepStrictEqual(alters.map((s) => s.sql), [
-            'ALTER TABLE cin MODIFY pi varchar(200) CHARACTER SET utf8mb3 COLLATE utf8mb3_bin NOT NULL',
-            'ALTER TABLE lookup MODIFY pi varchar(200) CHARACTER SET utf8mb3 COLLATE utf8mb3_bin NOT NULL, ' +
-                'MODIFY spi varchar(45) CHARACTER SET utf8mb3 COLLATE utf8mb3_bin NOT NULL, ' +
-                'MODIFY sri varchar(45) CHARACTER SET utf8mb3 COLLATE utf8mb3_bin NOT NULL',
-            'ALTER TABLE sub MODIFY pi varchar(400) CHARACTER SET utf8mb3 COLLATE utf8mb3_bin NULL'
+            'ALTER TABLE ae ' + MOD('aei', 'varchar(200)', 'NOT NULL'),
+            'ALTER TABLE cb ' + MOD('csi', 'varchar(45)', 'NOT NULL'),
+            'ALTER TABLE cin ' + MOD('cr', 'varchar(45)', 'NOT NULL') + ', ' + MOD('pi', 'varchar(200)', 'NOT NULL'),
+            'ALTER TABLE csr ' + MOD('cb', 'varchar(200)', 'NOT NULL') + ', ' + MOD('csi', 'varchar(200)', 'NOT NULL'),
+            'ALTER TABLE lookup ' + [MOD('acpi', 'varchar(200)', 'NOT NULL'), MOD('lbl', 'varchar(200)', 'NOT NULL'),
+                MOD('pi', 'varchar(200)', 'NOT NULL'), MOD('rn', 'varchar(200)', 'NOT NULL'),
+                MOD('spi', 'varchar(200)', 'NOT NULL'), MOD('sri', 'varchar(200)', 'NOT NULL')].join(', '),
+            'ALTER TABLE sub ' + MOD('cr', 'varchar(45)', 'NULL') + ', ' + MOD('pi', 'varchar(400)', 'NULL')
         ]);
         alters.forEach((s) => assert.deepStrictEqual(s.opts, { timeoutMs: 0 }, '표 재작성에 드라이버 타임아웃이 걸리면 안 된다'));
-        assert.strictEqual(out.affectedRows, 3);
+        assert.strictEqual(out.affectedRows, 6);
         done();
     });
 });
 
-test('이미 bin 인 컬럼은 건너뛴다 — 전부 맞으면 문장이 없다', (t, done) => {
-    const half = DEPLOY.map((c) => Object.assign({}, c, { coll: (c.t === 'lookup') ? 'utf8mb3_bin' : c.coll }));
-    const { ctx, seen } = tap([half]);
+test('이미 bin 이어도 좁으면 넓힌다 — lookup.sri bin varchar(45) 는 200 으로', (t, done) => {
+    const rows = [col('lookup', 'sri', 'varchar(45)', 'NO', BIN), col('lookup', 'pi', 'varchar(200)', 'NO', BIN)];
+    const { ctx, seen } = tap([rows]);
     m.up(ctx, (err, out) => {
         assert.ifError(err);
         const alters = seen.filter((s) => /^ALTER/.test(s.sql)).map((s) => s.sql);
-        assert.strictEqual(alters.length, 2);
-        assert.ok(alters.every((s) => !/lookup/.test(s)), 'lookup 은 이미 bin 인데 또 바꾼다');
-        assert.strictEqual(out.affectedRows, 2);
-        const all = DEPLOY.map((c) => Object.assign({}, c, { coll: 'utf8mb3_bin' }));
+        assert.deepStrictEqual(alters, ['ALTER TABLE lookup ' + MOD('sri', 'varchar(200)', 'NOT NULL')]);
+        assert.strictEqual(out.affectedRows, 1);
+        done();
+    });
+});
+
+test('전부 맞으면 문장이 없고 inspect 가 그렇게 말한다', (t, done) => {
+    const all = DEPLOY.map((c) => Object.assign({}, c, { coll: BIN, ty: (/^(rn|sri|spi)$/.test(c.c) && c.t === 'lookup') ? 'varchar(200)' : c.ty }));
+    const { ctx, seen } = tap([all]);
+    m.up(ctx, (err, out) => {
+        assert.ifError(err);
+        assert.strictEqual(seen.filter((s) => /^ALTER/.test(s.sql)).length, 0);
+        assert.strictEqual(out.affectedRows, 0);
         const again = tap([all]);
         m.inspect(again.ctx, (e2, note) => {
             assert.ifError(e2);

@@ -51,7 +51,7 @@ CREATE TABLE `acp_audit` (
   `ri` varchar(200) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
   `ty` int unsigned NOT NULL,
   `origin` varchar(45) DEFAULT NULL,
-  `cr` varchar(45) DEFAULT NULL,
+  `cr` varchar(45) CHARACTER SET utf8 COLLATE utf8_bin DEFAULT NULL,
   `before_val` text,
   `after_val` text,
   PRIMARY KEY (`id`),
@@ -71,7 +71,7 @@ CREATE TABLE `ae` (
   `ri` varchar(200) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
   `apn` varchar(45) NOT NULL,
   `api` varchar(45) NOT NULL,
-  `aei` varchar(200) NOT NULL,
+  `aei` varchar(200) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
   `poa` varchar(200) NOT NULL,
   `or` varchar(45) NOT NULL,
   `rr` varchar(45) NOT NULL,
@@ -95,7 +95,7 @@ DROP TABLE IF EXISTS `cb`;
 CREATE TABLE `cb` (
   `ri` varchar(200) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
   `cst` varchar(45) NOT NULL,
-  `csi` varchar(45) NOT NULL,
+  `csi` varchar(45) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
   `srt` varchar(255) NOT NULL,
   `poa` varchar(200) NOT NULL,
   `nl` varchar(45) NOT NULL,
@@ -118,7 +118,7 @@ CREATE TABLE `cin` (
   `pi` varchar(200) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
   `ri` varchar(200) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
   `cs` int NOT NULL,
-  `cr` varchar(45) NOT NULL,
+  `cr` varchar(45) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
   `cnf` varchar(45) NOT NULL,
   `or` varchar(45) NOT NULL,
   `con` longtext NOT NULL,
@@ -138,7 +138,7 @@ DROP TABLE IF EXISTS `cnt`;
 /*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `cnt` (
   `ri` varchar(200) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
-  `cr` varchar(45) NOT NULL,
+  `cr` varchar(45) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
   `mni` bigint unsigned NOT NULL,
   `mbs` bigint unsigned NOT NULL,
   `mia` int unsigned NOT NULL,
@@ -164,8 +164,8 @@ CREATE TABLE `csr` (
   `ri` varchar(200) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
   `cst` varchar(45) NOT NULL,
   `poa` varchar(200) NOT NULL,
-  `cb` varchar(200) NOT NULL,
-  `csi` varchar(200) NOT NULL,
+  `cb` varchar(200) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
+  `csi` varchar(200) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
   `mei` varchar(45) NOT NULL,
   `tri` varchar(45) NOT NULL,
   `rr` varchar(45) NOT NULL,
@@ -252,7 +252,7 @@ DROP TABLE IF EXISTS `grp`;
 /*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `grp` (
   `ri` varchar(200) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
-  `cr` varchar(45) NOT NULL,
+  `cr` varchar(45) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
   `mt` varchar(45) NOT NULL,
   `cnm` varchar(45) NOT NULL,
   `mnm` varchar(45) NOT NULL,
@@ -300,7 +300,7 @@ CREATE TABLE `lcp` (
   `loi` varchar(45) NOT NULL,
   `lon` varchar(45) NOT NULL,
   `lost` varchar(45) NOT NULL,
-  `cr` varchar(45) NOT NULL,
+  `cr` varchar(45) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
   PRIMARY KEY (`ri`),
   UNIQUE KEY `ri_UNIQUE` (`ri`),
   CONSTRAINT `lcp_ri` FOREIGN KEY (`ri`) REFERENCES `lookup` (`ri`) ON DELETE CASCADE ON UPDATE CASCADE
@@ -324,15 +324,15 @@ CREATE TABLE `lookup` (
   `ty` int unsigned NOT NULL,
   `ct` varchar(21) NOT NULL,
   `st` int unsigned NOT NULL,
-  `rn` varchar(45) NOT NULL,
+  `rn` varchar(200) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
   `lt` varchar(45) NOT NULL,
   `et` varchar(45) NOT NULL,
-  `acpi` varchar(200) NOT NULL,
-  `lbl` varchar(200) NOT NULL,
+  `acpi` varchar(200) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
+  `lbl` varchar(200) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
   `at` varchar(45) NOT NULL,
   `aa` varchar(45) NOT NULL,
-  `sri` varchar(45) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
-  `spi` varchar(45) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
+  `sri` varchar(200) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
+  `spi` varchar(200) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
   -- CIN 의 contentSize / contentInfo 사본. discovery 의 sza / szb / cty 가 본다.
   --
   -- ── 왜 여기에 두 벌로 두는가 ──────────────────────────────────────────
@@ -411,7 +411,7 @@ CREATE TABLE `mgo` (
   `dis` varchar(45) DEFAULT NULL,
   `rbo` varchar(45) DEFAULT NULL,
   `far` varchar(45) DEFAULT NULL,
-  `cr` varchar(45) DEFAULT NULL,
+  `cr` varchar(45) CHARACTER SET utf8 COLLATE utf8_bin DEFAULT NULL,
   PRIMARY KEY (`ri`),
   UNIQUE KEY `ri_UNIQUE` (`ri`),
   CONSTRAINT `mgo_ri` FOREIGN KEY (`ri`) REFERENCES `lookup` (`ri`) ON DELETE CASCADE ON UPDATE CASCADE
@@ -433,7 +433,7 @@ CREATE TABLE `mms` (
   `asd` varchar(45) DEFAULT NULL,
   `osd` varchar(45) DEFAULT NULL,
   `sst` varchar(45) DEFAULT NULL,
-  `cr` varchar(45) DEFAULT NULL,
+  `cr` varchar(45) CHARACTER SET utf8 COLLATE utf8_bin DEFAULT NULL,
   PRIMARY KEY (`ri`),
   UNIQUE KEY `ri_UNIQUE` (`ri`),
   CONSTRAINT `mms_ri` FOREIGN KEY (`ri`) REFERENCES `lookup` (`ri`) ON DELETE CASCADE ON UPDATE CASCADE
@@ -452,7 +452,7 @@ CREATE TABLE `nod` (
   `ni` varchar(45) NOT NULL,
   `hcl` varchar(45) DEFAULT NULL,
   `mgca` varchar(45) DEFAULT NULL,
-  `cr` varchar(45) DEFAULT NULL,
+  `cr` varchar(45) CHARACTER SET utf8 COLLATE utf8_bin DEFAULT NULL,
   PRIMARY KEY (`ri`),
   UNIQUE KEY `ri_UNIQUE` (`ri`),
   CONSTRAINT `nod_ri` FOREIGN KEY (`ri`) REFERENCES `lookup` (`ri`) ON DELETE CASCADE ON UPDATE CASCADE
@@ -479,7 +479,7 @@ DROP TABLE IF EXISTS `smd`;
 /*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `smd` (
   `ri` varchar(200) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
-  `cr` varchar(45) DEFAULT NULL,
+  `cr` varchar(45) CHARACTER SET utf8 COLLATE utf8_bin DEFAULT NULL,
   `dsp` longtext,
   `or` mediumtext,
   `soe` varchar(200) DEFAULT NULL,
@@ -531,7 +531,7 @@ CREATE TABLE `sub` (
   `ln` varchar(45) DEFAULT NULL,
   `nct` varchar(45) DEFAULT NULL,
   `nec` varchar(45) DEFAULT NULL,
-  `cr` varchar(45) DEFAULT NULL,
+  `cr` varchar(45) CHARACTER SET utf8 COLLATE utf8_bin DEFAULT NULL,
   `su` varchar(45) DEFAULT NULL,
   PRIMARY KEY (`ri`),
   UNIQUE KEY `resourceid_UNIQUE` (`ri`),
