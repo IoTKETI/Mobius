@@ -113,3 +113,39 @@ test('select_lookup_only_cin_page 는 cin 에 짝이 없는 lookup ty=4 행만 �
         done();
     });
 });
+
+test('빈 테이블에서는 빈 결과를 준다', function (t, done) {
+    const { sa: sa1 } = tap([[]]);
+    sa1.select_sub_endpoint_rollup(null, {}, function (err, r) {
+        assert.ifError(err);
+        assert.deepStrictEqual(r, { endpoints: [], endpointsTruncated: false, scanned: 0, capped: false, next: null });
+
+        const { sa: sa2 } = tap([[]]);
+        sa2.select_subs_by_endpoint(null, { endpoint: 'http://h' }, function (err2, r2) {
+            assert.ifError(err2);
+            assert.deepStrictEqual(r2, { rows: [], more: false, scanned: 0, capped: false });
+
+            const { sa: sa3 } = tap([[]]);
+            sa3.select_lookup_only_cin_page(null, {}, function (err3, r3) {
+                assert.ifError(err3);
+                assert.deepStrictEqual(r3, { rows: [], more: false, nextRi: null, scanned: 0, scanCapped: false });
+                done();
+            });
+        });
+    });
+});
+
+test('JSON 이 아닌 nu 는 그 행을 건너뛰되 scanned 에는 센다', function (t, done) {
+    const bad = { ri: '/M/bad', pi: '/Mobius/ae', nu: 'not json', enc: '{}', cr: 'Cae' };
+    const { sa } = tap([[
+        bad,
+        sub('/M/good', ['http://h/n'])
+    ]]);
+    sa.select_sub_endpoint_rollup(null, {}, function (err, r) {
+        assert.ifError(err);
+        assert.strictEqual(r.scanned, 2);
+        assert.deepStrictEqual(r.endpoints.map((e) => e.endpoint), ['http://h']);
+        assert.strictEqual(r.endpoints[0].total, 1);
+        done();
+    });
+});
