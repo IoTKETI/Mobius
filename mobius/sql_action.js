@@ -4580,6 +4580,152 @@ exports.select_sum_ae = function (connection, callback) {
     });
 };
 
+/* ─── 구독 엔드포인트 롤업 (관리 콘솔) ───────────────────────────────
+ *
+ * 구독을 nu 의 scheme://host[:port] 로 묶어 센다. 읽기만 한다.
+ * 배포(2026-08-30 실측): 구독 3,463건, 고유 nu 202개, 상위 3개가 57%.
+ * 목록을 그대로 보여 주면 못 읽으므로 묶음이 첫 화면이다.
+ *
+ * 전역 스캔이 아니다 — ri 키셋 배치로 전진하고 scanCap 에서 멈춘다.
+ * 판정(broken/suspect)은 여기서 하지 않는다. audit_subscriptions 가 그 기준의
+ * 단일 진실원이고, 호출자가 그 결과를 severityOf(ri) 로 넘긴다.
+ */
+var SUB_ROLLUP_BATCH = 500;
+
+/** nu 하나 → 엔드포인트 문자열. URL 이 아니면(ID 형) '(ID 형)'. */
+function sub_endpoint_of(nu) {
+    try {
+        var u = new URL(String(nu));
+        return u.protocol + '//' + u.host;
+    }
+    catch (e) { return '(ID 형)'; }
+}
+
+exports.select_sub_endpoint_rollup = function (connection, opts, callback) {
+    var o = opts || {};
+    var cap = parseInt(o.scanCap, 10) || 20000;
+    var limit = parseInt(o.limit, 10) || 100;
+    var severityOf = (typeof o.severityOf === 'function') ? o.severityOf : function () { return null; };
+    var groups = {};
+    var scanned = 0;
+
+    function finish(next, capped) {
+        var list = Object.keys(groups).map(function (k) { return groups[k]; })
+            .sort(function (a, b) { return b.total - a.total || (a.endpoint < b.endpoint ? -1 : 1); });
+        callback(null, {
+            endpoints: list.slice(0, limit),
+            endpointsTruncated: list.length > limit,
+            scanned: scanned,
+            capped: !!capped,
+            next: capped ? next : null
+        });
+    }
+
+    function step(cursor) {
+        facade.run(facade.k('sub').select('ri', 'nu').where('ri', '>', cursor)
+                       .orderBy('ri', 'asc').limit(SUB_ROLLUP_BATCH),
+            connection, function (err, rows) {
+                if (err) { return callback(err, rows); }
+                rows.forEach(function (r) {
+                    scanned++;
+                    var sev = severityOf(r.ri);
+                    (parse_json_array(r.nu) || []).forEach(function (nu) {
+                        var ep = sub_endpoint_of(nu);
+                        var g = groups[ep] || (groups[ep] = { endpoint: ep, total: 0, broken: 0, suspect: 0, sample: [] });
+                        g.total++;
+                        if (sev === 'broken') { g.broken++; }
+                        else if (sev === 'suspect') { g.suspect++; }
+                        if (g.sample.length < 5 && g.sample.indexOf(r.ri) < 0) { g.sample.push(r.ri); }
+                    });
+                });
+                var last = rows.length ? rows[rows.length - 1].ri : cursor;
+                if (rows.length < SUB_ROLLUP_BATCH) { return finish(null, false); }
+                if (scanned >= cap) { return finish(last, true); }
+                step(last);
+            });
+    }
+    step((o.after === undefined || o.after === null) ? '' : String(o.after));
+};
+
+/** 한 엔드포인트의 구독 표본. 같은 배치 스캔이고 상한 안에서 limit 까지 모은다. */
+exports.select_subs_by_endpoint = function (connection, opts, callback) {
+    var o = opts || {};
+    var endpoint = String(o.endpoint || '');
+    var limit = parseInt(o.limit, 10) || 200;
+    var cap = parseInt(o.scanCap, 10) || 20000;
+    var out = [];
+    var scanned = 0;
+
+    function step(cursor) {
+        facade.run(facade.k('sub').select('ri', 'pi', 'nu', 'enc', 'cr').where('ri', '>', cursor)
+                       .orderBy('ri', 'asc').limit(SUB_ROLLUP_BATCH),
+            connection, function (err, rows) {
+                if (err) { return callback(err, rows); }
+                var more = false;
+                for (var i = 0; i < rows.length; i++) {
+                    scanned++;
+                    var nus = parse_json_array(rows[i].nu) || [];
+                    var hit = nus.some(function (nu) { return sub_endpoint_of(nu) === endpoint; });
+                    if (!hit) { continue; }
+                    if (out.length >= limit) { more = true; break; }
+                    out.push({ ri: rows[i].ri, pi: rows[i].pi, nu: nus, enc: rows[i].enc, cr: rows[i].cr });
+                }
+                if (more) { return callback(null, { rows: out, more: true, scanned: scanned, capped: false }); }
+                var last = rows.length ? rows[rows.length - 1].ri : cursor;
+                if (rows.length < SUB_ROLLUP_BATCH) { return callback(null, { rows: out, more: false, scanned: scanned, capped: false }); }
+                if (scanned >= cap) { return callback(null, { rows: out, more: true, scanned: scanned, capped: true }); }
+                step(last);
+            });
+    }
+    step('');
+};
+
+/* ─── lookup 에만 남은 CIN (인수인계 §6) ──────────────────────────────
+ *
+ * cin 테이블에는 없는데 lookup 에 ty=4 로 남은 행. 규모를 모른다(전수 카운트가
+ * 배포에서 532초) — 그래서 세지 않고 표본만 뽑는다. 원인이 밝혀지지 않아 삭제는
+ * 사람이 결정한다.
+ *
+ * select_orphan_page 와 같은 꼴이다: ri 키셋으로 전진하고 배치마다 cin 존재를
+ * 리터럴 whereIn 으로 확인한다(조인은 콜레이션이 달라 인덱스를 못 탄다).
+ */
+exports.select_lookup_only_cin_page = function (connection, opts, callback) {
+    var o = opts || {};
+    var limit = o.limit > 0 ? o.limit : 50;
+    var cap = o.scanCap > 0 ? o.scanCap : 200000;
+    var BATCH = 1000;
+    var out = [];
+    var scanned = 0;
+
+    function step(cursor) {
+        facade.run(facade.k('lookup').select('ri', 'pi', 'rn', 'ct').where({ ty: '4' }).where('ri', '>', cursor)
+                       .orderBy('ri', 'asc').limit(BATCH),
+            connection, function (err, rows) {
+                if (err) { return callback(err, rows); }
+                if (rows.length === 0) { return callback(null, { rows: out, more: false, nextRi: null, scanned: scanned, scanCapped: false }); }
+                scanned += rows.length;
+                var ris = rows.map(function (r) { return r.ri; });
+                facade.run(facade.k('cin').select('ri').whereIn('ri', ris), connection, function (err2, present) {
+                    if (err2) { return callback(err2, present); }
+                    var have = {};
+                    (present || []).forEach(function (p) { have[p.ri] = true; });
+                    var more = false;
+                    for (var i = 0; i < rows.length; i++) {
+                        if (have[rows[i].ri]) { continue; }
+                        if (out.length >= limit) { more = true; break; }
+                        out.push(rows[i]);
+                    }
+                    var last = rows[rows.length - 1].ri;
+                    if (more) { return callback(null, { rows: out, more: true, nextRi: out[out.length - 1].ri, scanned: scanned, scanCapped: false }); }
+                    if (rows.length < BATCH) { return callback(null, { rows: out, more: false, nextRi: null, scanned: scanned, scanCapped: false }); }
+                    if (scanned >= cap) { return callback(null, { rows: out, more: true, nextRi: last, scanned: scanned, scanCapped: true }); }
+                    step(last);
+                });
+            });
+    }
+    step((o.afterRi === undefined || o.afterRi === null) ? '' : String(o.afterRi));
+};
+
 /* ─── 구독 도달성 감사 ────────────────────────────────────────────────
  *
  * "구독은 잔뜩 있는데 받을 놈이 사라진" 상태를 찾는다. 읽기만 한다.
