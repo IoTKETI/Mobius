@@ -134,7 +134,10 @@ function attr_list_keys(src, name) {
 }
 
 test('속성표가 없는 타입은 리소스 생성/수정에 도달하지 못한다', function () {
-    const src = fs.readFileSync(path.join(__dirname, '..', 'mobius', 'resource.js'), 'utf8');
+    // create_np_attr_list 는 resource.js 에 그대로 있지만, update_np_attr_list 등
+    // 목록은 2026-09-06 에 attr_lists.js 로 옮겨졌다 — 둘을 합쳐서 본다.
+    const src = fs.readFileSync(path.join(__dirname, '..', 'mobius', 'resource.js'), 'utf8') +
+        '\n' + fs.readFileSync(path.join(__dirname, '..', 'mobius', 'attr_lists.js'), 'utf8');
 
     const ty_list = (src.match(/global\.ty_list = \[([^\]]*)\]/) || [, ''])[1]
         .split(',').map((x) => x.trim().replace(/['"]/g, '')).filter(Boolean);

@@ -45,8 +45,9 @@ test('빌더 어디에도 본문의 cr 을 쓰는 곳이 없다', function () {
 // 그래서 cr 을 막는 것은 오직 앞단의 속성표뿐이다. 표에서 빠지면 그 순간
 // 소유권이 넘어간다 — resource.js 를 require 하면 sgn_man 까지 딸려 와
 // 전역이 없다고 죽으므로, 표를 소스에서 읽는다.
+// 그 목록(update_np/opt/m_attr_list 등)은 2026-09-06 에 attr_lists.js 로 옮겨졌다.
 function attrList(name, ty) {
-    const src = fs.readFileSync(path.join(MOBIUS, 'resource.js'), 'utf8');
+    const src = fs.readFileSync(path.join(MOBIUS, 'attr_lists.js'), 'utf8');
     const re = new RegExp(name + "(?:\\." + ty + "|\\['" + ty + "'\\])\\s*=\\s*\\[([^\\]]*)\\]");
     const m = src.match(re);
     return m === null ? null : m[1].split(',').map((s) => s.trim().replace(/^'|'$/g, '')).filter(Boolean);
