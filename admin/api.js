@@ -645,6 +645,75 @@ exports.install = function (app, ctx) {
         });
     });
 
+    // ── 구독 (엔드포인트 롤업) ────────────────────────────────────────────
+    //
+    // 배포는 구독 3,463건에 고유 nu 202개, 상위 3개가 57% 다. 목록을 그대로 올리면
+    // 못 읽는다 — nu 의 엔드포인트로 묶는 것이 첫 화면이다. 판정(broken/suspect)은
+    // 코어 audit_subscriptions 가 유일한 기준이고, 여기서는 그 결과를 ri 맵으로
+    // 만들어 롤업에 넘긴다. **콘솔이 자기 기준을 만들지 않는다.**
+
+    /** 감사를 끝까지 돌려 ri → { severity, reason } 를 만든다. */
+    function audit_map(conn, callback) {
+        var map = {};
+        var acc = { scanned: 0, capped: false, bySeverity: {}, byReason: {} };
+        drain(
+            function (after, cb) {
+                var o = { batch: 500, scanCap: 20000, maxFindings: 2000 };
+                if (after) { o.after = after; }
+                db_sql.audit_subscriptions(conn, o, cb);
+            },
+            acc,
+            function (a, p) {
+                a.scanned += p.scanned;
+                a.capped = a.capped || p.capped;
+                Object.keys(p.bySeverity || {}).forEach(function (k) { a.bySeverity[k] = (a.bySeverity[k] || 0) + p.bySeverity[k]; });
+                Object.keys(p.byReason || {}).forEach(function (k) { a.byReason[k] = (a.byReason[k] || 0) + p.byReason[k]; });
+                (p.findings || []).forEach(function (f) { map[f.ri] = { severity: f.severity, reason: f.reason }; });
+            },
+            function (err, a) { callback(err, map, a); });
+    }
+
+    app.get('/api/subs/endpoints', function (req, res) {
+        var limit = Math.min(parseInt(req.query.limit, 10) || 100, 500);
+        var scanCap = Math.min(parseInt(req.query.scanCap, 10) || 20000, 200000);
+        with_connection(res, function (conn, done) {
+            audit_map(conn, function (err, map, audit) {
+                if (err) { done(); return res.status(500).json({ error: String((map && map.message) || err) }); }
+                db_sql.select_sub_endpoint_rollup(conn, {
+                    limit: limit, scanCap: scanCap,
+                    severityOf: function (ri) { return map[ri] ? map[ri].severity : null; }
+                }, function (err2, r) {
+                    done();
+                    if (err2) { return res.status(500).json({ error: String((r && r.message) || err2) }); }
+                    r.audit = audit;
+                    res.json(r);
+                });
+            });
+        });
+    });
+
+    app.get('/api/subs/sample', function (req, res) {
+        var endpoint = req.query.endpoint;
+        if (!endpoint) { return res.status(400).json({ error: 'endpoint 가 필요하다' }); }
+        var limit = Math.min(parseInt(req.query.limit, 10) || 200, 1000);
+        with_connection(res, function (conn, done) {
+            audit_map(conn, function (err, map) {
+                if (err) { done(); return res.status(500).json({ error: String((map && map.message) || err) }); }
+                db_sql.select_subs_by_endpoint(conn, { endpoint: String(endpoint), limit: limit }, function (err2, r) {
+                    done();
+                    if (err2) { return res.status(500).json({ error: String((r && r.message) || err2) }); }
+                    r.rows = r.rows.map(function (row) {
+                        var f = map[row.ri];
+                        row.severity = f ? f.severity : null;
+                        row.reason = f ? f.reason : null;
+                        return row;
+                    });
+                    res.json(r);
+                });
+            });
+        });
+    });
+
     // ── 일괄 작업 ─────────────────────────────────────────────────────────────
 
     /** 커넥션을 하나 빌려 fn 에 넘기고 반드시 반납한다. 작업 항목마다 짧게 빌린다. */
