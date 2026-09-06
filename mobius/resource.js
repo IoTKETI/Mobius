@@ -15,6 +15,7 @@
  */
 
 var log_safe = require('./log_safe');
+var short_ri = require('./short_ri');
 var url = require('url');
 var http = require('http');
 var https = require('https');
@@ -1009,7 +1010,8 @@ exports.create = function (request, response, callback) {
             var resource_Obj = request.resourceObj;
 
             resource_Obj[rootnm].spi = request.targetObject[Object.keys(request.targetObject)[0]].sri;
-            resource_Obj[rootnm].sri = request.ty + '-' + moment().utc().format('YYYYMMDDHHmmssSSS') + (Math.random() * 999).toFixed(0).padStart(3, '0');
+            // 짧은 id 는 short_ri 가 만든다 — 옛 '시각 + 난수 세 자리' 는 워커끼리 겹쳤다 (ri/sri 설계 메모 §3 A1)
+            resource_Obj[rootnm].sri = short_ri.generate(request.ty + '-');
 
             if(resource_Obj[rootnm].ty == 2) {
                 resource_Obj[rootnm].sri = resource_Obj[rootnm].aei;

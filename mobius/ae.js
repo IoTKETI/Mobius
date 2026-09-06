@@ -15,11 +15,11 @@
  */
 
 var url = require('url');
-var moment = require('moment');
 var util = require('util');
 var merge = require('merge');
 
 var responder = require('./responder');
+var short_ri = require('./short_ri');
 
 exports.build_ae = function(request, response, resource_Obj, body_Obj, callback) {
     var rootnm = request.headers.rootnm;
@@ -32,10 +32,11 @@ exports.build_ae = function(request, response, resource_Obj, body_Obj, callback)
     resource_Obj[rootnm].srv = (body_Obj[rootnm].srv) ? body_Obj[rootnm].srv : '';
 
     if( (request.headers['x-m2m-origin'] == 'S') ) {
-        resource_Obj[rootnm].aei = 'S' + require('shortid').generate();
+        // aei 도 short_ri 로 — shortid 는 프로세스마다 카운터가 0 에서 시작해 같은 초에 뜬 워커끼리 겹칠 수 있다
+        resource_Obj[rootnm].aei = short_ri.generate('S');
     }
     else if( (request.headers['x-m2m-origin'] == 'C') ) {
-        resource_Obj[rootnm].aei = 'C' + require('shortid').generate();
+        resource_Obj[rootnm].aei = short_ri.generate('C');
     }
     else {
         resource_Obj[rootnm].aei = request.headers['x-m2m-origin'];

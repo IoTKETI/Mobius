@@ -22,6 +22,7 @@ var moment = require('moment');
 
 var db_sql = require('./sql_action');
 var defaults = require('./defaults');
+var short_ri = require('./short_ri');
 
 function cb_create_action(connection, callback) {
     var rootnm = 'cb';
@@ -101,7 +102,7 @@ function cb_create_action(connection, callback) {
                 //     if (!err) {
                         resource_Obj[rootnm].spi = '';
                         //resource_Obj[rootnm].sri = require('shortid').generate();
-                        resource_Obj[rootnm].sri = '5-' + moment().utc().format('YYYYMMDDHHmmssSSS') + (Math.random() * 999).toFixed(0).padStart(3, '0');
+                        resource_Obj[rootnm].sri = short_ri.generate('5-');
                             db_sql.insert_cb(connection, resource_Obj[rootnm], function (err, results) {
                             if (!err) {
                                 rspObj.rsc = '2001';
