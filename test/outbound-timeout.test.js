@@ -305,3 +305,42 @@ test('globalAgent.maxSockets 를 손으로 세우지 않는다', function () {
             '진짜 역압이 필요하면 실측으로 값을 정하고 이 시험을 고칠 것');
     }
 });
+
+/* ── arm 은 유휴 타이머지 총 상한이 아니다 ──────────────────────────────
+ *
+ * outbound.js 의 실측(한도 400ms · 250ms 드립 → 3,016ms 까지 안 끊김)이 주석에만
+ * 있고 시험으로 고정돼 있지 않았다(요청 흐름 남은 일 §7.4). 누군가 "총 상한" 으로
+ * 바꾸면 정상적으로 느린 상대(큰 응답을 천천히 보내는 쪽)를 끊게 된다 — 그것은
+ * 의도된 선택이므로 여기서 잠근다.
+ */
+test('arm 은 유휴 타이머다 — 한도보다 짧은 간격의 드립은 끊지 않는다 (총 상한이 아니다)', async function () {
+    // 헤더를 바로 주고 100ms 마다 한 바이트씩 12번(1.2초) 흘리는 서버. 한도는 300ms.
+    const srv = http.createServer(function (req, res) {
+        res.writeHead(200);
+        let n = 0;
+        const t = setInterval(function () {
+            res.write('x');
+            if (++n >= 12) { clearInterval(t); res.end(); }
+        }, 100);
+    });
+    await new Promise(function (r) { srv.listen(0, '127.0.0.1', r); });
+    const origErr = console.error;
+    console.error = function () { /* 타임아웃 로그가 나면 그 자체가 실패다 — 아래 어서션이 잡는다 */ };
+    try {
+        const outcome = await new Promise(function (resolve) {
+            const req = http.request({ hostname: '127.0.0.1', port: srv.address().port, path: '/', method: 'GET' },
+                function (res) {
+                    let bytes = 0;
+                    res.on('data', function (d) { bytes += d.length; });
+                    res.on('end', function () { resolve('completed ' + bytes); });
+                });
+            req.on('error', function (e) { resolve('error: ' + e.message); });
+            outbound.arm(req, 'drip', 300);
+            req.end();
+        });
+        assert.match(outcome, /^completed 12$/, '한도(300ms)보다 짧은 간격의 드립인데 끊었거나 다 못 받았다: ' + outcome);
+    } finally {
+        console.error = origErr;
+        srv.close();
+    }
+});

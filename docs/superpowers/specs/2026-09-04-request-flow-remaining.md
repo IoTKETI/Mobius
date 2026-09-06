@@ -802,7 +802,19 @@ mobius/db/sqlite.js:117   supportedResourceTypes = ['1','2','3','4','5','23']
 나머지 16종의 CREATE/UPDATE/DELETE/discovery 경로는 **어느 시험에서도 한 번도
 실행되지 않는다.**
 
-### 7.3 소스 감시 시험의 79%가 손으로 적은 파일 목록이다
+### 7.3 ~~소스 감시 시험의 79%가 손으로 적은 파일 목록이다~~ — **그물을 하나 쳤다** (2026-09-06)
+
+`test/lib/sources.js`(git ls-files 로 추적 파일을 범위별로 훑고 주석을 걷어냄) 위에
+`test/core-invariants.test.js` 가 **어느 파일에서든 있어서는 안 되는 것 24개**를
+전체 트리로 본다 — 지운 결정(캐시 둘 · AE 중계 · WS 알림 · 옛 sri 생성기 · 보조 포트 ·
+옛 드라이버 · 만료 스케줄 · morgan combined · console.time · queueQoSZero), 값이 오면
+안 되는 곳(본문 cr · acpi LIKE · 헤더 통째 · Content-Type 흘림 · 알림 모듈의 요청 커넥션),
+한 곳에만 있어야 하는 것(typeRsrc 표 · moduleclass 접두 · typeRsrc 순회 ·
+respond({status}) · global.usedb/usespid · shortid · process.exit · acp_eval).
+증명: 패턴 21개를 어느 목록에도 없는 `mobius/cnt.js` 에 심으니 원래 시험은 20건이
+못 봤고(blind) 새 시험이 21건 다 잡았다. 원래 시험 77개는 그대로다 — 자리와 근거는
+거기 있고, 여기는 목록 밖을 막는 그물이다. 새 부재 불변식은 그 표에 한 줄 더한다.
+아래는 고치기 전 서술이다.
 
 전체 트리(`git ls-files`)를 훑는 것은 **4개뿐**이다. 나머지 35개는 목록 밖으로
 코드가 옮겨지면 조용히 통과한다.
@@ -810,7 +822,24 @@ mobius/db/sqlite.js:117   supportedResourceTypes = ['1','2','3','4','5','23']
 `cache_resource_url` 이 `mobius/cnt.js` 나 새 모듈에서 되살아나면
 `no-resource-cache` 는 통과한다.
 
-### 7.4 감시가 아예 없는 불변식
+### 7.4 ~~감시가 아예 없는 불변식~~ — **넷 다 시험으로 고정했다** (2026-09-06)
+
+- **워커 카운터의 상대 증분** — `test/counter-increment.test.js`. `sql_action.js` 의
+  `.update({ cni:` 절대값 문장은 전부 마스터 전용 함수(`delete_oldest` ·
+  `update_cnt_cni` · `reconcile_cnt_counters`) 안이고, 워커 경로 둘
+  (`update_parent_counters` · `update_parent_by_delete`)은 `raw('cni ± 1')`·`raw('cbs ± ?')`
+  이며, 마스터 전용 함수는 `reconcile`/`purge_sweep` 만 부른다(코어 전체 grep)
+- **`purge_sweep`/`reconcile_counters` 가 마스터에서만 돈다** — `test/master-only-jobs.test.js`.
+  `app.js` 의 `if (cluster.isMaster) {` 블록 경계를 잡아 `setInterval` 둘이 그 안에 한 번씩,
+  워커 블록·라우트에서는 어느 이름도 부르지 않고, `db_sql.purge_sweep`/`reconcile_cnt_counters`
+  는 각자의 tick 함수 안에서만 불린다
+- **`acp_eval.js` 부활 금지** — §5.4 때 `test/acp-field-policy.test.js` 가 파일 존재와 평가기
+  정의 위치를 보고, `test/core-invariants.test.js` 가 코어 전체에서 이름을 본다
+- **`arm()` 의 유휴 타이머 한계** — `test/outbound-timeout.test.js` 에 드립 서버 시험을
+  더했다(한도 300ms, 100ms 간격 12바이트 → 끊지 않고 다 받는다). 총 상한으로 바꾸면 실패한다
+
+변이 8건 전부 잡힘(카운터 절대값 셋·마스터 밖 호출 셋·다른 모듈 호출·총 상한 타이머).
+아래는 고치기 전 서술이다.
 
 - **워커 카운터의 상대 증분**(`cni + 1`) — `CLAUDE.md` 가 명시한 불변식인데
   시험이 없다
