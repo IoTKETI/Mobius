@@ -845,7 +845,19 @@ test/rsc-catalog.test.js:32-48   liveSuccess()
 `test/sgn-ws-timeout.test.js` 를 지웠다. `ws://` nu 는 이제 ID 형 nu 와 같이
 "받을 놈이 없는" 구독이다 — 접속 시도 없이 `[noti] fail - … (unsupported scheme)`.
 구독 생성 때 막지는 않는다(nu 스킴 검사는 원래 없다). `test/removed-paths.test.js`
-가 되살아남을 막는다. 아래는 지우기 전, 타임아웃을 넣었을 때의 서술이다.
+가 되살아남을 막는다.
+
+**배포됨** `9332bde` 2026-09-06 12:16 KST(03:16:41 UTC) — `git pull` → `npm prune`
+(websocket 과 그 의존성 제거) → 재기동, 워커 24 가 2초 안에 올라옴. 스모크 21/21,
+알림 프로브 6단계 기대대로(HTTP 직접 · AE poa 경유 · **MQTT**). 재기동 뒤 첫
+관찰: 5xx 0 · 403 0 · 중단 0 · `[outbound]` 0 · unsupported-scheme 0.
+
+프로브 함정 하나를 이때 알았다 — `noti-remote.js` 의 다섯째 인자는 CSE **ID**
+(`Mobius2`)이지 CSE base 이름(`Mobius`)이 아니다. `Mobius` 로 주면 MQTT 토픽
+`/oneM2M/req/Mobius/...` 를 듣는데 Mobius 는 `/oneM2M/req/Mobius2/...` 로 발행하므로
+2단계가 "알림 2건" 으로 나온다. 발행 판정은 stderr(`~/.pm2/logs/Mobius-error.log`)
+에 `[noti] unknown mqtt` 로 남는다 — ok 만 stdout 이다. 브로커를 `#` 로 엿들어
+실제 토픽을 보고 알았다. 아래는 지우기 전, 타임아웃을 넣었을 때의 서술이다.
 
 `mobius/sgn_man.js` 의 `request_noti_ws` 에 **자체 타이머**를 걸었다. 한도는
 `outbound.limitMs()` — http/coap 와 같은 값(conf 의 `outboundTimeoutMs`, 기본
