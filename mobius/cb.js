@@ -45,7 +45,6 @@ function cb_create_action(connection, callback) {
     resource_Obj[rootnm].aa = [];
     resource_Obj[rootnm].st = '0';
     resource_Obj[rootnm].srv = [];
-    resource_Obj[rootnm].subl = [];
 
     resource_Obj[rootnm].srv.push('1');
     resource_Obj[rootnm].srv.push('2');

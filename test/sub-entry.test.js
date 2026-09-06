@@ -159,3 +159,20 @@ test('lookup.subl 사본을 쓰는 코드가 없다 — update_subl · pack/upse
     });
     assert.deepStrictEqual(Object.keys(sub_entry).sort(), ['FIELDS', 'read'], '사본을 고치는 함수가 되살아났다');
 });
+
+test('lookup.subl 컬럼은 스키마에도 코드에도 없다 (015, 2026-09-06)', function () {
+    // 컬럼을 지운 뒤 코드에 subl 을 다루는 자리가 남으면 두 가지가 난다 — insert 에 남으면
+    // "Unknown column" 으로 모든 생성이 500, 응답에서 지우는 자리가 남으면 죽은 코드다.
+    const live = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8')
+        .replace(/\/\*[\s\S]*?\*\//g, ' ').split(/\r?\n/).filter((l) => !/^\s*\/\//.test(l) && !/^\s*--/.test(l)).join('\n');
+    ['mobius/db/mobiusdb.sql', 'mobius/db/mobiusdb_sqlite.sql'].forEach((f) => {
+        assert.ok(!/\bsubl\b/.test(live(f)), f + ' 에 subl 컬럼이 남아 있다');
+    });
+    fs.readdirSync(path.join(ROOT, 'mobius')).filter((f) => /\.js$/.test(f)).forEach((f) => {
+        const src = live('mobius/' + f);
+        assert.ok(!/\bsubl\b(?!_)/.test(src), 'mobius/' + f + ' 의 실행 코드에 subl 이 남아 있다');
+    });
+    const m = require(path.join(ROOT, 'migrations', '015-drop-lookup-subl.js'));
+    assert.deepStrictEqual(m.backends.sort(), ['mysql', 'sqlite']);
+    assert.notStrictEqual(m.autoApply, true, 'DDL 은 기동 경로에서 돌지 않는다');
+});

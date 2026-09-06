@@ -117,14 +117,14 @@ bothBackends('delete_ri_lookup', function (sa, cb) {
 
 bothBackends('update_grp', function (sa, cb) {
     sa.update_grp({}, {
-        ri: EVIL, lt: 'L', acpi: [], et: 'E', st: 1, lbl: [], at: [], aa: [], subl: [],
+        ri: EVIL, lt: 'L', acpi: [], et: 'E', st: 1, lbl: [], at: [], aa: [],
         mnm: 10, mid: [], macp: [], gn: 'g'
     }, cb);
 });
 
 bothBackends('update_lcp', function (sa, cb) {
     sa.update_lcp({}, {
-        ri: EVIL, lt: 'L', acpi: [], et: 'E', st: 1, lbl: [], at: [], aa: [], subl: [],
+        ri: EVIL, lt: 'L', acpi: [], et: 'E', st: 1, lbl: [], at: [], aa: [],
         lou: 'u', lon: 'n'
     }, cb);
 });
@@ -179,7 +179,7 @@ test('set_hit_n: 두 백엔드 모두 파사드를 거친다', function (t, done
         const { sql_action, seen } = tapAdapter(useSqlite);
         sql_action.insert_cb({}, {
             ri: '/M/cb', ty: '5', ct: 'C', st: 0, rn: 'r', lt: 'L', et: 'E',
-            acpi: [], lbl: [], at: [], aa: [], sri: 's', spi: 'p', subl: [],
+            acpi: [], lbl: [], at: [], aa: [], sri: 's', spi: 'p',
             cst: 1, csi: '/x', srt: [1, 2], poa: [EVIL], nl: '', ncp: '', srv: ['2a']
         }, guard(done, function () {
             const cbIns = seen.filter(function (s) { return /^insert into `cb`/i.test(s.sql); });

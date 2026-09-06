@@ -154,7 +154,7 @@ test('update_parent_by_delete: MySQL 은 BEGIN/COMMIT 으로 감싼다', functio
 test('update_acp: MySQL 에서 lookup 과 acp 가 한 트랜잭션이다', function (t, done) {
     const { sql_action, seen } = tapAdapter(false);
     sql_action.update_acp({}, {
-        ri: '/M/a1', lbl: [], acpi: [], at: [], aa: [], subl: [],
+        ri: '/M/a1', lbl: [], acpi: [], at: [], aa: [],
         et: '20280101T000000', st: 1, pv: { acr: [] }, pvs: { acr: [] }
     }, guard(done, function (err) {
         assert.ok(!err, '실패하면 안 된다: ' + JSON.stringify(err));
@@ -170,7 +170,7 @@ test('update_acp: MySQL 에서 lookup 과 acp 가 한 트랜잭션이다', funct
 test('update_sub: MySQL 에서 lookup 과 sub 가 한 트랜잭션이다', function (t, done) {
     const { sql_action, seen } = tapAdapter(false);
     sql_action.update_sub({}, {
-        ri: '/M/s1', lbl: [], acpi: [], at: [], aa: [], subl: [],
+        ri: '/M/s1', lbl: [], acpi: [], at: [], aa: [],
         et: '20280101T000000', st: 1, enc: {}, nu: [], nct: 1, pn: 1, exc: 0
     }, guard(done, function (err) {
         assert.ok(!err, '실패하면 안 된다: ' + JSON.stringify(err));

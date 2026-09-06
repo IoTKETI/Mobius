@@ -329,7 +329,6 @@ CREATE TABLE `lookup` (
   `aa` varchar(45) NOT NULL,
   `sri` varchar(45) NOT NULL,
   `spi` varchar(45) NOT NULL,
-  `subl` mediumtext,
   -- CIN 의 contentSize / contentInfo 사본. discovery 의 sza / szb / cty 가 본다.
   --
   -- ── 왜 여기에 두 벌로 두는가 ──────────────────────────────────────────

@@ -177,11 +177,12 @@ test('body_of: 네 모양은 shape 의 같은 함수로, 모르는 모양은 Typ
     assert.ok(grouped && !('m2m:rce' in grouped), 'grouped 결과에 m2m:rce 가 있으면 rce 로 갔다');
     // grouped 의 정규화를 **값으로** 못박는다 — discovery(fu=2&rcn=4) 결과는 ri 를 키로 한
     // 행 맵이고, body_of 가 한 겹 안에 typeCheckforJson2 를 걸어 ty·st·cni 를 숫자로,
-    // lbl 을 배열로 되돌리고 subl 을 뺀다. 정규화가 빠지거나 한 겹짜리로 바뀌면 여기서 갈린다
+    // lbl 을 배열로 되돌린다. 정규화가 빠지거나 한 겹짜리로 바뀌면 여기서 갈린다
     // (배포 뒤 독립 검토가 no-op 변이로 1,126건 전부 통과하는 것을 보였다).
+    // subl(구독 사본 컬럼)을 빼는 것도 여기 있었다 — 컬럼째 지웠다(015, 2026-09-06).
     assert.deepStrictEqual(
         responder.body_of({ shape: 'grouped', rootnm: 'rsp',
-            body: { '/Mobius/ae/c1': { rn: 'c1', ty: '3', pi: '/Mobius/ae', lbl: '["l"]', st: '0', cni: '5', subl: '["x"]', cr: 'Cx' } } }, '4'),
+            body: { '/Mobius/ae/c1': { rn: 'c1', ty: '3', pi: '/Mobius/ae', lbl: '["l"]', st: '0', cni: '5', cr: 'Cx' } } }, '4'),
         { 'm2m:rsp': { 'm2m:cnt': [{ rn: 'c1', ty: 3, pi: '/Mobius/ae', lbl: ['l'], st: 0, cni: 5, cr: 'Cx' }] } });
     assert.throws(() => responder.body_of({ shape: 'list', body: {} }), TypeError);
     assert.throws(() => responder.body_of({ body: {} }), TypeError);

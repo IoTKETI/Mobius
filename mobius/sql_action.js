@@ -214,7 +214,6 @@ exports.insert_lookup = function (connection, obj, callback) {
         aa: JSON.stringify(obj.aa || []),
         sri: obj.sri,
         spi: obj.spi,
-        subl: JSON.stringify(obj.subl || []),
 
         // CIN 의 크기·형식 사본. discovery 의 sza / szb / cty 가 여기를 본다.
         //
@@ -2287,9 +2286,9 @@ exports.select_acp_in = function (connection, acpiList, callback) {
         connection, callback);
 };
 
-// select_sub 은 여기 있었다. 호출부가 없어 지웠다 — 알림 경로는 sub 테이블을
-// pi 로 뒤지지 않고 부모 lookup 의 subl 컬럼에 캐시된 항목을 읽는다
-// (sgn.js 의 sgn_action -> sub_entry.read).
+// select_sub 은 여기 있었다. 호출부가 없어 지웠다. 알림 경로는 한때 부모 lookup 의
+// subl 컬럼(구독 사본)을 읽었고, 2026-09-05 부터는 select_subs_by_pi 로 sub 테이블을
+// 부모 ri 로 읽는다(sgn.js 의 sub_source -> sub_entry.read). subl 컬럼은 015 로 지웠다.
 
 exports.select_cb = function (connection, ri, callback) {
     facade.run(facade.k('cb').select('*').where({ ri: ri }), connection, function (err, results_cb) {
@@ -2566,8 +2565,7 @@ exports.update_cb_poa_csi = function (connection, poa, csi, srt, ri, callback) {
 // 한동안 update_subl(트랜잭션 + 행 잠금) 셋만 썼다.
 //
 // 2026-09-05 에 알림 라우팅의 원천이 sub 테이블로 옮겨져(select_subs_by_pi)
-// subl 사본은 읽는 이도 쓰는 이도 없다. 컬럼은 별도 마이그레이션으로 지운다 —
-// 그때 insert_lookup 의 `subl: '[]'` 와 responder 의 지우기도 같이 걷는다.
+// subl 사본은 읽는 이도 쓰는 이도 없다. 컬럼 자체도 015 로 지웠다(2026-09-06).
 // 스펙: docs/superpowers/specs/2026-09-05-notification-routing-source-design.md
 exports.update_lookup = function (connection, obj, callback) {
     facade.run(facade.k('lookup').update({

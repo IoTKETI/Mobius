@@ -35,13 +35,12 @@ test('update_acp 의 pv 는 바인딩으로 나간다 (SQLite)', function () {
     assert.ok(n.bindings.indexOf(EVIL) >= 0);
 });
 
-test('update_lookup 의 acpi/at/aa/subl 이 바인딩으로 나간다', function () {
+test('update_lookup 의 acpi/at/aa 이 바인딩으로 나간다', function () {
     const db = freshDb(false);
     db.connect(function () {});
     const n = db.k('lookup').update({
         lt: '20260826T000000', acpi: EVIL, et: '20280826T000000', st: 1,
-        lbl: '[]', at: '[]', aa: '[]', subl: '[]'
-    }).where({ ri: '/M/a' }).toSQL().toNative();
+        lbl: '[]', at: '[]', aa: '[]'    }).where({ ri: '/M/a' }).toSQL().toNative();
     assert.ok(n.sql.indexOf('drop table') < 0);
     assert.ok(n.bindings.indexOf(EVIL) >= 0);
 });
@@ -81,7 +80,7 @@ function tapAdapter(useSqlite) {
 function acpObj(evil) {
     return {
         ri: '/Mobius/acp1', lt: '20260826T000000', et: '20280826T000000', st: 1,
-        acpi: [], lbl: [], at: [], aa: [], subl: [],
+        acpi: [], lbl: [], at: [], aa: [],
         pv: { acr: [{ acor: [evil], acop: 63 }] },
         pvs: { acr: [{ acor: ['S'], acop: 63 }] }
     };
@@ -116,13 +115,12 @@ test('exports.update_acp 이 드라이버에 값을 바인딩으로 넘긴다 (M
     });
 });
 
-test('exports.update_lookup 이 acpi/at/aa/subl 을 바인딩으로 넘긴다', function (t, done) {
+test('exports.update_lookup 이 acpi/at/aa 을 바인딩으로 넘긴다', function (t, done) {
     const { sql_action, calls } = tapAdapter(false);
     const evil = "c'); drop table lookup; --";
     sql_action.update_lookup(null, {
         ri: '/Mobius/x', lt: '20260826T000000', et: '20280826T000000', st: 1,
-        acpi: [evil], lbl: [], at: [evil], aa: [evil], subl: [evil]
-    }, function (err) {
+        acpi: [evil], lbl: [], at: [evil], aa: [evil]    }, function (err) {
         assert.ok(!err, '실패하면 안 된다: ' + JSON.stringify(err));
         assert.strictEqual(calls.length, 1);
         assert.ok(calls[0].sql.indexOf('drop table') < 0, 'SQL 본문에 값이 박혔다: ' + calls[0].sql);
@@ -135,7 +133,7 @@ test('exports.update_lookup 이 acpi/at/aa/subl 을 바인딩으로 넘긴다', 
 function subObj(evil) {
     return {
         ri: '/Mobius/sub1', lt: '20260826T000000', et: '20280826T000000', st: 1,
-        acpi: [], lbl: [], at: [], aa: [], subl: [],
+        acpi: [], lbl: [], at: [], aa: [],
         enc: { net: [1] }, exc: 10, nu: [evil], gpi: 'g1', nfu: 'nfu1',
         bn: 1, rl: 1, pn: 1, nsp: 1, ln: 1, nct: 2, nec: 1
     };

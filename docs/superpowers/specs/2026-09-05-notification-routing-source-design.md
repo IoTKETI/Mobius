@@ -158,6 +158,14 @@
 > `subl` 은 `rows` 로 이름을 바꿨다. `insert_lookup` 의 `subl: '[]'` 와 `responder` 의
 > 지우기, `makeObject` 의 파싱은 컬럼이 남아 있는 동안 그대로다. 증명: 런타임 골든 ·
 > 헤더 골든 26 · 알림 골든 6단계 전후 동일, npm test 1,268.
+>
+> **컬럼도 지웠다(015, 2026-09-06)** — `ALTER TABLE lookup DROP COLUMN subl,
+> ALGORITHM=INSTANT`(MySQL 8.0.29+ 는 DROP 도 INSTANT 다. 명시하지 않으면 5,740만 행을
+> 재작성한다). SQLite 는 3.35+ 의 DROP COLUMN. 코드의 마지막 세 자리(`insert_lookup` 의
+> `'[]'` · `responder` 의 지우기 · `makeObject` 의 파싱)와 `cb.js`·`resource.js` 의 기본값
+> 대입, 스키마 파일 둘, 시험 픽스처를 같이 걷었다. `test/sub-entry.test.js` 가 실행 코드와
+> 스키마에 `subl` 이 되살아나는 것을 막는다. 되돌리려면 컬럼을 INSTANT 로 다시 더할 수
+> 있지만 값은 돌아오지 않는다(사본이라 `sub` 에서 되만들 수 있으나 도구는 git 이력에만).
 
 ## 4. 증명
 

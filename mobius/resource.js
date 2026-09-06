@@ -876,7 +876,6 @@ function build_resource(request, response, callback) {
     resource_Obj[rootnm].lbl = (body_Obj[rootnm].lbl) ? body_Obj[rootnm].lbl : [];
     resource_Obj[rootnm].at = (body_Obj[rootnm].at) ? body_Obj[rootnm].at : [];
     resource_Obj[rootnm].aa = (body_Obj[rootnm].aa) ? body_Obj[rootnm].aa : [];
-    resource_Obj[rootnm].subl = (body_Obj[rootnm].subl) ? body_Obj[rootnm].subl : [];
 
     if (body_Obj[rootnm].et == '') {
         if (body_Obj[rootnm].et < resource_Obj[rootnm].ct) {
@@ -1238,15 +1237,10 @@ global.makeObject = function (obj) {
                 if((getType(obj[attr]) == 'object' || getType(obj[attr]) == 'array')) {
                 }
                 else {
-                    if(attr == 'subl') {
-                        if((obj[attr] == null) || (obj[attr] == '')) {
-                            obj[attr] = '[]';
-                        }
-                    }
-
+                    // subl(부모 행의 구독 사본)이 여기 있었다 — 컬럼째 지웠다(015, 2026-09-06).
                     if (attr == 'aa' || attr == 'at' || attr == 'lbl' || attr == 'srt' || attr == 'nu' || attr == 'acpi' || attr == 'poa' || attr == 'enc'
                         || attr == 'bn' || attr == 'pv' || attr == 'pvs' || attr == 'mid' || attr == 'uds' || attr == 'cas' || attr == 'macp'
-                        || attr == 'rels' || attr == 'srv' || attr == 'mi' || attr == 'subl') {
+                        || attr == 'rels' || attr == 'srv' || attr == 'mi') {
                         try {
                             //console.log(attr);
                             if((obj[attr] == null) || (obj[attr] == '')) {
@@ -1475,7 +1469,7 @@ global.update_body = function (rootnm, body_Obj, resource_Obj) {
                 resource_Obj[rootnm][attr] = body_Obj[rootnm][attr];
             }
 
-            if (attr === 'aa' || attr === 'poa' || attr === 'lbl' || attr === 'acpi' || attr === 'srt' || attr === 'nu' || attr === 'mid' || attr === 'macp' || attr === 'srv' || attr == 'subl') {
+            if (attr === 'aa' || attr === 'poa' || attr === 'lbl' || attr === 'acpi' || attr === 'srt' || attr === 'nu' || attr === 'mid' || attr === 'macp' || attr === 'srv') {
                 if (body_Obj[rootnm][attr] === '') {
                     resource_Obj[rootnm][attr] = [];
                 }

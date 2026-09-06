@@ -65,9 +65,9 @@ function seed(rows, cb) {
 }
 
 function lookupRow(ri, pi, ty, ct) {
-    return "insert into lookup (pi, ri, ty, ct, st, rn, lt, et, acpi, lbl, at, aa, sri, spi, subl) " +
+    return "insert into lookup (pi, ri, ty, ct, st, rn, lt, et, acpi, lbl, at, aa, sri, spi) " +
            "values ('" + pi + "', '" + ri + "', " + ty + ", '" + ct + "', 0, '" +
-           ri.split('/').pop() + "', '" + ct + "', '99991231T235959', '', '', '', '', '', '', '')";
+           ri.split('/').pop() + "', '" + ct + "', '99991231T235959', '', '', '', '', '', '')";
 }
 
 function cinRow(ri, pi, cs) {

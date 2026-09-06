@@ -22,7 +22,6 @@ CREATE TABLE IF NOT EXISTS lookup (
   aa TEXT,
   sri TEXT,
   spi TEXT,
-  subl TEXT,
   -- CIN 의 contentSize / contentInfo 사본. discovery 의 sza / szb / cty 가 본다.
   -- 원본은 cin 에 있지만, discovery 가 lookup 을 훑으면서 거르므로 여기 두면
   -- 후보마다 cin 을 찾아가지 않아도 된다. 이유는 mobius/db/mobiusdb.sql 의
