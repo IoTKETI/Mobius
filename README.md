@@ -83,12 +83,13 @@ Notifications are delivered over HTTP, CoAP and MQTT. WebSocket delivery was rem
 ## Installation
 The Mobius is based on Node.js framework and uses MySQL or SQLite for database.
 
-**MySQL: importing `mobius/db/mobiusdb.sql` is not the whole install.** After the import, run
-`node tools/migrate.js --apply mysql` once. The schema file creates the tables and indexes, but
-some migrations are *data switches* that must be recorded in `schema_migrations` before the
-core changes behaviour (for example 012, which makes discovery read `lookup.cs`). A fresh
-install that skips this step runs with the old behaviour until someone applies them.
-`npm run test:mysql` exercises exactly this procedure against a scratch database.
+**MySQL: importing `mobius/db/mobiusdb.sql` is the whole install.** The schema file carries the
+tables, the indexes and the migration ledger (`schema_migrations`), so a fresh database starts in
+the same state as a fully migrated deployment — data switches such as 012 (discovery reads
+`lookup.cs`) are on from the first request, and nothing is left to apply by hand. The one thing
+a schema file cannot carry is the MySQL server settings (migration 010, `SET PERSIST`); Mobius
+applies those on its first start. `npm run test:mysql` proves this against a scratch database:
+import, and only 010 is left for the first start.
 <div align="center">
 <img src="https://user-images.githubusercontent.com/29790334/28322607-7be7d916-6c11-11e7-9d20-ac07961971bf.png" width="600"/>
 </div><br/>

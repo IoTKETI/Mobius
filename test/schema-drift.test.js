@@ -150,3 +150,87 @@ test('식별자·이름 컬럼은 모든 표에서 utf8_bin 을 명시한다 —
     const m = require('../migrations/018-id-columns-collation-bin.js');
     assert.strictEqual(m.id, '018-id-columns-collation-bin');
 });
+
+// ── 이력 표 ────────────────────────────────────────────────────────────────
+// 새 설치는 스키마 파일만으로 끝나야 한다(사용자 결정 2026-09-06). 파일이 마이그레이션이 만든
+// 모양을 이미 담고 있으니 이력(schema_migrations)도 파일이 적는다 — 적지 않으면 012 같은 데이터
+// 스위치가 꺼진 채 뜨고(db_bootstrap.readDataSwitches), 기동마다 "적용되지 않은 마이그레이션" 이
+// 찍히며, 설치 절차에 `migrate --apply` 가 한 줄 더 붙는다. 실제로 그렇게 적혀 있었다.
+
+const migrate = require('../tools/migrate.js');
+
+// 스키마 파일이 담을 수 없는 마이그레이션 — 서버 설정(SET PERSIST)이라 덤프 밖이다. 첫 기동이
+// 대신 하므로 autoApply 여야 한다. 여기 더하는 것은 "덤프가 못 담는다" 가 증명될 때뿐이다.
+const NOT_IN_DUMP = ['010-server-durability'];
+
+// 스키마 파일의 schema_migrations INSERT 에 적힌 id. 주석 줄은 먼저 걷는다(id 를 언급한다).
+function ledgerIds(file) {
+    const src = fs.readFileSync(file, 'utf8').split(/\r?\n/).filter((l) => !/^\s*--/.test(l)).join('\n');
+    const ids = new Set();
+    const stmt = /INSERT\s+(?:OR\s+IGNORE\s+)?INTO\s+`?schema_migrations`?[\s\S]*?;/gi;
+    let s;
+    while ((s = stmt.exec(src)) !== null) {
+        const idRe = /'(\d{3}-[a-z0-9-]+)'/g;
+        let m;
+        while ((m = idRe.exec(s[0])) !== null) { ids.add(m[1]); }
+    }
+    return Array.from(ids).sort();
+}
+
+function migrationIds(backend) {
+    return migrate.loadMigrations()
+        .filter((m) => !m.backends || m.backends.indexOf(backend) !== -1)
+        .map((m) => m.id).sort();
+}
+
+// 이력 표 DDL 의 컬럼 — 러너(ensureTable)와 두 스키마 파일이 같은 것을 만들어야 한다
+function ledgerColumns(ddl) {
+    // 끝에 \b 를 두면 안 된다 — `VARCHAR(160)` 의 `)` 뒤는 단어 경계가 아니라 한 줄도 못 맞힌다
+    const re = /`?\b(id|applied_at|duration_ms)`?\s+(VARCHAR\(\d+\)|INTEGER|INT)(?![A-Za-z])/gi;
+    const out = []; let m;
+    while ((m = re.exec(ddl)) !== null) { out.push(m[1] + ' ' + m[2].toLowerCase().replace('integer', 'int')); }
+    return out;
+}
+function ledgerDdlIn(file) {
+    const src = fs.readFileSync(file, 'utf8');
+    const m = /CREATE TABLE (?:IF NOT EXISTS )?`?schema_migrations`?\s*\(([\s\S]*?)\)\s*(?:ENGINE|;)/i.exec(src);
+    return m ? m[0] : '';
+}
+
+test('mobiusdb.sql 은 이력 표에 MySQL 마이그레이션을 전부 적어 둔다 — 새 설치는 import 만으로 끝난다', function () {
+    const inDump = ledgerIds(MYSQL_SCHEMA);
+    const expected = migrationIds('mysql').filter((id) => NOT_IN_DUMP.indexOf(id) === -1);
+    assert.ok(expected.length >= 18, 'MySQL 마이그레이션이 ' + expected.length + '개뿐이다 — loadMigrations 가 낡았을 수 있다');
+    assert.deepStrictEqual(inDump, expected,
+        'mobiusdb.sql 의 schema_migrations INSERT 와 migrations/ 가 다르다. 마이그레이션을 더했으면 ' +
+        '그 모양을 파일에 반영하고 INSERT 에 id 도 더한다(덤프가 못 담는 것이면 NOT_IN_DUMP 에 근거와 함께).');
+
+    // 예외는 첫 기동이 대신 해야 한다 — 아니면 새 설치가 손으로 적용해야 한다
+    const all = migrate.loadMigrations();
+    NOT_IN_DUMP.forEach(function (id) {
+        const m = all.find((x) => x.id === id);
+        assert.ok(m, id + ' 가 migrations/ 에 없다 — NOT_IN_DUMP 에서 지운다');
+        assert.strictEqual(m.autoApply, true, id + ' 는 덤프에 없는데 autoApply 도 아니다 — 새 설치가 손으로 적용해야 한다');
+    });
+
+    // applied_at 은 러너가 적는 꼴(YYYYMMDDTHHmmss)이어야 한다 — 읽는 쪽이 하나다
+    const src = fs.readFileSync(MYSQL_SCHEMA, 'utf8');
+    const tuples = src.match(/\('\d{3}-[a-z0-9-]+',\s*'[^']*',\s*(?:NULL|\d+)\)/g) || [];
+    assert.strictEqual(tuples.length, expected.length, 'INSERT 의 튜플 수가 id 수와 다르다');
+    tuples.forEach((t) => assert.match(t, /,\s*'\d{8}T\d{6}',/, t + ' 의 applied_at 이 러너의 꼴이 아니다'));
+});
+
+test('mobiusdb_sqlite.sql 은 SQLite 마이그레이션을 조건부로 적어 둔다 — 기동마다 도는 파일이라 이미 된 것만', function () {
+    // 조건이 정말 지켜지는지는 test/sqlite-fresh-ledger.test.js 가 실제 파일로 본다
+    assert.deepStrictEqual(ledgerIds(SQLITE_SCHEMA), migrationIds('sqlite'),
+        'mobiusdb_sqlite.sql 의 schema_migrations INSERT 와 backends 에 sqlite 를 둔 마이그레이션이 다르다');
+});
+
+test('이력 표의 DDL 은 세 곳이 같다 — tools/migrate.js · mobiusdb.sql · mobiusdb_sqlite.sql', function () {
+    let runner = '';
+    migrate.ensureTable({ db: { raw: (s) => s, run: (s, c, cb) => { runner = s; cb(null); } }, conn: null }, function () {});
+    const want = ledgerColumns(runner);
+    assert.deepStrictEqual(want, ['id varchar(160)', 'applied_at varchar(21)', 'duration_ms int'], '러너의 DDL 을 못 읽었다: ' + runner);
+    assert.deepStrictEqual(ledgerColumns(ledgerDdlIn(MYSQL_SCHEMA)), want, 'mobiusdb.sql 의 schema_migrations 컬럼이 러너와 다르다');
+    assert.deepStrictEqual(ledgerColumns(ledgerDdlIn(SQLITE_SCHEMA)), want, 'mobiusdb_sqlite.sql 의 schema_migrations 컬럼이 러너와 다르다');
+});

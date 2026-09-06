@@ -166,7 +166,9 @@ test('lookup.subl 컬럼은 스키마에도 코드에도 없다 (015, 2026-09-06
     const live = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8')
         .replace(/\/\*[\s\S]*?\*\//g, ' ').split(/\r?\n/).filter((l) => !/^\s*\/\//.test(l) && !/^\s*--/.test(l)).join('\n');
     ['mobius/db/mobiusdb.sql', 'mobius/db/mobiusdb_sqlite.sql'].forEach((f) => {
-        assert.ok(!/\bsubl\b/.test(live(f)), f + ' 에 subl 컬럼이 남아 있다');
+        // 식별자로서의 subl 만 금지한다. 따옴표 안의 'subl' 은 데이터다 — mobiusdb_sqlite.sql 의
+        // 이력 조건(015 가 이미 된 옛 DB 인지 pragma_table_info 로 묻는다)이 컬럼 이름을 문자열로 든다.
+        assert.ok(!/(?<!')\bsubl\b(?!')/.test(live(f)), f + ' 에 subl 컬럼이 남아 있다');
     });
     fs.readdirSync(path.join(ROOT, 'mobius')).filter((f) => /\.js$/.test(f)).forEach((f) => {
         const src = live('mobius/' + f);

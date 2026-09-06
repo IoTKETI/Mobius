@@ -473,6 +473,57 @@ CREATE TABLE `nod` (
 --
 
 --
+-- Table structure for table `schema_migrations`
+--
+-- 마이그레이션 이력. tools/migrate.js 의 ensureTable 이 같은 표를 만든다 — 컬럼을 바꾸면 그쪽도 같이.
+--
+-- 이 파일은 마이그레이션이 만든 모양을 이미 담고 있다(test/schema-drift.test.js 가 대조한다). 그러니
+-- 새 설치는 import 만으로 "전부 적용된 상태" 여야 하고, 그러려면 이력도 파일이 적어야 한다. 적지
+-- 않으면 012 같은 데이터 스위치가 꺼진 채 뜨고(mobius/db_bootstrap.js 의 readDataSwitches 가 이 표를
+-- 본다), 기동마다 "적용되지 않은 마이그레이션 N개" 가 찍히며, 설치 절차에 `migrate --apply` 가 한 줄
+-- 더 붙는다. 2026-09-06 까지 실제로 그렇게 적혀 있었다.
+--
+-- 규칙: 마이그레이션을 더하면 (1) 그 결과 모양을 이 파일에 반영하고 (2) 아래 INSERT 에 id 를 더한다.
+-- 예외는 010 하나 — SET PERSIST 는 서버 설정이라 덤프가 담을 수 없다. autoApply 라 첫 기동이 한다.
+-- test/schema-drift.test.js 가 migrations/ 와 이 목록을 대조하고, test/mysql/schema-fresh.test.js 가
+-- 실제로 깔아 남은 것이 010 뿐임을 본다.
+--
+-- applied_at 은 이 파일에 그 이력이 들어간 날이다(러너가 적는 꼴 그대로). duration_ms 가 NULL 인 것은
+-- 돌린 적이 없다는 뜻이다 — 파일이 이미 그 모양이었다.
+--
+
+DROP TABLE IF EXISTS `schema_migrations`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `schema_migrations` (
+  `id` varchar(160) NOT NULL,
+  `applied_at` varchar(21) NOT NULL,
+  `duration_ms` int DEFAULT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+INSERT INTO `schema_migrations` (`id`, `applied_at`, `duration_ms`) VALUES
+('001-lookup-pi-ty-ct-index', '20260906T000000', NULL),
+('002-drop-lookup-pi-index', '20260906T000000', NULL),
+('003-drop-req-table', '20260906T000000', NULL),
+('004-lookup-pi-notcin-index', '20260906T000000', NULL),
+('005-lookup-ct-index-invisible', '20260906T000000', NULL),
+('006-drop-lookup-ct-index', '20260906T000000', NULL),
+('007-acp-audit-table', '20260906T000000', NULL),
+('008-drop-tm-tr-tables', '20260906T000000', NULL),
+('009-widen-cb-srt', '20260906T000000', NULL),
+('011-lookup-cin-attrs', '20260906T000000', NULL),
+('012-lookup-cin-attrs-filled', '20260906T000000', NULL),
+('013-sub-pi-index', '20260906T000000', NULL),
+('014-sub-widen-nu-enc', '20260906T000000', NULL),
+('015-drop-lookup-subl', '20260906T000000', NULL),
+('016-drop-orphan-csr-lookup', '20260906T000000', NULL),
+('017-dedupe-lookup-sri', '20260906T000000', NULL),
+('018-id-columns-collation-bin', '20260906T000000', NULL),
+('019-lookup-sri-unique', '20260906T000000', NULL);
+
+--
 -- Table structure for table `smd`
 --
 

@@ -191,3 +191,43 @@ CREATE INDEX IF NOT EXISTS idx_cin_pi ON cin (pi, ri, cs);
 -- 알림 라우팅의 원천. sgn.check 가 쓰기마다 `sub where pi = ?` 를 한 번 읽는다
 -- (MySQL 은 migrations/013-sub-pi-index.js).
 CREATE INDEX IF NOT EXISTS idx_sub_pi ON sub (pi);
+
+-- ============================================================================
+-- 마이그레이션 이력 (schema_migrations)
+--
+-- tools/migrate.js 의 ensureTable 이 만드는 것과 같은 표다 — 컬럼을 바꾸면 그쪽도 같이.
+--
+-- 이 파일은 마이그레이션이 만든 모양을 이미 담고 있으니, 새 DB 는 첫 기동만으로 "전부 적용된
+-- 상태" 여야 한다. 그래서 이력도 여기서 적는다. 적지 않으면 기동마다 "적용되지 않은 마이그레이션
+-- 3개 — 자동 적용 대상이 아니다" 가 찍히고 migrate --apply 를 한 번 더 쳐야 했다.
+--
+-- 단, 이 파일은 **기동마다 다시 실행된다.** 옛 DB 에서도 돈다. 그래서 각 행은 그 마이그레이션이
+-- 이미 된 상태일 때만 들어간다 — INSERT OR IGNORE 에 그 마이그레이션의 inspect 와 같은 조건을
+-- 단다. 조건이 거짓인 옛 DB 에서는 남음 그대로이고 `node tools/migrate.js --apply sqlite` 가 맡는다.
+-- 이력이 이미 있으면 조건을 평가하지 않는다(AND 의 왼쪽이 먼저 — SQLite 는 단락 평가한다).
+--
+-- 규칙: backends 에 sqlite 를 둔 마이그레이션을 더하면 여기 행도 더한다. test/schema-drift.test.js 가
+-- 목록을 대조하고, test/sqlite-fresh-ledger.test.js 가 실제 파일로 새 DB·옛 DB 를 본다.
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS schema_migrations (
+  id VARCHAR(160) NOT NULL,
+  applied_at VARCHAR(21) NOT NULL,
+  duration_ms INTEGER,
+  PRIMARY KEY (id)
+);
+
+-- 007: acp_audit 표 — 이 파일이 위에서 만든다. 조건 없음.
+INSERT OR IGNORE INTO schema_migrations (id, applied_at, duration_ms)
+  SELECT '007-acp-audit-table', '20260906T000000', NULL;
+
+-- 015: lookup.subl 제거 — 그 컬럼이 없을 때만.
+INSERT OR IGNORE INTO schema_migrations (id, applied_at, duration_ms)
+  SELECT '015-drop-lookup-subl', '20260906T000000', NULL
+  WHERE NOT EXISTS (SELECT 1 FROM schema_migrations WHERE id = '015-drop-lookup-subl')
+    AND NOT EXISTS (SELECT 1 FROM pragma_table_info('lookup') WHERE name = 'subl');
+
+-- 017: sri 중복 정리 — 중복 묶음이 없을 때만 (migrations/017 의 groups() 와 같은 질의).
+INSERT OR IGNORE INTO schema_migrations (id, applied_at, duration_ms)
+  SELECT '017-dedupe-lookup-sri', '20260906T000000', NULL
+  WHERE NOT EXISTS (SELECT 1 FROM schema_migrations WHERE id = '017-dedupe-lookup-sri')
+    AND NOT EXISTS (SELECT 1 FROM lookup GROUP BY sri HAVING count(*) > 1);
