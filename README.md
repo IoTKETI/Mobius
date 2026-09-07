@@ -59,9 +59,6 @@ The SQLite backend currently covers six resource types: CSEBase, AE, accessContr
 - ASN-CSE / MN-CSE modes; the `timeSeries` / `timeSeriesInstance`, `request` and transaction (`tm` / `tr`) resource types; non-blocking requests (`rt=1` / `rt=2` are answered as unsupported); the semantic broker; the AE notification relay; subscription verification requests; WebSocket notification delivery.
 - The per-worker resource cache and the legacy database paths.
 
-### Tests
-- `npm test` runs 1,359 tests under the Node.js test runner without MySQL. `npm run test:mysql` installs the schema into a scratch database, runs the request-path queries for real and checks their execution plans.
-
 ### Upgrading from 2.x
 1. Apply pending migrations before starting the new core: `node tools/migrate.js --check mysql`, then `--apply`. Migration 018 rewrites the identifier columns and blocks writes for hours on a large database, so schedule it. For an existing SQLite file use `--check sqlite` / `--apply sqlite`.
 2. Create the secret seal once: run `npm run setup -- --superuser` and press Enter (the value is kept). `--dbpass` follows the same rule.
@@ -122,8 +119,7 @@ tables, the indexes and the migration ledger (`schema_migrations`), so a fresh d
 the same state as a fully migrated deployment — data switches such as 012 (discovery reads
 `lookup.cs`) are on from the first request, and nothing is left to apply by hand. The one thing
 a schema file cannot carry is the MySQL server settings (migration 010, `SET PERSIST`); Mobius
-applies those on its first start. `npm run test:mysql` proves this against a scratch database:
-import, and only 010 is left for the first start.
+applies those on its first start.
 <div align="center">
 <img src="https://user-images.githubusercontent.com/29790334/28322607-7be7d916-6c11-11e7-9d20-ac07961971bf.png" width="600"/>
 </div><br/>
