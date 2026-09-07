@@ -30,10 +30,12 @@ const recent = computed(() => {
 
 const table = computed(() => [...rows.value].sort((a, b) => (a.ct < b.ct ? 1 : -1)).slice(0, DAYS))
 
-function gb(n: number | null): string {
+/** 바이트를 KB·MB·GB 로(1024 단위). 1 KB 미만만 B 그대로. */
+function bytes(n: number | null): string {
   if (n === null) return '—'
-  if (n >= 1e9) return (n / 1e9).toFixed(2) + ' GB'
-  if (n >= 1e6) return (n / 1e6).toFixed(1) + ' MB'
+  if (n >= 1024 ** 3) return (n / 1024 ** 3).toFixed(2) + ' GB'
+  if (n >= 1024 ** 2) return (n / 1024 ** 2).toFixed(1) + ' MB'
+  if (n >= 1024) return (n / 1024).toFixed(1) + ' KB'
   return n.toLocaleString() + ' B'
 }
 
@@ -58,15 +60,12 @@ onMounted(load)
 <template>
   <section>
     <h2>통계</h2>
-    <p class="lead">
-      일별 호출 건수(<code>hit</code> 표)와 AE 수·CIN 바이트 총합입니다. 예전에는
-      <code>/hit</code>·<code>/total_ae</code>·<code>/total_cbs</code> 가 인증 없이 내보내던 값입니다.
-    </p>
+    <p class="lead">일별 호출 건수와 등록된 AE 수, 데이터 크기를 표시합니다.</p>
     <p v-if="error" class="err">{{ error }}</p>
 
     <div class="tiles">
       <div class="tile"><div class="k">AE</div><div class="v">{{ totalAe === null ? '—' : totalAe.toLocaleString() }}</div><div class="s">등록된 AE 수</div></div>
-      <div class="tile"><div class="k">CIN 바이트 총합</div><div class="v">{{ gb(totalCbs) }}</div><div class="s">컨테이너 cbs 의 합</div></div>
+      <div class="tile"><div class="k">데이터 크기</div><div class="v">{{ bytes(totalCbs) }}</div><div class="s">컨테이너 cbs 의 합 (CIN 바이트)</div></div>
       <div class="tile"><div class="k">오늘 호출</div><div class="v">{{ recent.length ? recent[recent.length - 1].value.toLocaleString() : '—' }}</div><div class="s">UTC 기준</div></div>
     </div>
 
@@ -77,14 +76,14 @@ onMounted(load)
 
     <div v-if="table.length" class="table-wrap">
       <table>
-        <thead><tr><th>날짜 (UTC)</th><th>HTTP</th><th>MQTT</th><th>CoAP</th><th>WS</th></tr></thead>
+        <thead><tr><th class="c">날짜 (UTC)</th><th class="c">HTTP</th><th class="c">MQTT</th><th class="c">CoAP</th><th class="c">WS</th></tr></thead>
         <tbody>
           <tr v-for="r in table" :key="r.ct">
-            <td class="mono">{{ r.ct }}</td>
-            <td class="num">{{ (r.http || 0).toLocaleString() }}</td>
-            <td class="num">{{ (r.mqtt || 0).toLocaleString() }}</td>
-            <td class="num">{{ (r.coap || 0).toLocaleString() }}</td>
-            <td class="num">{{ (r.ws || 0).toLocaleString() }}</td>
+            <td class="c mono">{{ r.ct }}</td>
+            <td class="c num">{{ (r.http || 0).toLocaleString() }}</td>
+            <td class="c num">{{ (r.mqtt || 0).toLocaleString() }}</td>
+            <td class="c num">{{ (r.coap || 0).toLocaleString() }}</td>
+            <td class="c num">{{ (r.ws || 0).toLocaleString() }}</td>
           </tr>
         </tbody>
       </table>
@@ -109,6 +108,8 @@ h3 { margin: 0 0 0.6rem; font-size: 1.05rem; color: var(--text-strong); }
 .tile .s { font-size: 0.88rem; color: var(--muted); }
 .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow); padding: 1rem 1.1rem; margin: 1.2rem 0; }
 .table-wrap { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow); overflow: auto; max-height: 50vh; }
-.num { text-align: right; font-variant-numeric: tabular-nums; }
+/* 헤더와 값이 서로 다른 정렬로 틀어져 보였다 — 전부 중앙 (사용자 결정 2026-09-07). */
+.table-wrap th.c, .table-wrap td.c { text-align: center; }
+.num { font-variant-numeric: tabular-nums; }
 .footer { display: flex; align-items: center; gap: 1rem; padding: 1rem 0; }
 </style>
