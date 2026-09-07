@@ -43,45 +43,27 @@ export interface OrphanRow {
   ty: number
   rn: string
   ct: string
-  lt: string
-  et: string
 }
 
-export interface OrphanPage {
-  rows: OrphanRow[]
-  more: boolean
-  nextRi: string | null
-  /** 이 응답을 만들려고 훑은 행 수. */
+/** 고아 탐지 작업 하나의 결과 파일. 세지 않는다 — 표본이다. */
+export interface OrphanScanResult {
+  runId: string
+  startedAt: string
+  endedAt: string | null
+  cancelled: boolean
+  scanCap: number
+  sampleCap: number
   scanned: number
-  /** 훑기 상한에 걸렸는가. 걸렸으면 뒤에 더 있을 수 있다. */
   scanCapped: boolean
+  orphans: OrphanRow[]
+  sampleTruncated: boolean
+  lookupOnlyCin: { rows: { ri: string; pi: string; rn: string; ct: string }[]; scanned: number; scanCapped: boolean; sampleTruncated: boolean }
   typeNames: Record<string, string>
 }
 
-export interface OrphanSummary {
-  cap: number
-  count: number
-  capped: boolean
-}
-
-/** 자동 정리에서 제외되는 타입 — 방치하면 계속 쌓이는 쪽이다. */
-export const NEVER_AUTO_DELETED = new Set([2, 3, 5])
-
-/** 서버가 만료되면 자동으로 지우는 타입. ACP 가 사라지면 참조하던 리소스의 권한이 바뀐다. */
-export const AUTO_DELETED_RISKY = new Set([1])
-
-/**
- * et 를 수정할 수 있는 타입. CIN(4)은 oneM2M 상 UPDATE 자체가 405 다
- * (app.js:1839). CSEBase(5)도 수정할 수 없다(405-9).
- */
-export const ET_EXTENDABLE = new Set([1, 2, 3, 9, 23])
-
-/** 삭제할 수 없는 타입 — CSEBase 는 트리의 뿌리다. */
-export const UNDELETABLE = new Set([5])
-
 // ── 일괄 작업 ──────────────────────────────────────────────────────────────
 
-export type JobKind = 'expired-delete' | 'expired-extend' | 'orphan-delete'
+export type JobKind = 'expired-delete' | 'expired-extend' | 'orphan-delete' | 'orphan-scan' | 'sub-delete' | 'selftest'
 export type JobState = 'running' | 'done' | 'cancelled' | 'failed'
 
 export interface JobOutcome {
@@ -127,6 +109,57 @@ export interface AcpConfig {
   defaultPolicy: string
   audit: string
   denyLog: string
+  /** 'off' 면 잠근 컨테이너의 경로가 상위 discovery 에 그대로 나온다 — 시뮬레이터가 보호를 과장한다. */
+  discoveryFilter: string
+}
+
+/** 코어가 정하는 만료 정책. 화면은 이것만 본다 — 상수를 두지 않는다. */
+export interface ExpiryPolicy {
+  autoDeletedTypes: number[]
+  etExtendableTypes: number[]
+  undeletableTypes: number[]
+  typeNames: Record<string, string>
+}
+
+export interface HitRow { ct: string; http: number; mqtt: number; coap: number; ws: number }
+
+// ── 구독 (엔드포인트 롤업) ───────────────────────────────────────────────────
+
+/** 같은 nu 엔드포인트(scheme://host)로 묶은 구독 집계 한 줄. */
+export interface SubsEndpoint {
+  endpoint: string
+  total: number
+  /** 알림을 보낼 수 없는 구독 수 — 일괄 삭제 후보. */
+  broken: number
+  /** 보낼 수는 있으나 받을 상대가 확인되지 않는 구독 수 — 사람이 하나씩 골라야 한다. */
+  suspect: number
+  sample: string[]
+}
+
+export interface SubsEndpointsPage {
+  endpoints: SubsEndpoint[]
+  endpointsTruncated: boolean
+  scanned: number
+  capped: boolean
+  audit: { scanned: number; capped: boolean; findingsTruncated: boolean; bySeverity: Record<string, number>; byReason: Record<string, number> }
+}
+
+/** 코어 구독 감사(audit_subscriptions)가 낸 판정이 붙은 구독 한 행. */
+export interface SubsSampleRow {
+  ri: string
+  pi: string
+  nu: string[]
+  enc: unknown
+  cr: string
+  severity: 'broken' | 'suspect' | null
+  reason: string | null
+}
+
+export interface SubsSamplePage {
+  rows: SubsSampleRow[]
+  more: boolean
+  scanned: number
+  capped: boolean
 }
 
 export interface SessionInfo {
@@ -186,6 +219,12 @@ export interface AcpPrivileges {
   acr?: AcpRule[]
 }
 
+/** 편집기의 규칙 한 줄. acor 는 쉼표로 구분한 문자열, acop 은 비트 합. */
+export interface EditRule {
+  acor: string
+  acop: number
+}
+
 export interface AcpRef {
   ri: string
   ty: number
@@ -203,7 +242,7 @@ export interface AcpRefs {
   capped: boolean
   broken: number
   unresolved: string[]
-  nextRi: string | null
+  nextRi?: string | null
 }
 
 export interface AcpMacpRefs {

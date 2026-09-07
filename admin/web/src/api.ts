@@ -10,10 +10,13 @@ import type {
   AcpValidation,
   ExpiredPage,
   ExpiredSummary,
+  ExpiryPolicy,
+  HitRow,
   Job,
-  OrphanPage,
-  OrphanSummary,
+  OrphanScanResult,
   SessionInfo,
+  SubsEndpointsPage,
+  SubsSamplePage,
 } from './types'
 
 export class AuthError extends Error {}
@@ -129,16 +132,23 @@ export function expiredPage(opts: {
   return get<ExpiredPage>(`/api/expired?${q.toString()}`)
 }
 
-export function orphanSummary(cap = 5000) {
-  return get<OrphanSummary>(`/api/orphans/summary?cap=${cap}`)
+export function startOrphanScan(opts: { scanCap?: number; sampleCap?: number } = {}) {
+  return post<Job>('/api/jobs/orphan-scan', opts)
+}
+export function orphanLast() {
+  return get<OrphanScanResult | { none: true }>('/api/orphans/last')
 }
 
-export function orphanPage(opts: { limit?: number; afterRi?: string | null; scanCap?: number }) {
-  const q = new URLSearchParams()
-  q.set('limit', String(opts.limit ?? 50))
-  if (opts.afterRi) q.set('afterRi', opts.afterRi)
-  if (opts.scanCap) q.set('scanCap', String(opts.scanCap))
-  return get<OrphanPage>(`/api/orphans?${q.toString()}`)
+// ── 구독 (엔드포인트 롤업) ──────────────────────────────────────────────────
+
+export function subsEndpoints(opts: { limit?: number } = {}) {
+  return get<SubsEndpointsPage>(`/api/subs/endpoints?limit=${opts.limit ?? 100}`)
+}
+export function subsSample(endpoint: string, limit = 200) {
+  return get<SubsSamplePage>(`/api/subs/sample?endpoint=${encodeURIComponent(endpoint)}&limit=${limit}`)
+}
+export function startSubDelete(ris: string[]) {
+  return post<Job>('/api/jobs/sub-delete', { ris })
 }
 
 // ── ACP ────────────────────────────────────────────────────────────────────
@@ -211,6 +221,15 @@ export function acpSimulateWithRows(body: {
   })
 }
 
+export function acpCreate(body: { parentRi: string; rn: string; pv: AcpPrivileges; pvs: AcpPrivileges }) {
+  return post<{ ok: boolean; ri: string; status: number; rsc: string | null }>('/api/acp/create', body)
+}
+
+/** 잠금 단위는 AE 하나다 — 백엔드가 그 외 타입을 거절한다. */
+export function acpAttach(body: { targetRi: string; acpi: string[] }) {
+  return post<{ ok: boolean; status: number; rsc: string | null }>('/api/acp/attach', body)
+}
+
 export function acpAudit(opts: { ri?: string; limit?: number; afterId?: number | null } = {}) {
   const q = new URLSearchParams()
   q.set('limit', String(opts.limit ?? 50))
@@ -235,4 +254,24 @@ export function daysSince(et: string, asOf: string): number | null {
   const b = p(asOf)
   if (a === null || b === null) return null
   return Math.floor((b - a) / 86400000)
+}
+
+// ── 정책·관측 ──────────────────────────────────────────────────────────────
+
+export function expiredPolicy() {
+  return get<ExpiryPolicy>('/api/expired/policy')
+}
+
+export function statsHit() {
+  return get<{ asOf: string; rows: HitRow[] }>('/api/stats/hit')
+}
+export function statsTotalAe() {
+  return get<{ total: number }>('/api/stats/total-ae')
+}
+export function statsTotalCbs() {
+  return get<{ total: number }>('/api/stats/total-cbs')
+}
+
+export function jobList() {
+  return get<{ jobs: Job[] }>('/api/jobs')
 }

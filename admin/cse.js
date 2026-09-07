@@ -56,13 +56,18 @@ Client.prototype._ri = function () {
  * 한 건 요청한다. **예외를 던지지 않는다** — 실패도 결과의 한 종류다.
  * 일괄 작업에서 한 건의 실패가 나머지를 멈추면 안 된다.
  *
- * @returns callback({ ok, status, rsc, body, error })
+ * @param opts.headers  기본 헤더를 덮어쓴다. 종합 테스트가 케이스마다 X-M2M-Origin
+ *                      을 바꾸고, 헤더 누락 케이스는 빈 문자열이 아니라 undefined 로
+ *                      지운다(값이 undefined 인 키는 헤더에서 뺀다).
+ * @returns callback({ ok, status, rsc, body, error, elapsedMs })
  *   rsc 는 Mobius 가 돌려주는 문자열 그대로다('2002', '4004' 등).
  *   서버 콘솔 로그와 대조할 수 있어야 하므로 재해석하지 않는다.
+ *   elapsedMs 는 요청을 보낸 시점부터 결과가 확정될 때까지(타임아웃 포함)다.
  */
-Client.prototype.request = function (method, path, body, callback) {
+Client.prototype.request = function (method, path, body, callback, opts) {
     var self = this;
     var payload = body ? JSON.stringify(body.content) : null;
+    var extra = (opts && opts.headers) || {};
 
     var headers = {
         'X-M2M-RI': this._ri(),
@@ -74,11 +79,17 @@ Client.prototype.request = function (method, path, body, callback) {
         headers['Content-Type'] = 'application/json' + (body.ty ? ';ty=' + body.ty : '');
         headers['Content-Length'] = Buffer.byteLength(payload);
     }
+    Object.keys(extra).forEach(function (k) {
+        if (extra[k] === undefined) { delete headers[k]; }
+        else { headers[k] = extra[k]; }
+    });
 
+    var t0 = process.hrtime.bigint();
     var settled = false;
     function settle(result) {
         if (settled) { return; }
         settled = true;
+        result.elapsedMs = Math.round(Number(process.hrtime.bigint() - t0) / 1e5) / 10;
         callback(result);
     }
 
@@ -195,6 +206,16 @@ Client.prototype.update = function (ri, rootName, attrs, callback) {
 /** et 를 바꾼다. */
 Client.prototype.setExpiry = function (ri, rootName, et, callback) {
     this.update(ri, rootName, { et: et }, callback);
+};
+
+/**
+ * 자식 리소스를 만든다. ty 는 Content-Type 의 ;ty= 로 나간다 — Mobius 는 그것으로
+ * 타입을 정한다(mobius/type_resolver.js).
+ */
+Client.prototype.create = function (parentPath, ty, rootName, attrs, callback, opts) {
+    var content = {};
+    content[rootName] = attrs;
+    this.request('POST', parentPath, { content: content, ty: ty }, callback, opts);
 };
 
 exports.Client = Client;

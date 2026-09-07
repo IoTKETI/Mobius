@@ -1,0 +1,1015 @@
+'use strict';
+/**
+ * 관리 콘솔의 /api/* 라우트.
+ *
+ * server.js 가 conf 를 읽고 DB 에 붙고 listen 하는 일을 하고, 라우트는 여기 있다.
+ * 가른 이유는 시험이다 — 같은 라우트를 임시 포트·어댑터 대역·가짜 CSE 로 띄워
+ * 검사한다(test/admin_app_helper.js). ctx 의 모양은 계획 문서 Task 5 에 있다.
+ *
+ * **conf.json 의 콘솔 키(admin*)는 server.js 가 읽는다.** 여기서는 ctx 로 받는다.
+ * test/conf-schema.test.js 가 admin/server.js 에서 리더를 찾기 때문이다.
+ */
+var crypto = require('crypto');
+var express = require('express');
+var moment = require('moment');
+
+/** 한 작업이 다룰 수 있는 대상 수. 넘으면 나눠서 돌린다. */
+var MAX_TARGETS = 5000;
+var SESSION_TTL_MS = 8 * 60 * 60 * 1000;
+var SCAN_MAX_PASSES = 50;
+
+exports.install = function (app, ctx) {
+    var conf = ctx.conf;
+    var db = ctx.db;
+    var db_sql = ctx.db_sql;
+    var responder = ctx.responder;
+    var acp_simulate = ctx.acp_simulate;
+    var acp_lint = ctx.acp_lint;
+    var acp_rules = ctx.acp_rules;
+    var jobs = ctx.jobs;
+    var cse = ctx.cse;
+
+    app.use(express.json({ limit: '256kb' }));
+
+    // ── 세션 ──────────────────────────────────────────────────────────────────
+    // 메모리에만 둔다. 콘솔을 재시작하면 다시 로그인한다 — 관리자 한 명이라
+    // 세션 저장소를 따로 둘 이유가 없다.
+    var sessions = Object.create(null);
+
+    function new_session() {
+        var token = crypto.randomBytes(32).toString('hex');
+        sessions[token] = { created: Date.now() };
+        return token;
+    }
+
+    function valid_session(token) {
+        if (!token) { return false; }
+        var s = sessions[token];
+        if (!s) { return false; }
+        if (Date.now() - s.created > SESSION_TTL_MS) {
+            delete sessions[token];
+            return false;
+        }
+        return true;
+    }
+
+    // 길이가 다르면 timingSafeEqual 이 던지므로 먼저 해시로 길이를 맞춘다.
+    function password_matches(given) {
+        var a = crypto.createHash('sha256').update(String(given)).digest();
+        var b = crypto.createHash('sha256').update(ctx.password).digest();
+        return crypto.timingSafeEqual(a, b);
+    }
+
+    function parse_cookie(header) {
+        var out = {};
+        if (!header) { return out; }
+        header.split(';').forEach(function (part) {
+            var i = part.indexOf('=');
+            if (i < 0) { return; }
+            out[part.slice(0, i).trim()] = decodeURIComponent(part.slice(i + 1).trim());
+        });
+        return out;
+    }
+
+    app.post('/api/login', function (req, res) {
+        var pw = (req.body && req.body.password) || '';
+        if (!password_matches(pw)) {
+            // 어느 쪽이 틀렸는지 알려 주지 않는다.
+            return res.status(401).json({ error: 'invalid credentials' });
+        }
+        var token = new_session();
+        res.setHeader('Set-Cookie',
+            'mobius_admin=' + token + '; HttpOnly; SameSite=Strict; Path=/; Max-Age=' +
+            Math.floor(SESSION_TTL_MS / 1000));
+        res.json({ ok: true });
+    });
+
+    app.post('/api/logout', function (req, res) {
+        var c = parse_cookie(req.headers.cookie);
+        if (c.mobius_admin) { delete sessions[c.mobius_admin]; }
+        res.setHeader('Set-Cookie', 'mobius_admin=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0');
+        res.json({ ok: true });
+    });
+
+    // 로그인 뒤의 모든 API 는 이 게이트를 지난다.
+    app.use('/api', function (req, res, next) {
+        if (req.path === '/login' || req.path === '/logout') { return next(); }
+        var c = parse_cookie(req.headers.cookie);
+        if (!valid_session(c.mobius_admin)) {
+            return res.status(401).json({ error: 'not authenticated' });
+        }
+        next();
+    });
+
+    // DB 커넥션을 하나 빌려 핸들러에 넘기고, 끝나면 반드시 반납한다.
+    function with_connection(res, fn) {
+        db.getConnection(function (code, connection) {
+            if (code !== '200') {
+                return res.status(503).json({ error: 'database unavailable', code: code });
+            }
+            var released = false;
+            function done() {
+                if (released) { return; }
+                released = true;
+                db.release(connection);
+            }
+            try {
+                fn(connection, done);
+            } catch (e) {
+                done();
+                res.status(500).json({ error: String(e.message || e) });
+            }
+        });
+    }
+
+    function now_et() {
+        return moment().utc().format('YYYYMMDDTHHmmss');
+    }
+
+    app.get('/api/session', function (req, res) {
+        res.json({
+            ok: true,
+            // 파사드가 고른 이름을 그대로 준다. 예전에는 global.usesqlite 를
+            // 삼항으로 풀었는데, 그러면 백엔드가 하나 늘 때 이 줄이 조용히
+            // 틀린 이름을 내려보낸다 — 화면은 그걸 믿는다.
+            backend: db.backendName(),
+            // 쓰기가 가능한지, 그리고 그 권한이 어디서 오는지 화면이 알아야 한다.
+            // origin 값 자체는 내려보내지 않는다 — superUser 는 공유 비밀이다.
+            write: {
+                enabled: cse !== null,
+                target: cse ? (ctx.cseHost + ':' + ctx.csePort) : null,
+                superuser: ctx.cseOrigin === ctx.superUser
+            },
+            // ACP 관련 설정. **콘솔이 읽는 것은 conf.json 이지 워커의 실제 상태가
+            // 아니다.** 워커는 자기 프로세스 메모리에 이 값을 들고 있고 콘솔은 거기
+            // 닿을 수 없다 — conf 를 고친 뒤 재기동하지 않았다면 어긋난다.
+            // 화면은 이것을 "설정값 기준" 이라고 밝힌다.
+            acp: {
+                observeMode: conf.acpObserveMode || 'off',
+                attachPolicy: conf.acpiAttachPolicy || 'open',
+                defaultPolicy: conf.defaultAccessPolicy || 'disable',
+                audit: conf.acpAudit || 'on',
+                denyLog: conf.acpDenyLog || 'sample',
+                // 'off' 면 잠근 컨테이너의 경로가 상위 discovery 에 그대로 나온다 —
+                // 시뮬레이터의 "거부" 가 실제 보호를 과장한다. 화면이 경고를 띄운다.
+                discoveryFilter: conf.acpDiscoveryFilter || 'on'
+            }
+        });
+    });
+
+    /**
+     * 만료 정책. 화면이 상수로 들고 있던 것을 코어 함수로 바꿨다 — ACP 만 자동 삭제된다고
+     * 표시했는데 실제로는 아무것도 자동 삭제되지 않고, 코어가 et 를 받아 주는 타입을
+     * 화면이 막고 있었다(목적 문서 §0층 위반 1·2). undeletableTypes 는 정책이 아니라
+     * 구조다 — CSEBase 는 트리의 뿌리라 지울 수 없다(405-9).
+     */
+    app.get('/api/expired/policy', function (req, res) {
+        res.json({
+            autoDeletedTypes: ctx.expiry_policy.autoDeletedTypes(),
+            etExtendableTypes: ctx.expiry_policy.etExtendableTypes(),
+            undeletableTypes: [5],
+            typeNames: responder.typeRsrc
+        });
+    });
+
+    /**
+     * 만료 리소스 요약. 타입별 개수를 상한 안에서 센다.
+     *
+     * 전역 COUNT(*) 를 하지 않는 이유: 배포의 MySQL lookup 에는 et 인덱스가 없고
+     * 행이 5,740만이다. 화면은 "많다"만 알면 되므로 상한에서 끊고 capped 를 준다.
+     */
+    app.get('/api/expired/summary', function (req, res) {
+        var cap = Math.min(parseInt(req.query.cap, 10) || 5000, 20000);
+        with_connection(res, function (conn, done) {
+            db_sql.count_expired_by_type(conn, now_et(), cap, function (err, result) {
+                done();
+                if (err) { return res.status(500).json({ error: String((result && result.message) || err) }); }
+                res.json({
+                    asOf: now_et(),
+                    cap: cap,
+                    capped: result.capped,
+                    counted: result.count,
+                    byType: result.byType,
+                    typeNames: responder.typeRsrc
+                });
+            });
+        });
+    });
+
+    /**
+     * 만료 리소스 목록. (et, ri) 키셋 페이징.
+     *
+     * types 를 주지 않으면 AE·CNT 를 포함한 전부를 보여 준다 — 자동 정리에서
+     * 빠지기 때문에 계속 쌓이는 쪽이 이들이라, 관리자가 보려는 것이 바로 이것이다.
+     */
+    app.get('/api/expired', function (req, res) {
+        var limit = Math.min(parseInt(req.query.limit, 10) || 50, 500);
+        var types = null;
+        if (req.query.types) {
+            types = String(req.query.types).split(',')
+                .map(function (s) { return parseInt(s, 10); })
+                .filter(function (n) { return !isNaN(n); });
+        }
+        with_connection(res, function (conn, done) {
+            db_sql.select_expired_page(conn, now_et(), {
+                limit: limit,
+                types: types,
+                afterEt: req.query.afterEt || null,
+                afterRi: req.query.afterRi || null
+            }, function (err, page) {
+                done();
+                if (err) { return res.status(500).json({ error: String((page && page.message) || err) }); }
+                res.json({
+                    asOf: now_et(),
+                    rows: page.rows,
+                    more: page.more,
+                    nextEt: page.nextEt,
+                    nextRi: page.nextRi,
+                    typeNames: responder.typeRsrc
+                });
+            });
+        });
+    });
+
+    // ── 고아 (배치 결과) ───────────────────────────────────────────────────
+    //
+    // 라이브 스캔은 없다. 탐지는 POST /api/jobs/orphan-scan 이 작업으로 돌리고,
+    // 화면은 마지막 결과 파일(admin/data/orphans/)만 본다. admin/orphan_scan.js.
+    var orphan_scan = require('./orphan_scan');
+    var data_dir = require('./data_dir');
+
+    app.post('/api/jobs/orphan-scan', function (req, res) {
+        var b = req.body || {};
+        var job = orphan_scan.start(ctx, { scanCap: b.scanCap, sampleCap: b.sampleCap });
+        if (!job) {
+            return res.status(409).json({ error: '이미 도는 작업이 있다. 끝나거나 취소된 뒤에 시작한다.', active: jobs.active().view() });
+        }
+        res.status(202).json(job.view());
+    });
+
+    app.get('/api/orphans/last', function (req, res) {
+        var list = data_dir.listJson(ctx.dataDir, 'orphans').filter(function (x) { return !x.broken; });
+        if (!list.length) { return res.json({ none: true }); }
+        var r = data_dir.readJson(list[0].path);
+        r.typeNames = responder.typeRsrc;
+        res.json(r);
+    });
+
+    // ── 설정과 프로세스 제어는 여기 없다 ──────────────────────────────────────
+    //
+    // 2026-09-05 까지 /api/conf 와 /api/server/{status,start,stop,restart} 가 있었다.
+    // 걷어냈다 — 설정은 마스터 키(dbpass·superUser)를 쥐는 일이라 SSH 로 들어온
+    // 사람의 것이고(npm run conf), 실행·정지는 환경(pm2·터미널)의 것이다. 웹은
+    // 리소스만 다룬다. 이 경계가 곧 권한 경계다.
+
+    // ── ACP (권한) ────────────────────────────────────────────────────────────
+    //
+    // 배포 실측(2026-08-29)에서 ACP 리소스는 1개, acpi 가 채워진 리소스는 2개였고
+    // 그중 하나가 없는 ACP 를 가리켜 수퍼유저 말고는 아무도 못 쓰는 상태였다.
+    // 화면의 목적은 "권한을 예쁘게 보여 주는 것" 이 아니라 **잘못 걸린 것을
+    // 찾아내고, 걸기 전에 결과를 미리 보는 것** 이다.
+
+    /**
+     * 커서로 이어보는 스캔을 **끝까지** 돌린다.
+     *
+     * 한 쪽만 보고 끝내지 않는 이유: 이 결과들은 "이 ACP 를 지워도 되는가" 의
+     * 근거다. 잘린 목록을 그대로 보여 주면 참조가 있는데 없다고 말하는 셈이 된다.
+     * 배포의 비-CIN 은 34,313행이라 기본 상한(20만)에서 한 번에 끝나지만, 끝나지
+     * 않는 경우에도 화면이 "여기까지가 전부" 로 보이면 안 된다.
+     *
+     * 커서는 불투명한 문자열 하나다(result.next → opts.after). 예전에는 타입과 ri
+     * 두 조각이었는데, 하나만 넘기면 첫 타입에서 맴돌며 **끝나지 않았다**(실측:
+     * refs=0 에 201패스). 쪼갤 수 있는 커서는 언젠가 쪼개지므로 코어가 하나로
+     * 묶었고, 옛 인자를 넘기면 BAD_CURSOR 로 거부한다.
+     *
+     * @param call   call(after, cb) — after 가 null 이면 처음부터
+     * @param merge  merge(acc, page) — 페이지를 누적기에 합친다
+     */
+    function drain(call, acc, merge, callback) {
+        var passes = 0;
+        function step(after) {
+            call(after, function (err, page) {
+                if (err) { return callback(err, page); }
+                merge(acc, page);
+                if (!page.next) { return callback(null, acc); }
+                if (++passes >= SCAN_MAX_PASSES) {
+                    // 종료 조건은 !page.next 라 원래 닫힌다. 이 상한은 코어가 커서를
+                    // 전진시키지 못하는 상황에 대한 보험이고, 걸리면 숨기지 않는다.
+                    acc.capped = true;
+                    return callback(null, acc);
+                }
+                step(page.next);
+            });
+        }
+        step(null);
+    }
+
+    /** 이 ACP 를 참조하는 리소스 전부. */
+    function scan_refs_all(conn, acpRi, callback) {
+        var acc = { refs: [], refsTruncated: false, byAcp: {}, scanned: 0,
+                    capped: false, broken: 0, unresolved: {} };
+        drain(
+            function (after, cb) {
+                var o = { acpRi: acpRi };
+                if (after) { o.after = after; }
+                db_sql.scan_acpi_refs(conn, o, cb);
+            },
+            acc,
+            function (a, p) {
+                a.refs = a.refs.concat(p.refs);
+                a.refsTruncated = a.refsTruncated || p.refsTruncated;
+                a.scanned += p.scanned;
+                a.broken += p.broken;
+                (p.unresolved || []).forEach(function (u) { a.unresolved[u] = 1; });
+                Object.keys(p.byAcp || {}).forEach(function (k) {
+                    a.byAcp[k] = (a.byAcp[k] || 0) + p.byAcp[k];
+                });
+            },
+            function (err, a) {
+                if (err) { return callback(err, a); }
+                a.unresolved = Object.keys(a.unresolved);
+                callback(null, a);
+            });
+    }
+
+    /** acpi 참조 검사 전부. 첫 화면이라 특히 "여기까지가 전부" 로 보이면 안 된다. */
+    function lint_refs_all(conn, opts, callback) {
+        var acc = { rows: [], counts: { error: 0, warn: 0, clean: 0 }, scanned: 0,
+                    capped: false, broken: 0, refsTruncated: false, unresolved: {} };
+        drain(
+            function (after, cb) {
+                var o = { batch: opts.batch, scanCap: opts.scanCap, maxRefs: opts.maxRefs };
+                if (after) { o.after = after; }
+                acp_lint.lint_acpi_refs(conn, o, cb);
+            },
+            acc,
+            function (a, p) {
+                a.rows = a.rows.concat(p.rows);
+                a.counts.error += p.counts.error;
+                a.counts.warn += p.counts.warn;
+                a.counts.clean += p.counts.clean;
+                a.scanned += p.scanned;
+                a.broken += p.broken;
+                a.refsTruncated = a.refsTruncated || p.refsTruncated;
+                (p.unresolved || []).forEach(function (u) { a.unresolved[u] = 1; });
+            },
+            function (err, a) {
+                if (err) { return callback(err, a); }
+                a.unresolved = Object.keys(a.unresolved);
+                callback(null, a);
+            });
+    }
+
+    /** ACP 목록. ty 등치라 idx_lookup_ty 를 탄다. */
+    app.get('/api/acp', function (req, res) {
+        var limit = Math.min(parseInt(req.query.limit, 10) || 100, 500);
+        with_connection(res, function (conn, done) {
+            db_sql.select_acp_list(conn, { limit: limit, afterRi: req.query.afterRi || '' },
+                function (err, r) {
+                    done();
+                    if (err) { return res.status(500).json({ error: String((r && r.message) || err) }); }
+                    res.json(r);
+                });
+        });
+    });
+
+    /**
+     * ACP 하나의 전부: 본문 + 이것을 쓰는 리소스 + 그룹 macp 참조.
+     *
+     * scan_macp_refs 를 함께 부르는 이유가 있다. fanOutPoint 는 acpi 가 아니라
+     * grp.macp 로 판정하므로, 삭제 영향 분석에서 이걸 빠뜨리면 그룹 팬아웃이
+     * 조용히 잠긴다.
+     */
+    app.get('/api/acp/detail', function (req, res) {
+        var ri = req.query.ri;
+        if (!ri) { return res.status(400).json({ error: 'ri 가 필요하다' }); }
+        with_connection(res, function (conn, done) {
+            db_sql.select_acp_detail(conn, ri, function (err, detail) {
+                if (err) { done(); return res.status(500).json({ error: String((detail && detail.message) || err) }); }
+                if (!detail) { done(); return res.status(404).json({ error: 'ACP 를 찾을 수 없다' }); }
+
+                // 두 스캔은 각각 실패할 수 있다. 하나가 실패했다고 페이지 전체를
+                // 500 으로 만들지 않되, **실패를 0건으로 보여 주지도 않는다.**
+                // "그룹 참조 0건" 은 ACP 를 지워도 된다는 신호로 읽히므로, 확인하지
+                // 못한 것을 확인해서 없는 것처럼 말하면 안 된다.
+                // (SQLite 백엔드에는 grp 테이블 자체가 없어 실제로 자주 실패한다.)
+                scan_refs_all(conn, ri, function (err2, refs) {
+                    var refsErr = err2 ? String((refs && refs.message) || err2) : null;
+                    db_sql.scan_macp_refs(conn, { acpRi: ri }, function (err3, macp) {
+                        done();
+                        var macpErr = err3 ? String((macp && macp.message) || err3) : null;
+                        // 이 ACP 의 문제도 함께 준다. 상세를 보면서 "이건 왜
+                        // 안 먹지" 를 다른 화면으로 옮겨 가서 찾게 하지 않는다.
+                        var problems = acp_lint._problems_of(detail.pv, 'pv', ri)
+                            .concat(acp_lint._problems_of(detail.pvs, 'pvs', ri));
+                        res.json({
+                            detail: detail,
+                            refs: refsErr ? null : refs,
+                            refsError: refsErr,
+                            macpRefs: macpErr ? null : macp,
+                            macpError: macpErr,
+                            problems: problems
+                        });
+                    });
+                });
+            });
+        });
+    });
+
+    /** ACP 본문 검사. 콘솔의 첫 화면이 이 목록이다. */
+    app.get('/api/acp/lint', function (req, res) {
+        var limit = Math.min(parseInt(req.query.limit, 10) || 200, 500);
+        with_connection(res, function (conn, done) {
+            acp_lint.lint_acp(conn, { limit: limit, afterRi: req.query.afterRi || '' },
+                function (err, r) {
+                    done();
+                    if (err) { return res.status(500).json({ error: String((r && r.message) || err) }); }
+                    res.json(r);
+                });
+        });
+    });
+
+    /**
+     * acpi 참조 검사 — 없는 ACP 를 가리키는 리소스(dangling)를 찾는다.
+     *
+     * 이어보기를 화면에 노출하지 않고 **서버가 끝까지 돌린다.** 이 목록은 콘솔의
+     * 첫 화면이고 "무엇이 잘못 걸려 있나" 의 전부여야 한다 — 상한에 걸린 줄 모르고
+     * "여기까지가 전부" 로 보이는 것이 가장 나쁘다.
+     */
+    app.get('/api/acp/lint-refs', function (req, res) {
+        with_connection(res, function (conn, done) {
+            lint_refs_all(conn, {
+                batch: Math.min(parseInt(req.query.batch, 10) || 5000, 20000),
+                scanCap: Math.min(parseInt(req.query.scanCap, 10) || 200000, 2000000),
+                maxRefs: Math.min(parseInt(req.query.maxRefs, 10) || 500, 2000)
+            }, function (err, r) {
+                done();
+                if (err) { return res.status(500).json({ error: String((r && r.message) || err) }); }
+                res.json(r);
+            });
+        });
+    });
+
+    /**
+     * 권한 시뮬레이터.
+     *
+     * **콘솔은 자기 자신을 검증받지 않는다.** adminOrigin 이 superUser 라
+     * security.js 가 무조건 통과시키므로, HTTP 로 왕복해도 정책을 검증할 수 없다.
+     * 시뮬레이터는 security.js 의 평가 함수를 그대로 쓴다.
+     */
+    app.post('/api/acp/simulate', function (req, res) {
+        var b = req.body || {};
+        if (!b.ri) { return res.status(400).json({ error: 'ri 가 필요하다' }); }
+        if (!Array.isArray(b.origins) || b.origins.length === 0) {
+            return res.status(400).json({ error: 'origins 가 필요하다' });
+        }
+        if (!Array.isArray(b.ops) || b.ops.length === 0) {
+            return res.status(400).json({ error: 'ops 가 필요하다' });
+        }
+        with_connection(res, function (conn, done) {
+            var opts = { ri: b.ri, origins: b.origins, ops: b.ops };
+            if (b.ip) { opts.ip = b.ip; }
+            // 저장하지 않은 상태로 물어보기. 이것이 "잠그기 전에 미리 본다" 다.
+            if (Array.isArray(b.acpiOverride)) { opts.acpiOverride = b.acpiOverride; }
+            if (Array.isArray(b.acpRowsOverride)) { opts.acpRowsOverride = b.acpRowsOverride; }
+            // source / acpi / inherited_from / resolved 는 **리소스의 성질이지 원본의
+            // 성질이 아니다.** 코어가 acpi 를 실제로 푼 첫 결과에서만 읽으므로 원본
+            // 순서와 무관하다. 전부 수퍼유저·생성자로 단축 판정되면 'none' 이 아니라
+            // null 이 오고 source_unknown 경고가 붙는다 — 'none' 은 "ACP 가 없다" 로
+            // 읽히고 그것이 거짓이기 때문이다.
+            //
+            // 한때 콘솔이 사전 원본으로 한 번 더 물어 이 값을 직접 구했다. 코어가
+            // 같은 보장을 하게 되어 걷어냈다 — 같은 사실을 두 곳에서 계산하면
+            // 언젠가 갈린다.
+            acp_simulate.simulate_many(conn, opts, function (err, r) {
+                done();
+                if (err) {
+                    // 상한 초과는 사용자 입력 문제이지 서버 오류가 아니다. 조용히
+                    // 자르지 않고 거절한 것을 그대로 전한다.
+                    if (r && r.code === 'TOO_MANY') { return res.status(400).json(r); }
+                    return res.status(500).json({ error: String((r && r.message) || err) });
+                }
+                res.json(r);
+            });
+        });
+    });
+
+    /** 저장 전 검사. DB 를 보지 않는 동기 순수 함수라 커넥션이 필요 없다. */
+    app.post('/api/acp/validate', function (req, res) {
+        var b = req.body || {};
+        var field = (b.field === 'pvs') ? 'pvs' : 'pv';
+        if (!b.value || typeof b.value !== 'object') {
+            return res.status(400).json({ error: 'value 가 필요하다' });
+        }
+        // 서버도 같은 함수로 막지만, 응답의 msg 는 정적이라 어느 값이 문제인지
+        // 담지 못한다. path 는 이 함수만 준다.
+        res.json(acp_rules.validate_privileges(b.value, field));
+    });
+
+    /**
+     * ACP 본문 저장. pv / pvs 중 보낸 것만 바꾼다.
+     *
+     * 서버(Mobius)도 같은 가드레일을 지나지만 여기서 먼저 검사한다 — 응답의 msg 는
+     * 정적이라 **어느 값이 문제인지** 담지 못하고, path 는 validate_privileges 만
+     * 준다. 두 번 검사하는 것이 아니라, 화면이 고칠 자리를 짚어 주기 위해서다.
+     *
+     * 쓰기는 oneM2M PUT 을 지난다. 그래야 워커 캐시가 무효화되고 acp_audit 에
+     * 이력이 남는다.
+     */
+    app.post('/api/acp/save', function (req, res) {
+        if (!require_write(res)) { return; }
+        var b = req.body || {};
+        if (typeof b.ri !== 'string' || b.ri.charAt(0) !== '/') {
+            return res.status(400).json({ error: 'ri 가 필요하다' });
+        }
+        var attrs = {};
+        var problems = [];
+        ['pv', 'pvs'].forEach(function (f) {
+            if (b[f] === undefined) { return; }
+            if (!b[f] || typeof b[f] !== 'object') {
+                problems.push({ field: f, code: '400-57', path: f, message: f + ' 가 객체가 아니다' });
+                return;
+            }
+            var v = acp_rules.validate_privileges(b[f], f);
+            if (v.code) { problems.push({ field: f, code: v.code, path: v.path, message: v.message || '' }); }
+            attrs[f] = b[f];
+        });
+        if (problems.length) { return res.status(400).json({ error: '값이 올바르지 않다', problems: problems }); }
+        if (Object.keys(attrs).length === 0) {
+            return res.status(400).json({ error: 'pv 또는 pvs 중 하나는 보내야 한다' });
+        }
+
+        cse.update(b.ri, 'm2m:acp', attrs, function (r) {
+            if (r.ok) { return res.json({ ok: true, status: r.status, rsc: r.rsc }); }
+            // 서버가 거절한 이유를 그대로 전한다. 콘솔이 통과시킨 값을 서버가 막았다면
+            // 그 차이 자체가 알아야 할 정보다.
+            res.status(r.status >= 400 && r.status < 500 ? 400 : 502).json({
+                error: describe(r),
+                status: r.status,
+                rsc: r.rsc,
+                body: r.body
+            });
+        });
+    });
+
+    /** lookup 에서 ri 하나의 타입을 본다. 없으면 null. */
+    function type_of(conn, ri, cb) {
+        db_sql.select_lookup(conn, ri, function (e, rows) {
+            if (e) { return cb('DB 조회 실패: ' + String((rows && rows.message) || e)); }
+            if (!rows || rows.length === 0) { return cb(null, null); }
+            cb(null, String(rows[0].ty));
+        });
+    }
+
+    function cse_failure(res, r) {
+        res.status(r.status >= 400 && r.status < 500 ? 400 : 502).json({
+            error: describe(r), status: r.status, rsc: r.rsc, body: r.body
+        });
+    }
+
+    /**
+     * ACP 신규 생성. 부모는 AE 다 — 잠금 단위가 AE 하나이므로(이전 결정) 컨테이너
+     * 아래에 ACP 를 두는 길을 열지 않는다. 검사 → CSE POST 한 번. 부분 적용은 없다.
+     */
+    app.post('/api/acp/create', function (req, res) {
+        if (!require_write(res)) { return; }
+        var b = req.body || {};
+        if (typeof b.parentRi !== 'string' || b.parentRi.charAt(0) !== '/') {
+            return res.status(400).json({ error: 'parentRi 가 필요하다' });
+        }
+        if (typeof b.rn !== 'string' || !/^[A-Za-z0-9_-]{1,64}$/.test(b.rn)) {
+            return res.status(400).json({ error: 'rn 은 영문·숫자·_·- 1~64자다' });
+        }
+        var problems = [];
+        ['pv', 'pvs'].forEach(function (f) {
+            if (!b[f] || typeof b[f] !== 'object') {
+                problems.push({ field: f, code: '400-57', path: f, message: f + ' 가 객체가 아니다' });
+                return;
+            }
+            var v = acp_rules.validate_privileges(b[f], f);
+            if (v.code) { problems.push({ field: f, code: v.code, path: v.path, message: v.message || '' }); }
+        });
+        if (problems.length) { return res.status(400).json({ error: '값이 올바르지 않다', problems: problems }); }
+
+        with_connection(res, function (conn, done) {
+            type_of(conn, b.parentRi, function (e, ty) {
+                done();
+                if (e) { return res.status(500).json({ error: e }); }
+                if (ty !== '2') { return res.status(400).json({ error: '부모는 AE 여야 한다 (잠금 단위는 AE 하나다)' }); }
+                cse.create(b.parentRi, 1, 'm2m:acp', { rn: b.rn, pv: b.pv, pvs: b.pvs }, function (r) {
+                    if (!r.ok) { return cse_failure(res, r); }
+                    res.status(201).json({ ok: true, ri: b.parentRi + '/' + b.rn, status: r.status, rsc: r.rsc });
+                });
+            });
+        });
+    });
+
+    /**
+     * acpi 연결/해제. AE 의 acpi 를 통째로 바꾼다(oneM2M UPDATE 는 보낸 속성만 바꾸므로
+     * acpi 만 보낸다). 최대 7개 — lookup.acpi 가 varchar(200) 이다. 손입력은 없다:
+     * 화면이 목록에서 고르고, 여기서는 각 ri 가 정말 ACP 인지 본다.
+     */
+    app.post('/api/acp/attach', function (req, res) {
+        if (!require_write(res)) { return; }
+        var b = req.body || {};
+        if (typeof b.targetRi !== 'string' || b.targetRi.charAt(0) !== '/') {
+            return res.status(400).json({ error: 'targetRi 가 필요하다' });
+        }
+        if (!Array.isArray(b.acpi) || b.acpi.length > 7) {
+            return res.status(400).json({ error: 'acpi 는 0~7개의 배열이다 (컬럼 폭 200)' });
+        }
+        for (var i = 0; i < b.acpi.length; i++) {
+            if (typeof b.acpi[i] !== 'string' || b.acpi[i].charAt(0) !== '/') {
+                return res.status(400).json({ error: 'acpi 원소가 리소스 경로가 아니다: ' + String(b.acpi[i]).slice(0, 80) });
+            }
+        }
+        with_connection(res, function (conn, done) {
+            type_of(conn, b.targetRi, function (e, ty) {
+                if (e) { done(); return res.status(500).json({ error: e }); }
+                if (ty !== '2') { done(); return res.status(400).json({ error: '대상은 AE 여야 한다 (잠금 단위는 AE 하나다)' }); }
+                var idx = 0;
+                (function check() {
+                    if (idx >= b.acpi.length) {
+                        done();
+                        return cse.update(b.targetRi, 'm2m:ae', { acpi: b.acpi }, function (r) {
+                            if (!r.ok) { return cse_failure(res, r); }
+                            res.json({ ok: true, status: r.status, rsc: r.rsc });
+                        });
+                    }
+                    var ri = b.acpi[idx++];
+                    type_of(conn, ri, function (e2, t) {
+                        if (e2) { done(); return res.status(500).json({ error: e2 }); }
+                        if (t !== '1') { done(); return res.status(400).json({ error: 'ACP 가 아니거나 없다: ' + ri }); }
+                        check();
+                    });
+                }());
+            });
+        });
+    });
+
+    /** 변경 이력. 최신순이라 커서는 "이 id 보다 작은 것" 이다. */
+    app.get('/api/acp/audit', function (req, res) {
+        var limit = Math.min(parseInt(req.query.limit, 10) || 50, 200);
+        with_connection(res, function (conn, done) {
+            db_sql.select_acp_audit(conn, {
+                ri: req.query.ri || undefined,
+                op: req.query.op || undefined,
+                limit: limit,
+                afterId: req.query.afterId ? parseInt(req.query.afterId, 10) : undefined
+            }, function (err, r) {
+                done();
+                if (err) {
+                    // 007 마이그레이션 전이면 테이블이 없다. 500 으로 두면 화면이
+                    // "서버가 고장났다" 로 읽는다 — 무엇을 해야 하는지 알려 준다.
+                    return res.status(503).json({
+                        error: 'acp_audit 테이블을 읽을 수 없다. ' +
+                               '마이그레이션이 적용되지 않았을 수 있다: ' +
+                               'node tools/migrate.js --apply mysql --only 007-acp-audit-table',
+                        detail: String((r && r.message) || err)
+                    });
+                }
+                res.json(r);
+            });
+        });
+    });
+
+    // ── 통계 (관측) ───────────────────────────────────────────────────────
+    //
+    // 코어의 /hit · /total_ae · /total_cbs 가 여기로 왔다(2026-09-06). 그 경로는
+    // X-M2M 헤더 검사와 ACP 앞에서 인증 없이 응답했고 외부에서 닿았다(인수인계 §7).
+    // 여기서는 세션 게이트 뒤다. 질의는 코어의 것을 그대로 쓴다.
+
+    function first_value(rows) {
+        if (!rows || !rows.length) { return 0; }
+        var r = rows[0];
+        var k = Object.keys(r)[0];
+        return Number(r[k]) || 0;
+    }
+
+    app.get('/api/stats/hit', function (req, res) {
+        with_connection(res, function (conn, done) {
+            db_sql.get_hit_all(conn, function (err, rows) {
+                done();
+                if (err) { return res.status(500).json({ error: String((rows && rows.message) || err) }); }
+                res.json({ asOf: now_et(), rows: rows });
+            });
+        });
+    });
+    app.get('/api/stats/total-ae', function (req, res) {
+        with_connection(res, function (conn, done) {
+            db_sql.select_sum_ae(conn, function (err, rows) {
+                done();
+                if (err) { return res.status(500).json({ error: String((rows && rows.message) || err) }); }
+                res.json({ total: first_value(rows) });
+            });
+        });
+    });
+    app.get('/api/stats/total-cbs', function (req, res) {
+        with_connection(res, function (conn, done) {
+            db_sql.select_sum_cbs(conn, function (err, rows) {
+                done();
+                if (err) { return res.status(500).json({ error: String((rows && rows.message) || err) }); }
+                res.json({ total: first_value(rows) });
+            });
+        });
+    });
+
+    // ── 구독 (엔드포인트 롤업) ────────────────────────────────────────────
+    //
+    // 배포는 구독 3,463건에 고유 nu 202개, 상위 3개가 57% 다. 목록을 그대로 올리면
+    // 못 읽는다 — nu 의 엔드포인트로 묶는 것이 첫 화면이다. 판정(broken/suspect)은
+    // 코어 audit_subscriptions 가 유일한 기준이고, 여기서는 그 결과를 ri 맵으로
+    // 만들어 롤업에 넘긴다. **콘솔이 자기 기준을 만들지 않는다.**
+
+    /** 감사를 끝까지 돌려 ri → { severity, reason } 를 만든다. */
+    function audit_map(conn, callback) {
+        var map = {};
+        var acc = { scanned: 0, capped: false, findingsTruncated: false, bySeverity: {}, byReason: {} };
+        drain(
+            function (after, cb) {
+                var o = { batch: 500, scanCap: 20000, maxFindings: 2000 };
+                if (after) { o.after = after; }
+                db_sql.audit_subscriptions(conn, o, cb);
+            },
+            acc,
+            function (a, p) {
+                a.scanned += p.scanned;
+                a.capped = a.capped || p.capped;
+                a.findingsTruncated = a.findingsTruncated || !!p.findingsTruncated;
+                Object.keys(p.bySeverity || {}).forEach(function (k) { a.bySeverity[k] = (a.bySeverity[k] || 0) + p.bySeverity[k]; });
+                Object.keys(p.byReason || {}).forEach(function (k) { a.byReason[k] = (a.byReason[k] || 0) + p.byReason[k]; });
+                (p.findings || []).forEach(function (f) { map[f.ri] = { severity: f.severity, reason: f.reason }; });
+            },
+            function (err, a) { callback(err, map, a); });
+    }
+
+    app.get('/api/subs/endpoints', function (req, res) {
+        var limit = Math.min(parseInt(req.query.limit, 10) || 100, 500);
+        var scanCap = Math.min(parseInt(req.query.scanCap, 10) || 20000, 200000);
+        with_connection(res, function (conn, done) {
+            audit_map(conn, function (err, map, audit) {
+                if (err) { done(); return res.status(500).json({ error: String((audit && audit.message) || err) }); }
+                db_sql.select_sub_endpoint_rollup(conn, {
+                    limit: limit, scanCap: scanCap,
+                    severityOf: function (ri) { return map[ri] ? map[ri].severity : null; }
+                }, function (err2, r) {
+                    done();
+                    if (err2) { return res.status(500).json({ error: String((r && r.message) || err2) }); }
+                    r.audit = audit;
+                    res.json(r);
+                });
+            });
+        });
+    });
+
+    app.get('/api/subs/sample', function (req, res) {
+        var endpoint = req.query.endpoint;
+        if (!endpoint) { return res.status(400).json({ error: 'endpoint 가 필요하다' }); }
+        var limit = Math.min(parseInt(req.query.limit, 10) || 200, 1000);
+        with_connection(res, function (conn, done) {
+            audit_map(conn, function (err, map, audit) {
+                if (err) { done(); return res.status(500).json({ error: String((audit && audit.message) || err) }); }
+                db_sql.select_subs_by_endpoint(conn, { endpoint: String(endpoint), limit: limit }, function (err2, r) {
+                    done();
+                    if (err2) { return res.status(500).json({ error: String((r && r.message) || err2) }); }
+                    r.rows = r.rows.map(function (row) {
+                        var f = map[row.ri];
+                        row.severity = f ? f.severity : null;
+                        row.reason = f ? f.reason : null;
+                        return row;
+                    });
+                    res.json(r);
+                });
+            });
+        });
+    });
+
+    // ── 일괄 작업 ─────────────────────────────────────────────────────────────
+
+    /** 커넥션을 하나 빌려 fn 에 넘기고 반드시 반납한다. 작업 항목마다 짧게 빌린다. */
+    function borrow(fn) {
+        db.getConnection(function (code, connection) {
+            if (code !== '200') { return fn('database unavailable (' + code + ')', null, function () {}); }
+            var released = false;
+            fn(null, connection, function () {
+                if (released) { return; }
+                released = true;
+                db.release(connection);
+            });
+        });
+    }
+
+    /** 대상 목록을 검증한다. 문제가 있으면 문자열을 돌려준다. */
+    function bad_targets(ris) {
+        if (!Array.isArray(ris) || ris.length === 0) { return '대상이 비어 있다'; }
+        if (ris.length > MAX_TARGETS) { return '한 번에 ' + MAX_TARGETS + '건까지 처리한다'; }
+        for (var i = 0; i < ris.length; i++) {
+            if (typeof ris[i] !== 'string' || ris[i][0] !== '/') {
+                return '리소스 경로가 아니다: ' + String(ris[i]).slice(0, 80);
+            }
+        }
+        return null;
+    }
+
+    /**
+     * 삭제 워커. 지우기 **전에** DB 에서 현재 상태를 다시 본다.
+     *
+     * 목록은 몇 분 전 것일 수 있다. 그 사이 누가 et 를 늘렸는데 낡은 목록을 믿고
+     * 지우면 되돌릴 수 없다. 한 건당 조회 한 번이 늘지만, 삭제는 되돌릴 수 없으므로
+     * 그 값을 치른다.
+     */
+    function make_delete_worker(guard) {
+        return function (ri, cb) {
+            borrow(function (err, conn, done) {
+                if (err) { done(); return cb('failed', err); }
+                db_sql.select_lookup(conn, ri, function (e, rows) {
+                    if (e) { done(); return cb('failed', 'DB 조회 실패: ' + String((rows && rows.message) || e)); }
+                    if (!rows || rows.length === 0) { done(); return cb('skipped', '이미 없음'); }
+                    var row = rows[0];
+                    guard(conn, row, function (reason) {
+                        done();
+                        if (reason) { return cb('skipped', reason); }
+                        cse.remove(ri, function (r) {
+                            if (r.ok) { return cb('ok'); }
+                            if (r.status === 404) { return cb('skipped', '이미 없음'); }
+                            cb('failed', describe(r));
+                        });
+                    });
+                });
+            });
+        };
+    }
+
+    function describe(r) {
+        if (r.error) { return r.error; }
+        var msg = 'HTTP ' + r.status + (r.rsc ? ' rsc=' + r.rsc : '');
+        if (r.status === 403) { msg += ' (권한 없음 — adminOrigin 이 ACP 를 통과하지 못한다)'; }
+        return msg;
+    }
+
+    function require_write(res) {
+        if (!cse) {
+            res.status(503).json({
+                error: 'Mobius 주소가 설정되지 않아 쓰기를 할 수 없다. ' +
+                       'conf.json 에 csebaseport(또는 adminCsePort)를 넣는다.'
+            });
+            return false;
+        }
+        return true;
+    }
+
+    function start_or_conflict(res, spec) {
+        var job = jobs.start(spec);
+        if (!job) {
+            return res.status(409).json({
+                error: '이미 도는 작업이 있다. 끝나거나 취소된 뒤에 시작한다.',
+                active: jobs.active().view()
+            });
+        }
+        res.status(202).json(job.view());
+    }
+
+    /**
+     * 만료 리소스 삭제. 실행 직전 et 를 다시 확인해 아직 만료 상태일 때만 지운다.
+     */
+    app.post('/api/jobs/expired-delete', function (req, res) {
+        if (!require_write(res)) { return; }
+        var ris = req.body && req.body.ris;
+        var bad = bad_targets(ris);
+        if (bad) { return res.status(400).json({ error: bad }); }
+
+        var asOf = now_et();
+        start_or_conflict(res, {
+            kind: 'expired-delete',
+            title: '만료 리소스 삭제 ' + ris.length + '건',
+            note: '삭제 직전 et 를 다시 확인한다. 그사이 만료가 풀린 것은 건너뛴다.',
+            targets: ris,
+            concurrency: 4,
+            worker: make_delete_worker(function (conn, row, next) {
+                // et 가 비었으면 만료 개념이 없는 리소스다. 만료 화면에서 왔더라도
+                // 지금은 아니므로 건드리지 않는다.
+                if (!row.et) { return next('et 가 없음'); }
+                if (row.et >= asOf) { return next('만료가 해제됨 (et=' + row.et + ')'); }
+                next(null);
+            })
+        });
+    });
+
+    /**
+     * 고아 리소스 삭제. 실행 직전 부모가 정말 없는지 다시 확인한다.
+     *
+     * 부모가 다시 생겼다면 그 행은 더 이상 고아가 아니라 살아 있는 데이터다.
+     * 낡은 목록으로 그걸 지우면 안 된다.
+     */
+    app.post('/api/jobs/orphan-delete', function (req, res) {
+        if (!require_write(res)) { return; }
+        var ris = req.body && req.body.ris;
+        var bad = bad_targets(ris);
+        if (bad) { return res.status(400).json({ error: bad }); }
+
+        start_or_conflict(res, {
+            kind: 'orphan-delete',
+            title: '고아 리소스 삭제 ' + ris.length + '건',
+            note: '삭제 직전 부모가 여전히 없는지 다시 확인한다. ' +
+                  '끝난 직후의 목록에는 방금 지운 것의 자식들이 새 고아로 올라온다 — ' +
+                  '그중 일부는 배경 정리가 곧 지울 것들이니, 잠시 뒤 “다시 세기”로 확인한다.',
+            targets: ris,
+            concurrency: 4,
+            worker: make_delete_worker(function (conn, row, next) {
+                if (!row.pi) { return next('부모 경로가 비어 있음 (CSEBase)'); }
+                db_sql.select_lookup(conn, row.pi, function (e, prows) {
+                    if (e) { return next('부모 확인 실패 — 안전을 위해 건너뜀'); }
+                    if (prows && prows.length > 0) { return next('부모가 다시 생김 — 고아가 아님'); }
+                    next(null);
+                });
+            })
+        });
+    });
+
+    /**
+     * 구독 삭제. 구독 화면에서 broken 만 미리 선택되어 온다. 삭제 직전 그 ri 가 여전히
+     * 구독(ty=23)인지 본다 — 목록이 낡았을 수 있다.
+     */
+    app.post('/api/jobs/sub-delete', function (req, res) {
+        if (!require_write(res)) { return; }
+        var ris = req.body && req.body.ris;
+        var bad = bad_targets(ris);
+        if (bad) { return res.status(400).json({ error: bad }); }
+        start_or_conflict(res, {
+            kind: 'sub-delete',
+            title: '구독 삭제 ' + ris.length + '건',
+            note: '삭제 직전 대상이 여전히 구독(ty=23)인지 다시 확인한다.',
+            targets: ris,
+            concurrency: 4,
+            worker: make_delete_worker(function (conn, row, next) {
+                if (String(row.ty) !== '23') { return next('구독이 아님 (ty=' + row.ty + ')'); }
+                next(null);
+            })
+        });
+    });
+
+    /**
+     * et 연장. 절대 시각을 받는다 — "며칠 뒤" 를 서버에서 계산하면 화면이 보여 준
+     * 값과 실제로 들어가는 값이 어긋날 수 있다.
+     */
+    app.post('/api/jobs/expired-extend', function (req, res) {
+        if (!require_write(res)) { return; }
+        var ris = req.body && req.body.ris;
+        var et = req.body && req.body.et;
+        var bad = bad_targets(ris);
+        if (bad) { return res.status(400).json({ error: bad }); }
+        if (typeof et !== 'string' || !/^\d{8}T\d{6}$/.test(et)) {
+            return res.status(400).json({ error: 'et 형식이 YYYYMMDDThhmmss 가 아니다' });
+        }
+        if (et <= now_et()) {
+            return res.status(400).json({ error: '새 et 가 현재보다 과거다 — 연장이 되지 않는다' });
+        }
+
+        start_or_conflict(res, {
+            kind: 'expired-extend',
+            title: 'et 연장 ' + ris.length + '건 → ' + et,
+            note: 'CIN 은 oneM2M 상 수정할 수 없어 건너뛴다.',
+            targets: ris,
+            concurrency: 4,
+            worker: function (ri, cb) {
+                borrow(function (err, conn, done) {
+                    if (err) { done(); return cb('failed', err); }
+                    db_sql.select_lookup(conn, ri, function (e, rows) {
+                        done();
+                        if (e) { return cb('failed', 'DB 조회 실패: ' + String((rows && rows.message) || e)); }
+                        if (!rows || rows.length === 0) { return cb('skipped', '이미 없음'); }
+                        var ty = String(rows[0].ty);
+                        var extendable = ctx.expiry_policy.etExtendableTypes();
+                        if (extendable.indexOf(parseInt(ty, 10)) < 0) {
+                            // 타입 이름의 받침에 따라 조사가 달라지므로 조사를 붙이지 않는다.
+                            var nm = responder.typeRsrc[ty] || ('ty' + ty);
+                            return cb('skipped', nm.toUpperCase() + ' — et 를 수정할 수 없는 타입');
+                        }
+                        cse.setExpiry(ri, 'm2m:' + responder.typeRsrc[ty], et, function (r) {
+                            if (r.ok) { return cb('ok'); }
+                            if (r.status === 404) { return cb('skipped', '이미 없음'); }
+                            cb('failed', describe(r));
+                        });
+                    });
+                });
+            }
+        });
+    });
+
+    app.get('/api/jobs', function (req, res) {
+        res.json({ jobs: jobs.list() });
+    });
+
+    app.get('/api/jobs/:id', function (req, res) {
+        var job = jobs.get(req.params.id);
+        if (!job) { return res.status(404).json({ error: 'no such job' }); }
+        res.json(job.view());
+    });
+
+    app.post('/api/jobs/:id/cancel', function (req, res) {
+        if (!jobs.cancel(req.params.id)) {
+            return res.status(409).json({ error: '취소할 수 없다 — 이미 끝났거나 없는 작업이다' });
+        }
+        res.json(jobs.get(req.params.id).view());
+    });
+};

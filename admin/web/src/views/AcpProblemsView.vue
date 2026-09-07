@@ -1,11 +1,15 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { acpLint, acpLintRefs } from '../api'
 import type { AcpLintPage, AcpRefLintPage } from '../types'
 
-const emit = defineEmits<{ open: [ri: string] }>()
+const router = useRouter()
 
 const lint = ref<AcpLintPage | null>(null)
+const lintMore = ref(false)
+const lintNext = ref<string | null>(null)
+const loadingMore = ref(false)
 const refs = ref<AcpRefLintPage | null>(null)
 const loading = ref(false)
 const error = ref('')
@@ -30,12 +34,43 @@ async function load() {
     // 그 ACP 를 가리키는 쪽이 성한가 — 한쪽만 봐서는 "왜 안 먹는지" 를 못 찾는다.
     const [a, b] = await Promise.all([acpLint({ limit: 200 }), acpLintRefs({ maxRefs: 500 })])
     lint.value = a
+    lintMore.value = a.more
+    lintNext.value = a.nextRi
     refs.value = b
   } catch (e) {
     error.value = e instanceof Error ? e.message : String(e)
   } finally {
     loading.value = false
   }
+}
+
+/** 200개에서 조용히 잘리던 것(목적 문서 §0층 위반 3). 서버의 more/nextRi 를 이어 붙인다. */
+async function loadMoreLint() {
+  if (!lintMore.value || loadingMore.value || !lint.value) return
+  loadingMore.value = true
+  try {
+    const p = await acpLint({ limit: 200, afterRi: lintNext.value })
+    lint.value = {
+      rows: lint.value.rows.concat(p.rows),
+      more: p.more,
+      nextRi: p.nextRi,
+      counts: {
+        error: lint.value.counts.error + p.counts.error,
+        warn: lint.value.counts.warn + p.counts.warn,
+        clean: lint.value.counts.clean + p.counts.clean,
+      },
+    }
+    lintMore.value = p.more
+    lintNext.value = p.nextRi
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : String(e)
+  } finally {
+    loadingMore.value = false
+  }
+}
+
+function open(ri: string) {
+  router.push({ name: 'judge-acp-list', query: { ri } })
 }
 
 onMounted(load)
@@ -63,7 +98,7 @@ onMounted(load)
       <div class="tile">
         <div class="k">정상 ACP</div>
         <div class="v">{{ (lint?.counts.clean ?? 0).toLocaleString() }}</div>
-        <div class="s">본문에 문제가 없습니다</div>
+        <div class="s">본문에 문제가 없습니다 (지금까지 검사한 것 중)</div>
       </div>
       <div class="tile">
         <div class="k">훑은 행</div>
@@ -79,6 +114,7 @@ onMounted(load)
     <div v-if="!loading && !bodyRows.length && !refRows.length" class="empty">
       문제가 발견되지 않았습니다.
       <span v-if="refs?.capped">(훑기 상한까지는 — 뒤에 더 있을 수 있습니다)</span>
+      <span v-if="lintMore">(지금까지 검사한 것 중입니다 — “더 보기” 로 이어서 검사합니다)</span>
     </div>
 
     <template v-if="bodyRows.length">
@@ -95,7 +131,7 @@ onMounted(load)
           <tbody>
             <tr v-for="r in bodyRows" :key="r.ri" :class="worst(r.problems)">
               <td class="mono path">
-                <button class="linkish" @click="emit('open', r.ri)">{{ r.ri }}</button>
+                <button class="linkish" @click="open(r.ri)">{{ r.ri }}</button>
               </td>
               <td>
                 <div v-for="(p, i) in r.problems" :key="i" class="prob">
@@ -112,6 +148,16 @@ onMounted(load)
         </table>
       </div>
     </template>
+
+    <!-- 지금까지 읽은 쪽에 문제 행이 하나도 없어도(bodyRows 가 비어도) lint 를
+         읽었으면 항상 그린다 — 안 그러면 뒤에 문제 ACP 가 남아 있어도 "없다"
+         로 보인다. -->
+    <div v-if="lint" class="more">
+      <button v-if="lintMore" :disabled="loadingMore" @click="loadMoreLint">
+        {{ loadingMore ? '불러오는 중…' : '더 보기 (다음 200건)' }}
+      </button>
+      <span class="muted">{{ lint?.rows.length ?? 0 }}건 검사<template v-if="lintMore"> · 더 있음</template></span>
+    </div>
 
     <template v-if="refRows.length">
       <h3>ACP 를 가리키는 쪽</h3>
@@ -243,4 +289,5 @@ tr.warn td:first-child { box-shadow: inset 3px 0 0 var(--warn); }
 
 .footer { display: flex; align-items: center; gap: 1rem; padding: 1.2rem 0; }
 .muted { color: var(--muted); font-size: 0.92rem; }
+.more { display: flex; align-items: center; gap: 1rem; padding: 0.6rem 0; }
 </style>

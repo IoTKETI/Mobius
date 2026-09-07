@@ -45,7 +45,8 @@ test('ty_list 에 17 / 38 / 39 가 없다', function () {
 
 test('속성표에 req / tm / tr 이 없다', function () {
     // 표만 남으면 "만들 수 있는 타입" 으로 읽힌다.
-    const s = src('mobius/resource.js');
+    // 목록은 2026-09-06 에 attr_lists.js 로 옮겨졌다 — 두 파일을 이어 붙여서 본다.
+    const s = src('mobius/resource.js') + '\n' + src('mobius/attr_lists.js');
     for (const nm of GONE_NM) {
         for (const tbl of ['create_np_attr_list', 'create_m_attr_list', 'create_opt_attr_list',
                            'update_np_attr_list', 'update_m_attr_list', 'update_opt_attr_list']) {
