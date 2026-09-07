@@ -19,91 +19,22 @@ var url = require('url');
 var http = require('http');
 var https = require('https');
 var coap = require('coap');
-var js2xmlparser = require('js2xmlparser');
-var xmlbuilder = require('xmlbuilder');
 var fs = require('fs');
+// DB facade.
+var db = require('./db');
 var db_sql = require('./sql_action');
-var cbor = require("cbor");
 var merge = require('merge');
 
 var responder = require('./responder');
+// Single source of truth for the root-key prefix rule; the nev.rep key below is built with it.
+var shape = require('./shape');
+var poa_util = require('./poa');
+var sub_entry = require('./sub_entry');
+// Notification routing reads the sub table: sub_source picks the rows, nu_resolve turns ID-form nu entries into addresses. Neither loads sgn_man, so tests can load them.
+var sub_source = require('./sub_source');
+var nu_resolve = require('./nu_resolve');
 
 var sgn_man = require('./sgn_man');
-
-function make_xml_noti_message(pc, xm2mri, callback) {
-    try {
-        var noti_message = {};
-        noti_message['m2m:rqp'] = {};
-        noti_message['m2m:rqp'].op = 5; // notification
-        //noti_message['m2m:rqp'].net = pc['m2m:sgn'].net;
-        //noti_message['m2m:rqp'].to = pc['m2m:sgn'].sur;
-        noti_message['m2m:rqp'].fr = usecseid;
-        noti_message['m2m:rqp'].rqi = xm2mri;
-        noti_message['m2m:rqp'].pc = pc;
-
-        if(noti_message['m2m:rqp'].pc.hasOwnProperty('m2m:sgn')) {
-            if(noti_message['m2m:rqp'].pc['m2m:sgn'].hasOwnProperty('nev')) {
-                for(var prop in noti_message['m2m:rqp'].pc['m2m:sgn'].nev.rep) {
-                    if (noti_message['m2m:rqp'].pc['m2m:sgn'].nev.rep.hasOwnProperty(prop)) {
-                        for(var prop2 in noti_message['m2m:rqp'].pc['m2m:sgn'].nev.rep[prop]) {
-                            if (noti_message['m2m:rqp'].pc['m2m:sgn'].nev.rep[prop].hasOwnProperty(prop2)) {
-                                if(prop2 == 'rn') {
-                                    noti_message['m2m:rqp'].pc['m2m:sgn'].nev.rep[prop]['@'] = {rn : noti_message['m2m:rqp'].pc['m2m:sgn'].nev.rep[prop][prop2]};
-                                    delete noti_message['m2m:rqp'].pc['m2m:sgn'].nev.rep[prop][prop2];
-                                    break;
-                                }
-                                else {
-                                    for (var prop3 in noti_message['m2m:rqp'].pc['m2m:sgn'].nev.rep[prop][prop2]) {
-                                        if (noti_message['m2m:rqp'].pc['m2m:sgn'].nev.rep[prop][prop2].hasOwnProperty(prop3)) {
-                                            if (prop3 == 'rn') {
-                                                noti_message['m2m:rqp'].pc['m2m:sgn'].nev.rep[prop][prop2]['@'] = {rn: noti_message['m2m:rqp'].pc['m2m:sgn'].nev.rep[prop][prop2][prop3]};
-                                                delete noti_message['m2m:rqp'].pc['m2m:sgn'].nev.rep[prop][prop2][prop3];
-                                                break;
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        noti_message['m2m:rqp']['@'] = {
-            "xmlns:m2m": "http://www.onem2m.org/xml/protocols",
-            "xmlns:xsi": "http://www.w3.org/2001/XMLSchema-instance"
-        };
-
-        var xmlString = js2xmlparser.parse("m2m:rqp", noti_message['m2m:rqp']);
-
-        callback(xmlString);
-    }
-    catch (e) {
-        console.log('[make_xml_noti_message] xml parsing error');
-        callback(e.message);
-        return "";
-    }
-}
-
-function make_cbor_noti_message(pc, xm2mri) {
-    try {
-        var noti_message = {};
-        noti_message['m2m:rqp'] = {};
-        noti_message['m2m:rqp'].op = 5; // notification
-        //noti_message['m2m:rqp'].net = pc['m2m:sgn'].net;
-        //noti_message['m2m:rqp'].to = pc['m2m:sgn'].sur;
-        noti_message['m2m:rqp'].fr = usecseid;
-        noti_message['m2m:rqp'].rqi = xm2mri;
-
-        noti_message['m2m:rqp'].pc = pc;
-
-        return cbor.encode(noti_message['m2m:rqp']).toString('hex');
-    }
-    catch (e) {
-        console.log('[make_cbor_noti_message] cbor parsing error');
-    }
-}
 
 function make_json_noti_message(nu, pc, xm2mri, short_flag) {
     try {
@@ -116,7 +47,6 @@ function make_json_noti_message(nu, pc, xm2mri, short_flag) {
 
         }
         else {
-            //noti_message['m2m:rqp'].net = pc['m2m:sgn'].net;
             noti_message['m2m:rqp'].to = nu;
             noti_message['m2m:rqp'].fr = usecseid;
         }
@@ -133,56 +63,25 @@ function make_json_noti_message(nu, pc, xm2mri, short_flag) {
     }
 }
 
-function make_body_string_for_noti(protocol, nu, node, sub_bodytype, xm2mri, short_flag, callback) {
-    if (sub_bodytype == 'xml') {
-        if (protocol == 'http:' || protocol == 'https:' || protocol == 'coap:') {
-            try {
-                var bodyString = responder.convertXmlSgn(Object.keys(node)[0], node[Object.keys(node)[0]]);
-            }
-            catch (e) {
-                bodyString = "";
-            }
-            callback(bodyString);
-        }
-        else if (protocol == 'ws:' || protocol == 'mqtt:') {
-            make_xml_noti_message(node, xm2mri, function (bodyString) {
-                callback(bodyString);
-            });
+/** Builds the notification body string. Always JSON. */
+function make_body_string_for_noti(protocol, nu, node, xm2mri, short_flag, callback) {
+    // http / https / coap carry the notification body as is.
+    if (protocol === 'http:' || protocol === 'https:' || protocol === 'coap:') {
+        callback(JSON.stringify(node));
+        return;
+    }
 
-        }
-        else {
-            callback('');
-        }
+    // ws / mqtt wrap it in a oneM2M request primitive (m2m:rqp).
+    if (protocol === 'ws:' || protocol === 'mqtt:') {
+        callback(make_json_noti_message(nu, node, xm2mri, short_flag));
+        return;
     }
-    else if (sub_bodytype == 'cbor') {
-        if (protocol == 'http:' || protocol == 'https:' || protocol == 'coap:') {
-            bodyString = cbor.encode(node).toString('hex');
-            callback(bodyString);
-        }
-        else if (protocol == 'ws:' || protocol == 'mqtt:') {
-            bodyString = make_cbor_noti_message(node, xm2mri);
-            callback(bodyString);
-        }
-        else {
-            callback('');
-        }
-    }
-    else { // defaultbodytype == 'json')
-        if (protocol == 'http:' || protocol == 'https:' || protocol == 'coap:') {
-            bodyString = JSON.stringify(node);
-            callback(bodyString);
-        }
-        else if (protocol == 'ws:' || protocol == 'mqtt:') {
-            bodyString = make_json_noti_message(nu, node, xm2mri, short_flag);
-            callback(bodyString);
-        }
-        else {
-            callback('');
-        }
-    }
+
+    // Unknown scheme: an empty body makes the caller skip the send and log it.
+    callback('');
 }
 
-function sgn_action_send(nu_arr, req_count, sub_bodytype, node, short_flag, check_value, ss_cr, ss_ri, xm2mri, exc, parentObj, callback) {
+function sgn_action_send(nu_arr, req_count, node, short_flag, check_value, ss_cr, ss_ri, xm2mri, exc, parentObj, callback) {
     if(nu_arr.length <= req_count) {
         callback('200');
         return;
@@ -190,41 +89,41 @@ function sgn_action_send(nu_arr, req_count, sub_bodytype, node, short_flag, chec
 
     var nu = nu_arr[req_count];
     var sub_nu = url.parse(nu);
+
+    // Each nu uses its own copy of the options; options of one nu must not leak into the next.
+    var this_node = node;
+    var this_short = short_flag;
 
     if (sub_nu.query != null) {
         var sub_nu_query_arr = sub_nu.query.split('&');
         for (var prop in sub_nu_query_arr) {
             if (sub_nu_query_arr.hasOwnProperty(prop)) {
-                if (sub_nu_query_arr[prop].split('=')[0] == 'ct') {
-                    if (sub_nu_query_arr[prop].split('=')[1] == 'xml') {
-                        sub_bodytype = 'xml';
-                    }
-                    else {
-                        sub_bodytype = 'json';
-                    }
-                }
-                else if (sub_nu_query_arr[prop].split('=')[0] == 'rcn') {
+                // ct= is no longer read; notifications are always JSON.
+                if (sub_nu_query_arr[prop].split('=')[0] == 'rcn') {
                     if (sub_nu_query_arr[prop].split('=')[1] == '9') {
-                        for (var index in node['m2m:sgn'].nev.rep) {
-                            if (node['m2m:sgn'].nev.rep.hasOwnProperty(index)) {
-                                if (node['m2m:sgn'].nev.rep[index].cr) {
-                                    delete node['m2m:sgn'].nev.rep[index].cr;
+                        // Clone only here; most nu have no options.
+                        this_node = JSON.parse(JSON.stringify(node));
+
+                        for (var index in this_node['m2m:sgn'].nev.rep) {
+                            if (this_node['m2m:sgn'].nev.rep.hasOwnProperty(index)) {
+                                if (this_node['m2m:sgn'].nev.rep[index].cr) {
+                                    delete this_node['m2m:sgn'].nev.rep[index].cr;
                                 }
 
-                                if (node['m2m:sgn'].nev.rep[index].st) {
-                                    delete node['m2m:sgn'].nev.rep[index].st;
+                                if (this_node['m2m:sgn'].nev.rep[index].st) {
+                                    delete this_node['m2m:sgn'].nev.rep[index].st;
                                 }
 
-                                delete node['m2m:sgn'].nev.rep[index].ct;
-                                delete node['m2m:sgn'].nev.rep[index].lt;
-                                delete node['m2m:sgn'].nev.rep[index].et;
-                                delete node['m2m:sgn'].nev.rep[index].ri;
-                                delete node['m2m:sgn'].nev.rep[index].pi;
-                                delete node['m2m:sgn'].nev.rep[index].rn;
-                                delete node['m2m:sgn'].nev.rep[index].ty;
-                                delete node['m2m:sgn'].nev.rep[index].fr;
+                                delete this_node['m2m:sgn'].nev.rep[index].ct;
+                                delete this_node['m2m:sgn'].nev.rep[index].lt;
+                                delete this_node['m2m:sgn'].nev.rep[index].et;
+                                delete this_node['m2m:sgn'].nev.rep[index].ri;
+                                delete this_node['m2m:sgn'].nev.rep[index].pi;
+                                delete this_node['m2m:sgn'].nev.rep[index].rn;
+                                delete this_node['m2m:sgn'].nev.rep[index].ty;
+                                delete this_node['m2m:sgn'].nev.rep[index].fr;
 
-                                short_flag = 1;
+                                this_short = 1;
                             }
                         }
                     }
@@ -233,122 +132,55 @@ function sgn_action_send(nu_arr, req_count, sub_bodytype, node, short_flag, chec
         }
     }
 
+    // Applies to every receiver regardless of nu, and is idempotent, so the shared object is modified in place.
     if(check_value == 128) {
-        node['m2m:sgn'].sud = true;
-        delete node['m2m:sgn'].nev;
-    }
-    else if(check_value == 256) {
-        if(!node['m2m:sgn'].hasOwnProperty('vrq')) {
-            node['m2m:sgn'].vrq = true;
-        }
-        node['m2m:sgn'].vrq = true;
-        var temp = node['m2m:sgn'].sur;
-        delete node['m2m:sgn'].sur;
-        node['m2m:sgn'].sur = temp;
-        node['m2m:sgn'].cr = ss_cr;
-        delete node['m2m:sgn'].nev;
+        this_node['m2m:sgn'].sud = true;
+        delete this_node['m2m:sgn'].nev;
     }
 
-    if(useCert !== 'enable') {
-        node['m2m:sgn'].rvi = uservi;
-    }
+    this_node['m2m:sgn'].rvi = uservi;
 
-    make_body_string_for_noti(sub_nu.protocol, nu, node, sub_bodytype, xm2mri, short_flag, function (bodyString) {
+    make_body_string_for_noti(sub_nu.protocol, nu, this_node, xm2mri, this_short, function (bodyString) {
         if (bodyString === '') { // parse error
-            console.log('can not send notification since error of converting json to xml');
+            // The subscription ri is the only handle for this log line.
+            console.error('[noti] fail - sub=' + (ss_ri || '?') + ' nu=' + nu +
+                          ' (본문을 만들지 못했다)');
         }
         else {
-            setTimeout(function (nu, sub_bodytype, xm2mri, bodyString) {
-                sgn_man.post(nu, sub_bodytype, xm2mri, bodyString);
-            }, parseInt(1 + Math.random() * 10), nu, sub_bodytype, xm2mri, bodyString);
+            // Send immediately; within one worker the nu order and event order are the send order.
+            sgn_man.post(nu, xm2mri, bodyString, ss_ri);
         }
 
-        sgn_action_send(nu_arr, ++req_count, sub_bodytype, node, short_flag, check_value, ss_cr, ss_ri, xm2mri, exc, parentObj, function (code) {
+        // Pass the original values to the next nu.
+        sgn_action_send(nu_arr, ++req_count, node, short_flag, check_value, ss_cr, ss_ri, xm2mri, exc, parentObj, function (code) {
             callback(code);
         });
     });
 }
 
-function get_nu_arr(connection, nu_arr, req_count, callback) {
-    if(nu_arr.length <= req_count) {
+// rows are the sub rows returned by sub_source.rows_for.
+function sgn_action(connection, rootnm, check_value, rows, req_count, noti_Obj, parentObj, callback) {
+    if(rows.length <= req_count) {
         callback('200');
         return;
     }
 
-    var nu = nu_arr[req_count];
-    var sub_nu = url.parse(nu);
-
-    if(sub_nu.protocol == null) { // ID format
-        var absolute_url = nu;
-        absolute_url = absolute_url.replace(usespid + usecseid + '/', '/');
-        absolute_url = absolute_url.replace(usecseid + '/', '/');
-
-        if(absolute_url.charAt(0) != '/') {
-            absolute_url = '/' + absolute_url;
-        }
-
-        var absolute_url_arr = absolute_url.split('/');
-
-        db_sql.get_ri_sri(connection, absolute_url_arr[1].split('?')[0], function (err, results) {
-            if (err) {
-                console.log('[sgn_action] database error (can not get resourceID from database)');
-                callback('200');
-            }
-            else {
-                absolute_url = (results.length == 0) ? absolute_url : ((results[0].hasOwnProperty('ri')) ? absolute_url.replace('/' + absolute_url_arr[1], results[0].ri) : absolute_url);
-
-                var sri = absolute_url_arr[1].split('?')[0];
-                var ri = absolute_url.split('?')[0];
-                db_sql.select_resource_from_url(connection, ri, sri, function (err, result_Obj) {
-                    if (!err) {
-                        if (result_Obj.length == 1) {
-                            if (result_Obj[0].poa != null || result_Obj[0].poa != '') {
-                                nu_arr.pop();
-                                var poa_arr = JSON.parse(result_Obj[0].poa);
-                                for (var i = 0; i < poa_arr.length; i++) {
-                                    sub_nu = url.parse(poa_arr[i]);
-                                    if(sub_nu.protocol == null) {
-                                        nu_arr.push('http://localhost:7579' + absolute_url);
-                                    }
-                                    else {
-                                        if(poa_arr[i].charAt(poa_arr[i].length-1) == '/') {
-                                            poa_arr[i] = poa_arr[i].slice(0, -1);
-                                        }
-                                        nu_arr.push(poa_arr[i]);
-                                    }
-                                }
-
-                                get_nu_arr(connection, nu_arr, ++req_count, function (code) {
-                                    callback(code);
-                                });
-                            }
-                        }
-                    }
-                    else {
-                        console.log('[sgn_action] database error (nu resource)');
-                        callback('200');
-                    }
-                });
-            }
+    var results_ss = sub_entry.read(rows[req_count]);
+    if (!results_ss) {
+        var broken = rows[req_count];
+        console.error('[sgn] 구독 행을 읽을 수 없어 건너뛴다 — 부모=' +
+                      ((parentObj && parentObj.ri) || '?') + ' 항목 ' + req_count +
+                      ' sub=' + ((broken && broken.ri) || '?'));
+        sgn_action(connection, rootnm, check_value, rows, ++req_count, noti_Obj, parentObj, function (code) {
+            callback(code);
         });
-    }
-    else {
-        callback('200');
-    }
-}
-
-function sgn_action(connection, rootnm, check_value, subl, req_count, noti_Obj, sub_bodytype, parentObj, callback) {
-    if(subl.length <= req_count) {
-        callback('200');
         return;
     }
 
-    var results_ss = subl[req_count];
     var notiObj = merge({}, noti_Obj);
 
     var nct = results_ss.nct;
-    var enc_Obj = results_ss.enc;
-    var net_arr = JSON.parse(JSON.stringify(enc_Obj.net));
+    var net_arr = JSON.parse(JSON.stringify(results_ss.net));
     var nu_arr = JSON.parse(JSON.stringify(results_ss.nu));
 
     var xm2mri = require('shortid').generate();
@@ -370,44 +202,8 @@ function sgn_action(connection, rootnm, check_value, subl, req_count, noti_Obj, 
     node['m2m:sgn'].nev = {};
     node['m2m:sgn'].nev.rep = {};
 
-    if(rootnm == 'mgo') {
-        node['m2m:sgn'].nev.rep['m2m:' + responder.mgoType[notiObj.mgd]] = JSON.parse(JSON.stringify(notiObj));
-    }
-    else if(rootnm == 'fcnt') {
-        if (notiObj.cnd.includes('org.onem2m.home.device.')) {
-            node['m2m:sgn'].nev.rep['m2m:' + rootnm] = JSON.parse(JSON.stringify(notiObj));
-        }
-        else if (notiObj.cnd == 'org.onem2m.home.moduleclass.doorlock') {
-            node['m2m:sgn'].nev.rep['hd:' + rootnm.replace('fcnt', 'dooLk')] = JSON.parse(JSON.stringify(notiObj));
-        }
-        else if (notiObj.cnd == 'org.onem2m.home.moduleclass.battery') {
-            node['m2m:sgn'].nev.rep['hd:' + rootnm.replace('fcnt', 'bat')] = JSON.parse(JSON.stringify(notiObj));
-        }
-        else if (notiObj.cnd == 'org.onem2m.home.moduleclass.temperature') {
-            node['m2m:sgn'].nev.rep['hd:' + rootnm.replace('fcnt', 'tempe')] = JSON.parse(JSON.stringify(notiObj));
-        }
-        else if (notiObj.cnd == 'org.onem2m.home.moduleclass.binarySwitch') {
-            node['m2m:sgn'].nev.rep['hd:' + rootnm.replace('fcnt', 'binSh')] = JSON.parse(JSON.stringify(notiObj));
-        }
-        else if (notiObj.cnd == 'org.onem2m.home.moduleclass.faultDetection') {
-            node['m2m:sgn'].nev.rep['hd:' + rootnm.replace('fcnt', 'fauDn')] = JSON.parse(JSON.stringify(notiObj));
-        }
-        else if (notiObj.cnd == 'org.onem2m.home.moduleclass.colourSaturation') {
-            node['m2m:sgn'].nev.rep['hd:' + rootnm.replace('fcnt', 'colSn')] = JSON.parse(JSON.stringify(notiObj));
-        }
-        else if (notiObj.cnd == 'org.onem2m.home.moduleclass.colour') {
-            node['m2m:sgn'].nev.rep['hd:' + rootnm.replace('fcnt', 'color')] = JSON.parse(JSON.stringify(notiObj));
-        }
-        else if (notiObj.cnd == 'org.onem2m.home.moduleclass.brightness') {
-            node['m2m:sgn'].nev.rep['hd:' + rootnm.replace('fcnt', 'brigs')] = JSON.parse(JSON.stringify(notiObj));
-        }
-    }
-    else if(rootnm.includes('hd_')) {
-        node['m2m:sgn'].nev.rep['hd:' + rootnm.replace('hd_', '')] = JSON.parse(JSON.stringify(notiObj));
-    }
-    else {
-        node['m2m:sgn'].nev.rep['m2m:' + rootnm] = JSON.parse(JSON.stringify(notiObj));
-    }
+    // The nev.rep key is built by shape.root_key, the same rule the response body uses.
+    node['m2m:sgn'].nev.rep[shape.root_key(rootnm, notiObj)] = JSON.parse(JSON.stringify(notiObj));
 
     responder.typeCheckforJson(node['m2m:sgn'].nev.rep);
 
@@ -415,38 +211,32 @@ function sgn_action(connection, rootnm, check_value, subl, req_count, noti_Obj, 
 
     var matched = false;
     for (var j = 0; j < net_arr.length; j++) {
-        if (net_arr[j] == check_value || check_value == 256 || check_value == 128) { // 1 : Update_of_Subscribed_Resource, 3 : Create_of_Direct_Child_Resource, 4 : Delete_of_Direct_Child_Resource
+        if (net_arr[j] == check_value || check_value == 128) { // 1: Update_of_Subscribed_Resource, 3: Create_of_Direct_Child_Resource, 4: Delete_of_Direct_Child_Resource, 128: subscription deleted
             matched = true;
             node['m2m:sgn'].nev.net = parseInt(net_arr[j].toString());
 
-            get_nu_arr(connection, nu_arr, 0, function (code) {
-                if(code == '200') {
-                    if (nct == 2 || nct == 1) {
-                        setTimeout(function (nu_arr, count, sub_bodytype, node, short_flag, check_value, cr, ri, xm2mri, exc, parentObj) {
-                            sgn_action_send(nu_arr, count, sub_bodytype, node, short_flag, check_value, results_ss.cr, results_ss.ri, xm2mri, results_ss.exc, parentObj, function (code) {
-                                console.log('[sgn_action_send] - ' + code);
-                            });
-                        }, parseInt(1 + Math.random() * 10), nu_arr, 0, sub_bodytype, node, short_flag, check_value, results_ss.cr, results_ss.ri, xm2mri, results_ss.exc, parentObj);
-
-                        sgn_action(connection, rootnm, check_value, subl, ++req_count, noti_Obj, sub_bodytype, parentObj, function (code) {
-                            callback(code);
-                        });
-                    }
-                    else {
-                        console.log('nct except 2 (All Attribute) do not support');
-                        sgn_action(connection, rootnm, check_value, subl, ++req_count, noti_Obj, sub_bodytype, parentObj, function (code) {
-                            callback(code);
-                        });
-                    }
+            // ID-form nu entries are resolved in one batch (three queries). resolve always calls back; unresolved entries are dropped with a log line.
+            nu_resolve.resolve(connection, nu_arr, results_ss.ri, function (resolved) {
+                if (nct == 2 || nct == 1) {
+                    // Send without delay; within one worker the event order is the send order.
+                    sgn_action_send(resolved, 0, node, short_flag, check_value, results_ss.cr, results_ss.ri, xm2mri, results_ss.exc, parentObj, function (code) {
+                        console.log('[sgn_action_send] - ' + code);
+                    });
                 }
+                else {
+                    console.log('nct except 2 (All Attribute) do not support');
+                }
+                sgn_action(connection, rootnm, check_value, rows, ++req_count, noti_Obj, parentObj, function (code) {
+                    callback(code);
+                });
             });
             break;
         }
     }
 
-    // net_arr에 check_value가 없는 경우에도 다음 subl로 진행
+    // check_value not in net_arr: continue with the next subscription
     if (!matched) {
-        sgn_action(connection, rootnm, check_value, subl, ++req_count, noti_Obj, sub_bodytype, parentObj, function (code) {
+        sgn_action(connection, rootnm, check_value, rows, ++req_count, noti_Obj, parentObj, function (code) {
             callback(code);
         });
     }
@@ -467,28 +257,46 @@ exports.check = function(request, notiObj, check_value, callback) {
     var noti_Str = JSON.stringify(notiObj);
     var noti_Obj = JSON.parse(noti_Str);
 
-    var parentObj = JSON.parse(JSON.stringify(request.targetObject))[Object.keys(request.targetObject)[0]];
-    var subl = request.targetObject[Object.keys(request.targetObject)[0]].subl;
+    // The subscribed resource itself: the POST target for create, the PUT target for update, and the parent set by delete_action for delete. sgn_action only reads parentObj, so it is passed without cloning.
+    var target_root = Object.keys(request.targetObject)[0];
+    var parentObj = request.targetObject[target_root];
 
-
-    console.log('###########################################', parentObj.ri, subl);
-
-
-    if(check_value == 256 || check_value == 128) { // verification
-        sgn_action(request.db_connection, rootnm, check_value, subl, 0, noti_Obj, request.usebodytype, parentObj, function (code) {
-            callback(code);
-        });
-    }
-    else {
+    if(check_value != 128) {
         var noti_ri = noti_Obj.ri;
         noti_Obj.ri = noti_Obj.sri;
         delete noti_Obj.sri;
         noti_Obj.pi = noti_Obj.spi;
         delete noti_Obj.spi;
-
-        sgn_action(request.db_connection, rootnm, check_value, subl, 0, noti_Obj, request.usebodytype, parentObj, function (code) {
-            callback(code);
-        });
     }
+
+    // Never use the request's connection: the callers pass an empty callback and respond immediately, so the request connection may already be released and reused by another request. The sub table is read on a connection of our own.
+    with_connection(function (connection, release) {
+        sub_source.rows_for(connection, parentObj, notiObj, check_value, function (rows) {
+            sgn_action(connection, rootnm, check_value, rows, 0, noti_Obj, parentObj, function (code) {
+                release();
+                callback(code);
+            });
+        });
+    }, callback);
 };
+
+// Leases a connection of our own and hands it to body; release is idempotent. When the pool is exhausted the notification is skipped and logged.
+function with_connection(body, on_giveup) {
+    db.getConnection(function (code, connection) {
+        if (code !== '200') {
+            // Notifications are fire-and-forget; no waiting or retrying when the pool is exhausted.
+            console.error('[sgn] 커넥션을 못 빌려 알림의 ID 해석을 건너뛴다 (풀 고갈?)');
+            on_giveup('200');
+            return;
+        }
+
+        var released = false;
+        body(connection, function () {
+            if (released) { return; }
+            released = true;
+            // Release through the facade, not the handle: a backend's handle may have no release() of its own.
+            db.release(connection);
+        });
+    });
+}
 
