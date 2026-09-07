@@ -39,9 +39,20 @@ const runner = useJobRunner(() => { void loadLast() })
 const starting = ref(false)
 const confirming = ref(false)
 
-async function scan() {
+/**
+ * resume 이면 마지막 결과가 멈춘 자리에서 이어 훑는다.
+ *
+ * 상한은 **한 번에 읽을 양**이다. 배포 lookup 은 5,740만 행이라 한 번으로는 앞부분밖에
+ * 못 본다 — 예전에는 다시 눌러도 같은 앞부분을 또 읽어 나머지를 영영 못 봤다.
+ */
+/** 두 단계가 읽은 행의 합. 작업 패널의 '훑은 행' 과 같은 수여야 한다 — 다르면 화면이 두 말을 한다. */
+const scannedRows = computed(() =>
+  result.value ? result.value.scanned + result.value.lookupOnlyCin.scanned : 0,
+)
+
+async function scan(resume = false) {
   starting.value = true
-  await runner.start(() => startOrphanScan({ scanCap: scanCap.value, sampleCap: 1000 }))
+  await runner.start(() => startOrphanScan({ scanCap: scanCap.value, sampleCap: 1000, resume }))
   starting.value = false
 }
 
@@ -103,9 +114,18 @@ onMounted(async () => { void runner.attach(); await loadLast() })
           <option :value="1000000">100만 행</option>
         </select>
       </label>
-      <button class="primary" :disabled="starting" @click="scan">탐지 시작</button>
-      <span class="muted" v-if="result">마지막 탐지 {{ when(result.endedAt) }} · {{ result.scanned.toLocaleString() }}행 훑음
-        <span v-if="result.scanCapped" class="warntext">· 상한에서 멈춤</span>
+      <!-- 이어서 훑기는 멈춘 자리가 남아 있을 때만 나온다. 상한은 한 번에 읽을 양이라
+           표가 상한보다 크면 이 버튼 없이는 앞부분만 되풀이해 보게 된다. -->
+      <button v-if="result?.resumable" class="primary" :disabled="starting" @click="scan(true)">
+        이어서 훑기
+      </button>
+      <button :class="{ primary: !result?.resumable }" :disabled="starting" @click="scan(false)">
+        {{ result ? '처음부터 다시' : '탐지 시작' }}
+      </button>
+      <span class="muted" v-if="result">마지막 탐지 {{ when(result.endedAt) }} · 누적 {{ scannedRows.toLocaleString() }}행 훑음<template v-if="result.runs > 1"> ({{ result.runs }}회)</template>
+        <span v-if="result.complete" class="oktext">· 표 전체를 다 봤습니다</span>
+        <span v-else-if="result.resumable" class="warntext">· 아직 남았습니다</span>
+        <span v-else-if="result.scanCapped" class="warntext">· 상한에서 멈춤</span>
         <span v-if="result.cancelled" class="warntext">· 취소됨</span>
       </span>
     </div>
@@ -307,6 +327,7 @@ h3 { margin: 1.8rem 0 0.2rem; font-size: 1.15rem; color: var(--text-strong); }
 .actionbar.top { background: var(--panel); border-color: var(--border); }
 .actionbar .primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
 .warntext { color: var(--warn); font-weight: 600; }
+.oktext { color: var(--ok); font-weight: 600; }
 .table-wrap.short { max-height: 36vh; }
 .empty.small { padding: 1rem 0; font-size: 0.95rem; }
 .days-pick { font-size: 0.92rem; color: var(--muted); display: flex; align-items: center; gap: 0.4rem; }

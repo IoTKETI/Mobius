@@ -240,7 +240,9 @@ exports.install = function (app, ctx) {
 
     app.post('/api/jobs/orphan-scan', function (req, res) {
         var b = req.body || {};
-        var job = orphan_scan.start(ctx, { scanCap: b.scanCap, sampleCap: b.sampleCap });
+        // resume:true 면 마지막 결과의 커서에서 이어받는다. 없거나 이어갈 것이 없으면
+        // 처음부터 훑는다 — 화면이 '이어서 훑기' 를 언제 보여 줄지는 result.resumable 이 정한다.
+        var job = orphan_scan.start(ctx, { scanCap: b.scanCap, sampleCap: b.sampleCap, resume: !!b.resume });
         if (!job) {
             return res.status(409).json({ error: '이미 도는 작업이 있다. 끝나거나 취소된 뒤에 시작한다.', active: jobs.active().view() });
         }

@@ -132,7 +132,8 @@ export function expiredPage(opts: {
   return get<ExpiredPage>(`/api/expired?${q.toString()}`)
 }
 
-export function startOrphanScan(opts: { scanCap?: number; sampleCap?: number } = {}) {
+/** resume:true 면 마지막 결과가 멈춘 자리에서 이어 훑는다(이어갈 것이 없으면 처음부터). */
+export function startOrphanScan(opts: { scanCap?: number; sampleCap?: number; resume?: boolean } = {}) {
   return post<Job>('/api/jobs/orphan-scan', opts)
 }
 export function orphanLast() {

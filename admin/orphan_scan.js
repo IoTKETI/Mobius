@@ -26,6 +26,15 @@
 var crypto = require('crypto');
 var data_dir = require('./data_dir');
 
+/** 마지막 탐지 결과(깨진 파일은 건너뛴다). 이어서 훑기가 커서를 여기서 가져온다. */
+function last_result(ctx) {
+    var list = data_dir.listJson(ctx.dataDir, 'orphans').filter(function (x) { return !x.broken; });
+    if (!list.length) { return null; }
+    var r = data_dir.readJson(list[0].path);
+    return (r && r.resume) ? r : null;
+}
+exports.lastResult = last_result;
+
 exports.start = function (ctx, opts) {
     var o = opts || {};
     var scanCap = Math.min(parseInt(o.scanCap, 10) || 200000, 2000000);
@@ -33,16 +42,55 @@ exports.start = function (ctx, opts) {
     var sampleCap = Math.min(parseInt(o.sampleCap, 10) || 1000, 5000);
     var chunks = Math.ceil(scanCap / chunk);
 
+    /*
+     * 이어서 훑기.
+     *
+     * 예전에는 누를 때마다 표의 맨 앞부터 다시 읽었다. 로컬(2,780행)에서는 한 번에 끝까지
+     * 읽으니 티가 안 났지만, 배포는 lookup 이 5,740만 행이라 상한 20만 행이면 **앞의 0.35%
+     * 만 보고 멈추고, 다시 눌러도 또 같은 0.35% 를 본다.** 나머지는 영영 못 본다
+     * (사용자 지적 2026-09-07).
+     *
+     * 그래서 멈춘 자리(단계별 커서)를 결과 파일에 남기고, 다음 실행이 이어받는다. 표본과
+     * 훑은 행 수도 물려받아 누적한다. 상한은 **이번 실행이 더 읽을 양**이다 — 누적이 아니다.
+     */
+    // 이어받을 수 있다고 **앞의 결과가 스스로 말할 때만** 이어받는다. 끝까지 다 본 결과를
+    // 이어받으면 누적 카운터와 표본이 두 번 쌓여 표를 두 번 센 것처럼 보인다.
+    var prevRaw = o.resume ? last_result(ctx) : null;
+    var prev = (prevRaw && prevRaw.resumable) ? prevRaw : null;
+    var seed = prev || {
+        scanned: 0, orphans: [], sampleTruncated: false,
+        lookupOnlyCin: { rows: [], scanned: 0, sampleTruncated: false },
+        resume: { s1: { cursor: null, done: false }, s2: { cursor: null, done: false } },
+        runs: 0
+    };
+
     var runId = new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, 15) + '-' + crypto.randomBytes(2).toString('hex');
     var result = {
         runId: runId, startedAt: new Date().toISOString(), endedAt: null, cancelled: false,
         scanCap: scanCap, sampleCap: sampleCap,
-        scanned: 0, scanCapped: false, orphans: [], sampleTruncated: false,
-        lookupOnlyCin: { rows: [], scanned: 0, scanCapped: false, sampleTruncated: false }
+        // 이번 실행이 앞의 결과를 이어받았는가. runs 는 그 사슬의 길이다.
+        continued: !!prev, runs: (seed.runs || 0) + 1,
+        // scanned·orphans 는 **누적**이다. scanCapped 는 이번 실행이 상한에서 멈췄는가다.
+        scanned: seed.scanned, scanCapped: false,
+        orphans: seed.orphans.slice(), sampleTruncated: seed.sampleTruncated,
+        lookupOnlyCin: {
+            rows: seed.lookupOnlyCin.rows.slice(), scanned: seed.lookupOnlyCin.scanned,
+            scanCapped: false, sampleTruncated: seed.lookupOnlyCin.sampleTruncated
+        },
+        resume: {
+            s1: { cursor: seed.resume.s1.cursor, done: seed.resume.s1.done },
+            s2: { cursor: seed.resume.s2.cursor, done: seed.resume.s2.done }
+        },
+        resumable: false, complete: false
     };
-    // 단계마다 커서 하나. stage 1 이 끝나면(더 없음) stage 2 로 넘어간다.
-    var stage = 1;
-    var cursor = null;
+
+    var st = result.resume;
+    // 아직 표 끝을 못 본 단계부터 시작한다(이어받지 않았으면 둘 다 처음이라 1단계다).
+    var stage = st.s1.done ? 2 : 1;
+    var cursor = (stage === 1) ? st.s1.cursor : st.s2.cursor;
+    // 이번 실행이 읽은 행. 상한은 여기에 건다 — 누적에 걸면 이어서 훑기가 즉시 멈춘다.
+    // **단계마다 따로 센다** — 1단계가 예산을 다 썼다고 2단계를 굶기지 않는다(검토 fix round 1).
+    var runScanned = { s1: 0, s2: 0 };
     var exhausted = false;
 
     function borrow(fn) {
@@ -62,6 +110,12 @@ exports.start = function (ctx, opts) {
         if (job) { job.setProgress('훑은 행', result.scanned + result.lookupOnlyCin.scanned); }
     }
 
+    /** 이 단계는 여기까지다. 아직 표 끝을 못 본 다음 단계로 넘어가고, 없으면 끝낸다. */
+    function advance() {
+        if (stage === 1 && !st.s2.done) { stage = 2; cursor = st.s2.cursor; return; }
+        exhausted = true;
+    }
+
     function worker(chunkNo, cb) {
         // 정상 경로에서는 여기 안 온다 — doneEarly 가 먼저 끝낸다(동시 실행 1). 방어선이다.
         if (exhausted) { return cb('skipped', '훑기가 이미 끝난 뒤였다', 'settled'); }
@@ -72,21 +126,25 @@ exports.start = function (ctx, opts) {
                     done();
                     if (e) { return cb('failed', String((page && page.message) || e)); }
                     result.scanned += page.scanned;
+                    runScanned.s1 += page.scanned;
                     page.rows.forEach(function (r) {
                         if (result.orphans.length < sampleCap) { result.orphans.push({ ri: r.ri, pi: r.pi, ty: r.ty, rn: r.rn, ct: r.ct }); }
                         else { result.sampleTruncated = true; }
                     });
+                    // 어느 갈래든 커서를 남긴다 — 다음 실행이 여기서 이어받는다.
+                    if (page.nextRi) { st.s1.cursor = page.nextRi; }
                     if (result.orphans.length >= sampleCap) {
                         result.sampleTruncated = true;
-                        stage = 2; cursor = null;
-                    } else if (result.scanned >= scanCap) {
+                        advance();
+                    } else if (runScanned.s1 >= scanCap) {
                         result.scanCapped = true;
-                        stage = 2; cursor = null;
+                        advance();
                     } else if (page.nextRi && (page.more || page.scanCapped)) {
                         cursor = page.nextRi;
                     } else {
                         // !page.more && !page.scanCapped — 정말 테이블 끝이다.
-                        stage = 2; cursor = null;
+                        st.s1.done = true; st.s1.cursor = null;
+                        advance();
                     }
                     bump();
                     cb('ok');
@@ -98,20 +156,23 @@ exports.start = function (ctx, opts) {
                 if (e) { return cb('failed', String((page && page.message) || e)); }
                 var s = result.lookupOnlyCin;
                 s.scanned += page.scanned;
+                runScanned.s2 += page.scanned;
                 page.rows.forEach(function (r) {
                     if (s.rows.length < sampleCap) { s.rows.push({ ri: r.ri, pi: r.pi, rn: r.rn, ct: r.ct }); }
                     else { s.sampleTruncated = true; }
                 });
+                if (page.nextRi) { st.s2.cursor = page.nextRi; }
                 if (s.rows.length >= sampleCap) {
                     s.sampleTruncated = true;
                     exhausted = true;
-                } else if (s.scanned >= scanCap) {
+                } else if (runScanned.s2 >= scanCap) {
                     s.scanCapped = true;
                     exhausted = true;
                 } else if (page.nextRi && (page.more || page.scanCapped)) {
                     cursor = page.nextRi;
                 } else {
                     // !page.more && !page.scanCapped — 정말 테이블 끝이다.
+                    st.s2.done = true; st.s2.cursor = null;
                     exhausted = true;
                 }
                 bump();
@@ -127,7 +188,8 @@ exports.start = function (ctx, opts) {
     // setImmediate, onFinish 는 끝날 때) — 그래서 이 시점에 비어 있어도 된다.
     var job = ctx.jobs.start({
         kind: 'orphan-scan',
-        title: '미연결 탐지 (상한 ' + scanCap.toLocaleString() + '행 · 표본 ' + sampleCap + ')',
+        title: (prev ? '미연결 이어서 훑기' : '미연결 탐지') +
+               ' (상한 ' + scanCap.toLocaleString() + '행 · 표본 ' + sampleCap + ')',
         note: '세지 않고 표본만 뽑는다. 삭제는 결과에서 골라 따로 시작한다.',
         targets: targets,
         keyOf: function (t) { return 'chunk-' + t; },
@@ -141,15 +203,27 @@ exports.start = function (ctx, opts) {
             result.endedAt = new Date().toISOString();
             result.cancelled = j.state === 'cancelled';
 
+            // 이어서 훑을 수 있는가. 표본이 이미 찼으면 더 훑어도 담을 데가 없다 —
+            // 그때는 찾은 것을 정리하는 것이 다음 할 일이지 더 훑는 것이 아니다.
+            var sampleFull = result.sampleTruncated || result.lookupOnlyCin.sampleTruncated;
+            result.complete = st.s1.done && st.s2.done;
+            result.resumable = !result.complete && !sampleFull && !!(st.s1.cursor || st.s2.cursor);
+
             // 무엇을 찾았는지는 이 작업만 안다. 화면은 이 한 줄을 그대로 쓴다.
-            var rows = result.scanned + result.lookupOnlyCin.scanned;
-            var s = rows.toLocaleString() + '행을 훑어 미연결 ' +
-                    result.orphans.length.toLocaleString() + '건, lookup 에만 남은 CIN ' +
-                    result.lookupOnlyCin.rows.length.toLocaleString() + '건을 찾았습니다.';
-            if (result.sampleTruncated || result.lookupOnlyCin.sampleTruncated) {
-                s += ' 표본 상한에 걸렸습니다 — 실제로는 더 있습니다.';
-            } else if (result.scanCapped || result.lookupOnlyCin.scanCapped) {
-                s += ' 훑기 상한에서 멈췄습니다 — 그 뒤는 보지 못했습니다.';
+            var runRows = runScanned.s1 + runScanned.s2;
+            var allRows = result.scanned + result.lookupOnlyCin.scanned;
+            var found = '미연결 ' + result.orphans.length.toLocaleString() + '건, lookup 에만 남은 CIN ' +
+                        result.lookupOnlyCin.rows.length.toLocaleString() + '건';
+            var s = result.continued
+                ? '이번에 ' + runRows.toLocaleString() + '행을 더 훑었습니다(누적 ' +
+                  allRows.toLocaleString() + '행). ' + found + '을 찾았습니다.'
+                : allRows.toLocaleString() + '행을 훑어 ' + found + '을 찾았습니다.';
+            if (sampleFull) {
+                s += ' 표본 상한에 걸렸습니다 — 찾은 것을 정리한 뒤 다시 훑으세요.';
+            } else if (result.resumable) {
+                s += ' 아직 남았습니다 — "이어서 훑기" 로 계속하세요.';
+            } else if (result.complete) {
+                s += ' 표를 끝까지 다 봤습니다.';
             }
             j.setSummary(s);
 

@@ -53,11 +53,20 @@ export interface OrphanScanResult {
   cancelled: boolean
   scanCap: number
   sampleCap: number
+  /** 훑은 행 — 이어서 훑기로 누적된다. scanCapped 는 **이번 실행**이 상한에서 멈췄는가다. */
   scanned: number
   scanCapped: boolean
   orphans: OrphanRow[]
   sampleTruncated: boolean
   lookupOnlyCin: { rows: { ri: string; pi: string; rn: string; ct: string }[]; scanned: number; scanCapped: boolean; sampleTruncated: boolean }
+  /** 앞 결과를 이어받았는가. runs 는 그 사슬의 길이. */
+  continued: boolean
+  runs: number
+  /** 표를 끝까지 다 봤는가. */
+  complete: boolean
+  /** 멈춘 자리가 남아 있어 이어서 훑을 수 있는가. 화면의 '이어서 훑기' 버튼이 이것을 본다. */
+  resumable: boolean
+  resume: { s1: { cursor: string | null; done: boolean }; s2: { cursor: string | null; done: boolean } }
   typeNames: Record<string, string>
 }
 

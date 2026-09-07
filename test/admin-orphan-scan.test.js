@@ -65,7 +65,7 @@ test('조각으로 훑어 표본을 파일에 남기고 /api/orphans/last 가 �
         assert.strictEqual(job.progress.done, 34, '1단계 30행 + 2단계 4행');
         assert.strictEqual(job.progress.total, null, '단계마다 상한이 따로라 합계 상한은 말하지 않는다');
         // 무엇을 찾았는지는 작업이 자기 말로 적는다. 화면은 이 문장을 그대로 쓴다.
-        assert.match(job.summary, /^34행을 훑어 미연결 3건, lookup 에만 남은 CIN 2건을 찾았습니다\.$/);
+        assert.match(job.summary, /^34행을 훑어 미연결 3건, lookup 에만 남은 CIN 2건을 찾았습니다\. 표를 끝까지 다 봤습니다\.$/);
 
         const last = await h.request('GET', '/api/orphans/last');
         assert.strictEqual(last.status, 200);
@@ -182,5 +182,108 @@ test('결과가 없으면 none', async function () {
         await h.login();
         const r = await h.request('GET', '/api/orphans/last');
         assert.deepStrictEqual(r.body, { none: true });
+    } finally { await h.close(); }
+});
+
+// ── 이어서 훑기 ──────────────────────────────────────────────────────────────
+//
+// 예전에는 누를 때마다 표 맨 앞부터 다시 읽었다. 로컬(2,780행)은 한 번에 끝까지 읽으니
+// 티가 안 났지만, 배포는 lookup 5,740만 행이라 상한 20만 행이면 앞의 0.35% 만 보고 멈추고
+// 다시 눌러도 또 같은 0.35% 를 봤다 — 나머지는 영영 못 본다(사용자 지적 2026-09-07).
+
+function bigTable(prefix, n, every) {
+    const rows = [];
+    for (let i = 1; i <= n; i++) {
+        const orphan = (i % every === 0);
+        rows.push({ ri: prefix + String(i).padStart(3, '0'), pi: orphan ? prefix + 'gone' + i : '/M', ty: '3', rn: 'r' + i, ct: '20260901T000000', lt: '', et: '' });
+    }
+    return rows;
+}
+
+/** 1단계만 데이터가 있는 대역. 2단계(lookup 전용 CIN)는 곧바로 표 끝이다. */
+function stage1Only(rows, pageSize) {
+    return function (sql, bindings) {
+        if (/select `ri`, `pi`, `rn`, `ct`, `ty` from `lookup`/.test(sql)) { return []; }
+        if (/from `lookup`/.test(sql) && /`ri` > \?/.test(sql)) {
+            return rows.filter((r) => r.ri > bindings[0]).slice(0, pageSize);
+        }
+        if (/from `lookup`/.test(sql) && /in \(/.test(sql)) {
+            return bindings.filter((b) => b === '/M').map((ri) => ({ ri }));
+        }
+        return [];
+    };
+}
+
+test('상한에서 멈추면 커서를 남기고, 이어서 훑기가 그 다음부터 읽는다', async function () {
+    const h = await boot({ execute: stage1Only(bigTable('/R/r', 100, 10), 10) });
+    try {
+        await h.login();
+        const last = async () => (await h.request('GET', '/api/orphans/last')).body;
+
+        // 1회차 — 1단계 예산 30행에서 멈춘다.
+        const j1 = orphan_scan.start(h.ctx, { scanCap: 30, chunk: 10, sampleCap: 50 });
+        await settled(h, j1.id);
+        const r1 = await last();
+        assert.deepStrictEqual(r1.orphans.map((o) => o.ri), ['/R/r010', '/R/r020', '/R/r030']);
+        assert.strictEqual(r1.scanned, 30);
+        assert.strictEqual(r1.scanCapped, true);
+        assert.strictEqual(r1.complete, false);
+        assert.strictEqual(r1.resumable, true, '멈췄는데 이어갈 수 없다고 한다');
+        assert.strictEqual(r1.resume.s1.cursor, '/R/r030', '멈춘 자리를 안 남겼다');
+        assert.strictEqual(r1.resume.s1.done, false);
+        assert.strictEqual(r1.continued, false);
+        assert.strictEqual(r1.runs, 1);
+
+        // 2회차 — 이어서. 앞의 30행을 다시 읽지 않는다.
+        const j2 = orphan_scan.start(h.ctx, { scanCap: 30, chunk: 10, sampleCap: 50, resume: true });
+        await settled(h, j2.id);
+        assert.match(j2.title, /^미연결 이어서 훑기/);
+        const r2 = await last();
+        assert.strictEqual(r2.continued, true);
+        assert.strictEqual(r2.runs, 2);
+        assert.strictEqual(r2.scanned, 60, '앞부분을 다시 읽었거나 누적을 안 했다');
+        assert.deepStrictEqual(r2.orphans.map((o) => o.ri),
+            ['/R/r010', '/R/r020', '/R/r030', '/R/r040', '/R/r050', '/R/r060'],
+            '앞 회차의 표본을 물려받아 누적해야 한다');
+        assert.strictEqual(r2.resume.s1.cursor, '/R/r060');
+        assert.strictEqual(r2.resumable, true);
+        assert.match(j2.summary, /이번에 30행을 더 훑었습니다\(누적 60행\)/);
+
+        // 3회차 — **라우트로** 이어간다(화면이 쓰는 길). 남은 40행을 다 읽고 끝난다.
+        const c = await h.request('POST', '/api/jobs/orphan-scan', { sampleCap: 50, resume: true });
+        assert.strictEqual(c.status, 202, JSON.stringify(c.body));
+        const j3 = await settled(h, c.body.id);
+        assert.match(j3.title, /^미연결 이어서 훑기/, '라우트가 resume 를 안 넘겼다');
+        const r3 = await last();
+        assert.strictEqual(r3.runs, 3);
+        assert.strictEqual(r3.scanned, 100);
+        assert.strictEqual(r3.orphans.length, 10, '10 의 배수 10개를 다 찾아야 한다');
+        assert.strictEqual(r3.resume.s1.done, true);
+        assert.strictEqual(r3.complete, true);
+        assert.strictEqual(r3.resumable, false);
+        assert.match(j3.summary, /표를 끝까지 다 봤습니다\.$/);
+    } finally { await h.close(); }
+});
+
+test('이어갈 것이 없으면 resume:true 여도 처음부터 훑는다 — 누적이 두 배가 되지 않는다', async function () {
+    const h = await boot({ execute: stage1Only(bigTable('/S/r', 3, 3), 10) });
+    try {
+        await h.login();
+        const last = async () => (await h.request('GET', '/api/orphans/last')).body;
+
+        const j1 = orphan_scan.start(h.ctx, { scanCap: 1000, chunk: 10, sampleCap: 50 });
+        await settled(h, j1.id);
+        const r1 = await last();
+        assert.strictEqual(r1.complete, true);
+        assert.strictEqual(r1.resumable, false);
+        assert.strictEqual(r1.scanned, 3);
+
+        const j2 = orphan_scan.start(h.ctx, { scanCap: 1000, chunk: 10, sampleCap: 50, resume: true });
+        await settled(h, j2.id);
+        const r2 = await last();
+        assert.strictEqual(r2.scanned, 3, '끝난 결과를 물려받아 표를 두 번 센 것처럼 보인다');
+        assert.deepStrictEqual(r2.orphans.map((o) => o.ri), ['/S/r003']);
+        assert.strictEqual(r2.continued, false, '이어갈 것이 없었으므로 이어받은 것이 아니다');
+        assert.strictEqual(r2.runs, 1);
     } finally { await h.close(); }
 });
