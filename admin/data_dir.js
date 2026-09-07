@@ -33,7 +33,10 @@ exports.listJson = function (dataDir, sub) {
             catch (e) { item.broken = true; }
             return item;
         })
-        .sort(function (a, b) { return b.mtime - a.mtime; });
+        // 최신순. **이름으로 동점을 깬다** — 같은 밀리초에 쓰인 두 파일은 mtime 이 같아
+        // 순서가 뒤집힌다(배포 리눅스에서 시험이 그렇게 깨졌다, 2026-09-07). 파일 이름은
+        // runId 라 앞이 UTC 타임스탬프이므로 이름 내림차순이 곧 최신순이다.
+        .sort(function (a, b) { return (b.mtime - a.mtime) || (a.name < b.name ? 1 : a.name > b.name ? -1 : 0); });
 };
 
 exports.readJson = function (file) {
