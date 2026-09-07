@@ -15,17 +15,10 @@
  */
 
 var url = require('url');
-var xml2js = require('xml2js');
-var xmlbuilder = require('xmlbuilder');
 var util = require('util');
 var responder = require('./responder');
 
-// 컨테이너 경로(ri)별 기본 보관 정책. 선택 기능이며 기본은 비활성이다.
-// conf.json 의 "retentionPolicies" 배열로 정의한다. 정의하지 않으면 어떤 규칙도
-// 적용되지 않고 Mobius 기본값(mni/mbs = 3153600000)이 그대로 쓰인다.
-//
-// 클라이언트가 CREATE 본문에 mni/mbs 를 명시하면 언제나 그 값이 우선한다
-// (oneM2M 규격 유지). 이 정책은 명시하지 않았을 때의 기본값만 바꾼다.
+// Default retention policy per container path (ri). Optional; off unless conf.json defines "retentionPolicies". mni/mbs given in the CREATE body always win; the policy only changes the defaults.
 //
 //   "retentionPolicies": [
 //     {"match": "contains", "value": "/Simul_", "mni": "10000"},
@@ -34,12 +27,12 @@ var responder = require('./responder');
 //     {"match": "suffix", "value": "/archive", "mni": "100000"}
 //   ]
 //
-//   match : "contains"(기본) | "prefix" | "suffix" | "regex"
-//   value : 비교 문자열. regex 는 JS 정규식 소스이며 JSON 이므로 역슬래시를 이스케이프한다
-//   mni   : 생략하면 Mobius 기본값을 쓴다
-//   mbs   : 생략하면 Mobius 기본값을 쓴다
+//   match : "contains" (default) | "prefix" | "suffix" | "regex"
+//   value : the string to compare; regex is JS regex source (escape backslashes in JSON)
+//   mni   : Mobius default when omitted
+//   mbs   : Mobius default when omitted
 //
-// 배열 순서가 곧 우선순위다. 처음 일치하는 규칙 하나만 적용된다.
+// Array order is priority; only the first matching rule applies.
 var RETENTION_RULES = null;
 
 function build_matcher(match, value) {
@@ -56,8 +49,7 @@ function build_matcher(match, value) {
     return function (ri) { return ri.indexOf(value) >= 0; };
 }
 
-// 잘못된 규칙 하나 때문에 컨테이너 생성 전체가 막히면 안 되므로,
-// 문제가 있는 항목은 로그를 남기고 건너뛴다.
+// A bad rule must not block container creation; invalid entries are logged and skipped.
 function compile_retention_rules() {
     var raw = global.retention_policies;
     var rules = [];
@@ -129,24 +121,25 @@ exports.build_cnt = function(request, response, resource_Obj, body_Obj, callback
     resource_Obj[rootnm].mbs = (body_Obj[rootnm].mbs) ? body_Obj[rootnm].mbs : (policy.mbs || '3153600000');
     resource_Obj[rootnm].mia = (body_Obj[rootnm].mia) ? body_Obj[rootnm].mia : '31536000';
 
-    if(parseInt(resource_Obj[rootnm].mni) < 0) { // clsase 7.4.6.2.1 TS-0004
+    if(parseInt(resource_Obj[rootnm].mni) < 0) { // clause 7.4.6.2.1 TS-0004
         callback('400-29');
         return;
     }
 
-    if(parseInt(resource_Obj[rootnm].mbs) < 0) { // clsase 7.4.6.2.1 TS-0004
+    if(parseInt(resource_Obj[rootnm].mbs) < 0) { // clause 7.4.6.2.1 TS-0004
         callback('400-30');
         return;
     }
 
-    if(parseInt(resource_Obj[rootnm].mia) < 0) { // clsase 7.4.6.2.1 TS-0004
+    if(parseInt(resource_Obj[rootnm].mia) < 0) { // clause 7.4.6.2.1 TS-0004
         callback('400-31');
         return;
     }
 
     resource_Obj[rootnm].li = (body_Obj[rootnm].li) ? body_Obj[rootnm].li : '';
     resource_Obj[rootnm].or = (body_Obj[rootnm].or) ? body_Obj[rootnm].or : '';
-    resource_Obj[rootnm].cr = (body_Obj[rootnm].cr) ? body_Obj[rootnm].cr : request.headers['x-m2m-origin'];
+    // cr is set by the server from the origin header. A cr in the body is ignored (oneM2M allows sending it), never trusted.
+    resource_Obj[rootnm].cr = request.headers['x-m2m-origin'];
 
     resource_Obj[rootnm].cni = 0;
     resource_Obj[rootnm].cbs = 0;
@@ -157,75 +150,3 @@ exports.build_cnt = function(request, response, resource_Obj, body_Obj, callback
     callback('200');
 };
 
-
-
-// exports.modify_cnt = function(request, response, resource_Obj, body_Obj, callback) {
-//     var rootnm = request.headers.rootnm;
-//
-//     // check M
-//     for (var attr in update_m_attr_list[rootnm]) {
-//         if (update_m_attr_list[rootnm].hasOwnProperty(attr)) {
-//             if (body_Obj[rootnm].includes(attr)) {
-//             }
-//             else {
-//                 body_Obj = {};
-//                 body_Obj['dbg'] = 'BAD REQUEST: ' + attr + ' is \'Mandatory\' attribute';
-//                 responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-//                 callback('0', resource_Obj);
-//                 return '0';
-//             }
-//         }
-//     }
-//
-//     // check NP and body
-//     for (attr in body_Obj[rootnm]) {
-//         if (body_Obj[rootnm].hasOwnProperty(attr)) {
-//             if (update_np_attr_list[rootnm].includes(attr)) {
-//                 body_Obj = {};
-//                 body_Obj['dbg'] = 'BAD REQUEST: ' + attr + ' is \'Not Present\' attribute';
-//                 responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-//                 callback('0', resource_Obj);
-//                 return '0';
-//             }
-//             else {
-//                 if (update_opt_attr_list[rootnm].includes(attr)) {
-//                 }
-//                 else {
-//                     body_Obj = {};
-//                     body_Obj['dbg'] = 'NOT FOUND: ' + attr + ' attribute is not defined';
-//                     responder.response_result(request, response, 404, body_Obj, 4004, request.url, body_Obj['dbg']);
-//                     callback('0', resource_Obj);
-//                     return '0';
-//                 }
-//             }
-//         }
-//     }
-//
-//     update_body(rootnm, body_Obj, resource_Obj);
-//
-//     resource_Obj[rootnm].st = (parseInt(resource_Obj[rootnm].st, 10) + 1).toString();
-//
-//
-//     if(body_Obj[rootnm].mni) {
-//         resource_Obj[rootnm].mni = body_Obj[rootnm].mni;
-//         if(parseInt(resource_Obj[rootnm].mni) >= 3153600000) {
-//             resource_Obj[rootnm].mni = '3153600000';
-//         }
-//     }
-//
-//     var cur_d = new Date();
-//     resource_Obj[rootnm].lt = cur_d.toISOString().replace(/-/, '').replace(/-/, '').replace(/:/, '').replace(/:/, '').replace(/\..+/, '');
-//
-//     if (resource_Obj[rootnm].et != '') {
-//         if (resource_Obj[rootnm].et < resource_Obj[rootnm].ct) {
-//             body_Obj = {};
-//             body_Obj['dbg'] = 'expiration time is before now';
-//             responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-//             callback('0', resource_Obj);
-//             return '0';
-//         }
-//     }
-//
-//     callback('1', resource_Obj);
-// };
-//

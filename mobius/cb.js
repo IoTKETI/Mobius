@@ -14,8 +14,6 @@
  * @author Il Yeup Ahn [iyahn@keti.re.kr]
  */
 
-var xml2js = require('xml2js');
-var xmlbuilder = require('xmlbuilder');
 var util = require('util');
 var ip = require('ip');
 var http = require('http');
@@ -23,6 +21,8 @@ var merge = require('merge');
 var moment = require('moment');
 
 var db_sql = require('./sql_action');
+var defaults = require('./defaults');
+var short_ri = require('./short_ri');
 
 function cb_create_action(connection, callback) {
     var rootnm = 'cb';
@@ -38,7 +38,7 @@ function cb_create_action(connection, callback) {
     resource_Obj[rootnm].ri = resource_Obj[rootnm].pi + '/' + resource_Obj[rootnm].rn;
     resource_Obj[rootnm].ct = moment().utc().format('YYYYMMDDTHHmmss');
     resource_Obj[rootnm].lt = resource_Obj[rootnm].ct;
-    resource_Obj[rootnm].et = moment().utc().add(10, 'years').format('YYYYMMDDTHHmmss');
+    resource_Obj[rootnm].et = defaults.DEFAULT_ET;
     resource_Obj[rootnm].acpi = [];
     resource_Obj[rootnm].lbl = [];
     resource_Obj[rootnm].lbl[0] = resource_Obj[rootnm].rn;
@@ -46,7 +46,6 @@ function cb_create_action(connection, callback) {
     resource_Obj[rootnm].aa = [];
     resource_Obj[rootnm].st = '0';
     resource_Obj[rootnm].srv = [];
-    resource_Obj[rootnm].subl = [];
 
     resource_Obj[rootnm].srv.push('1');
     resource_Obj[rootnm].srv.push('2');
@@ -54,14 +53,11 @@ function cb_create_action(connection, callback) {
 
     resource_Obj[rootnm].csi = usecseid;
 
-    //resource_Obj[rootnm].srt = ty_list;
-    resource_Obj[rootnm].srt = ['1', '2', '3', '4', '5', '9', '10', '13', '14', '16', '17', '23'];
+    // Resource types the CSEBase advertises (srt). Uses ty_list itself, so the advertised list equals what check_xm2m_headers accepts. A copy is passed so callers cannot modify the global. Serialised it is 105 characters; cb.srt must be varchar(255).
+    resource_Obj[rootnm].srt = ty_list.slice();
 
     resource_Obj[rootnm].poa = [];
     resource_Obj[rootnm].poa.push('http://' + ip.address() + ':' + usecsebaseport);
-//    resource_Obj[rootnm].poa.push('mqtt://' + ip.address() + ':' + use_mqtt_port + '/' + resource_Obj[rootnm].csi.replace('/', ''));
-//    resource_Obj[rootnm].poa.push('coap://' + ip.address() + ':' + usecsebaseport);
-//    resource_Obj[rootnm].poa.push('ws://' + ip.address() + ':' + usepxywsport);
 
     resource_Obj[rootnm].nl = '';
     resource_Obj[rootnm].ncp = '';
@@ -87,11 +83,8 @@ function cb_create_action(connection, callback) {
                 });
             }
             else {
-                // db_sql.get_sri_sri(connection, resource_Obj[rootnm].pi, function (err, results) {
-                //     if (!err) {
                         resource_Obj[rootnm].spi = '';
-                        //resource_Obj[rootnm].sri = require('shortid').generate();
-                        resource_Obj[rootnm].sri = '5-' + moment().utc().format('YYYYMMDDHHmmssSSS') + (Math.random() * 999).toFixed(0).padStart(3, '0');
+                        resource_Obj[rootnm].sri = short_ri.generate('5-');
                             db_sql.insert_cb(connection, resource_Obj[rootnm], function (err, results) {
                             if (!err) {
                                 rspObj.rsc = '2001';
@@ -105,8 +98,6 @@ function cb_create_action(connection, callback) {
                             }
                             callback(rspObj);
                         });
-                //     }
-                // });
             }
         }
         else {

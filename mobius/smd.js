@@ -14,15 +14,7 @@
  * @author Il Yeup Ahn [iyahn@keti.re.kr]
  */
 
-var url = require('url');
-var xml2js = require('xml2js');
-var xmlbuilder = require('xmlbuilder');
-var util = require('util');
-var responder = require('./responder');
-var http = require('http');
-var https = require('https');
-var fs = require('fs');
-
+// build_smd copies the semanticDescriptor attributes from the body; it has no dependencies.
 
 exports.build_smd = function(request, response, resource_Obj, body_Obj, callback) {
     var rootnm = request.headers.rootnm;
@@ -32,7 +24,8 @@ exports.build_smd = function(request, response, resource_Obj, body_Obj, callback
     resource_Obj[rootnm].dcrp = body_Obj[rootnm].dcrp;
 
     resource_Obj[rootnm].or = (body_Obj[rootnm].or) ? body_Obj[rootnm].or : '';
-    resource_Obj[rootnm].cr = (body_Obj[rootnm].cr) ? body_Obj[rootnm].cr : request.headers['x-m2m-origin'];
+    // cr is set by the server from the origin header.
+    resource_Obj[rootnm].cr = request.headers['x-m2m-origin'];
     resource_Obj[rootnm].soe = (body_Obj[rootnm].soe) ? body_Obj[rootnm].soe : '';
     resource_Obj[rootnm].rels = (body_Obj[rootnm].rels) ? body_Obj[rootnm].rels : [];
 
@@ -41,162 +34,4 @@ exports.build_smd = function(request, response, resource_Obj, body_Obj, callback
 
     callback('200');
 };
-
-
-exports.request_post = function(uri, bodyString) {
-    var options = {
-        hostname: usesemanticbroker,
-        port: 7591,
-        path: '',
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        }
-    };
-
-    var bodyStr = '';
-
-    var req = http.request(options, function (res) {
-        res.on('data', function (chunk) {
-            bodyStr += chunk;
-        });
-
-        res.on('end', function () {
-            console.log('----> [smd.request_post()] response for smd  ' + res.statusCode);
-        });
-    });
-
-    req.on('error', function (e) {
-        console.log('[smd.request_post()] problem with request: ' + e.message);
-    });
-
-    req.on('close', function() {
-        console.log('[smd.request_post()] close()');
-    });
-
-    console.log('<---- [smd.request_post()] request for smd');
-    req.write(bodyString);
-    req.end();
-};
-
-
-exports.request_get_discovery = function(request, response, callback) {
-    var options = {
-        hostname: usesemanticbroker,
-        port: 7591,
-        path: '',
-        method: 'GET',
-        headers: {
-            'smf': encodeURI(request.query.smf)
-        }
-    };
-
-    var bodyStr = '';
-
-    var req = http.request(options, function (res) {
-        res.on('data', function (chunk) {
-            bodyStr += chunk;
-        });
-
-        res.on('end', function () {
-            console.log('----> [smd.request_post()] response for smd  ' + res.statusCode);
-            callback(response, res.statusCode, bodyStr);
-
-            var ri_list = bodyStr.split(',');
-            if (res.statusCode == 200) {
-                make_cse_relative(ri_list);
-                request.headers.rootnm = 'uril';
-                request.resourceObj = {};
-                request.resourceObj.uril = {};
-                request.resourceObj.uril = ri_list;
-
-                callback('200-1');
-            }
-            else {
-                if(res.statusCode == 400) {
-                    callback('400-41');
-                }
-                else {
-                    callback('404-2');
-                }
-            }
-        });
-    });
-
-    req.on('error', function (e) {
-        console.log('[smd.request_post()] problem with request: ' + e.message);
-
-        callback('404-2');
-    });
-
-    req.on('close', function() {
-        console.log('[smd.request_post()] close()');
-    });
-
-    console.log('<---- [smd.request_post()] request for smd');
-    req.write('');
-    req.end();
-};
-
-// exports.modify_sd = function(request, response, resource_Obj, body_Obj, callback) {
-//     var rootnm = request.headers.rootnm;
-//
-//     // check M
-//     for (var attr in update_m_attr_list[rootnm]) {
-//         if (update_m_attr_list[rootnm].hasOwnProperty(attr)) {
-//             if (body_Obj[rootnm].includes(attr)) {
-//             }
-//             else {
-//                 body_Obj = {};
-//                 body_Obj['dbg'] = 'BAD REQUEST: ' + attr + ' is \'Mandatory\' attribute';
-//                 responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-//                 callback('0', resource_Obj);
-//                 return '0';
-//             }
-//         }
-//     }
-//
-//     // check NP and body
-//     for (attr in body_Obj[rootnm]) {
-//         if (body_Obj[rootnm].hasOwnProperty(attr)) {
-//             if (update_np_attr_list[rootnm].includes(attr)) {
-//                 body_Obj = {};
-//                 body_Obj['dbg'] = 'BAD REQUEST: ' + attr + ' is \'Not Present\' attribute';
-//                 responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-//                 callback('0', resource_Obj);
-//                 return '0';
-//             }
-//             else {
-//                 if (update_opt_attr_list[rootnm].includes(attr)) {
-//                 }
-//                 else {
-//                     body_Obj = {};
-//                     body_Obj['dbg'] = 'NOT FOUND: ' + attr + ' attribute is not defined';
-//                     responder.response_result(request, response, 404, body_Obj, 4004, request.url, body_Obj['dbg']);
-//                     callback('0', resource_Obj);
-//                     return '0';
-//                 }
-//             }
-//         }
-//     }
-//
-//     update_body(rootnm, body_Obj, resource_Obj); // (attr == 'aa' || attr == 'poa' || attr == 'lbl' || attr == 'acpi' || attr == 'srt' || attr == 'nu' || attr == 'mid' || attr == 'macp')
-//
-//     resource_Obj[rootnm].st = (parseInt(resource_Obj[rootnm].st, 10) + 1).toString();
-//
-//     var cur_d = new Date();
-//     resource_Obj[rootnm].lt = cur_d.toISOString().replace(/-/, '').replace(/-/, '').replace(/:/, '').replace(/:/, '').replace(/\..+/, '');
-//
-//     if (resource_Obj[rootnm].et != '') {
-//         if (resource_Obj[rootnm].et < resource_Obj[rootnm].ct) {
-//             body_Obj = {};
-//             body_Obj['dbg'] = 'expiration time is before now';
-//             responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-//             callback('0', resource_Obj);
-//             return '0';
-//         }
-//     }
-//
-//     callback('1', resource_Obj);
-// };
 

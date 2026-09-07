@@ -15,10 +15,15 @@
  */
 
 var url = require('url');
-var xml2js = require('xml2js');
-var xmlbuilder = require('xmlbuilder');
 var util = require('util');
 var responder = require('./responder');
+var shape = require('./shape');
+
+// Attributes copied from the body per moduleclass. Keys are the short names from shape.MODULE_CLASS.
+var HD_ATTRS = {
+    dooLk: ['lock'], bat: ['lvl'], tempe: ['curT0'], binSh: ['powerSe'],
+    fauDn: ['sus'], colSn: ['colSn'], color: ['red', 'green', 'blue'], brigs: ['brigs']
+};
 
 
 exports.build_fcnt = function(request, response, resource_Obj, body_Obj, callback) {
@@ -27,39 +32,22 @@ exports.build_fcnt = function(request, response, resource_Obj, body_Obj, callbac
     // body
     // - specific attributes
     resource_Obj[rootnm].cnd = body_Obj[rootnm].cnd;
-    resource_Obj[rootnm].cr = (body_Obj[rootnm].cr) ? body_Obj[rootnm].cr : request.headers['x-m2m-origin'];
+    // cr is set by the server from the origin header.
+    resource_Obj[rootnm].cr = request.headers['x-m2m-origin'];
 
     if(rootnm == 'fcnt' && body_Obj[rootnm].cnd.includes('org.onem2m.home.device.')) {
     }
-    else if(rootnm == 'hd_dooLk' && body_Obj[rootnm].cnd == 'org.onem2m.home.moduleclass.doorlock') {
-        resource_Obj[rootnm].lock = body_Obj[rootnm].lock;
-    }
-    else if(rootnm == 'hd_bat' && body_Obj[rootnm].cnd == 'org.onem2m.home.moduleclass.battery') {
-        resource_Obj[rootnm].lvl = body_Obj[rootnm].lvl;
-    }
-    else if(rootnm == 'hd_tempe' && body_Obj[rootnm].cnd == 'org.onem2m.home.moduleclass.temperature') {
-        resource_Obj[rootnm].curT0 = body_Obj[rootnm].curT0;
-    }
-    else if(rootnm == 'hd_binSh' && body_Obj[rootnm].cnd == 'org.onem2m.home.moduleclass.binarySwitch') {
-        resource_Obj[rootnm].powerSe = body_Obj[rootnm].powerSe;
-    }
-    else if(rootnm == 'hd_fauDn' && body_Obj[rootnm].cnd == 'org.onem2m.home.moduleclass.faultDetection') {
-        resource_Obj[rootnm].sus = body_Obj[rootnm].sus;
-    }
-    else if(rootnm == 'hd_colSn' && body_Obj[rootnm].cnd == 'org.onem2m.home.moduleclass.colourSaturation') {
-        resource_Obj[rootnm].colSn = body_Obj[rootnm].colSn;
-    }
-    else if(rootnm == 'hd_color' && body_Obj[rootnm].cnd == 'org.onem2m.home.moduleclass.colour') {
-        resource_Obj[rootnm].red = body_Obj[rootnm].red;
-        resource_Obj[rootnm].green = body_Obj[rootnm].green;
-        resource_Obj[rootnm].blue = body_Obj[rootnm].blue;
-    }
-    else if(rootnm == 'hd_brigs' && body_Obj[rootnm].cnd == 'org.onem2m.home.moduleclass.brightness') {
-        resource_Obj[rootnm].brigs = body_Obj[rootnm].brigs;
-    }
     else {
-        callback('400-54');
-        return;
+        // Resolve the moduleclass short name from the root name and cnd (shape.hd_short); unknown pairs are rejected with 400-54.
+        var hd = shape.hd_short(rootnm, body_Obj[rootnm].cnd);
+        if (hd === null) {
+            callback('400-54');
+            return;
+        }
+        // Copy in order: key order is the byte order of the response body (red, green, blue for color).
+        HD_ATTRS[hd].forEach(function (attr) {
+            resource_Obj[rootnm][attr] = body_Obj[rootnm][attr];
+        });
     }
 
     request.resourceObj = JSON.parse(JSON.stringify(resource_Obj));

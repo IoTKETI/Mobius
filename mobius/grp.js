@@ -15,59 +15,48 @@
  */
 
 var url = require('url');
-var xml2js = require('xml2js');
-var xmlbuilder = require('xmlbuilder');
 var http = require('http');
 var util = require('util');
 var moment = require('moment');
 
+var body = require('./body');
 var responder = require('./responder');
 
 var db_sql = require('./sql_action');
+var outbound = require('./outbound');
+var once = require('./once');
 
 function check_mt(request, res_body, callback) {
-    var body_type = request.usebodytype;
     var mt = request.mt;
 
-    if (body_type == 'xml') {
-        var parser = new xml2js.Parser({explicitArray: false});
-        parser.parseString(res_body, function (err, result) {
-            if (!err) {
-                for (var prop in result) {
-                    if(result.hasOwnProperty(prop)) {
-                        if (result[prop].ty == mt) {
-                            result = null;
-                            callback('1');
-                            return;
-                        }
-                    }
-                }
-                result = null;
-                callback('0');
-            }
-            else {
-                result = null;
-                callback('0');
-            }
-        });
+    // The body came from a remote CSE and may not be JSON (proxy error page, truncated response). This runs inside res.on('end'), so a throw would be uncaught; an unreadable body counts as a type mismatch ('0').
+    var result;
+    try {
+        result = JSON.parse(res_body);
     }
-    else { // json
-        var result = JSON.parse(res_body);
-        for (var prop in result) {
-            if(result.hasOwnProperty(prop)) {
-                if (result[prop].ty == mt) {
-                    result = null;
-                    callback('1');
-                    return;
-                }
+    catch (e) {
+        console.error('[grp check_mt] 멤버 응답이 JSON 이 아니다: ' + e.message);
+        callback('0');
+        return;
+    }
+
+    for (var prop in result) {
+        if(result.hasOwnProperty(prop)) {
+            if (result[prop].ty == mt) {
+                result = null;
+                callback('1');
+                return;
             }
         }
-        result = null;
-        callback('0');
     }
+    result = null;
+    callback('0');
 }
 
 function check_member(request, response, req_count, cse_poa, callback) {
+    // The callback can be reached from both the response path and the error path, and both advance the recursion with ++req_count; it must run once.
+    callback = once(callback, 'grp check_member ' + req_count);
+
     if(req_count >= request.mid.length) {
         callback('200');
     }
@@ -81,7 +70,11 @@ function check_member(request, response, req_count, cse_poa, callback) {
             absolute_ri = absolute_ri.replace(/\/[^\/]+\/?/, '/');
         }
         db_sql.get_ri_sri(request.db_connection, absolute_ri, function (err, results) {
-            ri = ((results.length == 0) ? ri : results[0].ri);
+            // On a DB error results is the error object; the input ri is used as is, the same as when no row matches.
+            if (err) {
+                console.error('[grp check_member] get_ri_sri 실패, 입력한 ri 를 그대로 쓴다: ' + absolute_ri);
+            }
+            ri = ((err || results.length == 0) ? ri : results[0].ri);
             var target_cb = ri.split('/')[1];
             if (target_cb != usecsebase) {
                 if (cse_poa[target_cb]) {
@@ -92,20 +85,25 @@ function check_member(request, response, req_count, cse_poa, callback) {
                         method: 'get',
                         headers: {
                             'X-M2M-RI': require('shortid').generate(),
-                            'Accept': 'application/' + request.usebodytype,
+                            // This CSE reads and produces JSON only.
+                            'Accept': 'application/json',
                             'X-M2M-Origin': request.headers['x-m2m-origin'],
                             'X-M2M-RVI': uservi
                         }
                     };
 
-                    var responseBody = '';
                     var req = http.request(options, function (res) {
-                        //res.setEncoding('utf8');
-                        res.on('data', function (chunk) {
-                            responseBody += chunk;
-                        });
-
-                        res.on('end', function () {
+                        // body.read decodes the whole body as UTF-8 so multi-byte characters are not split across chunks.
+                        body.read(res, function (err, responseBody) {
+                            if (err) {
+                                // Member response not received: not counted as a valid member; continue with the next one, as for a non-200 status.
+                                console.error('[grp check_member] 멤버 응답을 받지 못했다: ' +
+                                              ri + ' — ' + err.message);
+                                check_member(request, response, ++req_count, cse_poa, function (code) {
+                                    callback(code);
+                                });
+                                return;
+                            }
                             if (res.statusCode == 200) {
                                 check_mt(request, responseBody, function (rsc) {
                                     if (rsc == '1') {
@@ -125,6 +123,8 @@ function check_member(request, response, req_count, cse_poa, callback) {
                         });
                     });
 
+                    // Cut the request when no response arrives; destroying it triggers the error handler below.
+                    outbound.arm(req, 'grp member check');
                     req.on('error', function (e) {
                         if (e.message != 'read ECONNRESET') {
                             console.log('[check_member] problem with request: ' + e.message);
@@ -188,6 +188,10 @@ function check_mtv(request, response, resource_Obj, callback) {
                         callback('200');
                     }
                 }
+                else {
+                    // A non-'200' code from check_member is passed up so the group creation is answered.
+                    callback(code);
+                }
             });
         }
         else {
@@ -214,14 +218,30 @@ global.remove_duplicated_mid = function(mid) {
     return mid;
 };
 
+// macp is mediumtext, so the varchar(200) limit of acpi does not apply; a cap is still needed because the element count check derives from it.
+var MACP_MAX_JSON = 2000;
+
 exports.build_grp = function(request, response, resource_Obj, body_Obj, callback) {
     var rootnm = request.headers.rootnm;
 
+    // macp goes through the same access check path as acpi (the group fan-out in app.js passes it to security.check), so it is validated like acpi.
+    if (!body_Obj[rootnm].hasOwnProperty('macp')) {
+        return build_rest();
+    }
+    validate_acpi(request, response, body_Obj[rootnm].macp, { maxJson: MACP_MAX_JSON },
+        function (code, normalized) {
+            if (code) { return callback(code); }
+            body_Obj[rootnm].macp = normalized;
+            build_rest();
+        });
+
+    function build_rest() {
     // body
     resource_Obj[rootnm].mnm = body_Obj[rootnm].mnm;
     resource_Obj[rootnm].mid = remove_duplicated_mid(body_Obj[rootnm].mid);
 
-    resource_Obj[rootnm].cr = (body_Obj[rootnm].cr) ? body_Obj[rootnm].cr : request.headers['x-m2m-origin'];
+    // cr is set by the server from the origin header.
+    resource_Obj[rootnm].cr = request.headers['x-m2m-origin'];
     resource_Obj[rootnm].macp = (body_Obj[rootnm].macp) ? body_Obj[rootnm].macp : [];
     resource_Obj[rootnm].mt = (body_Obj[rootnm].mt) ? body_Obj[rootnm].mt : '0';
     resource_Obj[rootnm].csy = (body_Obj[rootnm].csy) ? body_Obj[rootnm].csy : '1'; // default : ABANDON_MEMBER
@@ -253,122 +273,6 @@ exports.build_grp = function(request, response, resource_Obj, body_Obj, callback
 
         callback('200');
     }
+    }
 };
-
-
-
-// exports.modify_grp = function(request, response, resource_Obj, body_Obj, callback) {
-//     var rootnm = request.headers.rootnm;
-//
-//     // check M
-//     for (var attr in update_m_attr_list[rootnm]) {
-//         if (update_m_attr_list[rootnm].hasOwnProperty(attr)) {
-//             if (body_Obj[rootnm].includes(attr)) {
-//             }
-//             else {
-//                 body_Obj = {};
-//                 body_Obj['dbg'] = 'BAD REQUEST: ' + attr + ' is \'Mandatory\' attribute';
-//                 responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-//                 callback('0', resource_Obj);
-//                 return '0';
-//             }
-//         }
-//     }
-//
-//     // check NP and body
-//     for (attr in body_Obj[rootnm]) {
-//         if (body_Obj[rootnm].hasOwnProperty(attr)) {
-//             if (update_np_attr_list[rootnm].includes(attr)) {
-//                 body_Obj = {};
-//                 body_Obj['dbg'] = 'BAD REQUEST: ' + attr + ' is \'Not Present\' attribute';
-//                 responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-//                 callback('0', resource_Obj);
-//                 return '0';
-//             }
-//             else {
-//                 if (update_opt_attr_list[rootnm].includes(attr)) {
-//                 }
-//                 else {
-//                     body_Obj = {};
-//                     body_Obj['dbg'] = 'NOT FOUND: ' + attr + ' attribute is not defined';
-//                     responder.response_result(request, response, 404, body_Obj, 4004, request.url, body_Obj['dbg']);
-//                     callback('0', resource_Obj);
-//                     return '0';
-//                 }
-//             }
-//         }
-//     }
-//
-//     update_body(rootnm, body_Obj, resource_Obj); // (attr == 'aa' || attr == 'poa' || attr == 'lbl' || attr == 'acpi' || attr == 'srt' || attr == 'nu' || attr == 'mid' || attr == 'macp')
-//
-//     resource_Obj[rootnm].st = (parseInt(resource_Obj[rootnm].st, 10) + 1).toString();
-//
-//     var cur_d = new Date();
-//     resource_Obj[rootnm].lt = cur_d.toISOString().replace(/-/, '').replace(/-/, '').replace(/:/, '').replace(/:/, '').replace(/\..+/, '');
-//
-//     if (resource_Obj[rootnm].et != '') {
-//         if (resource_Obj[rootnm].et < resource_Obj[rootnm].ct) {
-//             body_Obj = {};
-//             body_Obj['dbg'] = 'expiration time is before now';
-//             responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-//             callback('0', resource_Obj);
-//             return '0';
-//         }
-//     }
-//
-//     if(body_Obj[rootnm].mid) {
-//         resource_Obj[rootnm].mid = body_Obj[rootnm].mid;
-//
-//         if(resource_Obj[rootnm].mt != '0') {
-//             check_mtv(resource_Obj[rootnm].mt, resource_Obj[rootnm].mid, function(rsc, results_mid) {
-//                 if(rsc == '0') { // mt inconsistency
-//                     if(results_mid.length == '0') {
-//                         body_Obj = {};
-//                                     body_Obj['dbg'] = 'can not create group because mid is empty after validation check of mt requested';
-//                         responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-//                         callback('0', body_Obj);
-//                         return '0';
-//                     }
-//                     else {
-//                         if (resource_Obj[rootnm].csy == '1') { // ABANDON_MEMBER
-//                             resource_Obj[rootnm].mid = results_mid;
-//                             resource_Obj[rootnm].cnm = body_Obj[rootnm].mid.length.toString();
-//                             resource_Obj[rootnm].mtv = 'true';
-//                         }
-//                         else if (resource_Obj[rootnm].csy == '2') { // ABANDON_GROUP
-//                             body_Obj = {};
-//                                             body_Obj['dbg'] = 'can not create group because csy is ABANDON_GROUP when MEMBER_TYPE_INCONSISTENT';
-//                             responder.response_result(request, response, 400, body_Obj, 6011, request.url, body_Obj['dbg']);
-//                             callback('0', body_Obj);
-//                             return '0';
-//                         }
-//                         else { // SET_MIXED
-//                             resource_Obj[rootnm].mt = '0';
-//                             resource_Obj[rootnm].mtv = 'false';
-//                         }
-//                     }
-//                 }
-//                 else if(rsc == '1') {
-//                     resource_Obj[rootnm].mtv = 'true';
-//                 }
-//                 else { // db error
-//                     body_Obj = {};
-//                             body_Obj['dbg'] = results_mid.message;
-//                     responder.response_result(request, response, 500, body_Obj, 5000, request.url, body_Obj['dbg']);
-//                     callback('0', body_Obj);
-//                     return '0';
-//                 }
-//
-//                 callback('1', resource_Obj);
-//             });
-//         }
-//         else {
-//             resource_Obj[rootnm].mtv = 'false';
-//             callback('1', resource_Obj);
-//         }
-//     }
-//     else {
-//         callback('1', resource_Obj);
-//     }
-// };
 

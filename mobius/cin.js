@@ -15,14 +15,8 @@
  */
 
 var url = require('url');
-var xml2js = require('xml2js');
-var xmlbuilder = require('xmlbuilder');
 var util = require('util');
 var responder = require('./responder');
-
-//var _this = this;
-
-
 
 exports.build_cin = function(request, response, resource_Obj, body_Obj, callback) {
     var rootnm = request.headers.rootnm;
@@ -34,23 +28,6 @@ exports.build_cin = function(request, response, resource_Obj, body_Obj, callback
     else {
         resource_Obj[rootnm].con = body_Obj[rootnm].con;
     }
-    /*if (Array.isArray(body_Obj[rootnm].con)) {
-        return 'array';
-    }
-    else if (typeof body_Obj[rootnm].con == 'string') {
-        return 'string';
-    }
-    else if (body_Obj[rootnm].con != null && typeof body_Obj[rootnm].con == 'object') {
-        if(body_Obj[rootnm].con['$'] != null) {
-
-        }
-        else {
-            resource_Obj[rootnm].con = body_Obj[rootnm].con;
-        }
-    }
-    else {
-        return 'other';
-    }*/
 
     var con_type = getType(resource_Obj[rootnm].con);
     if(con_type == 'string') {
@@ -83,7 +60,8 @@ exports.build_cin = function(request, response, resource_Obj, body_Obj, callback
     }
 
     resource_Obj[rootnm].or = (body_Obj[rootnm].or) ? body_Obj[rootnm].or : '';
-    resource_Obj[rootnm].cr = (body_Obj[rootnm].cr) ? body_Obj[rootnm].cr : request.headers['x-m2m-origin'];
+    // cr is set by the server from the origin header.
+    resource_Obj[rootnm].cr = request.headers['x-m2m-origin'];
 
     request.resourceObj = JSON.parse(JSON.stringify(resource_Obj));
     resource_Obj = null;

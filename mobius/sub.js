@@ -16,8 +16,6 @@
 
 
 var url = require('url');
-var xml2js = require('xml2js');
-var xmlbuilder = require('xmlbuilder');
 var util = require('util');
 var responder = require('./responder');
 var db_sql = require('./sql_action');
@@ -96,7 +94,8 @@ exports.build_sub = function(request, response, resource_Obj, body_Obj, callback
             resource_Obj[rootnm].nct = (body_Obj[rootnm].nct) ? body_Obj[rootnm].nct : '2';
             resource_Obj[rootnm].nec = (body_Obj[rootnm].nec) ? body_Obj[rootnm].nec : '';
             resource_Obj[rootnm].su = (body_Obj[rootnm].su) ? body_Obj[rootnm].su : '';
-            resource_Obj[rootnm].cr = (body_Obj[rootnm].cr) ? body_Obj[rootnm].cr : request.headers['x-m2m-origin'];
+            // cr is set by the server from the origin header.
+            resource_Obj[rootnm].cr = request.headers['x-m2m-origin'];
 
             request.resourceObj = JSON.parse(JSON.stringify(resource_Obj));
             resource_Obj = null;
@@ -108,68 +107,4 @@ exports.build_sub = function(request, response, resource_Obj, body_Obj, callback
         }
     });
 };
-
-
-// exports.modify_sub = function(request, response, resource_Obj, body_Obj, callback) {
-//     var rootnm = request.headers.rootnm;
-//
-//     // check M
-//     for (var attr in update_m_attr_list[rootnm]) {
-//         if (update_m_attr_list[rootnm].hasOwnProperty(attr)) {
-//             if (body_Obj[rootnm].includes(attr)) {
-//             }
-//             else {
-//                 body_Obj = {};
-//                 body_Obj['dbg'] = 'BAD REQUEST: ' + attr + ' is \'Mandatory\' attribute';
-//                 responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-//                 callback('0', resource_Obj);
-//                 return '0';
-//             }
-//         }
-//     }
-//
-//     // check NP and body
-//     for (attr in body_Obj[rootnm]) {
-//         if (body_Obj[rootnm].hasOwnProperty(attr)) {
-//             if (update_np_attr_list[rootnm].includes(attr)) {
-//                 body_Obj = {};
-//                 body_Obj['dbg'] = 'BAD REQUEST: ' + attr + ' is \'Not Present\' attribute';
-//                 responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-//                 callback('0', resource_Obj);
-//                 return '0';
-//             }
-//             else {
-//                 if (update_opt_attr_list[rootnm].includes(attr)) {
-//                 }
-//                 else {
-//                     body_Obj = {};
-//                     body_Obj['dbg'] = 'NOT FOUND: ' + attr + ' attribute is not defined';
-//                     responder.response_result(request, response, 404, body_Obj, 4004, request.url, body_Obj['dbg']);
-//                     callback('0', resource_Obj);
-//                     return '0';
-//                 }
-//             }
-//         }
-//     }
-//
-//     update_body(rootnm, body_Obj, resource_Obj); // (attr == 'aa' || attr == 'poa' || attr == 'lbl' || attr == 'acpi' || attr == 'srt' || attr == 'nu' || attr == 'mid' || attr == 'macp')
-//
-//     resource_Obj[rootnm].st = (parseInt(resource_Obj[rootnm].st, 10) + 1).toString();
-//
-//     var cur_d = new Date();
-//     resource_Obj[rootnm].lt = cur_d.toISOString().replace(/-/, '').replace(/-/, '').replace(/:/, '').replace(/:/, '').replace(/\..+/, '');
-//
-//     if (resource_Obj[rootnm].et != '') {
-//         if (resource_Obj[rootnm].et < resource_Obj[rootnm].ct) {
-//             body_Obj = {};
-//             body_Obj['dbg'] = 'expiration time is before now';
-//             responder.response_result(request, response, 400, body_Obj, 4000, request.url, body_Obj['dbg']);
-//             callback('0', resource_Obj);
-//             return '0';
-//         }
-//     }
-//
-//     callback('1', resource_Obj);
-// };
-
 
