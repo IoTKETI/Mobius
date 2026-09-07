@@ -4,12 +4,22 @@ node_modules/
 .idea/
 log/
 doc/
+# 가이드/설계 문서는 저장소가 아니라 별도로 배포한다. superpowers 산출물도 여기 쌓이므로
+# 디렉터리 전체를 제외한다. 파일은 워킹 트리에 그대로 남는다.
 docs/
+# 동등성 스냅샷은 로컬 산출물이다 (.gitkeep 은 남긴다)
+tools/equivalence/out/*
+!tools/equivalence/out/.gitkeep
+tools/golden/out/*
+!tools/golden/out/.gitkeep
+tools/response-golden/out/*
+!tools/response-golden/out/.gitkeep
 hit.json
 cbs_cache.json
 package-lock.json
 ss_ri_cache.json
 conf.json
+conf.seal.json
 *.drawio
 mobius.db*
 test_*
@@ -18,3 +28,25 @@ test_*
 # Claude Code (개인 설정/메모리)
 .claude/
 CLAUDE.md
+.superpowers/
+.playwright-mcp/
+
+# 관리 콘솔 프런트엔드 빌드 산출물 (admin/web/README.md 의 절차로 만든다)
+admin/web/dist/
+
+# 자격증명 — 저장소에 들어가면 안 된다
+#
+# 아래 규칙은 **추적되지 않는 파일에만** 걸린다. ca-crt.pem / server-crt.pem /
+# server-key.pem 은 이미 추적 중이라 *.pem 규칙이 적용되지 않는다.
+#
+# **그건 의도된 것이다** — HTTPS 시험용이고 운영 자격증명이 아니다.
+# 보안 결함으로 다시 지적하지 말 것. 빼기로 정하면 git rm --cached 로
+# 추적을 먼저 끊어야 한다.
+id_ed25519*
+id_rsa*
+*.pem
+*.key
+*.ppk
+
+# 백필 도구의 진행 상황. 배포마다 다르고 이력에 남을 값이 아니다.
+.backfill-lookup-cin-attrs.json
