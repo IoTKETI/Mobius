@@ -146,7 +146,7 @@ onMounted(async () => {
             <td class="mono muted">{{ fmtTime(r.ct) }}</td>
             <td class="mono muted">{{ fmtTime(r.lt) }}</td>
             <td>
-              <button class="small" @click="router.push({ name: 'judge-acp-sim', params: { ri: riParam(r.ri) } })">시뮬레이터</button>
+              <button class="small" @click="router.push({ name: 'judge-acp-sim', params: { ri: riParam(r.ri) } })">ACP 테스트</button>
             </td>
           </tr>
         </tbody>
@@ -172,7 +172,7 @@ onMounted(async () => {
         >
           편집
         </button>
-        <button @click="router.push({ name: 'judge-acp-sim', params: { ri: riParam(openRi) } })">시뮬레이터로</button>
+        <button @click="router.push({ name: 'judge-acp-sim', params: { ri: riParam(openRi) } })">ACP 테스트로</button>
         <button @click="close">닫기</button>
       </div>
 
@@ -182,7 +182,7 @@ onMounted(async () => {
         <p v-if="detail.detail.is_acp === false" class="banner danger">
           <strong>이 경로는 ACP 가 아닙니다.</strong> 접근제어정책(<code>ty=1</code>)이
           아닌 리소스라 권한 규칙이 없습니다. 이 리소스에 <em>걸린</em> 권한을 보려면
-          시뮬레이터를 쓰세요.
+          ACP 테스트를 쓰세요.
         </p>
         <p v-else-if="detail.detail.body_missing" class="banner danger">
           <strong>본문이 없습니다.</strong> <code>lookup</code> 에는 있는데

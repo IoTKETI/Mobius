@@ -14,23 +14,27 @@ import JobsView from './views/JobsView.vue'
 import SelfTestPlaceholderView from './views/SelfTestPlaceholderView.vue'
 
 /** 왼쪽 내비의 묶음. 순서가 곧 화면 순서다. */
+// 묶음 id 는 라우트 이름·경로의 접두(judge-*, observe-* …)와 같이 두고 **라벨만** 화면 말로
+// 바꾼다(사용자 결정 2026-09-07: 현황 → 리소스 관리 → 접근권한 → 구독 → 검증). 경로를 바꾸면
+// 문서와 북마크가 깨지므로 접근권한 묶음(acl)도 judge-acp-* 라우트를 그대로 쓴다.
 export const GROUPS: { id: string; label: string }[] = [
-  { id: 'judge', label: '판단' },
+  { id: 'observe', label: '현황' },
+  { id: 'judge', label: '리소스 관리' },
+  { id: 'acl', label: '접근권한' },
   { id: 'subs', label: '구독' },
-  { id: 'observe', label: '관측' },
   { id: 'verify', label: '검증' },
 ]
 
 /** 내비에 보이는 화면. 편집·생성·연결처럼 목록에서 들어가는 화면은 여기 없다. */
 export const NAV: { name: string; group: string; label: string }[] = [
-  { name: 'judge-expired', group: 'judge', label: '만료' },
-  { name: 'judge-orphans', group: 'judge', label: '고아' },
-  { name: 'judge-acp-problems', group: 'judge', label: 'ACP 문제' },
-  { name: 'judge-acp-list', group: 'judge', label: 'ACP 목록' },
-  { name: 'judge-acp-sim', group: 'judge', label: '시뮬레이터' },
-  { name: 'subs-endpoints', group: 'subs', label: '엔드포인트' },
   { name: 'observe-stats', group: 'observe', label: '통계' },
   { name: 'observe-jobs', group: 'observe', label: '작업' },
+  { name: 'judge-expired', group: 'judge', label: '만료' },
+  { name: 'judge-orphans', group: 'judge', label: '고아' },
+  { name: 'judge-acp-problems', group: 'acl', label: 'ACP 문제' },
+  { name: 'judge-acp-list', group: 'acl', label: 'ACP 목록' },
+  { name: 'judge-acp-sim', group: 'acl', label: 'ACP 테스트' },
+  { name: 'subs-endpoints', group: 'subs', label: '엔드포인트' },
   { name: 'verify-selftest', group: 'verify', label: '종합 테스트' },
 ]
 

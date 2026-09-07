@@ -73,7 +73,7 @@ const creatorPasses = computed(
 
 <template>
   <section>
-    <h2>권한 시뮬레이터</h2>
+    <h2>ACP 테스트</h2>
     <div v-if="acp && acp.discoveryFilter === 'off'" class="banner danger">
       <strong><code>acpDiscoveryFilter</code> 가 <code>off</code> 입니다.</strong>
       잠근 컨테이너의 경로가 상위 discovery 결과에 그대로 나옵니다 — 아래 판정에서
