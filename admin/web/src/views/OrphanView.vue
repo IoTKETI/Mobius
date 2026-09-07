@@ -7,7 +7,7 @@ import JobPanel from '../components/JobPanel.vue'
 import ConfirmDialog from '../components/ConfirmDialog.vue'
 
 /**
- * 고아 리소스 — 라이브 스캔은 없다. "탐지 시작" 이 작업을 돌리고, 화면은 마지막
+ * 미연결 리소스(코드 이름은 orphan) — 라이브 스캔은 없다. "탐지 시작" 이 작업을 돌리고, 화면은 마지막
  * 결과 파일만 보여 준다(배포 lookup 5,740만 행 — 설계의 명시적 비목표였다).
  */
 defineProps<{ write: WriteInfo }>()
@@ -78,10 +78,10 @@ onMounted(async () => { void runner.attach(); await loadLast() })
 
 <template>
   <section>
-    <h2>고아 리소스</h2>
+    <h2>미연결 리소스</h2>
     <p class="lead">
-      부모(<code>pi</code>)가 <code>lookup</code> 에 없는 행입니다. 트리에서 도달할 수 없지만
-      DB 에는 남아 공간을 차지하고, 컨테이너 카운터를 어긋나게 합니다.
+      부모(<code>pi</code>)가 <code>lookup</code> 에 없어 트리에서 닿을 수 없는 행입니다. 조회로는
+      나오지 않지만 DB 에는 남아 공간을 차지하고, 컨테이너 카운터를 어긋나게 합니다.
       <strong>화면을 열어도 훑지 않습니다</strong> — 탐지는 작업으로 돌리고, 마지막 결과만 보여 줍니다.
     </p>
 
@@ -90,7 +90,7 @@ onMounted(async () => { void runner.attach(); await loadLast() })
       <p>
         상한(기본 20만 행)까지만 훑고 표본 1,000건까지만 남깁니다. 끊긴 컨테이너 하나 아래에
         CIN 수백만 건이 있을 수 있습니다. 끊긴 지점을 지우면 그 자식들이 다음 탐지에서 새
-        고아로 올라옵니다.
+        미연결 리소스로 올라옵니다.
       </p>
     </div>
 
@@ -136,7 +136,7 @@ onMounted(async () => { void runner.attach(); await loadLast() })
           <thead>
             <tr>
               <th class="cb"><input type="checkbox" :checked="allSelected" :disabled="!write.enabled" aria-label="전체 선택" @change="toggleAll" /></th>
-              <th>고아 경로 (ri)</th><th>타입</th><th>사라진 부모 (pi)</th><th>어느 서브트리</th><th>생성 (ct)</th>
+              <th>URI (ri)</th><th>타입</th><th>사라진 부모 (pi)</th><th>어느 서브트리</th><th>생성 (ct)</th>
             </tr>
           </thead>
           <tbody>
@@ -151,7 +151,7 @@ onMounted(async () => { void runner.attach(); await loadLast() })
           </tbody>
         </table>
       </div>
-      <p v-else class="empty">표본에 고아가 없습니다<span v-if="result.scanCapped"> (상한까지는 — 뒤에 더 있을 수 있습니다)</span>.</p>
+      <p v-else class="empty">표본에 미연결 리소스가 없습니다<span v-if="result.scanCapped"> (상한까지는 — 뒤에 더 있을 수 있습니다)</span>.</p>
 
       <h3>lookup 에만 남은 CIN</h3>
       <p class="sub">원인이 밝혀지지 않아 삭제 버튼을 두지 않습니다. 인수인계 문서 §6 을 읽고 결정합니다.</p>
@@ -168,9 +168,9 @@ onMounted(async () => { void runner.attach(); await loadLast() })
       <p v-else class="empty small">표본에 없습니다.</p>
     </template>
 
-    <ConfirmDialog v-if="confirming" title="고아 리소스를 삭제합니다" :confirm-label="`${selected.size.toLocaleString()}건 삭제`" :paths="selectedList" destructive :busy="starting" @cancel="confirming = false" @confirm="runDelete">
+    <ConfirmDialog v-if="confirming" title="미연결 리소스를 삭제합니다" :confirm-label="`${selected.size.toLocaleString()}건 삭제`" :paths="selectedList" destructive :busy="starting" @cancel="confirming = false" @confirm="runDelete">
       <p class="dlg">되돌릴 수 없습니다. 삭제 직전에 부모가 여전히 없는지 다시 확인해서, 그사이 부모가 되살아난 것은 건너뜁니다.</p>
-      <p class="dlg warn"><strong>한 번에 다 끝나지 않습니다.</strong> 끊긴 지점을 지우면 그 자식들이 새로 고아가 되어 다음 탐지에 올라옵니다. 탐지 → 삭제를 반복해야 합니다.</p>
+      <p class="dlg warn"><strong>한 번에 다 끝나지 않습니다.</strong> 끊긴 지점을 지우면 그 자식들이 새로 미연결 리소스가 되어 다음 탐지에 올라옵니다. 탐지 → 삭제를 반복해야 합니다.</p>
     </ConfirmDialog>
   </section>
 </template>

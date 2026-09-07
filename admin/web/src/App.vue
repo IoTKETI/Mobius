@@ -60,7 +60,7 @@ onMounted(probe)
   <div v-if="!authed" class="login-wrap">
     <form class="login" @submit.prevent="doLogin">
       <h1>Mobius 관리 콘솔</h1>
-      <p class="muted">만료·고아 리소스를 확인하고 정리합니다.</p>
+      <p class="muted">만료·미연결 리소스를 확인하고 정리합니다.</p>
       <input
         v-model="password"
         type="password"

@@ -35,8 +35,8 @@ async function cancel(j: Job) {
 const KIND_LABEL: Record<string, string> = {
   'expired-delete': '만료 삭제',
   'expired-extend': 'et 연장',
-  'orphan-delete': '고아 삭제',
-  'orphan-scan': '고아 탐지',
+  'orphan-delete': '미연결 삭제',
+  'orphan-scan': '미연결 탐지',
   'sub-delete': '구독 삭제',
   selftest: '종합 테스트',
 }

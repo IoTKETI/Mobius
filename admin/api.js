@@ -231,7 +231,7 @@ exports.install = function (app, ctx) {
         });
     });
 
-    // ── 고아 (배치 결과) ───────────────────────────────────────────────────
+    // ── 미연결 (배치 결과) — 화면 말은 "미연결", 코드 이름은 orphan ──────────
     //
     // 라이브 스캔은 없다. 탐지는 POST /api/jobs/orphan-scan 이 작업으로 돌리고,
     // 화면은 마지막 결과 파일(admin/data/orphans/)만 본다. admin/orphan_scan.js.
@@ -896,9 +896,9 @@ exports.install = function (app, ctx) {
     });
 
     /**
-     * 고아 리소스 삭제. 실행 직전 부모가 정말 없는지 다시 확인한다.
+     * 미연결 리소스 삭제(코드 이름은 orphan). 실행 직전 부모가 정말 없는지 다시 확인한다.
      *
-     * 부모가 다시 생겼다면 그 행은 더 이상 고아가 아니라 살아 있는 데이터다.
+     * 부모가 다시 생겼다면 그 행은 더 이상 미연결이 아니라 살아 있는 데이터다.
      * 낡은 목록으로 그걸 지우면 안 된다.
      */
     app.post('/api/jobs/orphan-delete', function (req, res) {
@@ -909,9 +909,9 @@ exports.install = function (app, ctx) {
 
         start_or_conflict(res, {
             kind: 'orphan-delete',
-            title: '고아 리소스 삭제 ' + ris.length + '건',
+            title: '미연결 리소스 삭제 ' + ris.length + '건',
             note: '삭제 직전 부모가 여전히 없는지 다시 확인한다. ' +
-                  '끝난 직후의 목록에는 방금 지운 것의 자식들이 새 고아로 올라온다 — ' +
+                  '끝난 직후의 목록에는 방금 지운 것의 자식들이 새 미연결 리소스로 올라온다 — ' +
                   '그중 일부는 배경 정리가 곧 지울 것들이니, 잠시 뒤 “다시 세기”로 확인한다.',
             targets: ris,
             concurrency: 4,
@@ -919,7 +919,7 @@ exports.install = function (app, ctx) {
                 if (!row.pi) { return next('부모 경로가 비어 있음 (CSEBase)'); }
                 db_sql.select_lookup(conn, row.pi, function (e, prows) {
                     if (e) { return next('부모 확인 실패 — 안전을 위해 건너뜀'); }
-                    if (prows && prows.length > 0) { return next('부모가 다시 생김 — 고아가 아님'); }
+                    if (prows && prows.length > 0) { return next('부모가 다시 생김 — 미연결이 아님'); }
                     next(null);
                 });
             })

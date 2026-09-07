@@ -38,14 +38,14 @@ export interface ExpiredSummary {
 
 export interface OrphanRow {
   ri: string
-  /** 부모 경로. 이 값이 lookup 에 없어서 고아다. */
+  /** 부모 경로. 이 값이 lookup 에 없어서 미연결이다. */
   pi: string
   ty: number
   rn: string
   ct: string
 }
 
-/** 고아 탐지 작업 하나의 결과 파일. 세지 않는다 — 표본이다. */
+/** 미연결 탐지 작업 하나의 결과 파일. 세지 않는다 — 표본이다. */
 export interface OrphanScanResult {
   runId: string
   startedAt: string

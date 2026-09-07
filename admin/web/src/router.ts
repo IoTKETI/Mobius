@@ -29,8 +29,9 @@ export const GROUPS: { id: string; label: string }[] = [
 export const NAV: { name: string; group: string; label: string }[] = [
   { name: 'observe-stats', group: 'observe', label: '통계' },
   { name: 'observe-jobs', group: 'observe', label: '작업' },
-  { name: 'judge-expired', group: 'judge', label: '만료' },
-  { name: 'judge-orphans', group: 'judge', label: '고아' },
+  { name: 'judge-expired', group: 'judge', label: '만료 리소스' },
+  // 라우트 이름·경로의 orphan 은 그대로 두고 화면 말만 '미연결' 이다(사용자 결정 2026-09-07).
+  { name: 'judge-orphans', group: 'judge', label: '미연결 리소스' },
   { name: 'judge-acp-problems', group: 'acl', label: 'ACP 문제' },
   { name: 'judge-acp-list', group: 'acl', label: 'ACP 목록' },
   { name: 'judge-acp-sim', group: 'acl', label: 'ACP 테스트' },

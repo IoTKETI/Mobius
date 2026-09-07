@@ -1,6 +1,6 @@
 'use strict';
 /**
- * 고아 탐지 작업.
+ * 미연결 리소스 탐지 작업(화면 말은 "미연결", 코드 이름은 orphan).
  *
  * 화면이 열릴 때 lookup 을 훑던 것(라이브 스캔)을 없앴다 — 설계의 명시적 비목표였고
  * 배포 lookup 은 5,740만 행이다. 대신 관리자가 "탐지 시작" 을 누르면 jobs.js 작업
@@ -113,7 +113,7 @@ exports.start = function (ctx, opts) {
 
     return ctx.jobs.start({
         kind: 'orphan-scan',
-        title: '고아 탐지 (상한 ' + scanCap.toLocaleString() + '행 · 표본 ' + sampleCap + ')',
+        title: '미연결 탐지 (상한 ' + scanCap.toLocaleString() + '행 · 표본 ' + sampleCap + ')',
         note: '세지 않고 표본만 뽑는다. 삭제는 결과에서 골라 따로 시작한다.',
         targets: targets,
         keyOf: function (t) { return 'chunk-' + t; },

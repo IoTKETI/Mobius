@@ -210,7 +210,7 @@ onMounted(async () => {
 
 <template>
   <section>
-    <h2>만료된 리소스</h2>
+    <h2>만료 리소스</h2>
     <p class="lead">
       전체 리소스들 중에 <code>et</code>(expirationTime)가 이미 지난 리소스들입니다.
       만료된 리소스들은 자동으로 지우지 않습니다. 여기서 만료된 리소스들을 확인하고,
