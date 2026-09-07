@@ -33,6 +33,32 @@ CREATE TABLE `acp` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
+-- Table structure for table `acp_audit`
+--
+-- Change history of ACPs and acpi. No FK to lookup, so the history survives the resource's deletion.
+-- Migration: migrations/007-acp-audit-table.js
+--
+
+DROP TABLE IF EXISTS `acp_audit`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `acp_audit` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `ts` varchar(21) NOT NULL,
+  `op` varchar(16) NOT NULL,
+  `ri` varchar(200) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
+  `ty` int unsigned NOT NULL,
+  `origin` varchar(45) DEFAULT NULL,
+  `cr` varchar(45) CHARACTER SET utf8 COLLATE utf8_bin DEFAULT NULL,
+  `before_val` text,
+  `after_val` text,
+  PRIMARY KEY (`id`),
+  KEY `idx_acp_audit_ri` (`ri`),
+  KEY `idx_acp_audit_ts` (`ts`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
 -- Table structure for table `ae`
 --
 
@@ -43,7 +69,7 @@ CREATE TABLE `ae` (
   `ri` varchar(200) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
   `apn` varchar(45) NOT NULL,
   `api` varchar(45) NOT NULL,
-  `aei` varchar(200) NOT NULL,
+  `aei` varchar(200) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
   `poa` varchar(200) NOT NULL,
   `or` varchar(45) NOT NULL,
   `rr` varchar(45) NOT NULL,
@@ -67,8 +93,8 @@ DROP TABLE IF EXISTS `cb`;
 CREATE TABLE `cb` (
   `ri` varchar(200) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
   `cst` varchar(45) NOT NULL,
-  `csi` varchar(45) NOT NULL,
-  `srt` varchar(100) NOT NULL,
+  `csi` varchar(45) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
+  `srt` varchar(255) NOT NULL,
   `poa` varchar(200) NOT NULL,
   `nl` varchar(45) NOT NULL,
   `ncp` varchar(45) NOT NULL,
@@ -87,10 +113,10 @@ DROP TABLE IF EXISTS `cin`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `cin` (
-  `pi` varchar(200) NOT NULL,
+  `pi` varchar(200) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
   `ri` varchar(200) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
   `cs` int NOT NULL,
-  `cr` varchar(45) NOT NULL,
+  `cr` varchar(45) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
   `cnf` varchar(45) NOT NULL,
   `or` varchar(45) NOT NULL,
   `con` longtext NOT NULL,
@@ -110,7 +136,7 @@ DROP TABLE IF EXISTS `cnt`;
 /*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `cnt` (
   `ri` varchar(200) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
-  `cr` varchar(45) NOT NULL,
+  `cr` varchar(45) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
   `mni` bigint unsigned NOT NULL,
   `mbs` bigint unsigned NOT NULL,
   `mia` int unsigned NOT NULL,
@@ -136,8 +162,8 @@ CREATE TABLE `csr` (
   `ri` varchar(200) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
   `cst` varchar(45) NOT NULL,
   `poa` varchar(200) NOT NULL,
-  `cb` varchar(200) NOT NULL,
-  `csi` varchar(200) NOT NULL,
+  `cb` varchar(200) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
+  `csi` varchar(200) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
   `mei` varchar(45) NOT NULL,
   `tri` varchar(45) NOT NULL,
   `rr` varchar(45) NOT NULL,
@@ -224,7 +250,7 @@ DROP TABLE IF EXISTS `grp`;
 /*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `grp` (
   `ri` varchar(200) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
-  `cr` varchar(45) NOT NULL,
+  `cr` varchar(45) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
   `mt` varchar(45) NOT NULL,
   `cnm` varchar(45) NOT NULL,
   `mnm` varchar(45) NOT NULL,
@@ -272,7 +298,7 @@ CREATE TABLE `lcp` (
   `loi` varchar(45) NOT NULL,
   `lon` varchar(45) NOT NULL,
   `lost` varchar(45) NOT NULL,
-  `cr` varchar(45) NOT NULL,
+  `cr` varchar(45) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
   PRIMARY KEY (`ri`),
   UNIQUE KEY `ri_UNIQUE` (`ri`),
   CONSTRAINT `lcp_ri` FOREIGN KEY (`ri`) REFERENCES `lookup` (`ri`) ON DELETE CASCADE ON UPDATE CASCADE
@@ -287,27 +313,41 @@ DROP TABLE IF EXISTS `lookup`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `lookup` (
-  `pi` varchar(200) NOT NULL,
+  -- Identifier and name columns (pi, ri, rn, acpi, lbl, sri, spi) are utf8_bin: they compare byte for byte, so a `pi = ri` join needs no collation conversion, and paths differing only in case are distinct resources. cin.pi and sub.pi use the same collation.
+  `pi` varchar(200) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
   `ri` varchar(200) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
   `ty` int unsigned NOT NULL,
   `ct` varchar(21) NOT NULL,
   `st` int unsigned NOT NULL,
-  `rn` varchar(45) NOT NULL,
+  `rn` varchar(200) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
   `lt` varchar(45) NOT NULL,
   `et` varchar(45) NOT NULL,
-  `acpi` varchar(200) NOT NULL,
-  `lbl` varchar(200) NOT NULL,
+  `acpi` varchar(200) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
+  `lbl` varchar(200) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
   `at` varchar(45) NOT NULL,
   `aa` varchar(45) NOT NULL,
-  `sri` varchar(45) NOT NULL,
-  `spi` varchar(45) NOT NULL,
-  `subl` mediumtext,
+  `sri` varchar(200) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
+  `spi` varchar(200) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
+  -- Copies of the CIN's contentSize / contentInfo, read by discovery's sza / szb / cty. The originals are in cin; discovery filters while scanning lookup indexes, and the copies save one cin probe per candidate.
+  --
+  -- NULL is allowed to distinguish two cases:
+  --   not a CIN            there is no contentSize; NULL is correct
+  --   not yet backfilled   the value is unknown; NULL expresses that
+  -- A default of 0 would be indistinguishable from a real CIN with an empty body.
+  --
+  -- The read path uses these columns only after the backfill is complete (migrations/012).
+  `cs` int DEFAULT NULL,
+  `cnf` varchar(45) DEFAULT NULL,
+  -- For the discovery skeleton recursion: lets 'not a CIN (ty=4)' be asked as an equality. Inside a MySQL recursive CTE only ref (equality) access uses an index; a plain ty <> 4 would use the index up to pi and filter the rest. VIRTUAL, so it takes no row space. INVISIBLE is required so `select *` resource reads do not return not_cin in the response.
+  `not_cin` tinyint unsigned GENERATED ALWAYS AS (`ty` <> 4) VIRTUAL INVISIBLE,
   PRIMARY KEY (`pi`,`ri`,`ty`),
   UNIQUE KEY `ri_UNIQUE` (`ri`),
   KEY `idx_lookup_ty` (`ty`) USING BTREE,
-  KEY `idx_lookup_pi` (`pi`) /*!80000 INVISIBLE */,
-  KEY `idx_lookup_ct` (`ct`),
-  KEY `idx_lookup_sri` (`sri`)
+  -- There is no idx_lookup_ct (ct): every query that filters or sorts lookup by ct also has pi (usually ty), which idx_lookup_pi_ty_ct serves. Existing DBs are aligned by migrations/005 (INVISIBLE) -> 006 (DROP).
+  -- sri is the outward resourceID and must be unique (migration 019).
+  UNIQUE KEY `idx_lookup_sri_unique` (`sri`),
+  KEY `idx_lookup_pi_ty_ct` (`pi`,`ty`,`ct`),
+  KEY `idx_lookup_pi_notcin` (`pi`,`not_cin`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
@@ -346,7 +386,7 @@ CREATE TABLE `mgo` (
   `dis` varchar(45) DEFAULT NULL,
   `rbo` varchar(45) DEFAULT NULL,
   `far` varchar(45) DEFAULT NULL,
-  `cr` varchar(45) DEFAULT NULL,
+  `cr` varchar(45) CHARACTER SET utf8 COLLATE utf8_bin DEFAULT NULL,
   PRIMARY KEY (`ri`),
   UNIQUE KEY `ri_UNIQUE` (`ri`),
   CONSTRAINT `mgo_ri` FOREIGN KEY (`ri`) REFERENCES `lookup` (`ri`) ON DELETE CASCADE ON UPDATE CASCADE
@@ -368,7 +408,7 @@ CREATE TABLE `mms` (
   `asd` varchar(45) DEFAULT NULL,
   `osd` varchar(45) DEFAULT NULL,
   `sst` varchar(45) DEFAULT NULL,
-  `cr` varchar(45) DEFAULT NULL,
+  `cr` varchar(45) CHARACTER SET utf8 COLLATE utf8_bin DEFAULT NULL,
   PRIMARY KEY (`ri`),
   UNIQUE KEY `ri_UNIQUE` (`ri`),
   CONSTRAINT `mms_ri` FOREIGN KEY (`ri`) REFERENCES `lookup` (`ri`) ON DELETE CASCADE ON UPDATE CASCADE
@@ -387,7 +427,7 @@ CREATE TABLE `nod` (
   `ni` varchar(45) NOT NULL,
   `hcl` varchar(45) DEFAULT NULL,
   `mgca` varchar(45) DEFAULT NULL,
-  `cr` varchar(45) DEFAULT NULL,
+  `cr` varchar(45) CHARACTER SET utf8 COLLATE utf8_bin DEFAULT NULL,
   PRIMARY KEY (`ri`),
   UNIQUE KEY `ri_UNIQUE` (`ri`),
   CONSTRAINT `nod_ri` FOREIGN KEY (`ri`) REFERENCES `lookup` (`ri`) ON DELETE CASCADE ON UPDATE CASCADE
@@ -395,28 +435,51 @@ CREATE TABLE `nod` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
--- Table structure for table `req`
+-- The req (ty=17, <request>) table is not part of this schema; non-blocking requests (rt=1/2) are not supported. Existing deployments drop it with migrations/003-drop-req-table.js.
 --
 
-DROP TABLE IF EXISTS `req`;
+--
+-- Table structure for table `schema_migrations`
+--
+-- Migration ledger. tools/migrate.js ensureTable creates the same table; change both together.
+--
+-- This file already contains the shape the migrations produce (test/schema-drift.test.js compares), so a fresh install must be 'fully applied' after the import alone, and the ledger rows below make it so: data switches such as 012 are read from this table (mobius/db_bootstrap.js readDataSwitches).
+--
+-- Rule: when adding a migration, (1) reflect its result in this file and (2) add its id to the INSERT below. The one exception is 010: SET PERSIST is server configuration a dump cannot carry, and autoApply runs it at first boot. test/schema-drift.test.js compares this list with migrations/, and test/mysql/schema-fresh.test.js imports the file and checks that only 010 remains.
+--
+-- applied_at is the date the row entered this file (the runner's format). duration_ms NULL means the migration was never run; the file already had that shape.
+--
+
+DROP TABLE IF EXISTS `schema_migrations`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!50503 SET character_set_client = utf8mb4 */;
-CREATE TABLE `req` (
-  `ri` varchar(200) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
-  `op` varchar(45) NOT NULL,
-  `tg` varchar(45) NOT NULL,
-  `org` varchar(45) NOT NULL,
-  `rid` varchar(45) NOT NULL,
-  `mi` varchar(45) DEFAULT NULL,
-  `pc` longtext,
-  `rs` varchar(45) DEFAULT NULL,
-  `ors` varchar(45) DEFAULT NULL,
-  `cr` varchar(45) DEFAULT NULL,
-  PRIMARY KEY (`ri`),
-  UNIQUE KEY `ri_UNIQUE` (`ri`),
-  CONSTRAINT `req_ri` FOREIGN KEY (`ri`) REFERENCES `lookup` (`ri`) ON DELETE CASCADE ON UPDATE CASCADE
+CREATE TABLE `schema_migrations` (
+  `id` varchar(160) NOT NULL,
+  `applied_at` varchar(21) NOT NULL,
+  `duration_ms` int DEFAULT NULL,
+  PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
+
+INSERT INTO `schema_migrations` (`id`, `applied_at`, `duration_ms`) VALUES
+('001-lookup-pi-ty-ct-index', '20260906T000000', NULL),
+('002-drop-lookup-pi-index', '20260906T000000', NULL),
+('003-drop-req-table', '20260906T000000', NULL),
+('004-lookup-pi-notcin-index', '20260906T000000', NULL),
+('005-lookup-ct-index-invisible', '20260906T000000', NULL),
+('006-drop-lookup-ct-index', '20260906T000000', NULL),
+('007-acp-audit-table', '20260906T000000', NULL),
+('008-drop-tm-tr-tables', '20260906T000000', NULL),
+('009-widen-cb-srt', '20260906T000000', NULL),
+('011-lookup-cin-attrs', '20260906T000000', NULL),
+('012-lookup-cin-attrs-filled', '20260906T000000', NULL),
+('013-sub-pi-index', '20260906T000000', NULL),
+('014-sub-widen-nu-enc', '20260906T000000', NULL),
+('015-drop-lookup-subl', '20260906T000000', NULL),
+('016-drop-orphan-csr-lookup', '20260906T000000', NULL),
+('017-dedupe-lookup-sri', '20260906T000000', NULL),
+('018-id-columns-collation-bin', '20260906T000000', NULL),
+('019-lookup-sri-unique', '20260906T000000', NULL);
 
 --
 -- Table structure for table `smd`
@@ -427,7 +490,7 @@ DROP TABLE IF EXISTS `smd`;
 /*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `smd` (
   `ri` varchar(200) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
-  `cr` varchar(45) DEFAULT NULL,
+  `cr` varchar(45) CHARACTER SET utf8 COLLATE utf8_bin DEFAULT NULL,
   `dsp` longtext,
   `or` mediumtext,
   `soe` varchar(200) DEFAULT NULL,
@@ -465,10 +528,10 @@ DROP TABLE IF EXISTS `sub`;
 /*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `sub` (
   `ri` varchar(200) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
-  `pi` varchar(400) DEFAULT NULL,
-  `enc` varchar(45) DEFAULT NULL,
+  `pi` varchar(400) CHARACTER SET utf8 COLLATE utf8_bin DEFAULT NULL,
+  `enc` text,
   `exc` varchar(45) DEFAULT NULL,
-  `nu` varchar(200) DEFAULT NULL,
+  `nu` text,
   `gpi` varchar(45) DEFAULT NULL,
   `nfu` varchar(45) DEFAULT NULL,
   `bn` varchar(45) DEFAULT NULL,
@@ -479,66 +542,18 @@ CREATE TABLE `sub` (
   `ln` varchar(45) DEFAULT NULL,
   `nct` varchar(45) DEFAULT NULL,
   `nec` varchar(45) DEFAULT NULL,
-  `cr` varchar(45) DEFAULT NULL,
+  `cr` varchar(45) CHARACTER SET utf8 COLLATE utf8_bin DEFAULT NULL,
   `su` varchar(45) DEFAULT NULL,
   PRIMARY KEY (`ri`),
   UNIQUE KEY `resourceid_UNIQUE` (`ri`),
+  KEY `idx_sub_pi` (`pi`),
   CONSTRAINT `sub_ri` FOREIGN KEY (`ri`) REFERENCES `lookup` (`ri`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
--- Table structure for table `tm`
+-- The tm (ty=38, <transactionMgmt>) / tr (ty=39, <transaction>) tables are not part of this schema; the oneM2M distributed transaction (two-phase commit) is not supported. Existing deployments drop them with migrations/008-drop-tm-tr-tables.js.
 --
-
-DROP TABLE IF EXISTS `tm`;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!50503 SET character_set_client = utf8mb4 */;
-CREATE TABLE `tm` (
-  `ri` varchar(200) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
-  `tltm` varchar(45) DEFAULT NULL,
-  `text` varchar(45) DEFAULT NULL,
-  `tct` varchar(45) DEFAULT NULL,
-  `tept` varchar(45) DEFAULT NULL,
-  `tmd` varchar(45) DEFAULT NULL,
-  `tltp` varchar(45) DEFAULT NULL,
-  `tctl` varchar(45) DEFAULT NULL,
-  `tst` varchar(45) DEFAULT NULL,
-  `tmr` varchar(45) DEFAULT NULL,
-  `tmh` varchar(45) DEFAULT NULL,
-  `rqps` mediumtext,
-  `rsps` mediumtext,
-  `cr` varchar(45) DEFAULT NULL,
-  PRIMARY KEY (`ri`),
-  UNIQUE KEY `ri_UNIQUE` (`ri`),
-  CONSTRAINT `tm_ri` FOREIGN KEY (`ri`) REFERENCES `lookup` (`ri`) ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=latin1;
-/*!40101 SET character_set_client = @saved_cs_client */;
-
---
--- Table structure for table `tr`
---
-
-DROP TABLE IF EXISTS `tr`;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!50503 SET character_set_client = utf8mb4 */;
-CREATE TABLE `tr` (
-  `ri` varchar(200) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
-  `cr` varchar(45) DEFAULT NULL,
-  `tid` varchar(45) NOT NULL,
-  `tctl` varchar(45) DEFAULT NULL,
-  `tst` varchar(45) DEFAULT NULL,
-  `tltm` varchar(45) DEFAULT NULL,
-  `text` varchar(45) DEFAULT NULL,
-  `tct` varchar(45) DEFAULT NULL,
-  `tltp` varchar(45) DEFAULT NULL,
-  `trqp` mediumtext NOT NULL,
-  `trsp` mediumtext,
-  PRIMARY KEY (`ri`),
-  UNIQUE KEY `ri_UNIQUE` (`ri`),
-  CONSTRAINT `tr_ri` FOREIGN KEY (`ri`) REFERENCES `lookup` (`ri`) ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=latin1;
-/*!40101 SET character_set_client = @saved_cs_client */;
 
 --
 -- Final view structure for view `cur_info`
