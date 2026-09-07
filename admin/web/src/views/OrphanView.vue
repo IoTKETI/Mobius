@@ -45,6 +45,25 @@ const confirming = ref(false)
  * 상한은 **한 번에 읽을 양**이다. 배포 lookup 은 5,740만 행이라 한 번으로는 앞부분밖에
  * 못 본다 — 예전에는 다시 눌러도 같은 앞부분을 또 읽어 나머지를 영영 못 봤다.
  */
+/**
+ * 타일 밑의 설명. 찾은 것이 없으면 붙이지 않는다 — 없다는 사실이 전부다.
+ * 표본이 잘렸으면 그 사실이 가장 중요하고(숫자가 전부가 아니다), 아니면 다음에 할 일을 말한다.
+ */
+const orphanNote = computed(() => {
+  if (!result.value?.orphans.length) return ''
+  return result.value.sampleTruncated
+    ? `표본 ${result.value.sampleCap.toLocaleString()}건에서 멈췄습니다 — 실제로는 더 있습니다`
+    : '아래에서 골라 지울 수 있습니다'
+})
+
+const cinNote = computed(() => {
+  const s = result.value?.lookupOnlyCin
+  if (!s?.rows.length) return ''
+  return s.sampleTruncated
+    ? `표본 ${result.value!.sampleCap.toLocaleString()}건에서 멈췄습니다 — 실제로는 더 있습니다`
+    : 'cin 표에 짝이 없는 행입니다. 원인이 밝혀지지 않아 지우지 않습니다'
+})
+
 /** 두 단계가 읽은 행의 합. 작업 패널의 '훑은 행' 과 같은 수여야 한다 — 다르면 화면이 두 말을 한다. */
 const scannedRows = computed(() =>
   result.value ? result.value.scanned + result.value.lookupOnlyCin.scanned : 0,
@@ -138,8 +157,24 @@ onMounted(async () => { void runner.attach(); await loadLast() })
 
     <template v-if="result">
       <div class="tiles">
-        <div class="tile"><div class="k">끊긴 지점 (표본)</div><div class="v">{{ result.orphans.length.toLocaleString() }}<span v-if="result.sampleTruncated">+</span></div><div class="s">표본 상한 {{ result.sampleCap.toLocaleString() }}</div></div>
-        <div class="tile"><div class="k">lookup 에만 남은 CIN (표본)</div><div class="v">{{ result.lookupOnlyCin.rows.length.toLocaleString() }}<span v-if="result.lookupOnlyCin.sampleTruncated">+</span></div><div class="s">cin 표에 짝이 없는 ty=4 행 — 원인 미상, 세지 않음</div></div>
+        <!-- 0 이면 설명을 붙이지 않는다. 없다는 사실이 전부이고, 표본 상한이니 원인 미상이니는
+             찾은 것이 있을 때에만 판단에 쓰인다(사용자 결정 2026-09-07). -->
+        <div class="tile">
+          <div class="k">끊긴 지점</div>
+          <div class="v">
+            <template v-if="result.orphans.length">{{ result.orphans.length.toLocaleString() }}<span v-if="result.sampleTruncated">+</span></template>
+            <template v-else>없음</template>
+          </div>
+          <div class="s" v-if="orphanNote">{{ orphanNote }}</div>
+        </div>
+        <div class="tile">
+          <div class="k">lookup 에만 남은 CIN</div>
+          <div class="v">
+            <template v-if="result.lookupOnlyCin.rows.length">{{ result.lookupOnlyCin.rows.length.toLocaleString() }}<span v-if="result.lookupOnlyCin.sampleTruncated">+</span></template>
+            <template v-else>없음</template>
+          </div>
+          <div class="s" v-if="cinNote">{{ cinNote }}</div>
+        </div>
       </div>
 
       <p v-if="!write.enabled" class="note ro">조회 전용으로 떠 있습니다. 삭제를 쓰려면 <code>conf.json</code> 에 <code>csebaseport</code>(또는 <code>adminCsePort</code>)를 넣어 Mobius 주소를 알려 줍니다.</p>
