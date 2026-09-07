@@ -45,7 +45,7 @@ const verdict = computed(() => {
       ? `취소했습니다. 결과를 모르는 것이 ${leftover.value.toLocaleString()}건 있습니다 — 다시 조회해서 확인하세요.`
       : '취소했습니다. 시작한 건은 모두 결과가 확인됐습니다.'
   }
-  if (leftover.value === 0) return '정리 끝 — 다시 볼 것이 없습니다.'
+  if (leftover.value === 0) return '정리가 완료되었습니다.'
   const bits = []
   if (props.job.unresolved) bits.push(`판단하지 못한 것 ${props.job.unresolved.toLocaleString()}건`)
   if (props.job.failed) bits.push(`실패 ${props.job.failed.toLocaleString()}건`)
