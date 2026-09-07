@@ -13,7 +13,7 @@ Mobius 3.0 is a rewrite of the server core on the same oneM2M resource model and
 ### Database layer
 - One database facade (`mobius/db/`) with two adapters: MySQL (`mysql2` driver) and SQLite. The backend is a name in `conf.json` (`db`); adding a backend is adding one adapter file.
 - Every SQL statement is built with the knex query builder and executed with bound values. No string interpolation remains, which closes the discovery-parameter SQL injection reported against 2.5.15 and earlier at its root.
-- A fresh MySQL install is one import of `mobius/db/mobiusdb.sql`: the file carries the tables, the indexes and the migration ledger. Schema changes for existing installs are `migrations/001` to `019`, applied with `node tools/migrate.js`.
+- A fresh MySQL install is one import of `mobius/db/mobiusdb.sql`: the file carries the tables, the indexes and the migration ledger, so nothing is left to apply by hand.
 - Identifiers and names are compared byte for byte (binary collation), as oneM2M requires; `rn`, `sri` and `spi` are 200 characters wide.
 
 ### SQLite support
@@ -60,7 +60,7 @@ The SQLite backend currently covers six resource types: CSEBase, AE, accessContr
 - The per-worker resource cache and the legacy database paths.
 
 ### Upgrading from 2.x
-1. Apply pending migrations before starting the new core: `node tools/migrate.js --check mysql`, then `--apply`. Migration 018 rewrites the identifier columns and blocks writes for hours on a large database, so schedule it. For an existing SQLite file use `--check sqlite` / `--apply sqlite`.
+1. An existing 2.x database must be brought to the 3.0 schema before the new core starts. The step-by-step schema migrations (`migrations/001` to `019`, run with `node tools/migrate.js`) are maintained on the `lite` branch, not in this release; a fresh install needs none of them because `mobius/db/mobiusdb.sql` already has the final shape.
 2. Create the secret seal once: run `npm run setup -- --superuser` and press Enter (the value is kept). `--dbpass` follows the same rule.
 3. In `conf.json`, `usesqlite` is replaced by `db` (`"mysql"` or `"sqlite"`). `cntManPort`, `pxyWsPort`, `pxyMqttPort`, `wsAllowedOrigins`, `sgnManPort`, `hitManPort` and `adminPm2Name` are no longer read; `npm run conf` reports unknown keys.
 4. Clients using the MQTT, CoAP or WebSocket request bindings must move to HTTP; clients sending XML or CBOR must send JSON.
@@ -118,8 +118,8 @@ The Mobius is based on Node.js framework and uses MySQL or SQLite for database.
 tables, the indexes and the migration ledger (`schema_migrations`), so a fresh database starts in
 the same state as a fully migrated deployment — data switches such as 012 (discovery reads
 `lookup.cs`) are on from the first request, and nothing is left to apply by hand. The one thing
-a schema file cannot carry is the MySQL server settings (migration 010, `SET PERSIST`); Mobius
-applies those on its first start.
+a schema file cannot carry is the MySQL server's connection ceiling; Mobius raises
+`max_connections` to what its pools need at every start.
 <div align="center">
 <img src="https://user-images.githubusercontent.com/29790334/28322607-7be7d916-6c11-11e7-9d20-ac07961971bf.png" width="600"/>
 </div><br/>
@@ -148,21 +148,12 @@ Mobius source codes are written in javascript. So they don't need any compilatio
 | Schema and indexes | `mobius/db/mobiusdb.sql` | On first connect |
 | Connection pool | Built-in defaults | Every start |
 | SQLite journal mode, sync, busy timeout | `mobius/db/sqlite.js` | Every connect |
-| MySQL server settings | `migrations/010-server-durability.js` | First start, once |
+| MySQL connection ceiling (`max_connections`) | `mobius/db_bootstrap.js` | Every start |
 
-The MySQL server settings — durability, isolation level and the connection
-ceiling — live in the database server itself, so the schema file cannot create
-them. Mobius applies them on first start and records that it did, then never
-touches them again. Change them afterwards and they stay changed.
-
-Only migrations that finish instantly run at startup. Anything that rebuilds an
-index is left alone and logged instead, because that can take many minutes on a
-large database. Apply those when you choose to:
-
-```bash
-node tools/migrate.js --check mysql    # show what is pending
-node tools/migrate.js --apply mysql    # apply it
-```
+The connection ceiling lives in the database server itself, so the schema file
+cannot set it. Mobius raises `max_connections` to what its connection pools need
+at every start and never lowers it; a higher value set by the operator stays.
+Durability and isolation level are left at the MySQL defaults.
 
 Running on SQLite? None of this applies — SQLite has no server to configure, and
 the pool settings are unused there.
@@ -238,7 +229,7 @@ The database backend follows the `db` key in `conf.json`, and can be overridden 
 node mobius.js sqlite   // force SQLite
 node mobius.js mysql    // force MySQL
 ```
-`npm start` is equivalent to `node mobius.js`. On Windows the `run_sqlite.bat` and `run_mysql.bat` helper scripts are also provided.
+`npm start` is equivalent to `node mobius.js`.
 
 If `conf.json` is missing and the terminal is interactive, `node mobius.js` runs the setup wizard itself. If it is missing and the output is not a terminal (a service, `npm start > log`), Mobius exits with code 1 without creating the file — start it once from an interactive terminal (`node mobius.js`, or `npm run setup`) to create it. If the port is already taken, Mobius exits with code 12 instead of respawning workers forever.
 
