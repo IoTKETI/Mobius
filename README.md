@@ -9,7 +9,7 @@ The next version of Mobius is available on [Mobius4](https://github.com/iotketi/
 ## What's New
 
 ### SQLite Support
-Mobius now runs on SQLite as well as MySQL. SQLite requires no separate database server and creates its schema automatically at startup, which makes it suitable for embedded gateways, development and small deployments. Select the backend at launch (`node mobius.js sqlite`) or through the `usesqlite` option in `conf.json`. See [Configuration](#configuration).
+Mobius now runs on SQLite as well as MySQL. SQLite requires no separate database server and creates its schema automatically at startup, which makes it suitable for embedded gateways, development and small deployments. Select the backend at launch (`node mobius.js sqlite`) or through the `db` option in `conf.json`. See [Configuration](#configuration).
 
 The SQLite backend currently covers six resource types — CSEBase, AE, accessControlPolicy, container, contentInstance and subscription. Creating any other type while running on SQLite is rejected with `501 Not Implemented` (`X-M2M-RSC: 5001`) instead of being attempted, so the resource tree is never left in a partial state. Deployments that need group, flexContainer, node, remoteCSE, mgmtObj, semanticDescriptor or the transaction resources should run on MySQL.
 
@@ -22,7 +22,10 @@ Mobius runs one worker per CPU core, and several operations were not safe agains
 - Parent container counters (`cni`, `cbs`, `st`) are updated by relative increment instead of absolute overwrite, and multiple contentInstance creations are coalesced into a single debounced update.
 - Retention enforcement (`mni`, `mbs`) no longer performs a full child scan, deletes the oldest instances rather than arbitrary ones, and removes exactly the amount over the limit. Each pass is bounded so a long deletion cannot hold the container row lock.
 - Concurrent retention passes across workers are serialised with a transaction, preventing over-deletion.
-- Notification delivery is now fire-and-forget across HTTP, CoAP, MQTT and WebSocket.
+- Notification delivery is now fire-and-forget across HTTP, CoAP and MQTT.
+
+### Removed: WebSocket notification delivery
+Notifications to `ws://` URIs are no longer sent (2026-09-06). Three years of deployment data showed no subscription, AE or remoteCSE ever used a `ws://` address, and the path had no outbound timeout. A subscription with a `ws://` `nu` is still accepted; at delivery time it is logged as `[noti] fail - … (unsupported scheme)`. The `websocket` npm dependency was dropped with it.
 - Excessive per-request logging was removed so that operational logs remain usable for incident analysis.
 
 ### Removed: timeSeries and timeSeriesInstance
@@ -73,13 +76,20 @@ To enable Internet of Things, things are connected to &Cube via TAS (Thing Adapt
 </div>
 
 ## Supported Protocol Bindings
-- HTTP
-- CoAP
-- MQTT
-- WebSocket
+- HTTP — the only request binding. The MQTT, CoAP and WebSocket request proxies were removed in September 2026 (three years of hit counts: http 124,988,941 / mqtt 32 / coap 0 / ws 0).
+
+Notifications are delivered over HTTP, CoAP and MQTT. WebSocket delivery was removed on 2026-09-06.
 
 ## Installation
 The Mobius is based on Node.js framework and uses MySQL or SQLite for database.
+
+**MySQL: importing `mobius/db/mobiusdb.sql` is the whole install.** The schema file carries the
+tables, the indexes and the migration ledger (`schema_migrations`), so a fresh database starts in
+the same state as a fully migrated deployment — data switches such as 012 (discovery reads
+`lookup.cs`) are on from the first request, and nothing is left to apply by hand. The one thing
+a schema file cannot carry is the MySQL server settings (migration 010, `SET PERSIST`); Mobius
+applies those on its first start. `npm run test:mysql` proves this against a scratch database:
+import, and only 010 is left for the first start.
 <div align="center">
 <img src="https://user-images.githubusercontent.com/29790334/28322607-7be7d916-6c11-11e7-9d20-ac07961971bf.png" width="600"/>
 </div><br/>
@@ -99,6 +109,37 @@ Eclipse Mosquitto™ is an open source (EPL/EDL licensed) message broker that im
 - [Mobius](https://github.com/IoTKETI/Mobius/archive/master.zip)<br/>
 Mobius source codes are written in javascript. So they don't need any compilation or installation before running.
 
+### Database tuning on a new install
+
+**Nothing to do.** A fresh install ends up in the same state as an existing one.
+
+| | What sets it | When |
+|---|---|---|
+| Schema and indexes | `mobius/db/mobiusdb.sql` | On first connect |
+| Connection pool | Built-in defaults | Every start |
+| SQLite journal mode, sync, busy timeout | `mobius/db/sqlite.js` | Every connect |
+| MySQL server settings | `migrations/010-server-durability.js` | First start, once |
+
+The MySQL server settings — durability, isolation level and the connection
+ceiling — live in the database server itself, so the schema file cannot create
+them. Mobius applies them on first start and records that it did, then never
+touches them again. Change them afterwards and they stay changed.
+
+Only migrations that finish instantly run at startup. Anything that rebuilds an
+index is left alone and logged instead, because that can take many minutes on a
+large database. Apply those when you choose to:
+
+```bash
+node tools/migrate.js --check mysql    # show what is pending
+node tools/migrate.js --apply mysql    # apply it
+```
+
+Running on SQLite? None of this applies — SQLite has no server to configure, and
+the pool settings are unused there.
+
+All of these values are declared in `mobius/conf_schema.js`, which `npm run conf`
+reads, so they can be inspected and changed from there.
+
 ## Mobius Docker Version
 We deploy Mobius as a Docker image using the virtualization open source tool Docker.
 
@@ -108,9 +149,9 @@ We deploy Mobius as a Docker image using the virtualization open source tool Doc
 - Import SQL script (MySQL only)<br/>
 After installation of MySQL server, you need the DB Schema for storing oneM2M resources in Mobius. You can find this file in the following Mobius source directory.
 ```
-[Mobius home]/mobius/mobiusdb.sql
+[Mobius home]/mobius/db/mobiusdb.sql
 ```
-When using SQLite this step is not needed. The schema in `[Mobius home]/mobius/mobiusdb_sqlite.sql` is applied automatically at startup.
+When using SQLite this step is not needed. The schema in `[Mobius home]/mobius/db/mobiusdb_sqlite.sql` is applied automatically at startup.
 - Run Mosquitto MQTT broker<br/>
 ```
 mosquitto -v
@@ -120,14 +161,22 @@ mosquitto -v
 ```
 npm install
 ```
-- Modify the configuration file "conf.json" per your setting
+- Start Mobius once from an interactive terminal. When `conf.json` is missing, `node mobius.js` itself asks seven questions (database, database password, CSE name, CSE-ID, SP-ID, super-user origin, HTTP port), writes `conf.json`, and then boots — no separate setup command is needed:
 ```
-{
-  "csebaseport": "7579", //Mobius HTTP hosting  port
-  "dbpass": "*******",   //MySQL root password
-  "usesqlite": "false"   //"true" to use SQLite instead of MySQL
-}
+node mobius.js         # first run: asks, writes conf.json, starts
+npm run setup          # same wizard without starting the server (optional)
 ```
+Everything else has a default. Inspect and change settings with the CLI — there is no web page for this, because `conf.json` holds the master keys:
+```
+npm run conf                        # list all keys with their file value and whether the running server has applied them
+npm run conf -- set cseBase Vita    # gated keys print a warning and ask you to type the key name
+npm run conf -- edit                # walk through the user keys one by one, Enter keeps the current value
+npm run conf -- --all               # advanced keys too (default: the seven first-run keys)
+npm run status                      # master pid, port, boot record, keys waiting for a restart
+```
+`dbpass` and `superUser` are stored in plain text; the wizard hides them while you type. To re-enter one later: `npm run setup -- --dbpass` or `npm run setup -- --superuser` (prompt only — never a command-line argument).
+
+Both secrets are sealed against hand-editing: alongside `conf.json` the server keeps `conf.seal.json` (gitignored), and hand-edits of the two secrets are refused at boot. Existing installs have no seal yet — before restarting on a new core, run `npm run setup -- --superuser` once and press **Enter** — the value is kept and the seal is created. `--dbpass` follows the same rule.
 
 ### Default Retention Policies (optional)
 By default a container created without `mni` / `mbs` uses the Mobius defaults. If a deployment needs different defaults for particular container paths, they can be declared in `conf.json` as `retentionPolicies`. Omit the key to disable the feature entirely.
@@ -154,22 +203,23 @@ Use node.js application execution command as below
 ```
 node mobius.js
 ```
-The database backend follows `usesqlite` in `conf.json`, and can be overridden on the command line:
+The database backend follows the `db` key in `conf.json`, and can be overridden on the command line:
 ```
 node mobius.js sqlite   // force SQLite
 node mobius.js mysql    // force MySQL
 ```
 `npm start` is equivalent to `node mobius.js`. On Windows the `run_sqlite.bat` and `run_mysql.bat` helper scripts are also provided.
 
+If `conf.json` is missing and the terminal is interactive, `node mobius.js` runs the setup wizard itself. If it is missing and the output is not a terminal (a service, `npm start > log`), Mobius exits with code 1 without creating the file — start it once from an interactive terminal (`node mobius.js`, or `npm run setup`) to create it. If the port is already taken, Mobius exits with code 12 instead of respawning workers forever.
+
 <div align="center">
 <img src="https://user-images.githubusercontent.com/29790334/28245526-c9db7850-6a43-11e7-9bfd-f0b4fb20e396.png" width="700"/>
 </div><br/>
 
 ## Library Dependencies
-This is the list of library dependencies for Mobius 
-- body-parser
-- cbor
+This is the list of library dependencies for Mobius (`package.json`)
 - coap
+- cors
 - crypto
 - events
 - express
@@ -178,18 +228,16 @@ This is the list of library dependencies for Mobius
 - http
 - https
 - ip
-- js2xmlparser
+- knex
 - merge
+- moment
 - morgan
 - mqtt
-- mysql
+- mysql2
 - shortid
 - sqlite3
 - url
 - util
-- websocket
-- xml2js
-- xmlbuilder
 
 ## Document
 The legacy installation guide PDFs were removed from this repository as they no longer matched the current version. The installation and configuration steps above are the up-to-date reference.
