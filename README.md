@@ -107,9 +107,9 @@ To enable Internet of Things, things are connected to &Cube via TAS (Thing Adapt
 </div>
 
 ## Supported Protocol Bindings
-- HTTP — the only request binding. The MQTT, CoAP and WebSocket request proxies were removed in September 2026 (three years of hit counts: http 124,988,941 / mqtt 32 / coap 0 / ws 0).
+Requests are accepted over **HTTP only**. The MQTT, CoAP and WebSocket request bindings (the `pxy_mqtt`, `pxy_coap` and `pxy_ws` proxies of 2.x) have been removed; a client that used one of them must switch to the HTTP binding.
 
-Notifications are delivered over HTTP, CoAP and MQTT. WebSocket delivery was removed on 2026-09-06.
+Notifications are still sent over HTTP, CoAP and MQTT, according to the scheme of the subscription's `nu` (`http://`, `coap://`, `mqtt://`). WebSocket notification delivery has been removed as well; a `ws://` `nu` is accepted but never delivered.
 
 ## Installation
 The Mobius is based on Node.js framework and uses MySQL or SQLite for database.
