@@ -38,6 +38,14 @@ const tone = computed(() => {
  */
 const leftover = computed(() => props.job.unresolved + props.job.failed)
 
+/**
+ * 아무것도 바꾸지 않는 작업. 탐지는 훑어서 표본만 남긴다 — 삭제는 결과에서 골라 따로 시작한다.
+ * 이것을 "정리가 완료되었습니다" 라고 말하면, 같은 DB 를 다시 탐지해 같은 결과가 나온 것을
+ * 두고 "정리했다면서 왜 그대로인가" 로 읽힌다(실제로 그렇게 읽혔다).
+ */
+const READONLY_KINDS = ['orphan-scan']
+const readOnly = computed(() => READONLY_KINDS.includes(props.job.kind))
+
 const verdict = computed(() => {
   if (props.job.state === 'running') return ''
   if (props.job.state === 'cancelled') {
@@ -45,11 +53,17 @@ const verdict = computed(() => {
       ? `취소했습니다. 결과를 모르는 것이 ${leftover.value.toLocaleString()}건 있습니다 — 다시 조회해서 확인하세요.`
       : '취소했습니다. 시작한 건은 모두 결과가 확인됐습니다.'
   }
-  if (leftover.value === 0) return '정리가 완료되었습니다.'
+  if (leftover.value === 0) {
+    return readOnly.value
+      ? '탐지를 마쳤습니다. 아래 결과를 확인하세요 — 이 작업은 아무것도 지우지 않습니다.'
+      : '정리가 완료되었습니다.'
+  }
   const bits = []
   if (props.job.unresolved) bits.push(`판단하지 못한 것 ${props.job.unresolved.toLocaleString()}건`)
   if (props.job.failed) bits.push(`실패 ${props.job.failed.toLocaleString()}건`)
-  return `${bits.join(' · ')} — 다시 조회한 뒤 한 번 더 돌리세요.`
+  return readOnly.value
+    ? `${bits.join(' · ')} — 결과가 전부가 아닐 수 있습니다. 다시 돌리세요.`
+    : `${bits.join(' · ')} — 다시 조회한 뒤 한 번 더 돌리세요.`
 })
 
 const CAT_LABEL: Record<string, string> = {
