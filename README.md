@@ -2,37 +2,73 @@
 oneM2M IoT Server Platform
 
 ## Version
-2.6.0
+3.0.1
 
-The next version of Mobius is available on [Mobius4](https://github.com/iotketi/mobius4).
+Mobius is actively maintained and keeps being updated. [Mobius4](https://github.com/iotketi/mobius4) is a **separate edition** of Mobius built for AI integration; it is not the successor of this project. Use Mobius for a standard oneM2M IN-CSE, and Mobius4 when you need the AI integration layer on top of oneM2M.
 
-## What's New
+## What's New in 3.0
 
-### SQLite Support
-Mobius now runs on SQLite as well as MySQL. SQLite requires no separate database server and creates its schema automatically at startup, which makes it suitable for embedded gateways, development and small deployments. Select the backend at launch (`node mobius.js sqlite`) or through the `db` option in `conf.json`. See [Configuration](#configuration).
+Mobius 3.0 is a rewrite of the server core on the same oneM2M resource model and API. The main items:
 
-The SQLite backend currently covers six resource types — CSEBase, AE, accessControlPolicy, container, contentInstance and subscription. Creating any other type while running on SQLite is rejected with `501 Not Implemented` (`X-M2M-RSC: 5001`) instead of being attempted, so the resource tree is never left in a partial state. Deployments that need group, flexContainer, node, remoteCSE, mgmtObj, semanticDescriptor or the transaction resources should run on MySQL.
+### Database layer
+- One database facade (`mobius/db/`) with two adapters: MySQL (`mysql2` driver) and SQLite. The backend is a name in `conf.json` (`db`); adding a backend is adding one adapter file.
+- Every SQL statement is built with the knex query builder and executed with bound values. No string interpolation remains, which closes the discovery-parameter SQL injection reported against 2.5.15 and earlier at its root.
+- A fresh MySQL install is one import of `mobius/db/mobiusdb.sql`: the file carries the tables, the indexes and the migration ledger. Schema changes for existing installs are `migrations/001` to `019`, applied with `node tools/migrate.js`.
+- Identifiers and names are compared byte for byte (binary collation), as oneM2M requires; `rn`, `sri` and `spi` are 200 characters wide.
 
-### Security Fix: Discovery Parameter SQL Injection
-oneM2M discovery query parameters were embedded into the WHERE clause by string concatenation, allowing SQL injection (reported by KETI, affects Mobius 2.5.15 and earlier). All discovery parameters are now normalised at a single entry point on both the MySQL and SQLite paths. Numeric parameters accept unsigned integers only, and string parameters are escaped. **Upgrading is strongly recommended.**
+### SQLite support
+Mobius runs on SQLite as well as MySQL. SQLite requires no separate database server and creates its schema automatically at startup, which makes it suitable for embedded gateways, development and small deployments. Select the backend at launch (`node mobius.js sqlite`) or through the `db` option in `conf.json`. See [Configuration](#configuration).
 
-### Performance and Cluster Stability
-Mobius runs one worker per CPU core, and several operations were not safe against concurrent workers. This release addresses that:
+The SQLite backend currently covers six resource types: CSEBase, AE, accessControlPolicy, container, contentInstance and subscription. Creating any other type while running on SQLite is rejected with `501 Not Implemented` (`X-M2M-RSC: 5001`) instead of being attempted, so the resource tree is never left in a partial state. Deployments that need group, flexContainer, node, remoteCSE, mgmtObj or semanticDescriptor should run on MySQL.
 
-- Parent container counters (`cni`, `cbs`, `st`) are updated by relative increment instead of absolute overwrite, and multiple contentInstance creations are coalesced into a single debounced update.
-- Retention enforcement (`mni`, `mbs`) no longer performs a full child scan, deletes the oldest instances rather than arbitrary ones, and removes exactly the amount over the limit. Each pass is bounded so a long deletion cannot hold the container row lock.
-- Concurrent retention passes across workers are serialised with a transaction, preventing over-deletion.
-- Notification delivery is now fire-and-forget across HTTP, CoAP and MQTT.
+### Configuration
+- `conf.json` is the only configuration; nothing is hard-coded in the source. `mobius/conf_schema.js` declares every key with its type, default, when it takes effect and help text.
+- The first start asks seven questions and writes `conf.json`. `npm run conf` lists and edits keys; `npm run status` shows the running master, its port and the keys waiting for a restart.
+- `dbpass` and `superUser` are sealed (`conf.seal.json`): they are changed through `npm run setup` only, and a hand-edited value is refused at boot.
 
-### Removed: WebSocket notification delivery
-Notifications to `ws://` URIs are no longer sent (2026-09-06). Three years of deployment data showed no subscription, AE or remoteCSE ever used a `ws://` address, and the path had no outbound timeout. A subscription with a `ws://` `nu` is still accepted; at delivery time it is logged as `[noti] fail - … (unsupported scheme)`. The `websocket` npm dependency was dropped with it.
-- Excessive per-request logging was removed so that operational logs remain usable for incident analysis.
+### Request handling
+- Every request is settled exactly once: one settlement function sends the response and returns the database connection, so a lost or doubled response can no longer hang a connection or crash a worker.
+- Result codes live in one catalogue (`mobius/rsc.js`, `mobius/reason.js`): one HTTP status per oneM2M response status code, following TS-0009.
+- JSON only. XML and CBOR request bodies are rejected with `400`; responses and notifications are always JSON.
+- Request bodies are capped (`maxBodyBytes`, default 10 MB, `413` when exceeded). Resource names, structured paths and client-supplied AE-IDs are length-checked (`400`); the AE-ID format itself is not checked.
+- Outgoing requests (remoteCSE forwarding, group fan-out, notifications) carry a timeout and ask for JSON.
 
-### Removed: timeSeries and timeSeriesInstance
-The `timeSeries` (ty=29) and `timeSeriesInstance` (ty=30) resource types and the accompanying time series agent have been removed, along with their database tables.
+### Discovery and identifiers
+- Discovery runs as a recursive CTE for the skeleton plus batched child queries on both backends. `lim` and `ofst` are global, and a truncated result carries `X-M2M-CTS` / `X-M2M-CTO`.
+- `la` / `ol` read the `(pi, ty, ct)` index directly; the time-window retry is gone.
+- Short resource ids (the `ri` in responses, the `aei` of an AE) are generated unique across cluster workers and enforced UNIQUE in the database.
+- Group fan-out sends member requests in parallel (at most 8 at a time) and aggregates them in member order.
 
-### Migration Notes
-- **MySQL schema change.** The `cnt` table columns `mni`, `mbs`, `cni` and `cbs` were widened from `int unsigned` to `bigint unsigned`. Existing installations must apply this change:
+### Notifications
+- Subscriptions are read from the `sub` table at every write; the subscription copy on the parent resource is gone.
+- Delivery is fire-and-forget over HTTP, CoAP and MQTT, in event order with no artificial delay. Every delivery is classified (`ok` / `reject` / `fail` / `unknown`) in the log together with the subscription id.
+- MQTT notifications are not queued while the broker is unreachable, and broker disconnects are logged.
+
+### Cluster and operations
+- Container counters (`cni`, `cbs`) are updated by relative increment inside the contentInstance insert transaction. Retention (`mni` / `mbs`) and counter reconciliation run in the master only and count live rows before deleting anything.
+- Startup failures exit instead of leaving a process without ports: missing `conf.json` (exit 13), broken seal (14), port in use (12), no database (1).
+- Per-request stdout logging is gone; the request time is the last field of `log/access-*.log`. The super-user origin is never written to logs.
+- A boot record (`log/mobius-boot.jsonl`) shows which configuration the running server actually applied.
+
+### Admin console
+- `admin/` is an operator console that runs as a separate process (`node admin/server.js`): expired resources, orphan rows, access control policy review and simulation, batch deletion. It uses the core database facade and the core policy tables. Configuration and process control are deliberately not part of the web UI.
+- `/hit`, `/total_ae` and `/total_cbs` are no longer served by the core; the console provides them behind its session.
+
+### Removed
+- The MQTT, CoAP and WebSocket request bindings (the protocol proxies). HTTP is the only request binding; three years of traffic showed http 124,988,941 / mqtt 32 / coap 0 / ws 0.
+- ASN-CSE / MN-CSE modes; the `timeSeries` / `timeSeriesInstance`, `request` and transaction (`tm` / `tr`) resource types; non-blocking requests (`rt=1` / `rt=2` are answered as unsupported); the semantic broker; the AE notification relay; subscription verification requests; WebSocket notification delivery.
+- The per-worker resource cache and the legacy database paths.
+
+### Tests
+- `npm test` runs 1,359 tests under the Node.js test runner without MySQL. `npm run test:mysql` installs the schema into a scratch database, runs the request-path queries for real and checks their execution plans.
+
+### Upgrading from 2.x
+1. Apply pending migrations before starting the new core: `node tools/migrate.js --check mysql`, then `--apply`. Migration 018 rewrites the identifier columns and blocks writes for hours on a large database, so schedule it. For an existing SQLite file use `--check sqlite` / `--apply sqlite`.
+2. Create the secret seal once: run `npm run setup -- --superuser` and press Enter (the value is kept). `--dbpass` follows the same rule.
+3. In `conf.json`, `usesqlite` is replaced by `db` (`"mysql"` or `"sqlite"`). `cntManPort`, `pxyWsPort`, `pxyMqttPort`, `wsAllowedOrigins`, `sgnManPort`, `hitManPort` and `adminPm2Name` are no longer read; `npm run conf` reports unknown keys.
+4. Clients using the MQTT, CoAP or WebSocket request bindings must move to HTTP; clients sending XML or CBOR must send JSON.
+5. Applications relying on `timeSeries` / `timeSeriesInstance` must migrate to `container` / `contentInstance`. Applications relying on notification retry or automatic subscription removal must handle delivery reliability on their side.
+6. Upgrading from 2.5 or earlier: the `cnt` counters were widened in 2.6 and existing installations must apply this change as well:
 ```sql
 ALTER TABLE cnt
   MODIFY mni bigint unsigned NOT NULL,
@@ -40,8 +76,6 @@ ALTER TABLE cnt
   MODIFY cni bigint unsigned NOT NULL,
   MODIFY cbs bigint unsigned NOT NULL;
 ```
-- Applications relying on `timeSeries` / `timeSeriesInstance` must migrate to `container` / `contentInstance`.
-- Applications relying on notification retry or on subscriptions being removed automatically after repeated delivery failures must handle delivery reliability on the application side.
 
 ## Introduction
 Mobius is the open source IoT server platform based on the oneM2M (http://www.oneM2M.org) standard. As oneM2M specifies, Mobius provides common services functions (e.g. registration, data management, subscription/notification, security) as middleware to IoT applications of different service domains. Not just oneM2M devices, but also non-oneM2M devices (i.e. by oneM2M interworking specifications and KETI TAS) can connect to Mobius.
