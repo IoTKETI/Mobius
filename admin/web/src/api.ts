@@ -89,6 +89,10 @@ export function startExpiredExtend(ris: string[], et: string) {
 export function startOrphanDelete(ris: string[]) {
   return post<Job>('/api/jobs/orphan-delete', { ris })
 }
+/** 내용이 없는 데이터(lookup 에 ty=4 줄만 있고 cin 에 짝이 없는 것) 삭제. */
+export function startCinMissingDelete(ris: string[]) {
+  return post<Job>('/api/jobs/cin-missing-delete', { ris })
+}
 
 export function getJob(id: string) {
   return get<Job>(`/api/jobs/${encodeURIComponent(id)}`)

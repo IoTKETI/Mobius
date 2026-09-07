@@ -4750,6 +4750,15 @@ exports.select_lookup_only_cin_page = function (connection, opts, callback) {
     step((o.afterRi === undefined || o.afterRi === null) ? '' : String(o.afterRi));
 };
 
+/**
+ * 이 ri 의 `cin` 행이 있는가. 관리 콘솔이 "내용이 없는 데이터" 를 지우기 직전에 쓴다 —
+ * 목록은 몇 분 전 것일 수 있고, 그사이 내용이 되살아났다면 그것은 정상 데이터라 지우면 안 된다.
+ * PRIMARY(ri,pi) 와 ri_UNIQUE 가 있어 단건 조회다.
+ */
+exports.select_cin_by_ri = function (connection, ri, callback) {
+    facade.run(facade.k('cin').select('ri').where({ ri: ri }).limit(1), connection, callback);
+};
+
 /* ─── 구독 도달성 감사 ────────────────────────────────────────────────
  *
  * "구독은 잔뜩 있는데 받을 놈이 사라진" 상태를 찾는다. 읽기만 한다.

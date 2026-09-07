@@ -931,6 +931,43 @@ exports.install = function (app, ctx) {
     });
 
     /**
+     * "내용이 없는 데이터" 삭제 — lookup 에 ty=4 줄만 있고 cin 표에 짝이 없는 것.
+     *
+     * 왜 지워도 되는가: 내용은 이미 없다. 남은 것은 사라진 내용을 가리키는 목록 줄뿐이라
+     * 지운다고 잃을 데이터가 없다. 로컬 실측(2026-09-07)으로 CSE DELETE 가 200(2002)을 내고
+     * lookup 줄이 정리되는 것을 확인했다.
+     *
+     * 왜 그동안 버튼이 없었는가: cin 이 왜 없어졌는지 확인되지 않아 **자동** 삭제를 막았다
+     * (인수인계 §6). 그 판단은 유효하고, 여기서 하는 것은 사람이 하나씩 골라 지우는 일이다.
+     *
+     * 프리플라이트: 지우기 직전에 cin 이 여전히 없는지 다시 본다. 되살아났으면 그것은 정상
+     * 데이터라 건드리지 않는다.
+     */
+    app.post('/api/jobs/cin-missing-delete', function (req, res) {
+        if (!require_write(res)) { return; }
+        var ris = req.body && req.body.ris;
+        var bad = bad_targets(ris);
+        if (bad) { return res.status(400).json({ error: bad }); }
+
+        start_or_conflict(res, {
+            kind: 'cin-missing-delete',
+            title: '내용이 없는 데이터 삭제 ' + ris.length + '건',
+            note: '지우기 직전에 내용이 여전히 없는지 다시 확인합니다. ' +
+                  '그사이 내용이 되살아난 것은 정상 데이터이므로 건너뜁니다.',
+            targets: ris,
+            concurrency: 4,
+            worker: make_delete_worker(function (conn, row, next) {
+                if (String(row.ty) !== '4') { return next('데이터(CIN)가 아님 (ty=' + row.ty + ')', 'excluded'); }
+                db_sql.select_cin_by_ri(conn, row.ri, function (e, crows) {
+                    if (e) { return next('내용 확인 실패 — 안전을 위해 건너뜀', 'unresolved'); }
+                    if (crows && crows.length > 0) { return next('내용이 되살아남 — 정상 데이터다', 'excluded'); }
+                    next(null);
+                });
+            })
+        });
+    });
+
+    /**
      * 구독 삭제. 구독 화면에서 broken 만 미리 선택되어 온다. 삭제 직전 그 ri 가 여전히
      * 구독(ty=23)인지 본다 — 목록이 낡았을 수 있다.
      */

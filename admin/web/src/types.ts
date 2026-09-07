@@ -72,7 +72,7 @@ export interface OrphanScanResult {
 
 // ── 일괄 작업 ──────────────────────────────────────────────────────────────
 
-export type JobKind = 'expired-delete' | 'expired-extend' | 'orphan-delete' | 'orphan-scan' | 'sub-delete' | 'selftest'
+export type JobKind = 'expired-delete' | 'expired-extend' | 'orphan-delete' | 'orphan-scan' | 'cin-missing-delete' | 'sub-delete' | 'selftest'
 export type JobState = 'running' | 'done' | 'cancelled' | 'failed'
 
 /**

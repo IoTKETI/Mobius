@@ -287,3 +287,38 @@ test('이어갈 것이 없으면 resume:true 여도 처음부터 훑는다 — �
         assert.strictEqual(r2.runs, 1);
     } finally { await h.close(); }
 });
+
+test('내용이 없는 데이터 삭제 — 내용이 되살아났거나 CIN 이 아니면 건너뛴다', async function () {
+    // 지워도 잃을 것이 없는 이유는 '내용이 이미 없다' 는 것 하나다. 그 전제가 깨진 것
+    // (그사이 내용이 되살아난 행)은 정상 데이터이므로 절대 지우면 안 된다.
+    const h = await boot({
+        execute: function (sql, bindings) {
+            if (/from `lookup`/.test(sql)) {
+                const ri = bindings[0];
+                return [{ ri: ri, pi: '/M/c', ty: ri.endsWith('/cnt') ? '3' : '4' }];
+            }
+            if (/from `cin`/.test(sql)) {
+                return bindings[0].endsWith('/back') ? [{ ri: bindings[0] }] : [];
+            }
+            return [];
+        },
+        cse: { status: 200, rsc: '2002', body: {} }
+    });
+    try {
+        await h.login();
+        const r = await h.request('POST', '/api/jobs/cin-missing-delete',
+            { ris: ['/M/c/gone', '/M/c/back', '/M/c/cnt'] });
+        assert.strictEqual(r.status, 202, JSON.stringify(r.body));
+        const job = await settled(h, r.body.id);
+
+        assert.strictEqual(job.ok, 1);
+        assert.strictEqual(job.excluded, 2, '되살아난 것과 CIN 아닌 것은 대상 아님이다');
+        assert.strictEqual(job.unresolved, 0);
+        assert.strictEqual(job.failed, 0);
+        assert.deepStrictEqual(h.cse.calls.filter((c) => c.method === 'DELETE').map((c) => c.path),
+            ['/M/c/gone'], '내용이 없는 것 하나만 지워야 한다');
+        const why = job.skips.map((s) => s.reason);
+        assert.ok(why.some((w) => /데이터\(CIN\)가 아님 \(ty=3\)/.test(w)), why.join(' | '));
+        assert.ok(why.some((w) => /내용이 되살아남/.test(w)), why.join(' | '));
+    } finally { await h.close(); }
+});

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { orphanLast, startOrphanScan, startOrphanDelete, fmtTime } from '../api'
+import { orphanLast, startOrphanScan, startOrphanDelete, startCinMissingDelete, fmtTime } from '../api'
 import type { OrphanRow, OrphanScanResult, WriteInfo } from '../types'
 import { useJobRunner } from '../job'
 import JobPanel from '../components/JobPanel.vue'
@@ -89,6 +89,32 @@ async function runDelete() {
   starting.value = false
   confirming.value = false
   if (ok) selected.value = new Set()
+}
+
+// ── 내용이 없는 데이터: 선택·삭제 ─────────────────────────────────────────
+// 위 표와 선택을 섞지 않는다. 두 목록은 다른 결함이고 지우는 작업도 다르다.
+const selectedCin = ref<Set<string>>(new Set())
+const cinRows = computed(() => result.value?.lookupOnlyCin.rows ?? [])
+function toggleCin(ri: string) {
+  const s = new Set(selectedCin.value)
+  s.has(ri) ? s.delete(ri) : s.add(ri)
+  selectedCin.value = s
+}
+const allCinSelected = computed(
+  () => cinRows.value.length > 0 && cinRows.value.every((r) => selectedCin.value.has(r.ri)),
+)
+function toggleAllCin() {
+  selectedCin.value = allCinSelected.value ? new Set() : new Set(cinRows.value.map((r) => r.ri))
+}
+const selectedCinList = computed(() => [...selectedCin.value])
+const confirmingCin = ref(false)
+
+async function runCinDelete() {
+  starting.value = true
+  const ok = await runner.start(() => startCinMissingDelete(selectedCinList.value))
+  starting.value = false
+  confirmingCin.value = false
+  if (ok) selectedCin.value = new Set()
 }
 
 function typeLabel(ty: number): string {
@@ -217,16 +243,31 @@ onMounted(async () => { void runner.attach(); await loadLast() })
         만든 시각 같은 정보만 있고 내용은 비어 있습니다(2026-09-07 로컬 실측).
       </p>
       <p class="sub">
-        <strong>삭제 버튼을 두지 않았습니다.</strong> 왜 이렇게 됐는지 아직 모르기 때문입니다.
-        보관 정책이 데이터를 지우고 목록 삭제가 실패한 것일 수도 있고 다른 경로일 수도 있는데,
-        확인되지 않았습니다. 원인을 모르는 채로 지우면 지워서는 안 될 것까지 지울 수 있습니다.
-        그래서 판단을 사람에게 남겨 둡니다.
+        지워도 잃을 것은 없습니다. 내용은 이미 사라졌고 남은 것은 그것을 가리키던 목록 줄뿐입니다.
+        왜 이렇게 됐는지는 아직 확인되지 않아 <strong>자동으로 지우지는 않습니다</strong> —
+        골라서 지우는 것은 사람이 합니다.
       </p>
-      <div v-if="result.lookupOnlyCin.rows.length" class="table-wrap short">
+
+      <p v-if="!write.enabled" class="note ro">조회 전용으로 떠 있어 삭제를 쓸 수 없습니다.</p>
+
+      <div v-if="write.enabled && selectedCin.size" class="actionbar">
+        <strong>{{ selectedCin.size.toLocaleString() }}건 선택</strong>
+        <button class="link" @click="selectedCin = new Set()">선택 해제</button>
+        <span class="spacer" />
+        <button class="danger" @click="confirmingCin = true">삭제 ({{ selectedCin.size.toLocaleString() }}건)</button>
+      </div>
+
+      <div v-if="cinRows.length" class="table-wrap short">
         <table>
-          <thead><tr><th>URI (ri)</th><th>부모 (pi)</th><th>생성 (ct)</th></tr></thead>
+          <thead>
+            <tr>
+              <th class="cb"><input type="checkbox" :checked="allCinSelected" :disabled="!write.enabled" aria-label="전체 선택" @change="toggleAllCin" /></th>
+              <th>URI (ri)</th><th>부모 (pi)</th><th>생성 (ct)</th>
+            </tr>
+          </thead>
           <tbody>
-            <tr v-for="r in result.lookupOnlyCin.rows" :key="r.ri">
+            <tr v-for="r in cinRows" :key="r.ri" :class="{ picked: selectedCin.has(r.ri) }">
+              <td class="cb"><input type="checkbox" :checked="selectedCin.has(r.ri)" :disabled="!write.enabled" :aria-label="r.ri + ' 선택'" @change="toggleCin(r.ri)" /></td>
               <td class="mono path">{{ r.ri }}</td><td class="mono path">{{ r.pi }}</td><td class="mono muted">{{ fmtTime(r.ct) }}</td>
             </tr>
           </tbody>
@@ -238,6 +279,11 @@ onMounted(async () => { void runner.attach(); await loadLast() })
     <ConfirmDialog v-if="confirming" title="미연결 리소스를 삭제합니다" :confirm-label="`${selected.size.toLocaleString()}건 삭제`" :paths="selectedList" destructive :busy="starting" @cancel="confirming = false" @confirm="runDelete">
       <p class="dlg">되돌릴 수 없습니다. 삭제 직전에 부모가 여전히 없는지 다시 확인해서, 그사이 부모가 되살아난 것은 건너뜁니다.</p>
       <p class="dlg warn"><strong>한 번에 다 끝나지 않습니다.</strong> 끊긴 지점을 지우면 그 자식들이 새로 미연결 리소스가 되어 다음 탐지에 올라옵니다. 탐지 → 삭제를 반복해야 합니다.</p>
+    </ConfirmDialog>
+
+    <ConfirmDialog v-if="confirmingCin" title="내용이 없는 데이터를 삭제합니다" :confirm-label="`${selectedCin.size.toLocaleString()}건 삭제`" :paths="selectedCinList" destructive :busy="starting" @cancel="confirmingCin = false" @confirm="runCinDelete">
+      <p class="dlg">내용은 이미 없습니다. 그것을 가리키던 목록 줄을 지웁니다 — 잃을 데이터가 없습니다.</p>
+      <p class="dlg">삭제 직전에 내용이 여전히 없는지 다시 확인해서, 그사이 되살아난 것은 건너뜁니다.</p>
     </ConfirmDialog>
   </section>
 </template>
