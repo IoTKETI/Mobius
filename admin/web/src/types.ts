@@ -66,9 +66,21 @@ export interface OrphanScanResult {
 export type JobKind = 'expired-delete' | 'expired-extend' | 'orphan-delete' | 'orphan-scan' | 'sub-delete' | 'selftest'
 export type JobState = 'running' | 'done' | 'cancelled' | 'failed'
 
+/**
+ * 건너뛴 것의 갈래(jobs.js 의 SKIP_CATEGORIES). 전부 '건너뜀' 한 덩어리로 보여 주면
+ * 정리가 덜 된 것처럼 읽힌다 — 실제로는 대부분 더 할 일이 없는 것이다.
+ *
+ *   settled     손댈 것이 없었다 (이미 없음) — 정리 끝
+ *   excluded    지우면 안 되는 것으로 판정해 뺐다 — 남겨 두는 것이 옳다
+ *   unresolved  판단하지 못했다 — 다시 봐야 한다
+ */
+export type JobSkipCategory = 'settled' | 'excluded' | 'unresolved'
+
 export interface JobOutcome {
   ri: string
   reason: string
+  /** skips 에만 있다. 옛 작업 기록에는 없을 수 있다. */
+  category?: JobSkipCategory
 }
 
 export interface Job {
@@ -80,8 +92,14 @@ export interface Job {
   total: number
   processed: number
   ok: number
-  /** 프리플라이트에서 걸러진 것 — 이미 없거나, 조건이 바뀌었거나, 타입이 안 되거나. */
+  /** 프리플라이트에서 걸러진 것 — 아래 셋의 합이다. */
   skipped: number
+  /** 손댈 것이 없었다 (이미 없음). */
+  settled: number
+  /** 지우면 안 되는 것으로 판정해 뺐다. */
+  excluded: number
+  /** 판단하지 못했다 — 다시 봐야 한다. */
+  unresolved: number
   failed: number
   failures: JobOutcome[]
   failuresTruncated: boolean

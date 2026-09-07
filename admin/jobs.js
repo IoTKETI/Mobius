@@ -37,6 +37,20 @@ var DEFAULT_CONCURRENCY = 4;
  */
 var CANCEL_GRACE_MS = 45000;
 
+/**
+ * 건너뛴 것의 갈래.
+ *
+ * 예전에는 전부 '건너뜀' 한 덩어리였다. 그러면 화면이 "정리가 덜 됐다" 로 읽힌다 —
+ * 실제로는 대부분 **더 할 일이 없는 것**인데도. 갈래를 기록하는 쪽(worker)이 정한다.
+ *
+ *   settled     손댈 것이 없었다 (이미 없음). 지운 것과 결과가 같다 — 정리 끝
+ *   excluded    지우면 안 되는 것으로 판정해 뺐다. 남겨 두는 것이 옳다 — 정리 끝
+ *   unresolved  판단하지 못했다 (조회 실패 · 취소로 결과 모름). **다시 봐야 한다**
+ *
+ * 갈래를 안 주면 unresolved 다. 모르는 것을 "끝났다" 로 세면 안 된다.
+ */
+var SKIP_CATEGORIES = ['settled', 'excluded', 'unresolved'];
+
 var active = null;          // 지금 도는 작업 (하나뿐)
 var finished = [];          // 최근 것이 앞
 
@@ -53,7 +67,10 @@ function Job(spec) {
     this.state = 'running';             // running | done | cancelled | failed
     this.processed = 0;
     this.ok = 0;
-    this.skipped = 0;
+    this.skipped = 0;           // 아래 셋의 합. 옛 화면·시험이 이 이름을 쓴다
+    this.settled = 0;
+    this.excluded = 0;
+    this.unresolved = 0;
     this.failed = 0;
     this.failures = [];                 // {ri, reason} — MAX_FAILURES 에서 끊는다
     this.failuresTruncated = false;
@@ -77,6 +94,9 @@ Job.prototype.view = function () {
         processed: this.processed,
         ok: this.ok,
         skipped: this.skipped,
+        settled: this.settled,
+        excluded: this.excluded,
+        unresolved: this.unresolved,
         failed: this.failed,
         failures: this.failures,
         failuresTruncated: this.failuresTruncated,
@@ -89,15 +109,17 @@ Job.prototype.view = function () {
     };
 };
 
-Job.prototype._record = function (ri, outcome, reason) {
+Job.prototype._record = function (ri, outcome, reason, category) {
     this.processed++;
     if (outcome === 'ok') {
         this.ok++;
         return;
     }
     if (outcome === 'skipped') {
+        var cat = (SKIP_CATEGORIES.indexOf(category) >= 0) ? category : 'unresolved';
         this.skipped++;
-        if (this.skips.length < MAX_FAILURES) { this.skips.push({ ri: ri, reason: reason }); }
+        this[cat]++;
+        if (this.skips.length < MAX_FAILURES) { this.skips.push({ ri: ri, reason: reason, category: cat }); }
         else { this.skipsTruncated = true; }
         return;
     }
@@ -118,9 +140,14 @@ function retire(job) {
  *
  * @param spec.targets   대상 배열. 원소의 모양은 worker 가 정한다.
  * @param spec.keyOf     원소에서 로그용 식별자를 뽑는 함수.
- * @param spec.worker    worker(target, cb) → cb(outcome, reason)
+ * @param spec.worker    worker(target, cb) → cb(outcome, reason, category)
  *                       outcome: 'ok' | 'skipped' | 'failed'
+ *                       category: 'settled' | 'excluded' | 'unresolved' (skipped 일 때만, 위 표 참고)
  *                       **던지지 않아야 한다.** 한 건의 실패가 나머지를 멈추면 안 된다.
+ * @param spec.doneEarly 선택. () → boolean. true 면 남은 대상을 돌리지 않고 끝낸다.
+ *                       대상 수를 미리 알 수 없어 넉넉히 잡아 둔 작업(미연결 탐지의 조각)이 쓴다.
+ *                       남은 것을 '건너뜀' 으로 세면 정리가 덜 된 것처럼 보이므로, 세는 대신
+ *                       **총량을 실제 처리한 만큼으로 줄인다.**
  * @returns {Job|null}   이미 도는 작업이 있으면 null
  */
 exports.start = function (spec) {
@@ -182,6 +209,14 @@ exports.start = function (spec) {
         if (job.cancelRequested && running === 0) { stopped = true; return finishJob(); }
         if (next >= targets.length && running === 0) { stopped = true; return finishJob(); }
 
+        // 남은 대상에 할 일이 없다고 작업 자신이 말한다. 도는 것이 없을 때만 본다 —
+        // 진행 중인 항목의 결과가 아직 안 왔으면 아직 끝이 아니다.
+        if (!job.cancelRequested && running === 0 && typeof spec.doneEarly === 'function' && spec.doneEarly()) {
+            job.total = job.processed;
+            stopped = true;
+            return finishJob();
+        }
+
         // 취소했는데 아직 도는 항목이 있다. 답을 기다리되 영원히는 아니다.
         if (job.cancelRequested && running > 0 && graceTimer === null) {
             graceTimer = setTimeout(abandonInflight, graceMs);
@@ -194,7 +229,7 @@ exports.start = function (spec) {
             inflight.push(target);
             (function (t) {
                 var settled = false;
-                worker(t, function (outcome, reason) {
+                worker(t, function (outcome, reason, category) {
                     // worker 가 콜백을 두 번 부르면 카운터가 total 을 넘어 진행률이
                     // 100% 를 넘는다. 여기서 막는다.
                     if (settled) { return; }
@@ -204,7 +239,7 @@ exports.start = function (spec) {
                     if (stopped) { return; }
                     var at = inflight.indexOf(t);
                     if (at >= 0) { inflight.splice(at, 1); }
-                    job._record(keyOf(t), outcome, reason);
+                    job._record(keyOf(t), outcome, reason, category);
                     running--;
                     // 재귀 대신 다음 틱으로 넘긴다. worker 가 동기로 끝나는 경우
                     // (예: 프리플라이트에서 즉시 skip) 스택이 대상 수만큼 쌓인다.
@@ -263,3 +298,4 @@ exports._reset = function () {
 };
 
 exports.MAX_FAILURES = MAX_FAILURES;
+exports.SKIP_CATEGORIES = SKIP_CATEGORIES;

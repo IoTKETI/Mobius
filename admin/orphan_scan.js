@@ -54,7 +54,8 @@ exports.start = function (ctx, opts) {
     }
 
     function worker(chunkNo, cb) {
-        if (exhausted) { return cb('skipped', '끝'); }
+        // 정상 경로에서는 여기 안 온다 — doneEarly 가 먼저 끝낸다(동시 실행 1). 방어선이다.
+        if (exhausted) { return cb('skipped', '훑기가 이미 끝난 뒤였다', 'settled'); }
         borrow(function (err, conn, done) {
             if (err) { done(); return cb('failed', err); }
             if (stage === 1) {
@@ -118,6 +119,10 @@ exports.start = function (ctx, opts) {
         targets: targets,
         keyOf: function (t) { return 'chunk-' + t; },
         concurrency: 1,
+        // 조각 수는 상한을 조각 크기로 나눈 **최대치**다. 표가 작거나 표본이 먼저 차면
+        // 몇 조각 만에 끝난다. 남은 조각을 '건너뜀' 으로 세면 정리가 덜 된 것처럼 보이므로
+        // (실측: 상한 100만 → 조각 400개 중 2개만 일하고 398 건너뜀) 세는 대신 여기서 끝낸다.
+        doneEarly: function () { return exhausted; },
         worker: worker,
         onFinish: function (job) {
             result.endedAt = new Date().toISOString();

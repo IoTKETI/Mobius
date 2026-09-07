@@ -824,14 +824,16 @@ exports.install = function (app, ctx) {
                 if (err) { done(); return cb('failed', err); }
                 db_sql.select_lookup(conn, ri, function (e, rows) {
                     if (e) { done(); return cb('failed', 'DB 조회 실패: ' + String((rows && rows.message) || e)); }
-                    if (!rows || rows.length === 0) { done(); return cb('skipped', '이미 없음'); }
+                    if (!rows || rows.length === 0) { done(); return cb('skipped', '이미 없음', 'settled'); }
                     var row = rows[0];
-                    guard(conn, row, function (reason) {
+                    // guard 는 next(reason, category) 로 답한다. category 는 jobs.js 의
+                    // SKIP_CATEGORIES — 안 주면 unresolved(다시 봐야 함)로 센다.
+                    guard(conn, row, function (reason, category) {
                         done();
-                        if (reason) { return cb('skipped', reason); }
+                        if (reason) { return cb('skipped', reason, category); }
                         cse.remove(ri, function (r) {
                             if (r.ok) { return cb('ok'); }
-                            if (r.status === 404) { return cb('skipped', '이미 없음'); }
+                            if (r.status === 404) { return cb('skipped', '이미 없음', 'settled'); }
                             cb('failed', describe(r));
                         });
                     });
@@ -888,8 +890,8 @@ exports.install = function (app, ctx) {
             worker: make_delete_worker(function (conn, row, next) {
                 // et 가 비었으면 만료 개념이 없는 리소스다. 만료 화면에서 왔더라도
                 // 지금은 아니므로 건드리지 않는다.
-                if (!row.et) { return next('et 가 없음'); }
-                if (row.et >= asOf) { return next('만료가 해제됨 (et=' + row.et + ')'); }
+                if (!row.et) { return next('et 가 없음 — 만료 개념이 없는 리소스', 'excluded'); }
+                if (row.et >= asOf) { return next('만료가 해제됨 (et=' + row.et + ')', 'excluded'); }
                 next(null);
             })
         });
@@ -916,10 +918,10 @@ exports.install = function (app, ctx) {
             targets: ris,
             concurrency: 4,
             worker: make_delete_worker(function (conn, row, next) {
-                if (!row.pi) { return next('부모 경로가 비어 있음 (CSEBase)'); }
+                if (!row.pi) { return next('부모 경로가 비어 있음 (CSEBase) — 지울 수 없다', 'excluded'); }
                 db_sql.select_lookup(conn, row.pi, function (e, prows) {
-                    if (e) { return next('부모 확인 실패 — 안전을 위해 건너뜀'); }
-                    if (prows && prows.length > 0) { return next('부모가 다시 생김 — 미연결이 아님'); }
+                    if (e) { return next('부모 확인 실패 — 안전을 위해 건너뜀', 'unresolved'); }
+                    if (prows && prows.length > 0) { return next('부모가 다시 생김 — 미연결이 아님', 'excluded'); }
                     next(null);
                 });
             })
@@ -942,7 +944,7 @@ exports.install = function (app, ctx) {
             targets: ris,
             concurrency: 4,
             worker: make_delete_worker(function (conn, row, next) {
-                if (String(row.ty) !== '23') { return next('구독이 아님 (ty=' + row.ty + ')'); }
+                if (String(row.ty) !== '23') { return next('구독이 아님 (ty=' + row.ty + ')', 'excluded'); }
                 next(null);
             })
         });
@@ -977,17 +979,17 @@ exports.install = function (app, ctx) {
                     db_sql.select_lookup(conn, ri, function (e, rows) {
                         done();
                         if (e) { return cb('failed', 'DB 조회 실패: ' + String((rows && rows.message) || e)); }
-                        if (!rows || rows.length === 0) { return cb('skipped', '이미 없음'); }
+                        if (!rows || rows.length === 0) { return cb('skipped', '이미 없음', 'settled'); }
                         var ty = String(rows[0].ty);
                         var extendable = ctx.expiry_policy.etExtendableTypes();
                         if (extendable.indexOf(parseInt(ty, 10)) < 0) {
                             // 타입 이름의 받침에 따라 조사가 달라지므로 조사를 붙이지 않는다.
                             var nm = responder.typeRsrc[ty] || ('ty' + ty);
-                            return cb('skipped', nm.toUpperCase() + ' — et 를 수정할 수 없는 타입');
+                            return cb('skipped', nm.toUpperCase() + ' — et 를 수정할 수 없는 타입', 'excluded');
                         }
                         cse.setExpiry(ri, 'm2m:' + responder.typeRsrc[ty], et, function (r) {
                             if (r.ok) { return cb('ok'); }
-                            if (r.status === 404) { return cb('skipped', '이미 없음'); }
+                            if (r.status === 404) { return cb('skipped', '이미 없음', 'settled'); }
                             cb('failed', describe(r));
                         });
                     });
