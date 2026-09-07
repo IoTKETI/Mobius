@@ -2,7 +2,7 @@
 oneM2M IoT Server Platform
 
 ## Version
-2.6.0
+3.0.1
 
 The next version of Mobius is available on [Mobius4](https://github.com/iotketi/mobius4).
 
