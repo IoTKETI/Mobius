@@ -4711,29 +4711,39 @@ exports.select_lookup_only_cin_page = function (connection, opts, callback) {
     var out = [];
     var scanned = 0;
 
+    // ty 필터는 **SQL 에 넣지 않는다.** `where ty = '4' and ri > ? order by ri` 는 인덱스가
+    // 둘(ri 의 PRIMARY · idx_lookup_ty)이고, 옵티마이저가 ty 쪽을 고르면 — 로컬 1,944행에서
+    // 실제로 골랐다(tools/explain-check.js, 2026-09-07) — 배포에서는 ty=4 가 표의 99% 라
+    // 조각마다 수천만 행을 읽고 정렬한다. ri 범위만 남기면 계획이 PRIMARY 범위 하나로 고정된다.
+    // 걸러 내는 비-CIN 행은 1% 라 조각 예산 낭비가 아니다.
     function step(cursor) {
-        facade.run(facade.k('lookup').select('ri', 'pi', 'rn', 'ct').where({ ty: '4' }).where('ri', '>', cursor)
+        facade.run(facade.k('lookup').select('ri', 'pi', 'rn', 'ct', 'ty').where('ri', '>', cursor)
                        .orderBy('ri', 'asc').limit(BATCH),
             connection, function (err, rows) {
                 if (err) { return callback(err, rows); }
                 if (rows.length === 0) { return callback(null, { rows: out, more: false, nextRi: null, scanned: scanned, scanCapped: false }); }
                 scanned += rows.length;
-                var ris = rows.map(function (r) { return r.ri; });
-                facade.run(facade.k('cin').select('ri').whereIn('ri', ris), connection, function (err2, present) {
-                    if (err2) { return callback(err2, present); }
+                var cins = rows.filter(function (r) { return String(r.ty) === '4'; });
+                var ris = cins.map(function (r) { return r.ri; });
+                var after = function (present) {
                     var have = {};
                     (present || []).forEach(function (p) { have[p.ri] = true; });
                     var more = false;
-                    for (var i = 0; i < rows.length; i++) {
-                        if (have[rows[i].ri]) { continue; }
+                    for (var i = 0; i < cins.length; i++) {
+                        if (have[cins[i].ri]) { continue; }
                         if (out.length >= limit) { more = true; break; }
-                        out.push(rows[i]);
+                        out.push({ ri: cins[i].ri, pi: cins[i].pi, rn: cins[i].rn, ct: cins[i].ct });
                     }
                     var last = rows[rows.length - 1].ri;
                     if (more) { return callback(null, { rows: out, more: true, nextRi: out[out.length - 1].ri, scanned: scanned, scanCapped: false }); }
                     if (rows.length < BATCH) { return callback(null, { rows: out, more: false, nextRi: null, scanned: scanned, scanCapped: false }); }
                     if (scanned >= cap) { return callback(null, { rows: out, more: true, nextRi: last, scanned: scanned, scanCapped: true }); }
                     step(last);
+                };
+                if (ris.length === 0) { return after([]); }   // 이 조각에 CIN 이 없다 — cin 표를 묻지 않는다
+                facade.run(facade.k('cin').select('ri').whereIn('ri', ris), connection, function (err2, present) {
+                    if (err2) { return callback(err2, present); }
+                    after(present);
                 });
             });
     }

@@ -39,14 +39,17 @@ const p = (fn) => new Promise((res, rej) => fn((e, r) => (e ? rej(r instanceof E
 let conn = null;
 const raw = (s, a) => p((cb) => db.run(db.raw(s, a || []), conn, cb));
 const problems = [];
-function check(label, plan, tables) {
+// goodKeys 를 주면 그 표의 행은 그 인덱스 중 하나를 타야 한다 — 풀스캔은 아니지만 엉뚱한
+// 인덱스(ty 같은 저선택도)를 타는 계획도 BAD 다.
+function check(label, plan, tables, goodKeys) {
     // type 이 null 인 행은 "맞는 행이 없다(const 표)" 다 — 풀스캔이 아니다
-    const bad = plan.filter((r) => tables.indexOf(String(r.table)) >= 0 && r.type === 'ALL');
+    const bad = plan.filter((r) => tables.indexOf(String(r.table)) >= 0 &&
+        (r.type === 'ALL' || (goodKeys && r.type !== null && goodKeys.indexOf(String(r.key)) < 0)));
     const line = '  ' + label.padEnd(34) + plan.map((r) => r.table + ':' + r.type + '/' + (r.key || '-')).join('  ');
     console.log((bad.length ? 'BAD ' : 'ok  ') + line);
     if (bad.length) { problems.push(label); }
 }
-async function explainMatching(re, label, tables) {
+async function explainMatching(re, label, tables, goodKeys) {
     const hits = seen.filter((s) => !/^\s*explain/i.test(s.sql) && re.test(s.sql));
     if (!hits.length) {
         console.log('??  ' + label + ' — 기록된 문장이 없다. 기록: ' + seen.filter((s) => !/^\s*explain/i.test(s.sql)).map((s) => s.sql.replace(/\s+/g, ' ').slice(0, 90)).join(' || '));
@@ -54,7 +57,7 @@ async function explainMatching(re, label, tables) {
     }
     for (const h of hits.slice(-2)) {
         const rows = await raw('explain ' + h.sql, h.bindings);
-        check(label, rows.map((r) => ({ table: r.table, type: r.type, key: r.key })), tables);
+        check(label, rows.map((r) => ({ table: r.table, type: r.type, key: r.key })), tables, goodKeys);
     }
 }
 
@@ -109,6 +112,27 @@ async function explainMatching(re, label, tables) {
     seen.length = 0;
     await p((cb) => sql.select_acp_in(conn, ['/Mobius/none'], cb));
     await explainMatching(/from `acp` where `ri` in/, 'ACP IN 조회', ['acp']);
+
+    // 관리 콘솔 고아 탐지의 둘째 단계 — lookup 에만 남은 CIN 을 ri 키셋으로 훑는다
+    // (ri > ? · order by ri · limit 1000, ty 는 JS 에서 거른다). ty 를 SQL 에 두었을 때는
+    // 로컬에서도 idx_lookup_ty 를 골랐다(2026-09-07) — 배포에서는 ty=4 가 표의 99% 라 조각
+    // (기본 40개)마다 수천만 행 정렬이다. ri 인덱스(PRIMARY·ri_UNIQUE)가 아니면 BAD.
+    // 표본은 첫 1,000행만 읽는다(scanCap). 콘솔 2판 최종 리뷰 I-1.
+    // 작은 표(로컬 1,944행)에서는 옵티마이저가 정당하게 ALL 을 고른다(limit 1000 이 표의 절반) —
+    // 그건 결함이 아니라 규모다. 추정 행수(information_schema, 즉시)가 10만 미만이면 계획만 찍고
+    // 판정하지 않는다. 이 검사가 뜻을 갖는 곳은 배포 DB 다.
+    const est = (await raw("select table_rows as n from information_schema.tables where table_schema = database() and table_name = 'lookup'"))[0];
+    const big = est && Number(est.n) >= 100000;
+    seen.length = 0;
+    await p((cb) => sql.select_lookup_only_cin_page(conn, { limit: 1, scanCap: 1000 }, cb));
+    if (big) {
+        await explainMatching(/from `lookup` where `ri` > \? order by `ri`/, 'lookup 전용 CIN 조각 (ri 키셋)', ['lookup'], ['PRIMARY', 'ri_UNIQUE']);
+    } else {
+        const h = seen.find((s) => /from `lookup` where `ri` > \? order by `ri`/.test(s.sql));
+        const rows = h ? await raw('explain ' + h.sql, h.bindings) : [];
+        console.log('--  ' + 'lookup 전용 CIN 조각 (ri 키셋)'.padEnd(34) + rows.map((r) => r.table + ':' + r.type + '/' + (r.key || '-')).join('  ') +
+                    '   (lookup 추정 ' + (est ? est.n : '?') + '행 — 10만 미만이라 판정하지 않는다)');
+    }
 
     console.log((problems.length ? 'FAILED ' + problems.length + '건: ' + problems.join(', ') : 'ALL OK') + ' (' + (Date.now() - t0) + 'ms)');
     try { db.release(conn); } catch (e) { /* */ }

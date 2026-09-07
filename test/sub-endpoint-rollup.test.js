@@ -94,22 +94,42 @@ test('select_subs_by_endpoint 는 그 엔드포인트의 구독만 돌려준다'
     });
 });
 
-test('select_lookup_only_cin_page 는 cin 에 짝이 없는 lookup ty=4 행만 돌려준다', function (t, done) {
-    // 1쪽: lookup 의 ty=4 행 3개, 2쪽: cin 에 있는 ri (whereIn 로 확인)
+test('select_lookup_only_cin_page 는 cin 에 짝이 없는 lookup ty=4 행만 돌려준다 — ty 는 JS 에서 거른다', function (t, done) {
+    // 1쪽: lookup 의 ri 범위 행 4개(그중 컨테이너 하나), 2쪽: cin 에 있는 ri (whereIn 로 확인)
     const { sa, seen } = tap([
-        [{ ri: '/M/c/4-1', pi: '/M/c', rn: '4-1', ct: '20260901T000000' },
-         { ri: '/M/c/4-2', pi: '/M/c', rn: '4-2', ct: '20260901T000000' },
-         { ri: '/M/c/4-3', pi: '/M/c', rn: '4-3', ct: '20260901T000000' }],
+        [{ ri: '/M/c', pi: '/M', rn: 'c', ct: '20260901T000000', ty: '3' },
+         { ri: '/M/c/4-1', pi: '/M/c', rn: '4-1', ct: '20260901T000000', ty: '4' },
+         { ri: '/M/c/4-2', pi: '/M/c', rn: '4-2', ct: '20260901T000000', ty: 4 },
+         { ri: '/M/c/4-3', pi: '/M/c', rn: '4-3', ct: '20260901T000000', ty: '4' }],
         [{ ri: '/M/c/4-2' }]
     ]);
     sa.select_lookup_only_cin_page(null, { limit: 10, scanCap: 100 }, function (err, r) {
         assert.ifError(err);
         assert.deepStrictEqual(r.rows.map((x) => x.ri), ['/M/c/4-1', '/M/c/4-3']);
-        assert.strictEqual(r.scanned, 3);
+        assert.deepStrictEqual(Object.keys(r.rows[0]).sort(), ['ct', 'pi', 'ri', 'rn'], 'ty 는 응답에 안 싣는다');
+        assert.strictEqual(r.scanned, 4, '읽은 행 수는 컨테이너까지 센다');
         assert.strictEqual(r.more, false);
-        assert.match(seen[0].sql, /`ty` = \?/);
+        // ty 를 SQL 에 두면 옵티마이저가 idx_lookup_ty 를 골라 배포에서 조각마다 수천만 행 정렬이다
+        // (2026-09-07, tools/explain-check.js 가 로컬에서도 잡았다). ri 범위만 남긴다.
+        assert.doesNotMatch(seen[0].sql, /where[\s\S]*`ty`/, 'ty 가 조건에 있다');
+        assert.match(seen[0].sql, /where `ri` > \? order by `ri` asc limit \?/);
         assert.match(seen[1].sql, /from `cin`/);
-        assert.match(seen[1].sql, /in \(/);
+        assert.match(seen[1].sql, /in \(\?, \?, \?\)/, 'cin 확인은 ty=4 행 셋만');
+        done();
+    });
+});
+
+test('조각에 CIN 이 하나도 없으면 cin 표를 묻지 않는다', function (t, done) {
+    const { sa, seen } = tap([
+        [{ ri: '/M/a', pi: '/M', rn: 'a', ct: '20260901T000000', ty: '2' },
+         { ri: '/M/a/c', pi: '/M/a', rn: 'c', ct: '20260901T000000', ty: '3' }]
+    ]);
+    sa.select_lookup_only_cin_page(null, { limit: 10, scanCap: 100 }, function (err, r) {
+        assert.ifError(err);
+        assert.deepStrictEqual(r.rows, []);
+        assert.strictEqual(r.scanned, 2);
+        assert.strictEqual(r.more, false);
+        assert.strictEqual(seen.length, 1, 'cin 질의가 나갔다');
         done();
     });
 });

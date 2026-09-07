@@ -25,14 +25,15 @@ test('조각으로 훑어 표본을 파일에 남기고 /api/orphans/last 가 �
     for (let i = 1; i <= 30; i++) { rows.push({ ri: '/M/r' + String(i).padStart(3, '0'), pi: (i % 10 === 0) ? '/M/gone' + i : '/M', ty: '3', rn: 'r' + i, ct: '20260901T000000', lt: '', et: '' }); }
     // 2단계(lookupOnlyCin) fixture — ty=4 행 4개 중 cin 에 2개만 있다.
     const cinRows = [];
-    for (let i = 1; i <= 4; i++) { cinRows.push({ ri: '/M/c' + String(i).padStart(2, '0'), pi: '/M', rn: 'c' + i, ct: '20260901T000000' }); }
+    for (let i = 1; i <= 4; i++) { cinRows.push({ ri: '/M/c' + String(i).padStart(2, '0'), pi: '/M', rn: 'c' + i, ct: '20260901T000000', ty: '4' }); }
     const cinPresent = new Set(['/M/c01', '/M/c03']);
     const h = await boot({
         execute: function (sql, bindings) {
-            // 2단계 질의(ty='4' 조건이 붙는다)를 먼저 가른다 — 그러지 않으면 아래
-            // 1단계 분기(`ri` > ? 만 본다)가 이 질의도 잘못 삼킨다.
-            if (/from `lookup`/.test(sql) && /`ty` = \?/.test(sql)) {
-                const after = bindings[1];
+            // 2단계 질의를 먼저 가른다 — 그러지 않으면 아래 1단계 분기(`ri` > ? 만 본다)가
+            // 이 질의도 잘못 삼킨다. 2단계는 ty 를 SQL 에 안 두므로(옵티마이저가 idx_lookup_ty 를
+            // 고르던 결함, 2026-09-07) 선택 열 모양(`ri`,`pi`,`rn`,`ct`,`ty`)으로 가른다.
+            if (/select `ri`, `pi`, `rn`, `ct`, `ty` from `lookup`/.test(sql)) {
+                const after = bindings[0];
                 return cinRows.filter((r) => r.ri > after);
             }
             if (/from `lookup`/.test(sql) && /`ri` > \?/.test(sql)) {
@@ -90,7 +91,7 @@ test('조각 경계를 여러 번 넘어도 고아를 다 찾고 scanCapped 는 
     }
     const h = await boot({
         execute: function (sql, bindings) {
-            if (/from `lookup`/.test(sql) && /`ty` = \?/.test(sql)) { return []; }   // 2단계 fixture 없음
+            if (/select `ri`, `pi`, `rn`, `ct`, `ty` from `lookup`/.test(sql)) { return []; }   // 2단계 fixture 없음
             if (/from `lookup`/.test(sql) && /`ri` > \?/.test(sql)) {
                 const after = bindings[0];
                 return rows.filter((r) => r.ri > after).slice(0, MOCK_PAGE);
@@ -127,12 +128,12 @@ test('1단계가 예산에 걸리면 scanCapped:true 로 접되 2단계는 굶�
     const rows = [];
     for (let i = 1; i <= 200; i++) { rows.push({ ri: '/E/r' + String(i).padStart(3, '0'), pi: '/M', ty: '3', rn: 'r' + i, ct: '20260901T000000', lt: '', et: '' }); }
     const cinRows = [];
-    for (let i = 1; i <= 10; i++) { cinRows.push({ ri: '/E/c' + String(i).padStart(2, '0'), pi: '/M', rn: 'c' + i, ct: '20260901T000000' }); }
+    for (let i = 1; i <= 10; i++) { cinRows.push({ ri: '/E/c' + String(i).padStart(2, '0'), pi: '/M', rn: 'c' + i, ct: '20260901T000000', ty: '4' }); }
     const present = new Set(['/E/c01', '/E/c02', '/E/c03', '/E/c04']);   // 4개는 cin 에 있다 — 나머지 6개가 lookup 에만 남은 것
     const h = await boot({
         execute: function (sql, bindings) {
-            if (/from `lookup`/.test(sql) && /`ty` = \?/.test(sql)) {
-                const after = bindings[1];
+            if (/select `ri`, `pi`, `rn`, `ct`, `ty` from `lookup`/.test(sql)) {
+                const after = bindings[0];
                 return cinRows.filter((r) => r.ri > after);
             }
             if (/from `lookup`/.test(sql) && /`ri` > \?/.test(sql)) {
