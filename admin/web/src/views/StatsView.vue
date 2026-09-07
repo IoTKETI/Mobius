@@ -71,8 +71,9 @@ onMounted(load)
 
     <div class="panel">
       <h3>최근 {{ DAYS }}일 호출</h3>
-      <!-- SVG 는 viewBox 비율로 폭을 채운다 — 폭을 묶지 않으면 넓은 화면에서 그래프가 통째로 커진다. -->
-      <div class="chart-box"><BarChart :values="recent" :height="140" /></div>
+      <!-- 폭은 패널을 그대로 채운다. viewBox 높이만 낮춰 세로를 줄인다(폭 640 은 그대로라
+           같은 폭에서 그래프가 더 납작해진다). -->
+      <BarChart :values="recent" :height="110" />
     </div>
 
     <div v-if="table.length" class="table-wrap">
@@ -108,7 +109,6 @@ h3 { margin: 0 0 0.6rem; font-size: 1.05rem; color: var(--text-strong); }
 .tile .v { font-size: 2.1rem; font-weight: 650; line-height: 1.25; letter-spacing: -0.02em; color: var(--text-strong); font-variant-numeric: tabular-nums; }
 .tile .s { font-size: 0.88rem; color: var(--muted); }
 .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow); padding: 1rem 1.1rem; margin: 1.2rem 0; }
-.chart-box { max-width: 520px; }
 .table-wrap { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow); overflow: auto; max-height: 50vh; }
 /* 헤더와 값이 서로 다른 정렬로 틀어져 보였다 — 전부 중앙 (사용자 결정 2026-09-07). */
 .table-wrap th.c, .table-wrap td.c { text-align: center; }
