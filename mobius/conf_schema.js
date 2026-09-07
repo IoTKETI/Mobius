@@ -284,6 +284,8 @@ var SCHEMA = {
     // ── 콘솔 ─────────────────────────────────────────────────────────────
     // 관리 콘솔(admin/server.js)만 읽는 키. 코어는 전역을 세우지 않으므로 부팅
     // 기록에 안 실리고 CLI 가 "대조 대상 아님" 으로 보인다.
+    // 예외 하나 — adminAutoStart 는 **코어(conf_load)** 가 읽는다. 콘솔을 띄울지는
+    // 마스터가 정하는 일이라서다(app.js · mobius/admin_child.js).
     //
     // adminPassword·adminOrigin 은 **secret:true + exposed:false 를 함께** 붙인다 —
     // validate() 의 관문은 exposed 이지 secret 이 아니다(C6 시험이 전수로 본다).
@@ -322,6 +324,12 @@ var SCHEMA = {
         type: 'string', dflt: '', secret: true, exposed: false, apply: 'restart',
         label: '콘솔의 X-M2M-Origin',
         help: '비면 superUser 로 떨어진다 — 그러면 콘솔 비밀번호가 곧 마스터 키다. ACP 로 제한하려면 별도 AE-ID 를 넣는다.'
+    },
+    adminAutoStart: {
+        group: '콘솔',
+        type: 'enum', valid: ['on', 'off'], dflt: 'off', apply: 'restart',
+        label: '콘솔을 Mobius 와 같이 띄운다',
+        help: 'on 이면 node mobius.js 가 관리 콘솔(admin/server.js)을 자식 프로세스로 같이 띄우고, 죽으면 다시 띄우며, Mobius 가 끝나면 같이 끝난다. adminPassword 가 없으면 콘솔은 곧바로 죽고 다시 띄우지 않는다 — Mobius 는 그대로 돈다.'
     },
     // adminPm2Name 은 올리지 않는다. 우리 도구는 pm2 를 다루지 않는다 — 그 키를 읽던
     // admin/server.js 의 한 줄은 이 커밋에서 같이 지웠다.

@@ -53,10 +53,12 @@ test('C2 콘솔의 CSE 신원 세 줄이 conf 에서 온다 — 기본값은 표
     assert.ok(usedb > 0 && schemaReq > usedb, '표를 global.usedb 보다 먼저 require 한다');
 });
 
-test('adminPm2Name 은 표에 없다 — 우리 도구는 pm2 를 다루지 않는다. 콘솔 키는 6개', function () {
+test('adminPm2Name 은 표에 없다 — 우리 도구는 pm2 를 다루지 않는다. 콘솔 키는 7개', function () {
     const schema = require('../mobius/conf_schema');
     assert.strictEqual(schema.get('adminPm2Name'), null);
-    assert.strictEqual(schema.all().filter((k) => schema.get(k).group === '콘솔').length, 6, '콘솔 키는 6개다');
+    // 6개 + adminAutoStart(2026-09-07, 콘솔을 Mobius 의 자식 프로세스로 같이 띄운다 — pm2 가
+    // 아니라 마스터가 띄우므로 이 시험의 결정과 어긋나지 않는다).
+    assert.strictEqual(schema.all().filter((k) => schema.get(k).group === '콘솔').length, 7, '콘솔 키는 7개다');
 });
 
 test('삭제된 시험 파일이 없다', function () {

@@ -49,6 +49,17 @@ if (PASSWORD === '') {
     process.exit(1);
 }
 
+// Mobius 마스터가 자식으로 띄웠을 때(conf.adminAutoStart = on) — 부모의 IPC 채널이 닫히면
+// 같이 끝난다. pm2 stop 이 보내는 SIGINT 는 마스터의 exit 핸들러를 거치지 않으므로 이
+// 채널이 유일한 신호다. 이것이 없으면 콘솔이 고아로 남아 포트를 쥔 채 옛 코드로 돈다.
+// 직접 띄웠을 때(process.send 없음)는 아무것도 걸지 않는다.
+if (process.send) {
+    process.on('disconnect', function () {
+        console.log('[admin] Mobius 마스터가 사라졌다 — 같이 끝낸다');
+        process.exit(0);
+    });
+}
+
 // DB 백엔드는 Mobius 와 같은 규칙을 따른다 (argv 가 conf 를 이긴다).
 //
 // **global.usesqlite 를 쓰고 있었다. 그 전역은 이제 없다.**

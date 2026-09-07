@@ -172,6 +172,15 @@ pm2·터미널의 것이다. 콘솔은 리소스만 다룬다.
 | `adminCseHost` | `127.0.0.1` | 쓰기를 보낼 Mobius 주소 |
 | `adminCsePort` | `csebaseport` | 쓰기를 보낼 Mobius 포트 |
 | `adminOrigin` | `superUser` | 콘솔이 쓰는 `X-M2M-Origin` |
+| `adminAutoStart` | `off` | `on` 이면 `node mobius.js` 가 콘솔을 **자식 프로세스**로 같이 띄운다 (아래) |
+
+**Mobius 와 한몸으로 띄우기** — `adminAutoStart` 를 `on` 으로 두면 따로 `node admin/server.js`
+를 칠 필요가 없다. 마스터가 워커를 띄운 뒤 콘솔을 자식 프로세스로 띄우고(백엔드 이름을
+argv 로 넘긴다), 죽으면 1초 뒤 다시 띄우며, Mobius 가 끝나면(pm2 stop 포함) IPC 채널이 닫혀
+콘솔이 따라 끝난다. **기동 직후**(5초 안에) 죽으면 — `adminPassword` 없음 · 포트 사용 중 ·
+DB 연결 실패 — 다시 띄우지 않고 로그만 남기며, Mobius 는 그대로 돈다. 같은 프로세스에
+넣지 않은 이유는 마스터가 accept 루프라서다 — 콘솔의 느린 요청이 새 연결 수락을 막는다
+(`mobius/admin_child.js` 상단). 콘솔 로그는 마스터의 stdout(pm2 로그)으로 나간다.
 
 `adminPassword` 가 없으면 뜨지 않는다. "일단 열어 두고 나중에 잠근다" 가 되면
 나중은 오지 않는다.

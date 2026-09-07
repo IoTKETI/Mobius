@@ -56,6 +56,7 @@ var type_resolver = require('./mobius/type_resolver');
 // 잡히지 않은 예외의 마지막 방어선. 마스터는 살리고 워커는 종료한다.
 var backstop = require('./mobius/backstop');
 var EXIT = require('./mobius/exit_codes');
+var admin_child = require('./mobius/admin_child');
 var port_guard = require('./mobius/port_guard');
 
 // 아웃바운드 요청 타임아웃 (D16)
@@ -794,6 +795,21 @@ if (use_clustering) {
                             console.log('CPU Count:', cpuCount);
                             for (var i = 0; i < cpuCount; i++) {
                                 worker[i] = cluster.fork();
+                            }
+
+                            // 관리 콘솔을 한몸으로 — adminAutoStart 가 on 이면 마스터가 admin/server.js 를
+                            // **자식 프로세스**로 띄운다(같은 프로세스가 아니다 — 마스터는 accept 루프라
+                            // 콘솔의 느린 요청이 새 연결 수락을 막는다). 죽으면 다시 띄우고, 마스터가
+                            // 사라지면 IPC 채널이 닫혀 콘솔이 따라 죽는다(admin/server.js 의 disconnect).
+                            // 기동 직후 죽으면(adminPassword 없음 · 포트 사용 중) 다시 띄우지 않고
+                            // Mobius 는 계속 돈다. 정책과 근거는 mobius/admin_child.js.
+                            if (global.admin_auto_start === 'on') {
+                                admin_child.start({
+                                    script: require('path').join(__dirname, 'admin', 'server.js'),
+                                    // 백엔드 이름은 파사드에게 묻는다 — 선택자 전역을 읽는 코어 파일은
+                                    // mobius/db/index.js 하나다(test/usesqlite-single-reader.test.js)
+                                    args: [db.backendName()]
+                                });
                             }
 
                             cb.create(connection, (rsp) => {

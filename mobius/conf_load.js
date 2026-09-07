@@ -193,6 +193,13 @@ function apply_conf(conf) {
     global.allowed_app_ids = Array.isArray(conf.allowedAppIds) ? conf.allowedAppIds : [];
     applied.allowedAppIds = global.allowed_app_ids;
 
+    // ── 콘솔 ─────────────────────────────────────────────────────────────
+    // 콘솔 키 중 코어가 읽는 유일한 것. on 이면 마스터가 admin/server.js 를 자식
+    // 프로세스로 같이 띄운다(app.js · mobius/admin_child.js). 나머지 admin* 키는
+    // 콘솔 자신이 읽는다.
+    global.admin_auto_start = (conf.adminAutoStart === 'on') ? 'on' : 'off';
+    applied.adminAutoStart = global.admin_auto_start;
+
     return applied;
 }
 
