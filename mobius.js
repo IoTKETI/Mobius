@@ -14,75 +14,40 @@
  * @author Il Yeup Ahn [iyahn@keti.re.kr]
  */
 
-var fs = require('fs');
+// Entry point. Loads the configuration, probes the HTTP port (primary only), writes the boot record and starts the CSE core. Process exit happens only in this file.
+var cluster = require('cluster');
+var conf_load = require('./mobius/conf_load');
+var boot_record = require('./mobius/boot_record');
+var port_guard = require('./mobius/port_guard');
+var EXIT = require('./mobius/exit_codes');
 
-var conf = {};
-try {
-    conf = JSON.parse(fs.readFileSync('conf.json', 'utf8'));
+// Workers exit with a dedicated code when conf.json is missing or the seal does not match.
+var WORKER_EXIT = { NO_CONF: EXIT.NO_CONF, BAD_SEAL: EXIT.BAD_SEAL };
+
+conf_load(function (err, applied) {
+    if (err) {
+        console.error(err.message);
+        // A worker exiting with one of these codes makes the primary exit with the same code instead of re-forking (app.js cluster.on('exit')). The primary itself exits with 1.
+        process.exit((!cluster.isPrimary && WORKER_EXIT[err.code]) ? WORKER_EXIT[err.code] : 1);
+        return;
+    }
+    if (!cluster.isPrimary) { return boot(applied); }
+
+    // Probe the port once, in the primary only, before the boot record is written.
+    port_guard.probe(applied.csebaseport, function (state) {
+        if (state === 'taken') {
+            console.error('[포트] ' + applied.csebaseport + ' 을 이미 누가 쥐고 있다. 종료한다 (code=' + EXIT.PORT_TAKEN + ')');
+            process.exit(EXIT.PORT_TAKEN);
+            return;
+        }
+        // 'unknown' (EACCES etc.) is left to the real listen(); port_guard.onListenError handles that error.
+        boot(applied);
+    });
+});
+
+function boot(applied) {
+    // Record the applied configuration. Failures are logged and do not stop the boot. The primary truncates the file.
+    boot_record.write(applied, { confPath: conf_load.DEFAULT_FILE });
+    // CSE core
+    require('./app');
 }
-catch (e) {
-    conf.csebaseport = "7579";
-    conf.dbpass = "dksdlfduq2";
-    conf.usesqlite = "false";
-    fs.writeFileSync('conf.json', JSON.stringify(conf, null, 4), 'utf8');
-}
-
-global.defaultbodytype = 'json';
-
-// my CSE information
-global.usecsetype = 'in'; // select 'in' or 'mn' or asn'
-global.usecsebase = 'Mobius';
-global.usecseid = '/Mobius2';
-global.usecsebaseport = conf.csebaseport;
-
-global.usedbhost = 'localhost';
-global.usedbpass = conf.dbpass;
-
-if (process.argv[2] === 'sqlite') {
-    global.usesqlite = 'true';
-}
-else if (process.argv[2] === 'mysql') {
-    global.usesqlite = 'false';
-}
-else {
-    global.usesqlite = conf.usesqlite;
-}
-
-// 컨테이너 경로별 기본 보관 정책 (선택). 형식은 mobius/cnt.js 상단 주석 참조.
-// 정의하지 않으면 규칙 없이 Mobius 기본값이 쓰인다.
-global.retention_policies = Array.isArray(conf.retentionPolicies) ? conf.retentionPolicies : [];
-
-global.usepxywsport = '7577';
-global.usepxymqttport = '7578';
-
-global.use_sgn_man_port = '7599';
-global.use_cnt_man_port = '7583';
-global.use_hit_man_port = '7594';
-
-global.use_mqtt_broker = 'localhost'; // mqttbroker for mobius
-
-global.use_secure = 'disable';
-global.use_mqtt_port = '1883';
-if (use_secure === 'enable') {
-    use_mqtt_port = '8883';
-}
-
-global.useaccesscontrolpolicy = 'disable';
-
-global.wdt = require('./wdt');
-
-
-global.allowed_ae_ids = [];
-//allowed_ae_ids.push('ryeubi');
-
-global.allowed_app_ids = [];
-//allowed_app_ids.push('APP01');
-
-global.usesemanticbroker = '10.10.202.114';
-
-global.uservi = '2a';
-
-global.useCert = 'disable';
-
-// CSE core
-require('./app');
