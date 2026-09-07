@@ -27,6 +27,8 @@ const loading = ref(false)
 const error = ref('')
 const selectedTypes = ref<number[]>([])
 const policy = ref<ExpiryPolicy | null>(null)
+/** 조회 버튼을 한 번이라도 눌렀는가. 누르기 전에는 목록도 타입 필터도 없다. */
+const queried = ref(false)
 
 const PAGE = 50
 
@@ -82,6 +84,8 @@ const hasSubtree = computed(() =>
 // 목록은 작업이 **끝난 뒤** 다시 읽는다. 시작 직후에 읽으면 삭제가 도는 중의
 // 상태를 찍어, 이미 지운 것이 아직 남아 있는 것처럼 보인다.
 const runner = useJobRunner(() => {
+  // 조회하지 않은 화면(다른 화면에서 시작한 작업에 붙었을 뿐)은 그대로 둔다.
+  if (!queried.value) return
   void loadFirst()
   void loadSummary()
 })
@@ -174,6 +178,16 @@ async function loadMore() {
   }
 }
 
+/** 조회 버튼. 집계와 첫 쪽을 같이 읽는다 — 둘 다 같은 스캔의 결과다. */
+async function runQuery() {
+  queried.value = true
+  error.value = ''
+  // 타입 필터는 그대로 둔다 — '다시 조회' 는 지금 보고 있는 것을 새로 읽는 것이지
+  // 화면을 처음으로 되돌리는 것이 아니다. 필터를 풀려면 '전체 보기' 가 있다.
+  await loadSummary()
+  await loadFirst()
+}
+
 function toggleType(ty: number) {
   const i = selectedTypes.value.indexOf(ty)
   if (i >= 0) selectedTypes.value.splice(i, 1)
@@ -184,13 +198,13 @@ function toggleType(ty: number) {
 onMounted(async () => {
   // 다른 화면에서 시작한 작업이 돌고 있으면 먼저 붙는다.
   void runner.attach()
+  // 정책은 스캔이 아니라 상수 목록이다 — 열자마자 받아 둔다(선택 가능 여부가 여기 달렸다).
   try {
     policy.value = await expiredPolicy()
   } catch (e) {
     error.value = e instanceof Error ? e.message : String(e)
   }
-  await loadSummary()
-  await loadFirst()
+  // 목록·집계는 읽지 않는다. 조회는 버튼을 누른 사람이 부른다(runQuery).
 })
 </script>
 
@@ -198,9 +212,22 @@ onMounted(async () => {
   <section>
     <h2>만료된 리소스</h2>
     <p class="lead">
-      <code>et</code>(expirationTime)가 이미 지난 리소스입니다. 만료 스윕은
-      <strong>주기 실행이 걸려 있지 않아</strong> 이 목록은 저절로 줄어들지 않습니다.
+      전체 리소스들 중에 <code>et</code>(expirationTime)가 이미 지난 리소스들입니다.
+      만료된 리소스들은 자동으로 지우지 않습니다. 여기서 만료된 리소스들을 확인하고,
+      삭제할지, 연장할지를 결정해서 정리할 수 있습니다.
     </p>
+
+    <!-- 화면을 열기만 해서는 훑지 않는다. 배포의 lookup 은 5,740만 행이고 et 인덱스가
+         없어 조회가 곧 스캔이다 — 누른 사람이 그 비용을 알고 부른다. -->
+    <div class="queryline">
+      <button class="primary" :disabled="loading" @click="runQuery">
+        {{ loading ? '조회 중…' : queried ? '다시 조회' : '만료 리소스 조회' }}
+      </button>
+      <span v-if="!queried" class="muted">
+        누르면 Mobius 에서 <code>et</code> 가 지난 리소스를 찾습니다.
+      </span>
+      <span v-else-if="asOf" class="muted">조회 시각 {{ fmtTime(asOf) }} (UTC)</span>
+    </div>
 
     <div v-if="summary" class="tiles">
       <div class="tile">
@@ -225,7 +252,7 @@ onMounted(async () => {
       <code>et</code> 인덱스가 없어, 끝까지 세면 풀스캔이 됩니다.
     </p>
 
-    <div class="filters">
+    <div v-if="queried" class="filters">
       <span class="flabel">타입 필터</span>
       <button
         v-for="c in typeChips"
@@ -291,7 +318,7 @@ onMounted(async () => {
                 @change="toggleAll"
               />
             </th>
-            <th>경로 (ri)</th>
+            <th>URI (ri)</th>
             <th>타입</th>
             <th>만료 (et)</th>
             <th>경과</th>
@@ -329,9 +356,9 @@ onMounted(async () => {
       </table>
     </div>
 
-    <p v-else-if="!loading" class="empty">만료된 리소스가 없습니다.</p>
+    <p v-else-if="queried && !loading" class="empty">만료된 리소스가 없습니다.</p>
 
-    <div class="footer">
+    <div v-if="queried" class="footer">
       <button v-if="more" :disabled="loading" @click="loadMore">
         {{ loading ? '불러오는 중…' : `다음 ${PAGE}건` }}
       </button>
@@ -386,7 +413,10 @@ h2 {
   letter-spacing: -0.02em;
   color: var(--text-strong);
 }
-.lead { margin: 0 0 1.5rem; color: var(--muted); font-size: 1.02rem; max-width: 72ch; }
+.lead { margin: 0 0 1.1rem; color: var(--muted); font-size: 1.02rem; max-width: 72ch; }
+.queryline { display: flex; align-items: center; gap: 0.8rem; flex-wrap: wrap; margin: 0 0 1.5rem; }
+.queryline .muted { font-size: 0.92rem; }
+/* button.primary 의 색은 style.css 에 있다 — 여기서 다시 적지 않는다. */
 .note { color: var(--muted); font-size: 0.92rem; margin: 0.7rem 0 0; max-width: 72ch; }
 .err { color: var(--danger); font-size: 1rem; }
 .empty { color: var(--muted); padding: 3rem 0; text-align: center; font-size: 1.05rem; }
