@@ -61,7 +61,7 @@ const cinNote = computed(() => {
   if (!s?.rows.length) return ''
   return s.sampleTruncated
     ? `표본 ${result.value!.sampleCap.toLocaleString()}건에서 멈췄습니다 — 실제로는 더 있습니다`
-    : 'cin 표에 짝이 없는 행입니다. 원인이 밝혀지지 않아 지우지 않습니다'
+    : '목록에는 있는데 실제 데이터가 없습니다. 조회하면 응답에서 빠집니다'
 })
 
 /** 두 단계가 읽은 행의 합. 작업 패널의 '훑은 행' 과 같은 수여야 한다 — 다르면 화면이 두 말을 한다. */
@@ -168,7 +168,7 @@ onMounted(async () => { void runner.attach(); await loadLast() })
           <div class="s" v-if="orphanNote">{{ orphanNote }}</div>
         </div>
         <div class="tile">
-          <div class="k">lookup 에만 남은 CIN</div>
+          <div class="k">내용이 없는 데이터</div>
           <div class="v">
             <template v-if="result.lookupOnlyCin.rows.length">{{ result.lookupOnlyCin.rows.length.toLocaleString() }}<span v-if="result.lookupOnlyCin.sampleTruncated">+</span></template>
             <template v-else>없음</template>
@@ -208,11 +208,16 @@ onMounted(async () => { void runner.attach(); await loadLast() })
       </div>
       <p v-else class="empty">표본에 미연결 리소스가 없습니다<span v-if="result.scanCapped"> (상한까지는 — 뒤에 더 있을 수 있습니다)</span>.</p>
 
-      <h3>lookup 에만 남은 CIN</h3>
-      <p class="sub">원인이 밝혀지지 않아 삭제 버튼을 두지 않습니다. 인수인계 문서 §6 을 읽고 결정합니다.</p>
+      <h3>내용이 없는 데이터</h3>
+      <p class="sub">
+        리소스 목록에는 줄이 있는데 실제 데이터(<code>cin</code>)가 없는 것들입니다. 부모는 멀쩡히
+        있습니다 — 부모가 없어진 것은 위의 “끊긴 지점” 쪽입니다. 조회하면 내용을 채울 수 없어
+        응답에서 빠지므로, 목록에 자리만 차지합니다.
+        <strong>원인이 밝혀지지 않아 삭제 버튼을 두지 않습니다.</strong> 인수인계 문서 §6 을 읽고 결정합니다.
+      </p>
       <div v-if="result.lookupOnlyCin.rows.length" class="table-wrap short">
         <table>
-          <thead><tr><th>ri</th><th>부모 (pi)</th><th>생성 (ct)</th></tr></thead>
+          <thead><tr><th>URI (ri)</th><th>부모 (pi)</th><th>생성 (ct)</th></tr></thead>
           <tbody>
             <tr v-for="r in result.lookupOnlyCin.rows" :key="r.ri">
               <td class="mono path">{{ r.ri }}</td><td class="mono path">{{ r.pi }}</td><td class="mono muted">{{ fmtTime(r.ct) }}</td>

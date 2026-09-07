@@ -65,7 +65,7 @@ test('조각으로 훑어 표본을 파일에 남기고 /api/orphans/last 가 �
         assert.strictEqual(job.progress.done, 34, '1단계 30행 + 2단계 4행');
         assert.strictEqual(job.progress.total, null, '단계마다 상한이 따로라 합계 상한은 말하지 않는다');
         // 무엇을 찾았는지는 작업이 자기 말로 적는다. 화면은 이 문장을 그대로 쓴다.
-        assert.match(job.summary, /^34행을 훑어 미연결 3건, lookup 에만 남은 CIN 2건을 찾았습니다\. 표를 끝까지 다 봤습니다\.$/);
+        assert.match(job.summary, /^34행을 훑어 미연결 3건, 내용이 없는 데이터 2건을 찾았습니다\. 표를 끝까지 다 봤습니다\.$/);
 
         const last = await h.request('GET', '/api/orphans/last');
         assert.strictEqual(last.status, 200);

@@ -213,7 +213,7 @@ exports.start = function (ctx, opts) {
             // 무엇을 찾았는지는 이 작업만 안다. 화면은 이 한 줄을 그대로 쓴다.
             var runRows = runScanned.s1 + runScanned.s2;
             var allRows = result.scanned + result.lookupOnlyCin.scanned;
-            var found = '미연결 ' + result.orphans.length.toLocaleString() + '건, lookup 에만 남은 CIN ' +
+            var found = '미연결 ' + result.orphans.length.toLocaleString() + '건, 내용이 없는 데이터 ' +
                         result.lookupOnlyCin.rows.length.toLocaleString() + '건';
             var s = result.continued
                 ? '이번에 ' + runRows.toLocaleString() + '행을 더 훑었습니다(누적 ' +
