@@ -210,6 +210,21 @@ test('validate 가 노출 대상이 아닌 키를 거절한다', function () {
     assert.strictEqual(schema.validate('csebaseport', '99999').ok, false, '포트 범위를 안 본다');
 });
 
+test('숫자로 적힌 포트도 받는다 — 로더가 String() 으로 읽는 키(digits)와 같은 판정', function () {
+    // conf.json 에 "csebaseport": 7579 처럼 따옴표 없이 적으면 서버는 port_of 가 String() 으로 읽어 그 포트로 뜬다.
+    // CLI 가 그것을 "유효하지 않다 (기본값으로 떨어짐)" 로 표시하면 오보다 — 판정이 로더와 같아야 한다.
+    assert.strictEqual(schema.checkValue('csebaseport', 7593).ok, true, '숫자 포트를 거절한다 — 서버는 그 포트로 뜬다');
+    assert.strictEqual(schema.checkValue('mqttPort', 1883).ok, true, '숫자 mqttPort 를 거절한다');
+    assert.strictEqual(schema.checkValue('csebaseport', 70000).ok, false, '범위 밖 숫자를 받는다');
+    assert.strictEqual(schema.checkValue('csebaseport', 1.5).ok, false, '소수를 받는다');
+    assert.strictEqual(schema.checkValue('cseBase', 1).ok, false, '숫자 허용이 포트 밖 문자열 키로 번졌다');
+    // 표의 digits 는 로더의 port_of 와 짝이다 — 한쪽만 늘리면 판정이 다시 갈린다.
+    const loader = stripComments(fs.readFileSync(path.join(ROOT, 'mobius', 'conf_load.js'), 'utf8'));
+    const portKeys = [...loader.matchAll(/port_of\(conf\.(\w+)/g)].map((m) => m[1]).sort();
+    const digitKeys = schema.all().filter((k) => schema.get(k).digits === true).sort();
+    assert.deepStrictEqual(digitKeys, portKeys, 'digits 키와 port_of 로 읽는 키가 다르다');
+});
+
 test('비밀은 노출 목록에 없다', function () {
     for (const k of ['dbpass', 'superUser']) {
         assert.strictEqual(schema.get(k).secret, true, k + ' 가 secret 이 아니다');

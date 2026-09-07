@@ -269,6 +269,8 @@ var SCHEMA = {
         group: '네트워크',
         tier: 'user',
         type: 'string', dflt: '7579', apply: 'restart',
+        // 로더(conf_load 의 port_of)가 String() 으로 읽으므로 숫자로 적어도 그 포트로 뜬다. checkValue 도 같이 받는다.
+        digits: true,
         grade: 'gate',
         gateWarn: '⚠ csebaseport 를 바꾸면 등록된 AE 의 poa 가 전부 어긋난다.\n' +
                   '  · 그 AE 로 가는 알림이 실패한다 — AE 쪽에서 poa 를 다시 등록해야 한다',
@@ -408,6 +410,7 @@ var SCHEMA = {
     mqttPort: {
         group: '네트워크',
         type: 'string', dflt: '1883', apply: 'restart',
+        digits: true,
         valid: function (v) { return /^\d{1,5}$/.test(v) && Number(v) >= 1 && Number(v) <= 65535; },
         validHint: '1~65535',
         // CLI 가 "유도됨" 을 낼 근거. 파일 값과 도는 값이 달라도 재기동 대기가 아니다.
@@ -542,8 +545,12 @@ exports.checkValue = function (key, value) {
     else if (s.type === 'array') {
         if (!Array.isArray(value)) { return { ok: false, reason: '배열이 아니다' }; }
     }
-    else if (typeof value !== 'string') {
-        return { ok: false, reason: '문자열이 아니다' };
+    else {
+        // digits 키는 로더가 String() 으로 읽는다 — 파일에 숫자로 적힌 값을 같은 문자열로 보고 아래 valid 를 거친다.
+        if (s.digits === true && typeof value === 'number' && isFinite(value)) { value = String(value); }
+        if (typeof value !== 'string') {
+            return { ok: false, reason: '문자열이 아니다' };
+        }
     }
 
     if (typeof s.valid === 'function') {

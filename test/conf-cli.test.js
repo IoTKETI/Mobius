@@ -103,8 +103,10 @@ test('L2 비교는 정규화한다 — 객체가 든 배열, 숫자/문자열', 
     assert.strictEqual(cli.judge(schema, 'allowedAeIds', { allowedAeIds: ['a'] }, true, record).state, 'applied');
     assert.strictEqual(cli.judge(schema, 'allowedAeIds', { allowedAeIds: ['b'] }, true, record).state, 'pending');
     assert.strictEqual(cli.judge(schema, 'dbConnectionLimit', { dbConnectionLimit: 25 }, true, { dbConnectionLimit: 25 }).state, 'applied');
-    // 문자열 타입 키에 숫자를 적은 파일은 checkValue 가 먼저 잡는다 — 재기동 대기가 아니라 "유효하지 않다"
-    assert.strictEqual(cli.judge(schema, 'csebaseport', { csebaseport: 7579 }, true, record).state, 'invalid');
+    // 포트(digits)는 숫자로 적어도 받는다 — 로더가 String() 으로 읽어 그 포트로 뜨므로 CLI 도 같은 값으로 대조한다
+    assert.strictEqual(cli.judge(schema, 'csebaseport', { csebaseport: 7579 }, true, record).state, 'applied');
+    // 포트가 아닌 문자열 키에 숫자를 적으면 여전히 "유효하지 않다"
+    assert.strictEqual(cli.judge(schema, 'cseBase', { cseBase: 1 }, true, record).state, 'invalid');
 });
 
 test('L2 mqttPort 는 useSecure=enable 이면 유도됨 — 문구가 표(derivedFrom)에서 온다', function () {
