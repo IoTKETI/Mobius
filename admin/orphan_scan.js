@@ -53,6 +53,15 @@ exports.start = function (ctx, opts) {
         });
     }
 
+    /**
+     * 진행을 조각이 아니라 **훑은 행**으로 말한다. 조각 수는 상한을 조각 크기로 나눈
+     * 최대치일 뿐이라 "2 / 2 · 처리 2" 가 무엇의 2인지 읽히지 않았다(사용자 지적).
+     * 상한은 제목에 이미 있고 단계마다 따로 걸리므로 여기서는 합계만 말한다.
+     */
+    function bump() {
+        if (job) { job.setProgress('훑은 행', result.scanned + result.lookupOnlyCin.scanned); }
+    }
+
     function worker(chunkNo, cb) {
         // 정상 경로에서는 여기 안 온다 — doneEarly 가 먼저 끝낸다(동시 실행 1). 방어선이다.
         if (exhausted) { return cb('skipped', '훑기가 이미 끝난 뒤였다', 'settled'); }
@@ -79,6 +88,7 @@ exports.start = function (ctx, opts) {
                         // !page.more && !page.scanCapped — 정말 테이블 끝이다.
                         stage = 2; cursor = null;
                     }
+                    bump();
                     cb('ok');
                 });
                 return;
@@ -104,6 +114,7 @@ exports.start = function (ctx, opts) {
                     // !page.more && !page.scanCapped — 정말 테이블 끝이다.
                     exhausted = true;
                 }
+                bump();
                 cb('ok');
             });
         });
@@ -112,7 +123,9 @@ exports.start = function (ctx, opts) {
     var targets = [];
     for (var i = 0; i < chunks * 2; i++) { targets.push(i); }   // 두 단계 × 조각 수
 
-    return ctx.jobs.start({
+    // worker·onFinish 가 이 변수를 본다. 둘 다 start 가 돌아온 뒤에 불린다(worker 는
+    // setImmediate, onFinish 는 끝날 때) — 그래서 이 시점에 비어 있어도 된다.
+    var job = ctx.jobs.start({
         kind: 'orphan-scan',
         title: '미연결 탐지 (상한 ' + scanCap.toLocaleString() + '행 · 표본 ' + sampleCap + ')',
         note: '세지 않고 표본만 뽑는다. 삭제는 결과에서 골라 따로 시작한다.',
@@ -124,12 +137,26 @@ exports.start = function (ctx, opts) {
         // (실측: 상한 100만 → 조각 400개 중 2개만 일하고 398 건너뜀) 세는 대신 여기서 끝낸다.
         doneEarly: function () { return exhausted; },
         worker: worker,
-        onFinish: function (job) {
+        onFinish: function (j) {
             result.endedAt = new Date().toISOString();
-            result.cancelled = job.state === 'cancelled';
+            result.cancelled = j.state === 'cancelled';
+
+            // 무엇을 찾았는지는 이 작업만 안다. 화면은 이 한 줄을 그대로 쓴다.
+            var rows = result.scanned + result.lookupOnlyCin.scanned;
+            var s = rows.toLocaleString() + '행을 훑어 미연결 ' +
+                    result.orphans.length.toLocaleString() + '건, lookup 에만 남은 CIN ' +
+                    result.lookupOnlyCin.rows.length.toLocaleString() + '건을 찾았습니다.';
+            if (result.sampleTruncated || result.lookupOnlyCin.sampleTruncated) {
+                s += ' 표본 상한에 걸렸습니다 — 실제로는 더 있습니다.';
+            } else if (result.scanCapped || result.lookupOnlyCin.scanCapped) {
+                s += ' 훑기 상한에서 멈췄습니다 — 그 뒤는 보지 못했습니다.';
+            }
+            j.setSummary(s);
+
             var file = data_dir.file(ctx.dataDir, 'orphans', runId + '.json');
             data_dir.writeJson(file, result);
             data_dir.keepLatest(ctx.dataDir, 'orphans', 20);
         }
     });
+    return job;
 };

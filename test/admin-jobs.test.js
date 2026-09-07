@@ -75,6 +75,36 @@ test('건너뛴 것을 갈래로 나눠 센다 — skipped 는 셋의 합이다'
     assert.deepStrictEqual(job.skips.map((s) => s.category).sort(), ['excluded', 'settled', 'unresolved']);
 });
 
+test('작업이 자기 단위로 진행과 요약을 말할 수 있다 — view 에 실린다', async function () {
+    // 엔진의 processed/total 은 '대상' 개수다. 대상이 리소스가 아닌 작업(탐지의 조각)은
+    // 그 숫자가 무엇인지 읽히지 않으므로 자기 단위를 채운다.
+    let job = null;
+    job = jobs.start({
+        kind: 'test', title: 't',
+        targets: [1, 2],
+        concurrency: 1,
+        worker: function (t, cb) {
+            setImmediate(function () { job.setProgress('훑은 행', t * 1000); cb('ok'); });
+        },
+        onFinish: function (j) { j.setSummary('2,000행을 훑었습니다.'); }
+    });
+    await settled(job);
+
+    assert.deepStrictEqual(job.view().progress, { label: '훑은 행', done: 2000, total: null });
+    assert.strictEqual(job.view().summary, '2,000행을 훑었습니다.');
+});
+
+test('진행 단위를 안 주면 progress 는 null, summary 는 빈 문자열이다', async function () {
+    const job = jobs.start({
+        kind: 'test', title: 't',
+        targets: ['/a'],
+        worker: function (ri, cb) { setImmediate(function () { cb('ok'); }); }
+    });
+    await settled(job);
+    assert.strictEqual(job.view().progress, null, '없으면 화면이 processed/total 을 쓴다');
+    assert.strictEqual(job.view().summary, '');
+});
+
 test('모르는 갈래 이름은 unresolved 로 떨어진다', async function () {
     const job = jobs.start({
         kind: 'test', title: 't',

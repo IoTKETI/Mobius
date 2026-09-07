@@ -89,8 +89,16 @@ export interface Job {
   title: string
   note: string
   state: JobState
+  /** 엔진의 '대상' 개수. 대상이 곧 리소스인 작업(삭제·연장)에서만 뜻이 통한다. */
   total: number
   processed: number
+  /**
+   * 작업 자신의 단위로 말한 진행. 미연결 탐지처럼 대상이 조각인 작업이 채운다 —
+   * 없으면 화면이 processed/total 을 쓴다.
+   */
+  progress: { label: string; done: number; total: number | null } | null
+  /** 끝난 뒤 한 줄. 무엇을 찾았는지는 작업 자신만 안다. 비어 있을 수 있다. */
+  summary: string
   ok: number
   /** 프리플라이트에서 걸러진 것 — 아래 셋의 합이다. */
   skipped: number

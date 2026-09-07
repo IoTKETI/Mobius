@@ -54,9 +54,11 @@ const verdict = computed(() => {
       : '취소했습니다. 시작한 건은 모두 결과가 확인됐습니다.'
   }
   if (leftover.value === 0) {
-    return readOnly.value
-      ? '탐지를 마쳤습니다. 아래 결과를 확인하세요 — 이 작업은 아무것도 지우지 않습니다.'
-      : '정리가 완료되었습니다.'
+    if (!readOnly.value) return '정리가 완료되었습니다.'
+    // 무엇을 찾았는지는 작업이 자기 말로 적어 준다(summary). 없으면 최소한의 사실만.
+    return props.job.summary
+      ? `탐지를 마쳤습니다. ${props.job.summary}`
+      : '탐지를 마쳤습니다. 아래 결과를 확인하세요 — 이 작업은 아무것도 지우지 않습니다.'
   }
   const bits = []
   if (props.job.unresolved) bits.push(`판단하지 못한 것 ${props.job.unresolved.toLocaleString()}건`)
@@ -101,9 +103,19 @@ const skipGroups = computed(() => {
       <div class="fill" :style="{ width: pct + '%' }" />
     </div>
 
+    <!-- 진행은 작업 자신의 단위로 말한다. 그 단위를 준 작업은 엔진의 대상 개수(조각)를
+         보여 주지 않는다 — "2 / 2 · 처리 2" 가 무엇의 2인지 읽히지 않았다. -->
     <div class="counts">
-      <span class="c">{{ job.processed.toLocaleString() }} / {{ job.total.toLocaleString() }}</span>
-      <span class="c ok" v-if="job.ok">처리 {{ job.ok.toLocaleString() }}</span>
+      <template v-if="job.progress">
+        <span class="c ok">
+          {{ job.progress.label }} {{ job.progress.done.toLocaleString() }}<template
+            v-if="job.progress.total"> / {{ job.progress.total.toLocaleString() }}</template>
+        </span>
+      </template>
+      <template v-else>
+        <span class="c">{{ job.processed.toLocaleString() }} / {{ job.total.toLocaleString() }}</span>
+        <span class="c ok" v-if="job.ok">처리 {{ job.ok.toLocaleString() }}</span>
+      </template>
       <span class="c done" v-if="job.settled">이미 정리됨 {{ job.settled.toLocaleString() }}</span>
       <span class="c skip" v-if="job.excluded">대상 아님 {{ job.excluded.toLocaleString() }}</span>
       <span class="c warn" v-if="job.unresolved">다시 확인 {{ job.unresolved.toLocaleString() }}</span>

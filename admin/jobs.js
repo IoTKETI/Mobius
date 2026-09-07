@@ -80,7 +80,25 @@ function Job(spec) {
     this.finishedAt = null;
     this.error = null;
     this.cancelRequested = false;
+
+    /**
+     * 진행을 **작업 자신의 단위**로 말한다. {label, done, total}.
+     *
+     * 엔진의 processed/total 은 '대상' 개수이고, 대상이 곧 리소스인 작업(삭제·연장)에서는
+     * 그대로 뜻이 통한다. 하지만 미연결 탐지의 대상은 **조각**이라 "2 / 2 · 처리 2" 가 되어
+     * 무엇이 2인지 읽히지 않았다(실측). 그런 작업은 여기에 자기 단위를 채운다.
+     */
+    this.progress = null;
+    /** 끝난 뒤 한 줄. 무엇을 찾았는지는 작업 자신만 안다. */
+    this.summary = '';
 }
+
+/** 진행 표시를 자기 단위로. done 은 누적, total 은 상한(모르면 null). */
+Job.prototype.setProgress = function (label, done, total) {
+    this.progress = { label: String(label), done: done, total: (total === undefined) ? null : total };
+};
+
+Job.prototype.setSummary = function (text) { this.summary = String(text || ''); };
 
 /** 화면에 넘길 표현. 내부 필드를 그대로 노출하지 않는다. */
 Job.prototype.view = function () {
@@ -92,6 +110,8 @@ Job.prototype.view = function () {
         state: this.state,
         total: this.total,
         processed: this.processed,
+        progress: this.progress,
+        summary: this.summary,
         ok: this.ok,
         skipped: this.skipped,
         settled: this.settled,

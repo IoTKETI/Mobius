@@ -58,6 +58,15 @@ test('조각으로 훑어 표본을 파일에 남기고 /api/orphans/last 가 �
         assert.strictEqual(job.state, 'done');
         assert.strictEqual(job.kind, 'orphan-scan');
 
+        // 진행은 조각이 아니라 훑은 행으로 말한다 — 대상이 조각이라 "2 / 2 · 처리 2" 는
+        // 무엇의 2인지 읽히지 않았다(사용자 지적 2026-09-07).
+        assert.ok(job.progress, '진행 단위를 안 채웠다');
+        assert.strictEqual(job.progress.label, '훑은 행');
+        assert.strictEqual(job.progress.done, 34, '1단계 30행 + 2단계 4행');
+        assert.strictEqual(job.progress.total, null, '단계마다 상한이 따로라 합계 상한은 말하지 않는다');
+        // 무엇을 찾았는지는 작업이 자기 말로 적는다. 화면은 이 문장을 그대로 쓴다.
+        assert.match(job.summary, /^34행을 훑어 미연결 3건, lookup 에만 남은 CIN 2건을 찾았습니다\.$/);
+
         const last = await h.request('GET', '/api/orphans/last');
         assert.strictEqual(last.status, 200);
         assert.deepStrictEqual(last.body.orphans.map((o) => o.ri), ['/M/r010', '/M/r020', '/M/r030']);
