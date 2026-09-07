@@ -190,7 +190,8 @@ exports.start = function (ctx, opts) {
         kind: 'orphan-scan',
         title: (prev ? '미연결 이어서 훑기' : '미연결 탐지') +
                ' (상한 ' + scanCap.toLocaleString() + '행 · 표본 ' + sampleCap + ')',
-        note: '세지 않고 표본만 뽑는다. 삭제는 결과에서 골라 따로 시작한다.',
+        note: '전체 건수는 세지 않고 표본만 모읍니다(최대 ' + sampleCap.toLocaleString() + '건). ' +
+              '이 작업은 아무것도 지우지 않습니다 — 결과에서 지울 것을 골라 삭제를 따로 시작하세요.',
         targets: targets,
         keyOf: function (t) { return 'chunk-' + t; },
         concurrency: 1,

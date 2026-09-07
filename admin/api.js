@@ -886,7 +886,7 @@ exports.install = function (app, ctx) {
         start_or_conflict(res, {
             kind: 'expired-delete',
             title: '만료 리소스 삭제 ' + ris.length + '건',
-            note: '삭제 직전 et 를 다시 확인한다. 그사이 만료가 풀린 것은 건너뛴다.',
+            note: '지우기 직전에 만료 시각(et)을 다시 확인합니다. 그사이 만료가 풀린 것은 건너뜁니다.',
             targets: ris,
             concurrency: 4,
             worker: make_delete_worker(function (conn, row, next) {
@@ -914,9 +914,9 @@ exports.install = function (app, ctx) {
         start_or_conflict(res, {
             kind: 'orphan-delete',
             title: '미연결 리소스 삭제 ' + ris.length + '건',
-            note: '삭제 직전 부모가 여전히 없는지 다시 확인한다. ' +
-                  '끝난 직후의 목록에는 방금 지운 것의 자식들이 새 미연결 리소스로 올라온다 — ' +
-                  '그중 일부는 배경 정리가 곧 지울 것들이니, 잠시 뒤 “다시 세기”로 확인한다.',
+            note: '지우기 직전에 부모가 여전히 없는지 다시 확인합니다. ' +
+                  '끊긴 지점을 지우면 그 자식들이 새 미연결 리소스가 되어 다음 탐지에 올라옵니다 — ' +
+                  '그중 일부는 배경 정리가 곧 지울 것들이니, 잠시 뒤 다시 탐지해 확인하세요.',
             targets: ris,
             concurrency: 4,
             worker: make_delete_worker(function (conn, row, next) {
@@ -942,7 +942,7 @@ exports.install = function (app, ctx) {
         start_or_conflict(res, {
             kind: 'sub-delete',
             title: '구독 삭제 ' + ris.length + '건',
-            note: '삭제 직전 대상이 여전히 구독(ty=23)인지 다시 확인한다.',
+            note: '지우기 직전에 대상이 여전히 구독인지 다시 확인합니다.',
             targets: ris,
             concurrency: 4,
             worker: make_delete_worker(function (conn, row, next) {
@@ -972,7 +972,7 @@ exports.install = function (app, ctx) {
         start_or_conflict(res, {
             kind: 'expired-extend',
             title: 'et 연장 ' + ris.length + '건 → ' + et,
-            note: 'CIN 은 oneM2M 상 수정할 수 없어 건너뛴다.',
+            note: 'CIN 은 oneM2M 표준상 수정할 수 없어 건너뜁니다.',
             targets: ris,
             concurrency: 4,
             worker: function (ri, cb) {
