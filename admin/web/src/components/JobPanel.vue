@@ -46,6 +46,10 @@ const leftover = computed(() => props.job.unresolved + props.job.failed)
 const READONLY_KINDS = ['orphan-scan']
 const readOnly = computed(() => READONLY_KINDS.includes(props.job.kind))
 
+/** 리소스를 실제로 지우는 작업. 하위 정리 안내는 여기에만 붙는다. */
+const DELETE_KINDS = ['expired-delete', 'orphan-delete', 'sub-delete']
+const deletes = computed(() => DELETE_KINDS.includes(props.job.kind))
+
 const verdict = computed(() => {
   if (props.job.state === 'running') return ''
   if (props.job.state === 'cancelled') {
@@ -158,9 +162,10 @@ const skipGroups = computed(() => {
       </p>
     </details>
 
-    <p v-if="job.state !== 'running' && job.ok > 0" class="after">
-      Mobius 는 삭제 요청에 곧바로 응답하고 하위 리소스는 배경에서 지웁니다.
-      큰 서브트리를 지웠다면 목록에서 사라진 뒤에도 정리가 잠시 더 이어집니다.
+    <!-- 지운 작업에만 붙는다. 탐지·연장은 하위 리소스를 만들지도 지우지도 않는다. -->
+    <p v-if="deletes && job.state !== 'running' && job.ok > 0" class="after">
+      지운 리소스는 목록에서 바로 사라지지만, 그 아래 자식들은 Mobius 가 뒤에서 이어서
+      지웁니다. 자식이 많은 컨테이너를 지웠다면 실제 정리가 끝나기까지 시간이 더 걸립니다.
     </p>
   </div>
 </template>
