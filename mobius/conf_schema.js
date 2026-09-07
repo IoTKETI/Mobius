@@ -204,6 +204,8 @@ var SCHEMA = {
         group: '네트워크',
         tier: 'user',
         type: 'string', dflt: '7579', apply: 'restart',
+        // The loader (port_of in conf_load) reads this through String(), so a JSON number boots on that port; checkValue accepts it the same way.
+        digits: true,
         grade: 'gate',
         gateWarn: '⚠ csebaseport 를 바꾸면 등록된 AE 의 poa 가 전부 어긋난다.\n' +
                   '  · 그 AE 로 가는 알림이 실패한다 — AE 쪽에서 poa 를 다시 등록해야 한다',
@@ -319,6 +321,7 @@ var SCHEMA = {
     mqttPort: {
         group: '네트워크',
         type: 'string', dflt: '1883', apply: 'restart',
+        digits: true,
         valid: function (v) { return /^\d{1,5}$/.test(v) && Number(v) >= 1 && Number(v) <= 65535; },
         validHint: '1~65535',
         // Basis for the CLI's 'derived' marker: a difference between the file value and the running value is not a pending restart.
@@ -428,8 +431,12 @@ exports.checkValue = function (key, value) {
     else if (s.type === 'array') {
         if (!Array.isArray(value)) { return { ok: false, reason: '배열이 아니다' }; }
     }
-    else if (typeof value !== 'string') {
-        return { ok: false, reason: '문자열이 아니다' };
+    else {
+        // digits keys are read through String() by the loader: a number written in the file is treated as the same decimal string and then goes through valid below.
+        if (s.digits === true && typeof value === 'number' && isFinite(value)) { value = String(value); }
+        if (typeof value !== 'string') {
+            return { ok: false, reason: '문자열이 아니다' };
+        }
     }
 
     if (typeof s.valid === 'function') {
