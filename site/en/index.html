@@ -1,0 +1,1079 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mobius Guide — Introduction, Architecture, Installation, Operation, Usage</title>
+<meta name="description" content="English guide to Mobius, the oneM2M IoT server platform: what it is, how it is built, how to install and run it, and how to use its REST API.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+KR:wght@300;400;500;600;700&display=swap">
+<link rel="stylesheet" href="../assets/ocean.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M4 20c3-4 6-4 9 0s6 4 9 0 6-4 6 0' fill='none' stroke='%2310a2be' stroke-width='2.6' stroke-linecap='round'/%3E%3Cpath d='M4 12c3-4 6-4 9 0s6 4 9 0 6-4 6 0' fill='none' stroke='%236fd0d9' stroke-width='2.6' stroke-linecap='round'/%3E%3C/svg%3E">
+</head>
+<body>
+
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="topbar">
+  <div class="wrap topbar__inner">
+    <a class="brand" href="../">
+      <svg viewBox="0 0 32 32" aria-hidden="true">
+        <path d="M3 21c3.2-4.4 6.4-4.4 9.6 0s6.4 4.4 9.6 0 6.4-4.4 6.4 0" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" opacity=".45"/>
+        <path d="M3 13.5c3.2-4.4 6.4-4.4 9.6 0s6.4 4.4 9.6 0 6.4-4.4 6.4 0" fill="none" stroke="#10a2be" stroke-width="2.4" stroke-linecap="round"/>
+      </svg>
+      Mobius <span>3.0.1</span>
+    </a>
+    <nav class="topnav">
+      <a href="../ko/">한국어</a>
+      <a href="./" aria-current="page">English</a>
+      <span class="sep"></span>
+      <a href="https://github.com/IoTKETI/Mobius"><span class="label">GitHub</span></a>
+      <button type="button" class="icon-btn" data-theme-toggle aria-label="Switch between light and dark">
+        <svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M19.1 4.9l-1.4 1.4M6.3 17.7l-1.4 1.4"/></svg>
+        <svg class="moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z"/></svg>
+      </button>
+    </nav>
+  </div>
+</header>
+
+<main id="main" class="wrap doc">
+
+<!-- ── Contents ─────────────────────────────────────────────────────────── -->
+<nav class="toc" aria-label="Contents">
+  <p class="toc__title">Contents</p>
+  <ol>
+    <li><a href="#intro"><span class="toc__num">01</span>Introduction</a>
+      <ol class="sub">
+        <li><a href="#intro-what">What Mobius is</a></li>
+        <li><a href="#intro-role">Where it sits</a></li>
+        <li><a href="#intro-tree">The tree is the address</a></li>
+        <li><a href="#intro-types">Resource types</a></li>
+      </ol>
+    </li>
+    <li><a href="#arch"><span class="toc__num">02</span>Architecture</a>
+      <ol class="sub">
+        <li><a href="#arch-flow">The path of a request</a></li>
+        <li><a href="#arch-modules">How the modules divide</a></li>
+        <li><a href="#arch-cluster">Master and workers</a></li>
+        <li><a href="#arch-db">The database layer</a></li>
+        <li><a href="#arch-dir">Directory layout</a></li>
+      </ol>
+    </li>
+    <li><a href="#install"><span class="toc__num">03</span>Installation</a>
+      <ol class="sub">
+        <li><a href="#install-need">What you need</a></li>
+        <li><a href="#install-order">Order of work</a></li>
+        <li><a href="#install-node">Node.js</a></li>
+        <li><a href="#install-db">The database</a></li>
+        <li><a href="#install-src">Source and modules</a></li>
+      </ol>
+    </li>
+    <li><a href="#run"><span class="toc__num">04</span>Running</a>
+      <ol class="sub">
+        <li><a href="#run-first">First start</a></li>
+        <li><a href="#run-check">Check that it is up</a></li>
+        <li><a href="#run-conf">Reading and changing settings</a></li>
+        <li><a href="#run-seal">Sealed secrets</a></li>
+        <li><a href="#run-admin">Admin console</a></li>
+        <li><a href="#run-stop">When it will not start</a></li>
+      </ol>
+    </li>
+    <li><a href="#use"><span class="toc__num">05</span>Usage</a>
+      <ol class="sub">
+        <li><a href="#use-basic">The shape of a request</a></li>
+        <li><a href="#use-ae">Registering an AE</a></li>
+        <li><a href="#use-cnt">Creating a container</a></li>
+        <li><a href="#use-cin">Storing and reading data</a></li>
+        <li><a href="#use-discovery">Discovery</a></li>
+        <li><a href="#use-sub">Subscriptions and notifications</a></li>
+        <li><a href="#use-acp">Access control</a></li>
+        <li><a href="#use-rsc">Reading response codes</a></li>
+      </ol>
+    </li>
+  </ol>
+</nav>
+
+<!-- ── Content ──────────────────────────────────────────────────────────── -->
+<article class="content">
+
+<header style="margin-bottom:2.5rem">
+  <p class="eyebrow">Mobius 3.0.1 · Guide</p>
+  <h1 style="font-size:clamp(2rem,4.5vw,2.8rem);letter-spacing:-.035em;margin-bottom:.9rem">
+    From installation to everyday use
+  </h1>
+  <p class="lede">
+    Mobius is an IoT server platform that implements the oneM2M international standard. This guide
+    explains what Mobius is and how it is built inside, in what order to install it, how to start
+    it, and how to use it in practice.
+  </p>
+  <dl class="kv">
+    <div><dt>Version</dt><dd>3.0.1</dd></div>
+    <div><dt>Runtime</dt><dd>Node.js</dd></div>
+    <div><dt>Database</dt><dd>MySQL · SQLite</dd></div>
+    <div><dt>Request binding</dt><dd>HTTP</dd></div>
+  </dl>
+</header>
+
+<!-- ═══ 01 Introduction ═══ -->
+<section id="intro">
+  <p class="eyebrow">01 — Introduction</p>
+  <h2>Introduction</h2>
+
+  <h3 id="intro-what">What Mobius is</h3>
+  <p class="lede">
+    Mobius receives the data an IoT device sends, stores it, and opens it up so that applications
+    can fetch it.
+  </p>
+  <p>
+    Built ad hoc, every such server ends up with its own address scheme, its own data shape and its
+    own way of handling permissions. <strong>oneM2M</strong> is the international standard that
+    settles those questions, and Mobius implements the topmost server role in it, the
+    <strong>IN-CSE</strong> (Infrastructure Node — Common Services Entity). Because it follows the
+    standard, devices and applications written for Mobius work against any other oneM2M platform.
+  </p>
+  <p>
+    Mobius is written in Node.js and its source is open. It stores resources in MySQL or SQLite;
+    which one it uses is a single setting.
+  </p>
+
+  <div class="note note--go">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6L9 17l-5-5"/></svg>
+    <b>In one line</b>
+    <p>Devices <em>push</em>, applications <em>pull</em>, and Mobius sits between them handling storage, identity and notifications.</p>
+  </div>
+
+  <h3 id="intro-role">Where it sits</h3>
+  <p>
+    Mobius is middleware between devices and applications. A device uploads data and Mobius stores
+    it; an application reads that data through the standard REST API. In the other direction, when
+    an application writes a control value, a device that subscribed to that resource receives a
+    notification.
+  </p>
+
+  <figure>
+    <svg viewBox="0 0 760 250" role="img" aria-label="Diagram: Mobius sits between IoT devices and applications, with a database and an MQTT broker attached" style="max-width:760px;width:100%">
+      <rect class="dg-box" x="8" y="60" width="130" height="72" rx="10"/>
+      <text class="dg-t" x="73" y="90" text-anchor="middle">IoT devices</text>
+      <text class="dg-t-sm" x="73" y="110" text-anchor="middle">sensors · gateways</text>
+
+      <path class="dg-line-accent" d="M138 88h100" marker-end="url(#en-arrow)"/>
+      <text class="dg-t-sm" x="188" y="79" text-anchor="middle">HTTP</text>
+      <path class="dg-line" d="M238 112H138" marker-end="url(#en-arrow-dim)"/>
+      <text class="dg-t-sm" x="188" y="129" text-anchor="middle">notify</text>
+
+      <rect class="dg-box-deep" x="240" y="42" width="176" height="108" rx="12"/>
+      <text class="dg-t" x="328" y="76" text-anchor="middle" style="font-size:14px;font-weight:600">Mobius</text>
+      <text class="dg-t-sm" x="328" y="96" text-anchor="middle">oneM2M IN-CSE</text>
+      <text class="dg-t-sm" x="328" y="120" text-anchor="middle">store · authorize · notify</text>
+
+      <path class="dg-line-accent" d="M416 88h100" marker-end="url(#en-arrow)"/>
+      <text class="dg-t-sm" x="466" y="79" text-anchor="middle">REST API</text>
+
+      <rect class="dg-box" x="518" y="60" width="130" height="72" rx="10"/>
+      <text class="dg-t" x="583" y="90" text-anchor="middle">Applications</text>
+      <text class="dg-t-sm" x="583" y="110" text-anchor="middle">web · analytics</text>
+
+      <path class="dg-line" d="M300 150v34" marker-end="url(#en-arrow-dim)"/>
+      <rect class="dg-box" x="212" y="186" width="176" height="52" rx="9"/>
+      <text class="dg-t" x="300" y="207" text-anchor="middle">Database</text>
+      <text class="dg-t-sm" x="300" y="225" text-anchor="middle">MySQL or SQLite</text>
+
+      <path class="dg-line" d="M370 150l38 34" marker-end="url(#en-arrow-dim)"/>
+      <rect class="dg-box" x="410" y="186" width="176" height="52" rx="9"/>
+      <text class="dg-t" x="498" y="207" text-anchor="middle">MQTT broker</text>
+      <text class="dg-t-sm" x="498" y="225" text-anchor="middle">for notifications</text>
+
+      <defs>
+        <marker id="en-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M0 0l10 5-10 5z" class="dg-fill-accent"/>
+        </marker>
+        <marker id="en-arrow-dim" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M0 0l10 5-10 5z" fill="var(--border-2)"/>
+        </marker>
+      </defs>
+    </svg>
+    <figcaption><b>Figure 1.</b> Devices upload, Mobius stores, applications read over REST. When a subscribed resource changes, a notification goes out, optionally through a broker.</figcaption>
+  </figure>
+
+  <h3 id="intro-tree">The tree is the address</h3>
+  <p>
+    oneM2M data is stored as a <strong>tree</strong>, like a file explorer, and the path through that
+    tree <strong>is the URL</strong>. Creating a resource does not mean writing an API for it: the
+    moment it exists, it has an address.
+  </p>
+
+  <figure>
+    <svg viewBox="0 0 700 240" role="img" aria-label="Diagram: each node of the resource tree maps directly onto a URL path" style="max-width:700px;width:100%">
+      <text class="dg-t-sm" x="12" y="18" style="letter-spacing:.12em">RESOURCE TREE</text>
+      <text class="dg-t-sm" x="290" y="18" style="letter-spacing:.12em">TYPE</text>
+      <text class="dg-t-sm" x="446" y="18" style="letter-spacing:.12em">ADDRESS</text>
+      <line x1="430" y1="8" x2="430" y2="234" class="dg-line" stroke-dasharray="3 4"/>
+
+      <rect class="dg-box-deep" x="12" y="30" width="150" height="34" rx="7"/>
+      <text class="dg-t-mono" x="26" y="52">Mobius</text>
+      <text class="dg-t-sm" x="290" y="52">CSEBase · ty=5</text>
+      <text class="dg-t-mono" x="446" y="52" style="fill:var(--current)">/Mobius</text>
+
+      <path class="dg-line" d="M30 64v22h20"/>
+      <rect class="dg-box-accent" x="50" y="70" width="150" height="34" rx="7"/>
+      <text class="dg-t-mono" x="64" y="92">myAE</text>
+      <text class="dg-t-sm" x="290" y="92">AE · ty=2</text>
+      <text class="dg-t-mono" x="446" y="92" style="fill:var(--current)">/Mobius/myAE</text>
+
+      <path class="dg-line" d="M68 104v22h20"/>
+      <rect class="dg-box" x="88" y="110" width="150" height="34" rx="7"/>
+      <text class="dg-t-mono" x="102" y="132">sensor</text>
+      <text class="dg-t-sm" x="290" y="132">container · ty=3</text>
+      <text class="dg-t-mono" x="446" y="132" style="fill:var(--current)">/Mobius/myAE/sensor</text>
+
+      <path class="dg-line" d="M106 144v22h20"/>
+      <rect class="dg-box" x="126" y="150" width="150" height="34" rx="7"/>
+      <text class="dg-t-mono" x="140" y="172">4-2026…</text>
+      <text class="dg-t-sm" x="290" y="167">contentInstance</text>
+      <text class="dg-t-sm" x="290" y="182">ty=4</text>
+      <text class="dg-t-mono" x="446" y="167" style="fill:var(--current)">…/sensor/la</text>
+      <text class="dg-t-sm" x="446" y="182">latest one via la</text>
+
+      <path class="dg-line" d="M106 144v62h20"/>
+      <rect class="dg-box" x="126" y="196" width="150" height="30" rx="7"/>
+      <text class="dg-t-mono" x="140" y="216">watch</text>
+      <text class="dg-t-sm" x="290" y="216">subscription · ty=23</text>
+      <text class="dg-t-mono" x="446" y="216" style="fill:var(--current)">…/sensor/watch</text>
+    </svg>
+    <figcaption><b>Figure 2.</b> Every node of the tree is one segment of the URL. Create it and it has an address; work with it through POST, GET, PUT and DELETE.</figcaption>
+  </figure>
+
+  <p>
+    Because of this, no separate API design is needed. A container may hold another container, and
+    there is no depth limit. Every resource carries the attributes the standard defines — creation
+    time (<code>ct</code>), name (<code>rn</code>), expiration time (<code>et</code>), access policy
+    (<code>acpi</code>) and so on.
+  </p>
+
+  <h3 id="intro-types">Resource types</h3>
+  <p>
+    These are the resource types Mobius can create. The <code>ty</code> number goes in the request's
+    Content-Type to say what is being created.
+  </p>
+
+  <div class="table-scroll">
+    <table>
+      <thead><tr><th>ty</th><th>Name</th><th>What it does</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>accessControlPolicy</td><td>Decides who may do what</td></tr>
+        <tr><td>2</td><td>AE</td><td>One device or application. Its entry point into the tree</td></tr>
+        <tr><td>3</td><td>container</td><td>Holds data, with optional retention limits</td></tr>
+        <tr><td>4</td><td>contentInstance</td><td>One reading. Written once, never modified</td></tr>
+        <tr><td>5</td><td>CSEBase</td><td>Root of the tree — Mobius itself</td></tr>
+        <tr><td>9</td><td>group</td><td>Treats several resources as one</td></tr>
+        <tr><td>10</td><td>locationPolicy</td><td>How location data is collected</td></tr>
+        <tr><td>13</td><td>mgmtObj</td><td>Device management objects (firmware, battery, device info)</td></tr>
+        <tr><td>14</td><td>node</td><td>A physical node</td></tr>
+        <tr><td>16</td><td>remoteCSE</td><td>Another CSE this one is registered with</td></tr>
+        <tr><td>23</td><td>subscription</td><td>Watches for change and sends notifications</td></tr>
+        <tr><td>24</td><td>semanticDescriptor</td><td>Semantic annotation</td></tr>
+        <tr><td>27</td><td>multimediaSession</td><td>Multimedia session</td></tr>
+        <tr><td>28</td><td>flexContainer</td><td>Container with freely defined attributes</td></tr>
+        <tr><td>91–98</td><td>hd_*</td><td>Home-domain moduleClasses — lighting, colour, door lock, temperature, battery</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="note">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 16v-4M12 8h.01"/></svg>
+    <b>On SQLite</b>
+    <p>The SQLite backend handles six types: <code>accessControlPolicy</code>, <code>AE</code>,
+    <code>container</code>, <code>contentInstance</code>, <code>CSEBase</code> and
+    <code>subscription</code>. Creating any other type is refused with <code>501</code> before
+    anything is written, so the tree is never left half-built. Run on MySQL if you need them all.</p>
+  </div>
+</section>
+
+<!-- ═══ 02 Architecture ═══ -->
+<section id="arch">
+  <p class="eyebrow">02 — Architecture</p>
+  <h2>Architecture</h2>
+  <p class="lede">
+    Mobius divides its modules along the path a single request takes. Knowing that path tells you
+    which file to open.
+  </p>
+
+  <h3 id="arch-flow">The path of a request</h3>
+  <p>
+    An incoming HTTP request passes through these stages. Each does its own part and hands over.
+  </p>
+
+  <figure>
+    <svg viewBox="0 0 720 400" role="img" aria-label="Flow diagram: app.js to resource.js, then security, SQL and the database, with the response leaving through responder.js" style="max-width:720px;width:100%">
+      <rect class="dg-box" x="252" y="8" width="216" height="38" rx="8"/>
+      <text class="dg-t" x="360" y="32" text-anchor="middle">HTTP request</text>
+      <path class="dg-line-accent" d="M360 46v22" marker-end="url(#en-a2)"/>
+
+      <rect class="dg-box-accent" x="180" y="70" width="360" height="62" rx="9"/>
+      <text class="dg-t-mono" x="196" y="92" style="font-weight:500">app.js</text>
+      <text class="dg-t-sm" x="196" y="110">body · header checks · type resolution · routing</text>
+      <text class="dg-t-sm" x="196" y="125">borrows a connection, opens the settler</text>
+      <path class="dg-line-accent" d="M360 132v22" marker-end="url(#en-a2)"/>
+
+      <rect class="dg-box-deep" x="180" y="156" width="360" height="58" rx="9"/>
+      <text class="dg-t-mono" x="196" y="178" style="font-weight:500">mobius/resource.js</text>
+      <text class="dg-t-sm" x="196" y="196">create · retrieve · update · delete · discovery</text>
+
+      <path class="dg-line" d="M270 214v20h-140v22" marker-end="url(#en-a1)"/>
+      <path class="dg-line" d="M360 214v42" marker-end="url(#en-a1)"/>
+      <path class="dg-line" d="M450 214v20h140v22" marker-end="url(#en-a1)"/>
+
+      <rect class="dg-box" x="42" y="256" width="176" height="56" rx="8"/>
+      <text class="dg-t-mono" x="56" y="277">security.js</text>
+      <text class="dg-t-sm" x="56" y="295">checks access policy</text>
+
+      <rect class="dg-box" x="272" y="256" width="176" height="56" rx="8"/>
+      <text class="dg-t-mono" x="286" y="277">sql_action.js</text>
+      <text class="dg-t-sm" x="286" y="295">builds the query</text>
+
+      <rect class="dg-box" x="502" y="256" width="176" height="56" rx="8"/>
+      <text class="dg-t-mono" x="516" y="277">sgn.js</text>
+      <text class="dg-t-sm" x="516" y="295">sends notifications</text>
+
+      <path class="dg-line" d="M360 312v20" marker-end="url(#en-a1)"/>
+      <rect class="dg-box" x="272" y="334" width="176" height="52" rx="8"/>
+      <text class="dg-t-mono" x="286" y="355">mobius/db/</text>
+      <text class="dg-t-sm" x="286" y="373">MySQL · SQLite adapters</text>
+
+      <path class="dg-line-accent" d="M540 185h94v-88" marker-end="url(#en-a2)"/>
+      <rect class="dg-box-accent" x="556" y="44" width="156" height="52" rx="9"/>
+      <text class="dg-t-mono" x="570" y="66" style="font-weight:500">responder.js</text>
+      <text class="dg-t-sm" x="570" y="84">JSON · single exit</text>
+
+      <defs>
+        <marker id="en-a1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M0 0l10 5-10 5z" fill="var(--border-2)"/>
+        </marker>
+        <marker id="en-a2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M0 0l10 5-10 5z" class="dg-fill-accent"/>
+        </marker>
+      </defs>
+    </svg>
+    <figcaption><b>Figure 3.</b> A request clears its checks in <code>app.js</code> and moves to <code>resource.js</code>. The response leaves through <code>responder.js</code> and nowhere else.</figcaption>
+  </figure>
+
+  <p>
+    Two rules hold this flow together. Sending the response and returning the database connection
+    happen <strong>exactly once</strong> per request, and response bytes leave from
+    <strong>one place only</strong>, <code>responder.js</code>. Sending twice, or not at all, would
+    strand a connection, so both rules are enforced structurally rather than by convention.
+  </p>
+
+  <h3 id="arch-modules">How the modules divide</h3>
+  <p>The files you will open most often.</p>
+
+  <div class="table-scroll">
+    <table class="wrap-first">
+      <thead><tr><th>File</th><th>Responsibility</th></tr></thead>
+      <tbody>
+        <tr><td><code>mobius.js</code></td><td>Entry point. Sequences configuration, port check, boot record and server start</td></tr>
+        <tr><td><code>app.js</code></td><td>HTTP server and routing. Forks the workers and receives requests</td></tr>
+        <tr><td><code>mobius/resource.js</code></td><td>The core of resource handling: per-type attribute checks, create and update</td></tr>
+        <tr><td><code>mobius/sql_action.js</code></td><td>Where every SQL statement is built, with values passed as bindings</td></tr>
+        <tr><td><code>mobius/db/</code></td><td>Database facade, backend adapters and schema files</td></tr>
+        <tr><td><code>mobius/security.js</code></td><td>Access control: may this requester touch this resource</td></tr>
+        <tr><td><code>mobius/sgn.js</code> · <code>sgn_man.js</code></td><td>Finds subscriptions, builds the notification and sends it over HTTP, CoAP or MQTT</td></tr>
+        <tr><td><code>mobius/responder.js</code> · <code>shape.js</code></td><td>The single response exit, and where the response body is assembled</td></tr>
+        <tr><td><code>mobius/settle.js</code></td><td>Per-request settler that makes the response and the connection return happen once</td></tr>
+        <tr><td><code>mobius/conf_load.js</code> · <code>conf_schema.js</code></td><td>Reads the configuration, and the single source of which settings exist</td></tr>
+        <tr><td><code>tools/</code></td><td>First-run wizard, settings commands, schema migration runner</td></tr>
+        <tr><td><code>admin/</code></td><td>Admin console, run as its own process</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3 id="arch-cluster">Master and workers</h3>
+  <p>
+    Mobius forks one worker per CPU core and spreads requests across them. The master handles no
+    requests; it runs two periodic jobs.
+  </p>
+  <ul>
+    <li><strong>Retention sweep</strong> — removes data beyond a container's count or size limit, oldest first. It re-counts the live rows before deleting, so an inflated stored counter cannot cause it to delete data that is within the limit.</li>
+    <li><strong>Counter reconciliation</strong> — brings each container's stored count and size back in line with the data.</li>
+  </ul>
+  <p>
+    If a worker dies unexpectedly the master starts a replacement. When it dies for a
+    <strong>configuration reason</strong> — port already in use, no configuration file, broken seal —
+    the master does not respawn it and exits with the same code, so a problem that needs fixing is
+    not papered over by restarts.
+  </p>
+
+  <h3 id="arch-db">The database layer</h3>
+  <p>
+    Building SQL and running it are separate jobs. <code>sql_action.js</code> builds the statement;
+    the facade in <code>mobius/db/</code> hands it to the adapter for whichever backend is selected.
+    Core code does not know whether it is running on MySQL or SQLite.
+  </p>
+  <p>
+    That is why switching backends is one setting, and adding one is a matter of dropping in a
+    single <code>mobius/db/&lt;name&gt;.js</code> file. Every value travels as a binding, which is
+    what makes SQL injection through discovery parameters structurally impossible.
+  </p>
+
+  <h3 id="arch-dir">Directory layout</h3>
+  <div class="code">
+    <div class="code__head"><span class="dot"></span>Mobius/</div>
+<pre><span class="k">mobius.js</span>            <span class="c"># entry point — this is what you run</span>
+<span class="k">app.js</span>               <span class="c"># HTTP server, workers, routing</span>
+<span class="k">package.json</span>         <span class="c"># dependencies and npm commands</span>
+<span class="k">conf.json</span>            <span class="c"># settings (written on first start)</span>
+
+<span class="k">mobius/</span>              <span class="c"># the core</span>
+  resource.js        <span class="c"># resource handling</span>
+  sql_action.js      <span class="c"># SQL construction</span>
+  security.js        <span class="c"># access control</span>
+  sgn.js sgn_man.js  <span class="c"># subscription notifications</span>
+  responder.js       <span class="c"># response exit</span>
+  conf_load.js …     <span class="c"># configuration loading</span>
+  ae.js cnt.js …     <span class="c"># one file per resource type</span>
+  <span class="k">db/</span>
+    index.js         <span class="c"># backend facade</span>
+    mysql.js         <span class="c"># MySQL adapter</span>
+    sqlite.js        <span class="c"># SQLite adapter</span>
+    <span class="s">mobiusdb.sql</span>     <span class="c"># MySQL schema — import this at install time</span>
+    mobiusdb_sqlite.sql
+
+<span class="k">tools/</span>               <span class="c"># setup wizard, settings commands</span>
+<span class="k">admin/</span>               <span class="c"># admin console (separate process)</span>
+<span class="k">log/</span>                 <span class="c"># access log and boot record</span></pre>
+  </div>
+</section>
+
+<!-- ═══ 03 Installation ═══ -->
+<section id="install">
+  <p class="eyebrow">03 — Installation</p>
+  <h2>Installation</h2>
+
+  <h3 id="install-need">What you need</h3>
+  <div class="table-scroll">
+    <table class="wrap-first">
+      <thead><tr><th>Component</th><th>Required</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td>Node.js</td><td>Yes</td><td>The runtime Mobius executes on. An LTS release is recommended</td></tr>
+        <tr><td>MySQL</td><td>Optional</td><td>The production store. Needed if you want every resource type</td></tr>
+        <tr><td>SQLite</td><td>Automatic</td><td>Comes with the module install; nothing to set up separately</td></tr>
+        <tr><td>MQTT broker</td><td>Optional</td><td>Only if notifications go to <code>mqtt://</code> addresses (Mosquitto or similar)</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="note note--go">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6L9 17l-5-5"/></svg>
+    <b>Trying it for the first time</b>
+    <p>Start with SQLite. There is no database server to install and the store is created on the
+    first start. Node.js is all you need.</p>
+  </div>
+
+  <h3 id="install-order">Order of work</h3>
+  <figure>
+    <svg viewBox="0 0 720 190" role="img" aria-label="Order diagram: install Node.js, get the source, choose a database, then first start" style="max-width:720px;width:100%">
+      <rect class="dg-box-accent" x="10" y="70" width="128" height="52" rx="9"/>
+      <text class="dg-t" x="74" y="92" text-anchor="middle">Node.js</text>
+      <text class="dg-t-sm" x="74" y="110" text-anchor="middle">install runtime</text>
+      <path class="dg-line-accent" d="M138 96h44" marker-end="url(#en-a3)"/>
+
+      <rect class="dg-box" x="182" y="70" width="128" height="52" rx="9"/>
+      <text class="dg-t" x="246" y="92" text-anchor="middle">Get the source</text>
+      <text class="dg-t-sm" x="246" y="110" text-anchor="middle">npm install</text>
+      <path class="dg-line-accent" d="M310 96h44" marker-end="url(#en-a3)"/>
+
+      <rect class="dg-box" x="354" y="18" width="152" height="50" rx="9"/>
+      <text class="dg-t" x="430" y="39" text-anchor="middle">Using MySQL</text>
+      <text class="dg-t-sm" x="430" y="56" text-anchor="middle">create DB, import schema</text>
+
+      <rect class="dg-box" x="354" y="122" width="152" height="50" rx="9"/>
+      <text class="dg-t" x="430" y="143" text-anchor="middle">Using SQLite</text>
+      <text class="dg-t-sm" x="430" y="160" text-anchor="middle">nothing to do</text>
+
+      <path class="dg-line" d="M354 96h-8v-53h8" marker-end="url(#en-a3d)"/>
+      <path class="dg-line" d="M354 96h-8v51h8" marker-end="url(#en-a3d)"/>
+      <path class="dg-line" d="M506 43h32v53h16" marker-end="url(#en-a3)"/>
+      <path class="dg-line" d="M506 147h32v-51h16" marker-end="url(#en-a3)"/>
+
+      <rect class="dg-box-deep" x="570" y="70" width="140" height="52" rx="9"/>
+      <text class="dg-t" x="640" y="92" text-anchor="middle">First start</text>
+      <text class="dg-t-sm" x="640" y="110" text-anchor="middle">setup wizard</text>
+
+      <defs>
+        <marker id="en-a3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M0 0l10 5-10 5z" class="dg-fill-accent"/>
+        </marker>
+        <marker id="en-a3d" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M0 0l10 5-10 5z" fill="var(--border-2)"/>
+        </marker>
+      </defs>
+    </svg>
+    <figcaption><b>Figure 4.</b> Only the middle step differs by database. With SQLite there is nothing to prepare.</figcaption>
+  </figure>
+
+  <h3 id="install-node">Installing Node.js</h3>
+  <p>
+    Download an LTS release from <a href="https://nodejs.org/">nodejs.org</a> and install it. Then
+    check that both commands print a version.
+  </p>
+  <div class="code">
+    <div class="code__head"><span class="dot"></span>terminal</div>
+<pre><span class="k">node</span> -v
+<span class="k">npm</span> -v</pre>
+  </div>
+
+  <h3 id="install-db">The database</h3>
+
+  <h4>Using SQLite</h4>
+  <p>
+    Nothing to do. The next step's <code>npm install</code> brings in the SQLite module, and the
+    store file and its tables are created on the first start.
+  </p>
+
+  <h4>Using MySQL</h4>
+  <p>
+    Install a MySQL server, create one database and import the schema file. <strong>That single
+    import is the whole install</strong> — the file carries the tables, the indexes and the migration
+    ledger, so nothing is left to apply afterwards.
+  </p>
+  <div class="code">
+    <div class="code__head"><span class="dot"></span>terminal</div>
+<pre><span class="c"># 1. create the database</span>
+<span class="k">mysql</span> -u root -p -e <span class="s">"CREATE DATABASE mobiusdb DEFAULT CHARACTER SET utf8mb3;"</span>
+
+<span class="c"># 2. import the schema (from the Mobius source folder)</span>
+<span class="k">mysql</span> -u root -p mobiusdb &lt; mobius/db/mobiusdb.sql</pre>
+  </div>
+  <p>
+    With a tool such as MySQL Workbench, create the <code>mobiusdb</code> schema and use
+    <strong>Data Import → Import from Self-Contained File</strong> with
+    <code>mobius/db/mobiusdb.sql</code>. The result is the same.
+  </p>
+
+  <div class="note">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 16v-4M12 8h.01"/></svg>
+    <b>Database name</b>
+    <p>The default is <code>mobiusdb</code>. To use another name, run
+    <code>npm run conf -- set dbName &lt;name&gt;</code> after installing.</p>
+  </div>
+
+  <h4>MQTT broker (optional)</h4>
+  <p>
+    If notifications will go to <code>mqtt://</code> addresses you need a broker. Install
+    <a href="https://mosquitto.org/download/">Mosquitto</a> and start its service. If notifications
+    only go over HTTP, you can skip this.
+  </p>
+
+  <h3 id="install-src">Source and modules</h3>
+  <ol class="steps">
+    <li>
+      <h4>Get the source</h4>
+      <div class="code">
+        <div class="code__head"><span class="dot"></span>terminal</div>
+<pre><span class="k">git</span> clone https://github.com/IoTKETI/Mobius.git
+<span class="k">cd</span> Mobius</pre>
+      </div>
+      <p style="font-size:.93rem">Without Git, download the ZIP from the GitHub page and unpack it.</p>
+    </li>
+    <li>
+      <h4>Install the modules</h4>
+      <div class="code">
+        <div class="code__head"><span class="dot"></span>terminal</div>
+<pre><span class="k">npm</span> install</pre>
+      </div>
+      <p style="font-size:.93rem">
+        A <code>node_modules</code> folder appears. There is no build step, so this is the end of
+        the installation.
+      </p>
+    </li>
+  </ol>
+</section>
+
+<!-- ═══ 04 Running ═══ -->
+<section id="run">
+  <p class="eyebrow">04 — Running</p>
+  <h2>Running</h2>
+
+  <h3 id="run-first">First start</h3>
+  <p>
+    When there is no <code>conf.json</code>, Mobius runs the setup wizard itself. No separate install
+    command is needed.
+  </p>
+  <div class="code">
+    <div class="code__head"><span class="dot"></span>terminal</div>
+<pre><span class="k">node</span> mobius.js</pre>
+  </div>
+  <p>It asks seven questions, writes the answers to <code>conf.json</code>, and then starts.</p>
+
+  <div class="table-scroll">
+    <table class="wrap-first">
+      <thead><tr><th>Question</th><th>Default</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td>Database</td><td>mysql</td><td><code>mysql</code> or <code>sqlite</code></td></tr>
+        <tr><td>DB password</td><td>—</td><td>Asked only for MySQL. Hidden while you type</td></tr>
+        <tr><td>CSE name</td><td>Mobius</td><td>Root of the tree. Every address begins with <code>/&lt;name&gt;</code></td></tr>
+        <tr><td>CSE-ID</td><td>/Mobius2</td><td>Identifier of this CSE</td></tr>
+        <tr><td>SP-ID</td><td>//keti.re.kr</td><td>Service provider identifier</td></tr>
+        <tr><td>Super-user origin</td><td>Sponde</td><td>A request with this origin skips every access check</td></tr>
+        <tr><td>HTTP port</td><td>7579</td><td>The port the server listens on</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="note note--warn">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.3 3.9L1.8 18a2 2 0 001.7 3h17a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg>
+    <b>The super-user origin is a master key</b>
+    <p>Put that value in a request header and every access check is skipped. On a server reachable
+    from outside, replace the default with something hard to guess and limit who knows it.</p>
+  </div>
+
+  <p>
+    With the CSE name left at <code>Mobius</code> and the port at <code>7579</code>, the root of the
+    tree is now <code>http://localhost:7579/Mobius</code>.
+  </p>
+
+  <h4>Starting it again</h4>
+  <div class="code">
+    <div class="code__head"><span class="dot"></span>terminal</div>
+<pre><span class="k">node</span> mobius.js          <span class="c"># using conf.json</span>
+<span class="k">npm</span> start               <span class="c"># the same command</span>
+
+<span class="k">node</span> mobius.js sqlite   <span class="c"># force SQLite this time</span>
+<span class="k">node</span> mobius.js mysql    <span class="c"># force MySQL this time</span></pre>
+  </div>
+
+  <div class="note">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 16v-4M12 8h.01"/></svg>
+    <b>Running as a service</b>
+    <p>Started first under pm2 or systemd, where there is no terminal, Mobius cannot run the wizard,
+    so it exits without writing a configuration file. <strong>Run it once from a terminal</strong>
+    to create <code>conf.json</code>, then put it under the supervisor.</p>
+  </div>
+
+  <h3 id="run-check">Check that it is up</h3>
+  <p>Read the root resource. A response means the server is healthy.</p>
+  <div class="code">
+    <div class="code__head"><span class="dot"></span>terminal</div>
+<pre><span class="k">curl</span> -i http://localhost:7579/Mobius \
+  -H <span class="s">"Accept: application/json"</span> \
+  -H <span class="s">"X-M2M-RI: check1"</span> \
+  -H <span class="s">"X-M2M-Origin: Sponde"</span></pre>
+  </div>
+  <div class="code">
+    <div class="code__head"><span class="dot"></span>response</div>
+<pre>HTTP/1.1 200 OK
+X-M2M-RSC: 2000
+Content-Type: application/json
+
+{<span class="s">"m2m:cb"</span>: {<span class="s">"rn"</span>: <span class="s">"Mobius"</span>, <span class="s">"ty"</span>: 5, <span class="s">"csi"</span>: <span class="s">"/Mobius2"</span>, …}}</pre>
+  </div>
+  <p>
+    <code>X-M2M-RSC: 2000</code> is the oneM2M success code. It is separate from the HTTP status, so
+    read both.
+  </p>
+
+  <h3 id="run-conf">Reading and changing settings</h3>
+  <p>
+    Settings are handled by command, not by a web page. <code>conf.json</code> holds the database
+    password and the super-user value, so it is deliberately kept to whoever can reach the server.
+  </p>
+  <div class="code">
+    <div class="code__head"><span class="dot"></span>terminal</div>
+<pre><span class="k">npm</span> run conf                      <span class="c"># the whole list with applied state</span>
+<span class="k">npm</span> run conf -- csebaseport       <span class="c"># one key in detail</span>
+<span class="k">npm</span> run conf -- set cseBase Vita  <span class="c"># change a value</span>
+<span class="k">npm</span> run conf -- unset maxBodyBytes <span class="c"># back to the default</span>
+<span class="k">npm</span> run conf -- edit              <span class="c"># walk through the main keys again</span>
+<span class="k">npm</span> run conf -- --all             <span class="c"># include advanced keys</span>
+
+<span class="k">npm</span> run status                    <span class="c"># is it up, is a restart pending</span></pre>
+  </div>
+  <p>
+    Settings are read once at startup. After changing a value you must <strong>restart</strong>, and
+    the <code>npm run conf</code> listing tells you which keys are waiting for one.
+  </p>
+  <p>
+    Keys that would cut off existing devices if set wrongly — the CSE name, the port — are marked as
+    <strong>gated</strong>. Changing one prints a warning and asks you to type the key name before it
+    is written.
+  </p>
+
+  <h3 id="run-seal">Sealed secrets</h3>
+  <p>
+    The database password and the super-user value are changed <strong>through the tool only</strong>.
+    Edit either of them by hand in <code>conf.json</code> and the next start refuses to run. A
+    companion file, <code>conf.seal.json</code>, holds a fingerprint of the two and catches the
+    mismatch.
+  </p>
+  <div class="code">
+    <div class="code__head"><span class="dot"></span>terminal</div>
+<pre><span class="k">npm</span> run setup -- --dbpass      <span class="c"># re-enter the DB password</span>
+<span class="k">npm</span> run setup -- --superuser   <span class="c"># re-enter the super-user origin</span></pre>
+  </div>
+  <p>
+    At either prompt, pressing <strong>Enter</strong> keeps the current value and just recreates the
+    seal. If you are coming from an older version and have no seal yet, do this once.
+  </p>
+
+  <h3 id="run-admin">Admin console</h3>
+  <p>
+    An operator screen that runs from the <strong>same repository as a separate process</strong>. It
+    finds and removes expired resources and resources whose parent is gone, reviews access policies,
+    and shows subscription state and statistics.
+  </p>
+  <div class="code">
+    <div class="code__head"><span class="dot"></span>terminal</div>
+<pre><span class="c"># set a password first — without one the console will not start</span>
+<span class="k">npm</span> run conf -- set adminPassword <span class="s">'your-password'</span>
+
+<span class="c"># start the console</span>
+<span class="k">node</span> admin/server.js
+
+<span class="c"># or let Mobius start it as a child of the master</span>
+<span class="k">npm</span> run conf -- set adminAutoStart on</pre>
+  </div>
+  <p>Settings and process control are deliberately not in the console; both are command-line work.</p>
+
+  <h3 id="run-stop">When it will not start</h3>
+  <p>
+    Mobius distinguishes why it could not start by exit code, so that it never sits alive but unable
+    to serve.
+  </p>
+  <div class="table-scroll">
+    <table class="wrap-first">
+      <thead><tr><th>Code</th><th>Meaning</th><th>What to do</th></tr></thead>
+      <tbody>
+        <tr><td>12</td><td>Port already in use</td><td>Stop the other process or change <code>csebaseport</code></td></tr>
+        <tr><td>13</td><td>No <code>conf.json</code></td><td>Run <code>node mobius.js</code> once from a terminal to create it</td></tr>
+        <tr><td>14</td><td>Secret seal does not match</td><td>Recreate it with <code>npm run setup -- --superuser</code></td></tr>
+        <tr><td>1</td><td>Could not reach the database</td><td>Check the DB is up and the password and database name are right</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>
+    Per-request timing is not printed to the console; it is the last field of
+    <code>log/access-*.log</code>. The configuration a running server actually applied is recorded in
+    <code>log/mobius-boot.jsonl</code>, which is what <code>npm run status</code> reads.
+  </p>
+</section>
+
+<!-- ═══ 05 Usage ═══ -->
+<section id="use">
+  <p class="eyebrow">05 — Usage</p>
+  <h2>Usage</h2>
+  <p class="lede">
+    The examples below work as written if you run them in order. They assume a server at
+    <code>localhost:7579</code> with the CSE named <code>Mobius</code>.
+  </p>
+
+  <h3 id="use-basic">The shape of a request</h3>
+  <p>Every request carries two headers.</p>
+  <div class="table-scroll">
+    <table class="wrap-first">
+      <thead><tr><th>Header</th><th>Purpose</th></tr></thead>
+      <tbody>
+        <tr><td><code>X-M2M-RI</code></td><td>Request identifier. Any value, different per request; it comes back in the response</td></tr>
+        <tr><td><code>X-M2M-Origin</code></td><td>Who is asking. Access control decides on this value</td></tr>
+        <tr><td><code>Content-Type</code></td><td>Only when creating: <code>application/json; ty=&lt;number&gt;</code> says what to create</td></tr>
+        <tr><td><code>Accept</code></td><td><code>application/json</code>. Mobius speaks JSON only</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3 id="use-ae">Registering an AE</h3>
+  <p>
+    A device or application first registers as an <strong>AE</strong> — its entry point into the
+    tree. Send exactly <code>S</code> as the origin and Mobius generates an identifier for it.
+  </p>
+  <div class="code">
+    <div class="code__head"><span class="dot"></span>create an AE</div>
+<pre><span class="k">curl</span> -X POST http://localhost:7579/Mobius \
+  -H <span class="s">"Accept: application/json"</span> \
+  -H <span class="s">"X-M2M-RI: r-ae-1"</span> \
+  -H <span class="s">"X-M2M-Origin: S"</span> \
+  -H <span class="s">"Content-Type: application/json; ty=2"</span> \
+  -d <span class="s">'{"m2m:ae": {"rn": "myAE", "api": "A.company.myapp", "rr": true}}'</span></pre>
+  </div>
+  <div class="code">
+    <div class="code__head"><span class="dot"></span>response (201 · RSC 2001)</div>
+<pre>{<span class="s">"m2m:ae"</span>: {
+  <span class="s">"rn"</span>: <span class="s">"myAE"</span>,
+  <span class="s">"ty"</span>: 2,
+  <span class="s">"aei"</span>: <span class="s">"S2026090812345601a3"</span>,   <span class="c">&lt;-- keep this value</span>
+  <span class="s">"ri"</span>:  <span class="s">"2-2026090812345601a3"</span>,
+  …
+}}</pre>
+  </div>
+  <p>
+    The returned <code>aei</code> is this AE's identity. Put it in <code>X-M2M-Origin</code> for every
+    later request from this AE. If you want a specific identifier, send that instead of
+    <code>S</code> and it is used as the <code>aei</code>.
+  </p>
+  <ul>
+    <li><code>rn</code> — resource name; it becomes a segment of the address</li>
+    <li><code>api</code> — application identifier required by the standard</li>
+    <li><code>rr</code> — whether this AE can receive requests</li>
+  </ul>
+
+  <h3 id="use-cnt">Creating a container</h3>
+  <p>A container holds data. Create it under the AE.</p>
+  <div class="code">
+    <div class="code__head"><span class="dot"></span>create a container</div>
+<pre><span class="k">curl</span> -X POST http://localhost:7579/Mobius/myAE \
+  -H <span class="s">"Accept: application/json"</span> \
+  -H <span class="s">"X-M2M-RI: r-cnt-1"</span> \
+  -H <span class="s">"X-M2M-Origin: S2026090812345601a3"</span> \
+  -H <span class="s">"Content-Type: application/json; ty=3"</span> \
+  -d <span class="s">'{"m2m:cnt": {"rn": "temperature", "mni": 1000}}'</span></pre>
+  </div>
+  <p>
+    <code>mni</code> is how many entries this container keeps. Beyond that, the master's retention
+    sweep removes the oldest. To limit by size instead, give <code>mbs</code> in bytes. Without
+    either, entries accumulate essentially without bound.
+  </p>
+
+  <h3 id="use-cin">Storing and reading data</h3>
+  <p>
+    Readings go in as a <strong>contentInstance</strong>. It is written once and never modified, so
+    the normal pattern is one per measurement.
+  </p>
+  <div class="code">
+    <div class="code__head"><span class="dot"></span>store one reading</div>
+<pre><span class="k">curl</span> -X POST http://localhost:7579/Mobius/myAE/temperature \
+  -H <span class="s">"Accept: application/json"</span> \
+  -H <span class="s">"X-M2M-RI: r-cin-1"</span> \
+  -H <span class="s">"X-M2M-Origin: S2026090812345601a3"</span> \
+  -H <span class="s">"Content-Type: application/json; ty=4"</span> \
+  -d <span class="s">'{"m2m:cin": {"con": "23.5"}}'</span></pre>
+  </div>
+  <p>
+    <code>con</code> is the content, and it is a string — to store JSON, put it in as a string.
+  </p>
+
+  <h4>Reading the latest</h4>
+  <div class="code">
+    <div class="code__head"><span class="dot"></span>most recent reading</div>
+<pre><span class="k">curl</span> http://localhost:7579/Mobius/myAE/temperature/la \
+  -H <span class="s">"Accept: application/json"</span> \
+  -H <span class="s">"X-M2M-RI: r-la-1"</span> \
+  -H <span class="s">"X-M2M-Origin: S2026090812345601a3"</span></pre>
+  </div>
+  <p>
+    <code>la</code> is the latest, <code>ol</code> the oldest. This is the address a dashboard uses
+    most often to show a current value.
+  </p>
+
+  <h4>Reading the container itself</h4>
+  <div class="code">
+    <div class="code__head"><span class="dot"></span>container state</div>
+<pre><span class="k">curl</span> http://localhost:7579/Mobius/myAE/temperature \
+  -H <span class="s">"Accept: application/json"</span> \
+  -H <span class="s">"X-M2M-RI: r-cnt-2"</span> \
+  -H <span class="s">"X-M2M-Origin: S2026090812345601a3"</span></pre>
+  </div>
+  <p>
+    In the response, <code>cni</code> is how many entries it holds and <code>cbs</code> their total
+    size in bytes.
+  </p>
+
+  <h3 id="use-discovery">Discovery</h3>
+  <p>
+    To find out what exists, walk the tree. With <code>fu=1</code> the response is a
+    <strong>list of addresses</strong> for the resources that match.
+  </p>
+  <div class="code">
+    <div class="code__head"><span class="dot"></span>find every container</div>
+<pre><span class="k">curl</span> <span class="s">"http://localhost:7579/Mobius?fu=1&amp;ty=3"</span> \
+  -H <span class="s">"Accept: application/json"</span> \
+  -H <span class="s">"X-M2M-RI: r-dis-1"</span> \
+  -H <span class="s">"X-M2M-Origin: Sponde"</span></pre>
+  </div>
+  <div class="code">
+    <div class="code__head"><span class="dot"></span>response</div>
+<pre>{<span class="s">"m2m:uril"</span>: [<span class="s">"Mobius/myAE/temperature"</span>, <span class="s">"Mobius/myAE/humidity"</span>]}</pre>
+  </div>
+
+  <div class="table-scroll">
+    <table class="wrap-first">
+      <thead><tr><th>Filter</th><th>Meaning</th><th>Example</th></tr></thead>
+      <tbody>
+        <tr><td><code>ty</code></td><td>Resource type</td><td><code>ty=3</code> · <code>ty=3&amp;ty=4</code></td></tr>
+        <tr><td><code>rn</code></td><td>Exact resource name</td><td><code>rn=temperature</code></td></tr>
+        <tr><td><code>lbl</code></td><td>Carries this label</td><td><code>lbl=outdoor</code></td></tr>
+        <tr><td><code>cra</code> · <code>crb</code></td><td>Created after · before</td><td><code>cra=20260101T000000</code></td></tr>
+        <tr><td><code>lvl</code></td><td>How deep to walk</td><td><code>lvl=2</code></td></tr>
+        <tr><td><code>lim</code> · <code>ofst</code></td><td>Limit · offset</td><td><code>lim=100&amp;ofst=100</code></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="note">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 16v-4M12 8h.01"/></svg>
+    <b>When the result is truncated</b>
+    <p>A response with <code>X-M2M-CTS: 1</code> means there is more, and <code>X-M2M-CTO</code> is
+    the <code>ofst</code> to use next. Those two let you page to the end.</p>
+  </div>
+
+  <h3 id="use-sub">Subscriptions and notifications</h3>
+  <p>
+    To be told whenever a new value arrives, attach a <strong>subscription</strong> and put the
+    address to notify in <code>nu</code>.
+  </p>
+  <div class="code">
+    <div class="code__head"><span class="dot"></span>create a subscription</div>
+<pre><span class="k">curl</span> -X POST http://localhost:7579/Mobius/myAE/temperature \
+  -H <span class="s">"Accept: application/json"</span> \
+  -H <span class="s">"X-M2M-RI: r-sub-1"</span> \
+  -H <span class="s">"X-M2M-Origin: S2026090812345601a3"</span> \
+  -H <span class="s">"Content-Type: application/json; ty=23"</span> \
+  -d <span class="s">'{"m2m:sub": {
+        "rn": "watch",
+        "nu": ["http://192.168.0.10:9000/noti"],
+        "nct": 2
+      }}'</span></pre>
+  </div>
+  <p>
+    Every new value in that container now POSTs to that address. <code>nu</code> is an array, so a
+    subscription can notify several places, and the scheme of each address decides how it is sent.
+  </p>
+  <div class="table-scroll">
+    <table class="wrap-first">
+      <thead><tr><th>Address</th><th>How it is delivered</th></tr></thead>
+      <tbody>
+        <tr><td><code>http://…</code></td><td>HTTP POST. The receiver's response is read and logged as accepted, rejected or failed</td></tr>
+        <tr><td><code>mqtt://…</code></td><td>MQTT publish; needs a broker configured</td></tr>
+        <tr><td><code>coap://…</code></td><td>CoAP request</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="note note--warn">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.3 3.9L1.8 18a2 2 0 001.7 3h17a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg>
+    <b>Notifications are send-and-forget</b>
+    <p>Mobius does not retry a notification, and does not delete a subscription because delivery
+    failed. If the receiver is briefly down, that notification is gone. For values you cannot miss,
+    have the application poll <code>la</code> as a backstop.</p>
+  </div>
+
+  <h3 id="use-acp">Access control</h3>
+  <p>
+    By default requests are not filtered by who sent them. To decide who may touch a resource,
+    create an <strong>accessControlPolicy</strong> and attach it.
+  </p>
+  <div class="code">
+    <div class="code__head"><span class="dot"></span>create a policy</div>
+<pre><span class="k">curl</span> -X POST http://localhost:7579/Mobius \
+  -H <span class="s">"Accept: application/json"</span> \
+  -H <span class="s">"X-M2M-RI: r-acp-1"</span> \
+  -H <span class="s">"X-M2M-Origin: Sponde"</span> \
+  -H <span class="s">"Content-Type: application/json; ty=1"</span> \
+  -d <span class="s">'{"m2m:acp": {
+        "rn": "readonly",
+        "pv":  {"acr": [{"acor": ["S2026090812345601a3"], "acop": 51}]},
+        "pvs": {"acr": [{"acor": ["Sponde"], "acop": 63}]}
+      }}'</span></pre>
+  </div>
+  <p><code>acop</code> is the sum of the operations you allow.</p>
+  <div class="table-scroll">
+    <table>
+      <thead><tr><th>Value</th><th>Operation</th><th>Value</th><th>Operation</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>CREATE</td><td>8</td><td>NOTIFY</td></tr>
+        <tr><td>2</td><td>RETRIEVE</td><td>16</td><td>DELETE</td></tr>
+        <tr><td>4</td><td>UPDATE</td><td>32</td><td>DISCOVERY</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>
+    So <code>51</code> is create, retrieve, delete and discovery (1+2+16+32), and <code>63</code> is
+    everything. <code>pv</code> governs the resources the policy is attached to; <code>pvs</code>
+    governs who may change the policy itself.
+  </p>
+  <p>Attach it to the container.</p>
+  <div class="code">
+    <div class="code__head"><span class="dot"></span>attach the policy</div>
+<pre><span class="k">curl</span> -X PUT http://localhost:7579/Mobius/myAE/temperature \
+  -H <span class="s">"Accept: application/json"</span> \
+  -H <span class="s">"X-M2M-RI: r-acp-2"</span> \
+  -H <span class="s">"X-M2M-Origin: Sponde"</span> \
+  -H <span class="s">"Content-Type: application/json"</span> \
+  -d <span class="s">'{"m2m:cnt": {"acpi": ["/Mobius/readonly"]}}'</span></pre>
+  </div>
+  <p>
+    From now on only requesters the policy allows can use that container. To see what a policy would
+    block before attaching it, the admin console's access-policy screen can simulate it.
+  </p>
+
+  <h3 id="use-rsc">Reading response codes</h3>
+  <p>
+    Responses carry both an HTTP status and a oneM2M result code (<code>X-M2M-RSC</code>). These are
+    the ones you will meet.
+  </p>
+  <div class="table-scroll">
+    <table>
+      <thead><tr><th>RSC</th><th>HTTP</th><th>Meaning</th></tr></thead>
+      <tbody>
+        <tr><td>2000</td><td>200</td><td>Retrieve, update or delete succeeded</td></tr>
+        <tr><td>2001</td><td>201</td><td>Created</td></tr>
+        <tr><td>2002</td><td>200</td><td>Deleted</td></tr>
+        <tr><td>2004</td><td>200</td><td>Updated</td></tr>
+        <tr><td>4000</td><td>400</td><td>Bad request — check the body and the headers</td></tr>
+        <tr><td>4004</td><td>404</td><td>No such resource</td></tr>
+        <tr><td>4103</td><td>403</td><td>An access policy refused it</td></tr>
+        <tr><td>4105</td><td>409</td><td>Something with that name already exists</td></tr>
+        <tr><td>5000</td><td>500</td><td>Something went wrong inside — check the log</td></tr>
+        <tr><td>5001</td><td>501</td><td>The current backend does not handle that type</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>
+    A failed response carries the reason in <code>m2m:dbg</code> as a single line. Read that line
+    first.
+  </p>
+
+  <hr class="rule">
+
+  <h3>Where to go next</h3>
+  <p>
+    If you use Postman, collecting these requests is worth the few minutes. Put the server address
+    and the CSE name in environment variables and you will not have to retype them.
+  </p>
+  <p>
+    The source and the latest changes are in the
+    <a href="https://github.com/IoTKETI/Mobius">GitHub repository</a>. For the standard itself, see
+    the specifications at <a href="https://www.onem2m.org/">oneM2M</a>.
+  </p>
+
+  <div class="pager">
+    <a href="../">
+      <small>Back</small>
+      <b>Guide home</b>
+    </a>
+    <a href="../ko/">
+      <small>다른 언어</small>
+      <b>한국어 가이드</b>
+    </a>
+  </div>
+</section>
+
+</article>
+</main>
+
+<footer class="foot">
+  <div class="wrap foot__inner">
+    <div>
+      <div style="color:var(--ink-2);font-weight:500">Mobius — oneM2M IoT Server Platform</div>
+      <div style="margin-top:.2rem">Korea Electronics Technology Institute (KETI) · BSD 3-Clause License</div>
+    </div>
+    <div class="foot__links">
+      <a href="../">Home</a>
+      <a href="../ko/">한국어</a>
+      <a href="https://github.com/IoTKETI/Mobius">GitHub</a>
+      <a href="https://www.onem2m.org/">oneM2M</a>
+    </div>
+  </div>
+</footer>
+
+<script src="../assets/ocean.js"></script>
+</body>
+</html>
