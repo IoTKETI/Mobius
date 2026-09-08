@@ -277,5 +277,5 @@ This is the list of library dependencies for Mobius (`package.json`)
 The legacy installation guide PDFs were removed from this repository as they no longer matched the current version. The installation and configuration steps above are the up-to-date reference.
 
 # Author
-Jaeho Kim (jhkim@keti.re.kr)
-Il Yeup Ahn (iyahn@keti.re.kr)
+Il Yeup Ahn (iyahn@keti.re.kr)<br/>
+IoT Platform Center, Korea Electronics Technology Institute (KETI)
