@@ -291,7 +291,7 @@ code, kbd, samp, pre { font-family: var(--mono); font-size: .9em; }
     z-index: -1;
 }
 .hero__inner {
-    padding: clamp(3.5rem, 9vw, 6.5rem) 0 clamp(5rem, 11vw, 8rem);
+    padding: clamp(2.75rem, 6.5vw, 4.5rem) 0 clamp(3.25rem, 7vw, 5rem);
     max-width: 46rem;
 }
 .hero .eyebrow { color: var(--foam); }
@@ -342,62 +342,6 @@ code, kbd, samp, pre { font-family: var(--mono); font-size: .9em; }
 .section { padding: clamp(3rem, 7vw, 5.5rem) 0; }
 .section--tight { padding: clamp(2rem, 4vw, 3rem) 0; }
 
-.lang-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-    gap: 1.25rem;
-    margin-top: 2rem;
-}
-.lang-card {
-    display: block;
-    position: relative;
-    padding: 1.9rem 1.8rem 1.7rem;
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-lg);
-    text-decoration: none;
-    color: inherit;
-    box-shadow: var(--shadow);
-    transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
-    overflow: hidden;
-}
-.lang-card::before {
-    content: "";
-    position: absolute;
-    inset: 0 0 auto;
-    height: 3px;
-    background: linear-gradient(to right, var(--current), var(--foam));
-    opacity: .85;
-}
-.lang-card:hover {
-    transform: translateY(-3px);
-    box-shadow: var(--shadow-lg);
-    border-color: var(--border-2);
-}
-@media (prefers-reduced-motion: reduce) { .lang-card:hover { transform: none; } }
-.lang-card h3 { font-size: 1.35rem; margin-bottom: .35rem; }
-.lang-card .native { font-family: var(--mono); font-size: .76rem; letter-spacing: .12em; text-transform: uppercase; color: var(--current); margin-bottom: .9rem; display: block; }
-.lang-card p { color: var(--ink-2); margin: 0 0 1.2rem; font-size: .96rem; line-height: 1.7; }
-.lang-card .go { font-weight: 500; color: var(--current); font-size: .95rem; display: inline-flex; align-items: center; gap: .4rem; }
-.lang-card:hover .go { gap: .65rem; }
-.lang-card .go svg { width: 15px; height: 15px; transition: transform .18s ease; }
-
-.feature-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
-    gap: 1.5rem 2rem;
-    margin-top: 2rem;
-}
-.feature h4 {
-    font-size: 1.02rem;
-    margin-bottom: .4rem;
-    display: flex;
-    align-items: center;
-    gap: .55rem;
-}
-.feature h4 svg { width: 18px; height: 18px; color: var(--current); flex: none; }
-.feature p { color: var(--ink-2); font-size: .94rem; line-height: 1.7; margin: 0; }
-
 /* ── Guide layout ───────────────────────────────────────────────────────── */
 
 .doc {
@@ -405,7 +349,7 @@ code, kbd, samp, pre { font-family: var(--mono); font-size: .9em; }
     grid-template-columns: 258px minmax(0, 1fr);
     gap: clamp(2rem, 5vw, 4.5rem);
     align-items: start;
-    padding: clamp(2rem, 5vw, 3.5rem) 0 6rem;
+    padding: clamp(2.25rem, 5vw, 3.5rem) 0 6rem;
 }
 
 .toc {
