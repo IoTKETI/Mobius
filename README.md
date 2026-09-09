@@ -6,6 +6,20 @@ oneM2M IoT Server Platform
 
 Mobius is actively maintained and keeps being updated. [Mobius4](https://github.com/iotketi/mobius4) is a **separate edition** of Mobius built for AI integration; it is not the successor of this project. Use Mobius for a standard oneM2M IN-CSE, and Mobius4 when you need the AI integration layer on top of oneM2M.
 
+## Guide
+
+**[Mobius Guide → iotketi.github.io/Mobius](https://iotketi.github.io/Mobius/)** · [한국어](https://iotketi.github.io/Mobius/) · [English](https://iotketi.github.io/Mobius/en/)
+
+A single page per language covering the whole path from first install to daily use:
+
+- **Introduction** — what a oneM2M IN-CSE does, how the resource tree becomes the URL, and which resource types Mobius handles
+- **Architecture** — the path a request takes, how the modules divide, master and worker roles, and how the database layer hides the backend
+- **Installation** — the two routes, MySQL and SQLite, and what each one needs
+- **Running** — the first-start wizard, the settings commands, sealed secrets, the admin console, and what each exit code means
+- **Usage** — worked `curl` examples from registering an AE through storing data, discovery, subscriptions and access control
+
+The pages are built from the sources in [`site/`](site/); see [site/README.md](site/README.md) to run them locally or to publish an update.
+
 ## What's New in 3.0
 
 Mobius 3.0 is a rewrite of the server core on the same oneM2M resource model and API. The main items:
@@ -274,7 +288,9 @@ This is the list of library dependencies for Mobius (`package.json`)
 - util
 
 ## Document
-The legacy installation guide PDFs were removed from this repository as they no longer matched the current version. The installation and configuration steps above are the up-to-date reference.
+The full guide is published at **[iotketi.github.io/Mobius](https://iotketi.github.io/Mobius/)** in [Korean](https://iotketi.github.io/Mobius/) and [English](https://iotketi.github.io/Mobius/en/). It covers the same ground as the sections above and adds the architecture and usage material, so it is the place to start.
+
+The legacy installation guide PDFs were removed from this repository as they no longer matched the current version.
 
 # Author
 Il Yeup Ahn (iyahn@keti.re.kr)<br/>
