@@ -18,8 +18,6 @@ A single page per language covering the whole path from first install to daily u
 - **Running** — the first-start wizard, the settings commands, sealed secrets, the admin console, and what each exit code means
 - **Usage** — worked `curl` examples from registering an AE through storing data, discovery, subscriptions and access control
 
-The pages are built from the sources in [`site/`](site/); see [site/README.md](site/README.md) to run them locally or to publish an update.
-
 ## What's New in 3.0
 
 Mobius 3.0 is a rewrite of the server core on the same oneM2M resource model and API. The main items:
