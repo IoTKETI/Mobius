@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 136" width="880" height="136" role="img" aria-label="Installation order: install Node.js, get the source and run npm install, prepare the database by importing the schema on MySQL or doing nothing on SQLite, then start the server once so the setup wizard writes conf.json">
+<rect width="880" height="136" fill="#ffffff"/>
+<rect x="8" y="14" width="183" height="108" rx="8" fill="#e9f4f7" stroke="#88bccb" stroke-width="1.2"/>
+<text x="24" y="40" font-family="system-ui,-apple-system,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif" font-size="10.5" font-weight="600" fill="#6d8794">1</text>
+<text x="42" y="40" font-family="system-ui,-apple-system,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif" font-size="12.5" font-weight="600" fill="#0b2b38">Node.js</text>
+<text x="24" y="64" font-family="system-ui,-apple-system,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif" font-size="11" font-weight="400" fill="#3d5f6d">install the runtime</text>
+<text x="24" y="81" font-family="system-ui,-apple-system,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif" font-size="11" font-weight="400" fill="#3d5f6d">an LTS release</text>
+<text x="24" y="98" font-family="ui-monospace,SFMono-Regular,'SF Mono',Consolas,'Liberation Mono',monospace" font-size="10.5" font-weight="400" fill="#6d8794">node -v</text>
+<rect x="235" y="14" width="183" height="108" rx="8" fill="#e9f4f7" stroke="#88bccb" stroke-width="1.2"/>
+<text x="251" y="40" font-family="system-ui,-apple-system,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif" font-size="10.5" font-weight="600" fill="#6d8794">2</text>
+<text x="269" y="40" font-family="system-ui,-apple-system,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif" font-size="12.5" font-weight="600" fill="#0b2b38">Source</text>
+<text x="251" y="64" font-family="system-ui,-apple-system,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif" font-size="11" font-weight="400" fill="#3d5f6d">clone or unpack, then</text>
+<text x="251" y="81" font-family="system-ui,-apple-system,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif" font-size="11" font-weight="400" fill="#3d5f6d">install the modules</text>
+<text x="251" y="98" font-family="ui-monospace,SFMono-Regular,'SF Mono',Consolas,'Liberation Mono',monospace" font-size="10.5" font-weight="400" fill="#6d8794">npm install</text>
+<rect x="462" y="14" width="183" height="108" rx="8" fill="#f4efe2" stroke="#c9b98e" stroke-width="1.2"/>
+<text x="478" y="40" font-family="system-ui,-apple-system,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif" font-size="10.5" font-weight="600" fill="#6d8794">3</text>
+<text x="496" y="40" font-family="system-ui,-apple-system,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif" font-size="12.5" font-weight="600" fill="#0b2b38">Database</text>
+<text x="478" y="64" font-family="system-ui,-apple-system,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif" font-size="11" font-weight="400" fill="#3d5f6d">MySQL: create one and</text>
+<text x="478" y="81" font-family="system-ui,-apple-system,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif" font-size="11" font-weight="400" fill="#3d5f6d">import the schema file</text>
+<text x="478" y="98" font-family="system-ui,-apple-system,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif" font-size="11" font-weight="400" fill="#3d5f6d">SQLite: nothing to do</text>
+<rect x="689" y="14" width="183" height="108" rx="8" fill="#cfe8f0" stroke="#3f95b0" stroke-width="1.2"/>
+<text x="705" y="40" font-family="system-ui,-apple-system,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif" font-size="10.5" font-weight="600" fill="#6d8794">4</text>
+<text x="723" y="40" font-family="system-ui,-apple-system,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif" font-size="12.5" font-weight="600" fill="#0b2b38">First start</text>
+<text x="705" y="64" font-family="system-ui,-apple-system,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif" font-size="11" font-weight="400" fill="#3d5f6d">the wizard asks seven</text>
+<text x="705" y="81" font-family="system-ui,-apple-system,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif" font-size="11" font-weight="400" fill="#3d5f6d">questions and writes</text>
+<text x="705" y="98" font-family="ui-monospace,SFMono-Regular,'SF Mono',Consolas,'Liberation Mono',monospace" font-size="10.5" font-weight="400" fill="#6d8794">conf.json</text>
+<polygon points="201,64 212,64 212,57.5 225,68 212,78.5 212,72 201,72" fill="#7b959f"/>
+<polygon points="428,64 439,64 439,57.5 452,68 439,78.5 439,72 428,72" fill="#7b959f"/>
+<polygon points="655,64 666,64 666,57.5 679,68 666,78.5 666,72 655,72" fill="#7b959f"/>
+</svg>

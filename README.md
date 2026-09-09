@@ -138,92 +138,89 @@ depending on the address the subscriber registered.
 </div>
 
 ## Supported Protocol Bindings
-Requests are accepted over **HTTP only**. The MQTT, CoAP and WebSocket request bindings (the `pxy_mqtt`, `pxy_coap` and `pxy_ws` proxies of 2.x) have been removed; a client that used one of them must switch to the HTTP binding.
 
-Notifications are still sent over HTTP, CoAP and MQTT, according to the scheme of the subscription's `nu` (`http://`, `coap://`, `mqtt://`). WebSocket notification delivery has been removed as well; a `ws://` `nu` is accepted but never delivered.
+| | Bindings | Notes |
+|---|---|---|
+| Requests | HTTP | The only request binding. The MQTT, CoAP and WebSocket bindings of 2.x (the `pxy_mqtt`, `pxy_coap` and `pxy_ws` proxies) have been removed, so a client that used one of them has to move to HTTP |
+| Notifications | HTTP, CoAP, MQTT | The scheme of the subscription's `nu` decides which one is used (`http://`, `coap://`, `mqtt://`). A `ws://` address is still accepted but nothing is ever delivered to it |
+| Serialization | JSON | A request body sent as XML or CBOR is refused with 400, and responses and notifications are always JSON |
+
+An MQTT broker is therefore needed only when subscriptions deliver to `mqtt://` addresses.
 
 ## Installation
-The Mobius is based on Node.js framework and uses MySQL or SQLite for database.
+Mobius runs on Node.js and keeps its resources in MySQL or SQLite. There is no build step, so
+installing it means getting the source, installing the modules, preparing the database and
+starting the server once to answer the setup questions.
 
-**MySQL: importing `mobius/db/mobiusdb.sql` is the whole install.** The schema file carries the
-tables, the indexes and the migration ledger (`schema_migrations`), so a fresh database starts in
-the same state as a fully migrated deployment — data switches such as 012 (discovery reads
-`lookup.cs`) are on from the first request, and nothing is left to apply by hand. The one thing
-a schema file cannot carry is the MySQL server's connection ceiling; Mobius raises
-`max_connections` to what its pools need at every start.
 <div align="center">
-<img src="https://user-images.githubusercontent.com/29790334/28322607-7be7d916-6c11-11e7-9d20-ac07961971bf.png" width="600"/>
-</div><br/>
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/install-order-dark.svg">
+  <img src="assets/install-order.svg" alt="Installation order: Node.js, then the source and its modules, then the database, then the first start" width="820"/>
+</picture>
+</div>
 
-- [MySQL Server](https://www.mysql.com/downloads/)<br/>
-The MySQL is an open source RDB database so that it is free and ligth. And RDB is very suitable for storing tree data just like oneM2M resource stucture. Most of nCube-Rosemary will work in a restricted hardware environment and the MySQL can work in most of embeded devices.
-
-- SQLite<br/>
-SQLite is an embedded database that needs no separate server process. It is installed with the Mobius dependencies (`npm install`), stores everything in a single `mobius.db` file and builds its schema on the first run, so no manual import is required. Use it for development, embedded gateways and small deployments. See [What's New](#sqlite-support) for the supported resource types.
-
-- [Node.js](https://nodejs.org/en/)<br/>
-Node.js® is a JavaScript runtime built on Chrome's V8 JavaScript engine. Node.js uses an event-driven, non-blocking I/O model that makes it lightweight and efficient. Node.js' package ecosystem, npm, is the largest ecosystem of open source libraries in the world. Node.js is very powerful in service impelementation because it provide a rich and free web service API. So, we use it to make RESTful API base on the oneM2M standard.
-
-- [Mosquitto](https://mosquitto.org/)<br/>
-Eclipse Mosquitto™ is an open source (EPL/EDL licensed) message broker that implements the MQTT protocol versions 3.1 and 3.1.1. MQTT provides a lightweight method of carrying out messaging using a publish/subscribe model. This makes it suitable for "Internet of Things" messaging such as with low power sensors or mobile devices such as phones, embedded computers or microcontrollers like the Arduino.
-
-- [Mobius](https://github.com/IoTKETI/Mobius/archive/master.zip)<br/>
-Mobius source codes are written in javascript. So they don't need any compilation or installation before running.
-
-### Database tuning on a new install
-
-**Nothing to do.** A fresh install ends up in the same state as an existing one.
-
-| | What sets it | When |
+| What | Needed | Why |
 |---|---|---|
-| Schema and indexes | `mobius/db/mobiusdb.sql` | On first connect |
-| Connection pool | Built-in defaults | Every start |
-| SQLite journal mode, sync, busy timeout | `mobius/db/sqlite.js` | Every connect |
-| MySQL connection ceiling (`max_connections`) | `mobius/db_bootstrap.js` | Every start |
+| [Node.js](https://nodejs.org/) | Always | The runtime Mobius executes on. An LTS release is recommended |
+| [MySQL](https://www.mysql.com/downloads/) | For a real deployment | Holds every resource type and carries the installations in the field |
+| SQLite | Comes with the modules | Nothing to install and no schema to import, which makes it the quickest way to try Mobius. See [SQLite support](#sqlite-support) for the resource types it covers |
+| [Mosquitto](https://mosquitto.org/) | Only for MQTT notifications | Any MQTT broker will do. Skip it when notifications go over HTTP |
 
-The connection ceiling lives in the database server itself, so the schema file
-cannot set it. Mobius raises `max_connections` to what its connection pools need
-at every start and never lowers it; a higher value set by the operator stays.
-Durability and isolation level are left at the MySQL defaults.
+Get the source and install the modules:
 
-Running on SQLite? None of this applies — SQLite has no server to configure, and
-the pool settings are unused there.
-
-All of these values are declared in `mobius/conf_schema.js`, which `npm run conf`
-reads, so they can be inspected and changed from there.
-
-## Configuration
-- Import SQL script (MySQL only)<br/>
-After installation of MySQL server, you need the DB Schema for storing oneM2M resources in Mobius. You can find this file in the following Mobius source directory.
-```
-[Mobius home]/mobius/db/mobiusdb.sql
-```
-When using SQLite this step is not needed. The schema in `[Mobius home]/mobius/db/mobiusdb_sqlite.sql` is applied automatically at startup.
-- Run Mosquitto MQTT broker<br/>
-```
-mosquitto -v
-```
-- Open the Mobius source home directory
-- Install dependent libraries as below
-```
+```bash
+git clone https://github.com/IoTKETI/Mobius.git
+cd Mobius
 npm install
 ```
-- Start Mobius once from an interactive terminal. When `conf.json` is missing, `node mobius.js` itself asks seven questions (database, database password, CSE name, CSE-ID, SP-ID, super-user origin, HTTP port), writes `conf.json`, and then boots — no separate setup command is needed:
+
+**On MySQL, importing the schema is the whole installation.** Create one database and import
+`mobius/db/mobiusdb.sql` into it. That file carries the tables, the indexes and the migration
+ledger, so a new database starts in the same state as a fully migrated deployment and nothing
+is left to apply by hand. The one thing a schema file cannot carry is the MySQL server
+settings, and Mobius applies those itself on the first start.
+
+```bash
+mysql -u root -p -e "CREATE DATABASE mobiusdb DEFAULT CHARACTER SET utf8mb3;"
+mysql -u root -p mobiusdb < mobius/db/mobiusdb.sql
 ```
+
+On SQLite there is nothing to prepare at all. The store file and its tables are created the
+first time the server starts.
+
+The [guide](https://iotketi.github.io/Mobius/) covers the same installation in more detail and
+also shows how to do the MySQL step with MySQL Workbench.
+
+## Configuration
+Everything Mobius reads sits in one file, `conf.json`. It is not part of the repository, so the
+first start creates it: run `node mobius.js` in an interactive terminal and it asks seven
+questions — database, database password, CSE name, CSE-ID, SP-ID, super-user origin and HTTP
+port — writes the file and then boots.
+
+```bash
 node mobius.js         # first run: asks, writes conf.json, starts
-npm run setup          # same wizard without starting the server (optional)
+npm run setup          # the same questions without starting the server
 ```
-Everything else has a default. Inspect and change settings with the CLI — there is no web page for this, because `conf.json` holds the master keys:
-```
-npm run conf                        # list all keys with their file value and whether the running server has applied them
+
+Every other setting has a default. Inspect and change them from the command line. There is no
+web page for this, because `conf.json` holds the master keys.
+
+```bash
+npm run conf                        # every key, its value in the file, and whether the running server has applied it
 npm run conf -- set cseBase Vita    # gated keys print a warning and ask you to type the key name
-npm run conf -- edit                # walk through the user keys one by one, Enter keeps the current value
-npm run conf -- --all               # advanced keys too (default: the seven first-run keys)
+npm run conf -- edit                # walk through the user keys one by one; Enter keeps the current value
+npm run conf -- --all               # advanced keys as well
 npm run status                      # master pid, port, boot record, keys waiting for a restart
 ```
-`dbpass` and `superUser` are stored in plain text; the wizard hides them while you type. To re-enter one later: `npm run setup -- --dbpass` or `npm run setup -- --superuser` (prompt only — never a command-line argument).
 
-Both secrets are sealed against hand-editing: alongside `conf.json` the server keeps `conf.seal.json` (gitignored), and hand-edits of the two secrets are refused at boot. Existing installs have no seal yet — before restarting on a new core, run `npm run setup -- --superuser` once and press **Enter** — the value is kept and the seal is created. `--dbpass` follows the same rule.
+`dbpass` and `superUser` are stored in plain text, and the wizard hides them while you type. To
+enter one again later, run `npm run setup -- --dbpass` or `npm run setup -- --superuser`. Both
+read from a prompt and never from a command-line argument.
+
+Those two secrets are also sealed against hand-editing. Mobius keeps `conf.seal.json` beside
+`conf.json` and refuses to boot when either value has been changed in an editor. An installation
+made before the seal existed does not have one yet, so run `npm run setup -- --superuser` once
+and press **Enter**: the value stays as it is and the seal is created.
 
 ### Default Retention Policies (optional)
 By default a container created without `mni` / `mbs` uses the Mobius defaults. If a deployment needs different defaults for particular container paths, they can be declared in `conf.json` as `retentionPolicies`. Omit the key to disable the feature entirely.
@@ -246,45 +243,29 @@ By default a container created without `mni` / `mbs` uses the Mobius defaults. I
 The first matching rule wins, so array order is priority order. A rule that is malformed is reported on the console and skipped rather than blocking container creation. A value explicitly supplied by the client in the CREATE request always takes precedence over these defaults, as required by oneM2M.
 
 ## Run
-Use node.js application execution command as below
+```bash
+node mobius.js          # npm start does the same
+node mobius.js sqlite   # force SQLite for this run
+node mobius.js mysql    # force MySQL for this run
 ```
-node mobius.js
-```
-The database backend follows the `db` key in `conf.json`, and can be overridden on the command line:
-```
-node mobius.js sqlite   // force SQLite
-node mobius.js mysql    // force MySQL
-```
-`npm start` is equivalent to `node mobius.js`.
 
-If `conf.json` is missing and the terminal is interactive, `node mobius.js` runs the setup wizard itself. If it is missing and the output is not a terminal (a service, `npm start > log`), Mobius exits with code 1 without creating the file — start it once from an interactive terminal (`node mobius.js`, or `npm run setup`) to create it. If the port is already taken, Mobius exits with code 12 instead of respawning workers forever.
+Without an argument the backend follows the `db` key in `conf.json`.
 
-<div align="center">
-<img src="https://user-images.githubusercontent.com/29790334/28245526-c9db7850-6a43-11e7-9bfd-f0b4fb20e396.png" width="700"/>
-</div><br/>
+When `conf.json` is missing and the terminal is interactive, `node mobius.js` runs the setup
+questions itself. When it is missing and the output is not a terminal, which is what happens
+under a service manager or when the output is redirected to a file, Mobius stops without
+creating the file, and it has to be started once from a terminal instead. When the HTTP port is
+already held by something else, Mobius exits with code 12 rather than respawning workers
+forever.
+
+Once it is up, `npm run status` reports the master process, the port it is listening on and any
+setting that is waiting for a restart.
 
 ## Library Dependencies
-This is the list of library dependencies for Mobius (`package.json`)
-- coap
-- cors
-- crypto
-- events
-- express
-- file-stream-rotator
-- fs
-- http
-- https
-- ip
-- knex
-- merge
-- moment
-- morgan
-- mqtt
-- mysql2
-- shortid
-- sqlite3
-- url
-- util
+`npm install` brings in everything listed in `package.json`, and nothing has to be installed by
+hand. The ones that shape the server are Express for HTTP, Knex for building the statements,
+`mysql2` and `sqlite3` for the two database backends, and `mqtt` and `coap` for delivering
+notifications.
 
 ## Document
 The full guide is published at **[iotketi.github.io/Mobius](https://iotketi.github.io/Mobius/)** in [Korean](https://iotketi.github.io/Mobius/) and [English](https://iotketi.github.io/Mobius/en/). It covers the same ground as the sections above and adds the architecture and usage material, so it is the place to start.
@@ -292,5 +273,5 @@ The full guide is published at **[iotketi.github.io/Mobius](https://iotketi.gith
 The legacy installation guide PDFs were removed from this repository as they no longer matched the current version.
 
 # Author
-Jaeho Kim (jhkim@keti.re.kr)
-Il Yeup Ahn (iyahn@keti.re.kr)
+Il Yeup Ahn (iyahn@keti.re.kr)<br/>
+IoT Platform Center, Korea Electronics Technology Institute (KETI)
