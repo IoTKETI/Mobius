@@ -116,8 +116,27 @@ To enable Internet of Things, things are connected to &Cube via TAS (Thing Adapt
 
 ## Software Architecture
 
+Mobius runs as a Node.js cluster: a master process and one worker per CPU core. Workers handle the
+requests. The master handles none of them and instead runs the two periodic jobs, the retention
+sweep and the counter reconcile, and restarts any worker that dies.
+
+Inside a worker a request always takes the same path. `app.js` collects the body, validates the
+headers, resolves the resource type and routes the request; `security.js` checks it against the
+access policy; `resource.js` carries out the operation; and `sql_action.js` builds the statement.
+The facade in `mobius/db/` then hands that statement to the adapter for whichever backend is
+configured, which is why core code never mentions MySQL or SQLite by name. Every value reaches the
+database as a binding.
+
+The response leaves through `responder.js` and nowhere else, while `settle.js` guarantees that
+sending it and returning the database connection each happen exactly once. Subscription
+notifications are a separate path: `sgn.js` and `sgn_man.js` deliver them over HTTP, CoAP or MQTT,
+depending on the address the subscriber registered.
+
 <div align="center">
-<img src="https://user-images.githubusercontent.com/29790334/28245393-a1159d5e-6a40-11e7-8948-4262bf29c371.png" width="800"/>
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/architecture-dark.svg">
+  <img src="assets/architecture.svg" alt="Mobius 3.0 architecture" width="820"/>
+</picture>
 </div>
 
 ## Supported Protocol Bindings
@@ -174,11 +193,6 @@ the pool settings are unused there.
 
 All of these values are declared in `mobius/conf_schema.js`, which `npm run conf`
 reads, so they can be inspected and changed from there.
-
-## Mobius Docker Version
-We deploy Mobius as a Docker image using the virtualization open source tool Docker.
-
-- [Mobius_Docker](https://github.com/IoTKETI/Mobius_Docker)<br/>
 
 ## Configuration
 - Import SQL script (MySQL only)<br/>
